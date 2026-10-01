@@ -478,13 +478,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           ? current.state.occurrences[action.occurrenceId] : null;
         const next = await host.act(current.id, current.revision, action);
         if (!adopt(next)) return;
+        // A refusal stays on screen only until the next edit lands, never as if that edit failed.
+        setError("");
         if (prior) {
           const unit = next.state.units.find(({ id }) => id === prior.unitId);
           const items = unit?.occurrenceIds.flatMap((id) =>
             next.state.occurrences[id] ? [next.state.occurrences[id]] : []) ?? [];
           const replacement = next.state.occurrences[prior.id] ??
             (action.type === "split-occurrence"
-              ? items.find(({ start }) => start === action.cursor)
+              ? items.find(({ start }) => start >= action.cursor)
               : items.find(({ start, end }) => start <= prior.start && end >= prior.end));
           if (replacement) setSelectedId(replacement.id);
         }

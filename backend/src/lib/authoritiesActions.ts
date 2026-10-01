@@ -327,9 +327,8 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
     occurrence.start = Math.min(basis.start, occurrence.pinpointSpan?.start ?? Infinity);
     occurrence.end = Math.max(basis.end, occurrence.pinpointSpan?.end ?? -Infinity);
     occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
-    changed = updateAuthoritiesDraft(changed, { type: "replace-occurrence",
-      occurrenceId: occurrence.id, replacement: occurrence,
-      absorbed: { ids: absorbedIds, start: selected.start, end: selected.end } });
+    changed = updateAuthoritiesDraft(changed, { type: "replace-occurrences",
+      occurrenceIds: [occurrence.id, ...absorbedIds], replacements: [occurrence] });
     return removeUnusedDetections(changed, donors, occurrence.authorityId);
   }
   if (intersects(selected.start, selected.end, occurrence.authoritySpan)) {
@@ -347,14 +346,14 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
   occurrence.pinpointSpan = { start: selected.start, end: selected.end, text: selected.text };
   occurrence.pinpoints = pinpointValues(pinpoints);
   occurrence.pinpointManual = true;
-  occurrence.start = Math.min(occurrence.authoritySpan.start, selected.start);
-  occurrence.end = Math.max(occurrence.authoritySpan.end, selected.end);
+  // The citation keeps its range: a pinpoint outside it extends it, and nothing shrinks it.
+  occurrence.start = Math.min(occurrence.start, selected.start);
+  occurrence.end = Math.max(occurrence.end, selected.end);
   occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
   occurrence.evidenceIds = evidenceIds;
   occurrence.reviewed = true;
-  const changed = updateAuthoritiesDraft(draft, { type: "replace-occurrence", occurrenceId: occurrence.id,
-    replacement: occurrence,
-    absorbed: { ids: absorbedIds, start: selected.start, end: selected.end } });
+  const changed = updateAuthoritiesDraft(draft, { type: "replace-occurrences",
+    occurrenceIds: [occurrence.id, ...absorbedIds], replacements: [occurrence] });
   return removeUnusedDetections(changed, donors, occurrence.authorityId);
 }
 
@@ -385,13 +384,12 @@ function setCitationRange(draft: AuthoritiesDraft,
     }
   }
   let changed = draft;
-  for (const donor of donors) changed = updateAuthoritiesDraft(changed,
-    { type: "remove-occurrence", occurrenceId: donor.id });
-  for (const { occurrence, discovered } of replacements) {
+  for (const { discovered } of replacements) {
     if (discovered && !changed.authorities[discovered.id]) changed = updateAuthoritiesDraft(changed,
       { type: "add-authority", authority: discovered });
-    changed = updateAuthoritiesDraft(changed, { type: "add-occurrence", occurrence });
   }
+  changed = updateAuthoritiesDraft(changed, { type: "replace-occurrences",
+    occurrenceIds: donors.map(({ id }) => id), replacements: replacements.map(({ occurrence }) => occurrence) });
   return removeUnusedDetections(changed, donors, replacement.occurrence.authorityId);
 }
 
@@ -404,8 +402,8 @@ function clearPinpoint(draft: AuthoritiesDraft, occurrenceId: string) {
   const { start, end } = current.authoritySpan;
   const occurrence = { ...structuredClone(current), pinpointSpan: null, pinpoints: [],
     start, end, text: unit.text.slice(start, end), reviewed: true };
-  return updateAuthoritiesDraft(draft, { type: "replace-occurrence", occurrenceId,
-    replacement: occurrence });
+  return updateAuthoritiesDraft(draft, { type: "replace-occurrences", occurrenceIds: [occurrenceId],
+    replacements: [occurrence] });
 }
 
 /** "Use selection as citation" for a citation no detector found: a unit's free text. */
@@ -421,6 +419,14 @@ function addOccurrence(draft: AuthoritiesDraft,
   return updateAuthoritiesDraft(changed, { type: "add-occurrence", occurrence });
 }
 
+/** The one citation, or failing that the one supra, ibid or short form, detected in a stretch of text. */
+function detectedSpan(text: string, start: number, end: number, sources: CitationServices) {
+  const stretch = text.slice(start, end), citations = sources.occurrences(stretch);
+  const references = citations.length ? [] : sources.references(stretch);
+  const [only] = citations.length === 1 ? citations : references.length === 1 ? references : [];
+  return only && { start: start + only.start, end: start + only.end };
+}
+
 function editOccurrences(draft: AuthoritiesDraft,
   action: Extract<AuthoritiesUserAction,
     { type: "split-occurrence" | "merge-occurrence" }>, sources: CitationServices) {
@@ -433,8 +439,13 @@ function editOccurrences(draft: AuthoritiesDraft,
     if (!Number.isSafeInteger(action.cursor) || action.cursor <= occurrence.start ||
         action.cursor >= occurrence.end) throw new ApplicationError(400,
       "Place the cursor inside this citation");
-    replacements = [manualOccurrence(draft, unit, occurrence.start, action.cursor,
-      [occurrence], sources), manualOccurrence(draft, unit, action.cursor, occurrence.end,
+    // Each side meets the cut where the citation detected in it ends or starts, so the separator
+    // and any signal between two citations belong to neither; the outer ends stay, so merging the
+    // two sides gives back the citation that was split.
+    const { cursor } = action, left = detectedSpan(unit.text, occurrence.start, cursor, sources);
+    const right = detectedSpan(unit.text, cursor, occurrence.end, sources);
+    replacements = [manualOccurrence(draft, unit, occurrence.start, left?.end ?? cursor,
+      [occurrence], sources), manualOccurrence(draft, unit, right?.start ?? cursor, occurrence.end,
       [occurrence], sources)];
     ids = [occurrence.id, occurrence.id];
   } else {

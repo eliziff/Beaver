@@ -72,9 +72,8 @@ export type AuthoritiesAction =
       replacements: [AuthorityOccurrence, AuthorityOccurrence] }
   | { type: "merge-occurrences"; occurrenceIds: [string, string];
       replacement: AuthorityOccurrence }
-  | { type: "replace-occurrence"; occurrenceId: string;
-      replacement: AuthorityOccurrence;
-      absorbed?: { ids: string[]; start: number; end: number } }
+  /** Corrections: adjacent review items give way to replacements, without marking any "Not a citation". */
+  | { type: "replace-occurrences"; occurrenceIds: string[]; replacements: AuthorityOccurrence[] }
   | { type: "remove-occurrence"; occurrenceId: string }
   | { type: "restore-occurrence"; occurrenceId: string }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
@@ -358,13 +357,18 @@ function requireRecord<T>(record: Record<string, T>, id: string, label: string):
   return value;
 }
 
-/** Citation forms observed for one authority, in filing order. */
+/** Citation forms observed for one authority, in filing order. A citation that another authority
+ * answers to stays that authority's even where a reviewer linked it here, so source resolution can
+ * never take this authority for the other and merge the two. */
 export function authorityCitationForms(draft: AuthoritiesDraft, authorityId: string): string[] {
   const canonical = requireRecord(draft.authorities, authorityId, "authority").citation;
   const forms = new Set([canonical, ...(draft.authorities[authorityId].sourceIdentity?.citationForms ?? [])]);
+  const others = new Set(Object.values(draft.authorities).flatMap(({ id, citation, sourceIdentity }) =>
+    id === authorityId ? [] : [citation, ...(sourceIdentity?.citationForms ?? [])]));
   for (const unit of draft.units) for (const occurrenceId of unit.occurrenceIds) {
     const occurrence = draft.occurrences[occurrenceId];
-    if (occurrence?.authorityId === authorityId && occurrence.kind !== "reference") {
+    if (occurrence?.authorityId === authorityId && occurrence.kind !== "reference" &&
+        !others.has(occurrence.citation)) {
       forms.add(occurrence.citation);
       if (occurrence.authoritySpan.text.trim()) forms.add(occurrence.authoritySpan.text.trim());
     }
@@ -896,29 +900,13 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       }
       replaceOccurrences(draft, action.occurrenceIds, [action.replacement]); break;
     }
-    case "replace-occurrence": {
-      const current = requireRecord(draft.occurrences, action.occurrenceId, "occurrence");
-      if (action.replacement.id !== current.id ||
-          action.replacement.unitId !== current.unitId) {
-        throw new AuthoritiesDomainError("Occurrence correction must retain its identity and unit.");
-      }
-      const absorbed = [...new Set(action.absorbed?.ids ?? [])]
-        .filter((id) => id !== current.id);
-      if (absorbed.length) {
-        const span = action.absorbed!;
-        if (span.start < action.replacement.start || span.end > action.replacement.end ||
-            span.end <= span.start) throw new AuthoritiesDomainError(
-          "The absorbed review span must stay inside the corrected citation.");
-        if (absorbed.some((id) => {
-          const item = requireRecord(draft.occurrences, id, "occurrence");
-          return item.start < span.start || item.end > span.end;
-        })) throw new AuthoritiesDomainError(
-          "A corrected citation can absorb only review items inside the selected span.");
-        const unit = draft.units.find(({ id }) => id === current.unitId)!;
-        const ids = [current.id, ...absorbed].sort((left, right) =>
-          unit.occurrenceIds.indexOf(left) - unit.occurrenceIds.indexOf(right));
-        replaceOccurrences(draft, ids, [action.replacement], true);
-      } else draft.occurrences[action.occurrenceId] = structuredClone(action.replacement);
+    case "replace-occurrences": {
+      const unit = draft.units.find(({ id }) =>
+        id === requireRecord(draft.occurrences, action.occurrenceIds[0] ?? "", "occurrence").unitId)!;
+      const ids = [...new Set(action.occurrenceIds)].sort((left, right) =>
+        unit.occurrenceIds.indexOf(left) - unit.occurrenceIds.indexOf(right));
+      replaceOccurrences(draft, ids, [...action.replacements].sort((left, right) =>
+        left.start - right.start), true);
       break;
     }
     case "remove-occurrence": {
@@ -1112,7 +1100,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     "edit-authority", "begin-canlii-handoff"].includes(action.type) && draft.stage !== "citations")
     draft.stage = "sources";
   if (action.type === "refresh") draft.stage = draft.import.kind === "manual" ? "sources" : "citations";
-  if (draft.import.kind === "document" && ["add-occurrence", "split-occurrence", "merge-occurrences", "replace-occurrence", "remove-occurrence", "restore-occurrence",
+  if (draft.import.kind === "document" && ["add-occurrence", "split-occurrence", "merge-occurrences", "replace-occurrences", "remove-occurrence", "restore-occurrence",
     "relink-occurrence", "set-reference"].includes(action.type)) draft.stage = "citations";
 }
 

@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { DocxCanvas } from '@/app/components/shared/views/DocxCanvas';
@@ -25,24 +25,24 @@ const pinpointText = ({ pinpointSpan, pinpoints }: AuthorityOccurrence) => {
     : `${pinpoints.length > 1 || pinpoints[0].text.includes('-') ? many : one} ${text}`;
 };
 
-/** An outline row: the citation as it reads in the article. The review marks the selected row
- * itself, so choosing another re-renders no row. */
-const Row = memo(function Row({ row }: { row: AuthorityOccurrence }) {
-  return <button type="button" role="option" data-id={row.id} aria-selected="false" tabIndex={-1}
-    title={row.text}><span>{row.text}</span></button>;
+/** An outline row: the citation as it reads in the article, with a quotation finding marked in its
+ * padding. The review marks the selected row itself, so choosing another re-renders no row. */
+const Row = memo(function Row({ row, finding }: { row: AuthorityOccurrence; finding: boolean }) {
+  return <button type="button" role="option" data-id={row.id} aria-selected="false" tabIndex={-1} title={row.text}>
+    <span>{row.text}</span>{finding && <i className="citation-finding" role="img" aria-label="Quotation to review" />}</button>;
 });
 
 /** The citations in reading order, and the text marked "Not a citation", which stays listed so a
  * wrong call can be taken back. It renders again only when the draft or its review changes. */
-const Outline = memo(function Outline({ product, occurrences, busy, onRestore }: {
-  product: AuthoritiesProduct; occurrences: AuthorityOccurrence[]; busy: boolean; onRestore(id: string): void;
+const Outline = memo(function Outline({ product, occurrences, findings, busy, onRestore }: {
+  product: AuthoritiesProduct; occurrences: AuthorityOccurrence[]; findings: Set<string>; busy: boolean; onRestore(id: string): void;
 }) {
   const { units, occurrences: byId } = product.state;
   const kinds = new Map(units.map(unit => [unit.id, unit.kind]));
   const body = occurrences.filter(row => kinds.get(row.unitId) === 'body');
   const notes = units.filter(unit => unit.kind === 'footnote' && unit.occurrenceIds.some(id => byId[id]));
   const dismissed = Object.values(product.state.dismissedOccurrences ?? {});
-  const row = (item: AuthorityOccurrence) => <Row key={item.id} row={item} />;
+  const row = (item: AuthorityOccurrence) => <Row key={item.id} row={item} finding={findings.has(item.id)} />;
   return <>
     {!!body.length && <div role="group" aria-labelledby="citation-body-heading">
       <h3 id="citation-body-heading">In-text</h3>{body.map(row)}</div>}
@@ -169,21 +169,26 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     if (!texts.current.has(location)) texts.current.set(location, unitText(location));
     return { location, text: texts.current.get(location)! };
   };
-  const rememberSelection = () => {
-    const range = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null;
-    const own = range?.collapsed ? locate() : null, k = own && own.text.at(range!.startContainer, range!.startOffset);
+  // The document's selection, read again by every command: a key pressed straight after selecting
+  // arrives before the `selectionchange` that refreshes `selection` and `splitPoint`.
+  const liveRange = () => window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null;
+  const readSplitPoint = () => {
+    const range = liveRange(), own = range?.collapsed ? locate() : null, k = own && own.text.at(range!.startContainer, range!.startOffset);
     const low = own && selected ? own.text.index(selected.start) : 0, high = own && selected ? own.text.index(selected.end) : 0;
     let gap: number | null = null;
     if (own && k != null && k >= low && k <= high)
       for (let d = 0; gap == null && d <= high - low; d++) for (const j of [k - d, k + d])
         if (gap == null && j > low && j < high && own.text.gap(j)) gap = j;
-    setSplitPoint(own && gap != null ? own.text.from(gap) : null);
-    const location = !range || range.collapsed ? null : fallbackRef.current?.contains(range.startContainer)
+    return own && gap != null ? own.text.from(gap) : null;
+  };
+  const readSelection = () => {
+    const range = liveRange(), location = !range || range.collapsed ? null : fallbackRef.current?.contains(range.startContainer)
       ? locate()?.location : selectedUnit(locations.current, range);
     if (location && !texts.current.has(location)) texts.current.set(location, unitText(location));
     const span = location && citationSelection(location, texts.current.get(location), range);
-    setSelection(location && span && span.end > span.start ? { unitId: location.unit.id, ...span } : null);
+    return location && span && span.end > span.start ? { unitId: location.unit.id, ...span } : null;
   };
+  const rememberSelection = () => { setSplitPoint(readSplitPoint()); setSelection(readSelection()); };
   // "layout" measures every band again; "active" redraws the active citation; "scroll" repaints only
   // when the pages in view change.
   const paint = (next: PaintMode) => {
@@ -319,7 +324,8 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
       }
     });
   });
-  const outline = <Outline product={product} occurrences={occurrences} busy={busy} onRestore={restore} />;
+  const findings = useMemo(() => new Set(discrepancies.map(item => item.occurrenceId)), [discrepancies]);
+  const outline = <Outline product={product} occurrences={occurrences} findings={findings} busy={busy} onRestore={restore} />;
   if (!selected || !unit) return <div className="p-8 text-sm text-gray-500">
     <p>No citations found.</p>{outline}</div>;
   const submit = (action: AuthoritiesAction, then?: () => void) => onAction(action, () => {
@@ -340,18 +346,19 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   };
   // What a selection means: a new citation where it touches none, the active citation's own range
   // where it touches that one, and nothing where it touches another.
-  const touched = selection ? (unitById.get(selection.unitId)?.occurrenceIds ?? []).flatMap(id => {
-    const item = product.state.occurrences[id];
-    return item && item.start < selection.end && selection.start < item.end ? [item.id] : [];
-  }) : [];
-  const intent = !selection ? null : touched.includes(selected.id) ? 'active' : touched.length ? 'other' : 'new';
-  const ownSelection = intent === 'active' && selection;
-  const hasSelection = !!selection;
+  const intentOf = (span: typeof selection) => {
+    const touched = span ? (unitById.get(span.unitId)?.occurrenceIds ?? []).filter(id => {
+      const item = product.state.occurrences[id];
+      return item && item.start < span.end && span.start < item.end;
+    }) : [];
+    return !span ? null : touched.includes(selected.id) ? 'active' : touched.length ? 'other' : 'new';
+  };
+  const intent = intentOf(selection), ownSelection = intent === 'active' && selection;
   const mergeable = unit.occurrenceIds.indexOf(selected.id) > 0;
   /** A new citation from the selection; it becomes active where the view already is. */
-  const addCitation = () => {
-    if (intent !== 'new' || !selection || busy) return;
-    const { unitId, start, end } = selection, before = new Set(unitById.get(unitId)?.occurrenceIds);
+  const addCitation = (span = selection) => {
+    if (intentOf(span) !== 'new' || !span || busy) return;
+    const { unitId, start, end } = span, before = new Set(unitById.get(unitId)?.occurrenceIds);
     onAction({ type: 'add-occurrence', unitId, start, end }, next => {
       window.getSelection()?.removeAllRanges(); setSelection(null);
       const added = next.state.units.find(item => item.id === unitId)?.occurrenceIds.find(id => !before.has(id));
@@ -460,7 +467,8 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     // The document is focusable for selection only; it is never edited.
     if (element.closest('.docx-view-container,.citation-fallback') && (key.length === 1 || ['Backspace', 'Delete', 'Enter'].includes(key)))
       event.preventDefault();
-    if (event.shiftKey && (key === 'ArrowLeft' || key === 'ArrowRight') && !hasSelection) {
+    const now = readSelection(), meaning = intentOf(now), cut = readSplitPoint();
+    if (event.shiftKey && (key === 'ArrowLeft' || key === 'ArrowRight') && !now) {
       event.preventDefault();
       if (!busy) nudgeEdge(event.altKey ? 'start' : 'end', key === 'ArrowRight' ? 1 : -1);
       return;
@@ -469,14 +477,14 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     const listed = element.getAttribute('role') === 'option';
     if (key === 'ArrowUp' || key === 'ArrowDown') step(key === 'ArrowDown' ? 1 : -1, listed);
     else if (listed && (key === 'Home' || key === 'End')) step(key === 'Home' ? -Infinity : Infinity, true);
-    else if ((key === 'p' || key === 'P') && selection?.unitId === selected.unitId)
-      submit({ type: 'set-pinpoint-span', occurrenceId: selected.id, start: selection.start, end: selection.end });
-    else if (key === 'Enter' && ownSelection && !element.closest('button'))
-      submit({ type: 'set-citation-range', occurrenceId: selected.id, start: ownSelection.start, end: ownSelection.end });
-    else if ((key === 'Enter' && !element.closest('button') || key === 'n' || key === 'N') && intent === 'new') addCitation();
-    else if (key === 'Enter' && intent === 'other') { /* The note in the bar explains why nothing happens. */ }
+    else if ((key === 'p' || key === 'P') && now?.unitId === selected.unitId)
+      submit({ type: 'set-pinpoint-span', occurrenceId: selected.id, start: now.start, end: now.end });
+    else if (key === 'Enter' && meaning === 'active' && now && !element.closest('button'))
+      submit({ type: 'set-citation-range', occurrenceId: selected.id, start: now.start, end: now.end });
+    else if ((key === 'Enter' && !element.closest('button') || key === 'n' || key === 'N') && meaning === 'new') addCitation(now);
+    else if (key === 'Enter' && meaning === 'other') { /* The note in the bar explains why nothing happens. */ }
     else if ((key === 'm' || key === 'M') && mergeable) submit({ type: 'merge-occurrence', occurrenceId: selected.id });
-    else if ((key === 's' || key === 'S') && splitPoint != null) submit({ type: 'split-occurrence', occurrenceId: selected.id, cursor: splitPoint });
+    else if ((key === 's' || key === 'S') && cut != null) submit({ type: 'split-occurrence', occurrenceId: selected.id, cursor: cut });
     else if (key === 'Delete') remove();
     else return;
     event.preventDefault();
@@ -561,7 +569,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
           ? <span role="status" className="citation-overlap">The selection overlaps another citation</span>
           : <span>Drag its handles or press Shift+← → to adjust; rest on a space to split there</span>}</h4>
         <div>
-          <Button variant="outline" disabled={busy || intent !== 'new'} onClick={addCitation}
+          <Button variant="outline" disabled={busy || intent !== 'new'} onClick={() => addCitation()}
             title="Add the selected text as a new citation">Add citation <kbd>N</kbd></Button>
           <Button variant="outline" disabled={busy || !ownSelection} title="Make the selected text this citation"
             onClick={() => ownSelection && submit({ type: 'set-citation-range', occurrenceId: selected.id, start: ownSelection.start, end: ownSelection.end })}>
