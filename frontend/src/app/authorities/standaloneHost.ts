@@ -17,7 +17,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
 import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
 import { prepareAnnotations } from "./annotationPreparation";
-import { prepareSourceText, readSourceText } from './standalonePdfText';
+import { prepareSourceText, readSourceText, recognitionWaiting } from './standalonePdfText';
 import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from
   "../../../../backend/src/lib/authoritiesBook";
 
@@ -202,7 +202,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
         job.controller.abort();
     },
     async progress(ids) {
-      return ids.flatMap(id => recognitionJobs.has(id) ? [recognitionJobs.get(id)!.progress] : []);
+      return ids.flatMap(id => recognitionJobs.has(id) ? [{ ...recognitionJobs.get(id)!.progress,
+        waiting: recognitionWaiting(id.split(":").at(-1)!) }] : []);
     },
   },
   drafts: standaloneWorkProducts,
