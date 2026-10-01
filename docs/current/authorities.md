@@ -113,6 +113,9 @@ discovery. A successful response must pass PDF validation; an absent candidate
 falls back to published download controls. A challenge stops acquisition instead
 of trying to route around it. Verified representation metadata used by other
 source-link consumers still comes from publisher controls, never the URL formula.
+The standalone page keeps each publisher PDF that arrives whole by its URL and
+content hash, with the draft files that hold those bytes, so a later import, visit
+or build does not fetch it again.
 
 `publisherPdfCandidate(url)` in `backend/src/lib/legalSourcePresentation.ts` is
 the shared, pure URL primitive; unsupported URLs return null. Lite imports its
