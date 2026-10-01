@@ -134,6 +134,19 @@ describe("Authorities citation boundary actions", () => {
     expect(rejoined.units[0].occurrenceIds.map(id => rejoined.occurrences[id].text)).toEqual([JORDAN, BHASIN]);
   });
 
+  it("never gives a supra split out of another citation that citation's authority", () => {
+    const text = "R v Jordan, 2016 SCC 27 at paras 46-48; Oakes, supra note 2 at 135.";
+    const draft = applyAuthoritiesUserAction({ ...bodyDraft(), units: [{ ...bodyDraft().units[0], text }] },
+      { type: "add-occurrence", unitId: "body:7", start: 0, end: text.length - 1 });
+    const [whole] = draft.units[0].occurrenceIds;
+    expect(draft.occurrences[whole].authorityId).not.toBeNull();
+    const split = applyAuthoritiesUserAction(draft, { type: "split-occurrence", occurrenceId: whole,
+      cursor: text.indexOf("Oakes") });
+    const [jordan, supra] = split.units[0].occurrenceIds.map((id) => split.occurrences[id]);
+    expect(jordan.authorityId).toBe(draft.occurrences[whole].authorityId);
+    expect(supra).toMatchObject({ kind: "reference", authorityId: null, reference: null });
+  });
+
   it("relinks a citation without letting it take over or remove the authority it now names", async () => {
     const draft = { ...stringCite(), outputMode: "table" as const }, [jordan, bhasin] = draft.units[0].occurrenceIds;
     const [jordanAuthority, bhasinAuthority] = [jordan, bhasin].map(id => draft.occurrences[id].authorityId!);
