@@ -2,7 +2,7 @@ import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFNa
   PDFNumber, PDFRawStream, StandardFonts, degrees } from "pdf-lib";
 import { expect, it } from "vitest";
 import * as pdf from "pdf-lib";
-import { pdfAssembly } from "./pdfAssembly";
+import { nestedOutline, pdfAssembly, sourceOutline } from "./pdfAssembly";
 const { addInternalLink, applyOcrText, applyOutlines, applyPageLabels, drawPageNumber, assemble, appendPages } = pdfAssembly(pdf);
 
 it("preserves local named destinations through repeated page copies without changing remote links", async () => {
@@ -98,4 +98,22 @@ it("keeps numbers inside rotated crop boxes and preserves navigation and hidden 
   expect(String(child.lookup(PDFName.of("Dest"), PDFArray).get(0))).toBe(String(saved.getPage(3).ref));
   const link = saved.getPage(0).node.lookup(PDFName.of("Annots"), PDFArray).lookup(0, PDFDict);
   expect(String(link.lookup(PDFName.of("Dest"), PDFArray).get(0))).toBe(String(saved.getPage(3).ref));
+});
+
+it("nests a source's headings under the publisher bookmarks that only frame it", () => {
+  const frame = [{ title: "Tug v Barge | Remorqueur c. Barge", pageIndex: 0,
+    children: [{ title: "Reasons of the Court", pageIndex: 4 }] }];
+  const read = nestedOutline([{ title: "ON APPEAL FROM THE FEDERAL COURT", level: 0, pageIndex: 0 },
+    { title: "I. Overview", level: 0, pageIndex: 4 }, { title: "II. Analysis", level: 0, pageIndex: 6 },
+    { title: "A. The Tow", level: 1, pageIndex: 6 }, { title: "Reasons of the Court", level: 0, pageIndex: 4 }]);
+  expect(sourceOutline(frame, read)).toEqual([{ title: "Tug v Barge | Remorqueur c. Barge", pageIndex: 0, children: [
+    { title: "ON APPEAL FROM THE FEDERAL COURT", pageIndex: 0 },
+    { title: "Reasons of the Court", pageIndex: 4, children: [{ title: "I. Overview", pageIndex: 4 },
+      { title: "II. Analysis", pageIndex: 6, children: [{ title: "A. The Tow", pageIndex: 6 }] }] }] }]);
+  // Bookmarks naming the headings already are the outline; a lone bookmark is none.
+  const full = [{ title: "1. Overview", pageIndex: 4 }, { title: "2. Analysis", pageIndex: 6 },
+    { title: "The Tow", pageIndex: 6 }];
+  expect(sourceOutline(full, nestedOutline([{ title: "I. Overview", level: 0, pageIndex: 4 },
+    { title: "II. Analysis", level: 0, pageIndex: 6 }, { title: "A. The Tow", level: 1, pageIndex: 6 }]))).toEqual(full);
+  expect(sourceOutline([{ title: "Blank Page", pageIndex: 0 }], read)).toEqual(read);
 });

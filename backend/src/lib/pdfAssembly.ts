@@ -56,6 +56,35 @@ export function nestedOutline(entries: Array<{ title: string; level: number; pag
   return roots;
 }
 
+/** A source's outline: its publisher's bookmarks, with the headings read from its text where
+ *  those bookmarks are only a frame (a judgment bookmarked by its parties and its reasons).
+ *  Each heading the bookmarks do not name goes under the last bookmark that opens at or before
+ *  its page. A lone bookmark ("Blank Page" on some printers' statutes) is no outline. */
+export function sourceOutline(own: PdfOutline[], read: PdfOutline[]): PdfOutline[] {
+  if (!(own.length > 1 || own[0]?.children?.length)) return read;
+  const flat = (items: PdfOutline[]): PdfOutline[] => items.flatMap(item => [item, ...flat(item.children ?? [])]);
+  const key = (title: string) => title.toLowerCase().replace(/^\s*(?:[\p{N}.()]+|[ivxlcdm]+\.|\p{L}\.)\s+/u, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const copy = (items: PdfOutline[]): PdfOutline[] => items.map(({ children, ...item }) =>
+    ({ ...item, ...(children?.length ? { children: copy(children) } : {}) }));
+  const frame = copy(own), named = new Set(flat(frame).map(({ title }) => key(title)));
+  // A named heading gives way to its children.
+  const unnamed = (items: PdfOutline[]): PdfOutline[] => items.flatMap(({ children, ...item }) => {
+    const kept = unnamed(children ?? []);
+    return named.has(key(item.title)) ? kept : [{ ...item, ...(kept.length ? { children: kept } : {}) }];
+  });
+  const headings = unnamed(read);
+  if (flat(headings).length <= flat(frame).length) return own;
+  const roots = [...frame], order = flat(frame);
+  for (const heading of headings) {
+    const parent = order.filter(({ pageIndex }) => pageIndex <= heading.pageIndex).at(-1);
+    if (parent) (parent.children ??= []).push(heading); else roots.push(heading);
+  }
+  const byPage = (items: PdfOutline[]): PdfOutline[] => items.map(item => item.children
+    ? { ...item, children: byPage(item.children) } : item).sort((left, right) => left.pageIndex - right.pageIndex);
+  return byPage(roots);
+}
+
 /** An outline moved onto other pages: an entry whose page is gone gives way to its children. */
 export function mapOutline(outline: PdfOutline[], page: (pageIndex: number) => number | undefined): PdfOutline[] {
   return outline.flatMap(({ title, pageIndex, children }) => {
