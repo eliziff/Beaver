@@ -4,8 +4,9 @@ import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs
 import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
-  getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readSourcePdf, readStandaloneOutput,
-  relinkStandaloneFile, rememberSourcePdf, requestStandaloneFileAccess, resolveStandaloneFile, retainStandaloneFile,
+  getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readSourceAnswer, readSourcePdf,
+  readStandaloneOutput, relinkStandaloneFile, rememberSourceAnswer, rememberSourcePdf, requestStandaloneFileAccess,
+  resolveStandaloneFile, retainStandaloneFile,
   saveStandaloneArtifacts,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
@@ -39,8 +40,10 @@ function renderBook(book: PreparedAuthoritiesBook, signal?: AbortSignal) {
   });
 }
 
-// The runtime asks the page for publisher PDFs it verified before (Authorities.html's page bridge).
-Object.assign(globalThis, { AUTHORITIES_SOURCE_PDFS: { read: readSourcePdf, remember: rememberSourcePdf } });
+// The runtime asks the page for publisher PDFs it verified before, and for answers sources gave
+// before (Authorities.html's page bridge).
+Object.assign(globalThis, { AUTHORITIES_SOURCE_PDFS: { read: readSourcePdf, remember: rememberSourcePdf },
+  AUTHORITIES_SOURCE_ANSWERS: { read: readSourceAnswer, remember: rememberSourceAnswer } });
 
 const recognitionAvailable = import.meta.env.VITE_AUTHORITIES_RECOGNITION !== "unavailable";
 function supportedDraft(state: AuthoritiesDraft): AuthoritiesDraft {
