@@ -875,14 +875,15 @@ async function prepareAuthorityBook(
       const seen = new Set<string>();
       const requirePrinted = source.authority && attachedAuthoritySources(source.authority.source)
         .some(({ origin }) => origin === "manual");
-      const bookmarks = source.passageGeometry?.targets.flatMap((target) =>
+      // One bookmark per cited passage, where it begins, in the order of the pages.
+      const bookmarks = (source.passageGeometry?.targets.flatMap((target) =>
         target.status === "found" && (!requirePrinted || hasPrintedParagraphLocator(target))
-          ? target.pages.flatMap(({ pageNumber }) => {
-          const key = `${target.locatorKind}\0${target.locator}\0${pageNumber}`;
+          ? target.pages.slice(0, 1).flatMap(({ pageNumber }) => {
+          const key = `${target.locatorKind}\0${target.locator}`;
           if (seen.has(key)) return []; seen.add(key);
           const title = target.locatorKind === "paragraph" ? "para" : target.locatorKind === "section" ? "s" : "p";
           return [{ title: `${title} ${target.locator}`, pageIndex: pageNumber - 1 }];
-        }) : []) ?? [];
+        }) : []) ?? []).sort((left, right) => left.pageIndex - right.pageIndex);
       const cited = source.authority ? citedSourcePages(draft, source.authority.id,
         source.pageTextByPage ?? [], undefined, source.document.getPageCount(), source.passageGeometry,
         !!requirePrinted) : new Set<number>();
