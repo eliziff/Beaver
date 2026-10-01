@@ -419,7 +419,8 @@ class DocxSessionImpl {
   write(path: string, content: string | Buffer) {
     const canonical = path.replace(/\\/gu, "/");
     const actual = this.names.get(canonical) ?? canonical;
-    this.zip.file(actual, content);
+    // A package keeps the entries it has; Word writes no folder entries, so none is added.
+    this.zip.file(actual, content, { createFolders: false });
     if (typeof content === "string") this.text.set(actual, Promise.resolve(content));
     else this.text.delete(actual);
     if (!this.names.has(canonical)) {

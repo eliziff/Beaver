@@ -29,6 +29,30 @@ describe("native Word Table of Authorities output", () => {
     expect(document).not.toContain(" TOA ");
   });
 
+  it("places marks after a field whose result ends a citation, not in the result Word replaces", async () => {
+    const run = (inner: string) => `<w:r>${inner}</w:r>`;
+    const complex = run('<w:fldChar w:fldCharType="begin"/>') + run('<w:instrText xml:space="preserve"> NOTEREF _Ref1 \\h </w:instrText>')
+      + run('<w:fldChar w:fldCharType="separate"/>') + run("<w:t>3</w:t>") + run('<w:fldChar w:fldCharType="end"/>');
+    const simple = '<w:fldSimple w:instr=" NOTEREF _Ref2 \\h ">' + run("<w:t>4</w:t>") + "</w:fldSimple>";
+    const source = await docxBytes([new Paragraph("first"), new Paragraph("second")]);
+    const zip = await JSZip.loadAsync(source);
+    const xml = (await zip.file("word/document.xml")!.async("string"))
+      .replace(/<w:r>(?:(?!<w:r>).)*?<w:t[^>]*>first<\/w:t><\/w:r>/u, run("<w:t xml:space=\"preserve\">Alder v Birch, supra note </w:t>") + complex)
+      .replace(/<w:r>(?:(?!<w:r>).)*?<w:t[^>]*>second<\/w:t><\/w:r>/u, run("<w:t xml:space=\"preserve\">Cedar Act, supra note </w:t>") + simple);
+    const bytes = await zip.file("word/document.xml", xml).generateAsync({ type: "nodebuffer" });
+    const first = "Alder v Birch, supra note 3", second = "Cedar Act, supra note 4";
+    const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: first }, { id: "body:1", text: second }], [
+      { unitId: "body:0", offset: first.length, longName: "Alder v Birch", shortName: "Alder", category: 1, suffix: " [Tab 1]" },
+      { unitId: "body:1", offset: second.length, longName: "Cedar Act", shortName: "Cedar Act", category: 2, suffix: " [Tab 2]" },
+    ], "native-marks");
+    const document = await (await JSZip.loadAsync(marked)).file("word/document.xml")!.async("string");
+    const order = (...parts: string[]) => parts.map((part) => document.indexOf(part));
+    const [result, fieldEnd, mark, tab] = order(">3<", 'w:fldCharType="end"', "TA \\l &quot;Alder v Birch", "[Tab 1]");
+    expect(result).toBeLessThan(fieldEnd); expect(fieldEnd).toBeLessThan(mark); expect(mark).toBeLessThan(tab);
+    const [simpleEnd, simpleMark, simpleTab] = order("</w:fldSimple>", "TA \\l &quot;Cedar Act", "[Tab 2]");
+    expect(simpleEnd).toBeLessThan(simpleMark); expect(simpleMark).toBeLessThan(simpleTab);
+  });
+
   it("replaces exact reviewed spans in body text and footnotes", async () => {
     const body = "The court wrote This and that.";
     const note = "Example v Example, 2020 SCC 1 at para 19.";
@@ -91,7 +115,7 @@ describe("native Word Table of Authorities output", () => {
       linkedXml.indexOf("w:sectPr"));
   });
 
-  it("marks body and footnote citations and appends one updateable TOA before sectPr", async () => {
+  it("marks body and footnote citations and appends an updateable TOA per category before sectPr", async () => {
     const body = "R v Grant, 2009 SCC 32";
     const footnote = "Federal Courts Act, RSC 1985, c F-7";
     const bytes = await docxBytes([new Paragraph({ children: [
@@ -106,6 +130,8 @@ describe("native Word Table of Authorities output", () => {
         shortName: "R v Grant", category: 1 },
       { unitId: "footnote:7", offset: footnote.length, longName: footnote,
         shortName: "Federal Courts Act", category: 2 },
+      { unitId: "body:0", offset: body.length, longName: "Ann Writer, “A Study” and \"Another\" (2001) 1 Imaginary LJ 1",
+        shortName: "Writer", category: 5 },
     ], "native-append");
 
     const zip = await JSZip.loadAsync(result);
@@ -114,10 +140,20 @@ describe("native Word Table of Authorities output", () => {
     const settings = await zip.file("word/settings.xml")!.async("string");
     expect(document).toContain(' TA \\l &quot;R v Grant, 2009 SCC 32&quot; \\s &quot;R v Grant&quot; \\c 1 ');
     expect(notes).toContain(' TA \\l &quot;Federal Courts Act, RSC 1985, c F-7&quot;');
-    expect(document).toContain(' TOA \\h \\e &quot;\\t&quot; ');
-    expect(document).toContain("w:vanish");
+    // Word lists a TA mark only when it is not hidden text, and builds a table only for a category.
+    expect(document).not.toContain("w:vanish");
+    expect(document).toContain(' TOA \\h \\c &quot;1&quot; ');
+    expect(document).toContain(' TOA \\h \\c &quot;2&quot; ');
+    expect(document).toContain(' TOA \\h \\c &quot;5&quot; ');
+    // Word ends a field argument at any double quote, straight or curly, unless it is escaped.
+    expect(document).toContain('Ann Writer, \\“A Study\\” and \\&quot;Another\\&quot; (2001)');
     expect(document.indexOf("Table of Authorities")).toBeLessThan(document.indexOf("w:sectPr"));
     expect(settings).toMatch(/w:updateFields[^>]+w:val="true"/u);
+    // Word reads settings in schema order: updateFields precedes the compatibility settings.
+    if (settings.includes("<w:compat")) {
+      expect(settings.indexOf("<w:updateFields")).toBeLessThan(settings.indexOf("<w:compat"));
+    }
+    expect(Object.keys(zip.files)).toEqual(Object.keys((await JSZip.loadAsync(bytes)).files));
     expect(await zip.file("[Content_Types].xml")!.async("string"))
       .toContain("wordprocessingml.document.main+xml");
   });
