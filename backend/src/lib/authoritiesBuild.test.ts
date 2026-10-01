@@ -121,7 +121,7 @@ function finalDraft(brief: Uint8Array, original: Uint8Array) {
 const paragraphGeometry = (bytes: Uint8Array, status: "found" | "ambiguous" = "found"): NativePdfPassageGeometry => ({
   schemaVersion: "legalpdf.passage-geometry.v1", sourceSha256: sha256(bytes), parserVersion: "test-fixture",
   coordinateSpace: "visible_crop_box", coordinateOrigin: "top_left", rotationApplied: true,
-  targets: [{ id: "paragraph:12", locatorKind: "paragraph", locator: "12", status,
+  targets: [{ id: "paragraph:12", locatorKind: "paragraph", locator: "12", status, printed: status === "found",
     pages: status === "found" ? [{ pageNumber: 2, width: 400, height: 500,
       source: "native", passageRects: [[36, 60, 320, 90]], text: "[12] Relevant paragraph." }] : [], quotes: [] }],
 });
@@ -192,6 +192,7 @@ describe("Authorities final export", () => {
     const brief = await linkedBrief(), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
     const state = finalDraft(brief, original), geometry = paragraphGeometry(original);
     geometry.targets[0].pages[0].text = "Fixture judgment / public synthetic";
+    geometry.targets[0].printed = false;
     const result = await buildAuthorities({ draft: state, title: "Unnumbered source",
       workProduct: { id: "unnumbered", revision: 1 }, sources: {
         source: { bytes: brief }, original: { bytes: original, passageGeometry: geometry },
@@ -622,7 +623,7 @@ describe("Authorities output builder", () => {
       sourceSha256: sha256(pdf), parserVersion: "test",
       coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
       rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
-        locatorKind: "paragraph" as const, locator: "1",
+        locatorKind: "paragraph" as const, locator: "1", printed: true,
         pages: [{ pageNumber: 1, width: 400, height: 500, source: "native" as const,
           text: "[1] exact words", passageRects: [[40, 40, 300, 110] as [number, number, number, number]] }],
         quotes: [{ text: "exact words", status: "found" as const, pageNumber: 1,
@@ -1362,7 +1363,7 @@ describe("Authorities output builder", () => {
       sourceSha256: sha256(decision), parserVersion: "test",
       coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
       rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
-        locatorKind: "paragraph" as const, locator: "10",
+        locatorKind: "paragraph" as const, locator: "10", printed: true,
         pages: [{ pageNumber: 6, width: 400, height: 500, source: "native" as const,
           text: "[10] cited", passageRects: [[40, 40, 300, 90] as [number, number, number, number]] }], quotes: [] }] };
     const encoded = (value: string) => Buffer.from(value, "latin1").toString("hex").toUpperCase();

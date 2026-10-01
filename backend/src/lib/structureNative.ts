@@ -86,7 +86,8 @@ export type NativePdfPassageGeometry = {
     locatorKind: NativePdfPassageTarget["locatorKind"];
     locator: string;
     status: PassageStatus;
-    printedLocators?: string[];
+    /** The cited paragraph numbers are printed on the passage, not only counted. */
+    printed?: boolean;
     pages: Array<{
       pageNumber: number; width: number; height: number;
       source: "native" | "unavailable"; passageRects: Rect[]; text?: string;
@@ -103,7 +104,7 @@ export type NativePdfTextPage = { pageNumber: number; width: number; height: num
 
 type NativePdfPassagePages = Omit<NativePdfPassageGeometry, "schemaVersion" | "targets"> & {
   schemaVersion: "legalpdf.passage-pages.v1";
-  targets: Array<{ id: string; status: PassageStatus; pages: Array<{
+  targets: Array<{ id: string; status: PassageStatus; printed?: boolean; pages: Array<{
     pageNumber: number; width: number; height: number; source: "native" | "unavailable";
     lines: Array<{ id: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }>;
   }> }>;
@@ -394,44 +395,6 @@ function exactQuote(target: NativePdfPassagePages["targets"][number], selection:
 
 }
 
-async function printedParagraphLocators(native: StructureAddon, document: NativeDocument,
-  raw: NativePdfPassagePages, requests: NativePdfPassageTarget[]) {
-  const wanted = requests.map(request => request.locatorKind === "paragraph"
-    ? [...new Set(request.locator.match(/\d+/gu) ?? [])] : []);
-  const witnesses = wanted.map(() => new Set<string>());
-  raw.targets.forEach((target, index) => target.pages.forEach(page => page.lines.forEach(line => {
-    const prefix = line.words.slice(0, 3).map(word => word.text).join(" ");
-    const label = /^\s*(?:\[\s*(\d+)\s*\]|\(\s*(\d+)\s*\)|(\d+)[.)])(?:\s|$)/u.exec(prefix);
-    const value = label?.slice(1).find(Boolean);
-    if (value && wanted[index].includes(value)) witnesses[index].add(value);
-  })));
-  const pages = [...new Set(raw.targets.flatMap((target, index) => target.status === "found" &&
-    wanted[index].some(label => !witnesses[index].has(label))
-    ? target.pages.map(page => page.pageNumber) : []))];
-  const pageEvidence = new Map<number, NativePdfPassagePages["targets"][number]["pages"][number]>();
-  for (let offset = 0; offset < pages.length; offset += 100) {
-    const evidence = await native.pdfPassageGeometryPages(document, pages.slice(offset, offset + 100)
-      .map(page => ({ id: `printed-locator:${page}`, locatorKind: "page", locator: "",
-        physicalPages: [page] })));
-    evidence.targets.forEach(target => target.pages.forEach(page => pageEvidence.set(page.pageNumber, page)));
-  }
-  raw.targets.forEach((target, index) => target.pages.forEach(page => {
-    const evidence = pageEvidence.get(page.pageNumber);
-    if (!evidence || evidence.source !== "native") return;
-    for (const line of page.lines) for (const markerLine of evidence.lines) for (const word of markerLine.words) {
-      const label = /^(?:\[\s*(\d+)\s*\]|\(\s*(\d+)\s*\)|(\d+)[.)]?)$/u.exec(word.text.trim())
-        ?.slice(1).find(Boolean);
-      if (!label || !wanted[index].includes(label) || witnesses[index].has(label)) continue;
-      const [left, top, right, bottom] = word.rect, [textLeft, textTop, textRight, textBottom] = line.rect;
-      const overlap = Math.min(bottom, textBottom) - Math.max(top, textTop);
-      const gap = right <= textLeft ? textLeft - right : left >= textRight ? left - textRight : -1;
-      if (top > evidence.height * .05 && bottom < evidence.height * .95 && gap >= 0 && gap <= 80 &&
-        overlap >= .45 * Math.min(bottom - top, textBottom - textTop)) witnesses[index].add(label);
-    }
-  }));
-  return witnesses.map(labels => [...labels]);
-}
-
 export async function pdfPassageGeometry(
   document: NativeDocument, bytes: Buffer, targets: NativePdfPassageTarget[],
 ): Promise<NativePdfPassageGeometry> {
@@ -452,7 +415,6 @@ export async function pdfPassageGeometry(
   if (raw.sourceSha256 !== summary.sha256 || raw.parserVersion !== summary.parserVersion) {
     throw new Error("PDF passage geometry source identity changed");
   }
-  const printedLocators = await printedParagraphLocators(native, document, raw, targets);
   return { ...raw, schemaVersion: "legalpdf.passage-geometry.v1",
     targets: raw.targets.map((target, index) => {
       const request = targets[index];
@@ -461,7 +423,7 @@ export async function pdfPassageGeometry(
         ? "unavailable" : target.status;
       const resolved = { ...target, status };
       return { id: target.id, locatorKind: request.locatorKind, locator: request.locator, status,
-        ...(request.locatorKind === "paragraph" ? { printedLocators: printedLocators[index] } : {}),
+        ...(request.locatorKind === "paragraph" ? { printed: target.printed === true } : {}),
         pages: target.pages.map((page) => ({
         pageNumber: page.pageNumber, width: page.width, height: page.height, source: page.source,
         text: page.lines.flatMap(line => line.words.map(word => word.text)).join(" ").slice(0, 2_000),

@@ -793,6 +793,57 @@ mod pdf {
         Some((Status::Found, selected))
     }
 
+    /// "[12]", "(12)", "12." or "12)": a printed paragraph number; a margin
+    /// number may also stand bare.
+    fn printed_label_number(text: &str, bare: bool) -> Option<usize> {
+        let text = text.trim();
+        let digits = text.strip_prefix('[').and_then(|rest| rest.strip_suffix(']'))
+            .or_else(|| text.strip_prefix('(').and_then(|rest| rest.strip_suffix(')')))
+            .or_else(|| text.strip_suffix(['.', ')']))
+            .or(bare.then_some(text))?.trim();
+        (!digits.is_empty() && digits.len() <= 5 && digits.bytes().all(|byte| byte.is_ascii_digit()))
+            .then(|| digits.parse().ok()).flatten()
+    }
+
+    /// Whether the cited paragraph numbers are printed on the passage: each
+    /// endpoint opens one of its lines, or stands in the margin beside one.
+    fn printed_paragraph_witnessed<'a>(
+        pages: impl Iterator<Item = &'a legal_pdf_support::PdfTextPage>,
+        selected: &HashSet<&str>,
+        locator: &str,
+    ) -> bool {
+        let Some((from, to)) = legal_pdf_support::numeric_range("paragraph", locator)
+            .or_else(|| legal_pdf_support::parse_ordinal("paragraph", locator).map(|n| (n, n)))
+        else { return false };
+        let mut missing = HashSet::from([from, to]);
+        for page in pages {
+            let lines = page.lines.iter().filter(|line| selected.contains(line.id.as_str()))
+                .collect::<Vec<_>>();
+            for line in &lines {
+                // A label opens the line: "[12] Text", "12. Text" or "(12) Text".
+                let opening = line.words.first().map(|word| word.text.as_str()).unwrap_or_default();
+                let opening = if opening == "[" || opening == "(" {
+                    line.words.iter().take(3).map(|word| word.text.as_str()).collect::<String>()
+                } else { opening.to_owned() };
+                if let Some(number) = printed_label_number(&opening, false) { missing.remove(&number); }
+            }
+            for word in page.lines.iter().flat_map(|line| &line.words) {
+                let Some(number) = printed_label_number(&word.text, true).filter(|n| missing.contains(n)) else { continue };
+                let [left, top, right, bottom] = word.rect;
+                if top <= page.height * 0.05 || bottom >= page.height * 0.95 { continue; }
+                if lines.iter().any(|line| {
+                    let [text_left, text_top, text_right, text_bottom] = line.rect;
+                    let overlap = bottom.min(text_bottom) - top.max(text_top);
+                    let gap = if right <= text_left { text_left - right }
+                        else if left >= text_right { left - text_right } else { -1.0 };
+                    (0.0..=80.0).contains(&gap)
+                        && overlap >= 0.45 * (bottom - top).min(text_bottom - text_top)
+                }) { missing.remove(&number); }
+            }
+        }
+        missing.is_empty()
+    }
+
     /// Passage planning and geometry share the prepared extraction witnesses.
     pub struct PdfPassagePagesJob {
         summary: legalpdf::PdfSummary,
@@ -922,7 +973,15 @@ mod pdf {
                             })
                         })
                         .collect::<Vec<_>>();
-                    serde_json::json!({ "id": plan.id, "status": status, "pages": pages })
+                    let mut target = serde_json::json!({ "id": plan.id, "status": status, "pages": pages });
+                    if let Some(locator) = &plan.paragraph {
+                        let pages = self.pages.iter().filter(|page| page.source == "native"
+                            && !unavailable.contains(&((page.page_number - 1) as usize))
+                            && (structural && plan.pages.contains(&page.page_number)
+                                || selected_pages.contains(&page.page_number)));
+                        target["printed"] = printed_paragraph_witnessed(pages, &selected, locator).into();
+                    }
+                    target
                 })
                 .collect::<Vec<_>>();
             Ok(serde_json::json!({
