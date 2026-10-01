@@ -13,7 +13,7 @@ import { authorityName, authorityCitationForms, requiresBilingualSources,
 import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
-import { SourceOcrProgress } from "./AuthoritiesHighlightEditor";
+import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
 import canliiLogo from "./canlii.ico";
 
@@ -158,6 +158,10 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       label: loaded ? "Built from source text" : "Will be built from source text" }
     : loaded ? { Icon: FileCheck2, tone: "text-green-700",
       label: sources.map(({ filename }) => filename).join("\n") || "PDF loaded" } : null;
+  // A scan being recognized reports in the citation's slot (on the actions line where the row is
+  // narrow), so the row never grows. The one still running speaks for a bilingual pair.
+  const recognitions = sources.flatMap(({ bindingRole }) => ocr?.tracked[bindingRole] ?? []);
+  const recognition = recognitions.find(({ state }) => state !== "done") ?? recognitions[0];
   const edit = () => setEditing(true);
   const save = (value: string) => { setEditing(false);
     if (value.trim() !== name) onAction({ type: "rename-authority",
@@ -185,7 +189,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
     </span>
-    {editing ? <AuthorityName value={name} label={nameLabel} onSave={save} onCancel={() => setEditing(false)} /> : <>
+    {editing ? <AuthorityName value={name} label={nameLabel} spans={!recognition} onSave={save} onCancel={() => setEditing(false)} /> : <>
       <div className="flex min-w-0 items-center gap-1">
         {name ? <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name}</h3>
           : <span className="truncate text-sm italic text-gray-500">Add {nameLabel.toLocaleLowerCase()}</span>}
@@ -193,10 +197,13 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
           className={cn("shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-600 group-hover/row:opacity-100",
             name && "opacity-0")}><Pencil className="h-3.5 w-3.5" /></button>
       </div>
-      <span className="hidden truncate text-xs font-normal text-gray-500 @min-[30rem]/sources:block"
-        title={citationLine}>{citationLine}</span>
+      {!recognition && <span className="hidden truncate text-xs font-normal text-gray-500 @min-[30rem]/sources:block"
+        title={citationLine}>{citationLine}</span>}
     </>}
-    <div className="col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1">
+    {recognition && ocr && <SourceOcrInline status={recognition} ocr={ocr}
+      className="col-span-3 row-start-2 w-40 max-w-[calc(100%-8rem)] justify-self-start @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:row-start-auto @min-[30rem]/sources:w-full @min-[30rem]/sources:max-w-none" />}
+    <div className={cn("col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1",
+      recognition && "row-start-2 justify-self-end @min-[30rem]/sources:row-start-auto @min-[30rem]/sources:justify-self-stretch")}>
       {needsPdf && (publisherUrl
         ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
               title="Download the PDF from the publisher, then upload it here."
@@ -248,12 +255,6 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         const file = event.target.files?.[0]; event.target.value = "";
         if (file) onAttach(file);
       }} />
-    {sources.some(({ bindingRole }) => ocr?.tracked[bindingRole]) &&
-      <div className="col-start-3 col-end-[-1] min-w-0">
-        {sources.map(({ bindingRole }) => ocr?.tracked[bindingRole] &&
-          <SourceOcrProgress key={bindingRole} ocr={ocr} status={ocr.tracked[bindingRole]}
-            control={rowControl} label={rowLabel} trailing="w-8" />)}
-      </div>}
   </article>;
 }
 
@@ -285,8 +286,8 @@ function LookupFailures({ authorities, busy, onRetry }: {
   </div>;
 }
 
-function AuthorityName({ value, label, onSave, onCancel }: {
-  value: string; label: string; onSave: (value: string) => void; onCancel: () => void;
+function AuthorityName({ value, label, spans, onSave, onCancel }: {
+  value: string; label: string; spans: boolean; onSave: (value: string) => void; onCancel: () => void;
 }) {
   const [name, setName] = useState(value), finished = useRef(false);
   return <Input autoFocus aria-label={label} placeholder={`Add ${label.toLocaleLowerCase()}`} value={name}
@@ -295,5 +296,5 @@ function AuthorityName({ value, label, onSave, onCancel }: {
     onKeyDown={(event) => {
       if (event.key === "Enter") event.currentTarget.blur();
       if (event.key === "Escape") { finished.current = true; onCancel(); }
-    }} className="col-span-1 h-8 min-w-0 border-gray-400 text-sm sm:col-span-2" />;
+    }} className={cn("col-span-1 h-8 min-w-0 border-gray-400 text-sm", spans && "sm:col-span-2")} />;
 }
