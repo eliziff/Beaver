@@ -1067,8 +1067,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
                         onClick={() => relinkSource(importedRole)}><FilePlus2 />
                         Allow file access</Button>}
-                      {/* The Recognize text dialog reports its own check of the scans. */}
-                      <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
+                      <StepProgress label={stage === "sources" && recognitionAsked && scannedSources.checking ? scannedSources.progress
+                        : stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
                         error={stepError} className="min-w-0" />
                       {/* Every step's Next sits here; the last step keeps its room. */}
                       <Button className={cn("h-9", !stepNext && "invisible")} aria-hidden={!stepNext || undefined}
@@ -1137,7 +1137,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           act({ type: "edit-authority", authorityId: editingAuthority.id, kind, citation, name });
           setEditingAuthority(undefined);
         }} />}
-      <Modal open={recognitionAsked} onClose={() => setRecognitionAsked(false)} size="xl"
+      {/* While the scans are still being checked, the step row reports it; the dialog opens only
+          for a scan known to need recognition, never empty. */}
+      <Modal open={recognitionAsked && !scannedSources.checking} onClose={() => setRecognitionAsked(false)} size="xl"
         breadcrumbs={["Recognize text"]} fit footerStatus={scannedSources.progress}
         primaryAction={{ label: "Next", onClick: applyRecognition, disabled: busy }}>
         <p className="text-sm leading-6 text-gray-700">These source PDFs are scans. Recognition reads
@@ -1502,7 +1504,7 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
       {Object.entries(draft.outputs).sort(([a], [b]) => outputRank(a) - outputRank(b)).map(([role, output]) => <Fragment key={role}>
         {role === "link-report" && !previousOutput && <p className="px-2 text-sm text-gray-700" role="status">
           {linkWarnings?.length ? `${linkWarnings.length} link${linkWarnings.length === 1 ? " wasn't" : "s weren't"} added.`
-            : "Some links weren't added."} Use Unlinked citations to finish them in a PDF editor.</p>}
+            : "Some links weren't added."} Use Unlinked citations to finish {linkWarnings?.length === 1 ? "it" : "them"} in a PDF editor.</p>}
         <button type="button"
         aria-label={`Download ${previousOutput ? "previous " : ""}${output.filename}`}
         title={output.filename}
