@@ -29,10 +29,11 @@ function tabLabel(index, style = "numeric", format = {}) {
 
 function deriveAuthorityProcedure(input) {
   const byId = new Map(input.authorities.map((item) => [item.id, item]));
-  const alphabetical = (left, right) => left.sortLabel.normalize("NFKD")
-    .toLocaleLowerCase("en-CA").localeCompare(right.sortLabel.normalize("NFKD")
-      .toLocaleLowerCase("en-CA"), "en-CA") ||
-    left.citation.localeCompare(right.citation, "en-CA");
+  // Each label is folded once, not on every comparison.
+  const collator = new Intl.Collator("en-CA"), folded = new Map(input.authorities.map((item) =>
+    [item, item.sortLabel.normalize("NFKD").toLocaleLowerCase("en-CA")]));
+  const alphabetical = (left, right) => collator.compare(folded.get(left), folded.get(right)) ||
+    collator.compare(left.citation, right.citation);
   const grouped = groups.flatMap(([, kind]) => input.authorities
     .filter((item) => item.kind === kind).sort(alphabetical));
   // authorityOrder is the user's book order in both automatic and manual mode.
