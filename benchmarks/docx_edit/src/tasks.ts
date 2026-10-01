@@ -11,11 +11,7 @@ import path from "node:path";
 import { FIXTURES } from "./fixtures";
 import { TASK_SCHEMA, TASK_SETS, type Task, type TaskSet } from "./types";
 
-/**
- * One file per additive set. v1 is frozen — its published result depends on
- * its tasks, checks and fixtures not moving — so a new task goes in the
- * newest set's file, never into an older one.
- */
+/** One file per set; only tasks with publishable fixture provenance belong here. */
 const TASK_FILES: { set: TaskSet; path: string }[] = TASK_SETS.map((set) => ({
   set,
   path: path.join(__dirname, "..", set === "v1" ? "tasks.jsonl" : `tasks-${set}.jsonl`),

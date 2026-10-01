@@ -28,6 +28,8 @@ the latter owns project priorities and remaining gates.
   receipts, including paraphrases and identifying case/document references.
   Translate a bug report into the behavior to test, then invent different facts,
   text, URLs and locators. Changing names alone is not independent invention.
+  Keep bespoke legacy fixtures private until independent provenance is verified;
+  a generated/synthetic label is not evidence of where their facts came from.
 - Automated submissions declare `machine_test` with a run ID; missing historical
   origin stays `unknown`. `machine_test` identifies the submission, not whether
   its contents are synthetic or permitted for publication.

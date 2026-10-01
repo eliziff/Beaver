@@ -305,7 +305,7 @@ it("groups structured searches by resource without replacing queries or hiding r
 });
 
 it.each([
-    { provider: "claude", summary: "Keep the indemnity unchanged." },
+    { provider: "claude", summary: "Preserve heading ZETA." },
     { provider: "openai", summary: undefined },
 ])("shows inspectable compaction details for $provider without mixing them into the answer", async (detail) => {
     renderEvents([{ type: "compaction", status: "completed", ...detail },
