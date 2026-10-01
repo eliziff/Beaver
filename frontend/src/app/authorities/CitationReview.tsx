@@ -640,12 +640,15 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
       <div role="group" aria-label="This citation" className="citation-meaning">
         <span id="citation-refers">Refers to</span>
         <AuthorityPicker options={options} current={linked} busy={busy || selected.kind === 'reference' && !referenceKind} onPick={link} />
+        {/* "edited" and its reset keep their room when the pinpoint was found, so nothing beside them moves. */}
         <div className="citation-pin" data-empty={pinpoint ? undefined : ''}
           title={selected.pinpointManual ? 'Set by hand' : 'Found automatically'}>
-          {pinpoint ? <>Pinpoint <b>{pinpoint}</b></> : 'No pinpoint'}
-          {selected.pinpointManual && <><small>edited</small><button type="button" className="citation-reset" disabled={busy}
-            aria-label="Reset the pinpoint" title="Reset to the pinpoint found automatically"
-            onClick={() => submit({ type: 'reset-pinpoint', occurrenceId: selected.id })}><RotateCcw /></button></>}
+          {pinpoint ? <>Pinpoint <b>{pinpoint}</b></> : <b>No pinpoint</b>}
+          <small aria-hidden={!selected.pinpointManual || undefined} data-hidden={selected.pinpointManual ? undefined : ''}>edited</small>
+          <button type="button" className="citation-reset" disabled={busy || !selected.pinpointManual}
+            data-hidden={selected.pinpointManual ? undefined : ''} aria-label="Reset the pinpoint"
+            title="Reset to the pinpoint found automatically"
+            onClick={() => submit({ type: 'reset-pinpoint', occurrenceId: selected.id })}><RotateCcw /></button>
         </div>
         {/* Its room is kept when there is nothing to review, so nothing beside it moves. */}
         <button type="button" className="citation-quote" style={finding ? undefined : { visibility: 'hidden' }}
