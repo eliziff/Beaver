@@ -50,6 +50,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
     const clearPreview = useCallback(() => {
         previewRef.current?.querySelectorAll('canvas').forEach(canvas => { canvas.width = canvas.height = 0; });
         previewRef.current?.remove(); previewRef.current = null;
+        containerRef.current?.style.removeProperty('min-height');
     }, []);
     const editorRef = useRef(annotationEditor), quotesRef = useRef(quotes);
     const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.pageNumber, page])), [recognizedText]);
@@ -78,8 +79,14 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
         const dispose = (retain = false) => {
             const scroll = scrollRef.current;
             if (retain && scroll && viewer?.pagesCount) {
+                // The next PDF paints over a copy of what is on screen, clipped to the page area so it
+                // never covers the controls, and the pages keep their height until then, so the
+                // scrollbar does not vanish and return between two documents.
                 const bounds = scroll.getBoundingClientRect(), preview = document.createElement('div');
-                Object.assign(preview.style, {position:'absolute',inset:'0',overflow:'hidden',pointerEvents:'none'});
+                const {paddingTop, paddingBottom} = getComputedStyle(scroll);
+                const height = scroll.scrollHeight - parseFloat(paddingTop) - parseFloat(paddingBottom);
+                Object.assign(preview.style, {position:'absolute',overflow:'hidden',pointerEvents:'none',
+                    left:`${scroll.offsetLeft}px`,top:`${scroll.offsetTop}px`,width:`${scroll.clientWidth}px`,height:`${scroll.clientHeight}px`});
                 preview.dataset.pdfPreview = ''; preview.inert = true;
                 for (const canvas of scroll.querySelectorAll('canvas')) {
                     const rect = canvas.getBoundingClientRect();
@@ -90,6 +97,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                         width:`${rect.width}px`,height:`${rect.height}px`}); preview.append(copy);
                 }
                 if (preview.childElementCount) { clearPreview(); scroll.parentElement!.append(preview); previewRef.current = preview; }
+                containerRef.current!.style.minHeight = `${height}px`;
             }
             controller.abort(); quoteGenerationRef.current++; navigationRef.current++;
             if (layoutRef.current?.viewer === viewer) layoutRef.current = null;
@@ -217,17 +225,18 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                 )}
                 <div ref={containerRef} className="pdfViewer" />
             </div>
-            {/* Page and zoom controls keep a strip of their own below the pages, so they never cover text. */}
+            {/* Page and zoom controls keep a strip of their own below the pages, so they never cover text.
+                They keep their look while the next PDF opens; a page or zoom asked for meanwhile is ignored. */}
             <div className="absolute inset-x-0 bottom-0 flex h-9 items-center justify-between gap-2 border-t border-gray-200 bg-white px-2">
             {numPages > 0 && (
                 <>
                     <div className="min-w-0">
                         <PdfPageNavigation page={currentPage} count={numPages} labels={pageLabels ?? recognizedText?.pageLabels ?? embeddedPageLabels}
-                            disabled={loading || preparing || !!error || !!viewerError} onNavigate={jumpToPage} />
+                            disabled={!!error || !!viewerError} onNavigate={jumpToPage} />
                     </div>
                     <div className="flex shrink-0 items-center gap-px">
                         <button type="button" onClick={changeZoom} value={-ZOOM_STEP}
-                            aria-disabled={loading || !!error || !!viewerError || zoom <= ZOOM_MIN} aria-label="Zoom out"
+                            aria-disabled={!!error || !!viewerError || zoom <= ZOOM_MIN} aria-label="Zoom out"
                             className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 aria-disabled:opacity-30">
                             <ZoomOut className="h-3.5 w-3.5" />
                         </button>
@@ -235,7 +244,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                             {Math.round(zoom * 100)}%
                         </span>
                         <button type="button" onClick={changeZoom} value={ZOOM_STEP}
-                            aria-disabled={loading || !!error || !!viewerError || zoom >= ZOOM_MAX} aria-label="Zoom in"
+                            aria-disabled={!!error || !!viewerError || zoom >= ZOOM_MAX} aria-label="Zoom in"
                             className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 aria-disabled:opacity-30">
                             <ZoomIn className="h-3.5 w-3.5" />
                         </button>
