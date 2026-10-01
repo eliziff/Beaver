@@ -84,10 +84,12 @@ export async function authorityPdfText(input: {
           located = await locate(recognized);
         }
       }
-      if (located.some(pages => !pages.length))
-        throw new Error("The cited PDF pages could not be identified. Check the page pinpoints or choose whole-PDF recognition.");
-      recognizedPages = new Set([...located.flat(), ...(retained?.profile.ocr ? native.ocrRoutedPages : [])]);
-      openingPages.forEach(page => recognizedPages!.add(page - 1));
+      // A pinpoint no known printed page answers to is read from the whole scan, as a
+      // paragraph is below; a PDF with no scanned pages needs no recognition either way.
+      if (located.every(pages => pages.length)) {
+        recognizedPages = new Set([...located.flat(), ...(retained?.profile.ocr ? native.ocrRoutedPages : [])]);
+        openingPages.forEach(page => recognizedPages!.add(page - 1));
+      }
     } else if (!targets.length) recognizedPages = new Set();
     // A paragraph or section on a scan cannot be located until the scan is read.
     // This fallback is disclosed beside the cited-pages option in the UI.

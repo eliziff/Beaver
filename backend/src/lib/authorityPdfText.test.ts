@@ -106,4 +106,18 @@ describe("authority PDF text preparation", () => {
         .mockResolvedValue(resolvePdfPagination(["145", "146", "147", "148", "149", "150", "151", "152"], [])) } as never);
     expect(result.ocrTextByPage).toEqual(["page 1", "", "", "", "", "page 6", "", ""]);
   });
+
+  it("reads the whole scan when no printed page answers to a pinpoint", async () => {
+    const preparePdf = vi.fn().mockResolvedValueOnce({ pageCount: 2, profile: {}, pagesNeedingOcr: [0, 1], ocrRoutedPages: [] })
+      .mockResolvedValueOnce({ pageCount: 2, profile: { ocr: { provider: "kraken-lite" } }, pagesNeedingOcr: [], ocrRoutedPages: [0, 1] });
+    const lookupPdf = vi.fn(async (_read, input) => ({ status: "found", pages: [
+      { page_number: Number(input.locator), text: `page ${input.locator}` },
+    ] }));
+    const result = await authorityPdfText({ bytes: Buffer.from("source"), scannedPdfPolicy: "cited-pages",
+      ocrTargets: [{ id: "p", locatorKind: "page", locator: "900" }] },
+      { preparePdf, lookupPdf, pdfPagination: async () => resolvePdfPagination([null, null], []) } as never);
+    expect(preparePdf.mock.calls[1][0]).toMatchObject({ ocrProvider: "kraken-lite" });
+    expect(preparePdf.mock.calls[1][0].pages).toBeUndefined();
+    expect(result.ocrTextByPage).toEqual(["page 1", "page 2"]);
+  });
 });
