@@ -304,28 +304,53 @@ describe("authorities import application", () => {
       reference: { kind: "supra", targetAuthorityId: references[1].authorityId } });
   });
 
+  const footnoteImport = async (text: string[]) => {
+    const units = text.map((value, index) => ({ key: `footnote:${index + 1}`,
+      kind: "footnote" as const, ordinal: index + 1, footnote_id: index + 1,
+      page_numbers: [], text: value, footnote_refs: [] }));
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    return importStandaloneAuthoritiesFile({ filename: "Paper.pdf", fileType: "pdf",
+      bytes: Buffer.from(await pdf.save()), modified: 1 }, { read: vi.fn(async () => ({})) as never },
+    { docxAuthorityTextUnits: vi.fn(), pdfAuthorityTextUnits: vi.fn(() => units) });
+  };
+
   it("keeps a supra note and ibid that cite a hearing transcript off the case's decision", async () => {
-    const text = [
+    const state = await footnoteImport([
       "Halvorsen v Tidewater Ferries Ltd, 2030 SCC 12 [Halvorsen].",
       "See Halvorsen v Tidewater Ferries Ltd, 2030 SCC 12 (Transcript of hearing at 41 lines 3–8) [Halvorsen transcript].",
       "Halvorsen transcript, supra note 2 at 44 lines 1–6.",
       "Ibid at 45.",
       "Halvorsen, supra note 1 at para 30.",
-    ];
-    const units = text.map((value, index) => ({ key: `footnote:${index + 1}`,
-      kind: "footnote" as const, ordinal: index + 1, footnote_id: index + 1,
-      page_numbers: [], text: value, footnote_refs: [] }));
-    const pdf = await PDFDocument.create(); pdf.addPage();
-    const state = await importStandaloneAuthoritiesFile({ filename: "Paper.pdf",
-      fileType: "pdf", bytes: Buffer.from(await pdf.save()), modified: 1 },
-    { read: vi.fn(async () => ({})) as never },
-    { docxAuthorityTextUnits: vi.fn(), pdfAuthorityTextUnits: vi.fn(() => units) });
+    ]);
     const linked = state.units.map(({ occurrenceIds }) => occurrenceIds.map((id) =>
       state.occurrences[id].authorityId));
     const decision = state.authorityOrder[0];
     // The transcript's own citation names the case; references to it do not reach the decision.
     expect(state.authorityOrder).toEqual([decision]);
     expect(linked).toEqual([[decision], [decision], [null], [null], [decision]]);
+  });
+
+  it("names one source for a citation written alike, but not for two works sharing an imprint", async () => {
+    const state = await footnoteImport([
+      "See the Harbour Pilotage Act, 2029.",
+      "As the Harbour Pilotage Act, 2029 provides.",
+      "Ada Quill, Tides of the North (Halifax: Tidewater Press, 2020).",
+      "Bram Ostrander, Salt and Ledger (Halifax: Tidewater Press, 2020).",
+    ]);
+    const authorityOf = (unit: number) => state.units[unit].occurrenceIds
+      .map((id) => state.occurrences[id].authorityId);
+    expect(authorityOf(0)).toHaveLength(1);
+    expect(authorityOf(1)).toEqual(authorityOf(0));
+    expect(authorityOf(2)).toHaveLength(1);
+    expect(authorityOf(3)).toHaveLength(1);
+    expect(authorityOf(3)).not.toEqual(authorityOf(2));
+  });
+
+  it("keeps a pinpoint's ff with the citation and locates its paragraph", async () => {
+    const state = await footnoteImport(["Halvorsen v Tidewater Ferries Ltd, 2030 SCC 12 at para 41ff."]);
+    const [occurrence] = Object.values(state.occurrences);
+    expect(occurrence.text.endsWith("41ff")).toBe(true);
+    expect(occurrence.pinpoints).toEqual([{ kind: "paragraph", text: "41" }]);
   });
 
   it("links Ibid and supra in reading order and never past an unresolved reference", async () => {
