@@ -38,13 +38,19 @@ export function briefOccurrencePages(draft: AuthoritiesDraft, pageTextByPage: st
     const before = normalizedWords(unit.text.slice(0, occurrence.start)).slice(-4);
     const core = normalizedWords(occurrence.text), after = normalizedWords(unit.text.slice(occurrence.end)).slice(0, 4);
     // Surrounding words make a repeated citation unique; a tab reference or note mark can break either side.
-    const cursor = cursors[stream], attempts: Array<[string[], number, number]> = [
-      [[...before, ...core, ...after], before.length, cursor], [[...before, ...core], before.length, cursor],
-      [[...core, ...after], 0, cursor], [core, 0, cursor], [[...before, ...core, ...after], before.length, 0]];
+    // The citation alone is tried last, and is not read on from: it also matches the brief's own
+    // table of authorities, which lies past every later citation.
+    const cursor = cursors[stream], contexts: Array<[string[], number]> = [
+      [[...before, ...core, ...after], before.length], [[...before, ...core], before.length], [[...core, ...after], 0]];
+    const attempts: Array<[string[], number, number]> = [...contexts.map(([needle, skip]) =>
+      [needle, skip, cursor] as [string[], number, number]), ...contexts.map(([needle, skip]) =>
+      [needle, skip, 0] as [string[], number, number]), [core, 0, cursor]];
     for (const [needle, skip, from] of attempts) {
       const at = needle.length > 1 ? find(needle, from) : -1;
       if (at < 0) continue;
-      pages.set(id, words[at + skip].page); cursors[stream] = at + needle.length; break;
+      pages.set(id, words[at + skip].page);
+      if (needle !== core) cursors[stream] = at + needle.length;
+      break;
     }
   }
   return pages;
