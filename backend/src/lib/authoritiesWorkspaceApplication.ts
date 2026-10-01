@@ -311,15 +311,13 @@ export function createAuthoritiesWorkspaceApplication(
   }
 
   async function uploadPdf(scope: ApplicationScope, id: string,
-    input: { revision: number; file: DocumentFile; authorityId?: string },
+    input: { revision: number; file: DocumentFile; authorityId?: string; autoFetched?: boolean },
     attach: (draft: AuthoritiesDraft, binding: WorkProductInput, filename: string, hash: string) => AuthoritiesDraft) {
     if (input.file.fileType.toLowerCase() !== "pdf") throw new ApplicationError(400, "Attach a PDF file");
     const { product, draft } = await edit(scope, id, input.revision);
     const bytes = "bytes" in input.file ? input.file.bytes : await readFile(input.file.path);
     await validateAuthoritiesPdf(bytes);
-    if (input.authorityId !== undefined && attachableAuthority(draft, input.authorityId).source.kind === "pending-canlii") {
-      await checkCanliiPdf(draft, input.authorityId, bytes);
-    }
+    if (input.autoFetched && input.authorityId !== undefined) await checkCanliiPdf(draft, input.authorityId, bytes);
     const created = await files.create(scope, "authorities", input.file,
       { projectId: product.projectId, pdfOcrProvider: null });
     return withRollback(scope, [createdDocumentRollback(created)], () => workProducts.save(scope, id,
@@ -459,6 +457,7 @@ export function createAuthoritiesWorkspaceApplication(
     },
     attachPdf: (scope: ApplicationScope, id: string, input: {
       revision: number; authorityId: string; file: DocumentFile; language: AuthoritySourceLanguage;
+      autoFetched?: boolean;
     }) => uploadPdf(scope, id, input, (draft, binding, filename, hash) =>
       attachSource(draft, attachableAuthority(draft, input.authorityId), binding, filename, hash, input.language)),
     attachBookPdf: (scope: ApplicationScope, id: string, input: {
@@ -479,10 +478,6 @@ export function createAuthoritiesWorkspaceApplication(
       const file = await documents.read(scope, input.documentId, input.versionId, false);
       if (!file) throw new ApplicationError(409, "The PDF is no longer available.");
       await validateAuthoritiesPdf(file.bytes);
-      if (input.target.kind === "authority" &&
-          draft.authorities[input.target.authorityId]?.source.kind === "pending-canlii") {
-        await checkCanliiPdf(draft, input.target.authorityId, file.bytes);
-      }
       const binding = { kind: "document" as const, documentId: input.documentId,
         version: "latest" as const };
       return workProducts.save(scope, id, { revision: input.revision,

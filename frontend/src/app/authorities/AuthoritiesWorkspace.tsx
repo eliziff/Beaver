@@ -744,7 +744,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         folderTried.current.add(folderFileId(file));
         setMessage(`Attaching ${file.name}`);
         try {
-          if (adopt(await host.attach(latest.id, authority.id, latest.revision, { file }))) added += 1;
+          if (adopt(await host.attach(latest.id, authority.id, latest.revision, { file, autoFetched: true }))) added += 1;
         } catch (caught) { failures.push(`${file.name}: ${errorText(caught)}`); }
       }
       return { added, failures };

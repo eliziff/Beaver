@@ -7,7 +7,8 @@ import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetti
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
 
-export type AuthoritiesFile = { file: File; input?: WorkProductInput };
+/** `autoFetched`: found by auto-fetch rather than chosen, so its citation is checked before it is attached. */
+export type AuthoritiesFile = { file: File; input?: WorkProductInput; autoFetched?: boolean };
 export type AuthoritiesFilePick = { multiple: boolean; accept: "source" | "pdf" };
 export type { AuthoritiesBookSlot } from "../../../../shared/authorities-sources.mjs";
 import type { AuthoritiesBookSlot } from "../../../../shared/authorities-sources.mjs";

@@ -36,10 +36,10 @@ export const resolveAuthoritiesDiscrepancy = (id: string, input: {
 }) => post<AuthoritiesProduct>(`/authorities/${segment(id)}/discrepancies/actions`, input);
 export const attachAuthorityPdf = (
   id: string, authorityId: string, revision: number, file: File,
-  language: AuthoritySourceLanguage,
+  language: AuthoritySourceLanguage, autoFetched = false,
 ) => multipartRequest<AuthoritiesProduct>(
   `/authorities/${segment(id)}/attachments/${segment(authorityId)}`, file,
-  { fields: { revision: String(revision), language } },
+  { fields: { revision: String(revision), language, ...(autoFetched ? { auto_fetched: "true" } : {}) } },
 );
 export const attachAuthoritiesLibraryPdf = (id: string, revision: number,
   documentId: string, versionId: string, target:

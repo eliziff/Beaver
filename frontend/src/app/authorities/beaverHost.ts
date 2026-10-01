@@ -103,7 +103,7 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     prepareAuthoritiesSources(draft.id, draft.revision, signal, authorityId, progress),
   relinkSource: refreshAuthoritiesInput,
   attach: (id, authorityId, revision, selected, language = "en") =>
-    attachAuthorityPdf(id, authorityId, revision, selected.file, language),
+    attachAuthorityPdf(id, authorityId, revision, selected.file, language, selected.autoFetched),
   attachBookPdf: (id, revision, slot, selected, supplementId) =>
     attachAuthoritiesBookPdf(id, revision, slot, selected.file, supplementId),
   attachLibraryPdf(id, revision, document, target) {
