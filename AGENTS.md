@@ -23,7 +23,6 @@ the latter owns project priorities and remaining gates.
 - Check local data and existing implementations before fetching or adding a
   dependency. Consult official documentation for unfamiliar packages or standard
   engineering problems instead of probing blindly.
-
 - Use independently invented test data or identify its public source. Do not
   reuse genuine queries, bug-report identifiers or private documents as fixtures
   without explicit permission. Synthetic replacements must change identifying
