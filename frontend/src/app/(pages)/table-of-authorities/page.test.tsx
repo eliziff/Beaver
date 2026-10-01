@@ -37,7 +37,8 @@ vi.mock("@/app/lib/api/authorities", () => ({
   refreshAuthoritiesInput: api.refreshAuthoritiesInput,
   reviewAuthorities: api.reviewAuthorities,
   resolveAuthoritiesDiscrepancy: api.resolveAuthoritiesDiscrepancy,
-  uploadAuthoritiesDocument: api.uploadAuthoritiesDocument
+  uploadAuthoritiesDocument: api.uploadAuthoritiesDocument,
+  authoritiesWordToPdf: async () => true
 }));
 vi.mock("@/app/lib/api/workProducts", () => ({
   createWorkProduct: api.createWorkProduct,
@@ -353,7 +354,7 @@ describe("Authorities UI contracts", () => {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 
     await userEvent.upload(screen.getByLabelText("Add file"), file);
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Word output" }))
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Outputs" }))
       .getByRole("button", { name: "Next" }));
     const setup = screen.getByRole("dialog", { name: "Import options" });
     await userEvent.click(within(setup).getByLabelText(/Use available original PDFs and manually add the PDFs myself for the rest/));
@@ -372,10 +373,10 @@ describe("Authorities UI contracts", () => {
   });
 
   it.each([
-    { label: "Build a book only", insertIntoDocument: false, tableDelivery: "native-append", citationSuffix: "none" },
-    { label: "Mark authorities in Word", insertIntoDocument: true, tableDelivery: "native-marks", citationSuffix: "none" },
-    { label: "Mark authorities and add a table", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "none" },
-    { label: "Mark, add a table and append tab references", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "tab" },
+    { label: "No marks", insertIntoDocument: false, tableDelivery: "native-append", citationSuffix: "none" },
+    { label: "Mark authorities", insertIntoDocument: true, tableDelivery: "native-marks", citationSuffix: "none" },
+    { label: "Mark and add a table", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "none" },
+    { label: "Mark, add a table and tab references", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "tab" },
   ] as const)("imports the Word output choice: $label", async ({ label, ...settings }) => {
     api.uploadAuthoritiesDocument.mockResolvedValue({ id: "word-source" });
     api.createAuthorities.mockResolvedValue(documentDraft());
@@ -384,10 +385,9 @@ describe("Authorities UI contracts", () => {
     await userEvent.upload(screen.getByLabelText("Add file"), new File(["PK"], "Factum.docx", {
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }));
-    const word = screen.getByRole("dialog", { name: "Word output" });
-    await userEvent.click(within(word).getByRole("radio", { name: new RegExp(label) }));
-    if (settings.citationSuffix === "tab")
-      await userEvent.click(within(word).getByRole("radio", { name: "[Tab 1]" }));
+    const word = screen.getByRole("dialog", { name: "Outputs" });
+    // The tab reference chooses tab references by itself.
+    await userEvent.click(within(word).getByRole("radio", { name: settings.citationSuffix === "tab" ? "[Tab 1]" : label }));
     await userEvent.click(within(word).getByRole("button", { name: "Next" }));
     await userEvent.click(within(screen.getByRole("dialog", { name: "Import options" }))
       .getByRole("button", { name: "Import and review" }));
@@ -410,7 +410,7 @@ describe("Authorities UI contracts", () => {
     await userEvent.upload(screen.getByLabelText("Add file"), new File(["PK"], "Factum.docx", {
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }));
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Word output" }))
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Outputs" }))
       .getByRole("button", { name: "Next" }));
     expect(within(screen.getByRole("dialog", { name: "Import options" }))
       .getByRole("radio", { name: /Automatic sources/ })).toBeChecked();
@@ -1139,20 +1139,18 @@ describe("Authorities UI contracts", () => {
     });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute(current.id)} /></MemoryRouter>);
-    await userEvent.click(await screen.findByRole("button", { name: "Final PDF export" }));
-    const dialog = screen.getByRole("dialog", { name: "Final PDF export" });
-    expect(within(dialog).queryByRole("checkbox", { name: /Link pinpoints/u })).not.toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("checkbox", { name: /Append the book/u }));
-    const tabLinks = await within(dialog).findByRole("checkbox", { name: /Link tab references/u });
+    // The options sit in the Build step itself; the link choices wait for the final PDF.
+    const pinpointLinks = await screen.findByRole("checkbox", { name: /Link pinpoints/u });
+    expect(pinpointLinks).toBeDisabled();
+    await userEvent.click(screen.getByRole("checkbox", { name: /Final PDF/u }));
+    const tabLinks = screen.getByRole("checkbox", { name: /Link tab references/u });
     await waitFor(() => expect(tabLinks).toBeEnabled());
     await userEvent.click(tabLinks);
-    await waitFor(() => expect(tabLinks).toBeEnabled());
-    await userEvent.click(within(dialog).getByRole("checkbox", { name: /Link pinpoints/u }));
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Done" })).toBeEnabled());
-    await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
-    await userEvent.click(screen.getByRole("button", { name: "Word output" }));
-    expect(within(screen.getByRole("dialog", { name: "Word output" }))
-      .getByRole("radio", { name: /Build a book only/u })).toBeChecked();
+    await waitFor(() => expect(pinpointLinks).toBeEnabled());
+    await userEvent.click(pinpointLinks);
+    await waitFor(() => expect(pinpointLinks).toBeChecked());
+    expect(screen.queryByRole("button", { name: "Final PDF export" })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "No marks" })).toBeChecked();
     expect(current.state.settings).toMatchObject({ finalPdf: true, linkTabs: true, linkPinpoints: true });
     expect(current.state.insertIntoDocument).toBe(false);
   });

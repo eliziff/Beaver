@@ -39,6 +39,8 @@ export interface AuthoritiesHost {
   prepareAnnotations?: typeof import("./annotationPreparation").prepareAnnotations;
   mode?: "beaver" | "standalone";
   recognitionAvailable?: boolean;
+  /** Whether a Word brief becomes PDF here; without it a final PDF needs the brief saved as PDF. */
+  wordToPdf?(): Promise<boolean>;
   drafts: WorkProductStore;
   create(input: AuthoritiesCreate): Promise<AuthoritiesProduct>;
   act(id: string, revision: number, action: AuthoritiesAction): Promise<AuthoritiesProduct>;

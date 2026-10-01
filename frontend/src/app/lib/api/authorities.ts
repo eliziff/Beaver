@@ -18,6 +18,9 @@ export const actOnAuthorities = (id: string, revision: number, action: Authoriti
   post<AuthoritiesProduct>(`/authorities/${segment(id)}/actions`, { revision, action });
 export const refreshAuthorities = (id: string, revision: number) =>
   post<AuthoritiesProduct>(`/authorities/${segment(id)}/refresh`, { revision });
+/** Whether this host turns a Word brief into PDF itself; without it the user supplies the brief PDF. */
+export const authoritiesWordToPdf = (router: "authorities" | "authorities-runtime") =>
+  apiRequest<{ wordToPdf: boolean }>(`/${router}/capabilities`).then(({ wordToPdf }) => wordToPdf);
 export const prepareAuthoritiesSources = (id: string, revision: number, signal?: AbortSignal,
   authorityId?: string) =>
   apiRequest<AuthoritiesProduct>(`/authorities/${segment(id)}/sources`,
