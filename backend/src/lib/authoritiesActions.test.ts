@@ -83,6 +83,19 @@ describe("Authorities citation boundary actions", () => {
     expect(outside.occurrences[id].pinpointManual).toBeUndefined();
   });
 
+  it("places a supra or ibid's pinpoint after its reference, and lets a reviewer set it by hand", () => {
+    const text = "Bhasin v Hrynew, 2014 SCC 71. See ibid at para 48.", ibid = "ibid at para 48";
+    const span = (needle: string) => ({ start: text.indexOf(needle), end: text.indexOf(needle) + needle.length });
+    const draft = applyAuthoritiesUserAction({ ...bodyDraft(), units: [{ ...bodyDraft().units[0], text }] },
+      { type: "add-occurrence", unitId: "body:7", ...span(ibid) });
+    const [id] = draft.units[0].occurrenceIds;
+    expect(draft.occurrences[id]).toMatchObject({ kind: "reference", authoritySpan: { text: "ibid" } });
+    expect(draft.occurrences[id].pinpointSpan?.text).toContain("48");
+    const pinned = applyAuthoritiesUserAction(draft, { type: "set-pinpoint-span", occurrenceId: id, ...span("48") });
+    expect(pinned.occurrences[id]).toMatchObject({ text: ibid, pinpointManual: true, pinpointSpan: { text: "48" },
+      pinpoints: [{ kind: "paragraph", text: "48" }] });
+  });
+
   it("keeps the citation's range when a pinpoint is set, and records no dismissal for range edits", () => {
     const draft = stringCite(), [jordan] = draft.units[0].occurrenceIds;
     const pinned = applyAuthoritiesUserAction(draft, { type: "set-pinpoint-span", occurrenceId: jordan, ...near("105") });

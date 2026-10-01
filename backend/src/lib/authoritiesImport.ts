@@ -19,7 +19,7 @@ import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { structureNative,
-  type NativeAuthorityTextUnit, type NativeCitationOccurrence } from "./structureNative";
+  type NativeAuthorityReferenceOccurrence, type NativeAuthorityTextUnit, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
 import { citationAliasKeysBatch } from "./caselawCitator";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
@@ -77,6 +77,9 @@ export function pinpointValues<Kind extends string>(
 }
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, offset);
+/** A supra, ibid or short form: its own token names the authority, and its pinpoints follow it. */
+export const nativeReferenceSpans = (reference: NativeAuthorityReferenceOccurrence, text: string, offset = 0) =>
+  occurrenceSpans(text, reference.token, reference.token, reference.pinpoints, offset);
 
 const CANLII_STATUTE = /^https?:\/\/(?:www\.)?canlii\.org\/(en|fr)\/(ca|on|bc)\/laws\/(?:stat|astat)\/([^/#?]+)\//iu;
 const STATUTE_DATASET = { ca: "LEGISLATION-FED", on: "LEGISLATION-ON",
