@@ -107,6 +107,16 @@ function sourceUrl(record: JsonObject, language: Language) {
     publisherUrl(record, language);
 }
 
+/** A2AJ answered "too many requests": lookups wait out its limit rather than ask again. */
+export class A2AJLimited extends Error {
+  constructor() { super("A2AJ, the legal-source service, is limiting requests. Sources will be found when you try again in a few minutes; PDFs can be added by hand meanwhile."); }
+}
+let limitedUntil = 0;
+const retryAfter = (value: string | null) => {
+  const seconds = Number(value);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 600) * 1000 : 60_000;
+};
+
 function apiError(status: number, body: unknown) {
   const detail = object(body)?.detail;
   const message = string(detail) ?? (Array.isArray(detail)
@@ -159,6 +169,7 @@ async function request(
     scope: "shared", kind: "legal-source-a2aj", key: url, version: 1,
     ...(immutable ? {} : { ttlMs: 24 * 60 * 60_000 }),
     produce: async () => {
+      if (Date.now() < limitedUntil) throw new A2AJLimited();
       const response = await guardedRemoteFetch(url, {
         headers: { Accept: "application/json" }, signal,
       }, {
@@ -167,6 +178,11 @@ async function request(
         response: { label: "A2AJ response", maxBytes: 64 * 1024 * 1024,
           contentTypes: ["application/json", "application/*+json"] },
       });
+      if (response.status === 429) {
+        limitedUntil = Date.now() + retryAfter(response.headers.get("retry-after"));
+        await response.body?.cancel().catch(() => undefined);
+        throw new A2AJLimited();
+      }
       const body = await response.json().catch(() => null);
       if (!response.ok) throw apiError(response.status, body);
       return object(body) ?? {};

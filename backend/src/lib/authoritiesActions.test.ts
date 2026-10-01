@@ -5,6 +5,7 @@ import { authorityCitationForms, createAuthoritiesDraft,
   type AuthoritiesDraft } from "./authoritiesDomain";
 import { authoritySourceServices, resolveAuthoritiesSources,
   type SourceServices } from "./authoritiesSourceResolution";
+import { A2AJLimited } from "./legalSources/a2aj";
 
 /** A body sentence carrying two citations and one pinpoint, as the scan leaves it. */
 const TEXT = "The duty of honest performance was recognized in Bhasin v Hrynew, 2014 SCC 71 " +
@@ -151,6 +152,16 @@ describe("Authorities citation boundary actions", () => {
     expect([jordan, bhasin].map(id => resolved.occurrences[id].authorityId)).toEqual([bhasinAuthority, bhasinAuthority]);
     expect(resolved.authorities[bhasinAuthority].sourceIdentity).toBeNull();
     expect(resolved.authorities[jordanAuthority].sourceIdentity?.stableSourceId).toBe("a2aj:en:scc:2016 scc 27");
+  });
+
+  it("says the legal-source service is limiting lookups instead of reporting every source missing", async () => {
+    const draft = { ...stringCite(), outputMode: "table" as const };
+    const limited = { ...authoritySourceServices, resolve: vi.fn(async () => { throw new A2AJLimited(); }),
+      resolveForeign: async () => null } as unknown as SourceServices;
+    await expect(resolveAuthoritiesSources(draft, limited)).rejects.toMatchObject({ status: 503,
+      message: expect.stringContaining("limiting requests") });
+    // A lookup the limit refused is not asked again within the same search.
+    expect(limited.resolve).toHaveBeenCalledTimes(Object.keys(draft.authorities).length);
   });
 
   it("decodes the boundary actions the assistant sends", () => {
