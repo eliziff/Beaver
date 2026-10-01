@@ -7,16 +7,15 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
 }) {
     const id = useId();
     const printedRef = useRef<HTMLInputElement>(null);
-    const printed = labels?.[page - 1]?.trim() ?? "";
     const known = labels?.map(label => label?.trim()).filter(Boolean) ?? [];
     const hasUnknownLabels = Array.from({ length: count }, (_, i) => !labels?.[i]?.trim()).some(Boolean);
-    const [pdfInput, setPdfInput] = useState(String(page));
-    const [printedInput, setPrintedInput] = useState(printed);
+    const [pdfInput, setPdfInput] = useState("");
+    const [printedInput, setPrintedInput] = useState("");
     const [matches, setMatches] = useState<number[]>([]);
     const [error, setError] = useState("");
     const [previous, setPrevious] = useState({ page, labels });
     if (previous.page !== page || previous.labels !== labels) {
-        setPrevious({ page, labels }); setPdfInput(String(page)); setPrintedInput(printed);
+        setPrevious({ page, labels }); setPdfInput(""); setPrintedInput("");
         setMatches([]); setError("");
     }
     function jump(kind: "pdf" | "printed") {
@@ -27,44 +26,38 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
             if (!Number.isSafeInteger(number) || number < 1 || number > count) {
                 setError(`Enter a PDF page from 1 to ${count}.`); return;
             }
-            onNavigate(number);
+            setPdfInput(""); onNavigate(number);
         } else {
             const value = printedInput.trim();
             const found = value ? Array.from({ length: count }, (_, i) => i + 1)
                 .filter(number => labels?.[number - 1]?.trim() === value) : [];
             if (!found.length) setError("No known printed page matches. Try a PDF page number.");
-            else if (found.length === 1 && !hasUnknownLabels) onNavigate(found[0]);
+            else if (found.length === 1 && !hasUnknownLabels) { setPrintedInput(""); onNavigate(found[0]); }
             else setMatches(found);
         }
     }
-    // The range sits inside the field as a faint suffix, so the page and its bounds read as one input.
-    const field = "flex h-7 items-center rounded border border-gray-200 pe-1.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-red-700";
-    const range = "pointer-events-none select-none font-normal text-gray-400 tabular-nums";
-    const inputClass = "h-full w-9 bg-transparent px-1 text-end tabular-nums text-gray-950 outline-none disabled:opacity-50";
+    // Each field shows its page range as a faint placeholder while empty; the width fits that range so it never shifts.
+    const pdfRange = `1–${count}`, printedRange = `${known[0]}–${known.at(-1)}`;
+    const inputClass = "h-7 rounded border border-gray-200 px-1.5 text-end tabular-nums text-gray-950 placeholder:font-normal placeholder:text-gray-400 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700 disabled:opacity-50";
+    const width = (range: string) => ({ width: `calc(${range.length + 1}ch + 0.75rem)` });
     return <div className="relative min-w-0 text-[0.8125rem] font-medium text-gray-700" onKeyDown={event => {
         if (event.key === "Escape") {
             if (matches.length) printedRef.current?.focus();
-            setMatches([]); setError(""); setPdfInput(String(page)); setPrintedInput(printed);
+            setMatches([]); setError(""); setPdfInput(""); setPrintedInput("");
         }
     }}>
         <div className="flex items-center gap-x-3">
             <label className="flex items-center gap-1">PDF
-                <span className={field}>
-                    <input aria-label={`PDF page, 1 to ${count}`} value={pdfInput} inputMode="numeric" disabled={disabled}
-                        aria-describedby={error ? id : undefined} className={inputClass}
-                        onChange={event => { setPdfInput(event.target.value); setError(""); setMatches([]); }}
-                        onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("pdf"); } }} />
-                    <span className={range} aria-hidden="true">/ 1–{count}</span>
-                </span>
+                <input aria-label={`PDF page, 1 to ${count}`} value={pdfInput} placeholder={pdfRange} inputMode="numeric" disabled={disabled}
+                    aria-describedby={error ? id : undefined} className={inputClass} style={width(pdfRange)}
+                    onChange={event => { setPdfInput(event.target.value); setError(""); setMatches([]); }}
+                    onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("pdf"); } }} />
             </label>
             {known.length > 0 && <label className="flex items-center gap-1">Printed
-                <span className={field}>
-                    <input ref={printedRef} aria-label={`Printed page, ${known[0]} to ${known.at(-1)}`} value={printedInput} placeholder="—" disabled={disabled}
-                        aria-describedby={error ? id : undefined} className={`${inputClass} !w-12 placeholder:text-gray-500`}
-                        onChange={event => { setPrintedInput(event.target.value); setError(""); setMatches([]); }}
-                        onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("printed"); } }} />
-                    <span className={range} aria-hidden="true">/ {known[0]}–{known.at(-1)}</span>
-                </span>
+                <input ref={printedRef} aria-label={`Printed page, ${known[0]} to ${known.at(-1)}`} value={printedInput} placeholder={printedRange} disabled={disabled}
+                    aria-describedby={error ? id : undefined} className={inputClass} style={width(printedRange)}
+                    onChange={event => { setPrintedInput(event.target.value); setError(""); setMatches([]); }}
+                    onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("printed"); } }} />
             </label>}
         </div>
         {(error || matches.length > 0) && <div className="absolute bottom-full left-0 mb-2 max-h-48 w-[min(16rem,calc(100vw-2rem))] overflow-auto rounded-lg border border-gray-200 bg-white p-2 text-gray-900 shadow-sm">

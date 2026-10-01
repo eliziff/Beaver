@@ -277,20 +277,18 @@ describe("PdfView", () => {
     it("uses detected printed labels from the document operation instead of embedded labels", async () => {
         mocks.detectedLabels = ["101", "102", "103"];
         render(<PdfView doc={{ document_id: "detected", version_id: "v1" }} />);
-        await waitFor(() => expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveValue("101"));
+        await waitFor(() => expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveAttribute("placeholder", "101–103"));
     });
 
     it("navigates a chosen duplicate from the supplied page map in the ordinary reader", async () => {
         render(<PdfView doc={null} bytes={new Uint8Array([1])} pageLabels={["i", "5", "5"]} />);
         const printed = await screen.findByRole("textbox", { name: /^Printed page/ });
         await waitFor(() => expect(printed).not.toBeDisabled());
-        expect(printed).toHaveValue("i");
+        expect(printed).toHaveValue("");
         fireEvent.change(printed, { target: { value: "5" } });
         fireEvent.keyDown(printed, { key: "Enter" });
-        expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("1");
         fireEvent.click(screen.getByRole("button", { name: "PDF 3" }));
-        await waitFor(() => expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("3"));
-        expect(printed).toHaveValue("5");
+        await waitFor(() => expect(screen.queryByRole("button", { name: "PDF 3" })).toBeNull());
     });
 
     it("keeps page and zoom controls mounted while the next PDF loads", async () => {
@@ -627,7 +625,7 @@ describe("PdfView", () => {
         fireEvent.scroll(scroller);
         expect(requestFrame.mock.calls.length).toBeLessThanOrEqual(2);
         act(() => callback!(0));
-        await waitFor(() => expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("2"));
+        expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("");
         fireEvent.scroll(scroller);
         unmount();
         expect(cancelFrame).toHaveBeenCalledWith(7);

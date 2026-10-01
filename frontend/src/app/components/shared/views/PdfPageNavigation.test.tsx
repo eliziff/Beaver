@@ -18,6 +18,7 @@ it("navigates physical pages without labels and rejects out-of-range input", () 
     expect(screen.getByRole("alert")).toBeVisible();
     enter("PDF page", "8");
     expect(navigate).toHaveBeenCalledWith(8);
+    expect(screen.getByRole("textbox", { name: "PDF page, 1 to 8" })).toHaveValue("");
 });
 
 it("disambiguates duplicate labels, supports nonnumeric labels, and synchronizes after scrolling", () => {
@@ -33,7 +34,7 @@ it("disambiguates duplicate labels, supports nonnumeric labels, and synchronizes
     fireEvent.click(screen.getByRole("button", { name: "PDF 5" }));
     expect(navigate).toHaveBeenLastCalledWith(5);
     rerender(<PdfPageNavigation page={3} count={5} labels={labels} disabled={false} onNavigate={navigate} />);
-    expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("3");
+    expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("");
     expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveValue("");
     enter("Printed page", "3");
     expect(screen.getByRole("alert")).toBeVisible();
@@ -62,7 +63,18 @@ it("clears stale matches on replacement and prevents navigation while unavailabl
     enter("Printed page", "5");
     rerender(<PdfPageNavigation page={1} count={2} labels={["i", "ii"]} disabled onNavigate={navigate} />);
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveValue("i");
+    expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveValue("");
     enter("PDF page", "2");
     expect(navigate).not.toHaveBeenCalled();
+});
+
+it("shows each range as a placeholder while empty and clears on Escape", () => {
+    render(<PdfPageNavigation page={2} count={957} labels={["i", "ii", "1", "940"]} disabled={false} onNavigate={vi.fn()} />);
+    const pdf = screen.getByRole("textbox", { name: "PDF page, 1 to 957" });
+    expect(pdf).toHaveValue("");
+    expect(pdf).toHaveAttribute("placeholder", "1–957");
+    expect(screen.getByRole("textbox", { name: "Printed page, i to 940" })).toHaveAttribute("placeholder", "i–940");
+    fireEvent.change(pdf, { target: { value: "12" } });
+    fireEvent.keyDown(pdf, { key: "Escape" });
+    expect(pdf).toHaveValue("");
 });
