@@ -1,17 +1,17 @@
 # Beaver-CAN
 
-The five bespoke research matters are withheld pending verification of
-independent fixture provenance. Original prompts, answer keys and source-packet
-metadata remain in private recovery storage. This precaution does not establish
-that each matter came from a genuine user query.
+The former custom development matters are withheld pending verification of
+independent fixture provenance. This includes prompts, matter documents,
+answer keys and coupled source-packet metadata. Original files remain in
+private recovery storage. Their removal is precautionary, not proof that every
+matter was copied from a genuine user query.
 
-The remaining legacy development matters still require provenance review.
-Do not treat an earlier synthetic label as evidence of independent invention:
-a machine-submitted prompt can still carry human-derived content. Future cases
-must use independently invented data or attributable public sources, with
-fixture provenance recorded separately from submission origin.
+Do not publish or replay this retained corpus merely because an earlier
+record described it as synthetic. A machine-submitted prompt can still carry
+human-derived content. Use independently invented cases or attributable public
+sources for future evaluations, and record fixture provenance separately from
+submission origin.
 
-The former backend schema owner and validation test have been retired.
-Retained schema files and historical results do not establish a passing current
-benchmark. Public-source parser fixtures remain under
-`backend/src/lib/__tests__/fixtures/sourcedoc/`.
+The public-source parser fixtures remain available under
+`backend/src/lib/__tests__/fixtures/sourcedoc/`. Withheld case coverage must not
+be reported as a passing benchmark.
