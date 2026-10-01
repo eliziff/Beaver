@@ -99,9 +99,11 @@ impl NativeDocument {
     fn read_instrument(&self) -> Option<InstrumentReading> {
         let NativeProduct::Pdf(pdf) = &self.product else { return None };
         let pages = pdf.passage_pages();
-        let lines = pages.iter().flat_map(|page| &page.lines)
-            .map(|line| (line.id.as_str(), line)).collect::<std::collections::HashMap<_, _>>();
+        let lines = pages.iter().flat_map(|page| page.lines.iter().map(move |line| (line.id.as_str(), (line, page.page_number))))
+            .collect::<std::collections::HashMap<_, _>>();
         let (mut text, mut parts, mut offset) = (String::new(), Vec::new(), 0);
+        // The page of the last paragraph read while its sentence is still open.
+        let mut open: Option<u32> = None;
         // The provisions follow a contents list at the front; what precedes it is front matter.
         let structure = pdf.structure();
         let mut contents = structure.nodes.iter().filter(|node| node.grammar.as_deref() == Some("contents"))
@@ -115,16 +117,22 @@ impl NativeDocument {
                 || node.range.start < front { continue; }
             // A contents list and a parallel translation repeat the body's sections; the body is read.
             if matches!(node.grammar.as_deref(), Some("contents" | "translation")) { continue; }
-            let found = node.line_ids.iter().filter_map(|id| lines.get(id.as_str()))
-                .filter(|line| !line.text.trim().is_empty()).collect::<Vec<_>>();
+            let (found, found_pages): (Vec<_>, Vec<_>) = node.line_ids.iter().filter_map(|id| lines.get(id.as_str()))
+                .filter(|(line, _)| !line.text.trim().is_empty()).map(|(line, page)| (*line, *page)).unzip();
             let (left, right) = found.iter().fold((f64::MAX, f64::MIN), |(left, right), line|
                 (left.min(line.rect[0]), right.max(line.rect[2])));
             // A line ends its paragraph when it stops short of the column or closes a clause.
             let ends = |at: usize| found[at].rect[2] < right - (right - left) * 0.2
                 || found[at].text.trim_end().ends_with(['.', ';', ':']);
             if found.is_empty() { continue; }
-            if !text.is_empty() { text.push_str("\n\n"); offset += 2; }
             let heading = node.kind == legal_structure::NodeKind::Heading;
+            // A sentence a page break cuts ("... made under paragraph" / "672.54(b) that ...")
+            // goes on in the next page's first paragraph, whose reference opens no provision.
+            let first = found[0].text.trim();
+            let carried = !heading && open.is_some_and(|page| page < found_pages[0])
+                && first.starts_with(|c: char| c.is_lowercase() || c.is_ascii_digit()) && !provision_opening(first);
+            if carried { text.push(' '); offset += 1; }
+            else if !text.is_empty() { text.push_str("\n\n"); offset += 2; }
             // A lone line ending no clause titles the provision below it.
             let title = |lines: &[String], last: &str| heading
                 || lines.len() == 1 && !last.ends_with(['.', ';', ':', ',', ')', ']']);
@@ -147,7 +155,9 @@ impl NativeDocument {
                 offset += line_text.encode_utf16().count();
                 part.1.push(line.id.clone());
             }
-            let title = title(&part.1, found[found.len() - 1].text.trim());
+            let last = found[found.len() - 1].text.trim();
+            let title = title(&part.1, last);
+            open = (!title && !last.ends_with(['.', ';', ':'])).then(|| found_pages[found.len() - 1]);
             parts.push((part.0, offset, index, part.1, title));
         }
         let structure = analyze_instrument(text, pdf.structure().document_id.clone(), &[], false).ok()?;
