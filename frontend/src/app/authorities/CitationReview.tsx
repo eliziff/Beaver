@@ -164,7 +164,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   // The active unit as rendered: its place in the document, or the extracted text shown instead.
   const locate = () => {
     const fallback = fallbackRef.current, location = fallback && unit ? wholeUnit(unit, fallback)
-      : locations.current.find(item => item.unit.id === unit?.id);
+      : locations.current.find(item => item.unit.id === unit?.id && item.root.isConnected);
     if (!location) return null;
     if (!texts.current.has(location)) texts.current.set(location, unitText(location));
     return { location, text: texts.current.get(location)! };
@@ -237,7 +237,8 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     const { product } = live.current;
     clearCitationMarks(root);
     const found = locateCitationUnits(root, product.state.units, page);
-    locations.current = page ? [...locations.current.filter(item => item.root !== root), ...found] : found;
+    // A page's text layer is rebuilt on zoom and resize; the layer it replaced leaves with it.
+    locations.current = page ? [...locations.current.filter(item => item.root !== root && item.root.isConnected), ...found] : found;
     if (page) decorated.current.add(page);
     markCitations(found, product.state.occurrences); activate(); repaint('layout');
     if (page) setReady(value => value || 1);
@@ -555,7 +556,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     {/* Controls in labelled groups that keep their places: moving, editing the citation, its pinpoint, its authority. */}
     <div className="citation-panel">
       <div role="group" aria-labelledby="citation-group-navigate" className="citation-group-navigate">
-        <h4 id="citation-group-navigate">Navigate <kbd>↑</kbd><kbd>↓</kbd></h4>
+        <h4 id="citation-group-navigate">Navigate<small><kbd>↑</kbd><kbd>↓</kbd></small></h4>
         <div>
           <Button variant="ghost" size="icon-sm" aria-label="Previous citation" disabled={index < 1}
             onClick={() => step(-1)}><ChevronLeft /></Button>
@@ -565,9 +566,10 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
         </div>
       </div>
       <div role="group" aria-labelledby="citation-group-citation" className="citation-group-citation">
-        <h4 id="citation-group-citation">Citation{intent === 'other'
+        <h4 id="citation-group-citation">Citation<small title="Shift+← → move the end; Alt+Shift+← → move the start">
+          <kbd>⇧←</kbd><kbd>⇧→</kbd></small>{intent === 'other'
           ? <span role="status" className="citation-overlap">The selection overlaps another citation</span>
-          : <span>Drag its handles or press Shift+← → to adjust; rest on a space to split there</span>}</h4>
+          : <span>Drag its handles to adjust; rest on a space to split there</span>}</h4>
         <div>
           <Button variant="outline" disabled={busy || intent !== 'new'} onClick={() => addCitation()}
             title="Add the selected text as a new citation">Add citation <kbd>N</kbd></Button>
@@ -583,7 +585,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
         </div>
       </div>
       <div role="group" aria-labelledby="citation-group-pinpoint" className="citation-group-pinpoint">
-        <h4 id="citation-group-pinpoint">Pinpoint <kbd>P</kbd></h4>
+        <h4 id="citation-group-pinpoint">Pinpoint<small><kbd>P</kbd></small></h4>
         <div>{pinpoint ? <span data-manual={selected.pinpointManual ? '' : undefined}
           title={selected.pinpointManual ? `at ${pinpoint}, set by hand` : `at ${pinpoint}`}>at {pinpoint}</span>
           : <span data-empty="">None</span>}
@@ -591,7 +593,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
             onClick={() => submit({ type: 'reset-pinpoint', occurrenceId: selected.id })}>Reset to automatic</button>}</div>
       </div>
       <div role="group" aria-labelledby="citation-group-authority" className="citation-group-authority">
-        <h4 id="citation-group-authority">Authority{selected.kind === 'reference' && <span>{referenceKind ?? 'reference'}</span>}</h4>
+        <h4 id="citation-group-authority">Authority{selected.kind === 'reference' && <small>{referenceKind ?? 'reference'}</small>}</h4>
         <div>
           <AuthorityPicker options={options} current={linked} busy={busy || selected.kind === 'reference' && !referenceKind} onPick={link} />
           {finding && <Button variant="outline" onClick={() => onReview(finding.id)}>Review quotation</Button>}

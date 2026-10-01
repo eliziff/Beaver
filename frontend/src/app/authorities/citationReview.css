@@ -2,18 +2,19 @@
 .citation-outline{overflow-y:auto;min-height:0;min-width:0;padding:.75rem .5rem;border-inline-end:1px solid #e5e7eb;font-size:.875rem}
 .citation-outline h3{margin:0 .5rem .5rem;font-size:.8125rem;font-weight:650;color:#4b5563}
 .citation-outline>[role=group]+[role=group]{margin-top:1.2rem}
-/* Each row is the citation as the article prints it, in two lines at most, every row the same height. */
-.citation-outline button{position:relative;display:flex;flex-direction:column;width:100%;height:calc(2.8em + .9rem);text-align:start;padding:.45rem .6rem;border-radius:4px;color:#374151;line-height:1.4}
+/* Each row is the citation as the article prints it, in two lines at most. A row's height follows
+   its text alone, never the selection, so choosing a row moves nothing. */
+.citation-outline button{position:relative;display:block;width:100%;text-align:start;padding:.35rem .6rem;border-radius:4px;color:#374151;line-height:1.4}
 .citation-outline button>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
-.citation-outline button+button{margin-top:.15rem}
-.citation-finding{position:absolute;top:.55rem;right:.15rem;width:6px;height:6px;border-radius:50%;background:#b91c1c}
+.citation-outline button+button{margin-top:.1rem}
+.citation-finding{position:absolute;top:.6rem;right:.15rem;width:6px;height:6px;border-radius:50%;background:#b91c1c}
 .citation-group-pinpoint span[data-manual]::after{content:'';display:inline-block;width:5px;height:5px;margin:0 0 2px .3rem;border-radius:50%;background:#b91c1c;vertical-align:middle}
 .citation-outline button:hover{background:#f3f4f6}
 .citation-outline button[aria-selected=true]{background:#fff1f0;color:#991b1b;box-shadow:inset 2px 0 #b91c1c}
 .citation-outline button:focus-visible{outline:2px solid #b91c1c;outline-offset:-2px}
-.citation-note{display:grid;grid-template-columns:1.6rem minmax(0,1fr);align-items:start;margin-bottom:.65rem}
+.citation-note{display:grid;grid-template-columns:1.6rem minmax(0,1fr);align-items:start;margin-bottom:.5rem}
 .citation-note>div{min-width:0;border-inline-start:1px solid #d1d5db;padding-inline-start:.35rem}
-.citation-note-number{padding-top:.5rem;color:#374151;font-size:.8125rem;font-weight:650;text-align:center}
+.citation-note-number{padding-top:.35rem;line-height:1.225rem;color:#374151;font-size:.8125rem;font-weight:650;text-align:center}
 .citation-dismissed{margin-top:1.2rem;color:#6b7280}
 .citation-dismissed summary{cursor:pointer;margin:0 .5rem .3rem;font-size:.8125rem;font-weight:650;color:#4b5563}
 .citation-dismissed>div{display:flex;align-items:center;gap:.4rem;padding:0 .5rem}
@@ -68,6 +69,7 @@
 .citation-group-authority{grid-area:authority}
 .citation-panel h4{display:flex;align-items:center;gap:.5rem;height:1.25rem;margin:0 0 .3rem;font-size:.75rem;font-weight:600;letter-spacing:.05em;line-height:1.25rem;text-transform:uppercase;color:#6b7280;white-space:nowrap}
 .citation-panel h4>span{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:.8125rem;font-weight:400;letter-spacing:0;text-transform:none;color:#9ca3af}
+.citation-panel h4>small{display:inline-flex;align-items:center;gap:.25rem;font-size:.8125rem;font-weight:400;letter-spacing:0;text-transform:none;color:#6b7280}
 .citation-panel h4>.citation-overlap{color:#991b1b}
 .citation-panel>div>div{display:flex;align-items:center;gap:.4rem;height:2.25rem;min-width:0;white-space:nowrap}
 .citation-panel button{height:2.25rem;min-height:0;padding-inline:.6rem;font-size:.875rem}
@@ -101,16 +103,33 @@
 @container (max-width:64rem){
   .citation-panel{grid-template:"navigate pinpoint" auto "citation citation" auto "authority authority" auto/auto minmax(0,1fr)}
 }
-@container (max-width:46rem){
+@container (max-width:48rem){
   .citation-panel{padding:.6rem .75rem}
   .citation-group-citation kbd,.citation-panel h4>span:not(.citation-overlap){display:none}
 }
 @container (max-width:32rem){
-  .citation-group-citation>div{flex-wrap:wrap;height:4.9rem;align-content:flex-start}
+  .citation-panel .citation-group-citation>div{flex-wrap:wrap;height:4.9rem;align-content:flex-start}
 }
 @container (max-width:48rem){
-  .citation-review{grid-template:auto 25rem auto/minmax(0,1fr);height:auto}
-  .citation-outline{grid-row:1;max-height:10rem;border-inline-end:0;border-bottom:1px solid #e5e7eb}
+  .citation-review{grid-template:7.5rem minmax(0,1fr) auto/minmax(0,1fr)}
+  .citation-outline{grid-row:1;border-inline-end:0;border-bottom:1px solid #e5e7eb}
   .citation-document{grid-column:1}
   .citation-note{margin-bottom:.3rem}
+}
+/* Where the citation's controls fit beside a label, every label sits beside its controls with its
+   keys or kind under it, and the citation hint takes the room after the authority: three rows of
+   controls, and two on wide screens, where the hint sits under the citation's controls. */
+@container (width > 53.5rem){
+  .citation-panel{position:relative;grid-template:"navigate pinpoint" 2.125rem "citation citation" 2.125rem "authority authority" 2.125rem/16rem minmax(0,1fr);gap:.3rem 1.25rem;padding:.4rem 1rem}
+  .citation-panel>div{display:flex;align-items:center;gap:.4rem}
+  .citation-panel h4{flex:none;flex-direction:column;align-items:flex-start;justify-content:center;gap:.2rem;width:5.25rem;height:2.125rem;margin:0;line-height:1}
+  .citation-panel h4 kbd{padding-block:0}
+  .citation-panel>div>div{flex:1;height:2.125rem}
+  .citation-panel button{height:2.125rem}
+  .citation-group-citation h4>span{position:absolute;left:calc(1rem + 38rem + 1.25rem);right:1rem;bottom:.4rem;display:flex;align-items:center;height:2.125rem;line-height:1.25;white-space:normal}
+  .citation-authority{flex:0 0 23rem;min-width:0}
+}
+@container (width > 70.75rem){
+  .citation-panel{grid-template:"navigate citation citation" 2.125rem "pinpoint authority ." 2.125rem/16rem 38rem minmax(0,1fr)}
+  .citation-group-citation h4>span{left:calc(1rem + 16rem + 38rem + 2 * 1.25rem)}
 }

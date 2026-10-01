@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import type { AuthoritiesProduct, AuthorityOccurrence } from './types';
-import { citationSelection, clearCitationMarks, locateCitationUnits, markCitations } from './citationDocument';
+import { citationSelection, clearCitationMarks, locateCitationUnits, markCitations, unitText, wholeUnit } from './citationDocument';
 
 afterEach(() => { document.body.replaceChildren(); window.getSelection()?.removeAllRanges(); });
 
@@ -37,4 +37,17 @@ it('maps repeated citations to their own body and note, preserving formatting an
   clearCitationMarks(root);
   expect(root.textContent).toBe(before);
   expect(root.querySelector('i')?.textContent).toBe('Alpha, 2024 SCC 1');
+});
+
+it('moves citation edges by words that keep their brackets, leaving a closing separator optional', () => {
+  const text = 'See [Daviault], 2 SCR 63; (ibid).', root = document.createElement('div');
+  root.textContent = text; document.body.append(root);
+  const unit = { id: 'u', ordinal: 0, kind: 'body', footnoteId: null, footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: [] } as
+    AuthoritiesProduct['state']['units'][number];
+  const words = unitText(wholeUnit(unit, root)), at = (part: string, after = false) => words.index(text.indexOf(part) + (after ? part.length : 0));
+  const ends = (k: number) => { const out = []; for (let j = words.next(k, 'end', 1, 0, words.count); j != null; j = words.next(j, 'end', 1, 0, words.count)) out.push(text.slice(0, words.to(j))); return out; };
+  expect(ends(at('See', true)).slice(0, 2)).toEqual(['See [Daviault]', 'See [Daviault],']);
+  expect(ends(at('63', true)).slice(0, 3)).toEqual(['See [Daviault], 2 SCR 63;', 'See [Daviault], 2 SCR 63; (ibid)', text]);
+  expect(text.slice(words.from(words.next(at('Daviault]'), 'start', -1, 0, words.count)!))).toBe(text.slice(text.indexOf('[')));
+  expect(text.slice(0, words.to(words.snap(at('Daviault', true), 'end', 0, words.count)!))).toBe('See [Daviault]');
 });
