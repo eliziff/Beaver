@@ -173,6 +173,8 @@ type StructureAddon = {
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfRecognizedText(document: NativeDocument, pages?: number[]): NativePdfTextPage[] | null;
   pdfPageLabels(document: NativeDocument): Array<string | null>;
+  /** Every page's text in page order, empty where a page has no exact text. */
+  pdfPageTexts(document: NativeDocument): string[];
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
   pdfPassageGeometryPages(document: NativeDocument,
     targets: Array<Omit<NativePdfPassageTarget, "exactQuotes">>): Promise<NativePdfPassagePages>;

@@ -52,11 +52,59 @@ pub(crate) enum NativeProduct {
 pub struct NativeDocument {
     pub(crate) product: NativeProduct,
     pub(crate) query: DocumentQuery,
+    /// A PDF's body read by the instrument grammar, once, when a section is asked for.
+    instrument: std::sync::OnceLock<Option<InstrumentReading>>,
+}
+
+/// The instrument grammar's reading of a PDF's body text: its paragraphs and headings
+/// without the running heads, folios and notes between them, each at its offset.
+pub(crate) struct InstrumentReading {
+    structure: DocumentStructure,
+    /// (start, end) in the reading's text, and the PDF structure node read there.
+    nodes: Vec<(usize, usize, usize)>,
+}
+
+impl InstrumentReading {
+    /// The PDF nodes a range of the reading covers.
+    fn nodes(&self, start: usize, end: usize) -> impl Iterator<Item = usize> + '_ {
+        self.nodes.iter().filter(move |(from, to, _)| *from < end && start < *to).map(|(_, _, node)| *node)
+    }
 }
 
 impl NativeDocument {
     fn new(product: NativeProduct) -> Self {
-        Self { product, query: DocumentQuery::new() }
+        Self { product, query: DocumentQuery::new(), instrument: std::sync::OnceLock::new() }
+    }
+
+    fn instrument(&self) -> Option<&InstrumentReading> {
+        self.instrument.get_or_init(|| self.read_instrument()).as_ref()
+    }
+
+    #[cfg(feature = "legalpdf")]
+    fn read_instrument(&self) -> Option<InstrumentReading> {
+        let NativeProduct::Pdf(pdf) = &self.product else { return None };
+        let pages = pdf.passage_pages();
+        let lines = pages.iter().flat_map(|page| &page.lines)
+            .map(|line| (line.id.as_str(), line.text.as_str())).collect::<std::collections::HashMap<_, _>>();
+        let (mut text, mut nodes, mut offset) = (String::new(), Vec::new(), 0);
+        for (index, node) in pdf.structure().nodes.iter().enumerate() {
+            if !matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading) { continue; }
+            let body = node.line_ids.iter().filter_map(|id| lines.get(id.as_str()))
+                .map(|line| line.trim()).filter(|line| !line.is_empty()).collect::<Vec<_>>().join(" ");
+            if body.is_empty() { continue; }
+            if !text.is_empty() { text.push_str("\n\n"); offset += 2; }
+            let length = body.encode_utf16().count();
+            nodes.push((offset, offset + length, index));
+            text.push_str(&body);
+            offset += length;
+        }
+        let structure = analyze_instrument(text, pdf.structure().document_id.clone(), &[], false).ok()?;
+        Some(InstrumentReading { structure, nodes })
+    }
+
+    #[cfg(not(feature = "legalpdf"))]
+    fn read_instrument(&self) -> Option<InstrumentReading> {
+        None
     }
 
     pub fn structure(&self) -> &DocumentStructure {
@@ -363,23 +411,21 @@ pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<Out
     let structure = document.structure();
     let pdf = !matches!(document.product, NativeProduct::Structure(_));
     let mut entries = outline_entries(structure, !pdf);
-    if pdf && legislation {
-        let instrument = analyze_instrument(structure.query_text().to_owned(), structure.document_id.clone(),
-            &[], false).ok();
-        let sections = instrument.as_ref().map(|instrument| outline_entries(instrument, true)).unwrap_or_default()
-            .into_iter().filter(|entry| entry.kind == "section").collect::<Vec<_>>();
+    if let Some(instrument) = document.instrument().filter(|_| pdf && legislation) {
+        let sections = outline_entries(&instrument.structure, true).into_iter()
+            .filter(|entry| entry.kind == "section").collect::<Vec<_>>();
         let number = |title: &str| title.strip_prefix("s ")
             .and_then(|rest| rest.split('.').next()?.parse::<u32>().ok());
         let ordered = !sections.is_empty() && sections.windows(2).all(|pair|
             matches!((number(&pair[0].title), number(&pair[1].title)), (Some(a), Some(b)) if a < b
                 || a == b && pair[0].title < pair[1].title));
         if ordered {
-            let pages = structure.nodes.iter().filter(|node| node.kind == legal_structure::NodeKind::Page)
-                .map(|node| (node.rendered_range.unwrap_or(node.range), node.page_indexes.first().copied()))
-                .collect::<Vec<_>>();
-            entries.extend(sections.into_iter().map(|entry| OutlineEntry {
-                page_index: pages.iter().find(|(range, _)| range.start <= entry.start && entry.start < range.end)
-                    .and_then(|(_, page)| *page), ..entry }));
+            // A section opens where the PDF paragraph it starts in does.
+            entries.extend(sections.into_iter().filter_map(|entry| {
+                let node = &structure.nodes[instrument.nodes(entry.start, entry.start + 1).next()?];
+                Some(OutlineEntry { start: node.rendered_range.unwrap_or(node.range).start,
+                    page_index: node.page_indexes.first().copied(), ..entry })
+            }));
         }
     }
     // A title printed atop every page is a running head, not a heading of the text.
@@ -721,6 +767,37 @@ mod pdf {
         Ok(labels)
     }
 
+    /// Every page's text in page order, as a page lookup returns it, in one read.
+    pub fn pdf_page_texts(document: &NativeDocument) -> CoreResult<Vec<&str>> {
+        Ok(pdf_of(document, "PDF page text requires a PDF document")?.page_texts())
+    }
+
+    /// A section as the instrument grammar reads the PDF's text: its lines and pages.
+    /// A label the grammar finds twice (a contents list, a second language) is ambiguous.
+    fn instrument_section(
+        native: &NativeDocument,
+        locator: &str,
+    ) -> Option<(legalpdf::PdfLookupStatus, Vec<String>, Vec<u32>)> {
+        use legalpdf::PdfLookupStatus as Status;
+        let reading = native.instrument()?;
+        let instrument = &reading.structure;
+        let query = DocumentQuery::new();
+        let found = query.structure_block(instrument, locator, 0);
+        let block = found.block.filter(|_| matches!(found.status, legal_structure::DocumentLookupStatus::Found))?;
+        let repeated = format!("{}@", block.block.label);
+        if instrument.nodes.iter().any(|node| node.label.as_deref().is_some_and(|label| label.starts_with(&repeated))) {
+            return Some((Status::Ambiguous, Vec::new(), Vec::new()));
+        }
+        let all = &native.structure().nodes;
+        let nodes = reading.nodes(block.block.start, block.block.end).map(|index| &all[index]).collect::<Vec<_>>();
+        let lines = nodes.iter().flat_map(|node| node.line_ids.iter().cloned()).collect::<Vec<_>>();
+        let mut pages = nodes.iter().flat_map(|node| node.page_indexes.iter().map(|index| *index as u32 + 1))
+            .collect::<Vec<_>>();
+        pages.sort_unstable();
+        pages.dedup();
+        (!lines.is_empty()).then_some((Status::Found, lines, pages))
+    }
+
     pub fn pdf_authority_text_units(document: &NativeDocument) -> CoreResult<impl Serialize + '_> {
         Ok(pdf_of(document, "PDF authority text units require a PDF document")?.authority_text_units())
     }
@@ -981,6 +1058,12 @@ mod pdf {
                     .flat_map(|unit| unit.page_numbers.iter().copied())
                     .collect::<Vec<_>>();
                 let mut status = lookup.status;
+                // Statute sections are read by the instrument grammar, which knows them.
+                if target.locator_kind == "section" {
+                    if let Some((found, found_lines, found_pages)) = instrument_section(native, &target.locator) {
+                        (status, lines, pages) = (found, found_lines, found_pages);
+                    }
+                }
                 if target.locator_kind == "page" {
                     if let Some(physical) = target.physical_pages {
                         pages = physical.into_iter().filter(|page| *page > 0 &&

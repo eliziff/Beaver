@@ -388,6 +388,11 @@ mod legalpdf_exports {
         js_value(env, &engine::pdf_recognized_text(document, pages).map_err(reason)?)
     }
 
+    #[napi(js_name = "pdfPageTexts")]
+    pub fn pdf_page_texts_node(document: &External<NativeDocument>) -> napi::Result<Vec<String>> {
+        engine::pdf_page_texts(document).map(|texts| texts.into_iter().map(str::to_owned).collect()).map_err(reason)
+    }
+
     #[napi(js_name = "pdfPageLabels")]
     pub fn pdf_page_labels_node(document: &External<NativeDocument>) -> napi::Result<Vec<Option<String>>> {
         engine::pdf_page_labels(document).map_err(reason)

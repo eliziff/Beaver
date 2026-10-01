@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { pdfPassageGeometry, structureNative } from "../structureNative";
+import { renderAuthoritySourcePdf } from "../authoritiesBuild";
 
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
@@ -226,4 +227,24 @@ it.skipIf(!process.env.LEGAL_STRUCTURE_LATIMER_PDF)("resolves the original Latim
       expect(Math.abs(coordinate - bounds[index][axis])).toBeLessThan(2));
     expect(page.text).not.toMatch(/Legislation|Issues|questions en litige/);
   });
+});
+
+it("locates a rebuilt statute's sections and subsections, and reads its pages in one call", async () => {
+  const provisions = Array.from({ length: 12 }, (_, index) => `**Rule ${index + 1}**\n\n**${index + 1}** (1) ` +
+    `The harbour authority sets rule ${index + 1} for vessels at berth.\n\n(2) A master may ask for ` +
+    `an exemption from rule ${index + 1} in writing.`).join("\n\n");
+  const bytes = await renderAuthoritySourcePdf({ kind: "legislation", name: "Harbour Berths Act",
+    citation: "SC 2031, c 7", date: null, sourceUrl: null, text: `## Berths\n\n${provisions}` });
+  const native = structureNative(), document = await native.derivePdfDocument(bytes, {});
+  const texts = native.pdfPageTexts(document);
+  expect(texts).toHaveLength(native.pdfDocumentSummary(document).pageCount);
+  expect(texts.join(" ")).toContain("The harbour authority sets rule 9 for vessels at berth.");
+  const result = await pdfPassageGeometry(document, bytes, ["9", "9(2)", "40"].map((locator) =>
+    ({ id: locator, locatorKind: "section" as const, locator })));
+  const found = (id: string) => result.targets.find((target) => target.id === id)!;
+  expect(found("9").status).toBe("found");
+  expect(found("9(2)").status).toBe("found");
+  expect(found("9(2)").pages.map((page) => page.text).join(" ")).toContain("exemption from rule 9");
+  expect(found("9(2)").pages.map((page) => page.text).join(" ")).not.toContain("rule 10");
+  expect(found("40").status).toBe("not_found");
 });
