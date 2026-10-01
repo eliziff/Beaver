@@ -130,10 +130,14 @@ export function unitText({ unit, root, start, end }: LocatedUnit) {
   }
   const char = (k: number) => unit.text.slice(own.starts[k], own.ends[k]);
   const gap = (k: number) => k <= 0 || k >= count || /\s/u.test(unit.text.slice(own.ends[k - 1], own.starts[k]));
-  // A word's edge is whitespace, or punctuation that stays outside a citation (a closing ";").
+  // A word's edge is whitespace, or punctuation that may stay outside a citation (a closing ";").
+  // Brackets and quotation marks belong to the word they enclose: "[Daviault]" ends after "]".
   const edge = (k: number, side: 'start' | 'end') => {
-    for (let j = k; !gap(j); j += side === 'start' ? -1 : 1)
-      if (!/\p{P}/u.test(char(side === 'start' ? j - 1 : j))) return false;
+    const attached = side === 'start' ? /[\p{Ps}\p{Pi}"']/u : /[\p{Pe}\p{Pf}"']/u;
+    for (let j = k; !gap(j); j += side === 'start' ? -1 : 1) {
+      const c = char(side === 'start' ? j - 1 : j);
+      if (!/\p{P}/u.test(c) || attached.test(c)) return false;
+    }
     return true;
   };
   const from = (k: number) => own.starts[k] ?? unit.text.length, to = (k: number) => k > 0 ? own.ends[k - 1] : 0;
