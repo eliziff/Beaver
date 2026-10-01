@@ -55,6 +55,10 @@ export function locateCitationUnits(root: HTMLElement, units: Unit[], page?: num
   });
 }
 
+/** The marks of one citation (ids are matched exactly, never through a selector). */
+export const marksOf = (root: ParentNode, id: string) =>
+  [...root.querySelectorAll<HTMLElement>('[data-citation-id]')].filter(mark => mark.dataset.citationId === id);
+
 export function clearCitationMarks(root: HTMLElement) {
   root.querySelectorAll('[data-citation-id]').forEach(mark => mark.replaceWith(...mark.childNodes));
   root.normalize();
@@ -161,6 +165,11 @@ export function unitText({ unit, root, start, end }: LocatedUnit) {
       range.setStart(a.node, a.start); range.setEnd(b.node, b.end);
       return range;
     },
+    /** The next word edge from `k` in direction `step` within [low, high]. */
+    next(k: number, side: 'start' | 'end', step: 1 | -1, low: number, high: number) {
+      for (let j = k + step; j >= low && j <= high; j += step) if (edge(j, side)) return j;
+      return null;
+    },
     /** The word edge nearest `k` within [low, high]. */
     snap(k: number, side: 'start' | 'end', low: number, high: number) {
       for (let d = 0; d <= count; d++) for (const j of [k - d, k + d])
@@ -170,6 +179,30 @@ export function unitText({ unit, root, start, end }: LocatedUnit) {
   };
 }
 export type UnitText = ReturnType<typeof unitText>;
+
+/** The located unit a selection lies in, or null when it lies outside every unit or crosses two.
+ * Units sharing a root (body paragraphs, a PDF page) are told apart by position; a note's own
+ * root wins over the body around it. */
+export function selectedUnit(locations: LocatedUnit[], range: Range) {
+  const place = (node: Node, offset: number, side: 'start' | 'end') => {
+    const inside = locations.filter(item => item.root.contains(node));
+    const deepest = inside.filter(item => !inside.some(other => other.root !== item.root && item.root.contains(other.root)));
+    if (deepest.length < 2) return deepest[0] ?? null;
+    const root = deepest[0].root, probe = document.createRange();
+    probe.setStart(node, offset);
+    let index = 0;
+    for (const text of textNodes(root, root.classList.contains('docx-view-container'))) {
+      if (text === node) { index += normalized(text.data.slice(0, offset)).length; break; }
+      if (probe.comparePoint(text, 0) > 0) break;
+      index += normalized(text.data).length;
+    }
+    // An end point belongs to the character before it.
+    const k = side === 'end' ? index - 1 : index;
+    return deepest.find(item => k >= item.start && k < item.end) ?? null;
+  };
+  const start = place(range.startContainer, range.startOffset, 'start');
+  return start && start === place(range.endContainer, range.endOffset, 'end') ? start : null;
+}
 
 export function citationSelection(location?: LocatedUnit | null, text = location && unitText(location),
   range = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null): CitationSelection | null {
@@ -198,6 +231,23 @@ function lineBoxes(rects: Iterable<DOMRect>) {
   }
   return lines;
 }
+/** Client rects of the words a range or marks cover, so no line ends in the whitespace it wraps at.
+ * jsdom has no range geometry; there the marks' own rects stand in. */
+function ink(target: Range | HTMLElement[]) {
+  const probe = document.createRange(), pieces: Array<[Text, number, number]> = [];
+  if (!probe.getClientRects) return target instanceof Range ? [] : target.flatMap(mark => [...mark.getClientRects()]);
+  if (target instanceof Range) {
+    const { commonAncestorContainer: root, startContainer, startOffset, endContainer, endOffset } = target;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+      { acceptNode: node => target.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+    for (let node: Node | null = root; node; node = walker.nextNode()) if (node instanceof Text)
+      pieces.push([node, node === startContainer ? startOffset : 0, node === endContainer ? endOffset : node.length]);
+  } else for (const mark of target) for (const node of mark.childNodes) if (node instanceof Text) pieces.push([node, 0, node.length]);
+  return pieces.flatMap(([node, from, to]) => [...node.data.slice(from, to).matchAll(/\S+/gu)].flatMap(word => {
+    probe.setStart(node, from + word.index); probe.setEnd(node, from + word.index + word[0].length);
+    return [...probe.getClientRects()];
+  }));
+}
 const within = (box: Box, x: number, y: number) => y >= box.top && y <= box.bottom && x >= box.left && x <= box.right;
 /** Client coordinates to the scroller's content coordinates. */
 const origin = (scroller: Element) => {
@@ -206,51 +256,29 @@ const origin = (scroller: Element) => {
 };
 
 export type CitationPaint = { active?: string; range?: Range | null; pinpoint?: Range | null };
-/** One rounded band per line of each citation on the pages in view, drawn in an overlay that
- * scrolls with the text. The active citation adds its fill, pinpoint and grips; a drag previews
- * its range. Scroll repaints (`force` false) only when the pages in view change. */
-export function paintCitations(scroller: HTMLElement, { active, range, pinpoint }: CitationPaint, force = true) {
+export type PaintMode = 'layout' | 'active' | 'scroll';
+type Band = Box & { id: string };
+const drawn = new WeakMap<HTMLElement, Band[]>();
+/** One rounded band per line of each citation on the pages in view, drawn in an overlay that scrolls
+ * with the text. "layout" measures every band again (marks, zoom or size changed), as does a change
+ * in the pages in view; "active" redraws only the active citation: its fill, pinpoint and grips, or the
+ * range a drag or nudge previews; "scroll" does nothing more while the same pages stay in view. */
+export function paintCitations(scroller: HTMLElement, { active, range, pinpoint }: CitationPaint, mode: PaintMode) {
   const { view, x, y } = origin(scroller), all = [...scroller.querySelectorAll('.page,section.docx')];
   const shown = all.flatMap((page, i) => {
     const box = page.getBoundingClientRect();
     return box.bottom > view.top - view.height && box.top < view.bottom + view.height ? [i] : [];
-  });
+  }).join();
   let overlay = scroller.querySelector<HTMLElement>(':scope>.citation-overlay');
-  if (!force && overlay?.dataset.pages === shown.join()) return;
   if (!overlay) {
-    overlay = scroller.appendChild(document.createElement('div'));
-    overlay.className = 'citation-overlay'; overlay.dataset.citationUi = ''; overlay.setAttribute('aria-hidden', 'true');
-    overlay.append(Object.assign(document.createElement('div'), { className: 'citation-split', hidden: true }));
+    overlay = scroller.appendChild(Object.assign(document.createElement('div'), { className: 'citation-overlay' }));
+    overlay.dataset.citationUi = ''; overlay.setAttribute('aria-hidden', 'true');
+    overlay.append(document.createElement('div'), document.createElement('div'),
+      Object.assign(document.createElement('div'), { className: 'citation-split', hidden: true }));
   }
-  overlay.dataset.pages = shown.join();
-  const groups = new Map<string, HTMLElement[]>(active && range ? [[active, []]] : []);
-  for (const page of all.length ? shown.map(i => all[i]) : [scroller])
-    for (const mark of page.querySelectorAll<HTMLElement>('[data-citation-id]')) {
-      const id = mark.dataset.citationId!, list = groups.get(id) ?? [];
-      list.push(mark); groups.set(id, list);
-    }
-  const bands: Array<Box & { id: string }> = [];
-  for (const [id, marks] of groups) for (const line of lineBoxes(id === active && range
-    ? range.getClientRects() : marks.flatMap(mark => [...mark.getClientRects()])))
-    bands.push({ id, left: line.left - 2, right: line.right + 2, top: line.top - 1, bottom: line.bottom + 1 });
-  // Bands never touch: neighbours on a line, and lines above one another, part around a gap.
-  bands.sort((a, b) => a.top - b.top || a.left - b.left);
-  for (let i = 0; i < bands.length; i++) for (let j = i + 1; j < bands.length && bands[j].top < bands[i].bottom + GAP; j++) {
-    const a = bands[i], b = bands[j], [l, r] = a.left <= b.left ? [a, b] : [b, a];
-    if (within(a, a.left, (b.top + b.bottom) / 2)) {
-      if (l.id === r.id || r.left - l.right >= GAP) continue;
-      const middle = (l.right + r.left) / 2; l.right = middle - GAP / 2; r.left = middle + GAP / 2;
-    } else if (r.left < l.right) {
-      const middle = (a.bottom + b.top) / 2; a.bottom = Math.min(a.bottom, middle - 1); b.top = Math.max(b.top, middle + 1);
-    }
-  }
-  const own = bands.filter(band => band.id === active);
-  const pins = lineBoxes(pinpoint ? pinpoint.getClientRects() : (active && !range ? groups.get(active) ?? [] : [])
-    .filter(mark => mark.dataset.pinpoint !== undefined).flatMap(mark => [...mark.getClientRects()]))
-    .flatMap(pin => {
-      const line = own.find(band => within(band, band.left, (pin.top + pin.bottom) / 2));
-      return line ? [{ ...line, left: Math.max(line.left, pin.left - 1), right: Math.min(line.right, pin.right + 1) }] : [];
-    });
+  const [layer, own] = overlay.children as unknown as [HTMLElement, HTMLElement];
+  const moved = overlay.dataset.pages !== shown;
+  if (mode === 'scroll' && !moved) return;
   const box = (className: string, b: Box, data: Record<string, string> = {}) => {
     const element = Object.assign(document.createElement('div'), { className });
     Object.assign(element.style, { left: `${b.left + x}px`, top: `${b.top + y}px`,
@@ -258,19 +286,57 @@ export function paintCitations(scroller: HTMLElement, { active, range, pinpoint 
     Object.assign(element.dataset, data);
     return element;
   };
-  // Grips straddle the first and last edges; `half` is half their hit width.
-  const grips = (kind: string, lines: Box[], half: number) => lines.length ? [
-    box('citation-grip', { ...lines[0], left: lines[0].left - half, right: lines[0].left + half }, { grip: `${kind}start` }),
-    box('citation-grip', { ...lines.at(-1)!, left: lines.at(-1)!.right - half, right: lines.at(-1)!.right + half }, { grip: `${kind}end` }),
+  const pad = (line: Box) => ({ left: line.left - 2, right: line.right + 2, top: line.top - 1, bottom: line.bottom + 1 });
+  if (mode === 'layout' || moved) {
+    overlay.dataset.pages = shown;
+    const groups = new Map<string, HTMLElement[]>();
+    for (const page of all.length ? shown.split(',').filter(Boolean).map(i => all[+i]) : [scroller])
+      for (const mark of page.querySelectorAll<HTMLElement>('[data-citation-id]')) {
+        const id = mark.dataset.citationId!, list = groups.get(id) ?? [];
+        list.push(mark); groups.set(id, list);
+      }
+    const bands: Band[] = [...groups].flatMap(([id, marks]) => lineBoxes(ink(marks)).map(line => ({ id, ...pad(line) })));
+    // Bands never touch: neighbours on a line, and lines above one another, part around a gap.
+    bands.sort((a, b) => a.top - b.top || a.left - b.left);
+    for (let i = 0; i < bands.length; i++) for (let j = i + 1; j < bands.length && bands[j].top < bands[i].bottom + GAP; j++) {
+      const a = bands[i], b = bands[j], [l, r] = a.left <= b.left ? [a, b] : [b, a];
+      if (within(a, a.left, (b.top + b.bottom) / 2)) {
+        if (l.id === r.id || r.left - l.right >= GAP) continue;
+        const middle = (l.right + r.left) / 2; l.right = middle - GAP / 2; r.left = middle + GAP / 2;
+      } else if (r.left < l.right) {
+        const middle = (a.bottom + b.top) / 2; a.bottom = Math.min(a.bottom, middle - 1); b.top = Math.max(b.top, middle + 1);
+      }
+    }
+    drawn.set(overlay, bands);
+    layer.replaceChildren(...bands.map(band => box('citation-band', band, { id: band.id })));
+  }
+  for (const band of layer.children as HTMLCollectionOf<HTMLElement>) {
+    band.toggleAttribute('data-active', band.dataset.id === active);
+    band.hidden = !!range && band.dataset.id === active;
+  }
+  const lines = range ? lineBoxes(ink(range)).map(pad) : (drawn.get(overlay) ?? []).filter(band => band.id === active);
+  const marks = active && !pinpoint ? marksOf(scroller, active).filter(mark => mark.dataset.pinpoint !== undefined) : [];
+  const pins = range ? [] : lineBoxes(ink(pinpoint ?? marks)).flatMap(pin => {
+    const line = lines.find(band => within(band, band.left, (pin.top + pin.bottom) / 2));
+    return line ? [{ ...line, left: Math.max(line.left, pin.left - 1), right: Math.min(line.right, pin.right + 1) }] : [];
+  });
+  // Each grip is a slim bar the height of its line with a round cap: the citation's start cap sits
+  // above the line and its end cap below; the pinpoint's the other way round, so coinciding edges
+  // stay apart. The hit area is 16px wide, mostly outside the text so a selection can still start
+  // at its first letter, and a line plus its cap tall.
+  const grips = (kind: string, edges: Box[]) => edges.length ? [
+    box('citation-grip', { left: edges[0].left - 12, right: edges[0].left + 4,
+      top: edges[0].top - (kind ? 0 : 8), bottom: edges[0].bottom + (kind ? 8 : 0) }, { grip: `${kind}start`, cap: kind ? 'bottom' : 'top' }),
+    box('citation-grip', { left: edges.at(-1)!.right - 4, right: edges.at(-1)!.right + 12,
+      top: edges.at(-1)!.top - (kind ? 8 : 0), bottom: edges.at(-1)!.bottom + (kind ? 0 : 8) }, { grip: `${kind}end`, cap: kind ? 'top' : 'bottom' }),
   ] : [];
-  overlay.replaceChildren(...bands.map(band => box('citation-band', band, { id: band.id, ...band.id === active && { active: '' } })),
-    ...pins.map(pin => box('citation-pinpoint', pin)), ...grips('', own, 4), ...grips('pin-', pins, 6),
-    overlay.querySelector('.citation-split')!);
+  own.replaceChildren(...range ? lines.map(line => box('citation-band', line, { active: '' })) : [],
+    ...pins.map(pin => box('citation-pinpoint', pin)), ...grips('pin-', pins), ...grips('', lines));
 }
 
 /** The active citation's band (or pinpoint) under a point, in client coordinates. */
-export function activeBand(scroller: Element, x: number, y: number, shape = '.citation-band[data-active]', slack = 4) {
-  return [...scroller.querySelectorAll(`:scope>.citation-overlay>${shape}`)]
+export function activeBand(scroller: Element, x: number, y: number, shape = '.citation-band[data-active]:not([hidden])', slack = 4) {
+  return [...scroller.querySelectorAll(`:scope>.citation-overlay ${shape}`)]
     .map(band => band.getBoundingClientRect()).find(band =>
       within({ left: band.left - slack, right: band.right + slack, top: band.top, bottom: band.bottom }, x, y));
 }

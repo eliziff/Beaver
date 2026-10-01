@@ -34,6 +34,8 @@ export interface DocxCanvasProps {
     onWarningDismiss?: () => void;
     initialScrollTop?: number | null;
     onScrollChange?: (scrollTop: number) => void;
+    /** Pages narrower than the view may be enlarged up to this factor to fill its width. */
+    maxZoom?: number;
 }
 export const DOCX_RENDER_OPTIONS = {
     breakPages: true,
@@ -49,6 +51,7 @@ export const DOCX_RENDER_OPTIONS = {
 export function fitDocxPages(
     pages: readonly HTMLElement[],
     viewport: HTMLElement,
+    maxZoom = 1,
 ): void {
     if (pages.length === 0) return;
     const styles = window.getComputedStyle(viewport);
@@ -67,7 +70,7 @@ export function fitDocxPages(
                   ? value
                   : 0
             : 0;
-        if (width > 0) page.style.zoom = String(Math.min(1, available / width));
+        if (width > 0) page.style.zoom = String(Math.min(maxZoom, available / width));
     }
 }
 export function quietBrokenDocxImages(
@@ -150,6 +153,7 @@ export function DocxCanvas({
     onWarningDismiss,
     initialScrollTop,
     onScrollChange,
+    maxZoom = 1,
 }: DocxCanvasProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -190,7 +194,7 @@ export function DocxCanvas({
     const applyDocxScale = () => {
         const scrollEl = scrollRef.current;
         if (!scrollEl) return;
-        fitDocxPages(pageElementsRef.current, scrollEl);
+        fitDocxPages(pageElementsRef.current, scrollEl, maxZoom);
     };
     useEffect(() => {
         const scrollEl = scrollRef.current;

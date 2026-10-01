@@ -800,8 +800,11 @@ describe("Authorities UI contracts", () => {
 
     const context = await screen.findByRole("textbox", { name: "Footnote context" });
     const mark = context.querySelector<HTMLElement>('[data-citation-id="whole"]')!;
-    // A stand-in for the browser's hit test: the click lands in the gap before "Beta".
+    // A stand-in for the browser's hit test: the pointer rests in the gap before "Beta",
+    // the split marker appears, and a click there splits.
     document.caretPositionFromPoint = () => ({ offsetNode: mark.firstChild!, offset: split }) as CaretPosition;
+    fireEvent.pointerMove(mark);
+    await new Promise(resolve => setTimeout(resolve, 400));
     fireEvent.click(mark);
     Reflect.deleteProperty(document, "caretPositionFromPoint");
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
@@ -921,8 +924,7 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    expect(await screen.findByText("Check quotation")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Review quotation" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Review quotation" }));
     expect(screen.getByText((_text, node) => node?.tagName === "P" && node.textContent === "the authored words")).toBeVisible();
     expect(screen.getByText((_text, node) => node?.tagName === "P" && node.textContent === "the source words")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Use source wording" })).not.toBeInTheDocument();

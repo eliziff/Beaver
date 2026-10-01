@@ -229,7 +229,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                             className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 aria-disabled:opacity-30">
                             <ZoomOut className="h-3.5 w-3.5" />
                         </button>
-                        <span className="w-9 select-none text-center text-xs font-medium tabular-nums text-gray-600">
+                        <span className="w-10 select-none text-center text-[0.8125rem] font-medium tabular-nums text-gray-600">
                             {Math.round(zoom * 100)}%
                         </span>
                         <button type="button" onClick={changeZoom} value={ZOOM_STEP}

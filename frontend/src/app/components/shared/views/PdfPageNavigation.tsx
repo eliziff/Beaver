@@ -39,7 +39,7 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
     }
     const range = "font-normal text-gray-400 tabular-nums";
     const inputClass = "h-7 w-12 rounded bg-transparent px-1 text-center tabular-nums focus-visible:outline-2 focus-visible:outline-offset-1 disabled:opacity-50";
-    return <div className="relative min-w-0 text-xs font-medium text-gray-700" onKeyDown={event => {
+    return <div className="relative min-w-0 text-[0.8125rem] font-medium text-gray-700" onKeyDown={event => {
         if (event.key === "Escape") {
             if (matches.length) printedRef.current?.focus();
             setMatches([]); setError(""); setPdfInput(String(page)); setPrintedInput(printed);

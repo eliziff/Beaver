@@ -1,7 +1,7 @@
 import { autoFetchToast } from "../../../../shared/auto-fetch-toast.mjs";
 import { CitationReview } from "./CitationReview";
 import { QuotationReview } from "./QuotationFinding";
-import { StepProgress, StepSection } from "./StepSection";
+import { StepProgress } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
 import { CANLII_PDF_NAME, folderFileId, folderMatches } from "./folderSources";
 import { authorityName, authorityLabel,
@@ -59,6 +59,8 @@ const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
   { value: "drafts", label: "Drafts" },
 ];
 const WORKSPACE_FRAME = "mx-auto w-full max-w-[68rem] px-4 sm:px-6 md:mx-auto";
+// Citation review reads the source document, so it takes the whole width.
+const WIDE_FRAME = "mx-auto w-full px-4 sm:px-6 md:mx-auto";
 const SOURCE_LANGUAGE_OPTIONS = [
   { value: "bilingual", label: "English and French", description: "One bilingual official PDF." },
   { value: "en", label: "English", description: "The English official PDF." },
@@ -146,6 +148,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     authorityId: string; selected: PdfChoice;
   }>();
   const [findingId, setFindingId] = useState("");
+  // An opened finding is reviewed below the citations, so opening it brings it into view.
+  const revealFinding = useCallback((node: HTMLDivElement | null) => node?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }), []);
   const [viewedStep, setViewedStep] = useState<{ key: string; value: Step }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
@@ -376,11 +380,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const occurrences = useMemo(() => orderedOccurrences(draft), [draft]);
   const currentReview = review && draft && review.id === draft.id && review.key === reviewKey
     ? review : undefined;
-  const discrepancies = currentReview?.items ?? [];
+  const discrepancies = useMemo(() => currentReview?.items ?? [], [currentReview]);
   const selected = occurrences.find(({ id }) => id === selectedId) ?? occurrences[0];
   useEffect(() => { if (!selected) onFocusChange?.(); }, [selected, onFocusChange]);
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
-  const authorities = draft ? authorityPlan.map(({ id }) => draft.state.authorities[id]) : [];
+  const authorities = useMemo(() => draft ? authorityPlan.map(({ id }) => draft.state.authorities[id]) : [],
+    [draft, authorityPlan]);
   const authorityTabs = new Map(authorityPlan.map(({ id, tab }) => [id, tab]));
   const missingPdfs = draft ? missingSources(draft, sourceIssues) : [];
   const importedRole = draft?.state.import.kind === "document"
@@ -899,23 +904,27 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     disabled={busy || locked} onClick={() => setSettingsOpen(true)}>
     <Settings2 /><span className="hidden sm:inline">Settings</span></Button>;
 
+  const reviewing = !!draft && stage === "citations" && tab !== "drafts" && draft.state.import.kind === "document";
+  const frame = reviewing ? WIDE_FRAME : WORKSPACE_FRAME;
+  // The sections share the header row and the status shares the step row, so the step below starts high.
+  const sections = <TabList value={tab} onValueChange={changeTab} options={TABS}
+    ariaLabel="Authorities sections" variant="dock" panelId="authorities-panel"
+    className="min-h-0 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:justify-between max-[22rem]:[&_.tab-list]:gap-0 max-[22rem]:[&_[role=tab]]:px-1" />;
+  const statusLine = <Status busy={busy} inline={!!draft && tab !== "drafts"}
+    busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />;
   return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
     host.mode === "standalone" ? "min-h-dvh" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
-    {draft ? <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} current={draft}
+    {draft ? <WorkspaceHeader className={host.mode === "standalone" ? frame : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
         onBack={() => newDraft(false)} onRename={rename} onDuplicate={duplicate}
-        onDelete={removeDraft} headerActions={<><Button type="button" variant="outline"
+        onDelete={removeDraft} headerActions={<>{sections}<Button type="button" variant="outline"
           className="h-9 border-gray-400" disabled={busy || locked} onClick={() => newDraft()}>
           <Plus /> New</Button>{headerActions}{settingsAction}</>} />
-        : <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} title="Authorities"
-          headerActions={<>{headerActions}{settingsAction}</>} />}
+        : <WorkspaceHeader className={host.mode === "standalone" ? frame : undefined} title="Authorities"
+          headerActions={<>{sections}{headerActions}{settingsAction}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
-          <main className={cn(WORKSPACE_FRAME, "min-h-80 py-4")}>
-        <TabList value={tab} onValueChange={changeTab} options={TABS}
-          ariaLabel="Authorities sections" variant="dock" panelId="authorities-panel"
-          className="mb-1 min-h-0 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:justify-between max-[22rem]:[&_.tab-list]:gap-0 max-[22rem]:[&_[role=tab]]:px-1 max-[22rem]:[&_[role=tab]]:text-xs" />
-        <Status busy={busy}
-          busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />
+          <main className={cn(frame, "min-h-80", reviewing ? "pt-1 pb-0" : "py-4")}>
+        {!(draft && tab !== "drafts") && statusLine}
         <div id="authorities-panel" role="tabpanel"
           aria-labelledby={`authorities-panel-tab-${TABS.findIndex(({ value }) => value === tab)}`}>
         {loading || (!requested &&
@@ -942,11 +951,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     sourceLabel={sourceLabel} />
               : <>
                   <TabList value={stage} onValueChange={viewStep} options={steps}
-                    ariaLabel="Book steps" variant="subtab" panelId="authorities-step" />
-                  <div id="authorities-step" role="tabpanel"
-                    aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
-                  {stage === "citations" && draft.state.import.kind === "document" && <><StepSection className="mt-3 @container" title={draft.state.import.filename}
-                    actions={<>
+                    ariaLabel="Book steps" variant="subtab" panelId="authorities-step"
+                    className="gap-3 [&_[role=tab]]:text-sm" actions={<>{statusLine}{reviewing && <>
                       {importedRole && importedIssue && host.relinkSource &&
                         relinkable(importedIssue) && <Button type="button"
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
@@ -954,13 +960,16 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                         Allow file access</Button>}
                       <StepProgress label={stepOperation} error={stepError} />
                       <Button disabled={busy} className="h-9" onClick={() => reached === "citations" ? findSources() : viewStep("sources")}>
-                        Next<ChevronRight /></Button>
-                    </>}>
+                        Next<ChevronRight /></Button></>}</>} />
+                  <div id="authorities-step" role="tabpanel"
+                    aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
+                  {reviewing && <><section aria-label="Citations"
+                    className="@container mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
                     {operation !== "Finding source PDFs" && <CitationReview product={draft} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={discrepancies}
                       busy={busy} onSelect={setSelectedId} onAction={act}
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
-                  </StepSection>{quotationReview}</>}
+                  </section>{quotationReview && <div ref={revealFinding}>{quotationReview}</div>}</>}
                   {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences}
                     ocr={ocr}
                     {...authorityPanelProps}
@@ -1707,11 +1716,12 @@ function SelectField<T extends string>({ label, value, options, onChange, disabl
 }
 
 
-function Status({ busy, busyText, status, error }: { busy: boolean; busyText: string;
-  status: string; error: boolean }) {
+function Status({ busy, busyText, status, error, inline = false }: { busy: boolean; busyText: string;
+  status: string; error: boolean; inline?: boolean }) {
   const visible = (busy && !!busyText) || !!status;
-  // The line keeps its height when empty so the step below never shifts as work starts and ends.
-  return <p className={cn("mb-1 flex min-h-6 items-center px-1 text-sm",
+  // The line keeps its height when empty so the step below never shifts as work starts and ends;
+  // beside the steps it takes no height of its own.
+  return <p className={cn("flex items-center px-1 text-sm", inline ? "min-w-0 truncate" : "mb-1 min-h-6",
     visible && "font-medium", busy && !status && "beaver-loading-indicator",
     error ? "text-red-800" : "text-gray-600")}
     role="status" aria-live="polite" aria-atomic="true" aria-busy={busy || undefined}>
