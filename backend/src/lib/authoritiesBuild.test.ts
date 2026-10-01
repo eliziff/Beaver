@@ -180,6 +180,7 @@ describe("Authorities final export", () => {
       pinpoint: "para 12", tab: "Tab 1", reason: "pinpoint-ambiguous" }]);
     const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
     expect(pageAnnots(combined, 0).filter((annotation) => annotation.has(PDFName.of("Dest")))).toHaveLength(1);
+    expect(result.artifacts["link-report"]!.bytes.toString()).toContain("1 link wasn't added. Add it in a PDF editor.");
     expect(result.artifacts["link-report"]!.bytes.toString()).toContain("2009 SCC 32 — para 12 [Tab 1]: Pinpoint is ambiguous.");
     expect(result.artifacts["link-report"]!.bytes.toString()).not.toContain("source PDF page");
     state.settings.linkTabs = false; state.settings.linkPinpoints = false;

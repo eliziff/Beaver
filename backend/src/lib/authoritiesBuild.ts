@@ -1131,7 +1131,8 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
         const reasons = { "citation-location": "Citation location could not be verified",
           "source-missing": "Source PDF unavailable", "pinpoint-unlocated": "Pinpoint not located",
           "pinpoint-ambiguous": "Pinpoint is ambiguous" };
-        const report = [filename, `${linkWarnings.length} links were not added. Add them in a PDF editor.`, "",
+        const one = linkWarnings.length === 1;
+        const report = [filename, `${linkWarnings.length} link${one ? " wasn't" : "s weren't"} added. Add ${one ? "it" : "them"} in a PDF editor.`, "",
           ...linkWarnings.map((row) => `${row.citation}${row.pinpoint ? ` — ${row.pinpoint}` : ""}` +
             `${row.tab ? ` [${row.tab}]` : ""}${row.sourcePageNumber ? `, source PDF page ${row.sourcePageNumber}` : ""}` +
             `: ${reasons[row.reason]}.`)].join("\n");
