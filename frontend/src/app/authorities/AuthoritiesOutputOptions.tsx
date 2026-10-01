@@ -41,14 +41,14 @@ export function AuthoritiesOutputOptions({ value, onChange, word, disabled = fal
     <div className="grid gap-x-8 gap-y-2 @min-[36rem]/output:grid-cols-2">
       {word && <fieldset disabled={disabled}>
         <legend className={legend}>Word brief</legend>
-        {WORD_OUTPUTS.map(option => <div key={option.value} className="flex min-h-8 flex-wrap items-center gap-x-3">
+        {WORD_OUTPUTS.map(option => <div key={option.value}>
           <label className={row}>
             <input type="radio" name={name} className="accent-red-700" checked={selected === option.value}
               disabled={!!lockedDelivery && option.value === "marks"} onChange={() => choose(option.value)} />
             {option.label}
           </label>
           {/* Choosing a reference chooses tab references, so the pair is never a dead control. */}
-          {option.value === "tabs" && <span role="radiogroup" aria-label="Tab reference" className="flex gap-1">
+          {option.value === "tabs" && <span role="radiogroup" aria-label="Tab reference" className="flex min-h-8 items-center gap-1 pl-6">
             {SUFFIXES.map(([suffix, label]) => {
               const on = selected === "tabs" && (value.citationSuffix ?? "book-tab") === suffix;
               return <label key={suffix} className={cn("flex h-7 cursor-pointer items-center rounded border px-2 text-xs has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600",
@@ -64,7 +64,7 @@ export function AuthoritiesOutputOptions({ value, onChange, word, disabled = fal
         <label className={cn(row, "mb-1 font-semibold")}>
           <input type="checkbox" className="accent-red-700" checked={final}
             onChange={event => onChange({ finalPdf: event.target.checked })} />
-          Final PDF: the brief with the book appended
+          Final PDF with the book appended
         </label>
         <div className={cn("pl-6", !final && "text-gray-500")}>
           <label className={row}>
