@@ -47,7 +47,7 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
             setMatches([]); setError(""); setPdfInput(String(page)); setPrintedInput(printed);
         }
     }}>
-        <div className="flex flex-wrap items-center gap-x-3 rounded-lg border border-gray-200 bg-white px-2 py-1 shadow-sm">
+        <div className="flex items-center gap-x-3">
             <label className="flex items-center gap-1">PDF
                 <span className={field}>
                     <input aria-label={`PDF page, 1 to ${count}`} value={pdfInput} inputMode="numeric" disabled={disabled}

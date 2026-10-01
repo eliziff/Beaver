@@ -208,7 +208,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                     <span className="sr-only">Loading PDF…</span>
                 </div>
             )}
-            <div ref={scrollRef} tabIndex={annotationEditor ? 0 : undefined} style={{ position: "absolute", scrollbarGutter: "stable", isolation: "isolate" }} className="absolute inset-0 overflow-auto p-3 beaver-pdf-scroll">
+            <div ref={scrollRef} tabIndex={annotationEditor ? 0 : undefined} style={{ position: "absolute", scrollbarGutter: "stable", isolation: "isolate" }} className="absolute inset-x-0 top-0 bottom-9 overflow-auto p-3 beaver-pdf-scroll">
                 {(error || viewerError) && (
                     <div role="alert" className="flex h-full items-center justify-center">
                         <p className="max-w-sm px-6 text-center text-sm text-red-600">
@@ -217,13 +217,15 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                 )}
                 <div ref={containerRef} className="pdfViewer" />
             </div>
+            {/* Page and zoom controls keep a strip of their own below the pages, so they never cover text. */}
+            <div className="absolute inset-x-0 bottom-0 flex h-9 items-center justify-between gap-2 border-t border-gray-200 bg-white px-2">
             {numPages > 0 && (
                 <>
-                    <div className="absolute bottom-4 left-4 max-w-[calc(100%-9rem)]">
+                    <div className="min-w-0">
                         <PdfPageNavigation page={currentPage} count={numPages} labels={pageLabels ?? recognizedText?.pageLabels ?? embeddedPageLabels}
                             disabled={loading || preparing || !!error || !!viewerError} onNavigate={jumpToPage} />
                     </div>
-                    <div className="absolute bottom-4 right-4 flex items-center gap-px rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+                    <div className="flex shrink-0 items-center gap-px">
                         <button type="button" onClick={changeZoom} value={-ZOOM_STEP}
                             aria-disabled={loading || !!error || !!viewerError || zoom <= ZOOM_MIN} aria-label="Zoom out"
                             className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 aria-disabled:opacity-30">
@@ -240,6 +242,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                     </div>
                 </>
             )}
+            </div>
         </section>
     );
 }
