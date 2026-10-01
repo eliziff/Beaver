@@ -354,7 +354,14 @@ export function structureNative() {
   }
   const module = { exports: {} } as NodeModule;
   process.dlopen(module, filename);
-  addon = module.exports as StructureAddon;
+  // An engine built before an operation existed says so, rather than failing as `undefined`.
+  addon = new Proxy(module.exports as StructureAddon, { get(engine, name) {
+    const value = Reflect.get(engine, name);
+    if (value === undefined && typeof name === "string" && name !== "then") throw new Error(
+      `The legal structure engine at ${filename} predates ${name}. Rebuild it: ` +
+      "cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml");
+    return value;
+  } });
   return addon;
 }
 
