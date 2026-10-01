@@ -311,7 +311,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       ? product : save(product.id, product.revision, prepared);
   },
   attach: (id, authorityId, revision, selected, language = "en") =>
-    attachPdf(id, revision, selected, { authority_id: authorityId, language }),
+    attachPdf(id, revision, selected, { authority_id: authorityId, language,
+      ...(selected.autoFetched ? { auto_fetched: "true" } : {}) }),
   attachBookPdf: (id, revision, slot, selected, supplementId) =>
     attachPdf(id, revision, selected, { slot, ...(supplementId ? { supplement_id: supplementId } : {}) }),
   async build(selected, progress, signal) {

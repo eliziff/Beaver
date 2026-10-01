@@ -94,6 +94,9 @@ function unusedRole(draft: AuthoritiesDraft, role: string) {
   return candidate;
 }
 
+/** A PDF auto-fetched for a CanLII slot is refused only when its opening citation names
+ *  another case; one with no readable citation (a scan) goes by its name. A PDF the user
+ *  uploads is never checked. */
 export async function checkCanliiPdf(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer) {
   const authority = draft.authorities[authorityId];
   if (!authority || authority.source.kind !== "pending-canlii" && !authority.sourceVerificationUrl) return;
@@ -101,7 +104,7 @@ export async function checkCanliiPdf(draft: AuthoritiesDraft, authorityId: strin
   // Use the opening citation, never a matching case cited later in the reasons.
   const citation = structureNative().citationOccurrencesInText(pageTextByPage[0] ?? "")
     .find(({ kind }) => kind === "case")?.coreCitation.text;
-  if (!citation) throw new ApplicationError(400, "The PDF’s citation could not be verified; it was not attached.");
+  if (!citation) return;
   const keys = citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat();
   if (!keys.includes(structureNative().citationLookupKey(citation)))
     throw new ApplicationError(400, `This PDF is ${citation}, not ${authority.citation}; it was not attached.`);

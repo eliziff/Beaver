@@ -1155,7 +1155,6 @@ describe("Authorities workspace application", () => {
     expect((product.state as AuthoritiesDraft).authorities["canonical-key"].source)
       .toMatchObject({ kind: "pending-canlii",
         pdfUrl: "https://www.canlii.org/en/ab/abkb/doc/2024/2024abkb123/2024abkb123.pdf" });
-    pdfText.mockResolvedValueOnce({ pageTextByPage: ["Neutral citation: 2024 ABKB 123"], ocrTextByPage: [] });
     product = await runtime.application.attachPdf(scope, product.id, {
       revision: product.revision, authorityId: "canonical-key", language: "en",
       file: { filename: "smith.pdf", fileType: "pdf",
@@ -1169,24 +1168,37 @@ describe("Authorities workspace application", () => {
     })).rejects.toMatchObject({ status: 409 });
   });
 
-  it("leaves a CanLII slot unbound for a different or unreadable citation, then accepts its PDF", async () => {
+  it("attaches the PDF a user uploads to a CanLII slot, whatever its first page cites", async () => {
+    const runtime = harness();
+    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    product = await runtime.application.act(scope, product.id, product.revision,
+      { type: "add-authority", kind: "case", citation: "2001 SCC 1", name: "R v Latimer" });
+    product = await prepareSources(runtime, product);
+    expect((product.state as AuthoritiesDraft).authorities["canonical-key"].source.kind).toBe("pending-canlii");
+    // A scan reads as no text at all; a manual upload is the user's choice, unlike an auto-fetch.
+    pdfText.mockClear();
+    const attached = await runtime.application.attachPdf(scope, product.id, { revision: product.revision,
+      authorityId: "canonical-key", language: "en",
+      file: { filename: "Latimer scan.pdf", fileType: "pdf", bytes: await fixturePdf("%PDF-") } });
+    expect((attached.state as AuthoritiesDraft).authorities["canonical-key"].source.kind).toBe("attached");
+    expect(attached.revision).toBe(product.revision + 1);
+    expect(pdfText).not.toHaveBeenCalled();
+  });
+
+  it("refuses an auto-fetched CanLII PDF that opens with another case, and takes a scan by its name", async () => {
     const runtime = harness();
     let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
     product = await runtime.application.act(scope, product.id, product.revision,
       { type: "add-authority", kind: "case", citation: "2001 SCC 1", name: "R v Latimer" });
     product = await prepareSources(runtime, product);
     const input = { revision: product.revision, authorityId: "canonical-key", language: "en" as const,
-      file: { filename: "Latimer.pdf", fileType: "pdf", bytes: await fixturePdf("%PDF-") } };
-    for (const text of ["Neutral citation: 2009 SCC 32. Reasons citing 2001 SCC 1.", ""]) {
-      pdfText.mockResolvedValueOnce({ pageTextByPage: [text], ocrTextByPage: [] });
-      await expect(runtime.application.attachPdf(scope, product.id, input)).rejects.toMatchObject({ status: 400 });
-      expect(runtime.product()).toBe(product);
-      expect(runtime.files.create).not.toHaveBeenCalled();
-    }
-    pdfText.mockResolvedValueOnce({ pageTextByPage: ["Neutral citation: 2001 SCC 1."], ocrTextByPage: [] });
+      autoFetched: true, file: { filename: "2001scc1.pdf", fileType: "pdf", bytes: await fixturePdf("%PDF-") } };
+    pdfText.mockResolvedValueOnce({ pageTextByPage: ["Neutral citation: 2009 SCC 32. Reasons citing 2001 SCC 1."], ocrTextByPage: [] });
+    await expect(runtime.application.attachPdf(scope, product.id, input)).rejects.toMatchObject({ status: 400 });
+    expect(runtime.files.create).not.toHaveBeenCalled();
+    pdfText.mockResolvedValueOnce({ pageTextByPage: [""], ocrTextByPage: [] });
     const attached = await runtime.application.attachPdf(scope, product.id, input);
     expect((attached.state as AuthoritiesDraft).authorities["canonical-key"].source.kind).toBe("attached");
-    expect(attached.revision).toBe(product.revision + 1);
   });
 
   it("does not invent a CanLII action when no exact neutral-citation link is derivable",

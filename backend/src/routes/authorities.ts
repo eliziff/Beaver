@@ -121,6 +121,7 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
         revision: revision(req.body?.revision, true),
         authorityId: text(req.params.authorityId), file: uploadedDocument(file),
         language: choice(req.body?.language, ["en", "fr", "bilingual"] as const),
+        autoFetched: req.body?.auto_fetched === "true",
       }));
     }));
   router.post("/:id/library-pdfs", asyncRoute(async (req, res) => {
