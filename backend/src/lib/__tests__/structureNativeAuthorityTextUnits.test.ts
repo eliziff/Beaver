@@ -289,6 +289,39 @@ it("reads a bilingual statute's sections from its English body, not its contents
   expect(found("9").status).toBe("not_found");
 });
 
+it("keeps a provision's history note out of the provision", async () => {
+  const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.TimesRoman);
+  const target = pdf.addPage([612, 792]);
+  let y = 720;
+  const row = (text: string, size = 9, gap = 11) => { target.drawText(text, { x: 48, y, size, font }); y -= gap; };
+  row("Harbour Berths Act");
+  row("Short title");
+  row("2  This Act may be cited as the Harbour Berths Act.", 9, 9);
+  row("2031, c. 2, s. 1.", 6, 13);
+  row("Berths");
+  row("3  The harbour master of the port may, by order,");
+  row("(a)  assign a berth in the port to a vessel; or");
+  row("(b)  direct that a vessel leave its berth, subject to such");
+  row("conditions as the harbour master considers appropriate.", 9, 9);
+  row("2029, c. 14, s. 6; 2031, c. 2, s. 9.", 6, 13);
+  row("Fees");
+  row("4  The fee is payable on the arrival of the vessel.", 9, 9);
+  row("R.S., c. H-2, s. 4.", 6, 13);
+  row("Appeal");
+  row("5  A master may appeal an order to the harbour authority.", 9, 9);
+  row("2031, c. 2, s. 10.", 6, 13);
+  const bytes = Buffer.from(await pdf.save()), native = structureNative();
+  const document = await native.derivePdfDocument(bytes, {});
+  const result = await pdfPassageGeometry(document, bytes, ["3", "3(b)", "4"].map((locator) =>
+    ({ id: locator, locatorKind: "section" as const, locator })));
+  const text = (id: string) => result.targets.find((target) => target.id === id)!.pages
+    .map((page) => page.text).join(" ");
+  expect(text("3")).toContain("considers appropriate.");
+  expect(text("3(b)")).toContain("considers appropriate.");
+  expect(text("4")).toContain("arrival of the vessel.");
+  for (const id of ["3", "3(b)", "4"]) expect(text(id)).not.toMatch(/2029, c\. 14|R\.S\., c\. H-2|Fees|Appeal/);
+});
+
 it("reads a sentence a page break cuts before a provision reference as one paragraph", async () => {
   const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.TimesRoman);
   const page = (rows: string[]) => {
