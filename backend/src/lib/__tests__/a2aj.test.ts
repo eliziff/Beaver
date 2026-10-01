@@ -566,4 +566,44 @@ describe("A2AJ client", () => {
       expect(guardedRemoteFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
     } finally { guardedRemoteFetch.mockReset(); guardedRemoteFetch.mockImplementation((input, init) => fetch(input, init)); }
   });
+
+  const answer = (status = 200, headers: Record<string, string> = {}) => new Response(
+    JSON.stringify(status === 200 ? { results: [] } : { error: "limited" }),
+    { status, headers: { "content-type": "application/json", ...headers } });
+  const sent = (from = 0) => guardedRemoteFetch.mock.calls.slice(from).map(([url]) => new URL(String(url)));
+  const restore = () => { guardedRemoteFetch.mockReset(); guardedRemoteFetch.mockImplementation((input, init) => fetch(input, init)); };
+
+  it("searches a citation as its words, never as A2AJ's query syntax", async () => {
+    guardedRemoteFetch.mockImplementation(async () => answer());
+    try {
+      await a2ajLegalSourceProvider.document({ citation: "Doe v Roe, [2031] ZZ No 12", discoverPdf: false });
+      const queries = sent().filter(({ pathname }) => pathname === "/search").map((url) => url.searchParams.get("query")!);
+      // A2AJ refuses "[2031] ZZ" as a range it cannot parse; every bracket goes as a character.
+      expect(queries).toContain("Doe v Roe, \\[2031\\] ZZ No 12");
+      for (const query of queries) expect(query).not.toMatch(/(?<!\\)[[\]()]/u);
+    } finally { restore(); }
+  });
+
+  it("asks A2AJ again only for what it left unanswered, never for what it answered", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2020, 0, 1) });
+    try {
+      // The lookup by citation is answered; the search after it meets A2AJ's limit.
+      guardedRemoteFetch.mockImplementation(async (url) => new URL(String(url)).pathname === "/search"
+        ? answer(429, { "retry-after": "30" }) : answer());
+      await expect(a2ajLegalSourceProvider.document({ citation: "2099 SCC 81", discoverPdf: false }))
+        .rejects.toMatchObject({ reason: "rate-limited" });
+      const first = sent();
+      expect(first.some(({ pathname }) => pathname === "/fetch")).toBe(true);
+      // Retrying once the limit passes sends the search alone.
+      vi.setSystemTime(Date.now() + 31_000);
+      guardedRemoteFetch.mockImplementation(async () => answer());
+      await expect(a2ajLegalSourceProvider.document({ citation: "2099 SCC 81", discoverPdf: false })).resolves.toBeNull();
+      const retried = sent(first.length);
+      expect(retried.length).toBeGreaterThan(0);
+      expect(retried.every(({ pathname }) => pathname === "/search")).toBe(true);
+      // Looking it up again, as importing the same brief again does, asks nothing.
+      await a2ajLegalSourceProvider.document({ citation: "2099 SCC 81", discoverPdf: false });
+      expect(sent(first.length + retried.length)).toEqual([]);
+    } finally { vi.useRealTimers(); restore(); }
+  });
 });

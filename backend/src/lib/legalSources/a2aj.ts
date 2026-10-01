@@ -211,6 +211,10 @@ async function decisiaPdf(rawUrl: string | null, signal?: AbortSignal) {
   }
 }
 
+/** A citation searched as the words it is. A2AJ's full-text search reads brackets, parentheses,
+ *  colons and the like as query syntax, and refuses "[2016] OJ No 1" as a query it cannot parse. */
+const literalQuery = (text: string) => text.replace(/[+\-=&|<>!(){}[\]^"~*?:\\/]/gu, "\\$&");
+
 // A2AJ limits clients that ask in bursts: its requests go one after another, never at once.
 let line: Promise<unknown> = Promise.resolve();
 function inTurn<T>(work: () => Promise<T>) {
@@ -405,7 +409,7 @@ async function document(args: {
     if (source) break;
   }
   if (!source) for (const form of forms) {
-    const searched = await request("/search", { query: form, doc_type: docType,
+    const searched = await request("/search", { query: literalQuery(form), doc_type: docType,
       search_type: "full_text", search_language: language, size: 10, dataset: args.dataset?.trim() }, args.signal);
     const accepted = accept(searched.results, form);
     if (!accepted) continue;
