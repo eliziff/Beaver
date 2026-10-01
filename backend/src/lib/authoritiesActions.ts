@@ -189,9 +189,11 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
         prior[0].kind === selectedReference.kind && prior[0].token.text === selectedReference.token.text &&
         prior[0].noteNumber === selectedReference.noteNumber;
     }) ? structuredClone(donorReferences[0]) : null;
+  // A supra, ibid or short form keeps only the target its donors resolved for it: split out of
+  // another citation, it does not inherit that citation's authority.
   const authorityId = match ? authority?.id ?? (sameValue(donorIds) &&
       donors.every(({ citation }) => citation === match.coreCitation.text) ? donorIds[0] : null)
-    : donors.some(({ kind }) => kind === "reference") ? reference?.targetAuthorityId ?? null
+    : selectedReference || donors.some(({ kind }) => kind === "reference") ? reference?.targetAuthorityId ?? null
     : sameValue(donorIds) ? donorIds[0] : null;
   const occurrence: AuthorityOccurrence = {
     id: `${unit.id}:manual:${start}:${end}`, unitId: unit.id, start, end, text,
