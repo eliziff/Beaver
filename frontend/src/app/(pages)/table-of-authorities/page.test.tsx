@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
 import { beaverAuthoritiesHost } from "@/app/authorities/beaverHost";
 import type { AuthoritiesProduct, AuthorityIdentity } from "@/app/authorities/types";
+import { BeaverApiError } from "@/app/lib/api/client";
 import type { WorkProductMetadata } from "@/app/lib/workProducts";
 import TableOfAuthoritiesPage, { AuthoritiesDocumentPicker } from "./page";
 
@@ -1146,6 +1147,45 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByRole("radio", { name: "No Word copy" })).toBeChecked();
     expect(current.state.settings).toMatchObject({ finalPdf: true, linkTabs: true, linkPinpoints: true });
     expect(current.state.insertIntoDocument).toBe(false);
+  });
+
+  it("saves a Word output choice and then the brief PDF without a conflict, and re-applies a write to a newer draft", async () => {
+    let current = documentDraft(); current.state.stage = "build";
+    current.state.settings.finalPdf = true;
+    const stale = () => new BeaverApiError({ status: 409, message: "This draft changed. Reopen it and try again." });
+    const saving = deferred<void>();
+    api.getWorkProduct.mockImplementation(async () => current);
+    api.actOnAuthorities.mockImplementation(async (_id, revision, action) => {
+      await saving.promise;
+      if (revision !== current.revision) throw stale();
+      current = structuredClone(current); current.revision += 1;
+      if (action.type === "set-settings") Object.assign(current.state.settings, action.settings);
+      if (action.type === "set-document-output") current.state.insertIntoDocument = action.enabled;
+      return current;
+    });
+    let attached = 0;
+    api.attachAuthoritiesBookPdf.mockImplementation(async (_id, revision, slot, file) => {
+      // The first upload meets a save made elsewhere (sources gathered in the background).
+      if (!attached++) { current = structuredClone(current); current.revision += 1; }
+      if (revision !== current.revision) throw stale();
+      current = structuredClone(current); current.revision += 1;
+      current.state.bookParts.brief = { bindingRole: `book:${slot}`, filename: file.name, sourceSha256: "c".repeat(64) };
+      return current;
+    });
+    render(<MemoryRouter><AuthoritiesWorkspace host={{ ...beaverAuthoritiesHost, wordToPdf: async () => false }}
+      {...workspaceRoute(current.id)} /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("radio", { name: "Marked copy, table and [Tab 1]" }));
+    const brief = new File(["%PDF-1.7"], "brief.pdf", { type: "application/pdf" });
+    await userEvent.upload(await screen.findByLabelText("Upload the brief PDF"), brief);
+    saving.resolve();
+    expect(await screen.findByLabelText("Replace the brief PDF")).toBeInTheDocument();
+    // The upload waited for the choice's saves, met the newer draft once, and was applied to it.
+    expect(api.actOnAuthorities.mock.calls.map(([, revision]) => revision)).toEqual([1, 2]);
+    expect(api.attachAuthoritiesBookPdf.mock.calls.map(([, revision]) => revision)).toEqual([3, 4]);
+    expect(screen.queryByText(/This draft changed/u)).not.toBeInTheDocument();
+    expect(current.state).toMatchObject({ insertIntoDocument: true,
+      settings: { citationSuffix: "tab" }, bookParts: { brief: { filename: "brief.pdf" } } });
+    expect(screen.getByRole("radio", { name: "Marked copy, table and [Tab 1]" })).toBeChecked();
   });
 
   it("remembers a missing attached PDF and offers its replacement", async () => {

@@ -513,6 +513,20 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     actionQueue.current = result.then(() => undefined, () => undefined);
     return result;
   }
+  /** A save made to the draft as it is when the save's turn comes. One that landed meanwhile
+   *  without this workspace (sources gathered on the server) is read, and the save made again on it. */
+  async function onLatest(id: string, save: (current: AuthoritiesProduct) => Promise<AuthoritiesProduct>) {
+    const current = draftRef.current;
+    if (current?.id !== id) throw new Error("This draft is no longer open.");
+    return save(current).catch(async (caught) => {
+      if ((caught as { status?: number })?.status !== 409) throw caught;
+      const newer = await host.drafts.get<AuthoritiesProduct["state"]>(id);
+      adopt(newer);
+      return save(newer);
+    });
+  }
+  const queuedSave = (id: string, save: (current: AuthoritiesProduct) => Promise<AuthoritiesProduct>) =>
+    serialized(() => onLatest(id, save));
   /** The citation that carries on an edited one: itself, or the citation that now covers it. */
   const carryOn = (action: AuthoritiesAction, before: AuthoritiesProduct, next: AuthoritiesProduct) => {
     const prior = "occurrenceId" in action ? before.state.occurrences[action.occurrenceId] : null;
@@ -540,13 +554,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         const current = draftRef.current;
         if (!current || current.id !== targetId) return;
         const sent = edit?.action ?? action;
-        const next = await host.act(current.id, current.revision, sent).catch(async (caught) => {
-          // A save that landed meanwhile (sources gathered on the server) leaves the edit to apply again.
-          if (!edit || (caught as { status?: number })?.status !== 409) throw caught;
-          const latest = await host.drafts.get<AuthoritiesProduct["state"]>(current.id);
-          adopt(latest);
-          return host.act(latest.id, latest.revision, sent);
-        });
+        const next = await onLatest(targetId, (latest) => host.act(latest.id, latest.revision, sent));
         if (edit) {
           // Later edits and the selection follow citations the save named differently.
           const names = savedIds(previewEdit(current, sent) ?? current, next);
@@ -571,10 +579,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     });
   };
   const resolveDiscrepancy: DiscrepancyHandler = (finding, action, done) => {
-    const current = draftRef.current;
-    if (!current || !host.resolveDiscrepancy) return;
-    void run(() => host.resolveDiscrepancy!(current.id,
-      { id: finding.id, action, revision: current.revision }), (next) => {
+    const id = draftRef.current?.id;
+    if (!id || !host.resolveDiscrepancy) return;
+    void run(() => queuedSave(id, (current) => host.resolveDiscrepancy!(current.id,
+      { id: finding.id, action, revision: current.revision })), (next) => {
       adopt(next); done();
     }, action === "ignore" ? "Quotation difference dismissed"
       : host.mode === "standalone" ? "Corrected Word copy saved with this draft"
@@ -619,33 +627,33 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   function appendManual(files: PdfChoice[]) {
     const pdfs = files.filter(isPdfChoice);
     if (!pdfs.length) { setError("Add one or more PDFs."); return; }
-    void run(async () => {
-      const manualPreferences = bookPreferences(preferences);
-      let current = draft?.state.import.kind === "manual" ? draft : await host.create({
+    void run(() => serialized(async () => {
+      const manualPreferences = bookPreferences(preferences), open = draftRef.current;
+      let current = open?.state.import.kind === "manual" ? open : await host.create({
         source: { kind: "manual" }, title: manualTitle.trim() || "Book of Authorities",
         projectId, settings: { ...manualPreferences, sourceMode: "manual-originals",
           passageMarking: "margin", outputMode: "book" },
       });
-      if (current !== draft) { adopt(current, true); }
+      if (current !== open) { adopt(current, true); }
       for (let index = 0; index < pdfs.length; index += 1) {
         const selected = pdfs[index], before = new Set(current.state.authorityOrder);
         const filename = pdfChoiceName(selected);
         const label = filename.replace(/\.pdf$/iu, "").replace(/[_-]+/gu, " ").trim()
           || `Authority ${index + 1}`;
         setMessage(`Adding ${index + 1} of ${pdfs.length}`);
-        current = await host.act(current.id, current.revision,
-          { type: "add-authority", kind: "other", citation: label, name: label });
+        current = await onLatest(current.id, (latest) => host.act(latest.id, latest.revision,
+          { type: "add-authority", kind: "other", citation: label, name: label }));
         adopt(current);
         const authorityId = current.state.authorityOrder.find((id) => !before.has(id));
         if (!authorityId) throw new Error("The PDF could not be added.");
-        current = isLibraryDocument(selected)
-          ? await host.attachLibraryPdf!(current.id, current.revision, selected,
+        current = await onLatest(current.id, (latest) => isLibraryDocument(selected)
+          ? host.attachLibraryPdf!(latest.id, latest.revision, selected,
             { kind: "authority", authorityId, language: "en" })
-          : await host.attach(current.id, authorityId, current.revision, selected);
+          : host.attach(latest.id, authorityId, latest.revision, selected));
         adoptSourceWrite(current);
       }
       return current;
-    }, (next) => { adopt(next, true); }, `${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"} added`);
+    }), (next) => { adopt(next, true); }, `${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"} added`);
   }
   function attach(authorityId: string, selected?: PdfChoice,
     language?: AuthoritySourceLanguage) {
@@ -654,29 +662,30 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (!language && requiresBilingualSources(current.state, authority)) {
       setPendingAttachment({ authorityId, selected }); return;
     }
-    void run(() => isLibraryDocument(selected)
-      ? host.attachLibraryPdf!(current.id, current.revision, selected,
+    void run(() => queuedSave(current.id, (latest) => isLibraryDocument(selected)
+      ? host.attachLibraryPdf!(latest.id, latest.revision, selected,
         { kind: "authority", authorityId, language: language ?? "en" })
-      : host.attach(current.id, authorityId, current.revision, selected, language), adoptSourceWrite,
+      : host.attach(latest.id, authorityId, latest.revision, selected, language)), adoptSourceWrite,
     `${pdfChoiceName(selected)} attached`);
   }
   function attachBookFiles(slot: AuthoritiesBookSlot,
     selected: PdfChoice[], supplementId?: string) {
-    if (!draft || !selected.length || (!host.attachBookPdf && !host.attachLibraryPdf)) return;
+    // Saved to the draft as it is once the changes asked for before it (an output choice) are saved.
+    const id = draftRef.current?.id;
+    if (!id || !selected.length || (!host.attachBookPdf && !host.attachLibraryPdf)) return;
     const files = slot === "supplemental" && !supplementId ? selected : selected.slice(0, 1);
-    void run(async () => {
-      let current = draft;
+    void run(() => serialized(async () => {
+      let current: AuthoritiesProduct | undefined;
       for (let index = 0; index < files.length; index += 1) {
         const selected = files[index];
         setMessage(files.length > 1 ? `Adding ${index + 1} of ${files.length}` : "Adding file");
-        current = isLibraryDocument(selected)
-          ? await host.attachLibraryPdf!(current.id, current.revision, selected,
-            { kind: "book", slot, supplementId })
-          : await host.attachBookPdf!(current.id, current.revision, slot, selected, supplementId);
+        current = await onLatest(id, (latest) => isLibraryDocument(selected)
+          ? host.attachLibraryPdf!(latest.id, latest.revision, selected, { kind: "book", slot, supplementId })
+          : host.attachBookPdf!(latest.id, latest.revision, slot, selected, supplementId));
         adoptSourceWrite(current);
       }
       return current;
-    }, adopt, files.length > 1 ? `${files.length} files added` : `${pdfChoiceName(files[0])} added`);
+    }), adopt, files.length > 1 ? `${files.length} files added` : `${pdfChoiceName(files[0])} added`);
   }
 
   function openLibrary(target: LibraryTarget) {
@@ -794,8 +803,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     await scanRef.current();
   }
   function rename(title: string) {
-    if (draft) void run(() => host.drafts.update<AuthoritiesProduct["state"]>(draft.id,
-      { revision: draft.revision, title }), adopt);
+    if (draft) void run(() => queuedSave(draft.id, (current) =>
+      host.drafts.update<AuthoritiesProduct["state"]>(current.id, { revision: current.revision, title })), adopt);
   }
   function duplicate() {
     if (!draft) return;
@@ -943,10 +952,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     });
   }
   function retryPublisherSource(authorityId: string) {
-    const current = draftRef.current;
-    if (!current) return;
+    const id = draftRef.current?.id;
+    if (!id) return;
     const request = new AbortController();
-    void run(() => host.prepareSources(current, request.signal, authorityId), adopt,
+    void run(() => queuedSave(id, (current) => host.prepareSources(current, request.signal, authorityId)), adopt,
       "", "Retrying source PDF");
   }
   const reached = draft?.state.stage ?? (draft && Object.keys(draft.outputs).length ? "build"

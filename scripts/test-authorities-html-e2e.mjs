@@ -727,6 +727,32 @@ function Run(page, mode) {
     const tabs = await build("docx-tabs", /Lakeshore/u);
     await shots("docx-12-built");
     await verifyWordOutputs(tabs, true);
+    // A Word copy choice changed after the build, then the brief PDF replaced while the choice is
+    // still saving (a long brief's saves take a while; here each is held for a second): each is
+    // saved in turn, to the draft the one before it made, and neither meets the other as a conflict.
+    const marks = page.getByRole("radio", { name: "Marked copy and table", exact: true });
+    const revised = path.join(path.dirname(fixtures.briefPdf), "harbourside-brief-revised.pdf");
+    await writeFile(revised, await readFile(fixtures.briefPdf));
+    await page.evaluate(() => {
+      const send = window.fetch; window.__e2eFetch = send;
+      window.fetch = async (input, init) => {
+        if (String(input?.url ?? input).includes("/authorities-runtime/action")) await new Promise((resolve) => setTimeout(resolve, 1000));
+        return send(input, init);
+      };
+    });
+    await page.locator("label", { has: marks }).click();
+    const replace = () => page.getByRole("button", { name: "Replace the brief PDF" }).click();
+    if (mode === "file") {
+      // The reader takes a moment in the file dialog, while the choice's first save lands.
+      const chooser = page.waitForEvent("filechooser");
+      await replace(); await page.waitForTimeout(1500); await (await chooser).setFiles([revised]);
+    } else await pick(replace, [revised]);
+    const replaced = page.getByText("harbourside-brief-revised.pdf", { exact: true });
+    await replaced.waitFor({ timeout: 15_000 }).catch(() => {});
+    await idle(); await page.evaluate(() => { window.fetch = window.__e2eFetch; });
+    check(await replaced.isVisible(), `${mode}: the brief PDF replaced while a Word copy choice saves is saved after it`,
+      (await page.locator("body").innerText()).match(/[^\n]*(?:draft changed|Brief saved as PDF)[^\n]*\n?[^\n]*/giu));
+    check(await marks.isChecked(), `${mode}: the Word copy choice outlasts the brief PDF replaced after it`);
   };
 
   async function verifyPdfOutputs(files) {
