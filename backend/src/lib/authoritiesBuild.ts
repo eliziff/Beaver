@@ -5,7 +5,7 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { Nodes } from "mdast";
-import { nestedOutline, pdfAssembly, type PdfOutline } from "./pdfAssembly";
+import { nestedOutline, pdfAssembly, sourceOutline, type PdfOutline } from "./pdfAssembly";
 import { renderAuthoritiesBook, fit, pdfNormalized, pdfText, wrapped,
   type BookRow, type PreparedAuthoritiesBook } from "./authoritiesBook";
 const { addInternalLink: addLink, applyOutlines, appendPages, readOutlines } = pdfAssembly(pdfLibrary);
@@ -694,14 +694,13 @@ async function loadAuthorityPdf(
       : await loadBookPdf(pdf, source, label, attached),
     text: attached[source.bindingRole] })));
   const markedPages = new Set<number>();
-  // Each source keeps its publisher's bookmarks, or else the headings and sections read from it.
+  // Each source keeps its publisher's bookmarks and the headings and sections read from it.
   const outline: PdfOutline[] = [];
   let sourceOffset = 0;
   for (const item of loaded) {
-    // A lone bookmark ("Blank Page" on some printers' statutes) is not an outline.
-    const own = readOutlines(item.document, sourceOffset);
-    outline.push(...(own.length > 1 || own[0]?.children?.length ? own : nestedOutline((item.text?.outline ?? []).map(entry => ({
-      ...entry, pageIndex: entry.pageIndex === undefined ? undefined : sourceOffset + entry.pageIndex })))));
+    outline.push(...sourceOutline(readOutlines(item.document, sourceOffset),
+      nestedOutline((item.text?.outline ?? []).map(entry => ({ ...entry,
+        pageIndex: entry.pageIndex === undefined ? undefined : sourceOffset + entry.pageIndex })))));
     if (editing && attached[item.source.bindingRole]?.bytes !== undefined) {
       const { annotations } = prepareAuthorityAnnotations(pdf, item.document, editing.draft,
         editing.authority, item.source, item.text);
