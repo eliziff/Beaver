@@ -196,7 +196,8 @@ function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
   ];
   setChildren(rightRun, tail);
   parentChildren.splice(runIndex + 1, 0, ...nodes,
-    ...(visibleText(rightRun) || tail.some((child) => elName(child) !== "w:rPr")
+    // The run's remainder, unless an insertion at the end of its text left it nothing.
+    ...(tail.some((child) => elName(child) !== "w:rPr" && (child !== rightChildren[textIndex] || value.slice(local)))
       ? [rightRun] : []));
 }
 const insertField = (root: XNode, offset: number, instruction: string) =>
@@ -240,6 +241,27 @@ function linkedTable(entries: readonly DocxLinkedAuthority[]) {
   ];
 }
 
+/** The TA fields a reviewed unit already holds: where each begins in its text, and its category. */
+function existingMarks(root: XNode) {
+  const found: Array<{ offset: number; category: number }> = [], open: Array<{ offset: number; code: string }> = [];
+  let cursor = 0;
+  walk(root, (node) => {
+    const name = elName(node);
+    if (name === "w:del") return false;
+    if (name === "w:t") cursor += getTextContent(node).length;
+    else if (name === "w:tab" || name === "w:br" || name === "w:cr") cursor += 1;
+    else if (name === "w:instrText" && open.length) open[open.length - 1].code += getTextContent(node);
+    else if (name === "w:fldChar") {
+      const type = (node[ATTR_KEY] as Record<string, string> | undefined)?.["@_w:fldCharType"];
+      if (type === "begin") open.push({ offset: cursor, code: "" });
+      const field = type === "end" ? open.pop() : undefined;
+      const category = field && /^\s*TA\b/u.test(field.code) ? /\\c\s+"?(\d+)/u.exec(field.code)?.[1] : undefined;
+      if (field && category) found.push({ offset: field.offset, category: Number(category) });
+    }
+  });
+  return found;
+}
+
 /** Applies the selected Word-native or static linked Authorities delivery. */
 export async function applyTableOfAuthorities(
   bytes: Buffer,
@@ -249,6 +271,8 @@ export async function applyTableOfAuthorities(
   linked: readonly DocxLinkedAuthority[] = [],
 ) {
   const { session, document, targets, save } = await authorityUnitPackage(bytes, units);
+  // A citation the author already marked keeps that mark, and the table lists the author's categories too.
+  const existing = new Map([...targets].map(([id, node]) => [id, existingMarks(node)]));
   for (const mark of [...marks].sort((left, right) =>
       right.unitId.localeCompare(left.unitId) || right.offset - left.offset)) {
       const target = targets.get(mark.unitId);
@@ -259,7 +283,8 @@ export async function applyTableOfAuthorities(
           "w:instr": ` HYPERLINK "${mark.tabUrl}" `,
         }) : run]);
       }
-      if (delivery !== "linked-append" && mark.mark !== false) insertField(target, mark.offset,
+      if (delivery !== "linked-append" && mark.mark !== false &&
+        !existing.get(mark.unitId)?.some(({ offset }) => offset === mark.offset)) insertField(target, mark.offset,
         ` TA \\l "${fieldText(mark.longName)}" \\s "${fieldText(mark.shortName)}" \\c ${mark.category} `);
       if (mark.pinpointLink) {
         const { start, end, url } = mark.pinpointLink;
@@ -274,8 +299,8 @@ export async function applyTableOfAuthorities(
   const body = document.body, children = elChildren(body);
   const section = children.findIndex((node) => elName(node) === "w:sectPr");
   // Word's table lists one category per field, under that category's heading, as Word does for "All".
-  const categories = [...new Set(marks.filter((mark) => mark.mark !== false).map(({ category }) => category))]
-    .sort((left, right) => left - right);
+  const categories = [...new Set([...marks.filter((mark) => mark.mark !== false).map(({ category }) => category),
+    ...[...existing.values()].flat().map(({ category }) => category)])].sort((left, right) => left - right);
   const appended = delivery === "native-append" ? [
     makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
     makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" })]),
