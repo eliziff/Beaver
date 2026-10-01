@@ -9,7 +9,7 @@ import { authorityName, authorityLabel,
   requiresBilingualSources,
   missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, Download, Eye, FilePlus2, FolderSearch,
-  History, Loader2, Plus, Scale, Settings2 } from "lucide-react";
+  History, Loader2, Plus, Scale, Settings2, Upload } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
@@ -28,7 +28,7 @@ import { downloadBlob } from "@/app/lib/download";
 import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
-import { Sources } from "./AuthoritySources";
+import { rowControl, rowLabel, Sources } from "./AuthoritySources";
 import { AuthoritiesWordOptions, type AuthoritiesWordOptionsValue } from "./AuthoritiesWordOptions";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
@@ -59,9 +59,9 @@ const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
   { value: "automatic", label: "Automatic" }, { value: "manual", label: "Manual" },
   { value: "drafts", label: "Drafts" },
 ];
-const WORKSPACE_FRAME = "mx-auto w-full max-w-[68rem] px-4 sm:px-6 md:mx-auto";
-// Citation review reads the source document, so it takes the whole width.
-const WIDE_FRAME = "mx-auto w-full px-4 sm:px-6 md:mx-auto";
+// Citation review reads the source document, so it takes the whole width, and every other
+// view shares that frame so that nothing moves between them.
+const FRAME = "mx-auto w-full px-4 sm:px-6 md:mx-auto";
 const SOURCE_LANGUAGE_OPTIONS = [
   { value: "bilingual", label: "English and French", description: "One bilingual official PDF." },
   { value: "en", label: "English", description: "The English official PDF." },
@@ -968,8 +968,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     disabled={busy || locked} onClick={() => setSettingsOpen(true)}>
     <Settings2 /><span className="hidden sm:inline">Settings</span></Button>;
 
+  // Always present, so the header never shifts; with no draft open, this already is a new one.
+  const newAction = <Button type="button" variant="outline" className="h-9 border-gray-400"
+    disabled={!draft || busy || locked} title={draft ? undefined : "No draft is open"}
+    onClick={() => newDraft()}><Plus /> New</Button>;
+
   const reviewing = !!draft && stage === "citations" && tab !== "drafts" && draft.state.import.kind === "document";
-  const frame = reviewing ? WIDE_FRAME : WORKSPACE_FRAME;
+  const stepping = !!draft && tab !== "drafts";
   // The sections share the header row and the status shares the step row, so the step below starts high.
   const sections = <TabList value={tab} onValueChange={changeTab} options={TABS}
     ariaLabel="Authorities sections" variant="dock" panelId="authorities-panel"
@@ -978,16 +983,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />;
   return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
     host.mode === "standalone" ? "min-h-dvh" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
-    {draft ? <WorkspaceHeader className={host.mode === "standalone" ? frame : undefined} current={draft}
+    {draft ? <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
         onBack={() => newDraft(false)} onRename={rename} onDuplicate={duplicate}
-        onDelete={removeDraft} headerActions={<>{sections}<Button type="button" variant="outline"
-          className="h-9 border-gray-400" disabled={busy || locked} onClick={() => newDraft()}>
-          <Plus /> New</Button>{headerActions}{settingsAction}</>} />
-        : <WorkspaceHeader className={host.mode === "standalone" ? frame : undefined} title="Authorities"
-          headerActions={<>{sections}{headerActions}{settingsAction}</>} />}
+        onDelete={removeDraft} headerActions={<>{sections}{newAction}{headerActions}{settingsAction}</>} />
+        : <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} title="Authorities"
+          headerActions={<>{sections}{newAction}{headerActions}{settingsAction}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
-          <main className={cn(frame, "min-h-80", reviewing ? "pt-1 pb-0" : "py-4")}>
+          <main className={cn(FRAME, "min-h-80", stepping ? "pt-1" : "pt-4", reviewing ? "pb-0" : "pb-4")}>
         {!(draft && tab !== "drafts") && statusLine}
         <div id="authorities-panel" role="tabpanel"
           aria-labelledby={`authorities-panel-tab-${TABS.findIndex(({ value }) => value === tab)}`}>
@@ -1016,7 +1019,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
               : <>
                   <TabList value={stage} onValueChange={viewStep} options={steps}
                     ariaLabel="Book steps" variant="subtab" panelId="authorities-step"
-                    className="gap-3 [&_[role=tab]]:text-sm" actions={<>{statusLine}{reviewing && <>
+                    // The steps keep a fixed share of the row, so no status or action moves them.
+                    className="gap-3 [&_[role=tab]]:text-sm [&_.tab-list]:w-[min(40rem,60%)] [&_.tab-list]:flex-none [&>[data-tabs-actions]]:min-w-0 [&>[data-tabs-actions]]:flex-1 [&>[data-tabs-actions]]:justify-end"
+                    actions={<>{statusLine}{reviewing && <>
                       {importedRole && importedIssue && host.relinkSource &&
                         relinkable(importedIssue) && <Button type="button"
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
@@ -1609,10 +1614,10 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
     ? onPick(slot, multiple, supplementId) : undefined;
   const supplementStart = planAuthorities(draft)
     .filter(({ tab }) => tab !== "Not reproduced").length;
-  /** Match the fixed-width action column the authority rows use, so this section's controls
-   *  neither outsize nor drift out of alignment with the rest of the Sources step. */
-  const rowControl = "h-8 shrink-0 border-gray-400 px-2.5 text-xs w-28 justify-center";
-  return <div className="mb-2 border-t border-gray-200 pt-3">
+  // The rows' actions are the Sources step's: View, Replace and a menu, at the same widths.
+  const moreTrigger = "flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600";
+  const headerControl = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
+  return <div className="@container/sources mb-2 border-t border-gray-200 pt-3">
     <h3 className="mb-2 min-h-8 text-sm font-semibold leading-8 text-gray-900">Cover and index</h3>
     <div className="divide-y divide-gray-200 rounded-lg border border-gray-300">
       {(["cover", "index"] as const).map((slot) => {
@@ -1626,22 +1631,27 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
               ? "Details required" : "Generated")}</span>
           <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
             {slot === "cover" && !part && onEditFederalCover && <Button type="button"
-              variant="outline" className="h-8 px-2 text-xs" disabled={busy}
+              variant="outline" className={rowControl} disabled={busy}
               onClick={onEditFederalCover}>{federalCoverComplete ? "Edit" : "Add details"}</Button>}
-            {part && onOpen && <Button type="button" variant="ghost" className="h-8 px-2 text-xs"
-              disabled={busy} onClick={() => onOpen(part.bindingRole)}><Eye /> Open</Button>}
-            {part && relinkable(issue) ? <Button type="button" variant="outline" className="h-8 px-2 text-xs text-red-800"
-              disabled={busy} onClick={() => onRelink(part.bindingRole)}>Allow file access</Button>
-              : onPick ? <Button type="button" variant="outline" className="h-8 px-2 text-xs"
-              disabled={busy} onClick={() => add(slot, false)}>{part ? "Replace" : "Add file"}</Button>
-              : onFiles && <FileInputButton multiple={false} disabled={busy}
-                label={part ? "Replace" : "Add file"} accept=".pdf,application/pdf"
-                onFiles={(files) => onFiles(slot, files)} variant="outline" compact />}
-            {onLibrary && <Button type="button" variant="outline" className="h-8 px-2 text-xs"
-              aria-label={`Choose ${title} from ${sourceLabel}`} disabled={busy}
-              onClick={() => onLibrary(slot)}><FolderSearch /> {sourceLabel}</Button>}
-            {part && <MoreActionsMenu label={`${title} options`} items={[{ label: "Use generated",
-              disabled: busy, onSelect: () => onAction({ type: "clear-book-part", slot }) }]} />}
+            {part && onOpen && <Button type="button" variant="outline" className={rowControl}
+              aria-label={`View the ${slot}`} title="View" disabled={busy}
+              onClick={() => onOpen(part.bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>}
+            {/* A slot without a PDF holds the generated page, so a chosen PDF always replaces one. */}
+            {part && relinkable(issue) ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
+              disabled={busy} onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
+              : onPick ? <Button type="button" variant="outline" className={rowControl}
+              aria-label={`Replace the ${part ? "" : "generated "}${slot} with a PDF`} title="Replace"
+              disabled={busy} onClick={() => add(slot, false)}><Upload /><span className={rowLabel}>Replace</span></Button>
+              : onFiles && <FileInputButton multiple={false} disabled={busy} label="Replace"
+                ariaLabel={`Replace the ${part ? "" : "generated "}${slot} with a PDF`} accept=".pdf,application/pdf"
+                onFiles={(files) => onFiles(slot, files)} variant="outline" compact className={rowControl}
+                icon={<Upload />} labelClassName={rowLabel} />}
+            {onLibrary && <Button type="button" variant="outline" className={rowControl}
+              aria-label={`Choose ${title} from ${sourceLabel}`} title={sourceLabel} disabled={busy}
+              onClick={() => onLibrary(slot)}><FolderSearch /><span className={rowLabel}>{sourceLabel}</span></Button>}
+            {part ? <MoreActionsMenu label={`${title} options`} triggerClassName={moreTrigger} items={[{ label: "Use generated",
+              disabled: busy, onSelect: () => onAction({ type: "clear-book-part", slot }) }]} />
+              : <span className="w-8 shrink-0" />}
           </div>
         </div>;
       })}
@@ -1649,13 +1659,13 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
     <div className="mt-3 flex min-h-8 flex-wrap items-center justify-between gap-2">
       <h3 className="text-sm font-semibold text-gray-900">Other book PDFs</h3>
       <div className="flex flex-wrap justify-end gap-1">
-        {onPick ? <Button type="button" variant="outline" className={rowControl}
+        {onPick ? <Button type="button" variant="outline" className={headerControl}
           aria-label="Add other book files" disabled={busy} onClick={() => add("supplemental", true)}>
           <FilePlus2 /> Add files</Button>
           : onFiles && <FileInputButton multiple disabled={busy} label="Add files"
             ariaLabel="Add other book files" accept=".pdf,application/pdf"
-            onFiles={(files) => onFiles("supplemental", files)} variant="outline" compact className={rowControl} />}
-        {onLibrary && <Button type="button" variant="outline" className={rowControl}
+            onFiles={(files) => onFiles("supplemental", files)} variant="outline" compact className={headerControl} />}
+        {onLibrary && <Button type="button" variant="outline" className={headerControl}
           aria-label={`Add another book PDF from ${sourceLabel}`} disabled={busy}
           onClick={() => onLibrary("supplemental")}><FolderSearch /> {sourceLabel}</Button>}
       </div>
@@ -1671,20 +1681,23 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
           <span className="min-w-0 truncate text-sm text-gray-800" title={part.filename}>
             {part.filename}</span>
           <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
-            {onOpen && <Button type="button" variant="ghost" className={rowControl}
-              disabled={busy} onClick={() => onOpen(part.bindingRole)}><Eye /> Open</Button>}
-            {relinkable(issue) && <Button type="button" variant="ghost"
+            {relinkable(issue) ? <Button type="button" variant="outline"
               className={cn(rowControl, "text-red-800")} disabled={busy}
-              onClick={() => onRelink(part.bindingRole)}>Allow file access</Button>}
+              onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
+              : onOpen && <Button type="button" variant="outline" className={rowControl}
+              aria-label={`View ${part.filename}`} title="View" disabled={busy}
+              onClick={() => onOpen(part.bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>}
             {onPick ? <Button type="button" variant="outline" className={rowControl}
-              disabled={busy} onClick={() => add("supplemental", false, part.id)}>Replace</Button>
+              aria-label={`Replace ${part.filename}`} title="Replace" disabled={busy}
+              onClick={() => add("supplemental", false, part.id)}><Upload /><span className={rowLabel}>Replace</span></Button>
               : onFiles && <FileInputButton multiple={false} disabled={busy} label="Replace"
-                accept=".pdf,application/pdf" onFiles={(files) => onFiles("supplemental", files, part.id)}
-                variant="outline" compact className={rowControl} />}
+                ariaLabel={`Replace ${part.filename}`} accept=".pdf,application/pdf"
+                onFiles={(files) => onFiles("supplemental", files, part.id)}
+                variant="outline" compact className={rowControl} icon={<Upload />} labelClassName={rowLabel} />}
             {onLibrary && <Button type="button" variant="outline" className={rowControl}
-              aria-label={`Replace ${part.filename} from ${sourceLabel}`} disabled={busy}
-              onClick={() => onLibrary("supplemental", part.id)}><FolderSearch /> {sourceLabel}</Button>}
-            <MoreActionsMenu label={`${part.filename} options`} items={[{
+              aria-label={`Replace ${part.filename} from ${sourceLabel}`} title={sourceLabel} disabled={busy}
+              onClick={() => onLibrary("supplemental", part.id)}><FolderSearch /><span className={rowLabel}>{sourceLabel}</span></Button>}
+            <MoreActionsMenu label={`${part.filename} options`} triggerClassName={moreTrigger} items={[{
               label: "Remove from book", disabled: busy,
               onSelect: () => onAction({ type: "remove-book-supplement", id: part.id }),
             }]} />
@@ -1788,7 +1801,8 @@ function Status({ busy, busyText, status, error, inline = false }: { busy: boole
   return <p className={cn("flex items-center px-1 text-sm", inline ? "min-w-0 truncate" : "mb-1 min-h-6",
     visible && "font-medium", busy && !status && "beaver-loading-indicator",
     error ? "text-red-800" : "text-gray-600")}
-    role="status" aria-live="polite" aria-atomic="true" aria-busy={busy || undefined}>
+    role="status" aria-live="polite" aria-atomic="true" aria-busy={busy || undefined}
+    title={inline ? status || undefined : undefined}>
     {visible && <span className="mr-2 grid size-4 shrink-0 place-items-center" aria-hidden="true">
       {busy && <Loader2 className="size-4 motion-safe:animate-spin" />}
     </span>}

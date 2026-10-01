@@ -18,6 +18,10 @@ import type { SourceOcrPanel } from "./sourceOcr";
 import canliiLogo from "./canlii.ico";
 
 const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
+/** A row's action: one width, type weight and icon size wherever a list of sources or book parts
+ *  shows them, an icon alone where the list (a `@container/sources`) is narrow. */
+export const rowControl = cn(control, "w-10 justify-center px-1 font-normal [&_svg]:size-3.5 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2.5");
+export const rowLabel = "hidden @min-[44rem]/sources:inline";
 export type AuthorityPanelProps = {
   authorities: AuthorityIdentity[]; tabs: ReadonlyMap<string, string>; busy: boolean;
   sourceIssues: Record<string, AuthoritiesSourceIssue>;
@@ -114,9 +118,6 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     !name.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
   const replacement = sources.length && !requireLanguages ? "Replace" : "Upload";
-  // Buttons, menus and links in the action column share one type weight and icon size.
-  const rowControl = cn(control, "w-10 justify-center px-1 font-normal [&_svg]:size-3.5 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2.5");
-  const actionLabel = "hidden @min-[44rem]/sources:inline";
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
   const missingLanguage = requireLanguages && !sources.some(source => source.language === "bilingual") &&
@@ -166,7 +167,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       onDragStart={event => event.dataTransfer.setData("application/x-authority", authority.id)}
       onKeyDown={event => { if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
         event.preventDefault(); onAction({ type: "move-authority", authorityId: authority.id,
-          toIndex: Math.max(0, Math.min(order.length - 1, order.indexOf(authority.id) + (event.key === "ArrowUp" ? -1 : 1))) }); }}>{tab?.startsWith("Tab ") ? <><span className={actionLabel}>{tab}</span><span className="@min-[44rem]/sources:hidden">{tab.slice(4)}</span></> : tab}</button>
+          toIndex: Math.max(0, Math.min(order.length - 1, order.indexOf(authority.id) + (event.key === "ArrowUp" ? -1 : 1))) }); }}>{tab?.startsWith("Tab ") ? <><span className={rowLabel}>{tab}</span><span className="@min-[44rem]/sources:hidden">{tab.slice(4)}</span></> : tab}</button>
     <span className="flex h-4 w-4 items-center justify-center">
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
@@ -193,27 +194,27 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
             aria-label={`CanLII PDF for ${title}`}
             className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
-            <ExternalLink className="h-3.5 w-3.5" /><img src={canliiLogo} alt="" className="h-4 w-4 @min-[44rem]/sources:hidden" /><span className={actionLabel}>CanLII</span></a>
+            <ExternalLink className="h-3.5 w-3.5" /><img src={canliiLogo} alt="" className="h-4 w-4 @min-[44rem]/sources:hidden" /><span className={rowLabel}>CanLII</span></a>
         : issue ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
             disabled={busy} onClick={() => onRelink(issue.bindingRole)}><FilePlus2 />
             <span className="truncate">Allow file access</span></Button>
         : sources.length && !loaded ? <span className={cn(rowControl, "grid place-items-center text-red-800")}>PDF unavailable</span>
         : sources.length && onOpen ? (sources.length === 1
           ? <Button type="button" variant="outline" className={rowControl} disabled={busy || !loaded}
-              aria-label={`View PDF for ${title}`} title="View" onClick={() => onOpen(sources[0].bindingRole)}><Eye /><span className={actionLabel}>View</span></Button>
+              aria-label={`View PDF for ${title}`} title="View" onClick={() => onOpen(sources[0].bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>
           : <ActionMenu label={`View PDFs for ${title}`} triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border")}
               items={sources.map((source) => ({ label: sourceLanguageLabel(source.language),
                 disabled: busy || !!sourceIssues[source.bindingRole], onSelect: () => onOpen(source.bindingRole) }))}>
-              <Eye className="h-3.5 w-3.5" /><span className={actionLabel}>View</span></ActionMenu>)
+              <Eye className="h-3.5 w-3.5" /><span className={rowLabel}>View</span></ActionMenu>)
         : <span className="w-10 @min-[44rem]/sources:w-[5.625rem]" />)}
       {needsPdf && (authority.source.kind === "pending-canlii"
         ? <Button type="button" variant="outline" className={rowControl} disabled={busy}
-            aria-label={`Upload PDF for ${title}`} title="Upload" onClick={pick}><Upload /><span className={actionLabel}>Upload</span></Button>
+            aria-label={`Upload PDF for ${title}`} title="Upload" onClick={pick}><Upload /><span className={rowLabel}>Upload</span></Button>
         : <ActionMenu label={`${replacement} for ${title}`}
         triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
         items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
           ...(onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: onLibrary }] : [])]}>
-        <Upload className="h-3.5 w-3.5" /><span className={actionLabel}>{replacement}</span></ActionMenu>)}
+        <Upload className="h-3.5 w-3.5" /><span className={rowLabel}>{replacement}</span></ActionMenu>)}
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
@@ -238,7 +239,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       <div className="col-start-3 col-end-[-1] min-w-0">
         {sources.map(({ bindingRole }) => ocr?.tracked[bindingRole] &&
           <SourceOcrProgress key={bindingRole} ocr={ocr} status={ocr.tracked[bindingRole]}
-            control={rowControl} label={actionLabel} trailing="w-8" />)}
+            control={rowControl} label={rowLabel} trailing="w-8" />)}
       </div>}
   </article>;
 }

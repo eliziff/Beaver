@@ -1525,7 +1525,7 @@ describe("Authorities UI contracts", () => {
     const cover = screen.getByText("Cover").parentElement!;
     expect(within(cover).getByText("Generated")).toBeVisible();
     const file = new File(["%PDF-1.7"], "cover.pdf", { type: "application/pdf" });
-    await userEvent.upload(within(cover).getByLabelText("Add file"), file);
+    await userEvent.upload(within(cover).getByLabelText("Replace the generated cover with a PDF"), file);
     await waitFor(() => expect(api.attachAuthoritiesBookPdf)
       .toHaveBeenCalledWith("draft-1", 1, "cover", file, undefined));
     expect(contents).toBeVisible();
