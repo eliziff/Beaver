@@ -702,7 +702,7 @@ function Run(page, mode) {
     if (await button("New").isEnabled()) await button("New").click();
     // New drafts start from the last import's choices; this one asks for marks and a table only.
     await importBrief(fixtures.briefDocx, "docx", async () => {
-      await page.getByRole("radio", { name: "Mark and add the table", exact: true }).check();
+      await page.getByRole("radio", { name: "Marked copy and table", exact: true }).check();
       await page.getByRole("checkbox", { name: "Append the book to the brief" }).uncheck();
     });
     const fixed = await review("docx", false);
@@ -717,7 +717,7 @@ function Run(page, mode) {
     // Tab references and the final PDF, through the brief saved as PDF. Each choice shows at once
     // and moves nothing, however the options are set.
     const options = await frame();
-    await choose(page.getByRole("radio", { name: "Table and [Tab 1]" }));
+    await choose(page.getByRole("radio", { name: "Marked copy, table and [Tab 1]" }));
     await choose(page.getByRole("checkbox", { name: "Append the book to the brief" }));
     await choose(page.getByRole("checkbox", { name: "Link citations to their tabs" }));
     check(JSON.stringify(await frame()) === JSON.stringify(options), `${mode}: the output options keep the frame still`, [options, await frame()]);
