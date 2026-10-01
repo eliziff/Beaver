@@ -60,6 +60,10 @@ builders, which need the shared Python citation runtime pinned in
 (the source distribution builds with Rust), or install the Windows wheel from
 the same release.
 
+Private-email fingerprints stay in local Git `privacy.privateEmailSha256` or
+`BEAVER_PRIVATE_EMAIL_SHA256`, never tracked files. CI uses an encrypted secret
+and checks reachable commit attribution as well as current source.
+
 Before committing, `python scripts/check_privacy.py --staged` checks the exact
 staged source. Before publishing, run `python scripts/check_privacy.py --artifact
 <package-or-html> ...` on the actual outputs; it inspects archives and embedded
