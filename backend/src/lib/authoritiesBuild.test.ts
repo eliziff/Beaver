@@ -1680,6 +1680,44 @@ describe("Authorities output builder", () => {
       .rejects.toThrow("Remove the custom index");
   });
 
+  it("lists each authority in Word's table as the brief first cites it", async () => {
+    // Two styles of cause on one citation, a citation the brief gives alone with its source's name, and
+    // a work cited by its link in angle brackets.
+    const texts = ["R v Ash, 2030 ABKB 1 at para 4.", "R v AB, 2030 ABKB 1 at para 9.", "2031 ONCA 7 at para 2.",
+      "Jo Pine, “Moss”, online: <example.test/moss>."];
+    const spans: Array<[authority: string, start: number, core: number, end: number]> = [
+      ["ash", 0, 9, 20], ["ash", 0, 8, 19], ["elm", 0, 0, 11], ["pine", 0, 26, 43]];
+    const source = await Packer.toBuffer(new WordDocument({ sections: [{ children: texts.map((text) => new Paragraph(text)) }] }));
+    const digest = sha256(source);
+    const imported = { kind: "document" as const, bindingRole: "source" as const, filename: "Brief.docx", fileType: "docx" as const,
+      snapshot: { documentId: "brief", versionId: "v1", sha256: digest } };
+    const state = createAuthoritiesDraft(imported, { source: { kind: "document", documentId: "brief",
+      version: { versionId: "v1", sha256: digest } } });
+    const span = (text: string, start: number, end: number) => ({ start, end, text: text.slice(start, end) });
+    Object.assign(state, { outputMode: "table", insertIntoDocument: true,
+      units: texts.map((text, ordinal) => ({ id: `body:${ordinal}`, kind: "body", ordinal, footnoteId: null, footnoteRefs: [],
+        pageNumbers: [], text, occurrenceIds: [`o${ordinal}`] })),
+      occurrences: Object.fromEntries(spans.map(([authority, start, core, end], ordinal) => [`o${ordinal}`, {
+        id: `o${ordinal}`, unitId: `body:${ordinal}`, start, end, text: texts[ordinal].slice(start, end),
+        kind: authority === "pine" ? "commentary" : "case", citation: texts[ordinal].slice(core, end),
+        authoritySpan: span(texts[ordinal], start, end), coreSpan: span(texts[ordinal], core, end), pinpointSpan: null,
+        authorityId: authority, reference: null, pinpoints: [], evidenceIds: [], sourceTextSha256: sha256(texts[ordinal]),
+        localOrdinal: 0, reviewed: true }])),
+      authorities: Object.fromEntries([["ash", "case", "2030 ABKB 1", null], ["elm", "case", "2031 ONCA 7", "Elm v Fir"],
+        ["pine", "commentary", "example.test/moss", null]].map(([id, kind, citation, name]) => [id, { id, key: id, kind, citation,
+        name, displayName: null, evidenceIds: [], locators: [], sourceIdentity: null, excluded: false,
+        source: { kind: "unresolved" } }])),
+      authorityOrder: ["ash", "elm", "pine"] });
+    const result = await buildAuthorities({ draft: state, title: "Brief", workProduct: { id: "entries", revision: 1 },
+      sources: { source: { bytes: source, resolved: { kind: "document", documentId: "brief", versionId: "v1",
+        filename: "Brief.docx", sha256: digest } } } });
+    const xml = (await (await JSZip.loadAsync(result.artifacts["annotated-document"]!.bytes)).file("word/document.xml")!
+      .async("string")).replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">");
+    const entries = [...xml.matchAll(/ TA \\l "((?:\\.|[^"\\])*)"/gu)].map(([, entry]) => entry.replaceAll("\\“", "“")
+      .replaceAll("\\”", "”"));
+    expect(entries.sort()).toEqual(["Elm v Fir, 2031 ONCA 7", "Jo Pine, “Moss”, online: <example.test/moss>", "R v Ash, 2030 ABKB 1"]);
+  });
+
   it("emits a versionable copy of an imported DOCX with native TA and TOA fields", async () => {
     const citation = "R v Grant, 2009 SCC 32", reporter = "[2009] 2 SCR 353";
     const source = await Packer.toBuffer(new WordDocument({ sections: [{ children: [

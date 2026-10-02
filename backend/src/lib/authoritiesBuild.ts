@@ -339,6 +339,10 @@ function tableEntry(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
   const lower = (value: string) => value.toLocaleLowerCase("en-CA").replace(/\./gu, "").replace(/\s+/gu, " ").trim();
   const name = (authority.displayName ?? authority.name)?.trim();
   let entry = first.authoritySpan.text.replace(/\s+/gu, " ").trim();
+  // A link the brief writes in angle or square brackets keeps its closing bracket.
+  const closer = draft.units.find(({ id }) => id === first.unitId)?.text[first.authoritySpan.end];
+  if (closer === ">" && entry.split("<").length > entry.split(">").length ||
+    closer === "]" && entry.split("[").length > entry.split("]").length) entry += closer;
   if (name && first.authoritySpan.start >= first.coreSpan.start && !lower(entry).includes(lower(name)))
     entry = `${name}, ${entry}`;
   for (const { coreSpan } of rest) if (!lower(entry).includes(lower(coreSpan.text))) entry += `, ${coreSpan.text.trim()}`;
