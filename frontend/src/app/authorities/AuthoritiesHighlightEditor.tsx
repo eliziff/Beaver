@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pause, Pencil, Play, Redo2, Trash2, Undo2, X } from 'lucide-react';
+import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pause, Pencil, Play, Redo2, SlidersHorizontal,
+  Trash2, Undo2, X } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
 import { Button, buttonClassName } from '@/app/components/ui/button';
 import { StepSection } from './StepSection';
@@ -9,8 +10,10 @@ import { cn, errorMessage } from '@/app/lib/utils';
 import { decodeAnnotationSet, emptyAnnotationSet,
   type PdfAnnotation, type PdfAnnotationSet } from '../../../../shared/pdf-annotations.mjs';
 import type { AuthoritiesHost } from './host';
+import { OptionCards, type CardOption } from './OptionCards';
+import { authoritiesProfile } from './profiles';
 import type { SourceOcrPanel, SourceOcrStatus } from './sourceOcr';
-import type { AuthoritiesAction, AuthoritiesProduct } from './types';
+import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct, AuthoritiesProfileId } from './types';
 
 const ocrMessage = (status: SourceOcrStatus, total = status.textlessPages.length) =>
   status.state === 'done' ? 'Text recognition complete'
@@ -98,17 +101,135 @@ const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string
         ...(sources.length > 1 ? [source.language === 'fr' ? 'French' : 'English'] : [])].filter(Boolean).join(' — ') }));
   });
 
-export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onSaved }: {
+type Marking = AuthoritiesBuildSettings['passageMarking'];
+// The colours the book's marks are written in (authoritiesAnnotations.ts), at their opacity.
+const RED_LINE = 'rgb(191 20 20 / .9)', BLACK_LINE = 'rgb(20 20 20 / .9)', YELLOW = 'rgb(255 235 153 / .45)';
+/** A page in miniature whose middle paragraph is cited, marked as the built book marks it. */
+function MarkPreview({ type }: { type: Marking }) {
+  const line = type === 'margin' ? RED_LINE : type === 'sidelined' ? BLACK_LINE : undefined;
+  return <span aria-hidden="true" className="relative block h-10 w-14 shrink-0 overflow-hidden rounded border border-gray-400 bg-white">
+    {[[5, 36], [14, 38], [20, 30], [29, 34]].map(([top, width]) =>
+      <span key={top} className="absolute left-2.5 h-0.5 bg-gray-500" style={{ top, width }} />)}
+    {line && <span className="absolute left-1 w-0.5" style={{ top: 12, height: 12, background: line }} />}
+    {type === 'paragraph' && [12, 18].map(top => <span key={top} className="absolute left-2 h-1.5 mix-blend-multiply"
+      style={{ top, width: 42, background: YELLOW }} />)}
+    {(type === 'margin' || type === 'text') && <span className="absolute h-1.5 mix-blend-multiply"
+      style={{ top: 12, left: 22, width: 20, background: YELLOW }} />}
+  </span>;
+}
+export const PASSAGE_OPTIONS: ReadonlyArray<CardOption<Marking>> = [
+  { value: 'margin', label: 'Red line and quote highlight', preview: <MarkPreview type="margin" />,
+    detail: 'A red line beside each cited passage, and its quoted words highlighted in yellow.' },
+  { value: 'sidelined', label: 'Black line', preview: <MarkPreview type="sidelined" />,
+    detail: 'A black line beside each cited passage, with nothing highlighted.' },
+  { value: 'paragraph', label: 'Paragraph highlight', preview: <MarkPreview type="paragraph" />,
+    detail: 'Each cited paragraph or section highlighted in yellow.' },
+  { value: 'text', label: 'Quote highlight', preview: <MarkPreview type="text" />,
+    detail: 'Only the quoted words highlighted in yellow.' },
+  { value: 'none', label: 'No passage marks', preview: <MarkPreview type="none" />,
+    detail: 'Source pages stay unmarked.' },
+];
+const MARKED_PASSAGE_OPTIONS = PASSAGE_OPTIONS.filter(({ value }) => value !== 'none');
+export const passageOptions = (profileId: AuthoritiesProfileId) =>
+  authoritiesProfile(profileId).requirements?.markedPassages ? MARKED_PASSAGE_OPTIONS : PASSAGE_OPTIONS;
+
+const savedSet = (product: AuthoritiesProduct, choice: Choice) => {
+  const saved = product.state.authorities[choice.authorityId].annotations?.[choice.bindingRole];
+  return saved?.sourceSha256 === choice.sourceSha256 ? decodeAnnotationSet(saved) : undefined;
+};
+/** Drafts whose highlighting choice was put away this session, so coming back keeps it closed. */
+const chosen = new Set<string>();
+
+/**
+ * Highlights saved for review keep the marks they were prepared with, so a new choice prepares
+ * their automatic marks again; marks the reviewer added stay. A source that cannot be read keeps
+ * what it had.
+ */
+async function prepareAgain(product: AuthoritiesProduct, sources: Choice[], host: AuthoritiesHost,
+  report: (done: number) => void) {
+  const entries: Array<Entry | undefined> = [], failed: string[] = [];
+  let next = 0, done = 0;
+  await Promise.all(Array.from({ length: Math.min(3, sources.length) }, async () => {
+    for (let index = next++; index < sources.length; index = next++) {
+      const source = sources[index];
+      try {
+        if (!host.readSource || !host.prepareAnnotations) throw new Error('Automatic marking is unavailable.');
+        const file = await host.readSource(product, source.bindingRole);
+        const { annotations } = await host.prepareAnnotations(product, source.authorityId, source.bindingRole, file);
+        const kept = savedSet(product, source)!.marks.filter(mark => mark.origin === 'manual');
+        entries[index] = { authorityId: source.authorityId, bindingRole: source.bindingRole,
+          annotations: { ...annotations, marks: [...annotations.marks, ...kept] } };
+      } catch { failed.push(source.title); }
+      report(++done);
+    }
+  }));
+  return { entries: entries.filter((entry): entry is Entry => !!entry), failed };
+}
+
+export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, first, onAction, onSaved }: {
   product: AuthoritiesProduct; tabs: ReadonlyMap<string,string>; host: AuthoritiesHost; busy: boolean;
-  ocr: SourceOcrPanel; onSaved(product: AuthoritiesProduct): void;
+  ocr: SourceOcrPanel;
+  /** The draft has come this far for the first time: its highlighting is chosen before anything else. */
+  first: boolean;
+  onAction(action: AuthoritiesAction): void;
+  onSaved(product: AuthoritiesProduct): void;
 }) {
   const [open, setOpen] = useState(false);
   const choices = choicesFor(product, tabs);
+  const [choosing, setChoosing] = useState(() => first && !chosen.has(product.id) &&
+    !choices.some(choice => savedSet(product, choice)));
+  const [progress, setProgress] = useState<{ done: number; total: number }>();
+  const [failure, setFailure] = useState('');
+  // A new marking prepares again only once the draft is saved with it: the host prepares from
+  // the saved draft. Before paint, so the cards never show it chosen and idle in between.
+  const [pending, setPending] = useState<Marking>();
+  useLayoutEffect(() => {
+    if (!pending || product.state.settings.passageMarking !== pending) return;
+    setPending(undefined);
+    const saved = choicesFor(product, tabs).filter(choice => savedSet(product, choice));
+    if (!saved.length) return;
+    setProgress({ done: 0, total: saved.length });
+    void prepareAgain(product, saved, host, done => setProgress({ done, total: saved.length }))
+      .then(({ entries, failed }) => {
+        setProgress(undefined);
+        if (failed.length) setFailure(`Highlights could not be prepared again for ${failed.join(', ')}.`);
+        // The save holds the workspace until it lands, as every other draft change does.
+        if (entries.length) onAction({ type: 'set-annotations', entries });
+      });
+  }, [pending, product]); // eslint-disable-line react-hooks/exhaustive-deps
+  const panelId = useId();
   if (product.state.outputMode === 'table' || !choices.length) return null;
+  const preparing = !!progress;
+  const close = () => { chosen.add(product.id); setChoosing(false); };
+  const choose = (passageMarking: Marking) => {
+    setFailure(''); setPending(passageMarking);
+    onAction({ type: 'set-settings', settings: { passageMarking } });
+  };
   return <><StepSection title="Highlights" className="mt-3"
     subtitle="Review and adjust passage marks in your source PDFs."
-    actions={<Button type="button" variant="outline" className="h-9 border-gray-400"
-      disabled={busy || !host.readSource} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>} />
+    actions={<>
+      <Button type="button" variant="outline" className="h-9 border-gray-400" aria-expanded={choosing}
+        aria-controls={panelId} onClick={() => choosing ? close() : setChoosing(true)}>
+        <SlidersHorizontal /> Highlighting options</Button>
+      <Button type="button" variant="outline" className="h-9 border-gray-400"
+        disabled={busy || preparing || !host.readSource} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button></>}>
+    {choosing && <div id={panelId} className="p-4">
+      <OptionCards legend="Passage marking" value={product.state.settings.passageMarking}
+        options={passageOptions(product.state.settings.profileId)} columns disabled={busy || preparing}
+        onChange={choose} />
+      {/* Preparation reports in a line that is always there, so the cards and Continue never move. */}
+      <div className="mt-4 flex min-h-9 items-center justify-end gap-3">
+        <div className="min-w-0 flex-1 text-sm">
+          {preparing ? <div role="status" className="text-gray-700">
+            Preparing highlights · {progress.done}/{progress.total}
+            <progress value={progress.done} max={progress.total} aria-hidden
+              className={cn('mt-1 block h-0.5 w-full max-w-64', ocrBar)} /></div>
+            : failure && <p role="alert" className="text-red-800">{failure}</p>}
+        </div>
+        <Button type="button" className="h-9" disabled={preparing} onClick={close}>Continue</Button>
+      </div>
+    </div>}
+  </StepSection>
     {open && <AuthoritiesHighlightEditor product={product} choices={choices} host={host} ocr={ocr}
       onClose={() => setOpen(false)} onSaved={onSaved} />}
   </>;

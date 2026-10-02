@@ -55,7 +55,7 @@ it('preserves saved highlights when their PDF no longer matches instead of regen
   const prepareAnnotations = vi.fn(), actOnDraft = vi.fn();
   const host = {readSource: async () => new Blob(['%PDF-scan']), prepareAnnotations,
     act:actOnDraft} as unknown as AuthoritiesHost;
-  const view = render(<AuthoritiesHighlights product={product} tabs={new Map()} host={host}
+  const view = render(<AuthoritiesHighlights first={false} onAction={vi.fn()} product={product} tabs={new Map()} host={host}
     busy={false} ocr={{tracked:{},begin:vi.fn(),stop:vi.fn()}} onSaved={vi.fn()} />);
   try {
     fireEvent.click(screen.getByRole('button', {name:'Edit in PDF'}));
@@ -83,7 +83,7 @@ it('opens a readable scan before automatic marks, reads paused OCR and cancels a
     prepareAnnotations: prepare, readSourceText: text } as unknown as AuthoritiesHost;
   const ocr = { begin: vi.fn(), stop: vi.fn(), tracked: { one: { role: 'one', name: 'one',
     sourceSha256: hash, state: 'paused' as const, textlessPages: [1, 2], pages: [1], recognized: 1 } } };
-  const view = render(<AuthoritiesHighlights product={product} tabs={new Map()} host={host} busy={false} ocr={ocr} onSaved={vi.fn()} />);
+  const view = render(<AuthoritiesHighlights first={false} onAction={vi.fn()} product={product} tabs={new Map()} host={host} busy={false} ocr={ocr} onSaved={vi.fn()} />);
   try {
     fireEvent.click(screen.getByRole('button', { name: 'Edit in PDF' }));
     await waitFor(() => expect(prepare).toHaveBeenCalledTimes(1));
@@ -127,7 +127,7 @@ it('serializes immutable save snapshots and retains batched edits, undo and retr
     act: (_id: string, revision: number, action: Parameters<AuthoritiesHost['act']>[2]) =>
       new Promise<AuthoritiesProduct>((resolve, reject) => writes.push({revision, action, resolve, reject})),
   } as unknown as AuthoritiesHost;
-  const view = render(<StrictMode><AuthoritiesHighlights product={product} tabs={new Map()} host={host}
+  const view = render(<StrictMode><AuthoritiesHighlights first={false} onAction={vi.fn()} product={product} tabs={new Map()} host={host}
     busy={false} ocr={{tracked:{},begin:vi.fn(),stop:vi.fn()}} onSaved={vi.fn()} /></StrictMode>);
   const excerpts = (write: typeof writes[number]) => write.action.type === 'set-annotations'
     ? write.action.entries[0].annotations.marks.map(mark => mark.excerpt) : [];
@@ -186,7 +186,7 @@ it('recovers a save whose response was lost instead of repeating its revision', 
     },
     drafts: {get: async () => stored},
   } as unknown as AuthoritiesHost;
-  const view = render(<AuthoritiesHighlights product={product} tabs={new Map()} host={host}
+  const view = render(<AuthoritiesHighlights first={false} onAction={vi.fn()} product={product} tabs={new Map()} host={host}
     busy={false} ocr={{tracked:{},begin:vi.fn(),stop:vi.fn()}} onSaved={onSaved} />);
   viewer = undefined as unknown as PdfCanvasProps; // not the previous test's editor
   try {
@@ -203,4 +203,38 @@ it('recovers a save whose response was lost instead of repeating its revision', 
     view.unmount(); HTMLElement.prototype.scrollIntoView = scroll;
     if (original) Object.defineProperty(globalThis,'crypto',original);
   }
+});
+
+it('asks for the marking on first entry and prepares saved highlights again once it is saved', async () => {
+  const {hash, product} = fixture();
+  const manual = {id:'mine',kind:'highlight' as const,origin:'manual' as const,label:'Custom highlight',excerpt:'Mine',
+    rgb:[1,.92,.6] as [number,number,number],opacity:.45,fragments:[{pageNumber:1,rects:[[.1,.1,.8,.2] as [number,number,number,number]]}]};
+  const stale = {...manual,id:'old',origin:'automatic' as const,label:'para 1'};
+  product.state.authorities.one.annotations = {one:{...emptyAnnotationSet(hash),marks:[stale,manual]}};
+  const first = {...product, id:'fresh', state:{...product.state, authorities:{...product.state.authorities,
+    one:{...product.state.authorities.one, annotations:undefined}}}};
+  const fresh = {...stale,id:'new',label:'para 1 · Quote'};
+  const prepareAnnotations = vi.fn(async (draft: AuthoritiesProduct) =>
+    ({annotations:{...emptyAnnotationSet(hash),marks:draft.state.settings.passageMarking === 'sidelined' ? [fresh] : []}, pageMarked: []}));
+  const host = {readSource: async () => new Blob(['%PDF-scan']), prepareAnnotations} as unknown as AuthoritiesHost;
+  const onAction = vi.fn();
+  const props = {tabs:new Map(), host, busy:false, ocr:{tracked:{},begin:vi.fn(),stop:vi.fn()}, onSaved:vi.fn(), onAction};
+  const unseen = render(<AuthoritiesHighlights first product={first} {...props} />);
+  expect(screen.getByRole('group', {name:'Passage marking'})).toBeVisible();
+  fireEvent.click(screen.getByRole('button', {name:'Continue'}));
+  expect(screen.queryByRole('group', {name:'Passage marking'})).toBeNull();
+  unseen.unmount();
+  // A draft whose highlights were already reviewed opens closed, and the options reopen from the step.
+  const view = render(<AuthoritiesHighlights first product={product} {...props} />);
+  try {
+    expect(screen.queryByRole('group', {name:'Passage marking'})).toBeNull();
+    fireEvent.click(screen.getByRole('button', {name:'Highlighting options'}));
+    fireEvent.click(screen.getByRole('radio', {name:/Black line/}));
+    expect(onAction).toHaveBeenCalledWith({type:'set-settings', settings:{passageMarking:'sidelined'}});
+    expect(prepareAnnotations).not.toHaveBeenCalled();
+    view.rerender(<AuthoritiesHighlights first product={{...product, revision:2, state:{...product.state,
+      settings:{...product.state.settings, passageMarking:'sidelined'}}}} {...props} />);
+    await waitFor(() => expect(onAction).toHaveBeenLastCalledWith({type:'set-annotations', entries:[{authorityId:'one',
+      bindingRole:'one', annotations:expect.objectContaining({marks:[fresh, manual]})}]}));
+  } finally { view.unmount(); }
 });

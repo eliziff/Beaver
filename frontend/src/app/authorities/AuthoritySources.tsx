@@ -80,7 +80,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       </div>}
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
       <div role="list" aria-label="Authority tab slots"
-        className="divide-y divide-gray-200 rounded-lg border border-gray-300">
+        className="grid grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300 @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_7rem_7.5rem] @min-[44rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_11rem_13.75rem]">
         {authorities.map((authority) => <AuthorityRow key={authority.id} authority={authority} busy={busy}
           order={state.authorityOrder}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
@@ -95,7 +95,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           onAttach={(file) => onAttach(authority.id, file)} onRelink={onRelink}
           onOpen={onOpenSource} onRetry={onRetrySource ? () => onRetrySource(authority.id) : undefined}
           onEditIdentity={() => onEditIdentity(authority)} ocr={ocr} />)}
-        {!authorities.length && <p className="px-4 py-8 text-center text-sm text-gray-500">Add authorities to begin.</p>}
+        {!authorities.length && <p className="col-span-full px-4 py-8 text-center text-sm text-gray-500">Add authorities to begin.</p>}
       </div>
       <Button type="button" variant="ghost" className="mt-2 h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
     </div>
@@ -165,7 +165,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     if (value.trim() !== name) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: value.trim() || null }); };
   return <article role="listitem" data-authority-id={authority.id}
-    className={cn("group/row grid min-h-12 min-w-0 grid-cols-[1.5rem_1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 @min-[30rem]/sources:grid-cols-[1.5rem_1.25rem_minmax(0,1fr)_7rem_7.5rem] @min-[44rem]/sources:grid-cols-[2.75rem_1.25rem_minmax(0,1fr)_11rem_13.75rem]",
+    className={cn("group/row col-span-full grid min-h-12 min-w-0 grid-cols-subgrid items-center gap-y-1 px-2 py-1.5",
       authority.excluded && "opacity-65")}
     onDragOver={(event) => { if (!busy && (event.dataTransfer.types.includes("application/x-authority") ||
       needsPdf && event.dataTransfer.types.includes("Files"))) event.preventDefault(); }}
@@ -178,7 +178,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       if (!busy && needsPdf) onAttach(event.dataTransfer.files[0]);
     }}>
     <button type="button" draggable={!busy} disabled={busy} title="Drag to reorder, or use arrow keys"
-      aria-label={`Reorder ${title}`} className="cursor-grab truncate rounded py-2 text-xs font-semibold text-gray-600 focus-visible:ring-2 focus-visible:ring-red-600"
+      aria-label={`Reorder ${title}`} className="min-w-6 cursor-grab truncate rounded py-2 text-left text-xs font-semibold tabular-nums text-gray-600 focus-visible:ring-2 focus-visible:ring-red-600"
       onDragStart={event => event.dataTransfer.setData("application/x-authority", authority.id)}
       onKeyDown={event => { if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
         event.preventDefault(); onAction({ type: "move-authority", authorityId: authority.id,
