@@ -416,6 +416,17 @@ function exactQuote(target: NativePdfPassagePages["targets"][number], selection:
 
 }
 
+/** The paragraphs a range names, read as the review reads an ibid's pinpoint, or undefined for a
+ *  single paragraph. A range runs forward over fewer than 100 paragraphs, as the engine's own range
+ *  lookup requires. */
+function paragraphRange(locator: string): [number, number] | undefined {
+  const pinpoints = structureNative().authorityReferencesInText(`Ibid at paras ${locator}`)
+    .flatMap(({ pinpoints }) => pinpoints);
+  const first = Number(pinpoints[0]?.first), last = Number(pinpoints[0]?.last);
+  return pinpoints.length === 1 && pinpoints[0].kind === "paragraph" && Number.isSafeInteger(first) &&
+    Number.isSafeInteger(last) && first < last && last - first < 100 ? [first, last] : undefined;
+}
+
 export async function pdfPassageGeometry(
   document: NativeDocument, bytes: Buffer, targets: NativePdfPassageTarget[],
 ): Promise<NativePdfPassageGeometry> {
@@ -431,10 +442,59 @@ export async function pdfPassageGeometry(
   if (createHash("sha256").update(bytes).digest("hex") !== summary.sha256) {
     throw new Error("PDF source changed after preparation");
   }
-  const raw = await native.pdfPassageGeometryPages(document,
-    targets.map(({ exactQuotes: _, quoteSelections: __, ...target }) => target));
-  if (raw.sourceSha256 !== summary.sha256 || raw.parserVersion !== summary.parserVersion) {
-    throw new Error("PDF passage geometry source identity changed");
+  const pages = async (list: NativePdfPassageTarget[]) => {
+    const result = await native.pdfPassageGeometryPages(document,
+      list.map(({ exactQuotes: _, quoteSelections: __, ...target }) => target));
+    if (result.sourceSha256 !== summary.sha256 || result.parserVersion !== summary.parserVersion) {
+      throw new Error("PDF passage geometry source identity changed");
+    }
+    return result;
+  };
+  // A paragraph range is the passage from its first paragraph to its last, its end read as the
+  // citation engine reads a pinpoint: "142-54" runs to 154.
+  const ranges = targets.map(({ locatorKind, locator }) =>
+    locatorKind === "paragraph" ? paragraphRange(locator) : undefined);
+  const raw = await pages(targets.map((target, index) =>
+    ranges[index] ? { ...target, locator: ranges[index].join("-") } : target));
+  // Where the engine cannot place a whole range (a number in it printed twice, or not read), its
+  // paragraphs and the two beside it are placed as if each were cited alone. The passage opens at
+  // its first paragraph, or just after the one before, and closes with its last, or just before
+  // the one after, taking every line between in their column but the pages' furniture.
+  const members = ranges.flatMap((range, index) => range &&
+    ["not_found", "ambiguous"].includes(raw.targets[index].status)
+    ? Array.from({ length: range[1] - range[0] + 3 }, (_, offset) => range[0] - 1 + offset)
+      .filter((number) => number > 0).map((number) => ({ index, number })) : []);
+  const placed: NativePdfPassagePages["targets"] = [];
+  for (let start = 0; start < members.length; start += 100)
+    placed.push(...(await pages(members.slice(start, start + 100).map(({ index, number }) =>
+      ({ id: `${index}:${number}`, locatorKind: "paragraph" as const, locator: String(number) })))).targets);
+  for (const index of new Set(members.map(({ index }) => index))) {
+    const [first, last] = ranges[index]!;
+    const own = new Map(members.flatMap(({ index: owner, number }, at) => owner === index &&
+      placed[at].status === "found" ? [[number, { printed: placed[at].printed === true, lines: placed[at].pages
+        .flatMap((page) => page.lines.map((line) => ({ page: page.pageNumber, id: line.id, rect: line.rect })))
+      }] as const] : []).filter(([, { lines }]) => lines.length));
+    const inside = [...own].filter(([number]) => number >= first && number <= last).map(([, value]) => value);
+    const before = own.has(first) ? undefined : own.get(first - 1), after = own.has(last) ? undefined : own.get(last + 1);
+    const opening = own.get(first) ?? before ?? inside[0], closing = own.get(last) ?? after ?? inside.at(-1);
+    if (!opening || !closing) continue;
+    // A line of the passage's own, or the line beside its neighbour's.
+    const opens = opening === before ? { ...before.lines.at(-1)!, step: 1 } : { ...opening.lines[0], step: 0 };
+    const closes = closing === after ? { ...after.lines[0], step: -1 } : { ...closing.lines.at(-1)!, step: 0 };
+    const used = [...new Set([...inside, opening, closing])], kept = new Set(inside.flatMap(({ lines }) => lines.map(({ id }) => id)));
+    const left = Math.min(...used.flatMap(({ lines }) => lines.map(({ rect }) => rect[0])));
+    const right = Math.max(...used.flatMap(({ lines }) => lines.map(({ rect }) => rect[2])));
+    const spanned = opens.page > closes.page ? [] : (await pages(Array.from({ length: closes.page - opens.page + 1 },
+      (_, offset) => ({ id: `span:${opens.page + offset}`, locatorKind: "page" as const, locator: String(opens.page + offset),
+        physicalPages: [opens.page + offset] })))).targets.flatMap((target) => target.pages).map((page) => {
+      const at = ({ id, step }: typeof opens) => page.lines.findIndex((line) => line.id === id) + step;
+      const from = page.pageNumber === opens.page ? at(opens) : 0, to = page.pageNumber === closes.page ? at(closes) : Infinity;
+      return { ...page, lines: page.lines.filter(({ id, rect }, line) => line >= from && line <= to && (kept.has(id) ||
+        (rect[0] + rect[2]) / 2 > left && (rect[0] + rect[2]) / 2 < right &&
+        rect[1] > page.height * 0.05 && rect[3] < page.height * 0.95)) };
+    }).filter((page) => page.lines.length);
+    if (spanned.length) raw.targets[index] = { id: raw.targets[index].id, status: "found",
+      printed: used.every(({ printed }) => printed), pages: spanned };
   }
   return { ...raw, schemaVersion: "legalpdf.passage-geometry.v1",
     targets: raw.targets.map((target, index) => {
