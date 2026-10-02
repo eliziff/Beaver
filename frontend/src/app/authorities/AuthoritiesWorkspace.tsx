@@ -46,7 +46,7 @@ import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../
 import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
-import { AuthoritiesHighlights, PASSAGE_OPTIONS, passageOptions, SourceOcrProgress } from "./AuthoritiesHighlightEditor";
+import { AuthoritiesHighlights, PASSAGE_OPTIONS, passageOptions } from "./AuthoritiesHighlightEditor";
 
 type WorkspaceTab = "automatic" | "manual" | "drafts";
 type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
@@ -172,9 +172,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [stubWarning, setStubWarning] = useState(false);
   const [buildLinks, setBuildLinks] = useState<{ draftId: string; revision: number;
     warnings: NonNullable<AuthoritiesBuildReceipt["linkWarnings"]> }>();
-  const [recognitionAsked, setRecognitionAsked] = useState(false);
-  const [recognizeScope, setRecognizeScope] =
-    useState<AuthoritiesBuildSettings["scannedPdfPolicy"]>("cited-pages");
   const scanRequest = useRef<AbortController | null>(null);
   const previewRequest = useRef(0);
   const [sourceIssueState, setSourceIssueState] = useState<{
@@ -215,7 +212,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       edits.current = [];
       reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
       setFindingId(""); setViewedStep(undefined);
-      scanRequest.current?.abort(); resetOcr(); setRecognitionAsked(false);
+      scanRequest.current?.abort(); resetOcr();
       previewRequest.current += 1; setSourcePreview(undefined);
       setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
       setPendingAttachment(undefined); setError(""); setMessage("");
@@ -355,15 +352,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     });
     if (pending.length) void ocr.begin(pending);
   }, [scannedSources.checking, scannedSources.files, draft?.state.settings.scannedPdfPolicy, ocr.tracked, ocr.begin]);
-  // Recognition starts as soon as a scan is found, unless the book keeps the scan as
-  // images; the step then only lists what is still unrecognized.
-  const unrecognized = scannedSources.files.filter((file) => ocr.tracked[file.role]?.state !== "done");
-  // Recognition runs on in the background and never holds anyone on this step. Only a scan
-  // already known to be unread asks what to recognize; once it is read, that question closes.
-  const recognitionSettled = !scannedSources.checking && !scannedSources.error && !unrecognized.length;
-  useEffect(() => {
-    if (recognitionAsked && recognitionSettled) { setRecognitionAsked(false); advance("highlights"); }
-  }, [recognitionAsked, recognitionSettled]);
   const gatheredKey = useRef("");
   useEffect(() => {
     const current = draftRef.current, key = `${draftId}\0${citationKey}`;
@@ -389,7 +377,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       setSourceIssueState({ draftId: current.id,
         sourceKey: sourceIssueKey(current), revision: current.revision,
         issues: inspection.sourceIssues, outputFreshness: inspection.outputFreshness });
-      // A source with a newer file is picked up on its own, never behind a button (Eli, 2026-09-09).
+      // A source with a newer file is picked up on its own, never behind a button.
       const changed = Object.entries(inspection.sourceIssues).find(([role, issue]) =>
         issue.status === "changed" && !relinked.current.has(`${current.id}\0${role}`));
       if (changed && host.relinkSource) {
@@ -923,23 +911,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const role = source?.kind === "attached" ? source.sources[0]?.bindingRole : undefined;
     if (role) openSource(role, (finding.found ?? finding.cited).text);
   }
-  /** The step asks once, with the draft's own choice preselected; nothing is written until Next. */
-  function askRecognition() {
-    const policy = draftRef.current?.state.settings.scannedPdfPolicy;
-    setRecognizeScope(policy && policy !== "page-margin" ? policy : "cited-pages");
-    setRecognitionAsked(true);
-  }
-  /** Next applies the choice, starts the reading it asks for, and hands the reader on. */
-  function applyRecognition() {
-    const finish = () => {
-      if (recognizeScope === "page-margin") void ocr.stop(Object.keys(ocr.tracked), false);
-      else void ocr.begin(unrecognized.filter(({ role }) => ocr.tracked[role]?.state !== "running"));
-      act({ type: "set-stage", stage: "highlights" }, () => setRecognitionAsked(false));
-    };
-    if (recognizeScope !== draftRef.current?.state.settings.scannedPdfPolicy)
-      act({ type: "set-settings", settings: { scannedPdfPolicy: recognizeScope } }, finish);
-    else finish();
-  }
 
   /** The PDFs a draft cites are gathered as soon as its citations are known, not on request. */
   async function gatherSources(attempts: number): Promise<void> {
@@ -1055,13 +1026,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
 
   const reviewing = !!draft && stage === "citations" && tab !== "drafts" && draft.state.import.kind === "document";
   const stepNext = reviewing ? () => reached === "citations" ? findSources() : viewStep("sources")
-    : stage === "sources" ? () => {
-      // Next never waits for scans to be checked or read. A draft set to keep scans as images has
-      // already answered the question; scans found later are read as the draft says.
-      if (unrecognized.length && host.recognitionAvailable !== false &&
-        draft?.state.settings.scannedPdfPolicy !== "page-margin") askRecognition();
-      else advance("highlights");
-    } : stage === "highlights" ? () => advance("build") : undefined;
+    // Next goes straight on: scans are read in the background as the draft's scanned-PDF choice
+    // says (Build's More options), each row showing how far, and nothing waits on them.
+    : stage === "sources" ? () => advance("highlights")
+    : stage === "highlights" ? () => advance("build") : undefined;
   const stepping = !!draft && tab !== "drafts";
   // The sections share the header row and the status shares the step row, so the step below starts high.
   const sections = <TabList value={tab} onValueChange={changeTab} options={TABS}
@@ -1186,34 +1154,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           act({ type: "edit-authority", authorityId: editingAuthority.id, kind, citation, name });
           setEditingAuthority(undefined);
         }} />}
-      {/* The dialog opens only for a scan known to need recognition, never empty and never after a wait. */}
-      <Modal open={recognitionAsked} onClose={() => setRecognitionAsked(false)} size="xl"
-        breadcrumbs={["Recognize text"]} fit footerStatus={scannedSources.progress}
-        primaryAction={{ label: "Next", onClick: applyRecognition, disabled: busy }}>
-        <p className="text-sm leading-6 text-gray-700">These source PDFs are scans. Recognition reads
-          their pages so passages can be marked and the book can be searched. {host.sourceOcr
-            ? "It keeps running in the background while you work on the highlights."
-            : "Recognition runs when you build the book."}</p>
-        {scannedSources.error && <p role="alert" className="mt-2 text-sm text-red-800">{scannedSources.error}</p>}
-        <ul className="my-4 max-h-36 divide-y divide-gray-200 overflow-y-auto rounded-lg border border-gray-300 bg-gray-50">
-          {unrecognized.map(file => <li key={file.role} className="grid gap-1 px-3 py-2.5">
-            <span className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="truncate font-medium text-gray-950" title={file.name}>{file.name}</span>
-              <span className="shrink-0 text-xs text-gray-600">Pages {pageRanges(file.textlessPages)}</span></span>
-            {ocr.tracked[file.role] && <SourceOcrProgress ocr={ocr} status={ocr.tracked[file.role]} />}
-          </li>)}
-        </ul>
-        <fieldset><legend className="mb-1.5 text-sm font-semibold text-gray-950">What to recognize</legend>
-          <div className="grid gap-0.5 rounded-lg border border-gray-300 p-1">
-            {RECOGNITION_SCOPES.map(([value, label]) => <label key={value}
-              className={cn("flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm hover:bg-gray-50",
-                recognizeScope === value ? "bg-red-50 font-medium text-gray-950" : "text-gray-700")}>
-              <input type="radio" name="recognition-scope" className="accent-red-700"
-                checked={recognizeScope === value} onChange={() => setRecognizeScope(value)} />{label}
-            </label>)}
-          </div>
-        </fieldset>
-      </Modal>
       <Modal open={accessOpen} size="md" breadcrumbs={["File access"]} fit
         onClose={() => draft && setAccessPrompt({ draftId: draft.id, denied: false })}
         secondaryAction={{ label: "Not now", onClick: () => draft &&
@@ -1838,15 +1778,6 @@ function Status({ busy, busyText, status, error, inline = false }: { busy: boole
     {busy ? status || busyText : status}
   </p>;
 }
-const RECOGNITION_SCOPES = [["cited-pages", "The cited pages"], ["full", "Every scanned page"],
-  ["page-margin", "Nothing; keep the pages as images"]] as const satisfies ReadonlyArray<
-    readonly [AuthoritiesBuildSettings["scannedPdfPolicy"], string]>;
-/** Page numbers as spans, so a long scan reads as a range rather than a list. */
-const pageRanges = (pages: number[]) => pages.reduce<number[][]>((runs, page) => {
-  const last = runs[runs.length - 1];
-  if (last && page === last[1] + 1) last[1] = page; else runs.push([page, page]);
-  return runs;
-}, []).map(([from, to]) => from === to ? `${from}` : `${from}–${to}`).join(", ");
 const STEP_PROGRESS = new Set(["Finding source PDFs", "Checking source PDFs"]);
 const STEPS = [{ value: "citations", label: "Citations" }, { value: "sources", label: "Sources" },
   { value: "highlights", label: "Highlights" }, { value: "build", label: "Build book" }] as const;

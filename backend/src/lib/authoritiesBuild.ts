@@ -210,7 +210,8 @@ function authorityName(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
   const heading = authority.displayName ?? authority.name;
   if (!heading || !forms.some((form) => lower(form).includes(lower(heading.trim())))) add(heading);
   forms.forEach(add);
-  return values.join(", ");
+  // A name the brief broke across lines reads on one line in the index, the bookmarks and the tables.
+  return values.join(", ").replace(/\s+/gu, " ").trim();
 }
 
 function citedPages(draft: AuthoritiesDraft, authorityId: string) {
@@ -283,9 +284,13 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
   const children: Array<InstanceType<typeof Paragraph> | InstanceType<typeof Table>> = [
     new Paragraph({ text: linked ? "TABLE OF AUTHORITIES" : "Table of Authorities",
       heading: HeadingLevel.TITLE }),
-    ...(linked ? [] : [new Paragraph({ children: [new TextRun({ text: subtitle, italics: true,
+    ...(linked || !subtitle ? [] : [new Paragraph({ children: [new TextRun({ text: subtitle, italics: true,
       color: "666666", size: 22 })] })]),
   ];
+  // Where an authority is cited is known for a PDF brief (its pages), never for a Word one (Word lays
+  // it out): the column goes when no entry has it.
+  const citedAt = groups.some(({ entries }) => entries.some(({ citedAt }) => citedAt && citedAt !== "—"));
+  const nameWidth = 9360 - 1660 - (tabs ? 1050 : 0) - (citedAt ? 1850 : 0);
   if (!groups.length) children.push(new Paragraph("No authorities."));
   if (linked) groups.flatMap(({ entries }) => entries).forEach((entry, index) => {
     children.push(new Paragraph({ children: [new TextRun(`${index + 1}. `),
@@ -301,12 +306,12 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
         insideHorizontal: border, insideVertical: border }, rows: [
         new TableRow({ tableHeader: true, children: [
           ...(tabs ? [cell("Tab", 1050, true)] : []),
-          cell("Authority", tabs ? 4800 : 5850, true),
-          cell("Cited at", 1850, true), cell("Source", 1660, true),
+          cell("Authority", nameWidth, true),
+          ...(citedAt ? [cell("Cited at", 1850, true)] : []), cell("Source", 1660, true),
         ] }),
         ...group.entries.map((entry) => new TableRow({ cantSplit: true, children: [
           ...(tabs ? [cell(entry.tab, 1050)] : []),
-          cell(entry.name, tabs ? 4800 : 5850), cell(entry.citedAt, 1850),
+          cell(entry.name, nameWidth), ...(citedAt ? [cell(entry.citedAt, 1850)] : []),
           new TableCell({ width: { size: 1660, type: WidthType.DXA }, children: [
             new Paragraph({ children: entry.sourceUrl ? [new ExternalHyperlink({
               link: entry.sourceUrl, children: [new TextRun({ text: "Open source",
@@ -319,7 +324,8 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
   const document = new Document({ creator: "Beaver", title: "Table of Authorities",
     description: "Legal authorities",
     styles: { default: { document: { run: { font: "Times New Roman", size: 22 } } } },
-    sections: [{ properties: { page: { margin: {
+    // Letter paper, as Canadian courts file.
+    sections: [{ properties: { page: { size: { width: 12240, height: 15840 }, margin: {
       top: 1440, right: 1440, bottom: 1440, left: 1440,
     } } }, children }],
   });
@@ -354,6 +360,13 @@ function tableEntry(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
   return entry;
 }
 
+/** Where a citation's tab reference goes: after the short form the brief defines right after it
+ *  ("… 2012 SCC 47 [Mabior] [Tab 3]"), whether or not the citation's span takes that bracket in. */
+function afterShortForm(text: string, end: number) {
+  const bracket = /^ ?\[[^[\]\n]{1,60}\]/u.exec(text.slice(end))?.[0];
+  return bracket && !/^ ?\[(?:\d|Tab\b)/u.test(bracket) ? end + bracket.length : end;
+}
+
 function nativeMark(draft: AuthoritiesDraft, authority: AuthorityIdentity,
   unitId: string, offset: number): DocxAuthorityMark {
   const citation = authority.citation.trim();
@@ -380,7 +393,7 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
     const tab = tabs.get(authority.id)!;
     // A linked tab needs its reference to click, even where none was chosen.
     const suffix = tabReference(draft.settings, tab) ?? (finalLinks && draft.settings.linkTabs ? `[${tab}]` : null);
-    return [{ ...nativeMark(draft, authority, unit.id, occurrence.end),
+    return [{ ...nativeMark(draft, authority, unit.id, afterShortForm(unit.text, occurrence.end)),
       mark: draft.insertIntoDocument,
       ...(suffix && {
         suffix: ` ${suffix}`,
@@ -1110,8 +1123,8 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
   const base = /^(?:con|prn|aux|nul|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])(?:\.|$)/iu
     .test(cleaned) ? `_${cleaned}` : cleaned;
   // The brief's name, as a reader knows it: never its file extension.
-  const subtitle = input.draft.import.kind === "document"
-    ? input.draft.import.filename.replace(/\.(?:docx|pdf)$/iu, "") : input.title;
+  // A manual book's title is its subtitle; a brief's file name is printed nowhere.
+  const subtitle = input.draft.import.kind === "document" ? "" : input.title;
   const bookName = (profile.bookTitle ?? "Book of Authorities").toLowerCase()
     .replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "");
   input.progress?.(wanted.includes("book") ? "Preparing the book" : "Building the table");
