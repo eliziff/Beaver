@@ -41,11 +41,10 @@ export async function prepareAuthoritiesCorrection<T extends { bytes: Buffer }>(
 
 type ReadInput = Parameters<typeof authorityPdfText>[0];
 
-/** Same role decisions and text projection for Library and standalone. Given the readings a
- *  runtime keeps, a source already read for the same inputs is not read again. */
-export function createAuthoritiesPreparation(draft: AuthoritiesDraft, readings?: SourceReadings) {
+/** How a draft reads its sources' PDFs. Given the readings a runtime keeps, a source already read
+ *  for the same inputs is not read again. */
+function sourceReading(draft: AuthoritiesDraft, readings?: SourceReadings) {
   const plan = authoritiesInputPlan(draft, authoritiesProfile(draft.settings.profileId).requirements);
-  const textRoles = authoritiesTextRoles(draft);
   /** All that reading a role's PDF takes besides its bytes, as data: the readings' key. */
   const request = (role: string) => {
     const attached = plan.authoritySources.find(({ source }) => source.bindingRole === role);
@@ -89,7 +88,18 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft, readings?:
       ...(result.ocrTextByPage.some(Boolean) ? { ocrTextByPage: result.ocrTextByPage } : {}),
       ...(result.passageGeometry ? { passageGeometry: result.passageGeometry } : {}) };
   };
-  return { ...plan, textRoles, readText,
+  return { plan, request, kept, readText };
+}
+
+/** A role's text, pages and passages as a build reads them, asking nothing of other sources. */
+export const authoritiesSourceText = (draft: AuthoritiesDraft, readings?: SourceReadings) =>
+  sourceReading(draft, readings).readText;
+
+/** Same role decisions and text projection for Library and standalone. */
+export function createAuthoritiesPreparation(draft: AuthoritiesDraft, readings?: SourceReadings) {
+  const { plan, request, kept, readText } = sourceReading(draft, readings);
+  const textRoles = authoritiesTextRoles(draft);
+  return { ...plan, textRoles,
     async prepareText(role: string, input: ReadInput) {
       input.signal?.throwIfAborted();
       const { outline: outlined } = request(role);

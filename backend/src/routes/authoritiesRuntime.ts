@@ -21,7 +21,8 @@ import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuth
 import { validateAuthoritiesPdf } from "../lib/authoritiesPdf";
 import { authorityReferenceText, resolveAuthoritiesSources, retryableAuthoritySource,
   type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
-import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "../lib/authoritiesPreparation";
+import { authoritiesSourceText, createAuthoritiesPreparation, prepareAuthoritiesCorrection } from
+  "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
 import { followedRoute } from "../lib/followedRoute";
 import { sha256 } from "../lib/hash";
@@ -220,7 +221,7 @@ export function createAuthoritiesRuntimeRouter(
     // Manual editing never depends on a successful automatic match. The source is read as a
     // build reads it, so a source read ahead or built is not read again.
     const text = state.settings.passageMarking !== "none" && authorityPassageTargets(state, authority.id).length
-      ? await createAuthoritiesPreparation(state, readings).readText(source.bindingRole,
+      ? await authoritiesSourceText(state, readings)(source.bindingRole,
         { bytes, sourceSha256: source.sourceSha256, signal: abort.signal }) : {};
     res.json(prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true));
   }));
