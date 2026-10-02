@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import type { AuthoritiesDraft } from "../lib/authoritiesDomain";
 import type { AuthoritiesDiscrepancy } from "../lib/authoritiesDiscrepancy";
 import { sha256 } from "../lib/hash";
+import { ANNOTATION_SCHEMA } from "mike/shared/pdf-annotations.mjs";
 import { assertAuthoritiesBuildUploadSize, createAuthoritiesRuntimeRouter } from
   "./authoritiesRuntime";
 
@@ -64,6 +65,29 @@ describe("standalone Authorities runtime", () => {
     await request(app).post("/authorities-runtime/source-text")
       .field("draft", JSON.stringify(state)).field("role", "source").field("pages", "[0]")
       .attach("file", bytes, "Example.pdf").expect(400);
+  });
+
+  it("prepares one source's marks while another source's saved highlights belong to a replaced PDF", async () => {
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    const bytes = Buffer.from(await pdf.save()), sourceSha256 = sha256(bytes), replaced = "b".repeat(64);
+    const state = structuredClone(manualState()) as AuthoritiesDraft;
+    state.bindings.source = { kind: "local-file", handleId: "source", lastSeen: {
+      name: "Example.pdf", size: bytes.length, modified: 1, sha256: sourceSha256 } };
+    state.authorities.case.locators = [{ kind: "paragraph", label: "1" }];
+    state.authorities.case.source = { kind: "attached", sources: [{ bindingRole: "source",
+      filename: "Example.pdf", sourceSha256, sourceUrl: null, origin: "manual", language: "en" }] };
+    state.bindings.other = { kind: "local-file", handleId: "other", lastSeen: {
+      name: "Other.pdf", size: 1, modified: 1, sha256: replaced } };
+    state.authorityOrder.push("other");
+    state.authorities.other = { ...state.authorities.case, id: "other", key: "other", citation: "2025 ABKB 9",
+      locators: [], source: { kind: "attached", sources: [{ bindingRole: "other", filename: "Other.pdf",
+        sourceSha256: replaced, sourceUrl: null, origin: "manual", language: "en" }] },
+      annotations: { other: { schemaVersion: ANNOTATION_SCHEMA, sourceSha256: "c".repeat(64), marks: [] } } };
+    mocks.pdfText.mockResolvedValue({ pageTextByPage: [""], ocrTextByPage: [""] });
+    const response = await request(app).post("/authorities-runtime/annotations")
+      .field("draft", JSON.stringify(state)).field("authorityId", "case").field("bindingRole", "source")
+      .attach("file", bytes, "Example.pdf").expect(200);
+    expect(response.body.annotations.sourceSha256).toBe(sourceSha256);
   });
 
   it("requires the attached PDF's exact bytes and positive page numbers before recognition", async () => {
