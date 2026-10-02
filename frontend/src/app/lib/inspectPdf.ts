@@ -22,6 +22,7 @@ export async function inspectPdf(
   file: File,
   onProgress?: (completedPages: number, totalPages: number) => void,
   signal?: AbortSignal,
+  pageLimit = 2_000,
 ): Promise<PdfInspection> {
   signal?.throwIfAborted();
   const pdfjs = await getPdfJs();
@@ -34,7 +35,7 @@ export async function inspectPdf(
     const textlessPages: number[] = [];
     const pageTexts: string[] = [];
     let textCharacters = 0;
-    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    for (let pageNumber = 1; pageNumber <= Math.min(document.numPages, pageLimit); pageNumber += 1) {
       signal?.throwIfAborted();
       const page = await document.getPage(pageNumber);
       const text = await page.getTextContent();
@@ -88,19 +89,8 @@ export async function inspectPdf(
 
 /** A PDF's name and its first two pages' own text, line by line; nothing is recognized. */
 export type PdfOpening = { filename: string; pages: string[] };
-export async function pdfOpening(file: File): Promise<PdfOpening> {
-  const loading = openPdfDocument(await getPdfJs(), { data: new Uint8Array(await file.arrayBuffer()) }, PDF_DOCUMENT_OPTIONS);
-  try {
-    const document = await loading.promise, pages: string[] = [];
-    for (let pageNumber = 1; pageNumber <= Math.min(2, document.numPages); pageNumber += 1) {
-      const page = await document.getPage(pageNumber);
-      pages.push((await page.getTextContent()).items.map((item) => "str" in item
-        ? `${item.str}${item.hasEOL ? "\n" : " "}` : "").join(""));
-      page.cleanup();
-    }
-    return { filename: file.name, pages };
-  } finally { await loading.destroy().catch(() => undefined); }
-}
+export const pdfOpening = async (file: File): Promise<PdfOpening> =>
+  ({ filename: file.name, pages: (await inspectPdf(file, undefined, undefined, 2)).pageTexts });
 
 async function resolveOutline(
   document: import("pdfjs-dist").PDFDocumentProxy,
