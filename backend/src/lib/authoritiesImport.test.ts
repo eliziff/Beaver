@@ -300,7 +300,7 @@ describe("authorities import application", () => {
     expect(occurrence.authoritySpan.text).toBe("Liu v. T & H Machine, Inc., 191 F.3d 790");
     expect(occurrence.coreSpan.text).toBe("191 F.3d 790");
     expect(occurrence.pinpointSpan?.text).toBe("798");
-    expect(occurrence.pinpoints).toEqual([{ kind: "page", text: "798" }]);
+    expect(occurrence.pinpoints).toMatchObject([{ kind: "page", text: "798" }]);
     expect(occurrence.text).toBe("Liu v. T & H Machine, Inc., 191 F.3d 790,\n\n798 (7th Cir. 1999)");
     expect(unit.pageNumbers).toEqual([1, 2]);
     expect(unit.text.slice(occurrence.pinpointSpan!.start, occurrence.pinpointSpan!.end)).toBe("798");
@@ -384,7 +384,7 @@ describe("authorities import application", () => {
     const state = await footnoteImport(["Halvorsen v Tidewater Ferries Ltd, 2030 SCC 12 at para 41ff."]);
     const [occurrence] = Object.values(state.occurrences);
     expect(occurrence.text.endsWith("41ff")).toBe(true);
-    expect(occurrence.pinpoints).toEqual([{ kind: "paragraph", text: "41" }]);
+    expect(occurrence.pinpoints).toMatchObject([{ kind: "paragraph", text: "41" }]);
   });
 
   it("links Ibid and supra in reading order and never past an unresolved reference", async () => {
@@ -426,7 +426,7 @@ describe("authorities import application", () => {
     { ...scanNative([]), pdfAuthorityTextUnits: vi.fn(() => [{ key: "body:0", kind: "body" as const,
       ordinal: 0, footnote_id: null, page_numbers: [], footnote_refs: [],
       text: "R v Jordan, 2016 SCC 27 at paras 5, 9 and 71-86; R v Oakes, [1986] 1 SCR 103 at 138 to 39." }]) });
-    expect(Object.values(state.occurrences).map(({ pinpoints }) => pinpoints)).toEqual([
+    expect(Object.values(state.occurrences).map(({ pinpoints }) => pinpoints)).toMatchObject([
       [{ kind: "paragraph", text: "5" }, { kind: "paragraph", text: "9" }, { kind: "paragraph", text: "71-86" }],
       [{ kind: "page", text: "138-39" }],
     ]);

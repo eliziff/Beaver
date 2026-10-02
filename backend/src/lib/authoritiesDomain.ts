@@ -183,7 +183,7 @@ const authoritiesCover = closed<AuthoritiesCover>({ courtFileNumber: plain(100),
 
 const authorityKind = oneOf(authorityKinds);
 const pinpoint = closed<AuthorityOccurrence["pinpoints"][number]>({
-  kind: text, text });
+  kind: text, text, start: maybe(integer), end: maybe(integer) });
 const locator = closed<AuthorityHighlightExclusion>({ kind: text, label: text });
 const snapshot = closed<AuthoritiesDocumentSnapshot>({ documentId: nonempty(200),
   versionId: nonempty(200), sha256: sourceHash });
@@ -1289,13 +1289,16 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
           occurrence.text !== unit.text.slice(occurrence.start, occurrence.end)) {
         errors.push(`Invalid occurrence span: ${id}`);
       }
-      const spans = [occurrence.authoritySpan, occurrence.coreSpan,
-        ...(occurrence.pinpointSpan ? [occurrence.pinpointSpan] : []),
+      // A pinpoint may lie anywhere in its citation's unit, inside the citation's range or not.
+      const inUnit = ({ start, end }: { start?: number; end?: number }) => Number.isInteger(start) &&
+        Number.isInteger(end) && start! >= 0 && end! > start! && start! < unit.text.length;
+      const pinned = [...(occurrence.pinpointSpan ? [occurrence.pinpointSpan] : []),
         ...(occurrence.pinpointPhrase ? [occurrence.pinpointPhrase] : [])];
-      if (spans.some((span) => !span || !Number.isInteger(span.start) ||
-          !Number.isInteger(span.end) || span.start < occurrence.start ||
-          span.end <= span.start || span.end > occurrence.end ||
-          span.text !== unit.text.slice(span.start, span.end)) ||
+      if ([occurrence.authoritySpan, occurrence.coreSpan].some((span) => !span || !inUnit(span) ||
+          span.start < occurrence.start || span.end > occurrence.end) ||
+          [occurrence.authoritySpan, occurrence.coreSpan, ...pinned].some((span) => !inUnit(span) ||
+            span.text !== unit.text.slice(span.start, span.end)) ||
+          occurrence.pinpoints.some((item) => (item.start !== undefined || item.end !== undefined) && !inUnit(item)) ||
           occurrence.coreSpan.start < occurrence.authoritySpan.start ||
           occurrence.coreSpan.end > occurrence.authoritySpan.end) {
         errors.push(`Invalid reviewed citation boundaries: ${id}`);

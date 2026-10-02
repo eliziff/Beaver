@@ -123,6 +123,9 @@ export type AuthoritiesReviewUnit = {
 };
 
 export type AuthorityTextSpan = { start: number; end: number; text: string };
+/** What a pinpoint locates in the cited source, as the citation engine names it. */
+export type AuthorityPinpointKind = "paragraph" | "page" | "section" | "subsection" | "rule" | "article"
+  | "schedule" | "footnote" | "clause";
 
 export type AuthorityOccurrence = {
   id: string;
@@ -132,6 +135,8 @@ export type AuthorityOccurrence = {
   text: string;
   authoritySpan: AuthorityTextSpan;
   coreSpan: AuthorityTextSpan;
+  /** Where the unit writes the pinpoints, first to last; the brief's pinpoint link sits on it. Like
+   * each pinpoint, it may lie outside the citation's range. */
   pinpointSpan: AuthorityTextSpan | null;
   /** The pinpoints as written, with the words that introduce them: "at para 105". */
   pinpointPhrase?: AuthorityTextSpan;
@@ -140,8 +145,11 @@ export type AuthorityOccurrence = {
   authorityId: string | null;
   reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string } | null;
   referenceKind?: "short" | "supra" | "ibid";
-  pinpoints: Array<{ kind: string; text: string }>;
-  /** The assistant placed the pinpoint by hand; any range edit derives it again. */
+  /** Each pinpoint's locator kind and value ("82-91"), and where its unit writes it: anywhere in
+   * the unit, inside the citation's range or not. Drafts saved before pinpoints kept their place
+   * have no start and end. */
+  pinpoints: Array<{ kind: string; text: string; start?: number; end?: number }>;
+  /** The reviewer or the assistant set the pinpoints by hand: a range edit keeps them. */
   pinpointManual?: true;
   evidenceIds: string[];
   sourceTextSha256: string;
@@ -170,6 +178,10 @@ export type AuthoritiesUserAction =
   | { type: "set-citation-range"; occurrenceId: string; start: number; end: number }
   | { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number }
   | { type: "clear-pinpoint"; occurrenceId: string }
+  /** The citation's pinpoints as the reviewer marks them in its unit, at most three: a pinpoint
+   * without a kind takes the one the words around it give. */
+  | { type: "set-pinpoints"; occurrenceId: string;
+      pinpoints: Array<{ start: number; end: number; kind?: AuthorityPinpointKind }> }
   | { type: "add-occurrence"; unitId: string; start: number; end: number }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }

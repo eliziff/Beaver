@@ -22,20 +22,16 @@ export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesActi
   const unit = state.units.find(({ id }) => id === unitId);
   if (!unit || action.type !== 'add-occurrence' && action.type !== 'restore-occurrence' && !item) return null;
   let ids = [...unit.occurrenceIds], dismissed = state.dismissedOccurrences;
-  /** A citation over [start, end) trimmed of space, keeping the pinpoint `base` knew while it still
-   * lies inside: the save parses the text again. */
+  /** A citation over [start, end) trimmed of space, keeping the pinpoints `base` had wherever they
+   * lie: the save parses the text again, and only pinpoints the new range writes replace them. */
   const cite = (start: number, end: number, base?: AuthorityOccurrence): AuthorityOccurrence => {
     while (start < end && /\s/u.test(unit.text[start])) start++;
     while (end > start && /\s/u.test(unit.text[end - 1])) end--;
     const span = { start, end, text: unit.text.slice(start, end) };
-    const pin = base?.pinpointSpan && base.pinpointSpan.start >= start && base.pinpointSpan.end <= end ? base.pinpointSpan : null;
-    const phrase = pin && base!.pinpointPhrase && base!.pinpointPhrase.start >= start && base!.pinpointPhrase.end <= end
-      ? base!.pinpointPhrase : undefined;
     return { kind: 'other', citation: span.text, authorityId: null, reference: null, evidenceIds: [], reviewed: true,
-      sourceTextSha256: ids.map(id => occurrences[id]?.sourceTextSha256).find(Boolean) ?? '', ...base,
-      id: base?.id ?? `${unit.id}:manual:${start}:${end}`, unitId: unit.id, ...span, localOrdinal: start,
-      authoritySpan: span, coreSpan: span, pinpointSpan: pin, pinpointPhrase: phrase, pinpoints: pin ? base!.pinpoints : [],
-      pinpointManual: undefined };
+      sourceTextSha256: ids.map(id => occurrences[id]?.sourceTextSha256).find(Boolean) ?? '', pinpointSpan: null,
+      pinpoints: [], ...base, id: base?.id ?? `${unit.id}:manual:${start}:${end}`, unitId: unit.id, ...span,
+      localOrdinal: start, authoritySpan: span, coreSpan: span };
   };
   const put = (...items: AuthorityOccurrence[]) => items.forEach(next => { occurrences[next.id] = next; ids.push(next.id); });
   const drop = (...gone: string[]) => { gone.forEach(id => delete occurrences[id]); ids = ids.filter(id => !gone.includes(id)); };
@@ -59,6 +55,18 @@ export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesActi
       const saved = dismissed?.[action.occurrenceId];
       if (!saved) return null;
       put(saved.occurrence); dismissed = { ...dismissed }; delete dismissed[action.occurrenceId]; break;
+    }
+    // A pinpoint kind changed or one removed shows at once; one added shows when the save has read
+    // its value and kind from the text.
+    case 'set-pinpoints': {
+      const known = action.pinpoints.flatMap(({ start, end, kind }) => {
+        const pin = item!.pinpoints.find(other => other.start === start && other.end === end);
+        return pin ? [{ ...pin, kind: kind ?? pin.kind }] : [];
+      });
+      const span = known.length ? { start: known[0].start!, end: known.at(-1)!.end! } : null;
+      occurrences[item!.id] = { ...item!, pinpoints: known, pinpointManual: true,
+        pinpointSpan: span && { ...span, text: unit.text.slice(span.start, span.end) } };
+      break;
     }
     case 'relink-occurrence': occurrences[item!.id] = { ...item!, authorityId: action.authorityId }; break;
     case 'set-reference':

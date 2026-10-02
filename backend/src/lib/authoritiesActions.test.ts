@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { applyAuthoritiesUserAction } from "./authoritiesActions";
+import { authorityPassageTargets } from "./authoritiesBuild";
 import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
 import { authorityCitationForms, createAuthoritiesDraft,
   type AuthoritiesDraft } from "./authoritiesDomain";
@@ -41,7 +42,7 @@ describe("Authorities citation boundary actions", () => {
       TEXT.slice(start, end).trim(), 'Jordan, 2016 SCC 27',
     ]);
     expect(parts[0].id).toBe(id);
-    expect(parts[0].pinpoints).toContainEqual({ kind: 'paragraph', text: '33' });
+    expect(parts[0].pinpoints).toContainEqual(expect.objectContaining({ kind: 'paragraph', text: '33' }));
     expect(parts[1].authorityId).toBe(original.occurrences[original.units[0].occurrenceIds[1]].authorityId);
     expect(parts[0].end).toBeLessThanOrEqual(parts[1].start);
     expect(original.units[0].occurrenceIds).toHaveLength(2);
@@ -49,7 +50,7 @@ describe("Authorities citation boundary actions", () => {
     expect(() => applyAuthoritiesUserAction(original, { type: 'set-citation-range', occurrenceId: id,
       start: -1, end })).toThrow();
   });
-  it("clears a pinpoint attached to the wrong citation", () => {
+  it("clears a pinpoint attached to the wrong citation, and the citation keeps its range", () => {
     const whole = add(bodyDraft(), TEXT.slice(TEXT.indexOf("Bhasin")));
     const split = applyAuthoritiesUserAction(whole, { type: "split-occurrence",
       occurrenceId: whole.units[0].occurrenceIds[0], cursor: TEXT.indexOf("R v Jordan") });
@@ -58,8 +59,8 @@ describe("Authorities citation boundary actions", () => {
 
     const cleared = applyAuthoritiesUserAction(split, { type: "clear-pinpoint", occurrenceId: id });
     const occurrence = cleared.occurrences[id];
-    expect(occurrence).toMatchObject({ pinpointSpan: null, pinpoints: [], reviewed: true,
-      ...at("Bhasin v Hrynew, 2014 SCC 71"), text: "Bhasin v Hrynew, 2014 SCC 71" });
+    expect(occurrence).toMatchObject({ pinpointSpan: null, pinpoints: [], reviewed: true, pinpointManual: true,
+      start: split.occurrences[id].start, end: split.occurrences[id].end });
     expect(occurrence.authoritySpan).toEqual(split.occurrences[id].authoritySpan);
     expect(() => applyAuthoritiesUserAction(cleared,
       { type: "clear-pinpoint", occurrenceId: id })).toThrow(/no pinpoint/u);
@@ -67,29 +68,74 @@ describe("Authorities citation boundary actions", () => {
       { type: "clear-pinpoint", occurrenceId: "missing" })).toThrow(/not found/u);
   });
 
-  it("gives an added citation its pinpoint as written, and derives it again on every range edit", () => {
+  it("keeps a citation's pinpoints wherever they lie, and never moves its range for them", () => {
     const auto = add(bodyDraft(), "Bhasin v Hrynew, 2014 SCC 71 at para 33");
     const [id] = auto.units[0].occurrenceIds, parsed = auto.occurrences[id];
     expect(parsed).toMatchObject({ pinpointSpan: { text: "33" }, pinpointPhrase: { text: "at para 33" },
-      pinpoints: [{ kind: "paragraph", text: "33" }] });
+      pinpoints: [{ kind: "paragraph", text: "33", ...at("33") }] });
     const act = (draft: AuthoritiesDraft, action: object) => applyAuthoritiesUserAction(draft,
       decodeAuthoritiesUserAction({ occurrenceId: id, ...action }));
-    expect(() => decodeAuthoritiesUserAction({ occurrenceId: id, type: "reset-pinpoint" })).toThrow();
-    // A pinpoint placed by hand gives way to the parser's at the next range edit.
-    const manual = act(auto, { type: "set-pinpoint-span", ...at("33") });
-    expect(manual.occurrences[id]).toMatchObject({ pinpointManual: true, pinpointPhrase: { text: "at para 33" } });
-    const kept = act(manual, { type: "set-citation-range", ...at("Hrynew, 2014 SCC 71 at para 33") }).occurrences[id];
-    expect(kept.pinpointManual).toBeUndefined();
-    expect([kept.pinpointSpan, kept.pinpointPhrase, kept.pinpoints])
-      .toEqual([parsed.pinpointSpan, parsed.pinpointPhrase, parsed.pinpoints]);
-    const outside = act(manual, { type: "set-citation-range", ...at("Bhasin v Hrynew, 2014 SCC 71") });
-    expect(outside.occurrences[id]).toMatchObject({ pinpointSpan: null, pinpoints: [] });
-    expect(outside.occurrences[id].pinpointManual).toBeUndefined();
-    expect(outside.occurrences[id].pinpointPhrase).toBeUndefined();
-    const back = act(outside, { type: "set-citation-range", ...at("Bhasin v Hrynew, 2014 SCC 71 at para 33") });
-    expect(back.occurrences[id].pinpointPhrase?.text).toBe("at para 33");
-    const cleared = act(back, { type: "clear-pinpoint" }).occurrences[id];
-    expect([cleared.pinpointSpan, cleared.pinpointPhrase]).toEqual([null, undefined]);
+    // A range that leaves the written pinpoint out keeps it, outside the range.
+    const outside = act(auto, { type: "set-citation-range", ...at("Bhasin v Hrynew, 2014 SCC 71") }).occurrences[id];
+    expect(outside).toMatchObject({ ...at("Bhasin v Hrynew, 2014 SCC 71"), pinpoints: parsed.pinpoints,
+      pinpointSpan: parsed.pinpointSpan });
+    // The assistant's pinpoint edit leaves the range as it is, as does the authority's.
+    const pinned = act(act(auto, { type: "set-citation-range", ...at("Bhasin v Hrynew, 2014 SCC 71") }),
+      { type: "set-pinpoint-span", ...at("at para 33") }).occurrences[id];
+    expect(pinned).toMatchObject({ ...at("Bhasin v Hrynew, 2014 SCC 71"), pinpointManual: true,
+      pinpoints: [{ kind: "paragraph", text: "33", ...at("33") }] });
+    const respanned = act(auto, { type: "set-authority-span", ...at("Bhasin v Hrynew, 2014 SCC 71") }).occurrences[id];
+    expect(respanned).toMatchObject({ ...at("Bhasin v Hrynew, 2014 SCC 71"), pinpoints: parsed.pinpoints });
+    expect(() => act(auto, { type: "set-pinpoint-span", ...at("applied in") })).toThrow(/complete pinpoint/u);
+  });
+
+  it("sets pinpoints by place: a kind cycled, one removed, one added anywhere in the unit", () => {
+    const text = "Thus Alpha v Beta, 2019 SCC 5 at paras 82, 91; and see Gamma v Delta, 2020 SCC 7 at para 4. " +
+      "The Court later added (at para 120) that s 14 applies.";
+    const cite = "Alpha v Beta, 2019 SCC 5 at paras 82, 91";
+    const span = (needle: string, from = 0) => ({ start: text.indexOf(needle, from), end: text.indexOf(needle, from) + needle.length });
+    const draft = applyAuthoritiesUserAction({ ...bodyDraft(), units: [{ ...bodyDraft().units[0], text }] },
+      { type: "add-occurrence", unitId: "body:7", ...span(cite) });
+    const [id] = draft.units[0].occurrenceIds, parsed = draft.occurrences[id];
+    expect(parsed.pinpoints).toEqual([{ kind: "paragraph", text: "82", ...span("82") },
+      { kind: "paragraph", text: "91", ...span("91") }]);
+    const act = (from: AuthoritiesDraft, action: object) => applyAuthoritiesUserAction(from,
+      decodeAuthoritiesUserAction({ occurrenceId: id, ...action }));
+    const set = (from: AuthoritiesDraft, pinpoints: object[]) => act(from, { type: "set-pinpoints", pinpoints });
+
+    // The first's kind changed, then a pinpoint written later in the paragraph added: its kind is
+    // read from the words before it, and the citation's range stays as it was.
+    const added = set(draft, [{ ...span("82"), kind: "page" }, span("91"), span("120")]).occurrences[id];
+    expect(added).toMatchObject({ text: cite, ...span(cite), pinpointManual: true, reviewed: true,
+      pinpoints: [{ kind: "page", text: "82" }, { kind: "paragraph", text: "91" }, { kind: "paragraph", text: "120", ...span("120") }],
+      pinpointSpan: { start: span("82").start, end: span("120").end } });
+    const edited = { ...draft, occurrences: { ...draft.occurrences, [id]: added } };
+    expect(authorityPassageTargets(edited, parsed.authorityId!).map(({ locatorKind, locator }) => `${locatorKind} ${locator}`))
+      .toEqual(["page 82", "paragraph 91", "paragraph 120"]);
+    expect(set(draft, [span("14")]).occurrences[id].pinpoints).toEqual([{ kind: "section", text: "14", ...span("14") }]);
+    // At most three, never over the authority, and none overlapping.
+    expect(() => set(edited, [span("82"), span("91"), span("120"), span("14")])).toThrow(/at most three/u);
+    expect(() => set(draft, [span("2019")])).toThrow(/without the authority/u);
+    expect(() => set(draft, [span("82"), { start: span("82").start, end: span("91").end }])).toThrow(/overlap/u);
+    // One removed; then a range edit keeps the reviewer's pinpoints, and an emptied list stays empty.
+    const removed = set(edited, [span("91"), span("120")]);
+    expect(removed.occurrences[id].pinpoints.map(({ text }) => text)).toEqual(["91", "120"]);
+    const narrowed = act(removed, { type: "set-citation-range", ...span("Alpha v Beta, 2019 SCC 5") }).occurrences[id];
+    expect(narrowed).toMatchObject({ text: "Alpha v Beta, 2019 SCC 5", pinpoints: removed.occurrences[id].pinpoints });
+    const empty = act(set(removed, []), { type: "set-citation-range", ...span(cite) }).occurrences[id];
+    expect(empty).toMatchObject({ pinpoints: [], pinpointSpan: null, pinpointManual: true });
+    expect(() => act(draft, { type: "set-pinpoints" })).toThrow();
+    expect(() => set(draft, [{ ...span("82"), kind: "chapter" }])).toThrow();
+  });
+
+  it("finds the pinpoint a citation added without it goes on to write", () => {
+    const text = "See Gamma v Delta, 2020 SCC 7 at para 4; and Ibid at 9.";
+    const span = (needle: string) => ({ start: text.indexOf(needle), end: text.indexOf(needle) + needle.length });
+    const draft = applyAuthoritiesUserAction({ ...bodyDraft(), units: [{ ...bodyDraft().units[0], text }] },
+      { type: "add-occurrence", unitId: "body:7", ...span("Gamma v Delta, 2020 SCC 7") });
+    const [id] = draft.units[0].occurrenceIds;
+    expect(draft.occurrences[id]).toMatchObject({ text: "Gamma v Delta, 2020 SCC 7",
+      pinpoints: [{ kind: "paragraph", text: "4", ...span("4") }], pinpointPhrase: { text: "at para 4" } });
   });
 
   it("places a supra or ibid's pinpoint after its reference, and lets a reviewer set it by hand", () => {

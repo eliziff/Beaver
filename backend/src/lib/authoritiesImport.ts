@@ -72,11 +72,13 @@ function occurrenceSpans(unitText: string, authority: Span, core: Span,
 }
 
 /** Format an already parsed range; never infer ranges from gaps between tokens. A single
- *  pinpoint names its locator as the engine reads it: "110ff" locates para 110. */
-export function pinpointValues<Kind extends string>(
-  pinpoints: ReadonlyArray<{ kind: Kind; text: string; first?: string; last?: string | null }>) {
-  return pinpoints.map(({ kind, text, first, last }) => ({ kind,
-    text: last ? text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : first ?? text }));
+ *  pinpoint names its locator as the engine reads it: "110ff" locates para 110. Each keeps
+ *  where its unit writes it, the parsed text starting at `offset` in that unit. */
+export function pinpointValues<Kind extends string>(pinpoints: ReadonlyArray<{ kind: Kind; text: string;
+  start: number; end: number; first?: string; last?: string | null }>, offset = 0) {
+  return pinpoints.map(({ kind, text, start, end, first, last }) => ({ kind,
+    text: last ? text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : first ?? text,
+    start: offset + start, end: offset + end }));
 }
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, match.pinpointPhrase, offset);
@@ -390,7 +392,7 @@ async function scanReview(
         referenceKind: citation.form === "short" || citation.form === "ibid" || citation.form === "supra"
           ? citation.form : undefined,
         pinpoints: pinpointValues(pinpoints.map(({ kind, span, first, last }) =>
-          ({ kind, text: span.text, first, last }))),
+          ({ kind, text: span.text, first, last, ...local(span) }))),
         evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: reference && Boolean(authorityId) };
     }
     return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,

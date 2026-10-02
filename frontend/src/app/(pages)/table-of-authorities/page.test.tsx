@@ -719,9 +719,6 @@ describe("Authorities UI contracts", () => {
     expect(api.reviewAuthorities).not.toHaveBeenCalled();
     expect([...context.querySelectorAll<HTMLElement>("[data-citation-id]")]
       .map((node) => node.textContent).join("")).toBe(text.slice(start, end));
-    expect([...context.querySelectorAll<HTMLElement>("[data-pinpoint]")]
-      .map((node) => node.textContent).join("")).toBe(text.slice(pinpoint, end));
-
 
     selectRange(context, 0, end);
     fireEvent.keyDown(context, { key: "Enter" });
@@ -791,18 +788,19 @@ describe("Authorities UI contracts", () => {
     expect(await screen.findByRole("textbox", { name: "In-text citation context" })).toHaveTextContent("Alpha; Beta");
   });
 
-  it("offers only Add and Remove, and shows the pinpoint as the citation writes it", async () => {
+  it("offers Add citation and Remove, and shows each pinpoint as a chip that changes kind or goes", async () => {
     const saved = documentDraft(), text = "Alpha v Beta, 2024 ABKB 1 at paras 16–23; Gamma v Delta, 2024 ABKB 2";
     const occurrence = (id: string, citation: string, pinpoint: string | null, ordinal: number) => {
       const start = text.indexOf(citation.split(",")[0]), end = text.indexOf(citation) + citation.length;
       const at = pinpoint ? text.indexOf(pinpoint) : -1, value = pinpoint?.replace(/^at paras /u, "");
+      const span = value ? { start: text.indexOf(value), end: text.indexOf(value) + value.length, text: value } : null;
       return { id, unitId: "footnote:1", start, end: at < 0 ? end : at + pinpoint!.length,
         text: text.slice(start, at < 0 ? end : at + pinpoint!.length), kind: "case" as const, citation,
         authoritySpan: { start, end, text: text.slice(start, end) },
-        coreSpan: { start: text.indexOf(citation), end, text: citation },
-        pinpointSpan: value ? { start: text.indexOf(value), end: text.indexOf(value) + value.length, text: value } : null,
+        coreSpan: { start: text.indexOf(citation), end, text: citation }, pinpointSpan: span,
         ...(pinpoint && { pinpointPhrase: { start: at, end: at + pinpoint.length, text: pinpoint } }),
-        authorityId: null, reference: null, pinpoints: value ? [{ kind: "paragraph", text: "16-23" }] : [],
+        authorityId: null, reference: null,
+        pinpoints: span ? [{ kind: "paragraph", text: "16-23", start: span.start, end: span.end }] : [],
         evidenceIds: [], sourceTextSha256: "a".repeat(64), localOrdinal: ordinal, reviewed: false };
     };
     saved.state.units = [{ id: "footnote:1", kind: "footnote", ordinal: 0, footnoteId: 1,
@@ -811,17 +809,33 @@ describe("Authorities UI contracts", () => {
       first: occurrence("first", "2024 ABKB 1", "at paras 16–23", 0),
       second: occurrence("second", "2024 ABKB 2", null, 1),
     };
+    const value = { start: text.indexOf("16–23"), end: text.indexOf("16–23") + 5 };
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    const bar = await screen.findByRole("group", { name: "This citation" });
-    await waitFor(() => expect(bar).toHaveTextContent("Pinpoint at paras 16–23"));
+    // Chips are drawn afresh for each citation.
+    const chips = () => within(screen.getByRole("group", { name: "Pinpoints" })).queryAllByRole("listitem")
+      .map((chip) => chip.textContent);
+    await waitFor(() => expect(chips()).toEqual(["¶16–23"]));
     expect(within(screen.getByRole("group", { name: "Edit citation" })).getAllByRole("button")
-      .map((button) => button.textContent)).toEqual(["Add", "Remove"]);
-    expect(screen.queryByRole("button", { name: "Reset the pinpoint" })).not.toBeInTheDocument();
+      .map((button) => button.textContent)).toEqual(["Add citation", "Remove"]);
+    expect(screen.getByRole("button", { name: "+ Pinpoint" })).toBeDisabled();
+    expect(screen.queryByRole("combobox", { name: /Pinpoint/u })).not.toBeInTheDocument();
+
+    // Its symbol steps to the next kind at once, while the save runs.
+    const update = deferred<typeof saved>();
+    api.actOnAuthorities.mockReturnValue(update.promise);
+    await userEvent.click(screen.getByRole("button", { name: "Paragraph 16–23: make it a page" }));
+    expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, { type: "set-pinpoints",
+      occurrenceId: "first", pinpoints: [{ ...value, kind: "page" }] });
+    expect(chips()).toEqual(["p.16–23"]);
+    await userEvent.click(screen.getByRole("button", { name: "Remove pinpoint p. 16–23" }));
+    expect(chips()).toEqual([]);
+    // Another citation shows its own chips: none.
     await userEvent.click(screen.getByRole("button", { name: "Next citation" }));
-    await waitFor(() => expect(bar).toHaveTextContent("No pinpoint"));
+    await waitFor(() => expect(screen.getByRole("group", { name: "Pinpoints" })).toBeInTheDocument());
+    expect(chips()).toEqual([]);
   });
 
   it("keeps parallel citation forms visible under one authority", async () => {

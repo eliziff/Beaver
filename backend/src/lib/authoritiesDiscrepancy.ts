@@ -97,7 +97,7 @@ function findingId(occurrence: AuthorityOccurrence,
   // version, authority and pinpoint still invalidate the decision independently.
   return canonicalJsonSha256(["beaver.authorities-discrepancy.v2", occurrence.unitId,
     source.sourceVersion ?? source.cited.text, occurrence.citation, occurrence.authorityId,
-    occurrence.pinpoints, kind, quote, source.cited.locator]);
+    occurrence.pinpoints.map(({ kind, text }) => ({ kind, text })), kind, quote, source.cited.locator]);
 }
 
 /** Returns only deterministic findings; source resolution and persistence stay with the caller. */
@@ -138,7 +138,7 @@ export function findAuthoritiesDiscrepancies(
       }
       const base = { occurrenceId: occurrence.id, authorityId: occurrence.authorityId!,
         footnoteId: unit.footnoteId, citation: occurrence.citation, proposition,
-        authoredQuote, authoredPinpoint: { ...occurrence.pinpoints[0] }, cited: source.cited,
+        authoredQuote, authoredPinpoint: { kind: occurrence.pinpoints[0].kind, text: occurrence.pinpoints[0].text }, cited: source.cited,
         citedPassage: source.citedPassage };
       if (matchCount === 1 && found && !sameLocator(source.cited, found)) {
         const replacement = occurrence.pinpointSpan && pinpointText(
