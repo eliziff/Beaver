@@ -213,8 +213,9 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
               title="Download the PDF from the publisher, then upload it here."
               aria-label={`Open publisher for ${title}`}
-              className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border bg-white text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
-              Open publisher</a>
+              // One line, as wide as its words where the row shows them; the actions stay right-aligned.
+              className={cn(rowControl, "inline-flex items-center gap-1 whitespace-nowrap rounded-md border bg-white text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600 @min-[44rem]/sources:w-auto")}>
+              <ExternalLink className="h-3.5 w-3.5" /><span className={rowLabel}>Open publisher</span></a>
         : authority.source.kind === "pending-canlii"
         ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
             aria-label={`CanLII PDF for ${title}`}
