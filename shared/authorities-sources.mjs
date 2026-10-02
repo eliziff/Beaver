@@ -51,13 +51,13 @@ export function authoritySourceRequirement(draft, authority, requirements, prepa
 }
 
 /** Whether the book reproduces this authority, asked by the builder (which loads the
- *  PDF or a stub) and the workspace (which plans the same book). A court that accepts
- *  an incomplete draft, or a draft that stands a placeholder in, still reproduces an
- *  authority whose PDF never arrived. */
+ *  PDF or a stub) and the workspace (which plans the same book). An authority whose PDF
+ *  never arrived keeps its tab with a page naming it where missing sources keep their
+ *  tabs, and is left out, its tab number kept, where they are left out; an incomplete
+ *  draft only lets the book build without them, as the Missing PDFs warning says. */
 export const authorityReproducedInBook = (draft, authority) =>
   !authority.excluded && !authoritySourceRequirement(draft, authority, {
-    completeBookSources: !draft.settings.allowIncomplete &&
-      draft.settings.missingSourcePolicy !== "placeholder" });
+    completeBookSources: draft.settings.missingSourcePolicy !== "placeholder" });
 
 export const authoritiesBookPdfs = (draft) => [
   ...(draft.bookParts.cover ? [draft.bookParts.cover] : []),
