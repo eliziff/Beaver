@@ -42,7 +42,8 @@ if (!args["skip-build"] && !args.html) {
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 const started = Date.now();
-const browser = await chromium.launch({ headless: !args.headed });
+// Each case has a browser of its own, so what a case leaves in memory never slows the next.
+const launch = () => chromium.launch({ headless: !args.headed });
 
 /** The page over http on a free local port, for the cases that run there. */
 async function serve(file) {
@@ -64,29 +65,38 @@ function localFixtures() {
 }
 
 const fixtureDir = path.join(out, "fixtures");
-const fixtures = { ...await writeFixtures(browser, fixtureDir), ...await writeStressFixtures(browser, fixtureDir) };
-const renderer = await pdfRenderer(browser), word = [], records = [];
-const ctx = { browser, html, serve, fixtures, local: localFixtures(), renderer, word, args, root };
-// Windows checks a newly written file the first time a browser reads it; that first open is not a case's.
-{ const page = await browser.newPage(); await page.goto(`file:///${html.replace(/\\/gu, "/")}`); await page.close(); }
+const fixtures = await (async () => {
+  const browser = await launch();
+  const written = { ...await writeFixtures(browser, fixtureDir), ...await writeStressFixtures(browser, fixtureDir) };
+  // Windows checks a newly written file the first time a browser reads it; that first open is not a case's.
+  const page = await browser.newPage(); await page.goto(`file:///${html.replace(/\\/gu, "/")}`);
+  await browser.close();
+  return written;
+})();
+const word = [], records = [];
+const shared = { html, serve, fixtures, local: localFixtures(), word, args, root };
 
 for (const item of selected) {
   console.log(`\n== ${item.name}: ${item.title} ==`);
   const record = new CaseRecord(item.name, path.join(out, item.name));
   await mkdir(record.out, { recursive: true });
   records.push(record);
-  const missing = (item.needs ?? []).filter((need) => !ctx.local[need]);
+  const missing = (item.needs ?? []).filter((need) => !shared.local[need]);
   if (missing.length) { record.skipped = `local fixture absent: ${missing.join(", ")} (see ${localDir})`; console.log(`  SKIPPED ${record.skipped}`); continue; }
   const from = Date.now();
+  const browser = await launch(), renderer = await pdfRenderer(browser);
   // Each case opens fresh profiles through `open`, closed whatever happens.
   const apps = [], open = async (options = {}) => { const app = await openApp(record, { browser, html, serve, ...options }); apps.push(app); return app; };
-  try { await item.run({ ...ctx, record, open }); }
+  try { await item.run({ ...shared, browser, renderer, record, open }); }
   catch (error) {
     record.check(false, "the case stopped", error.stack?.split("\n").slice(0, 8).join("\n"));
     // What the page showed when it stopped.
     for (const app of apps) await app.page.screenshot({ path: path.join(record.out, `stopped-${app.label}.png`) }).catch(() => {});
   }
-  finally { await Promise.all(apps.map(async (app) => { await app.context.close().catch(() => {}); await app.server?.close(); })); }
+  finally {
+    await Promise.all(apps.map(async (app) => { await app.context.close().catch(() => {}); await app.server?.close(); }));
+    await browser.close();
+  }
   record.seconds = Math.round((Date.now() - from) / 100) / 10;
   console.log(`  ${record.failures.length ? `${record.failures.length} failed` : "passed"} in ${record.seconds} s`);
 }
@@ -94,7 +104,7 @@ for (const item of selected) {
 // Every Word document delivered, opened at once in invisible Word, as its reader would.
 if (word.length && !args["no-word"]) {
   console.log(`\n== Word: opening ${word.length} documents ==`);
-  const from = Date.now();
+  const from = Date.now(), browser = await launch(), renderer = await pdfRenderer(browser);
   for (const { record } of word) await mkdir(path.join(record.out, "word"), { recursive: true });
   const named = (index) => `${String(index + 1).padStart(2, "0")}-${path.basename(word[index].file, ".docx")}`;
   const before = wordProcesses();
@@ -121,10 +131,9 @@ if (word.length && !args["no-word"]) {
       await renderer.sheet(result.pdf, path.join(record.out, "word", `${named(index)}.jpg`), { first: 2, last: 4 });
     else if (!result.updatesFieldsAtPrint) record.check(false, `${where}: exported as Word lays it out`);
   }
+  await browser.close();
   console.log(`  opened in ${Math.round((Date.now() - from) / 1000)} s`);
 }
-await renderer.close();
-await browser.close();
 // What was delivered has been read back and rendered; the books and documents themselves go, so a
 // run keeps its report, screenshots and page sheets only (--keep-outputs keeps them all).
 if (!args["keep-outputs"]) for (const { out: dir } of records) {
