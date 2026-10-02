@@ -341,8 +341,9 @@ function tableEntry(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
   const [first, ...rest] = draft.units.flatMap((unit) => unit.occurrenceIds.map((id) => draft.occurrences[id]))
     .filter((occurrence) => occurrence?.authorityId === authority.id && occurrence.kind !== "reference");
   if (!first) return authorityName(draft, authority);
-  // "R. v. Oakes" (a source's title) and "R v Oakes" (the brief) are one name.
-  const lower = (value: string) => value.toLocaleLowerCase("en-CA").replace(/\./gu, "").replace(/\s+/gu, " ").trim();
+  // "R. v. Oakes" (a source's title) and "R v Oakes" (the brief) are one name, and "(2016) ABQB 16"
+  // and "2016 ABQB 16" one citation.
+  const lower = (value: string) => value.toLocaleLowerCase("en-CA").replace(/[.()]/gu, "").replace(/\s+/gu, " ").trim();
   const name = (authority.displayName ?? authority.name)?.trim();
   let entry = first.authoritySpan.text.replace(/\s+/gu, " ").trim();
   // A link the brief writes in angle or square brackets keeps its closing bracket.
