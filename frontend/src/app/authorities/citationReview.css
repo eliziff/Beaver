@@ -71,11 +71,11 @@
 .citation-authority-trigger>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
 .citation-authority-trigger>[data-empty]{font-weight:400;color:#6b7280}
 .citation-authority-trigger>svg{flex:none;width:1rem;height:1rem;color:#6b7280}
-/* The pinpoint chips, in the yellow of the pinpoints they name, each in its own fixed place: room
-   for three is kept, and nothing shows in it when a citation has none. */
+/* The pinpoint chips, in the yellow of the pinpoints they name: room for three is kept, and nothing
+   shows in it when a citation has none. */
 .citation-pins{grid-area:pins;gap:.75rem}
-.citation-chips{display:grid;grid-template-columns:repeat(3,8.5rem);align-items:center;gap:.375rem;margin:0;padding:0;list-style:none}
-.citation-chip{justify-self:start;display:flex;align-items:center;max-width:100%;height:1.875rem;border:1px solid #fcd34d;border-radius:999px;background:#fef3c7;color:#422006;white-space:nowrap}
+.citation-chips{display:flex;align-items:center;gap:.375rem;width:calc(3 * 8.5rem + .75rem);margin:0;padding:0;list-style:none}
+.citation-chip{display:flex;align-items:center;min-width:0;max-width:8.5rem;height:1.875rem;border:1px solid #fcd34d;border-radius:999px;background:#fef3c7;color:#422006;white-space:nowrap}
 .citation-chip>span{min-width:0;overflow:hidden;text-overflow:ellipsis;padding:0 .1rem;font-variant-numeric:tabular-nums}
 .citation-chip[data-more]>span{padding:0 .7rem;color:#78350f}
 .citation-chip>button{flex:none;display:grid;place-items:center;height:100%;border-radius:999px;color:#78350f}
@@ -131,6 +131,7 @@
 }
 @container (max-width:30rem){
   .citation-panel .citation-edit button{padding-inline:.6rem}
-  .citation-chips{grid-template-columns:repeat(3,6.25rem)}
+  .citation-chips{width:calc(3 * 6.25rem + .75rem)}
+  .citation-chip{max-width:6.25rem}
   .citation-pins{gap:.5rem}
 }

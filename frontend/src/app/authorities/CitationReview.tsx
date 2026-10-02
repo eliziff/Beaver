@@ -98,14 +98,15 @@ const edit = (pins: Pin[]): PinpointEdit => pins.map(({ start, end, kind }) => (
 
 /** One chip per yellow pinpoint, in the order the text writes them: its kind's symbol, which
  * steps to the next kind, its value as written, and a remove. Room for three is kept whatever a
- * citation has; a fourth and more show as one count. "+ Pinpoint" adds the selected text. A chip
- * is drawn anew whenever its pinpoint changes, so no chip ever slides to another place. */
+ * citation has; a fourth and more show as one count. "+ Pinpoint" adds the selected text. The chips
+ * are drawn anew whenever any pinpoint changes, so none ever slides along the row. */
 function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
   occurrence: AuthorityOccurrence; unitText: string; adding: boolean; onSet(pinpoints: PinpointEdit): void; onAdd(): void;
 }) {
   const pins = placedPins(occurrence), shown = pins.length > PINPOINTS ? pins.slice(0, PINPOINTS - 1) : pins;
   const label = (pin: Pin) => `${KINDS[pin.kind]?.[0] ?? pin.kind} ${unitText.slice(pin.start, pin.end).replace(/\s+/gu, ' ')}`;
   const full = pins.length >= PINPOINTS, list = useRef<HTMLUListElement>(null);
+  const drawn = `${occurrence.id}:${pins.map(({ start, end, kind }) => `${start}-${end}-${kind}`).join()}`;
   // A kind stepped from the keyboard keeps the focus on that chip's symbol.
   const refocus = useRef<number | null>(null);
   useLayoutEffect(() => {
@@ -117,7 +118,7 @@ function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
       {shown.map((pin, i) => {
         const [symbol, name] = KINDS[pin.kind] ?? [pin.kind, pin.kind], written = unitText.slice(pin.start, pin.end).replace(/\s+/gu, ' ');
         const next = CYCLE[(CYCLE.indexOf(pin.kind) + 1) % CYCLE.length], nextName = KINDS[next][1].toLowerCase();
-        return <li key={`${occurrence.id}:${i}:${pin.start}:${pin.end}:${pin.kind}`} className="citation-chip" title={`${name} ${written}`}>
+        return <li key={`${drawn}:${i}`} className="citation-chip" title={`${name} ${written}`}>
           <button type="button" aria-label={`${name} ${written}: make it a ${nextName}`} title={`${name}; click for ${nextName}`}
             onClick={event => {
               if (event.currentTarget === document.activeElement) refocus.current = i;
