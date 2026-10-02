@@ -9,8 +9,8 @@ import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   attachAuthorityPdf as attachSource, attachAuthoritiesBookPdf as attachBookSource,
-  checkCanliiPdf, authoritiesReview as review, updateAuthoritiesDraft as update,
-  type AuthoritiesInitialSettings, type AuthoritiesUserAction } from "./authoritiesActions";
+  autoFetchedPdf, folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
+  type AuthoritiesInitialSettings, type AuthoritiesUserAction, type PdfOpening } from "./authoritiesActions";
 import { authorityPassageTargets, buildAuthorities, citedSourcePages, prepareAuthorityAnnotations,
   type AuthoritiesBuildInput, type AuthoritiesBuildResult } from "./authoritiesBuild";
 import { attachedAuthoritySources, decodeAuthoritiesDraft,
@@ -20,8 +20,8 @@ import { createAuthoritiesImporter, type AuthoritiesImporter, type AuthoritiesIm
   type GroundedReceiptSeed } from "./authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
-import { authoritySourceServices, resolveAuthoritiesSources, retryableAuthoritySource,
-  type SourceServices } from "./authoritiesSourceResolution";
+import { authorityReferenceText, authoritySourceServices, resolveAuthoritiesSources,
+  retryableAuthoritySource, type SourceServices } from "./authoritiesSourceResolution";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { canonicalJsonSha256, sha256 } from "./hash";
@@ -127,15 +127,11 @@ export function createAuthoritiesWorkspaceApplication(
         if (saved.source_sha256 !== attachment.sourceSha256) {
           throw new Error("Saved authority PDF hash does not match its prepared source");
         }
-        const verificationUrl = draft.authorities[attachment.authorityId].sourceVerificationUrl;
         draft = attachSource(draft, draft.authorities[attachment.authorityId],
           { kind: "document", documentId: saved.id,
             version: { versionId: saved.current_version_id, sha256: saved.source_sha256 } },
           saved.filename, saved.source_sha256, attachment.language,
           attachment.origin, attachment.sourceUrl);
-        // Another language can remain blocked after this original is attached.
-        if (verificationUrl) draft = update(draft, { type: "set-source-verification",
-          authorityId: attachment.authorityId, pageUrl: verificationUrl });
       }
       return { draft, created };
     }, "Authority sources could not be saved or rolled back");
@@ -319,7 +315,7 @@ export function createAuthoritiesWorkspaceApplication(
     const bytes = "bytes" in input.file ? input.file.bytes : await readFile(input.file.path);
     await validateAuthoritiesPdf(bytes);
     const draft = input.autoFetched && input.authorityId !== undefined
-      ? await checkCanliiPdf(opened, input.authorityId, bytes) : opened;
+      ? await autoFetchedPdf(opened, input.authorityId, bytes) : opened;
     const created = await files.create(scope, "authorities", input.file,
       { projectId: product.projectId, pdfOcrProvider: null });
     return withRollback(scope, [createdDocumentRollback(created)], () => workProducts.save(scope, id,
@@ -456,6 +452,11 @@ export function createAuthoritiesWorkspaceApplication(
       const version = (await currentLibraryVersion(scope, binding, "pdf"))!;
       return workProducts.save(scope, id, { revision: input.revision,
         state: adoptCurrentPdf(draft, input.role, binding, version) });
+    },
+    /** The authority still without a PDF that a PDF from the watched folder is, if exactly one. */
+    async pdfAuthority(scope: ApplicationScope, id: string, opening: PdfOpening) {
+      const { draft } = await open(scope, id);
+      return folderPdfAuthority(draft, opening, (authority) => authorityReferenceText(draft, authority, sources));
     },
     attachPdf: (scope: ApplicationScope, id: string, input: {
       revision: number; authorityId: string; file: DocumentFile; language: AuthoritySourceLanguage;

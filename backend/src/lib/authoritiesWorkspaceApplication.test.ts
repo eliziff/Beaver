@@ -915,7 +915,7 @@ describe("Authorities workspace application", () => {
   });
 
   it("stops a challenged publisher within the batch while allowing another publisher", async () => {
-    const { PublisherVerificationRequired } = await import("./providerPdfLibraryBridge");
+    const { PublisherDownloadFailure } = await import("./providerPdfLibraryBridge");
     let draft = createAuthoritiesDraft({ kind: "manual" });
     for (const citation of ["2009 SCC 32", "2014 SCC 71", "2023 SCC 14"]) {
       draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
@@ -931,7 +931,7 @@ describe("Authorities workspace application", () => {
       native: {} as never, searchNative: {} as never,
     }), download: async (input) => {
       if (input.sourceUrl?.includes("blocked.example"))
-        throw new PublisherVerificationRequired(input.sourceUrl);
+        throw new PublisherDownloadFailure(input.sourceUrl);
       return null;
     } });
     const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
@@ -945,7 +945,7 @@ describe("Authorities workspace application", () => {
 
   it.each(["automatic", "manual-originals"] as const)(
     "handles a blocked original according to the %s source choice", async (sourceMode) => {
-      const { PublisherVerificationRequired } = await import("./providerPdfLibraryBridge");
+      const { PublisherDownloadFailure } = await import("./providerPdfLibraryBridge");
       let draft = createAuthoritiesDraft({ kind: "manual" });
       draft.settings.sourceMode = sourceMode;
       draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
@@ -958,19 +958,52 @@ describe("Authorities workspace application", () => {
         url: sourceUrl, verifiedPdf: null, language: "en", upstreamLicense: null,
         searchText: "[1] Public source text for the judgment. [2] The judgment continues.",
         native: {} as never, searchNative: {} as never }),
-      download: async () => { throw new PublisherVerificationRequired(
+      download: async () => { throw new PublisherDownloadFailure(
         "https://blocked.example/robocop/captcha/en/query.do?token=server-session"); } });
       const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
       const result = await prepareSources(runtime, imported);
       const authority = (result.state as AuthoritiesDraft).authorities.grant;
-      if (sourceMode === "automatic") {
-        expect(authority.source).toMatchObject({ kind: "attached", sources: [{ origin: "reconstructed" }] });
-        expect(authority.sourceVerificationUrl).toBeUndefined();
-      } else {
-        expect(authority.source.kind).toBe("resolved");
-        expect(authority.sourceVerificationUrl).toBe(sourceUrl);
-      }
+      // The text rebuild stands in for the original, and the row still opens the publisher.
+      expect(authority.source).toMatchObject(sourceMode === "automatic"
+        ? { kind: "attached", sources: [{ origin: "reconstructed" }] } : { kind: "resolved" });
+      expect(authority.sourceVerificationUrl).toBe(sourceUrl);
+      expect(authority.sourceDownloadFailure).toBeUndefined();
     });
+
+  it("opens the S.C.C.'s own PDF, names a refusal or a failure apart from a block, and leaves a plain miss to CanLII", async () => {
+    const { PublisherDownloadFailure } = await import("./providerPdfLibraryBridge");
+    const pages: Record<string, string> = {
+      "2019 SCC 65": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18078/index.do",
+      "2031 FC 212": "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/512345/index.do",
+      "2031 FCA 7": "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/512399/index.do",
+      "2031 TCC 3": "https://decision.tcc-cci.gc.ca/tcc-cci/decisions/en/item/512400/index.do" };
+    let draft = createAuthoritiesDraft({ kind: "manual" });
+    draft.settings.sourceMode = "manual-originals";
+    for (const citation of Object.keys(pages)) draft = reduceAuthoritiesDraft(draft, { type: "add-authority",
+      authority: { id: citation, key: citation, kind: "case", citation, name: null, displayName: null, excluded: false,
+        evidenceIds: [], locators: [], sourceIdentity: null, source: { kind: "unresolved" } } });
+    const runtime = harness({ draft, resolve: async (citation) => ({ docType: "cases", dataset: "test",
+      citation, alternateCitation: null, name: citation, date: null, url: pages[citation as string],
+      verifiedPdf: null, language: "en", upstreamLicense: null, searchText: "", native: {} as never,
+      searchNative: {} as never }), download: async (input) => {
+      const url = String((input as { sourceUrl: string }).sourceUrl);
+      if (url.includes("scc-csc")) throw new PublisherDownloadFailure(url);
+      if (url.includes("fct-cf")) throw new PublisherDownloadFailure(url, "refused");
+      if (url.includes("fca-caf")) throw new PublisherDownloadFailure(url, "failed");
+      return null;
+    } });
+    const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    const { authorities } = (await prepareSources(runtime, imported)).state as AuthoritiesDraft;
+    expect(authorities["2019 SCC 65"]).toMatchObject({ source: { kind: "resolved" },
+      sourceVerificationUrl: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/18078/1/document.do" });
+    expect(authorities["2019 SCC 65"].sourceDownloadFailure).toBeUndefined();
+    expect(authorities["2031 FC 212"]).toMatchObject({ source: { kind: "resolved" },
+      sourceVerificationUrl: pages["2031 FC 212"], sourceDownloadFailure: "refused" });
+    expect(authorities["2031 FCA 7"]).toMatchObject({ source: { kind: "resolved" },
+      sourceVerificationUrl: pages["2031 FCA 7"], sourceDownloadFailure: "failed" });
+    expect(authorities["2031 TCC 3"].source.kind).toBe("pending-canlii");
+    expect(authorities["2031 TCC 3"].sourceVerificationUrl).toBeUndefined();
+  });
 
   it("reports A2AJ revision drift and accepts the existing manual-PDF recovery", async () => {
     const citation = "2009 SCC 32", savedRevision = "b".repeat(64),
@@ -1185,20 +1218,18 @@ describe("Authorities workspace application", () => {
     expect(pdfText).not.toHaveBeenCalled();
   });
 
-  it("refuses an auto-fetched CanLII PDF that opens with another case, and takes a scan by its name", async () => {
+  it("never lets a PDF auto-fetch found replace one an authority already has", async () => {
     const runtime = harness();
     let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
     product = await runtime.application.act(scope, product.id, product.revision,
       { type: "add-authority", kind: "case", citation: "2001 SCC 1", name: "R v Latimer" });
     product = await prepareSources(runtime, product);
-    const input = { revision: product.revision, authorityId: "canonical-key", language: "en" as const,
-      autoFetched: true, file: { filename: "2001scc1.pdf", fileType: "pdf", bytes: await fixturePdf("%PDF-") } };
-    pdfText.mockResolvedValueOnce({ pageTextByPage: ["Neutral citation: 2009 SCC 32. Reasons citing 2001 SCC 1."], ocrTextByPage: [] });
-    await expect(runtime.application.attachPdf(scope, product.id, input)).rejects.toMatchObject({ status: 400 });
-    expect(runtime.files.create).not.toHaveBeenCalled();
-    pdfText.mockResolvedValueOnce({ pageTextByPage: [""], ocrTextByPage: [] });
-    const attached = await runtime.application.attachPdf(scope, product.id, input);
+    const input = { authorityId: "canonical-key", language: "en" as const, autoFetched: true,
+      file: { filename: "2001scc1.pdf", fileType: "pdf", bytes: await fixturePdf("%PDF-") } };
+    const attached = await runtime.application.attachPdf(scope, product.id, { ...input, revision: product.revision });
     expect((attached.state as AuthoritiesDraft).authorities["canonical-key"].source.kind).toBe("attached");
+    await expect(runtime.application.attachPdf(scope, product.id, { ...input, revision: attached.revision }))
+      .rejects.toMatchObject({ status: 400 });
   });
 
   it("names a nameless authority from the caption of the PDF auto-fetched for it", async () => {

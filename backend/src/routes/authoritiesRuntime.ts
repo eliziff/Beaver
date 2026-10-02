@@ -17,9 +17,9 @@ import { importStandaloneAuthoritiesFile } from "../lib/authoritiesImport";
 import { authorityPdfText } from "../lib/authorityPdfText";
 import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
-  checkCanliiPdf, attachAuthoritiesBookPdf, authoritiesReview } from "../lib/authoritiesActions";
+  autoFetchedPdf, attachAuthoritiesBookPdf, authoritiesReview, folderPdfAuthority } from "../lib/authoritiesActions";
 import { validateAuthoritiesPdf } from "../lib/authoritiesPdf";
-import { resolveAuthoritiesSources, retryableAuthoritySource,
+import { authorityReferenceText, resolveAuthoritiesSources, retryableAuthoritySource,
   type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -28,7 +28,7 @@ import { sha256 } from "../lib/hash";
 import { multipleFileUpload, requiredFile, singleFileUpload } from "../lib/upload";
 import { checkQuotes, decodeQuoteLinks } from "../lib/quoteCheck";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
-  decodeAuthoritiesUserAction, text } from "../lib/authoritiesActionContract";
+  decodeAuthoritiesUserAction, decodePdfOpening, text } from "../lib/authoritiesActionContract";
 
 const MAX_BUILD_INPUT_BYTES = 512 * 1024 * 1024;
 
@@ -62,15 +62,12 @@ function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAut
     if (sha256(attachment.bytes) !== attachment.sourceSha256) {
       reject(500, "Prepared authority source hash is invalid");
     }
-    const verificationUrl = draft.authorities[attachment.authorityId].sourceVerificationUrl;
     draft = attachAuthorityPdf(draft, draft.authorities[attachment.authorityId],
       { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
         lastSeen: { name: attachment.filename, size: attachment.bytes.length,
           modified: 0, sha256: attachment.sourceSha256 } },
       attachment.filename, attachment.sourceSha256, attachment.language,
       attachment.origin, attachment.sourceUrl);
-    if (verificationUrl) draft = reduceAuthoritiesDraft(draft, { type: "set-source-verification",
-      authorityId: attachment.authorityId, pageUrl: verificationUrl });
   }
   return draft;
 }
@@ -301,7 +298,7 @@ export function createAuthoritiesRuntimeRouter(
         ? current.authorities[id] : reject(400, "This authority no longer exists.");
       const language = (["en", "fr", "bilingual"] as const).find(value => value === req.body.language)
         ?? reject(400, "Choose the PDF language.");
-      const checked = req.body.auto_fetched === "true" ? await checkCanliiPdf(current, authority.id, bytes) : current;
+      const checked = req.body.auto_fetched === "true" ? await autoFetchedPdf(current, authority.id, bytes) : current;
       res.json(attachAuthorityPdf(checked, checked.authorities[authority.id], binding, filename, sourceSha256, language));
     } else {
       const slot = AUTHORITIES_BOOK_SLOTS.find(value => value === req.body?.slot)
@@ -311,6 +308,12 @@ export function createAuthoritiesRuntimeRouter(
           supplementId.length > 500)) reject(400, "Book-part ID is invalid");
       res.json(attachAuthoritiesBookPdf(current, { slot, supplementId }, binding, filename, sourceSha256));
     }
+  }));
+  // The authority still without a PDF that a PDF from the watched folder is, if exactly one.
+  router.post("/pdf-authority", asyncRoute(async (req, res) => {
+    const current = draft(req.body?.draft);
+    res.json({ authorityId: await folderPdfAuthority(current, decodePdfOpening(req.body),
+      (authority) => authorityReferenceText(current, authority)) });
   }));
   router.post("/build", multipleFileUpload("files", 500, 16 * 1024 * 1024), followedRoute(async (req, res, progress) => {
     const build = new AbortController();

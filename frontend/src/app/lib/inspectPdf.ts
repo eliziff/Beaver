@@ -86,6 +86,22 @@ export async function inspectPdf(
   }
 }
 
+/** A PDF's name and its first two pages' own text, line by line; nothing is recognized. */
+export type PdfOpening = { filename: string; pages: string[] };
+export async function pdfOpening(file: File): Promise<PdfOpening> {
+  const loading = openPdfDocument(await getPdfJs(), { data: new Uint8Array(await file.arrayBuffer()) }, PDF_DOCUMENT_OPTIONS);
+  try {
+    const document = await loading.promise, pages: string[] = [];
+    for (let pageNumber = 1; pageNumber <= Math.min(2, document.numPages); pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      pages.push((await page.getTextContent()).items.map((item) => "str" in item
+        ? `${item.str}${item.hasEOL ? "\n" : " "}` : "").join(""));
+      page.cleanup();
+    }
+    return { filename: file.name, pages };
+  } finally { await loading.destroy().catch(() => undefined); }
+}
+
 async function resolveOutline(
   document: import("pdfjs-dist").PDFDocumentProxy,
   items: PdfOutlineItem[],

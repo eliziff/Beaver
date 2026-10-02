@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ApplicationError } from "./applicationError";
 import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForms, reduceAuthoritiesDraft, authoritiesDraftEditor,
-  unusedScanOnlyAuthority, type AuthoritiesAction, type AuthoritiesBuildSettings,
+  authoritiesProfile, unusedScanOnlyAuthority, type AuthoritiesAction, type AuthoritiesBuildSettings,
   type AuthoritiesDraft, type AuthoritiesFreshReview, type AuthorityIdentity,
   type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage,
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
@@ -12,7 +12,11 @@ import { citationAliasKeysBatch } from "./caselawCitator";
 import { sha256 } from "./hash";
 import { structureNative, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
-import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
+import { authorityPdfRequired, type AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
+import { matchFolderPdf } from "mike/shared/folder-pdf-match.mjs";
+
+/** A PDF's name and its first pages' native text, line by line, as the page read it. */
+export type PdfOpening = { filename: string; pages: string[] };
 
 export const authorityCitationServices = {
   key: (value: string) => structureNative().citationLookupKey(value),
@@ -109,27 +113,32 @@ export function captionStyleOfCause(text: string, keys: readonly string[]) {
   return style && !style.endsWith(":") && balanced(style, "(", ")") && balanced(style, "[", "]") ? style : null;
 }
 
-/** A PDF auto-fetched for a CanLII slot is refused only when its opening citation names
- *  another case; one with no readable citation (a scan) goes by its name. An authority with
- *  no style of cause takes the one the PDF's first page prints before its own citation. A PDF
- *  the user uploads is never checked. Returns the draft, named when it was nameless. */
-export async function checkCanliiPdf(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer) {
+/** The case still without a PDF that a PDF found in the watched folder is, when exactly one: by
+ *  the citation its opening (`pages`, its first pages' native text) prints, else by exact agreement
+ *  with A2AJ's text of the decision (`reference`); a scan by its file name alone. */
+export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, pages }: PdfOpening,
+  reference: (authority: AuthorityIdentity) => Promise<string>) {
+  const requirements = authoritiesProfile(draft.settings.profileId).requirements;
+  const records = Object.values(draft.authorities).filter((authority) => authority.kind === "case" &&
+    !authority.excluded && authority.source.kind !== "attached" && authorityPdfRequired(draft, authority, requirements))
+    .map((authority) => ({ authority, citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }));
+  if (!records.length) return null;
+  const native = structureNative(), opening = pages.map((page) => ({ lines: page.split("\n").map((text) => ({ text })) }));
+  const match = await matchFolderPdf(filename, opening, records, (method, request) =>
+    native.citationEngineCall(method, JSON.stringify(request)), ({ authority }) => reference(authority));
+  return match?.record.authority.id ?? null;
+}
+
+/** A PDF auto-fetch found for an authority only fills one still without a PDF, and an authority
+ *  with no style of cause takes the one the PDF's first page prints before its own citation. A
+ *  PDF the user uploads is never checked. Returns the draft, named when it was nameless. */
+export async function autoFetchedPdf(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer) {
   const authority = draft.authorities[authorityId];
-  const checked = !!authority && (authority.source.kind === "pending-canlii" || !!authority.sourceVerificationUrl);
-  const nameless = !!authority && !authority.name && !authority.displayName;
-  if (!checked && !nameless) return draft;
+  if (authority?.source.kind === "attached")
+    throw new ApplicationError(400, `${authority.citation} already has a PDF; it was not replaced.`);
+  if (!authority || authority.name || authority.displayName) return draft;
   const text = (await authorityPdfText({ bytes, maxPages: 1 })).pageTextByPage[0] ?? "";
-  // Use the opening citation, never a matching case cited later in the reasons. The engine
-  // lists a parallel group's reporter first, so the opening one is the first in the text.
-  const citation = structureNative().citationOccurrencesInText(text).filter(({ kind }) => kind === "case")
-    .sort((left, right) => left.start - right.start)[0]?.coreCitation.text;
-  if (!citation) return draft;
-  const keys = citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat();
-  if (!keys.includes(structureNative().citationLookupKey(citation))) {
-    if (checked) throw new ApplicationError(400, `This PDF is ${citation}, not ${authority.citation}; it was not attached.`);
-    return draft;
-  }
-  const name = nameless && captionStyleOfCause(text, keys);
+  const name = captionStyleOfCause(text, citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat());
   return name ? updateAuthoritiesDraft(draft, { type: "rename-authority", authorityId, displayName: name }) : draft;
 }
 

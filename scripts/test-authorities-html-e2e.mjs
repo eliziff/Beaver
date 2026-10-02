@@ -4,7 +4,7 @@
 // edits the citations, provides and recognizes sources, highlights, builds every output and
 // reads the downloads back, asserting performance budgets and layout invariants throughout.
 //
-//   npm run test:authorities-html-e2e -- [--skip-build] [--mode=file|http] [--only=pdf|docx|first] [--headed] [--live]
+//   npm run test:authorities-html-e2e -- [--skip-build] [--mode=file|http] [--only=pdf|docx|first|publisher] [--headed] [--live]
 //     [--html=path] [--out=dir] [--slow-a2aj=ms]
 // --live lets A2AJ and publishers answer for real instead of the stub (not deterministic); a lookup
 // reported unchecked then fails the run unless A2AJ, asked once directly, is not answering either.
@@ -20,6 +20,7 @@ import { chromium } from "@playwright/test";
 import { A2AJ_CASES, a2ajRecord, BRIEF, writeFixtures } from "./authorities-html-e2e/fixtures.mjs";
 import { instrument } from "./authorities-html-e2e/instrument.mjs";
 import { flatOutline, readDocx, readPdf } from "./authorities-html-e2e/outputs.mjs";
+import { publisherRuns } from "./authorities-html-e2e/publisher.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const args = Object.fromEntries(process.argv.slice(2).map((arg) => {
@@ -93,7 +94,7 @@ async function serve(file) {
   return { url: `http://127.0.0.1:${server.address().port}/`, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-for (const mode of args.only === "first" ? [] : modes) {
+for (const mode of ["first", "publisher"].includes(args.only) ? [] : modes) {
   console.log(`\n== ${mode} ==`);
   const server = mode === "http" ? await serve(html) : null;
   const url = server?.url ?? pathToFileURL(html).href;
@@ -161,6 +162,9 @@ if (!args.live && modes.includes("file") && !args.only) {
   catch (error) { check(false, "file: the limited-lookups run stopped", error.stack?.split("\n").slice(0, 6).join("\n")); }
   finally { await context.close(); }
 }
+// A publisher that blocks the download, in both source modes; over http, folder pick-up as well.
+if (!args.live && (!args.only || args.only === "publisher"))
+  await publisherRuns({ browser, html, serve, out, check, note, instrument });
 await browser.close();
 await writeFile(path.join(out, "report.json"), JSON.stringify({ budgets: BUDGETS, metrics, failures }, null, 2));
 console.log(`\nReport: ${path.join(out, "report.json")}\nScreenshots: ${path.join(out, "screenshots")}`);

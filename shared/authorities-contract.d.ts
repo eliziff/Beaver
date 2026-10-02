@@ -86,7 +86,11 @@ export type AuthoritySourceLookupFailure = {
 };
 
 export type AuthorityIdentity = {
+  /** What the reader opens for an original the publisher's download did not bring. */
   sourceVerificationUrl?: string;
+  /** Why not, when the publisher did not block it: the download service refused this page's
+   *  address, or the publisher or the service did not answer. */
+  sourceDownloadFailure?: "refused" | "failed";
   sourceLookupFailure?: AuthoritySourceLookupFailure;
   /** Explicit link printed in the imported document; not a verified source identity. */
   sourceUrl?: string;

@@ -80,31 +80,43 @@ Installed citation indexes supply alias evidence to the same resolver; the
 shared engine checks reciprocal agreement and contradictory identities before
 grouping sources.
 
-CanLII is manual-only: the row opens the document page in a new tab; **Attach PDF**
-opens the file chooser, and dropping a downloaded PDF onto that row uses the same
-attachment operation. The opening citation must match the pending authority or a
-verified alias before binding. A mismatch or unreadable citation leaves the file
-unbound and shows one line explaining why. CanLII and View share one aligned column.
-No iframe, proxy, server fetch, scraper, automated navigation, Downloads-folder
-watcher or background acquisition is part of this handoff.
+CanLII is manual-only: the row opens the document page in a new tab; **Upload**
+opens the file chooser in Downloads, and dropping a downloaded PDF onto that row
+uses the same attachment operation. A PDF the user uploads is never checked against
+its citation. CanLII and View share one aligned column. No iframe, proxy, server
+fetch, scraper or automated navigation is part of this handoff.
 
-When a case page itself presents a challenge, or its advertised PDF challenges
-the downloader, the source row offers **Open publisher** using that authority's
-document page or advertised PDF, rather than a downloader-session CAPTCHA URL.
-A challenged case page may still prove to have no PDF once opened.
-The browser and server-side downloader do not share publisher verification cookies.
-The recovery path is to download the publisher PDF in the browser and use the
-existing **Upload** control. **Retry download** in the row's options menu retries
-that source alone, but a
-successful browser visit does not imply the downloader is cleared. A guessed PDF route
-that challenges while the case page advertises no PDF is treated as no published
-PDF, not as a user-solvable CAPTCHA. A plain HTTP 403 is also not enough to claim
-a CAPTCHA. Upload uses opening-citation verification. Downloads run sequentially
-within a preparation batch; after a confirmed challenge, remaining PDFs from
-that publisher are left for manual recovery while other publishers continue.
-This is a per-batch guard, not a cross-user rate limiter.
-Automatic source handling may build a PDF from available source text after a
-blocked download; manual-originals handling continues to require the original.
+**Auto-fetch from folder** watches the folder Chrome or Edge saves into, such as
+`Downloads\Authorities` (Chrome will not share Downloads itself). The choice is kept
+for the next visit; when Chrome asks for access again, the next click explains it in
+a short dialog before Chrome's own prompt. While the tab is open the folder is read
+every two seconds and whenever the tab is come back to. Each new top-level PDF is read
+for its first two pages' own text, never recognized, and goes to the case still
+without a PDF that its opening citation names, else to the one whose A2AJ text it
+agrees with exactly; a scan goes by a CanLII or S.C.R. file name alone, and an
+ambiguous file stays unbound. It never replaces a PDF, a text rebuild included. Both
+apps match with `shared/folder-pdf-match.mjs`. Other browsers read a folder once.
+
+When the publisher's download did not bring the original, the row's mark says why:
+the publisher blocked the automatic download, the download service does not serve
+this page's address (an http copy other than the published one), or the download
+failed. **Open publisher** opens the decision's PDF where its address is known (the
+S.C.C.'s `/{id}/1/document.do` route, which matched all 114 cached originals, or a PDF
+the download service named), else the decision's page, never a downloader-session
+CAPTCHA URL. A blocked case may still prove to have no PDF once opened. The browser
+and the downloader do not share publisher verification cookies, so the original is
+downloaded in the browser and picked up from the folder or uploaded. **Retry
+download**, in the row's options menu only, asks again for that source alone, except
+where the service refused the page; a successful browser visit does not imply the
+downloader is cleared. A guessed PDF route that challenges while the case page
+advertises no PDF is treated as no published PDF. A plain HTTP 403 is not enough to
+claim a CAPTCHA. Downloads run sequentially within a preparation batch; after a block
+or a refusal, the remaining PDFs from that publisher are left for manual recovery
+while other publishers continue. This is a per-batch guard, not a cross-user rate
+limiter. With automatic sources the case is built from its source text instead, its
+mark still says why the original is not there, **Open publisher** sits in its options
+menu, and **Replace** puts the original in. A publisher that answered with no PDF
+leaves the case to the CanLII handoff.
 
 Authorities acquisition owns PDF discovery: A2AJ resolution does not separately
 fetch publisher HTML first. For approved Decisia hosts, both downloaders try the

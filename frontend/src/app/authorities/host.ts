@@ -6,6 +6,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
 import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
+import type { PdfOpening } from "@/app/lib/inspectPdf";
 
 /** `autoFetched`: found by auto-fetch rather than chosen, so its citation is checked before it is attached. */
 export type AuthoritiesFile = { file: File; input?: WorkProductInput; autoFetched?: boolean };
@@ -54,6 +55,11 @@ export interface AuthoritiesHost {
     revision: number }): Promise<AuthoritiesProduct>;
   attach(id: string, authorityId: string, revision: number,
     selected: AuthoritiesFile, language?: AuthoritySourceLanguage): Promise<AuthoritiesProduct>;
+  /** The authority still without a PDF that a PDF from the watched folder is, if exactly one. */
+  pdfAuthority?(product: AuthoritiesProduct, opening: PdfOpening): Promise<string | null>;
+  /** The folder Auto-fetch watches, kept for the next visit. */
+  watchedFolder?: { get(): Promise<FileSystemDirectoryHandle | null>;
+    set(handle: FileSystemDirectoryHandle | null): Promise<void> };
   build(product: AuthoritiesProduct, progress?: (message: string) => void,
     signal?: AbortSignal): Promise<{
     product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt; notice?: string;

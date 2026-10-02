@@ -111,6 +111,21 @@ export function publisherPdfCandidate(rawUrl: string | URL) {
   return null;
 }
 
+/** What a reader's own browser opens for an original the downloader could not fetch: a PDF on the
+ *  decision's own site, else the S.C.C.'s PDF route (it matched all 114 cached originals; other
+ *  courts' routes miss decisions published without a PDF), else the decision's page. */
+export function publisherOpenUrl(pageUrl: string, pdfUrl?: string | null) {
+  const [page, pdf] = [pageUrl, pdfUrl].map((raw) => {
+    const url = raw ? httpUrl(raw) : null;
+    if (!url || /\/robocop\//iu.test(url.pathname)) return null;
+    url.protocol = "https:";
+    return url;
+  });
+  if (pdf && (!page || pdf.origin === page.origin)) return pdf.toString();
+  return page && decisiaIndexUrl(page)?.hostname === "decisions.scc-csc.ca"
+    ? publisherPdfCandidate(page) : page?.toString() ?? null;
+}
+
 /** One attribute's value in any quoting style; "" when the attribute is absent. */
 const attributePattern = (name: string) =>
   new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`, "iu");

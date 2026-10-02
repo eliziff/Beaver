@@ -3,6 +3,7 @@ import {
   attachAuthoritiesBookPdf,
   attachAuthoritiesLibraryPdf,
   attachAuthorityPdf,
+  authoritiesPdfAuthority,
   buildAuthorities,
   createAuthorities,
   refreshAuthorities,
@@ -106,6 +107,7 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     attachAuthorityPdf(id, authorityId, revision, selected.file, language, selected.autoFetched),
   attachBookPdf: (id, revision, slot, selected, supplementId) =>
     attachAuthoritiesBookPdf(id, revision, slot, selected.file, supplementId),
+  pdfAuthority: async (product, opening) => (await authoritiesPdfAuthority(product.id, opening)).authorityId,
   attachLibraryPdf(id, revision, document, target) {
     if (!document.current_version_id) throw new Error("The selected Library file is unavailable.");
     return attachAuthoritiesLibraryPdf(id, revision, document.id,

@@ -10,7 +10,8 @@ import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { mapBounded } from "./mapBounded";
-import { downloadProviderOriginalPdf, PublisherVerificationRequired } from "./providerPdfLibraryBridge";
+import { publisherOpenUrl } from "./legalSourcePresentation";
+import { downloadProviderOriginalPdf, PublisherDownloadFailure } from "./providerPdfLibraryBridge";
 import { structureNative } from "./structureNative";
 
 /**
@@ -75,6 +76,17 @@ export type PreparedAuthoritySource = {
 /** A single-authority retry asks again for a publisher PDF or for a lookup that went unanswered. */
 export const retryableAuthoritySource = (draft: AuthoritiesDraft, id: string) =>
   !!draft.authorities[id]?.sourceVerificationUrl || !!draft.authorities[id]?.sourceLookupFailure;
+
+/** A2AJ's text of a case the draft found through A2AJ, to tell its PDF apart; "" otherwise. */
+export async function authorityReferenceText(draft: AuthoritiesDraft, authority: AuthorityIdentity,
+  sources: SourceServices = authoritySourceServices, signal?: AbortSignal) {
+  if (authority.sourceIdentity?.provider !== "a2aj") return "";
+  for (const citation of authorityCitationForms(draft, authority.id)) try {
+    const found = await sources.resolve(citation, "case", signal, sourceIdentityLanguage(authority));
+    if (found) return found.searchText;
+  } catch { signal?.throwIfAborted(); }
+  return "";
+}
 
 /** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. */
 export async function resolveAuthoritiesSources(
@@ -235,7 +247,9 @@ export async function resolveAuthoritiesSources(
     return { pdfUrl: source.verifiedPdf && !isCanliiUrl(source.verifiedPdf.url) ? source.verifiedPdf.url : null,
       sourceUrl: publisherUrl && !isCanliiUrl(publisherUrl) ? publisherUrl : null };
   };
-  const blockedPublishers = new Set<string>();
+  // A publisher that blocked the downloader, or a download service that refused this page, is not
+  // asked again in this run.
+  const blockedPublishers = new Map<string, PublisherDownloadFailure["reason"]>();
   let started = 0;
   const prepareSource = async (item: typeof languageSources[number]) => {
     signal?.throwIfAborted();
@@ -246,12 +260,12 @@ export async function resolveAuthoritiesSources(
     const provider = source.provider ?? "a2aj";
     let publisher: string | undefined;
     let original: Awaited<ReturnType<SourceServices["download"]>> | undefined;
-    let verificationUrl: string | undefined;
+    let stopped: { url: string; reason: PublisherDownloadFailure["reason"] } | undefined;
     if (originals && (authority.kind !== "legislation" || draft.settings.sourceMode === "manual-originals") &&
         (pdfUrl || sourceUrl)) try {
       publisher = new URL(sourceUrl ?? pdfUrl!).origin;
-      if (blockedPublishers.has(publisher))
-        throw new PublisherVerificationRequired(pdfUrl ?? sourceUrl!);
+      const held = blockedPublishers.get(publisher);
+      if (held) throw new PublisherDownloadFailure(sourceUrl ?? pdfUrl!, held);
       original = await sources.download({ provider,
         identity: source.identity ?? stableA2AJSourceId(source), sourceUrl, pdfUrl,
         source: { provider, id: source.citation, kind: authority.kind as "case" | "legislation",
@@ -265,9 +279,10 @@ export async function resolveAuthoritiesSources(
       }
     } catch (error) {
       signal?.throwIfAborted();
-      if (error instanceof PublisherVerificationRequired) {
-        verificationUrl = pdfUrl ?? sourceUrl ?? error.pageUrl;
-        if (publisher) blockedPublishers.add(publisher);
+      if (error instanceof PublisherDownloadFailure) {
+        const url = publisherOpenUrl(sourceUrl ?? error.pageUrl, error.pdfUrl ?? pdfUrl);
+        if (url) stopped = { url, reason: error.reason };
+        if (publisher && error.reason !== "failed") blockedPublishers.set(publisher, error.reason);
       }
     }
     let reconstructed: Buffer | null = null;
@@ -276,8 +291,8 @@ export async function resolveAuthoritiesSources(
         name: source.name, citation: source.citation, date: source.date,
         sourceUrl: source.publisherUrl ?? source.url, text: source.searchText });
     } catch { signal?.throwIfAborted(); }
-    return { ...item, original, verificationUrl: reconstructed ? undefined : verificationUrl,
-      bytes: original?.bytes ?? reconstructed };
+    // A text rebuild stands in for the original, and the row still says why the original is not there.
+    return { ...item, original, stopped, bytes: original?.bytes ?? reconstructed };
   };
   // A few publishers are fetched at once, each publisher's PDFs one after another: no site is
   // asked more often than before, and one that challenges is not asked again in this run.
@@ -312,13 +327,14 @@ export async function resolveAuthoritiesSources(
       origin: original ? "original" : "reconstructed", language: source.language });
   }
   for (const authorityId of new Set(prepared.map(item => item.authorityId))) {
-    const blocked = prepared.find(item => item.authorityId === authorityId && item.verificationUrl);
-    editor.apply({ type: "set-source-verification", authorityId,
-      pageUrl: blocked?.verificationUrl ?? null });
+    const stopped = prepared.find(item => item.authorityId === authorityId && item.stopped)?.stopped;
+    editor.apply({ type: "set-source-verification", authorityId, pageUrl: stopped?.url ?? null,
+      ...(stopped && stopped.reason !== "blocked" ? { reason: stopped.reason } : {}) });
   }
   // One CanLII handoff rule for every case left without bytes, whichever
   // provider identified it: the publisher's own page when it has one, else the
-  // page CanLII publishes for the citation.
+  // page CanLII publishes for the citation. A publisher that did not give its
+  // original says why on its own row instead.
   const attached = new Set(attachments.map(({ authorityId }) => authorityId));
   for (const id of draft.authorityOrder) {
     if (retrying && !retrying.has(id)) continue;

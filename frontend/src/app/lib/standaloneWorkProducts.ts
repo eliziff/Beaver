@@ -18,6 +18,7 @@ const FILES = "files";
 const OUTPUTS = "outputs";
 const ANSWERS = "sourceAnswers";
 const OUTPUT_FOLDER = "preference:output-folder";
+const WATCHED_FOLDER = "preference:watched-folder";
 const FILING_CONTACT = "preference:filing-contact";
 const MAX_UNCLAIMED_HANDLES = 64;
 const UNCLAIMED_HANDLE_MAX_AGE = 24 * 60 * 60 * 1_000;
@@ -307,7 +308,7 @@ async function cleanupHandles(store: IDBObjectStore, drafts: WorkProduct[],
   removed = new Set<string>(), maximum = MAX_UNCLAIMED_HANDLES) {
   const used = new Set(drafts.flatMap((draft) => [...handleIds(draft)]));
   const unclaimed = (await request<StoredHandle[]>(store.getAll()))
-    .filter(({ id }) => id !== OUTPUT_FOLDER && !used.has(id))
+    .filter(({ id }) => !id.startsWith("preference:") && !used.has(id))
     .sort((left, right) => right.createdAt - left.createdAt);
   const cutoff = Date.now() - UNCLAIMED_HANDLE_MAX_AGE;
   unclaimed.forEach((item, index) => {
@@ -326,7 +327,7 @@ async function cleanupStoredFiles(store: IDBObjectStore, drafts: WorkProduct[]) 
 
 type PickerWindow = Window & typeof globalThis & {
   showOpenFilePicker?: (options?: {
-    multiple?: boolean;
+    multiple?: boolean; startIn?: "downloads";
     types?: Array<{ description: string; accept: Record<string, string[]> }>;
   }) => Promise<FileSystemFileHandle[]>;
   showDirectoryPicker?: (options?: { id?: string; mode?: "read" | "readwrite" }) =>
@@ -384,6 +385,19 @@ export async function chooseStandaloneOutputFolder() {
   } catch { return getStandaloneOutputFolder(); }
 }
 
+/** The folder Auto-fetch watches, as chosen on an earlier visit; its permission is asked for apart. */
+export async function getStandaloneWatchedFolder() {
+  const saved = await read<StoredHandle>(HANDLES, WATCHED_FOLDER);
+  return saved?.handle.kind === "directory" ? saved.handle : null;
+}
+
+export async function setStandaloneWatchedFolder(handle: FileSystemDirectoryHandle | null) {
+  const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
+  if (handle) transaction.objectStore(HANDLES).put({ id: WATCHED_FOLDER, handle, createdAt: Date.now() } satisfies StoredHandle);
+  else transaction.objectStore(HANDLES).delete(WATCHED_FOLDER);
+  await completed(transaction);
+}
+
 export async function clearStandaloneOutputFolder() {
   const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
   transaction.objectStore(HANDLES).delete(OUTPUT_FOLDER);
@@ -409,8 +423,9 @@ export async function pickRetainedFiles(multiple: boolean, accept: "source" | "p
   if (!picker) return Promise.all((await pickInputFiles(multiple, accept)).map(async (file) => ({
     file, input: await retainStandaloneFile(file),
   })));
+  // A PDF to add is most often one just downloaded.
   const handles = await picker({
-    multiple,
+    multiple, ...(accept === "pdf" ? { startIn: "downloads" as const } : {}),
     types: [{
       description: accept === "pdf" ? "PDF" : "PDF or Word document",
       accept: { "application/pdf": [".pdf"], ...(accept === "source" ? {

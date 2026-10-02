@@ -88,7 +88,8 @@ export type AuthoritiesAction =
       sourceUrl: string | null; language: AuthoritySourceLanguage;
       origin?: "manual" | "original" | "reconstructed" }
   | { type: "clear-authority-source"; authorityId: string }
-  | { type: "set-source-verification"; authorityId: string; pageUrl: string | null }
+  | { type: "set-source-verification"; authorityId: string; pageUrl: string | null;
+      reason?: NonNullable<AuthorityIdentity["sourceDownloadFailure"]> }
   | { type: "set-source-lookup-failure"; authorityId: string; failure: AuthoritySourceLookupFailure | null }
   | { type: "begin-canlii-handoff"; authorityId: string; pageUrl: string }
   | { type: "set-book-part"; slot: "cover" | "index" | "brief"; pdf: AuthoritiesBoundPdf;
@@ -228,6 +229,7 @@ const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: au
     try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; }
     catch { return false; }
   }),
+  sourceDownloadFailure: maybe(oneOf(["refused", "failed"])),
   sourceLookupFailure: maybe(closed<AuthoritySourceLookupFailure>({
     reason: oneOf(["rate-limited", "error", "timeout", "unreachable", "defect"]),
     retryAfter: nullable((value) => typeof value === "string" && Number.isFinite(Date.parse(value))),
@@ -684,6 +686,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
       !same(authority.sourceIdentity, old.sourceIdentity);
     if (!changedIdentity) {
       if (old.sourceVerificationUrl) authority.sourceVerificationUrl = old.sourceVerificationUrl;
+      if (old.sourceDownloadFailure) authority.sourceDownloadFailure = old.sourceDownloadFailure;
       authority.evidenceIds = uniqueSorted([...old.evidenceIds, ...authority.evidenceIds]);
       const locators = uniqueSorted([...old.locators, ...authority.locators]
         .map(({ kind, label }) => `${kind}\0${label}`));
@@ -878,7 +881,8 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       }
       const citation = action.citation.trim();
       if (citation !== authority.citation) {
-        delete authority.sourceVerificationUrl; delete authority.sourceLookupFailure;
+        delete authority.sourceVerificationUrl; delete authority.sourceDownloadFailure;
+        delete authority.sourceLookupFailure;
       }
       if (authority.source.kind === "pending-canlii" && citation !== authority.citation) {
         replaceSource(draft, authority,
@@ -995,7 +999,11 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     case "attach-source": {
       if (!action.bindingRole) throw new AuthoritiesDomainError("Attachment binding role is required.");
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
-      delete authority.sourceVerificationUrl; delete authority.sourceLookupFailure;
+      // A PDF the user gives ends the publisher's story; one prepared automatically keeps it.
+      if ((action.origin ?? "manual") === "manual") {
+        delete authority.sourceVerificationUrl; delete authority.sourceDownloadFailure;
+      }
+      delete authority.sourceLookupFailure;
       attachAuthoritySource(draft, authority, {
         bindingRole: action.bindingRole, filename: action.filename,
         sourceSha256: action.sourceSha256, sourceUrl: action.sourceUrl,
@@ -1013,6 +1021,8 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
       if (action.pageUrl) authority.sourceVerificationUrl = action.pageUrl;
       else delete authority.sourceVerificationUrl;
+      if (action.pageUrl && action.reason) authority.sourceDownloadFailure = action.reason;
+      else delete authority.sourceDownloadFailure;
       break;
     }
     case "set-source-lookup-failure": {
