@@ -308,8 +308,12 @@ async function scanReview(
       : source?.fields.kind === "statute" ? "legislation"
       : ["journal", "book", "essay_collection"].includes(source?.fields.kind ?? "")
       ? "commentary" : "other";
+    // A core that does not name its court (a CanLII ID, a reporter) keeps the court written
+    // after it, as McGill cites it: "1954 CanLII 3 (SCC)", even past a pinpoint.
+    const court = representative.format === "neutral" ? undefined
+      : representative.parentheticals?.find(({ kind }) => kind === "court")?.span.text;
     const observedText = source?.fields.citation_with_style || source?.part.text.trim() ||
-      (full.length ? representative.span.text : representative.fullSpan.text);
+      (full.length ? [representative.span.text, court].filter(Boolean).join(" ") : representative.fullSpan.text);
     authorities[key] = { id: key, key, kind: source ? sourceKind : kindOf(representative),
       citation: source?.fields.bare_citation || observedText,
       name: source ? null : representative.style?.text?.trim() || null,
