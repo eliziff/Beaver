@@ -762,8 +762,9 @@ function Run(page, mode) {
   }
 
   const dock = () => page.getByRole("complementary", { name: "Outputs" });
+  // Where the dock's column is: it stays put while it scrolls with the page.
   const dockBox = () => dock().evaluate((element) => { const box = element.getBoundingClientRect();
-    return [box.x, box.y, box.width].map(Math.round).join(","); });
+    return [box.x, box.width].map(Math.round).join(","); });
   this.docxBrief = async () => {
     if (await button("New").isEnabled()) await button("New").click();
     await importBrief(fixtures.briefDocx, "docx");
@@ -797,7 +798,7 @@ function Run(page, mode) {
         await choose(references.getByRole("radio", { name: reference, exact: typeof reference === "string" }));
         await idle();
         const label = `docx-${mark.split(" ").at(-1)}-${String(reference).replace(/\W+/gu, "").slice(0, 8) || "tab"}`.toLowerCase();
-        const files = await build(label), word = Object.keys(files).find((name) => name.endsWith(".docx") && !/table-of-authorities/u.test(name));
+        const files = await build(label), word = Object.keys(files).find((name) => name.endsWith(".docx") && !/\.table-of-authorities\.docx$/u.test(name));
         if (!fields && !text) { check(!word, `${mode} ${label}: no marks and no tab references make no Word copy`, Object.keys(files)); continue; }
         check(!!word, `${mode} ${label}: builds a Word copy`, Object.keys(files));
         if (!word) continue;
@@ -811,6 +812,7 @@ function Run(page, mode) {
     await choose(copy.getByRole("radio", { name: "Marked copy and table", exact: true }));
     await choose(references.getByRole("radio", { name: "[Tab 1]", exact: true }));
     // The final PDF, opted into: choosing it and its links moves nothing.
+    await page.getByRole("group", { name: /^Final PDF/u }).evaluate((element) => element.scrollIntoView({ block: "center" }));
     const options = await frame(), docked = await dockBox();
     await choose(page.getByRole("checkbox", { name: "Make a final PDF" }));
     await choose(page.getByRole("checkbox", { name: "Link citations to their tabs" }));
@@ -822,11 +824,12 @@ function Run(page, mode) {
     check(/Waiting for your brief PDF/u.test(await dock().locator("[data-output=final]").innerText()), `${mode}: the dock shows the final PDF waiting for the brief PDF`);
     check(!await page.locator("main .text-red-800").filter({ hasText: /brief/iu }).count(), `${mode}: a missing brief PDF is not an error`);
     check(await dockBox() === docked, `${mode}: the outputs dock stays where it is through a build`, [docked, await dockBox()]);
-    await shots("docx-12-pending");
+    const finalSection = () => page.getByRole("group", { name: /^Final PDF/u }).evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await finalSection(); await shots("docx-12-pending");
     await pick(() => page.getByRole("button", { name: "Upload the brief PDF" }).click(), [fixtures.briefPdf]);
     await page.getByRole("button", { name: "Replace the brief PDF" }).waitFor();
     const tabs = await build("docx-tabs", /Lakeshore/u);
-    await shots("docx-13-built");
+    await finalSection(); await shots("docx-13-built");
     check(/Ready/u.test(await dock().locator("[data-output=final]").innerText()) && await dockBox() === docked,
       `${mode}: the built final PDF shows ready in the dock, which has not moved`);
     await verifyWordOutputs(tabs, true);
@@ -932,7 +935,10 @@ function Run(page, mode) {
         const bookTabs = flatOutline(bookPdf.outline).filter(({ title }) => /^Tab\b/u.test(title));
         check(pdf.pageCount === 2 + bookPdf.pageCount && tabs.length === 5 && tabs.every(({ page }, index) => page === bookTabs[index]?.page + 2),
           `${mode}: the final PDF is the brief PDF and then the book`, tabs.map(({ title, page }) => [title, page]));
-        const links = pdf.pages.slice(0, 2).flatMap(({ annotations }) => annotations.filter(({ subtype }) => subtype === "Link"));
+        const all = pdf.pages.slice(0, 2).flatMap(({ annotations }) => annotations.filter(({ subtype }) => subtype === "Link"));
+        // The brief's own web link stays; every other link is one the final PDF added inside it.
+        const links = all.filter(({ url }) => !url);
+        check(all.filter(({ url }) => url).map(({ url }) => url).join() === BRIEF.webLink, `${mode}: the brief PDF's own web link is kept`, all.map(({ url }) => url));
         check(links.length >= 5 && links.every(({ destinationPage }) => tabs.some(({ page }) => page === destinationPage)),
           `${mode}: the brief's tab references open their tabs`, links.map(({ destinationPage }) => destinationPage));
       }

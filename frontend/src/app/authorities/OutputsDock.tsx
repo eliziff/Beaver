@@ -51,8 +51,8 @@ export function OutputsDock({ draft, building, progress, previous, waiting, link
           : ready ? "Ready" : files.length ? "Previous build" : "Not built yet";
         return <li key={row.key} data-output={row.key} className={cn("rounded-md border bg-white p-2 transition-colors duration-500 motion-reduce:transition-none",
           ready ? "border-green-600/40" : "border-gray-200")}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-gray-950">{row.title}</span>
+          <div className="flex flex-wrap items-center justify-between gap-x-2">
+            <span className="whitespace-nowrap text-sm font-medium text-gray-950">{row.title}</span>
             <span role="status" className={cn("flex shrink-0 items-center gap-1 text-xs", ready ? "text-green-800" : "text-gray-600")}>
               {status === "Building" ? <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" />
                 : ready ? <Check className="h-3.5 w-3.5" /> : row.waiting ? <Clock className="h-3.5 w-3.5" /> : null}{status}</span>
