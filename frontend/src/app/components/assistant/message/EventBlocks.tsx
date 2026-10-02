@@ -198,7 +198,7 @@ export function ActivityRow({
         ? [] : activity.citations ?? [];
     const compactRead = activity.tool === "Read" && !markdown && citations.length > 0;
     // The chip names the source, so the sentence never repeats it: "Reading paras 1–8 of" + chip,
-    // "Searching for “essence of a seizure”" + chip (Eli, 2026-09-10).
+    // "Searching for “essence of a seizure”" + chip.
     const parts = compactRead ? citationPillParts(citations[0], true) : null;
     const chipName = parts?.styleOfCause || parts?.rest || null;
     const read = activity.read;

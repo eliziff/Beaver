@@ -5,7 +5,7 @@
  *
  * Used as a ranking prior for stands-for profiles (research plan D2):
  * appellate characterizations of a cited case outrank trial ones, which
- * outrank tribunal ones (Eli's hierarchy prior). Levels order courts;
+ * outrank tribunal ones (a hierarchy prior). Levels order courts;
  * they are NOT authority weights and imply no treatment judgment.
  *
  * Unknown codes return null (typed refusal) — callers must handle,

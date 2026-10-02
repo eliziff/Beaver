@@ -108,7 +108,7 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
             claim.evidence_ids.filter((id) => owned.has(id)), !complete || finding.answer.claims.length === 1);
       }
       // Each passage the research cited but never highlighted is an item of its own, quoted once: the grain a
-      // highlight type attaches to and the support a filing points at (Eli, 2026-09-11).
+      // highlight type attaches to and the support a filing points at.
       if (input.rows === "sources") {
         const highlighted = new Set(rowPassages.map(({ receipt }) => receipt.evidence_id));
         for (const id of new Set(entries.filter((entry) => entry.rowId === rowId && entry.kind === "answer").flatMap(({ evidenceIds }) => evidenceIds))) {
@@ -131,7 +131,7 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
 
 export function defaultResearchImport(catalog: ResearchImportCatalog): ResearchImportDesign {
   const columns = new Map<string, TabularColumn>(), cells = new Map<string, ResearchImportDesign["cells"][number]>();
-  // The bare default highlight type asks no question, so it is never a column (Eli, C0709); a defined type is.
+  // The bare default highlight type asks no question, so it is never a column; a defined type is.
   for (const label of catalog.labels) if (!columns.has(label.path) && !(label.scope === "highlight" && !label.definition &&
     researchConceptKey(label.path) === "highlight")) columns.set(label.path,
     { index: columns.size, name: label.path, prompt: label.definition || `What does this source establish about ${label.path}?`, format: "text" });

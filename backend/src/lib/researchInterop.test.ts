@@ -462,7 +462,7 @@ it.each([false, true])("round trips every table column with joint evidence and u
       workingRevision: current.workingRevision, action: { type: "label", name: "Honesty", scope: "source", definition: "Honesty?" } }); }
   const before = await f.sources.ensure(owner, { tableId: review.id }), input = { tableId: review.id },
     preview = await f.sources.previewLabels(owner, before.document.id, input);
-  // Cell evidence becomes highlights of the default type, so every filing has a passage to open (Eli, 2026-09-11).
+  // Cell evidence becomes highlights of the default type, so every filing has a passage to open.
   expect(preview.labels.map(({ name }) => name)).toEqual([...columns.map(({ name }) => name), "Highlight"]);
   expect((await f.sources.get(owner, before.document.id))?.state).toMatchObject({ labels: before.state.labels, sources: before.state.sources });
   const saved = await f.sources.applyLabels(owner, before.document.id, { ...input, design: preview.design, fingerprint: preview.fingerprint }),

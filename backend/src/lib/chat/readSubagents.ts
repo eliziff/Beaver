@@ -299,7 +299,7 @@ export async function getReadSubagentCapability(
     reason: "Reading agents are disabled by the server.",
   };
   // A bare slug the Codex catalog knows stays a Codex reader; any other picker model id
-  // (gemini, claude, deepseek, opencode-go, ...) reads through its own provider (Eli, 2026-09-10).
+  // (gemini, claude, deepseek, opencode-go, ...) reads through its own provider.
   const hosted = requested !== DEFAULT_MODEL && isSupportedModel(requested) && providerForModel(requested) !== "codex";
   const selected = hosted ? undefined
     : (catalog ?? await getCodexModelCatalog()).models.find((item) => item.slug === model);
