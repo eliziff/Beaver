@@ -113,6 +113,9 @@ export type AuthoritiesReviewUnit = {
   kind: "body" | "footnote";
   ordinal: number;
   footnoteId: number | null;
+  /** The number the brief prints for this footnote, or null where it prints the author's own mark
+   * (a "*") instead. */
+  noteNumber?: number | null;
   footnoteRefs: Array<[number, number]>;
   pageNumbers: number[];
   text: string;

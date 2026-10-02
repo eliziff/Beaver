@@ -245,7 +245,7 @@ const authority: Check = (value) =>
 const spanFields = { start: integer, end: integer, text } satisfies FieldTable<AuthorityTextSpan>;
 const authoritySpan = closed<AuthorityTextSpan>(spanFields);
 const unitFields = { id: text, kind: oneOf(["body", "footnote"]), ordinal: integer,
-  footnoteId: nullable(integer), footnoteRefs: list(50_000, pair),
+  footnoteId: nullable(integer), noteNumber: maybe(nullable(integer)), footnoteRefs: list(50_000, pair),
   pageNumbers: list(50_000, integer), text,
 } satisfies FieldTable<Omit<AuthoritiesReviewUnit, "occurrenceIds">>;
 const reviewUnit = closed<AuthoritiesReviewUnit>({ ...unitFields, occurrenceIds: strings });
