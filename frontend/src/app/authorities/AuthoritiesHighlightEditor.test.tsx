@@ -224,6 +224,12 @@ it('asks for the marking on first entry and prepares saved highlights again once
   fireEvent.click(screen.getByRole('button', {name:'Continue'}));
   expect(screen.queryByRole('group', {name:'Passage marking'})).toBeNull();
   unseen.unmount();
+  // A draft with no source PDF yet is still asked, and has nothing to edit.
+  const bare = {...first, id:'bare', state:{...first.state, authorities:{}, authorityOrder:[]}};
+  const empty = render(<AuthoritiesHighlights first product={bare} {...props} />);
+  expect(screen.getByRole('group', {name:'Passage marking'})).toBeVisible();
+  expect(screen.getByRole('button', {name:'Edit in PDF'})).toBeDisabled();
+  empty.unmount();
   // A draft whose highlights were already reviewed opens closed, and the options reopen from the step.
   const view = render(<AuthoritiesHighlights first product={product} {...props} />);
   try {

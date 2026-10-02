@@ -198,7 +198,7 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, first, o
       });
   }, [pending, product]); // eslint-disable-line react-hooks/exhaustive-deps
   const panelId = useId();
-  if (product.state.outputMode === 'table' || !choices.length) return null;
+  if (product.state.outputMode === 'table') return null;
   const preparing = !!progress;
   const close = () => { chosen.add(product.id); setChoosing(false); };
   const choose = (passageMarking: Marking) => {
@@ -206,13 +206,13 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, first, o
     onAction({ type: 'set-settings', settings: { passageMarking } });
   };
   return <><StepSection title="Highlights" className="mt-3"
-    subtitle="Review and adjust passage marks in your source PDFs."
+    subtitle={choices.length ? "Review and adjust passage marks in your source PDFs." : "No source PDFs to mark yet."}
     actions={<>
       <Button type="button" variant="outline" className="h-9 border-gray-400" aria-expanded={choosing}
         aria-controls={panelId} onClick={() => choosing ? close() : setChoosing(true)}>
         <SlidersHorizontal /> Highlighting options</Button>
       <Button type="button" variant="outline" className="h-9 border-gray-400"
-        disabled={busy || preparing || !host.readSource} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button></>}>
+        disabled={busy || preparing || !host.readSource || !choices.length} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button></>}>
     {choosing && <div id={panelId} className="p-4">
       <OptionCards legend="Passage marking" value={product.state.settings.passageMarking}
         options={passageOptions(product.state.settings.profileId)} columns disabled={busy || preparing}
