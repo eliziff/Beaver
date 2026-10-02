@@ -1,7 +1,7 @@
 import { authoritiesInputPlan } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
 import { updateAuthoritiesDraft } from "./authoritiesActions";
-import { authoritiesTextRoles, authorityFilingTargets, authorityPassageTargets } from "./authoritiesBuild";
+import { authoritiesTextRoles, authorityFilingTargets, authorityPassageTargets, bookScanPolicy } from "./authoritiesBuild";
 import { authorityCitationForms, authoritiesProfile, type AuthoritiesDraft, type AuthoritiesDiscrepancyAction } from "./authoritiesDomain";
 import { authoritiesDiscrepancyCorrection, reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { authorityPdfOutline, authorityPdfText } from "./authorityPdfText";
@@ -61,7 +61,7 @@ function sourceReading(draft: AuthoritiesDraft, readings?: SourceReadings) {
       // without bookmarks of its own is outlined by the brief's headings.
       outline: authority && draft.outputMode !== "table" || filing && draft.settings.finalPdf
         ? { legislation: authority?.kind === "legislation" } : null,
-      text: { scannedPdfPolicy: filing ? "page-margin" as const : draft.settings.scannedPdfPolicy,
+      text: { scannedPdfPolicy: filing ? "page-margin" as const : bookScanPolicy(draft),
         citations: authority ? authorityCitationForms(draft, authority.id) : [],
         reporterOriginal: attached?.source.origin === "original",
         ocrTargets: filing ? [] : targets,
