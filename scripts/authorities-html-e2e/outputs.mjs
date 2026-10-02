@@ -10,8 +10,9 @@ const require = createRequire(path.join(frontend, "package.json"));
 const pdfjs = await import(pathToFileURL(path.join(frontend, "node_modules/pdfjs-dist/legacy/build/pdf.mjs")).href);
 const JSZip = require("jszip");
 
-/** Every page's text, the outline as a tree of { title, page, children } (pages from 1), and
- *  each page's highlight and link annotations, a link with the page its destination opens. */
+/** Every page's text, the outline as a tree of { title, page, children } (pages from 1), the
+ *  document's title, and each page's highlight and link annotations, a link with the page its
+ *  destination opens and a mark with the author or comment a viewer would show beside it. */
 export async function readPdf(file) {
   const task = pdfjs.getDocument({ data: new Uint8Array(await readFile(file)), isEvalSupported: false,
     useSystemFonts: false, disableFontFace: true, verbosity: 0 }), document = await task.promise;
@@ -30,12 +31,14 @@ export async function readPdf(file) {
       const text = (await page.getTextContent()).items.map((item) => `${item.str}${item.hasEOL ? "\n" : ""}`).join("");
       const annotations = await Promise.all((await page.getAnnotations()).map(async (annotation) => ({
         subtype: annotation.subtype, rect: annotation.rect, url: annotation.url ?? null,
+        note: [annotation.titleObj?.str, annotation.contentsObj?.str].filter(Boolean).join(" — "),
         destinationPage: annotation.dest ? await destinationPage(annotation.dest) : null,
         // "Fit" opens a whole page (a tab); "XYZ" opens a place on it (a pinpoint), with its top.
         destination: annotation.dest ? (await explicitDestination(annotation.dest))?.slice(1).map((part) => part?.name ?? part) : null })));
       pages.push({ number, text, annotations });
     }
-    return { pageCount: document.numPages, outline: await outline(await document.getOutline()), pages };
+    return { pageCount: document.numPages, title: (await document.getMetadata()).info?.Title ?? "",
+      outline: await outline(await document.getOutline()), pages };
   } finally { await task.destroy(); }
 }
 

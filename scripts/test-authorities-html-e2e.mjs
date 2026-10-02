@@ -956,6 +956,9 @@ function Run(page, mode) {
     check(tabs.some(({ children }) => children.length), `${mode}: the book nests each authority's own structure or pinpoints under its tab`,
       tabs.map(({ title, children }) => [title.slice(0, 30), children.map(({ title }) => title)]));
     check(bookPdf.pages.some(({ annotations }) => annotations.some(({ subtype }) => subtype === "Highlight")), `${mode}: the book carries highlight annotations`);
+    // A mark is its colour and place: nothing for a viewer to show beside it.
+    const notes = [bookPdf, finalPdf].flatMap(({ pages }) => pages.flatMap(({ annotations }) => annotations.filter(({ note }) => note)));
+    check(!notes.length, `${mode}: no mark in the book or the final PDF carries an author or a comment`, notes.slice(0, 3));
     // The final PDF is the brief and then the book, with each tab bookmarked where it starts.
     check(finalPdf.pageCount === 2 + bookPdf.pageCount, `${mode}: final PDF = 2 brief pages + the book`, [finalPdf.pageCount, bookPdf.pageCount]);
     const finalTabs = flatOutline(finalPdf.outline).filter(({ title }) => /^Tab\b/u.test(title));
@@ -1019,6 +1022,18 @@ function Run(page, mode) {
         check(all.filter(({ url }) => url).map(({ url }) => url).join() === BRIEF.webLink, `${mode}: the brief PDF's own web link is kept`, all.map(({ url }) => url));
         check(links.length >= 5 && links.every(({ destinationPage }) => tabs.some(({ page }) => page === destinationPage)),
           `${mode}: the brief's tab references open their tabs`, links.map(({ destinationPage }) => destinationPage));
+        // Built through Missing PDFs, the book is a draft finished elsewhere: no stamp, no draft title
+        // or file name, no author or comment on a mark, and the missing PDF's tab keeps a page that
+        // only names its authority.
+        const stamped = [...bookPdf.pages, ...pdf.pages].filter(({ text }) => /INCOMPLETE|NOT FOR FILING|unavailable/iu.test(text))
+          .map(({ number }) => number);
+        check(!stamped.length && ![bookPdf.title, pdf.title, ...names].some((value) => /incomplete/iu.test(value)),
+          `${mode}: the incomplete book carries no draft stamp, title or file name`, { stamped, titles: [bookPdf.title, pdf.title], names });
+        const missing = bookTabs.find(({ title }) => /Lakeshore/u.test(title));
+        check(/Lakeshore Rowing Club/u.test(bookPdf.pages[(missing?.page ?? 0) - 1]?.text ?? ""),
+          `${mode}: the missing PDF's tab keeps a page naming its authority`, missing);
+        const notes = [bookPdf, pdf].flatMap(({ pages }) => pages.flatMap(({ annotations }) => annotations.filter(({ note }) => note)));
+        check(!notes.length, `${mode}: no mark in the Word brief's book carries an author or a comment`, notes.slice(0, 3));
       }
     } else check(!references.length, `${mode}: no tab references when only marking`, references);
   }

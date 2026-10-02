@@ -1,7 +1,8 @@
 import { decodeAnnotationSet, quadBounds, rectToPdfQuad } from './pdf-annotations.mjs';
 
-/** Standard editable annotations, with printable appearance streams; never alter page contents. */
-export function writeAuthorityAnnotations(pdf, document, set, namespace, { author = 'Beaver', comments = true } = {}) {
+/** Standard editable annotations, with printable appearance streams; never alter page contents.
+ *  A mark is its colour and place only: no author or comment for a viewer to show beside it. */
+export function writeAuthorityAnnotations(pdf, document, set, namespace) {
   const annotations = decodeAnnotationSet(set);
   for (const mark of annotations.marks) for (const fragment of mark.fragments) {
     if (fragment.pageNumber > document.getPageCount()) throw new Error('An annotation refers to a missing PDF page.');
@@ -20,15 +21,10 @@ export function writeAuthorityAnnotations(pdf, document, set, namespace, { autho
           Type: 'XObject', Subtype: 'Form', BBox: [0, 0, width, height],
           Resources: { ExtGState: { GS0: { Type: 'ExtGState', ca: mark.opacity, CA: mark.opacity, BM: 'Multiply' } } },
         });
-      const contents = mark.origin === 'manual' ? mark.excerpt || 'Custom highlight'
-        : mark.label === 'Cited page' ? mark.label
-        : mark.excerpt ? `Cited quote — ${mark.excerpt}` : `Cited passage — ${mark.label}`;
       const annotation = document.context.obj({ Type: 'Annot', Subtype: mark.kind === 'highlight' ? 'Highlight' : 'Square',
         Rect: [x0, y0, x1, y1], ...(mark.kind === 'highlight' ? { QuadPoints: group.flat() } : { IC: [...mark.rgb] }),
         C: [...mark.rgb], CA: mark.opacity, Border: [0, 0, 0], F: 4,
         NM: pdf.PDFHexString.fromText(`${namespace}:${mark.id}:${fragment.pageNumber}:${part}`),
-        ...(author && { T: pdf.PDFHexString.fromText(author) }),
-        ...(comments && { Contents: pdf.PDFHexString.fromText(contents.slice(0, 2_000)) }),
         AP: { N: document.context.register(appearance) } });
       page.node.addAnnot(document.context.register(annotation));
     }

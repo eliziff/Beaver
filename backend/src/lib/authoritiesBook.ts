@@ -15,7 +15,7 @@ export type PreparedBookSource<Bytes = Uint8Array> = BookRow & {
 export type PreparedAuthoritiesBook<Bytes = Uint8Array> = {
   filename: string; subtitle: string; documentTitle: string; bookTitle: string;
   federal: boolean; electronic: boolean; court: string; cover: AuthoritiesCover;
-  allowIncomplete: boolean; coverLine: string | null;
+  coverLine: string | null;
   paperCover: { rgb: readonly [number, number, number]; dark: boolean } | null;
   customCover?: Bytes; customIndex?: Bytes;
   coverPageCount: number; customIndexPages: number;
@@ -129,14 +129,6 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
                 { x: margin, y: 462 - (title.length - 1) * 34, size: 13, font: serif, color: ink });
               coverBottom = 432 - (title.length - 1) * 34;
             }
-          }
-          if (input.allowIncomplete) {
-            const first = document.getPage(0), width = first.getWidth();
-            first.drawRectangle({ x: 0, y: 0, width, height: 28, color: pdf.rgb(1, .94, .88) });
-            first.drawText("DRAFT - INCOMPLETE SOURCES - NOT FOR FILING", {
-              x: Math.min(24, width / 20), y: 10, size: Math.min(10, width / 48), font: bold,
-              color: pdf.rgb(.55, .1, .06),
-            });
           }
           if (multi && limits?.coverLabels) document.getPage(0).drawText(volumeLabel,
             { x: margin, y: Math.min(400, coverBottom), size: 12, font: bold });
