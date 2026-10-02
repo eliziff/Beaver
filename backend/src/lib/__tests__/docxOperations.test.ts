@@ -132,7 +132,7 @@ describe("native Word Table of Authorities output", () => {
       ["Statutes", "Larch Act, SA 2031, c L-2"], ["Treatises", "Jo Pine, “Moss” (2030) 1 Imag LJ 2"]]);
     expect(document).not.toContain("w:dirty");
     // The table's heading takes the brief's heading look but none of its heading numbers.
-    expect(document).toMatch(/<w:pStyle w:val="Heading1"><\/w:pStyle><w:numPr><w:ilvl w:val="0"><\/w:ilvl><w:numId w:val="0"><\/w:numId><\/w:numPr><\/w:pPr><w:r><w:t>Table of Authorities</u);
+    expect(document).toMatch(/<w:pStyle w:val="Heading1"><\/w:pStyle><w:numPr><w:ilvl w:val="0"><\/w:ilvl><w:numId w:val="0"><\/w:numId><\/w:numPr><w:ind w:left="0" w:right="0" w:firstLine="0"><\/w:ind><\/w:pPr><w:r><w:t>Table of Authorities</u);
     const styles = await zip.file("word/styles.xml")!.async("string");
     expect(styles).toContain('w:styleId="TOAHeading"'); expect(styles).toContain('w:styleId="TableofAuthorities"');
     expect(await zip.file("word/settings.xml")!.async("string")).toContain('<w:updateFields w:val="true"');
