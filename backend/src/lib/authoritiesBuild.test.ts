@@ -1677,12 +1677,12 @@ describe("Authorities output builder", () => {
   });
 
   it("lists each authority in Word's table as the brief first cites it", async () => {
-    // Two styles of cause on one citation, a citation the brief gives alone with its source's name, and
-    // a work cited by its link in angle brackets.
+    // Two styles of cause on one citation, a citation the brief gives alone with its source's name, a
+    // work cited by its link in angle brackets, and a CanLII ID whose court follows its pinpoint.
     const texts = ["R v Ash, 2030 ABKB 1 at para 4.", "R v AB, 2030 ABKB 1 at para 9.", "2031 ONCA 7 at para 2.",
-      "Jo Pine, “Moss”, online: <example.test/moss>."];
+      "Jo Pine, “Moss”, online: <example.test/moss>.", "Oak v Gum, 2029 CanLII 5 at 3 (SCC)."];
     const spans: Array<[authority: string, start: number, core: number, end: number]> = [
-      ["ash", 0, 9, 20], ["ash", 0, 8, 19], ["elm", 0, 0, 11], ["pine", 0, 26, 43]];
+      ["ash", 0, 9, 20], ["ash", 0, 8, 19], ["elm", 0, 0, 11], ["pine", 0, 26, 43], ["oak", 0, 11, 24]];
     const source = await Packer.toBuffer(new WordDocument({ sections: [{ children: texts.map((text) => new Paragraph(text)) }] }));
     const digest = sha256(source);
     const imported = { kind: "document" as const, bindingRole: "source" as const, filename: "Brief.docx", fileType: "docx" as const,
@@ -1700,10 +1700,10 @@ describe("Authorities output builder", () => {
         authorityId: authority, reference: null, pinpoints: [], evidenceIds: [], sourceTextSha256: sha256(texts[ordinal]),
         localOrdinal: 0, reviewed: true }])),
       authorities: Object.fromEntries([["ash", "case", "2030 ABKB 1", null], ["elm", "case", "2031 ONCA 7", "Elm v Fir"],
-        ["pine", "commentary", "example.test/moss", null]].map(([id, kind, citation, name]) => [id, { id, key: id, kind, citation,
+        ["pine", "commentary", "example.test/moss", null], ["oak", "case", "2029 CanLII 5 (SCC)", "Oak v Gum"]].map(([id, kind, citation, name]) => [id, { id, key: id, kind, citation,
         name, displayName: null, evidenceIds: [], locators: [], sourceIdentity: null, excluded: false,
         source: { kind: "unresolved" } }])),
-      authorityOrder: ["ash", "elm", "pine"] });
+      authorityOrder: ["ash", "elm", "pine", "oak"] });
     const result = await buildAuthorities({ draft: state, title: "Brief", workProduct: { id: "entries", revision: 1 },
       sources: { source: { bytes: source, resolved: { kind: "document", documentId: "brief", versionId: "v1",
         filename: "Brief.docx", sha256: digest } } } });
@@ -1711,7 +1711,8 @@ describe("Authorities output builder", () => {
       .async("string")).replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">");
     const entries = [...xml.matchAll(/ TA \\l "((?:\\.|[^"\\])*)"/gu)].map(([, entry]) => entry.replaceAll("\\“", "“")
       .replaceAll("\\”", "”"));
-    expect(entries.sort()).toEqual(["Elm v Fir, 2031 ONCA 7", "Jo Pine, “Moss”, online: <example.test/moss>", "R v Ash, 2030 ABKB 1"]);
+    expect(entries.sort()).toEqual(["Elm v Fir, 2031 ONCA 7", "Jo Pine, “Moss”, online: <example.test/moss>",
+      "Oak v Gum, 2029 CanLII 5 (SCC)", "R v Ash, 2030 ABKB 1"]);
   });
 
   it("emits a versionable copy of an imported DOCX with native TA and TOA fields", async () => {

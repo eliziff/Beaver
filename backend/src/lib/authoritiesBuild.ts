@@ -343,6 +343,11 @@ function tableEntry(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
   const closer = draft.units.find(({ id }) => id === first.unitId)?.text[first.authoritySpan.end];
   if (closer === ">" && entry.split("<").length > entry.split(">").length ||
     closer === "]" && entry.split("[").length > entry.split("]").length) entry += closer;
+  // The court a CanLII ID is cited with belongs to its citation ("1954 CanLII 3 (SCC)"), though the
+  // brief may write it after a pinpoint.
+  const citation = authority.citation.trim(), core = first.coreSpan.text.trim();
+  if (citation !== core && citation.startsWith(core) && entry.includes(core) && !lower(entry).includes(lower(citation)))
+    entry = entry.replace(core, citation);
   if (name && first.authoritySpan.start >= first.coreSpan.start && !lower(entry).includes(lower(name)))
     entry = `${name}, ${entry}`;
   for (const { coreSpan } of rest) if (!lower(entry).includes(lower(coreSpan.text))) entry += `, ${coreSpan.text.trim()}`;
