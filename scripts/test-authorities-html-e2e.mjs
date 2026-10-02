@@ -204,7 +204,7 @@ function Run(page, mode) {
     }
     await page.setViewportSize({ width: 1440, height: 900 }); await settle();
   });
-  const bookRows = () => page.getByRole("heading", { name: "Cover and index" }).locator("xpath=..").locator(":scope > .divide-y > div");
+  const bookRows = () => page.getByRole("heading", { name: "Cover, index and other PDFs" }).locator("xpath=..").locator(":scope > .divide-y > div");
   /** Runs `action` and returns what the page measured meanwhile, once its effects have painted. */
   async function measure(label, action, { rest = 250, listChanges = false } = {}) {
     const from = await now();
@@ -285,15 +285,15 @@ function Run(page, mode) {
     await noHorizontalScroll("start");
   };
 
-  /** Import: the court and source handling only, then the review. Highlighting is chosen on the
-   *  Highlights step and the outputs at Build. */
+  /** Import: the court, the source handling and the passage marking, so marks are prepared as the
+   *  sources arrive; then the review. The outputs are chosen at Build. */
   async function importBrief(file, label) {
     await pick(() => button("Add file").click(), [file]);
     const setup = page.getByRole("dialog", { name: "Import options" });
     await setup.waitFor();
     check(await setup.getByRole("group").evaluateAll((groups) => groups.map((group) => group.querySelector("legend")?.textContent)
-      .filter(Boolean).join()) === "Source handling" && !await button("Next", setup).count(),
-    `${mode} ${label}: the import asks only the court and source handling`);
+      .filter(Boolean).join()) === "Source handling,Passage marking" && !await button("Next", setup).count(),
+    `${mode} ${label}: the import asks the court, the source handling and the passage marking`);
     await shots(`${label}-02-import-options`);
     const started = await now();
     await button("Import and review").click();
@@ -612,14 +612,11 @@ function Run(page, mode) {
     if (await recognize.count()) check(false, `${mode} ${label}: Next asked to recognize text after recognition finished`);
     await button("Edit in PDF").waitFor();
     note(mode, `${label}-step-highlights`, await now() - started);
-    // The first time a draft reaches Highlights, it is asked how passages are marked.
-    const marking = page.getByRole("group", { name: "Passage marking" });
-    check(await marking.isVisible() && await button("Highlighting options").getAttribute("aria-expanded") === "true",
-      `${mode} ${label}: entering Highlights asks how passages are marked`);
+    // The marking chosen at import is on the step as well, with nothing to get past.
+    check(await page.getByRole("group", { name: "Passage marking" }).isVisible() && !await button("Continue").count(),
+      `${mode} ${label}: Highlights shows the passage marking and holds nothing back`);
     await shots(`${label}-09-highlights`);
     await noHorizontalScroll(`${label} highlights`);
-    await button("Continue", page.getByRole("region", { name: "Highlights" })).click();
-    await marking.waitFor({ state: "detached" });
     await button("Edit in PDF").click();
     const editor = page.getByRole("dialog", { name: "Highlights" });
     const choice = await editor.getByRole("combobox", { name: "Authority PDF" }).evaluate((select) =>
@@ -713,13 +710,12 @@ function Run(page, mode) {
     await remark(label);
   }
 
-  /** The marking reopens from the step at any time. A new one prepares the reviewed highlights
-   *  again and keeps the passage the reviewer added; the first marking is then put back. */
+  /** The marking can be changed on the step at any time. A new one prepares the reviewed
+   *  highlights again and keeps the passage the reviewer added; the first marking is then put back. */
   async function remark(label) {
     const step = page.getByRole("region", { name: "Highlights" }), marking = step.getByRole("group", { name: "Passage marking" });
-    await button("Highlighting options", step).click();
     await marking.waitFor();
-    await shots(`${label}-10c-highlighting-options`);
+    await shots(`${label}-10c-passage-marking`);
     const first = await marking.locator("input:checked").evaluate((input) => input.closest("label").querySelector("[id]").textContent);
     const mark = async (name) => {
       const option = marking.getByRole("radio", { name, exact: true });
@@ -742,8 +738,6 @@ function Run(page, mode) {
     await editor.getByRole("button", { name: "Close highlights" }).click();
     await editor.waitFor({ state: "detached" });
     await mark(first);
-    await button("Continue", step).click();
-    await marking.waitFor({ state: "detached" });
   }
 
   async function downloadOutputs(label) {
@@ -759,11 +753,11 @@ function Run(page, mode) {
     }
     return saved;
   }
-  /** Build, through the Missing PDFs warning when a source is still missing; the outputs are
-   *  current (not "previous") once it finishes. */
-  async function build(label, missing) {
+  /** Build (or `start`, another way in), through the Missing PDFs warning when a source is still
+   *  missing; the outputs are current (not "previous") once it finishes. */
+  async function build(label, missing, start = () => button("Build").click()) {
     let started = await now();
-    await button("Build").click();
+    await start();
     const warning = page.getByRole("dialog").filter({ hasText: "Missing PDFs" });
     if (missing) {
       await warning.waitFor({ timeout: 30000 });
@@ -771,7 +765,7 @@ function Run(page, mode) {
       check(listed.length === 1 && missing.test(listed[0]), `${mode} ${label}: Build warns about the one missing PDF`, listed);
       await shots(`${label}-missing-pdfs`);
       started = await now();
-      await warning.getByRole("button", { name: "Build anyway" }).click();
+      await button("Build", warning).click();
     }
     await page.waitForFunction(() => {
       const outputs = [...document.querySelectorAll("button[aria-label^='Download ']")];
@@ -792,13 +786,10 @@ function Run(page, mode) {
     await sources("pdf", fixed);
     await highlights("pdf");
     await button("Next").click();
-    await page.getByRole("heading", { name: "Build outputs" }).waitFor();
+    await dock().waitFor();
     await page.getByLabel("Create").selectOption("both");
-    // A PDF brief has no Word copy; its final PDF is chosen here, its brief already a PDF.
+    // A PDF brief has no Word copy; its final PDF is set up in its own dialog, the brief already a PDF.
     check(!await page.getByRole("group", { name: "Word copy" }).count(), `${mode}: a PDF brief has no Word copy choice`);
-    await choose(page.getByRole("checkbox", { name: "Make a final PDF" }));
-    await choose(page.getByRole("checkbox", { name: "Link citations to their tabs" }));
-    await choose(page.getByRole("checkbox", { name: "Link pinpoints to the cited passage" }));
     await shots("pdf-11-build");
     await noHorizontalScroll("pdf build");
     await tabColumn("pdf build", bookRows());
@@ -806,7 +797,12 @@ function Run(page, mode) {
     const rows = () => page.getByRole("complementary", { name: "Outputs" }).locator("[data-output=book], [data-output=table]")
       .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().height)).join());
     const unbuilt = await rows();
-    const files = await build("pdf");
+    await button("Set up", dock()).click();
+    const final = page.getByRole("dialog", { name: "Final PDF" });
+    await choose(final.getByRole("checkbox", { name: "Citations to their tabs" }));
+    await choose(final.getByRole("checkbox", { name: "Pinpoints to the passage" }));
+    await shots("pdf-11b-final-pdf");
+    const files = await build("pdf", undefined, () => button("Build final PDF", final).click());
     check(await rows() === unbuilt, `${mode}: the outputs dock's rows keep their size when built`, [unbuilt, await rows()]);
     await shots("pdf-12-built");
     // Every step tab switches at once and leaves the header and the steps where they are.
@@ -855,15 +851,17 @@ function Run(page, mode) {
     await sources("docx", fixed, false);
     await highlights("docx", false);
     await button("Next").click();
-    await page.getByRole("heading", { name: "Build outputs" }).waitFor();
+    await dock().waitFor();
     // The Word copy and its tab references are two choices; the final PDF is a third, off until chosen.
     const copy = page.getByRole("group", { name: "Word copy" }), references = page.getByRole("group", { name: "Tab references" });
     const names = (group) => group.getByRole("radio").evaluateAll((radios) => radios.map((radio) =>
       document.getElementById(radio.getAttribute("aria-labelledby"))?.textContent));
     check(JSON.stringify(await names(copy)) === JSON.stringify(["No marks", "Marked copy", "Marked copy and table"]) &&
-      JSON.stringify(await names(references)) === JSON.stringify(["None", "[Tab 1]", "Your wording, then the tab number"]),
+      JSON.stringify(await names(references)) === JSON.stringify(["None", "[Tab 1]", "Your wording"]),
     `${mode}: the Word copy and the tab references are separate choices`, [await names(copy), await names(references)]);
-    check(!await page.getByRole("checkbox", { name: "Make a final PDF" }).isChecked(), `${mode}: the final PDF is off until chosen`);
+    // The final PDF is an occasional path: a row in the dock, its choices in a dialog of their own.
+    check(!await page.getByRole("checkbox", { name: /to their tabs/u }).count() && await button("Set up", dock()).isVisible(),
+      `${mode}: the final PDF is off until set up, and its choices stay out of the step`);
     await shots("docx-11-build");
     await tabColumn("docx build", bookRows());
     // Typed wording shows as it goes in: the app adds the tab number and the brackets.
@@ -893,27 +891,24 @@ function Run(page, mode) {
     await page.getByLabel("Create").selectOption("both");
     await choose(copy.getByRole("radio", { name: "Marked copy and table", exact: true }));
     await choose(references.getByRole("radio", { name: "[Tab 1]", exact: true }));
-    // The final PDF, opted into: choosing it and its links moves nothing.
-    await page.getByRole("group", { name: /^Final PDF/u }).evaluate((element) => element.scrollIntoView({ block: "center" }));
+    // The final PDF, set up in its dialog: opening it and choosing its links moves nothing beneath.
     const options = await frame(), docked = await dockBox();
-    await choose(page.getByRole("checkbox", { name: "Make a final PDF" }));
-    await choose(page.getByRole("checkbox", { name: "Link citations to their tabs" }));
-    check(JSON.stringify(await frame()) === JSON.stringify(options), `${mode}: the output options keep the frame still`, [options, await frame()]);
-    // Until the brief saved as PDF is added, everything else builds and the final PDF waits, calmly.
-    const pending = await build("docx-pending", /Lakeshore/u);
-    check(!Object.keys(pending).some((name) => /final/iu.test(name)) && Object.keys(pending).some((name) => /book-of-authorities\.pdf$/u.test(name)) &&
-      Object.keys(pending).some((name) => /table-of-authorities\.docx$/u.test(name)), `${mode}: the book, table and Word copy build while the final PDF waits`, Object.keys(pending));
-    check(/Waiting for your brief PDF/u.test(await dock().locator("[data-output=final]").innerText()), `${mode}: the dock shows the final PDF waiting for the brief PDF`);
-    check(!await page.locator("main .text-red-800").filter({ hasText: /brief/iu }).count(), `${mode}: a missing brief PDF is not an error`);
-    check(await dockBox() === docked, `${mode}: the outputs dock stays where it is through a build`, [docked, await dockBox()]);
-    const finalSection = () => page.getByRole("group", { name: /^Final PDF/u }).evaluate((element) => element.scrollIntoView({ block: "center" }));
-    await finalSection(); await shots("docx-12-pending");
-    await pick(() => page.getByRole("button", { name: "Upload the brief PDF" }).click(), [fixtures.briefPdf]);
-    await page.getByRole("button", { name: "Replace the brief PDF" }).waitFor();
-    const tabs = await build("docx-tabs", /Lakeshore/u);
-    await finalSection(); await shots("docx-13-built");
-    check(/Ready/u.test(await dock().locator("[data-output=final]").innerText()) && await dockBox() === docked,
-      `${mode}: the built final PDF shows ready in the dock, which has not moved`);
+    await button("Set up", dock()).click();
+    const final = page.getByRole("dialog", { name: "Final PDF" });
+    await choose(final.getByRole("checkbox", { name: "Citations to their tabs" }));
+    check(JSON.stringify(await frame()) === JSON.stringify(options), `${mode}: the final PDF's dialog keeps the frame still`, [options, await frame()]);
+    // A Word brief needs the brief saved as PDF; until it is added the dialog says so, calmly.
+    check(await button("Build final PDF", final).isDisabled() && /Add your brief as PDF to build it/u.test(await final.innerText()) &&
+      !await final.locator(".text-red-800").count(), `${mode}: the final PDF waits for the brief PDF without an error`);
+    await shots("docx-12-final-pdf");
+    await pick(() => button("Upload the brief PDF", final).click(), [fixtures.briefPdf]);
+    await button("Replace the brief PDF", final).waitFor();
+    const tabs = await build("docx-tabs", /Lakeshore/u, () => button("Build final PDF", final).click());
+    await shots("docx-13-built");
+    check(await dock().locator("[data-output=final][data-ready]").count() === 1 && await dockBox() === docked,
+      `${mode}: the built final PDF is a download in the dock, which has not moved`);
+    check(Object.keys(tabs).some((name) => /book-of-authorities\.pdf$/u.test(name)) && Object.keys(tabs).some((name) => /table-of-authorities\.docx$/u.test(name)),
+      `${mode}: the book and the table build with the final PDF`, Object.keys(tabs));
     await verifyWordOutputs(tabs, true);
     // A Word copy choice changed after the build, then the brief PDF replaced while the choice is
     // still saving (a long brief's saves take a while; here each is held for a second): each is
@@ -929,7 +924,8 @@ function Run(page, mode) {
       };
     });
     await page.locator("label", { has: marks }).click();
-    const replace = () => page.getByRole("button", { name: "Replace the brief PDF" }).click();
+    await button("Final PDF options", dock()).click();
+    const replace = () => button("Replace the brief PDF", final).click();
     if (mode === "file") {
       // The reader takes a moment in the file dialog, while the choice's first save lands.
       const chooser = page.waitForEvent("filechooser");

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { currentTabReference, tabReference } from "../../../../shared/authorities-order.mjs";
 import type { AuthoritiesBuildSettings } from "./types";
 import { OptionCard } from "./OptionCards";
+import { Modal } from "@/app/components/modals/Modal";
 import { cn } from "@/app/lib/utils";
 
 /** The outputs a brief can ask for: its Word copy, the tab references in it, and the final PDF
@@ -13,8 +14,8 @@ export type AuthoritiesOutputOptionsValue = { insertIntoDocument?: boolean } &
 type WordMode = "none" | "marks" | "table";
 type TabMode = NonNullable<AuthoritiesBuildSettings["citationSuffix"]>;
 const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
-// Laid out as the passage marks are: two cards a row where there is room.
-const CARDS = "grid auto-rows-fr gap-2 @min-[34rem]/output:grid-cols-2";
+// One choice a row: its drawing, its name and its sentence, each in the same column down the list.
+const ROWS = "@container/rows grid gap-1.5";
 /** Custom wording starts from the usual form; the user types over it. */
 const WORDING = "Book of Authorities, Tab";
 /** A tab reference never breaks inside it. */
@@ -28,8 +29,8 @@ export function briefPdfAdvice(filename: string, value: AuthoritiesOutputOptions
     : `Open ${filename} in Word, choose File › Save As › PDF, then add it here.`;
 }
 
-/** A Word brief's two choices, drawn as the import options are and read the same at import and at
- *  Build: what its Word copy holds, and the tab reference after each citation. */
+/** A Word brief's two choices, drawn as the import options are: what its Word copy holds, and the
+ *  tab reference after each citation. */
 export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = false, lockedDelivery,
   firstTab = "Tab 1" }: {
   value: AuthoritiesOutputOptionsValue;
@@ -46,8 +47,7 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
   // A linked table is a list of links, without Word's citation fields.
   const linked = delivery === "linked-append";
   const modes: ReadonlyArray<{ value: WordMode; label: string; detail: string }> = [
-    { value: "none", label: linked ? "No table" : "No marks",
-      detail: "Citations are left unmarked; a copy is made only for tab references." },
+    { value: "none", label: linked ? "No table" : "No marks", detail: "Citations are left unmarked." },
     { value: "marks", label: "Marked copy",
       detail: "A copy of the brief with each citation marked for Word’s Table of Authorities." },
     linked ? { value: "table", label: "Copy with a linked table",
@@ -68,11 +68,11 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
     if (tabMode !== "custom" || typed !== value.citationSuffixLabel)
       onChange({ citationSuffix: "custom", citationSuffixLabel: typed });
   };
-  return <div className="@container/output grid gap-y-5">
+  return <div className="grid gap-y-5">
     <fieldset disabled={disabled} className="min-w-0">
       <legend className={LEGEND}>Word copy</legend>
-      <div className={CARDS}>
-        {modes.map(mode => <OptionCard key={mode.value} name={name} checked={selected === mode.value}
+      <div className={ROWS}>
+        {modes.map(mode => <OptionCard key={mode.value} row name={name} checked={selected === mode.value}
           disabled={!!lockedDelivery && mode.value === "marks"}
           onChange={() => onChange({ insertIntoDocument: mode.value !== "none",
             tableDelivery: mode.value === "marks" ? "native-marks" : delivery })}
@@ -81,19 +81,18 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
     </fieldset>
     <fieldset disabled={disabled} className="min-w-0">
       <legend className={LEGEND}>Tab references</legend>
-      <div className="grid gap-2 @min-[34rem]/output:grid-cols-2">
-        <OptionCard name={tabsName} checked={tabMode === "none"} onChange={() => onChange({ citationSuffix: "none" })}
+      <div className={ROWS}>
+        <OptionCard row name={tabsName} checked={tabMode === "none"} onChange={() => onChange({ citationSuffix: "none" })}
           label="None" detail="Citations are left as the brief writes them." preview={<TabPreview mode="none" />} />
-        <OptionCard name={tabsName} checked={tabMode === "tab"} onChange={() => onChange({ citationSuffix: "tab" })}
+        <OptionCard row name={tabsName} checked={tabMode === "tab"} onChange={() => onChange({ citationSuffix: "tab" })}
           label={whole(`[${firstTab}]`)} preview={<TabPreview mode="tab" />}
-          detail={<>Each citation is followed by its tab, as in “R v Jordan, 2016 SCC 27 {whole(`[${firstTab}]`)}”.</>} />
-        <OptionCard name={tabsName} checked={tabMode === "custom"} onChange={chooseCustom}
-          className="@min-[34rem]/output:col-span-2" preview={<TabPreview mode="custom" />}
-          label="Your wording, then the tab number"
+          detail={<>Each citation is followed by its tab: “R v Jordan, 2016 SCC 27 {whole(`[${firstTab}]`)}”.</>} />
+        <OptionCard row name={tabsName} checked={tabMode === "custom"} onChange={chooseCustom}
+          preview={<TabPreview mode="custom" />} label="Your wording"
           detail={<>
             <input ref={input} type="text" value={words} maxLength={120} aria-label="Words before the tab number"
               aria-invalid={missing || undefined} placeholder="Appellant’s Book of Authorities, Tab"
-              className="mt-1 block h-8 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600 aria-[invalid]:border-red-700"
+              className="block h-8 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600 aria-[invalid]:border-red-700"
               onChange={(event) => { setWords(event.target.value); if (event.target.value.trim()) setMissing(false); }}
               onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }}
               onBlur={() => { if (typed) chooseCustom(); else { setMissing(false); setWords(value.citationSuffixLabel ?? WORDING); } }} />
@@ -105,46 +104,44 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
   </div>;
 }
 
-/** The final PDF, a workflow of its own that the user opts into: the brief as filed, then the book,
- *  its citations linked inside it. Its steps stay in place, unavailable, until it is chosen. */
-export function FinalPdfOptions({ value, onChange, disabled = false, brief, result }: {
+/** The final PDF: the brief, then the book, in one PDF whose citations open their tabs. It is an
+ *  occasional path, so its choices and its build live here and take no room on the Build step. */
+export function FinalPdfModal({ open, onClose, value, onChange, disabled = false, brief, blocked, onBuild, onRemove }: {
+  open: boolean; onClose: () => void;
   value: Pick<AuthoritiesOutputOptionsValue, "finalPdf" | "linkTabs" | "linkPinpoints">;
   onChange: (patch: AuthoritiesOutputOptionsValue) => void;
   disabled?: boolean;
-  /** Step 1: the brief as PDF, already there or added here. */
-  brief: (available: boolean) => ReactNode;
-  /** Step 3: the final PDF's own build and download. */
-  result: (available: boolean) => ReactNode;
+  /** The brief saved as PDF, where this app cannot make that PDF from the Word brief itself. */
+  brief?: ReactNode;
+  /** Why it cannot be built yet. */
+  blocked?: string;
+  onBuild: () => void; onRemove: () => void;
 }) {
-  const final = !!value.finalPdf;
-  const step = (number: number, title: string, body: ReactNode) => <li className="grid gap-2">
-    <span className={cn("flex items-center gap-2 text-sm font-medium", final ? "text-gray-950" : "text-gray-500")}>
-      <span aria-hidden="true" className="grid h-5 w-5 place-items-center rounded-full border border-gray-400 text-xs text-gray-700">{number}</span>
-      {title}</span>
-    {body}
-  </li>;
-  return <fieldset disabled={disabled} className="@container/output min-w-0">
-    <legend className={LEGEND}>Final PDF <span className="font-normal text-gray-500">(optional)</span></legend>
-    <OptionCard type="checkbox" checked={final} onChange={event => onChange({ finalPdf: event.target.checked })}
-      label="Make a final PDF" preview={<PdfPreview kind="append" />}
-      detail="Your brief as filed, then the Book of Authorities, with each citation linked to its tab: “R v Jordan, 2016 SCC 27” opens Tab 4." />
-    <p className="mt-2 text-xs leading-4 text-gray-600">
-      Its links jump to pages inside the PDF; web links already in the brief are kept as they are.</p>
-    <ol className="mt-3 grid gap-4">
-      {step(1, "Your brief as PDF", brief(final))}
-      {step(2, "Links", <div className={CARDS}>
-        <OptionCard type="checkbox" disabled={!final} checked={!!value.linkTabs}
-          onChange={event => onChange({ linkTabs: event.target.checked })} label="Link citations to their tabs"
-          preview={<PdfPreview kind="tabs" />}
-          detail="Clicking “R v Jordan, 2016 SCC 27” or its tab reference opens Tab 4 in the book." />
-        <OptionCard type="checkbox" disabled={!final} checked={!!value.linkPinpoints}
-          onChange={event => onChange({ linkPinpoints: event.target.checked })} label="Link pinpoints to the cited passage"
-          preview={<PdfPreview kind="pinpoints" />}
-          detail="For PDFs you uploaded, clicking “at para 105” opens Tab 4 at paragraph 105; any not found are listed." />
-      </div>)}
-      {step(3, "Build it", result(final))}
-    </ol>
-  </fieldset>;
+  return <Modal open={open} onClose={onClose} size="xl" breadcrumbs={["Final PDF"]} fit
+    footerStatus={<span role="status" className="mr-auto min-w-0 truncate pl-2 text-sm text-gray-600">{blocked}</span>}
+    secondaryAction={value.finalPdf ? { label: "Remove final PDF", disabled, onClick: onRemove } : undefined}
+    primaryAction={{ label: "Build final PDF", disabled: disabled || !!blocked, onClick: onBuild }}>
+    <div className="grid gap-5 pb-5">
+      <p className="flex items-center gap-3 text-sm leading-6 text-gray-700">
+        <PdfPreview kind="append" />One PDF: your brief as filed, then the Book of Authorities.</p>
+      <fieldset disabled={disabled} className="min-w-0">
+        <legend className={LEGEND}>Links</legend>
+        <div className={ROWS}>
+          <OptionCard row type="checkbox" checked={!!value.linkTabs}
+            onChange={event => onChange({ linkTabs: event.target.checked })} label="Citations to their tabs"
+            preview={<PdfPreview kind="tabs" />}
+            detail="Clicking “R v Jordan, 2016 SCC 27” or its tab reference opens Tab 4." />
+          <OptionCard row type="checkbox" checked={!!value.linkPinpoints}
+            onChange={event => onChange({ linkPinpoints: event.target.checked })} label="Pinpoints to the passage"
+            preview={<PdfPreview kind="pinpoints" />}
+            detail="In PDFs you uploaded, clicking “at para 105” opens Tab 4 at paragraph 105. Any it cannot place are listed." />
+        </div>
+        <p className="mt-2 text-xs leading-4 text-gray-600">
+          These links jump within the PDF. Web links already in your brief are kept as they are.</p>
+      </fieldset>
+      {brief && <div className="min-w-0"><h3 className={LEGEND}>Your brief as PDF</h3>{brief}</div>}
+    </div>
+  </Modal>;
 }
 
 const PAGE = "relative block h-9 w-14 shrink-0 overflow-hidden rounded border border-gray-400 bg-white";

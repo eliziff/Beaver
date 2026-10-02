@@ -205,7 +205,7 @@ it('recovers a save whose response was lost instead of repeating its revision', 
   }
 });
 
-it('asks for the marking on first entry and prepares saved highlights again once it is saved', async () => {
+it('shows the marking chosen at import and prepares saved highlights again once a new one is saved', async () => {
   const {hash, product} = fixture();
   const manual = {id:'mine',kind:'highlight' as const,origin:'manual' as const,label:'Custom highlight',excerpt:'Mine',
     rgb:[1,.92,.6] as [number,number,number],opacity:.45,fragments:[{pageNumber:1,rects:[[.1,.1,.8,.2] as [number,number,number,number]]}]};
@@ -219,26 +219,23 @@ it('asks for the marking on first entry and prepares saved highlights again once
   const host = {readSource: async () => new Blob(['%PDF-scan']), prepareAnnotations} as unknown as AuthoritiesHost;
   const onAction = vi.fn();
   const props = {tabs:new Map(), host, busy:false, ocr:{tracked:{},begin:vi.fn(),stop:vi.fn()}, onSaved:vi.fn(), onAction};
-  const unseen = render(<AuthoritiesHighlights first product={first} {...props} />);
+  // The marking is always on the step: nothing waits on it, and it can be changed at any time.
+  const unseen = render(<AuthoritiesHighlights product={first} {...props} />);
   expect(screen.getByRole('group', {name:'Passage marking'})).toBeVisible();
-  fireEvent.click(screen.getByRole('button', {name:'Continue'}));
-  expect(screen.queryByRole('group', {name:'Passage marking'})).toBeNull();
+  expect(screen.queryByRole('button', {name:'Continue'})).toBeNull();
   unseen.unmount();
-  // A draft with no source PDF yet is still asked, and has nothing to edit.
+  // A draft with no source PDF yet shows its marking too, and has nothing to edit.
   const bare = {...first, id:'bare', state:{...first.state, authorities:{}, authorityOrder:[]}};
-  const empty = render(<AuthoritiesHighlights first product={bare} {...props} />);
+  const empty = render(<AuthoritiesHighlights product={bare} {...props} />);
   expect(screen.getByRole('group', {name:'Passage marking'})).toBeVisible();
   expect(screen.getByRole('button', {name:'Edit in PDF'})).toBeDisabled();
   empty.unmount();
-  // A draft whose highlights were already reviewed opens closed, and the options reopen from the step.
-  const view = render(<AuthoritiesHighlights first product={product} {...props} />);
+  const view = render(<AuthoritiesHighlights product={product} {...props} />);
   try {
-    expect(screen.queryByRole('group', {name:'Passage marking'})).toBeNull();
-    fireEvent.click(screen.getByRole('button', {name:'Highlighting options'}));
     fireEvent.click(screen.getByRole('radio', {name:/Black line/}));
     expect(onAction).toHaveBeenCalledWith({type:'set-settings', settings:{passageMarking:'sidelined'}});
     expect(prepareAnnotations).not.toHaveBeenCalled();
-    view.rerender(<AuthoritiesHighlights first product={{...product, revision:2, state:{...product.state,
+    view.rerender(<AuthoritiesHighlights product={{...product, revision:2, state:{...product.state,
       settings:{...product.state.settings, passageMarking:'sidelined'}}}} {...props} />);
     await waitFor(() => expect(onAction).toHaveBeenLastCalledWith({type:'set-annotations', entries:[{authorityId:'one',
       bindingRole:'one', annotations:expect.objectContaining({marks:[fresh, manual]})}]}));
