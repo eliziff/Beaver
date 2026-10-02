@@ -231,7 +231,11 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     page.node.addAnnot(page.doc.context.register(page.doc.context.obj({
       Type: "Annot", Subtype: "Link", Rect: rect, Border: [0, 0, 0],
       ...(typeof target === "string" ? { A: page.doc.context.register(page.doc.context.obj({
-        Type: "Action", S: "URI", URI: PDFHexString.fromText(target),
+        // A URI is 7-bit ASCII (ISO 32000 12.6.4.7), never a text string: a viewer reads an
+        // encoded one as no address at all. Its characters past ASCII and the literal string's
+        // own delimiters are percent-encoded.
+        Type: "Action", S: "URI", URI: pdf.PDFString.of(target.replace(/[()\\]/gu, (character) =>
+          `%${character.charCodeAt(0).toString(16).toUpperCase()}`).replace(/[^\x21-\x7e]+/gu, encodeURIComponent)),
       })) } : { Dest: [target.ref, "Fit"] }),
     })));
   }
