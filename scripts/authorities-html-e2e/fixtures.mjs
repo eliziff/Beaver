@@ -14,6 +14,7 @@ const JSZip = require("jszip"), { PDFDocument } = require("pdf-lib");
 export const BRIEF = {
   title: "Memorandum of Argument of the Applicant",
   titleNote: "The applicant thanks the Riverbend student clinic for its research assistance.",
+  webLink: "https://example.test/riverbend-clinic",
   pages: [[
     { text: "1. The applicant, a small paddling cooperative, asks the Court to set aside the refusal to renew its launch licence at the north basin." },
     { text: "2. Reasonableness is the presumptive standard of review: Canada (Minister of Citizenship and Immigration) v Vavilov, 2019 SCC 65 at para 10. A reasonable decision is internally coherent and justified in light of the legal and factual constraints.", note: "Ibid at paras 99-101." },
@@ -49,14 +50,16 @@ const css = `@page{size:Letter;margin:0}body{margin:0;font:12pt/1.55 "Times New 
 .page{box-sizing:border-box;width:8.5in;height:11in;padding:1in;display:flex;flex-direction:column;page-break-after:always}
 .body{flex:1}.notes{font-size:9.5pt;line-height:1.35}.notes hr{width:2in;margin:0 0 6pt;border:0;border-top:.6pt solid #000;text-align:left}
 .notes p{margin:0 0 3pt}h1{font-size:14pt;text-align:center;text-transform:uppercase;margin:0 0 18pt}p{margin:0 0 10pt;text-align:justify}
-sup{font-size:7pt;line-height:0}h2{font-size:12pt;margin:14pt 0 6pt}.sec{margin:0 0 8pt}.sub{margin:0 0 6pt 24pt}`;
+sup{font-size:7pt;line-height:0}a{color:inherit;text-decoration:none}h2{font-size:12pt;margin:14pt 0 6pt}.sec{margin:0 0 8pt}.sub{margin:0 0 6pt 24pt}`;
 
 /** The brief as a two-page PDF whose notes sit at the foot of the page that calls them. */
 function briefHtml() {
   let number = 0;
   const pages = BRIEF.pages.map((items, index) => {
     const notes = [];
-    if (index === 0) notes.push(`<p>* ${BRIEF.titleNote}</p>`);
+    // The clinic is a web link of the author's own, which the final PDF keeps.
+    if (index === 0) notes.push(`<p>* ${BRIEF.titleNote.replace("Riverbend student clinic",
+      `<a href="${BRIEF.webLink}">Riverbend student clinic</a>`)}</p>`);
     const body = (index === 0 ? `<h1>${BRIEF.title}<sup>*</sup></h1>` : "") + items.map(({ text, note }) => {
       if (!note) return `<p>${text}</p>`;
       number += 1; notes.push(`<p><sup>${number}</sup> ${note}</p>`);
