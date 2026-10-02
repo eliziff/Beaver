@@ -35,6 +35,8 @@ export interface PdfCanvasProps {
     recognizedText?: PdfRecognizedText;
     loadRecognizedText?: PdfPageTextLoader;
     onTextReady?: (page: number, element: HTMLElement, focus: boolean) => void;
+    /** Told when a page of the document it was given is drawn. */
+    onRendered?: () => void;
 }
 
 
@@ -43,7 +45,7 @@ type Layout = PdfSession & { search(quotes: CitationQuote[]): Promise<void> };
 
 export function PdfCanvas({source, bytes, loading = false, error, quotes = [], quoteFocusKey,
     rounded = true, ariaLabel = "PDF document", onUnavailable, annotationEditor,
-    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady}: PdfCanvasProps) {
+    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady, onRendered}: PdfCanvasProps) {
     const containerRef = useRef<HTMLDivElement>(null), scrollRef = useRef<HTMLDivElement>(null);
     const layoutRef = useRef<Layout | null>(null);
     const previewRef = useRef<HTMLDivElement | null>(null);
@@ -63,6 +65,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
     const [embeddedPageLabels, setEmbeddedPageLabels] = useState<readonly (string | null)[]>();
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
     const notifyTextReady = useEffectEvent((page: number, element: HTMLElement, focus = false) => onTextReady?.(page, element, focus));
+    const notifyRendered = useEffectEvent(() => onRendered?.());
     useLayoutEffect(() => { setEmbeddedPageLabels(undefined); }, [bytes, source, authoredPageLabels]);
     useLayoutEffect(() => {
         editorRef.current = annotationEditor; quotesRef.current = quotes;
@@ -136,7 +139,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                     highlightQuote(element,found.get(number) ?? []); notifyTextReady(number, element);
                 },
                 onZoom:setZoom,onPage:number => { setCurrentPage(number);  },
-                onRendered:() => { clearPreview(); setPreparing(false); },onError:fail});
+                onRendered:() => { clearPreview(); setPreparing(false); notifyRendered(); },onError:fail});
             viewer = session.viewer;
             const {viewer:current,pages,preparePage,ensureText} = session;
             const search = async (entries: CitationQuote[]) => {
