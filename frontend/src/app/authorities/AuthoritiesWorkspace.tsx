@@ -1202,7 +1202,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         <p className="text-sm text-gray-700">{missingPdfs.length} authorit{missingPdfs.length === 1
           ? "y has" : "ies have"} no available PDF. {draft?.state.settings.missingSourcePolicy === "omit"
             ? "Build a draft without those PDFs, keeping the tab numbers."
-            : "Labelled pages will hold those tab slots."} The output will be marked incomplete.</p>
+            : "Labelled pages will hold those tab slots, to finish in a PDF editor."}</p>
         <ul className="mt-3 space-y-1 pb-4 text-sm text-gray-800">
           {missingPdfs.map(item => <li key={item.id}>{authorityLabel(item)}</li>)}
         </ul>
@@ -1451,7 +1451,7 @@ function BuildPanel({ draft, busy, building, progress, missing, jurisdictionOrde
         disabled={busy} onChange={(bookRole) => onAction({ type: "set-settings",
           settings: { bookRole } })} options={bookRoles} />
     </div>}
-    <p className={cn("mt-2 min-h-5 text-sm leading-5", missingText ? "text-red-800" : "invisible")}
+    <p className={cn("mt-2 min-h-5 text-sm leading-5 text-gray-700", !missingText && "invisible")}
       aria-hidden={!missingText || undefined}>{missingText || "Ready"}</p>
     {wordDocument && <div className="mb-2 border-t border-gray-200 pt-2">
       <AuthoritiesOutputOptions disabled={busy}
