@@ -552,12 +552,16 @@ function Run(page, mode) {
     await button("Next").click();
     await page.getByRole("list", { name: "Authority tab slots" }).waitFor({ timeout: 60000 });
     note(mode, `${label}-step-sources`, await now() - started);
-    check(await now() - started < BUDGETS.stepSwitch, `${mode} ${label}: Next to Sources in ${Math.round(await now() - started)} ms`);
+    // Live, Next waits on the real services for the sources still being gathered.
+    check(args.live || await now() - started < BUDGETS.stepSwitch, `${mode} ${label}: Next to Sources in ${Math.round(await now() - started)} ms`);
     const steps = await frame();
     check(steps.header === fixed.header && steps.steps === fixed.steps, `${mode} ${label}: header and steps keep their boxes on Sources`, [fixed, steps]);
     const row = (name) => page.getByRole("listitem").filter({ has: page.getByRole("heading", { name, exact: false }) });
-    for (const name of ["Vavilov", "Oakes", "Jordan"])
-      check(await row(name).getByRole("img", { name: "Built from source text" }).count() === 1, `${mode} ${label}: ${name} is provided from A2AJ text`);
+    // The stub serves no publisher PDF, so these are built from A2AJ's text; live, the publisher may
+    // serve the original, and either way the source is there to view.
+    for (const name of ["Vavilov", "Oakes", "Jordan"]) args.live
+      ? check(await row(name).getByRole("button", { name: /^View PDF for/u }).count() === 1, `${mode} ${label}: ${name} has its source`)
+      : check(await row(name).getByRole("img", { name: "Built from source text" }).count() === 1, `${mode} ${label}: ${name} is provided from A2AJ text`);
     await noFalseOutage(label);
     await tabColumn(`${label} sources`, page.getByRole("list", { name: "Authority tab slots" }).getByRole("listitem"));
     // The statute through the row's upload menu, the scan through the CanLII row's Upload.
@@ -582,7 +586,8 @@ function Run(page, mode) {
     await progress.filter({ hasText: "Text recognition complete" }).waitFor({ timeout: BUDGETS.ocr * 3 });
     const recognized = await now() - ocrStarted;
     note(mode, `${label}-ocr`, recognized);
-    check(recognized < BUDGETS.ocr, `${mode} ${label}: one scanned page recognized in ${Math.round(recognized)} ms`);
+    // Live, a real scan may be read beside it: the budget is for the stubbed run.
+    check(args.live || recognized < BUDGETS.ocr, `${mode} ${label}: one scanned page recognized in ${Math.round(recognized)} ms`);
     // Attaching the scan and its recognition running to completion move nothing on the page.
     const sourceShifts = ownShifts(await page.evaluate(([from, to]) => window.__e2e.window(from, to).shifts, [shiftFrom, await now()]));
     check(!sourceShifts.length, `${mode} ${label}: attaching a scan and recognizing it shift nothing`,
@@ -637,7 +642,9 @@ function Run(page, mode) {
     const started = await now();
     await button("Next").click();
     const recognize = page.getByRole("dialog").filter({ hasText: "Recognize text" });
-    if (await recognize.count()) check(false, `${mode} ${label}: Next asked to recognize text after recognition finished`);
+    // Live, a publisher's own scan may still be being read; the question then lists it, and Next goes on.
+    if (args.live && await recognize.count()) await button("Next", recognize).click();
+    else if (await recognize.count()) check(false, `${mode} ${label}: Next asked to recognize text after recognition finished`);
     await button("Edit in PDF").waitFor();
     note(mode, `${label}-step-highlights`, await now() - started);
     // The marking chosen at import is on the step as well, with nothing to get past.
@@ -799,10 +806,11 @@ function Run(page, mode) {
       const outputs = [...document.querySelectorAll("button[aria-label^='Download ']")];
       return outputs.length && outputs.every((button) => !button.getAttribute("aria-label").startsWith("Download previous")) &&
         ![...document.querySelectorAll("button, [role=dialog]")].some((element) => /^Cancel$|Missing PDFs/u.test(element.textContent.trim()));
-    }, null, { timeout: BUDGETS.build * 3, polling: 50 });
+    // Live, real PDFs (and a real scan read for the book) make a longer build: it is noted, not budgeted.
+    }, null, { timeout: args.live ? 300_000 : BUDGETS.build * 3, polling: 50 });
     const built = await now() - started;
     note(mode, `${label}-build`, built);
-    check(built < BUDGETS.build, `${mode} ${label}: build ${Math.round(built)} ms`);
+    check(args.live || built < BUDGETS.build, `${mode} ${label}: build ${Math.round(built)} ms`);
     const status = await page.locator("[role=tablist][aria-label='Book steps'] ~ [data-tabs-actions] [role=status]").innerText();
     check(/^Outputs ready|incomplete/iu.test(status), `${mode} ${label}: the build reports its outputs`, status);
     return downloadOutputs(label);
