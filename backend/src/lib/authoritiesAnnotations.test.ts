@@ -17,7 +17,11 @@ const annots = (document: PDFDocument, page=0) => {
   const value=document.getPage(page).node.lookupMaybe(PDFName.of('Annots'),PDFArray);
   return value?.asArray().map(ref=>document.context.lookup(ref,PDFDict)) ?? [];
 };
-const contents = (annot: PDFDict) => annot.lookup(PDFName.of('Contents'),PDFHexString).decodeText();
+// Each mark is known by its NM (namespace:mark:page:part); it carries no author or comment.
+const markId = (annot: PDFDict) => {
+  expect(annot.has(PDFName.of('T'))||annot.has(PDFName.of('Contents'))).toBe(false);
+  return annot.lookup(PDFName.of('NM'),PDFHexString).decodeText().split(':')[1];
+};
 async function fixture(rotated=false) {
   const source=await PDFDocument.create(),page=source.addPage([400,500]);
   page.drawText('An uncited passage and a cited paragraph.',{x:40,y:350,size:12,font:await source.embedFont(StandardFonts.Helvetica)});
@@ -98,7 +102,7 @@ describe('persistent visual PDF annotations',()=>{
     const {draft,bytes,hash}=await fixture(true);draft.settings.passageMarking='none';
     const edited=reduceAuthoritiesDraft(draft,action(set(hash)));
     const output=await build(edited,bytes),annotations=annots(output,2);
-    expect(annotations.map(contents)).toEqual(['Manually selected passage']);
+    expect(annotations.map(markId)).toEqual(['one']);
     expect(String(annotations[0].lookup(PDFName.of('Subtype')))).toBe('/Highlight');
     expect(annotations[0].lookup(PDFName.of('QuadPoints'),PDFArray).size()).toBe(8);
     expect(annotations[0].lookup(PDFName.of('F'),PDFNumber).asNumber()).toBe(4);
@@ -115,8 +119,7 @@ describe('persistent visual PDF annotations',()=>{
     const initial=prepareAuthorityAnnotations(pdf,source,draft,draft.authorities.case,
       {bindingRole:'case-en',filename:'case.pdf',sourceSha256:hash},{passageGeometry:geometry(hash)}).annotations;
     const edited=reduceAuthoritiesDraft(draft,action({...initial,marks:[initial.marks[1],mark()]}));
-    expect(annots(await build(edited,bytes,geometry(hash)),2).map(contents)).toEqual([
-      'Cited quote — Second independent quote','Manually selected passage']);
+    expect(annots(await build(edited,bytes,geometry(hash)),2).map(markId)).toEqual([initial.marks[1].id,'one']);
     const empty=reduceAuthoritiesDraft(edited,action(set(hash,[])));
     expect(annots(await build(empty,bytes,geometry(hash)),2)).toHaveLength(0);
   });

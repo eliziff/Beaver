@@ -262,7 +262,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
     }
   }
   applyOutlines(document, outlines, true);
-  document.setTitle(`${draft.settings.allowIncomplete ? "DRAFT — incomplete sources · " : ""}Brief and Book of Authorities`);
+  document.setTitle("Brief and Book of Authorities");
   document.setCreator("Beaver"); document.setProducer("Beaver / pdf-lib");
   input.signal?.throwIfAborted();
   return { bytes: Buffer.from(await document.save({ useObjectStreams: false })),

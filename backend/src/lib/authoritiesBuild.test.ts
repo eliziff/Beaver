@@ -61,11 +61,9 @@ function pageAnnots(document: PDFDocument, pageIndex: number) {
 const annotSubtypes = (document: PDFDocument, pageIndex: number) =>
   pageAnnots(document, pageIndex).map((annot) => String(annot.lookup(PDFName.of("Subtype"))));
 
-const annotContents = (document: PDFDocument, pageIndex: number) =>
-  pageAnnots(document, pageIndex).map((annot) => {
-    const contents = annot.lookupMaybe(PDFName.of("Contents"), PDFHexString);
-    return contents?.decodeText() ?? "";
-  });
+/** What a viewer would show beside a mark: an author or a comment. Marks carry neither. */
+const annotNotes = (document: PDFDocument, pageIndex: number) =>
+  pageAnnots(document, pageIndex).filter((annot) => annot.has(PDFName.of("T")) || annot.has(PDFName.of("Contents")));
 
 function generatedTextLayout(content: string) {
   return {
@@ -305,8 +303,9 @@ describe("Authorities final export", () => {
     expect(result.receipt.authorities[0]).toMatchObject({ tab: "Tab 1", source: { kind: "attached" } });
     const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
     expect(combined.getPageCount()).toBe(4);
-    expect(combined.getTitle()).toContain("DRAFT");
-    expect(pageContent(combined, combined.getPage(3)).toUpperCase()).toContain(pdfTextHex("Source PDF unavailable"));
+    expect(combined.getTitle()).not.toMatch(/draft|incomplete/iu);
+    // The missing PDF's page names its authority, and says nothing else.
+    expect(pageContent(combined, combined.getPage(3)).toUpperCase()).not.toContain(pdfTextHex("unavailable"));
     await expect(buildAuthorities({ draft: state, title: "Changed", workProduct: { id: "changed", revision: 1 },
       sources: { source: { bytes: original } } })).rejects.toThrow(/changed/iu);
   });
@@ -701,7 +700,7 @@ describe("Authorities output builder", () => {
     const source = await PDFDocument.load(pdf), book = await PDFDocument.load(result.artifacts.book!.bytes);
     expect(pageHasRgb(pageContent(book, book.getPage(2)), [.75, .08, .08])).toBe(false);
     expect(annotSubtypes(book, 2)).toEqual(["/Square"]);
-    expect(annotContents(book, 2)).toEqual(["Cited page"]);
+    expect(annotNotes(book, 2)).toEqual([]);
   });
 
   it("renders each passage-marking style from exact PDF geometry", async () => {
@@ -745,8 +744,7 @@ describe("Authorities output builder", () => {
     const highlight = pageAnnots(markedBook, 2).find((annot) =>
       String(annot.lookup(PDFName.of("Subtype"))) === "/Highlight")!;
     expect(highlight.lookup(PDFName.of("QuadPoints"), PDFArray).size()).toBe(8);
-    expect(highlight.lookup(PDFName.of("Contents"), PDFHexString).decodeText())
-      .toContain("exact words");
+    expect(annotNotes(markedBook, 2)).toEqual([]);
     const outline = markedBook.catalog.lookup(PDFName.of("Outlines"), PDFDict)
       .lookup(PDFName.of("First"), PDFDict).lookup(PDFName.of("Next"), PDFDict)
       .lookup(PDFName.of("Next"), PDFDict).lookup(PDFName.of("First"), PDFDict)
@@ -860,7 +858,7 @@ describe("Authorities output builder", () => {
         passageGeometry } } });
     const book = await PDFDocument.load(built.artifacts.book!.bytes);
     expect(annotSubtypes(book, 2)).toEqual(["/Square"]);
-    expect(annotContents(book, 2)).toEqual(["Cited page"]);
+    expect(annotNotes(book, 2)).toEqual([]);
   });
 
   it("stops before emitting artifacts when the build is cancelled", async () => {
@@ -1208,9 +1206,7 @@ describe("Authorities output builder", () => {
       const destination = annot.lookupMaybe(PDFName.of("Dest"), PDFArray);
       return destination ? [String(destination.get(0))] : [];
     })).toEqual(placeholderBook.getPages().slice(2).map(page => page.ref.toString()));
-    expect(pageContent(placeholderBook, placeholderBook.getPage(3)).toUpperCase()).toContain(
-      Buffer.from("Source PDF unavailable", "latin1").toString("hex").toUpperCase(),
-    );
+    expect(pageContent(placeholderBook, placeholderBook.getPage(3)).toUpperCase()).not.toContain(pdfTextHex("unavailable"));
     expect(placeholder.receipt.authorities.find(({ id }) => id === "article")?.tab).toBe("Tab 1");
     const placeholderTable = await (await JSZip.loadAsync(placeholder.artifacts.table!.bytes))
       .file("word/document.xml")!.async("string");
@@ -1245,13 +1241,13 @@ describe("Authorities output builder", () => {
     const input = { draft: state, title: "Working draft", workProduct: { id: "draft", revision: 1 },
       sources: { "source:grant": { bytes: casePdf } } };
     const result = await buildAuthorities(input), book = await PDFDocument.load(result.artifacts.book!.bytes);
-    expect(result.artifacts.book!.filename).toContain("draft-incomplete");
-    expect(book.getTitle()).toContain("DRAFT");
+    expect(result.artifacts.book!.filename).toBe("Working draft.book-of-authorities.pdf");
+    expect(book.getTitle()).not.toMatch(/incomplete/iu);
     expect(book.getPageCount()).toBe(4);
     expect(result.receipt.authorities.filter(({ excluded }) => !excluded).map(({ tab }) => tab))
       .toEqual(["Schedule A", "Schedule B"]);
-    expect(pageContent(book, book.getPage(2)).toUpperCase()).toContain(pdfTextHex("Source PDF unavailable"));
-    expect(pageContent(book, book.getPage(0)).toUpperCase()).toContain(pdfTextHex("NOT FOR FILING"));
+    expect(pageContent(book, book.getPage(2)).toUpperCase()).not.toContain(pdfTextHex("unavailable"));
+    expect(pageContent(book, book.getPage(0)).toUpperCase()).not.toContain(pdfTextHex("NOT FOR FILING"));
     await expect(buildAuthorities({ ...input, sources: { "source:grant": { bytes: lawPdf } } }))
       .rejects.toThrow(/changed|exact current input/iu);
   });

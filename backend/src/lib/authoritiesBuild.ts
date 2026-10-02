@@ -716,7 +716,7 @@ async function loadAuthorityPdf(
 ) {
   const loaded = await Promise.all(sources.map(async (source) => ({ source,
     document: allowIncomplete && attached[source.bindingRole]?.bytes === undefined
-      ? await missingSourcePdf(pdf, label, false, `${source.filename} is unavailable. This draft is incomplete.`)
+      ? await missingSourcePdf(pdf, label, false, sources.length > 1 ? `${source.language === "fr" ? "French" : "English"} version` : undefined)
       : await loadBookPdf(pdf, source, label, attached),
     text: attached[source.bindingRole] })));
   const markedPages = new Set<number>();
@@ -777,24 +777,21 @@ async function loadAuthorityPdf(
     passageGeometry };
 }
 
-async function missingSourcePdf(pdf: PdfModule, label: string, federal = false,
-  detail = "No source PDF was attached for this authority.") {
+/** The page a missing PDF's tab keeps: it names the authority (and the language, where one of two
+ *  is missing), so the PDF can be put in its place later. */
+async function missingSourcePdf(pdf: PdfModule, label: string, federal = false, detail?: string) {
   const document = await pdf.PDFDocument.create();
   const regular = await document.embedFont(federal
     ? pdf.StandardFonts.TimesRoman : pdf.StandardFonts.Helvetica);
   const bold = await document.embedFont(federal
     ? pdf.StandardFonts.TimesRomanBold : pdf.StandardFonts.HelveticaBold);
   const page = document.addPage([612, 792]);
-  const margin = federal ? 99.21 : 72;
-  page.drawText("Source PDF unavailable", { x: margin, y: 620,
-    size: federal ? 12 : 24, font: bold });
-  let y = 575;
-  for (const line of wrapped(regular, label, 12, 612 - (2 * margin))) {
-    page.drawText(line, { x: margin, y, size: 12, font: regular }); y -= 18;
+  const margin = federal ? 99.21 : 72, size = federal ? 12 : 14;
+  let y = 620;
+  for (const line of wrapped(bold, label, size, 612 - (2 * margin))) {
+    page.drawText(line, { x: margin, y, size, font: bold }); y -= size + 6;
   }
-  page.drawText(detail,
-    { x: margin, y: y - 18, size: federal ? 12 : 10,
-      font: regular, color: pdf.rgb(.35, .35, .35) });
+  if (detail) page.drawText(detail, { x: margin, y: y - 6, size: 12, font: regular });
   return document;
 }
 
@@ -816,8 +813,7 @@ async function prepareAuthorityBook(
     ? FEDERAL_APPEAL_PAPER_COVERS[role as keyof typeof FEDERAL_APPEAL_PAPER_COVERS] : null;
   const bookTitle = profile.bookTitle ??
     (draft.import.kind === "manual" ? subtitle : "Book of Authorities");
-  const documentTitle = (draft.settings.allowIncomplete ? "DRAFT — incomplete sources · " : "") +
-    (draft.cover.title || bookTitle);
+  const documentTitle = draft.cover.title || bookTitle;
   if (federal && !draft.bookParts.cover && !role) {
     throw new Error("Choose who is filing the Federal Court book.");
   }
@@ -854,8 +850,7 @@ async function prepareAuthorityBook(
           authoritySourceRequirement(draft, entry.authority, profile.requirements) ===
             "incomplete-enactment") {
         const missingLanguage = source.sources.some(({ language }) => language === "en") ? "French" : "English";
-        const stub = await missingSourcePdf(pdf, entry.name, federal,
-          `${missingLanguage} version not attached. This draft is incomplete.`);
+        const stub = await missingSourcePdf(pdf, entry.name, federal, `${missingLanguage} version`);
         await appendPages(loaded.document, stub);
       }
       marked += 1; marking();
@@ -889,7 +884,7 @@ async function prepareAuthorityBook(
     filename, subtitle, documentTitle, bookTitle, federal,
     electronic: draft.settings.filingMedium === "electronic",
     court: profile.courtId === "fca" ? "FEDERAL COURT OF APPEAL" : "FEDERAL COURT",
-    cover: draft.cover, allowIncomplete: !!draft.settings.allowIncomplete, coverLine, paperCover,
+    cover: draft.cover, coverLine, paperCover,
     customCover: draft.bookParts.cover ? attached[draft.bookParts.cover.bindingRole]?.bytes : undefined,
     customIndex: draft.bookParts.index ? attached[draft.bookParts.index.bindingRole]?.bytes : undefined,
     coverPageCount: customCover?.getPageCount() ?? 1,
@@ -1109,8 +1104,9 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
     .replace(/[. ]+$/u, "").slice(0, 120) || "Authorities";
   const base = /^(?:con|prn|aux|nul|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])(?:\.|$)/iu
     .test(cleaned) ? `_${cleaned}` : cleaned;
+  // The brief's name, as a reader knows it: never its file extension.
   const subtitle = input.draft.import.kind === "document"
-    ? input.draft.import.filename : input.title;
+    ? input.draft.import.filename.replace(/\.(?:docx|pdf)$/iu, "") : input.title;
   const bookName = (profile.bookTitle ?? "Book of Authorities").toLowerCase()
     .replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "");
   input.progress?.(wanted.includes("book") ? "Preparing the book" : "Building the table");
@@ -1118,7 +1114,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
     ? [await tableArtifact(tableGroups, `${base}.table-of-authorities.docx`, subtitle,
       input.draft.settings.tableDelivery === "linked-append", wanted.includes("book"))]
     : role === "book"
-      ? assembleBook(await prepareAuthorityBook(input.draft, bookGroups, `${base}${input.draft.settings.allowIncomplete ? ".draft-incomplete" : ""}.${bookName}.pdf`, subtitle,
+      ? assembleBook(await prepareAuthorityBook(input.draft, bookGroups, `${base}.${bookName}.pdf`, subtitle,
         sources, input.signal, input.progress).then((plan) => {
           input.progress?.("Assembling the book"); return plan;
         }), input.signal)
@@ -1150,7 +1146,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
         importedFilename, source, imported[0].resolved.sha256, true);
       return input.finalPdfSource(document.bytes, importedFilename);
     })();
-    const filename = `${base}${input.draft.settings.allowIncomplete ? ".draft-incomplete" : ""}.final.pdf`;
+    const filename = `${base}.final.pdf`;
     const combined = await assembleFinalAuthoritiesPdf(input, sourcePdf,
       built.filter(({ role }) => role.startsWith("book")));
     built.push(artifact("final-pdf", filename, "application/pdf", combined.bytes, combined.pageCount));
