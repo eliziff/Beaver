@@ -232,7 +232,8 @@ export function createAuthoritiesWorkspaceApplication(
       result[bindingRole] = { resolved: { kind: "document",
         documentId: source.documentId, versionId: source.versionId,
         filename: resolvedFilename, sha256: source.sourceSha256 } };
-      if (draft.insertIntoDocument || draft.settings.finalPdf) {
+      if (draft.insertIntoDocument || draft.settings.finalPdf ||
+          (draft.settings.citationSuffix ?? "none") !== "none") {
         const file = await documents.read(scope, binding.documentId, source.versionId, false);
         if (!file || file.fileType.toLowerCase() !== draft.import.fileType ||
             file.version.source_sha256 !== snapshot.sha256 ||

@@ -37,7 +37,7 @@ import { structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry
   type NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
-import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
+import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference } from "mike/shared/authorities-order.mjs";
 import { isCanliiUrl, urlHostname } from "./canliiUrls";
 import { assembleFinalAuthoritiesPdf, assertBriefPdfMatches, briefOccurrencePages, filingLinkUrl,
   filingTabText } from "./authoritiesFinalPdf";
@@ -128,20 +128,18 @@ const inContext = (text: string, start: number, end: number) => [[4, 4], [0, 4],
 export function authorityFilingTargets(draft: AuthoritiesDraft, briefPageText?: string[]): NativePdfPassageTarget[] {
   const tabs = new Map(authorityProcedure(draft, "book").map(({ id, tab }) => [id, tab]));
   const located = briefPageText && briefOccurrencePages(draft, briefPageText);
-  const setting = draft.settings.citationSuffix;
-  const suffix = setting === "book-tab" ? "Book of authorities " : setting === "tab" ? "" : undefined;
   return draft.units.flatMap((unit) => unit.occurrenceIds.flatMap((id) => {
     const occurrence = draft.occurrences[id], authority = draft.authorities[occurrence?.authorityId ?? ""];
     const pages = located ? located.has(id) ? [located.get(id)!] : [] : unit.pageNumbers;
     if (!authority || authority.excluded || !pages.length) return [];
     const tab = tabs.get(authority.id), tabText = filingTabText(unit.text, occurrence, tab);
     const tabStart = tabText === occurrence.authoritySpan.text ? occurrence.authoritySpan.start
-      : unit.text.indexOf(tabText, occurrence.end), suffixText = `[${suffix}${tab}]`;
+      : unit.text.indexOf(tabText, occurrence.end), suffixText = tab && tabReference(draft.settings, tab);
     return [{ id: `filing:${id}`, locatorKind: "page" as const, locator: String(pages[0]), physicalPages: pages,
       exactQuotes: draft.settings.linkTabs ? [tabText] : [],
       quoteSelections: [...draft.settings.linkTabs ? inContext(unit.text, tabStart, tabStart + tabText.length) : [],
         // A brief saved from the Word output carries the tab reference that output appended.
-        ...located && draft.settings.linkTabs && suffix !== undefined ? [{ text: `${occurrence.text} ${suffixText}`,
+        ...located && draft.settings.linkTabs && suffixText ? [{ text: `${occurrence.text} ${suffixText}`,
           start: occurrence.text.length + 1, end: occurrence.text.length + 1 + suffixText.length }] : [],
         ...draft.settings.linkPinpoints && occurrence.pinpointSpan ? [{
           text: occurrence.text, start: occurrence.pinpointSpan.start - occurrence.start,
@@ -354,11 +352,13 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
     const key = authority && `${unit.id}\0${occurrence.end}\0${authority.id}`;
     if (!authority || authority.excluded || !key || seen.has(key)) return [];
     seen.add(key);
-    const suffix = draft.settings.citationSuffix ?? "none", tab = tabs.get(authority.id)!;
+    const tab = tabs.get(authority.id)!;
+    // A linked tab needs its reference to click, even where none was chosen.
+    const suffix = tabReference(draft.settings, tab) ?? (finalLinks && draft.settings.linkTabs ? `[${tab}]` : null);
     return [{ ...nativeMark(draft, authority, unit.id, occurrence.end),
       mark: draft.insertIntoDocument,
-      ...((suffix !== "none" || finalLinks && draft.settings.linkTabs) && {
-        suffix: ` [${suffix === "book-tab" ? "Book of authorities " : ""}${tab}]`,
+      ...(suffix && {
+        suffix: ` ${suffix}`,
         ...(finalLinks && draft.settings.linkTabs && { tabUrl: filingLinkUrl("tab", occurrence.id) }),
       }),
       ...(finalLinks && draft.settings.linkPinpoints && occurrence.pinpointSpan &&
@@ -1039,14 +1039,18 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
       .find((authority) => authoritySourceRequirement(input.draft, authority, requirements) === reason);
     if (owing) throw new Error(sourceMessage[reason](owing));
   }
-  if (input.draft.insertIntoDocument) wanted.push("annotated-document");
+  // A Word brief's copy carries the chosen marks, its tab references, or both.
+  const tabbed = (input.draft.settings.citationSuffix ?? "none") !== "none" &&
+    input.draft.import.kind === "document" && input.draft.import.fileType === "docx";
+  if (input.draft.insertIntoDocument || tabbed) wanted.push("annotated-document");
   const brief = authoritiesBriefPdf(input.draft), briefSource = brief ? sources[brief.bindingRole] : undefined;
-  // A Word brief reaches the final PDF through the host's converter or a PDF the user saved from Word.
+  // A Word brief reaches the final PDF through the host's converter or a PDF the user saved from Word;
+  // until that PDF is added the final PDF waits for it, and the other outputs build without it.
   const briefInput = input.draft.import.kind === "document" && input.draft.settings.finalPdf &&
     input.draft.import.fileType === "docx" && (briefSource?.bytes || !input.finalPdfSource)
     ? ((filename: string) => {
-      if (!brief || !briefSource?.bytes) throw new Error(
-        `This app can't turn Word into PDF. In Word, save ${filename} as PDF, then upload it as the brief PDF.`);
+      if (!brief) return null;
+      if (!briefSource?.bytes) throw new Error(`${brief.filename} is unavailable. In Word, save ${filename} as PDF, then add it again.`);
       assertBriefPdfMatches(input.draft, briefSource.pageTextByPage ?? [], brief.filename);
       return { role: brief.bindingRole, bytes: briefSource.bytes, resolved: resolvedInput(brief.bindingRole,
         input.draft.bindings[brief.bindingRole], brief.filename, brief.sourceSha256, briefSource.resolved) };
@@ -1104,12 +1108,13 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
           sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array(),
           imported[0]?.resolved.sha256 ?? "", sources, !!input.draft.settings.allowIncomplete)]
         : [await documentArtifact(input.draft, tableGroups,
-          `${base}.${input.draft.settings.tableDelivery === "native-marks" ? "marked-authorities" : "with-table-of-authorities"}.docx`,
+          `${base}.${!input.draft.insertIntoDocument ? "with-tab-references"
+            : input.draft.settings.tableDelivery === "native-marks" ? "marked-authorities" : "with-table-of-authorities"}.docx`,
           sources[input.draft.import.kind === "document"
             ? input.draft.import.bindingRole : "source"]?.bytes ?? new Uint8Array(),
           imported[0]?.resolved.sha256 ?? "")]))).flat();
   let linkWarnings: AuthoritiesBuildReceipt["linkWarnings"];
-  if (input.draft.settings.finalPdf && input.draft.import.kind === "document") {
+  if (input.draft.settings.finalPdf && input.draft.import.kind === "document" && briefInput !== null) {
     input.signal?.throwIfAborted();
     const importedFilename = input.draft.import.filename;
     const source = sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array();
@@ -1135,7 +1140,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
       if (linkWarnings.length) {
         const reasons = { "citation-location": "Citation location could not be verified",
           "source-missing": "Source PDF unavailable", "pinpoint-unlocated": "Pinpoint not located",
-          "pinpoint-ambiguous": "Pinpoint is ambiguous" };
+          "pinpoint-ambiguous": "Pinpoint is ambiguous", "web-link": "The brief already links it to a web page" };
         const one = linkWarnings.length === 1;
         const report = [filename, `${linkWarnings.length} link${one ? " wasn't" : "s weren't"} added. Add ${one ? "it" : "them"} in a PDF editor.`, "",
           ...linkWarnings.map((row) => `${row.citation}${row.pinpoint ? ` — ${row.pinpoint}` : ""}` +
@@ -1194,12 +1199,13 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
             ? ["Appended the linked Table of Authorities",
               ...tableGroups.some(({ entries }) => entries.some(({ sourceUrl }) => !sourceUrl))
                 ? ["Appended unlinked authority PDFs with bookmarks"] : []]
-          : input.draft.settings.tableDelivery === "linked-append"
-            ? ["Appended the linked Table of Authorities to the Word document"]
-            : input.draft.settings.tableDelivery === "native-marks"
-            ? ["Marked citations with native Word TA fields"]
+          : [...!input.draft.insertIntoDocument ? []
+            : input.draft.settings.tableDelivery === "linked-append"
+              ? ["Appended the linked Table of Authorities to the Word document"]
               : ["Marked citations with native Word TA fields",
-                "Added a native Word TOA field on a final page"],
+                ...input.draft.settings.tableDelivery === "native-marks" ? []
+                  : ["Added a native Word TOA field on a final page"]],
+            ...tabbed ? ["Added the tab reference after each citation"] : []],
       output: { role: item.role, filename: item.filename, mimeType: item.mimeType,
         pageCount: item.pageCount, sha256: item.sha256 } },
   }])) as

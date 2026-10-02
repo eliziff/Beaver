@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { FootnoteReferenceRun, Paragraph, TextRun } from "docx";
+import { ExternalHyperlink, FootnoteReferenceRun, Paragraph, TextRun } from "docx";
 import { describe, expect, it } from "vitest";
 import { docxBytes } from "./support/docxFixtures";
 import {
@@ -51,6 +51,25 @@ describe("native Word Table of Authorities output", () => {
     expect(result).toBeLessThan(fieldEnd); expect(fieldEnd).toBeLessThan(mark); expect(mark).toBeLessThan(tab);
     const [simpleEnd, simpleMark, simpleTab] = order("</w:fldSimple>", "TA \\l &quot;Cedar Act", "[Tab 2]");
     expect(simpleEnd).toBeLessThan(simpleMark); expect(simpleMark).toBeLessThan(simpleTab);
+  });
+
+  it("leaves the author's web link on a citation as it was, with the tab reference after it", async () => {
+    const cited = "Oak v Elm, 2031 ONCA 5 at para 9", body = `See ${cited}`;
+    const source = await docxBytes([new Paragraph({ children: [new TextRun("See "),
+      new ExternalHyperlink({ link: "https://example.test/oak-v-elm", children: [new TextRun(cited)] })] })]);
+    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: body }], [
+      { unitId: "body:0", offset: body.length, longName: "Oak v Elm", shortName: "Oak", category: 1, suffix: " [Tab 2]",
+        tabUrl: "https://beaver-authorities.invalid/tab/oak", pinpointLink: { start: body.indexOf("para 9"), end: body.length,
+          url: "https://beaver-authorities.invalid/pinpoint/oak" } },
+    ], "native-marks");
+    const zip = await JSZip.loadAsync(marked), document = await zip.file("word/document.xml")!.async("string");
+    const link = /<w:hyperlink [^>]*>(.*?)<\/w:hyperlink>/u.exec(document)!;
+    expect([...link[1].matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/gu)].map(([, text]) => text).join("")).toBe(cited);
+    expect(link[1]).not.toContain("instrText");
+    expect(document.indexOf("[Tab 2]")).toBeGreaterThan(document.indexOf("</w:hyperlink>"));
+    expect(document).toContain(" TA \\l &quot;Oak v Elm");
+    expect(document).not.toContain("pinpoint/oak");
+    expect(await zip.file("word/_rels/document.xml.rels")!.async("string")).toContain("https://example.test/oak-v-elm");
   });
 
   it("keeps a citation's own TA mark and lists its category in the table", async () => {

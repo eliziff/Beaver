@@ -58,3 +58,11 @@ export function authorityProcedureInput(
 ): Parameters<typeof deriveAuthorityProcedure>[0];
 
 export function tabLabel(index: number, style?: AuthorityTabStyle, format?: AuthorityTabFormat): string;
+
+export type TabReferenceSettings = Pick<AuthorityTabFormat, "tabPrefix"> & {
+  citationSuffix?: "none" | "tab" | "custom";
+  /** The words before the tab's number, trimmed. */
+  citationSuffixLabel?: string;
+};
+export function tabReference(settings: TabReferenceSettings, tab: string): string | null;
+export function currentTabReference<T extends object>(settings: T): T;

@@ -429,20 +429,51 @@ describe("authorities draft domain", () => {
     let selected = createAuthoritiesDraft(sourceImport, sourceBindings, "book");
     selected = reduceAuthoritiesDraft(selected, { type: "set-document-output", enabled: true });
     selected = reduceAuthoritiesDraft(selected, { type: "set-settings", settings: {
-      tableDelivery: "native-marks", citationSuffix: "book-tab", finalPdf: true,
+      tableDelivery: "native-marks", citationSuffix: "custom", citationSuffixLabel: "BOA, Tab", finalPdf: true,
       linkTabs: true, linkPinpoints: true,
     } });
     const kingsBench = reduceAuthoritiesDraft(selected, { type: "set-profile", profileId: "ab-court-of-kings-bench" });
     expect(kingsBench).toMatchObject({ insertIntoDocument: true, settings: {
-      tableDelivery: "native-marks", citationSuffix: "book-tab", finalPdf: true,
+      tableDelivery: "native-marks", citationSuffix: "custom", citationSuffixLabel: "BOA, Tab", finalPdf: true,
       linkTabs: true, linkPinpoints: true,
     } });
     const appeal = reduceAuthoritiesDraft(kingsBench, { type: "set-profile", profileId: "ab-court-of-appeal" });
     expect(appeal).toMatchObject({ insertIntoDocument: true, settings: {
-      tableDelivery: "linked-append", citationSuffix: "book-tab", finalPdf: true,
+      tableDelivery: "linked-append", citationSuffix: "custom", citationSuffixLabel: "BOA, Tab", finalPdf: true,
     } });
     const noMarks = reduceAuthoritiesDraft(appeal, { type: "set-document-output", enabled: false });
     expect(reduceAuthoritiesDraft(noMarks, { type: "set-profile", profileId: "general" }).insertIntoDocument).toBe(false);
+  });
+
+  it("chooses the Word copy and its tab references independently, and reads a saved combined choice as the pair", () => {
+    const base = createAuthoritiesDraft(sourceImport, sourceBindings, "book");
+    const label = "Appellant's Book of Authorities, Tab";
+    for (const [marked, tableDelivery] of [[false, "native-append"], [true, "native-marks"], [true, "native-append"],
+      [true, "linked-append"]] as const) for (const citationSuffix of ["none", "tab", "custom"] as const) {
+      const chosen = reduceAuthoritiesDraft(reduceAuthoritiesDraft(base, { type: "set-document-output", enabled: marked }),
+        { type: "set-settings", settings: { tableDelivery, citationSuffix,
+          ...citationSuffix === "custom" && { citationSuffixLabel: label } } });
+      expect(decodeAuthoritiesDraft(JSON.parse(JSON.stringify(chosen)))).toMatchObject({ insertIntoDocument: marked,
+        settings: { tableDelivery, citationSuffix, ...citationSuffix === "custom" && { citationSuffixLabel: label } } });
+    }
+    // Custom wording needs words; changing court keeps them.
+    expect(() => reduceAuthoritiesDraft(base, { type: "set-settings", settings: { citationSuffix: "custom" } }))
+      .toThrow("Type the words before the tab number.");
+    const custom = reduceAuthoritiesDraft(base, { type: "set-settings", settings: { citationSuffix: "custom", citationSuffixLabel: label } });
+    expect(reduceAuthoritiesDraft(custom, { type: "set-profile", profileId: "ab-court-of-appeal" }).settings)
+      .toMatchObject({ citationSuffix: "custom", citationSuffixLabel: label });
+
+    // A draft saved when "[Book of authorities Tab n]" was one of the Word copy's modes inserts that same text.
+    const saved = (insertIntoDocument: boolean, settings: object) => decodeAuthoritiesDraft(JSON.parse(JSON.stringify(
+      { ...base, insertIntoDocument, settings: { ...base.settings, ...settings } })));
+    expect(saved(true, { tableDelivery: "native-append", citationSuffix: "book-tab" })).toMatchObject({ insertIntoDocument: true,
+      settings: { tableDelivery: "native-append", citationSuffix: "custom", citationSuffixLabel: "Book of authorities Tab" } });
+    expect(saved(true, { citationSuffix: "book-tab", tabPrefix: "" })?.settings.citationSuffixLabel).toBe("Book of authorities");
+    expect(saved(true, { tableDelivery: "native-append", citationSuffix: "tab" })).toMatchObject({ insertIntoDocument: true,
+      settings: { tableDelivery: "native-append", citationSuffix: "tab" } });
+    // One that made no Word copy put it only in a final PDF, and otherwise nowhere.
+    expect(saved(false, { citationSuffix: "book-tab", finalPdf: true })?.settings.citationSuffix).toBe("custom");
+    expect(saved(false, { citationSuffix: "book-tab" })?.settings.citationSuffix).toBe("none");
   });
 
   it("keeps grounded identity orthogonal to unresolved review state", () => {
