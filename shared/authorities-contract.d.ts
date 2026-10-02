@@ -24,7 +24,10 @@ export type AuthoritiesBuildSettings = {
   tabLabels?: string[];
   /** Explicit draft export only; never a representation of filing completeness. */
   allowIncomplete?: boolean;
-  citationSuffix?: "none" | "book-tab" | "tab";
+  /** The tab reference after each citation in the Word copy and the final PDF's brief. */
+  citationSuffix?: "none" | "tab" | "custom";
+  /** The words before the tab's number in a custom tab reference, trimmed. */
+  citationSuffixLabel?: string;
   /** Combine the imported brief PDF rendition with the complete book. */
   finalPdf?: boolean;
   linkTabs?: boolean;
@@ -313,5 +316,5 @@ export type AuthoritiesBuildReceipt = {
   outputs: Partial<Record<AuthoritiesOutputRole, AuthoritiesOutputFile>>;
   linkWarnings?: Array<{ occurrenceId: string; citation: string; pinpoint: string | null;
     tab?: string; sourcePageNumber?: number;
-    reason: "citation-location" | "source-missing" | "pinpoint-unlocated" | "pinpoint-ambiguous" }>;
+    reason: "citation-location" | "source-missing" | "pinpoint-unlocated" | "pinpoint-ambiguous" | "web-link" }>;
 };

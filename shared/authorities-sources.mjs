@@ -112,7 +112,8 @@ export function authoritiesInputPlan(draft, requirements) {
     byteRoles: new Set([
       ...(authorityBytesRequired(draft, requirements)
         ? included.map(({ source }) => source.bindingRole) : []),
-      ...((draft.insertIntoDocument || draft.settings?.finalPdf) && draft.import.kind === "document"
+      ...((draft.insertIntoDocument || draft.settings?.finalPdf || (draft.settings?.citationSuffix ?? "none") !== "none") &&
+        draft.import.kind === "document"
         ? [draft.import.bindingRole] : []),
       ...[...bookPdfs, ...briefPdf ? [briefPdf] : []].map(({ bindingRole }) => bindingRole),
     ]),

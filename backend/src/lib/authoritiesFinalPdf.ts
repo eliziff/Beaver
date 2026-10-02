@@ -4,7 +4,7 @@ import { attachedAuthoritySources, authoritiesBriefPdf } from "mike/shared/autho
 import type { AuthoritiesBuildReceipt, AuthoritiesDraft, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
 import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
 import { nestedOutline, pdfAssembly, type PdfOutline } from "./pdfAssembly";
-import { authorityProcedureInput, deriveAuthorityProcedure } from "mike/shared/authorities-order.mjs";
+import { authorityProcedureInput, deriveAuthorityProcedure, tabReference } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
 import { normalizedWords } from "./structureNative";
@@ -65,6 +65,19 @@ export function assertBriefPdfMatches(draft: AuthoritiesDraft, pageTextByPage: s
     `citations are in it. In Word, save ${draft.import.kind === "document" ? draft.import.filename : "the brief"} ` +
     "as PDF and upload that file.");
 }
+
+/** The rects of a page's links to the web, as the brief's author made them. */
+function webLinks(page: pdf.PDFPage) {
+  const annots = page.node.lookupMaybe(pdf.PDFName.of("Annots"), pdf.PDFArray);
+  return Array.from({ length: annots?.size() ?? 0 }, (_, index) => annots!.lookupMaybe(index, pdf.PDFDict))
+    .flatMap((annotation) => {
+      const uri = annotation?.lookupMaybe(pdf.PDFName.of("A"), pdf.PDFDict)?.get(pdf.PDFName.of("URI"));
+      const rect = annotation?.lookupMaybe(pdf.PDFName.of("Rect"), pdf.PDFArray)?.asRectangle();
+      return uri && rect ? [[rect.x, rect.y, rect.x + rect.width, rect.y + rect.height]] : [];
+    });
+}
+const overlaps = (left: number[], right: number[]) =>
+  left[0] < right[2] && right[0] < left[2] && left[1] < right[3] && right[1] < left[3];
 
 export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   sourceBytes: Uint8Array, books: Book[]) {
@@ -204,7 +217,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
       if (linked.has(`${kind}:${occurrence.id}`)) continue;
       const tab = tabs.get(authority.id);
       // A brief saved from the Word output carries its tab reference; link that when present.
-      const quoteTexts = kind === "tab" ? [`[${tab}]`, `[Book of authorities ${tab}]`,
+      const quoteTexts = kind === "tab" ? [`[${tab}]`, tab && tabReference(draft.settings, tab),
         filingTabText(unitTexts.get(occurrence.unitId) ?? "", occurrence, tab)] : [occurrence.pinpointSpan!.text];
       const geometryTarget = verifiedImportedGeometry?.targets.find(({ id }) => id === `filing:${occurrence.id}`);
       const quotes = geometryTarget?.quotes.filter(({ text }) => quoteTexts.includes(text)) ?? [];
@@ -229,21 +242,23 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
         }
         continue;
       }
+      const placed = fragments.flatMap(({ pageNumber, rects }) => {
+        const page = document.getPage(pageNumber - 1);
+        const geometryPage = geometryTarget!.pages.find((item) => item.pageNumber === pageNumber)!;
+        return rects.map((rect) => ({ page, bounds: quadBounds([rectToPdfQuad(
+          normalizePassageRect(rect, geometryPage.width, geometryPage.height), page.getCropBox(), page.getRotation().angle)]) }));
+      });
+      // The brief's own web link over the citation stays the one a click follows.
+      if (placed.some(({ page, bounds }) => webLinks(page).some((link) => overlaps(link, bounds)))) {
+        warn(occurrence.id, "web-link", kind === "pinpoint"); continue;
+      }
       const target = destination(kind, occurrence.id);
       if (!target) continue;
-      for (const fragment of fragments) {
-        const page = document.getPage(fragment.pageNumber - 1);
-        const geometryPage = geometryTarget!.pages.find(({ pageNumber }) => pageNumber === fragment.pageNumber)!;
-        for (const rect of fragment.rects) {
-          const normalized = normalizePassageRect(rect, geometryPage.width, geometryPage.height);
-          const bounds = quadBounds([rectToPdfQuad(normalized, page.getCropBox(), page.getRotation().angle)]);
-          page.node.addAnnot(document.context.register(document.context.obj({
-            Type: "Annot", Subtype: "Link", Rect: bounds, Border: [0, 0, 0],
-            Dest: target.top === null ? [document.getPage(target.pageIndex).ref, "Fit"]
-              : [document.getPage(target.pageIndex).ref, "XYZ", null, target.top, null],
-          })));
-        }
-      }
+      for (const { page, bounds } of placed) page.node.addAnnot(document.context.register(document.context.obj({
+        Type: "Annot", Subtype: "Link", Rect: bounds, Border: [0, 0, 0],
+        Dest: target.top === null ? [document.getPage(target.pageIndex).ref, "Fit"]
+          : [document.getPage(target.pageIndex).ref, "XYZ", null, target.top, null],
+      })));
     }
   }
   applyOutlines(document, outlines, true);

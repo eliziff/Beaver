@@ -53,7 +53,7 @@ export const AUTHORITIES_SETTINGS_CHOICES = {
   sourceMode: ["automatic", "manual-originals", "render"], tabStyle: ["numeric", "alpha", "lower-alpha", "roman", "lower-roman"],
   tableOrder: ["first-reference", "alphabetical"],
   tableDelivery: ["native-marks", "native-append", "linked-append"],
-  citationSuffix: ["none", "book-tab", "tab"],
+  citationSuffix: ["none", "tab", "custom"],
   tableLocation: ["pages", "pinpoints", "combined"],
   passageMarking: ["none", "margin", "paragraph", "text", "sidelined"],
   scannedPdfPolicy: ["page-margin", "cited-pages", "full"],
@@ -69,7 +69,7 @@ function settings(value: unknown, initial: true): AuthoritiesInitialSettings;
 function settings(value: unknown, initial?: false): Partial<AuthoritiesBuildSettings>;
 function settings(value: unknown, initial = false) {
   const item = object(value), allowed = new Set([
-    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", ...(initial
+    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "citationSuffixLabel", "allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", ...(initial
       ? ["profileId", "outputMode", "insertIntoDocument"] : []),
   ]);
   if (Object.keys(item).some((key) => !allowed.has(key))) return bad();
@@ -86,6 +86,7 @@ function settings(value: unknown, initial = false) {
     plain(item.tabPrefix, 80); result.tabPrefix = item.tabPrefix;
   }
   if (item.tabLabels !== undefined) {
+  if (item.citationSuffixLabel !== undefined) result.citationSuffixLabel = text(item.citationSuffixLabel, 120);
     if (!Array.isArray(item.tabLabels) || item.tabLabels.length > 10_000) return bad();
     result.tabLabels = item.tabLabels.map((label) => plain(label, 100));
   }

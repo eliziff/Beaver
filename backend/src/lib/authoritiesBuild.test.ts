@@ -248,6 +248,30 @@ describe("Authorities final export", () => {
     expect(String(links[1].lookup(PDFName.of("Dest"), PDFArray).get(0))).toBe(String(combined.getPage(4).ref));
   });
 
+  it("leaves the brief's own web link where it is, and reports the link it would have covered", async () => {
+    const plain = await PDFDocument.load(await sourcePdf("2009 SCC 32 at para 12 [Tab 1]", [[612, 792]]));
+    plain.getPage(0).node.addAnnot(plain.context.register(plain.context.obj({ Type: "Annot", Subtype: "Link",
+      Rect: [110, 708, 190, 736], A: { S: "URI", URI: PDFHexString.fromText("https://example.test/grant-para-12") } })));
+    const brief = Buffer.from(await plain.save()), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+    const state = finalDraft(brief, original);
+    state.units[0].text += " [Tab 1]";
+    const filingGeometry: NativePdfPassageGeometry = { ...paragraphGeometry(brief), targets: [{ id: "filing:grant:0",
+      locatorKind: "page", locator: "1", status: "found", pages: [{ pageNumber: 1, width: 612, height: 792,
+        source: "native", passageRects: [[36, 50, 300, 80]] }], quotes: [
+        { text: "[Tab 1]", status: "found", pageNumber: 1, rects: [[190, 60, 240, 80]] },
+        { text: "para 12", status: "found", pageNumber: 1, rects: [[120, 60, 185, 80]] },
+      ] }] };
+    const result = await buildAuthorities({ draft: state, title: "Web link", workProduct: { id: "web-link", revision: 1 },
+      sources: { source: { bytes: brief, passageGeometry: filingGeometry },
+        original: { bytes: original, passageGeometry: paragraphGeometry(original) } } });
+    expect(result.receipt.linkWarnings).toEqual([{ occurrenceId: "grant:0", citation: "2009 SCC 32", pinpoint: "para 12",
+      tab: "Tab 1", reason: "web-link" }]);
+    const links = pageAnnots(await PDFDocument.load(result.artifacts["final-pdf"]!.bytes), 0);
+    expect(links.map((link) => link.has(PDFName.of("Dest")) ? "tab" : link.lookup(PDFName.of("A"), PDFDict)
+      .lookup(PDFName.of("URI"), PDFHexString).decodeText())).toEqual(["https://example.test/grant-para-12", "tab"]);
+    expect(result.artifacts["link-report"]!.bytes.toString()).toContain("The brief already links it to a web page");
+  });
+
   it("keeps tab and pinpoint links correct when the book is split across volumes", async () => {
     const brief = await linkedBrief(), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
     const state = finalDraft(brief, original);
@@ -296,12 +320,15 @@ describe("Authorities final export", () => {
       return Buffer.from(await document.save());
     };
     const brief = await savedBrief(lines), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
-    const word = Buffer.from("word brief bytes"), state = finalDraft(word, original);
+    const citation = "2009 SCC 32 at para 12", stray = "2009 SCC 32 at para 14";
+    const texts = [lines[0], lines[1].replace(" [Tab 1]", ""), `Compare ${stray}.`];
+    // The tab references come in a Word copy, which the user saved as this PDF.
+    const word = await Packer.toBuffer(new WordDocument({ sections: [{ children: texts.map((text) => new Paragraph(text)) }] }));
+    const state = finalDraft(word, original);
     if (state.import.kind !== "document") throw new Error("Invalid fixture");
     Object.assign(state.import, { fileType: "docx", filename: "Appeal brief.docx" });
     state.settings.citationSuffix = "tab";
-    const citation = "2009 SCC 32 at para 12", stray = "2009 SCC 32 at para 14";
-    state.units = [lines[0], lines[1].replace(" [Tab 1]", ""), `Compare ${stray}.`].map((text, index) => ({
+    state.units = texts.map((text, index) => ({
       id: `body:${index}`, kind: index === 2 ? "footnote" as const : "body" as const, ordinal: index,
       footnoteId: index === 2 ? 1 : null, footnoteRefs: [], pageNumbers: [], text, occurrenceIds: [`grant:${index}`] }));
     state.units.forEach((unit, index) => {
@@ -315,7 +342,8 @@ describe("Authorities final export", () => {
     const build = (sources: NonNullable<Parameters<typeof buildAuthorities>[0]["sources"]>) => buildAuthorities({
       draft: state, title: "Appeal", workProduct: { id: "brief-pdf", revision: 1 }, sources: {
         source: { bytes: word }, original: { bytes: original, passageGeometry: paragraphGeometry(original) }, ...sources } });
-    await expect(build({})).rejects.toThrow(/save Appeal brief\.docx as PDF, then upload it as the brief PDF/u);
+    // Until the brief PDF is added, everything else builds and the final PDF waits for it.
+    expect(Object.keys((await build({})).artifacts).sort()).toEqual(["annotated-document", "book"]);
     const attach = async (bytes: Buffer) => {
       state.bookParts.brief = { bindingRole: "brief", filename: "Appeal brief.pdf", sourceSha256: sha256(bytes) };
       state.bindings.brief = { kind: "local-file", handleId: "brief", lastSeen: { name: "Appeal brief.pdf",
@@ -358,7 +386,7 @@ describe("Authorities final export", () => {
     if (state.import.kind !== "document") throw new Error("Invalid fixture");
     state.import.fileType = "docx"; state.import.filename = "Brief.docx";
     Object.assign(state.settings, { finalPdf: false, linkTabs: false, linkPinpoints: false,
-      tableDelivery: "native-marks", citationSuffix: "book-tab", tabStart: 3 });
+      tableDelivery: "native-marks", citationSuffix: "custom", citationSuffixLabel: "Book of authorities Tab", tabStart: 3 });
     state.insertIntoDocument = true;
     state.authorities.excluded = { ...state.authorities.grant, id: "excluded", key: "excluded",
       citation: excluded, name: "Excluded", excluded: true, source: { kind: "unresolved" } };
@@ -407,6 +435,40 @@ describe("Authorities final export", () => {
     const retainedWord = await (await JSZip.loadAsync(converted.artifacts["annotated-document"]!.bytes))
       .file("word/document.xml")!.async("string");
     expect(retainedWord).toContain(" TA "); expect(retainedWord).toContain(" TOA ");
+  });
+
+  it("builds a Word copy from its marks and its tab references, each chosen apart from the other", async () => {
+    const word = await Packer.toBuffer(new WordDocument({ sections: [{ children: [new Paragraph("2009 SCC 32 at para 12")] }] }));
+    const original = await sourcePdf("Original", [[400, 500]]), state = finalDraft(word, original);
+    if (state.import.kind !== "document") throw new Error("Invalid fixture");
+    Object.assign(state.import, { fileType: "docx", filename: "Brief.docx" });
+    Object.assign(state.settings, { finalPdf: false, linkTabs: false, linkPinpoints: false, tabStart: 4 });
+    const label = "Appellant's Book of Authorities, Tab";
+    const copies = { none: [false, "native-append"], marks: [true, "native-marks"], table: [true, "native-append"],
+      linked: [true, "linked-append"] } as const;
+    const tabs = { none: null, tab: "[Tab 4]", custom: `[${label} 4]` } as const;
+    for (const [copy, [marked, tableDelivery]] of Object.entries(copies)) for (const [suffix, text] of Object.entries(tabs)) {
+      Object.assign(state, { insertIntoDocument: marked });
+      Object.assign(state.settings, { tableDelivery, citationSuffix: suffix, citationSuffixLabel: suffix === "custom" ? label : undefined });
+      const built = await buildAuthorities({ draft: state, title: "Brief", workProduct: { id: `${copy}-${suffix}`, revision: 1 },
+        sources: { source: { bytes: word }, original: { bytes: original } } });
+      const output = built.artifacts["annotated-document"], at = `${copy} + ${suffix}`;
+      expect(!!output, at).toBe(marked || !!text);
+      if (!output) continue;
+      expect(output.filename, at).toBe(`Brief.${!marked ? "with-tab-references"
+        : tableDelivery === "native-marks" ? "marked-authorities" : "with-table-of-authorities"}.docx`);
+      const zip = await JSZip.loadAsync(output.bytes), xml = await zip.file("word/document.xml")!.async("string");
+      const visible = [...xml.matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/gu)].map(([, value]) => value).join("")
+        .replace(/&apos;/gu, "'");
+      expect(xml.match(/ TA \\l/gu)?.length ?? 0, at).toBe(marked && tableDelivery !== "linked-append" ? 1 : 0);
+      expect(xml.includes(" TOA "), at).toBe(tableDelivery === "native-append" && marked);
+      expect(visible.includes("TABLE OF AUTHORITIES"), at).toBe(tableDelivery === "linked-append" && marked);
+      expect(visible.startsWith(`2009 SCC 32 at para 12${text ? ` ${text}` : ""}`), at).toBe(true);
+      expect((visible.match(/\[[^\]]*4\]/gu) ?? []).length, at).toBe(text ? 1 : 0);
+      // A copy with only tab references has no field for Word to refresh on opening.
+      expect((await zip.file("word/settings.xml")!.async("string")).includes("w:updateFields"), at).toBe(marked);
+      expect(built.receipt.outputs["annotated-document"]?.filename).toBe(output.filename);
+    }
   });
 });
 

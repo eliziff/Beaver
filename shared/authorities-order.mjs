@@ -81,4 +81,19 @@ function authorityProcedureInput(state, { purpose }) {
   };
 }
 
-export { authorityProcedureInput, deriveAuthorityProcedure, tabLabel };
+/** What a citation's tab reference inserts after it, or null for none: the tab, "[Tab 4]", or the
+ *  user's words before the tab's number, "[Appellant's Book of Authorities, Tab 4]". */
+function tabReference(settings, tab) {
+  if (settings.citationSuffix === "tab") return `[${tab}]`;
+  if (settings.citationSuffix !== "custom") return null;
+  const prefix = settings.tabPrefix ?? "Tab ";
+  return `[${settings.citationSuffixLabel} ${tab.startsWith(prefix) ? tab.slice(prefix.length) : tab}]`;
+}
+
+/** Drafts saved with the fixed "[Book of authorities Tab 4]" read it as those words. */
+function currentTabReference(settings) {
+  return settings.citationSuffix === "book-tab" ? { ...settings, citationSuffix: "custom",
+    citationSuffixLabel: `Book of authorities ${settings.tabPrefix ?? "Tab "}`.trim() } : settings;
+}
+
+export { authorityProcedureInput, currentTabReference, deriveAuthorityProcedure, tabLabel, tabReference };

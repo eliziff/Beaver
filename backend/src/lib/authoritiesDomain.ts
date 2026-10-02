@@ -34,6 +34,7 @@ import { closed, dictionary, flag, hash, integer, isJsonRecord, jsonRecord, list
   maybe, nonempty, nullable, oneOf, plain, tagged, text, trimmed,
   type Check, type FieldTable } from "./value";
 import profileValues from "mike/shared/authorities-profiles.json";
+import { currentTabReference } from "mike/shared/authorities-order.mjs";
 
 import { AUTHORITIES_ACTION_CHOICES, AUTHORITIES_SETTINGS_CHOICES, authorityKinds,
   decodeAuthoritiesInitialSettings } from "./authoritiesActionContract";
@@ -143,7 +144,7 @@ const settingsShape = closed<AuthoritiesSettings>({
   profileId: text, sourceMode: choice("sourceMode"), tabStyle: choice("tabStyle"),
   tabStart: maybe(integer), tabPrefix: maybe(text), tabLabels: maybe(list(10_000, text)),
   allowIncomplete: maybe(flag), tableOrder: choice("tableOrder"),
-  citationSuffix: maybe(choice("citationSuffix")), finalPdf: maybe(flag),
+  citationSuffix: maybe(choice("citationSuffix")), citationSuffixLabel: maybe(text), finalPdf: maybe(flag),
   linkTabs: maybe(flag), linkPinpoints: maybe(flag),
   tableDelivery: choice("tableDelivery"), tableLocation: choice("tableLocation"),
   passageMarking: choice("passageMarking"), scannedPdfPolicy: choice("scannedPdfPolicy"),
@@ -281,10 +282,21 @@ const draftShape = closed<AuthoritiesDraft>({
 });
 
 /** Rejects malformed generic JSON before it can enter the typed Authorities reducer. */
-export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null {
+export function decodeAuthoritiesDraft(stored: unknown): AuthoritiesDraft | null {
   try {
+    const value = currentDraft(stored);
     return draftShape(value) && !validateAuthoritiesDraft(value).length ? value : null;
   } catch { return null; }
+}
+
+/** A draft saved when "[Book of authorities Tab n]" came only with a Word copy: it reads as those
+ *  words, and one that made no Word copy or final PDF keeps inserting none. */
+function currentDraft(value: unknown) {
+  const draft = value as { insertIntoDocument?: boolean; settings?: { citationSuffix?: string; finalPdf?: boolean } } | null;
+  const settings = draft?.settings;
+  if (settings?.citationSuffix !== "book-tab") return value;
+  return { ...draft, settings: draft!.insertIntoDocument || settings.finalPdf
+    ? currentTabReference(settings) : { ...settings, citationSuffix: "none" } };
 }
 
 /** Projects already-grounded receipts using the Rust-owned authority key supplied by the caller. */
@@ -1067,7 +1079,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       }
       const sourceModeChanged = profile.defaults.settings.sourceMode !== draft.settings.sourceMode;
       const delivery = profile.locked?.settings?.tableDelivery ?? draft.settings.tableDelivery;
-      const exportSettings = Object.fromEntries(["citationSuffix", "finalPdf", "linkTabs", "linkPinpoints"]
+      const exportSettings = Object.fromEntries(["citationSuffix", "citationSuffixLabel", "finalPdf", "linkTabs", "linkPinpoints"]
         .filter((key) => Object.hasOwn(draft.settings, key))
         .map((key) => [key, draft.settings[key as keyof AuthoritiesBuildSettings]]));
       draft.outputMode = draft.import.kind === "manual" ? "book" : profile.defaults.outputMode;
@@ -1140,6 +1152,9 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
   if (typeof draft.insertIntoDocument !== "boolean" || draft.insertIntoDocument &&
       draft.import.kind !== "document") {
     errors.push("Filing output requires an imported document.");
+  }
+  if (draft.settings.citationSuffix === "custom" && !draft.settings.citationSuffixLabel?.trim()) {
+    errors.push("Type the words before the tab number.");
   }
   if (draft.settings.finalPdf && draft.import.kind !== "document") {
     errors.push("Final PDF export requires an imported document.");

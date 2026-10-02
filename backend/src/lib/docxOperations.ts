@@ -140,15 +140,17 @@ function fieldRuns(instruction: string, result: boolean) {
 }
 
 /** Inserts nodes at a text offset. Text inside a field's result is Word's to replace when it updates
- *  the field (a cross-reference's note number, say), so an offset there inserts after the field. */
+ *  the field (a cross-reference's note number, say), so an offset there inserts after the field.
+ *  The author's own link keeps only its own text, so an offset in it inserts after the link. */
 function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
   let cursor = 0, local = 0, open = 0;
   let target: { node: XNode; run: XNode; parent: XNode } | null = null;
-  let after: { node: XNode; parent: XNode } | null = null;
+  let after: { node: XNode; parent: XNode } | null = null, link: { node: XNode; parent: XNode } | null = null;
   const descend = (node: XNode, parent: XNode | null, run: XNode | null,
-    runParent: XNode | null): void => {
+    runParent: XNode | null, hyperlink: { node: XNode; parent: XNode } | null = null): void => {
     if (after || elName(node) === "w:del") return;
     const name = elName(node);
+    if (name === "w:hyperlink" && parent) hyperlink = { node, parent };
     const nextRun = name === "w:r" ? node : run;
     const nextRunParent = name === "w:r" ? parent : runParent;
     if (name === "w:fldChar") {
@@ -159,7 +161,7 @@ function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
     if (name === "w:t" && !target) {
       const value = getTextContent(node), end = cursor + value.length;
       if (cursor <= offset && offset <= end && nextRun && nextRunParent) {
-        target = { node, run: nextRun, parent: nextRunParent };
+        target = { node, run: nextRun, parent: nextRunParent }; link = hyperlink;
         local = offset - cursor;
         if (!open && elName(nextRunParent) !== "w:fldSimple") after = target;
       }
@@ -167,13 +169,13 @@ function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
       return;
     }
     if (name === "w:tab" || name === "w:br" || name === "w:cr") cursor += 1;
-    for (const child of elChildren(node)) descend(child, node, nextRun, nextRunParent);
+    for (const child of elChildren(node)) descend(child, node, nextRun, nextRunParent, hyperlink);
     if (name === "w:fldSimple" && target && !after && parent) after = { node, parent };
   };
   descend(root, null, null, null);
   if (!target) throw new Error("A reviewed citation no longer matches the Word document.");
   // Assigned inside descend, which TypeScript does not follow.
-  const field = after as { node: XNode; parent: XNode } | null;
+  const field = (link && after === target ? link : after) as { node: XNode; parent: XNode } | null;
   if (field && field !== target) {
     const siblings = elChildren(field.parent);
     siblings.splice(siblings.indexOf(field.node) + 1, 0, ...nodes);
@@ -241,6 +243,23 @@ function linkedTable(entries: readonly DocxLinkedAuthority[]) {
   ];
 }
 
+/** Where the author's links lie in a unit's text. */
+function linkedRanges(root: XNode) {
+  const ranges: Array<[number, number]> = [];
+  let cursor = 0;
+  const visit = (node: XNode): void => {
+    const name = elName(node);
+    if (name === "w:del") return;
+    if (name === "w:t") cursor += getTextContent(node).length;
+    else if (name === "w:tab" || name === "w:br" || name === "w:cr") cursor += 1;
+    const start = cursor;
+    for (const child of elChildren(node)) visit(child);
+    if (name === "w:hyperlink") ranges.push([start, cursor]);
+  };
+  visit(root);
+  return ranges;
+}
+
 /** The TA fields a reviewed unit already holds: where each begins in its text, and its category. */
 function existingMarks(root: XNode) {
   const found: Array<{ offset: number; category: number }> = [], open: Array<{ offset: number; code: string }> = [];
@@ -286,7 +305,9 @@ export async function applyTableOfAuthorities(
       if (delivery !== "linked-append" && mark.mark !== false &&
         !existing.get(mark.unitId)?.some(({ offset }) => offset === mark.offset)) insertField(target, mark.offset,
         ` TA \\l "${fieldText(mark.longName)}" \\s "${fieldText(mark.shortName)}" \\c ${mark.category} `);
-      if (mark.pinpointLink) {
+      // A pinpoint the author already linked keeps that link.
+      if (mark.pinpointLink && !linkedRanges(target).some(([from, to]) =>
+        mark.pinpointLink!.start < to && from < mark.pinpointLink!.end)) {
         const { start, end, url } = mark.pinpointLink;
         insertAtOffset(target, end, [makeEl("w:r", [makeEl("w:fldChar", [], { "w:fldCharType": "end" })])]);
         insertAtOffset(target, start, [
@@ -309,9 +330,11 @@ export async function applyTableOfAuthorities(
       makeEl("w:p", fieldRuns(` TOA \\h \\c "${category}" `, true))),
   ] : delivery === "linked-append" ? linkedTable(linked) : [];
   children.splice(section < 0 ? children.length : section, 0, ...appended);
-  const settings = await session.readXml("word/settings.xml");
+  // Word refreshes the fields it is given; a copy with only tab references has none to refresh.
+  const fields = delivery !== "native-marks" || marks.some((mark) => mark.mark !== false);
+  const settings = fields ? await session.readXml("word/settings.xml") : undefined;
   const root = settings?.find((node) => elName(node) === "w:settings");
-  if (root) {
+  if (settings && root) {
     const settingsChildren = elChildren(root);
     const update = settingsChildren.find((node) => elName(node) === "w:updateFields");
     if (update) update[ATTR_KEY] = { "@_w:val": "true" };

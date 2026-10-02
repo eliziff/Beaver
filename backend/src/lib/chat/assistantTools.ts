@@ -278,8 +278,9 @@ const AUTHORITIES_ACTION = objectSchema({
   excluded: { type: "boolean" },
   displayName: { type: ["string", "null"], maxLength: 1_000 },
   profileId: { type: "string", enum: authoritiesProfileIds },
-  settings: objectSchema(Object.fromEntries(Object.entries(AUTHORITIES_SETTINGS_CHOICES)
-    .map(([key, values]) => [key, { type: "string", enum: values }]))),
+  settings: objectSchema({ ...Object.fromEntries(Object.entries(AUTHORITIES_SETTINGS_CHOICES)
+    .map(([key, values]) => [key, { type: "string", enum: values }])),
+    citationSuffixLabel: { type: "string", minLength: 1, maxLength: 120 } }),
   outputMode: { type: "string", enum: AUTHORITIES_ACTION_CHOICES.outputMode },
   enabled: { type: "boolean" },
   cover: objectSchema({
