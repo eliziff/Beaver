@@ -170,6 +170,21 @@ export function createAuthoritiesRuntimeRouter(
       { pdfProfile: profile, signal: abort.signal, pages }) : [];
     res.json({ pages: text });
   }));
+  // What a build reads from one source, read ahead of it: the pages it recognizes (a scan's
+  // opening and cited pages, or all of it where a passage has to be found) are kept, so the
+  // build finds them ready. Reported as "recognized/total" pages.
+  router.post("/source-read", singleFileUpload("file"), followedRoute(async (req, res, progress) => {
+    const state = draft(json(req.body?.draft, "draft"));
+    const role = String(req.body?.role), bytes = await readFile(requiredFile(req).path);
+    const source = Object.values(state.authorities).flatMap(authority =>
+      attachedAuthoritySources(authority.source)).find(source => source.bindingRole === role);
+    if (!source || sha256(bytes) !== source.sourceSha256)
+      return reject(409, "The PDF no longer matches this authority source");
+    const abort = new AbortController(); res.once("close", () => abort.abort());
+    await createAuthoritiesPreparation(state).prepareText(role, { bytes, signal: abort.signal,
+      ...(progress ? { progress: (done: number, total: number) => progress(`${done}/${total}`) } : {}) });
+    res.json({});
+  }));
   router.post("/page-labels", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const state = draft(json(req.body?.draft, "draft"));
     const role = String(req.body?.bindingRole);

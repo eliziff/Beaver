@@ -96,6 +96,18 @@ async function runtimeResponse(path: string, body: BodyInit, json = false,
     ...(json ? { headers: { "Content-Type": "application/json" } } : {}),
   }, progress);
 }
+/** Reads a source as a build of the draft would, so the build finds the pages it recognizes kept.
+ *  A failure here is the build's to report; the scan is still recognized for the highlights. */
+async function readAsBuild(product: AuthoritiesProduct, role: string, file: File, signal: AbortSignal,
+  recognized: (count: number) => void) {
+  const form = new FormData();
+  form.append("draft", JSON.stringify(product.state)); form.append("role", role);
+  form.append("file", file, file.name);
+  await runtimeResponse("source-read", form, false, signal, (message) => {
+    const done = Number(message.split("/")[0]);
+    if (Number.isFinite(done)) recognized(done);
+  }).catch((error) => { if (signal.aborted) throw error; });
+}
 async function runtimeDraft(path: string, body: BodyInit, json = false, signal?: AbortSignal,
   progress?: (message: string) => void) {
   const response = await runtimeResponse(path, body, json, signal, progress);
@@ -216,8 +228,11 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
         recognitionJobs.set(documentId, job);
         void (async () => {
           const file = await resolveExact(binding);
-          await prepareSourceText(product, role, file, pages, scannedPages?.[role], job.controller.signal,
-            recognized => { job.progress = { ...job.progress, recognized }; });
+          const recognized = (count: number) => { job.progress = { ...job.progress, recognized: count }; };
+          // First the pages a build of this draft reads, so Build finds them ready; then the rest
+          // of the scan, for the highlights.
+          await readAsBuild(product, role, file, job.controller.signal, recognized);
+          await prepareSourceText(product, role, file, pages, scannedPages?.[role], job.controller.signal, recognized);
           job.progress = { ...job.progress, done: true, pages: [] };
         })().catch((error: Error) => {
           if (!job.controller.signal.aborted) job.progress = { ...job.progress, error: error.message };
