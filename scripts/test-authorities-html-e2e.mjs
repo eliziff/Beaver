@@ -4,7 +4,7 @@
 // edits the citations, provides and recognizes sources, highlights, builds every output and
 // reads the downloads back, asserting performance budgets and layout invariants throughout.
 //
-//   npm run test:authorities-html-e2e -- [--skip-build] [--mode=file|http] [--only=pdf|docx] [--headed] [--live]
+//   npm run test:authorities-html-e2e -- [--skip-build] [--mode=file|http] [--only=pdf|docx|first] [--headed] [--live]
 //     [--html=path] [--out=dir]
 // --live lets A2AJ and publishers answer for real instead of the stub (not deterministic); a lookup
 // reported unchecked then fails the run unless A2AJ, asked once directly, is not answering either.
@@ -33,6 +33,7 @@ export const BUDGETS = {
   coldLoad: 1200,     // navigation start to an enabled "Add file"; 470–860
   importPdf: 3000,    // "Import and review" to the citations marked in the PDF; 1400–2430
   importDocx: 1500,   // the same for the Word brief; 130–920 (920 when it is the first import)
+  firstImport: 5000,  // either brief as a new profile's first import, nothing warmed; 1390–4660
   inputToPaint: 50,   // every key, click or drag in the review, to the frame that shows it; max 24–40
   longTask: 50,       // no main-thread task longer than this while reviewing; none seen
   stepSwitch: 300,    // a step tab or Next to the step's content; 60–150
@@ -89,7 +90,7 @@ async function serve(file) {
   return { url: `http://127.0.0.1:${server.address().port}/`, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-for (const mode of modes) {
+for (const mode of args.only === "first" ? [] : modes) {
   console.log(`\n== ${mode} ==`);
   const server = mode === "http" ? await serve(html) : null;
   const url = server?.url ?? pathToFileURL(html).href;
@@ -117,6 +118,26 @@ for (const mode of modes) {
     const unexpected = requests.filter((request) => !request.includes("https://api.a2aj.ca/"));
     check(args.live || !unexpected.length, `${mode}: requests left the page other than to A2AJ`, unexpected);
     note(mode, "network", { a2aj: requests.length - unexpected.length, other: unexpected.length });
+    await context.close(); await server?.close();
+  }
+}
+// A brief of either kind as the first thing a brand-new profile does: no stored drafts, no warmed engine.
+for (const mode of !args.only || args.only === "first" ? modes : []) for (const kind of ["docx", "pdf"]) {
+  console.log(`\n== ${mode}, ${kind} first in a new profile ==`);
+  const server = mode === "http" ? await serve(html) : null;
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } }), requests = [], errors = [];
+  await routeNetwork(context, requests);
+  await context.addInitScript(instrument);
+  const page = await context.newPage();
+  page.setDefaultTimeout(30000);
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error" && !/^Error in (?:pix|bmf)\w+:/u.test(message.text())) errors.push(message.text()); });
+  try { const run = new Run(page, mode); await run.coldLoad(server?.url ?? pathToFileURL(html).href); await run.firstImport(kind); }
+  catch (error) {
+    check(false, `${mode}: ${kind} as the first import stopped`, error.stack?.split("\n").slice(0, 6).join("\n"));
+    await page.screenshot({ path: path.join(out, "screenshots", `${mode}-${kind}-first-stopped.png`) }).catch(() => {});
+  } finally {
+    check(!errors.length, `${mode}: ${kind} as the first import reported errors`, errors.slice(0, 10));
     await context.close(); await server?.close();
   }
 }
@@ -301,7 +322,7 @@ function Run(page, mode) {
     await page.locator(".citation-document .citation-band[data-active]").first().waitFor();
     const imported = await now() - started;
     note(mode, `import-${label}`, imported);
-    const budget = label === "pdf" ? BUDGETS.importPdf : BUDGETS.importDocx;
+    const budget = label.endsWith("-first") ? BUDGETS.firstImport : label === "pdf" ? BUDGETS.importPdf : BUDGETS.importDocx;
     check(imported < budget, `${mode}: ${label} import ${Math.round(imported)} ms`);
   }
 
@@ -779,6 +800,9 @@ function Run(page, mode) {
     check(/^Outputs ready|incomplete/iu.test(status), `${mode} ${label}: the build reports its outputs`, status);
     return downloadOutputs(label);
   }
+
+  /** The first thing a brand-new profile does: import a brief of `kind`, with nothing stored or warmed. */
+  this.firstImport = (kind) => importBrief(kind === "pdf" ? fixtures.briefPdf : fixtures.briefDocx, `${kind}-first`);
 
   this.pdfBrief = async () => {
     await importBrief(fixtures.briefPdf, "pdf");
