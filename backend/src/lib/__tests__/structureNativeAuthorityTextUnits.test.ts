@@ -167,6 +167,41 @@ it("does not invent a paragraph when printed numbering is missing or duplicated"
   }
 });
 
+it("places a paragraph range from its first paragraph to its last, short ends and repeated numbers too", async () => {
+  const nouns = ["ferry", "harbour", "licence", "tariff", "berth", "pilot", "cargo", "tide", "wharf", "manifest", "schedule", "crossing"];
+  const verbs = ["governs", "limits", "shapes", "informs", "frames", "guides", "sets", "marks", "tests", "weighs"];
+  const paragraph = (n: number) => `[${n}] ${Array.from({ length: 4 }, (_, k) => `The ${nouns[(n * (k + 2)) % 12]} ` +
+    `${verbs[(n + k) % 10]} how the board read the ${nouns[(n * 5 + k) % 12]} rules for the ${nouns[(n + 3 * k) % 12]} ` +
+    "in this appeal.").join(" ")}`;
+  // Paragraph 20 quotes an earlier panel's paragraphs 9 and 10, so those numbers are printed twice.
+  const quoting = "[20] The board adopted the reasons of an earlier panel, which said:\n[9] A schedule that a " +
+    "ferry cannot keep is no schedule at all.\n[10] Nor is a tariff that no wharf will honour.";
+  const bytes = await renderAuthoritySourcePdf({ kind: "case", name: "Harbourview Ferries v Tidewater Authority",
+    citation: "2031 NSCA 12", date: null, sourceUrl: null, text: Array.from({ length: 30 }, (_, index) =>
+      index === 19 ? quoting : paragraph(index + 1)).join("\n\n") });
+  const document = await structureNative().derivePdfDocument(bytes, {});
+  const locators = ["14-7", "14-17", "8", "11", "8-10", "9-10", "40-42"];
+  const { targets } = await pdfPassageGeometry(document, bytes,
+    locators.map((locator) => ({ id: locator, locatorKind: "paragraph", locator })));
+  const [short, whole, eight, eleven, across, repeated, missing] = targets;
+  expect(targets.map(({ status }) => status)).toEqual([...Array(6).fill("found"), "not_found"]);
+  // "14-7" is written short for 14 to 17.
+  expect(short.pages).toEqual(whole.pages);
+  // 9 and 10 are placed by the paragraphs beside them: from 8 to just before 11, over a page break.
+  const rect = (target: typeof eight, page = 0) => target.pages[page].passageRects[0];
+  expect(across.pages.map(({ pageNumber }) => pageNumber))
+    .toEqual([...new Set([eight.pages[0].pageNumber, eleven.pages[0].pageNumber])]);
+  expect(rect(across)[1]).toBe(rect(eight)[1]);
+  expect(rect(across, across.pages.length - 1)[3]).toBeLessThan(rect(eleven)[1]);
+  expect(repeated.pages.every(({ pageNumber }) => pageNumber >= eight.pages[0].pageNumber &&
+    pageNumber <= eleven.pages[0].pageNumber)).toBe(true);
+  expect(rect(repeated)[3]).toBe(rect(across, across.pages.length - 1)[3]);
+  // The running head and the page number are not the passage's.
+  for (const page of [...across.pages, ...repeated.pages])
+    expect(page.passageRects[0][1] > page.height * .05 && page.passageRects[0][3] < page.height * .95).toBe(true);
+  expect(missing.pages).toEqual([]);
+});
+
 it("borders detached margin paragraphs across bilingual pages, excluding headers and the next heading", async () => {
   const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.TimesRoman);
   const page = () => {
