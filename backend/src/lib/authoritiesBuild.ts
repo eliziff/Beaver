@@ -147,6 +147,13 @@ export function authorityFilingTargets(draft: AuthoritiesDraft, briefPageText?: 
   }));
 }
 
+/** How the book reads its scans. A book built from PDFs cites no page of them, so where only the
+ *  cited pages are to be read, every page is: the pages it shows recognizing are the pages it keeps. */
+export function bookScanPolicy(draft: AuthoritiesDraft): AuthoritiesDraft["settings"]["scannedPdfPolicy"] {
+  return draft.import.kind === "manual" && draft.settings.scannedPdfPolicy === "cited-pages"
+    ? "full" : draft.settings.scannedPdfPolicy;
+}
+
 export function authoritiesTextRoles(draft: AuthoritiesDraft) {
   const brief = authoritiesBriefPdf(draft);
   const filingRoles = brief ? [brief.bindingRole] : draft.settings.finalPdf && (draft.settings.linkTabs ||
@@ -927,8 +934,7 @@ async function prepareAuthorityBook(
         source.pageTextByPage ?? [], undefined, source.document.getPageCount(), source.passageGeometry,
         !!requirePrinted) : new Set<number>();
       const ocrTextByPage = source.authority ? source.ocrTextByPage?.map((text, index) =>
-        draft.settings.scannedPdfPolicy === "full" ||
-          draft.settings.scannedPdfPolicy === "cited-pages" && cited.has(index)
+        bookScanPolicy(draft) === "full" || bookScanPolicy(draft) === "cited-pages" && cited.has(index)
           ? pdfNormalized(text).replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?") : "") : undefined;
       return { key: source.key, name: source.name, tab: source.tab, sourceUrl: source.sourceUrl,
         bytes: await source.document.save({ useObjectStreams: false }),
