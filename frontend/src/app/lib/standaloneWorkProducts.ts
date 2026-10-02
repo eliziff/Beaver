@@ -626,7 +626,9 @@ async function relinkLocalFile(input: WorkProductInput,
     try {
       if (await requestPermission.call(existing, { mode: "read" }) === "granted") {
         liveHandles.set(input.handleId, existing);
-        return resolveRetainedFile(existing, input);
+        const resolved = await resolveRetainedFile(existing, input);
+        // A file moved or deleted since it was kept is chosen again where it is now.
+        if (resolved.status !== "missing") return resolved;
       }
     } catch { /* The replacement picker remains available. */ }
   }
