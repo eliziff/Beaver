@@ -10,11 +10,11 @@ import { pipeline } from "node:stream/promises";
 import { ApplicationError, reject } from "../lib/applicationError";
 import { authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations, type AuthoritiesBuildInput } from
   "../lib/authoritiesBuild";
+import { sourceReadings } from "../lib/sourceReadings";
 import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "../lib/authoritiesBook";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
   reduceAuthoritiesDraft, type AuthoritiesDraft } from "../lib/authoritiesDomain";
 import { importStandaloneAuthoritiesFile } from "../lib/authoritiesImport";
-import { authorityPdfText } from "../lib/authorityPdfText";
 import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
   autoFetchedPdf, attachAuthoritiesBookPdf, authoritiesReview, folderPdfAuthority } from "../lib/authoritiesActions";
@@ -119,6 +119,9 @@ export function createAuthoritiesRuntimeRouter(
   reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
 ) {
   const router = Router(); router.use(authenticate);
+  // A source read for a draft is read once: the read-ahead, the editor's marks and every build
+  // of an unchanged draft share the reading.
+  const readings = sourceReadings();
   router.get("/capabilities", (_req, res) => void res.json({ wordToPdf: wordToPdfAvailable() }));
   router.post("/quote-check", asyncRoute(async (req, res) => {
     const state = draft(req.body?.draft), links = decodeQuoteLinks(req.body?.links);
@@ -181,8 +184,8 @@ export function createAuthoritiesRuntimeRouter(
     if (!source || sha256(bytes) !== source.sourceSha256)
       return reject(409, "The PDF no longer matches this authority source");
     const abort = new AbortController(); res.once("close", () => abort.abort());
-    await createAuthoritiesPreparation(state).prepareText(role, { bytes, signal: abort.signal,
-      ...(progress ? { progress: (done: number, total: number) => progress(`${done}/${total}`) } : {}) });
+    await createAuthoritiesPreparation(state, readings).prepareText(role, { bytes, sourceSha256: source.sourceSha256,
+      signal: abort.signal, ...(progress ? { progress: (done: number, total: number) => progress(`${done}/${total}`) } : {}) });
     res.json({});
   }));
   router.post("/page-labels", singleFileUpload("file"), asyncRoute(async (req, res) => {
@@ -214,16 +217,11 @@ export function createAuthoritiesRuntimeRouter(
     const pdf = await import("pdf-lib");
     const document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
     if (!document.getPageCount() || document.getPageCount() > 2_000) return reject(400, "Unsupported PDF page count");
-    const targets = authorityPassageTargets(state, authority.id);
-    // Manual editing never forces OCR or depends on a successful automatic match.
-    const text = state.settings.passageMarking !== "none" && targets.length
-      ? await authorityPdfText({ bytes, signal: abort.signal, passageTargets: targets,
-          citations: authorityCitationForms(state, authority.id),
-          reporterOriginal: source.origin === "original",
-          scannedPdfPolicy: state.settings.scannedPdfPolicy,
-          // Page text only finds the page printing a paragraph number; sections and pages are
-          // placed by geometry, so a long statute is not read one page at a time to open.
-          pageText: targets.some(({ locatorKind }) => locatorKind === "paragraph") }) : {};
+    // Manual editing never depends on a successful automatic match. The source is read as a
+    // build reads it, so a source read ahead or built is not read again.
+    const text = state.settings.passageMarking !== "none" && authorityPassageTargets(state, authority.id).length
+      ? await createAuthoritiesPreparation(state, readings).readText(source.bindingRole,
+        { bytes, sourceSha256: source.sourceSha256, signal: abort.signal }) : {};
     res.json(prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true));
   }));
   router.post("/create", asyncRoute(async (req, res) => {
@@ -350,7 +348,7 @@ export function createAuthoritiesRuntimeRouter(
       reject(400, "Authorities build identity is invalid");
     let preparation: ReturnType<typeof createAuthoritiesPreparation>;
     // Saved highlights for a PDF that was since replaced are the user's to review, not a server fault.
-    try { preparation = createAuthoritiesPreparation(state); }
+    try { preparation = createAuthoritiesPreparation(state, readings); }
     catch (error) { return reject(409, error instanceof Error ? error.message : "Authorities could not be built"); }
     // Every source is read at once: its preparation waits only on the parsers and recognizers that
     // bound that work (native preparation runs off the event loop), so a scan's pages are queued
@@ -364,11 +362,13 @@ export function createAuthoritiesRuntimeRouter(
         const binding = state.bindings[role];
         const expectedHash = binding?.kind === "local-file" ? binding.lastSeen.sha256
           : binding?.kind === "document" && binding.version !== "latest" ? binding.version.sha256 : null;
-        if (!expectedHash || sha256(bytes) !== expectedHash) reject(409, "An attached PDF changed. Add the current file before continuing.");
+        const sourceSha256 = expectedHash && sha256(bytes) === expectedHash ? expectedHash
+          : reject(409, "An attached PDF changed. Add the current file before continuing.");
         // Recognizing a scan's pages is the long part of reading one: it reports page by page.
         const recognizing = (done: number, total: number) =>
           progress?.(`Recognizing text in ${file.originalname} · ${done} of ${total} page${total === 1 ? "" : "s"}`);
-        return [role, { bytes, ...await preparation.prepareText(role, { bytes, signal: build.signal, progress: recognizing })
+        return [role, { bytes, ...await preparation.prepareText(role, { bytes, sourceSha256,
+          signal: build.signal, progress: recognizing })
           .catch((error) => {
             if (build.signal.aborted) throw error;
             return reject(409, error instanceof Error

@@ -38,8 +38,6 @@ export async function authorityPdfText(input: {
   passageTargets?: NativePdfPassageTarget[] | ((pageTextByPage: string[]) => NativePdfPassageTarget[]);
   ocrTargets?: NativePdfPassageTarget[];
   scannedPdfPolicy?: AuthoritiesBuildSettings["scannedPdfPolicy"];
-  /** Every page's text, read one page at a time; a caller that places only by geometry skips it. */
-  pageText?: boolean;
   /** Pages recognized so far, of those this pass reads. */
   progress?: (recognized: number, total: number) => void;
   signal?: AbortSignal;
