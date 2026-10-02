@@ -514,16 +514,19 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     return result;
   }
   /** A save made to the draft as it is when the save's turn comes. One that landed meanwhile
-   *  without this workspace (sources gathered on the server) is read, and the save made again on it. */
+   *  without this workspace (sources gathered on the server) is read, and the save made again on
+   *  it, as often as one lands while the save is made (sources arrive one after another). */
   async function onLatest(id: string, save: (current: AuthoritiesProduct) => Promise<AuthoritiesProduct>) {
-    const current = draftRef.current;
+    let current = draftRef.current;
     if (current?.id !== id) throw new Error("This draft is no longer open.");
-    return save(current).catch(async (caught) => {
-      if ((caught as { status?: number })?.status !== 409) throw caught;
-      const newer = await host.drafts.get<AuthoritiesProduct["state"]>(id);
-      adopt(newer);
-      return save(newer);
-    });
+    for (let attempt = 1; ; attempt += 1) {
+      try { return await save(current); }
+      catch (caught) {
+        if ((caught as { status?: number })?.status !== 409 || attempt === 6) throw caught;
+        current = await host.drafts.get<AuthoritiesProduct["state"]>(id);
+        adopt(current);
+      }
+    }
   }
   const queuedSave = (id: string, save: (current: AuthoritiesProduct) => Promise<AuthoritiesProduct>) =>
     serialized(() => onLatest(id, save));
@@ -928,19 +931,22 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     let unavailable = "";
     awaitingSources.current = true; setSourcesProgress(sourcesNote.current);
     void run(async () => {
-      await gathering.current; await actionQueue.current;
-      const current = draftRef.current;
-      if (!current) throw new Error("Open a draft first.");
-      const ready = gathered.current.id === current.id && gathered.current.revision === current.revision;
-      // A legal-source service that is down or limiting requests leaves the sources to add by hand:
-      // the step still opens, and says why nothing was found.
-      const prepared = ready ? current : await host.prepareSources(current, request.signal, undefined, noteSources).catch((caught) => {
-        if ((caught as { status?: number })?.status !== 503) throw caught;
-        unavailable = errorText(caught); return current;
-      });
+      await gathering.current;
+      const id = draftRef.current?.id;
+      if (!id) throw new Error("Open a draft first.");
+      // Each write waits its turn behind every other save, and is made again on a newer draft
+      // should one land meanwhile (sources still arriving, a gathering retried).
+      const prepared = await queuedSave(id, (current) =>
+        gathered.current.id === current.id && gathered.current.revision === current.revision ? Promise.resolve(current)
+          // A legal-source service that is down or limiting requests leaves the sources to add by
+          // hand: the step still opens, and says why nothing was found.
+          : host.prepareSources(current, request.signal, undefined, noteSources).catch((caught) => {
+            if ((caught as { status?: number })?.status !== 503) throw caught;
+            unavailable = errorText(caught); return current;
+          }));
       request.signal.throwIfAborted();
-      if (!ready) adopt(prepared);
-      return host.act(prepared.id, prepared.revision, { type: "set-stage", stage: "sources" });
+      if (prepared !== draftRef.current) adopt(prepared);
+      return queuedSave(id, (current) => host.act(current.id, current.revision, { type: "set-stage", stage: "sources" }));
     }, (next) => { adopt(next); if (unavailable) setMessage(unavailable); }, "", "Finding source PDFs").finally(() => {
       awaitingSources.current = false; setSourcesProgress("");
       if (scanRequest.current === request) scanRequest.current = null;
@@ -1134,7 +1140,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           act({ type: "add-authority", kind, citation, name }, async (next) => {
             if (next.state.stage !== "citations") {
               setOperation("Finding source PDF");
-              try { adopt(await host.prepareSources(next)); }
+              // Already in the save queue's turn: made again on a newer draft, never queued behind itself.
+              try { adopt(await onLatest(next.id, (latest) => host.prepareSources(latest))); }
               finally { setOperation(""); }
             }
           });

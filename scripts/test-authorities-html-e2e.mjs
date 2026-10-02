@@ -5,9 +5,11 @@
 // reads the downloads back, asserting performance budgets and layout invariants throughout.
 //
 //   npm run test:authorities-html-e2e -- [--skip-build] [--mode=file|http] [--only=pdf|docx|first] [--headed] [--live]
-//     [--html=path] [--out=dir]
+//     [--html=path] [--out=dir] [--slow-a2aj=ms]
 // --live lets A2AJ and publishers answer for real instead of the stub (not deterministic); a lookup
 // reported unchecked then fails the run unless A2AJ, asked once directly, is not answering either.
+// --slow-a2aj makes the stub answer that many ms late, as the live service can, so sources are still
+// being gathered while the review edits and moves on.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
@@ -76,6 +78,7 @@ async function routeNetwork(context, requests) {
     if (url.hostname !== "api.a2aj.ca") return route.abort("blockedbyclient");
     const citation = url.searchParams.get("citation"), cases = url.searchParams.get("doc_type") === "cases";
     const hit = cases && url.pathname === "/fetch" && A2AJ_CASES.find((item) => [item.citation, item.alternate].includes(citation));
+    if (args["slow-a2aj"]) await new Promise((resolve) => setTimeout(resolve, Number(args["slow-a2aj"])));
     return route.fulfill({ json: { results: hit ? [a2ajRecord(hit)] : [] } });
   });
 }
