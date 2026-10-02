@@ -2,7 +2,7 @@ import { resolvePdfPagination } from "./pdfPagination";
 import JSZip from "jszip";
 import { Document as WordDocument, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx";
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName,
-  PDFNumber, PDFRawStream, StandardFonts } from "pdf-lib";
+  PDFNumber, PDFRawStream, PDFString, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
 import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests, authorityPassageTargets,
@@ -1391,8 +1391,9 @@ describe("Authorities output builder", () => {
       .find((annotation) => annotation.has(PDFName.of("A")));
     // Decisia links carry the iframe/mobile parameters the document text
     // needs to render at all, the same as every other legal-source link.
+    // A link's address is plain ASCII, as viewers read it.
     expect(external?.lookup(PDFName.of("A"), PDFDict)
-      .lookup(PDFName.of("URI"), PDFHexString).decodeText())
+      .lookup(PDFName.of("URI"), PDFString).decodeText())
       .toBe(`${state.authorities.grant.source.sources[0].sourceUrl
         }?iframe=true&site_preference=mobile`);
     expect(book.catalog.lookup(PDFName.of("Outlines"), PDFDict)
@@ -1487,7 +1488,7 @@ describe("Authorities output builder", () => {
       });
       const databaseLink = book.getPage(2).node.lookup(PDFName.of("Annots"), PDFArray).asArray()
         .map((ref) => book.context.lookup(ref, PDFDict)).find((item) => item.has(PDFName.of("A")))!
-        .lookup(PDFName.of("A"), PDFDict).lookup(PDFName.of("URI"), PDFHexString).decodeText();
+        .lookup(PDFName.of("A"), PDFDict).lookup(PDFName.of("URI"), PDFString).decodeText();
       expect(databaseLink).toBe(sourceUrl);
       expect(annotSubtypes(book, 5)).toEqual(["/Square", "/Link"]);
       const authorityOutline = book.catalog.lookup(PDFName.of("Outlines"), PDFDict)
