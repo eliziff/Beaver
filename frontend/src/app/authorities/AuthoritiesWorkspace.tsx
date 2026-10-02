@@ -723,7 +723,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // a PDF is attached to it, looked for every two seconds and whenever the tab is come back to.
   const [watchedFolder, setWatchedFolder] = useState<string>();
   // A folder kept from an earlier visit that Chrome asks about again: asked on the next click.
-  const [folderAccess, setFolderAccess] = useState<{ handle: WatchedFolder; open?: boolean; denied?: boolean }>();
+  const [folderAccess, setFolderAccess] = useState<{ handle: WatchedFolder; open?: boolean }>();
   const folder = useRef<{ handle: WatchedFolder; timer: number } | null>(null);
   const folderTried = useRef(new Set<string>()), folderScanning = useRef(false);
   const busyRef = useRef(busy), scanRef = useRef<() => Promise<void>>(async () => {});
@@ -756,9 +756,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }
   async function allowFolder() {
     const handle = folderAccess?.handle;
-    if (!handle) return;
-    if (await handle.requestPermission?.({ mode: "read" }).catch(() => "denied") === "granted") watch(handle, true);
-    else setFolderAccess({ handle, open: true, denied: true });
+    if (handle && await handle.requestPermission?.({ mode: "read" }).catch(() => "denied") === "granted") watch(handle, true);
+    else setFolderAccess(handle && { handle });
   }
   /** Each PDF not looked at before, newest first, is asked which authority still without a PDF it
    *  is; one that is none stays where it is. Only a match holds the workspace while it attaches. */
@@ -1237,8 +1236,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         <p className="pb-3 text-sm leading-6 text-gray-700">Chrome asks again before Authorities can watch{" "}
           <strong>{folderAccess?.handle.name}</strong>. Choose <strong>Allow on every visit</strong> so it
           won’t ask next time.</p>
-        {folderAccess?.denied && <p role="alert" className="pb-3 text-sm text-red-800">Chrome did not allow
-          access.</p>}
       </Modal>
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="lg"
         breadcrumbs={["Missing PDFs"]} fit

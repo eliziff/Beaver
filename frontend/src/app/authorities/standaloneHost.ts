@@ -4,11 +4,10 @@ import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs
 import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
-  getStandaloneOutputFolder, getStandaloneWatchedFolder, inspectStandaloneFile, pickRetainedFiles,
-  readSourceAnswer, readSourcePdf, setStandaloneWatchedFolder,
+  getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readSourceAnswer, readSourcePdf,
   readStandaloneOutput, relinkStandaloneFile, rememberSourceAnswer, rememberSourcePdf, requestStandaloneFileAccess,
   resolveStandaloneFile, retainStandaloneFile,
-  saveStandaloneArtifacts,
+  saveStandaloneArtifacts, standaloneWatchedFolder,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
@@ -339,7 +338,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     attachPdf(id, revision, selected, { slot, ...(supplementId ? { supplement_id: supplementId } : {}) }),
   pdfAuthority: async (product, opening) => (await (await runtimeResponse("pdf-authority",
     JSON.stringify({ draft: product.state, ...opening }), true)).json()).authorityId,
-  watchedFolder: { get: getStandaloneWatchedFolder, set: setStandaloneWatchedFolder },
+  watchedFolder: standaloneWatchedFolder,
   async build(selected, progress, signal) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);

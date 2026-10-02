@@ -346,10 +346,20 @@ const permitted = async (handle: FileSystemHandle, mode: "read" | "readwrite") =
 const OUTPUT_FOLDER_UNUSABLE =
   "Built files are ready to download; the output folder could not be used.";
 
-async function outputFolder() {
-  const saved = await read<StoredHandle>(HANDLES, OUTPUT_FOLDER);
+/** A folder kept by its preference id (the output folder, the folder Auto-fetch watches); its
+ *  permission is asked for apart. */
+async function keptFolder(id: string) {
+  const saved = await read<StoredHandle>(HANDLES, id);
   return saved?.handle.kind === "directory" ? saved.handle : null;
 }
+async function keepFolder(id: string, handle: FileSystemDirectoryHandle | null) {
+  const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
+  if (handle) transaction.objectStore(HANDLES).put({ id, handle, createdAt: Date.now() } satisfies StoredHandle);
+  else transaction.objectStore(HANDLES).delete(id);
+  await completed(transaction);
+}
+export const standaloneWatchedFolder = { get: () => keptFolder(WATCHED_FOLDER),
+  set: (handle: FileSystemDirectoryHandle | null) => keepFolder(WATCHED_FOLDER, handle) };
 
 export async function getStandaloneFilingContact(): Promise<StandaloneFilingContact> {
   const saved = await read<Partial<StandaloneFilingContact>>(METADATA, FILING_CONTACT);
@@ -366,7 +376,7 @@ export async function setStandaloneFilingContact(contact: StandaloneFilingContac
 
 export async function getStandaloneOutputFolder() {
   try {
-    const handle = await outputFolder();
+    const handle = await keptFolder(OUTPUT_FOLDER);
     return handle && await permitted(handle, "readwrite") ? handle.name : null;
   } catch { return null; }
 }
@@ -377,36 +387,16 @@ export async function chooseStandaloneOutputFolder() {
   if (!picker) return null;
   try {
     const handle = await picker({ id: "work-product-output", mode: "readwrite" });
-    const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
-    transaction.objectStore(HANDLES).put({ id: OUTPUT_FOLDER, handle,
-      createdAt: Date.now() } satisfies StoredHandle);
-    await completed(transaction);
+    await keepFolder(OUTPUT_FOLDER, handle);
     return handle.name;
   } catch { return getStandaloneOutputFolder(); }
 }
 
-/** The folder Auto-fetch watches, as chosen on an earlier visit; its permission is asked for apart. */
-export async function getStandaloneWatchedFolder() {
-  const saved = await read<StoredHandle>(HANDLES, WATCHED_FOLDER);
-  return saved?.handle.kind === "directory" ? saved.handle : null;
-}
-
-export async function setStandaloneWatchedFolder(handle: FileSystemDirectoryHandle | null) {
-  const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
-  if (handle) transaction.objectStore(HANDLES).put({ id: WATCHED_FOLDER, handle, createdAt: Date.now() } satisfies StoredHandle);
-  else transaction.objectStore(HANDLES).delete(WATCHED_FOLDER);
-  await completed(transaction);
-}
-
-export async function clearStandaloneOutputFolder() {
-  const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
-  transaction.objectStore(HANDLES).delete(OUTPUT_FOLDER);
-  await completed(transaction);
-}
+export const clearStandaloneOutputFolder = () => keepFolder(OUTPUT_FOLDER, null);
 
 export async function writeStandaloneArtifactsToOutputFolder(artifacts: StandaloneArtifact[]) {
   try {
-    const handle = await outputFolder();
+    const handle = await keptFolder(OUTPUT_FOLDER);
     if (!handle) return null;
     if (!await permitted(handle, "readwrite")) return OUTPUT_FOLDER_UNUSABLE;
     for (const artifact of artifacts) {
