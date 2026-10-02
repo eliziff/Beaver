@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { createAuthoritiesDraft } from "../../../../backend/src/lib/authoritiesDomain";
 import { Sources } from "./AuthoritySources";
-import type { AuthoritiesProduct, AuthorityIdentity } from "./types";
+import type { AuthoritiesProduct, AuthorityIdentity, AuthorityOccurrence } from "./types";
 
 function renderSource(...authorities: AuthorityIdentity[]) {
   const state = createAuthoritiesDraft({ kind: "manual" });
@@ -111,4 +111,17 @@ it("names A2AJ's limit and a defect of our own for what they are, and tells same
   expect(banner).toHaveTextContent("Authorities failed with an error of its own (x is not a function), " +
     "so this authority wasn't checked: Sample v Sample.");
   expect(banner).not.toHaveTextContent(/couldn't be reached|answered with an error/u);
+});
+
+it("lists a CanLII ID once, with the court it is cited with", () => {
+  const state = createAuthoritiesDraft({ kind: "manual" });
+  const item = { ...authority, name: "Marlow v The King", citation: "1961 CanLII 7 (SCC)" };
+  state.authorities = { one: item }; state.authorityOrder = ["one"];
+  const occurrence = { id: "o", unitId: "u", authorityId: "one", kind: "case", citation: "1961 CanLII 7" } as AuthorityOccurrence;
+  render(<Sources draft={{ id: "draft", kind: "authorities", revision: 1, title: "Book", projectId: null, state,
+    outputs: {}, createdAt: "", updatedAt: "" }} authorities={[item]} tabs={new Map([["one", "1"]])}
+    occurrences={[occurrence]} busy={false} sourceIssues={{}} onAction={vi.fn()} onAdd={vi.fn()}
+    onAttach={vi.fn()} onRelink={vi.fn()} onOpenSource={vi.fn()} onEditIdentity={vi.fn()} />);
+  expect(screen.getByText("1961 CanLII 7 (SCC)")).toBeVisible();
+  expect(screen.queryByText(/1961 CanLII 7;|; 1961 CanLII 7$/u)).toBeNull();
 });

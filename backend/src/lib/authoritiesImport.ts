@@ -309,7 +309,7 @@ async function scanReview(
       : ["journal", "book", "essay_collection"].includes(source?.fields.kind ?? "")
       ? "commentary" : "other";
     // A core that does not name its court (a CanLII ID, a reporter) keeps the court written
-    // after it, as McGill cites it: "1954 CanLII 3 (SCC)", even past a pinpoint.
+    // after it, as McGill cites it: "1961 CanLII 7 (SCC)", even past a pinpoint.
     const court = representative.format === "neutral" ? undefined
       : representative.parentheticals?.find(({ kind }) => kind === "court")?.span.text;
     const observedText = source?.fields.citation_with_style || source?.part.text.trim() ||
