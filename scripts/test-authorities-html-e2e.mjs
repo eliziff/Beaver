@@ -725,7 +725,12 @@ function Run(page, mode) {
     await shots("pdf-11-build");
     await noHorizontalScroll("pdf build");
     await tabColumn("pdf build", bookRows());
+    // The dock keeps each output's place and size through its first build: its download's line is reserved.
+    const rows = () => page.getByRole("complementary", { name: "Outputs" }).locator("[data-output=book], [data-output=table]")
+      .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().height)).join());
+    const unbuilt = await rows();
     const files = await build("pdf");
+    check(await rows() === unbuilt, `${mode}: the outputs dock's rows keep their size when built`, [unbuilt, await rows()]);
     await shots("pdf-12-built");
     // Every step tab switches at once and leaves the header and the steps where they are.
     // A reader reaches the step tabs at the top of the page; downloading the outputs scrolled it.
