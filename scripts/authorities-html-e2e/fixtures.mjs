@@ -97,14 +97,14 @@ h1{font-size:23px;text-align:center;margin:0 0 6px}p{margin:0 0 18px;text-align:
 <p>[23] The application is allowed and the matter is returned to the board.</p></div>`;
 
 /** The brief as Word: one paragraph per item, real footnotes, and the title's custom "*" mark, drawn
- *  as Word draws an inserted symbol: a Symbol-font character, which is no text. */
+ *  as Word draws an inserted symbol: a Symbol-font character, which is no text, in the reference's
+ *  own run (Word does not open a custom mark written in a run of its own). */
 async function briefDocx() {
   const w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
   const escape = (text) => text.replace(/&/gu, "&amp;").replace(/</gu, "&lt;");
   const run = (text) => `<w:r><w:t xml:space="preserve">${escape(text)}</w:t></w:r>`;
   const reference = (id, mark) => `<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr>${mark
-    ? `<w:footnoteReference w:customMarkFollows="1" w:id="${id}"/></w:r><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr>${mark}`
-    : `<w:footnoteReference w:id="${id}"/>`}</w:r>`;
+    ? `<w:footnoteReference w:customMarkFollows="1" w:id="${id}"/>${mark}` : `<w:footnoteReference w:id="${id}"/>`}</w:r>`;
   const star = '<w:sym w:font="Symbol" w:char="F02A"/>';
   const notes = [{ id: 1, mark: star, text: BRIEF.titleNote }];
   let id = 1;
