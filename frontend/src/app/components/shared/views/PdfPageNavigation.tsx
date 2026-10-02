@@ -40,10 +40,11 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
             else setMatches(found);
         }
     }
-    // An emptied field shows its page range as a faint placeholder; the width fits that range so it never shifts.
+    // An emptied field shows its page range as a faint placeholder; the width fits that range, and a
+    // range up to four digits a side, so the fields keep their size from one PDF to the next.
     const pdfRange = `1–${count}`, printedRange = `${known[0]}–${known.at(-1)}`;
     const inputClass = "h-7 rounded border border-gray-200 px-1.5 text-end tabular-nums text-gray-950 placeholder:font-normal placeholder:text-gray-400 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700 disabled:opacity-50";
-    const width = (range: string) => ({ width: `calc(${range.length + 1}ch + 0.75rem)` });
+    const width = (range: string) => ({ width: `calc(${Math.max(range.length, 6) + 1}ch + 0.75rem)` });
     return <div className="relative min-w-0 text-[0.8125rem] font-medium text-gray-700" onKeyDown={event => {
         if (event.key === "Escape") {
             if (matches.length) printedRef.current?.focus();
