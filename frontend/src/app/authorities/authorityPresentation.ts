@@ -13,9 +13,11 @@ export function authorityLabel(item: AuthorityIdentity) {
     ? name : `${name}, ${citation}`;
 }
 export function authorityCitationForms(item: AuthorityIdentity, occurrences: AuthorityOccurrence[]) {
-  return [...new Set([item.citation, ...occurrences.filter(({ authorityId, kind }) =>
+  const forms = [...new Set([item.citation, ...occurrences.filter(({ authorityId, kind }) =>
     authorityId === item.id && kind !== "reference").map(({ citation }) => citation)]
     .map((citation) => citation.trim()).filter(Boolean))];
+  // "1954 CanLII 3" is "1954 CanLII 3 (SCC)" without the court it is cited with: one form.
+  return forms.filter((form) => !forms.some((other) => other.startsWith(`${form} (`)));
 }
 const courtRequirements = (state: AuthoritiesProduct["state"]) =>
   authoritiesProfile(state.settings.profileId).requirements;
