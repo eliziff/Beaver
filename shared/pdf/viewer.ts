@@ -8,6 +8,8 @@ import type { RecognizedPage } from './pdfRecognizedText';
 import type { PdfAnnotation } from '../pdf-annotations.mjs';
 
 export const PDF_ZOOM_MIN = .5, PDF_ZOOM_MAX = 3, PDF_ZOOM_STEP = .25;
+/** PDF.js's RenderingStates.FINISHED: a page view whose canvas is painted. */
+const FINISHED = 3;
 const clampZoom = (value: number) => Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, value));
 
 /** PDF.js owns raster work; this session owns Beaver's resident text, marks and interaction. */
@@ -75,6 +77,23 @@ export function createPdfSession(options: {
       sync(number);updateAnnotations(number);return true;
     } catch(error) { if(!signal.aborted)options.onError(error);return false; }
   };
+  /** Draws a page and its text where it is, off screen or not, so a view moved to it shows it
+   *  painted rather than blank while PDF.js paints it. False when it could not be drawn. */
+  const drawPage=async(number: number)=>{
+    if(!await preparePage(number) || signal.aborted)return false;
+    const view=viewer.getPageView(number-1);
+    const drawn=view.renderingState===FINISHED || await new Promise<boolean>(resolve=>{
+      const done=({pageNumber,error}: {pageNumber:number;error?:unknown})=>{
+        if(pageNumber!==number)return;
+        eventBus.off('pagerendered',done);resolve(!error);
+      };
+      eventBus.on('pagerendered',done);
+      signal.addEventListener('abort',()=>{eventBus.off('pagerendered',done);resolve(false);},{once:true});
+      if(!viewer.renderingQueue?.renderView(view)){eventBus.off('pagerendered',done);resolve(view.renderingState===FINISHED);}
+    });
+    if(drawn && !signal.aborted)await ensureText(number);
+    return drawn && !signal.aborted;
+  };
   const navigate=async(number: number,mark?: PdfAnnotation)=>{
     const request=++navigation;
     if(!await preparePage(number) || request!==navigation || signal.aborted)return false;
@@ -108,7 +127,11 @@ export function createPdfSession(options: {
     viewer.currentScale=fit*zoom;
   };
   let width=container.clientWidth;
-  const observer=new ResizeObserver(()=>{if(width!==container.clientWidth){width=container.clientWidth;resize();}});
+  const observer=new ResizeObserver(()=>{
+    // A viewer leaving the page, or hidden, has no width to fit: its scale stays as it was.
+    if(!container.isConnected || !container.clientWidth)return;
+    if(width!==container.clientWidth){width=container.clientWidth;resize();}
+  });
   observer.observe(container);
   const detachSelection=attachPdfTextSelection(container,()=>!zooming && !options.readEditor?.()?.disabled && options.readEditor?.()?.tool!=='draw');
   container.addEventListener('wheel',event=>{
@@ -158,7 +181,7 @@ export function createPdfSession(options: {
   options.signal.addEventListener('abort',destroy,{once:true});
   viewer.setDocument(pdf);void viewer.pagesPromise?.catch((error: unknown)=>{if(!signal.aborted)options.onError(error);});
   if(options.signal.aborted)destroy();
-  return {viewer,pages,ready,preparePage,ensureText,navigate,setZoom,updateAnnotations,destroy,
+  return {viewer,pages,ready,preparePage,ensureText,drawPage,navigate,setZoom,updateAnnotations,destroy,
     get zoom(){return requestedZoom;},
     focusAnnotation(mark: PdfAnnotation){return navigate(mark.fragments[0].pageNumber,mark);},
     refreshText(){for(const [number,entry] of layers)entry.layer.refresh(options.readText?.(number),options.readTextLoader?.());},

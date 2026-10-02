@@ -234,6 +234,8 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const [located, setLocated] = useState(true);
   // Only outline and navigation choices move the view; a click in the document never does.
   const scrollPending = useRef(true);
+  // Draws a PDF page and its text before the view goes to it (set by the PDF view once it opens).
+  const drawPage = useRef<((page: number) => Promise<boolean>) | null>(null);
   const { units } = product.state, imported = product.state.import;
   const pdf = imported.kind === 'document' && imported.fileType === 'pdf';
   const sourceKey = JSON.stringify([product.id, product.state.bindings.source, sourceVersion]);
@@ -295,7 +297,8 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   };
   const flushNudge = () => { clearTimeout(nudge.current?.timer); nudge.current?.commit(); };
   /** Marks the selected citation active and brings it into view when a navigation asked for that.
-   * A PDF page not yet rendered is scrolled to once; its text layer then marks and places the citation. */
+   * A PDF page not yet rendered is drawn where it is first, so the view never shows it blank; its
+   * text layer then marks and places the citation, or the view goes to the page if it holds no mark. */
   const activate = () => {
     const { selected, product } = live.current, root = documentRef.current;
     if (!root || !selected) return;
@@ -317,8 +320,16 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
       if (mark.top < view.top + 36 || mark.bottom > view.bottom - 36) scroller.scrollTop += mark.top - view.top - view.height / 3;
       return;
     }
-    const page = pages[0] && scroller.querySelector(`.page[data-page-number="${pages[0]}"]`)?.getBoundingClientRect();
-    if (page && (page.bottom < view.top || page.top > view.bottom)) scroller.scrollTop += page.top - view.top;
+    const pageOf = () => pages[0] && scroller.querySelector(`.page[data-page-number="${pages[0]}"]`)?.getBoundingClientRect();
+    const page = pageOf();
+    if (!page || page.bottom >= view.top && page.top <= view.bottom) return;
+    const toPage = () => {
+      const now = pageOf(), shown = scroller.getBoundingClientRect();
+      if (now && (now.bottom < shown.top || now.top > shown.bottom) && scrollPending.current &&
+        live.current.selected?.id === selected.id) scroller.scrollTop += now.top - shown.top;
+    };
+    if (drawPage.current) void drawPage.current(pages[0]).then(toPage, toPage);
+    else toPage();
   };
   const decorate = (root: HTMLElement, page?: number) => {
     const { product } = live.current;
@@ -638,7 +649,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
         const mark = (event.target as Element).closest<HTMLElement>('[data-citation-id]');
         if (mark?.dataset.citationId) { event.preventDefault(); choose(mark.dataset.citationId, false); }
       }}>
-      {source ? pdf ? <PdfCanvas bytes={source.pdf} rounded={false} ariaLabel="Source document"
+      {source ? pdf ? <PdfCanvas bytes={source.pdf} rounded={false} ariaLabel="Source document" drawPage={drawPage}
         onUnavailable={() => setError('The document preview could not be opened.')}
         onTextReady={(page, element) => decorate(element.querySelector<HTMLElement>('.pdf-text-layer') ?? element, page)} />
         : <DocxCanvas bytes={source.buffer} maxZoom={1.25} onReady={() => setReady(value => value + 1)}

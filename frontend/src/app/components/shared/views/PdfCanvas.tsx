@@ -37,6 +37,8 @@ export interface PdfCanvasProps {
     onTextReady?: (page: number, element: HTMLElement, focus: boolean) => void;
     /** Told when a page of the document it was given is drawn. */
     onRendered?: () => void;
+    /** Given the means to draw a page (and its text) before a view is moved to it. */
+    drawPage?: { current: ((page: number) => Promise<boolean>) | null };
 }
 
 
@@ -45,7 +47,7 @@ type Layout = PdfSession & { search(quotes: CitationQuote[]): Promise<void> };
 
 export function PdfCanvas({source, bytes, loading = false, error, quotes = [], quoteFocusKey,
     rounded = true, ariaLabel = "PDF document", onUnavailable, annotationEditor,
-    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady, onRendered}: PdfCanvasProps) {
+    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady, onRendered, drawPage}: PdfCanvasProps) {
     const containerRef = useRef<HTMLDivElement>(null), scrollRef = useRef<HTMLDivElement>(null);
     const layoutRef = useRef<Layout | null>(null);
     const previewRef = useRef<HTMLDivElement | null>(null);
@@ -104,6 +106,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
             }
             controller.abort(); quoteGenerationRef.current++; navigationRef.current++;
             if (layoutRef.current?.viewer === viewer) layoutRef.current = null;
+            if (drawPage && drawPage.current === session?.drawPage) drawPage.current = null;
             session?.destroy();
             void task?.destroy().catch(() => undefined);
         };
@@ -175,11 +178,12 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
             layoutRef.current = layout;
             await session.ready;
             if (signal.aborted) return;
+            if (drawPage) drawPage.current = session.drawPage;
             setNumPages(pdf.numPages); setLayoutRevision(value => value + 1);
             void search(quotesRef.current).catch(fail);
         })().catch(fail);
         return () => dispose(true);
-    }, [bytes, source, error, clearPreview, authoredPageLabels]);
+    }, [bytes, source, error, clearPreview, authoredPageLabels, drawPage]);
     useEffect(() => clearPreview, [clearPreview]);
 
     const quoteKey = JSON.stringify(quotes);

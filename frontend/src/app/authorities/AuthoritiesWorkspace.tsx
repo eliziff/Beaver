@@ -1096,12 +1096,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                   {/* Every step starts the same distance below the steps, so switching moves nothing. */}
                   <div id="authorities-step" role="tabpanel" className="flow-root [&>*:first-child]:mt-2"
                     aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
+                  {/* The review stays drawn, held still, while Next finds the sources; Sources replaces it. */}
                   {reviewing && <><section aria-label="Citations"
                     className={cn(WIDE, "@container mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm")}>
-                    {operation !== "Finding source PDFs" && <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
+                    <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={findings}
                       busy={busy} onSelect={setSelectedId} onAction={act}
-                      onFocusChange={onFocusChange} onReview={setFindingId} />}
+                      onFocusChange={onFocusChange} onReview={setFindingId} />
                   </section>{quotationReview && <div ref={revealFinding}>{quotationReview}</div>}</>}
                   {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences}
                     ocr={ocr}
