@@ -156,14 +156,15 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
                 y -= 27; continue;
               }
               const bodySize = federal ? 12 : 8.8, tabX = federal ? margin + 6 : 54;
-              const titleX = federal ? margin + 52 : 102, sourceX = federal ? 447 : 477;
+              const titleX = federal ? margin + 52 : 102, sourceX = 447;
               const pageRight = federal ? 612 - margin : 547;
+              // Only the Federal Court's index links each authority to its public source.
+              const sourceUrl = federal ? token.entry.sourceUrl : null;
               page.drawText(pdfText(token.entry.tab), { x: tabX, y, size: federal ? 12 : 7.5, font: bold });
               page.drawText(fit(serif, token.entry.name, bodySize,
-                token.entry.sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - 28),
+                sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - 28),
               { x: titleX, y, size: bodySize, font: serif });
-              if (token.entry.sourceUrl) page.drawText("source", { x: sourceX, y,
-                size: federal ? 12 : 7.5, font: regular, color: pdf.rgb(.55, .05, .05) });
+              if (sourceUrl) page.drawText("source", { x: sourceX, y, size: 12, font: regular });
               const pageLabel = ranges.get(token.entry.key)?.join(", ") ?? "—";
               const pageSize = federal ? 12 : 8;
               page.drawText(pageLabel, { x: pageRight - bold.widthOfTextAtSize(pageLabel, pageSize),
@@ -174,9 +175,8 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
               const start = localStarts.get(token.entry.key);
               if (start !== undefined) links.push({ page, targetPageIndex: start,
                 rect: [federal ? margin : 48, y - 10,
-                  token.entry.sourceUrl ? sourceX - 5 : federal ? 612 - margin : 564, y + 10] });
-              if (token.entry.sourceUrl) links.push({ page, url: token.entry.sourceUrl,
-                rect: [sourceX - 5, y - 10, federal ? 492 : 526, y + 10] });
+                  sourceUrl ? sourceX - 5 : federal ? 612 - margin : 564, y + 10] });
+              if (sourceUrl) links.push({ page, url: sourceUrl, rect: [sourceX - 5, y - 10, 492, y + 10] });
               y -= 25;
             }
             if (!(federal && electronic)) {
