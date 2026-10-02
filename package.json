@@ -16,6 +16,7 @@
         "package:authorities": "powershell -NoProfile -ExecutionPolicy Bypass -File AuthoritiesHelper/modern/package-authorities.ps1",
         "build:authorities-html": "node AuthoritiesHelper/modern/html/build.mjs",
         "test:authorities-html-e2e": "node scripts/test-authorities-html-e2e.mjs",
+        "test:authorities-stress": "node scripts/test-authorities-stress.mjs",
         "test:court-records:browser": "npm run build --prefix frontend && python scripts/test-court-records-browser.py",
         "test:experiments": "npm run test:experiments --prefix backend",
         "test:e2e": "playwright test",
