@@ -94,20 +94,43 @@ function unusedRole(draft: AuthoritiesDraft, role: string) {
   return candidate;
 }
 
+/** The style of cause a decision prints before its own citation, as a CanLII PDF opens:
+ *  "Citation: Pell v Marlow Holdings, 2030 ABKB 12" gives "Pell v Marlow Holdings". `keys` name
+ *  the decision. A caption that is not a plain "Name, citation" (a label such as "Neutral
+ *  citation:" or a heading's bracket read into the name) names nothing. */
+export function captionStyleOfCause(text: string, keys: readonly string[]) {
+  const native = structureNative();
+  const balanced = (style: string, open: string, close: string) =>
+    style.split(open).length === style.split(close).length;
+  const own = native.citationOccurrencesInText(text).find(({ kind, styledCitation, coreCitation }) =>
+    kind === "case" && styledCitation.start < coreCitation.start &&
+    keys.includes(native.citationLookupKey(coreCitation.text)));
+  const style = own && text.slice(own.styledCitation.start, own.coreCitation.start).replace(/[\s,]+$/u, "");
+  return style && !style.endsWith(":") && balanced(style, "(", ")") && balanced(style, "[", "]") ? style : null;
+}
+
 /** A PDF auto-fetched for a CanLII slot is refused only when its opening citation names
- *  another case; one with no readable citation (a scan) goes by its name. A PDF the user
- *  uploads is never checked. */
+ *  another case; one with no readable citation (a scan) goes by its name. An authority with
+ *  no style of cause takes the one the PDF's first page prints before its own citation. A PDF
+ *  the user uploads is never checked. Returns the draft, named when it was nameless. */
 export async function checkCanliiPdf(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer) {
   const authority = draft.authorities[authorityId];
-  if (!authority || authority.source.kind !== "pending-canlii" && !authority.sourceVerificationUrl) return;
-  const { pageTextByPage } = await authorityPdfText({ bytes, maxPages: 1 });
-  // Use the opening citation, never a matching case cited later in the reasons.
-  const citation = structureNative().citationOccurrencesInText(pageTextByPage[0] ?? "")
-    .find(({ kind }) => kind === "case")?.coreCitation.text;
-  if (!citation) return;
+  const checked = !!authority && (authority.source.kind === "pending-canlii" || !!authority.sourceVerificationUrl);
+  const nameless = !!authority && !authority.name && !authority.displayName;
+  if (!checked && !nameless) return draft;
+  const text = (await authorityPdfText({ bytes, maxPages: 1 })).pageTextByPage[0] ?? "";
+  // Use the opening citation, never a matching case cited later in the reasons. The engine
+  // lists a parallel group's reporter first, so the opening one is the first in the text.
+  const citation = structureNative().citationOccurrencesInText(text).filter(({ kind }) => kind === "case")
+    .sort((left, right) => left.start - right.start)[0]?.coreCitation.text;
+  if (!citation) return draft;
   const keys = citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat();
-  if (!keys.includes(structureNative().citationLookupKey(citation)))
-    throw new ApplicationError(400, `This PDF is ${citation}, not ${authority.citation}; it was not attached.`);
+  if (!keys.includes(structureNative().citationLookupKey(citation))) {
+    if (checked) throw new ApplicationError(400, `This PDF is ${citation}, not ${authority.citation}; it was not attached.`);
+    return draft;
+  }
+  const name = nameless && captionStyleOfCause(text, keys);
+  return name ? updateAuthoritiesDraft(draft, { type: "rename-authority", authorityId, displayName: name }) : draft;
 }
 
 export function attachAuthoritiesBookPdf(draft: AuthoritiesDraft, input: {
