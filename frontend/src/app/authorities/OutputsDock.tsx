@@ -1,78 +1,83 @@
-import { Check, Clock, Download, Loader2 } from "lucide-react";
-import { tabLabel, tabReference } from "../../../../shared/authorities-order.mjs";
+import type { ReactNode } from "react";
+import { BookOpen, Download, Loader2, SlidersHorizontal } from "lucide-react";
+import { Button } from "@/app/components/ui/button";
 import type { AuthoritiesBuildReceipt, AuthoritiesProduct } from "./types";
 import { cn } from "@/app/lib/utils";
 
 type Output = AuthoritiesProduct["outputs"][string];
+const ROW = "grid min-h-10 w-full grid-cols-[minmax(0,1fr)_auto_1rem] items-center gap-2 rounded-md px-2 text-left text-sm";
+const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-red-600";
 
-/** What the Word copy holds, as the Build choices leave it. */
-function wordCopyDetail(draft: AuthoritiesProduct) {
-  const { settings, insertIntoDocument } = draft.state;
-  const tab = tabReference(settings, tabLabel(1, settings.tabStyle, settings));
-  const marks = !insertIntoDocument ? null : settings.tableDelivery === "native-marks" ? "Citations marked for Word’s table"
-    : settings.tableDelivery === "linked-append" ? "A linked table on a last page" : "Citations marked, with Word’s table on a last page";
-  return [marks, tab && `${tab} after each citation`].filter(Boolean).join("; ") + ".";
-}
-
-/** Every output the Build choices will make, each with its state and its download: a dock beside
- *  the choices, so a new build shows where its outputs are rather than below the page. */
-export function OutputsDock({ draft, building, progress, previous, waiting, linkWarnings, onDownload, className }: {
-  draft: AuthoritiesProduct; building: boolean; progress: string; previous: boolean;
+/** Build, and everything it makes: one row an output, each a download once it is built. Every row
+ *  is there from the start, so a build fills the dock in without moving anything. */
+export function OutputsDock({ draft, busy, building, progress, note, previous, waiting, linkWarnings,
+  onBuild, onCancel, onDownload, onFinalPdf, className }: {
+  draft: AuthoritiesProduct; busy: boolean; building: boolean;
+  /** What the build is doing now. */
+  progress: string;
+  /** What Build still needs before it can run. */
+  note: string;
+  previous: boolean;
   /** The final PDF is waiting for the brief saved as PDF. */
   waiting: boolean;
   linkWarnings?: AuthoritiesBuildReceipt["linkWarnings"];
+  onBuild: () => void; onCancel: () => void;
   onDownload: (documentId: string, versionId: string, filename: string) => void;
+  /** Opens the final PDF's own choices; absent where a book has no brief to append it to. */
+  onFinalPdf?: () => void;
   className?: string;
 }) {
   const { state, outputs } = draft, roles = Object.keys(outputs);
   const word = state.import.kind === "document" && state.import.fileType === "docx";
   const tabs = (state.settings.citationSuffix ?? "none") !== "none";
-  const rows = [
-    ...state.outputMode !== "table" || state.settings.finalPdf ? [{ key: "book", title: "Book of Authorities",
-      detail: "Each authority behind its tab, indexed and bookmarked.", roles: roles.filter((role) => role.startsWith("book")) }] : [],
-    ...state.outputMode !== "book" ? [{ key: "table", title: "Table of Authorities",
-      detail: "The authorities grouped, with where the brief cites each.", roles: ["table"] }] : [],
-    ...word && (state.insertIntoDocument || tabs) ? [{ key: "word", title: "Word copy", detail: wordCopyDetail(draft),
-      roles: ["annotated-document"] }]
-      : !word && state.insertIntoDocument ? [{ key: "filing", title: "Filing PDF",
-        detail: "The brief with a linked Table of Authorities after it.", roles: ["annotated-document"] }] : [],
-    ...state.settings.finalPdf ? [{ key: "final", title: "Final PDF", waiting,
-      detail: "The brief, then the book, its citations linked inside it.", roles: ["final-pdf", "link-report"] }] : [],
+  const final = !!state.settings.finalPdf;
+  const rows: Array<{ key: string; title: string; roles: string[] }> = [
+    ...state.outputMode !== "table" || final ? [{ key: "book", title: "Book of Authorities",
+      roles: roles.filter((role) => role.startsWith("book")) }] : [],
+    ...state.outputMode !== "book" ? [{ key: "table", title: "Table of Authorities", roles: ["table"] }] : [],
+    ...word && (state.insertIntoDocument || tabs) ? [{ key: "word", title: "Word copy", roles: ["annotated-document"] }]
+      : !word && state.insertIntoDocument ? [{ key: "filing", title: "Filing PDF", roles: ["annotated-document"] }] : [],
   ];
-  return <aside aria-label="Outputs" className={cn("min-w-0 rounded-lg border border-gray-200 bg-gray-50 p-3", className)}>
-    <h3 className="text-sm font-semibold text-gray-950">Outputs</h3>
-    <p className="min-h-4 text-xs leading-4 text-gray-600" aria-live="polite">
-      {building ? progress || "Building…" : previous ? "Previous build — rebuild to update" : ""}</p>
-    <ul className="mt-2 grid gap-2">
+  const download = (role: string, output: Output, title: ReactNode, small = false): ReactNode => <button key={role} type="button"
+    title={output.filename} aria-label={`Download ${previous ? "previous " : ""}${output.filename}`}
+    onClick={() => onDownload(output.documentId, output.versionId, output.filename)}
+    className={cn(ROW, FOCUS, "hover:bg-white", small ? "min-h-8 text-xs text-gray-700" : "text-gray-950")}>
+    <span className={cn("truncate", !small && "font-medium")}>{title}</span>
+    <span className="text-[0.6875rem] uppercase tracking-wide text-gray-500">{output.filename.split(".").at(-1)}</span>
+    <Download className={cn("text-gray-700", small ? "h-3.5 w-3.5" : "h-4 w-4")} />
+  </button>;
+  const unbuilt = (title: string, detail = ""): ReactNode => <div className={cn(ROW, "text-gray-500")}>
+    <span className="truncate font-medium">{title}</span>
+    <span className="col-span-2 truncate text-xs">{detail}</span>
+  </div>;
+  const status = building ? progress || "Building…" : note || (previous && roles.length ? "Changed since this build." : "");
+  const finalFile = outputs["final-pdf"], report = outputs["link-report"];
+  return <aside aria-label="Outputs" className={cn("min-w-0", className)}>
+    <Button type="button" className="h-10 w-full" disabled={busy && !building} onClick={building ? onCancel : onBuild}>
+      {building ? <><Loader2 className="motion-safe:animate-spin" /> Cancel</> : <><BookOpen /> Build</>}</Button>
+    {/* The line is always there, so progress and notes never move the outputs. */}
+    <p role="status" aria-live="polite" title={status} className="mt-1.5 min-h-4 truncate px-2 text-xs leading-4 text-gray-600">{status}</p>
+    <h3 className="mt-3 px-2 text-sm font-semibold text-gray-950">Outputs</h3>
+    <ul className="mt-1 grid gap-px">
       {rows.map((row) => {
         const files = row.roles.flatMap((role) => outputs[role] ? [[role, outputs[role]] as [string, Output]] : []);
-        const ready = !!files.length && !previous && !building;
-        const status = building && !row.waiting ? "Building" : row.waiting ? "Waiting for your brief PDF"
-          : ready ? "Ready" : files.length ? "Previous build" : "Not built yet";
-        return <li key={row.key} data-output={row.key} className={cn("rounded-md border bg-white p-2 transition-colors duration-500 motion-reduce:transition-none",
-          ready ? "border-green-600/40" : "border-gray-200")}>
-          <div className="flex flex-wrap items-center justify-between gap-x-2">
-            <span className="whitespace-nowrap text-sm font-medium text-gray-950">{row.title}</span>
-            <span role="status" className={cn("flex shrink-0 items-center gap-1 text-xs", ready ? "text-green-800" : "text-gray-600")}>
-              {status === "Building" ? <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" />
-                : ready ? <Check className="h-3.5 w-3.5" /> : row.waiting ? <Clock className="h-3.5 w-3.5" /> : null}{status}</span>
-          </div>
-          <p className="mt-0.5 text-xs leading-4 text-gray-600">{row.detail}</p>
-          {row.key === "final" && ready && outputs["link-report"] && <p className="mt-1 text-xs leading-4 text-gray-700">
-            {linkWarnings?.length ? `${linkWarnings.length} link${linkWarnings.length === 1 ? " wasn't" : "s weren't"} added; ` : ""}
-            Unlinked citations lists them to finish in a PDF editor.</p>}
-          {/* Its download's line is kept before it is built, so a build moves nothing. */}
-          {!files.length && <div aria-hidden="true" className="mt-1 min-h-8" />}
-          {files.map(([role, output]) => <button key={role} type="button" title={output.filename}
-            aria-label={`Download ${previous ? "previous " : ""}${output.filename}`}
-            onClick={() => onDownload(output.documentId, output.versionId, output.filename)}
-            className="mt-1 grid min-h-8 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded px-1 text-left text-xs outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600">
-            <Download className="h-3.5 w-3.5 text-red-700" />
-            <span className="min-w-0 truncate text-gray-800">{role === "link-report" ? "Unlinked citations" : output.filename}</span>
-            <span className="text-[11px] uppercase text-gray-500">{output.filename.split(".").at(-1)}</span>
-          </button>)}
+        return <li key={row.key} data-output={row.key} data-ready={files.length && !previous && !building ? "" : undefined}>
+          {files.length ? files.map(([role, output]) => download(role, output, row.title)) : unbuilt(row.title)}
         </li>;
       })}
+      {onFinalPdf && <li data-output="final" data-ready={final && finalFile && !previous && !building ? "" : undefined}
+        className="mt-1 border-t border-gray-200 pt-1">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
+          {final && finalFile ? download("final-pdf", finalFile, "Final PDF")
+            : unbuilt("Final PDF", final && waiting ? "Needs your brief PDF" : "")}
+          {final ? <Button type="button" variant="ghost" size="icon-sm" aria-label="Final PDF options" title="Final PDF options"
+            disabled={busy} onClick={onFinalPdf}><SlidersHorizontal /></Button>
+            : <Button type="button" variant="outline" className="mr-1 h-7 border-gray-400 px-2.5 text-xs font-normal"
+              disabled={busy} onClick={onFinalPdf}>Set up</Button>}
+        </div>
+        {final && finalFile && report && download("link-report", report, linkWarnings?.length
+          ? `${linkWarnings.length} citation${linkWarnings.length === 1 ? "" : "s"} not linked` : "Unlinked citations", true)}
+      </li>}
     </ul>
   </aside>;
 }

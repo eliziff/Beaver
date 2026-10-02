@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pause, Pencil, Play, Redo2, SlidersHorizontal,
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pause, Pencil, Play, Redo2,
   Trash2, Undo2, X } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
 import { Button, buttonClassName } from '@/app/components/ui/button';
@@ -21,8 +21,7 @@ const ocrMessage = (status: SourceOcrStatus, total = status.textlessPages.length
     : status.state === 'paused' ? `Recognition paused · ${status.recognized}/${total} pages`
     : status.state === 'cancelled' ? 'Text recognition cancelled'
     : `${status.waiting ? 'Waiting to recognize' : 'Recognizing text'} · ${status.recognized}/${total} pages`;
-const ocrTone = (status: SourceOcrStatus) => status.state === 'done' ? 'text-green-800'
-  : status.state === 'failed' ? 'text-red-800' : 'text-gray-600';
+const ocrTone = (status: SourceOcrStatus) => status.state === 'failed' ? 'text-red-800' : 'text-gray-600';
 
 /** Pause (or Resume) and Cancel for one recognition, in slots that stay put whatever its state. */
 function OcrControls({ status, ocr, className, label }: { status: SourceOcrStatus; ocr: SourceOcrPanel; className: string; label: string }) {
@@ -137,9 +136,6 @@ const savedSet = (product: AuthoritiesProduct, choice: Choice) => {
   const saved = product.state.authorities[choice.authorityId].annotations?.[choice.bindingRole];
   return saved?.sourceSha256 === choice.sourceSha256 ? decodeAnnotationSet(saved) : undefined;
 };
-/** Drafts whose highlighting choice was put away this session, so coming back keeps it closed. */
-const chosen = new Set<string>();
-
 /**
  * Highlights saved for review keep the marks they were prepared with, so a new choice prepares
  * their automatic marks again; marks the reviewer added stay. A source that cannot be read keeps
@@ -166,18 +162,14 @@ async function prepareAgain(product: AuthoritiesProduct, sources: Choice[], host
   return { entries: entries.filter((entry): entry is Entry => !!entry), failed };
 }
 
-export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, first, onAction, onSaved }: {
+export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onAction, onSaved }: {
   product: AuthoritiesProduct; tabs: ReadonlyMap<string,string>; host: AuthoritiesHost; busy: boolean;
   ocr: SourceOcrPanel;
-  /** The draft has come this far for the first time: its highlighting is chosen before anything else. */
-  first: boolean;
   onAction(action: AuthoritiesAction): void;
   onSaved(product: AuthoritiesProduct): void;
 }) {
   const [open, setOpen] = useState(false);
   const choices = choicesFor(product, tabs);
-  const [choosing, setChoosing] = useState(() => first && !chosen.has(product.id) &&
-    !choices.some(choice => savedSet(product, choice)));
   const [progress, setProgress] = useState<{ done: number; total: number }>();
   const [failure, setFailure] = useState('');
   // A new marking prepares again only once the draft is saved with it: the host prepares from
@@ -197,38 +189,30 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, first, o
         if (entries.length) onAction({ type: 'set-annotations', entries });
       });
   }, [pending, product]); // eslint-disable-line react-hooks/exhaustive-deps
-  const panelId = useId();
   if (product.state.outputMode === 'table') return null;
   const preparing = !!progress;
-  const close = () => { chosen.add(product.id); setChoosing(false); };
   const choose = (passageMarking: Marking) => {
     setFailure(''); setPending(passageMarking);
     onAction({ type: 'set-settings', settings: { passageMarking } });
   };
+  // The marking chosen at import is shown here too, and can be changed at any time.
   return <><StepSection title="Highlights" className="mt-3"
-    subtitle={choices.length ? "Review and adjust passage marks in your source PDFs." : "No source PDFs to mark yet."}
-    actions={<>
-      <Button type="button" variant="outline" className="h-9 border-gray-400" aria-expanded={choosing}
-        aria-controls={panelId} onClick={() => choosing ? close() : setChoosing(true)}>
-        <SlidersHorizontal /> Highlighting options</Button>
-      <Button type="button" variant="outline" className="h-9 border-gray-400"
-        disabled={busy || preparing || !host.readSource || !choices.length} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button></>}>
-    {choosing && <div id={panelId} className="p-4">
+    subtitle={choices.length ? 'Review and adjust passage marks in your source PDFs.' : 'No source PDFs to mark yet.'}
+    actions={<Button type="button" variant="outline" className="h-9 border-gray-400"
+      disabled={busy || preparing || !host.readSource || !choices.length} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>}>
+    <div className="p-4">
       <OptionCards legend="Passage marking" value={product.state.settings.passageMarking}
         options={passageOptions(product.state.settings.profileId)} columns disabled={busy || preparing}
         onChange={choose} />
-      {/* Preparation reports in a line that is always there, so the cards and Continue never move. */}
-      <div className="mt-4 flex min-h-9 items-center justify-end gap-3">
-        <div className="min-w-0 flex-1 text-sm">
-          {preparing ? <div role="status" className="text-gray-700">
-            Preparing highlights · {progress.done}/{progress.total}
-            <progress value={progress.done} max={progress.total} aria-hidden
-              className={cn('mt-1 block h-0.5 w-full max-w-64', ocrBar)} /></div>
-            : failure && <p role="alert" className="text-red-800">{failure}</p>}
-        </div>
-        <Button type="button" className="h-9" disabled={preparing} onClick={close}>Continue</Button>
+      {/* Preparation reports in a line that is always there, so nothing moves while it runs. */}
+      <div className="mt-3 min-h-9 text-sm">
+        {preparing ? <div role="status" className="text-gray-700">
+          Preparing highlights · {progress.done}/{progress.total}
+          <progress value={progress.done} max={progress.total} aria-hidden
+            className={cn('mt-1 block h-0.5 w-full max-w-64', ocrBar)} /></div>
+          : failure && <p role="alert" className="text-red-800">{failure}</p>}
       </div>
-    </div>}
+    </div>
   </StepSection>
     {open && <AuthoritiesHighlightEditor product={product} choices={choices} host={host} ocr={ocr}
       onClose={() => setOpen(false)} onSaved={onSaved} />}

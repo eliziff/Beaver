@@ -8,7 +8,7 @@ import { CANLII_PDF_NAME, folderFileId, folderMatches } from "./folderSources";
 import { authorityName, authorityLabel,
   requiresBilingualSources,
   missingSource, relinkable } from "./authorityPresentation";
-import { BookOpen, Check, ChevronRight, Eye, FilePlus2, FolderSearch,
+import { BookOpen, ChevronRight, Eye, FilePlus2, FolderSearch,
   History, Loader2, Plus, Scale, Settings2, Upload } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
@@ -29,7 +29,7 @@ import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { rowControl, rowLabel, Sources } from "./AuthoritySources";
-import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
+import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfModal, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCards, type CardOption } from "./OptionCards";
 import { OutputsDock } from "./OutputsDock";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
@@ -358,9 +358,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // Recognition starts as soon as a scan is found, unless the book keeps the scan as
   // images; the step then only lists what is still unrecognized.
   const unrecognized = scannedSources.files.filter((file) => ocr.tracked[file.role]?.state !== "done");
-  // The step only interrupts once a scan is known to be unrecognized, so a book whose
-  // sources are all readable moves on without a dialog the reader never needed. Recognition
-  // that is already running is not a reason to hold anyone here: it runs on past this step.
+  // Recognition runs on in the background and never holds anyone on this step. Only a scan
+  // already known to be unread asks what to recognize; once it is read, that question closes.
   const recognitionSettled = !scannedSources.checking && !scannedSources.error && !unrecognized.length;
   useEffect(() => {
     if (recognitionAsked && recognitionSettled) { setRecognitionAsked(false); advance("highlights"); }
@@ -961,10 +960,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const steps = STEPS.filter(({ value }) => value !== "citations" || draft?.state.import.kind !== "manual")
     .map(step => ({ ...step, disabled: busy || STEPS.findIndex(({ value }) => value === step.value) >
       STEPS.findIndex(({ value }) => value === reached) }));
-  const viewStep = (value: Step) => setViewedStep({ key: stepKey, value });
+  // A step's note ("… attached") belongs to that step, so moving on clears it.
+  const viewStep = (value: Step) => { setMessage(""); setViewedStep({ key: stepKey, value }); };
   const advance = (next: Step) => {
     if (STEPS.findIndex(({ value }) => value === next) <= STEPS.findIndex(({ value }) => value === reached)) viewStep(next);
-    else act({ type: "set-stage", stage: next });
+    else { setMessage(""); act({ type: "set-stage", stage: next }); }
   };
   const buildPanel = draft && stage === "build" && <BuildPanel draft={shown!} busy={busy} building={building}
     progress={building ? message : ""}
@@ -972,7 +972,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     jurisdictionOrder={jurisdictionOrder} outputFreshness={outputFreshness}
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
       ? buildLinks.warnings : undefined}
-    missing={missingPdfs.length} onAction={act} sourceIssues={sourceIssues}
+    onAction={act} sourceIssues={sourceIssues}
     onRelink={relinkSource} onOpenSource={host.readSource ? openSource : undefined}
     onBookFiles={(slot, files, supplementId) => attachBookFiles(slot,
       files.map((file) => ({ file })), supplementId)}
@@ -983,8 +983,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights key={draft.id} product={draft}
-    tabs={authorityTabs} busy={busy} host={host} ocr={ocr} first={reached === "highlights"}
-    onAction={act} onSaved={adopt} />;
+    tabs={authorityTabs} busy={busy} host={host} ocr={ocr} onAction={act} onSaved={adopt} />;
   // An open finding stays in place while its quotations are rechecked (items undefined).
   const quotationReview = draft && findingId && (!currentReview || discrepancies.length > 0) &&
     <QuotationReview items={currentReview?.items} currentId={findingId}
@@ -1016,10 +1015,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const reviewing = !!draft && stage === "citations" && tab !== "drafts" && draft.state.import.kind === "document";
   const stepNext = reviewing ? () => reached === "citations" ? findSources() : viewStep("sources")
     : stage === "sources" ? () => {
-      // A draft set to keep scans as images has already answered the question.
-      if (recognitionSettled || host.recognitionAvailable === false ||
-        draft?.state.settings.scannedPdfPolicy === "page-margin") advance("highlights");
-      else askRecognition();
+      // Next never waits for scans to be checked or read. A draft set to keep scans as images has
+      // already answered the question; scans found later are read as the draft says.
+      if (unrecognized.length && host.recognitionAvailable !== false &&
+        draft?.state.settings.scannedPdfPolicy !== "page-margin") askRecognition();
+      else advance("highlights");
     } : stage === "highlights" ? () => advance("build") : undefined;
   const stepping = !!draft && tab !== "drafts";
   // The sections share the header row and the status shares the step row, so the step below starts high.
@@ -1075,12 +1075,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
                         onClick={() => relinkSource(importedRole)}><FilePlus2 />
                         Allow file access</Button>}
-                      <StepProgress label={stage === "sources" && recognitionAsked && scannedSources.checking ? scannedSources.progress
-                        : stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
+                      <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
                         error={stepError} className="min-w-0" />
                       {/* Every step's Next sits here; the last step keeps its room. */}
                       <Button className={cn("h-9", !stepNext && "invisible")} aria-hidden={!stepNext || undefined}
-                        tabIndex={stepNext ? undefined : -1} disabled={busy || !stepNext || stage === "sources" && recognitionAsked}
+                        tabIndex={stepNext ? undefined : -1} disabled={busy || !stepNext}
                         onClick={stepNext}>Next<ChevronRight /></Button></>} />
                   {/* Every step starts the same distance below the steps, so switching moves nothing. */}
                   <div id="authorities-step" role="tabpanel" className="flow-root [&>*:first-child]:mt-2"
@@ -1145,9 +1144,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           act({ type: "edit-authority", authorityId: editingAuthority.id, kind, citation, name });
           setEditingAuthority(undefined);
         }} />}
-      {/* While the scans are still being checked, the step row reports it; the dialog opens only
-          for a scan known to need recognition, never empty. */}
-      <Modal open={recognitionAsked && !scannedSources.checking} onClose={() => setRecognitionAsked(false)} size="xl"
+      {/* The dialog opens only for a scan known to need recognition, never empty and never after a wait. */}
+      <Modal open={recognitionAsked} onClose={() => setRecognitionAsked(false)} size="xl"
         breadcrumbs={["Recognize text"]} fit footerStatus={scannedSources.progress}
         primaryAction={{ label: "Next", onClick: applyRecognition, disabled: busy }}>
         <p className="text-sm leading-6 text-gray-700">These source PDFs are scans. Recognition reads
@@ -1187,30 +1185,34 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         {accessPrompt?.denied && <p role="alert" className="pb-3 text-sm text-red-800">Chrome did not allow
           access. Allow it again, or choose the file with Allow file access.</p>}
       </Modal>
-      <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
+      <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="lg"
         breadcrumbs={["Missing PDFs"]} fit
         secondaryAction={{ label: "Review sources", disabled: busy, onClick: () => {
           setStubWarning(false); viewStep("sources");
         } }}
-        primaryAction={{ label: "Build anyway", disabled: busy, onClick: () => {
+        primaryAction={{ label: "Build", disabled: busy, onClick: () => {
           setStubWarning(false);
           // The setting is queued before the build, which waits for queued saves and builds the result.
           if (!draftRef.current?.state.settings.allowIncomplete)
             act({ type: "set-settings", settings: { allowIncomplete: true } });
           void build(undefined, true);
         } }}>
-        <p className="text-sm text-gray-700">{missingPdfs.length} authorit{missingPdfs.length === 1
-          ? "y has" : "ies have"} no available PDF. {draft?.state.settings.missingSourcePolicy === "omit"
-            ? "Build a draft without those PDFs, keeping the tab numbers."
-            : "Labelled pages will hold those tab slots, to finish in a PDF editor."}</p>
-        <ul className="mt-3 space-y-1 pb-4 text-sm text-gray-800">
-          {missingPdfs.map(item => <li key={item.id}>{authorityLabel(item)}</li>)}
+        <p className="text-sm leading-6 text-gray-700">{missingPdfs.length === 1 ? "One authority has" : `${missingPdfs.length} authorities have`} no
+          PDF. {draft?.state.settings.missingSourcePolicy === "omit"
+            ? `The book is built without ${missingPdfs.length === 1 ? "it" : "them"}, and every tab keeps its number.`
+            : `${missingPdfs.length === 1 ? "It keeps" : "Each keeps"} its tab, with a page naming it where its PDF goes.`}</p>
+        <ul className="mb-5 mt-3 max-h-[min(19rem,42dvh)] divide-y divide-gray-200 overflow-y-auto rounded-lg border border-gray-300">
+          {missingPdfs.map(item => <li key={item.id} className="grid min-h-10 grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-1.5">
+            <span className="truncate text-xs tabular-nums text-gray-500">{authorityTabs.get(item.id)}</span>
+            <span className="truncate text-sm font-medium text-gray-950" title={authorityLabel(item)}>{authorityName(item)}</span>
+            <span className="max-w-48 truncate text-xs text-gray-600">{authorityName(item) !== item.citation ? item.citation : ""}</span>
+          </li>)}
         </ul>
       </Modal>
       <Modal open={!!sourcePreview} size="2xl" breadcrumbs={[sourcePreview?.name ?? "Source PDF"]}
-        className="h-[min(900px,calc(100dvh-2rem))] [&_.modal-body]:p-0"
+        className="h-[min(900px,calc(100dvh-2rem))]" bodyClassName="pb-5"
         onClose={() => { previewRequest.current += 1; setSourcePreview(undefined); }}>
-        <div className="flex h-[min(70dvh,750px)] min-h-60">
+        <div className="flex min-h-60 flex-1">
           <PdfCanvas bytes={sourcePreview?.bytes} loading={!!sourcePreview && !sourcePreview.bytes && !sourcePreview.error}
             recognizedText={sourcePreview?.recognizedText} pageLabels={sourcePreview?.pageLabels}
             error={sourcePreview?.error} quoteFocusKey={sourcePreview?.quote}
@@ -1254,8 +1256,8 @@ function AutomaticStart({ busy, onFile, onPick, onLibrary, sourceLabel = "Librar
   </section>;
 }
 
-/** What an import asks first: the court and how sources are found. Highlighting is chosen on the
- *  Highlights step, and the outputs at Build. */
+/** What an import asks first: the court, how sources are found and how passages are marked, so
+ *  sources and marks can be prepared while the citations are reviewed. Outputs are chosen at Build. */
 function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClose, onImport }: {
   pending?: PendingImport; busy: boolean; status: string; jurisdictionOrder: string[];
   onChange: (value: StartPreferences) => void; onClose: () => void; onImport: () => void;
@@ -1267,13 +1269,12 @@ function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClo
     const body = top.current?.closest(".modal-scroll-body");
     if (body) body.scrollTop = 0;
   }, [pending?.source]);
-  return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={["Import options"]}
-    className="!h-[min(42rem,calc(100dvh-2rem))]"
+  return <Modal open={!!pending} onClose={onClose} size="2xl" breadcrumbs={["Import options"]} fit
     footerStatus={status && <span className="text-sm text-red-800" role="status">{status}</span>}
     primaryAction={{ label: busy ? "Finding citations" : "Import and review", disabled: busy,
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined, onClick: onImport }}>
     <p ref={top} className="mb-4 shrink-0 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
-    <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy} jurisdictionOrder={jurisdictionOrder} />
+    <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy} jurisdictionOrder={jurisdictionOrder} passages />
     <div className="h-5 shrink-0" />
   </Modal>;
 }
@@ -1356,7 +1357,7 @@ function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, class
 function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder, passages = false }: {
   value: StartPreferences; onChange: (value: StartPreferences) => void; busy: boolean;
   jurisdictionOrder: string[];
-  /** The highlighting default, which Settings sets for drafts not yet highlighted. */
+  /** How passages are marked, asked wherever a draft starts. */
   passages?: boolean;
 }) {
   return <>
@@ -1372,10 +1373,10 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder, pass
   </>;
 }
 
-function BuildPanel({ draft, busy, building, progress, missing, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
+function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
   convertsWord, outputFreshness, linkWarnings, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
   onBuild, onCancel, onDownload }: {
-  draft: AuthoritiesProduct; busy: boolean; building: boolean; missing: number;
+  draft: AuthoritiesProduct; busy: boolean; building: boolean;
   /** What the build is doing now. */
   progress: string;
   recognitionAvailable: boolean; convertsWord?: boolean;
@@ -1392,6 +1393,7 @@ function BuildPanel({ draft, busy, building, progress, missing, jurisdictionOrde
   onDownload: (documentId: string, versionId: string, filename: string) => void;
 }) {
   const [coverOpen, setCoverOpen] = useState(false);
+  const [finalOpen, setFinalOpen] = useState(false);
   const profile = authoritiesProfile(draft.state.settings.profileId);
   const manual = draft.state.import.kind === "manual";
   const wordDocument = draft.state.import.kind === "document" && draft.state.import.fileType === "docx";
@@ -1402,30 +1404,24 @@ function BuildPanel({ draft, busy, building, progress, missing, jurisdictionOrde
     !draft.state.bookParts.cover;
   const coverDetailsReady = !generatedFederalCover || completeFederalCover(draft.state.cover);
   const filingRoleReady = !generatedFederalCover || !!draft.state.settings.bookRole;
-  const coverReady = coverDetailsReady && filingRoleReady;
-  const previousOutput = outputFreshness === "stale";
   // Without a converter here, a Word brief reaches the final PDF as a PDF the user saved from Word.
   const briefSlot = wordDocument && convertsWord === false;
   const brief = draft.state.bookParts.brief ?? undefined;
   // The final PDF waits for that PDF without holding up anything else.
   const waiting = briefSlot && !brief;
-  const finalOutput = draft.outputs["final-pdf"];
   const onOptions = ({ insertIntoDocument, ...settings }: AuthoritiesOutputOptionsValue) => {
     if (insertIntoDocument !== undefined) onAction({ type: "set-document-output", enabled: insertIntoDocument });
     if (Object.keys(settings).length) onAction({ type: "set-settings", settings });
   };
-  const missingText = !coverDetailsReady ? "Add cover details before building."
-    : !filingRoleReady ? "Choose who is filing before building."
-    : missing ? `${missing} missing PDF${missing === 1 ? "" : "s"}. Build to review the incomplete-draft options.`
-    : "";
-  // The outputs sit in a dock beside the choices where there is room, and after them where there is not.
-  return <section className="@container/build mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-    <div className="grid gap-4 @min-[52rem]/build:grid-cols-[minmax(0,1fr)_16rem]">
-    <div className="min-w-0">
-    <h2 className="font-semibold text-gray-950">Build outputs</h2>
-    <div className={cn("mt-3 grid gap-3 sm:items-end", manual
-      ? "sm:grid-cols-[minmax(0,1fr)_9rem]"
-      : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem]")}>
+  // What Build still needs is said beside it. A missing PDF is no such thing: the book builds without it.
+  const note = !coverDetailsReady ? "Add the cover details to build." : !filingRoleReady ? "Choose who is filing to build." : "";
+  const start = !coverDetailsReady ? () => setCoverOpen(true)
+    : !filingRoleReady ? () => document.getElementById("authorities-filed-by")?.focus() : onBuild;
+  // The choices on the left, Build and what it makes in a dock on the right (below them where there is no room).
+  return <section className="@container/build mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
+    <div className="grid @min-[52rem]/build:grid-cols-[minmax(0,1fr)_18rem]">
+    <div className="grid min-w-0 content-start gap-5 p-4">
+    <div className={cn("grid gap-3", !manual && "sm:grid-cols-2")}>
       <AuthoritiesCourtField value={draft.state.settings.profileId} disabled={busy}
         preferredKeys={jurisdictionOrder} bookOnly={manual}
         onChange={(profileId) => onAction({ type: "set-profile", profileId })} />
@@ -1434,14 +1430,8 @@ function BuildPanel({ draft, busy, building, progress, missing, jurisdictionOrde
         onChange={(outputMode) => onAction({ type: "set-output-mode", outputMode })}
         options={[{ value: "book", label: "Book of Authorities" },
           { value: "table", label: "Table of Authorities" }, { value: "both", label: "Book and Table" }]} />}
-      <Button type="button" className="h-10" disabled={busy && !building}
-        onClick={building ? onCancel : coverReady ? onBuild : !coverDetailsReady
-          ? () => setCoverOpen(true)
-          : () => document.getElementById("authorities-filed-by")?.focus()}>
-        {building ? <><Loader2 className="motion-safe:animate-spin" /> Cancel</>
-          : <><BookOpen /> Build</>}</Button>
     </div>
-    {book && filingMedia && bookRoles && <div className="mt-2 grid gap-3 sm:grid-cols-2">
+    {book && filingMedia && bookRoles && <div className="grid gap-3 sm:grid-cols-2">
       <SelectField label="Filing" value={draft.state.settings.filingMedium ?? "electronic"}
         disabled={busy} onChange={(filingMedium) => onAction({ type: "set-settings",
           settings: { filingMedium } })}
@@ -1451,37 +1441,19 @@ function BuildPanel({ draft, busy, building, progress, missing, jurisdictionOrde
         disabled={busy} onChange={(bookRole) => onAction({ type: "set-settings",
           settings: { bookRole } })} options={bookRoles} />
     </div>}
-    <p className={cn("mt-2 min-h-5 text-sm leading-5 text-gray-700", !missingText && "invisible")}
-      aria-hidden={!missingText || undefined}>{missingText || "Ready"}</p>
-    {wordDocument && <div className="mb-2 border-t border-gray-200 pt-2">
-      <AuthoritiesOutputOptions disabled={busy}
-        value={{ ...draft.state.settings, insertIntoDocument: draft.state.insertIntoDocument }}
-        lockedDelivery={profile.locked?.settings?.tableDelivery}
-        firstTab={tabLabel(1, draft.state.settings.tabStyle, draft.state.settings)} onChange={onOptions} />
-    </div>}
-    {!manual && <div className="mb-2 border-t border-gray-200 pt-3">
-      <FinalPdfOptions disabled={busy} value={draft.state.settings} onChange={onOptions}
-        brief={(available) => briefSlot ? <BriefPdf draft={draft} busy={busy || !available} part={brief}
-          onAction={onAction} onPick={onPickBook} onFiles={onBookFiles} />
-          : <FileCard disabled={!available} label={draft.state.import.kind === "document" ? draft.state.import.filename : "Brief"}
-            detail={wordDocument ? "Saved as PDF from your Word brief when it builds." : "Your brief is already a PDF."}
-            action={<Check aria-label="Ready" className="h-4 w-4 text-green-700" />} />}
-        result={(available) => <div className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-dashed border-gray-300 py-1 pl-3 pr-1 text-sm text-gray-700">
-          <span>{!available ? "Not chosen." : waiting ? "Waiting for your brief PDF."
-            : finalOutput && !previousOutput ? "Built; it is in Outputs." : "Ready to build."}</span>
-          <Button type="button" variant="outline" className="h-8" disabled={!available || waiting || busy}
-            onClick={coverReady ? onBuild : () => setCoverOpen(true)}><BookOpen /> Build final PDF</Button>
-        </div>} />
-    </div>}
+    {wordDocument && <AuthoritiesOutputOptions disabled={busy}
+      value={{ ...draft.state.settings, insertIntoDocument: draft.state.insertIntoDocument }}
+      lockedDelivery={profile.locked?.settings?.tableDelivery}
+      firstTab={tabLabel(1, draft.state.settings.tabStyle, draft.state.settings)} onChange={onOptions} />}
     {book && <BookContents draft={draft} busy={busy} onAction={onAction}
       sourceIssues={sourceIssues} onRelink={onRelink} onFiles={onBookFiles} onPick={onPickBook}
       onLibrary={onLibraryBook} sourceLabel={sourceLabel}
-      onOpen={onOpenSource} federalCoverComplete={coverReady}
+      onOpen={onOpenSource} federalCoverComplete={coverDetailsReady && filingRoleReady}
       onEditFederalCover={generatedFederalCover ? () => setCoverOpen(true) : undefined} />}
-    <details className="group border-t border-gray-200 pt-2">
-      <summary className="flex min-h-9 w-fit cursor-pointer list-none items-center gap-1 rounded-md px-1 text-sm font-medium text-red-700 outline-none hover:text-red-900 focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
-        <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90 motion-reduce:transition-none" /> Options</summary>
-      <div className="grid gap-3 pb-2 pt-3 sm:grid-cols-2">
+    <details className="group">
+      <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 rounded-md pr-2 text-sm font-medium text-gray-700 outline-none hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90 motion-reduce:transition-none" /> More options</summary>
+      <div className="grid gap-3 pt-3 sm:grid-cols-2">
         {draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <SelectField label="Source handling" value={draft.state.settings.sourceMode}
           disabled={busy} onChange={(sourceMode) => onAction({ type: "set-settings", settings: { sourceMode } })}
           options={SOURCE_OPTIONS} />}
@@ -1495,7 +1467,7 @@ function BuildPanel({ draft, busy, building, progress, missing, jurisdictionOrde
         {book && profile.options?.missingSourcePolicy && <SelectField label="Missing sources" value={draft.state.settings.missingSourcePolicy}
           disabled={busy} onChange={(missingSourcePolicy) => onAction({ type: "set-settings",
             settings: { missingSourcePolicy } })}
-          options={[{ value: "placeholder", label: "Add labelled pages" },
+          options={[{ value: "placeholder", label: "Keep their tabs" },
             { value: "omit", label: "Leave out of book" }]} />}
         {draft.state.import.kind === "document" && draft.state.outputMode !== "book" && !wordDocument && <SelectField label="Word table" value={draft.state.settings.tableDelivery}
           disabled={busy} onChange={(tableDelivery) => onAction({ type: "set-settings", settings: { tableDelivery } })}
@@ -1514,10 +1486,25 @@ function BuildPanel({ draft, busy, building, progress, missing, jurisdictionOrde
       </div>
     </details>
     </div>
-    <OutputsDock draft={draft} building={building} progress={progress} previous={previousOutput}
-      waiting={waiting} linkWarnings={linkWarnings} onDownload={onDownload}
-      className="self-start @min-[52rem]/build:sticky @min-[52rem]/build:top-4" />
+    <div className="rounded-b-xl border-t border-gray-200 bg-gray-50 p-4 @min-[52rem]/build:rounded-bl-none @min-[52rem]/build:rounded-tr-xl @min-[52rem]/build:border-l @min-[52rem]/build:border-t-0">
+      <OutputsDock draft={draft} busy={busy} building={building} progress={progress} note={note}
+        previous={outputFreshness === "stale"} waiting={waiting} linkWarnings={linkWarnings}
+        onBuild={start} onCancel={onCancel} onDownload={onDownload}
+        onFinalPdf={manual ? undefined : () => setFinalOpen(true)}
+        className="@min-[52rem]/build:sticky @min-[52rem]/build:top-4" />
     </div>
+    </div>
+    {!manual && <FinalPdfModal open={finalOpen} onClose={() => setFinalOpen(false)} disabled={busy}
+      value={draft.state.settings} onChange={onOptions}
+      brief={briefSlot ? <BriefPdf draft={draft} busy={busy} part={brief}
+        onAction={onAction} onPick={onPickBook} onFiles={onBookFiles} /> : undefined}
+      blocked={waiting ? "Add your brief as PDF to build it." : undefined}
+      onRemove={() => { onOptions({ finalPdf: false }); setFinalOpen(false); }}
+      onBuild={() => {
+        // The choice is saved before the build, which waits for queued saves and builds the result.
+        if (!draft.state.settings.finalPdf) onOptions({ finalPdf: true });
+        setFinalOpen(false); start();
+      }} />}
     {coverOpen && <FederalCoverModal cover={draft.state.cover} profileId={profile.id}
       busy={busy} onClose={() => setCoverOpen(false)} onSave={(cover) => {
         setCoverOpen(false); onAction({ type: "set-cover", cover });
@@ -1642,22 +1629,24 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
     ? onPick(slot, multiple, supplementId) : undefined;
   const supplementStart = planAuthorities(draft)
     .filter(({ tab }) => tab !== "Not reproduced").length;
-  // The rows' actions are the Sources step's: View, Replace and a menu, at the same widths.
+  // Every row's actions are the Sources step's, at the same widths and in the same columns, so they
+  // line up down the list: View, then Replace or Add, then the menu's slot.
   const moreTrigger = "flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600";
-  const headerControl = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
-  return <div className="@container/sources mb-2 grid grid-cols-[fit-content(8rem)_minmax(0,1fr)] gap-x-1 border-t border-gray-200 pt-3 sm:grid-cols-[fit-content(8rem)_minmax(0,1fr)_auto] sm:gap-x-2 [&>*]:col-span-full">
-    <h3 className="mb-2 min-h-8 text-sm font-semibold leading-8 text-gray-900">Cover and index</h3>
-    <div className="grid grid-cols-subgrid divide-y divide-gray-200 rounded-lg border border-gray-300">
+  const row = "col-span-full grid min-h-11 grid-cols-subgrid items-center gap-y-1 px-2 py-1 sm:py-0";
+  const actions = "col-span-2 flex items-center justify-end gap-1 sm:col-span-1";
+  const supplements = draft.state.bookParts.supplements;
+  return <div className="@container/sources min-w-0">
+    <h3 className="mb-2 text-sm font-semibold text-gray-950">Cover, index and other PDFs</h3>
+    <div className="grid grid-cols-[fit-content(8rem)_minmax(0,1fr)] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300 sm:grid-cols-[fit-content(8rem)_minmax(0,1fr)_auto]">
       {(["cover", "index"] as const).map((slot) => {
         const part = draft.state.bookParts[slot], issue = part ? sourceIssues[part.bindingRole] : undefined;
         const title = slot === "cover" ? "Cover" : "Index";
-        return <div key={slot}
-          className="col-span-full grid min-h-11 grid-cols-subgrid items-center gap-y-1 px-2 py-1 sm:py-0">
+        return <div key={slot} className={row}>
           <span className="text-sm font-medium text-gray-900">{title}</span>
           <span className="min-w-0 truncate text-xs text-gray-600" title={part?.filename}>
             {part?.filename ?? (slot === "cover" && onEditFederalCover && !federalCoverComplete
               ? "Details required" : "Generated")}</span>
-          <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
+          <div className={actions}>
             {slot === "cover" && !part && onEditFederalCover && <Button type="button"
               variant="outline" className={rowControl} disabled={busy}
               onClick={onEditFederalCover}>{federalCoverComplete ? "Edit" : "Add details"}</Button>}
@@ -1683,32 +1672,14 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
           </div>
         </div>;
       })}
-    </div>
-    <div className="mt-3 flex min-h-8 flex-wrap items-center justify-between gap-2">
-      <h3 className="text-sm font-semibold text-gray-900">Other book PDFs</h3>
-      <div className="flex flex-wrap justify-end gap-1">
-        {onPick ? <Button type="button" variant="outline" className={headerControl}
-          aria-label="Add other book files" disabled={busy} onClick={() => add("supplemental", true)}>
-          <FilePlus2 /> Add files</Button>
-          : onFiles && <FileInputButton multiple disabled={busy} label="Add files"
-            ariaLabel="Add other book files" accept=".pdf,application/pdf"
-            onFiles={(files) => onFiles("supplemental", files)} variant="outline" compact className={headerControl} />}
-        {onLibrary && <Button type="button" variant="outline" className={headerControl}
-          aria-label={`Add another book PDF from ${sourceLabel}`} disabled={busy}
-          onClick={() => onLibrary("supplemental")}><FolderSearch /> {sourceLabel}</Button>}
-      </div>
-    </div>
-    {!!draft.state.bookParts.supplements.length && <div
-      className="mt-1 grid grid-cols-subgrid divide-y divide-gray-200 rounded-lg border border-gray-300">
-      {draft.state.bookParts.supplements.map((part, index) => {
+      {supplements.map((part, index) => {
         const issue = sourceIssues[part.bindingRole];
-        return <div key={part.id}
-          className="col-span-full grid min-h-11 grid-cols-subgrid items-center gap-y-1 px-2 py-1 sm:py-0">
+        return <div key={part.id} className={row}>
           <span className="truncate text-xs font-semibold uppercase tabular-nums text-gray-500">
             {tabLabel(supplementStart + index + 1, draft.state.settings.tabStyle, draft.state.settings)}</span>
           <span className="min-w-0 truncate text-sm text-gray-800" title={part.filename}>
             {part.filename}</span>
-          <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
+          <div className={actions}>
             {relinkable(issue) ? <Button type="button" variant="outline"
               className={cn(rowControl, "text-red-800")} disabled={busy}
               onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
@@ -1732,7 +1703,24 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
           </div>
         </div>;
       })}
-    </div>}
+      <div className={row}>
+        <span className="text-sm font-medium text-gray-900">Other PDFs</span>
+        <span className="min-w-0 truncate text-xs text-gray-600">Added to the book as further tabs</span>
+        <div className={actions}>
+          {onPick ? <Button type="button" variant="outline" className={rowControl}
+            aria-label="Add other book files" title="Add files" disabled={busy} onClick={() => add("supplemental", true)}>
+            <FilePlus2 /><span className={rowLabel}>Add files</span></Button>
+            : onFiles && <FileInputButton multiple disabled={busy} label="Add files"
+              ariaLabel="Add other book files" accept=".pdf,application/pdf"
+              onFiles={(files) => onFiles("supplemental", files)} variant="outline" compact className={rowControl}
+              icon={<FilePlus2 />} labelClassName={rowLabel} />}
+          {onLibrary && <Button type="button" variant="outline" className={rowControl}
+            aria-label={`Add another book PDF from ${sourceLabel}`} title={sourceLabel} disabled={busy}
+            onClick={() => onLibrary("supplemental")}><FolderSearch /><span className={rowLabel}>{sourceLabel}</span></Button>}
+          <span className="w-8 shrink-0" />
+        </div>
+      </div>
+    </div>
   </div>;
 }
 

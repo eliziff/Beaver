@@ -72,7 +72,6 @@ function App() {
   return <div className="mx-auto max-w-4xl p-6">
     <AuthoritiesHighlights product={product} tabs={new Map([['text','Tab 1'],['scan','Tab 2']])} host={host} busy={false}
       ocr={{tracked:{},begin:async()=>{},stop:async()=>{}}} onSaved={setProduct}
-      first={new URLSearchParams(location.search).has('first')}
       onAction={action=>void post('save',{product,revision:product.revision,action})
         .then(response=>response.json()).then(setProduct)
         .catch(cause=>setError(String(cause)))}/>

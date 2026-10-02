@@ -54,6 +54,11 @@ textarea,
     --input: oklch(0.922 0 0);
     --ring: var(--brand-red);
 }
+/* The page follows the appearance it was given, never the system's on its own: PDF.js's viewer
+   styles opt the root into "light dark", which on a dark system turns uncoloured text and native
+   controls white on these light surfaces. */
+html:root { color-scheme: light; }
+html:root[data-appearance="dark"] { color-scheme: dark; }
 :root[data-appearance="dark"] {
     --app-background: #15191f;
     --app-surface: #20262f;
