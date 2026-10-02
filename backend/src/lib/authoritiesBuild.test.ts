@@ -1228,7 +1228,7 @@ describe("Authorities output builder", () => {
     expect(omitResult.receipt.authorities.find(({ id }) => id === "grant")?.tab).toBe("Tab 3");
   });
 
-  it("exports an explicit incomplete draft with a real stub, fixed labels, and source guards", async () => {
+  it("exports an explicit incomplete draft without the PDFs its court leaves out, fixed labels, and source guards", async () => {
     const casePdf = await sourcePdf("Grant", [[400, 500]]);
     const lawPdf = await sourcePdf("Act", [[500, 600]]);
     let state = reduceAuthoritiesDraft(draft(casePdf, lawPdf),
@@ -1243,7 +1243,9 @@ describe("Authorities output builder", () => {
     const result = await buildAuthorities(input), book = await PDFDocument.load(result.artifacts.book!.bytes);
     expect(result.artifacts.book!.filename).toBe("Working draft.book-of-authorities.pdf");
     expect(book.getTitle()).not.toMatch(/incomplete/iu);
-    expect(book.getPageCount()).toBe(4);
+    // The court leaves a missing source out of the book, as the Missing PDFs warning says;
+    // every tab keeps its label.
+    expect(book.getPageCount()).toBe(3);
     expect(result.receipt.authorities.filter(({ excluded }) => !excluded).map(({ tab }) => tab))
       .toEqual(["Schedule A", "Schedule B"]);
     expect(pageContent(book, book.getPage(2)).toUpperCase()).not.toContain(pdfTextHex("unavailable"));
