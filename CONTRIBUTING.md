@@ -58,6 +58,20 @@ go to `.tmp/authorities-html-e2e/`. `--skip-build` reuses the built page, `--mod
 or `--mode=http` and `--only=pdf` or `--only=docx` narrow the run, and `--live` lets
 A2AJ answer for real.
 
+`npm run test:authorities-stress` drives the same page through realistic stress: a
+public Supreme Court judgment and invented briefs (a Word brief with numbering, tracked
+changes, a table and split runs; a brief citing 120 authorities), every court preset and
+output setting, drafts, Manual mode, file access and moved files, the Highlights editor,
+scans read at once and a reload while they are read, edits while slow sources gather, and
+repeated builds. Each case runs in a new profile and fails on jank (input-to-paint, long
+tasks, layout shifts, blank or flickering frames). It screenshots and judges each screen at
+1440×900 and 1280×720, reads each PDF back and renders its key pages, and opens each .docx
+in invisible Word without updating its fields. Two cases need a fixture that is never
+committed (a public journal article and the HAR of its lookups, in
+`.tmp/authorities-stress-fixtures/long-article/`) and are skipped without it. Results go
+to `.tmp/authorities-stress/`; `--only=`, `--skip-build`, `--html=`, `--no-word` and
+`--keep-outputs` narrow a run or keep what it built.
+
 The documentation check needs the restored repository checkout. Backend `test`
 also runs its grammar/source guardrails. Follow each native repository's agent
 instructions for the affected feature profile. Browser/stack prerequisites are in
