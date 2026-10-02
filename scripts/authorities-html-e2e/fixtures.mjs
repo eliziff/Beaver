@@ -96,17 +96,19 @@ h1{font-size:23px;text-align:center;margin:0 0 6px}p{margin:0 0 18px;text-align:
 <p>[22] A board that departs from its own published guidance must explain why it has done so. Without that explanation the decision cannot be understood and is not reasonable.</p>
 <p>[23] The application is allowed and the matter is returned to the board.</p></div>`;
 
-/** The brief as Word: one paragraph per item, real footnotes, and the title's custom "*" mark. */
+/** The brief as Word: one paragraph per item, real footnotes, and the title's custom "*" mark, drawn
+ *  as Word draws an inserted symbol: a Symbol-font character, which is no text. */
 async function briefDocx() {
   const w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
   const escape = (text) => text.replace(/&/gu, "&amp;").replace(/</gu, "&lt;");
   const run = (text) => `<w:r><w:t xml:space="preserve">${escape(text)}</w:t></w:r>`;
   const reference = (id, mark) => `<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr>${mark
-    ? `<w:footnoteReference w:customMarkFollows="1" w:id="${id}"/></w:r><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:t>${mark}</w:t>`
+    ? `<w:footnoteReference w:customMarkFollows="1" w:id="${id}"/></w:r><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr>${mark}`
     : `<w:footnoteReference w:id="${id}"/>`}</w:r>`;
-  const notes = [{ id: 1, mark: "*", text: BRIEF.titleNote }];
+  const star = '<w:sym w:font="Symbol" w:char="F02A"/>';
+  const notes = [{ id: 1, mark: star, text: BRIEF.titleNote }];
   let id = 1;
-  const paragraphs = [`<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>${escape(BRIEF.title)}</w:t></w:r>${reference(1, "*")}</w:p>`];
+  const paragraphs = [`<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>${escape(BRIEF.title)}</w:t></w:r>${reference(1, star)}</w:p>`];
   for (const items of BRIEF.pages) for (const { text, note } of items) {
     if (note) { id += 1; notes.push({ id, text: note }); }
     paragraphs.push(`<w:p>${run(text)}${note ? reference(id) : ""}</w:p>`);
@@ -117,7 +119,7 @@ async function briefDocx() {
   zip.file("word/_rels/document.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/></Relationships>`);
   zip.file("word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${w}><w:body>${paragraphs.join("")}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`);
   zip.file("word/footnotes.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:footnotes ${w}><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>${
-    notes.map(({ id, mark, text }) => `<w:footnote w:id="${id}"><w:p><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr>${mark ? `<w:t>${mark}</w:t>` : "<w:footnoteRef/>"}</w:r>${run(` ${text}`)}</w:p></w:footnote>`).join("")}</w:footnotes>`);
+    notes.map(({ id, mark, text }) => `<w:footnote w:id="${id}"><w:p><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr>${mark ?? "<w:footnoteRef/>"}</w:r>${run(` ${text}`)}</w:p></w:footnote>`).join("")}</w:footnotes>`);
   // A fixed date keeps the archive, and so its hash, the same on every run.
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", date: new Date("2030-01-01T00:00:00Z") });
 }

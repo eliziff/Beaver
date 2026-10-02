@@ -31,6 +31,25 @@ it('preserves the reported hyphenated quotation and a second quotation at the sa
       exactQuotes: quotes.map(quote => quote.replace(/\s+/g, ' ')) }),
   ]);
 });
+it("keeps the number Word prints for each footnote, past an author's note drawn as a symbol", async () => {
+  const note = (text: string) => ({ children: [new Paragraph(text)] });
+  const source = await Packer.toBuffer(new Document({
+    footnotes: { 1: note("The author thanks the river board."), 2: note("Alder v Birch, 2031 ONCA 5."),
+      3: note("Cedar v Dogwood, 2030 ABKB 417 at para 9.") },
+    sections: [{ children: [new Paragraph({ children: [new TextRun("A heading"), new FootnoteReferenceRun(1)] }),
+      new Paragraph({ children: [new TextRun("First point."), new FootnoteReferenceRun(2),
+        new TextRun(" Second point."), new FootnoteReferenceRun(3)] })] }],
+  }));
+  // Word's own "*" note: the reference prints the mark that follows it, here a Symbol-font asterisk.
+  const zip = await JSZip.loadAsync(source);
+  const document = await zip.file("word/document.xml")!.async("string");
+  const bytes = await zip.file("word/document.xml", document.replace(/<w:footnoteReference w:id="1"\/>/u,
+    '<w:footnoteReference w:customMarkFollows="1" w:id="1"/><w:sym w:font="Symbol" w:char="F02A"/>'))
+    .generateAsync({ type: "nodebuffer" });
+  const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx", fileType: "docx", bytes, modified: 0 });
+  expect(state.units.filter(({ kind }) => kind === "footnote").map(({ noteNumber }) => noteNumber)).toEqual([null, 1, 2]);
+});
+
 let aliasDirectory: string | null = null;
 
 afterEach(async () => {
