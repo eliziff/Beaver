@@ -102,7 +102,7 @@ function unusedRole(draft: AuthoritiesDraft, role: string) {
  *  "Citation: Pell v Marlow Holdings, 2030 ABKB 12" gives "Pell v Marlow Holdings". `keys` name
  *  the decision. A caption that is not a plain "Name, citation" (a label such as "Neutral
  *  citation:" or a heading's bracket read into the name) names nothing. */
-export function captionStyleOfCause(text: string, keys: readonly string[]) {
+function captionStyleOfCause(text: string, keys: readonly string[]) {
   const native = structureNative();
   const balanced = (style: string, open: string, close: string) =>
     style.split(open).length === style.split(close).length;

@@ -64,7 +64,7 @@ export async function apiResponse(path: string, init?: RequestInit, errorMessage
 export const PROGRESS_STREAM = "application/x-beaver-progress";
 /** Reads a followed response: each progress line goes to `progress` as it arrives, and the
  *  result after them comes back as a response of its own, or as the error it reports. */
-export async function followedResult(response: Response, progress: (message: string) => void,
+async function followedResult(response: Response, progress: (message: string) => void,
   errorMessage?: string) {
   if (response.headers.get("content-type") !== PROGRESS_STREAM || !response.body) return response;
   const reader = response.body.getReader(), decoder = new TextDecoder();
