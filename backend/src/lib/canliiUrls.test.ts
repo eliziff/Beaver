@@ -9,6 +9,10 @@ describe("CanLII citation handoff", () => {
       .toBe("https://www.canlii.org/en/bc/bcsc/doc/2024/2024bcsc2224/2024bcsc2224.html");
     expect(buildCanliiCaseUrlFromCitation(["2024 FC 123"]))
       .toBe("https://www.canlii.org/en/ca/fct/doc/2024/2024fc123/2024fc123.html");
+    expect(buildCanliiCaseUrlFromCitation(["1961 CanLII 7 (SCC)"]))
+      .toBe("https://www.canlii.org/en/ca/scc/doc/1961/1961canlii7/1961canlii7.html");
+    // Without its court a CanLII ID names no page.
+    expect(buildCanliiCaseUrlFromCitation(["1961 CanLII 7"])).toBeNull();
     expect(buildCanliiCaseUrlFromCitation(["[1997] 1 SCR 241"])).toBeNull();
     expect(buildCanliiCaseUrlFromCitation(["2024 UNKNOWN 1"])).toBeNull();
   });

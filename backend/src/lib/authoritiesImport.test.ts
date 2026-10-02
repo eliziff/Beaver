@@ -144,6 +144,21 @@ describe("authorities import application", () => {
         reference: { kind: "supra", targetAuthorityId: authorityId } });
   });
 
+  it("keeps the court a CanLII ID or reporter is cited with, past a pinpoint", async () => {
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
+      fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
+    { read: vi.fn() as never }, scanNative([
+      "Marlow v The King, 1961 CanLII 7 at 214 (SCC); Pell v Orchard Ltd, 2003 CanLII 4410 (ON CA).",
+      "Tamsin v Vale, [1979] AJ No 61 (PC); R v Quill, 2021 SCC 9 at para 3.",
+    ]));
+
+    expect(Object.fromEntries(Object.values(state.authorities).map(({ name, citation }) => [name, citation])))
+      .toEqual({ "Marlow v The King": "1961 CanLII 7 (SCC)", "Pell v Orchard Ltd": "2003 CanLII 4410 (ON CA)",
+        "Tamsin v Vale": "[1979] AJ No 61 (PC)", "R v Quill": "2021 SCC 9" });
+    // The decision is still keyed by its core.
+    expect(state.authorities[structureNative().citationLookupKey("1961 CanLII 7")]?.name).toBe("Marlow v The King");
+  });
+
   it("does not merge asymmetric or ambiguous alias closures", async () => {
     const neutral = "2020 SCC 1", reporter = "[2020] 1 SCR 1";
     await useAliasGraph([[neutral, "decision-a"], [reporter, "decision-a"],

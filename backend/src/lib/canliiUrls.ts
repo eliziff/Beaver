@@ -19,7 +19,8 @@ function resolvedCanliiCaseUrl(
     text: citations.filter(Boolean).join("\n;\n"), options: { resolve: false, parallel: false },
   })) as ExtractResponse;
   for (const citation of result.citations) {
-    if (citation.form !== "full" || citation.format !== "neutral") continue;
+    // A CanLII ID names its decision page once its court is written: "1954 CanLII 3 (SCC)".
+    if (citation.form !== "full" || citation.format !== "neutral" && citation.format !== "can_lii") continue;
     const court = citation.court?.text.toUpperCase();
     if (expectedCourt && court !== expectedCourt) continue;
     const { urls } = native.citationEngineCall("url", JSON.stringify({ citation, language })) as {
