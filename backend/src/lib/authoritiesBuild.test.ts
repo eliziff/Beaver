@@ -465,8 +465,9 @@ describe("Authorities final export", () => {
       expect(visible.includes("TABLE OF AUTHORITIES"), at).toBe(tableDelivery === "linked-append" && marked);
       expect(visible.startsWith(`2009 SCC 32 at para 12${text ? ` ${text}` : ""}`), at).toBe(true);
       expect((visible.match(/\[[^\]]*4\]/gu) ?? []).length, at).toBe(text ? 1 : 0);
-      // A copy with only tab references has no field for Word to refresh on opening.
-      expect((await zip.file("word/settings.xml")!.async("string")).includes("w:updateFields"), at).toBe(marked);
+      // Word is asked to refresh only Word's own table on opening: its page numbers are Word's layout.
+      expect((await zip.file("word/settings.xml")!.async("string")).includes("w:updateFields"), at)
+        .toBe(marked && tableDelivery === "native-append");
       expect(built.receipt.outputs["annotated-document"]?.filename).toBe(output.filename);
     }
   });

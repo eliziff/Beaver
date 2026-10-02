@@ -127,14 +127,12 @@ export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
   return save();
 }
 
-/** A field as Word itself writes it. A TA mark has no result and is not hidden text, or Word's
- *  table leaves it out; a table has a result, which Word fills in when it updates the field. */
-function fieldRuns(instruction: string, result: boolean) {
+/** A TA mark as Word itself writes it: no result, and not hidden text, or Word's table leaves it out. */
+function fieldRuns(instruction: string) {
   const run = (child: XNode) => makeEl("w:r", [child]);
   return [
-    run(makeEl("w:fldChar", [], { "w:fldCharType": "begin", ...(result && { "w:dirty": "true" }) })),
+    run(makeEl("w:fldChar", [], { "w:fldCharType": "begin" })),
     run(makeEl("w:instrText", [makeText(instruction)], { "xml:space": "preserve" })),
-    ...(result ? [run(makeEl("w:fldChar", [], { "w:fldCharType": "separate" }))] : []),
     run(makeEl("w:fldChar", [], { "w:fldCharType": "end" })),
   ];
 }
@@ -203,7 +201,7 @@ function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
       ? [rightRun] : []));
 }
 const insertField = (root: XNode, offset: number, instruction: string) =>
-  insertAtOffset(root, offset, fieldRuns(instruction, false));
+  insertAtOffset(root, offset, fieldRuns(instruction));
 
 /** Settings Word writes after updateFields (CT_Settings order); extension settings come last. */
 const SETTINGS_AFTER_UPDATE_FIELDS = new Set(["w:hdrShapeDefaults", "w:footnotePr", "w:endnotePr",
@@ -211,10 +209,76 @@ const SETTINGS_AFTER_UPDATE_FIELDS = new Set(["w:hdrShapeDefaults", "w:footnoteP
   "w:doNotIncludeSubdocsInStats", "w:doNotAutoCompressPictures", "w:forceUpgrade", "w:captions",
   "w:readModeInkLockDown", "w:smartTagType", "w:shapeDefaults", "w:doNotEmbedSmartTags",
   "w:decimalSymbol", "w:listSeparator"]);
-/** A field argument's text. Word ends the argument at a straight or curly double quote, so each
- *  is escaped with a backslash, as Word's own Mark Citation escapes a straight one. */
-const fieldText = (value: string) => value.replace(/\s+/gu, " ").trim()
-  .replace(/\\/gu, "'").replace(/["“”]/gu, "\\$&");
+/** What a TA field gives Word's table: the text on one line, as the field holds it. */
+const entryText = (value: string) => value.replace(/\s+/gu, " ").trim();
+/** A field argument. Word ends a quoted argument at a straight or a curly double quote, so each is
+ *  escaped with a backslash; Word shows any other backslash as it stands. */
+const fieldText = (value: string) => entryText(value).replace(/["“”]/gu, "\\$&");
+/** The text of a field's quoted or bare argument after `switch`, with its escapes read. */
+function fieldArgument(code: string, name: string) {
+  const at = code.search(new RegExp(`\\\\${name}\\s`, "u"));
+  if (at < 0) return undefined;
+  const rest = code.slice(at + 2).trimStart();
+  if (!/^["“]/u.test(rest)) return /^\S+/u.exec(rest)?.[0];
+  let value = "";
+  for (let index = 1; index < rest.length; index += 1) {
+    if (rest[index] === "\\" && /["“”]/u.test(rest[index + 1] ?? "")) value += rest[++index];
+    else if (/["“”]/u.test(rest[index])) return value;
+    else value += rest[index];
+  }
+  return value;
+}
+/** Word's own names for its first seven citation categories. */
+const CATEGORY_NAMES: Record<number, string> = { 1: "Cases", 2: "Statutes", 3: "Other Authorities", 4: "Rules",
+  5: "Treatises", 6: "Regulations", 7: "Constitutional Provisions" };
+/** Word's sort of a table's entries: case and accents second, spaces and punctuation before digits
+ *  and digits before letters. */
+const entryOrder = new Intl.Collator("en", { numeric: false }).compare;
+/** The styles Word gives a table of authorities, added when the brief has none of its own. */
+const TABLE_STYLES = [
+  makeEl("w:style", [makeEl("w:name", [], { "w:val": "toa heading" }), makeEl("w:basedOn", [], { "w:val": "Normal" }),
+    makeEl("w:next", [], { "w:val": "Normal" }), makeEl("w:uiPriority", [], { "w:val": "99" }), makeEl("w:semiHidden", []),
+    makeEl("w:unhideWhenUsed", []),
+    makeEl("w:pPr", [makeEl("w:spacing", [], { "w:before": "120" })]),
+    makeEl("w:rPr", [makeEl("w:rFonts", [], { "w:asciiTheme": "majorHAnsi", "w:eastAsiaTheme": "majorEastAsia",
+      "w:hAnsiTheme": "majorHAnsi", "w:cstheme": "majorBidi" }), makeEl("w:b", []), makeEl("w:bCs", []),
+    makeEl("w:sz", [], { "w:val": "24" }), makeEl("w:szCs", [], { "w:val": "24" })])],
+  { "w:type": "paragraph", "w:styleId": "TOAHeading" }),
+  makeEl("w:style", [makeEl("w:name", [], { "w:val": "table of authorities" }), makeEl("w:basedOn", [], { "w:val": "Normal" }),
+    makeEl("w:next", [], { "w:val": "Normal" }), makeEl("w:uiPriority", [], { "w:val": "99" }), makeEl("w:semiHidden", []),
+    makeEl("w:unhideWhenUsed", []),
+    makeEl("w:pPr", [makeEl("w:ind", [], { "w:left": "220", "w:hanging": "220" })])],
+  { "w:type": "paragraph", "w:styleId": "TableofAuthorities" }),
+];
+
+/** The width of the page's text, in twentieths of a point: where Word's table sets its page numbers. */
+function textWidth(section: XNode | undefined) {
+  const child = (name: string) => elChildren(section ?? {}).find((node) => elName(node) === name);
+  const size = (node: XNode | undefined, name: string) => Number(elAttrs(node ?? {})[`@_w:${name}`] ?? 0);
+  const page = child("w:pgSz"), margins = child("w:pgMar");
+  const width = (size(page, "w") || 12240) - (margins ? size(margins, "left") + size(margins, "right") +
+    size(margins, "gutter") : 2880);
+  return width > 0 ? width : 9360;
+}
+
+/** One TOA field per category, each with the table Word would show for it already in its result,
+ *  so the table reads as soon as the brief opens: the category's heading, then each entry on its
+ *  own line, sorted as Word sorts them. Page numbers are Word's own layout, so they come when Word
+ *  updates the field. */
+function tableFields(entries: ReadonlyMap<number, ReadonlySet<string>>, width: number) {
+  const tabs = makeEl("w:tabs", [makeEl("w:tab", [], { "w:val": "right", "w:leader": "dot", "w:pos": String(width) })]);
+  const paragraph = (style: string, runs: XNode[]) => makeEl("w:p", [
+    makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": style }), cloneNode(tabs)]), ...runs]);
+  const text = (value: string) => makeEl("w:r", [makeEl("w:rPr", [makeEl("w:noProof", [])]),
+    makeEl("w:t", [makeText(value)], /^\s|\s$/u.test(value) ? { "xml:space": "preserve" } : {})]);
+  const char = (type: string) => makeEl("w:r", [makeEl("w:fldChar", [], { "w:fldCharType": type })]);
+  return [...entries].sort(([left], [right]) => left - right).flatMap(([category, names]) => [
+    paragraph("TOAHeading", [char("begin"), makeEl("w:r", [makeEl("w:instrText", [makeText(` TOA \\h \\c "${category}" `)],
+      { "xml:space": "preserve" })]), char("separate"), text(CATEGORY_NAMES[category] ?? String(category))]),
+    ...[...names].sort(entryOrder).map((name) => paragraph("TableofAuthorities", [text(name)])),
+    makeEl("w:p", [char("end")]),
+  ]);
+}
 
 function linkedTable(entries: readonly DocxLinkedAuthority[]) {
   const run = (value: string, linked = false) => makeEl("w:r", [
@@ -260,9 +324,11 @@ function linkedRanges(root: XNode) {
   return ranges;
 }
 
-/** The TA fields a reviewed unit already holds: where each begins in its text, and its category. */
+/** The TA fields a reviewed unit already holds: where each begins in its text, its category and
+ *  the entry it gives the table. */
 function existingMarks(root: XNode) {
-  const found: Array<{ offset: number; category: number }> = [], open: Array<{ offset: number; code: string }> = [];
+  const found: Array<{ offset: number; category: number; long?: string }> = [];
+  const open: Array<{ offset: number; code: string }> = [];
   let cursor = 0;
   walk(root, (node) => {
     const name = elName(node);
@@ -275,7 +341,8 @@ function existingMarks(root: XNode) {
       if (type === "begin") open.push({ offset: cursor, code: "" });
       const field = type === "end" ? open.pop() : undefined;
       const category = field && /^\s*TA\b/u.test(field.code) ? /\\c\s+"?(\d+)/u.exec(field.code)?.[1] : undefined;
-      if (field && category) found.push({ offset: field.offset, category: Number(category) });
+      if (field && category) found.push({ offset: field.offset, category: Number(category),
+        long: fieldArgument(field.code, "l") });
     }
   });
   return found;
@@ -292,6 +359,22 @@ export async function applyTableOfAuthorities(
   const { session, document, targets, save } = await authorityUnitPackage(bytes, units);
   // A citation the author already marked keeps that mark, and the table lists the author's categories too.
   const existing = new Map([...targets].map(([id, node]) => [id, existingMarks(node)]));
+  // Each entry is marked in full once, at its first citation, and by its short name after that, as
+  // Word's Mark Citation does. A short name two entries share would join them, so those keep their
+  // full name as their short name too.
+  const placed = marks.filter((mark) => delivery !== "linked-append" && mark.mark !== false &&
+    !existing.get(mark.unitId)?.some(({ offset }) => offset === mark.offset));
+  const shortOwners = new Map<string, Set<string>>();
+  for (const { longName, shortName } of placed) {
+    const key = entryText(shortName).toLocaleLowerCase("en-CA");
+    shortOwners.set(key, (shortOwners.get(key) ?? new Set()).add(entryText(longName)));
+  }
+  const shortOf = ({ longName, shortName }: DocxAuthorityMark) =>
+    shortOwners.get(entryText(shortName).toLocaleLowerCase("en-CA"))!.size > 1 ? longName : shortName;
+  const firsts = new Set<DocxAuthorityMark>(), seenLong = new Set<string>();
+  for (const mark of placed) if (!seenLong.has(entryText(mark.longName))) {
+    seenLong.add(entryText(mark.longName)); firsts.add(mark);
+  }
   for (const mark of [...marks].sort((left, right) =>
       right.unitId.localeCompare(left.unitId) || right.offset - left.offset)) {
       const target = targets.get(mark.unitId);
@@ -302,9 +385,9 @@ export async function applyTableOfAuthorities(
           "w:instr": ` HYPERLINK "${mark.tabUrl}" `,
         }) : run]);
       }
-      if (delivery !== "linked-append" && mark.mark !== false &&
-        !existing.get(mark.unitId)?.some(({ offset }) => offset === mark.offset)) insertField(target, mark.offset,
-        ` TA \\l "${fieldText(mark.longName)}" \\s "${fieldText(mark.shortName)}" \\c ${mark.category} `);
+      if (placed.includes(mark)) insertField(target, mark.offset, firsts.has(mark)
+        ? ` TA \\l "${fieldText(mark.longName)}" \\s "${fieldText(shortOf(mark))}" \\c ${mark.category} `
+        : ` TA \\s "${fieldText(shortOf(mark))}" `);
       // A pinpoint the author already linked keeps that link.
       if (mark.pinpointLink && !linkedRanges(target).some(([from, to]) =>
         mark.pinpointLink!.start < to && from < mark.pinpointLink!.end)) {
@@ -319,20 +402,33 @@ export async function applyTableOfAuthorities(
     }
   const body = document.body, children = elChildren(body);
   const section = children.findIndex((node) => elName(node) === "w:sectPr");
-  // Word's table lists one category per field, under that category's heading, as Word does for "All".
-  const categories = [...new Set([...marks.filter((mark) => mark.mark !== false).map(({ category }) => category),
-    ...[...existing.values()].flat().map(({ category }) => category)])].sort((left, right) => left - right);
+  // Word's table lists one category per field, under that category's heading, as Word does for "All";
+  // the brief's own marks are listed with ours.
+  const entries = new Map<number, Set<string>>();
+  for (const { category, long } of [...[...firsts].map(({ category, longName }) => ({ category, long: longName })),
+    ...[...existing.values()].flat()]) {
+    const names = entries.get(category) ?? entries.set(category, new Set()).get(category)!;
+    if (long) names.add(entryText(long));
+  }
   const appended = delivery === "native-append" ? [
     makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
     makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" })]),
       makeEl("w:r", [makeEl("w:t", [makeText("Table of Authorities")])])]),
-    ...(categories.length ? categories : [1]).map((category) =>
-      makeEl("w:p", fieldRuns(` TOA \\h \\c "${category}" `, true))),
+    ...tableFields(entries.size ? entries : new Map([[1, new Set<string>()]]), textWidth(children[section])),
   ] : delivery === "linked-append" ? linkedTable(linked) : [];
   children.splice(section < 0 ? children.length : section, 0, ...appended);
-  // Word refreshes the fields it is given; a copy with only tab references has none to refresh.
-  const fields = delivery !== "native-marks" || marks.some((mark) => mark.mark !== false);
-  const settings = fields ? await session.readXml("word/settings.xml") : undefined;
+  if (delivery === "native-append") {
+    const styles = await session.readXml("word/styles.xml");
+    const styleRoot = styles?.find((node) => elName(node) === "w:styles");
+    if (styles && styleRoot) {
+      const present = new Set(elChildren(styleRoot).map((node) => elAttrs(node)["@_w:styleId"]));
+      elChildren(styleRoot).push(...TABLE_STYLES.filter((style) => !present.has(elAttrs(style)["@_w:styleId"]))
+        .map(cloneNode));
+      session.write("word/styles.xml", ensureXmlDeclaration(createBuilder().build(styles)));
+    }
+  }
+  // The table's page numbers are Word's own layout, so Word is asked to update the table on opening.
+  const settings = delivery === "native-append" ? await session.readXml("word/settings.xml") : undefined;
   const root = settings?.find((node) => elName(node) === "w:settings");
   if (settings && root) {
     const settingsChildren = elChildren(root);

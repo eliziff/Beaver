@@ -6,6 +6,22 @@ import {
   applyAuthorityDiscrepancyCorrection,
   applyTableOfAuthorities,
 } from "../docxOperations";
+/** What each TOA field shows before Word updates it: its result's lines, as Word stored them. */
+function tableAsOpened(document: string) {
+  const tables: string[][] = [];
+  let code = "", state: "code" | "result" | null = null, line = "";
+  for (const [token, kind, text] of document.matchAll(
+    /<w:fldChar w:fldCharType="(begin|separate|end)"[^>]*>|<w:instrText[^>]*>([^<]*)<|<w:t(?:\s[^>]*)?>([^<]*)<|<\/w:p>/gu)) {
+    if (kind === "begin") { state = "code"; code = ""; }
+    else if (kind === "separate" && state === "code") { state = /^\s*TOA\b/u.test(code) ? "result" : null; if (state) tables.push([]); }
+    else if (kind === "end") { if (state === "result" && line) tables.at(-1)!.push(line); state = null; line = ""; }
+    else if (token.startsWith("<w:instrText") && state === "code") code += text ?? "";
+    else if (token.startsWith("<w:t") && state === "result") line += (token.match(/>([^<]*)</u)?.[1] ?? "").replaceAll("&quot;", '"');
+    else if (token === "</w:p>" && state === "result") { if (line) tables.at(-1)!.push(line); line = ""; }
+  }
+  return tables;
+}
+
 describe("native Word Table of Authorities output", () => {
   it("appends fixed tab text in body and footnote citations and preserves pinpoint text for final links", async () => {
     const body = "R v Grant, 2009 SCC 32 at para 12", note = "Ibid at para 13";
@@ -91,8 +107,54 @@ describe("native Word Table of Authorities output", () => {
     // An insertion at the end of a run's text leaves no empty run behind.
     expect(document).not.toMatch(/<w:t(?: [^>]*)?(?:\/>|><\/w:t>)/u);
     expect(document).toContain("[Tab 1]");
-    expect(document).toContain(' TOA \\h \\c &quot;1&quot; ');
     expect(document).toContain(' TOA \\h \\c &quot;3&quot; ');
+    expect(tableAsOpened(document)).toEqual([["Other Authorities", text]]);
+  });
+
+  it("writes the table into the brief so it reads on opening, before Word updates a field", async () => {
+    const body = "As held in Oak v Elm, 2031 ONCA 5 at para 9 and Larch Act, SA 2031, c L-2, s 4.";
+    const notes = ["Birch v Ash, 2030 ABKB 1.", "Oak v Elm, supra note 1.", "Jo Pine, “Moss” (2030) 1 Imag LJ 2."];
+    const source = await docxBytes([new Paragraph({ children: [new TextRun(body),
+      ...notes.map((_, index) => new FootnoteReferenceRun(index + 1))] })],
+    { footnotes: Object.fromEntries(notes.map((note, index) => [index + 1, { children: [new Paragraph(note)] }])) });
+    const end = (text: string, cite: string) => text.indexOf(cite) + cite.length;
+    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: body },
+      ...notes.map((text, index) => ({ id: `footnote:${index + 1}`, text }))], [
+      { unitId: "body:0", offset: end(body, "2031 ONCA 5"), longName: "Oak v Elm, 2031 ONCA 5", shortName: "Oak", category: 1 },
+      { unitId: "body:0", offset: end(body, "c L-2"), longName: "Larch Act, SA 2031, c L-2", shortName: "Larch Act", category: 2 },
+      { unitId: "footnote:1", offset: end(notes[0], "2030 ABKB 1"), longName: "Birch v Ash, 2030 ABKB 1", shortName: "Birch", category: 1 },
+      { unitId: "footnote:2", offset: end(notes[1], "supra note 1"), longName: "Oak v Elm, 2031 ONCA 5", shortName: "Oak", category: 1 },
+      { unitId: "footnote:3", offset: end(notes[2], "Imag LJ 2"), longName: "Jo Pine, “Moss” (2030) 1 Imag LJ 2", shortName: "Pine", category: 5 },
+    ], "native-append");
+    const zip = await JSZip.loadAsync(marked), document = await zip.file("word/document.xml")!.async("string");
+    // Each category's field already holds its heading and entries, sorted as Word sorts them.
+    expect(tableAsOpened(document)).toEqual([["Cases", "Birch v Ash, 2030 ABKB 1", "Oak v Elm, 2031 ONCA 5"],
+      ["Statutes", "Larch Act, SA 2031, c L-2"], ["Treatises", "Jo Pine, “Moss” (2030) 1 Imag LJ 2"]]);
+    expect(document).not.toContain("w:dirty");
+    const styles = await zip.file("word/styles.xml")!.async("string");
+    expect(styles).toContain('w:styleId="TOAHeading"'); expect(styles).toContain('w:styleId="TableofAuthorities"');
+    expect(await zip.file("word/settings.xml")!.async("string")).toContain('<w:updateFields w:val="true"');
+    // An authority is marked in full once, then by its short name.
+    const codes = [...(document + await zip.file("word/footnotes.xml")!.async("string"))
+      .matchAll(/<w:instrText[^>]*>([^<]*)<\/w:instrText>/gu)].map(([, code]) => code.replaceAll("&quot;", '"'))
+      .filter((code) => code.startsWith(" TA "));
+    expect(codes.filter((code) => code.includes('"Oak"'))).toEqual([' TA \\l "Oak v Elm, 2031 ONCA 5" \\s "Oak" \\c 1 ', ' TA \\s "Oak" ']);
+  });
+
+  it("escapes the quotes that would end a field's argument, and gives entries sharing a short name their full name", async () => {
+    const one = "Jo Pine, “The “Moss” Rule: A \"Draft\"” (2030) 1 Imag LJ 2", two = "R v Ash, 2030 ABKB 1", three = "R v Ash, 2031 ONCA 7";
+    const body = `${one}; ${two}; ${three}.`;
+    const source = await docxBytes([new Paragraph(body)]);
+    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: body }], [
+      { unitId: "body:0", offset: one.length, longName: one, shortName: "Pine", category: 5 },
+      { unitId: "body:0", offset: body.indexOf(two) + two.length, longName: two, shortName: "R v Ash", category: 1 },
+      { unitId: "body:0", offset: body.indexOf(three) + three.length, longName: three, shortName: "R v Ash", category: 1 },
+    ], "native-append");
+    const document = (await (await JSZip.loadAsync(marked)).file("word/document.xml")!.async("string")).replaceAll("&quot;", '"');
+    expect(document).toContain(' TA \\l "Jo Pine, \\“The \\“Moss\\” Rule: A \\"Draft\\"\\” (2030) 1 Imag LJ 2" \\s "Pine" \\c 5 ');
+    expect(document).toContain(` TA \\l "${two}" \\s "${two}" \\c 1 `);
+    expect(document).toContain(` TA \\l "${three}" \\s "${three}" \\c 1 `);
+    expect(tableAsOpened(document).flat()).toContain(one);
   });
 
   it("replaces exact reviewed spans in body text and footnotes", async () => {

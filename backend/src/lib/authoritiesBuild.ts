@@ -328,11 +328,28 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
     bytes, null);
 }
 
+/** An authority as a table of authorities lists it: as the brief first cites it in full, led by the
+ *  name its source gives it where the brief cites it by its citation alone, and followed by any other
+ *  citation the brief gives it (a parallel report). */
+function tableEntry(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
+  const [first, ...rest] = draft.units.flatMap((unit) => unit.occurrenceIds.map((id) => draft.occurrences[id]))
+    .filter((occurrence) => occurrence?.authorityId === authority.id && occurrence.kind !== "reference");
+  if (!first) return authorityName(draft, authority);
+  // "R. v. Oakes" (a source's title) and "R v Oakes" (the brief) are one name.
+  const lower = (value: string) => value.toLocaleLowerCase("en-CA").replace(/\./gu, "").replace(/\s+/gu, " ").trim();
+  const name = (authority.displayName ?? authority.name)?.trim();
+  let entry = first.authoritySpan.text.replace(/\s+/gu, " ").trim();
+  if (name && first.authoritySpan.start >= first.coreSpan.start && !lower(entry).includes(lower(name)))
+    entry = `${name}, ${entry}`;
+  for (const { coreSpan } of rest) if (!lower(entry).includes(lower(coreSpan.text))) entry += `, ${coreSpan.text.trim()}`;
+  return entry;
+}
+
 function nativeMark(draft: AuthoritiesDraft, authority: AuthorityIdentity,
   unitId: string, offset: number): DocxAuthorityMark {
   const citation = authority.citation.trim();
   const shortName = (authority.displayName ?? authority.name ?? citation).trim();
-  const longName = authorityName(draft, authority);
+  const longName = tableEntry(draft, authority);
   return { unitId, offset, longName, shortName: shortName || citation,
     category: authority.kind === "case" ? 1 : authority.kind === "legislation" ? 2
       : authority.kind === "commentary" ? 5 : 3 };
