@@ -171,8 +171,10 @@ async function fetchSource(rawUrl: string, accept: string, signal?: AbortSignal)
         headers: { Accept: accept },
       }, { label: "Source PDF URL", timeoutMs: 30_000 });
     } catch (error) {
-      if ((error as { code?: unknown })?.code !== "verification_required") throw error;
-      throw new PublisherVerificationRequired(rawUrl);
+      const { code, pdfUrl } = error as { code?: unknown; pdfUrl?: string };
+      if (code === "verification_required") throw new PublisherDownloadFailure(rawUrl, "blocked", pdfUrl);
+      if (code === "origin_denied") throw new PublisherDownloadFailure(rawUrl, "refused");
+      throw error;
     }
     if (response.status < 300 || response.status >= 400) return { response, url };
     const location = response.headers.get("location");
@@ -180,7 +182,7 @@ async function fetchSource(rawUrl: string, accept: string, signal?: AbortSignal)
     if (!location || redirects === 5) throw new Error("Source PDF redirect could not be resolved");
     current = new URL(location, url);
     if (verificationPage(current.href)) {
-      throw new PublisherVerificationRequired(rawUrl);
+      throw new PublisherDownloadFailure(rawUrl);
     }
   }
   throw new Error("Source PDF redirect limit exceeded");
@@ -198,13 +200,20 @@ type ProviderOriginalPdfRequest = Omit<ProviderPdfAttachment,
   pdfUrl?: string | null;
 };
 
-export class PublisherVerificationRequired extends Error {
-  constructor(readonly pageUrl: string) {
-    super("Automatic download blocked by the publisher.");
+/** Why a publisher's original was not downloaded: the publisher blocked the download, the
+ *  download service refused this page's address, or the publisher or service did not answer.
+ *  `pdfUrl` is the PDF the service named, when it named one. */
+export class PublisherDownloadFailure extends Error {
+  constructor(readonly pageUrl: string, readonly reason: "blocked" | "refused" | "failed" = "blocked",
+    readonly pdfUrl?: string) {
+    super(`Automatic download ${reason}.`);
   }
 }
 const verificationPage = (value: string) =>
   /\/robocop\/captcha\//iu.test(value);
+/** A publisher or download service that did not answer, unlike one that answered with no PDF. */
+const unanswered = (error: unknown) => error instanceof TypeError || (error as Error)?.name === "TimeoutError" ||
+  ["timeout", "publisher_error", "service_error", "rate_limited"].includes(String((error as { code?: unknown })?.code));
 
 async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal,
   allowHtml = true) {
@@ -230,7 +239,7 @@ async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal
         markup = await response.text();
         const challengeUrl = publisherChallengeUrl(markup, url);
         if (challengeUrl || response.headers.get("cf-mitigated") === "challenge")
-          throw new PublisherVerificationRequired(request.canonicalUrl ?? request.url);
+          throw new PublisherDownloadFailure(request.canonicalUrl ?? request.url);
       }
       if (!response.ok || !response.body) {
         await response.body?.cancel().catch(() => undefined);
@@ -274,8 +283,8 @@ export async function downloadProviderOriginalPdf(
   const queue = [pdfUrl, candidate, rawSource]
     .filter((value): value is string => Boolean(value));
   const seen = new Set<string>();
-  let candidateChallenge: PublisherVerificationRequired | null = null;
-  let candidateAdvertised = false;
+  let candidateChallenge: PublisherDownloadFailure | null = null;
+  let candidateAdvertised = false, failed = false;
   while (queue.length && seen.size < 12) {
     signal?.throwIfAborted();
     let request: SafeRequest;
@@ -291,17 +300,19 @@ export async function downloadProviderOriginalPdf(
       queue.push(...found.links);
     } catch (error) {
       signal?.throwIfAborted();
-      if (error instanceof PublisherVerificationRequired) {
+      if (error instanceof PublisherDownloadFailure) {
         // A guessed route can challenge even when the case page has no PDF.
-        if (candidate && request.url === candidate && request.url !== pdfUrl) {
+        if (error.reason === "blocked" && candidate && request.url === candidate && request.url !== pdfUrl) {
           candidateChallenge = error;
           continue;
         }
         throw error;
       }
+      failed ||= unanswered(error);
     }
   }
   if (candidateAdvertised && candidateChallenge) throw candidateChallenge;
+  if (failed) throw new PublisherDownloadFailure(canonicalUrl ?? rawSource ?? pdfUrl ?? "", "failed");
   return null;
 }
 

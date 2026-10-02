@@ -41,6 +41,8 @@ export const attachAuthorityPdf = (
   `/authorities/${segment(id)}/attachments/${segment(authorityId)}`, file,
   { fields: { revision: String(revision), language, ...(autoFetched ? { auto_fetched: "true" } : {}) } },
 );
+export const authoritiesPdfAuthority = (id: string, opening: { filename: string; pages: string[] }) =>
+  post<{ authorityId: string | null }>(`/authorities/${segment(id)}/pdf-authority`, opening);
 export const attachAuthoritiesLibraryPdf = (id: string, revision: number,
   documentId: string, versionId: string, target:
     { kind: "authority"; authorityId: string; language: AuthoritySourceLanguage } |

@@ -26,6 +26,11 @@ export function integer(value: unknown, min = 0) {
   if (!Number.isSafeInteger(value) || Number(value) < min) return bad();
   return Number(value);
 }
+export function decodePdfOpening(value: unknown) {
+  const { filename, pages } = object(value);
+  return Array.isArray(pages) && pages.length <= 2 && pages.every((page) => typeof page === "string" && page.length <= 200_000)
+    ? { filename: text(filename), pages: pages as string[] } : bad();
+}
 export function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   return typeof value === "string" && choices.includes(value as T) ? value as T : bad();
 }

@@ -27,6 +27,10 @@ const lookupReason = ({ reason, detail }: LookupFailure) => ({
   "rate-limited": "A2AJ is limiting requests", timeout: "A2AJ took too long to answer", unreachable: "A2AJ couldn't be reached",
   error: "A2AJ answered with an error", defect: `Authorities failed with an error of its own (${detail ?? "no message"})`,
 })[reason];
+/** Why the publisher's original is not there, when its download did not bring it. */
+const publisherReason = ({ sourceDownloadFailure }: AuthorityIdentity) => sourceDownloadFailure === "refused"
+  ? "Automatic downloads don't work from this page's address." : sourceDownloadFailure === "failed"
+    ? "Couldn't download the PDF from the publisher." : "The publisher blocked the automatic download.";
 const clock = (time: number) => new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const MINUTE = 60_000;
 export type AuthorityPanelProps = {
@@ -66,7 +70,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
         {onWatchFolder && <Button type="button" variant="outline" className={control}
           disabled={busy && !watchedFolder} onClick={onWatchFolder}
           title={watchedFolder ? "Stop watching this folder"
-            : "Choose your download folder once; CanLII PDFs saved there (such as 2019abqb666.pdf) are attached to their authorities as they arrive."}>
+            : "Choose the folder Chrome saves into, such as Downloads\\Authorities; Chrome won't share Downloads itself. PDFs saved there are added to the authorities that need them."}>
           {watchedFolder ? <><Loader2 className="motion-safe:animate-spin" />Watching {watchedFolder}<Square className="fill-current" /></>
             : <><FolderInput /> Auto-fetch from folder</>}</Button>}
         {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
@@ -130,11 +134,11 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
   const missingLanguage = requireLanguages && !sources.some(source => source.language === "bilingual") &&
     !(sources.some(source => source.language === "en") && sources.some(source => source.language === "fr"));
-  const publisherUrl = needsPdf && (!sources.length || missingLanguage)
-    ? /\/robocop\/captcha\//iu.test(authority.sourceVerificationUrl ?? "")
-      ? authority.sourceIdentity?.externalUrl ?? authority.sourceUrl
-      : authority.sourceVerificationUrl
-    : undefined;
+  // The original the publisher's download did not bring: its row opens the publisher while the PDF
+  // is missing, and its options do beside a PDF built from source text.
+  const publisher = needsPdf ? /\/robocop\/captcha\//iu.test(authority.sourceVerificationUrl ?? "")
+    ? authority.sourceIdentity?.externalUrl ?? authority.sourceUrl : authority.sourceVerificationUrl : undefined;
+  const publisherUrl = !sources.length || missingLanguage ? publisher : undefined;
   const fromText = sources.length ? sources.every(({ origin }) => origin === "reconstructed")
     : rebuildsFromText && authority.source.kind === "resolved";
   const missing = needsPdf && !loaded;
@@ -146,14 +150,17 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     : missingIssue?.status === "changed" ? "The PDF changed. Its source is being refreshed."
     : missingIssue?.status === "missing" && missingIssue.reason === "deleted"
       ? "The PDF could not be found. Upload it again."
+    : publisherUrl ? publisherReason(authority)
     : authority.source.kind === "pending-canlii"
       ? "Couldn't auto-fetch. Download from CanLII and upload the PDF. (CanLII doesn't let us automate this.)"
     : sources.length ? "This PDF is unavailable. Upload it again."
     : "No PDF attached. Upload a PDF for this authority.";
-  const mark = missing ? { Icon: issue ? LockKeyhole : lookup || authority.source.kind === "pending-canlii" ? CircleAlert : FileX2,
+  const mark = missing ? { Icon: issue ? LockKeyhole
+      : lookup || publisherUrl || authority.source.kind === "pending-canlii" ? CircleAlert : FileX2,
       tone: lookup ? "text-amber-700" : "text-red-700", label: missingLabel }
     : fromText ? { Icon: FileType2, tone: "text-indigo-700",
-      label: loaded ? "Built from source text" : "Will be built from source text" }
+      label: !loaded ? "Will be built from source text"
+        : `Built from source text${publisher ? `. ${publisherReason(authority)}` : ""}` }
     : loaded ? { Icon: FileCheck2, tone: "text-green-700",
       label: sources.map(({ filename }) => filename).join("\n") || "PDF loaded" } : null;
   // A scan being recognized reports in the citation's slot (on the actions line where the row is
@@ -236,7 +243,10 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
-          ...(publisherUrl && onRetry ? [{ label: "Retry download", disabled: busy, onSelect: onRetry }] : []),
+          ...(publisherUrl && onRetry && authority.sourceDownloadFailure !== "refused"
+            ? [{ label: "Retry download", disabled: busy, onSelect: onRetry }] : []),
+          ...(publisher && !publisherUrl ? [{ label: "Open publisher",
+            onSelect: () => window.open(publisher, "_blank", "noopener,noreferrer") }] : []),
           ...(publisherUrl && onOpen ? sources.map(source => ({
             label: `View ${sourceLanguageLabel(source.language)} PDF`, disabled: busy || !!sourceIssues[source.bindingRole],
             onSelect: () => onOpen(source.bindingRole),

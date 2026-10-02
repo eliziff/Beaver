@@ -4,15 +4,15 @@ import { previewEdit, savedIds } from "./reviewEdits";
 import { QuotationReview } from "./QuotationFinding";
 import { StepProgress } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
-import { CANLII_PDF_NAME, folderFileId, folderMatches } from "./folderSources";
 import { authorityName, authorityLabel,
-  requiresBilingualSources,
+  requiresBilingualSources, requiresPdf,
   missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, Eye, FilePlus2, FolderSearch,
   History, Loader2, Plus, Scale, Settings2, Upload } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
+import { pdfOpening } from "@/app/lib/inspectPdf";
 import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
 import { CourtChoiceModal } from "@/app/components/modals/CourtChoiceModal";
 import { ModalSelect, SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
@@ -718,41 +718,75 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     void run(() => relinkQueued(id, role), (next) => { if (next) relinkAdopted(next, role); },
       "Source relinked");
   }
-  // Auto-fetch from folder: the reader picks their download folder once and, while the tab
-  // is open, each CanLII PDF saved there is attached to the authority it names.
+  // Auto-fetch from folder: the reader chooses the folder Chrome saves into once, and it is kept for
+  // the next visit. While the tab is open, each PDF saved there that is an authority still without
+  // a PDF is attached to it, looked for every two seconds and whenever the tab is come back to.
   const [watchedFolder, setWatchedFolder] = useState<string>();
+  // A folder kept from an earlier visit that Chrome asks about again: asked on the next click.
+  const [folderAccess, setFolderAccess] = useState<{ handle: WatchedFolder; open?: boolean; denied?: boolean }>();
   const folder = useRef<{ handle: WatchedFolder; timer: number } | null>(null);
   const folderTried = useRef(new Set<string>()), folderScanning = useRef(false);
   const busyRef = useRef(busy), scanRef = useRef<() => Promise<void>>(async () => {});
   busyRef.current = busy;
   useEffect(() => { folderTried.current.clear(); }, [draft?.id]);
+  useEffect(() => {
+    let active = true;
+    const look = () => void scanRef.current();
+    window.addEventListener("focus", look);
+    void host.watchedFolder?.get().then(async (kept) => {
+      const handle = kept as WatchedFolder | null;
+      if (!active || !handle || folder.current) return;
+      if (await handle.queryPermission?.({ mode: "read" }) === "granted") watch(handle);
+      else setFolderAccess({ handle });
+    }).catch(() => { /* No folder is kept. */ });
+    return () => { active = false; window.removeEventListener("focus", look); };
+  }, [host]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { if (folder.current) clearInterval(folder.current.timer); }, []);
+  function watch(handle: WatchedFolder, chosen = false) {
+    folderTried.current.clear(); setFolderAccess(undefined);
+    folder.current = { handle, timer: window.setInterval(() => void scanRef.current(), 2_000) };
+    setWatchedFolder(handle.name);
+    if (chosen) setMessage(`Watching ${handle.name}: PDFs saved there are added to their authorities.`);
+    void scanRef.current();
+  }
   function stopWatching(text = "") {
     if (folder.current) clearInterval(folder.current.timer);
     folder.current = null; setWatchedFolder(undefined);
     if (text) setMessage(text);
   }
+  async function allowFolder() {
+    const handle = folderAccess?.handle;
+    if (!handle) return;
+    if (await handle.requestPermission?.({ mode: "read" }).catch(() => "denied") === "granted") watch(handle, true);
+    else setFolderAccess({ handle, open: true, denied: true });
+  }
+  /** Each PDF not looked at before, newest first, is asked which authority still without a PDF it
+   *  is; one that is none stays where it is. Only a match holds the workspace while it attaches. */
   async function attachFromFolder(files: File[], quiet: boolean) {
-    const current = draftRef.current;
-    if (!current) return;
-    const matches = folderMatches(current.state, files)
-      .filter(({ file }) => !folderTried.current.has(folderFileId(file)));
+    const current = draftRef.current, matches: Array<{ authorityId: string; file: File }> = [];
+    if (!current || !host.pdfAuthority) return;
+    const waiting = () => Object.values(current.state.authorities).some((authority) => authority.kind === "case" &&
+      !authority.excluded && authority.source.kind !== "attached" && requiresPdf(current.state, authority) &&
+      !matches.some(({ authorityId }) => authorityId === authority.id));
+    for (const file of files.filter((file) => /\.pdf$/iu.test(file.name) && file.size <= 100 * 1024 * 1024 &&
+      !folderTried.current.has(folderFileId(file))).sort((left, right) => right.lastModified - left.lastModified)) {
+      if (draftRef.current?.id !== current.id || !waiting()) break;
+      folderTried.current.add(folderFileId(file));
+      const authorityId = await pdfOpening(file).then((opening) => host.pdfAuthority!(current, opening)).catch(() => null);
+      if (authorityId && !matches.some((match) => match.authorityId === authorityId)) matches.push({ authorityId, file });
+    }
     if (!matches.length) {
-      if (!quiet) setMessage("No PDF there is named like a CanLII citation (such as 2019abqb666.pdf) " +
-        "for an authority that still needs one.");
+      if (!quiet) setMessage("No PDF there is an authority that still needs one.");
       return;
     }
     await run(() => serialized(async () => {
       let added = 0;
       const failures: string[] = [];
-      for (const { authority, file } of matches) {
-        const latest = draftRef.current;
-        if (latest?.id !== current.id) break;
-        // A file is tried once; one that fails is not retried every scan.
-        folderTried.current.add(folderFileId(file));
-        setMessage(`Attaching ${file.name}`);
+      for (const { authorityId, file } of matches) {
+        if (draftRef.current?.id !== current.id) break;
         try {
-          if (adopt(await host.attach(latest.id, authority.id, latest.revision, { file, autoFetched: true }))) added += 1;
+          if (adopt(await onLatest(current.id, (latest) =>
+            host.attach(latest.id, authorityId, latest.revision, { file, autoFetched: true })))) added += 1;
         } catch (caught) { failures.push(`${file.name}: ${errorText(caught)}`); }
       }
       return { added, failures };
@@ -767,17 +801,22 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (!watched || folderScanning.current || busyRef.current) return;
     folderScanning.current = true;
     try {
-      if (await watched.queryPermission?.({ mode: "read" }) === "denied")
-        return stopWatching(`Stopped watching ${watched.name}: access was withdrawn.`);
+      // Chrome's access can end with the visit; the folder is then asked for on the next click.
+      const permission = await watched.queryPermission?.({ mode: "read" });
+      if (permission && permission !== "granted") { stopWatching(); setFolderAccess({ handle: watched }); return; }
       const files: File[] = [];
       for await (const entry of watched.values())
-        if (entry.kind === "file" && CANLII_PDF_NAME.test(entry.name)) files.push(await entry.getFile());
+        if (entry.kind === "file" && /\.pdf$/iu.test(entry.name)) files.push(await entry.getFile());
       await attachFromFolder(files, true);
     } catch (caught) { stopWatching(`Stopped watching the folder: ${errorText(caught)}`); }
     finally { folderScanning.current = false; }
   };
   async function watchFolder() {
-    if (folder.current) return stopWatching("Stopped watching the folder.");
+    if (folder.current) {
+      void host.watchedFolder?.set(null);
+      return stopWatching("Stopped watching the folder.");
+    }
+    if (folderAccess) return setFolderAccess({ ...folderAccess, open: true });
     const picker = (window as FolderPickerWindow).showDirectoryPicker;
     if (!picker) {
       // Without folder access (Firefox, Safari) the folder is read once.
@@ -794,11 +833,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       if ((caught as { name?: string })?.name !== "AbortError") setError(errorText(caught));
       return;
     }
-    folderTried.current.clear();
-    folder.current = { handle, timer: window.setInterval(() => void scanRef.current(), 2_000) };
-    setWatchedFolder(handle.name);
-    setMessage(`Watching ${handle.name}: CanLII PDFs saved there are attached to their authorities.`);
-    await scanRef.current();
+    void host.watchedFolder?.set(handle);
+    watch(handle, true);
   }
   function rename(title: string) {
     if (draft) void run(() => queuedSave(draft.id, (current) =>
@@ -1191,6 +1227,18 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         </ul>
         {accessPrompt?.denied && <p role="alert" className="pb-3 text-sm text-red-800">Chrome did not allow
           access. Allow it again, or choose the file with Allow file access.</p>}
+      </Modal>
+      <Modal open={!!folderAccess?.open} size="md" breadcrumbs={["Folder access"]} fit
+        onClose={() => folderAccess && setFolderAccess({ handle: folderAccess.handle })}
+        // Declined, the kept folder is let go: the next click chooses one afresh.
+        secondaryAction={{ label: "Not now", onClick: () => {
+          setFolderAccess(undefined); void host.watchedFolder?.set(null); } }}
+        primaryAction={{ label: "Allow access", onClick: () => void allowFolder() }}>
+        <p className="pb-3 text-sm leading-6 text-gray-700">Chrome asks again before Authorities can watch{" "}
+          <strong>{folderAccess?.handle.name}</strong>. Choose <strong>Allow on every visit</strong> so it
+          won’t ask next time.</p>
+        {folderAccess?.denied && <p role="alert" className="pb-3 text-sm text-red-800">Chrome did not allow
+          access.</p>}
       </Modal>
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="lg"
         breadcrumbs={["Missing PDFs"]} fit
@@ -1879,6 +1927,8 @@ function loadPreferences(): StartPreferences {
 type WatchedFolder = FileSystemDirectoryHandle & {
   values(): AsyncIterable<FileSystemFileHandle | FileSystemDirectoryHandle>;
   queryPermission?(options: { mode: "read" }): Promise<PermissionState>;
+  requestPermission?(options: { mode: "read" }): Promise<PermissionState>;
 };
+const folderFileId = (file: File) => `${file.name}\0${file.size}\0${file.lastModified}`;
 type FolderPickerWindow = Window & { showDirectoryPicker?: (options: { id: string; mode: "read";
   startIn: "downloads" }) => Promise<WatchedFolder> };

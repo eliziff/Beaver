@@ -178,7 +178,7 @@ try {
             '--no-file-parallelism', '--reporter=verbose', '--testTimeout=120000', '--hookTimeout=120000')
     }
     Invoke-Step 'Shared PDF behavior' {
-        Invoke-Checked node @('--test', 'shared/browser-pdf.test.mjs', 'shared/canlii-downloads.test.mjs')
+        Invoke-Checked node @('--test', 'shared/browser-pdf.test.mjs')
     }
     Invoke-Step 'Backend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'backend') }
     Invoke-Step 'Frontend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'frontend') }

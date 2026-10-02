@@ -318,6 +318,20 @@ describe("provider PDF projection bridge", () => {
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([candidate, source, content]);
   });
 
+  it.each([["refused", Object.assign(new Error("This application origin is not permitted."), { code: "origin_denied" })],
+    ["failed", new TypeError("Failed to fetch")]] as const)(
+    "names a download the service %s, and a publisher that answered with no PDF as a plain miss", async (reason, failure) => {
+    const source = "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/512345/index.do";
+    const request = { provider: "a2aj", identity: "a2aj:en:fc:512345", sourceUrl: source,
+      source: { provider: "a2aj", id: "512345", kind: "case" as const, citation: "2031 FC 212",
+        collection: "fc", language: "en" as const } };
+    vi.stubGlobal("fetch", vi.fn(async () => { throw failure; }));
+    const bridge = await import("../providerPdfLibraryBridge");
+    await expect(bridge.downloadProviderOriginalPdf(request)).rejects.toMatchObject({ reason, pageUrl: expect.any(String) });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain" } })));
+    await expect(bridge.downloadProviderOriginalPdf(request)).resolves.toBeNull();
+  });
+
   it("fails closed when a source digest is spliced onto another request", async () => {
     const firstBytes = Buffer.from("%PDF-1.4 first\n%%EOF\n");
     vi.stubGlobal("fetch", vi.fn(async () => pdfResponse(firstBytes)));

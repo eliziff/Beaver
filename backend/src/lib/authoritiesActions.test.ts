@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyAuthoritiesUserAction } from "./authoritiesActions";
+import { applyAuthoritiesUserAction, folderPdfAuthority } from "./authoritiesActions";
 import { authorityPassageTargets } from "./authoritiesBuild";
 import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
-import { authorityCitationForms, createAuthoritiesDraft,
+import { authorityCitationForms, createAuthoritiesDraft, reduceAuthoritiesDraft,
   type AuthoritiesDraft } from "./authoritiesDomain";
 import { authoritySourceServices, resolveAuthoritiesSources,
   type SourceServices } from "./authoritiesSourceResolution";
@@ -294,5 +294,46 @@ describe("Authorities citation boundary actions", () => {
     expect(() => decodeAuthoritiesUserAction({ type: "add-occurrence", start: 0, end: 5 })).toThrow();
     expect(() => decodeAuthoritiesUserAction({ type: "add-occurrence", unitId: "body:7",
       start: 5, end: 0 })).toThrow();
+  });
+});
+
+describe("a PDF found in the watched folder", () => {
+  // Invented decisions: two the brief cites, and their opening pages as a reader's browser reads them.
+  const cases = { harbour: ["Harbour Paddlers Co-operative v Canada (Attorney General)", "2031 FC 212"],
+    lakeshore: ["Lakeshore Rowing Club v Marsh Harbour Board", "2030 ABKB 417"] } as const;
+  const draft = () => Object.entries(cases).reduce((current, [id, [name, citation]]) =>
+    reduceAuthoritiesDraft(current, { type: "add-authority", authority: { id, key: id, kind: "case", citation, name,
+      displayName: null, excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+      source: { kind: "unresolved" } } }), createAuthoritiesDraft({ kind: "manual" }));
+  /** The draft once one case has a PDF built from its source text. */
+  const rebuilt = () => { const state = draft(); state.authorities.harbour.source = { kind: "attached", sources: [{
+    bindingRole: "harbour", filename: "h.pdf", sourceSha256: "a".repeat(64), sourceUrl: null,
+    origin: "reconstructed", language: "en" }] }; return state; };
+  const reasons = (subject: string) => Array.from({ length: 30 }, (_, index) =>
+    `the ${subject} board weighed notice number ${index} against the launch season and the river levels it recorded`).join(" ");
+  const opening = (heading: string, body: string) => [`${heading}\n[1] ${body.slice(0, 900)}`, body.slice(900, 2400)];
+  const references: Record<string, string> = { harbour: reasons("harbour"), lakeshore: reasons("lakeshore") };
+  const match = (filename: string, pages: string[], state = draft()) =>
+    folderPdfAuthority(state, { filename, pages }, async ({ id }) => references[id] ?? "");
+
+  it("is the case still without a PDF that its opening citation names, whatever the file is called", async () => {
+    const heading = `Federal Court\nCitation: ${cases.harbour.join(", ")}\nDate: 20310304`;
+    await expect(match("document.do.pdf", opening(heading, reasons("unrelated")))).resolves.toBe("harbour");
+    // Another case's citation leaves the file unbound, as does a case that already has its PDF.
+    await expect(match("document.pdf", opening("Federal Court\nCitation: Hill v Shore, 2031 FC 9", reasons("harbour"))))
+      .resolves.toBeNull();
+    await expect(match("document.do.pdf", opening(heading, reasons("unrelated")), rebuilt())).resolves.toBeNull();
+  });
+
+  it("falls back to agreeing exactly with the A2AJ text of one case, and abstains when two agree", async () => {
+    await expect(match("judgment.pdf", opening("Reasons for Judgment", references.lakeshore))).resolves.toBe("lakeshore");
+    references.harbour = references.lakeshore;
+    try { await expect(match("judgment.pdf", opening("Reasons for Judgment", references.lakeshore))).resolves.toBeNull(); }
+    finally { references.harbour = reasons("harbour"); }
+  });
+
+  it("takes a scan by its CanLII file name alone, and nothing else by name", async () => {
+    await expect(match("2030abkb417 (1).pdf", ["", ""])).resolves.toBe("lakeshore");
+    await expect(match("scan.pdf", ["", ""])).resolves.toBeNull();
   });
 });
