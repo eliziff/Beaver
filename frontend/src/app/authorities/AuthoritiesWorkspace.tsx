@@ -970,6 +970,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const reached = draft?.state.stage ?? (draft && Object.keys(draft.outputs).length ? "build"
     : draft?.state.import.kind === "manual" ? "sources" : "citations");
   const stepKey = `${draft?.id}:${reached}`;
+  // An earlier step viewed belongs to the step the draft had reached then: once the draft moves,
+  // back (an edit) or on (Next), it lapses, and never comes back when the draft returns there.
+  const [viewedFor, setViewedFor] = useState(stepKey);
+  if (viewedFor !== stepKey) { setViewedFor(stepKey); if (viewedStep) setViewedStep(undefined); }
   const stage = viewedStep?.key === stepKey ? viewedStep.value : reached;
   // Each source's marks are prepared while Sources or Highlights is on screen, so Highlights opens
   // them at once; never during the review or a build, which would wait behind it.
@@ -1030,7 +1034,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onClick={() => newDraft()}><Plus /> New</Button>;
 
   const reviewing = !!draft && stage === "citations" && tab !== "drafts" && draft.state.import.kind === "document";
-  const stepNext = reviewing ? () => reached === "citations" ? findSources() : viewStep("sources")
+  // An edit still saving takes the draft back to Citations when it lands, so Next waits for it
+  // and finds the sources again, as it does once the edit has landed.
+  const stepNext = reviewing ? () => reached === "citations" || edits.current.length ? findSources() : viewStep("sources")
     // Next goes straight on: scans are read in the background as the draft's scanned-PDF choice
     // says (Build's More options), each row showing how far, and nothing waits on them.
     : stage === "sources" ? () => advance("highlights")
