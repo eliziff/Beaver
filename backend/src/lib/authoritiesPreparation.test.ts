@@ -4,6 +4,7 @@ import { createAuthoritiesDraft, type AuthoritiesDraft } from "./authoritiesDoma
 import type { AuthoritiesDiscrepancy } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
 import { authorityPdfOutline, authorityPdfText } from "./authorityPdfText";
+import { sourceReadings } from "./sourceReadings";
 
 vi.mock("./authorityPdfText", () => ({ authorityPdfText: vi.fn(), authorityPdfOutline: vi.fn(async () => []) }));
 const pdfText = vi.mocked(authorityPdfText);
@@ -200,6 +201,28 @@ describe("shared Authorities text preparation", () => {
     pdfText.mockResolvedValueOnce({ pageTextByPage: ["recognized"], ocrTextByPage: ["recognized"] });
     expect(await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") }))
       .toEqual({ pageTextByPage: ["recognized"], ocrTextByPage: ["recognized"] });
+  });
+
+  it("reads a kept source again only when something it is read with changes", async () => {
+    const readings = sourceReadings(), bytes = Buffer.from("exact bytes"), state = markedDraft();
+    const read = (draft: AuthoritiesDraft, source = bytes) =>
+      createAuthoritiesPreparation(draft, readings).prepareText("authority", { bytes: source });
+    expect(await read(state)).toEqual({ pageTextByPage: ["native"] });
+    // The step, the cover and the marks' style are not what the source is read for.
+    const moved = structuredClone(state);
+    moved.stage = "build"; moved.cover.title = "Book of Authorities"; moved.settings.passageMarking = "margin";
+    expect(await read(moved)).toEqual({ pageTextByPage: ["native"] });
+    expect(pdfText).toHaveBeenCalledTimes(1);
+    const changes: Array<(draft: AuthoritiesDraft) => void> = [
+      (draft) => { draft.authorities.case.locators = [{ kind: "paragraph", label: "20" }]; },
+      (draft) => { draft.authorities.case.citation = "2020 SCC 2"; },
+      (draft) => { draft.settings.scannedPdfPolicy = "cited-pages"; },
+      (draft) => { draft.authorities.case.source = { kind: "attached", sources: [{ ...(state.authorities.case.source as
+        Extract<AuthoritiesDraft["authorities"][string]["source"], { kind: "attached" }>).sources[0], origin: "original" }] }; },
+    ];
+    for (const change of changes) { const changed = structuredClone(state); change(changed); await read(changed); }
+    await read(state, Buffer.from("other bytes"));
+    expect(pdfText).toHaveBeenCalledTimes(6);
   });
 
   it("does not return a projection that completed after cancellation", async () => {
