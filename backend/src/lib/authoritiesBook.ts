@@ -125,7 +125,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
               const title = wrapped(bold, documentTitle, 28, contentWidth).slice(0, 4);
               title.forEach((line, index) => cover.drawText(line,
                 { x: margin, y: 500 - index * 34, size: 28, font: bold, color: ink }));
-              if (bookTitle !== subtitle) cover.drawText(fit(serif, subtitle, 13, contentWidth),
+              if (subtitle && bookTitle !== subtitle) cover.drawText(fit(serif, subtitle, 13, contentWidth),
                 { x: margin, y: 462 - (title.length - 1) * 34, size: 13, font: serif, color: ink });
               coverBottom = 432 - (title.length - 1) * 34;
             }

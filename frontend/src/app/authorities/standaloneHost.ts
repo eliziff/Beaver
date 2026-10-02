@@ -1,6 +1,7 @@
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
 import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
+import { oneAtATime } from "../../../../shared/one-at-a-time.mjs";
 import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
@@ -95,6 +96,9 @@ async function runtimeResponse(path: string, body: BodyInit, json = false,
     ...(json ? { headers: { "Content-Type": "application/json" } } : {}),
   }, progress);
 }
+// A read holds an upload slot for as long as it reads (a scan's pages can take a while), so reads
+// go one at a time, in tab order, and the workspace's own requests always find a slot free.
+const readingAhead = oneAtATime();
 /** Reads a source as a build of the draft would, so the build finds the pages it recognizes kept.
  *  A failure here is the build's to report; the scan is still recognized for the highlights. */
 async function readAsBuild(product: AuthoritiesProduct, role: string, file: File, signal: AbortSignal,
@@ -102,10 +106,10 @@ async function readAsBuild(product: AuthoritiesProduct, role: string, file: File
   const form = new FormData();
   form.append("draft", JSON.stringify(product.state)); form.append("role", role);
   form.append("file", file, file.name);
-  await runtimeResponse("source-read", form, false, signal, (message) => {
+  await readingAhead(() => runtimeResponse("source-read", form, false, signal, (message) => {
     const done = Number(message.split("/")[0]);
     if (Number.isFinite(done)) recognized(done);
-  }).catch((error) => { if (signal.aborted) throw error; });
+  }), signal).catch((error) => { if (signal.aborted) throw error; });
 }
 async function runtimeDraft(path: string, body: BodyInit, json = false, signal?: AbortSignal,
   progress?: (message: string) => void) {

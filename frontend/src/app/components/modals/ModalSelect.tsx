@@ -74,30 +74,36 @@ export function ModalSelect({
             </>
         );
     }
+    // A short list stays a native select, drawn as the choice buttons are: their border, chevron and type.
     return (
-        <select
-            id={id}
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            disabled={disabled}
-            title={selected?.label ?? placeholder ?? undefined}
-            aria-label={ariaLabel}
-            className={cn(
-                "h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60",
-                className,
-            )}
-        >
-            {placeholder !== null && !normalizedOptions.some((option) => option.value === "") && (
-                <option value="" disabled>
-                    {placeholder}
-                </option>
-            )}
-            {normalizedOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                    {option.label}
-                </option>
-            ))}
-        </select>
+        <span className="relative block">
+            <select
+                id={id}
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                disabled={disabled}
+                title={selected?.label ?? placeholder ?? undefined}
+                aria-label={ariaLabel}
+                className={cn(
+                    "h-9 w-full appearance-none rounded-md border border-gray-300 bg-white pl-3 pr-9 text-sm font-normal text-gray-900 outline-none hover:border-gray-500 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60",
+                    className,
+                )}
+            >
+                {placeholder !== null && !normalizedOptions.some((option) => option.value === "") && (
+                    <option value="" disabled>
+                        {placeholder}
+                    </option>
+                )}
+                {normalizedOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                        {option.label}
+                    </option>
+                ))}
+            </select>
+            <span className="pointer-events-none absolute bottom-0 right-3 flex h-9 items-center text-gray-900">
+                <ChevronDown className="size-4" aria-hidden="true" />
+            </span>
+        </span>
     );
 }
 type SearchableChoice = {

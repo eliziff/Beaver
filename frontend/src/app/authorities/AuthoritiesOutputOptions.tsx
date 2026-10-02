@@ -16,8 +16,6 @@ type TabMode = NonNullable<AuthoritiesBuildSettings["citationSuffix"]>;
 const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
 // One choice a row: its drawing, its name and its sentence, each in the same column down the list.
 const ROWS = "@container/rows grid gap-1.5";
-/** Custom wording starts from the usual form; the user types over it. */
-const WORDING = "Book of Authorities, Tab";
 /** A tab reference never breaks inside it. */
 const whole = (text: string) => <span className="whitespace-nowrap">{text}</span>;
 
@@ -56,8 +54,9 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
         detail: "The marked copy, with Word’s Table of Authorities on a new last page." },
   ];
   const tabMode: TabMode = value.citationSuffix ?? "none";
-  // The wording is typed here and saved when the box is left, so typing never waits on a save.
-  const [words, setWords] = useState(value.citationSuffixLabel ?? WORDING);
+  // The wording is the user's own, typed here (the box starts empty) and saved when it is left,
+  // so typing never waits on a save.
+  const [words, setWords] = useState(value.citationSuffixLabel ?? "");
   useEffect(() => { if (value.citationSuffixLabel) setWords(value.citationSuffixLabel); }, [value.citationSuffixLabel]);
   const [missing, setMissing] = useState(false);
   const typed = words.trim();
@@ -95,7 +94,7 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
               className="block h-8 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600 aria-[invalid]:border-red-700"
               onChange={(event) => { setWords(event.target.value); if (event.target.value.trim()) setMissing(false); }}
               onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }}
-              onBlur={() => { if (typed) chooseCustom(); else { setMissing(false); setWords(value.citationSuffixLabel ?? WORDING); } }} />
+              onBlur={() => { if (typed) chooseCustom(); else { setMissing(false); setWords(value.citationSuffixLabel ?? ""); } }} />
             <span className="mt-1 block truncate" aria-live="polite">{missing ? <span className="text-red-800">Type the words before the tab number.</span>
               : <>Inserts <span className="font-medium text-gray-950">{whole(sample)}</span> after each citation.</>}</span>
           </>} />

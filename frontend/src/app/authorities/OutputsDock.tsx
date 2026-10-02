@@ -7,6 +7,8 @@ import { cn } from "@/app/lib/utils";
 type Output = AuthoritiesProduct["outputs"][string];
 const ROW = "grid min-h-10 w-full grid-cols-[minmax(0,1fr)_auto_1rem] items-center gap-2 rounded-md px-2 text-left text-sm";
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-red-600";
+// Every row keeps a slot after it, so each row's type and icon sit in one column down the dock.
+const LINE = "grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-1";
 
 /** Build, and everything it makes: one row an output, each a download once it is built. Every row
  *  is there from the start, so a build fills the dock in without moving anything. */
@@ -62,21 +64,26 @@ export function OutputsDock({ draft, busy, building, progress, note, previous, w
       {rows.map((row) => {
         const files = row.roles.flatMap((role) => outputs[role] ? [[role, outputs[role]] as [string, Output]] : []);
         return <li key={row.key} data-output={row.key} data-ready={files.length && !previous && !building ? "" : undefined}>
-          {files.length ? files.map(([role, output]) => download(role, output, row.title)) : unbuilt(row.title)}
+          {(files.length ? files.map(([role, output]) => [role, download(role, output, row.title)] as const)
+            : [[row.key, unbuilt(row.title)] as const]).map(([key, line]) => <div key={key} className={LINE}>{line}<span /></div>)}
         </li>;
       })}
       {onFinalPdf && <li data-output="final" data-ready={final && finalFile && !previous && !building ? "" : undefined}
         className="mt-1 border-t border-gray-200 pt-1">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
+        {/* Until it is built, the row itself opens the final PDF's choices; once built, it is the
+            download, with its choices in the slot after it. */}
+        <div className={LINE}>
           {final && finalFile ? download("final-pdf", finalFile, "Final PDF")
-            : unbuilt("Final PDF", final && waiting ? "Needs your brief PDF" : "")}
-          {final ? <Button type="button" variant="ghost" size="icon-sm" aria-label="Final PDF options" title="Final PDF options"
-            disabled={busy} onClick={onFinalPdf}><SlidersHorizontal /></Button>
-            : <Button type="button" variant="outline" className="mr-1 h-7 border-gray-400 px-2.5 text-xs font-normal"
-              disabled={busy} onClick={onFinalPdf}>Set up</Button>}
+            : <button type="button" disabled={busy} onClick={onFinalPdf} aria-label={final ? "Final PDF options" : "Set up"}
+              title={final ? "Final PDF options" : "Set up the final PDF"} className={cn(ROW, FOCUS, "text-gray-500 hover:bg-white disabled:opacity-50")}>
+              <span className="truncate font-medium">Final PDF</span>
+              <span className="truncate text-xs">{final ? waiting ? "Needs your brief PDF" : "" : "Set up"}</span>
+              <SlidersHorizontal className="h-4 w-4 text-gray-700" /></button>}
+          {final && finalFile ? <Button type="button" variant="ghost" size="icon-sm" aria-label="Final PDF options"
+            title="Final PDF options" disabled={busy} onClick={onFinalPdf}><SlidersHorizontal /></Button> : <span />}
         </div>
-        {final && finalFile && report && download("link-report", report, linkWarnings?.length
-          ? `${linkWarnings.length} citation${linkWarnings.length === 1 ? "" : "s"} not linked` : "Unlinked citations", true)}
+        {final && finalFile && report && <div className={LINE}>{download("link-report", report, linkWarnings?.length
+          ? `${linkWarnings.length} citation${linkWarnings.length === 1 ? "" : "s"} not linked` : "Unlinked citations", true)}<span /></div>}
       </li>}
     </ul>
   </aside>;

@@ -206,7 +206,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         title={citationLine}>{citationLine}</span>}
     </>}
     {recognition && ocr && <SourceOcrInline status={recognition} ocr={ocr}
-      className="col-span-3 row-start-2 w-40 max-w-[calc(100%-8rem)] justify-self-start @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:row-start-auto @min-[30rem]/sources:w-full @min-[30rem]/sources:max-w-none" />}
+      className="col-span-3 row-start-2 w-40 max-w-[calc(100%-8rem)] justify-self-start @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:row-start-auto @min-[30rem]/sources:w-full @min-[30rem]/sources:max-w-none @min-[30rem]/sources:pr-2" />}
     <div className={cn("col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1",
       recognition && "row-start-2 justify-self-end @min-[30rem]/sources:row-start-auto @min-[30rem]/sources:justify-self-stretch")}>
       {needsPdf && (publisherUrl
