@@ -29,6 +29,7 @@ export type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceD
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { buildCanliiPdfUrl } from "./canliiUrls";
 import { sha256 } from "./hash";
+import { normalizeWhitespace } from "./text";
 import { decodeWorkProductBindings, type WorkProductInput } from "./workProduct";
 import { closed, dictionary, flag, hash, integer, isJsonRecord, jsonRecord, list, literal,
   maybe, nonempty, nullable, oneOf, plain, tagged, text, trimmed,
@@ -378,20 +379,23 @@ function requireRecord<T>(record: Record<string, T>, id: string, label: string):
 
 /** Citation forms observed for one authority, in filing order. A citation that another authority
  * answers to stays that authority's even where a reviewer linked it here, so source resolution can
- * never take this authority for the other and merge the two. */
+ * never take this authority for the other and merge the two. A citation the brief broke across
+ * lines is the same citation on one line, and is looked up as one. */
 export function authorityCitationForms(draft: AuthoritiesDraft, authorityId: string): string[] {
   const canonical = requireRecord(draft.authorities, authorityId, "authority").citation;
-  const forms = new Set([canonical, ...(draft.authorities[authorityId].sourceIdentity?.citationForms ?? [])]);
+  const forms = new Set([canonical, ...(draft.authorities[authorityId].sourceIdentity?.citationForms ?? [])]
+    .map(normalizeWhitespace));
   const others = new Set(Object.values(draft.authorities).flatMap(({ id, citation, sourceIdentity }) =>
-    id === authorityId ? [] : [citation, ...(sourceIdentity?.citationForms ?? [])]));
+    id === authorityId ? [] : [citation, ...(sourceIdentity?.citationForms ?? [])]).map(normalizeWhitespace));
   for (const unit of draft.units) for (const occurrenceId of unit.occurrenceIds) {
     const occurrence = draft.occurrences[occurrenceId];
     if (occurrence?.authorityId === authorityId && occurrence.kind !== "reference" &&
-        !others.has(occurrence.citation)) {
-      forms.add(occurrence.citation);
-      if (occurrence.authoritySpan.text.trim()) forms.add(occurrence.authoritySpan.text.trim());
+        !others.has(normalizeWhitespace(occurrence.citation))) {
+      forms.add(normalizeWhitespace(occurrence.citation));
+      forms.add(normalizeWhitespace(occurrence.authoritySpan.text));
     }
   }
+  forms.delete("");
   return [...forms];
 }
 
