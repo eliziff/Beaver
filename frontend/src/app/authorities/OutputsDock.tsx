@@ -61,6 +61,8 @@ export function OutputsDock({ draft, building, progress, previous, waiting, link
           {row.key === "final" && ready && outputs["link-report"] && <p className="mt-1 text-xs leading-4 text-gray-700">
             {linkWarnings?.length ? `${linkWarnings.length} link${linkWarnings.length === 1 ? " wasn't" : "s weren't"} added; ` : ""}
             Unlinked citations lists them to finish in a PDF editor.</p>}
+          {/* Its download's line is kept before it is built, so a build moves nothing. */}
+          {!files.length && <div aria-hidden="true" className="mt-1 min-h-8" />}
           {files.map(([role, output]) => <button key={role} type="button" title={output.filename}
             aria-label={`Download ${previous ? "previous " : ""}${output.filename}`}
             onClick={() => onDownload(output.documentId, output.versionId, output.filename)}
