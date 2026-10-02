@@ -412,7 +412,7 @@ export function createTabularApplication(
           if (Date.now() - reported > 250) { reported = Date.now(); options.progress?.({ stage: "asking", model, chars }); } },
         user: note ? `${user}\n\nPrevious proposal:\n${previous}\n\nCorrect this structural error: ${note}\nReturn the corrected proposal.` : user }); }
       catch (error) { throw Object.assign(error instanceof Error ? error : new Error(String(error)), { provider: true }); }
-      // Eli, 2026-09-11: the organizing step must stay lean; every run leaves its input, output and time in the log.
+      // The organizing step must stay lean; every run leaves its input, output and time in the log.
       finally { console.info("[organize]", { model, input: system.length + user.length, output: chars, ms: Date.now() - started, ...(note ? { rejected: note.slice(0, 200) } : {}) }); } };
     const message = (error: unknown) => error instanceof Error ? error.message : String(error);
     const provider = (error: unknown) => !!(error as { provider?: boolean })?.provider;

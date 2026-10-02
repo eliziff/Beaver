@@ -3,7 +3,7 @@ import { researchLabelPath, type ResearchLabel } from "@/app/lib/researchFiles";
 export const researchLabelColor = (label: ResearchLabel) => label.color ??
   (label.scope === "highlight" ? "#eab308" : "#3498db");
 
-/** A folder's width, kept just past its height — never the squat billboard it used to be (Eli, 2026-09-09). */
+/** A folder's width, kept just past its height — never the squat billboard it used to be. */
 const BOX = { sm: "h-3.5 w-4", md: "h-4 w-5", lg: "h-6 w-7" };
 /** Three tab slots: one per generation, filled left to right, so depth is countable at a glance. */
 const TABS = 3;

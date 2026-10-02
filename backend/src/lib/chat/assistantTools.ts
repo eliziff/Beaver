@@ -2545,7 +2545,7 @@ export function assistantTools<Context extends {
     allowedDocumentIds, library, workProducts, courtRecords, documents, resolveArtifact,
     onMutationCommitted: () => {},
   }) : null;
-  // Every assistant can look at a page; the Court Record only adds entry_id (Eli, 2026-09-10).
+  // Every assistant can look at a page; the Court Record only adds entry_id.
   const pageTool = courtRecordPageTool<Context>({
     scope, target: courtRecord ?? undefined, projectId: workProductProjectId,
     allowedDocumentIds, library, workProducts, documents, resolveArtifact,

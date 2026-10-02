@@ -87,7 +87,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       onPointerEnter={(event) => { if (event.pointerType !== "touch") reader?.prefetch(source); }}
       onFocus={() => reader?.prefetch(source)}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
-      {/* No caret where there is nothing to show: an empty group used to flash "Loading…" and vanish (Eli, 2026-09-09). */}
+      {/* No caret where there is nothing to show: an empty group used to flash "Loading…" and vanish. */}
       {expandable ? chevron(open, `Passages in ${name}`, () => openSource(source.id)) : <span className="size-6 shrink-0" />}
       {(() => { const Icon = KIND_ICON[source.reference.kind] ?? FileText, icon = <Icon aria-hidden className="size-3.5" />;
         return openControl(source, name, undefined, undefined, undefined, icon) ?? <span className="grid size-6 shrink-0 place-items-center text-gray-500">{icon}</span>; })()}
@@ -133,7 +133,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     const color = labels[item.labelIds[0]] ? researchLabelColor(labels[item.labelIds[0]]) : "#d1d5db";
     const quote = trimPassageMarker(item.receipt.span_text ?? "", item.receipt.locator);
     // The other hierarchy flattens to one leaf name here: a type under source labels, a source under
-    // highlight types. Neither tree ever mirrors the other's folders (Eli, 2026-09-09).
+    // highlight types. Neither tree ever mirrors the other's folders.
     const context = scope === "source" ? labels[item.labelIds[0]]?.name : sourceName(source);
     const jump = () => { setSelectedHighlight(id);
       if (!preview && reader?.canRead(source)) void reader.readSource(source, item.receipt.locator.label, item.receipt.evidence_id); };
@@ -144,7 +144,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       title={[locator, quote, item.note].filter(Boolean).join(NEWLINE)}
       className={`${ROW} ${selectedHighlight === id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
       {passageLine(color, context, <>
-      {/* The passage row is the open action: it selects the passage and reads it (Eli, 2026-09-10). */}
+      {/* The passage row is the open action: it selects the passage and reads it. */}
       <button type="button" onClick={jump}
         className="min-w-0 flex-1 truncate text-start text-xs text-gray-600">
         <span className="font-medium text-gray-700">{locator}</span> {quote}

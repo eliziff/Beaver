@@ -494,7 +494,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     let design = input.design ?? (catalog.columns ? await columnLabels(file, catalog, resolveFinding, input.columnIndex !== undefined) : await modelDesign());
     let { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target, catalog.columns ? "file" : "organize");
     // A sparse hand-made ontology that files fewer than half the sources is no organization; propose a fresh one
-    // instead of "Not filed: everything" (Eli, 2026-09-10). The client then applies on the reproposed reading.
+    // instead of "Not filed: everything". The client then applies on the reproposed reading.
     let reproposed = false;
     const handMade = catalog.labels.every((label) => !label.definition);
     if (!input.design && catalog.columns && handMade && input.columnIndex === undefined && plan.unassigned.length * 2 > catalog.rows.length) {

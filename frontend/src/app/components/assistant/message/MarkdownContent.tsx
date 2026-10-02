@@ -156,7 +156,7 @@ export function CitationPill({
         ...(citation.version_id ? { version_id: citation.version_id } : {}),
         ...(target?.sheet ? { sheet: target.sheet } : {}), ...(target?.cell ? { cell: target.cell } : {}) })}`
         : citation.kind === "tabular" ? `/tabular-reviews/${encodeURIComponent(citation.review_id)}`
-        // The pinpoint link (paragraph anchor + text fragment) is the chip; the bare canonical page is only the fallback (Eli, 2026-09-10).
+        // The pinpoint link (paragraph anchor + text fragment) is the chip; the bare canonical page is only the fallback.
         : safeAssistantUrl(citation.url ?? citation.external_url, { relative: false });
     return <span className="group/citation inline-flex max-w-full items-baseline" onClick={(event) => event.stopPropagation()}>
         <a href={href ?? undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!href || undefined}

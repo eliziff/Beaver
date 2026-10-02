@@ -830,7 +830,7 @@ export function legalEvidenceProseIntegrityErrors(text: string,
 }
 
 /** Claims the model submitted stay as the turn's draft even when some fail, so a correction replaces only the
- *  claims named in the errors instead of resending the whole answer (Eli, 2026-09-12). */
+ *  claims named in the errors instead of resending the whole answer. */
 export function submitLegalEvidenceAnswer(
   args: Record<string, unknown>,
   state: LegalEvidenceTurnState,

@@ -291,9 +291,9 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         },
         [setDockExpanded],
     );
-    // Own-library chips open in the dock; external sources stay new-tab links (Eli, 2026-09-09).
+    // Own-library chips open in the dock; external sources stay new-tab links.
     // The conversation pins the clicked chip itself, before the reflow is painted; a second correction
-    // a frame later would only yank a layout that had already settled (Eli, 2026-09-10).
+    // a frame later would only yank a layout that had already settled.
     const openCitation = (citation: Citation) => {
         if (citation.kind !== "document") return;
         upsertTab(documentCitationTab(citation));
@@ -641,7 +641,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         });
         return () => { active = false; };
     }, [ready, researchLoading, session.run, intent, researchFileId, activeResearchFile, onIntentSent, navigate, location, submitMessage]);
-    // Always mounted: the collapsed dock keeps its expand button on the right (Eli, 2026-09-09).
+    // Always mounted: the collapsed dock keeps its expand button on the right.
     const dock = dockEnabled ? (
         <AssistantDock
             tabs={dockTabs}

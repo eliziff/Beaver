@@ -127,7 +127,7 @@ it("never makes the bare default highlight type a column, keeps a defined type n
   repeat.question = { ...repeat.question, title: "Classification",
     prompt: "Recorded source classifications; preserve their full paths." };
   const columns = () => defaultResearchImport(researchImportCatalog(f.file, f.subjects, f.parts, [repeat], { rows: "sources" })).columns.map(({ name }) => name);
-  // A context-free "Highlight" column is never a question (Eli, C0709); a type with a definition asks one.
+  // A context-free "Highlight" column is never a question; a type with a definition asks one.
   expect(columns()).toEqual(["Contract", "Payment"]);
   f.file.state.labels[notice].definition = "Notice periods and how they were computed";
   expect(columns()).toEqual(["Contract", "Highlight", "Payment"]);

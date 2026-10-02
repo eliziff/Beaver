@@ -364,7 +364,7 @@ describe("ResearchFileBar", () => {
 
   it("offers a caret only where opening it would list something", async () => {
     // The chain is `kind: "passages"`, which the workspace serves as the typed passages only. A caret
-    // over untyped ones flashed "Loading passages…" and collapsed to nothing (Eli, 2026-09-09).
+    // over untyped ones flashed "Loading passages…" and collapsed to nothing.
     const untyped = structuredClone(file);
     untyped.state.sources.baker.passages = { count: 12, sha256: "p-hash", labelCounts: {}, unlabelledCount: 12 };
     render(<ResearchFileBar file={untyped} onChange={vi.fn()} />);
@@ -403,7 +403,7 @@ describe("ResearchFileBar", () => {
       .getByRole("treeitem", { name: "Baker v Canada" }));
     fireEvent.click(inConcept("Other").getByRole("button", { name: "Passages in Baker v Canada" }));
     // A source label lists every passage the source carries, each naming its own highlight type as a
-    // leaf — the label tree never re-files them under type folders (Eli, 2026-09-09).
+    // leaf — the label tree never re-files them under type folders.
     const instances = await inConcept("Other").findAllByRole("treeitem", { name: "para 5" });
     expect(instances.map((row) => row.textContent)).toEqual([
       expect.stringContaining("Fairness"), expect.stringContaining("Other")]);

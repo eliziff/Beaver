@@ -13,7 +13,7 @@ export function QuoteReviewModal({ workflow, documents, onClose, onAssistantSele
 }) {
     const [mode, setMode] = useState("mechanical");
     const [checking, setChecking] = useState(false);
-    // The AI review picks its document before the chat opens (Eli, 2026-09-10).
+    // The AI review picks its document before the chat opens.
     const [picking, setPicking] = useState(false);
     const [selected, setSelected] = useState<Document[]>(documents?.length === 1 ? [documents[0] as Document] : []);
     const variants = workflow.launcher.kind === "quote_check" ? workflow.launcher.variants : [];
