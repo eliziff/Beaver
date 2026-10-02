@@ -3,6 +3,7 @@ import openjpeg from "pdfjs-dist/wasm/openjpeg.wasm?url";
 import qcms from "pdfjs-dist/wasm/qcms_bg.wasm?url";
 
 import { createPdfRuntime } from '../../../../shared/browser-pdf.mjs';
+import { pdfWorkerUrl } from './pdfWorkerUrl';
 export { openPdfDocument } from '../../../../shared/browser-pdf.mjs';
 
 const decoders: Record<string, string> = { "jbig2.wasm": jbig2, "openjpeg.wasm": openjpeg, "qcms_bg.wasm": qcms };
@@ -10,8 +11,7 @@ export const PDF_DOCUMENT_OPTIONS = {} as ReturnType<typeof createPdfRuntime>['o
 let pending: Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> | null = null;
 export function getPdfJs() {
   return pending ??= import("pdfjs-dist/legacy/build/pdf.mjs").then(async lib => {
-    const workerUrl = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
-    const runtime = createPdfRuntime(lib, {workerUrl, decoders});
+    const runtime = createPdfRuntime(lib, {workerUrl: await pdfWorkerUrl(), decoders});
     try { await runtime.options.worker.promise; }
     catch (error) { runtime.destroy(); throw error; }
     Object.assign(PDF_DOCUMENT_OPTIONS, runtime.options);
