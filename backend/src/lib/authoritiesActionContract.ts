@@ -85,8 +85,8 @@ function settings(value: unknown, initial = false) {
     // Preserve intentional trailing spaces in the prefix.
     plain(item.tabPrefix, 80); result.tabPrefix = item.tabPrefix;
   }
-  if (item.tabLabels !== undefined) {
   if (item.citationSuffixLabel !== undefined) result.citationSuffixLabel = text(item.citationSuffixLabel, 120);
+  if (item.tabLabels !== undefined) {
     if (!Array.isArray(item.tabLabels) || item.tabLabels.length > 10_000) return bad();
     result.tabLabels = item.tabLabels.map((label) => plain(label, 100));
   }
