@@ -313,7 +313,23 @@ function Run(page, mode) {
     await page.locator(".citation-outline [role=option]", { hasText: text }).first().click();
     await page.waitForFunction((text) => document.querySelector(".citation-outline [role=option][aria-selected=true]")?.textContent.includes(text), text);
   }
-  const pinpoint = () => page.locator(".citation-pin").innerText();
+  /** The pinpoint chips as the bar shows them, each its kind's symbol and value: "¶10 p.12". */
+  const pinpoint = () => page.locator(".citation-pins .citation-chip").allInnerTexts()
+    .then((chips) => chips.map((chip) => chip.replace(/\s+/gu, "")).join(" "));
+  /** Only the selected citation shows yellow pinpoints, each over the words `near` in the document. */
+  async function onlySelectedYellow(label, near) {
+    await settle();
+    const seen = await page.evaluate((near) => {
+      const pins = [...document.querySelectorAll(".citation-document .citation-pinpoint")];
+      const place = near && window.__e2e.rect(near), over = (box) => place && box.right > place.left &&
+        box.left < place.left + place.width && box.bottom > place.top && box.top < place.top + place.height;
+      return { ids: [...new Set(pins.map((pin) => pin.dataset.id))], color: pins[0] && getComputedStyle(pins[0]).backgroundColor,
+        selected: document.querySelector(".citation-outline [role=option][aria-selected=true]")?.dataset.id,
+        placed: pins.every((pin) => over(pin.getBoundingClientRect())) };
+    }, near);
+    check(seen.ids.length === 1 && seen.ids[0] === seen.selected && seen.color === "rgb(253, 230, 138)" && seen.placed,
+      `${mode} ${label}: only the selected citation's pinpoints are yellow, over "${near}"`, seen);
+  }
   const refersTo = () => page.locator("#citation-authority-name").innerText();
 
   /** The review: the list as printed, navigation, every edit, and what must never move. */
@@ -359,13 +375,18 @@ function Run(page, mode) {
     check((await selectedRow()).includes("Jordan"), `${mode} ${label}: a document click selects that citation`, await selectedRow());
     check(!await page.locator("[role=tooltip], [role=toolbar], [data-radix-popper-content-wrapper]").count(), `${mode} ${label}: no popup or floating toolbar`);
 
-    // The bar names the pinpoint as the citation writes it; its only edits are Add and Remove.
-    await chooseRow("Vavilov");
-    check(/^Pinpoint\s*at para 10$/u.test(await pinpoint()), `${mode} ${label}: the pinpoint shows as written`, await pinpoint());
-    await chooseRow(EXPECTED_ROWS[2]);
-    check(/^Pinpoint\s*at 138-139$/u.test(await pinpoint()), `${mode} ${label}: the pinpoint is found`, await pinpoint());
+    // Each pinpoint found is a yellow highlight on the selected citation alone and a chip naming
+    // its kind; the bar's edits are Add citation and Remove.
+    for (const [row, chips, near] of [["Vavilov", "¶10", "para 10"], [EXPECTED_ROWS[1], "¶99-101", "paras 99-101"],
+      [EXPECTED_ROWS[4], "s12", "s 12"], [EXPECTED_ROWS[5], "¶46-48", "paras 46-48"], [EXPECTED_ROWS[2], "p.138-139", "at 138-139"]]) {
+      await chooseRow(row);
+      check(await pinpoint() === chips, `${mode} ${label}: ${row} shows its pinpoint as ${chips}`, await pinpoint());
+      await onlySelectedYellow(label, near);
+    }
+    check(!await page.locator(".citation-panel select, .citation-panel input").count(), `${mode} ${label}: no dropdown or text field in the bar`);
+    check(JSON.stringify(await frame()) === JSON.stringify(fixed), `${mode} ${label}: the bar keeps its box whatever the chips hold`, [fixed, await frame()]);
     const edits = await page.getByRole("group", { name: "Edit citation" }).getByRole("button").allInnerTexts();
-    check(JSON.stringify(edits) === JSON.stringify(["Add", "Remove"]), `${mode} ${label}: the bar edits only by Add and Remove`, edits);
+    check(JSON.stringify(edits) === JSON.stringify(["Add citation", "Remove"]), `${mode} ${label}: the bar edits by Add citation and Remove`, edits);
     check(!await page.locator(".citation-grip[data-grip^=pin], .citation-split").count(), `${mode} ${label}: no pinpoint handles or split marker`);
 
     // Enter: the selection becomes the citation's range, and back.
@@ -388,18 +409,73 @@ function Run(page, mode) {
       });
       const dragged = await selectedRow();
       check(dragged === "R v Oakes, [1986] 1 SCR 103 at" || dragged === "R v Oakes, [1986] 1 SCR 103", `${mode} ${label}: the handle drags the end`, dragged);
-      check(/^No pinpoint$/u.test(await pinpoint()), `${mode} ${label}: a range without the pinpoint has none`, await pinpoint());
+      // A pinpoint can lie outside its citation: the range left it out, and it stays the citation's.
+      check(await pinpoint() === "p.138-139", `${mode} ${label}: a range that leaves its pinpoint out keeps it`, await pinpoint());
+      await onlySelectedYellow(label, "138-139");
       await page.evaluate(() => window.__e2e.clear());
       await page.locator(".citation-review").focus();
       for (let step = 0; step < (dragged.endsWith(" at") ? 1 : 2); step += 1)
         await interact(`${label} Shift+ArrowRight`, () => page.keyboard.press("Shift+ArrowRight"), { rest: 750 });
       check(await selectedRow() === EXPECTED_ROWS[2], `${mode} ${label}: Shift+→ extends the end back`, await selectedRow());
-      check(/^Pinpoint\s*at 138-139$/u.test(await pinpoint()), `${mode} ${label}: the pinpoint is found again`, await pinpoint());
+      check(await pinpoint() === "p.138-139", `${mode} ${label}: the pinpoint is the same again`, await pinpoint());
+
+      // A chip's symbol steps through the kinds at once; × removes it; "+ Pinpoint" (or P) adds the
+      // selected text, its kind read from the words before it. None of it moves the citation's range.
+      const kind = () => page.locator(".citation-chip > button").first();
+      for (const next of ["s138-139", "¶138-139", "p.138-139"]) {
+        await interact(`${label} cycle the kind to ${next}`, () => kind().click());
+        check(await pinpoint() === next, `${mode} ${label}: the symbol steps the kind to ${next}`, await pinpoint());
+      }
+      await interact(`${label} remove a pinpoint`, () => page.getByRole("button", { name: "Remove pinpoint p. 138-139" }).click());
+      check(await pinpoint() === "" && await selectedRow() === EXPECTED_ROWS[2], `${mode} ${label}: × removes the pinpoint, not the citation's text`, await pinpoint());
+      check(await button("+ Pinpoint").isDisabled(), `${mode} ${label}: + Pinpoint waits for a selection`);
+      await selectAtEdge("138-139");
+      check(await page.waitForFunction(() => !document.querySelector(".citation-add-pin").disabled).then(() => true, () => false),
+        `${mode} ${label}: a selection enables + Pinpoint`);
+      await interact(`${label} + Pinpoint`, () => button("+ Pinpoint").click());
+      await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 1);
+      check(await pinpoint() === "p.138-139" && await selectedRow() === EXPECTED_ROWS[2], `${mode} ${label}: + Pinpoint adds the selection with its kind`, await pinpoint());
+      // A pinpoint written away from its citation: "supra note 2 at 135" also takes "46-48" from the note's other citation.
+      await chooseRow(EXPECTED_ROWS[6]);
+      await selectAtEdge("46-48");
+      await interact(`${label} P adds a pinpoint away from the citation`, () => page.keyboard.press("p"));
+      await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 2);
+      check(await pinpoint() === "¶46-48 p.135" && await selectedRow() === EXPECTED_ROWS[6], `${mode} ${label}: a pinpoint outside the citation is added, the range unchanged`, [await pinpoint(), await selectedRow()]);
+      await onlySelectedYellow(label, "paras 46-48; Oakes, supra note 2 at 135");
+      await shots(`${label}-04b-pinpoint-chips`);
+      await interact(`${label} remove the added pinpoint`, () => page.getByRole("button", { name: "Remove pinpoint ¶ 46-48" }).click());
+      check(await pinpoint() === "p.135", `${mode} ${label}: the added pinpoint goes again`, await pinpoint());
+
+      // Add citation finds the pinpoint the text goes on to write, outside the selection.
+      await chooseRow(EXPECTED_ROWS[7]);
+      await page.locator(".citation-review").focus();
+      await interact(`${label} Delete Lakeshore`, () => page.keyboard.press("Delete"), { listChanges: true });
+      await dragSelect("Lakeshore Rowing Club v Marsh Harbour Board, 2030 ABKB 417");
+      await interact(`${label} Add citation without its pinpoint`, () => button("Add citation").click(), { listChanges: true });
+      await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 1);
+      check(await pinpoint() === "¶22", `${mode} ${label}: Add citation finds the pinpoint after the selection`, await pinpoint());
+      await selectAtEdge(EXPECTED_ROWS[7]);
+      await interact(`${label} Enter widens it back`, () => page.keyboard.press("Enter"));
+      check(await selectedRow() === EXPECTED_ROWS[7] && await pinpoint() === "¶22", `${mode} ${label}: the range widens back with its pinpoint`, [await selectedRow(), await pinpoint()]);
+
+      // C19: the selected citation chosen again after scrolling away comes back into view at once.
+      await chooseRow(EXPECTED_ROWS[2]);
+      const view = page.locator(".citation-document .docx-view-scroll, .citation-document .beaver-pdf-scroll").first();
+      await view.evaluate((element) => { element.scrollTop = element.scrollHeight; }); await settle();
+      const inView = () => page.evaluate(() => {
+        const mark = document.querySelector(".pdf-text-layer .citation-mark[data-active], .docx-view-container .citation-mark[data-active]")?.getBoundingClientRect();
+        const box = document.querySelector(".citation-document .docx-view-scroll, .citation-document .beaver-pdf-scroll").getBoundingClientRect();
+        return !!mark && mark.top >= box.top && mark.bottom <= box.bottom;
+      });
+      check(!await inView(), `${mode} ${label}: scrolled away from the selected citation`);
+      await interact(`${label} choose the selected citation again`, () => page.locator(".citation-outline [role=option][aria-selected=true]").click());
+      check(await inView(), `${mode} ${label}: choosing the selected citation again brings it back into view`);
     }
 
     // A supra's pinpoint follows its reference, as written.
     await chooseRow(EXPECTED_ROWS[6]);
-    check(/^Pinpoint\s*at 135$/u.test(await pinpoint()), `${mode} ${label}: the supra's pinpoint shows as written`, await pinpoint());
+    check(await pinpoint() === "p.135", `${mode} ${label}: the supra's pinpoint follows its reference`, await pinpoint());
+    await onlySelectedYellow(label, "note 2 at 135");
 
     // The authority dropup: In-text, then each footnote's authorities under its number.
     await interact(`${label} open the dropup`, () => page.locator(".citation-authority-trigger").click());
@@ -422,16 +498,17 @@ function Run(page, mode) {
     // Delete marks "Not a citation"; Ctrl+Z takes it back.
     await chooseRow(EXPECTED_ROWS[3]);
     await page.locator(".citation-review").focus();
+    // The full review has already set one citation aside (Lakeshore, added again without its pinpoint).
     await interact(`${label} Delete (not a citation)`, () => page.keyboard.press("Delete"), { listChanges: true });
-    check(!(await rows()).includes(EXPECTED_ROWS[3]) && await page.getByText("Not citations (1)").count() === 1, `${mode} ${label}: Delete removes the citation`, await rows());
+    check(!(await rows()).includes(EXPECTED_ROWS[3]) && await page.getByText(`Not citations (${full ? 2 : 1})`).count() === 1, `${mode} ${label}: Delete removes the citation`, await rows());
     await interact(`${label} Ctrl+Z restores`, () => page.keyboard.press("Control+z"), { listChanges: true });
     check((await rows()).includes(EXPECTED_ROWS[3]), `${mode} ${label}: Ctrl+Z restores it`, await rows());
 
     // Add: a reference the parser does not know becomes a citation, then goes again.
     await dragSelect("Launch Guidance Note 7");
-    await interact(`${label} Add citation`, () => button("Add").click(), { listChanges: true });
+    await interact(`${label} Add citation`, () => button("Add citation").click(), { listChanges: true });
     check((await rows()).includes("Launch Guidance Note 7") && await selectedRow() === "Launch Guidance Note 7", `${mode} ${label}: Add makes the selection a citation`, await rows());
-    check(/^No pinpoint$/u.test(await pinpoint()), `${mode} ${label}: an added citation without one shows no pinpoint`, await pinpoint());
+    check(await pinpoint() === "", `${mode} ${label}: an added citation without a pinpoint shows no chip`, await pinpoint());
     await shots(`${label}-06-added`);
     await page.locator(".citation-review").focus();
     await interact(`${label} Delete the added citation`, () => page.keyboard.press("Delete"), { listChanges: true });

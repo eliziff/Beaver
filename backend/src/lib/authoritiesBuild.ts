@@ -141,10 +141,9 @@ export function authorityFilingTargets(draft: AuthoritiesDraft, briefPageText?: 
         // A brief saved from the Word output carries the tab reference that output appended.
         ...located && draft.settings.linkTabs && suffixText ? [{ text: `${occurrence.text} ${suffixText}`,
           start: occurrence.text.length + 1, end: occurrence.text.length + 1 + suffixText.length }] : [],
-        ...draft.settings.linkPinpoints && occurrence.pinpointSpan ? [{
-          text: occurrence.text, start: occurrence.pinpointSpan.start - occurrence.start,
-          end: occurrence.pinpointSpan.end - occurrence.start,
-        }] : []] }];
+        // A pinpoint may lie outside its citation's range, so it is found by the words around it.
+        ...draft.settings.linkPinpoints && occurrence.pinpointSpan
+          ? inContext(unit.text, occurrence.pinpointSpan.start, occurrence.pinpointSpan.end) : []] }];
   }));
 }
 

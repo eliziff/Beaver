@@ -26,7 +26,6 @@ it('maps repeated citations to their own body and note, preserving formatting an
   expect(root.textContent).toBe(before);
   expect(root.querySelector('b [data-citation-id="o1"]')?.textContent).toBe('Alpha, 2024 SCC 1');
   expect(root.querySelector('.docx-note-label [data-citation-id]')).toBeNull();
-  expect(root.querySelector('[data-citation-id="o2"][data-pinpoint]')?.textContent).toBe('para 2');
   const note = root.querySelector('li')!;
   const range = document.createRange();
   range.setStart(note.querySelector('[data-citation-id="o2"]')!.firstChild!, 0);

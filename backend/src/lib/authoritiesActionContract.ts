@@ -36,6 +36,7 @@ export const authoritiesProfileIds = profiles.map(({ id }) => id);
 export const authorityKinds = ["case", "legislation", "commentary", "other"] as const;
 export const AUTHORITIES_ACTION_CHOICES = {
   reference: ["short", "supra", "ibid"], locator: ["paragraph", "section", "page"],
+  pinpoint: ["paragraph", "page", "section", "subsection", "rule", "article", "schedule", "footnote", "clause"],
   outputMode: ["table", "book", "both"], slot: ["cover", "index", "brief"],
   stage: ["citations", "sources", "highlights", "build"],
   discrepancy: ["ignore", "pinpoint", "quote_exact", "quote_editorial"],
@@ -172,6 +173,14 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "set-pinpoint-span": return { type, occurrenceId: text(item.occurrenceId),
       start: integer(item.start), end: integer(item.end, 1) };
     case "clear-pinpoint": return { type, occurrenceId: text(item.occurrenceId) };
+    case "set-pinpoints": {
+      if (!Array.isArray(item.pinpoints) || item.pinpoints.length > 50) return bad();
+      return { type, occurrenceId: text(item.occurrenceId), pinpoints: item.pinpoints.map((value) => {
+        const pinpoint = object(value);
+        return { start: integer(pinpoint.start), end: integer(pinpoint.end, 1),
+          ...(pinpoint.kind !== undefined && { kind: choice(pinpoint.kind, AUTHORITIES_ACTION_CHOICES.pinpoint) }) };
+      }) };
+    }
     case "add-occurrence": return { type, unitId: text(item.unitId),
       start: integer(item.start), end: integer(item.end, 1) };
     case "relink-occurrence": return { type, occurrenceId: text(item.occurrenceId),

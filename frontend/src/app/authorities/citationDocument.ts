@@ -80,7 +80,7 @@ export function clearCitationMarks(root: HTMLElement, unitId?: string) {
 }
 
 
-/** Flat adjacent spans keep formatting and mark the pinpoint; they carry no paint of their own. */
+/** Flat adjacent spans keep formatting; they carry no paint of their own. */
 export function markCitations(locations: LocatedUnit[], occurrences: Record<string, AuthorityOccurrence>) {
   const byRoot = new Map<HTMLElement, LocatedUnit[]>();
   for (const location of locations) {
@@ -91,25 +91,17 @@ export function markCitations(locations: LocatedUnit[], occurrences: Record<stri
       const occurrence = occurrences[id];
       if (!occurrence) return [];
       const offset = (at: number) => start + normalized(unit.text.slice(0, at)).length;
-      return [{ id, unit: unit.id, start: offset(occurrence.start), end: offset(occurrence.end),
-        pinpointStart: occurrence.pinpointSpan ? offset(occurrence.pinpointSpan.start) : -1,
-        pinpointEnd: occurrence.pinpointSpan ? offset(occurrence.pinpointSpan.end) : -1 }];
+      return [{ id, unit: unit.id, start: offset(occurrence.start), end: offset(occurrence.end) }];
     })).sort((a, b) => a.start - b.start);
     let cursor = 0, first = 0;
     for (const node of textNodes(root, root.classList.contains('docx-view-container'))) {
       const index = nodeIndex(node), end = cursor + index.value.length;
       while (first < spans.length && spans[first].end <= cursor) first++;
-      const pieces: Array<{ start: number; end: number; id: string; unit: string; pinpoint: boolean }> = [];
+      const pieces: Array<{ start: number; end: number; id: string; unit: string }> = [];
       for (let i = first; i < spans.length && spans[i].start < end; i++) {
         const span = spans[i], from = Math.max(cursor, span.start), to = Math.min(end, span.end);
-        const points = [...new Set([from, to, span.pinpointStart, span.pinpointEnd]
-          .filter(n => n >= from && n <= to))].sort((a, b) => a - b);
-        for (let p = 0; p < points.length - 1; p++) pieces.push({
-          start: points[p] === cursor && span.start < cursor ? 0 : index.starts[points[p] - cursor],
-          end: points[p + 1] === end && span.end > end ? node.length :
-            p < points.length - 2 ? index.starts[points[p + 1] - cursor] : index.ends[points[p + 1] - cursor - 1],
-          id: span.id, unit: span.unit, pinpoint: points[p] >= span.pinpointStart && points[p + 1] <= span.pinpointEnd,
-        });
+        if (to > from) pieces.push({ start: from === cursor && span.start < cursor ? 0 : index.starts[from - cursor],
+          end: to === end && span.end > end ? node.length : index.ends[to - cursor - 1], id: span.id, unit: span.unit });
       }
       if (pieces.length) {
         const fragment = document.createDocumentFragment(); let offset = 0;
@@ -117,7 +109,6 @@ export function markCitations(locations: LocatedUnit[], occurrences: Record<stri
           fragment.append(node.data.slice(offset, piece.start));
           const mark = document.createElement('span');
           Object.assign(mark.dataset, { citationId: piece.id, unit: piece.unit }); mark.className = 'citation-mark';
-          if (piece.pinpoint) mark.dataset.pinpoint = '';
           mark.textContent = node.data.slice(piece.start, piece.end); fragment.append(mark); offset = piece.end;
         }
         fragment.append(node.data.slice(offset)); node.replaceWith(fragment);
@@ -274,15 +265,18 @@ const origin = (scroller: Element) => {
   return { view, x: scroller.scrollLeft - view.left - scroller.clientLeft, y: scroller.scrollTop - view.top - scroller.clientTop };
 };
 
-export type CitationPaint = { active?: string; range?: Range | null };
+/** The active citation, a range a drag or nudge previews for it, and where its pinpoints are written:
+ * read only when the active citation is drawn. */
+export type CitationPaint = { active?: string; range?: Range | null; pins?: () => Range[] };
 export type PaintMode = 'layout' | 'active' | 'scroll';
 type Band = Box & { id: string };
 const drawn = new WeakMap<HTMLElement, Band[]>();
 /** One rounded band per line of each citation on the pages in view, drawn in an overlay that scrolls
  * with the text. "layout" measures every band again (marks, zoom or size changed), as does a change
- * in the pages in view; "active" redraws only the active citation: its fill, pinpoint and grips, or the
- * range a drag or nudge previews; "scroll" does nothing more while the same pages stay in view. */
-export function paintCitations(scroller: HTMLElement, { active, range }: CitationPaint, mode: PaintMode) {
+ * in the pages in view; "active" redraws only the active citation: its fill, pinpoints and grips, or
+ * the range a drag or nudge previews; "scroll" does nothing more while the same pages stay in view.
+ * The pinpoints are the active citation's alone, in yellow wherever they lie, in its range or not. */
+export function paintCitations(scroller: HTMLElement, { active, range, pins: placed }: CitationPaint, mode: PaintMode) {
   const { view, x, y } = origin(scroller), all = [...scroller.querySelectorAll('.page,section.docx')];
   const shown = all.flatMap((page, i) => {
     const box = page.getBoundingClientRect();
@@ -336,11 +330,8 @@ export function paintCitations(scroller: HTMLElement, { active, range }: Citatio
     band.hidden = !!range && band.dataset.id === active;
   }
   const lines = range ? lineBoxes(ink(range)).map(pad) : (drawn.get(overlay) ?? []).filter(band => band.id === active);
-  const marks = active && !range ? marksOf(scroller, active).filter(mark => mark.dataset.pinpoint !== undefined) : [];
-  const pins = lineBoxes(ink(marks)).flatMap(pin => {
-    const middle = (pin.top + pin.bottom) / 2 + y, line = lines.find(band => within(band, band.left, middle));
-    return line ? [{ ...line, left: Math.max(line.left, pin.left + x - 1), right: Math.min(line.right, pin.right + x + 1) }] : [];
-  });
+  const pins = active ? (placed?.() ?? []).filter(pin => scroller.contains(pin.commonAncestorContainer))
+    .flatMap(pin => lineBoxes(ink(pin)).map(pad)) : [];
   // Each grip is a slim bar the height of its line with a round cap: the start cap sits above the
   // line and the end cap below. The hit area is 16px wide, mostly outside the text so a selection
   // can still start at its first letter, and a line plus its cap tall.
@@ -351,5 +342,5 @@ export function paintCitations(scroller: HTMLElement, { active, range }: Citatio
       top: lines.at(-1)!.top, bottom: lines.at(-1)!.bottom + 8 }, { grip: 'end', cap: 'bottom' }),
   ] : [];
   own.replaceChildren(...range ? lines.map(line => box('citation-band', line, { active: '' })) : [],
-    ...pins.map(pin => box('citation-pinpoint', pin)), ...grips);
+    ...pins.map(pin => box('citation-pinpoint', pin, { id: active! })), ...grips);
 }

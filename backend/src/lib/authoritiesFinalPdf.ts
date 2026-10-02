@@ -121,8 +121,8 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
     const occurrence = draft.occurrences[id], key = `${id}\0${pinpoint}`;
     if (!occurrence || warned.has(key)) return;
     // The pinpoint with its locator as the brief prints it ("para 22", not "22"), to link it by hand.
-    const printed = pinpoint && occurrence.pinpointSpan ? unitTexts.get(occurrence.unitId)
-      ?.slice(occurrence.authoritySpan.end, occurrence.pinpointSpan.end).replace(/^[\s,]*(?:at\s+)?/u, "") : null;
+    const printed = pinpoint ? (occurrence.pinpointPhrase ?? occurrence.pinpointSpan)?.text
+      .replace(/^[\s,]*(?:at\s+)?/u, "") : null;
     warned.add(key); warnings.push({ occurrenceId: id, citation: occurrence.authoritySpan.text,
       pinpoint: printed || (pinpoint ? occurrence.pinpointSpan?.text ?? null : null),
       tab: tabs.get(occurrence.authorityId ?? ""), reason });
