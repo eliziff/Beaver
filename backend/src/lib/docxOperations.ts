@@ -412,8 +412,10 @@ export async function applyTableOfAuthorities(
   }
   const appended = delivery === "native-append" ? [
     makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
-    makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" })]),
-      makeEl("w:r", [makeEl("w:t", [makeText("Table of Authorities")])])]),
+    // A heading of the brief's own look, without the number its headings may carry ("V.").
+    makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" }),
+      makeEl("w:numPr", [makeEl("w:ilvl", [], { "w:val": "0" }), makeEl("w:numId", [], { "w:val": "0" })])]),
+    makeEl("w:r", [makeEl("w:t", [makeText("Table of Authorities")])])]),
     ...tableFields(entries.size ? entries : new Map([[1, new Set<string>()]]), textWidth(children[section])),
   ] : delivery === "linked-append" ? linkedTable(linked) : [];
   children.splice(section < 0 ? children.length : section, 0, ...appended);
