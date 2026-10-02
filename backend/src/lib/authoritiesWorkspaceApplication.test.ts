@@ -1201,6 +1201,41 @@ describe("Authorities workspace application", () => {
     expect((attached.state as AuthoritiesDraft).authorities["canonical-key"].source.kind).toBe("attached");
   });
 
+  it("names a nameless authority from the caption of the PDF auto-fetched for it", async () => {
+    const pdf = await fixturePdf("%PDF-");
+    const fetched = async (page: string) => {
+      const runtime = harness();
+      let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+      product = await runtime.application.act(scope, product.id, product.revision,
+        { type: "add-authority", kind: "case", citation: "2001 SCC 1" });
+      product = await prepareSources(runtime, product);
+      pdfText.mockResolvedValueOnce({ pageTextByPage: [page], ocrTextByPage: [] });
+      return (await runtime.application.attachPdf(scope, product.id, { revision: product.revision,
+        authorityId: "canonical-key", language: "en", autoFetched: true,
+        file: { filename: "2001scc1.pdf", fileType: "pdf", bytes: pdf } })).state as AuthoritiesDraft;
+    };
+    // A label read into the caption names nothing.
+    expect((await fetched("R. v. Latimer Neutral citation: 2001 SCC 1. File No.: 26980."))
+      .authorities["canonical-key"].displayName).toBeNull();
+    const named = await fetched("SUPREME COURT OF CANADA Citation: R. v. Latimer, 2001 SCC 1, [2001] 1 S.C.R. 3 Date: 20010118");
+    expect(named.authorities["canonical-key"]).toMatchObject({ name: null, displayName: "R. v. Latimer",
+      source: { kind: "attached" } });
+  });
+
+  it("keeps the name an authority has when its auto-fetched PDF names it otherwise", async () => {
+    const runtime = harness();
+    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    product = await runtime.application.act(scope, product.id, product.revision,
+      { type: "add-authority", kind: "case", citation: "2001 SCC 1", name: "Latimer" });
+    product = await prepareSources(runtime, product);
+    pdfText.mockResolvedValueOnce({ pageTextByPage: ["Citation: R. v. Latimer, 2001 SCC 1"], ocrTextByPage: [] });
+    const attached = await runtime.application.attachPdf(scope, product.id, { revision: product.revision,
+      authorityId: "canonical-key", language: "en", autoFetched: true,
+      file: { filename: "2001scc1.pdf", fileType: "pdf", bytes: await fixturePdf("%PDF-") } });
+    expect((attached.state as AuthoritiesDraft).authorities["canonical-key"]).toMatchObject({
+      name: "Latimer", displayName: null });
+  });
+
   it("does not invent a CanLII action when no exact neutral-citation link is derivable",
     async () => {
     const runtime = harness({ key: () => "uncited" });

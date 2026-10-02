@@ -314,10 +314,11 @@ export function createAuthoritiesWorkspaceApplication(
     input: { revision: number; file: DocumentFile; authorityId?: string; autoFetched?: boolean },
     attach: (draft: AuthoritiesDraft, binding: WorkProductInput, filename: string, hash: string) => AuthoritiesDraft) {
     if (input.file.fileType.toLowerCase() !== "pdf") throw new ApplicationError(400, "Attach a PDF file");
-    const { product, draft } = await edit(scope, id, input.revision);
+    const { product, draft: opened } = await edit(scope, id, input.revision);
     const bytes = "bytes" in input.file ? input.file.bytes : await readFile(input.file.path);
     await validateAuthoritiesPdf(bytes);
-    if (input.autoFetched && input.authorityId !== undefined) await checkCanliiPdf(draft, input.authorityId, bytes);
+    const draft = input.autoFetched && input.authorityId !== undefined
+      ? await checkCanliiPdf(opened, input.authorityId, bytes) : opened;
     const created = await files.create(scope, "authorities", input.file,
       { projectId: product.projectId, pdfOcrProvider: null });
     return withRollback(scope, [createdDocumentRollback(created)], () => workProducts.save(scope, id,

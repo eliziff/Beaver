@@ -301,8 +301,8 @@ export function createAuthoritiesRuntimeRouter(
         ? current.authorities[id] : reject(400, "This authority no longer exists.");
       const language = (["en", "fr", "bilingual"] as const).find(value => value === req.body.language)
         ?? reject(400, "Choose the PDF language.");
-      if (req.body.auto_fetched === "true") await checkCanliiPdf(current, authority.id, bytes);
-      res.json(attachAuthorityPdf(current, authority, binding, filename, sourceSha256, language));
+      const checked = req.body.auto_fetched === "true" ? await checkCanliiPdf(current, authority.id, bytes) : current;
+      res.json(attachAuthorityPdf(checked, checked.authorities[authority.id], binding, filename, sourceSha256, language));
     } else {
       const slot = AUTHORITIES_BOOK_SLOTS.find(value => value === req.body?.slot)
         ?? reject(400, "Book-part slot is invalid");
