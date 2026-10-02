@@ -71,7 +71,11 @@ function App() {
   }
   return <div className="mx-auto max-w-4xl p-6">
     <AuthoritiesHighlights product={product} tabs={new Map([['text','Tab 1'],['scan','Tab 2']])} host={host} busy={false}
-      ocr={{tracked:{},begin:async()=>{},stop:async()=>{}}} onSaved={setProduct}/>
+      ocr={{tracked:{},begin:async()=>{},stop:async()=>{}}} onSaved={setProduct}
+      first={new URLSearchParams(location.search).has('first')}
+      onAction={action=>void post('save',{product,revision:product.revision,action})
+        .then(response=>response.json()).then(setProduct)
+        .catch(cause=>setError(String(cause)))}/>
     <button className="m-4 border p-2" disabled={!findings.length} onClick={()=>setReviewOpen(true)}>Review test quotations</button>
     {reviewOpen && <QuotationReview currentId={currentId || findings[0]?.id || ''} items={rechecking ? undefined : findings} busy={rechecking}
       onSelect={setCurrentId} onDone={()=>setReviewOpen(false)}

@@ -356,45 +356,60 @@ describe("Authorities UI contracts", () => {
 
     await userEvent.upload(screen.getByLabelText("Add file"), file);
     const setup = screen.getByRole("dialog", { name: "Import options" });
+    // The import asks only the court and source handling; highlighting and outputs come later.
+    expect(within(setup).queryByRole("group", { name: "Passage marking" })).not.toBeInTheDocument();
+    expect(within(setup).queryByRole("group", { name: "Word copy" })).not.toBeInTheDocument();
     await userEvent.click(within(setup).getByLabelText(/Use available original PDFs and manually add the PDFs myself for the rest/));
-    await userEvent.click(within(setup).getByLabelText(/Highlight exact quotes/));
-    await userEvent.click(within(setup).getByRole("button", { name: "Next" }));
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Outputs" }))
-      .getByRole("button", { name: "Import and review" }));
+    await userEvent.click(within(setup).getByRole("button", { name: "Import and review" }));
 
     await waitFor(() => expect(api.createAuthorities).toHaveBeenCalledWith({
       source: { kind: "document", documentId: "uploaded-document", version: "latest" },
       title: "Factum", projectId: undefined,
-      settings: { profileId: "general", sourceMode: "manual-originals", passageMarking: "text",
-        insertIntoDocument: false, tableDelivery: "native-append", citationSuffix: "none" },
+      settings: { profileId: "general", sourceMode: "manual-originals", passageMarking: "margin" },
     }));
     expect(await screen.findByRole("button", { name: "Next" })).toBeVisible();
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Add file for Example v Example")).not.toBeInTheDocument();
   });
 
-  it.each([
-    { label: "No Word copy", insertIntoDocument: false, tableDelivery: "native-append", citationSuffix: "none" },
-    { label: "Marked copy", insertIntoDocument: true, tableDelivery: "native-marks", citationSuffix: "none" },
-    { label: "Marked copy and table", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "none" },
-    { label: "Marked copy, table and [Tab 1]", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "tab" },
-    { label: "Marked copy, table and [Book of authorities Tab 1]", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "book-tab" },
-  ] as const)("imports the Word output choice: $label", async ({ label, ...settings }) => {
-    api.uploadAuthoritiesDocument.mockResolvedValue({ id: "word-source" });
-    api.createAuthorities.mockResolvedValue(documentDraft());
+  it("chooses the Word copy and its tab references apart, the custom wording as its preview shows", async () => {
+    let current = documentDraft(); current.state.stage = "build";
+    api.getWorkProduct.mockResolvedValue(current);
+    api.actOnAuthorities.mockImplementation(async (_id, _revision, action) => {
+      current = structuredClone(current); current.revision += 1;
+      if (action.type === "set-settings") Object.assign(current.state.settings, action.settings);
+      if (action.type === "set-document-output") current.state.insertIntoDocument = action.enabled;
+      return current;
+    });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      {...workspaceRoute()} /></MemoryRouter>);
-    await userEvent.upload(screen.getByLabelText("Add file"), new File(["PK"], "Factum.docx", {
-      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    }));
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Import options" }))
-      .getByRole("button", { name: "Next" }));
-    const outputs = screen.getByRole("dialog", { name: "Outputs" });
-    await userEvent.click(within(outputs).getByRole("radio", { name: label }));
-    await userEvent.click(within(outputs).getByRole("button", { name: "Import and review" }));
-    await waitFor(() => expect(api.createAuthorities).toHaveBeenCalledWith(expect.objectContaining({
-      settings: expect.objectContaining(settings),
-    })));
+      {...workspaceRoute(current.id)} /></MemoryRouter>);
+    const copy = await screen.findByRole("group", { name: "Word copy" });
+    const tabs = screen.getByRole("group", { name: "Tab references" });
+    expect(within(copy).getAllByRole("radio").map((radio) => radio.getAttribute("aria-labelledby") &&
+      document.getElementById(radio.getAttribute("aria-labelledby")!)?.textContent))
+      .toEqual(["No marks", "Marked copy", "Marked copy and table"]);
+    for (const [mode, insertIntoDocument, tableDelivery] of [["Marked copy", true, "native-marks"],
+      ["Marked copy and table", true, "native-append"], ["No marks", false, undefined]] as const) {
+      for (const [reference, citationSuffix] of [["[Tab 1]", "tab"], ["None", "none"]] as const) {
+        await userEvent.click(within(copy).getByRole("radio", { name: mode }));
+        await userEvent.click(within(tabs).getByRole("radio", { name: reference }));
+        await waitFor(() => expect(current.state).toMatchObject({ insertIntoDocument,
+          settings: { citationSuffix, ...tableDelivery && { tableDelivery } } }));
+        expect(within(copy).getByRole("radio", { name: mode })).toBeChecked();
+      }
+    }
+    // The user's words, then the tab number; the preview is what goes in.
+    const words = within(tabs).getByRole("textbox", { name: "Words before the tab number" });
+    await userEvent.clear(words);
+    await userEvent.type(words, "  Appellant’s Book of Authorities, Tab ");
+    expect(within(tabs).getByText("[Appellant’s Book of Authorities, Tab 1]")).toBeVisible();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(current.state.settings).toMatchObject({ citationSuffix: "custom",
+      citationSuffixLabel: "Appellant’s Book of Authorities, Tab" }));
+    expect(within(tabs).getByRole("radio", { name: /Your wording/u })).toBeChecked();
+    await userEvent.clear(words);
+    await userEvent.tab();
+    expect(words).toHaveValue("Appellant’s Book of Authorities, Tab");
   });
 
   it("restores the rebuild-from-text preference", async () => {
@@ -423,7 +438,7 @@ describe("Authorities UI contracts", () => {
       {...workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.getByRole("radio", { name: /Paragraph line and exact quote/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Red line and quote highlight/ })).toBeChecked();
     expect(screen.queryByRole("radio", { name: /No passage marks/ })).not.toBeInTheDocument();
   });
 
@@ -1136,7 +1151,8 @@ describe("Authorities UI contracts", () => {
     // The options sit in the Build step itself; the link choices wait for the final PDF.
     const pinpointLinks = await screen.findByRole("checkbox", { name: /Link pinpoints/u });
     expect(pinpointLinks).toBeDisabled();
-    await userEvent.click(screen.getByRole("checkbox", { name: "Append the book to the brief" }));
+    expect(screen.getByRole("checkbox", { name: "Make a final PDF" })).not.toBeChecked();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Make a final PDF" }));
     const tabLinks = screen.getByRole("checkbox", { name: "Link citations to their tabs" });
     await waitFor(() => expect(tabLinks).toBeEnabled());
     await userEvent.click(tabLinks);
@@ -1144,14 +1160,14 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(pinpointLinks);
     await waitFor(() => expect(pinpointLinks).toBeChecked());
     expect(screen.queryByRole("button", { name: "Final PDF export" })).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "No Word copy" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "No marks" })).toBeChecked();
     expect(current.state.settings).toMatchObject({ finalPdf: true, linkTabs: true, linkPinpoints: true });
     expect(current.state.insertIntoDocument).toBe(false);
   });
 
   it("saves a Word output choice and then the brief PDF without a conflict, and re-applies a write to a newer draft", async () => {
     let current = documentDraft(); current.state.stage = "build";
-    current.state.settings.finalPdf = true;
+    Object.assign(current.state.settings, { finalPdf: true, citationSuffix: "tab" });
     const stale = () => new BeaverApiError({ status: 409, message: "This draft changed. Reopen it and try again." });
     const saving = deferred<void>();
     api.getWorkProduct.mockImplementation(async () => current);
@@ -1174,7 +1190,9 @@ describe("Authorities UI contracts", () => {
     });
     render(<MemoryRouter><AuthoritiesWorkspace host={{ ...beaverAuthoritiesHost, wordToPdf: async () => false }}
       {...workspaceRoute(current.id)} /></MemoryRouter>);
-    await userEvent.click(await screen.findByRole("radio", { name: "Marked copy, table and [Tab 1]" }));
+    expect(await within(await screen.findByRole("complementary", { name: "Outputs" })).findByText("Waiting for your brief PDF")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Build" })).toBeEnabled();
+    await userEvent.click(await screen.findByRole("radio", { name: "Marked copy and table" }));
     const brief = new File(["%PDF-1.7"], "brief.pdf", { type: "application/pdf" });
     await userEvent.upload(await screen.findByLabelText("Upload the brief PDF"), brief);
     saving.resolve();
@@ -1185,7 +1203,8 @@ describe("Authorities UI contracts", () => {
     expect(screen.queryByText(/This draft changed/u)).not.toBeInTheDocument();
     expect(current.state).toMatchObject({ insertIntoDocument: true,
       settings: { citationSuffix: "tab" }, bookParts: { brief: { filename: "brief.pdf" } } });
-    expect(screen.getByRole("radio", { name: "Marked copy, table and [Tab 1]" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Marked copy and table" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "[Tab 1]" })).toBeChecked();
   });
 
   it("remembers a missing attached PDF and offers its replacement", async () => {

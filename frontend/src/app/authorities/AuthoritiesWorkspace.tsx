@@ -8,9 +8,9 @@ import { CANLII_PDF_NAME, folderFileId, folderMatches } from "./folderSources";
 import { authorityName, authorityLabel,
   requiresBilingualSources,
   missingSource, relinkable } from "./authorityPresentation";
-import { BookOpen, ChevronRight, Download, Eye, FilePlus2, FolderSearch,
+import { BookOpen, Check, ChevronRight, Eye, FilePlus2, FolderSearch,
   History, Loader2, Plus, Scale, Settings2, Upload } from "lucide-react";
-import { Fragment, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
@@ -29,8 +29,9 @@ import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { rowControl, rowLabel, Sources } from "./AuthoritySources";
-import { AuthoritiesOutputOptions, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
+import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCards, type CardOption } from "./OptionCards";
+import { OutputsDock } from "./OutputsDock";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
@@ -45,10 +46,10 @@ import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../
 import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
-import { AuthoritiesHighlights, SourceOcrProgress } from "./AuthoritiesHighlightEditor";
+import { AuthoritiesHighlights, PASSAGE_OPTIONS, passageOptions, SourceOcrProgress } from "./AuthoritiesHighlightEditor";
 
 type WorkspaceTab = "automatic" | "manual" | "drafts";
-type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & AuthoritiesOutputOptionsValue & {
+type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
   profileId: AuthoritiesProfileId;
 };
 type PendingImport = {
@@ -602,15 +603,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }
   function importDocument() {
     if (!pendingImport) return;
-    const filename = pendingImport.source.kind === "document" ? pendingImport.source.document.filename
-      : pendingImport.source.selected.file.name;
-    // A PDF brief has no Word copy, so the Word choices remembered from a Word brief stay behind.
-    const { insertIntoDocument, tableDelivery, citationSuffix, ...shared } = pendingImport.preferences;
-    const settings = filename.toLowerCase().endsWith(".docx")
-      ? { ...shared, insertIntoDocument: insertIntoDocument ?? false,
-        tableDelivery: tableDelivery ?? authoritiesProfile(shared.profileId).defaults.settings.tableDelivery,
-        citationSuffix: citationSuffix ?? "none" as const }
-      : shared;
+    // Only the court and source handling are asked here; the outputs start from their defaults.
+    const { profileId, sourceMode, passageMarking } = pendingImport.preferences;
+    const settings = { profileId, sourceMode, passageMarking };
     void run(() => host.create({ ...pendingImport, projectId,
       settings }), (next) => {
       setPreferences({ ...pendingImport.preferences, ...settings }); setPendingImport(undefined);
@@ -631,8 +626,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       const manualPreferences = bookPreferences(preferences), open = draftRef.current;
       let current = open?.state.import.kind === "manual" ? open : await host.create({
         source: { kind: "manual" }, title: manualTitle.trim() || "Book of Authorities",
-        projectId, settings: { ...manualPreferences, sourceMode: "manual-originals",
-          passageMarking: "margin", outputMode: "book" },
+        // A table-only court's "none" is not a choice for a book; any other marking is the reader's own.
+        projectId, settings: { ...manualPreferences, sourceMode: "manual-originals", outputMode: "book",
+          passageMarking: manualPreferences.passageMarking === "none" ? "margin" : manualPreferences.passageMarking },
       });
       if (current !== open) { adopt(current, true); }
       for (let index = 0; index < pdfs.length; index += 1) {
@@ -971,6 +967,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     else act({ type: "set-stage", stage: next });
   };
   const buildPanel = draft && stage === "build" && <BuildPanel draft={shown!} busy={busy} building={building}
+    progress={building ? message : ""}
     recognitionAvailable={host.recognitionAvailable !== false} convertsWord={convertsWord}
     jurisdictionOrder={jurisdictionOrder} outputFreshness={outputFreshness}
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
@@ -985,8 +982,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined}
     sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
-  const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
-    busy={busy} host={host} ocr={ocr} onSaved={adopt} />;
+  const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights key={draft.id} product={draft}
+    tabs={authorityTabs} busy={busy} host={host} ocr={ocr} first={reached === "highlights"}
+    onAction={act} onSaved={adopt} />;
   // An open finding stays in place while its quotations are rechecked (items undefined).
   const quotationReview = draft && findingId && (!currentReview || discrepancies.length > 0) &&
     <QuotationReview items={currentReview?.items} currentId={findingId}
@@ -1120,14 +1118,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         breadcrumbs={["Settings"]} fit
         primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
         <p className="mb-4 text-sm text-gray-600">Defaults for new authorities drafts.</p>
-        <AuthoritiesSetupFields value={preferences} onChange={setPreferences}
+        <AuthoritiesSetupFields value={preferences} onChange={setPreferences} passages
           busy={busy} jurisdictionOrder={jurisdictionOrder} />
         {host.outputFolder && <div className="mt-5 border-t border-gray-200 pt-4">
           <OutputFolderSetting port={host.outputFolder} busy={busy} />
         </div>}
       </Modal>
       <ImportSetup pending={pendingImport} busy={busy} status={error}
-        jurisdictionOrder={jurisdictionOrder} convertsWord={convertsWord}
+        jurisdictionOrder={jurisdictionOrder}
         onChange={(next) => setPendingImport((current) => current
           ? { ...current, preferences: next } : current)}
         onClose={() => { if (!busy) setPendingImport(undefined); }} onImport={importDocument} />
@@ -1256,40 +1254,26 @@ function AutomaticStart({ busy, onFile, onPick, onLibrary, sourceLabel = "Librar
   </section>;
 }
 
-function ImportSetup({ pending, busy, status, jurisdictionOrder, convertsWord, onChange, onClose, onImport }: {
-  pending?: PendingImport; busy: boolean; status: string;
-  jurisdictionOrder: string[]; convertsWord?: boolean;
+/** What an import asks first: the court and how sources are found. Highlighting is chosen on the
+ *  Highlights step, and the outputs at Build. */
+function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClose, onImport }: {
+  pending?: PendingImport; busy: boolean; status: string; jurisdictionOrder: string[];
   onChange: (value: StartPreferences) => void; onClose: () => void; onImport: () => void;
 }) {
   const value = pending?.preferences ?? DEFAULTS;
-  const filename = pending?.source.kind === "document" ? pending.source.document.filename
-    : pending?.source.selected.file.name;
-  const word = filename?.toLowerCase().endsWith(".docx") ?? false;
-  const [step, setStep] = useState<"sources" | "output">("sources");
-  useEffect(() => setStep("sources"), [pending?.source]);
-  // Each step, and each new import, opens at its top.
+  // Each new import opens at its top.
   const top = useRef<HTMLParagraphElement>(null);
   useLayoutEffect(() => {
     const body = top.current?.closest(".modal-scroll-body");
     if (body) body.scrollTop = 0;
-  }, [step, pending?.source]);
-  // The import options come first, as they always have; the outputs follow, drawn the same way.
-  const outputStep = step === "output";
-  return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={[outputStep ? "Outputs" : "Import options"]}
+  }, [pending?.source]);
+  return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={["Import options"]}
     className="!h-[min(42rem,calc(100dvh-2rem))]"
     footerStatus={status && <span className="text-sm text-red-800" role="status">{status}</span>}
-    secondaryAction={outputStep ? { label: "Back", disabled: busy, onClick: () => setStep("sources") } : undefined}
-    primaryAction={{ label: !outputStep ? "Next" : busy ? "Finding citations" : "Import and review", disabled: busy,
-      icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined,
-      onClick: !outputStep ? () => setStep("output") : onImport }}>
+    primaryAction={{ label: busy ? "Finding citations" : "Import and review", disabled: busy,
+      icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined, onClick: onImport }}>
     <p ref={top} className="mb-4 shrink-0 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
-    {outputStep ? <AuthoritiesOutputOptions value={value} disabled={busy} word={word}
-      lockedDelivery={authoritiesProfile(value.profileId).locked?.settings?.tableDelivery}
-      brief={word && convertsWord === false ? (available) => <FileCard disabled={!available} label="Brief saved as PDF"
-        detail={`This app can’t convert Word, so at Build you’ll upload ${filename} saved as PDF.`} /> : undefined}
-      onChange={options => onChange({ ...value, ...options })} />
-      : <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy}
-        jurisdictionOrder={jurisdictionOrder} />}
+    <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy} jurisdictionOrder={jurisdictionOrder} />
     <div className="h-5 shrink-0" />
   </Modal>;
 }
@@ -1369,9 +1353,11 @@ function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, class
   </div>;
 }
 
-function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
+function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder, passages = false }: {
   value: StartPreferences; onChange: (value: StartPreferences) => void; busy: boolean;
   jurisdictionOrder: string[];
+  /** The highlighting default, which Settings sets for drafts not yet highlighted. */
+  passages?: boolean;
 }) {
   return <>
     <AuthoritiesCourtField value={value.profileId} disabled={busy}
@@ -1380,16 +1366,18 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
     <OptionCards legend="Source handling" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
       className="mt-5"
       onChange={(sourceMode) => onChange({ ...value, sourceMode })} />
-    <OptionCards className="mt-5" legend="Passage marking" value={value.passageMarking}
+    {passages && <OptionCards className="mt-5" legend="Passage marking" value={value.passageMarking}
       options={passageOptions(value.profileId)} columns disabled={busy}
-      onChange={(passageMarking) => onChange({ ...value, passageMarking })} />
+      onChange={(passageMarking) => onChange({ ...value, passageMarking })} />}
   </>;
 }
 
-function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
+function BuildPanel({ draft, busy, building, progress, missing, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
   convertsWord, outputFreshness, linkWarnings, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
   onBuild, onCancel, onDownload }: {
   draft: AuthoritiesProduct; busy: boolean; building: boolean; missing: number;
+  /** What the build is doing now. */
+  progress: string;
   recognitionAvailable: boolean; convertsWord?: boolean;
   outputFreshness: "unbuilt" | "current" | "stale";
   linkWarnings?: AuthoritiesBuildReceipt["linkWarnings"];
@@ -1419,13 +1407,21 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
   // Without a converter here, a Word brief reaches the final PDF as a PDF the user saved from Word.
   const briefSlot = wordDocument && convertsWord === false;
   const brief = draft.state.bookParts.brief ?? undefined;
-  const briefMissing = briefSlot && !!draft.state.settings.finalPdf && !brief;
+  // The final PDF waits for that PDF without holding up anything else.
+  const waiting = briefSlot && !brief;
+  const finalOutput = draft.outputs["final-pdf"];
+  const onOptions = ({ insertIntoDocument, ...settings }: AuthoritiesOutputOptionsValue) => {
+    if (insertIntoDocument !== undefined) onAction({ type: "set-document-output", enabled: insertIntoDocument });
+    if (Object.keys(settings).length) onAction({ type: "set-settings", settings });
+  };
   const missingText = !coverDetailsReady ? "Add cover details before building."
     : !filingRoleReady ? "Choose who is filing before building."
-    : briefMissing ? "Upload the brief saved as PDF, or don’t append the book to it."
     : missing ? `${missing} missing PDF${missing === 1 ? "" : "s"}. Build to review the incomplete-draft options.`
     : "";
-  return <section className="mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
+  // The outputs sit in a dock beside the choices where there is room, and after them where there is not.
+  return <section className="@container/build mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
+    <div className="grid gap-4 @min-[52rem]/build:grid-cols-[minmax(0,1fr)_16rem]">
+    <div className="min-w-0">
     <h2 className="font-semibold text-gray-950">Build outputs</h2>
     <div className={cn("mt-3 grid gap-3 sm:items-end", manual
       ? "sm:grid-cols-[minmax(0,1fr)_9rem]"
@@ -1438,7 +1434,7 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
         onChange={(outputMode) => onAction({ type: "set-output-mode", outputMode })}
         options={[{ value: "book", label: "Book of Authorities" },
           { value: "table", label: "Table of Authorities" }, { value: "both", label: "Book and Table" }]} />}
-      <Button type="button" className="h-10" disabled={busy && !building || !building && briefMissing}
+      <Button type="button" className="h-10" disabled={busy && !building}
         onClick={building ? onCancel : coverReady ? onBuild : !coverDetailsReady
           ? () => setCoverOpen(true)
           : () => document.getElementById("authorities-filed-by")?.focus()}>
@@ -1457,17 +1453,25 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
     </div>}
     <p className={cn("mt-2 min-h-5 text-sm leading-5", missingText ? "text-red-800" : "invisible")}
       aria-hidden={!missingText || undefined}>{missingText || "Ready"}</p>
-    {!manual && <div className="mb-2 border-t border-gray-200 pt-2">
-      <AuthoritiesOutputOptions word={wordDocument} disabled={busy}
+    {wordDocument && <div className="mb-2 border-t border-gray-200 pt-2">
+      <AuthoritiesOutputOptions disabled={busy}
         value={{ ...draft.state.settings, insertIntoDocument: draft.state.insertIntoDocument }}
         lockedDelivery={profile.locked?.settings?.tableDelivery}
-        firstTab={tabLabel(1, draft.state.settings.tabStyle, draft.state.settings)}
-        brief={briefSlot ? (available) => <BriefPdf draft={draft} busy={busy || !available} part={brief}
-          onAction={onAction} onPick={onPickBook} onFiles={onBookFiles} /> : undefined}
-        onChange={({ insertIntoDocument, ...settings }) => {
-          if (insertIntoDocument !== undefined) onAction({ type: "set-document-output", enabled: insertIntoDocument });
-          if (Object.keys(settings).length) onAction({ type: "set-settings", settings });
-        }} />
+        firstTab={tabLabel(1, draft.state.settings.tabStyle, draft.state.settings)} onChange={onOptions} />
+    </div>}
+    {!manual && <div className="mb-2 border-t border-gray-200 pt-3">
+      <FinalPdfOptions disabled={busy} value={draft.state.settings} onChange={onOptions}
+        brief={(available) => briefSlot ? <BriefPdf draft={draft} busy={busy || !available} part={brief}
+          onAction={onAction} onPick={onPickBook} onFiles={onBookFiles} />
+          : <FileCard disabled={!available} label={draft.state.import.kind === "document" ? draft.state.import.filename : "Brief"}
+            detail={wordDocument ? "Saved as PDF from your Word brief when it builds." : "Your brief is already a PDF."}
+            action={<Check aria-label="Ready" className="h-4 w-4 text-green-700" />} />}
+        result={(available) => <div className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-dashed border-gray-300 py-1 pl-3 pr-1 text-sm text-gray-700">
+          <span>{!available ? "Not chosen." : waiting ? "Waiting for your brief PDF."
+            : finalOutput && !previousOutput ? "Built; it is in Outputs." : "Ready to build."}</span>
+          <Button type="button" variant="outline" className="h-8" disabled={!available || waiting || busy}
+            onClick={coverReady ? onBuild : () => setCoverOpen(true)}><BookOpen /> Build final PDF</Button>
+        </div>} />
     </div>}
     {book && <BookContents draft={draft} busy={busy} onAction={onAction}
       sourceIssues={sourceIssues} onRelink={onRelink} onFiles={onBookFiles} onPick={onPickBook}
@@ -1481,9 +1485,6 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
         {draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <SelectField label="Source handling" value={draft.state.settings.sourceMode}
           disabled={busy} onChange={(sourceMode) => onAction({ type: "set-settings", settings: { sourceMode } })}
           options={SOURCE_OPTIONS} />}
-        {draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <SelectField label="Passage marking" value={draft.state.settings.passageMarking}
-          disabled={busy} onChange={(passageMarking) => onAction({ type: "set-settings", settings: { passageMarking } })}
-          options={passageOptions(profile.id)} />}
         {draft.state.outputMode !== "table" && <SelectField label="Tabs" value={draft.state.settings.tabStyle}
           disabled={busy} onChange={(tabStyle) => onAction({ type: "set-settings", settings: { tabStyle } })}
           options={[{ value: "numeric", label: "Numbers" }, { value: "alpha", label: "Letters" }]} />}
@@ -1512,28 +1513,10 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
             { value: "full", label: "OCR every page" }]} />}
       </div>
     </details>
-    <div className="min-h-12 border-t border-gray-200 pt-2">
-      {!!Object.keys(draft.outputs).length && <p className={cn(
-        "mb-1 min-h-5 text-xs leading-5 text-gray-600",
-        !previousOutput && "invisible",
-      )}>{previousOutput ? "Previous build — rebuild to update" : "Current build"}</p>}
-      {/* The final PDF is the culminating output; what it could not link follows it. */}
-      {Object.entries(draft.outputs).sort(([a], [b]) => outputRank(a) - outputRank(b)).map(([role, output]) => <Fragment key={role}>
-        {role === "link-report" && !previousOutput && <p className="px-2 text-sm text-gray-700" role="status">
-          {linkWarnings?.length ? `${linkWarnings.length} link${linkWarnings.length === 1 ? " wasn't" : "s weren't"} added.`
-            : "Some links weren't added."} Use Unlinked citations to finish {linkWarnings?.length === 1 ? "it" : "them"} in a PDF editor.</p>}
-        <button type="button"
-        aria-label={`Download ${previousOutput ? "previous " : ""}${output.filename}`}
-        title={output.filename}
-        onClick={() => onDownload(output.documentId, output.versionId, output.filename)}
-        className="grid min-h-10 w-full grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 text-left text-sm outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50">
-        <Download className="h-4 w-4 text-red-700" />
-        <span className="font-medium text-gray-900">{previousOutput && "Previous "}{role === "table" ? "Table"
-          : role === "final-pdf" ? "Final PDF" : role === "link-report" ? "Unlinked citations" : role.startsWith("book") ? "Book"
-            : output.filename.toLowerCase().endsWith(".pdf") ? "Filing PDF" : "Word copy"}</span>
-        <span className="min-w-0 truncate text-gray-500">{output.filename}</span>
-        <span className="text-[11px] uppercase text-gray-500">{output.filename.split(".").at(-1)}</span>
-      </button></Fragment>)}
+    </div>
+    <OutputsDock draft={draft} building={building} progress={progress} previous={previousOutput}
+      waiting={waiting} linkWarnings={linkWarnings} onDownload={onDownload}
+      className="self-start @min-[52rem]/build:sticky @min-[52rem]/build:top-4" />
     </div>
     {coverOpen && <FederalCoverModal cover={draft.state.cover} profileId={profile.id}
       busy={busy} onClose={() => setCoverOpen(false)} onSave={(cover) => {
@@ -1542,7 +1525,6 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
   </section>;
 }
 
-const outputRank = (role: string) => role === "final-pdf" ? 1 : role === "link-report" ? 2 : 0;
 
 /** The brief saved as PDF from Word: what a final PDF is built from where Word is not converted here. */
 function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
@@ -1553,8 +1535,9 @@ function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
 }) {
   const filename = draft.state.import.kind === "document" ? draft.state.import.filename : "the brief";
   const label = part ? "Replace" : "Upload", control = cn(rowControl, "w-[5.625rem] px-2.5");
-  return <FileCard disabled={busy} label="Brief saved as PDF" detail={part?.filename
-    ?? `This app can’t convert Word, so in Word save ${filename} as PDF and upload it.`}
+  return <FileCard disabled={busy} label={part?.filename ?? "Not added yet"} detail={part
+    ? "If you change the brief, save it as PDF again and replace this one."
+    : briefPdfAdvice(filename, { ...draft.state.settings, insertIntoDocument: draft.state.insertIntoDocument })}
     action={<span className="flex items-center gap-1">
       {onPick ? <Button type="button" variant="outline" className={control} disabled={busy}
         aria-label={`${label} the brief PDF`} onClick={() => onPick("brief", false)}><Upload />{label}</Button>
@@ -1662,14 +1645,14 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
   // The rows' actions are the Sources step's: View, Replace and a menu, at the same widths.
   const moreTrigger = "flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600";
   const headerControl = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
-  return <div className="@container/sources mb-2 border-t border-gray-200 pt-3">
+  return <div className="@container/sources mb-2 grid grid-cols-[fit-content(8rem)_minmax(0,1fr)] gap-x-1 border-t border-gray-200 pt-3 sm:grid-cols-[fit-content(8rem)_minmax(0,1fr)_auto] sm:gap-x-2 [&>*]:col-span-full">
     <h3 className="mb-2 min-h-8 text-sm font-semibold leading-8 text-gray-900">Cover and index</h3>
-    <div className="divide-y divide-gray-200 rounded-lg border border-gray-300">
+    <div className="grid grid-cols-subgrid divide-y divide-gray-200 rounded-lg border border-gray-300">
       {(["cover", "index"] as const).map((slot) => {
         const part = draft.state.bookParts[slot], issue = part ? sourceIssues[part.bindingRole] : undefined;
         const title = slot === "cover" ? "Cover" : "Index";
         return <div key={slot}
-          className="grid min-h-11 grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-1 px-2 py-1 sm:grid-cols-[4.25rem_minmax(0,1fr)_auto] sm:gap-2 sm:py-0">
+          className="col-span-full grid min-h-11 grid-cols-subgrid items-center gap-y-1 px-2 py-1 sm:py-0">
           <span className="text-sm font-medium text-gray-900">{title}</span>
           <span className="min-w-0 truncate text-xs text-gray-600" title={part?.filename}>
             {part?.filename ?? (slot === "cover" && onEditFederalCover && !federalCoverComplete
@@ -1716,12 +1699,12 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
       </div>
     </div>
     {!!draft.state.bookParts.supplements.length && <div
-      className="mt-1 divide-y divide-gray-200 rounded-lg border border-gray-300">
+      className="mt-1 grid grid-cols-subgrid divide-y divide-gray-200 rounded-lg border border-gray-300">
       {draft.state.bookParts.supplements.map((part, index) => {
         const issue = sourceIssues[part.bindingRole];
         return <div key={part.id}
-          className="grid min-h-11 grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-1 px-2 py-1 sm:grid-cols-[4.25rem_minmax(0,1fr)_auto] sm:gap-2 sm:py-0">
-          <span className="text-xs font-semibold uppercase tabular-nums text-gray-500">
+          className="col-span-full grid min-h-11 grid-cols-subgrid items-center gap-y-1 px-2 py-1 sm:py-0">
+          <span className="truncate text-xs font-semibold uppercase tabular-nums text-gray-500">
             {tabLabel(supplementStart + index + 1, draft.state.settings.tabStyle, draft.state.settings)}</span>
           <span className="min-w-0 truncate text-sm text-gray-800" title={part.filename}>
             {part.filename}</span>
@@ -1785,21 +1768,6 @@ function AuthorityDetailsModal({ open, busy, authority, onClose, onSave }: {
   </Modal>;
 }
 
-function MarkPreview({ type }: { type: AuthoritiesBuildSettings["passageMarking"] }) {
-  return <span aria-hidden="true" className={cn(
-    "relative block h-9 w-14 shrink-0 overflow-hidden rounded border border-gray-400 bg-white",
-    type === "margin" && "border-l-[3px] border-l-red-700",
-    type === "sidelined" && "border-l-[3px] border-l-gray-950",
-  )}>
-    {type === "paragraph" && <span className="absolute inset-x-1.5 top-2.5 h-4 bg-red-100" />}
-    {(type === "margin" || type === "text") &&
-      <span className="absolute left-2 top-[15px] h-1.5 w-5 bg-red-200" />}
-    {[8, 17, 26].map((top, index) => <span key={top}
-      className={cn("absolute left-2 h-0.5 bg-gray-500", index === 1 ? "w-9" : "w-7")}
-      style={{ top }} />)}
-  </span>;
-}
-
 function SelectField<T extends string>({ label, value, options, onChange, disabled, className,
   placeholder = null }: {
   label: string; value: T | ""; options: ReadonlyArray<{ value: T; label: string }>;
@@ -1852,21 +1820,6 @@ const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["sourceM
   { value: "render", label: "Rebuild all sources from text (where available)",
     detail: "Create consistent pages from the available source text." },
 ];
-const PASSAGE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["passageMarking"]>> = [
-  { value: "margin", label: "Paragraph line and exact quote", preview: <MarkPreview type="margin" />,
-    detail: "Mark the cited paragraph at the margin and highlight matching quoted words." },
-  { value: "sidelined", label: "Black paragraph line", preview: <MarkPreview type="sidelined" />,
-    detail: "Add a vertical line beside the cited paragraph." },
-  { value: "paragraph", label: "Highlight cited paragraph", preview: <MarkPreview type="paragraph" />,
-    detail: "Highlight the full resolved paragraph." },
-  { value: "text", label: "Highlight exact quotes", preview: <MarkPreview type="text" />,
-    detail: "Highlight matching quoted words only." },
-  { value: "none", label: "No passage marks", preview: <MarkPreview type="none" />,
-    detail: "Leave source pages unmarked." },
-];
-const MARKED_PASSAGE_OPTIONS = PASSAGE_OPTIONS.filter(({ value }) => value !== "none");
-const passageOptions = (profileId: AuthoritiesProfileId) =>
-  authoritiesProfile(profileId).requirements?.markedPassages ? MARKED_PASSAGE_OPTIONS : PASSAGE_OPTIONS;
 const withProfile = (value: StartPreferences, profileId: AuthoritiesProfileId): StartPreferences =>
   ({ ...value, profileId, passageMarking: authoritiesProfile(profileId).requirements?.markedPassages &&
     value.passageMarking === "none" ? "margin" : value.passageMarking });
