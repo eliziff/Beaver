@@ -46,7 +46,7 @@ import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../
 import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
-import { AuthoritiesHighlights, PASSAGE_OPTIONS, passageOptions } from "./AuthoritiesHighlightEditor";
+import { AuthoritiesHighlights, PASSAGE_OPTIONS, passageOptions, useHighlightsAhead } from "./AuthoritiesHighlightEditor";
 
 type WorkspaceTab = "automatic" | "manual" | "drafts";
 type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
@@ -969,6 +969,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     : draft?.state.import.kind === "manual" ? "sources" : "citations");
   const stepKey = `${draft?.id}:${reached}`;
   const stage = viewedStep?.key === stepKey ? viewedStep.value : reached;
+  // Each source's marks are prepared while Sources or Highlights is on screen, so Highlights opens
+  // them at once; never during the review or a build, which would wait behind it.
+  useHighlightsAhead(host, draft && (stage === "sources" || stage === "highlights") ? draft : undefined, ocr.tracked);
   const steps = STEPS.filter(({ value }) => value !== "citations" || draft?.state.import.kind !== "manual")
     .map(step => ({ ...step, disabled: busy || STEPS.findIndex(({ value }) => value === step.value) >
       STEPS.findIndex(({ value }) => value === reached) }));

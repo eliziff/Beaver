@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pause, Pencil, Play, Redo2,
   Trash2, Undo2, X } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
@@ -46,7 +47,7 @@ const ocrBar = 'appearance-none overflow-hidden rounded-full bg-gray-100 [&::-mo
  * Text recognition for one scanned source, watched where the source is being used. Its two
  * controls keep fixed slots, so toggling Pause and Resume or finishing never moves anything.
  */
-export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
+function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
   const total = status.textlessPages.length;
   const pending = status.state === 'running' || status.state === 'paused';
   return <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 text-xs">
@@ -136,6 +137,99 @@ const savedSet = (product: AuthoritiesProduct, choice: Choice) => {
   const saved = product.state.authorities[choice.authorityId].annotations?.[choice.bindingRole];
   return saved?.sourceSha256 === choice.sourceSha256 ? decodeAnnotationSet(saved) : undefined;
 };
+
+type Prepared = { set: PdfAnnotationSet; warning: string };
+type Ahead = { choice: Choice; result?: Promise<Prepared>; ready?: Prepared };
+/** Automatic marks prepared before their source is opened, for one draft: all it asks of them but
+ *  the step it is on and the marks saved, which preparing them reads neither of. */
+type Store = { draft: string; product: AuthoritiesProduct; abort: AbortController; sources: Map<string, Ahead>;
+  queue: Ahead[]; running: boolean };
+const stores = new WeakMap<AuthoritiesHost, Store>(), draftKeys = new WeakMap<AuthoritiesProduct['state'], string>();
+const draftKey = (product: AuthoritiesProduct) => {
+  let key = draftKeys.get(product.state);
+  if (key === undefined) draftKeys.set(product.state, key = `${product.id}\0${JSON.stringify(product.state,
+    function (name, value) { return name === 'annotations' || name === 'stage' && this === product.state ? undefined : value; })}`);
+  return key;
+};
+const sourceKey = (choice: Choice) => `${choice.bindingRole}\0${choice.sourceSha256}`;
+const pageMarkedWarning = (labels: string[]) => labels.length
+  ? `The cited page carries the mark for ${labels.join(', ')} because that paragraph's text was not found.` : '';
+function storeFor(host: AuthoritiesHost, product: AuthoritiesProduct) {
+  const draft = draftKey(product), held = stores.get(host);
+  if (held?.draft === draft) return held;
+  held?.abort.abort();
+  const store: Store = { draft, product, abort: new AbortController(), sources: new Map(), queue: [], running: false };
+  stores.set(host, store);
+  return store;
+}
+/** A source's marks, prepared now if they are not already being prepared. A failure is not kept. */
+function prepare(host: AuthoritiesHost, store: Store, ahead: Ahead) {
+  const { product, abort: { signal } } = store, { authorityId, bindingRole, sourceSha256 } = ahead.choice;
+  return ahead.result ??= (async () => {
+    const { annotations, pageMarked } = await host.prepareAnnotations!(product, authorityId, bindingRole,
+      () => host.readSource!(product, bindingRole, signal), signal);
+    if (annotations.sourceSha256 !== sourceSha256) throw new Error('The marking source does not match this PDF.');
+    return ahead.ready = { set: annotations, warning: pageMarkedWarning(pageMarked) };
+  })().catch((error: unknown) => {
+    if (store.sources.get(sourceKey(ahead.choice)) === ahead) store.sources.delete(sourceKey(ahead.choice));
+    throw error;
+  });
+}
+/** Queues sources' marks to be prepared one at a time, ahead of the rest when `first`; otherwise
+ *  the smallest PDFs first, so that the most sources are ready soonest. */
+function prepareAhead(host: AuthoritiesHost, product: AuthoritiesProduct, choices: Choice[], first = false) {
+  if (!host.readSource || !host.prepareAnnotations) return;
+  const store = storeFor(host, product);
+  const size = ({ choice: { bindingRole } }: Ahead) => {
+    const binding = product.state.bindings[bindingRole];
+    return binding?.kind === 'local-file' ? binding.lastSeen.size : 0;
+  };
+  const items = choices.map(choice => store.sources.get(sourceKey(choice)) ??
+    store.sources.set(sourceKey(choice), { choice }).get(sourceKey(choice))!).filter(item => !item.result);
+  if (!first) items.sort((left, right) => size(left) - size(right));
+  store.queue = first ? [...new Set([...items, ...store.queue])] : [...new Set([...store.queue, ...items])];
+  if (store.running) return;
+  store.running = true;
+  void (async () => {
+    for (let next: Ahead | undefined; stores.get(host) === store && (next = store.queue.shift());)
+      await prepare(host, store, next).catch(() => { /* The editor prepares it again when it opens. */ });
+    store.running = false;
+  })();
+}
+/** Stops preparing ahead, keeping the marks already prepared. */
+function stopAhead(host: AuthoritiesHost) {
+  const store = stores.get(host);
+  if (!store) return;
+  store.queue = []; store.abort.abort(); store.abort = new AbortController();
+  for (const [id, ahead] of store.sources) if (!ahead.ready) store.sources.delete(id);
+}
+/** The marks of the source on screen: at once if prepared, else prepared now, not behind the queue. */
+function preparedMarks(host: AuthoritiesHost, product: AuthoritiesProduct, choice: Choice): Prepared | Promise<Prepared> {
+  const store = storeFor(host, product), ahead = store.sources.get(sourceKey(choice));
+  if (ahead?.ready) return ahead.ready;
+  const item = ahead ?? store.sources.set(sourceKey(choice), { choice }).get(sourceKey(choice))!;
+  store.queue = store.queue.filter(queued => queued !== item);
+  return prepare(host, store, item);
+}
+
+/** Whether a source's automatic marks can be prepared now: none are saved, and its text is not
+ *  still being recognized. */
+const preparable = (product: AuthoritiesProduct, choice: Choice, tracked?: SourceOcrPanel['tracked']) =>
+  !product.state.authorities[choice.authorityId].annotations?.[choice.bindingRole] &&
+  !['running', 'paused'].includes(tracked?.[choice.bindingRole]?.state ?? '');
+/**
+ * Prepares each attached source's automatic marks in the background once its PDF is attached, so
+ * the editor shows a source's marks the moment it opens. A scan still being recognized waits for
+ * its text; a source with highlights saved is not prepared again. Without a draft, as while a
+ * build runs, it stops, so nothing it reads competes with the build.
+ */
+export function useHighlightsAhead(host: AuthoritiesHost, product: AuthoritiesProduct | undefined,
+  tracked?: SourceOcrPanel['tracked']) {
+  const choices = product && product.state.outputMode !== 'table' && product.state.settings.passageMarking !== 'none'
+    ? choicesFor(product, new Map()).filter(choice => preparable(product, choice, tracked)) : [];
+  const key = product && choices.length ? `${draftKey(product)}\0${choices.map(sourceKey).join('\0')}` : '';
+  useEffect(() => { if (key) prepareAhead(host, product!, choices); else stopAhead(host); }, [host, key]); // eslint-disable-line react-hooks/exhaustive-deps
+}
 /**
  * Highlights saved for review keep the marks they were prepared with, so a new choice prepares
  * their automatic marks again; marks the reviewer added stay. A source that cannot be read keeps
@@ -189,6 +283,7 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onAction
         if (entries.length) onAction({ type: 'set-annotations', entries });
       });
   }, [pending, product]); // eslint-disable-line react-hooks/exhaustive-deps
+  useHighlightsAhead(host, product, ocr.tracked);
   if (product.state.outputMode === 'table') return null;
   const preparing = !!progress;
   const choose = (passageMarking: Marking) => {
@@ -247,13 +342,15 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const recognition = ocr.tracked[role];
   const neighbour = (step: number) => choices[(choices.indexOf(source)+step+choices.length)%choices.length];
   const go = (step: number) => setRole(neighbour(step).bindingRole);
-  // The panel shows the source whose PDF is on screen until the next one's bytes are read, so a
-  // switch replaces the PDF's marks, status and recognition in one step instead of emptying first.
-  const shown = pdf?.role ?? role, shownRecognition = ocr.tracked[shown];
+  // The panel shows the source whose PDF is drawn until the next one's is, so a switch replaces the
+  // PDF and its marks, status and recognition in the same frame instead of one after the other:
+  // the panel changes in the task that draws the page.
+  const [drawn, setDrawn] = useState<string>();
+  const shown = pdf ? drawn ?? pdf.role : role, shownRecognition = ocr.tracked[shown];
   const current = documents[shown], marks = current?.history[current.position] ?? [];
-  const [displayedCount, setDisplayedCount] = useState<number>();
-  if (!loading && current && current.review !== 'preparing' && displayedCount !== marks.length)
-    setDisplayedCount(marks.length);
+  const onCanvas = pdf && documents[pdf.role], canvasMarks = onCanvas?.history[onCanvas.position] ?? [];
+  // The count is the shown source's own, and only once its marks are known.
+  const count = current && current.review !== 'preparing' ? marks.length : undefined;
   const visibleError = error || current?.warning || textError;
   const dirty = Object.values(documents).some(document => document.saved !== document.history[document.position]);
   // Edits wait while the next source opens; the controls keep their look meanwhile.
@@ -284,8 +381,17 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     setLoading(true);
   }
   const readDocument = useEffectEvent((key: string) => documents[key]);
+  const preparableNow = useEffectEvent((choice: Choice) => preparable(base, choice, ocr.tracked));
   useEffect(() => {
     const abort = new AbortController();
+    const saved = base.state.authorities[source.authorityId].annotations?.[role];
+    const automatic = !saved && base.state.settings.passageMarking !== 'none';
+    // This source's marks are prepared now, while its bytes are read.
+    const marks = automatic && host.prepareAnnotations && host.readSource ? preparedMarks(host, base, source) : undefined;
+    if (marks instanceof Promise) marks.catch(() => { /* Reported once its PDF is open. */ });
+    // The sources after it come next, in the order the editor moves through them.
+    const at = choices.indexOf(source);
+    if (automatic) prepareAhead(host, base, [...choices.slice(at + 1), ...choices.slice(0, at)].filter(preparableNow), true);
     void (async () => {
       if (!host.readSource) throw new Error('This source cannot be opened.');
       const blob = await host.readSource(base, source.bindingRole, abort.signal);
@@ -301,37 +407,31 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       const loaded = readDocument(role);
       setLoading(false);
       if (loaded && loaded.review !== 'preparing') return;
-      const saved = base.state.authorities[source.authorityId].annotations?.[role];
       if (saved && saved.sourceSha256 !== hash)
         throw new Error('Saved highlights belong to a different PDF. Relink the original PDF before editing them.');
-      let set = saved ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
+      const set = saved ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
       if (set.sourceSha256 !== hash) throw new Error("The marking source does not match this PDF.");
-      let warning = '';
-      const automatic = !saved && base.state.settings.passageMarking !== 'none';
-      const initial: OpenPdf = {set,history:[set.marks],position:0,warning,
-        saved:set.marks,review:automatic?'preparing':'ready'};
-      if (!loaded) setDocuments(values => ({...values,[role]:values[role] ?? initial}));
-      if (automatic) {
-        try {
-          if (!host.prepareAnnotations) throw new Error('Automatic marking is unavailable.');
-          const prepared = await host.prepareAnnotations(base,source.authorityId,role,blob,abort.signal);
-          set=prepared.annotations;
-          if(set.sourceSha256!==hash) throw new Error('The marking source does not match this PDF.');
-          if (prepared.pageMarked.length) warning = `The cited page carries the mark for ${prepared
-            .pageMarked.join(', ')} because that paragraph's text was not found.`;
-        } catch (cause) {
-          abort.signal.throwIfAborted(); set=emptyAnnotationSet(hash);
-          warning=errorMessage(cause);
-        }
+      // Decide against the current state, not a ref checked before React applies this update.
+      const place = ({ set, warning }: Prepared, review: OpenPdf['review']) => setDocuments(values =>
+        values[role] && values[role].review !== 'preparing' ? values : {...values,
+          [role]:{set,history:[set.marks],position:0,warning,saved:set.marks,review}});
+      // Marks prepared ahead open with their PDF, in the same step.
+      const ready = !automatic ? { set, warning: '' } : marks instanceof Promise ? undefined : marks;
+      if (ready) return place(ready, 'ready');
+      place({ set, warning: '' }, 'preparing');
+      let prepared: Prepared;
+      try {
+        if (!marks) throw new Error('Automatic marking is unavailable.');
+        prepared = await marks;
+      } catch (cause) {
+        abort.signal.throwIfAborted(); prepared = { set: emptyAnnotationSet(hash), warning: errorMessage(cause) };
       }
       abort.signal.throwIfAborted();
-      // Decide against the current state, not a ref checked before React applies this update.
-      setDocuments(values => values[role]?.review !== 'preparing' ? values : {...values,
-        [role]:{set,history:[set.marks],position:0,warning,saved:set.marks,review:'ready'}});
+      place(prepared, 'ready');
     })().catch(cause => { if (!abort.signal.aborted) { setPdf(null); setError(errorMessage(cause)); } })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-  }, [role, source, base, host]);
+  }, [role, source, base, host, choices]);
   const loadRecognizedText = useCallback(async (page: number, signal: AbortSignal) => {
     try {
       const text = await host.readSourceText?.(base, role, signal, [page]);
@@ -421,7 +521,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           <div className="flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {pdf ? <PdfView doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
               loading={loading} pageLabels={pdf.pageLabels} loadRecognizedText={pdf.role === role && host.readSourceText ? loadRecognizedText : undefined}
-              annotationEditor={{marks,tool,selectedId,focus,highlightSelection,disabled: disabled || pdf.role !== role,
+              onRendered={() => flushSync(() => setDrawn(pdf.role))} onUnavailable={() => setDrawn(pdf.role)}
+              annotationEditor={{marks:canvasMarks,tool,selectedId,focus,highlightSelection,disabled: disabled || pdf.role !== role,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
                   const id=crypto.randomUUID();edit(marks => [...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
                 }}} />
@@ -429,7 +530,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           </div>
           <aside aria-label="Highlights" aria-busy={shown !== role} className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-300">
             <div className="flex items-center justify-between gap-2 px-3 pt-2">
-              <h2 className="text-sm font-semibold">Highlights <span className="font-normal text-gray-500">{displayedCount ?? ''}</span></h2>
+              <h2 className="text-sm font-semibold">Highlights <span className="font-normal text-gray-500">{count ?? ''}</span></h2>
               <Button type="button" variant="ghost" size="icon-sm" aria-label="Close highlights" disabled={saving||dirty} onClick={close}><X /></Button>
             </div>
         <div className="flex shrink-0 flex-col gap-3 p-3">

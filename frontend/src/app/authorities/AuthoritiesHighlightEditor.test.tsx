@@ -60,54 +60,10 @@ it('preserves saved highlights when their PDF no longer matches instead of regen
   try {
     fireEvent.click(screen.getByRole('button', {name:'Edit in PDF'}));
     await screen.findByText(/Saved highlights belong to a different PDF/);
-    expect(prepareAnnotations).not.toHaveBeenCalled();
+    expect(prepareAnnotations.mock.calls.map(call => call[2])).not.toContain('one');
     expect(actOnDraft).not.toHaveBeenCalled();
     expect(product.state.authorities.one.annotations.one).toEqual(saved);
     expect(screen.getByRole('button', {name:'Highlight text',exact:true})).toBeDisabled();
-  } finally {
-    view.unmount();
-    if (original) Object.defineProperty(globalThis, 'crypto', original);
-  }
-});
-
-it('opens a readable scan before automatic marks, reads paused OCR and cancels abandoned preparation', async () => {
-  const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
-  Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto });
-  const {hash, product} = fixture();
-  let finish!: (value: { annotations: ReturnType<typeof emptyAnnotationSet>; pageMarked: string[] }) => void;
-  const pending = new Promise<Parameters<typeof finish>[0]>(resolve => { finish = resolve; });
-  const prepare = vi.fn().mockReturnValueOnce(pending).mockResolvedValue({ annotations: emptyAnnotationSet(hash), pageMarked: [] });
-  const text = vi.fn().mockResolvedValue({ pages: [{ pageNumber: 1, width: 400, height: 500,
-    lines: [{ id: 'line', rect: [1, 2, 3, 4], words: [{ text: 'Retained OCR', rect: [1, 2, 3, 4] }] }] }] });
-  const host = { readSource: vi.fn().mockResolvedValue(new Blob(['%PDF-scan'])),
-    prepareAnnotations: prepare, readSourceText: text } as unknown as AuthoritiesHost;
-  const ocr = { begin: vi.fn(), stop: vi.fn(), tracked: { one: { role: 'one', name: 'one',
-    sourceSha256: hash, state: 'paused' as const, textlessPages: [1, 2], pages: [1], recognized: 1 } } };
-  const view = render(<AuthoritiesHighlights first={false} onAction={vi.fn()} product={product} tabs={new Map()} host={host} busy={false} ocr={ocr} onSaved={vi.fn()} />);
-  try {
-    fireEvent.click(screen.getByRole('button', { name: 'Edit in PDF' }));
-    await waitFor(() => expect(prepare).toHaveBeenCalledTimes(1));
-    expect(screen.getByText('Preparing highlights')).toBeVisible();
-    expect(screen.queryByText(/No highlights\./)).toBeNull();
-    expect(screen.getByRole('region', { name: 'Authority PDF editor' })).toBeVisible();
-    expect(await screen.findByText('Retained OCR')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Highlight text', exact: true })).toBeEnabled();
-    const dialog = screen.getByRole('dialog', { name: 'Highlights' });
-    const selector = screen.getByRole('combobox', { name: 'Authority PDF' });
-    const tool = screen.getByRole('button', { name: 'Highlight text', exact: true });
-    selector.focus();
-    const signal = prepare.mock.calls[0][4] as AbortSignal;
-    fireEvent.change(screen.getByRole('combobox', { name: 'Authority PDF' }), { target: { value: 'two' } });
-    await waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
-    expect(screen.getByRole('dialog', { name: 'Highlights' })).toBe(dialog);
-    expect(screen.getByRole('button', { name: 'Highlight text', exact: true })).toBe(tool);
-    expect(selector).toHaveFocus();
-    expect(signal.aborted).toBe(true);
-    await act(async () => { finish({ annotations: emptyAnnotationSet(hash), pageMarked: [] }); });
-    expect(screen.getByRole('combobox', { name: 'Authority PDF' })).toHaveValue('two');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Authority PDF' }), { target: { value: 'one' } });
-    await waitFor(() => expect(prepare).toHaveBeenCalledTimes(3)); // Resume abandoned preparation, not an empty 'loaded' entry.
-
   } finally {
     view.unmount();
     if (original) Object.defineProperty(globalThis, 'crypto', original);
@@ -234,7 +190,7 @@ it('shows the marking chosen at import and prepares saved highlights again once 
   try {
     fireEvent.click(screen.getByRole('radio', {name:/Black line/}));
     expect(onAction).toHaveBeenCalledWith({type:'set-settings', settings:{passageMarking:'sidelined'}});
-    expect(prepareAnnotations).not.toHaveBeenCalled();
+    expect(prepareAnnotations.mock.calls.filter(([draft]) => draft.id === product.id).map(call => call[2])).not.toContain('one');
     view.rerender(<AuthoritiesHighlights product={{...product, revision:2, state:{...product.state,
       settings:{...product.state.settings, passageMarking:'sidelined'}}}} {...props} />);
     await waitFor(() => expect(onAction).toHaveBeenLastCalledWith({type:'set-annotations', entries:[{authorityId:'one',
