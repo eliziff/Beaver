@@ -15,7 +15,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium } from "@playwright/test";
-import { A2AJ_CASES, a2ajRecord, writeFixtures } from "./authorities-html-e2e/fixtures.mjs";
+import { A2AJ_CASES, a2ajRecord, BRIEF, writeFixtures } from "./authorities-html-e2e/fixtures.mjs";
 import { instrument } from "./authorities-html-e2e/instrument.mjs";
 import { flatOutline, readDocx, readPdf } from "./authorities-html-e2e/outputs.mjs";
 
@@ -188,6 +188,23 @@ function Run(page, mode) {
     }
     await page.setViewportSize({ width: 1440, height: 900 }); await settle();
   }
+  /** Each row's tab label (its first cell) shows whole inside its row and list, in one column shared by every row. */
+  const tabColumn = (label, rows) => resizing(async () => {
+    for (const width of [1440, 1280, 1024]) {
+      await page.setViewportSize({ width, height: 900 }); await settle();
+      const cells = await rows.evaluateAll((rows) => rows.map((row) => {
+        const cell = row.firstElementChild, text = document.createRange(), box = cell.getBoundingClientRect();
+        text.selectNodeContents(cell);
+        const right = Math.max(box.right, ...[...text.getClientRects()].map((rect) => rect.right));
+        return { label: cell.innerText, column: `${Math.round(box.left)}+${Math.round(box.width)}`, past: Math.max(cell.scrollWidth - cell.clientWidth,
+          right - row.getBoundingClientRect().right, right - row.parentElement.getBoundingClientRect().right) };
+      }));
+      check(cells.length && cells.every(({ past }) => past <= 0) && new Set(cells.map(({ column }) => column)).size === 1,
+        `${mode} ${label}: tab labels sit whole in one column inside their rows at ${width}px`, cells);
+    }
+    await page.setViewportSize({ width: 1440, height: 900 }); await settle();
+  });
+  const bookRows = () => page.getByRole("heading", { name: "Cover and index" }).locator("xpath=..").locator(":scope > .divide-y > div");
   /** Runs `action` and returns what the page measured meanwhile, once its effects have painted. */
   async function measure(label, action, { rest = 250, listChanges = false } = {}) {
     const from = await now();
@@ -268,15 +285,16 @@ function Run(page, mode) {
     await noHorizontalScroll("start");
   };
 
-  /** Import: the import options, then the outputs, then the review. */
-  async function importBrief(file, label, outputs) {
+  /** Import: the court and source handling only, then the review. Highlighting is chosen on the
+   *  Highlights step and the outputs at Build. */
+  async function importBrief(file, label) {
     await pick(() => button("Add file").click(), [file]);
-    await page.getByRole("dialog", { name: "Import options" }).waitFor();
+    const setup = page.getByRole("dialog", { name: "Import options" });
+    await setup.waitFor();
+    check(await setup.getByRole("group").evaluateAll((groups) => groups.map((group) => group.querySelector("legend")?.textContent)
+      .filter(Boolean).join()) === "Source handling" && !await button("Next", setup).count(),
+    `${mode} ${label}: the import asks only the court and source handling`);
     await shots(`${label}-02-import-options`);
-    await button("Next", page.getByRole("dialog")).click();
-    await page.getByRole("dialog", { name: "Outputs" }).waitFor();
-    await outputs();
-    await shots(`${label}-03-outputs`);
     const started = await now();
     await button("Import and review").click();
     await page.locator(".citation-document .citation-band").first().waitFor({ timeout: 60000 });
@@ -436,6 +454,7 @@ function Run(page, mode) {
     for (const name of ["Vavilov", "Oakes", "Jordan"])
       check(await row(name).getByRole("img", { name: "Built from source text" }).count() === 1, `${mode} ${label}: ${name} is provided from A2AJ text`);
     await noFalseOutage(label);
+    await tabColumn(`${label} sources`, page.getByRole("list", { name: "Authority tab slots" }).getByRole("listitem"));
     // The statute through the row's upload menu, the scan through the CanLII row's Upload.
     await pick(async () => {
       await row("Waterways Licensing Act").getByRole("button", { name: /^Upload for/u }).click();
@@ -516,8 +535,14 @@ function Run(page, mode) {
     if (await recognize.count()) check(false, `${mode} ${label}: Next asked to recognize text after recognition finished`);
     await button("Edit in PDF").waitFor();
     note(mode, `${label}-step-highlights`, await now() - started);
+    // The first time a draft reaches Highlights, it is asked how passages are marked.
+    const marking = page.getByRole("group", { name: "Passage marking" });
+    check(await marking.isVisible() && await button("Highlighting options").getAttribute("aria-expanded") === "true",
+      `${mode} ${label}: entering Highlights asks how passages are marked`);
     await shots(`${label}-09-highlights`);
     await noHorizontalScroll(`${label} highlights`);
+    await button("Continue", page.getByRole("region", { name: "Highlights" })).click();
+    await marking.waitFor({ state: "detached" });
     await button("Edit in PDF").click();
     const editor = page.getByRole("dialog", { name: "Highlights" });
     const choice = await editor.getByRole("combobox", { name: "Authority PDF" }).evaluate((select) =>
@@ -552,6 +577,7 @@ function Run(page, mode) {
     if (!scan) {
       await editor.getByRole("button", { name: "Close highlights" }).click();
       await editor.waitFor({ state: "detached" });
+      await remark(label);
       return;
     }
     const scanChoice = await editor.getByRole("combobox", { name: "Authority PDF" }).evaluate((select) =>
@@ -607,6 +633,40 @@ function Run(page, mode) {
       `${mode} ${label}: switching source PDFs in Highlights is steady`, unsteady);
     await editor.getByRole("button", { name: "Close highlights" }).click();
     await editor.waitFor({ state: "detached" });
+    await remark(label);
+  }
+
+  /** The marking reopens from the step at any time. A new one prepares the reviewed highlights
+   *  again and keeps the passage the reviewer added; the first marking is then put back. */
+  async function remark(label) {
+    const step = page.getByRole("region", { name: "Highlights" }), marking = step.getByRole("group", { name: "Passage marking" });
+    await button("Highlighting options", step).click();
+    await marking.waitFor();
+    await shots(`${label}-10c-highlighting-options`);
+    const first = await marking.locator("input:checked").evaluate((input) => input.closest("label").querySelector("[id]").textContent);
+    const mark = async (name) => {
+      const option = marking.getByRole("radio", { name, exact: true });
+      await marking.locator("label", { has: page.getByRole("radio", { name, exact: true }) }).click();
+      // The choice shows once saved, and the cards come back once its highlights are prepared.
+      await page.waitForFunction(([fieldset, input]) => input.checked && !fieldset.disabled,
+        [await marking.elementHandle(), await option.elementHandle()], { timeout: 30000 });
+    };
+    await mark("No passage marks");
+    await button("Edit in PDF").click();
+    const editor = page.getByRole("dialog", { name: "Highlights" });
+    const choice = await editor.getByRole("combobox", { name: "Authority PDF" }).evaluate((select) =>
+      [...select.options].find((option) => option.text.includes("Waterways"))?.value);
+    await editor.getByRole("combobox", { name: "Authority PDF" }).selectOption(choice);
+    await page.waitForFunction(() => document.querySelector("aside[aria-label=Highlights]")?.getAttribute("aria-busy") === "false", null, { timeout: 30000 });
+    await editor.getByText("Preparing highlights").waitFor({ state: "detached", timeout: 30000 });
+    const kept = await editor.locator("aside ul > li").allInnerTexts();
+    check(kept.length === 1 && kept[0].startsWith("Custom highlight"),
+      `${mode} ${label}: a new marking prepares the reviewed highlights again and keeps the one added`, kept);
+    await editor.getByRole("button", { name: "Close highlights" }).click();
+    await editor.waitFor({ state: "detached" });
+    await mark(first);
+    await button("Continue", step).click();
+    await marking.waitFor({ state: "detached" });
   }
 
   async function downloadOutputs(label) {
@@ -650,19 +710,21 @@ function Run(page, mode) {
   }
 
   this.pdfBrief = async () => {
-    await importBrief(fixtures.briefPdf, "pdf", async () => {
-      await page.getByRole("checkbox", { name: "Append the book to the brief" }).check();
-      await page.getByRole("checkbox", { name: "Link citations to their tabs" }).check();
-      await page.getByRole("checkbox", { name: "Link pinpoints to the cited passage" }).check();
-    });
+    await importBrief(fixtures.briefPdf, "pdf");
     const fixed = await review("pdf", true);
     await sources("pdf", fixed);
     await highlights("pdf");
     await button("Next").click();
     await page.getByRole("heading", { name: "Build outputs" }).waitFor();
     await page.getByLabel("Create").selectOption("both");
+    // A PDF brief has no Word copy; its final PDF is chosen here, its brief already a PDF.
+    check(!await page.getByRole("group", { name: "Word copy" }).count(), `${mode}: a PDF brief has no Word copy choice`);
+    await choose(page.getByRole("checkbox", { name: "Make a final PDF" }));
+    await choose(page.getByRole("checkbox", { name: "Link citations to their tabs" }));
+    await choose(page.getByRole("checkbox", { name: "Link pinpoints to the cited passage" }));
     await shots("pdf-11-build");
     await noHorizontalScroll("pdf build");
+    await tabColumn("pdf build", bookRows());
     const files = await build("pdf");
     await shots("pdf-12-built");
     // Every step tab switches at once and leaves the header and the steps where they are.
@@ -692,45 +754,86 @@ function Run(page, mode) {
       }, { once: true, capture: true });
     }));
     // The option's card is its label, and what a reader clicks.
-    await page.locator("label", { has: option }).click();
+    // Its corner, clear of anything else inside it (a card can hold a text box).
+    await option.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } });
     const shown = await painted, name = await option.evaluate((element) => element.labels?.[0]?.textContent?.trim() ?? element.name);
     interactions.push({ label: `choose ${name}`, inputToPaint: shown });
     check(shown < BUDGETS.inputToPaint, `${mode}: "${name}" shows as chosen in ${Math.round(shown)} ms`);
   }
 
+  const dock = () => page.getByRole("complementary", { name: "Outputs" });
+  const dockBox = () => dock().evaluate((element) => { const box = element.getBoundingClientRect();
+    return [box.x, box.y, box.width].map(Math.round).join(","); });
   this.docxBrief = async () => {
     if (await button("New").isEnabled()) await button("New").click();
-    // New drafts start from the last import's choices; this one asks for marks and a table only.
-    await importBrief(fixtures.briefDocx, "docx", async () => {
-      await page.getByRole("radio", { name: "Marked copy and table", exact: true }).check();
-      await page.getByRole("checkbox", { name: "Append the book to the brief" }).uncheck();
-    });
+    await importBrief(fixtures.briefDocx, "docx");
     const fixed = await review("docx", false);
     // The scan stays missing here, so the Word brief builds through the Missing PDFs warning.
     await sources("docx", fixed, false);
     await highlights("docx", false);
     await button("Next").click();
     await page.getByRole("heading", { name: "Build outputs" }).waitFor();
+    // The Word copy and its tab references are two choices; the final PDF is a third, off until chosen.
+    const copy = page.getByRole("group", { name: "Word copy" }), references = page.getByRole("group", { name: "Tab references" });
+    const names = (group) => group.getByRole("radio").evaluateAll((radios) => radios.map((radio) =>
+      document.getElementById(radio.getAttribute("aria-labelledby"))?.textContent));
+    check(JSON.stringify(await names(copy)) === JSON.stringify(["No marks", "Marked copy", "Marked copy and table"]) &&
+      JSON.stringify(await names(references)) === JSON.stringify(["None", "[Tab 1]", "Your wording, then the tab number"]),
+    `${mode}: the Word copy and the tab references are separate choices`, [await names(copy), await names(references)]);
+    check(!await page.getByRole("checkbox", { name: "Make a final PDF" }).isChecked(), `${mode}: the final PDF is off until chosen`);
+    await shots("docx-11-build");
+    await tabColumn("docx build", bookRows());
+    // Typed wording shows as it goes in: the app adds the tab number and the brackets.
+    const words = references.getByRole("textbox", { name: "Words before the tab number" });
+    const custom = "Appellant's Book of Authorities, Tab";
+    await words.fill(` ${custom} `);
+    check(await references.getByText(`[${custom} 1]`, { exact: true }).isVisible(), `${mode}: the custom wording previews what is inserted`);
+    await words.press("Enter"); await idle();
+    // Each combination builds the Word copy it names: Word's citation fields, its table, the tab reference as worded.
+    await page.getByLabel("Create").selectOption("table"); await idle();
+    for (const [mark, fields, toa] of [["No marks", false, false], ["Marked copy", true, false], ["Marked copy and table", true, true]])
+      for (const [reference, text] of [["None", null], ["[Tab 1]", /\[Tab \d\]/gu], [/Your wording/u, /\[Appellant's Book of Authorities, Tab \d\]/gu]]) {
+        await choose(copy.getByRole("radio", { name: mark, exact: true }));
+        await choose(references.getByRole("radio", { name: reference, exact: typeof reference === "string" }));
+        await idle();
+        const label = `docx-${mark.split(" ").at(-1)}-${String(reference).replace(/\W+/gu, "").slice(0, 8) || "tab"}`.toLowerCase();
+        const files = await build(label), word = Object.keys(files).find((name) => name.endsWith(".docx") && !/table-of-authorities/u.test(name));
+        if (!fields && !text) { check(!word, `${mode} ${label}: no marks and no tab references make no Word copy`, Object.keys(files)); continue; }
+        check(!!word, `${mode} ${label}: builds a Word copy`, Object.keys(files));
+        if (!word) continue;
+        const docx = await readDocx(files[word]), all = `${docx.xml}${docx.notes}`, visible = `${docx.text}${docx.noteText}`.replace(/&apos;/gu, "'");
+        const inserted = text ? visible.match(text) ?? [] : visible.match(/\[[^\]]*Tab \d\]/gu) ?? [];
+        check(/TA \\l/u.test(all) === fields && /TOA \\h/u.test(all) === toa && (text ? inserted.length >= 5 : !inserted.length),
+          `${mode} ${label}: TA fields ${fields}, table ${toa}, tab references ${text ?? "none"}`,
+          { word, fields: /TA \\l/u.test(all), toa: /TOA \\h/u.test(all), inserted: inserted.slice(0, 3) });
+      }
     await page.getByLabel("Create").selectOption("both");
-    const marked = await build("docx-marks", /Lakeshore/u);
-    await verifyWordOutputs(marked, false);
-    // Tab references and the final PDF, through the brief saved as PDF. Each choice shows at once
-    // and moves nothing, however the options are set.
-    const options = await frame();
-    await choose(page.getByRole("radio", { name: "Marked copy, table and [Tab 1]" }));
-    await choose(page.getByRole("checkbox", { name: "Append the book to the brief" }));
+    await choose(copy.getByRole("radio", { name: "Marked copy and table", exact: true }));
+    await choose(references.getByRole("radio", { name: "[Tab 1]", exact: true }));
+    // The final PDF, opted into: choosing it and its links moves nothing.
+    const options = await frame(), docked = await dockBox();
+    await choose(page.getByRole("checkbox", { name: "Make a final PDF" }));
     await choose(page.getByRole("checkbox", { name: "Link citations to their tabs" }));
     check(JSON.stringify(await frame()) === JSON.stringify(options), `${mode}: the output options keep the frame still`, [options, await frame()]);
-    await shots("docx-11-build");
+    // Until the brief saved as PDF is added, everything else builds and the final PDF waits, calmly.
+    const pending = await build("docx-pending", /Lakeshore/u);
+    check(!Object.keys(pending).some((name) => /final/iu.test(name)) && Object.keys(pending).some((name) => /book-of-authorities\.pdf$/u.test(name)) &&
+      Object.keys(pending).some((name) => /table-of-authorities\.docx$/u.test(name)), `${mode}: the book, table and Word copy build while the final PDF waits`, Object.keys(pending));
+    check(/Waiting for your brief PDF/u.test(await dock().locator("[data-output=final]").innerText()), `${mode}: the dock shows the final PDF waiting for the brief PDF`);
+    check(!await page.locator("main .text-red-800").filter({ hasText: /brief/iu }).count(), `${mode}: a missing brief PDF is not an error`);
+    check(await dockBox() === docked, `${mode}: the outputs dock stays where it is through a build`, [docked, await dockBox()]);
+    await shots("docx-12-pending");
     await pick(() => page.getByRole("button", { name: "Upload the brief PDF" }).click(), [fixtures.briefPdf]);
     await page.getByRole("button", { name: "Replace the brief PDF" }).waitFor();
     const tabs = await build("docx-tabs", /Lakeshore/u);
-    await shots("docx-12-built");
+    await shots("docx-13-built");
+    check(/Ready/u.test(await dock().locator("[data-output=final]").innerText()) && await dockBox() === docked,
+      `${mode}: the built final PDF shows ready in the dock, which has not moved`);
     await verifyWordOutputs(tabs, true);
     // A Word copy choice changed after the build, then the brief PDF replaced while the choice is
     // still saving (a long brief's saves take a while; here each is held for a second): each is
     // saved in turn, to the draft the one before it made, and neither meets the other as a conflict.
-    const marks = page.getByRole("radio", { name: "Marked copy and table", exact: true });
+    const marks = page.getByRole("radio", { name: "Marked copy", exact: true });
     const revised = path.join(path.dirname(fixtures.briefPdf), "harbourside-brief-revised.pdf");
     await writeFile(revised, await readFile(fixtures.briefPdf));
     await page.evaluate(() => {
@@ -751,7 +854,7 @@ function Run(page, mode) {
     await replaced.waitFor({ timeout: 15_000 }).catch(() => {});
     await idle(); await page.evaluate(() => { window.fetch = window.__e2eFetch; });
     check(await replaced.isVisible(), `${mode}: the brief PDF replaced while a Word copy choice saves is saved after it`,
-      (await page.locator("body").innerText()).match(/[^\n]*(?:draft changed|Brief saved as PDF)[^\n]*\n?[^\n]*/giu));
+      (await page.locator("body").innerText()).match(/[^\n]*(?:draft changed|brief PDF)[^\n]*\n?[^\n]*/giu));
     check(await marks.isChecked(), `${mode}: the Word copy choice outlasts the brief PDF replaced after it`);
   };
 
@@ -776,8 +879,11 @@ function Run(page, mode) {
     check(finalPdf.pageCount === 2 + bookPdf.pageCount, `${mode}: final PDF = 2 brief pages + the book`, [finalPdf.pageCount, bookPdf.pageCount]);
     const finalTabs = flatOutline(finalPdf.outline).filter(({ title }) => /^Tab\b/u.test(title));
     check(finalTabs.length === 5 && finalTabs.every(({ page }, index) => page === tabs[index].page + 2), `${mode}: the final PDF's tab bookmarks follow the brief`, finalTabs.map(({ title, page }) => [title, page]));
-    const links = finalPdf.pages.slice(0, 2).flatMap(({ number, annotations }) => annotations
+    const all = finalPdf.pages.slice(0, 2).flatMap(({ number, annotations }) => annotations
       .filter(({ subtype }) => subtype === "Link").map((link) => ({ ...link, from: number })));
+    // The brief's own web link is kept as it was; every link the final PDF adds jumps inside it.
+    const web = all.filter(({ url }) => url), links = all.filter(({ url }) => !url);
+    check(web.length === 1 && web[0].url === BRIEF.webLink && web[0].from === 1, `${mode}: the brief's own web link is kept`, web);
     check(links.length >= 4, `${mode}: the brief's citations link into the book`, links.length);
     const starts = new Set(finalTabs.map(({ page }) => page)), inBook = (page) => page > 2 && page <= finalPdf.pageCount;
     check(links.every(({ destinationPage }) => inBook(destinationPage)), `${mode}: every link lands in the book`, links.map(({ destinationPage }) => destinationPage));
