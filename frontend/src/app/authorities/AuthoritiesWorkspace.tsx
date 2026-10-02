@@ -427,6 +427,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const importedRole = draft?.state.import.kind === "document"
     ? draft.state.import.bindingRole : undefined;
   const importedIssue = importedRole ? sourceIssues[importedRole] : undefined;
+  // A brief moved or deleted since it was chosen: found again where it is now.
+  const briefMoved = importedIssue?.status === "missing" && importedIssue.reason === "deleted";
   const unreadable = draft && host.requestSourceAccess ? Object.entries(sourceIssues)
     .filter(([, issue]) => relinkable(issue)).flatMap(([role]) => {
       const input = draft.state.bindings[role];
@@ -1082,11 +1084,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     // status or action moves them or the step below.
                     className="gap-3 [&_[role=tab]]:text-sm [&_.tab-list]:w-[min(40rem,60%)] [&_.tab-list]:flex-none [&>[data-tabs-actions]]:min-h-9 [&>[data-tabs-actions]]:min-w-0 [&>[data-tabs-actions]]:flex-1 [&>[data-tabs-actions]]:justify-end"
                     actions={<>{statusLine}
-                      {reviewing && importedRole && importedIssue && host.relinkSource &&
-                        relinkable(importedIssue) && <Button type="button"
+                      {/* The brief itself, unreadable on any step: allowed again, or found where it was moved. */}
+                      {importedRole && host.relinkSource && (relinkable(importedIssue) || briefMoved) && <Button type="button"
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
                         onClick={() => relinkSource(importedRole)}><FilePlus2 />
-                        Allow file access</Button>}
+                        {briefMoved ? "Reconnect" : "Allow file access"}</Button>}
                       <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
                         error={stepError} className="min-w-0" />
                       {/* Every step's Next sits here; the last step keeps its room. */}
