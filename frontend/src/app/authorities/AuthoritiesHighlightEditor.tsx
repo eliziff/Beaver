@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pause, Pencil, Play, Redo2,
+import { ChevronDown, ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pause, Pencil, Play, Redo2,
   Trash2, Undo2, X } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
 import { Button, buttonClassName } from '@/app/components/ui/button';
@@ -536,9 +536,12 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
         <div className="flex shrink-0 flex-col gap-3 p-3">
           <div className="flex min-w-0 items-center gap-1">
             <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||choices.length<2} onClick={()=>go(-1)} title={`Previous: ${neighbour(-1).title}`} aria-label={`Previous authority: ${neighbour(-1).title}`}><ChevronLeft /></Button>
-            <select aria-label="Authority PDF" value={role} disabled={saving} onChange={event=>setRole(event.target.value)}
-              className="h-9 w-full min-w-0 rounded-md border border-gray-400 bg-white px-2 text-sm">
-              {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole}>{choice.title}</option>)}</select>
+            {/* The height of the arrows beside it, its chevron in room of its own so no title runs under it. */}
+            <span className="relative min-w-0 flex-1">
+              <select aria-label="Authority PDF" value={role} disabled={saving} onChange={event=>setRole(event.target.value)}
+                className="h-8 w-full min-w-0 appearance-none truncate rounded-md border border-gray-400 bg-white pl-2 pr-7 text-sm">
+                {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole}>{choice.title}</option>)}</select>
+              <ChevronDown aria-hidden className="pointer-events-none absolute right-2 top-2 size-4 text-gray-700" /></span>
             <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||choices.length<2} onClick={()=>go(1)} title={`Next: ${neighbour(1).title}`} aria-label={`Next authority: ${neighbour(1).title}`}><ChevronRight /></Button>
           </div>
           {/* Three equal cells, so the tools never wrap onto a second row. */}
