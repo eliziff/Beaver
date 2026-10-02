@@ -424,11 +424,12 @@ export async function renderAuthoritySourcePdf(input: {
   };
   const runsText = (runs: Run[]) => runs.map(run => run.text).join("").split(/\s+/u).join(" ").trim();
   const layout = (runs: Run[], size: number, available: number) => {
-    const lines: Run[][] = [[]];
+    // A line opened by a newline starts a paragraph of its own; one opened by wrapping does not.
+    const lines: Array<Run[] & { opens?: boolean }> = [[]];
     let used = 0;
     for (const run of runs) for (const token of pdfText(run.text).split(/(\n|[^\S\n]+)/u)) {
       if (!token) continue;
-      if (token === "\n") { lines.push([]); used = 0; continue; }
+      if (token === "\n") { lines.push(Object.assign([], { opens: true })); used = 0; continue; }
       const whitespace = /^\s+$/u.test(token), text = whitespace ? " " : token;
       const tokenWidth = run.font.widthOfTextAtSize(text, size);
       if (used && used + tokenWidth > available) { lines.push([]); used = 0; }
@@ -462,17 +463,22 @@ export async function renderAuthoritySourcePdf(input: {
     .map(anchor => [anchor.start, anchor.label.split("(").length - 1]));
   const placed: Array<{ start: number; pageIndex: number; note?: string; heading?: number; title?: string }> = [];
   let placing: Omit<(typeof placed)[number], "pageIndex"> | null = null;
-  const draw = (runs: Run[], indent = 0, size = 10.5) => {
+  // Paragraphs sit about half a line apart, whether the source parts them with a blank
+  // line or a single newline; a heading takes a little more above it. A gap never opens a page.
+  const gap = (size: number) => size * .6, atTop = () => y >= height - top;
+  const draw = (runs: Run[], indent = 0, size = 10.5, heading = false) => {
     const leading = size + 4, lines = layout(runs, size, width - left - right - indent);
-    if (lines.length * leading <= height - top - bottom - 18 &&
-      y - lines.length * leading < bottom + 18) { current = page(); y = height - top; }
+    if (heading && !atTop()) y -= gap(size);
+    const extent = lines.length * leading + lines.filter(line => line.opens).length * gap(size);
+    if (extent <= height - top - bottom - 18 && y - extent < bottom + 18) { current = page(); y = height - top; }
     for (const line of lines) {
+      if (line.opens && !atTop()) y -= gap(size);
       if (y < bottom + leading) { current = page(); y = height - top; }
       if (placing) { placed.push({ ...placing, pageIndex: pages.length - 1 }); placing = null; }
       drawLine(line, left + indent, size);
       y -= leading;
     }
-    y -= 9;
+    y -= gap(heading ? 10.5 : size);
   };
   const block = (node: Nodes, indent = 0) => {
     if (node.type === "definition") return;
@@ -520,7 +526,7 @@ export async function renderAuthoritySourcePdf(input: {
       });
       y -= 3;
     } else draw(inline(node, node.type === "heading"), indent,
-      node.type === "heading" ? 17 - node.depth : 10.5);
+      node.type === "heading" ? 17 - node.depth : 10.5, node.type === "heading");
   };
   block(fromMarkdown(input.text, { extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()] }));
   // Headings below the title, then each top-level section titled with its marginal note.
