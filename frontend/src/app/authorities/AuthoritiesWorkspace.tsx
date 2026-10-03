@@ -1,6 +1,6 @@
 import { autoFetchToast } from "../../../../shared/auto-fetch-toast.mjs";
 import { CitationReview } from "./CitationReview";
-import { previewEdit, reviewStep, savedIds, type ReviewStep } from "./reviewEdits";
+import { holds, previewEdit, reviewStep, savedIds, type ReviewStep } from "./reviewEdits";
 import { QuotationReview } from "./QuotationFinding";
 import { StepProgress } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
@@ -549,7 +549,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         step.from = selectedRef.current;
         history.current = { done: [...history.current.done, step], undone: [] };
       }
-      edits.current.push(edit); sourcesRequest.current?.abort();
+      edits.current.push(edit); keepPending(targetId); sourcesRequest.current?.abort();
       setPreview(view); carryOn(action, shown, view); void done?.(view);
     }
     actionQueue.current = actionQueue.current.then(async () => {
@@ -571,6 +571,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           for (const step of [...history.current.done, ...history.current.undone]) Object.assign(step, {
             undo: step.undo.map(renamed), redo: step.redo.map(renamed), target: names.get(step.target) ?? step.target });
           setSelectedId((id) => names.get(id) ?? id);
+          keepPending(targetId);
         }
         if (!adopt(next)) return;
         // A refusal stays on screen only until the next edit lands, never as if that edit failed.
@@ -583,13 +584,30 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           edits.current = edits.current.filter((item) => item !== edit);
           const { done, undone } = history.current, kept = (item: ReviewStep) => item !== edit.step;
           history.current = { done: done.filter(kept), undone: undone.filter(kept) };
-          adopt(draftRef.current);
+          keepPending(targetId); adopt(draftRef.current);
         }
         setError(errorText(caught));
       }
       finally { if (blocking) setPendingActions((count) => Math.max(0, count - 1)); }
     });
   };
+  /** The edits shown but not yet saved, kept by the browser the moment each is made: a reload or a
+   *  closed tab before a save lands loses none of them. */
+  const keepPending = (id: string) => {
+    try {
+      const actions = draftRef.current?.id === id ? edits.current.map(({ action }) => action) : [];
+      if (actions.length) localStorage.setItem(pendingKey(id), JSON.stringify(actions));
+      else localStorage.removeItem(pendingKey(id));
+    } catch { /* Storage refused: the edits still save as they are made. */ }
+  };
+  // A draft that opens makes again the edits its last page showed but had not saved yet.
+  useEffect(() => {
+    const id = draftRef.current?.id;
+    if (!id) return;
+    let pending: AuthoritiesAction[] = [];
+    try { pending = JSON.parse(localStorage.getItem(pendingKey(id)) ?? "[]"); } catch { /* none kept */ }
+    for (const action of pending) if (!holds(editedView(), action)) act(action);
+  }, [draft?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Ctrl+Z takes the last review edit back, and Ctrl+Shift+Z or Ctrl+Y makes it again. Each shows
    *  and saves as any edit does, and selects the citation it was about; where that citation is gone,
    *  the one selected when the edit was made, or else the next one. */
@@ -1859,6 +1877,7 @@ const withProfile = (value: StartPreferences, profileId: AuthoritiesProfileId): 
     value.passageMarking === "none" ? "margin" : value.passageMarking });
 
 const NO_SOURCE_ISSUES: Record<string, AuthoritiesSourceIssue> = {};
+const pendingKey = (id: string) => `beaver.authorities.pending.${id}`;
 const afterPaint = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
 function missingSources(draft: AuthoritiesProduct,
   sourceIssues: Record<string, AuthoritiesSourceIssue> = {}, plan = planAuthorities(draft)) {
