@@ -83,8 +83,8 @@ route/application cleanup is tracked in the
 - `legal-structure` owns provider-neutral legal structure and bounded structure,
   citation, locator, and text-coordinate operations.
 - `legal-pdf-parser` owns PDF extraction, geometry, OCR routing, and PDF
-  witnesses. It pins a gated `legal-structure` revision and contains the single
-  synchronized PDF Inspector branch.
+  witnesses. It uses the local `legal-structure` checkout and contains the single
+  synchronized PDF Inspector lineage.
 - Provider-native facts are preserved. Beaver does not maintain a parallel
   TypeScript structure engine or a lossy universal document AST.
 - Exact source versions, locators, hashes, evidence, mutation manifests, and

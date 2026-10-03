@@ -2,6 +2,7 @@
     "name": "mike",
     "private": true,
     "scripts": {
+        "native:build": "node scripts/native-build.mjs",
         "check:grammar": "node packages/legal-grammar-tables/check.mjs",
         "audit:court-output-sources": "node scripts/audit-court-output-sources.mjs",
         "test:court-output-audit": "node --test scripts/audit-court-output-sources.test.mjs",

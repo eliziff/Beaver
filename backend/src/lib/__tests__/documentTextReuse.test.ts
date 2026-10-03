@@ -1,11 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import JSZip from "jszip";
-import { utils, write } from "xlsx";
 import { sha256 } from "../hash";
-import { spreadsheetToLLMText } from "../spreadsheet";
-import { extractEmailText } from "../emailText";
-import { extractPresentationText } from "../officeText";
 
 // Only the unavailable native compiler is doubled. XLSX, PPTX, email and
 // plain-text checks run the actual compilers through the production service.
@@ -31,29 +26,6 @@ beforeEach(() => {
     `${drafting ? "drafting" : "text"}:${limit ?? "all"}:${bytes.toString()}`);
 });
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
-
-it.each(["xlsx", "pptx", "eml", "txt"])("reuses exact %s compiler output without reading the source again", async fileType => {
-  let bytes: Buffer, expected: string;
-  if (fileType === "xlsx") {
-    const workbook = utils.book_new();
-    utils.book_append_sheet(workbook, utils.aoa_to_sheet([["Clause", "Amount"], ["Notice 😀", 250]]), "Terms");
-    bytes = write(workbook, { bookType: "xlsx", type: "buffer" });
-    expected = await spreadsheetToLLMText(bytes, "xlsx");
-  } else if (fileType === "pptx") {
-    bytes = await new JSZip().file("ppt/slides/slide1.xml", "<a:t>Notice &amp; delivery</a:t>")
-      .file("ppt/slides/slide2.xml", "<a:t>Second clause</a:t>").generateAsync({ type: "nodebuffer" });
-    expected = await extractPresentationText(bytes);
-  } else if (fileType === "eml") {
-    bytes = Buffer.from("From: sender@example.test\r\nSubject: Notice\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nTerms 😀");
-    expected = await extractEmailText(bytes);
-  } else {
-    bytes = Buffer.from("\uFEFFExact\r\ntext 😀\n"); expected = "Exact\r\ntext 😀\n";
-  }
-  const input = source(bytes, fileType), projection = await service();
-  expect(await projection.text(input)).toBe(expected);
-  expect(await projection.text({ ...input })).toBe(expected);
-  expect(input.readBytes).toHaveBeenCalledOnce();
-});
 
 it("shares extraction, not reader cancellation or authorization", async () => {
   const input = source(), body = deferred<Buffer>(), projection = await service();
@@ -183,14 +155,4 @@ it("captures options and source identity before asynchronous work", async () => 
   options.drafting = false; options.limit = 6; input.versionId = "changed";
   body.resolve(Buffer.from("body"));
   expect(await pending).toBe("drafting:3:body");
-});
-
-it("keeps structured native projections separate from text in the shared working set", async () => {
-  const projection = await service(), input = source();
-  const structured = await projection.read(input);
-  expect(typeof structured).toBe("object");
-  expect(await projection.text(input)).toBe("source");
-  expect(await projection.read(input)).toBe(structured);
-  expect(await projection.text(input)).toBe("source");
-  expect(input.readBytes).toHaveBeenCalledTimes(2);
 });

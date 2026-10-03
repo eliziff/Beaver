@@ -4,6 +4,13 @@ frontend/public/pdfjs-standard-fonts/
 out
 build
 target/
+/AuthoritiesHelper/
+/OpenLegalData/
+/legal-structure/
+/legal-pdf-parser/
+/common-law-cite/
+/legal-browser-ocr/
+/mike-workflows/
 
 .env
 .env.*

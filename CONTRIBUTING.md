@@ -13,11 +13,11 @@ stay at the composition boundary. Local hosting, SQLite and filesystem storage
 are existing product capabilities, not a proposed future fork.
 
 Respect [repository ownership](docs/current/local-subrepositories.md). Make shared
-engine changes in their standalone repositories and publish reviewed changes before
-intentionally advancing consumer pins. System workflows belong to the pinned
+engine changes in their standalone `main` checkouts. First-party changes do not
+require consumer pin updates or binding releases. System workflows belong to the
 `mike-workflows` repository; follow its README and contribution/validation rules,
 then refresh Beaver's catalogue with `scripts/build-workflow-catalog.py --bundle`
-using an explicit source commit (see [catalogue operations](docs/current/behavior-contracts.md)).
+from that checkout (see [catalogue operations](docs/current/behavior-contracts.md)).
 Do not edit generated copies as a second source of truth.
 
 Beaver has no user-migration requirement unless a task explicitly requests one.
@@ -56,11 +56,10 @@ cargo check --offline --manifest-path legal-structure/Cargo.toml -p legal-struct
 cargo test --offline --manifest-path legal-structure/Cargo.toml -p legal-structure --lib <test-name>
 ```
 
-When the Node integration itself needs rebuilding, use its existing `iterate`
-profile and ordinary target directory. Point `LEGAL_STRUCTURE_NATIVE` at
-`native/legal-structure-node/target/iterate/<platform-library>` for the focused
-backend test. Keep release optimization and independent corpus gates for the
-candidate, rather than each edit. Do not copy a target into a task scratchpad.
+Rebuild the Node addon only when its Rust source changes. Use `npm run native:build`;
+this fixes the manifest, target directory, profile and environment. UI, TypeScript
+and data-only edits reuse the installed addon. Do not create scratch Cargo manifests
+or publish Python/WASM bindings to test a Node consumer.
 
 From the repository root, select the relevant checks:
 
@@ -105,12 +104,11 @@ instructions for the affected feature profile. Browser/stack prerequisites are i
 [safe local testing](docs/current/safe-local-testing.md) and
 [end-to-end testing](docs/current/e2e-ci.md).
 
-The backend suite also runs the offline citator-graph and A2AJ bulk-import
-builders, which need the shared Python citation runtime pinned in
-`backend/scripts/requirements-citations.txt`. Install it into the `python` on
-`PATH` with `python -m pip install -r backend/scripts/requirements-citations.txt`
-(the source distribution builds with Rust), or install the Windows wheel from
-the same release.
+The Python corpus builders use the local citation source. When testing or
+updating a Python consumer, install it with `python -m pip install
+./common-law-cite/crates/legal-citations-py`. No tag, published package or
+consumer revision update is needed. Node-only changes do not require rebuilding
+or publishing Python/WASM bindings.
 
 Review new test/eval inputs: genuine user prompts and private context must not
 become published fixtures, even through paraphrasing or a machine test. Keep the

@@ -15,6 +15,9 @@ on:
       cloud:
         required: true
         type: boolean
+      repositories:
+        required: true
+        type: string
   workflow_dispatch:
 
 permissions:
@@ -31,13 +34,14 @@ jobs:
     env:
       BEAVER_E2E_MODE: ${{ (inputs.cloud || inputs.native-artifact == '') && 'cloud' || 'local' }}
       PLAYWRIGHT_BASE_URL: http://localhost:3000
+      BEAVER_REPOSITORY_REFS: ${{ inputs.repositories }}
       ANTHROPIC_API_KEY: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && secrets.ANTHROPIC_API_KEY || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - name: Restore pinned native dependencies
-        run: git submodule update --init --recursive -- legal-structure legal-pdf-parser
+      - name: Restore this run's owner source checkouts
+        run: python3 scripts/bootstrap-repositories.py legal-structure legal-pdf-parser common-law-cite
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22

@@ -35,22 +35,15 @@ napi-build = "2"
 [patch.crates-io]
 hayro-jpeg2000 = { git = "https://github.com/LaurenzV/hayro.git", rev = "ff7e2e407f6b9c429b44dc29a851180727892b6c" }
 
-[patch."https://github.com/eliziff/legal-structure-parser.git"]
-legal-structure = { path = "../../legal-structure" }
-
 [profile.dev]
 debug = 0
 
 [profile.release]
 strip = true
+incremental = true
 
 [profile.profiling]
 inherits = "release"
 debug = 1
 strip = false
 
-[profile.iterate]
-inherits = "dev"
-opt-level = 1
-debug-assertions = false
-overflow-checks = false

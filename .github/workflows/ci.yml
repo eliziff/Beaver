@@ -26,6 +26,7 @@ jobs:
       cloud: ${{ steps.scope.outputs.cloud }}
       audit: ${{ steps.scope.outputs.audit }}
       authorities: ${{ steps.scope.outputs.authorities }}
+      repositories: ${{ steps.repositories.outputs.refs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -34,6 +35,10 @@ jobs:
       - run: python3 -m unittest discover -s scripts/tests -p test_ci_scope.py && python3 -m unittest discover -s scripts/tests -p test_native_cache_key.py
       - id: scope
         run: python3 scripts/ci-scope.py
+      - id: repositories
+        if: steps.scope.outputs.backend == 'true' || (github.event_name != 'push' && steps.scope.outputs.application == 'true')
+        name: Resolve owner main branches once for this run
+        run: echo "refs=$(python3 scripts/bootstrap-repositories.py --resolve)" >> "$GITHUB_OUTPUT"
       - name: Check audit failure handling once
         if: steps.scope.outputs.audit != '[]'
         run: node --test scripts/audit-gate.test.mjs
@@ -61,11 +66,13 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true' || (github.event_name != 'push' && needs.changes.outputs.application == 'true')
     runs-on: ubuntu-24.04
+    env:
+      BEAVER_REPOSITORY_REFS: ${{ needs.changes.outputs.repositories }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - run: git submodule update --init --recursive -- legal-structure legal-pdf-parser
+      - run: python3 scripts/bootstrap-repositories.py legal-structure legal-pdf-parser common-law-cite
       - id: identity
         name: Identify native build inputs and Rust toolchain
         run: python3 scripts/native-cache-key.py >> "$GITHUB_OUTPUT"
@@ -88,6 +95,8 @@ jobs:
     needs: [changes, native]
     if: needs.changes.outputs.backend == 'true' || (github.event_name != 'push' && needs.changes.outputs.application == 'true')
     runs-on: ubuntu-24.04
+    env:
+      BEAVER_REPOSITORY_REFS: ${{ needs.changes.outputs.repositories }}
     defaults:
       run:
         working-directory: backend
@@ -95,9 +104,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - name: Restore pinned native dependencies
+      - name: Restore this run's owner source checkouts
         working-directory: .
-        run: git submodule update --init --recursive -- legal-structure legal-pdf-parser
+        run: python3 scripts/bootstrap-repositories.py legal-structure legal-pdf-parser common-law-cite
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
@@ -113,7 +122,7 @@ jobs:
           sudo dpkg -i "$RUNNER_TEMP/pandoc.deb"
       - name: Install shared Python citation runtime
         if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.authorities == 'true'
-        run: python -m pip install -r scripts/requirements-citations.txt
+        run: python -m pip install ../common-law-cite/crates/legal-citations-py
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: native-${{ github.sha }}
@@ -177,6 +186,7 @@ jobs:
       native-artifact: native-${{ github.sha }}
       backend-artifact: backend-${{ github.sha }}
       frontend-artifact: frontend-${{ github.sha }}
+      repositories: ${{ needs.changes.outputs.repositories }}
 
   authorities:
     needs: [changes, native, backend]
@@ -185,3 +195,4 @@ jobs:
     with:
       native-artifact: native-${{ github.sha }}
       backend-artifact: backend-${{ github.sha }}
+      repositories: ${{ needs.changes.outputs.repositories }}

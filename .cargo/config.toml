@@ -1,12 +1,13 @@
 # Keep local compilation from occupying every CPU core. CI may override with -j.
 [build]
 jobs = 1
+target-dir = "native/legal-structure-node/target"
 
 [profile.dev]
-codegen-units = 1
+debug = 0
 
 [profile.release]
-codegen-units = 1
+incremental = true
 
 [env]
 RAYON_NUM_THREADS = { value = "1", force = false }

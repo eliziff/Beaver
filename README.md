@@ -25,8 +25,8 @@ corpus or court-output gate has passed.
 
 The launcher below is Windows/PowerShell. Install Node.js **22.13 or newer**, npm,
 Python **3.11 or newer**, and the Rust toolchain. Restore the checkout using
-[repository setup](docs/current/local-subrepositories.md) first: public submodules
-and the bundled OpenLegalData repository use different initialization paths.
+[repository setup](docs/current/local-subrepositories.md) first:
+`python scripts/bootstrap-repositories.py` clones missing owner checkouts.
 
 From the Beaver root:
 

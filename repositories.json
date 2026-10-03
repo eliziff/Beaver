@@ -1,0 +1,9 @@
+{
+  "AuthoritiesHelper": { "remote": "https://github.com/eliziff/AuthoritiesHelper.git", "branch": "main" },
+  "legal-structure": { "remote": "https://github.com/eliziff/legal-structure-parser.git", "branch": "main" },
+  "legal-pdf-parser": { "remote": "https://github.com/eliziff/legal-pdf-parser.git", "branch": "main" },
+  "common-law-cite": { "remote": "https://github.com/eliziff/common-law-cite.git", "branch": "main" },
+  "legal-browser-ocr": { "remote": "https://github.com/eliziff/legal-browser-ocr.git", "branch": "main" },
+  "mike-workflows": { "remote": "https://github.com/eliziff/mike-workflows.git", "branch": "main" },
+  "OpenLegalData": { "bundle": "subrepos/OpenLegalData.bundle", "branch": "main" }
+}
