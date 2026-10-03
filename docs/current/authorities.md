@@ -96,6 +96,14 @@ boundary and invalidate geometry that no longer describes the same bytes.
 Scanned engine groups without a durable lookup key remain visible under
 document-local review IDs. These IDs do not assert an authority identity or
 merge separate groups; references follow the engine's resolved groups.
+Import reads notes through the engine's authority references (`noteReferences`),
+not its whole note split (`splitNotes`): only a part that cites (a recognized
+citation, a bare citation or a source link) reaches the resolver and the list,
+with just the cited span. Each reference names its authority kind and the
+`link` its citation writes; a consumer can ask for some kinds only, and import
+asks for all. A prose note is never an authority; an ibid after it stays
+unresolved. Ibid looks back only within its own numbering sequence, so an
+unnumbered author's note does not interrupt the numbered notes.
 Supra association uses the indicated note, numbering sequence and written short
 name independently of source URLs. A missing URL does not prevent a detected
 authority from supplying an antecedent. The reference's review span retains the
