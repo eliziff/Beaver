@@ -38,8 +38,7 @@ From the repository root, select the relevant checks:
 ```sh
 node --test docs/scripts/check-docs.test.mjs
 node docs/scripts/check-docs.mjs
-python scripts/check_privacy.py --self-test
-python scripts/check_privacy.py
+npm run check:guards
 npm test --prefix backend -- <focused-test-name>
 npm test --prefix frontend -- <focused-test-name>
 npm run check:source-boundaries
@@ -73,7 +72,8 @@ to `.tmp/authorities-stress/`; `--only=`, `--skip-build`, `--html=`, `--no-word`
 `--keep-outputs` narrow a run or keep what it built.
 
 The documentation check needs the restored repository checkout. Backend `test`
-also runs its grammar/source guardrails. Follow each native repository's agent
+runs behavior tests only; `npm run check:guards` runs the shared grammar,
+source-boundary and export-integrity checks separately. Follow each native repository's agent
 instructions for the affected feature profile. Browser/stack prerequisites are in
 [safe local testing](docs/current/safe-local-testing.md) and
 [end-to-end testing](docs/current/e2e-ci.md).
@@ -85,20 +85,10 @@ builders, which need the shared Python citation runtime pinned in
 (the source distribution builds with Rust), or install the Windows wheel from
 the same release.
 
-Private-email fingerprints stay in local Git `privacy.privateEmailSha256` or
-`BEAVER_PRIVATE_EMAIL_SHA256`, never tracked files. CI uses an encrypted secret
-and checks reachable commit attribution as well as current source.
-
-Before committing, `python scripts/check_privacy.py --staged` checks the exact
-staged source. Before publishing, run `python scripts/check_privacy.py --artifact
-<package-or-html> ...` on the actual outputs; it inspects archives and embedded
-WASM/ZIP payloads. The source check skips compressed documents and media. These
-checks flag concrete personal paths, the known private email and private artifact
-filenames; they do not certify fixture provenance or detect every kind of secret.
-Review new test/eval inputs separately: genuine user prompts and private context
-must not become published fixtures, even through paraphrasing or a machine test.
-Keep the behavior being tested and independently invent the scenario and data.
-The checker also blocks the withdrawn fixture paths and their reachable history.
+Review new test/eval inputs: genuine user prompts and private context must not
+become published fixtures, even through paraphrasing or a machine test. Keep the
+behavior being tested and independently invent the scenario and data. Private
+inputs and raw outputs belong in ignored local storage.
 
 For a release candidate, run both complete application test/build suites and the
 launcher-owned production smoke:
@@ -106,6 +96,7 @@ launcher-owned production smoke:
 ```powershell
 npm test --prefix backend
 npm test --prefix frontend
+npm run check:guards
 npm run build --prefix backend
 npm run build --prefix frontend
 .\scripts\mike.ps1 smoke

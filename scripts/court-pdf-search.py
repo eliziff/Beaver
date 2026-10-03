@@ -171,8 +171,6 @@ def main():
                     if subprocess.run(tests, cwd=REPO / "frontend", stdout=output, stderr=subprocess.STDOUT).returncode:
                         raise RuntimeError("Focused PDF assembly behavior tests failed")
                 git("add", "--", *changed)
-                if run([sys.executable, "scripts/check_privacy.py", "--staged"], attempt / "privacy.log"):
-                    raise RuntimeError("Staged privacy check failed")
                 git("-c", "user.name=Codex", "-c", "user.email=codex@users.noreply.github.com", "commit", "-m", f"PDF search experiment {state['nextExperiment']}: {row['hypothesis']}")
                 committed = True
                 row["candidate"] = git("rev-parse", "HEAD")

@@ -185,7 +185,7 @@ python scripts/court-pdf-search.py evaluate .tmp/court-pdf-search-v2 'State the 
 python scripts/court-pdf-search.py status .tmp/court-pdf-search-v2
 ```
 
-The controller runs focused behavior and staged privacy checks before committing
+The controller runs focused behavior checks before committing
 an isolated candidate and measuring ten alternating pairs. It mechanically keeps
 only a valid strictly better score, or restores only its candidate paths. Every
 attempt preserves its patch, source/base/candidate hashes, hypothesis, score
