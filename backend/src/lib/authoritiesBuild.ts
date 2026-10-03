@@ -944,7 +944,9 @@ async function prepareAuthorityBook(
       const ocrTextByPage = source.authority ? source.ocrTextByPage?.map((text, index) =>
         bookScanPolicy(draft) === "full" || bookScanPolicy(draft) === "cited-pages" && cited.has(index)
           ? pdfNormalized(text).replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?") : "") : undefined;
+      const currency = source.authority?.kind === "legislation" ? statuteCurrency(source.pageTextByPage) : undefined;
       return { key: source.key, name: source.name, italic: source.italic, tab: source.tab, sourceUrl: source.sourceUrl,
+        ...(currency && { note: currency }),
         bytes: await source.document.save({ useObjectStreams: false }),
         pageIndices: source.pageIndices, databaseReference: source.databaseReference, ocrTextByPage, bookmarks,
         ...(source.outline?.length ? { outline: source.outline } : {}) };
@@ -1022,6 +1024,16 @@ export function statuteExcerptSummary(draft: AuthoritiesDraft, authority: Author
   return { pageCount, pages: pages?.length ?? null, placed };
 }
 
+
+const DATE = String.raw`(?:[A-Z][a-z]+\.?\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\.?\s+\d{4}|\d{4}-\d{2}-\d{2})`;
+const CURRENCY = new RegExp(String.raw`\bcurrent\s+(?:(?:to|as\s+of)\s*:?\s*${DATE}|from\s+${DATE}\s+to\s+${DATE})`, "iu");
+/** How current a statute's PDF says it is, in its publisher's words from its first pages ("Current to
+ *  September 21, 2026", "Current as of April 1, 2023", "Current from 1 June 2026 to 30 Sept. 2026");
+ *  nothing where it says nothing. */
+function statuteCurrency(pages?: string[]) {
+  const found = CURRENCY.exec((pages ?? []).slice(0, 3).join("\n").replace(/\s+/gu, " "))?.[0];
+  return found && found.charAt(0).toUpperCase() + found.slice(1);
+}
 
 function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf) {
   if (!source.authority ||
