@@ -53,7 +53,8 @@ test("assistant landing reflows and the mobile sidebar behaves modally", async (
     });
 
     const first = sidebar.getByRole("link", { name: "Beaver" });
-    const last = sidebar.getByRole("link", { name: "Activity log" });
+    const last = sidebar.locator('a[href], button:not([disabled]), input:not([disabled]), [tabindex="0"]')
+        .filter({ visible: true }).last();
     await last.focus();
     await page.keyboard.press("Tab");
     await expect(first).toBeFocused();

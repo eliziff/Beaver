@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 
 process.env.BEAVER_TEST_RUN_ID ??= `playwright-${randomUUID()}`;
+const localSmoke = process.env.BEAVER_E2E_MODE === "local";
 
 /**
  * Run `npx playwright install` to download the browsers.
@@ -29,7 +30,11 @@ export default defineConfig({
         screenshot: "only-on-failure",
     },
 
-    projects: [
+    projects: localSmoke ? [{
+        name: "local-chromium",
+        testMatch: ["assistant-interface.spec.ts", "chat-management.spec.ts", "project-management.spec.ts"],
+        use: { ...devices["Desktop Chrome"] },
+    }] : [
         /* Run the auth setup before all other tests */
         {
             name: "setup",

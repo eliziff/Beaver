@@ -5,6 +5,12 @@ on:
       native-artifact:
         required: true
         type: string
+      backend-artifact:
+        required: true
+        type: string
+      frontend-artifact:
+        required: true
+        type: string
   workflow_dispatch:
 
 permissions:
@@ -41,7 +47,6 @@ jobs:
           npm ci --ignore-scripts
           npm ci --ignore-scripts --prefix backend
           npm ci --ignore-scripts --prefix frontend
-          npm run build:shared
       - name: Gate native citation and quotation semantics
         run: cargo test --locked --manifest-path legal-structure/Cargo.toml --features citator,quote-verification --lib
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -52,16 +57,23 @@ jobs:
       - name: Build native integration for a standalone manual run
         if: inputs.native-artifact == ''
         run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
-      - name: Build both TypeScript surfaces
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: inputs.backend-artifact != ''
+        with:
+          name: ${{ inputs.backend-artifact }}
+          path: .
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: inputs.frontend-artifact != ''
+        with:
+          name: ${{ inputs.frontend-artifact }}
+          path: frontend/dist
+      - name: Build both TypeScript surfaces for a standalone manual run
+        if: inputs.backend-artifact == ''
         run: |
           npm run build --prefix backend
           npm run build --prefix frontend
-      - name: Verify shared behavior and deployment boundaries
-        run: |
-          npm run check:source-boundaries
-          (cd backend && npx vitest run authorities authorityPdfText a2aj.test quoteRepair structureNativeAuthorityTextUnits --maxWorkers=2)
-          (cd frontend && npx vitest run authorities PdfView pdfAnnotations inspectPdf prepareDeviceFile table-of-authorities --maxWorkers=2)
-          npm run test:authorities-package
+      - name: Verify package assembly
+        run: npm run test:authorities-package
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Verify visual quotation review and editable PDF highlights

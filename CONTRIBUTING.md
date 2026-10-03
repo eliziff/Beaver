@@ -29,6 +29,10 @@ private documents, local stores, model packs or disposable benchmark output.
 
 Choose the smallest real behavior check that can catch the change. Tests should
 prove public outcomes or resulting state, not replay stubs or internal call order.
+Prefer a small set of production-path end-to-end flows over mocked happy-path
+suites. Keep focused independent algorithm/corpus tests and doubles for expensive
+providers or hard-to-trigger failure and race cases. Delete superseded mock tests
+when the real flow covers their contract.
 During iteration, use focused tests and affected-crate checks; build the integration
 boundary once the candidate is ready. Preserve exact corpus/release gates for
 native semantic changes.

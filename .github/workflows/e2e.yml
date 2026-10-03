@@ -6,6 +6,15 @@ on:
       native-artifact:
         required: true
         type: string
+      backend-artifact:
+        required: true
+        type: string
+      frontend-artifact:
+        required: true
+        type: string
+      cloud:
+        required: true
+        type: boolean
   workflow_dispatch:
 
 permissions:
@@ -20,6 +29,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
+      BEAVER_E2E_MODE: ${{ (inputs.cloud || inputs.native-artifact == '') && 'cloud' || 'local' }}
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       ANTHROPIC_API_KEY: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && secrets.ANTHROPIC_API_KEY || '' }}
     steps:
@@ -36,6 +46,7 @@ jobs:
       - run: npm ci --ignore-scripts --prefix backend
       - run: npm ci --ignore-scripts --prefix frontend
       - name: Install document conversion dependency
+        if: env.BEAVER_E2E_MODE == 'cloud'
         run: |
           curl -fsSL https://github.com/jgm/pandoc/releases/download/3.10/pandoc-3.10-1-amd64.deb -o "$RUNNER_TEMP/pandoc.deb"
           echo "d502599878eb29af3ae5f0cb5d559134df96534125d452c7a0674a5bad2c5ecf  $RUNNER_TEMP/pandoc.deb" | sha256sum --check
@@ -50,7 +61,23 @@ jobs:
         run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
       - run: npx playwright install --with-deps chromium
 
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: inputs.backend-artifact != ''
+        with:
+          name: ${{ inputs.backend-artifact }}
+          path: .
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: inputs.frontend-artifact != ''
+        with:
+          name: ${{ inputs.frontend-artifact }}
+          path: frontend/dist
+      - run: npm run build --prefix frontend
+        if: inputs.frontend-artifact == ''
+      - run: npm run build --prefix backend
+        if: inputs.backend-artifact == ''
+
       - name: Start object storage
+        if: env.BEAVER_E2E_MODE == 'cloud'
         run: |
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=minioadmin \
@@ -64,15 +91,18 @@ jobs:
             AWS_DEFAULT_REGION=us-east-1 aws --endpoint-url http://localhost:9000 \
             s3 mb s3://mike
 
-      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+      - if: env.BEAVER_E2E_MODE == 'cloud'
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
         with:
           version: 2.115.0
       - name: Start database
+        if: env.BEAVER_E2E_MODE == 'cloud'
         run: |
           supabase init --force --with-vscode-settings=false || supabase init --force
           supabase start
 
       - name: Configure Beaver
+        if: env.BEAVER_E2E_MODE == 'cloud'
         run: |
           API_URL=$(supabase status -o json | jq -r '.API_URL')
           PUBLISHABLE_KEY=$(supabase status -o json | jq -r '.ANON_KEY')
@@ -107,6 +137,7 @@ jobs:
           } >> backend/.env
 
       - name: Verify cloud persistence contracts
+        if: env.BEAVER_E2E_MODE == 'cloud'
         env:
           S3_CONTRACT_TEST: "true"
           S3_ENDPOINT: http://localhost:9000
@@ -117,8 +148,13 @@ jobs:
           S3_FORCE_PATH_STYLE: "true"
         run: npm run test:stack --prefix backend
 
-      - run: npm run build --prefix frontend
-      - run: npm run build --prefix backend
+      - name: Configure account-free browser smoke
+        if: env.BEAVER_E2E_MODE == 'local'
+        run: |
+          printf '%s\n' 'AUTH_MODE=local' 'NODE_ENV=test' 'PORT=3000' \
+            'PUBLIC_ORIGIN=http://localhost:3000' "MIKE_LOCAL_DATA_DIR=$RUNNER_TEMP/browser-data" \
+            'ANTHROPIC_API_KEY=' > backend/.env
+
       - name: Start Beaver
         run: npm run start --prefix backend &
       - name: Wait for Beaver

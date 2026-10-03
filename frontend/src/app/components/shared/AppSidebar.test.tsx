@@ -2,7 +2,6 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor,
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -111,37 +110,6 @@ describe("AppSidebar", () => {
     expect(onToggle).toHaveBeenCalledOnce();
   });
 
-  it("contains mobile focus, closes on Escape, and restores the opener", async () => {
-    const opener = document.createElement("button");
-    opener.textContent = "Open sidebar";
-    document.body.append(opener);
-    opener.focus();
-    const onToggle = vi.fn();
-    const { rerender } = render(sidebar(true, onToggle));
-
-    const dialog = screen.getByRole("dialog", { name: "Navigation" });
-    expect(dialog).toHaveAttribute("aria-modal", "true");
-    const close = within(dialog).getByRole("button", {
-      name: "Close sidebar",
-    });
-    await waitFor(() => expect(close).toHaveFocus());
-
-    const first = within(dialog).getByRole("link", { name: "Beaver" });
-    const last = within(dialog).getByRole("button", { name: "Uploads" });
-    last.focus();
-    fireEvent.keyDown(dialog, { key: "Tab" });
-    expect(first).toHaveFocus();
-    first.focus();
-    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
-    expect(last).toHaveFocus();
-
-    fireEvent.keyDown(dialog, { key: "Escape" });
-    expect(onToggle).toHaveBeenCalledOnce();
-    rerender(sidebar(false, onToggle));
-    await waitFor(() => expect(opener).toHaveFocus());
-    opener.remove();
-  });
-
   it("keeps workspace links visible and resumes Assistant after visiting a tool", () => {
     const { rerender } = render(sidebar(false));
     expect(screen.getByRole("searchbox", { name: "Search history" })).toBeInTheDocument();
@@ -179,81 +147,6 @@ describe("AppSidebar", () => {
     expect(result).toHaveAttribute("href", "/assistant/chat/older-chat");
     fireEvent.click(result);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("moves an Assistant chat through the shared project chooser", async () => {
-    render(sidebar(false));
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Move Assistant matter to project",
-      }),
-    );
-    const chooser = await screen.findByRole("dialog", {
-      name: "Move “Assistant matter” to a project",
-    });
-    fireEvent.click(await within(chooser).findByRole("button", { name: "Matter One" }));
-    fireEvent.click(within(chooser).getByRole("button", { name: "Move chat" }));
-
-    await waitFor(() =>
-      expect(mocks.moveChat).toHaveBeenCalledWith(
-        "assistant-chat",
-        "project-1",
-      ),
-    );
-    expect(chooser).not.toBeInTheDocument();
-    expect(mocks.replace).not.toHaveBeenCalled();
-  });
-
-  it("uses Shift for ranges, Ctrl for toggles, and drags the selection", async () => {
-    render(sidebar(false));
-
-    fireEvent.click(screen.getByRole("link", { name: "Assistant matter" }));
-    fireEvent.click(screen.getByRole("link", { name: "Third matter" }), {
-      shiftKey: true,
-    });
-
-    expect(document.querySelectorAll('[data-selected="true"]')).toHaveLength(3);
-    fireEvent.click(screen.getByRole("link", { name: "Second matter, selected" }), {
-      ctrlKey: true,
-    });
-    expect(document.querySelectorAll('[data-selected="true"]')).toHaveLength(2);
-    fireEvent.click(screen.getByRole("link", { name: "Second matter" }), {
-      ctrlKey: true,
-    });
-
-    const recycle = screen.getByRole("button", {
-      name: "Move 3 selected chats to Recycling bin",
-    });
-    expect(
-      document.querySelectorAll('[data-selected="true"]'),
-    ).toHaveLength(3);
-
-    const values = new Map<string, string>();
-    const dataTransfer = {
-      types: [] as string[],
-      effectAllowed: "none",
-      dropEffect: "none",
-      setData(type: string, value: string) {
-        values.set(type, value);
-        if (!this.types.includes(type)) this.types.push(type);
-      },
-      getData(type: string) {
-        return values.get(type) ?? "";
-      },
-    };
-    fireEvent.dragStart(
-      document.querySelector('[data-chat-id="assistant-chat"]')!,
-      { dataTransfer },
-    );
-    fireEvent.dragEnter(recycle, { dataTransfer });
-    fireEvent.drop(recycle, { dataTransfer });
-
-    await waitFor(() => expect(mocks.deleteChat).toHaveBeenCalledTimes(3));
-    expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat");
-    expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat-2");
-    expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat-3");
-    expect(mocks.replace).toHaveBeenCalledWith("/assistant", { replace: true });
   });
 
   it("opens one Settings modal in cloud mode", async () => {

@@ -23,6 +23,7 @@ jobs:
       backend: ${{ steps.scope.outputs.backend }}
       frontend: ${{ steps.scope.outputs.frontend }}
       application: ${{ steps.scope.outputs.application }}
+      cloud: ${{ steps.scope.outputs.cloud }}
       audit: ${{ steps.scope.outputs.audit }}
       authorities: ${{ steps.scope.outputs.authorities }}
     steps:
@@ -92,7 +93,7 @@ jobs:
 
   backend:
     needs: [changes, native]
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' || (github.event_name != 'push' && needs.changes.outputs.application == 'true')
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -112,11 +113,13 @@ jobs:
       - run: npm ci --prefix .. --ignore-scripts
       - run: npm ci --ignore-scripts
       - name: Install document conversion dependency
+        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.authorities == 'true'
         run: |
           curl -fsSL https://github.com/jgm/pandoc/releases/download/3.10/pandoc-3.10-1-amd64.deb -o "$RUNNER_TEMP/pandoc.deb"
           echo "d502599878eb29af3ae5f0cb5d559134df96534125d452c7a0674a5bad2c5ecf  $RUNNER_TEMP/pandoc.deb" | sha256sum --check
           sudo dpkg -i "$RUNNER_TEMP/pandoc.deb"
       - name: Install shared Python citation runtime
+        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.authorities == 'true'
         run: python -m pip install -r scripts/requirements-citations.txt
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -124,14 +127,24 @@ jobs:
           path: native/legal-structure-node/target/release
       - run: npm run build
       - run: npm test
+        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.authorities == 'true'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: github.event_name != 'push'
+        with:
+          name: backend-${{ github.sha }}
+          path: |
+            backend/dist
+            shared/runtime
+          if-no-files-found: error
+          retention-days: 1
       - name: Check shared boundaries when frontend validation is unnecessary
         if: needs.changes.outputs.frontend != 'true'
         run: npm run check:guards:core --prefix ..
 
   frontend:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
+    if: needs.changes.outputs.frontend == 'true' || (github.event_name != 'push' && needs.changes.outputs.application == 'true')
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
@@ -148,21 +161,36 @@ jobs:
         run: npm ci --prefix .. --ignore-scripts
       - run: npm ci --ignore-scripts
       - run: npm test
+        if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.authorities == 'true'
       - run: npm run lint
+        if: needs.changes.outputs.frontend == 'true'
       - run: git submodule update --init --depth 1 -- legal-structure
       - run: npm run check:guards --prefix ..
+        if: needs.changes.outputs.frontend == 'true'
       - run: npm run build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: github.event_name != 'push'
+        with:
+          name: frontend-${{ github.sha }}
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 1
 
   e2e:
-    needs: [changes, native]
+    needs: [changes, native, backend, frontend]
     if: github.event_name != 'push' && needs.changes.outputs.application == 'true'
     uses: ./.github/workflows/e2e.yml
     with:
+      cloud: ${{ fromJSON(needs.changes.outputs.cloud) }}
       native-artifact: native-${{ github.sha }}
+      backend-artifact: backend-${{ github.sha }}
+      frontend-artifact: frontend-${{ github.sha }}
 
   authorities:
-    needs: [changes, native]
+    needs: [changes, native, backend, frontend]
     if: github.event_name != 'push' && needs.changes.outputs.authorities == 'true'
     uses: ./.github/workflows/authorities-parity.yml
     with:
       native-artifact: native-${{ github.sha }}
+      backend-artifact: backend-${{ github.sha }}
+      frontend-artifact: frontend-${{ github.sha }}
