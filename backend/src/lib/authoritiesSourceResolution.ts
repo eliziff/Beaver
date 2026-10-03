@@ -1,6 +1,7 @@
 import { ApplicationError } from "./applicationError";
 import { authorityCitationServices, editAuthoritiesDraft } from "./authoritiesActions";
 import { renderAuthoritySourcePdf } from "./authoritiesBuild";
+import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
   type AuthoritiesDraft, type AuthorityIdentity, type AuthoritySourceLookupFailure } from "./authoritiesDomain";
@@ -71,6 +72,7 @@ export type PreparedAuthoritySource = {
   sourceUrl: string | null;
   origin: "original" | "reconstructed";
   language: "en" | "fr" | "bilingual";
+  pageCount?: number;
 };
 
 /** A single-authority retry asks again for a publisher PDF or for a lookup that went unanswered. */
@@ -285,14 +287,17 @@ export async function resolveAuthoritiesSources(
         if (publisher && error.reason !== "failed") blockedPublishers.set(publisher, error.reason);
       }
     }
-    let reconstructed: Buffer | null = null;
+    let reconstructed: Awaited<ReturnType<typeof renderAuthoritySourcePdf>> | null = null;
     if (reconstruct && !original && source.searchText.trim()) try {
       reconstructed = await renderAuthoritySourcePdf({ kind: authority.kind,
         name: source.name, citation: source.citation, date: source.date,
         sourceUrl: source.publisherUrl ?? source.url, text: source.searchText });
     } catch { signal?.throwIfAborted(); }
     // A text rebuild stands in for the original, and the row still says why the original is not there.
-    return { ...item, original, stopped, bytes: original?.bytes ?? reconstructed };
+    // A statute's length decides how its book copy is made, so it is recorded with it.
+    return { ...item, original, stopped, bytes: original?.bytes ?? reconstructed?.bytes,
+      pageCount: !original ? reconstructed?.pageCount : authority.kind === "legislation"
+        ? await validateAuthoritiesPdf(original.bytes).catch(() => undefined) : undefined };
   };
   // A few publishers are fetched at once, each publisher's PDFs one after another: no site is
   // asked more often than before, and one that challenges is not asked again in this run.
@@ -307,7 +312,7 @@ export async function resolveAuthoritiesSources(
   await mapBounded([...publishers.values()], async (indices) => {
     for (const index of indices) prepared[index] = await prepareSource(languageSources[index]);
   }, 3);
-  for (const { authorityId, source, paired, original, bytes } of prepared) {
+  for (const { authorityId, source, paired, original, bytes, pageCount } of prepared) {
     if (!bytes) continue;
     const digest = sha256(bytes);
     const sameOriginal = original && paired && attachments.find(item =>
@@ -324,7 +329,7 @@ export async function resolveAuthoritiesSources(
       sourceSha256: digest, sourceUrl: original
         ? original.url ?? source.verifiedPdf?.url ?? source.publisherUrl ?? source.url
         : source.publisherUrl ?? source.url ?? null,
-      origin: original ? "original" : "reconstructed", language: source.language });
+      origin: original ? "original" : "reconstructed", language: source.language, ...(pageCount && { pageCount }) });
   }
   for (const authorityId of new Set(prepared.map(item => item.authorityId))) {
     const stopped = prepared.find(item => item.authorityId === authorityId && item.stopped)?.stopped;

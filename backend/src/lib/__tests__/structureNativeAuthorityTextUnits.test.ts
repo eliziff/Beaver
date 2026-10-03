@@ -176,7 +176,7 @@ it("places a paragraph range from its first paragraph to its last, short ends an
   // Paragraph 20 quotes an earlier panel's paragraphs 9 and 10, so those numbers are printed twice.
   const quoting = "[20] The board adopted the reasons of an earlier panel, which said:\n[9] A schedule that a " +
     "ferry cannot keep is no schedule at all.\n[10] Nor is a tariff that no wharf will honour.";
-  const bytes = await renderAuthoritySourcePdf({ kind: "case", name: "Harbourview Ferries v Tidewater Authority",
+  const { bytes } = await renderAuthoritySourcePdf({ kind: "case", name: "Harbourview Ferries v Tidewater Authority",
     citation: "2031 NSCA 12", date: null, sourceUrl: null, text: Array.from({ length: 30 }, (_, index) =>
       index === 19 ? quoting : paragraph(index + 1)).join("\n\n") });
   const document = await structureNative().derivePdfDocument(bytes, {});
@@ -268,7 +268,7 @@ it("locates a rebuilt statute's sections and subsections, and reads its pages in
   const provisions = Array.from({ length: 12 }, (_, index) => `**Rule ${index + 1}**\n\n**${index + 1}** (1) ` +
     `The harbour authority sets rule ${index + 1} for vessels at berth.\n\n(2) A master may ask for ` +
     `an exemption from rule ${index + 1} in writing.`).join("\n\n");
-  const bytes = await renderAuthoritySourcePdf({ kind: "legislation", name: "Harbour Berths Act",
+  const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: "Harbour Berths Act",
     citation: "SC 2031, c 7", date: null, sourceUrl: null, text: `## Berths\n\n${provisions}` });
   const native = structureNative(), document = await native.derivePdfDocument(bytes, {});
   const texts = native.pdfPageTexts(document);

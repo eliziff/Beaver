@@ -107,6 +107,8 @@ export type AuthorityIdentity = {
   source: AuthoritySourceDecision;
   highlightExclusions?: AuthorityHighlightExclusion[];
   annotations?: PdfAnnotationSets;
+  /** A statute in the book as an excerpt (true) or whole (false), as chosen; unset, by its length. */
+  excerpt?: boolean;
   userAdded?: true;
   /** Import provenance: detected while scanning, never entered by hand. */
   scanOnly?: true;
@@ -171,6 +173,7 @@ export type AuthoritiesUserAction =
   | { type: "set-stage"; stage: "citations" | "sources" | "highlights" | "build" }
   | { type: "remove-authority"; authorityId: string }
   | { type: "exclude-authority"; authorityId: string; excluded: boolean }
+  | { type: "set-authority-excerpt"; authorityId: string; excerpt: boolean }
   | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;
       citation: string; name: string | null }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }

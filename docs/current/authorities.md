@@ -58,6 +58,18 @@ Drag and keyboard movement change authority order through the same operation.
 Custom tab labels/styles belong to fixed slots, not to the authorities moving
 between them.
 
+A statute goes in the book whole or as an excerpt, chosen on its Sources row and
+kept as `AuthorityIdentity.excerpt`. Without a choice, one whose longest PDF runs
+past `STATUTE_EXCERPT_PAGES` (30, in `shared/authorities-sources.mjs`) is an
+excerpt; each attached source records its `pageCount`, and an older draft reads it
+when the row needs it. An excerpt keeps each PDF's first page, every page a cited
+section, paragraph or page spans in the build's passage geometry, and every marked
+page; with no cited provision placed, the statute goes in whole and its row says so.
+Index ranges, bookmarks (those into pages left out go), marks, recognized text and
+final-PDF destinations follow the pages kept; the Word outputs are unchanged. The
+row's line names what the brief cites, as written, and counts the excerpt from the
+reading the build reuses.
+
 ## Source and quotation review
 
 Citation review renders the retained Word or PDF bytes through the shared document

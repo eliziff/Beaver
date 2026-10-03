@@ -148,6 +148,8 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "remove-authority": return { type, authorityId: text(item.authorityId) };
     case "exclude-authority": return { type, authorityId: text(item.authorityId),
       excluded: typeof item.excluded === "boolean" ? item.excluded : bad() };
+    case "set-authority-excerpt": return { type, authorityId: text(item.authorityId),
+      excerpt: typeof item.excerpt === "boolean" ? item.excerpt : bad() };
     case "set-annotations": {
       if (!Array.isArray(item.entries) || !item.entries.length || item.entries.length > 2_000) return bad();
       return { type, entries: item.entries.map(value => {

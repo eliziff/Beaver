@@ -7,6 +7,7 @@ import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetti
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
 import type { PdfOpening } from "@/app/lib/inspectPdf";
+import type { StatuteExcerptSummary } from "./statuteExcerpts";
 
 /** `autoFetched`: found by auto-fetch rather than chosen, so its citation is checked before it is attached. */
 export type AuthoritiesFile = { file: File; input?: WorkProductInput; autoFetched?: boolean };
@@ -80,6 +81,8 @@ export interface AuthoritiesHost {
   readSource?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Blob>;
   readSourceText?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal, pages?: number[]): Promise<PdfRecognizedText>;
   readSourcePageLabels?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Array<string | null>>;
+  /** What a statute's excerpt holds of one of its PDFs, read as a build of the draft reads it. */
+  statuteExcerpt?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<StatuteExcerptSummary>;
   sourceOcr?: AuthoritiesOcrPort;
   outputFolder?: OutputFolderPort;
 }

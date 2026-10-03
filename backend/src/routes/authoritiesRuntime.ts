@@ -8,8 +8,8 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { ApplicationError, reject } from "../lib/applicationError";
-import { authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations, type AuthoritiesBuildInput } from
-  "../lib/authoritiesBuild";
+import { authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations, statuteExcerptSummary,
+  type AuthoritiesBuildInput } from "../lib/authoritiesBuild";
 import { sourceReadings } from "../lib/sourceReadings";
 import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "../lib/authoritiesBook";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
@@ -67,8 +67,7 @@ function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAut
       { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
         lastSeen: { name: attachment.filename, size: attachment.bytes.length,
           modified: 0, sha256: attachment.sourceSha256 } },
-      attachment.filename, attachment.sourceSha256, attachment.language,
-      attachment.origin, attachment.sourceUrl);
+      attachment.filename, attachment.sourceSha256, attachment.language, attachment);
   }
   return draft;
 }
@@ -189,6 +188,19 @@ export function createAuthoritiesRuntimeRouter(
       signal: abort.signal, ...(progress ? { progress: (done: number, total: number) => progress(`${done}/${total}`) } : {}) });
     res.json({});
   }));
+  // What a statute's excerpt holds of one of its PDFs, from the reading its build shares.
+  router.post("/excerpt", singleFileUpload("file"), asyncRoute(async (req, res) => {
+    const state = draft(json(req.body?.draft, "draft"));
+    const role = String(req.body?.role), bytes = await readFile(requiredFile(req).path);
+    const authority = Object.values(state.authorities).find(item =>
+      attachedAuthoritySources(item.source).some(source => source.bindingRole === role));
+    const source = authority && attachedAuthoritySources(authority.source).find(item => item.bindingRole === role);
+    if (!authority || !source || sha256(bytes) !== source.sourceSha256)
+      return reject(409, "The PDF no longer matches this authority source");
+    const abort = new AbortController(); res.once("close", () => abort.abort());
+    res.json(statuteExcerptSummary(state, authority, source, await authoritiesSourceText(state, readings)(role,
+      { bytes, sourceSha256: source.sourceSha256, signal: abort.signal })));
+  }));
   router.post("/page-labels", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const state = draft(json(req.body?.draft, "draft"));
     const role = String(req.body?.bindingRole);
@@ -304,7 +316,7 @@ export function createAuthoritiesRuntimeRouter(
     const { filename, fileType, bytes, modified } = await standaloneSource(req);
     if (!filename.trim() || filename.length > 500 || /[\u0000-\u001f\u007f]/u.test(filename) ||
         fileType !== "pdf" || bytes.subarray(0, 5).toString("ascii") !== "%PDF-") reject(400, "Add a valid PDF");
-    await validateAuthoritiesPdf(bytes);
+    const pageCount = await validateAuthoritiesPdf(bytes);
     const sourceSha256 = sha256(bytes), binding = { kind: "local-file" as const, handleId: "standalone",
       lastSeen: { name: filename, size: bytes.length, modified, sha256: sourceSha256 } };
     if (req.body?.authority_id !== undefined) {
@@ -313,7 +325,8 @@ export function createAuthoritiesRuntimeRouter(
       const language = (["en", "fr", "bilingual"] as const).find(value => value === req.body.language)
         ?? reject(400, "Choose the PDF language.");
       const checked = req.body.auto_fetched === "true" ? await autoFetchedPdf(current, authority.id, bytes) : current;
-      res.json(attachAuthorityPdf(checked, checked.authorities[authority.id], binding, filename, sourceSha256, language));
+      res.json(attachAuthorityPdf(checked, checked.authorities[authority.id], binding, filename, sourceSha256, language,
+        { pageCount }));
     } else {
       const slot = AUTHORITIES_BOOK_SLOTS.find(value => value === req.body?.slot)
         ?? reject(400, "Book-part slot is invalid");

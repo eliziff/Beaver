@@ -1,6 +1,6 @@
 import { ApplicationError } from "./applicationError";
 
-/** Reject unusable input before it can become a draft's source or attachment. */
+/** Reject unusable input before it can become a draft's source or attachment; returns its length. */
 export async function validateAuthoritiesPdf(bytes: Buffer) {
   const { PDFDocument } = await import("pdf-lib");
   let pageCount;
@@ -14,4 +14,5 @@ export async function validateAuthoritiesPdf(bytes: Buffer) {
   }
   if (!pageCount || pageCount > 2_000)
     throw new ApplicationError(400, "Choose a PDF with between 1 and 2,000 pages.");
+  return pageCount;
 }

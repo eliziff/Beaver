@@ -398,6 +398,12 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const { pageLabels } = await (await runtimeResponse("page-labels", form, false, signal)).json();
     return pageLabels;
   },
+  async statuteExcerpt(draft, role, signal) {
+    const file = await resolveExact(draft.state.bindings[role]);
+    const form = new FormData(); form.append("file", file, file.name);
+    form.append("draft", JSON.stringify(supportedDraft(draft.state))); form.append("role", role);
+    return (await runtimeResponse("excerpt", form, false, signal)).json();
+  },
   async inspectDraft(draft) {
     const role = Object.keys(draft.outputs)[0];
     let outputFreshness: "unbuilt" | "current" | "stale" = role ? "stale" : "unbuilt";

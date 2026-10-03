@@ -5,7 +5,7 @@ const overlap = (a: { start: number; end: number }, b: { start: number; end: num
   Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
 
 /** An edit as the reviewer asked for it, shown while the save that makes it durable runs: the
- * citation's new range, removal or authority, or an output choice. The saved draft then replaces
+ * citation's new range, removal or authority, an output choice, or a statute's excerpt or whole. The saved draft then replaces
  * this view with what the parser makes of the text, its pinpoint included. Other actions have no
  * preview. */
 export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesAction): AuthoritiesProduct | null {
@@ -16,6 +16,11 @@ export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesActi
     return { ...product, state: { ...state, settings: { ...state.settings, ...action.settings } } };
   if (action.type === 'set-document-output') return { ...product, state: { ...state, insertIntoDocument: action.enabled } };
   if (action.type === 'set-output-mode') return { ...product, state: { ...state, outputMode: action.outputMode } };
+  if (action.type === 'set-authority-excerpt') {
+    const authority = state.authorities[action.authorityId];
+    return authority ? { ...product, state: { ...state, authorities: { ...state.authorities,
+      [authority.id]: { ...authority, excerpt: action.excerpt } } } } : null;
+  }
   const item = 'occurrenceId' in action ? occurrences[action.occurrenceId] : undefined;
   const unitId = action.type === 'add-occurrence' ? action.unitId : action.type === 'restore-occurrence'
     ? state.dismissedOccurrences?.[action.occurrenceId]?.occurrence.unitId : item?.unitId;

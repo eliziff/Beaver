@@ -6,8 +6,8 @@ import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFNa
 import { describe, expect, it } from "vitest";
 
 import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests, authorityPassageTargets,
-  buildAuthorities, renderAuthoritySourcePdf } from "./authoritiesBuild";
-import { createAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
+  buildAuthorities, renderAuthoritySourcePdf, statuteExcerptSummary } from "./authoritiesBuild";
+import { attachedAuthoritySources, createAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
 import { fit, renderAuthoritiesBook } from "./authoritiesBook";
@@ -546,7 +546,7 @@ function draft(
 
 describe("Authorities output builder", () => {
   it("renders reconstructed Markdown as styled searchable text without losing literal characters", async () => {
-    const bytes = await renderAuthoritySourcePdf({ kind: "legislation", name: "Example Act",
+    const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: "Example Act",
       citation: "SC 2026, c 1", date: null, sourceUrl: null,
       text: "## Interpretation\n\n**Defined term** means *a person* and ***both styles***.\n\n" +
         "> Quoted provision\n\n7. First item\n8. Second item\n\n" +
@@ -576,7 +576,7 @@ describe("Authorities output builder", () => {
   });
 
   it("renders publisher text containing Unicode punctuation and multiline titles", async () => {
-    const bytes = await renderAuthoritySourcePdf({ kind: "case", name: "A ‑ B\r\nSecond\tline",
+    const { bytes } = await renderAuthoritySourcePdf({ kind: "case", name: "A ‑ B\r\nSecond\tline",
       citation: "2026 SCC 16", date: null, sourceUrl: null,
       text: "The Court said “source text” — not source metadata." });
     const document = await PDFDocument.load(bytes);
@@ -586,7 +586,7 @@ describe("Authorities output builder", () => {
   });
 
   it("gives reconstructed legislation an outline of its headings and sections", async () => {
-    const bytes = await renderAuthoritySourcePdf({ kind: "legislation", name: "Harbour Dues Act",
+    const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: "Harbour Dues Act",
       citation: "SC 2031, c 4", date: null, sourceUrl: null,
       text: "# Harbour Dues Act\n\n## Short Title\n\n**Short title**\n\n**1** This Act is the Harbour Dues Act.\n\n" +
         "## Dues\n\n**Dues payable**\n\n**2** (1) A vessel pays dues\n\n(a) on arrival, or\n\n(b) on departure.\n\n" +
@@ -1522,6 +1522,103 @@ describe("Authorities output builder", () => {
           bytes: decision, pageTextByPage: ["Headnote", "[1] Reasons", "[10] cited", "[11]"] } } });
       expect((await PDFDocument.load(built.artifacts.book!.bytes)).getPageCount()).toBe(6);
     }
+  });
+
+  it("puts a long statute in as its title page, the pages of its cited provisions and the pages marked", async () => {
+    const act = await PDFDocument.load(await sourcePdf("Act", Array.from({ length: 40 }, () => [400, 500] as [number, number])));
+    // The Act's own bookmarks: a Part opening on a page left out, over a heading kept and one left out.
+    pdfAssembly(pdfLibrary).applyOutlines(act, [{ title: "Part 1 General", pageIndex: 2, children: [
+      { title: "Notice", pageIndex: 19 }, { title: "Penalties", pageIndex: 33 }] }], false);
+    const statute = Buffer.from(await act.save());
+    const document = await PDFDocument.create(), page = document.addPage([612, 792]);
+    page.drawText("Waterways Licensing Act, SA 2031, c W-4, s 12(2)", { x: 36, y: 700,
+      font: await document.embedFont(StandardFonts.TimesRoman), size: 12 });
+    for (const [kind, rect] of [["tab", [36, 696, 200, 712]], ["pinpoint", [250, 696, 300, 712]]] as const)
+      page.node.addAnnot(document.context.register(document.context.obj({ Type: "Annot", Subtype: "Link",
+        Rect: [...rect], Border: [0, 0, 0], A: { S: "URI", URI: PDFHexString.fromText(filingLinkUrl(kind, "act:0")) } })));
+    const brief = Buffer.from(await document.save());
+    const local = (name: string, bytes: Uint8Array) => ({ kind: "local-file" as const, handleId: name,
+      lastSeen: { name, size: bytes.length, modified: 1, sha256: sha256(bytes) } });
+    let state = createAuthoritiesDraft({ kind: "document", bindingRole: "source", filename: "Brief.pdf",
+      fileType: "pdf", snapshot: null }, { source: local("Brief.pdf", brief) }, "book");
+    const citation = "SA 2031, c W-4", text = `Waterways Licensing Act, ${citation}, s 12(2)`;
+    state.authorities.act = attached("act", "legislation", citation, "Waterways Licensing Act", "act", statute);
+    state.bindings.act = local("act.pdf", statute);
+    if (state.authorities.act.source.kind === "attached") state.authorities.act.source.sources[0].pageCount = 40;
+    state.authorityOrder = ["act"];
+    state.units = [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null, footnoteRefs: [], pageNumbers: [1],
+      text, occurrenceIds: ["act:0"] }];
+    state.occurrences["act:0"] = { id: "act:0", unitId: "body:0", start: 0, end: text.length, text,
+      authoritySpan: { start: 0, end: text.length - 9, text: text.slice(0, -9) },
+      coreSpan: { start: 25, end: 25 + citation.length, text: citation },
+      pinpointSpan: { start: text.length - 7, end: text.length, text: "s 12(2)" }, kind: "legislation", citation,
+      authorityId: "act", reference: null, pinpoints: [{ kind: "section", text: "12(2)" }], evidenceIds: [],
+      sourceTextSha256: sha256(text), localOrdinal: 0, reviewed: true };
+    Object.assign(state.settings, { finalPdf: true, linkTabs: true, linkPinpoints: true, scannedPdfPolicy: "page-margin" });
+    const geometry = (status: "found" | "missing" = "found"): NativePdfPassageGeometry => ({ ...paragraphGeometry(statute),
+      targets: [{ id: "passage:1", locatorKind: "section", locator: "12(2)", status, pages: status === "missing" ? []
+        : [20, 21].map((pageNumber) => ({ pageNumber, width: 400, height: 500, source: "native" as const,
+          passageRects: [[36, 60, 320, 90]], text: "12 (2) The notice must state the reasons." })), quotes: [] }] });
+    const build = (draft: AuthoritiesDraft, passageGeometry = geometry()) => buildAuthorities({ draft, title: "Licensing",
+      workProduct: { id: "excerpt", revision: 1 }, sources: { source: { bytes: brief }, act: { bytes: statute, passageGeometry } } });
+    // Longer than its default threshold, so an excerpt; read for its provisions whatever is marked.
+    expect([...authoritiesTextRoles({ ...state, settings: { ...state.settings, passageMarking: "none", finalPdf: false } })])
+      .toEqual(["act"]);
+
+    const built = await build(state), book = await PDFDocument.load(built.artifacts.book!.bytes);
+    expect(book.getPageCount()).toBe(5);
+    // What the Sources row says of it, from the same reading.
+    expect(statuteExcerptSummary(state, state.authorities.act, attachedAuthoritySources(state.authorities.act.source)[0],
+      { pageTextByPage: Array.from({ length: 40 }, () => ""), passageGeometry: geometry() }))
+      .toEqual({ pageCount: 40, pages: 3, placed: ["section\u000012(2)"] });
+    [1, 20, 21].forEach((sourcePage, index) => expect(pageContent(book, book.getPage(index + 2)).toUpperCase())
+      .toContain(`<${pdfTextHex(`Act page ${sourcePage}`)}>`));
+    expect(pageContent(book, book.getPage(1)).toUpperCase()).toContain(pdfTextHex("3–5"));
+    expect([3, 4].map((index) => annotSubtypes(book, index))).toEqual([["/Square"], ["/Square"]]);
+    expect(annotSubtypes(book, 2)).toEqual([]);
+    // Bookmarks into pages left out go; the heading and the cited section kept open their pages.
+    const tab = pdfAssembly(pdfLibrary).readOutlines(book).at(-1)!.children![0];
+    expect(tab.children).toEqual([{ title: "Notice", pageIndex: 3 }, { title: "s 12(2)", pageIndex: 3 }]);
+    // The final PDF's pinpoint lands on the section's page inside the excerpt.
+    const combined = await PDFDocument.load(built.artifacts["final-pdf"]!.bytes);
+    const destinations = pageAnnots(combined, 0).map((link) => String(link.lookup(PDFName.of("Dest"), PDFArray).get(0)));
+    expect(destinations).toEqual([String(combined.getPage(3).ref), String(combined.getPage(4).ref)]);
+
+    // The user's own highlight on another page brings that page in.
+    state.authorities.act.annotations = { act: { schemaVersion: "beaver.pdf-annotations.v1", sourceSha256: sha256(statute),
+      marks: [{ id: "own", kind: "highlight", origin: "manual", label: "Custom highlight", excerpt: "penalty",
+        rgb: [1, .92, .6], opacity: .45, fragments: [{ pageNumber: 30, rects: [[.1, .1, .5, .2]] }] }] } };
+    const marked = await PDFDocument.load((await build(state)).artifacts.book!.bytes);
+    expect(marked.getPageCount()).toBe(6);
+    expect(pageContent(marked, marked.getPage(5)).toUpperCase()).toContain(`<${pdfTextHex("Act page 30")}>`);
+    expect(annotSubtypes(marked, 5)).toEqual(["/Highlight"]);
+    delete state.authorities.act.annotations;
+
+    // Chosen whole, or with no cited provision placed, it goes in whole.
+    expect((await PDFDocument.load((await build(state, geometry("missing"))).artifacts.book!.bytes)).getPageCount()).toBe(42);
+    state = reduceAuthoritiesDraft(state, { type: "set-authority-excerpt", authorityId: "act", excerpt: false });
+    expect((await PDFDocument.load((await build(state)).artifacts.book!.bytes)).getPageCount()).toBe(42);
+    expect([...authoritiesTextRoles({ ...state, settings: { ...state.settings, passageMarking: "none", finalPdf: false } })])
+      .toEqual([]);
+  });
+
+  it("puts a short statute in whole unless an excerpt is chosen", async () => {
+    const statute = await sourcePdf("Short Act", Array.from({ length: 4 }, () => [400, 500] as [number, number]));
+    let state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.act = attached("act", "legislation", "SA 2031, c W-4", "Short Act", "act", statute);
+    state.authorities.act.locators = [{ kind: "section", label: "3" }];
+    state.authorityOrder = ["act"];
+    state.bindings.act = { kind: "local-file", handleId: "act", lastSeen: { name: "act.pdf", size: statute.length,
+      modified: 1, sha256: sha256(statute) } };
+    const passageGeometry: NativePdfPassageGeometry = { ...paragraphGeometry(statute), targets: [{ id: "passage:1",
+      locatorKind: "section", locator: "3", status: "found", pages: [{ pageNumber: 3, width: 400, height: 500,
+        source: "native", passageRects: [[36, 60, 320, 90]] }], quotes: [] }] };
+    const pages = async (draft: AuthoritiesDraft) => (await PDFDocument.load((await buildAuthorities({ draft,
+      title: "Short", workProduct: { id: "short", revision: 1 }, sources: { act: { bytes: statute, passageGeometry } } }))
+      .artifacts.book!.bytes)).getPageCount();
+    expect(await pages(state)).toBe(6);
+    state = reduceAuthoritiesDraft(state, { type: "set-authority-excerpt", authorityId: "act", excerpt: true });
+    expect(await pages(state)).toBe(4);
   });
 
   it("resolves printed report pages from the shared map and never guesses physical offsets", async () => {

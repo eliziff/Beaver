@@ -80,15 +80,15 @@ export function applyAuthoritiesInitialSettings(
 
 export function attachAuthorityPdf(draft: AuthoritiesDraft, authority: AuthorityIdentity,
   binding: WorkProductInput, filename: string,
-  sourceSha256: string, language: AuthoritySourceLanguage,
-  origin: "manual" | "original" | "reconstructed" = "manual",
-  sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
-    : attachedAuthoritySources(authority.source).find(source => source.language === language)?.sourceUrl
-      ?? authority.sourceIdentity?.externalUrl ?? null) {
+  sourceSha256: string, language: AuthoritySourceLanguage, { origin = "manual",
+    sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
+      : attachedAuthoritySources(authority.source).find(source => source.language === language)?.sourceUrl
+        ?? authority.sourceIdentity?.externalUrl ?? null, pageCount }: {
+    origin?: "manual" | "original" | "reconstructed"; sourceUrl?: string | null; pageCount?: number } = {}) {
   return updateAuthoritiesDraft(draft, { type: "attach-source", authorityId: authority.id, bindingRole:
     attachedAuthoritySources(authority.source).find(source => source.language === language)?.bindingRole
       ?? unusedRole(draft, `authority:${sha256(authority.key).slice(0, 24)}:${language}`),
-    binding, filename, sourceSha256, sourceUrl, language, origin });
+    binding, filename, sourceSha256, sourceUrl, language, origin, pageCount });
 }
 
 /** A merged-away authority keeps its role inside the survivor, so the same key can recur. */

@@ -130,8 +130,7 @@ export function createAuthoritiesWorkspaceApplication(
         draft = attachSource(draft, draft.authorities[attachment.authorityId],
           { kind: "document", documentId: saved.id,
             version: { versionId: saved.current_version_id, sha256: saved.source_sha256 } },
-          saved.filename, saved.source_sha256, attachment.language,
-          attachment.origin, attachment.sourceUrl);
+          saved.filename, saved.source_sha256, attachment.language, attachment);
       }
       return { draft, created };
     }, "Authority sources could not be saved or rolled back");
@@ -309,11 +308,12 @@ export function createAuthoritiesWorkspaceApplication(
 
   async function uploadPdf(scope: ApplicationScope, id: string,
     input: { revision: number; file: DocumentFile; authorityId?: string; autoFetched?: boolean },
-    attach: (draft: AuthoritiesDraft, binding: WorkProductInput, filename: string, hash: string) => AuthoritiesDraft) {
+    attach: (draft: AuthoritiesDraft, binding: WorkProductInput, filename: string, hash: string,
+      pageCount: number) => AuthoritiesDraft) {
     if (input.file.fileType.toLowerCase() !== "pdf") throw new ApplicationError(400, "Attach a PDF file");
     const { product, draft: opened } = await edit(scope, id, input.revision);
     const bytes = "bytes" in input.file ? input.file.bytes : await readFile(input.file.path);
-    await validateAuthoritiesPdf(bytes);
+    const pageCount = await validateAuthoritiesPdf(bytes);
     const draft = input.autoFetched && input.authorityId !== undefined
       ? await autoFetchedPdf(opened, input.authorityId, bytes) : opened;
     const created = await files.create(scope, "authorities", input.file,
@@ -321,7 +321,7 @@ export function createAuthoritiesWorkspaceApplication(
     return withRollback(scope, [createdDocumentRollback(created)], () => workProducts.save(scope, id,
       { revision: input.revision, state: attach(draft, { kind: "document", documentId: created.id,
         version: { versionId: created.current_version_id, sha256: created.source_sha256 } },
-      created.filename, created.source_sha256) }), "Attaching the PDF could not be completed");
+      created.filename, created.source_sha256, pageCount) }), "Attaching the PDF could not be completed");
   }
 
   return Object.freeze({
@@ -461,8 +461,9 @@ export function createAuthoritiesWorkspaceApplication(
     attachPdf: (scope: ApplicationScope, id: string, input: {
       revision: number; authorityId: string; file: DocumentFile; language: AuthoritySourceLanguage;
       autoFetched?: boolean;
-    }) => uploadPdf(scope, id, input, (draft, binding, filename, hash) =>
-      attachSource(draft, attachableAuthority(draft, input.authorityId), binding, filename, hash, input.language)),
+    }) => uploadPdf(scope, id, input, (draft, binding, filename, hash, pageCount) =>
+      attachSource(draft, attachableAuthority(draft, input.authorityId), binding, filename, hash, input.language,
+        { pageCount })),
     attachBookPdf: (scope: ApplicationScope, id: string, input: {
       revision: number; slot: AuthoritiesBookSlot; file: DocumentFile; supplementId?: string;
     }) => uploadPdf(scope, id, input, (draft, binding, filename, hash) =>
@@ -480,13 +481,13 @@ export function createAuthoritiesWorkspaceApplication(
       }
       const file = await documents.read(scope, input.documentId, input.versionId, false);
       if (!file) throw new ApplicationError(409, "The PDF is no longer available.");
-      await validateAuthoritiesPdf(file.bytes);
+      const pageCount = await validateAuthoritiesPdf(file.bytes);
       const binding = { kind: "document" as const, documentId: input.documentId,
         version: "latest" as const };
       return workProducts.save(scope, id, { revision: input.revision,
         state: input.target.kind === "authority"
           ? attachSource(draft, attachableAuthority(draft, input.target.authorityId), binding,
-            version.filename, version.source_sha256, input.target.language)
+            version.filename, version.source_sha256, input.target.language, { pageCount })
           : attachBookSource(draft, input.target, binding, version.filename,
             version.source_sha256) });
     },
