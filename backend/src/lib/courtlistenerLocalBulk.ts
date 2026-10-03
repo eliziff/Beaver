@@ -73,8 +73,7 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
 }
 
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
-  return withSearchReadonlySqlite(courtlistenerLocalBulkPath(),
-    !process.env.MIKE_COURTLISTENER_BULK_DB?.trim(), operation);
+  return withSearchReadonlySqlite(courtlistenerLocalBulkPath(), operation);
 }
 
 function nullableString(value: unknown) {

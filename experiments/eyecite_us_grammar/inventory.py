@@ -21,8 +21,7 @@ def courtlistener_path() -> Path:
     local = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
     return (
         local
-        / "OpenLegalProducts"
-        / "LegalData"
+        / "OpenLegalData"
         / "providers"
         / "courtlistener"
         / "courtlistener.sqlite"

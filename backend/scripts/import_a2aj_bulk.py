@@ -9,6 +9,7 @@ import os
 import re
 import sqlite3
 import sys
+import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
@@ -336,6 +337,19 @@ def import_database(args: argparse.Namespace) -> None:
                 INSERT INTO document_search(document_search) VALUES('optimize');
                 """
             )
+            for kind, in connection.execute("SELECT DISTINCT doc_type FROM document"):
+                row = connection.execute(
+                    "SELECT id,citation_en,citation_fr FROM document WHERE doc_type=? "
+                    "AND COALESCE(NULLIF(citation_en,''),citation_fr,'')<>'' LIMIT 1", (kind,),
+                ).fetchone()
+                if row:
+                    field, citation = ("citation_en", row[1]) if row[1] else ("citation_fr", row[2])
+                    query = field + ': "' + citation.replace('"', '""') + '"'
+                    if not connection.execute(
+                        "SELECT 1 FROM document_search WHERE document_search MATCH ? AND rowid=?",
+                        (query, row[0]),
+                    ).fetchone():
+                        raise ValueError(f"A2AJ {kind} search publication check failed")
         metadata = {
             "schema_version": "3",
             "imported_at": datetime.now(timezone.utc).isoformat(),
@@ -350,13 +364,24 @@ def import_database(args: argparse.Namespace) -> None:
         connection.commit()
         connection.execute("ANALYZE")
         connection.commit()
+        if not document_count or connection.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+            raise ValueError("Refusing to publish an empty or invalid A2AJ snapshot")
     except Exception:
         connection.close()
         temporary.unlink(missing_ok=True)
         raise
     else:
         connection.close()
-        os.replace(temporary, output)
+        # Windows readers can briefly hold the old file during an in-flight query.
+        # A failed handoff leaves the validated candidate beside the live snapshot.
+        for attempt in range(21):
+            try:
+                os.replace(temporary, output)
+                break
+            except PermissionError:
+                if attempt == 20:
+                    raise
+                time.sleep(0.1)
         print(
             f"Imported {document_count:,} A2AJ documents and "
             f"{citation_count:,} citation keys from {len(inputs):,} files to {output}"

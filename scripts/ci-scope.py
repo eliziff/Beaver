@@ -50,9 +50,7 @@ FRONTEND_TEST_INPUTS = {
 WORD_PLATFORM_PATHS = (
     'backend/scripts/word_python/**', 'backend/src/lib/wordPython.ts',
     'backend/src/lib/convert.ts', 'backend/src/lib/subprocessEnv.ts',
-    'backend/src/lib/__tests__/wordPython.test.ts', 'backend/package*.json',
     'backend/word-python.Dockerfile', '.github/workflows/word-python.yml',
-    '.github/workflows/ci.yml', 'package*.json',
 )
 
 

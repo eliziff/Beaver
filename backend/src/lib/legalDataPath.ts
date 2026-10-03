@@ -23,20 +23,19 @@ export function legalDataHome(options?: {
   if (platform === "win32") {
     const localAppData =
       env.LOCALAPPDATA?.trim() || path.join(home, "AppData", "Local");
-    return path.resolve(localAppData, "OpenLegalProducts", "LegalData");
+    return path.resolve(localAppData, "OpenLegalData");
   }
   if (platform === "darwin") {
     return path.resolve(
       home,
       "Library",
       "Application Support",
-      "OpenLegalProducts",
-      "LegalData",
+      "OpenLegalData",
     );
   }
   const dataHome =
     env.XDG_DATA_HOME?.trim() || path.join(home, ".local", "share");
-  return path.resolve(dataHome, "OpenLegalProducts", "LegalData");
+  return path.resolve(dataHome, "OpenLegalData");
 }
 
 export function legalProviderDatabase(provider: string, filename: string) {
@@ -57,25 +56,17 @@ export function withReadonlySqlite<T>(
   }
 }
 
-const readonlyDatabases = new Map<string, DatabaseSync>();
-
+/** Close each query's handle so a validated snapshot can replace the live file. */
 export function withSearchReadonlySqlite<T>(
   filename: string,
-  cache: boolean,
   operation: (database: DatabaseSync) => T,
 ): T | null {
-  if (!cache) return withReadonlySqlite(filename, operation);
-  if (!existsSync(filename)) return null;
-  let database = readonlyDatabases.get(filename);
-  if (!database) {
-    const sqlite = require("node:sqlite") as typeof import("node:sqlite");
-    database = new sqlite.DatabaseSync(filename, { readOnly: true });
+  return withReadonlySqlite(filename, (database) => {
     database.exec(
       "PRAGMA query_only=ON; PRAGMA mmap_size=2147418112; PRAGMA cache_size=-131072",
     );
-    readonlyDatabases.set(filename, database);
-  }
-  return operation(database);
+    return operation(database);
+  });
 }
 
 export function mikeLocalDataHome(options?: {

@@ -18,7 +18,7 @@ $Frontend = Join-Path $Repo 'frontend'
 $ListenPort = if ($env:PORT) { [int]$env:PORT } else { 3000 }
 if ($ListenPort -lt 1 -or $ListenPort -gt 65535) { throw 'PORT must be between 1 and 65535.' }
 $BaseUrl = "http://127.0.0.1:$ListenPort"
-$StateRoot = if ($env:MIKE_LAUNCHER_STATE_DIR) { $env:MIKE_LAUNCHER_STATE_DIR } else { Join-Path $env:LOCALAPPDATA 'OpenLegalProducts\MikeCanada' }
+$StateRoot = if ($env:MIKE_LAUNCHER_STATE_DIR) { $env:MIKE_LAUNCHER_STATE_DIR } else { Join-Path $(if ($env:OPEN_LEGAL_DATA_HOME) { $env:OPEN_LEGAL_DATA_HOME } else { Join-Path $env:LOCALAPPDATA 'OpenLegalData' }) 'apps\mike\launcher' }
 $StateFile = Join-Path $StateRoot 'lifecycle.json'
 $SupervisorStateFile = Join-Path $StateRoot 'supervisor.json'
 

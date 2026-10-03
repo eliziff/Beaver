@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
+import { statSync } from "node:fs";
 import { cachedContent } from "../contentCache";
-import { fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
+import { a2ajLocalBulkPath, fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
 import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { buildCanliiCaseUrl } from "../canliiUrls";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
@@ -357,7 +358,9 @@ async function document(args: {
   args.signal?.throwIfAborted();
   const docType = args.docType ?? "cases";
   const language = args.language === "fr" ? "fr" : "en";
+  const snapshot = statSync(a2ajLocalBulkPath(), { throwIfNoEntry: false });
   const cacheKey = (sourceUrl: string) => JSON.stringify([
+    snapshot && [snapshot.ino, snapshot.size, snapshot.mtimeMs],
     docType, language, args.dataset?.trim().toLowerCase() ?? "",
     citation.toLowerCase(), sourceUrl, args.section?.trim() ?? "", args.discoverPdf !== false,
   ]), sourceUrl = args.sourceUrl?.trim() ?? "", key = cacheKey(sourceUrl);

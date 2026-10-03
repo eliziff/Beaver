@@ -8,7 +8,7 @@ import re
 import sqlite3
 
 OUT = Path(__file__).resolve().parents[2] / 'tmp/pdf-pagination'
-database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalProducts/LegalData/providers/a2aj/a2aj.sqlite'
+database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalData/providers/a2aj/a2aj.sqlite'
 eras = [(1875, 1910), (1910, 1940), (1940, 1970), (1970, 1990),
         (1990, 2000), (2000, 2010), (2010, 2027)]
 existing = {row['id']: row for row in json.loads((OUT / 'authorities-manifest.json').read_text(encoding='utf-8'))

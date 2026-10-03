@@ -17,6 +17,7 @@ priority list.
 | [Authorities](current/authorities.md) | Embedded/standalone workflow, highlights and output |
 | [Performance](current/performance.md) | Cache/transport/worker contracts, limits and reproduction |
 | [Repositories](current/local-subrepositories.md) | Ownership, public submodules and OpenLegalData bundle |
+| [Local data](current/local-data-storage.md) | Shared corpus location, consolidation and live snapshot refresh |
 | [Safe local testing](current/safe-local-testing.md) | Isolated data and test environments |
 | [End-to-end testing](current/e2e-ci.md) | Browser/stack setup and gates |
 

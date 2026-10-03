@@ -14,7 +14,7 @@ from build_citator_graph import case_occurrences  # noqa: E402
 from legal_structure import pair_numbered_footnotes  # noqa: E402
 LOCAL_BASE = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
 SOURCE_DB = Path((os.environ.get("MIKE_PUBLIC_ENDPOINT_DB") or "").strip() or
-                 LOCAL_BASE / "OpenLegalProducts" / "LegalData" / "providers" / "journals" / "public_endpoint.db")
+                 Path(os.environ.get("OPEN_LEGAL_DATA_HOME") or LOCAL_BASE / "OpenLegalData") / "providers" / "journals" / "public_endpoint.db")
 DEFAULT_OUTPUT = LOCAL_BASE / "ALR Quote Verifier" / "citator" / "journal_commentary.sqlite"
 # Count only the known access-date and volume/issue reporter noise.
 DATE_SHAPED_RE = re.compile(

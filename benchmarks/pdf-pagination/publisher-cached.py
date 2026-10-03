@@ -5,7 +5,7 @@ from pathlib import Path
 import sqlite3
 
 root = Path(__file__).resolve().parents[2]
-database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalProducts/LegalData/providers/a2aj/a2aj.sqlite'
+database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalData/providers/a2aj/a2aj.sqlite'
 receipts = {}
 for name in ['canadian-cached-manifest.json', 'canadian-authorities-manifest.json']:
     for row in json.loads((root / 'tmp/pdf-pagination' / name).read_text(encoding='utf-8-sig')):

@@ -45,8 +45,7 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
 }
 
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
-  return withSearchReadonlySqlite(hansardDatabasePath(),
-    !process.env.MIKE_A2AJ_HANSARD_DB?.trim(), operation);
+  return withSearchReadonlySqlite(hansardDatabasePath(), operation);
 }
 
 /** The identity and metadata every intervention projection shares. */

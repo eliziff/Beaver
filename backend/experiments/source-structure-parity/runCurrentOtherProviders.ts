@@ -49,7 +49,7 @@ const shard = args.has("shard") ? Number(args.get("shard")) : null;
 const nativeFile = path.resolve(process.env.LEGAL_STRUCTURE_NATIVE ?? path.join(ROOT,
   "native/legal-structure-node/target/release/legal_structure_node.dll"));
 const providersRoot = path.join(process.env.LOCALAPPDATA ?? "",
-  "OpenLegalProducts/LegalData/providers");
+  "OpenLegalData/providers");
 const courtlistenerFile = path.resolve(args.get("courtlistener-db") ?? path.join(providersRoot,
   "courtlistener/courtlistener.sqlite"));
 const journalSearchFile = path.join(providersRoot, "journals/public_endpoint-search.sqlite");

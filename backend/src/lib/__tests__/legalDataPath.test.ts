@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, renameSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -20,8 +20,7 @@ describe("shared legal data path", () => {
     ).toBe(
       path.resolve(
         "D:\\Profiles\\Test\\Local",
-        "OpenLegalProducts",
-        "LegalData",
+        "OpenLegalData",
       ),
     );
   });
@@ -51,8 +50,7 @@ describe("shared legal data path", () => {
         "/home/test",
         ".local",
         "share",
-        "OpenLegalProducts",
-        "LegalData",
+        "OpenLegalData",
       ),
     );
   });
@@ -67,8 +65,7 @@ describe("shared legal data path", () => {
     ).toBe(
       path.resolve(
         "D:\\Profiles\\Test\\Local",
-        "OpenLegalProducts",
-        "LegalData",
+        "OpenLegalData",
         "apps",
         "mike",
         "library",
@@ -87,20 +84,22 @@ describe("shared legal data path", () => {
     ).toBe(path.resolve("E:\\BeaverLibrary"));
   });
 
-  it("reopens configured search databases so updates are visible", () => {
+  it("releases search handles and reads a replacement snapshot without restarting", () => {
     const directory = mkdtempSync(path.join(os.tmpdir(), "beaver-search-db-"));
     const filename = path.join(directory, "search.sqlite");
     try {
       const write = new DatabaseSync(filename);
       write.exec("CREATE TABLE state (value INTEGER); INSERT INTO state VALUES (1)");
       write.close();
-      const read = () => withSearchReadonlySqlite(filename, false, (database) =>
+      const read = () => withSearchReadonlySqlite(filename, (database) =>
         (database.prepare("SELECT value FROM state").get() as { value: number }).value);
       expect(read()).toBe(1);
 
-      const update = new DatabaseSync(filename);
-      update.exec("UPDATE state SET value = 2");
+      const replacement = path.join(directory, "replacement.sqlite");
+      const update = new DatabaseSync(replacement);
+      update.exec("CREATE TABLE state (value INTEGER); INSERT INTO state VALUES (2)");
       update.close();
+      renameSync(replacement, filename);
       expect(read()).toBe(2);
     } finally {
       rmSync(directory, { recursive: true, force: true });

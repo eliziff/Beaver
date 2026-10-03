@@ -62,12 +62,13 @@ class ScopeTests(unittest.TestCase):
 
     def test_word_platforms_follow_runtime_inputs(self):
         for path in ('shared/contracts/assistantWire.mts',
-                     'backend/src/lib/wordEditApplication.ts'):
+                     'backend/src/lib/wordEditApplication.ts', 'backend/package-lock.json',
+                     '.github/workflows/ci.yml', 'package.json',
+                     'backend/src/lib/__tests__/wordPython.test.ts'):
             self.assertEqual(ci.scope([path])['word_os'], ['ubuntu-24.04'])
         for path in ('backend/scripts/word_python/runner.py', 'backend/src/lib/convert.ts',
                      'backend/src/lib/subprocessEnv.ts', 'backend/word-python.Dockerfile',
-                     'backend/package-lock.json', '.github/workflows/word-python.yml',
-                     '.github/workflows/ci.yml'):
+                     '.github/workflows/word-python.yml'):
             with self.subTest(path=path):
                 self.assertEqual(len(ci.scope([path])['word_os']), 3)
 
@@ -90,7 +91,7 @@ class ScopeTests(unittest.TestCase):
                     self.assertEqual(json.loads(selected["backend"]), name != "schedule")
                     self.assertEqual(json.loads(selected["frontend"]), name != "schedule")
                     self.assertEqual(json.loads(selected["cloud"]), name != "schedule")
-                    self.assertEqual(len(json.loads(selected["word_os"])), 3)
+                    self.assertEqual(json.loads(selected["word_os"]), ["ubuntu-24.04"])
 
     def test_diff_preserves_deleted_and_moved_owners_and_full_pr_range(self):
         with tempfile.TemporaryDirectory() as directory:
