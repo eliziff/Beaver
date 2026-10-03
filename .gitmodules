@@ -8,7 +8,7 @@
 	branch = main
 [submodule "mike-workflows"]
 	path = mike-workflows
-	url = https://github.com/Open-Legal-Products/mike-workflows.git
+	url = https://github.com/eliziff/mike-workflows.git
 	branch = main
 [submodule "legal-structure"]
 	path = legal-structure

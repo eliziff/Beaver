@@ -13,8 +13,9 @@ the latter owns project priorities and remaining gates.
   must fix the root problem and preserve capabilities, not current module boundaries.
   Replace obsolete designs outright; no transitions, compatibility or migration
   infrastructure unless explicitly requested.
-- PDF Inspector is one automatically synchronized `pdf-inspector` branch in
-  `legal-pdf-parser`. Pin a gated combination; never maintain a second fork copy.
+- PDF Inspector is one automatically synchronized, tagged lineage in
+  `legal-pdf-parser`. Pin a gated revision; never maintain a second fork copy.
+  Repositories keep only `main` and `gh-pages` branches.
 - Put a requested new experimental feature in `experiments/`. An ordinary refactor
   must not delete, consolidate or work through experiments.
 

@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile, chmod, readdir, readFile } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { HOME, fixedDate, saveJson, sha256, canonical } from './common.mjs';
 
 fixedDate();
-const { createWorkloads, FAMILY_SPLIT_MANIFEST } = await import('./fixtures.mjs');
+const fixtureModule = process.env.COURT_PDF_FIXTURES_MODULE;
+if (!fixtureModule) throw new Error('Set COURT_PDF_FIXTURES_MODULE to the private fixture generator.');
+const { createWorkloads, FAMILY_SPLIT_MANIFEST } = await import(pathToFileURL(resolve(fixtureModule)).href);
 await mkdir(resolve(HOME, 'fixtures'), { recursive: false });
 const manifest = { schema: 'beaver.court-cloud-fixtures.v1', fixed_date: new Date().toISOString(),
   family_split: FAMILY_SPLIT_MANIFEST, development: {}, holdout_sealed: {} };

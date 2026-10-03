@@ -117,5 +117,8 @@ original_details.jsonl
 # Private citation comparison inputs, frozen checkouts and receipts.
 /benchmarks/docx_corpus/private_comparison/
 
+# Private citation benchmark tooling is a separate local Git repository.
+/benchmarks/citation-benchmarks-private/
+
 # Court-record exhibit benchmark: private records and tooling stay local.
 /benchmarks/court-record-exhibits/
