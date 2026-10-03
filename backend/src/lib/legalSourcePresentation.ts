@@ -138,7 +138,7 @@ function federalLegislationPdf({ pathname }: URL) {
   const path = decodeURIComponent(pathname);
   const id = /^\/(?:eng|fra)\/XML\/([^/]+)\.xml$/iu.exec(path)?.[1] ??
     /^\/(?:eng\/(?:acts|regulations)|fra\/(?:lois|reglements))\/([^/]+)\/?(?:[^/]*\.html)?$/iu.exec(path)?.[1];
-  if (!id || !pathPart.test(id) || id.includes("..")) return null;
+  if (!id || !pathPart.test(id) || id.includes("..") || id.endsWith(".")) return null;
   // The French page names a regulation as the French series does; the bilingual PDF, as the English.
   const english = id.replace(/^DORS-/u, "SOR-").replace(/^TR-/u, "SI-").replace(/^C\.R\.C\.,_ch\._/u, "C.R.C.,_c._");
   return `https://laws-lois.justice.gc.ca/PDF/${english}.pdf`;

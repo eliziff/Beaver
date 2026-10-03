@@ -746,10 +746,11 @@ describe("Authorities workspace application", () => {
       const source = (product.state as AuthoritiesDraft).authorities.act.source;
 
       expect(source).toMatchObject({ kind: "attached", sources: [{ language: "en",
-        origin: sourceMode === "manual-originals" ? "original" : "reconstructed",
+        // A statute takes its official PDF as a decision does; only "render" rebuilds it from its text.
+        origin: sourceMode === "render" ? "reconstructed" : "original",
         sourceUrl: publisherUrl }] });
       expect((product.state as AuthoritiesDraft).authorities.act.sourceIdentity?.externalUrl).toBe(publicUrl);
-      if (sourceMode === "manual-originals") {
+      if (sourceMode !== "render") {
         expect(runtime.sources.download).toHaveBeenCalledWith(expect.objectContaining({ sourceUrl: publisherUrl }), undefined);
         if (source.kind !== "attached") throw new Error("expected attached legislation source");
         const binding = (product.state as AuthoritiesDraft).bindings[source.sources[0].bindingRole];
@@ -2124,7 +2125,7 @@ describe("Authorities workspace application", () => {
       const output = result.product.outputs.book;
       const builtFile = await runtime.documents.read(scope, output.documentId, output.versionId, false);
 
-      expect((await PDFDocument.load(builtFile!.bytes)).getPageCount()).toBe(3);
+      expect((await PDFDocument.load(builtFile!.bytes)).getPageCount()).toBe(4); // Cover, index, the TAB page and the page naming the missing PDF.
       expect(result.product.state.authorities["canonical-key"].source).toEqual(source);
       expect(result.receipt.authorities[0]).toMatchObject({ id: "canonical-key", tab: "Tab 1" });
     });

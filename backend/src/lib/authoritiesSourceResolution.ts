@@ -13,7 +13,7 @@ import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { legisQuebecLegalSourceProvider, legisQuebecSource } from "./legalSources/legisQuebec";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { mapBounded } from "./mapBounded";
-import { publisherOpenUrl } from "./legalSourcePresentation";
+import { legislationPdfUrl, publisherOpenUrl, publisherPdfCandidate } from "./legalSourcePresentation";
 import { downloadProviderOriginalPdf, PublisherDownloadFailure } from "./providerPdfLibraryBridge";
 import { structureNative } from "./structureNative";
 
@@ -269,9 +269,11 @@ export async function resolveAuthoritiesSources(
     let publisher: string | undefined;
     let original: Awaited<ReturnType<SourceServices["download"]>> | undefined;
     let stopped: { url: string; reason: PublisherDownloadFailure["reason"] } | undefined;
-    // A statute is rebuilt from its text but where the original is the only copy there is.
-    if (originals && (authority.kind !== "legislation" || draft.settings.sourceMode === "manual-originals" ||
-        !source.searchText.trim()) && (pdfUrl || sourceUrl)) try {
+    // A statute comes as its official PDF wherever its jurisdiction publishes one, as a decision
+    // does; one published only as web pages is rebuilt from its text.
+    const takesOriginal = authority.kind !== "legislation" || !!(pdfUrl ??
+      (sourceUrl && (publisherPdfCandidate(sourceUrl) ?? legislationPdfUrl(sourceUrl))));
+    if (originals && takesOriginal && (pdfUrl || sourceUrl)) try {
       publisher = new URL(sourceUrl ?? pdfUrl!).origin;
       const held = blockedPublishers.get(publisher);
       if (held) throw new PublisherDownloadFailure(sourceUrl ?? pdfUrl!, held);

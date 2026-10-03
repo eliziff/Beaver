@@ -1366,7 +1366,7 @@ function ManualStart({ title, busy, preferences, jurisdictionOrder,
         className="mt-1 h-10 border-gray-400 md:text-base" /></label>
     <AuthoritiesCourtField value={preferences.profileId} disabled={busy}
       preferredKeys={jurisdictionOrder} className="mt-4 w-full" bookOnly
-      onChange={(profileId) => onPreferences(withProfile(preferences, profileId))} />
+      onChange={(profileId) => onPreferences(courtChosen(preferences, profileId))} />
     <div className="mt-4 flex flex-wrap gap-2">
         {onPick ? <Button type="button" className="h-11" disabled={busy} onClick={onPick}>
         <FilePlus2 /> Add files</Button> : <FileInputButton multiple disabled={busy}
@@ -1431,7 +1431,7 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
   return <>
     <AuthoritiesCourtField value={value.profileId} disabled={busy}
       preferredKeys={jurisdictionOrder}
-      onChange={(profileId) => onChange(withProfile(value, profileId))} />
+      onChange={(profileId) => onChange(courtChosen(value, profileId))} />
     <OptionCards legend="Source handling" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
       className="mt-5"
       onChange={(sourceMode) => onChange({ ...value, sourceMode })} />
@@ -1882,6 +1882,9 @@ const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["sourceM
 const withProfile = (value: StartPreferences, profileId: AuthoritiesProfileId): StartPreferences =>
   ({ ...value, profileId, passageMarking: authoritiesProfile(profileId).requirements?.markedPassages &&
     value.passageMarking === "none" ? "margin" : value.passageMarking });
+/** A court chosen at import brings its own passage marking (King's Bench: the yellow paragraph). */
+const courtChosen = (value: StartPreferences, profileId: AuthoritiesProfileId): StartPreferences =>
+  withProfile({ ...value, passageMarking: authoritiesProfile(profileId).defaults.settings.passageMarking }, profileId);
 
 const NO_SOURCE_ISSUES: Record<string, AuthoritiesSourceIssue> = {};
 const pendingKey = (id: string) => `beaver.authorities.pending.${id}`;

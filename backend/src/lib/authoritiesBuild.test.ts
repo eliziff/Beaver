@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests, authorityPassageTargets,
   buildAuthorities, renderAuthoritySourcePdf, statuteExcerptSummary } from "./authoritiesBuild";
-import { attachedAuthoritySources, createAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
+import { attachedAuthoritySources, createAuthoritiesDraft as createDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
 import { fit, renderAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
@@ -16,6 +16,14 @@ import { createAuthoritiesPreparation } from "./authoritiesPreparation";
 import type { NativePdfPassageGeometry } from "./structureNative";
 import { pdfAssembly } from "mike/shared/runtime/pdfAssembly.mjs";
 import * as pdfLibrary from "pdf-lib";
+
+/** These drafts lay their books out page for page, without TAB pages and with the pages in the index:
+ *  the tests below are about what each authority's pages hold, not the tabs between them. */
+const createAuthoritiesDraft = (...input: Parameters<typeof createDraft>) => {
+  const draft = createDraft(...input);
+  Object.assign(draft.settings, { tabPages: false, indexShows: "tabs-and-pages" });
+  return draft;
+};
 
 async function sourcePdf(label: string, sizes: Array<[number, number]>) {
   const pdf = await PDFDocument.create();
@@ -276,7 +284,7 @@ describe("Authorities final export", () => {
     const result = await buildAuthorities({ draft: state, title: "Volumes", workProduct: { id: "volumes", revision: 1 },
       sources: { source: { bytes: brief }, original: { bytes: original, passageGeometry: paragraphGeometry(original) } } },
     async (plan, signal) => (await renderAuthoritiesBook(pdfLibrary, { ...plan,
-      limits: { maxPages: 3, maxBytes: 1024 * 1024 } }, signal)).map((book) => ({
+      limits: { maxPages: 3, maxBytes: 1024 * 1024, completeToc: true } }, signal)).map((book) => ({
       role: book.role, filename: book.filename, mimeType: book.mimeType, bytes: Buffer.from(book.bytes),
       pageCount: book.pageCount, sha256: sha256(book.bytes), bookPlacements: book.placements,
     })));
@@ -514,7 +522,9 @@ function draft(
       filename: "Brief.docx", fileType: "docx",
       snapshot: { documentId: "brief-document", versionId: "brief-v2",
         sha256: "9".repeat(64) } } : { kind: "manual" },
-    outputMode: "both", settings: createAuthoritiesDraft({ kind: "manual" }).settings,
+    // The book in the order listed, as one list.
+    outputMode: "both", settings: { ...createAuthoritiesDraft({ kind: "manual" }).settings,
+      tableOrder: "custom", grouping: "none" },
     cover: structuredClone(FORM_66_COVER),
     bookParts: { cover: null, index: null, supplements: [] },
     insertIntoDocument: false, ledger: null,
@@ -930,7 +940,8 @@ describe("Authorities output builder", () => {
     const input = { draft: state, title: "Order", workProduct: { id: "order", revision: 1 },
       sources: { z: { bytes: zPdf }, a: { bytes: aPdf }, o: { bytes: aPdf } } };
     const automatic = await buildAuthorities(input);
-    expect(automatic.receipt.authorities.map(({ id }) => id)).toEqual(["zulu", "omitted", "alpha"]);
+    // The book's tabs follow the table's order: as first cited, the uncited after.
+    expect(automatic.receipt.authorities.map(({ id }) => id)).toEqual(["zulu", "alpha", "omitted"]);
     const xml = await (await JSZip.loadAsync(automatic.artifacts.table!.bytes))
       .file("word/document.xml")!.async("string");
     expect(xml.indexOf("Zulu v Test")).toBeLessThan(xml.indexOf("Alpha v Test"));
@@ -942,8 +953,8 @@ describe("Authorities output builder", () => {
     const preserved = await buildAuthorities({ ...input, draft: manual });
     expect(preserved.receipt.authorities.map(({ id, name, tab }) => [id, name, tab]))
       .toEqual([["zulu", "Custom Zulu title, 2024 ABKB 2", "Tab 1"],
-        ["omitted", "Omitted v Test, 2024 ABKB 3", "Not reproduced"],
-        ["alpha", "Alpha v Test, 2024 ABKB 1", "Tab 2"]]);
+        ["alpha", "Alpha v Test, 2024 ABKB 1", "Tab 2"],
+        ["omitted", "Omitted v Test, 2024 ABKB 3", "Not reproduced"]]);
   });
 
   it("builds an inspectable grouped DOCX and indexed, linked, bookmarked PDF book", async () => {
@@ -959,6 +970,7 @@ describe("Authorities output builder", () => {
           filename: "Brief.docx", sha256: "9".repeat(64),
         } } } } satisfies Parameters<typeof buildAuthorities>[0];
     input.draft.settings.scannedPdfPolicy = "full";
+    input.draft.settings.grouping = "cases-first";
     const result = await buildAuthorities(input);
 
     expect(Object.keys(result.artifacts).sort()).toEqual(["book", "table"]);
@@ -995,7 +1007,8 @@ describe("Authorities output builder", () => {
           documentId: "law-document",
           version: { versionId: "law-v3", sha256: sha256(legislationPdf) } }] }),
       ]) });
-    expect(result.receipt.authorities.map(({ id }) => id)).toEqual(["article", "fca", "grant"]);
+    // The book and the table group cases, then legislation, then secondary sources.
+    expect(result.receipt.authorities.map(({ id }) => id)).toEqual(["grant", "fca", "article"]);
     for (const role of ["table", "book"] as const) {
       expect(result.receipt.outputs[role]?.sha256).toBe(result.artifacts[role]?.sha256);
     }
@@ -1025,12 +1038,13 @@ describe("Authorities output builder", () => {
     const book = await PDFDocument.load(result.artifacts.book!.bytes);
     expect(book.getPageCount()).toBe(5);
     expect(book.getTitle()).toBe("Book of Authorities");
-    expect(book.getPage(4).getSize()).toEqual({ width: 400, height: 500 });
-    expect(pageContent(book, book.getPage(4)).toUpperCase()).toContain(
+    // The case first, then the Act.
+    expect(book.getPage(2).getSize()).toEqual({ width: 400, height: 500 });
+    expect(pageContent(book, book.getPage(2)).toUpperCase()).toContain(
       Buffer.from("Recognized scanned decision", "latin1").toString("hex").toUpperCase(),
     );
     expect(book.getPage(3).getSize()).toEqual({ width: 500, height: 600 });
-    expect(book.getPage(2).getSize()).toEqual({ width: 500, height: 600 });
+    expect(book.getPage(4).getSize()).toEqual({ width: 500, height: 600 });
     expect(book.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).size()).toBe(2);
     const outlines = book.catalog.lookup(PDFName.of("Outlines"), PDFDict);
     expect(outlines.lookup(PDFName.of("Count"), PDFNumber).asNumber()).toBeGreaterThan(4);
@@ -1043,7 +1057,7 @@ describe("Authorities output builder", () => {
     citedOnly.sources["source:grant"].pageTextByPage = ["[12] Recognized cited passage"];
     citedOnly.sources["source:grant"].ocrTextByPage = ["[12] Recognized cited passage"];
     const citedBook = await PDFDocument.load((await buildAuthorities(citedOnly)).artifacts.book!.bytes);
-    expect(pageContent(citedBook, citedBook.getPage(4)).toUpperCase()).toContain(
+    expect(pageContent(citedBook, citedBook.getPage(2)).toUpperCase()).toContain(
       Buffer.from("[12] Recognized cited passage", "latin1").toString("hex").toUpperCase(),
     );
     const originalScan = structuredClone(citedOnly);
@@ -1052,7 +1066,7 @@ describe("Authorities output builder", () => {
     const originalBook = await PDFDocument.load(
       (await buildAuthorities(originalScan)).artifacts.book!.bytes,
     );
-    expect(pageContent(originalBook, originalBook.getPage(4)).toUpperCase()).not.toContain(
+    expect(pageContent(originalBook, originalBook.getPage(2)).toUpperCase()).not.toContain(
       Buffer.from("[12] Recognized cited passage", "latin1").toString("hex").toUpperCase(),
     );
     const noMarks = structuredClone(originalScan);
@@ -1060,10 +1074,10 @@ describe("Authorities output builder", () => {
     const unmarkedBook = await PDFDocument.load(
       (await buildAuthorities(noMarks)).artifacts.book!.bytes,
     );
-    const unmarked = pageContent(unmarkedBook, unmarkedBook.getPage(4));
+    const unmarked = pageContent(unmarkedBook, unmarkedBook.getPage(2));
     const originalSource = await PDFDocument.load(casePdf);
     expect(unmarked).toBe(pageContent(originalSource, originalSource.getPage(0)));
-    expect(unmarked).not.toBe(pageContent(originalBook, originalBook.getPage(4)));
+    expect(unmarked).not.toBe(pageContent(originalBook, originalBook.getPage(2)));
 
     const rebuilt = await buildAuthorities(input);
     expect(rebuilt.artifacts.book?.sha256).toBe(result.artifacts.book?.sha256);
@@ -1269,8 +1283,8 @@ describe("Authorities output builder", () => {
     expect(result.artifacts.book!.filename).toBe("Working draft.book-of-authorities.pdf");
     expect(book.getTitle()).not.toMatch(/incomplete/iu);
     // The court leaves a missing source out of the book, as the Missing PDFs warning says;
-    // every tab keeps its label.
-    expect(book.getPageCount()).toBe(3);
+    // every tab keeps its label. Cover, index, the case's TAB page and its page.
+    expect(book.getPageCount()).toBe(4);
     expect(result.receipt.authorities.filter(({ excluded }) => !excluded).map(({ tab }) => tab))
       .toEqual(["Schedule A", "Schedule B"]);
     expect(pageContent(book, book.getPage(2)).toUpperCase()).not.toContain(pdfTextHex("unavailable"));
