@@ -69,13 +69,76 @@ pub(crate) struct InstrumentReading {
 }
 
 /// A line opening a provision: "(2) ...", "(a) ...", or a section number before its text
-/// ("12 (1) Every ...", "205 [Repealed ...]"), not a number in prose ("900 metres ...").
+/// ("12 (1) Every ...", "33(1) The ...", "1‑3(1) For ...", "205 [Repealed ...]"), not a
+/// number in prose ("900 metres ...").
 #[cfg(feature = "legalpdf")]
 fn provision_opening(line: &str) -> bool {
     if line.starts_with('(') { return line.contains(')'); }
-    let number = line.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.');
-    number.len() < line.len() && number.starts_with(char::is_whitespace)
-        && number.trim_start().starts_with(|c: char| c == '(' || c == '[' || c.is_uppercase())
+    let rest = provision_label(line);
+    rest.len() < line.len() && rest.starts_with(char::is_whitespace)
+        && rest.trim_start().starts_with(|c: char| c == '(' || c == '[' || c.is_uppercase())
+}
+
+/// What follows a provision's number at the start of a line: its digits, the points and
+/// hyphens joining them ("4.09", "1‑3"), and the subsections it names ("33(1)", "2(1)(a)").
+#[cfg(feature = "legalpdf")]
+fn provision_label(line: &str) -> &str {
+    if !line.starts_with(|c: char| c.is_ascii_digit()) { return line; }
+    let mut rest = line.trim_start_matches(|c: char| c.is_ascii_digit() || matches!(c, '.' | '-' | '\u{2010}' | '\u{2011}'));
+    while let Some(inner) = rest.strip_prefix('(') {
+        match inner.split_once(')') {
+            Some((label, after)) if (1..=6).contains(&label.len())
+                && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '.') => rest = after,
+            _ => break,
+        }
+    }
+    rest
+}
+
+/// A line of a provision as the reading takes it: the PDF lines printed on it, in order.
+#[cfg(feature = "legalpdf")]
+struct Row {
+    text: String,
+    rect: [f64; 4],
+    ids: Vec<String>,
+    /// The row opens with a number printed apart from its text.
+    labelled: bool,
+}
+
+/// A node's lines as rows of print. A provision's number set apart in the margin, on its own
+/// line beside the text it opens ("33(1)" | "The court shall ..."), is read with that text,
+/// before it even where the PDF writes it after.
+#[cfg(feature = "legalpdf")]
+fn rows<'a>(lines: impl Iterator<Item = (&'a legal_pdf_support::PdfTextLine, u32)>) -> Vec<(Row, u32)> {
+    let mut lines = lines.collect::<Vec<_>>();
+    let same_row = |a: &[f64; 4], b: &[f64; 4]| a[3].min(b[3]) - a[1].max(b[1])
+        >= (a[3] - a[1]).min(b[3] - b[1]) * 0.5;
+    let label = |line: &legal_pdf_support::PdfTextLine| {
+        let text = line.text.trim();
+        !text.is_empty() && provision_label(text).trim_end_matches('.').is_empty()
+    };
+    for at in 1..lines.len() {
+        let ((before, page), (after, next)) = (lines[at - 1], lines[at]);
+        if page == next && label(after) && after.rect[2] <= before.rect[0] && same_row(&after.rect, &before.rect) {
+            lines.swap(at - 1, at);
+        }
+    }
+    let mut rows = Vec::<(Row, u32)>::new();
+    let mut lines = lines.into_iter().peekable();
+    while let Some((line, page)) = lines.next() {
+        let mut row = Row { text: line.text.trim().to_owned(), rect: line.rect, ids: vec![line.id.clone()], labelled: false };
+        if label(line) {
+            if let Some((text, _)) = lines.next_if(|(text, next)| *next == page
+                && text.rect[0] >= line.rect[2] && same_row(&text.rect, &line.rect)) {
+                row.text = format!("{} {}", row.text, text.text.trim());
+                row.rect = [row.rect[0], row.rect[1].min(text.rect[1]), text.rect[2], row.rect[3].max(text.rect[3])];
+                row.ids.push(text.id.clone());
+                row.labelled = true;
+            }
+        }
+        rows.push((row, page));
+    }
+    rows
 }
 
 /// A history note under a provision lists the enactments that made or amended it, each a
@@ -132,7 +195,10 @@ impl NativeDocument {
         let mut open_note = false;
         // The provisions follow a contents list at the front; what precedes it is front matter.
         let structure = pdf.structure();
-        let mut contents = structure.nodes.iter().filter(|node| node.grammar.as_deref() == Some("contents"))
+        // A list opening past the middle of the document (a rule's own contents) is not at its front.
+        let middle = pages.len() / 2;
+        let mut contents = structure.nodes.iter().filter(|node| node.grammar.as_deref() == Some("contents")
+                && node.page_indexes.first().is_some_and(|page| *page < middle))
             .filter_map(|node| Some((*node.page_indexes.first()?, node.range.end))).collect::<Vec<_>>();
         contents.sort_unstable();
         // The list runs page after page from where it opens; a leader row further on is not it.
@@ -143,8 +209,8 @@ impl NativeDocument {
                 || node.range.start < front { continue; }
             // A contents list and a parallel translation repeat the body's sections; the body is read.
             if matches!(node.grammar.as_deref(), Some("contents" | "translation")) { continue; }
-            let (found, found_pages): (Vec<_>, Vec<_>) = node.line_ids.iter().filter_map(|id| lines.get(id.as_str()))
-                .filter(|(line, _)| !line.text.trim().is_empty()).map(|(line, page)| (*line, *page)).unzip();
+            let (found, found_pages): (Vec<_>, Vec<_>) = rows(node.line_ids.iter().filter_map(|id| lines.get(id.as_str()))
+                .filter(|(line, _)| !line.text.trim().is_empty()).map(|(line, page)| (*line, *page))).into_iter().unzip();
             let (left, right) = found.iter().fold((f64::MAX, f64::MIN), |(left, right), line|
                 (left.min(line.rect[0]), right.max(line.rect[2])));
             // A line ends its paragraph when it stops short of the column or closes a clause.
@@ -171,7 +237,9 @@ impl NativeDocument {
                 // A provision's number opening a line starts a new paragraph after one that
                 // ended, or after a marginal note: a line standing alone above it. A history
                 // note starts one after the provision it follows ends.
-                if at > 0 && (provision_opening(line_text) && (ends(at - 1) || at == 1 || ends(at - 2))
+                // Numbered rows one after another are a contents list's entries, not provisions.
+                let listed = line.labelled && found.get(at + 1).is_some_and(|next| next.labelled);
+                if at > 0 && (provision_opening(line_text) && !listed && (ends(at - 1) || at == 1 || ends(at - 2))
                     || note && ends(at - 1)) {
                     let title = title(&part.1, found[at - 1].text.trim());
                     parts.push((part.0, offset, index, std::mem::take(&mut part.1), title && !noted, noted));
@@ -185,7 +253,7 @@ impl NativeDocument {
                 }
                 text.push_str(line_text);
                 offset += line_text.encode_utf16().count();
-                part.1.push(line.id.clone());
+                part.1.extend(line.ids.iter().cloned());
             }
             let last = found[found.len() - 1].text.trim();
             let title = title(&part.1, last);
@@ -878,13 +946,31 @@ mod pdf {
         let reading = native.instrument()?;
         let instrument = &reading.structure;
         let query = DocumentQuery::new();
-        let found = query.structure_block(instrument, locator, 0);
-        let block = found.block.filter(|_| matches!(found.status, legal_structure::DocumentLookupStatus::Found))?;
-        let repeated = format!("{}@", block.block.label);
-        if instrument.nodes.iter().any(|node| node.label.as_deref().is_some_and(|label| label.starts_with(&repeated))) {
-            return Some((Status::Ambiguous, Vec::new(), Vec::new()));
-        }
-        let mut parts = reading.parts(block.block.start, block.block.end).collect::<Vec<_>>();
+        // A provision's span in the reading, or None where it is not read; Err where it is read twice.
+        let span = |locator: &str| {
+            let found = query.structure_block(instrument, locator, 0);
+            let block = found.block.filter(|_| matches!(found.status, legal_structure::DocumentLookupStatus::Found))?;
+            let repeated = format!("{}@", block.block.label);
+            Some(if instrument.nodes.iter().any(|node| node.label.as_deref().is_some_and(|label| label.starts_with(&repeated))) {
+                Err(())
+            } else {
+                Ok((block.block.start, block.block.end))
+            })
+        };
+        // A range ("49-51") runs from its first provision through its last, unless a
+        // provision is itself numbered so ("1-2").
+        let range = || {
+            let (first, last) = locator.split_once(['-', '\u{2013}'])?;
+            let (first, last) = (span(first.trim())?, span(last.trim())?);
+            Some(first.and_then(|first| last.map(|last| (first.0, last))).and_then(|(start, last)|
+                if start <= last.0 { Ok((start, last)) } else { Err(()) }))
+        };
+        let (start, (last, end)) = match span(locator).map(|found| found.map(|(start, end)| (start, (start, end))))
+            .or_else(range)? {
+            Ok(found) => found,
+            Err(()) => return Some((Status::Ambiguous, Vec::new(), Vec::new())),
+        };
+        let mut parts = reading.parts(last, end).collect::<Vec<_>>();
         // A history note lists a provision's enactments and closes it: neither it nor what
         // follows it is the provision's text. A heading or marginal note closing the block
         // opens the next provision.
@@ -894,7 +980,9 @@ mod pdf {
         while parts.len() > 1 && parts.last().is_some_and(|(_, _, title, _)| *title) {
             parts.pop();
         }
-        let lines = parts.iter().flat_map(|(_, lines, ..)| lines.iter().cloned()).collect::<Vec<_>>();
+        let mut seen = HashSet::new();
+        let lines = reading.parts(start, last).chain(parts).flat_map(|(_, lines, ..)| lines.iter().cloned())
+            .filter(|line| seen.insert(line.clone())).collect::<Vec<_>>();
         let page_of = native_line_pages(native);
         let mut pages = lines.iter().filter_map(|line| page_of.get(line.as_str()).copied()).collect::<Vec<_>>();
         pages.sort_unstable();
@@ -1170,8 +1258,9 @@ mod pdf {
                     .flat_map(|unit| unit.page_numbers.iter().copied())
                     .collect::<Vec<_>>();
                 let mut status = lookup.status;
-                // Statute sections are read by the instrument grammar, which knows them.
-                if target.locator_kind == "section" {
+                // Statute sections, and a code's articles and rules, are read by the instrument
+                // grammar, which knows them.
+                if matches!(target.locator_kind.as_str(), "section" | "article" | "rule") {
                     if let Some((found, found_lines, found_pages)) = instrument_section(native, &target.locator) {
                         (status, lines, pages) = (found, found_lines, found_pages);
                     }
