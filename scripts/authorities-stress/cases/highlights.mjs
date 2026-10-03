@@ -60,6 +60,7 @@ export const HIGHLIGHT_CASES = [{
     }
     // The editor: sources switched with every frame sampled, a mark added, undone and redone.
     await app.page.getByRole("tab", { name: "Highlights" }).click();
+    await app.page.locator("summary", { hasText: "Passage marking" }).click();
     await marking.locator("label", { has: app.page.getByRole("radio", { name: MARKINGS.margin, exact: true }) }).click({ position: { x: 6, y: 6 } });
     await app.page.waitForFunction(() => !document.querySelector("fieldset[disabled]"), null, { timeout: 30_000 });
     await app.idle();
