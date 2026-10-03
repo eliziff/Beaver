@@ -175,15 +175,16 @@ it('shows the marking chosen at import and prepares saved highlights again once 
   const host = {readSource: async () => new Blob(['%PDF-scan']), prepareAnnotations} as unknown as AuthoritiesHost;
   const onAction = vi.fn();
   const props = {tabs:new Map(), host, busy:false, ocr:{tracked:{},begin:vi.fn(),stop:vi.fn()}, onSaved:vi.fn(), onAction};
-  // The marking is always on the step: nothing waits on it, and it can be changed at any time.
+  // The marking is always on the step, closed under its name: nothing waits on it, and it can be changed at any time.
   const unseen = render(<AuthoritiesHighlights product={first} {...props} />);
-  expect(screen.getByRole('group', {name:'Passage marking'})).toBeVisible();
+  expect(screen.getByText('Passage marking', {selector:'summary span'})).toBeVisible();
+  expect(screen.getByRole('group', {name:'Passage marking'})).not.toBeVisible();
   expect(screen.queryByRole('button', {name:'Continue'})).toBeNull();
   unseen.unmount();
   // A draft with no source PDF yet shows its marking too, and has nothing to edit.
   const bare = {...first, id:'bare', state:{...first.state, authorities:{}, authorityOrder:[]}};
   const empty = render(<AuthoritiesHighlights product={bare} {...props} />);
-  expect(screen.getByRole('group', {name:'Passage marking'})).toBeVisible();
+  expect(screen.getByText('Passage marking', {selector:'summary span'})).toBeVisible();
   expect(screen.getByRole('button', {name:'Edit in PDF'})).toBeDisabled();
   empty.unmount();
   const view = render(<AuthoritiesHighlights product={product} {...props} />);

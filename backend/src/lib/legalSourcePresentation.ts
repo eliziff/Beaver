@@ -99,17 +99,60 @@ export function publisherPdfCandidate(rawUrl: string | URL) {
   }
   const publisher = httpUrl(String(rawUrl));
   if (!publisher || publisher.protocol !== "https:" || publisher.port) return null;
-  if (publisher.hostname === "kings-printer.alberta.ca" && publisher.pathname === "/1266.cfm") {
-    const page = publisher.searchParams.get("page"), type = publisher.searchParams.get("leg_type");
-    if (page && /^[a-z0-9][a-z0-9_-]*\.cfm$/iu.test(page) && (type === "Acts" || type === "Regs"))
-      return `${publisher.origin}/documents/${type}/${page.slice(0, -4)}.pdf`;
-  }
-  if (publisher.hostname === "laws-lois.justice.gc.ca") {
-    const file = publisher.pathname.match(/^\/(?:eng|fra)\/XML\/([a-z0-9][a-z0-9.-]*)\.xml$/iu)?.[1];
-    if (file && !file.includes("..") && !file.endsWith(".")) return `${publisher.origin}/PDF/${file}.pdf`;
-  }
-  return null;
+  return LEGISLATION_PDFS[publisher.hostname.toLowerCase()]?.(publisher) ?? null;
 }
+
+const pathPart = /^[\p{L}\p{N}][\p{L}\p{N} .,_'()&-]*$/u;
+/** The official PDF each publisher of consolidated Canadian legislation prints a statute or
+ *  regulation as, from the page of it A2AJ records (or a reader links). The federal, Manitoba and
+ *  New Brunswick PDFs carry both official languages, so a French page's PDF is its English page's.
+ *  The Northwest Territories, Prince Edward Island, Saskatchewan and Yukon record the PDF itself;
+ *  British Columbia, Ontario, Newfoundland and Labrador, and Nova Scotia's regulations publish
+ *  their consolidations as web pages only. */
+const LEGISLATION_PDFS: Record<string, (url: URL) => string | null> = {
+  "laws-lois.justice.gc.ca": federalLegislationPdf, "lois-laws.justice.gc.ca": federalLegislationPdf,
+  "kings-printer.alberta.ca": ({ pathname, searchParams }) => {
+    const page = searchParams.get("page"), type = searchParams.get("leg_type");
+    return pathname === "/1266.cfm" && page && /^[a-z0-9][a-z0-9_-]*\.cfm$/iu.test(page) &&
+      (type === "Acts" || type === "Regs")
+      ? `https://kings-printer.alberta.ca/documents/${type}/${page.slice(0, -4)}.pdf` : null;
+  },
+  "web2.gov.mb.ca": ({ pathname }) => {
+    const act = /^\/laws\/statutes\/ccsm\/([a-z])0*(\d+)(?:-(\d+))?\.php$/iu.exec(pathname);
+    if (act) return `https://web2.gov.mb.ca/laws/statutes/ccsm/_pdf.php?cap=${act[1].toLowerCase()}${act[2]}${act[3] ? `.${act[3]}` : ""}`;
+    const regulation = /^\/laws\/regs\/current\/0*(\d+)-(\d+)(r?)\.php$/iu.exec(pathname);
+    return regulation ? `https://web2.gov.mb.ca/laws/regs/current/_pdf-regs.php?reg=${regulation[1]}/${regulation[2]}${regulation[3] ? "%20R" : ""}` : null;
+  },
+  "laws.gnb.ca": newBrunswickLegislationPdf, "lois.gnb.ca": newBrunswickLegislationPdf,
+  "nslegislature.ca": ({ pathname }) => {
+    const name = /^\/sites\/default\/files\/legc\/statutes(?: HTML)?\/([^/]+)\.html?$/iu.exec(decodeURIComponent(pathname))?.[1];
+    return name && pathPart.test(name) ? `https://nslegislature.ca/sites/default/files/legc/statutes/${encodeURI(name)}.pdf` : null;
+  },
+  "www.legisquebec.gouv.qc.ca": ({ pathname }) => {
+    const [, language, corpus, id] = /^\/(en|fr)\/(?:document|pdf)\/(cs|cr)\/([^/]+?)(?:\.pdf)?$/iu.exec(decodeURIComponent(pathname)) ?? [];
+    return id && pathPart.test(id) ? `https://www.legisquebec.gouv.qc.ca/${language}/pdf/${corpus}/${encodeURI(id)}.pdf` : null;
+  },
+};
+
+function federalLegislationPdf({ pathname }: URL) {
+  const path = decodeURIComponent(pathname);
+  const id = /^\/(?:eng|fra)\/XML\/([^/]+)\.xml$/iu.exec(path)?.[1] ??
+    /^\/(?:eng\/(?:acts|regulations)|fra\/(?:lois|reglements))\/([^/]+)\/?(?:[^/]*\.html)?$/iu.exec(path)?.[1];
+  if (!id || !pathPart.test(id) || id.includes("..")) return null;
+  // The French page names a regulation as the French series does; the bilingual PDF, as the English.
+  const english = id.replace(/^DORS-/u, "SOR-").replace(/^TR-/u, "SI-").replace(/^C\.R\.C\.,_ch\._/u, "C.R.C.,_c._");
+  return `https://laws-lois.justice.gc.ca/PDF/${english}.pdf`;
+}
+
+function newBrunswickLegislationPdf({ pathname }: URL) {
+  const [, corpus, id] = /^\/(?:en|fr)\/document\/(cs|cr|lc|rc)\/([^/]+)$/iu.exec(decodeURIComponent(pathname)) ?? [];
+  return id && pathPart.test(id)
+    ? `https://laws.gnb.ca/en/pdf/${{ lc: "cs", rc: "cr" }[corpus.toLowerCase()] ?? corpus.toLowerCase()}/${encodeURI(id)}.pdf` : null;
+}
+
+/** Hosts that publish official legislation PDFs, the candidates above or the PDFs A2AJ records. */
+export const LEGISLATION_PDF_HOSTS = [...Object.keys(LEGISLATION_PDFS), "www.justice.gov.nt.ca",
+  "www.princeedwardisland.ca", "publications.saskatchewan.ca", "laws.yukon.ca"];
 
 /** What a reader's own browser opens for an original the downloader could not fetch: a PDF on the
  *  decision's own site, else the S.C.C.'s PDF route (it matched all 114 cached originals; other

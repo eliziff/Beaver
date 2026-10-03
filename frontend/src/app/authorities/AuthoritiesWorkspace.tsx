@@ -7,8 +7,8 @@ import { FileInputButton } from "./FileInputButton";
 import { authorityName, authorityLabel,
   requiresBilingualSources, requiresPdf,
   missingSource, relinkable } from "./authorityPresentation";
-import { BookOpen, ChevronRight, Eye, FilePlus2, FolderSearch,
-  History, Loader2, Plus, Scale, Settings2, Upload } from "lucide-react";
+import { BookOpen, ChevronRight, Eye, FileCheck2, FilePlus2, FileType2, FileX2, FolderSearch, LockKeyhole,
+  History, Loader2, Plus, Scale, Settings2, SlidersHorizontal, Upload } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
@@ -28,7 +28,7 @@ import { downloadBlob } from "@/app/lib/download";
 import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
-import { rowControl, rowLabel, Sources } from "./AuthoritySources";
+import { rowControl, rowLabel, Sources, type BookFiles } from "./AuthoritySources";
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfModal, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCards, type CardOption } from "./OptionCards";
 import { OutputsDock } from "./OutputsDock";
@@ -62,11 +62,9 @@ const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
   { value: "automatic", label: "Automatic" }, { value: "manual", label: "Manual" },
   { value: "drafts", label: "Drafts" },
 ];
-// Every view, and the header and steps above it, share one readable frame, so nothing moves
-// between them; only the citation review, which reads the source document, reaches past it to
-// the window's gutters (WIDE).
+// Every view, the citation review among them, and the header and steps above it share one
+// readable frame, so nothing moves between them and a document page shows at about its own size.
 const FRAME = "mx-auto w-full max-w-[68rem] px-4 sm:px-6 md:mx-auto";
-const WIDE = "mx-[min(0px,calc((100%-100cqw)/2+1.5rem))]";
 const SOURCE_LANGUAGE_OPTIONS = [
   { value: "bilingual", label: "English and French", description: "One bilingual official PDF." },
   { value: "en", label: "English", description: "The English official PDF." },
@@ -1039,6 +1037,17 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (STEPS.findIndex(({ value }) => value === next) <= STEPS.findIndex(({ value }) => value === reached)) viewStep(next);
     else { setMessage(""); act({ type: "set-stage", stage: next }); }
   };
+  // The book's own PDFs: the cover and index at Build, any other PDF under a tab of its own at Sources.
+  const bookFiles: BookFiles = {
+    onFiles: (slot, files, supplementId) => attachBookFiles(slot, files.map((file) => ({ file })), supplementId),
+    onPick: host.pickFiles ? (slot, multiple, supplementId) => void pickFiles(
+      multiple, "pdf", (files) => attachBookFiles(slot, files, supplementId)) : undefined,
+    onLibrary: attachLibraryAvailable ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined,
+  };
+  const reproduced = authorityPlan.filter(({ tab }) => tab !== "Not reproduced").length;
+  const others = draft && draft.state.outputMode !== "table" ? { ...bookFiles, addable: draft.state.import.kind === "document",
+    parts: draft.state.bookParts.supplements.map((part, index) => ({ part,
+      tab: tabLabel(reproduced + index + 1, draft.state.settings.tabStyle, draft.state.settings) })) } : undefined;
   const buildPanel = draft && stage === "build" && <BuildPanel draft={shown!} busy={busy} building={building}
     progress={building ? message : ""}
     recognitionAvailable={host.recognitionAvailable !== false} convertsWord={convertsWord}
@@ -1047,13 +1056,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       ? buildLinks.warnings : undefined}
     onAction={act} sourceIssues={sourceIssues}
     onRelink={relinkSource} onOpenSource={host.readSource ? openSource : undefined}
-    onBookFiles={(slot, files, supplementId) => attachBookFiles(slot,
-      files.map((file) => ({ file })), supplementId)}
-    onPickBook={host.pickFiles ? (slot, multiple, supplementId) => void pickFiles(
-      multiple, "pdf", (files) => attachBookFiles(slot, files, supplementId)) : undefined}
-    onLibraryBook={attachLibraryAvailable
-      ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined}
-    sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
+    files={bookFiles} sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights key={draft.id} product={draft}
     tabs={authorityTabs} busy={busy} host={host} ocr={ocr} onAction={act} onSaved={adopt} />;
@@ -1162,7 +1165,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                   <div id="authorities-step" role="tabpanel" className="flow-root [&>*:first-child]:mt-2"
                     aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
                   {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences}
-                    ocr={ocr}
+                    ocr={ocr} others={others}
                     {...authorityPanelProps}
                     {...(draft.state.import.kind === "manual" ? {
                       onPickMany: host.pickFiles ? () => void pickFiles(true, "pdf", appendManual) : undefined,
@@ -1179,7 +1182,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     // Unseen, it keeps its own size, place and scroll under a box of no height, so nothing in
                     // it is laid out or drawn again either way.
                     className={reviewing ? undefined : "h-0 overflow-clip"}><section aria-label="Citations"
-                    className={cn(WIDE, "@container overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm")}>
+                    className="@container overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
                     <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={findings} hidden={!reviewing}
                       busy={busy} onSelect={setSelectedId} onAction={act} onHistory={travel}
@@ -1200,7 +1203,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         breadcrumbs={["Settings"]} fit
         primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
         <p className="mb-4 text-sm text-gray-600">These settings are used for each new draft.</p>
-        <AuthoritiesSetupFields value={preferences} onChange={setPreferences} passages="closed"
+        <AuthoritiesSetupFields value={preferences} onChange={setPreferences}
           busy={busy} jurisdictionOrder={jurisdictionOrder} />
         {host.outputFolder && <div className="mt-5 border-t border-gray-200 pt-4">
           <OutputFolderSetting port={host.outputFolder} busy={busy} />
@@ -1340,7 +1343,7 @@ function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClo
     primaryAction={{ label: busy ? "Finding citations" : "Import and review", disabled: busy,
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined, onClick: onImport }}>
     <p ref={top} className="mb-4 shrink-0 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
-    <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy} jurisdictionOrder={jurisdictionOrder} passages="open" />
+    <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy} jurisdictionOrder={jurisdictionOrder} />
     <div className="h-5 shrink-0" />
   </Modal>;
 }
@@ -1420,15 +1423,10 @@ function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, class
   </div>;
 }
 
-function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder, passages }: {
+function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
   value: StartPreferences; onChange: (value: StartPreferences) => void; busy: boolean;
   jurisdictionOrder: string[];
-  /** How passages are marked, asked wherever a draft starts: open on import, closed in Settings. */
-  passages?: "open" | "closed";
 }) {
-  const marking = (className: string) => <OptionCards className={className} legend="Passage marking"
-    value={value.passageMarking} options={passageOptions(value.profileId)} columns disabled={busy}
-    onChange={(passageMarking) => onChange({ ...value, passageMarking })} />;
   return <>
     <AuthoritiesCourtField value={value.profileId} disabled={busy}
       preferredKeys={jurisdictionOrder}
@@ -1436,21 +1434,14 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder, pass
     <OptionCards legend="Source handling" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
       className="mt-5"
       onChange={(sourceMode) => onChange({ ...value, sourceMode })} />
-    {passages === "open" && marking("mt-5")}
-    {/* In Settings it is closed until opened, naming the marking chosen. */}
-    {passages === "closed" && <details className="group mt-5">
-      <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 rounded-md pr-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
-        <ChevronRight className="h-4 w-4 text-gray-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
-        <span className="font-semibold text-gray-950">Passage marking</span>
-        <span className="ml-1 text-gray-600">{PASSAGE_OPTIONS.find((option) => option.value === value.passageMarking)?.label}</span>
-      </summary>
-      {marking("mt-3 [&>legend]:sr-only")}
-    </details>}
+    <OptionCards className="mt-5" legend="Passage marking"
+      value={value.passageMarking} options={passageOptions(value.profileId)} columns disabled={busy}
+      onChange={(passageMarking) => onChange({ ...value, passageMarking })} />
   </>;
 }
 
 function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
-  convertsWord, linkWarnings, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
+  convertsWord, linkWarnings, onRelink, files, sourceLabel, onOpenSource,
   onBuild, onCancel, onDownload }: {
   draft: AuthoritiesProduct; busy: boolean; building: boolean;
   /** What the build is doing now. */
@@ -1460,9 +1451,7 @@ function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onActi
   jurisdictionOrder: string[];
   onAction: (action: AuthoritiesAction) => void; onBuild: () => void; onCancel: () => void;
   sourceIssues: Record<string, AuthoritiesSourceIssue>; onRelink: (role: string) => void;
-  onBookFiles?: (slot: AuthoritiesBookSlot, files: File[], supplementId?: string) => void;
-  onPickBook?: (slot: AuthoritiesBookSlot, multiple: boolean, supplementId?: string) => void;
-  onLibraryBook?: (slot: AuthoritiesBookSlot, supplementId?: string) => void;
+  files: BookFiles;
   sourceLabel?: string;
   onOpenSource?: (role: string) => void;
   onDownload: (documentId: string, versionId: string, filename: string) => void;
@@ -1521,10 +1510,9 @@ function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onActi
       lockedDelivery={profile.locked?.settings?.tableDelivery}
       firstTab={tabLabel(1, draft.state.settings.tabStyle, draft.state.settings)} onChange={onOptions} />}
     {book && <BookContents draft={draft} busy={busy} onAction={onAction}
-      sourceIssues={sourceIssues} onRelink={onRelink} onFiles={onBookFiles} onPick={onPickBook}
-      onLibrary={onLibraryBook} sourceLabel={sourceLabel}
-      onOpen={onOpenSource} federalCoverComplete={coverDetailsReady && filingRoleReady}
-      onEditFederalCover={generatedFederalCover ? () => setCoverOpen(true) : undefined} />}
+      sourceIssues={sourceIssues} onRelink={onRelink} files={files} sourceLabel={sourceLabel}
+      onOpen={onOpenSource} settings={{ cover: generatedFederalCover ? { label: coverDetailsReady && filingRoleReady ? "Edit" : "Add details",
+        detail: coverDetailsReady && filingRoleReady ? "Generated" : "Details required", onClick: () => setCoverOpen(true) } : undefined }} />}
     <details className="group">
       <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 rounded-md pr-2 text-sm font-medium text-gray-700 outline-none hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90 motion-reduce:transition-none" /> More options</summary>
@@ -1572,7 +1560,7 @@ function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onActi
     {!manual && <FinalPdfModal open={finalOpen} onClose={() => setFinalOpen(false)} disabled={busy}
       value={draft.state.settings} onChange={onOptions}
       brief={briefSlot ? <BriefPdf draft={draft} busy={busy} part={brief}
-        onAction={onAction} onPick={onPickBook} onFiles={onBookFiles} /> : undefined}
+        onAction={onAction} onPick={files.onPick} onFiles={files.onFiles} /> : undefined}
       blocked={waiting ? "Add your brief as PDF to build it." : undefined}
       onRemove={() => { onOptions({ finalPdf: false }); setFinalOpen(false); }}
       onBuild={() => {
@@ -1687,114 +1675,61 @@ function FederalCoverModal({ cover, profileId, busy, onClose, onSave }: {
   </Modal>;
 }
 
-function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, onPick, onLibrary,
-  sourceLabel = "Library", onOpen,
-  federalCoverComplete, onEditFederalCover }: {
+/** What a generated cover or index is made from, and the button that opens its settings. */
+type BookPartSettings = { label: string; detail: string; onClick: () => void };
+/** The book's cover and index, each the page the book makes until a PDF replaces it, in rows as dense
+ *  as the Sources list's: what it is, how it is made, then its settings, View, Replace and its options.
+ *  Each row keeps the room of the buttons it may show, so a PDF arriving moves nothing. */
+function BookContents({ draft, busy, onAction, sourceIssues, onRelink, files, sourceLabel = "Library", onOpen, settings }: {
   draft: AuthoritiesProduct; busy: boolean; onAction: (action: AuthoritiesAction) => void;
   sourceIssues: Record<string, AuthoritiesSourceIssue>; onRelink: (role: string) => void;
-  onFiles?: (slot: AuthoritiesBookSlot, files: File[], supplementId?: string) => void;
-  onPick?: (slot: AuthoritiesBookSlot, multiple: boolean, supplementId?: string) => void;
-  onLibrary?: (slot: AuthoritiesBookSlot, supplementId?: string) => void;
-  sourceLabel?: string;
-  onOpen?: (role: string) => void;
-  federalCoverComplete?: boolean;
-  onEditFederalCover?: () => void;
+  files: BookFiles; sourceLabel?: string; onOpen?: (role: string) => void;
+  settings: Partial<Record<"cover" | "index", BookPartSettings>>;
 }) {
-  const add = (slot: AuthoritiesBookSlot, multiple: boolean, supplementId?: string) => onPick
-    ? onPick(slot, multiple, supplementId) : undefined;
-  const supplementStart = planAuthorities(draft)
-    .filter(({ tab }) => tab !== "Not reproduced").length;
-  // Every row's actions are the Sources step's, at the same widths and in the same columns, so they
-  // line up down the list: View, then Replace or Add, then the menu's slot.
   const moreTrigger = "flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600";
-  const row = "col-span-full grid min-h-11 grid-cols-subgrid items-center gap-y-1 px-2 py-1 sm:py-0";
-  const actions = "col-span-2 flex items-center justify-end gap-1 sm:col-span-1";
-  const supplements = draft.state.bookParts.supplements;
+  const room = "w-10 shrink-0 @min-[44rem]/sources:w-[5.625rem]";
   return <div className="@container/sources min-w-0">
-    <h3 className="mb-2 text-sm font-semibold text-gray-950">Cover, index and other PDFs</h3>
-    <div className="grid grid-cols-[fit-content(8rem)_minmax(0,1fr)] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300 sm:grid-cols-[fit-content(8rem)_minmax(0,1fr)_auto]">
+    <h3 className="mb-2 text-sm font-semibold text-gray-950">Cover and index</h3>
+    <div className="grid grid-cols-[auto_fit-content(8rem)_minmax(0,1fr)_auto] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300">
       {(["cover", "index"] as const).map((slot) => {
         const part = draft.state.bookParts[slot], issue = part ? sourceIssues[part.bindingRole] : undefined;
-        const title = slot === "cover" ? "Cover" : "Index";
-        return <div key={slot} className={row}>
-          <span className="text-sm font-medium text-gray-900">{title}</span>
-          <span className="min-w-0 truncate text-xs text-gray-600" title={part?.filename}>
-            {part?.filename ?? (slot === "cover" && onEditFederalCover && !federalCoverComplete
-              ? "Details required" : "Generated")}</span>
-          <div className={actions}>
-            {slot === "cover" && !part && onEditFederalCover && <Button type="button"
-              variant="outline" className={rowControl} disabled={busy}
-              onClick={onEditFederalCover}>{federalCoverComplete ? "Edit" : "Add details"}</Button>}
-            {part && onOpen && <Button type="button" variant="outline" className={rowControl}
+        const title = slot === "cover" ? "Cover" : "Index", own = settings[slot];
+        const mark = !part ? { Icon: FileType2, tone: "text-indigo-700", label: "Generated page" }
+          : issue ? { Icon: relinkable(issue) ? LockKeyhole : FileX2, tone: "text-red-700", label: "This PDF is unavailable" }
+          : { Icon: FileCheck2, tone: "text-green-700", label: "Your PDF" };
+        return <div key={slot} className="col-span-full grid min-h-10 grid-cols-subgrid items-center py-1 pl-3 pr-2">
+          <span className="flex h-4 w-4 items-center justify-center"><mark.Icon role="img" aria-label={mark.label}
+            className={cn("h-4 w-4", mark.tone)}><title>{mark.label}</title></mark.Icon></span>
+          <span className="pr-4 text-sm font-medium text-gray-950">{title}</span>
+          <span className="min-w-0 truncate text-xs text-gray-500" title={part?.filename}>
+            {part?.filename ?? own?.detail ?? "Generated"}</span>
+          <div className="flex items-center justify-end gap-1">
+            {own && !part ? <Button type="button" variant="outline" className={rowControl} disabled={busy}
+              aria-label={`${own.label}: ${title.toLowerCase()}`} title={own.label} onClick={own.onClick}>
+              <SlidersHorizontal /><span className={rowLabel}>{own.label}</span></Button>
+              : part && onOpen ? <Button type="button" variant="outline" className={rowControl}
               aria-label={`View the ${slot}`} title="View" disabled={busy}
-              onClick={() => onOpen(part.bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>}
+              onClick={() => onOpen(part.bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>
+              : <span className={room} />}
             {/* A slot without a PDF holds the generated page, so a chosen PDF always replaces one. */}
             {part && relinkable(issue) ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
               disabled={busy} onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
-              : onPick ? <Button type="button" variant="outline" className={rowControl}
+              : files.onPick ? <Button type="button" variant="outline" className={rowControl}
               aria-label={`Replace the ${part ? "" : "generated "}${slot} with a PDF`} title="Replace"
-              disabled={busy} onClick={() => add(slot, false)}><Upload /><span className={rowLabel}>Replace</span></Button>
-              : onFiles && <FileInputButton multiple={false} disabled={busy} label="Replace"
+              disabled={busy} onClick={() => files.onPick!(slot, false)}><Upload /><span className={rowLabel}>Replace</span></Button>
+              : <FileInputButton multiple={false} disabled={busy} label="Replace"
                 ariaLabel={`Replace the ${part ? "" : "generated "}${slot} with a PDF`} accept=".pdf,application/pdf"
-                onFiles={(files) => onFiles(slot, files)} variant="outline" compact className={rowControl}
+                onFiles={(chosen) => files.onFiles(slot, chosen)} variant="outline" compact className={rowControl}
                 icon={<Upload />} labelClassName={rowLabel} />}
-            {onLibrary && <Button type="button" variant="outline" className={rowControl}
+            {files.onLibrary && <Button type="button" variant="outline" className={rowControl}
               aria-label={`Choose ${title} from ${sourceLabel}`} title={sourceLabel} disabled={busy}
-              onClick={() => onLibrary(slot)}><FolderSearch /><span className={rowLabel}>{sourceLabel}</span></Button>}
+              onClick={() => files.onLibrary!(slot)}><FolderSearch /><span className={rowLabel}>{sourceLabel}</span></Button>}
             {part ? <MoreActionsMenu label={`${title} options`} triggerClassName={moreTrigger} items={[{ label: "Use generated",
               disabled: busy, onSelect: () => onAction({ type: "clear-book-part", slot }) }]} />
               : <span className="w-8 shrink-0" />}
           </div>
         </div>;
       })}
-      {supplements.map((part, index) => {
-        const issue = sourceIssues[part.bindingRole];
-        return <div key={part.id} className={row}>
-          <span className="truncate text-xs font-semibold uppercase tabular-nums text-gray-500">
-            {tabLabel(supplementStart + index + 1, draft.state.settings.tabStyle, draft.state.settings)}</span>
-          <span className="min-w-0 truncate text-sm text-gray-800" title={part.filename}>
-            {part.filename}</span>
-          <div className={actions}>
-            {relinkable(issue) ? <Button type="button" variant="outline"
-              className={cn(rowControl, "text-red-800")} disabled={busy}
-              onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
-              : onOpen && <Button type="button" variant="outline" className={rowControl}
-              aria-label={`View ${part.filename}`} title="View" disabled={busy}
-              onClick={() => onOpen(part.bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>}
-            {onPick ? <Button type="button" variant="outline" className={rowControl}
-              aria-label={`Replace ${part.filename}`} title="Replace" disabled={busy}
-              onClick={() => add("supplemental", false, part.id)}><Upload /><span className={rowLabel}>Replace</span></Button>
-              : onFiles && <FileInputButton multiple={false} disabled={busy} label="Replace"
-                ariaLabel={`Replace ${part.filename}`} accept=".pdf,application/pdf"
-                onFiles={(files) => onFiles("supplemental", files, part.id)}
-                variant="outline" compact className={rowControl} icon={<Upload />} labelClassName={rowLabel} />}
-            {onLibrary && <Button type="button" variant="outline" className={rowControl}
-              aria-label={`Replace ${part.filename} from ${sourceLabel}`} title={sourceLabel} disabled={busy}
-              onClick={() => onLibrary("supplemental", part.id)}><FolderSearch /><span className={rowLabel}>{sourceLabel}</span></Button>}
-            <MoreActionsMenu label={`${part.filename} options`} triggerClassName={moreTrigger} items={[{
-              label: "Remove from book", disabled: busy,
-              onSelect: () => onAction({ type: "remove-book-supplement", id: part.id }),
-            }]} />
-          </div>
-        </div>;
-      })}
-      <div className={row}>
-        <span className="text-sm font-medium text-gray-900">Other PDFs</span>
-        <span className="min-w-0 truncate text-xs text-gray-600">Each PDF added here gets its own tab.</span>
-        <div className={actions}>
-          {onPick ? <Button type="button" variant="outline" className={rowControl}
-            aria-label="Add other book files" title="Add files" disabled={busy} onClick={() => add("supplemental", true)}>
-            <FilePlus2 /><span className={rowLabel}>Add files</span></Button>
-            : onFiles && <FileInputButton multiple disabled={busy} label="Add files"
-              ariaLabel="Add other book files" accept=".pdf,application/pdf"
-              onFiles={(files) => onFiles("supplemental", files)} variant="outline" compact className={rowControl}
-              icon={<FilePlus2 />} labelClassName={rowLabel} />}
-          {onLibrary && <Button type="button" variant="outline" className={rowControl}
-            aria-label={`Add another book PDF from ${sourceLabel}`} title={sourceLabel} disabled={busy}
-            onClick={() => onLibrary("supplemental")}><FolderSearch /><span className={rowLabel}>{sourceLabel}</span></Button>}
-          <span className="w-8 shrink-0" />
-        </div>
-      </div>
     </div>
   </div>;
 }

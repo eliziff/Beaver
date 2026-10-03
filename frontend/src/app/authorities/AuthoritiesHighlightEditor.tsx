@@ -292,14 +292,14 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onAction
     setFailure(''); setPending(passageMarking);
     onAction({ type: 'set-settings', settings: { passageMarking } });
   };
-  // The marking chosen at import is shown here too, and can be changed at any time.
+  // The marking chosen at import is shown here too, closed under its name, and can be changed at any time.
   return <><StepSection title="Highlights" className="mt-3"
     subtitle={choices.length ? 'Review and adjust passage marks in your source PDFs.' : 'No source PDFs to mark yet.'}
     actions={<Button type="button" variant="outline" className="h-9 border-gray-400"
       disabled={busy || preparing || !host.readSource || !choices.length} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>}>
     <div className="p-4">
       <OptionCards legend="Passage marking" value={product.state.settings.passageMarking}
-        options={passageOptions(product.state.settings.profileId)} columns disabled={busy || preparing}
+        options={passageOptions(product.state.settings.profileId)} columns collapsed disabled={busy || preparing}
         onChange={choose} />
       {/* Preparation reports in a line that is always there, so nothing moves while it runs. */}
       <div className="mt-3 min-h-9 text-sm">

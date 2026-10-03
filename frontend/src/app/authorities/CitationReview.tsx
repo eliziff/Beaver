@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp, TextQuote, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, Plus, TextQuote, X } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { DocxCanvas } from '@/app/components/shared/views/DocxCanvas';
 import { PdfCanvas } from '@/app/components/shared/views/PdfCanvas';
@@ -112,7 +112,7 @@ function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
   return <div role="group" aria-labelledby="citation-pins-label" className="citation-pins">
     <button type="button" className="citation-add-pin" disabled={!adding || full} aria-keyshortcuts="P"
       title={full ? 'A citation takes up to three pinpoints' : 'Select the pinpoint in the text, then add it (P)'}
-      onClick={onAdd}>+ Pinpoint</button>
+      aria-label="+ Pinpoint" onClick={onAdd}><Plus aria-hidden="true" /><span>Pinpoint</span></button>
     <ul ref={list} className="citation-chips">
       {shown.map((pin, i) => {
         // A pinpoint just added waits for the save to read its kind, its value already shown.

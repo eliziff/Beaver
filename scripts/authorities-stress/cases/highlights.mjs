@@ -36,6 +36,8 @@ export const HIGHLIGHT_CASES = [{
     let reached = false;
     for (const [key, name] of Object.entries(MARKINGS)) {
       if (reached) await app.page.getByRole("tab", { name: "Highlights" }).click();
+      // On the step the marking is closed under its name until opened.
+      await app.page.locator("summary", { hasText: "Passage marking" }).click();
       await marking.waitFor();
       const option = marking.getByRole("radio", { name, exact: true });
       if (!await option.isChecked()) await app.interact(`choose ${name}`, () => option.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }));
