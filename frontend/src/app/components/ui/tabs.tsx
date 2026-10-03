@@ -46,7 +46,7 @@ const selectedClass: Record<TabVariant, string> = {
     sheets: "bg-white text-gray-900",
 };
 const idleClass: Record<TabVariant, string> = {
-    subtab: "border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-900",
+    subtab: "border-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900",
     segmented: "text-gray-600 hover:bg-white/70 hover:text-gray-900",
     dock: "text-gray-600 hover:bg-white/70 hover:text-gray-900",
     pill: "border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-900",

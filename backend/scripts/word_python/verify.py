@@ -241,8 +241,23 @@ def verify(source, candidate, mode):
             if name in before:
                 for k, v in revision_counts(parse(before[name])).items(): counts_b[k] = counts_b.get(k, 0) + v
     if mode == 'tracked':
+        for name, data in before.items():
+            if not name.endswith(('.xml', '.rels')) and after.get(name) != data:
+                problems.append('existing binary part changed or was removed (%s); '
+                                'use a new part for a tracked replacement or direct editing' % name)
         if any(k not in comments_a or comments_a[k] != v for k, v in comments_b.items()):
             problems.append('existing comments changed or were removed')
+        # Relationship targets have no revision markup. Reusing an existing
+        # hyperlink or image id for a different target would also change its rejected view.
+        for name in before:
+            if not name.endswith('.rels'): continue
+            references = {r.get('Id'): dict(r.attrib) for r in parse(before[name])
+                          if r.get('Type', '').endswith(('/hyperlink', '/image'))}
+            current = {r.get('Id'): dict(r.attrib) for r in parse(after[name])} if name in after else {}
+            for kind in ('hyperlink', 'image'):
+                if any(current.get(k) != v for k, v in references.items() if v.get('Type', '').endswith('/' + kind)):
+                    problems.append('existing %s relationships changed or were removed (%s); '
+                                    'use a new relationship for a tracked %s or direct editing' % (kind, name, kind))
         # Rejecting every revision must give back the source (with its own revisions rejected too).
         for name, kind in story_b.items():
             if name not in after: problems.append('%s was removed' % name); continue

@@ -2,7 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { DeletedTextRun, InsertedTextRun, Paragraph, TextRun } from "docx";
+import { DeletedTextRun, ExternalHyperlink, ImageRun, InsertedTextRun, Paragraph, TextRun } from "docx";
+import JSZip from "jszip";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { resolveSofficeBinary } from "../convert";
 import { runWordPython, wordPython } from "../wordPython";
@@ -196,5 +197,49 @@ describe.skipIf(!available())("word_python", () => {
         program: "def edit(doc):\n    doc.paragraphs[0].text = 'Changed.'" }, signal)).rejects.toThrow(/changed nothing/u);
     await expect(runWordPython(bytes, { action: "preview", mode: "direct",
       program: "replace_text(doc.paragraphs[0], 'Clause 5', 'Clause 6')" }, signal)).rejects.toThrow(/Text not found in paragraph/u);
+  }, 120_000);
+
+  for (const mode of ["direct", "tracked"]) it(`preserves an inline drawing in a mixed text run during ${mode} replacement`, async () => {
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6VcQAAAAASUVORK5CYII=", "base64");
+    const zip = await JSZip.loadAsync(await docxBytes([new Paragraph({ children: [
+      new TextRun("Seal: verified specimen"), new ImageRun({ data: png, type: "png", transformation: { width: 12, height: 12 } }),
+      new TextRun(" remains attached."),
+    ] })]));
+    zip.file("word/document.xml", (await zip.file("word/document.xml")!.async("string")).replace(/<\/w:r><w:r>/gu, ""));
+    const source = await zip.generateAsync({ type: "nodebuffer" });
+    const { candidate } = await runWordPython(source, { action: "preview", mode,
+      program: "replace_text(doc.paragraphs[0], 'verified specimen', 'checked specimen')" }, signal);
+    const xml = await docxXml(candidate!);
+    const visible = xml.replace(/<w:del w:id[^>]*[^/]>[\s\S]*?<\/w:del>/gu, "");
+    expect(visible.match(/<w:drawing[ >]/gu)).toHaveLength(1);
+    expect(accepted(xml)).toEqual(["Seal: checked specimen remains attached."]);
+    if (mode === "tracked") expect(rejected(xml)).toEqual(["Seal: verified specimen remains attached."]);
+    const saved = await JSZip.loadAsync(candidate!);
+    for (const file of Object.values(zip.files).filter(f => !f.dir && f.name.startsWith("word/media/")))
+      expect(await saved.file(file.name)!.async("nodebuffer")).toEqual(await file.async("nodebuffer"));
+  }, 120_000);
+
+  it("refuses silent destination changes in Review mode while allowing direct edits and new tracked hyperlinks", async () => {
+    const source = await docxBytes([new Paragraph({ children: [new ExternalHyperlink({
+      link: "https://example.org/guide", children: [new TextRun("Equipment guide")],
+    })] })]);
+    const program = "h = doc.paragraphs[0]._p.find(qn('w:hyperlink'))\n" +
+      "doc.part.rels[h.get(qn('r:id'))]._target = 'https://example.org/guide-revised'";
+    await expect(runWordPython(source, { action: "preview", mode: "tracked", program }, signal))
+      .rejects.toThrow(/existing hyperlink relationships changed/u);
+    const direct = await runWordPython(source, { action: "preview", mode: "direct", program }, signal);
+    expect(await docxXml(direct.candidate!, "word/_rels/document.xml.rels")).toContain("https://example.org/guide-revised");
+    const added = await runWordPython(source, { action: "preview", mode: "tracked", program: [
+      "from docx.opc.constants import RELATIONSHIP_TYPE as RT",
+      "p = doc.add_paragraph()",
+      "h = OxmlElement('w:hyperlink')",
+      "h.set(qn('r:id'), doc.part.relate_to('https://example.org/register', RT.HYPERLINK, is_external=True))",
+      "r = OxmlElement('w:r'); t = OxmlElement('w:t'); t.text = 'Custody register'",
+      "r.append(t); h.append(r); p._p.append(h)",
+    ].join("\n") }, signal);
+    expect(added.report.review_verified).toBe(true);
+    const rels = await docxXml(added.candidate!, "word/_rels/document.xml.rels");
+    expect(rels).toContain('Target="https://example.org/guide"');
+    expect(rels).toContain('Target="https://example.org/register"');
   }, 120_000);
 });

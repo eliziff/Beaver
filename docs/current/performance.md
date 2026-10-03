@@ -137,6 +137,87 @@ cross-process reuse, polling timer or new persistence root.
 
 ## PDF preparation corpus
 
+### Court-record assembly search
+
+The version 2 controller uses the browser's actual `buildCourtRecord` operation
+with fixed 60/180 independently invented two-page PDF workloads. Version 1 and
+its rejected attempt remain archived in local receipts and commit `3b6bee06`;
+its per-cell 15% floor is superseded, not applied to later experiments.
+
+The objective is the geometric mean of four cold/warm normalized paired median
+time ratios against the current incumbent. For each cell, compare paired cold
+operations or the medians of three warm repeats, then take the median of ten
+ratios. All four cells have equal geometric weight. A candidate must strictly
+improve the score, have a one-sided 95% bootstrap upper ratio below one (5,000
+coupled resamples with seed 60493), and win at least 80% of paired overall
+comparisons. Fifteen percent overall improvement is a milestone, never a floor
+for accepting a smaller repeatable gain or a stopping condition.
+
+Constraints are exact PDF byte hashes, complete receipts and progress callbacks;
+no measured p95 regression in any cell; zero assembly-time/external network
+requests; and process-tree peak RSS at most 110% of the incumbent plus 8 MiB.
+The shared timing lock lives in the system temp directory as
+`beaver-objective-timing.lock` (override with `BEAVER_TIMING_LOCK` when all tasks
+agree). All timing tasks should honor that lock. A five-sample preflight refuses
+host CPU above 20%; measured background CPU must also remain below 20%, with a
+median paired difference no greater than three percentage points. No process
+belonging to another task is stopped.
+
+The existing root Playwright/frontend dependencies, Chromium and `psutil` are
+required. No app instance, credentials, provider calls or user documents are
+used; the HTTP server takes an available loopback port. Commit the evaluator,
+then create a new root and seed its unchanged output oracle from a verified
+version 1 run:
+
+```sh
+python scripts/court-pdf-search.py init .tmp/court-pdf-search-v2 .tmp/court-pdf-tournament-v1
+python scripts/court-pdf-search.py noise .tmp/court-pdf-search-v2
+```
+
+The A/A check archives the noise interval and must include equality before
+candidate evaluation is allowed. Freeze hashes bind evaluation code, policy,
+inputs, baseline assets and the oracle. Changing those files requires a new
+versioned root and rebaseline. Only the three production PDF assembly/text files
+listed in the controller may be mutated. After one bounded edit:
+
+```sh
+python scripts/court-pdf-search.py evaluate .tmp/court-pdf-search-v2 'State the bounded hypothesis'
+python scripts/court-pdf-search.py status .tmp/court-pdf-search-v2
+```
+
+The controller runs focused behavior and staged privacy checks before committing
+an isolated candidate and measuring ten alternating pairs. It mechanically keeps
+only a valid strictly better score, or restores only its candidate paths. Every
+attempt preserves its patch, source/base/candidate hashes, hypothesis, score
+vector, constraints, commands, timings, decision and reason in `ledger.jsonl`.
+`best.json` persists the global incumbent and cumulative normalized score;
+`state.json` records calibration and experiment counters. Compilation runs in a
+child process before sampling, so its retained heap and threads do not inflate
+operation memory. Partial measurements are journaled after each operation.
+
+Cold means the first assembly after modules/source bytes are loaded; warm means
+another complete assembly in that browser. Browser startup, input loading,
+compilation and profiling are outside the operation wall time. Only `Date` is
+fixed; `performance.now` remains real. Renderer thread CPU includes independent
+output-hash verification. Post-operation JavaScript heap is not peak memory.
+Sampled RSS includes the runner and browser, can double-count shared pages and
+miss brief peaks at 50 ms intervals.
+
+Disjoint 37/123-source held-out workloads are reserved for final confirmation,
+never repeated optimization. On a final incumbent, run once:
+
+```sh
+python scripts/court-pdf-search.py confirm .tmp/court-pdf-search-v2
+```
+
+The search continues with another bounded mutation after keep/discard decisions;
+a plateau calls for another mutation family, not an early stop. The controller
+reports host/resource blockers without spending another full benchmark on an
+invalid window. Native extraction, OCR, multi-tab search and full application
+latency require their own workloads and gates.
+
+### Native preparation corpus
+
 From `backend`, set `LEGAL_STRUCTURE_NATIVE` to the exact native library being
 measured, then run:
 

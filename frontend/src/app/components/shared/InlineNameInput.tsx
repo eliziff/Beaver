@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 export function InlineNameInput({ kind, value, label, disabled, onCommit, onCancel }: {
     kind: "document" | "folder" | "new-folder" | "new-document";
     value?: string;
@@ -6,11 +8,19 @@ export function InlineNameInput({ kind, value, label, disabled, onCommit, onCanc
     onCommit: (value: string) => void;
     onCancel: () => void;
 }) {
+    const openerRef = useRef<HTMLElement | null>(
+        typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null,
+    );
     const blockRow = kind !== "new-folder";
-    return <input autoFocus defaultValue={value} aria-label={label} disabled={disabled}
-        className={kind === "folder"
+    return <input autoFocus defaultValue={value}
+        aria-label={label ?? (kind === "folder" || kind === "new-folder" ? "Folder name" : "Document name")}
+        disabled={disabled}
+        className={(kind === "folder"
             ? "flex-1 min-w-0 text-sm text-gray-800 bg-transparent outline-none"
-            : "min-w-0 flex-1 text-sm text-gray-800 bg-transparent outline-none border-b border-gray-300"}
+            : "min-w-0 flex-1 text-sm text-gray-800 bg-transparent outline-none border-b border-gray-300") +
+            " focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"}
         placeholder={label ?? (kind === "new-folder" ? "Folder name" : undefined)}
         onClick={blockRow ? (event) => event.stopPropagation() : undefined}
         onDragStart={blockRow ? (event) => {
@@ -20,7 +30,12 @@ export function InlineNameInput({ kind, value, label, disabled, onCommit, onCanc
             if (event.key === "Enter" || event.key === "Escape") {
                 event.preventDefault(); event.stopPropagation();
                 if (event.key === "Enter") onCommit(event.currentTarget.value);
-                else onCancel();
+                else {
+                    onCancel();
+                    window.setTimeout(() => {
+                        if (openerRef.current?.isConnected) openerRef.current.focus({ preventScroll: true });
+                    }, 0);
+                }
             }
         }}
         onBlur={(event) => onCommit(event.currentTarget.value)} />;
