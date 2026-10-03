@@ -43,3 +43,36 @@ export async function* readSseData(
         reader.releaseLock();
     }
 }
+
+/** Progress records precede a result whose bytes remain untouched. */
+export async function readFollowedResponse(stream: ReadableStream<Uint8Array>,
+  progress: (message: string) => void): Promise<Response> {
+  const reader = stream.getReader(), decoder = new TextDecoder();
+  let buffer = new Uint8Array(0);
+  for (;;) {
+    const newline = buffer.indexOf(10);
+    if (newline < 0) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error("The response ended before its result.");
+      const joined = new Uint8Array(buffer.length + value.length);
+      joined.set(buffer); joined.set(value, buffer.length); buffer = joined;
+      continue;
+    }
+    const line = JSON.parse(decoder.decode(buffer.subarray(0, newline))) as
+      { progress: string } | { result: { status: number; type: string } };
+    buffer = buffer.subarray(newline + 1);
+    if ("progress" in line) { progress(line.progress); continue; }
+    const rest = buffer;
+    const body = new ReadableStream<Uint8Array>({
+      start: (controller) => { if (rest.length) controller.enqueue(rest); },
+      pull: async (controller) => {
+        const { value, done } = await reader.read();
+        if (done) controller.close(); else controller.enqueue(value);
+      },
+      cancel: (reason) => reader.cancel(reason),
+    });
+    const result = new Response(body, { status: line.result.status,
+      headers: { "Content-Type": line.result.type } });
+    return result;
+  }
+}

@@ -317,9 +317,13 @@ function Run(page, mode) {
     await pick(() => button("Add file").click(), [file]);
     const setup = page.getByRole("dialog", { name: "Import options" });
     await setup.waitFor();
-    check(await setup.getByRole("group").evaluateAll((groups) => groups.map((group) => group.querySelector("legend")?.textContent)
-      .filter(Boolean).join()) === "Source handling,Passage marking" && !await button("Next", setup).count(),
-    `${mode} ${label}: the import asks the court, the source handling and the passage marking`);
+    const marking = setup.locator("summary").filter({ hasText: "Passage marking" });
+    check(await setup.getByRole("group", { name: "Source handling" }).isVisible() && await marking.isVisible(),
+      `${mode} ${label}: source handling and passage marking are available at import`);
+    await marking.click();
+    check(await setup.getByRole("group", { name: "Passage marking" }).isVisible(),
+      `${mode} ${label}: passage marking choices open`);
+    await marking.click();
     await shots(`${label}-02-import-options`);
     const started = await now();
     await button("Import and review").click();
