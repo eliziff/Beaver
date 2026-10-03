@@ -3,7 +3,7 @@
     "id": "general",
     "label": "No court preset",
     "courtId": "general",
-    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"first-reference","grouping":"legislation-first","indexShows":"tabs","tabPages":true,"tableDelivery":"native-append","tableLocation":"pages","passageMarking":"paragraph","scannedPdfPolicy":"cited-pages","missingSourcePolicy":"placeholder"}},
+    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"first-reference","grouping":"legislation-first","indexShows":"tabs","tabPages":true,"tableDelivery":"native-append","tableLocation":"pages","passageMarking":"paragraph","scannedPdfPolicy":"full","missingSourcePolicy":"placeholder"}},
     "options": {"missingSourcePolicy":true}
   },
   {

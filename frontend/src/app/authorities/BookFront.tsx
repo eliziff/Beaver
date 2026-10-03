@@ -155,14 +155,14 @@ export function IndexFields({ settings, profileId, disabled, onChange }: {
       columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
         { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index also gives the book pages each authority fills." }]}
       onChange={(indexShows) => onChange({ indexShows })} />
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid gap-3">
       <Segments stacked label="Group" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
         options={GROUPINGS} disabled={disabled || !!profile.locked?.settings?.grouping} onChange={(grouping) => onChange({ grouping })} />
       <Segments stacked label="Order" value={settings.tableOrder} disabled={disabled || !!profile.locked?.settings?.tableOrder}
         options={settings.tableOrder === "custom" ? ORDERS : ORDERS.filter(({ value }) => value !== "custom")}
         onChange={(tableOrder) => onChange({ tableOrder })} />
     </div>
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid gap-2">
       <OptionCard type="checkbox" checked={tabPages} onChange={() => onChange({ tabPages: !tabPages })}
         label="A TAB page before each authority" detail="Where the index's link and the bookmark for each authority land." />
       <OptionCard type="checkbox" checked={rightHand} disabled={electronic} onChange={() => onChange({ rightHandStarts: !rightHand })}
@@ -197,8 +197,8 @@ export function frontActions(state: AuthoritiesProduct["state"], cover: Authorit
 
 /** The book's cover and the first page of its index, drawn by the book's own renderer from the draft
  *  with the changes not yet made to it, a moment after the last of them. */
-export function FrontPreview({ host, draft, actions, className }: {
-  host: AuthoritiesHost; draft?: AuthoritiesProduct; actions: AuthoritiesAction[]; className?: string;
+export function FrontPreview({ host, draft, actions, page, label, className }: {
+  host: AuthoritiesHost; draft?: AuthoritiesProduct; actions: AuthoritiesAction[]; page: number; label: string; className?: string;
 }) {
   const key = draft ? JSON.stringify([draft.id, draft.revision, actions]) : "";
   const [shown, setShown] = useState<{ bytes?: Uint8Array; error?: string }>();
@@ -211,12 +211,9 @@ export function FrontPreview({ host, draft, actions, className }: {
         error: errorMessage(error, "The preview could not be drawn.") })); }), 300);
     return () => { clearTimeout(timer); abort.abort(); };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <Preview className={className} label="Preview of the cover and index">
+  return <Preview className={className} label={`Preview: ${label}`}>
     {shown?.error && !shown.bytes ? <p role="alert" className="m-auto p-6 text-center text-sm text-red-800">{shown.error}</p>
-      : <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 p-3">
-        <PagePreview bytes={shown?.bytes} page={1} label="Cover" />
-        <PagePreview bytes={shown?.bytes} page={2} label="First page of the index" />
-      </div>}
+      : <div className="flex min-h-0 flex-1 p-4"><PagePreview bytes={shown?.bytes} page={page} label={label} /></div>}
   </Preview>;
 }
 
@@ -242,16 +239,18 @@ export function PagePreview({ bytes, page, marks = [], label }: { bytes?: Uint8A
     return () => { active = false; };
   }, [bytes, page]);
   const colour = ([r, g, b]: readonly number[]) => `rgb(${[r, g, b].map((v) => v <= 1 ? Math.round(v * 255) : v).join(",")})`;
-  return <figure className="m-0 flex min-h-0 min-w-0 flex-col items-center gap-1.5">
-    <div className="grid min-h-0 w-full flex-1 place-items-center">
+  return <figure className="m-0 flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
+    {/* The page fits the frame whole, centred, at the page's own proportions. */}
+    <div className="relative min-h-0 w-full flex-1">
       {drawn ? <svg role="img" aria-label={label} viewBox={`0 0 ${drawn.width} ${drawn.height}`}
-        className="h-full max-h-full w-auto max-w-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)]">
+        style={{ aspectRatio: `${drawn.width} / ${drawn.height}` }}
+        className="absolute inset-0 m-auto h-full max-h-full w-auto max-w-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)]">
         <image href={drawn.url} width={drawn.width} height={drawn.height} />
         {marks.flatMap((mark) => mark.fragments.filter((fragment) => fragment.pageNumber === drawn.page)
           .flatMap((fragment, f) => fragment.rects.map(([x0, y0, x1, y1], r) => <rect key={`${mark.id}:${f}:${r}`}
             x={Math.min(x0, x1)} y={drawn.height - Math.max(y0, y1)} width={Math.abs(x1 - x0)} height={Math.abs(y1 - y0)}
             fill={colour(mark.rgb)} fillOpacity={mark.kind === "margin" ? 1 : mark.opacity} />)))}
-      </svg> : <div aria-hidden="true" className="aspect-[8.5/11] h-full max-w-full animate-pulse bg-white/70" />}
+      </svg> : <div aria-hidden="true" className="absolute inset-0 m-auto aspect-[8.5/11] h-full max-w-full animate-pulse bg-white/70" />}
     </div>
     <figcaption className="text-xs text-gray-600">{label}</figcaption>
   </figure>;
@@ -283,7 +282,7 @@ export function BookFrontModal({ host, draft, busy, onClose, onActions }: {
       if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover).contact!)
         .catch(() => undefined);
     } }}>
-    <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={actions} />}>
+    <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={actions} page={1} label="Cover" />}>
       <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setCover}
         onSettings={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
       <IndexFields settings={shown} profileId={profileId} disabled={busy}
@@ -296,7 +295,7 @@ export function BookFrontModal({ host, draft, busy, onClose, onActions }: {
  *  where the window is narrow. */
 export function FrontLayout({ preview, children }: { preview: ReactNode; children: ReactNode }) {
   return <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-    <div className="@container/front grid min-w-0 content-start gap-5 px-1 pb-1 lg:min-h-0 lg:overflow-y-auto">{children}</div>
+    <div className="@container/front grid min-w-0 content-start gap-5 p-1 lg:min-h-0 lg:overflow-y-auto">{children}</div>
     <div className="h-[28rem] min-w-0 lg:h-auto lg:min-h-0 [&>section]:h-full">{preview}</div>
   </div>;
 }
