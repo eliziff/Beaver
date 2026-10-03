@@ -1,6 +1,11 @@
 import type { PDFDict, PDFDocument, PDFFont, PDFObject, PDFPage, PDFRef, SaveOptions, StandardFonts } from "pdf-lib";
 
-export type PdfOutline = { title: string; pageIndex: number; children?: PdfOutline[] };
+type PdfOutlineDictionary = { dictionary: Array<[string, PdfOutlineValue]> };
+export type PdfOutlineValue = number | boolean | null | { name: string } | { literal: string } |
+  { hex: string } | { array: PdfOutlineValue[] } | PdfOutlineDictionary;
+export type PdfOutline = { title: string; children?: PdfOutline[] } & (
+  { pageIndex: number; view?: PdfOutlineValue[]; action?: never } |
+  { pageIndex?: never; view?: never; action: PdfOutlineDictionary });
 export type PdfPageNumberPosition = "top-right" | "top-centre" | "bottom-right" | "bottom-centre";
 export type PdfIndexTarget = { page: PDFPage; rect: number[]; targetPageIndex: number };
 export type PdfAssemblyContext<Font extends string> = {
@@ -61,41 +66,91 @@ export function nestedOutline(entries: Array<{ title: string; level: number; pag
  *  Each heading the bookmarks do not name goes under the last bookmark that opens at or before
  *  its page. A lone bookmark ("Blank Page" on some printers' statutes) is no outline. */
 export function sourceOutline(own: PdfOutline[], read: PdfOutline[]): PdfOutline[] {
-  if (!(own.length > 1 || own[0]?.children?.length)) return read;
   const flat = (items: PdfOutline[]): PdfOutline[] => items.flatMap(item => [item, ...flat(item.children ?? [])]);
+  if (flat(own).filter(item => item.action === undefined).length < 2) {
+    const external = (items: PdfOutline[]): PdfOutline[] => items.flatMap(item =>
+      item.action !== undefined ? [item] : external(item.children ?? []));
+    return [...external(own), ...read];
+  }
   const key = (title: string) => title.toLowerCase().replace(/^\s*(?:[\p{N}.()]+|[ivxlcdm]+\.|\p{L}\.)\s+/u, "")
     .replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   const copy = (items: PdfOutline[]): PdfOutline[] => items.map(({ children, ...item }) =>
     ({ ...item, ...(children?.length ? { children: copy(children) } : {}) }));
-  const frame = copy(own), named = new Set(flat(frame).map(({ title }) => key(title)));
+  const frame = copy(own), local = flat(frame).filter(item => item.action === undefined);
+  const named = new Set(local.map(({ title }) => key(title)));
   // A named heading gives way to its children.
   const unnamed = (items: PdfOutline[]): PdfOutline[] => items.flatMap(({ children, ...item }) => {
     const kept = unnamed(children ?? []);
     return named.has(key(item.title)) ? kept : [{ ...item, ...(kept.length ? { children: kept } : {}) }];
   });
   const headings = unnamed(read);
-  if (flat(headings).length <= flat(frame).length) return own;
+  if (flat(headings).length <= local.length) return own;
   const roots = [...frame], order = flat(frame);
   for (const heading of headings) {
-    const parent = order.filter(({ pageIndex }) => pageIndex <= heading.pageIndex).at(-1);
+    const at = heading.pageIndex;
+    const parent = at === undefined ? undefined : order.filter(({ pageIndex }) =>
+      pageIndex !== undefined && pageIndex <= at).at(-1);
     if (parent) (parent.children ??= []).push(heading); else roots.push(heading);
   }
   const byPage = (items: PdfOutline[]): PdfOutline[] => items.map(item => item.children
-    ? { ...item, children: byPage(item.children) } : item).sort((left, right) => left.pageIndex - right.pageIndex);
+    ? { ...item, children: byPage(item.children) } : item).sort((left, right) =>
+      left.pageIndex === undefined || right.pageIndex === undefined ? 0 : left.pageIndex - right.pageIndex);
   return byPage(roots);
 }
 
 /** An outline moved onto other pages: an entry whose page is gone gives way to its children. */
 export function mapOutline(outline: PdfOutline[], page: (pageIndex: number) => number | undefined): PdfOutline[] {
-  return outline.flatMap(({ title, pageIndex, children }) => {
+  return outline.flatMap<PdfOutline>(({ children, ...entry }) => {
     const mapped = children ? mapOutline(children, page) : [];
-    const at = page(pageIndex);
-    return at === undefined ? mapped : [{ title, pageIndex: at, ...(mapped.length ? { children: mapped } : {}) }];
+    if (entry.action !== undefined) return [{ ...entry, ...(mapped.length ? { children: mapped } : {}) }];
+    const at = page(entry.pageIndex);
+    return at === undefined ? mapped : [{ ...entry, pageIndex: at, ...(mapped.length ? { children: mapped } : {}) }];
   });
 }
 
 export function pdfAssembly(pdf: typeof import("pdf-lib")) {
   const { PDFHexString, PDFName, degrees, rgb } = pdf;
+
+  /** Plain PDF values survive both document contexts and the book worker's structured clone. */
+  function readOutlineValue(document: PDFDocument, value: PDFObject | undefined,
+    ancestors = new Set<PDFObject>()): PdfOutlineValue | undefined {
+    const object = document.context.lookup(value);
+    if (object === pdf.PDFNull) return null;
+    if (object instanceof pdf.PDFNumber) return object.asNumber();
+    if (object instanceof pdf.PDFBool) return object.asBoolean();
+    if (object instanceof PDFName) return { name: object.decodeText() };
+    if (object instanceof pdf.PDFString) return { literal: object.asString() };
+    if (object instanceof PDFHexString) return { hex: object.asString() };
+    if (!object || ancestors.has(object) || ancestors.size >= 64) return undefined;
+    const next = new Set(ancestors).add(object);
+    if (object instanceof pdf.PDFArray) {
+      const array = object.asArray().map(item => readOutlineValue(document, item, next));
+      return array.some(item => item === undefined) ? undefined : { array: array as PdfOutlineValue[] };
+    }
+    if (object instanceof pdf.PDFDict) {
+      const dictionary: Array<[string, PdfOutlineValue]> = [];
+      for (const [key, item] of object.entries()) {
+        const copied = readOutlineValue(document, item, next);
+        if (copied === undefined) return undefined;
+        dictionary.push([key.decodeText(), copied]);
+      }
+      return { dictionary };
+    }
+    return undefined;
+  }
+
+  function writeOutlineValue(document: PDFDocument, value: PdfOutlineValue): PDFObject {
+    if (value === null) return pdf.PDFNull;
+    if (typeof value === "number") return pdf.PDFNumber.of(value);
+    if (typeof value === "boolean") return value ? pdf.PDFBool.True : pdf.PDFBool.False;
+    if ("name" in value) return PDFName.of(value.name);
+    if ("literal" in value) return pdf.PDFString.of(value.literal);
+    if ("hex" in value) return PDFHexString.of(value.hex);
+    if ("array" in value) return document.context.obj(value.array.map(item => writeOutlineValue(document, item)));
+    const dictionary = document.context.obj({});
+    value.dictionary.forEach(([key, item]) => dictionary.set(PDFName.of(key), writeOutlineValue(document, item)));
+    return dictionary;
+  }
 
   /** Resolve local destinations, including the two PDF named-destination forms. */
   function destinationReader(document: PDFDocument) {
@@ -175,9 +230,21 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
         const dest = destination(node);
         const pageIndex = dest && pages.get(String(dest.get(0)));
         const children = branch(node.lookupMaybe(PDFName.of("First"), pdf.PDFDict));
-        if (title && pageIndex !== undefined) result.push({ title: title.decodeText(),
-          pageIndex: offset + pageIndex, ...(children.length ? { children } : {}) });
-        else result.push(...children);
+        if (title && pageIndex !== undefined) {
+          const view = dest!.asArray().slice(1).map(item => readOutlineValue(document, item));
+          const fit = view.length === 1 && view[0] !== null && typeof view[0] === "object" &&
+            "name" in view[0] && view[0].name === "Fit";
+          result.push({ title: title.decodeText(), pageIndex: offset + pageIndex,
+            ...(!fit && view.every(item => item !== undefined) ? { view: view as PdfOutlineValue[] } : {}),
+            ...(children.length ? { children } : {}) });
+        } else {
+          const action = node.lookup(PDFName.of("A"));
+          const copied = action instanceof pdf.PDFDict && String(action.lookup(PDFName.of("S"))) !== "/GoTo"
+            ? readOutlineValue(document, action) : undefined;
+          if (title && copied && typeof copied === "object" && "dictionary" in copied)
+            result.push({ title: title.decodeText(), action: copied, ...(children.length ? { children } : {}) });
+          else result.push(...children);
+        }
       }
       return result;
     };
@@ -191,9 +258,60 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     ));
   }
 
+  type PageLabel = { style?: string; prefix?: string; start: number };
+
+  /** Retain label rules, rather than formatting their Roman or alphabetic values ourselves. */
+  function pageLabelReader(document: PDFDocument) {
+    const rules = new Map<number, PageLabel>(), seen = new Set<PDFDict>();
+    const read = (value: PDFObject | undefined) => {
+      const node = document.context.lookup(value);
+      if (!(node instanceof pdf.PDFDict) || seen.has(node) || seen.size >= 10_000) return;
+      seen.add(node);
+      const entries = node.lookup(PDFName.of("Nums")), children = node.lookup(PDFName.of("Kids"));
+      if (entries instanceof pdf.PDFArray) for (let index = 0; index + 1 < entries.size(); index += 2) {
+        const at = entries.lookup(index), label = entries.lookup(index + 1);
+        if (!(at instanceof pdf.PDFNumber) || !(label instanceof pdf.PDFDict) ||
+            !Number.isSafeInteger(at.asNumber()) || at.asNumber() < 0) continue;
+        const style = label.lookupMaybe(PDFName.of("S"), PDFName)?.decodeText();
+        const prefix = label.lookupMaybe(PDFName.of("P"), pdf.PDFString, PDFHexString)?.decodeText();
+        const start = label.lookupMaybe(PDFName.of("St"), pdf.PDFNumber)?.asNumber() ?? 1;
+        rules.set(at.asNumber(), { style, prefix, start });
+      }
+      if (children instanceof pdf.PDFArray) children.asArray().forEach(read);
+    };
+    read(document.catalog.get(PDFName.of("PageLabels")));
+    const ordered = [...rules].sort(([left], [right]) => left - right);
+    return (pageIndex: number): PageLabel => {
+      let low = 0, high = ordered.length;
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2);
+        if (ordered[middle][0] <= pageIndex) low = middle + 1; else high = middle;
+      }
+      if (!low) return { style: "D", start: pageIndex + 1 };
+      const [first, label] = ordered[low - 1];
+      return { ...label, start: label.start + pageIndex - first };
+    };
+  }
+
+  function writePageLabels(document: PDFDocument, labels: PageLabel[]) {
+    const entries: Array<number | PDFDict> = [];
+    let previous: PageLabel | undefined;
+    labels.forEach((label, index) => {
+      if (!previous || label.style !== previous.style || label.prefix !== previous.prefix ||
+          label.style !== undefined && label.start !== previous.start + 1) {
+        entries.push(index, document.context.obj({
+          ...(label.style === undefined ? {} : { S: label.style, St: label.start }),
+          ...(label.prefix === undefined ? {} : { P: PDFHexString.fromText(label.prefix) }),
+        }));
+      }
+      previous = label;
+    });
+    document.catalog.set(PDFName.of("PageLabels"), document.context.register(
+      document.context.obj({ Nums: entries })));
+  }
+
   function applyOutlines(document: PDFDocument, outlines: PdfOutline[], open: boolean) {
-    const valid = outlines.filter((outline) =>
-      outline.pageIndex >= 0 && outline.pageIndex < document.getPageCount());
+    const valid = outlines.filter(outline => validOutline(document, outline));
     if (!valid.length) return;
     const root = document.context.obj({ Type: "Outlines" });
     const rootRef = document.context.register(root);
@@ -205,17 +323,65 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     if (open) document.catalog.set(PDFName.of("PageMode"), PDFName.of("UseOutlines"));
   }
 
+  function validOutline(document: PDFDocument, outline: PdfOutline) {
+    return outline.action !== undefined || outline.pageIndex >= 0 && outline.pageIndex < document.getPageCount();
+  }
+
+  /** Append roots without rebuilding the target's existing actions, styles or collapsed branches. */
+  function appendOutlines(document: PDFDocument, outlines: PdfOutline[]) {
+    const valid = outlines.filter(outline => validOutline(document, outline));
+    if (!valid.length) return;
+    const root = document.catalog.lookupMaybe(PDFName.of("Outlines"), pdf.PDFDict);
+    if (!root) { applyOutlines(document, valid, false); return; }
+    const currentRoot = document.catalog.get(PDFName.of("Outlines"));
+    const rootRef = currentRoot instanceof pdf.PDFRef ? currentRoot : document.context.register(root);
+    const branch = outlineBranch(document, valid, rootRef);
+    const seen = new Set<PDFDict>();
+    let last: { object: PDFObject; node: PDFDict } | undefined, previous: PDFDict | undefined;
+    for (let object = root.get(PDFName.of("First")); object;) {
+      const node = document.context.lookup(object);
+      if (!(node instanceof pdf.PDFDict) || seen.has(node) || seen.size >= 10_000) break;
+      seen.add(node); previous = last?.node; last = { object, node };
+      object = node.get(PDFName.of("Next"));
+    }
+    const counted = new Set<PDFDict>();
+    const visibleCount = (first: PDFObject | undefined): number => {
+      let count = 0;
+      for (let object = first; object;) {
+        const node = document.context.lookup(object);
+        if (!(node instanceof pdf.PDFDict) || counted.has(node) || counted.size >= 10_000) break;
+        counted.add(node); count++;
+        if ((node.lookupMaybe(PDFName.of("Count"), pdf.PDFNumber)?.asNumber() ?? 0) >= 0)
+          count += visibleCount(node.get(PDFName.of("First")));
+        object = node.get(PDFName.of("Next"));
+      }
+      return count;
+    };
+    const count = root.lookupMaybe(PDFName.of("Count"), pdf.PDFNumber)?.asNumber() ??
+      visibleCount(root.get(PDFName.of("First")));
+    if (last) {
+      const lastRef = last.object instanceof pdf.PDFRef ? last.object : document.context.register(last.node);
+      if (previous) previous.set(PDFName.of("Next"), lastRef); else root.set(PDFName.of("First"), lastRef);
+      last.node.set(PDFName.of("Next"), branch.first);
+      document.context.lookup(branch.first, pdf.PDFDict).set(PDFName.of("Prev"), lastRef);
+    } else root.set(PDFName.of("First"), branch.first);
+    root.set(PDFName.of("Last"), branch.last);
+    root.set(PDFName.of("Count"), document.context.obj(count + branch.count));
+    document.catalog.set(PDFName.of("Outlines"), rootRef);
+  }
+
   function outlineBranch(document: PDFDocument, outlines: PdfOutline[], parent: PDFRef) {
     const nodes = outlines.map((outline) => {
       const dict = document.context.obj({ Title: PDFHexString.fromText(outline.title),
-        Parent: parent, Dest: [document.getPage(outline.pageIndex).ref, "Fit"] });
+        Parent: parent, ...(outline.action !== undefined ? { A: writeOutlineValue(document, outline.action) }
+          : { Dest: [document.getPage(outline.pageIndex).ref,
+            ...(outline.view?.map(value => writeOutlineValue(document, value)) ?? [PDFName.of("Fit")])] }) });
       return { outline, dict, ref: document.context.register(dict), descendants: 0 };
     });
     nodes.forEach((node, index) => {
       if (index) node.dict.set(PDFName.of("Prev"), nodes[index - 1].ref);
       if (index + 1 < nodes.length) node.dict.set(PDFName.of("Next"), nodes[index + 1].ref);
-      const children = node.outline.children?.filter((child) =>
-        child.pageIndex >= 0 && child.pageIndex < document.getPageCount()) ?? [];
+      const children = node.outline.children?.filter(child => validOutline(document, child)) ?? [];
       if (!children.length) return;
       const branch = outlineBranch(document, children, node.ref);
       node.dict.set(PDFName.of("First"), branch.first);
@@ -260,27 +426,39 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     const loaded = source instanceof Uint8Array
       ? await pdf.PDFDocument.load(source, { updateMetadata: false }) : source;
     const indices = pageIndices ?? loaded.getPageIndices();
+    if (!indices.length) return [];
+    const originalLabels = pageLabelReader(document), sourceLabels = pageLabelReader(loaded);
+    const labels = [...document.getPageIndices().map(originalLabels), ...indices.map(sourceLabels)];
+    const offset = document.getPageCount(), outlines = mapOutline(readOutlines(loaded), pageIndex => {
+      const at = indices.indexOf(pageIndex);
+      return at < 0 ? undefined : offset + at;
+    });
     const pages = await document.copyPages(loaded, indices);
     const references = new Map(indices.map((sourceIndex, index) =>
       [String(loaded.getPage(sourceIndex).ref), pages[index].ref]));
     const destination = destinationReader(loaded);
+    const destinationCopier = pdf.PDFObjectCopier.for(loaded.context, document.context);
     pages.forEach((page, index) => {
       const original = loaded.getPage(indices[index]).node.lookupMaybe(PDFName.of("Annots"), pdf.PDFArray);
       const copied = page.node.lookupMaybe(PDFName.of("Annots"), pdf.PDFArray);
       for (let annotationIndex = (original?.size() ?? 0) - 1; annotationIndex >= 0; annotationIndex--) {
         if (!copied || annotationIndex >= copied.size()) continue;
         const source = original!.lookup(annotationIndex, pdf.PDFDict), target = copied.lookup(annotationIndex, pdf.PDFDict);
+        if (source.has(PDFName.of("P"))) target.set(PDFName.of("P"), page.ref);
         const action = source.lookup(PDFName.of("A"));
         if (!source.has(PDFName.of("Dest")) && !(action instanceof pdf.PDFDict &&
             String(action.lookup(PDFName.of("S"))) === "/GoTo")) continue;
         const dest = destination(source), reference = dest && references.get(String(dest.get(0)));
         if (!dest || !reference) { copied.remove(annotationIndex); continue; }
-        const remapped = document.context.obj([reference, ...dest.asArray().slice(1)]);
+        const remapped = document.context.obj([reference,
+          ...dest.asArray().slice(1).map((operand) => destinationCopier.copy(operand))]);
         if (source.has(PDFName.of("Dest"))) target.set(PDFName.of("Dest"), remapped);
         else target.lookup(PDFName.of("A"), pdf.PDFDict).set(PDFName.of("D"), remapped);
       }
     });
     pages.forEach((page, index) => { document.addPage(page); each?.(page, indices[index]); });
+    writePageLabels(document, labels);
+    appendOutlines(document, outlines);
     return pages;
   }
 
@@ -307,7 +485,11 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     for (const link of input.links ?? [])
       addInternalLink(link.page, link.rect, "url" in link ? link.url : document.getPage(link.targetPageIndex));
     if (input.pageLabels !== undefined) applyPageLabels(document, input.pageLabels);
-    if (input.outlines) applyOutlines(document, input.outlines(context), !!input.openBookmarks);
+    if (input.outlines) {
+      const outlines = input.outlines(context);
+      document.catalog.delete(PDFName.of("Outlines"));
+      applyOutlines(document, outlines, !!input.openBookmarks);
+    }
     input.signal?.throwIfAborted();
     const bytes = await document.save(input.saveOptions);
     input.signal?.throwIfAborted();

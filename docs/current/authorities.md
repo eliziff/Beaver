@@ -175,6 +175,14 @@ authority PDFs in Word. Tab references can link to book tabs; for DOCX, final-on
 tab links add references to the export copy without changing the persistent Word
 output choice. For PDF input, verified citation text supplies the link rectangle.
 
+Copied source pages keep their content, page boxes and rotation. Internal
+destinations and publisher bookmarks retain their view coordinates; links to pages
+explicitly excluded from an extract are removed. Ordinary web and remote-PDF
+bookmark actions survive assembly. Books read native source bookmarks when prepared
+outline metadata is absent, and custom cover/index bookmarks appear under the
+generated title/Table of Contents entries. Books use continuous book page labels;
+final export retains the brief labels and each appended book's labels.
+
 The separate pinpoint option applies to manually attached PDFs. It reuses the
 prepared-PDF structure/geometry operation even when visual marks are disabled;
 paragraph destinations, initial passage marks and generated passage bookmarks
