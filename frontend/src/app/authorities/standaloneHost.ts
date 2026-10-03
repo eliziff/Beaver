@@ -338,6 +338,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return JSON.stringify(prepared) === JSON.stringify(product.state)
       ? product : save(product.id, product.revision, prepared);
   },
+  bookFront: async (product, actions, signal) => (await runtimeResponse("book-front",
+    JSON.stringify({ draft: product.state, actions, title: product.title }), true, signal)).blob(),
   attach: (id, authorityId, revision, selected, language = "en") =>
     attachPdf(id, revision, selected, { authority_id: authorityId, language,
       ...(selected.autoFetched ? { auto_fetched: "true" } : {}) }),

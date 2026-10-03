@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2, FileX2, LockKeyhole,
   FolderInput, FolderSearch, Loader2, Pencil, Plus, RotateCw, Square, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
@@ -67,6 +67,8 @@ type PanelProps = AuthorityPanelProps & {
   /** Any other PDF in the book, each under a tab of its own after the authorities: listed with them,
    *  and added here where the authorities come from a brief. */
   others?: BookFiles & { parts: Array<{ part: AuthoritiesBookSupplement; tab: string }>; addable: boolean };
+  /** The import's choices about sources, shown above the list. */
+  settings?: ReactNode;
 };
 export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft: AuthoritiesProduct }) {
   return <SourcePanel {...props} state={draft.state} />;
@@ -75,7 +77,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
-  ocr, statuteCopies, groups, others }: PanelProps) {
+  ocr, statuteCopies, groups, others, settings }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
   const profile = authoritiesProfile(state.settings.profileId), shown = authorities.map(({ id }) => id);
   const headed = authorities.some(({ id }) => groups?.get(id) && groups.get(id) !== "Authorities");
@@ -89,6 +91,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
+      {settings && <div className="mb-3 grid gap-1">{settings}</div>}
       {/* How the book and the table group and order the authorities, then the list's own actions. */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <ListChoice label="Group" disabled={busy || !!profile.locked?.settings?.grouping} options={GROUPINGS}

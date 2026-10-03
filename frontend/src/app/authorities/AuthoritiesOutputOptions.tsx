@@ -2,7 +2,6 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { currentTabReference, tabReference } from "../../../../shared/authorities-order.mjs";
 import type { AuthoritiesBuildSettings } from "./types";
 import { OptionCard } from "./OptionCards";
-import { Modal } from "@/app/components/modals/Modal";
 import { cn } from "@/app/lib/utils";
 
 /** The outputs a brief can ask for: its Word copy, the tab references in it, and the final PDF
@@ -103,44 +102,33 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
   </div>;
 }
 
-/** The final PDF: the brief, then the book, in one PDF whose citations open their tabs. It is an
- *  occasional path, so its choices and its build live here and take no room on the Build step. */
-export function FinalPdfModal({ open, onClose, value, onChange, disabled = false, brief, blocked, onBuild, onRemove }: {
-  open: boolean; onClose: () => void;
-  value: Pick<AuthoritiesOutputOptionsValue, "finalPdf" | "linkTabs" | "linkPinpoints">;
+/** The final PDF's choices: where its links lead, and, where this app cannot make it from a Word
+ *  brief, the brief saved as PDF. */
+export function FinalPdfOptions({ value, onChange, disabled = false, brief }: {
+  value: Pick<AuthoritiesOutputOptionsValue, "linkTabs" | "linkPinpoints">;
   onChange: (patch: AuthoritiesOutputOptionsValue) => void;
   disabled?: boolean;
   /** The brief saved as PDF, where this app cannot make that PDF from the Word brief itself. */
   brief?: ReactNode;
-  /** Why it cannot be built yet. */
-  blocked?: string;
-  onBuild: () => void; onRemove: () => void;
 }) {
-  return <Modal open={open} onClose={onClose} size="xl" breadcrumbs={["Final PDF"]} fit
-    footerStatus={<span role="status" className="mr-auto min-w-0 truncate pl-2 text-sm text-gray-600">{blocked}</span>}
-    secondaryAction={value.finalPdf ? { label: "Remove final PDF", disabled, onClick: onRemove } : undefined}
-    primaryAction={{ label: "Build final PDF", disabled: disabled || !!blocked, onClick: onBuild }}>
-    <div className="grid gap-5 pb-5">
-      <p className="flex items-center gap-3 text-sm leading-6 text-gray-700">
-        <PdfPreview kind="append" />Builds one PDF with your brief first and the Book of Authorities after it.</p>
-      <fieldset disabled={disabled} className="min-w-0">
-        <legend className={LEGEND}>Links</legend>
-        <div className={ROWS}>
-          <OptionCard row type="checkbox" checked={!!value.linkTabs}
-            onChange={event => onChange({ linkTabs: event.target.checked })} label="Citations to their tabs"
-            preview={<PdfPreview kind="tabs" />}
-            detail="Clicking “R v Jordan, 2016 SCC 27” or its tab reference opens Tab 4." />
-          <OptionCard row type="checkbox" checked={!!value.linkPinpoints}
-            onChange={event => onChange({ linkPinpoints: event.target.checked })} label="Pinpoints to the passage"
-            preview={<PdfPreview kind="pinpoints" />}
-            detail="In PDFs you uploaded, clicking “at para 105” opens Tab 4 at paragraph 105. Pinpoints it can’t place are listed in a report." />
-        </div>
-        <p className="mt-2 text-xs leading-4 text-gray-600">
-          These links go to pages inside the PDF. Web links already in your brief still work.</p>
-      </fieldset>
-      {brief && <div className="min-w-0"><h3 className={LEGEND}>Your brief as PDF</h3>{brief}</div>}
-    </div>
-  </Modal>;
+  return <>
+    <fieldset disabled={disabled} className="min-w-0">
+      <legend className={LEGEND}>Links</legend>
+      <div className={ROWS}>
+        <OptionCard row type="checkbox" checked={!!value.linkTabs}
+          onChange={event => onChange({ linkTabs: event.target.checked })} label="Citations to their tabs"
+          preview={<PdfPreview kind="tabs" />}
+          detail="Clicking “R v Jordan, 2016 SCC 27” or its tab reference opens Tab 4." />
+        <OptionCard row type="checkbox" checked={!!value.linkPinpoints}
+          onChange={event => onChange({ linkPinpoints: event.target.checked })} label="Pinpoints to the passage"
+          preview={<PdfPreview kind="pinpoints" />}
+          detail="In PDFs you uploaded, clicking “at para 105” opens Tab 4 at paragraph 105. Pinpoints it can’t place are listed in a report." />
+      </div>
+      <p className="mt-2 text-xs leading-4 text-gray-600">
+        These links go to pages inside the PDF. Web links already in your brief still work.</p>
+    </fieldset>
+    {brief && <div className="min-w-0"><h3 className={LEGEND}>Your brief as PDF</h3>{brief}</div>}
+  </>;
 }
 
 const PAGE = "relative block h-9 w-14 shrink-0 overflow-hidden rounded border border-gray-400 bg-white";
@@ -180,11 +168,11 @@ function TabPreview({ mode }: { mode: TabMode }) {
 }
 
 /** The final PDF: the brief, then the book after it, and where its links lead inside it. */
-function PdfPreview({ kind }: { kind: "append" | "tabs" | "pinpoints" }) {
+function PdfPreview({ kind }: { kind: "tabs" | "pinpoints" }) {
   return <span aria-hidden="true" className="relative block h-9 w-14 shrink-0">
     <span className="absolute left-0 top-0 h-9 w-[26px] rounded border border-gray-400 bg-white">
       {[6, 13, 20, 27].map((top, index) => <span key={top} className={cn("absolute left-1 h-0.5",
-        kind !== "append" && index === 1 ? "w-3 bg-red-600" : "w-4 bg-gray-500")} style={{ top }} />)}
+        index === 1 ? "w-3 bg-red-600" : "w-4 bg-gray-500")} style={{ top }} />)}
     </span>
     {/* The book's tab, its edge in red; a pinpoint opens at its paragraph, marked. */}
     <span className="absolute right-0 top-0 h-9 w-[26px] rounded border border-gray-400 bg-gray-50">
@@ -193,10 +181,10 @@ function PdfPreview({ kind }: { kind: "append" | "tabs" | "pinpoints" }) {
       {[6, 13, 20, 27].map((top) => <span key={top} className="absolute left-1 h-0.5 w-3.5 bg-gray-400" style={{ top }} />)}
     </span>
     {/* The citation's link, an arrow to where it lands. */}
-    {kind !== "append" && <span className={cn("absolute left-[15px] flex items-center",
+    <span className={cn("absolute left-[15px] flex items-center",
       kind === "tabs" ? "top-[11px]" : "top-[11px] origin-left rotate-[22deg]")}>
       <span className="h-0 w-[22px] border-t border-red-600" />
       <span className="h-0 w-0 border-y-[3px] border-l-4 border-y-transparent border-l-red-600" />
-    </span>}
+    </span>
   </span>;
 }

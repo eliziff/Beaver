@@ -1,5 +1,5 @@
 import type { AuthoritiesBuildSettings, AuthoritiesProfileId, AuthoritiesOutputMode, AuthoritiesProduct, AuthoritiesAction, AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritySourceLanguage, AuthoritiesBuildReceipt } from "@/app/authorities/types";
-import { post, multipartRequest, segment, apiRequest, mutationInit, followedRequest } from "@/app/lib/api/client";
+import { post, multipartRequest, segment, apiRequest, apiResponse, mutationInit, followedRequest } from "@/app/lib/api/client";
 import type { Document } from "@/app/lib/api/documents";
 import type { AuthoritiesBookSlot } from "../../../../../shared/authorities-sources.mjs";
 
@@ -66,7 +66,10 @@ export const buildAuthorities = async (id: string, revision: number, signal?: Ab
     Promise<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt }>;
 
 export const prepareAuthoritiesAnnotations = (id: string, authorityId: string, bindingRole: string,
-  sourceSha256: string, signal?: AbortSignal) =>
+  sourceSha256: string, signal?: AbortSignal, passageMarking?: AuthoritiesBuildSettings["passageMarking"]) =>
   apiRequest<import("@/app/authorities/annotationPreparation").AnnotationPreparation>(
     `/authorities/${segment(id)}/annotations`,
-    { ...mutationInit("POST", { authorityId, bindingRole, sourceSha256 }), signal });
+    { ...mutationInit("POST", { authorityId, bindingRole, sourceSha256, passageMarking }), signal });
+/** The book's cover and first index page, drawn with `actions` applied to the saved draft. */
+export const authoritiesBookFront = async (id: string, actions: AuthoritiesAction[], signal?: AbortSignal) =>
+  (await apiResponse(`/authorities/${segment(id)}/book-front`, { ...mutationInit("POST", { actions }), signal })).blob();

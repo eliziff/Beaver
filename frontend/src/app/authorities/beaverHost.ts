@@ -11,6 +11,7 @@ import {
   prepareAuthoritiesAnnotations,
   authoritiesSourceOcr,
   authoritiesWordToPdf,
+  authoritiesBookFront,
   refreshAuthoritiesInput,
   reviewAuthorities,
   resolveAuthoritiesDiscrepancy,
@@ -82,7 +83,8 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     const authority = draft.state.authorities[authorityId];
     const source = authority?.source.kind === "attached" ? authority.source.sources.find(source => source.bindingRole === role) : null;
     if (!source) throw new Error("This source is unavailable.");
-    const prepared = await prepareAuthoritiesAnnotations(draft.id, authorityId, role, source.sourceSha256, signal);
+    const prepared = await prepareAuthoritiesAnnotations(draft.id, authorityId, role, source.sourceSha256, signal,
+      draft.state.settings.passageMarking);
     return { ...prepared, annotations: decodeAnnotationSet(prepared.annotations) };
   },
   mode: "beaver",
@@ -146,6 +148,7 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   sourceOcr: { progress: pdfProgress,
     start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),
     cancel: (id, roles) => authoritiesSourceOcr(id, roles, true) },
+  bookFront: (draft, actions, signal) => authoritiesBookFront(draft.id, actions, signal),
   async build(draft, progress, signal) {
     await prepareSourcePdfs(draft, progress, signal);
     progress?.("Building outputs");

@@ -61,6 +61,8 @@ export interface AuthoritiesHost {
   /** The folder Auto-fetch watches, kept for the next visit. */
   watchedFolder?: { get(): Promise<FileSystemDirectoryHandle | null>;
     set(handle: FileSystemDirectoryHandle | null): Promise<void> };
+  /** The book's cover and first index page, as a PDF, with `actions` applied to the draft first. */
+  bookFront?(product: AuthoritiesProduct, actions: AuthoritiesAction[], signal?: AbortSignal): Promise<Blob>;
   build(product: AuthoritiesProduct, progress?: (message: string) => void,
     signal?: AbortSignal): Promise<{
     product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt; notice?: string;
