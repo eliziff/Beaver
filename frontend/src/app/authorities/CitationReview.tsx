@@ -8,7 +8,7 @@ import { errorMessage } from '@/app/lib/utils';
 import { authorityLabel, authorityName } from './authorityPresentation';
 import type { AuthoritiesHost } from './host';
 import type { AuthoritiesAction, AuthoritiesProduct, AuthorityOccurrence, AuthorityIdentity, AuthoritiesDiscrepancy } from './types';
-import { caretAt, citationSelection, clearCitationMarks, locateCitationUnits, markCitations, marksOf, paintCitations,
+import { caretAt, citationMarksChanged, citationSelection, clearCitationMarks, locateCitationUnits, markCitations, marksOf, paintCitations,
   selectedUnit, unitText, wholeUnit, type CitationPaint, type CitationSelection, type LocatedUnit, type PaintMode,
   type UnitText } from './citationDocument';
 import './citationReview.css';
@@ -29,11 +29,16 @@ function noteLabels(units: Unit[]) {
   }
   return labels;
 }
-/** A unit's citations as marked in the document: an edit marks again only the units it changed. */
+/** A unit's citations as marked in the document: an edit marks again only the citations it changed. */
 const marking = (unit: Unit, occurrences: AuthoritiesProduct['state']['occurrences']) => unit.occurrenceIds.map(id => {
   const item = occurrences[id];
   return item ? `${id}:${item.start}:${item.end}` : '';
 }).join('|');
+/** The citations whose marks differ between two markings of a unit, by id. */
+function remarked(before: string, after: string) {
+  const was = new Set(before.split('|')), now = new Set(after.split('|'));
+  return [...was.symmetricDifference(now)].filter(Boolean).map(entry => entry.split(':').slice(0, -2).join(':'));
+}
 
 /** An outline row: the citation as it reads in the article, with a quotation finding marked in its
  * padding. The review marks the selected row itself, so choosing another re-renders no row, and a
@@ -273,8 +278,8 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     return location && span && span.end > span.start ? { unitId: location.unit.id, ...span } : null;
   };
   const rememberSelection = () => setSelection(readSelection());
-  // "layout" measures every band again; "active" redraws the active citation; "scroll" repaints only
-  // when the pages in view change.
+  // "layout" measures every page again; "active" redraws the active citation; "scroll" repaints only
+  // when the pages in view change. Pages whose marks changed are measured again in any mode.
   /** Where the active citation's pinpoints are written in the rendered document. */
   const pinRanges = () => {
     const { selected, product } = live.current, own = selected && product.state.units.find(item => item.id === selected.unitId);
@@ -338,9 +343,9 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     // A page's text layer is rebuilt on zoom and resize; the layer it replaced leaves with it.
     locations.current = page ? [...locations.current.filter(item => item.root !== root && item.root.isConnected), ...found] : found;
     if (page) decorated.current.set(page, root);
-    markCitations(found, product.state.occurrences);
+    markCitations(found, product.state.occurrences); citationMarksChanged(root);
     for (const { unit } of found) marked.current.set(unit.id, marking(unit, product.state.occurrences));
-    activate(); repaint('layout');
+    activate(); repaint('scroll');
     if (page) setReady(value => value || 1);
   };
 
@@ -368,25 +373,31 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     } else documentRef.current?.querySelectorAll<HTMLElement>('.pdf-text-layer').forEach(root =>
       decorate(root, Number(root.closest<HTMLElement>('[data-page-number]')?.dataset.pageNumber)));
   }, [ready, source, textKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  // An edit marks again only the units whose citations it changed, and paints before the frame shows.
+  // An edit marks again only the citations it changed; its bands are drawn with the frame.
   useLayoutEffect(() => {
     const { occurrences } = product.state, current = new Map(units.map(unit => [unit.id, unit]));
-    const changed = new Set(units.filter(unit => marked.current.has(unit.id) &&
-      marked.current.get(unit.id) !== marking(unit, occurrences)).map(unit => unit.id));
+    const changed = new Map(units.flatMap(unit => {
+      const before = marked.current.get(unit.id), after = marking(unit, occurrences);
+      return before === undefined || before === after ? [] : [[unit.id, new Set(remarked(before, after))] as const];
+    }));
     // Unmarking joins the text nodes around a unit's marks, so every unit sharing that root is read afresh.
     const touched = new Set(locations.current.filter(item => changed.has(item.unit.id)).map(item => item.root));
     locations.current = locations.current.filter(item => item.root.isConnected).map(item => {
       const now = current.get(item.unit.id) ?? item.unit;
-      if (changed.has(now.id)) clearCitationMarks(item.root, now.id);
+      if (changed.has(now.id)) clearCitationMarks(item.root, now.id, changed.get(now.id));
       return touched.has(item.root) ? { ...item, unit: now } : Object.assign(item, { unit: now });
     });
     if (!changed.size) return;
-    markCitations(locations.current.filter(item => changed.has(item.unit.id)), occurrences);
-    for (const id of changed) marked.current.set(id, marking(current.get(id)!, occurrences));
-    activate(); paint('layout');
+    const ids = new Set([...changed.values()].flatMap(set => [...set]));
+    markCitations(locations.current.filter(item => changed.has(item.unit.id)),
+      Object.fromEntries(Object.entries(occurrences).filter(([id]) => ids.has(id))));
+    touched.forEach(citationMarksChanged);
+    for (const id of changed.keys()) marked.current.set(id, marking(current.get(id)!, occurrences));
+    activate(); repaint('active');
   }, [units, product.state.occurrences]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
-    flushNudge(); rememberSelection(); activate(); paint('active');
+    // The selection is kept by its own events: reading it here would lay out the page again.
+    flushNudge(); activate(); repaint('active');
     [...listRef.current?.querySelectorAll<HTMLElement>('[role=option]') ?? []].find(row => row.dataset.id === selected?.id)
       ?.scrollIntoView?.({ block: 'nearest' });
   }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -395,13 +406,14 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     if (!root || !unit || !selected) return;
     clearCitationMarks(root);
     markCitations([{ unit, root, start: 0, end: unit.text.length }], product.state.occurrences);
+    citationMarksChanged(root);
     marksOf(root, selected.id).forEach(mark => { mark.dataset.active = ''; });
-    repaint('layout');
+    repaint('active');
   }, [error, located, ready, source, selected?.id, units, product.state.occurrences]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!busy) { preview.current = {}; repaint('active'); } }, [busy]); // eslint-disable-line react-hooks/exhaustive-deps
   // The active citation's pinpoints are drawn again in the frame that shows their edit.
   const pinKey = selected && JSON.stringify(placedPins(selected).map(({ start, end }) => [start, end]));
-  useLayoutEffect(() => { paint('active'); }, [pinKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => { repaint('active'); }, [pinKey]); // eslint-disable-line react-hooks/exhaustive-deps
   // Bands follow the text through scrolling, zoom and layout changes.
   useEffect(() => {
     const root = documentRef.current, scroll = () => repaint('scroll');
@@ -514,10 +526,10 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
       nudge.current = undefined;
       const start = text.from(from), end = text.to(to);
       if (start !== selected.start || end !== selected.end) submit({ type: 'set-citation-range', occurrenceId: id, start, end });
-      else { preview.current = {}; paint('active'); }
+      else { preview.current = {}; repaint('active'); }
     };
     nudge.current = { id, from, to, commit, timer: setTimeout(commit, 600) };
-    preview.current = { range: text.range(from, to) }; paint('active');
+    preview.current = { range: text.range(from, to) }; repaint('active');
   };
   const hover = (event: ReactPointerEvent) => {
     if (event.buttons || documentRef.current?.dataset.dragging) return;

@@ -69,10 +69,11 @@ export function locateCitationUnits(root: HTMLElement, units: Unit[], page?: num
 export const marksOf = (root: ParentNode, id: string) =>
   [...root.querySelectorAll<HTMLElement>('[data-citation-id]')].filter(mark => mark.dataset.citationId === id);
 
-export function clearCitationMarks(root: HTMLElement, unitId?: string) {
+/** Unmarks a root, one unit of it, or only some of that unit's citations. */
+export function clearCitationMarks(root: HTMLElement, unitId?: string, ids?: Set<string>) {
   const parents = new Set<Node>();
   root.querySelectorAll<HTMLElement>('[data-citation-id]').forEach(mark => {
-    if (unitId !== undefined && mark.dataset.unit !== unitId) return;
+    if (unitId !== undefined && mark.dataset.unit !== unitId || ids && !ids.has(mark.dataset.citationId!)) return;
     parents.add(mark.parentNode!); mark.replaceWith(...mark.childNodes);
   });
   // One unit's marks are cleared without touching the rest of the document.
@@ -270,18 +271,30 @@ const origin = (scroller: Element) => {
 export type CitationPaint = { active?: string; range?: Range | null; pins?: () => Range[] };
 export type PaintMode = 'layout' | 'active' | 'scroll';
 type Band = Box & { id: string };
-const drawn = new WeakMap<HTMLElement, Band[]>();
+const PAGES = '.page,section.docx';
+/** Each overlay's bands, each shape's place as drawn, and each overlay's active-citation shapes. */
+const drawn = new WeakMap<HTMLElement, Band[]>(), placed = new WeakMap<HTMLElement, string>(), activeDrawn = new WeakMap<HTMLElement, string>();
+const shapes = (b: Box) => `left:${b.left}px;top:${b.top}px;width:${b.right - b.left}px;height:${b.bottom - b.top}px`;
+/** Each page's citation lines as last measured, by overlay, and the pages whose marks changed since. */
+const measured = new WeakMap<HTMLElement, Map<Element, Band[]>>(), remarked = new WeakSet<Element>();
+/** The marks under `root` changed: its pages are measured again when next painted, and only they. */
+export function citationMarksChanged(root: Element) {
+  const page = root.closest(PAGES);
+  for (const changed of page ? [page] : [root, ...root.querySelectorAll(PAGES)]) remarked.add(changed);
+}
 /** One rounded band per line of each citation on the pages in view, drawn in an overlay that scrolls
- * with the text. "layout" measures every band again (marks, zoom or size changed), as does a change
- * in the pages in view; "active" redraws only the active citation: its fill, pinpoints and grips, or
- * the range a drag or nudge previews; "scroll" does nothing more while the same pages stay in view.
- * The pinpoints are the active citation's alone, in yellow wherever they lie, in its range or not. */
-export function paintCitations(scroller: HTMLElement, { active, range, pins: placed }: CitationPaint, mode: PaintMode) {
-  const { view, x, y } = origin(scroller), all = [...scroller.querySelectorAll('.page,section.docx')];
-  const shown = all.flatMap((page, i) => {
+ * with the text. A page is measured when it first comes into view and again once its marks change;
+ * "layout" measures every page again (zoom or size changed). "active" redraws the active citation:
+ * its fill, pinpoints and grips, or the range a drag or nudge previews; "scroll" does nothing more
+ * while the same pages stay in view. The pinpoints are the active citation's alone, in yellow
+ * wherever they lie, in its range or not. */
+export function paintCitations(scroller: HTMLElement, { active, range, pins: pinned }: CitationPaint, mode: PaintMode) {
+  const { view, x, y } = origin(scroller), all = [...scroller.querySelectorAll(PAGES)];
+  const pages = all.length ? all.filter(page => {
     const box = page.getBoundingClientRect();
-    return box.bottom > view.top - view.height && box.top < view.bottom + view.height ? [i] : [];
-  }).join();
+    return box.bottom > view.top - view.height && box.top < view.bottom + view.height;
+  }) : [scroller];
+  const shown = pages.map(page => all.indexOf(page)).join();
   let overlay = scroller.querySelector<HTMLElement>(':scope>.citation-overlay');
   if (!overlay) {
     overlay = scroller.appendChild(Object.assign(document.createElement('div'), { className: 'citation-overlay' }));
@@ -289,28 +302,33 @@ export function paintCitations(scroller: HTMLElement, { active, range, pins: pla
     overlay.append(document.createElement('div'), document.createElement('div'));
   }
   const [layer, own] = overlay.children as unknown as [HTMLElement, HTMLElement];
+  let pageLines = measured.get(overlay);
+  if (!pageLines || mode === 'layout') measured.set(overlay, pageLines = new Map());
+  const unmeasured = pages.filter(page => !pageLines.has(page) || remarked.has(page));
   const moved = overlay.dataset.pages !== shown;
-  if (mode === 'scroll' && !moved) return;
+  if (mode === 'scroll' && !moved && !unmeasured.length) return;
   // Shapes are kept in content coordinates, which scrolling leaves alone: a grip drawn after a scroll
   // from bands measured before it lands on its citation's edge.
   const box = (className: string, b: Box, data: Record<string, string> = {}) => {
-    const element = Object.assign(document.createElement('div'), { className });
-    Object.assign(element.style, { left: `${b.left}px`, top: `${b.top}px`,
-      width: `${b.right - b.left}px`, height: `${b.bottom - b.top}px` });
+    const element = Object.assign(document.createElement('div'), { className }), place = shapes(b);
+    element.style.cssText = place; placed.set(element, place);
     Object.assign(element.dataset, data);
     return element;
   };
   /** A measured line, padded, in content coordinates. */
   const pad = (line: Box) => ({ left: line.left - 2 + x, right: line.right + 2 + x, top: line.top - 1 + y, bottom: line.bottom + 1 + y });
-  if (mode === 'layout' || moved) {
-    overlay.dataset.pages = shown;
+  for (const page of unmeasured) {
+    remarked.delete(page);
     const groups = new Map<string, HTMLElement[]>();
-    for (const page of all.length ? shown.split(',').filter(Boolean).map(i => all[+i]) : [scroller])
-      for (const mark of page.querySelectorAll<HTMLElement>('[data-citation-id]')) {
-        const id = mark.dataset.citationId!, list = groups.get(id) ?? [];
-        list.push(mark); groups.set(id, list);
-      }
-    const bands: Band[] = [...groups].flatMap(([id, marks]) => lineBoxes(ink(marks)).map(line => ({ id, ...pad(line) })));
+    for (const mark of page.querySelectorAll<HTMLElement>('[data-citation-id]')) {
+      const id = mark.dataset.citationId!, list = groups.get(id) ?? [];
+      list.push(mark); groups.set(id, list);
+    }
+    pageLines.set(page, [...groups].flatMap(([id, marks]) => lineBoxes(ink(marks)).map(line => ({ id, ...pad(line) }))));
+  }
+  if (moved || unmeasured.length) {
+    overlay.dataset.pages = shown;
+    const bands = pages.flatMap(page => pageLines.get(page)!.map(band => ({ ...band })));
     // Bands never touch: neighbours on a line, and lines above one another, part around a gap.
     bands.sort((a, b) => a.top - b.top || a.left - b.left);
     for (let i = 0; i < bands.length; i++) for (let j = i + 1; j < bands.length && bands[j].top < bands[i].bottom + GAP; j++) {
@@ -323,14 +341,22 @@ export function paintCitations(scroller: HTMLElement, { active, range, pins: pla
       }
     }
     drawn.set(overlay, bands);
-    layer.replaceChildren(...bands.map(band => box('citation-band', band, { id: band.id })));
+    // A band that stays where it was keeps its element, so an edit redraws only the lines it changed;
+    // one that moves is drawn anew rather than slid across the text.
+    const kept = new Map([...layer.children as HTMLCollectionOf<HTMLElement>].map(band =>
+      [`${band.dataset.id} ${placed.get(band)}`, band]));
+    for (const band of bands) {
+      const key = `${band.id} ${shapes(band)}`, element = kept.get(key);
+      if (element) kept.delete(key); else layer.append(box('citation-band', band, { id: band.id }));
+    }
+    kept.forEach(band => band.remove());
   }
   for (const band of layer.children as HTMLCollectionOf<HTMLElement>) {
     band.toggleAttribute('data-active', band.dataset.id === active);
     band.hidden = !!range && band.dataset.id === active;
   }
   const lines = range ? lineBoxes(ink(range)).map(pad) : (drawn.get(overlay) ?? []).filter(band => band.id === active);
-  const pins = active ? (placed?.() ?? []).filter(pin => scroller.contains(pin.commonAncestorContainer))
+  const pins = active ? (pinned?.() ?? []).filter(pin => scroller.contains(pin.commonAncestorContainer))
     .flatMap(pin => lineBoxes(ink(pin)).map(pad)) : [];
   // Each grip is a slim bar the height of its line with a round cap: the start cap sits above the
   // line and the end cap below. The hit area is 16px wide, mostly outside the text so a selection
@@ -341,6 +367,9 @@ export function paintCitations(scroller: HTMLElement, { active, range, pins: pla
     box('citation-grip', { left: lines.at(-1)!.right - 4, right: lines.at(-1)!.right + 12,
       top: lines.at(-1)!.top, bottom: lines.at(-1)!.bottom + 8 }, { grip: 'end', cap: 'bottom' }),
   ] : [];
-  own.replaceChildren(...range ? lines.map(line => box('citation-band', line, { active: '' })) : [],
-    ...pins.map(pin => box('citation-pinpoint', pin, { id: active! })), ...grips);
+  const drawing = [...range ? lines.map(line => box('citation-band', line, { active: '' })) : [],
+    ...pins.map(pin => box('citation-pinpoint', pin, { id: active! })), ...grips];
+  // The active citation's shapes are replaced only when one of them changed.
+  const markup = drawing.map(shape => shape.outerHTML).join('');
+  if (activeDrawn.get(own) !== markup) { own.replaceChildren(...drawing); activeDrawn.set(own, markup); }
 }
