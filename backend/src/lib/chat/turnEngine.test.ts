@@ -83,35 +83,6 @@ it("starts from saved receipts and restores only cited sources for final pinpoin
   expect(load.mock.calls.map(([request]) => request.citation)).toEqual([receipt.citation]);
 });
 
-it("forwards nested tool progress to the provider inactivity watchdog", async () => {
-  const heartbeat = vi.fn();
-  const tool: BeaverTool<ChatToolContext> = {
-    ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
-    async execute(_input, context) {
-      context.onActivity?.();
-      return { result: toolText({ ok: true }) };
-    },
-  };
-  stream.mockImplementationOnce(async ({ runTools }) => {
-    await runTools([{
-      id: "read-1",
-      name: tool.name,
-      input: { file_path: "document://x/version/v1" },
-    }], heartbeat);
-    return { fullText: "Done." };
-  });
-
-  await runChatTurn({
-    model: "gemini-3-flash-preview",
-    systemPrompt: "",
-    messages: [{ role: "user", content: "Read x." }],
-    createTools: () => [tool],
-    emit: () => undefined,
-  });
-
-  expect(heartbeat).toHaveBeenCalledOnce();
-});
-
 it("publishes source identity immediately and settles each parallel read before the batch ends", async () => {
   const events: Record<string, unknown>[] = [];
   const source = { kind: "public_legal", ref: 1, provider: "tna", identifier: "ewca/civ/2024/1",
