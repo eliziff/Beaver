@@ -56,17 +56,19 @@
 .citation-fallback>p{margin:0;color:#6b7280;font-size:.8125rem}
 .citation-fallback>div{position:relative;isolation:isolate;white-space:pre-wrap;overflow:hidden auto;padding:.5rem 0;line-height:1.8;outline:none}
 
-/* The bar under the document, its controls as wide as the page above: where you are and the edits;
-   then the pinpoints, what a supra or ibid refers to, and the quotation. One quiet control style
-   throughout, and the pinpoints in the yellow of their highlights. Nothing moves between citations. */
-.citation-panel{grid-column:2;display:grid;grid-template:"nav nav edit" 2rem "pins refers quote" 2rem/minmax(0,1fr) auto auto;align-items:center;gap:.5rem .75rem;padding:.625rem max(1rem,calc((100% - 46rem)/2)) .75rem;border-top:1px solid var(--color-gray-200);background:var(--app-surface);font-size:.8125rem;color:var(--color-gray-700)}
+/* The bar under the document, one band as wide as the page above: where you are, the pinpoints,
+   what a supra or ibid refers to, the quotation, and Add citation over Remove. One quiet control
+   style throughout, the pinpoints in the yellow of their highlights. Where you are and the edits
+   never move between citations. */
+.citation-panel{grid-column:2;display:grid;grid-template:"nav pins refers quote edit" 3.375rem/auto auto minmax(0,1fr) auto auto;align-items:center;gap:0 1rem;padding:.375rem max(1rem,calc((100% - 46rem)/2));border-top:1px solid var(--color-gray-200);background:var(--app-surface);font-size:.8125rem;color:var(--color-gray-700)}
 .citation-panel>div{display:flex;align-items:center;min-width:0}
 .citation-nav{grid-area:nav;gap:.125rem}
 .citation-nav>span{margin-inline-start:.375rem;font-variant-numeric:tabular-nums;color:var(--color-gray-600)}
 .citation-panel .citation-nav button{width:2rem;height:2rem;border-radius:6px;color:var(--color-gray-600)}
 .citation-panel .citation-nav button:disabled{opacity:1;color:var(--color-gray-300)}
 .citation-panel .citation-nav svg{width:1rem;height:1rem}
-.citation-edit{grid-area:edit;justify-self:end;gap:.25rem}
+.citation-edit{grid-area:edit;flex-direction:column;align-items:stretch;gap:0}
+.citation-panel .citation-edit>button{justify-content:flex-end;height:1.625rem}
 .citation-edit>button,.citation-add-pin{display:inline-flex;align-items:center;gap:.3rem;height:2rem;padding:0 .625rem;border-radius:6px;color:var(--color-gray-700);font-weight:500;white-space:nowrap}
 .citation-panel button:hover:not(:disabled){background:var(--app-surface-hover);color:var(--color-gray-900)}
 .citation-edit>button:last-child:hover:not(:disabled){color:var(--citation-accent, #991b1b)}
@@ -92,9 +94,9 @@
 .citation-chip>button:last-child>svg{width:.75rem;height:.75rem}
 .citation-panel .citation-chip>button:hover:not(:disabled){background:var(--color-amber-200);color:var(--citation-warning, #451a03)}
 .citation-chip>button:disabled{cursor:default}
-.citation-refers{grid-area:refers;gap:.5rem}
+.citation-refers{grid-area:refers;gap:.5rem;min-width:0}
 .citation-refers>span{color:var(--color-gray-500);white-space:nowrap}
-.citation-quote{grid-area:quote;justify-self:end;display:inline-flex;align-items:center;gap:.35rem;height:2rem;padding:0 .625rem;border-radius:6px;color:var(--citation-accent, #991b1b);font-weight:500}
+.citation-quote{grid-area:quote;display:inline-flex;align-items:center;gap:.35rem;height:2rem;padding:0 .625rem;border-radius:6px;color:var(--citation-accent, #991b1b);font-weight:500}
 .citation-panel .citation-quote:hover{background:var(--brand-red-soft);color:var(--citation-accent, #991b1b)}
 .citation-quote>svg{display:none;width:1rem;height:1rem}
 /* The authorities open upward over the document, each under the place that cites it. */
@@ -119,7 +121,7 @@
 @container (max-width:48rem){
   .citation-review{grid-template:7.5rem minmax(0,1fr) auto/minmax(0,1fr)}
   .citation-outline{grid-row:1;border-inline-end:0;border-bottom:1px solid var(--color-gray-200)}
-  .citation-panel{grid-column:1;grid-template:"nav nav edit" 2rem "pins pins quote" 2rem "refers refers refers" auto/minmax(0,1fr) auto auto;padding-inline:.75rem}
+  .citation-panel{grid-column:1;grid-template:"nav quote edit" 3.375rem "pins pins pins" 2.25rem "refers refers refers" auto/minmax(0,1fr) auto auto;padding-inline:.75rem}
   .citation-document{grid-column:1}
   .citation-note{margin-bottom:.3rem}
   .citation-authority{flex:1;width:auto}
