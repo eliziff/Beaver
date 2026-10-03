@@ -127,7 +127,7 @@ To use the existing local production build for the small browser suite, set
 
 Local Vitest runs use one worker; CI uses four. Pure Node tests skip React/JSDOM
 setup. Normal npm builds/tests run below normal priority and limit Rayon/OpenMP
-pools to two threads. Root Cargo configuration limits compilation to one job
+pools to one thread. Root Cargo configuration limits compilation to one job
 and one codegen unit, including addon builds launched from this checkout.
 Native CI commands explicitly use two jobs on their dedicated runners.
 Avoid running builds and tests concurrently on the workstation; use focused tests
