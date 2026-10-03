@@ -8,8 +8,8 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { ApplicationError, reject } from "../lib/applicationError";
-import { authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations, statuteExcerptSummary,
-  type AuthoritiesBuildInput } from "../lib/authoritiesBuild";
+import { authoritiesBookFront, authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations,
+  statuteExcerptSummary, type AuthoritiesBuildInput } from "../lib/authoritiesBuild";
 import { sourceReadings } from "../lib/sourceReadings";
 import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
@@ -277,6 +277,14 @@ export function createAuthoritiesRuntimeRouter(
     const current = draft(req.body?.draft);
     const action = decodeAuthoritiesUserAction(req.body?.action);
     await sendDraft(res, applyAuthoritiesUserAction(current, action), []);
+  }));
+  // The book's cover and first index page with the changes not yet made to the draft.
+  router.post("/book-front", asyncRoute(async (req, res) => {
+    const actions = Array.isArray(req.body?.actions) && req.body.actions.length <= 3 ? req.body.actions as unknown[]
+      : reject(400, "actions are invalid");
+    const state = actions.map(decodeAuthoritiesUserAction).reduce((state, action) => applyAuthoritiesUserAction(state, action),
+      draft(req.body?.draft));
+    res.type("application/pdf").send(await authoritiesBookFront(state, String(req.body?.title ?? "").slice(0, 300)));
   }));
   router.post("/sources", followedRoute(async (req, res, progress) => {
     const preparation = new AbortController(); res.once("close", () => preparation.abort());

@@ -5,6 +5,9 @@ import { bad, choice, decodeAuthoritiesDiscrepancyAction,
   decodeAuthoritiesInitialSettings, decodeAuthoritiesUserAction, decodePdfOpening, integer, object,
   text } from "../lib/authoritiesActionContract";
 import { asyncRoute } from "../lib/asyncRoute";
+import { applyAuthoritiesUserAction } from "../lib/authoritiesActions";
+import { authoritiesBookFront } from "../lib/authoritiesBuild";
+import { decodeAuthoritiesDraft } from "../lib/authoritiesDomain";
 import { followedRoute } from "../lib/followedRoute";
 import { wordToPdfAvailable } from "../lib/convert";
 import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
@@ -99,6 +102,15 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
     res.json(await application.act(applicationScope(res), text(req.params.id),
       revision(body.revision), decodeAuthoritiesUserAction(body.action)));
   }));
+  // The book's cover and first index page with the changes not yet made to the draft.
+  router.post("/:id/book-front", asyncRoute(async (req, res) => {
+    const body = object(req.body), actions = Array.isArray(body.actions) && body.actions.length <= 3
+      ? body.actions as unknown[] : bad();
+    const product = await application.get(applicationScope(res), text(req.params.id));
+    const state = actions.map(decodeAuthoritiesUserAction).reduce((state, action) => applyAuthoritiesUserAction(state, action),
+      decodeAuthoritiesDraft(product.state) ?? reject(409, "Authorities draft state is invalid"));
+    res.type("application/pdf").send(await authoritiesBookFront(state, product.title));
+  }));
   router.post("/:id/refresh", asyncRoute(async (req, res) => {
     res.json(await application.refresh(applicationScope(res), text(req.params.id),
       revision(object(req.body).revision)));
@@ -147,6 +159,8 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
     const body = object(req.body), abort = new AbortController(); res.once("close", () => abort.abort());
     res.json(await application.annotations(applicationScope(res), text(req.params.id), {
       authorityId: text(body.authorityId), bindingRole: text(body.bindingRole), sourceSha256: digest(body.sourceSha256),
+      ...(body.passageMarking === undefined ? {} : { passageMarking: choice(body.passageMarking,
+        ["none", "margin", "paragraph", "text", "sidelined"] as const) }),
     }, abort.signal));
   }));
   router.post("/:id/source-ocr", asyncRoute(async (req, res) => {
