@@ -25,19 +25,20 @@ export const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["
     detail: "Builds every source from its text, even where an original PDF exists." },
 ];
 export const SCANNED_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["scannedPdfPolicy"]>> = [
-  { value: "page-margin", label: "Keep scans as images",
-    detail: "Keeps scanned pages as images. Their cited passages are marked in the margin." },
-  { value: "cited-pages", label: "Recognize cited pages",
-    detail: "Recognizes the text of the scanned pages your brief cites, so their passages can be marked." },
   { value: "full", label: "Recognize every page",
     detail: "Recognizes the text of every scanned page." },
+  { value: "cited-pages", label: "Recognize cited pages",
+    detail: "Recognizes the text of the scanned pages your brief cites, so their passages can be marked." },
+  { value: "page-margin", label: "Keep scans as images",
+    detail: "Keeps scanned pages as images. Their cited passages are marked in the margin." },
 ];
 /** The source and scan choices named in a word or two, for a setting shown as segments. */
 export const SHORT: Record<string, string> = { automatic: "Automatic", "manual-originals": "Originals, then my uploads",
   render: "Rebuild all from text", "page-margin": "Keep as images", "cited-pages": "Recognize cited pages", full: "Recognize every page" };
 /** The import's choices: the court, the cover and the index, the sources, and the marking. */
 const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "passageMarking"] as const;
-const STEPS = ["Court and front of book", "Sources", "Marking"] as const;
+/** A book's steps; a court that takes only a table skips the cover and the index. */
+const BOOK_STEPS = ["Court", "Cover", "Index", "Sources", "Marking"] as const, TABLE_STEPS = ["Court", "Sources", "Marking"] as const;
 
 export type Remembered = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
   profileId: AuthoritiesProfileId;
@@ -97,36 +98,40 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
     { profileId, sourceMode: settings.sourceMode, passageMarking: settings.passageMarking });
   const busy = finishing;
   const frontActions = draft ? importActions(draft.state, profileId, settings, shownCover, FRONT_KEYS) : [];
+  const steps: readonly string[] = book ? BOOK_STEPS : TABLE_STEPS, at = Math.min(step, steps.length - 1), name = steps[at];
+  const last = at === steps.length - 1;
   return <Modal open onClose={onCancel} size="2xl" breadcrumbs={title ? ["Import", <span key="title" className="font-normal text-gray-600">{title}</span>] : ["Import"]}
     className="h-[min(54rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
     footerStatus={<div className="mr-auto flex min-w-0 items-center gap-3">
-      <Button type="button" variant="outline" className={cn("border-gray-400", !step && "invisible")}
-        aria-hidden={!step || undefined} tabIndex={step ? undefined : -1} disabled={busy} onClick={() => setStep(step - 1)}>
+      <Button type="button" variant="outline" className={cn("border-gray-400", !at && "invisible")}
+        aria-hidden={!at || undefined} tabIndex={at ? undefined : -1} disabled={busy} onClick={() => setStep(at - 1)}>
         <ChevronLeft /> Back</Button>
       <span role="status" className={cn("min-w-0 truncate text-sm", error ? "text-red-800" : "text-gray-600")}>
         {error || (finishing ? <span className="inline-flex items-center gap-2"><Loader2 className="size-4 motion-safe:animate-spin" />
           Finding citations</span> : "")}</span>
     </div>}
-    // Next leads; before the last step, the rest can be left as they are and the brief imported now.
-    secondaryAction={step < STEPS.length - 1 ? { label: "Import now", disabled: busy || !!error, onClick: finish } : undefined}
-    primaryAction={step < STEPS.length - 1 ? { label: <>Next <ChevronRight /></>, disabled: busy, onClick: () => setStep(step + 1) }
-      : { label: "Import", disabled: busy || !!error, onClick: finish }}>
+    // Next on every step; the last imports.
+    primaryAction={{ label: <>Next <ChevronRight /></>, disabled: busy || last && !!error, onClick: last ? finish : () => setStep(at + 1) }}>
     {/* The steps as the workspace's own tabs: one fixed line, so nothing under it moves. */}
-    <ol aria-label="Import steps" className="mb-4 grid h-9 shrink-0 grid-cols-3 border-b border-gray-200 text-sm">
-      {STEPS.map((label, index) => <li key={label} className="min-w-0">
-        <button type="button" aria-current={index === step ? "step" : undefined} disabled={busy} onClick={() => setStep(index)}
-          className="-mb-px h-full w-full truncate border-b-2 border-transparent px-2 text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 aria-[current=step]:border-gray-900 aria-[current=step]:font-medium aria-[current=step]:text-gray-950">
+    <ol aria-label="Import steps" className="mb-4 grid h-9 shrink-0 auto-cols-fr grid-flow-col border-b border-gray-200 text-sm">
+      {steps.map((label, index) => <li key={label} className="min-w-0">
+        <button type="button" aria-current={index === at ? "step" : undefined} disabled={busy} onClick={() => setStep(index)}
+          className="-mb-px h-full w-full truncate border-b-2 border-transparent px-2 font-medium text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 aria-[current=step]:border-red-700 aria-[current=step]:text-gray-950">
           {label}</button></li>)}
     </ol>
-    {step === 0 ? <FrontLayout preview={book ? <FrontPreview host={host} draft={draft} actions={frontActions} />
-      : <Preview label="Preview"><p className="m-auto p-6 text-center text-sm text-gray-600">This court takes a Table of Authorities, not a book.</p></Preview>}>
-      {!book && <AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} onChange={setProfileId} />}
-      {book && <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy}
-        court={<AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} onChange={setProfileId} />}
-        onCover={(next) => setCover(next)} onSettings={choose} />}
-      {book && <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />}
+    {name === "Court" ? <div className="grid max-w-xl content-start gap-2 p-1">
+      <AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} onChange={setProfileId} />
+      <p className="text-sm text-gray-600">{book ? "The court sets the cover, the index, the sources and the marking in the next steps. Each can be changed there."
+        : "This court takes a Table of Authorities, not a book. The court sets the sources and the marking in the next steps."}</p>
+    </div>
+    : name === "Cover" ? <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={frontActions} page={1} label="Cover" />}>
+      <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy}
+        onCover={(next) => setCover(next)} onSettings={choose} />
     </FrontLayout>
-    : step === 1 ? <div className="grid content-start gap-5 overflow-y-auto px-1 pb-1 lg:grid-cols-2">
+    : name === "Index" ? <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={frontActions} page={2} label="First page of the index" />}>
+      <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />
+    </FrontLayout>
+    : name === "Sources" ? <div className="grid content-start gap-5 overflow-y-auto p-1 lg:grid-cols-2">
       <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
         onChange={(sourceMode) => choose({ sourceMode })} />
       {recognitionAvailable && <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}

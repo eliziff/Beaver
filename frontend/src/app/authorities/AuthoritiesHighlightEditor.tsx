@@ -126,13 +126,17 @@ export function MarkingSample({ type }: { type: Marking }) {
     style={cited && type === 'paragraph' ? highlight : undefined}>
     {cited && type === 'margin' && <span aria-hidden="true" className="absolute -left-3 inset-y-0 w-[3px]" style={{ background: RED_LINE }} />}
     <span className="absolute left-0">[{number}]</span>{text}</p>;
-  return <div role="img" aria-label="A sample page marked as chosen"
-    style={{ fontFamily: '"Times New Roman", Times, serif' }} className="mx-auto flex aspect-[8.5/11] h-full max-w-full flex-col gap-2.5 bg-white px-[9%] py-[8%] text-[0.75rem] leading-[1.55] text-gray-900 shadow-[0_1px_3px_rgb(0_0_0/.15)]">
+  // The page is a container, so its text is sized to it and always fits, however small it is drawn.
+  return <div role="img" aria-label="A sample page marked as chosen" style={{ containerType: 'size' }}
+    className="mx-auto aspect-[8.5/11] h-full max-w-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)]">
+    <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '2.6cqh' }}
+      className="flex h-full flex-col gap-[1.6cqh] px-[9%] py-[8%] leading-[1.45] text-gray-900">
     <p className="m-0 text-center font-semibold">R v Sample, 2024 ABKB 1</p>
     {paragraph(11, 'The Crown relies on the accused’s statements to the officers and on the evidence of the two witnesses who saw the vehicle leave the lot shortly after midnight.')}
     {paragraph(12, <>Where the question is whether the accused acted with the required intent, <span style={type === 'margin' || type === 'text' ? highlight : undefined}>{quote}</span>. A single remark, taken alone, will rarely decide it.</>, true)}
     {paragraph(13, 'Counsel for the accused says the statements were made in a state of shock and should be given little weight. I do not accept that submission for the reasons that follow.')}
     {paragraph(14, 'The witnesses were consistent with one another and with the video, and neither was shaken in cross-examination on the points that matter.')}
+    </div>
   </div>;
 }
 export const PASSAGE_OPTIONS: ReadonlyArray<CardOption<Marking>> = [

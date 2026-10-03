@@ -14,9 +14,9 @@ export function OptionCard({ type = "radio", name, checked, disabled, onChange, 
   row?: boolean;
 }) {
   const id = useId();
-  return <label className={cn(CARD, row && "min-h-0 py-2", "cursor-pointer hover:border-gray-400 has-[:checked]:border-gray-900 has-[:checked]:bg-gray-50 has-[:checked]:shadow-[inset_0_0_0_1px_var(--color-gray-900)] [&:has(>input:focus-visible)]:ring-2 [&:has(>input:focus-visible)]:ring-red-600 has-[:disabled]:cursor-default has-[:disabled]:opacity-60", className)}>
+  return <label className={cn(CARD, row && "min-h-0 py-2", "cursor-pointer has-[:checked]:border-red-600 has-[:checked]:bg-red-50 [&:has(>input:focus-visible)]:ring-2 [&:has(>input:focus-visible)]:ring-red-600 has-[:disabled]:cursor-default has-[:disabled]:opacity-60", className)}>
     <input type={type} name={name} checked={checked} disabled={disabled} onChange={onChange}
-      aria-labelledby={id} aria-describedby={detail ? `${id}-detail` : undefined} className="h-4 w-4 accent-gray-900" />
+      aria-labelledby={id} aria-describedby={detail ? `${id}-detail` : undefined} className="h-4 w-4 accent-red-700" />
     {preview}
     <CardText id={id} label={label} detail={detail} wide={!preview} row={row} />
   </label>;
@@ -60,8 +60,8 @@ export function Segments<T extends string>({ label, value, options, disabled, on
       <div className="flex w-fit max-w-full flex-wrap gap-0.5 rounded-md border border-gray-300 bg-white p-0.5">
         {options.map((option) => <button key={option.value} type="button" role="radio" aria-checked={option.value === value}
           disabled={disabled} onClick={() => { if (option.value !== value) onChange(option.value); }}
-          className={cn("h-7 rounded px-2.5 text-[0.8125rem] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600",
-            option.value === value ? "bg-gray-900 font-medium text-white" : "text-gray-700 hover:bg-gray-100 disabled:text-gray-400")}>
+          className={cn("h-7 rounded border px-2.5 text-[0.8125rem] font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600",
+            option.value === value ? "border-red-600 bg-red-50 text-red-800" : "border-transparent text-gray-700 hover:bg-gray-100 disabled:text-gray-400")}>
           {option.label}</button>)}
       </div>
       {chosen?.detail && <p className="mt-1 text-xs leading-4 text-gray-600">{chosen.detail}</p>}
