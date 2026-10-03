@@ -48,7 +48,7 @@ describe("local A2AJ bulk data", () => {
         CREATE VIRTUAL TABLE document_search USING fts5(name_en, name_fr, unofficial_text_en);
         INSERT INTO document(id, doc_type, dataset, citation_en, citation_fr, name_en,
           document_date_en, unofficial_text_en, unofficial_sections_en)
-        VALUES(1, 'cases', 'SCC', '2024 SCC 1', '2024 CSC 1', 'Alpha', '2024-01-12',
+        VALUES(1, 'cases', 'SCC', '2024 SCC 1', '2024 CSC 1', 'Alpha', '2024-01-12T00:00:00+00:00',
           'constitutional remedy', '{"1":"section one"}');
         INSERT INTO document(id, doc_type, dataset, citation2_en, name_en)
           VALUES(2, 'cases', 'ONCA', '2023 ONCA 9', 'Alpha');
@@ -65,6 +65,8 @@ describe("local A2AJ bulk data", () => {
         { dataset: "ONCA", citation: "2023 ONCA 9", alternateCitation: "2023 ONCA 9", name: "Alpha",
           date: null, url: null, snippet: null },
       ]);
+      expect(bulk.searchLocalA2AJ({ query: "Alpha", startDate: "2024-01-12",
+        endDate: "2024-01-12" })).toMatchObject([{ citation: "2024 SCC 1", date: "2024-01-12" }]);
       const batch = bulk.fetchLocalA2AJDocumentsByIds({ ids: [3, 2, 1], language: "fr", maxChars: 5 });
       expect([...batch.keys()]).toEqual([1]);
       expect(batch.get(1)).toMatchObject({ citation: "2024 SCC 1", language: "en",

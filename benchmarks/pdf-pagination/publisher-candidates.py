@@ -8,7 +8,7 @@ import sqlite3
 from urllib.parse import urlparse
 
 root = Path(__file__).resolve().parents[2]
-database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalProducts/LegalData/providers/a2aj/a2aj.sqlite'
+database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalData/providers/a2aj/a2aj.sqlite'
 groups = collections.defaultdict(dict)
 with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as connection:
     for dataset, en, fr, en_url, fr_url in connection.execute(

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def database_path():
     if os.environ.get('MIKE_A2AJ_BULK_DB'):
         return Path(os.environ['MIKE_A2AJ_BULK_DB'])
-    home = Path(os.environ.get('OPEN_LEGAL_DATA_HOME') or Path(os.environ['LOCALAPPDATA']) / 'OpenLegalProducts' / 'LegalData')
+    home = Path(os.environ.get('OPEN_LEGAL_DATA_HOME') or Path(os.environ['LOCALAPPDATA']) / 'OpenLegalData')
     return home / 'providers' / 'a2aj' / 'a2aj.sqlite'
 
 

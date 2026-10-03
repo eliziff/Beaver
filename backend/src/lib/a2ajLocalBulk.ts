@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
@@ -41,16 +40,8 @@ export function a2ajCitationAliasGroups(citations: string[]): CitationAliasGroup
   });
 }
 
-function searchDatabasePath(docType: DocType) {
-  const primary = a2ajLocalBulkPath();
-  const indexed = path.join(path.dirname(primary), `a2aj-${docType}-fulltext.sqlite`);
-  return existsSync(indexed) ? indexed : primary;
-}
-
-function withSearchDatabase<T>(docType: DocType,
-  operation: (database: DatabaseSync) => T): T | null {
-  return withSearchReadonlySqlite(searchDatabasePath(docType),
-    !process.env.MIKE_A2AJ_BULK_DB?.trim(), operation);
+function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
+  return withSearchReadonlySqlite(a2ajLocalBulkPath(), operation);
 }
 
 function languageField(row: Row, field: string, language: Language) {
@@ -83,7 +74,7 @@ function documentMetadata(row: Row, language: Language) {
     citation,
     alternateCitation: languageField(row, "citation2", language),
     name: languageField(row, "name", language),
-    date: languageField(row, "document_date", language),
+    date: languageField(row, "document_date", language)?.slice(0, 10) ?? null,
     url: languageField(row, "url", language),
   };
 }
@@ -206,15 +197,13 @@ export function searchLocalA2AJ(args: {
   const language = args.language === "fr" ? "fr" : "en";
   const wanted = boundedSize(args.size, 10, 50);
   const docType = args.docType ?? "cases";
-  const dedicatedIndex =
-    path.basename(searchDatabasePath(docType)) === `a2aj-${docType}-fulltext.sqlite`;
-  return withSearchDatabase(docType, (database) => {
+  return withSearchDatabase((database) => {
     if (!hasFts(database)) return null;
-    const filters = dedicatedIndex ? [] : ["document.doc_type = ?"];
-    const values: Array<string | number> = dedicatedIndex ? [] : [docType];
+    const filters = ["document.doc_type = ?"];
+    const values: Array<string | number> = [docType];
     addDatasetFilter(filters, values, args.dataset);
-    const date = `COALESCE(NULLIF(document.document_date_${language}, ''), document.document_date_${
-      language === "en" ? "fr" : "en"}, '')`;
+    const date = `substr(COALESCE(NULLIF(document.document_date_${language}, ''), document.document_date_${
+      language === "en" ? "fr" : "en"}, ''), 1, 10)`;
     if (args.startDate?.trim()) {
       filters.push(`${date} >= ?`);
       values.push(args.startDate.trim());

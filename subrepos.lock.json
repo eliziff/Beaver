@@ -4,7 +4,7 @@
   "repositories": {
     "OpenLegalData": {
       "branch": "main",
-      "commit": "edf5a119a956d9db2c9d14bbef26b960e6edfe31",
+      "commit": "e3d42ea2842c66eb7d1e5a44bf74f780902d550e",
       "bundle": "subrepos/OpenLegalData.bundle",
       "remote": null
     },

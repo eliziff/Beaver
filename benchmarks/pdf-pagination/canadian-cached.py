@@ -12,8 +12,8 @@ import fitz
 OUT = Path(__file__).resolve().parents[2] / 'tmp/pdf-pagination'
 candidates = json.loads((OUT / 'canadian-authorities-candidates.json').read_text(encoding='utf-8'))
 by_id = {row['id']: row for row in candidates}
-root = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalProducts'
-database = root / 'LegalData/providers/a2aj/a2aj.sqlite'
+root = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalData'
+database = root / 'providers/a2aj/a2aj.sqlite'
 
 def canonical_key(url):
     parsed = urlparse(url or '')
@@ -65,14 +65,14 @@ def include_receipt(receipt, pdf, record):
                         starts=[int(reporter[1])])
     added.append({'citation': citation, 'sha256': digest, 'sourceReceipt': str(receipt)})
 
-for base in [root / 'MikeCanada/data-20260904', root / 'LegalData/apps/mike/library-current',
-             root / 'LegalData/apps/mike/library-v9']:
+for base in [root / 'apps/mike/launcher/data-20260904', root / 'apps/mike/library-current',
+             root / 'apps/mike/library-v9']:
     for receipt in (base / 'projections/v1/source-pdf').glob('*.json'):
         record = json.loads(receipt.read_text(encoding='utf-8'))
         digest = record.get('source_sha256', '')
         pdf = base / 'projections/v1/content/pdf' / digest[:2] / (digest + '.pdf')
         include_receipt(receipt, pdf, record)
-cache = root / 'LegalData/cache/a2aj/pdf'
+cache = root / 'cache/a2aj/pdf'
 for receipt in (cache / 'requests').glob('*.json'):
     record = json.loads(receipt.read_text(encoding='utf-8'))
     digest = record.get('source_sha256', '')

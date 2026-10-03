@@ -360,12 +360,9 @@ def installed_provider_rows() -> list[dict[str, Any]]:
     user_profile = os.environ.get("USERPROFILE")
     if not local_app_data or not user_profile:
         return []
-    providers = Path(local_app_data) / "OpenLegalProducts/LegalData/providers"
+    providers = Path(local_app_data) / "OpenLegalData/providers"
     candidates: list[tuple[str, Path, list[str], dict[str, str], bool, str | None]] = [
         ("installed-a2aj-fulltext", providers / "a2aj/a2aj.sqlite", [
-            "SELECT key,value FROM meta ORDER BY key"
-        ], {"documents": "SELECT CAST(value AS INTEGER) FROM meta WHERE key='document_count'"}, True, None),
-        ("installed-a2aj-case-search", providers / "a2aj/a2aj-cases-fulltext.sqlite", [
             "SELECT key,value FROM meta ORDER BY key"
         ], {"documents": "SELECT CAST(value AS INTEGER) FROM meta WHERE key='document_count'"}, True, None),
         ("installed-courtlistener-opinions", providers / "courtlistener/courtlistener.sqlite", [

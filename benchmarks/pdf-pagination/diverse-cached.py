@@ -17,18 +17,18 @@ rows = json.loads(manifest.read_text(encoding='utf-8'))
 known = {row['sha256'] for row in rows if row.get('outcome') == 'original'}
 reporter = {row['sha256'] for row in json.loads(
     (OUT / 'canadian-cached-manifest.json').read_text(encoding='utf-8'))}
-root = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalProducts'
+root = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalData'
 
 def key(url):
     parsed = urlparse(url or '')
     return (parsed.hostname, parsed.path.rstrip('/').lower()) if parsed.hostname else None
 
 stores = [
-    (root / 'LegalData/cache/a2aj/pdf/requests', root / 'LegalData/cache/a2aj/pdf/blobs'),
-    (root / 'MikeCanada/data-20260904/projections/v1/source-pdf',
-     root / 'MikeCanada/data-20260904/projections/v1/content/pdf'),
-    (root / 'LegalData/apps/mike/library-v9/projections/v1/source-pdf',
-     root / 'LegalData/apps/mike/library-v9/projections/v1/content/pdf'),
+    (root / 'cache/a2aj/pdf/requests', root / 'cache/a2aj/pdf/blobs'),
+    (root / 'apps/mike/launcher/data-20260904/projections/v1/source-pdf',
+     root / 'apps/mike/launcher/data-20260904/projections/v1/content/pdf'),
+    (root / 'apps/mike/library-v9/projections/v1/source-pdf',
+     root / 'apps/mike/library-v9/projections/v1/content/pdf'),
 ]
 pending = []
 for receipts, blobs in stores:
@@ -46,7 +46,7 @@ for receipts, blobs in stores:
 wanted = {key(canonical) for _, _, _, canonical, _ in pending}
 by_url = collections.defaultdict(set)
 documents = {}
-database = root / 'LegalData/providers/a2aj/a2aj.sqlite'
+database = root / 'providers/a2aj/a2aj.sqlite'
 with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as connection:
     for row in connection.execute(
             "select id,dataset,citation_en,citation_fr,citation2_en,citation2_fr,"

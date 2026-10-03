@@ -31,5 +31,5 @@ def data_root() -> Path:
                     os.environ.get("XDG_DATA_HOME")
                     or Path.home() / ".local" / "share"
                 )
-            return (base / "OpenLegalProducts" / "LegalData").resolve()
+            return (base / "OpenLegalData").resolve()
     return shared_data_root()

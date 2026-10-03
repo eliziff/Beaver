@@ -75,7 +75,7 @@ MICRO_TIERS = {
 }
 A2AJ_DB_DEFAULT = (
     Path(os.environ.get("LOCALAPPDATA", ""))
-    / "OpenLegalProducts/LegalData/providers/a2aj/a2aj-cases-fulltext.sqlite"
+    / "OpenLegalData/providers/a2aj/a2aj.sqlite"
 )
 MARKER_RE = re.compile(r"(?m)^[ \t]*\[(\d+)\][ \t]*")
 WS_RE = re.compile(r"\s+")

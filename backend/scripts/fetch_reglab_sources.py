@@ -129,7 +129,7 @@ def local_bulk_path() -> Path:
     if configured:
         return Path(configured)
     return local(
-        "OpenLegalProducts", "LegalData", "providers", "courtlistener",
+        "OpenLegalData", "providers", "courtlistener",
         "courtlistener.sqlite",
     )
 

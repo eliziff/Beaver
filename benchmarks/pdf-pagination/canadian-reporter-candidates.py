@@ -7,7 +7,7 @@ import sqlite3
 OUT = Path(__file__).resolve().parents[2] / 'tmp/pdf-pagination'
 known = {row['id'] for row in json.loads(
     (OUT / 'canadian-cached-manifest.json').read_text(encoding='utf-8'))}
-database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalProducts/LegalData/providers/a2aj/a2aj.sqlite'
+database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalData/providers/a2aj/a2aj.sqlite'
 with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as connection:
     urls = {ident: en or fr for ident, en, fr in connection.execute(
         "select id,url_en,url_fr from document where dataset='SCC' and doc_type='cases'")}

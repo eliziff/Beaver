@@ -70,11 +70,11 @@ const worker = args.has("worker") ? Number(args.get("worker")) : null;
 const limit = Math.max(0, Number(args.get("limit") ?? 0));
 const batch = Math.max(1, Math.min(Number(args.get("batch") ?? 250), 1_000));
 const localProviders = path.join(
-  process.env.LOCALAPPDATA ?? "", "OpenLegalProducts", "LegalData", "providers",
+  process.env.LOCALAPPDATA ?? "", "OpenLegalData", "providers",
 );
 const databaseFile = path.resolve(args.get("a2aj-db") ?? process.env.MIKE_A2AJ_BULK_DB ??
   path.join(localProviders, "a2aj", "a2aj.sqlite"));
-const searchFile = path.join(path.dirname(databaseFile), "a2aj-cases-fulltext.sqlite");
+const searchFile = databaseFile;
 const nativeFile = path.resolve(process.env.LEGAL_STRUCTURE_NATIVE ?? path.join(
   ROOT, "native", "legal-structure-node", "target", "release",
   process.platform === "win32" ? "legal_structure_node.dll"
@@ -169,7 +169,7 @@ async function runWorker(shard: number) {
       "SELECT COUNT(*) count FROM document WHERE doc_type='cases'",
     ).get() as Row).count);
     const laws = total - cases;
-    const derivative = Number((search.prepare("SELECT COUNT(*) count FROM document").get() as Row).count);
+    const derivative = Number((search.prepare("SELECT COUNT(*) count FROM document WHERE doc_type='cases'").get() as Row).count);
     const inventory = structuredClone(expected.inventory);
     Object.assign(inventory.a2aj, { total, cases, laws, derivative_cases_search: derivative });
     inventory.signatures.a2aj = signature(databaseFile, total);

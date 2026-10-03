@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'tmp/pdf-pagination'
-database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalProducts/LegalData/providers/a2aj/a2aj.sqlite'
+database = Path(os.environ['LOCALAPPDATA']) / 'OpenLegalData/providers/a2aj/a2aj.sqlite'
 groups = collections.defaultdict(list)
 by_url = {}
 with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as connection:

@@ -191,7 +191,7 @@ function sampleDatabase(
 function localSources() {
   const providers = path.join(
     process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData/Local"),
-    "OpenLegalProducts/LegalData/providers",
+    "OpenLegalData/providers",
   );
   const a2aj = path.join(providers, "a2aj/a2aj.sqlite");
   let cases: Source[] = [];
