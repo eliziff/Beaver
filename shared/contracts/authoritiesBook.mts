@@ -303,9 +303,9 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             if (indexPages.length || customIndex) nums.push(coverPageCount, label("Index ", 1));
             for (const { source, localStart, tabStart, tabbed, blankBefore, blankAfter, pageIndices } of plan.slices) {
               const tab = pdfNormalized(source.tab);
-              if (blankBefore) nums.push(tabStart - 1, label(`${tab} (blank)`));
+              if (blankBefore) nums.push(tabStart - 1, label(`${tab} blank`));
               if (tabbed) nums.push(tabStart, label(tab));
-              if (blankAfter) nums.push(tabStart + 1, label(`${tab} (blank)`));
+              if (blankAfter) nums.push(tabStart + 1, label(`${tab} blank`));
               nums.push(localStart, label(`${tab}-`, source.pageIndices.indexOf(pageIndices[0]) + 1));
             }
             if (backPageCount) nums.push(document.getPageCount() - 1, label("Back cover"));
@@ -339,10 +339,16 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
         saveOptions: { useObjectStreams: true },
       };
     });
-  }, limits, (volume) => {
+  }, limits, (volume, output) => {
     const count = volume.reduce((sum, item) => sum + item.pageIndices.length, 0);
     if (count < 2) throw new Error("One PDF page exceeds the court's electronic filing size limit.");
-    return splitAtTabs(volume, Math.ceil(count / 2) + (volume.length > 1 ? added : 0), added);
+    // As many volumes as its size asks for, a little room left in each, each authority weighed by
+    // its own PDF's bytes.
+    const perPage = (item: typeof volume[number]) => item.source.bytes.byteLength / Math.max(1, item.source.pageIndices.length);
+    const weight = volume.reduce((sum, item) => sum + item.pageIndices.length * perPage(item), 0);
+    const parts = Math.max(2, Math.ceil(output.bytes.byteLength * 1.1 / (limits?.maxBytes || Infinity)));
+    // Filled to nine tenths of the limit where the court gives one in bytes.
+    return splitAtTabs(volume, limits?.maxBytes ? Math.min(weight / 2, limits.maxBytes * .9) : weight / parts, 0, perPage);
   });
   return built.map((output, index) => ({ ...output, placements: placements[index], role: index ? `book-${index + 1}` : "book",
     mimeType: "application/pdf", filename: volumes.length > 1 ? input.filename.replace(/\.pdf$/iu,
@@ -368,19 +374,21 @@ function dropUnreachable(pdf: PdfModule, document: import("pdf-lib").PDFDocument
 
 /** Volumes of whole authorities, in order, each as many as fit in `size` pages (each taking `added`
  *  pages more than its own); only an authority longer than a volume is divided between volumes. */
-function splitAtTabs<T extends { pageIndices: number[] }>(items: T[], size: number, added = 0) {
+function splitAtTabs<T extends { pageIndices: number[] }>(items: T[], size: number, added = 0,
+  /** What one of an item's pages weighs against `size`: a page, or its share of its PDF's bytes. */
+  perPage: (item: T) => number = () => 1) {
   const volumes: T[][] = [[]];
   let used = 0;
   for (const item of items) {
-    const length = item.pageIndices.length + added;
-    if (used && used + length > size) { volumes.push([]); used = 0; }
-    if (length <= size) { volumes[volumes.length - 1].push(item); used += length; continue; }
-    const parts = splitPdfPageRanges([item], Math.max(1, size - added));
+    const each = perPage(item), weight = (item.pageIndices.length + added) * each;
+    if (used && used + weight > size) { volumes.push([]); used = 0; }
+    if (weight <= size) { volumes[volumes.length - 1].push(item); used += weight; continue; }
+    const parts = splitPdfPageRanges([item], Math.max(1, Math.floor(size / each) - added));
     parts.forEach((part, index) => {
       if (index) volumes.push([]);
       volumes[volumes.length - 1].push(...part);
     });
-    used = parts[parts.length - 1].reduce((sum, part) => sum + part.pageIndices.length, 0);
+    used = parts[parts.length - 1].reduce((sum, part) => sum + part.pageIndices.length, 0) * each;
   }
   return volumes;
 }
