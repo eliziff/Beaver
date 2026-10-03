@@ -11,7 +11,7 @@ import {
 } from "pdf-lib";
 import { drawCourtCover, drawCourtExhibitCertificate, drawFederalForm344 } from "./courtForms";
 import { acceptedSourceFormats, DOCX_MIME, needsPdfRendition, sourceFormat } from "./formats";
-import { indexChunks } from "./layout";
+import { indexChunks, indexPageCount } from "./layout";
 import { outputFilename, sortedEntries, validateCourtRecord } from "./validation";
 import { courtProfileForCover } from "./profiles";
 import { exhibitName, hasMatchingExhibitCertificate } from "./types";
@@ -426,6 +426,7 @@ function expandedIndexItems(profile: CourtProfile, items: AssemblyItem[]) {
   const maxLines = profile.technical.indexStyle === "federal" ||
     profile.technical.indexStyle === "abca" ? 20 : 40;
   const split = (item: AssemblyItem) => {
+    if (item.indexLines?.length && item.indexLines.length <= maxLines) return [item];
     const lines = item.indexLines ?? [latin(item.title)];
     const parts = Array.from({ length: Math.ceil(lines.length / maxLines) }, (_, index) =>
       lines.slice(index * maxLines, (index + 1) * maxLines));
@@ -462,12 +463,17 @@ function plannedIndexChunks(profile: CourtProfile, items: AssemblyItem[]) {
     (item) => indexRowUnits(profile, item), groupRows);
 }
 
-const plannedIndexPageCount = (profile: CourtProfile, items: AssemblyItem[]) =>
-  plannedIndexChunks(profile, items).length;
+function plannedIndexPageCount(profile: CourtProfile, items: AssemblyItem[]) {
+  const groupRows = profile.technical.indexStyle === "federal" ? 22 / 32
+    : profile.technical.indexStyle === "abca" ? 1 : 21 / 24;
+  return indexPageCount(expandedIndexItems(profile, items), profile.technical.indexRowsPerPage,
+    (item) => indexRowUnits(profile, item), groupRows);
+}
 
 function numberVolumePlans(profile: CourtProfile, plans: VolumePlan[]) {
   const allItems = plans.flatMap(({ items }) => items);
   const ranges = new Map<string, { start: number; end: number }>();
+  const indexChunksByItems = new Map<AssemblyItem[], AssemblyItem[][]>();
   let nextNumber = 1;
   plans.forEach((plan, index) => {
     plan.number = index + 1;
@@ -476,14 +482,19 @@ function numberVolumePlans(profile: CourtProfile, plans: VolumePlan[]) {
   for (const plan of plans) {
     plan.startNumber = nextNumber;
     const indexItems = profile.technical.completeIndexEachVolume ? allItems : plan.items;
-    let next = plan.startNumber + frontPageCount(profile, indexItems);
+    let chunks = indexChunksByItems.get(indexItems);
+    if (!chunks) {
+      chunks = plannedIndexChunks(profile, indexItems);
+      indexChunksByItems.set(indexItems, chunks);
+    }
+    let next = plan.startNumber + ((profile.cover.generated ? 1 : 0) + chunks.length);
     for (const item of plan.items) {
       ranges.set(item.id, { start: next, end: next + item.pageCount - 1 });
       next += item.pageCount;
     }
     nextNumber = next + backCoverPageCount(profile, plan);
   }
-  return { allItems, ranges };
+  return { allItems, ranges, indexChunksByItems };
 }
 
 function splitVolumePlan(plan: VolumePlan): [VolumePlan, VolumePlan] | undefined {
@@ -568,7 +579,7 @@ async function combinedVolume(
   global: ReturnType<typeof numberVolumePlans>,
 ): Promise<PdfAssemblyInput<keyof typeof COURT_FONTS>> {
   const indexItems = profile.technical.completeIndexEachVolume ? global.allItems : plan.items;
-  const chunks = plannedIndexChunks(profile, indexItems);
+  const chunks = global.indexChunksByItems.get(indexItems)!;
   const localIds = new Set(plan.items.map(({ id }) => id));
   const links: IndexTarget[] = [];
   return {
@@ -671,11 +682,6 @@ function planVolumes(profile: CourtProfile, items: AssemblyItem[]): VolumePlan[]
     number: 1,
     count: volumes.length,
   }));
-}
-
-function frontPageCount(profile: CourtProfile, indexItems: AssemblyItem[]) {
-  return (profile.cover.generated ? 1 : 0) +
-    plannedIndexPageCount(profile, indexItems);
 }
 
 function backCoverPageCount(profile: CourtProfile, plan: VolumePlan) {

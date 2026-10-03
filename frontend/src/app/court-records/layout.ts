@@ -27,7 +27,23 @@ export function indexChunks<T extends { group?: string }>(
   return chunks.length ? chunks : [[]];
 }
 
-export function indexPageCount<T extends { group?: string }>(items: T[], rowsPerPage?: number,
-  itemRows?: (item: T) => number, groupRows?: number) {
-  return indexChunks(items, rowsPerPage, itemRows, groupRows).length;
+export function indexPageCount<T extends { group?: string }>(items: T[],
+  rowsPerPage = INDEX_ROWS_PER_PAGE, itemRows: (item: T) => number = () => 1, groupRows = 1) {
+  let pages = 1;
+  let hasItems = false;
+  let rows = 0;
+  let lastGroup: string | undefined;
+  for (const item of items) {
+    const groupRow = item.group && item.group !== lastGroup ? groupRows : 0;
+    if (hasItems && rows + groupRow + itemRows(item) > rowsPerPage) {
+      pages += 1;
+      rows = 0;
+      lastGroup = undefined;
+    }
+    const nextGroupRow = item.group && item.group !== lastGroup ? groupRows : 0;
+    rows += nextGroupRow + itemRows(item);
+    hasItems = true;
+    lastGroup = item.group;
+  }
+  return pages;
 }
