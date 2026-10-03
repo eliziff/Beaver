@@ -191,7 +191,8 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
       return undefined;
     };
   }
-  function drawPageNumber(page: PDFPage, number: number, font: PDFFont,
+  /** Draws a page number, or a running line such as a statute's currency, as page furniture. */
+  function drawPageNumber(page: PDFPage, number: number | string, font: PDFFont,
     position: PdfPageNumberPosition, size = 9, inset = 72, offset = 36) {
     const text = String(number), textWidth = font.widthOfTextAtSize(text, size);
     const crop = page.getCropBox(), angle = ((page.getRotation().angle % 360) + 360) % 360;
