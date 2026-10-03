@@ -1,6 +1,7 @@
 # Opens each Word document in invisible Word, as a reader would open it: read-only, no field
 # updated, nothing saved. Reports what Word shows (pages, each table of authorities' entries as
-# stored, each table's rows and cells, the italic text of each, citation fields, tab references)
+# stored, each paragraph of a table delivered on its own, the italic and coloured text of each,
+# citation fields, tab references)
 # and saves each as Word lays it out to PDF, only when Word would not update fields to do so. A
 # document with citation fields is then opened again as a copy, where References > Insert Table of
 # Authorities builds Word's own table from them, reported the same way and saved to PDF beside it.
@@ -15,11 +16,14 @@ $before = @(Get-Process WINWORD -ErrorAction SilentlyContinue | ForEach-Object {
 $word = New-Object -ComObject Word.Application
 $started = @(Get-Process WINWORD -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id } | ForEach-Object { $_.Id })
 Set-Content -Encoding ascii -Path $PidFile -Value ($started -join ',')
-# A range's text, and the italic text in it, word by word as Word formats it: character by character
-# in a word only partly italic, where a field's first visible character carries its hidden code with it.
+# A range's text, the italic text in it and any text not in black, word by word as Word formats it:
+# character by character in a word only partly italic, where a field's first visible character carries
+# its hidden code with it.
 function Styled($range) {
-  $italic = ''
+  $italic = ''; $colored = ''
   foreach ($word in $range.Words) {
+    # 0 is black and -16777216 the automatic colour.
+    if (@(0, -16777216) -notcontains $word.Font.Color) { $colored += $word.Text }
     if ($word.Italic -eq -1) { $italic += $word.Text }
     elseif ($word.Italic -ne 0) {
       foreach ($character in $word.Characters) {
@@ -28,7 +32,7 @@ function Styled($range) {
       }
     }
   }
-  [ordered]@{ text = $range.Text.Trim([char[]]"`r`a`n "); italic = $italic.Trim() }
+  [ordered]@{ text = $range.Text.Trim([char[]]"`r`a`n "); italic = $italic.Trim(); colored = $colored.Trim() }
 }
 # The entries of each table of authorities from the `$from`th on: one per paragraph of its result.
 function TableEntries($doc, $from = 1) {
@@ -41,16 +45,6 @@ function TableEntries($doc, $from = 1) {
     }
   }
   , $entries
-}
-# Each table's shape and its cells, row by row.
-function Tables($doc) {
-  $tables = @()
-  foreach ($table in $doc.Tables) {
-    $rows = @()
-    foreach ($row in $table.Rows) { $rows += , @($row.Cells | ForEach-Object { [pscustomobject](Styled $_.Range) }) }
-    $tables += [pscustomobject]@{ rows = $table.Rows.Count; columns = $table.Columns.Count; cells = $rows }
-  }
-  , $tables
 }
 try {
   $word.Visible = $false
@@ -78,8 +72,9 @@ try {
       $result.toaFields = @($codes | Where-Object { $_ -match '^TOA\b' }).Count
       $result.toaText = ($toa -join "`n")
       $result.toaEntries = TableEntries $doc
-      $result.tables = Tables $doc
-      if (-not $result.taFields -and -not $result.tables.Count) { $result.italic = (Styled $doc.Content).italic }
+      # A table delivered as its own document: each of its paragraphs.
+      if (-not $result.taFields) { $result.entries = @(foreach ($paragraph in $doc.Paragraphs) {
+        $entry = Styled $paragraph.Range; if ($entry.text) { [pscustomobject]$entry } }) }
       $text = $doc.Content.Text
       foreach ($note in $doc.Footnotes) { $text += "`n" + $note.Range.Text }
       $result.tabReferences = ([regex]::Matches($text, '\[[^\]\r\n]{0,80}Tab [0-9A-Z]+\]')).Count

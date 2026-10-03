@@ -168,7 +168,8 @@ export async function openInWord(items, dir, { stall = 45_000 } = {}) {
 
 /** What Word showed of a document's tables of authorities (scripts/authorities-stress/word.ps1),
  *  checked as its reader sees them. `expect`: `toa`, a table in the brief; `ta`, the citation fields
- *  Word's own inserted table lists; `table`, a document of real tables; `italics`, names in italics. */
+ *  Word's own inserted table lists; `table`, a table delivered as its own document; `italics`, names
+ *  in italics. Its text is black throughout, a printed link alone in link colour. */
 export function checkWordTables(check, where, result, expect) {
   // A table of authorities reads as one as Word shows it: each entry on its own line, its pages after a
   // tab, and its style of cause in italics where the citation begins.
@@ -187,8 +188,14 @@ export function checkWordTables(check, where, result, expect) {
       `${where}: Word's own table, inserted from its fields, lists ${expect.ta} authorities with their pages`, result.insertedEntries);
     check(styled(entries), `${where}: Word's own table keeps each style of cause in italics`, entries);
   }
-  if (expect.table) check(result.tables?.length && result.tables.every(({ rows, columns }) => rows > 1 && columns > 1) &&
-    styled(result.tables.flatMap(({ cells }) => cells.flat())), `${where}: is a table, each style of cause in italics where it begins`, result.tables);
-  for (const name of expect.italics ?? []) check([result.italic, ...(result.tables ?? []).flatMap(({ cells }) => cells.flat()
-    .map(({ italic }) => italic))].some((text) => text?.includes(name)), `${where}: ${name} is in italics`, result.italic ?? result.tables);
+  // A table on its own reads as the brief's: each entry its citation, then after a tab its pages or its tab.
+  if (expect.table) {
+    const entries = listed(result.entries);
+    check(entries.length && entries.every(({ text }) => /\t\S[^\t]*$/u.test(text)), `${where}: lists each entry with its pages or tab`, result.entries);
+    check(styled(entries), `${where}: italicizes each style of cause where the citation begins`, entries);
+  }
+  for (const name of expect.italics ?? []) check((result.entries ?? []).some(({ italic }) => italic.includes(name)),
+    `${where}: ${name} is in italics`, result.entries);
+  const colored = [...expect.table || expect.italics ? result.entries ?? [] : [], ...result.toaEntries ?? []].filter(({ colored }) => colored && !/^https?:\/\/\S+$/u.test(colored));
+  check(!colored.length, `${where}: its tables' text is black, a printed link alone in link colour`, colored);
 }

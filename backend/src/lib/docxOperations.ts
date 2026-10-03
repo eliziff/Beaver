@@ -236,7 +236,7 @@ const CATEGORY_NAMES: Record<number, string> = { 1: "Cases", 2: "Legislation", 3
   5: "Secondary sources", 6: "Regulations", 7: "Constitutional Provisions" };
 /** Word's sort of a table's entries: case and accents second, spaces and punctuation before digits
  *  and digits before letters. */
-const entryOrder = new Intl.Collator("en", { numeric: false }).compare;
+export const entryOrder = new Intl.Collator("en", { numeric: false }).compare;
 /** The styles Word gives a table of authorities, added when the brief has none of its own: each
  *  entry's pages at the margin, after a dotted leader. */
 const tableStyles = (width: number) => [
@@ -325,8 +325,8 @@ function linkedTable(entries: readonly DocxLinkedAuthority[]) {
     makeEl("w:t", [makeText(value)], /^\s|\s$/u.test(value)
       ? { "xml:space": "preserve" } : {}),
   ]);
-  const citation = (value: string, italic: number, linked = false) => [value.slice(0, italic), value.slice(italic)]
-    .flatMap((part, index) => part ? [run(part, linked, !index)] : []);
+  const citation = (value: string, italic: number) => [value.slice(0, italic), value.slice(italic)]
+    .flatMap((part, index) => part ? [run(part, false, !index)] : []);
   const link = (value: string | null) => {
     try {
       const parsed = new URL(value ?? "");
@@ -337,10 +337,11 @@ function linkedTable(entries: readonly DocxLinkedAuthority[]) {
     makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
     makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" })]),
       run("TABLE OF AUTHORITIES")]),
-    // Each authority with its hyperlink, printed too for a reader on paper.
+    // Each authority with its hyperlink, printed too for a reader on paper: the citation in black, the
+    // link in link blue.
     ...entries.map(({ label, italic, url }, index) => {
       const href = link(url), hyperlink = (runs: XNode[]) => makeEl("w:fldSimple", runs, { "w:instr": ` HYPERLINK "${href}" ` });
-      return makeEl("w:p", [run(`${index + 1}. `), ...href ? [hyperlink(citation(label, italic, true)),
+      return makeEl("w:p", [run(`${index + 1}. `), ...href ? [hyperlink(citation(label, italic)),
         makeEl("w:r", [makeEl("w:br", [])]), hyperlink([run(href, true)])] : citation(label, italic)]);
     }),
   ];
