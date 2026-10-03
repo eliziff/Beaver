@@ -10,7 +10,7 @@ upstream exceptions are inherited. Its offline regression gate is
 
 CI selects jobs from the complete Git diff, including deleted files and both
 sides of moves. Documentation-only changes skip application builds and browser
-tests. Ordinary backend changes skip frontend validation; shared inputs and the
+tests. Ordinary backend changes skip frontend unit tests and lint; shared inputs and the
 backend helpers imported by frontend tests still validate both. Unknown inputs
 run both surfaces. Grammar, source-boundary, export-integrity and frontend tooling
 checks run separately from focused behavior tests. The TypeScript identifier-count
@@ -21,7 +21,10 @@ The main CI coordinates the backend, browser and Authorities parity gates. One
 Ubuntu 24.04 job supplies the native addon to all three. Its exact cache key
 includes the addon source tree, both parser Git links and `rustc -vV`; there are
 no fallback cache keys. Each consumer downloads the artifact from the same run.
-Standalone manual e2e/parity runs build their own addon. Release/source-gold and
+The backend and frontend jobs also upload their compiled outputs for browser
+gates in the same run. Authorities parity keeps its native semantic, package and
+browser checks; it no longer repeats the main unit suites or TypeScript builds.
+Standalone manual e2e/parity runs build their own outputs and addon. Release/source-gold and
 native citation/quotation tests remain independent behavior gates.
 
 Frontend CI installs root shared dependencies and frontend dependencies, without
@@ -53,15 +56,23 @@ These settings reuse the existing encrypted token storage and refresh flow.
 `.github/workflows/e2e.yml` is the production-path browser gate. CI calls it for
 application pull requests to `main` and `upstream-main`; it can also be started manually.
 
-The job:
+UI-only changes run the account-free production application with a disposable
+local store. Eleven browser checks cover responsive navigation, persisted chat
+lifecycle/selection and project operations. No Supabase or MinIO is started.
+Auth, API/persistence, schema, deployment and unknown infrastructure inputs keep
+the complete cloud browser and live persistence/RLS/S3 suite. Manual runs retain
+the cloud gate. `scripts/ci-scope.py` owns routing; mixed changes keep the broader gate.
 
-1. installs root, backend, and frontend dependencies;
-2. starts disposable MinIO and Supabase services;
-3. applies the sole fresh-database contract, `backend/schema.sql`;
-4. writes server-only configuration to `backend/.env`;
-5. builds the Vite client and backend;
-6. starts one production Beaver origin on port 3000; and
-7. drives Chromium with Playwright, preserving reports and traces.
+Both modes install locked dependencies, download the main CI build artifacts,
+start one production Beaver origin on port 3000, and drive Chromium. Standalone
+manual runs build locally. The cloud mode additionally starts disposable MinIO
+and Supabase and applies `backend/schema.sql` before its persistence checks.
+
+Word/Python runtime, dependency and platform changes keep Linux, Windows, macOS
+and the isolated container gate. Shared contracts and application orchestration
+use the Linux native runtime only. Documentation-only legal-structure changes
+skip Cargo; PDF Inspector guidance edits run the merge-guidance proof without
+Windows corpus preflight. Parser/candidate changes keep the source-gold gate.
 
 The backend serves both `frontend/dist` and `/api`. There is no frontend
 server, build-time public environment file, CORS path, or alternate API URL.
@@ -101,3 +112,7 @@ npm run test:e2e
 
 `PLAYWRIGHT_BASE_URL` defaults to `http://localhost:3000`. Browser tests must
 use synthetic or public documents and disposable credentials.
+
+To use the existing local production build for the small browser suite, set
+`CI=true`, `BEAVER_E2E_MODE=local` and `PLAYWRIGHT_BASE_URL` to its origin, then run
+`npx playwright test`. Use an isolated `MIKE_LOCAL_DATA_DIR` for the test server.

@@ -71,54 +71,6 @@ it("stays on the chat when the owner hook reports a temporary load failure", () 
     expect(mocks.replace).not.toHaveBeenCalled();
 });
 
-it("leaves a missing chat route", () => {
-    mocks.chatLoad = {
-        status: "error",
-        chatId: "chat-1",
-        error: new mocks.BeaverApiError({ message: "Missing", status: 404 }),
-    };
-
-    renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
-
-    expect(mocks.replace).toHaveBeenCalledWith("/assistant", { replace: true });
-});
-
-it("loads one canonical standalone transcript and metadata", async () => {
-    mocks.chatLoad = { status: "loaded", chatId: "chat-1", chat: {
-        id: "chat-1",
-        project_id: null,
-        user_id: "owner-1",
-        title: "Loaded title",
-        transcript_version: 7,
-        created_at: "",
-    } };
-
-    const { result, rerender } = renderHook(() =>
-        useAssistantChatRoute({ chatId: "chat-1" }),
-    );
-
-    await waitFor(() => expect(result.current.chatLoaded).toBe(true));
-    expect(result.current.chatTitle).toBe("Loaded title");
-    expect(result.current.chatOwnerId).toBe("owner-1");
-    expect(mocks.replace).not.toHaveBeenCalled();
-
-    mocks.chats = [{ id: "chat-1", title: "Renamed title" }];
-    rerender();
-    expect(result.current.chatTitle).toBe("Renamed title");
-});
-
-it("keeps a valid empty chat open", () => {
-    mocks.chatLoad = { status: "loaded", chatId: "chat-1", chat: {
-        id: "chat-1", project_id: null, user_id: "owner-1", title: null,
-        transcript_version: 0, created_at: "",
-    } };
-
-    const { result } = renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
-
-    expect(result.current.chatLoaded).toBe(true);
-    expect(mocks.replace).not.toHaveBeenCalled();
-});
-
 it("redirects a project-bound standalone chat without loading it twice", async () => {
     mocks.chatLoad = { status: "loaded", chatId: "chat-1", chat: {
             id: "chat-1",

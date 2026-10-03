@@ -44,6 +44,33 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(ci.scope(["scripts/audit-allowlist.json"])["audit"], [".", "backend", "frontend"])
         self.assertEqual(ci.scope([".github/workflows/ci.yml"])["audit"], [".", "backend", "frontend"])
 
+    def test_browser_mode_keeps_cloud_boundaries_and_skips_cloud_for_ui(self):
+        for path in ('frontend/src/app/components/ui/button.tsx',
+                     'frontend/src/app/authorities/AuthoritySources.tsx',
+                     'backend/src/lib/authoritiesBuild.ts', 'docs/guide.md'):
+            with self.subTest(path=path):
+                self.assertFalse(ci.scope([path])['cloud'])
+        for path in ('backend/schema.sql', 'backend/src/lib/relationalProjectRepository.ts',
+                     'backend/src/routes/auth.ts', 'frontend/src/app/contexts/AuthContext.tsx',
+                     'frontend/src/app/login/page.tsx', 'frontend/src/app/lib/runtimeConfig.ts',
+                     'frontend/src/app/lib/api/chat.ts', 'backend/package-lock.json',
+                     '.github/workflows/e2e.yml', 'new-deployment-input.json'):
+            with self.subTest(path=path):
+                self.assertTrue(ci.scope([path])['cloud'])
+        self.assertTrue(ci.scope(['frontend/src/app/components/ui/button.tsx',
+                                  'backend/schema.sql'])['cloud'])
+
+    def test_word_platforms_follow_runtime_inputs(self):
+        for path in ('shared/contracts/assistantWire.mts',
+                     'backend/src/lib/wordEditApplication.ts'):
+            self.assertEqual(ci.scope([path])['word_os'], ['ubuntu-24.04'])
+        for path in ('backend/scripts/word_python/runner.py', 'backend/src/lib/convert.ts',
+                     'backend/src/lib/subprocessEnv.ts', 'backend/word-python.Dockerfile',
+                     'backend/package-lock.json', '.github/workflows/word-python.yml',
+                     '.github/workflows/ci.yml'):
+            with self.subTest(path=path):
+                self.assertEqual(len(ci.scope([path])['word_os']), 3)
+
     def test_manual_weekly_and_unavailable_history_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
             event_path = Path(directory) / "event.json"
@@ -62,6 +89,8 @@ class ScopeTests(unittest.TestCase):
                     self.assertEqual(json.loads(selected["audit"]), [".", "backend", "frontend"])
                     self.assertEqual(json.loads(selected["backend"]), name != "schedule")
                     self.assertEqual(json.loads(selected["frontend"]), name != "schedule")
+                    self.assertEqual(json.loads(selected["cloud"]), name != "schedule")
+                    self.assertEqual(len(json.loads(selected["word_os"])), 3)
 
     def test_diff_preserves_deleted_and_moved_owners_and_full_pr_range(self):
         with tempfile.TemporaryDirectory() as directory:

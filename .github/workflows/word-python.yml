@@ -8,6 +8,7 @@ on:
       - 'backend/src/lib/chat/wordPythonTool.ts'
       - 'backend/src/lib/chat/chatToolRunner.ts'
       - 'backend/src/lib/convert.ts'
+      - 'backend/src/lib/subprocessEnv.ts'
       - 'backend/src/lib/__tests__/wordPython.test.ts'
       - 'backend/package*.json'
       - 'shared/contracts/**'
@@ -18,12 +19,27 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: word-python-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      os: ${{ steps.scope.outputs.word_os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: scope
+        run: python3 scripts/ci-scope.py
   native:
+    needs: changes
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2022, macos-14]
+        os: ${{ fromJSON(needs.changes.outputs.os) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
@@ -66,7 +82,7 @@ jobs:
         working-directory: backend
         run: npx vitest run src/lib/__tests__/wordPython.test.ts src/lib/__tests__/wordEditApplication.test.ts
       - name: The same tests in the network-isolated container
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && contains(needs.changes.outputs.os, 'windows-2022')
         working-directory: backend
         run: |
           docker build -f word-python.Dockerfile -t beaver-word-python:test .

@@ -48,39 +48,6 @@ beforeEach(() => {
     mocks.uploadDirectory.mockResolvedValue([]);
 });
 
-it("submits trimmed project details and reports the created project", async () => {
-    const onClose = vi.fn();
-    const onCreated = vi.fn();
-    render(<NewProjectModal open onClose={onClose} onCreated={onCreated} />);
-
-    fireEvent.change(screen.getByLabelText("Project name"), {
-        target: { value: "  Appeal  " },
-    });
-    fireEvent.change(screen.getByLabelText("CM number"), {
-        target: { value: "  CM-42  " },
-    });
-    expect(mocks.createProject).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Practice" }));
-    fireEvent.click(screen.getByRole("button", { name: "Litigation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText("Document picker")).toBeVisible();
-    fireEvent.click(
-        screen.getByRole("button", { name: "Create project" }),
-    );
-
-    await waitFor(() =>
-        expect(mocks.createProject).toHaveBeenCalledWith(
-            "Appeal",
-            "CM-42",
-            "Litigation",
-            [],
-        ),
-    );
-    expect(onCreated).toHaveBeenCalledWith(project);
-    expect(onClose).toHaveBeenCalledOnce();
-});
-
 it("keeps a created project open for a failed upload and retries without duplicating it", async () => {
     const onClose = vi.fn();
     const onCreated = vi.fn();

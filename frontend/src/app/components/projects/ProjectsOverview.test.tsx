@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
@@ -75,45 +75,6 @@ describe("ProjectsOverview", () => {
                 dispatchEvent: vi.fn(),
             })),
         });
-    });
-
-    it("replaces the table header with actions only while selected", async () => {
-        listProjects.mockResolvedValue({ items: [createdProject], next_cursor: null });
-        render(<ProjectsOverview />);
-
-        await screen.findByText(createdProject.name);
-        expect(screen.queryByText("1 selected")).toBeNull();
-        expect(screen.queryByRole("button", { name: "Open in new chat" })).toBeNull();
-        fireEvent.click(screen.getAllByRole("checkbox")[1]);
-
-        expect(screen.getByText("1 selected")).toBeVisible();
-        expect(screen.getByRole("button", { name: "Open in new chat" })).toBeVisible();
-        fireEvent.click(screen.getByRole("button", {
-            name: "More actions for selected projects",
-        }));
-        fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
-        expect(screen.getByRole("alertdialog")).toHaveTextContent("Delete project?");
-        fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-
-        await waitFor(() =>
-            expect(deleteProject).toHaveBeenCalledWith(createdProject.id),
-        );
-    });
-
-    it("displays the API creation timestamp without replacing it", async () => {
-        const user = userEvent.setup();
-        render(<ProjectsOverview />);
-
-        await user.click(
-            await screen.findByRole("button", { name: "New project" }),
-        );
-        await user.type(screen.getByRole("textbox", { name: "Project name" }), createdProject.name);
-        await user.click(screen.getByRole("button", { name: "Next" }));
-        await user.click(screen.getByRole("button", { name: "Create project" }));
-
-        expect(await screen.findByText("New appeal")).toBeVisible();
-        expect(screen.getByText("2021", { exact: false })).toBeVisible();
-        expect(push).toHaveBeenCalledWith("/projects/project-new");
     });
 
     it("creates the selected project's new chat before opening it", async () => {
