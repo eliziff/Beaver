@@ -150,9 +150,32 @@ function newBrunswickLegislationPdf({ pathname }: URL) {
     ? `https://laws.gnb.ca/en/pdf/${{ lc: "cs", rc: "cr" }[corpus.toLowerCase()] ?? corpus.toLowerCase()}/${encodeURI(id)}.pdf` : null;
 }
 
+/** The PDFs each official legislation publisher serves, as their paths (and Manitoba's query) read
+ *  decoded: the candidates above and the PDFs A2AJ records, and nothing else on those hosts. */
+const LEGISLATION_PDF_PATHS: Record<string, RegExp> = {
+  "laws-lois.justice.gc.ca": /^\/PDF\/[\p{L}\p{N}][\p{L}\p{N}.,_-]*\.pdf$/u,
+  "kings-printer.alberta.ca": /^\/documents\/(?:Acts|Regs)\/[a-z0-9][a-z0-9_-]*\.pdf$/iu,
+  "web2.gov.mb.ca": /^\/laws\/(?:statutes\/ccsm\/_pdf\.php\?cap=[a-z]\d+(?:\.\d+)?|regs\/current\/_pdf-regs\.php\?reg=\d+\/\d+(?: R)?)$/iu,
+  "laws.gnb.ca": /^\/en\/pdf\/c[sr]\/[\p{L}\p{N}][\p{L}\p{N} .,_-]*\.pdf$/u,
+  "nslegislature.ca": /^\/sites\/default\/files\/legc\/statutes\/[\p{L}\p{N}][\p{L}\p{N} .,_'()&-]*\.pdf$/u,
+  "www.legisquebec.gouv.qc.ca": /^\/(?:en|fr)\/pdf\/c[sr]\/[\p{L}\p{N}][\p{L}\p{N} .,_-]*\.pdf$/u,
+  "www.justice.gov.nt.ca": /^\/en\/files\/legislation\/[a-z0-9-]+\/[a-z0-9.-]+\.pdf$/iu,
+  "www.princeedwardisland.ca": /^\/sites\/default\/files\/[a-z0-9]+\/[\p{L}\p{N}][\p{L}\p{N} .,_'()&;-]*\.pdf$/u,
+  "publications.saskatchewan.ca": /^\/api\/v1\/products\/\d+\/formats\/\d+\/download$/u,
+  "laws.yukon.ca": /^\/cms\/images\/LEGISLATION\/[A-Za-z0-9/_.-]+\.pdf$/u,
+};
+/** An official legislation PDF's URL, as a publisher PDF service may fetch it; null for any other. */
+export function legislationPdfUrl(raw: string | URL) {
+  const url = httpUrl(String(raw));
+  const pattern = url && LEGISLATION_PDF_PATHS[url.hostname.toLowerCase()];
+  if (!url || !pattern || url.protocol !== "https:" || url.port || url.hash) return null;
+  let path: string;
+  try { path = decodeURIComponent(url.pathname) + decodeURIComponent(url.search); } catch { return null; }
+  return !path.includes("..") && !path.includes("\\") && pattern.test(path) ? url : null;
+}
+
 /** Hosts that publish official legislation PDFs, the candidates above or the PDFs A2AJ records. */
-export const LEGISLATION_PDF_HOSTS = [...Object.keys(LEGISLATION_PDFS), "www.justice.gov.nt.ca",
-  "www.princeedwardisland.ca", "publications.saskatchewan.ca", "laws.yukon.ca"];
+export const LEGISLATION_PDF_HOSTS = Object.keys(LEGISLATION_PDF_PATHS);
 
 /** What a reader's own browser opens for an original the downloader could not fetch: a PDF on the
  *  decision's own site, else the S.C.C.'s PDF route (it matched all 114 cached originals; other

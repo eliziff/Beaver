@@ -168,7 +168,7 @@ async function fetchSource(rawUrl: string, accept: string, signal?: AbortSignal)
     try {
       response = await guardedRemoteFetch(url, {
         redirect: "manual", signal,
-        headers: { Accept: accept },
+        headers: { Accept: accept, "User-Agent": "Mozilla/5.0 (compatible; Beaver-Authorities/1.0)" },
       }, { label: "Source PDF URL", timeoutMs: 30_000 });
     } catch (error) {
       const { code, pdfUrl } = error as { code?: unknown; pdfUrl?: string };
