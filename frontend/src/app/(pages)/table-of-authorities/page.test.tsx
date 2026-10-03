@@ -868,7 +868,8 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     const sources = (await screen.findByRole("list", { name: "Authority tab slots" })).closest("section")!;
     expect(within(sources).getAllByRole("listitem")).toHaveLength(1);
-    expect(within(sources).getByText(`${neutral}; ${reporter}`)).toBeInTheDocument();
+    // Cited as the book cites it: each form once, the first cited first.
+    expect(within(sources).getByText(`${neutral}, ${reporter}`)).toBeInTheDocument();
   });
 
   it("gathers sources as the citations open and reveals Sources only when acquisition finishes", async () => {
@@ -1107,7 +1108,7 @@ describe("Authorities UI contracts", () => {
       await userEvent.click(await screen.findByRole("button", { name: "Build" }));
 
       const warning = await screen.findByRole("dialog", { name: /Missing PDFs/u });
-      expect(within(warning).getByRole("listitem")).toHaveTextContent("Missing decision citation");
+      expect(within(warning).getByRole("listitem")).toHaveTextContent("Missing decision");
       expect(within(warning).getByRole("button", { name: "Build" })).toBeEnabled();
       expect(api.buildAuthorities).not.toHaveBeenCalled();
       await userEvent.click(within(warning).getByRole("button", { name: "Close" }));
