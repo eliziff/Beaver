@@ -33,7 +33,7 @@ export function lawRecord({ citation, name, sections }) {
   return { dataset: "TEST-LAWS", citation_en: citation, citation2_en: null, name_en: name,
     document_date_en: "2031-01-01T00:00:00", unofficial_text_en: text, upstream_license: "Synthetic test record" };
 }
-const WORDS = ["notice", "licence", "board", "season", "hearing", "reply", "record", "basin", "delay", "reasons",
+export const WORDS = ["notice", "licence", "board", "season", "hearing", "reply", "record", "basin", "delay", "reasons",
   "permit", "schedule", "members", "weather", "harbour", "minister", "fairness", "evidence", "appeal", "remedy"];
 /** Placeholder reasons, varied by paragraph so a passage can be found by its words. */
 export const paragraphProse = (name, index) => `The court considered the ${WORDS[index % WORDS.length]} and the ` +

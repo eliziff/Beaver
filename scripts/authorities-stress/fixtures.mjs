@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { A2AJ_CASES, a2ajRecord } from "../authorities-html-e2e/fixtures.mjs";
-import { caseRecord, lawRecord, paragraphProse } from "./network.mjs";
+import { caseRecord, lawRecord, paragraphProse, WORDS } from "./network.mjs";
 
 const require = createRequire(path.resolve(import.meta.dirname, "../../frontend/package.json"));
 const JSZip = require("jszip"), { PDFDocument } = require("pdf-lib");
@@ -223,6 +223,35 @@ export function inventedDecisions(count, paragraphs = 14) {
   });
 }
 
+/** An invented statute long enough to go in as an excerpt: parts, headed sections and numbered
+ *  subsections, as the e2e fixture's statute writes them, over some forty pages. */
+export const NAVIGATION_ACT = { name: "Inland Navigation Act", citation: "SA 2032, c N-7" };
+/** The words of subsection `sub` of the Act's section `number`. */
+export const navigationSubsection = (number, sub) => `The ${["registrar", "inspector", "board"][(number + sub - 2) % 3]} shall ` +
+  `consider the ${WORDS[(number + sub - 2) % WORDS.length]} and the ${WORDS[((number - 1) * 3 + sub + 6) % WORDS.length]} described in ` +
+  `this section before deciding any matter under it, and shall give written reasons to every person whose ` +
+  `${WORDS[((number - 1) * 7 + sub - 1) % WORDS.length]} it affects.`;
+export function navigationActHtml(count = 120) {
+  const headings = ["Licence required", "Duty to give notice", "Inspection of vessels", "Hearing before refusal", "Appeal to the board",
+    "Records to be kept", "Fees payable", "Suspension of a licence", "Regulations"];
+  const sections = Array.from({ length: count }, (_, index) => (index % 10 ? ""
+    : `<h2>Part ${index / 10 + 1} — ${headings[(index / 10) % headings.length]}</h2>`) +
+    `<p class="sec"><b>${headings[index % headings.length]}</b></p>` + [1, 2, 3].map((sub) =>
+      `<p class="sub">${sub > 1 ? "" : `<b>${index + 1}</b>`}(${sub}) ${navigationSubsection(index + 1, sub)}</p>`).join(""));
+  return `<!doctype html><meta charset="utf-8"><style>@page{size:Letter;margin:1in}body{margin:0;font:12pt/1.5 "Times New Roman",serif;color:#000}
+h1{font-size:14pt;text-align:center;margin:0 0 6pt}h2{font-size:12pt;margin:12pt 0 6pt}p{margin:0 0 9pt;text-align:justify}.c{text-align:center}
+.sec{margin-top:12pt}</style><h1>${NAVIGATION_ACT.name}</h1><p class="c">Statutes of Alberta, 2032, Chapter N-7</p>${sections.join("")}`;
+}
+/** An invented consolidation of nearly 900 pages once rebuilt from its text, as A2AJ serves an
+ *  enactment: a heading every few sections and three subsections in each. */
+export const LONG_STATUTE = { name: "Inland Waters Consolidation Act", citation: "RSA 2031, c I-3" };
+export const longStatuteRecord = (count = 5400) => lawRecord({ ...LONG_STATUTE, sections: Array.from({ length: count }, (_, index) =>
+  [index + 1, index % 6 ? null : ["Permits", "Registers", "Inspections", "Offences", "Appeals"][(index / 6) % 5],
+    [0, 1, 2].map((at) => `(${at + 1}) The ${["registrar", "inspector", "minister"][(index + at) % 3]} shall weigh the ` +
+      `${WORDS[(index + at) % WORDS.length]}, the ${WORDS[(index * 3 + at + 5) % WORDS.length]} and the ${WORDS[(index * 7 + at + 1) % WORDS.length]} ` +
+      `before acting under this section, and shall record the reasons for every decision that affects the ` +
+      `${WORDS[(index * 11 + at) % WORDS.length]} of a person holding a permit under this Act.`).join("\n\n")]) });
+
 /** Writes every input into `directory` with the browser that runs the suite. */
 export async function writeStressFixtures(browser, directory, { longCount = 120 } = {}) {
   await mkdir(directory, { recursive: true });
@@ -235,6 +264,7 @@ export async function writeStressFixtures(browser, directory, { longCount = 120 
     await writeFile(files.longDocx = file("long-memorandum.docx"), await longBriefDocx(long));
     await writeFile(files.varietyDocx = file("harbour-factum.docx"), await varietyDocx());
     files.varietyPdf = await pdf(varietyHtml(), "harbour-factum.pdf");
+    files.navigationAct = await pdf(navigationActHtml(), "inland-navigation-act.pdf");
     // Decisions to build a book from by hand, as text PDFs, and scans of others.
     files.decisions = inventedDecisions(6);
     files.decisionPdfs = [];
