@@ -53,7 +53,10 @@ type StoredHandle = {
   handle: FileSystemFileHandle | FileSystemDirectoryHandle;
   createdAt: number;
 };
-type StoredFile = { id: string; mimeType: string; bytes: ArrayBuffer };
+type StoredFile = { id: string; mimeType: string; blob: Blob };
+/** A draft's metadata row: the draft without its state, and the inputs it holds, so saves and
+ *  removals check revisions, dependencies and retained files without reading any draft's state. */
+type DraftRow = WorkProductMetadata & { inputs: WorkProductInput[] };
 type LocalFileInput = Extract<WorkProductInput, { kind: "local-file" }>;
 const storedFileId = (sha256: string) => `stored:${sha256}`;
 const sourcePdfId = (url: string) => `source-pdf:${url}`;
@@ -95,12 +98,11 @@ export const standaloneWorkProducts: WorkProductStore = {
     const database = await openDatabase(), transaction = database.transaction(
       [DRAFTS, METADATA, FILES], "readwrite",
     );
-    const store = transaction.objectStore(DRAFTS);
-    const current = await request<WorkProduct[]>(store.getAll());
+    const rows = transaction.objectStore(METADATA), current = await draftRows(rows);
     assertDependencies(draft.id, draft.state, current);
-    store.add(draft);
-    transaction.objectStore(METADATA).add(draftMetadata(draft));
-    await cleanupStoredFiles(transaction.objectStore(FILES), [...current, draft]);
+    transaction.objectStore(DRAFTS).add(draft);
+    rows.add(draftMetadata(draft));
+    await cleanupStoredFiles(transaction.objectStore(FILES), [...current, draftMetadata(draft)]);
     await completed(transaction);
     return draft as never;
   },
@@ -109,8 +111,9 @@ export const standaloneWorkProducts: WorkProductStore = {
     const transaction = database.transaction(
       [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS], "readwrite",
     );
-    const store = transaction.objectStore(DRAFTS);
-    const current = await request<WorkProduct | undefined>(store.get(id));
+    const store = transaction.objectStore(DRAFTS), rows = transaction.objectStore(METADATA);
+    // The row answers for the draft: its state is read back only by a save that keeps it.
+    const current = await request<DraftRow | undefined>(rows.get(id));
     if (!current) throw new Error("This draft no longer exists.");
     // A conflict, as the server reports one, so an edit can apply again to the newer draft.
     if (current.revision !== patch.revision) throw new BeaverApiError({ status: 409,
@@ -118,28 +121,30 @@ export const standaloneWorkProducts: WorkProductStore = {
     if (patch.outputs !== undefined) {
       throw new Error("Standalone outputs must be saved with their built artifacts.");
     }
+    const { inputs, profileId: _profileId, ...fields } = current;
     const next: WorkProduct = {
-      ...current,
+      ...fields,
       title: patch.title === undefined ? current.title : draftTitle(patch.title),
       projectId: patch.projectId === undefined ? current.projectId : patch.projectId,
-      state: patch.state === undefined ? current.state : patch.state,
+      state: patch.state === undefined
+        ? (await request<WorkProduct>(store.get(id))).state : patch.state,
       outputs: current.outputs,
       revision: current.revision + 1,
       updatedAt: new Date().toISOString(),
     };
+    const row = draftMetadata(next);
     store.put(next);
-    transaction.objectStore(METADATA).put(draftMetadata(next));
+    rows.put(row);
     // Most saves (every action, every highlight autosave) keep the same inputs: nothing
-    // they depend on or hold changes, so the other drafts need not be read.
-    if (sameInputs(current.state, next.state)) {
+    // they depend on or hold changes, so no other row need be read.
+    if (JSON.stringify(inputs) === JSON.stringify(row.inputs)) {
       await completed(transaction);
       return next as never;
     }
-    const drafts = await request<WorkProduct[]>(store.getAll());
-    assertDependencies(id, next.state, drafts);
-    const remaining = [...drafts.filter((draft) => draft.id !== id), next];
-    await cleanupHandles(transaction.objectStore(HANDLES), remaining, handleIds(current));
-    await cleanupStoredFiles(transaction.objectStore(FILES), remaining);
+    const others = (await draftRows(rows)).filter((other) => other.id !== id);
+    assertDependencies(id, next.state, others);
+    await cleanupHandles(transaction.objectStore(HANDLES), [...others, row], handleIds(inputs));
+    await cleanupStoredFiles(transaction.objectStore(FILES), [...others, row]);
     await completed(transaction);
     return next as never;
   },
@@ -147,9 +152,8 @@ export const standaloneWorkProducts: WorkProductStore = {
     const database = await openDatabase(), transaction = database.transaction(
       [DRAFTS, METADATA, FILES], "readwrite",
     );
-    const store = transaction.objectStore(DRAFTS), drafts =
-      await request<WorkProduct[]>(store.getAll());
-    const source = drafts.find((draft) => draft.id === id);
+    const store = transaction.objectStore(DRAFTS), rows = transaction.objectStore(METADATA);
+    const source = await request<WorkProduct | undefined>(store.get(id));
     if (!source) throw new Error("This draft no longer exists.");
     const now = new Date().toISOString(), copy: WorkProduct = {
       ...source, id: crypto.randomUUID(),
@@ -158,8 +162,8 @@ export const standaloneWorkProducts: WorkProductStore = {
       revision: 1, state: structuredClone(source.state), outputs: {}, createdAt: now, updatedAt: now,
     };
     store.add(copy);
-    transaction.objectStore(METADATA).add(draftMetadata(copy));
-    await cleanupStoredFiles(transaction.objectStore(FILES), [...drafts, copy]);
+    rows.add(draftMetadata(copy));
+    await cleanupStoredFiles(transaction.objectStore(FILES), [...await draftRows(rows), draftMetadata(copy)]);
     await completed(transaction);
     return copy as never;
   },
@@ -168,15 +172,14 @@ export const standaloneWorkProducts: WorkProductStore = {
     const transaction = database.transaction(
       [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS], "readwrite",
     );
-    const store = transaction.objectStore(DRAFTS);
-    const drafts = await request<WorkProduct[]>(store.getAll());
+    const rows = transaction.objectStore(METADATA), drafts = await draftRows(rows);
     const current = drafts.find((draft) => draft.id === id);
     if (!current) throw new Error("This draft no longer exists.");
-    store.delete(id);
-    transaction.objectStore(METADATA).delete(id);
+    transaction.objectStore(DRAFTS).delete(id);
+    rows.delete(id);
     deleteOutputs(transaction.objectStore(OUTPUTS), current);
     const remaining = drafts.filter((draft) => draft.id !== id);
-    await cleanupHandles(transaction.objectStore(HANDLES), remaining, handleIds(current));
+    await cleanupHandles(transaction.objectStore(HANDLES), remaining, handleIds(current.inputs));
     await cleanupStoredFiles(transaction.objectStore(FILES), remaining);
     await completed(transaction);
   },
@@ -272,9 +275,9 @@ function draftTitle(value: string) {
   return title;
 }
 
-function assertDependencies(id: string, state: unknown, drafts: WorkProduct[]) {
-  const states = new Map(drafts.map((draft) => [draft.id, draft.state]));
-  states.set(id, state);
+function assertDependencies(id: string, state: unknown, drafts: DraftRow[]) {
+  const inputs = new Map(drafts.map((draft) => [draft.id, draft.inputs]));
+  inputs.set(id, workProductInputs(state));
   const visited = new Set<string>();
   function visit(current: string, path: string[]) {
     const loop = path.indexOf(current);
@@ -284,29 +287,26 @@ function assertDependencies(id: string, state: unknown, drafts: WorkProduct[]) {
     if (visited.has(current)) return;
     visited.add(current);
     if (visited.size > 1_000) throw new Error("This draft contains too many nested drafts.");
-    const nested = states.get(current);
+    const nested = inputs.get(current);
     if (nested === undefined) throw new Error("A connected draft no longer exists.");
-    for (const input of workProductInputs(nested)) {
+    for (const input of nested) {
       if (input.kind === "work-product-output") visit(input.workProductId, [...path, current]);
     }
   }
   visit(id, []);
 }
 
-const sameInputs = (left: unknown, right: unknown) => left === right ||
-  JSON.stringify(workProductInputs(left)) === JSON.stringify(workProductInputs(right));
-
 /** A draft's stored outputs are exactly its current versions: each build replaces them. */
-function deleteOutputs(store: IDBObjectStore, draft: WorkProduct) {
+function deleteOutputs(store: IDBObjectStore, draft: Pick<WorkProduct, "outputs">) {
   for (const output of Object.values(draft.outputs)) store.delete(output.versionId);
 }
 
-const handleIds = (draft: WorkProduct) => new Set(workProductInputs(draft.state).flatMap((input) =>
+const handleIds = (inputs: WorkProductInput[]) => new Set(inputs.flatMap((input) =>
   input.kind === "local-file" ? [input.handleId] : []));
 
-async function cleanupHandles(store: IDBObjectStore, drafts: WorkProduct[],
+async function cleanupHandles(store: IDBObjectStore, drafts: DraftRow[],
   removed = new Set<string>(), maximum = MAX_UNCLAIMED_HANDLES) {
-  const used = new Set(drafts.flatMap((draft) => [...handleIds(draft)]));
+  const used = new Set(drafts.flatMap((draft) => [...handleIds(draft.inputs)]));
   const unclaimed = (await request<StoredHandle[]>(store.getAll()))
     .filter(({ id }) => !id.startsWith("preference:") && !used.has(id))
     .sort((left, right) => right.createdAt - left.createdAt);
@@ -318,8 +318,8 @@ async function cleanupHandles(store: IDBObjectStore, drafts: WorkProduct[],
   });
 }
 
-async function cleanupStoredFiles(store: IDBObjectStore, drafts: WorkProduct[]) {
-  const used = new Set(drafts.flatMap((draft) => [...handleIds(draft)]));
+async function cleanupStoredFiles(store: IDBObjectStore, drafts: DraftRow[]) {
+  const used = new Set(drafts.flatMap((draft) => [...handleIds(draft.inputs)]));
   for (const id of await request<IDBValidKey[]>(store.getAllKeys())) {
     if (typeof id === "string" && !used.has(id)) store.delete(id);
   }
@@ -426,9 +426,9 @@ export async function pickRetainedFiles(multiple: boolean, accept: "source" | "p
   const selected = await Promise.all(handles.map(async (handle) => ({
     handle, file: await handle.getFile(), handleId: crypto.randomUUID(),
   })));
-  const database = await openDatabase(), transaction = database.transaction([DRAFTS, HANDLES], "readwrite");
+  const database = await openDatabase(), transaction = database.transaction([METADATA, HANDLES], "readwrite");
   const store = transaction.objectStore(HANDLES);
-  const drafts = await request<WorkProduct[]>(transaction.objectStore(DRAFTS).getAll());
+  const drafts = await draftRows(transaction.objectStore(METADATA));
   await cleanupHandles(store, drafts, new Set(), Math.max(0,
     MAX_UNCLAIMED_HANDLES - selected.length));
   const createdAt = Date.now();
@@ -480,8 +480,8 @@ export async function rememberSourcePdf(url: string, sha256: string) {
 export async function readSourcePdf(url: string) {
   const sha256 = (await read<{ sha256: string }>(METADATA, sourcePdfId(url)))?.sha256;
   const saved = sha256 && await read<StoredFile>(FILES, storedFileId(sha256));
-  const bytes = saved ? new Uint8Array(saved.bytes) : null;
-  return bytes && await digestBytes(bytes) === sha256 ? bytes : null;
+  // Kept under its own hash when it was retained, so it is not hashed again.
+  return saved ? new Uint8Array(await saved.blob.arrayBuffer()) : null;
 }
 
 type StoredAnswer = { id: string; body: string; expires: number };
@@ -510,11 +510,10 @@ export async function readSourceAnswer(url: string) {
 
 /** Retains generated/downloaded bytes without pretending they have a user filesystem handle. */
 export async function retainStandaloneFile(file: File) {
-  const bytes = new Uint8Array(await file.arrayBuffer()), sha256 = await digestBytes(bytes);
+  const sha256 = await digestBytes(new Uint8Array(await file.arrayBuffer()));
   const id = storedFileId(sha256), database = await openDatabase();
   const transaction = database.transaction(FILES, "readwrite");
-  transaction.objectStore(FILES).put({ id, mimeType: file.type,
-    bytes: bytes.slice().buffer } satisfies StoredFile);
+  transaction.objectStore(FILES).put({ id, mimeType: file.type, blob: file } satisfies StoredFile);
   await completed(transaction);
   const binding = { kind: "local-file", handleId: id,
     lastSeen: { name: file.name, size: file.size, modified: file.lastModified, sha256 } } as const;
@@ -530,8 +529,9 @@ export async function resolveStandaloneFile(input: WorkProductInput, verifyConte
   const metadata = fileSnapshot(result.file), previous = input.lastSeen;
   const metadataChanged = result.status === "changed" || metadata.name !== previous.name ||
     metadata.size !== previous.size || metadata.modified !== previous.modified;
-  const current = verifyContents || metadataChanged || !previous.sha256
-    ? await snapshotFile(result.file) : { ...metadata, sha256: previous.sha256 };
+  // A retained file is kept under its own hash, so only a file on disk is hashed to verify it.
+  const current = verifyContents && !input.handleId.startsWith("stored:") || metadataChanged ||
+    !previous.sha256 ? await snapshotFile(result.file) : { ...metadata, sha256: previous.sha256 };
   const changed = metadataChanged || verifyContents && current.sha256 !== previous.sha256;
   const resolvedInput: LocalFileInput = { ...input, lastSeen: current };
   selectedInputs.set(result.file, resolvedInput);
@@ -552,7 +552,7 @@ export async function inspectStandaloneFile(input: WorkProductInput) {
 async function resolveStoredFile(input: LocalFileInput): Promise<InputResolution> {
   const saved = await read<StoredFile>(FILES, input.handleId);
   if (!saved) return { status: "missing", reason: "deleted" };
-  const file = new File([saved.bytes.slice(0)], input.lastSeen.name,
+  const file = new File([saved.blob], input.lastSeen.name,
     { type: saved.mimeType, lastModified: input.lastSeen.modified });
   return { status: file.size === input.lastSeen.size ? "ready" : "changed", file, input };
 }
@@ -658,11 +658,20 @@ function openDatabase() {
     void navigator.storage?.persist?.().catch(() => false);
   }
   return database ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const opening = indexedDB.open(DATABASE, 6);
-    opening.onupgradeneeded = () => {
+    const opening = indexedDB.open(DATABASE, 7);
+    opening.onupgradeneeded = ({ oldVersion }) => {
       const names = opening.result.objectStoreNames;
       for (const name of [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS, ANSWERS]) {
         if (!names.contains(name)) opening.result.createObjectStore(name, { keyPath: "id" });
+      }
+      if (oldVersion < 7) {
+        // Rows gain the inputs their drafts hold; retained bytes become Blobs.
+        const upgrade = opening.transaction!, rows = upgrade.objectStore(METADATA);
+        each(upgrade.objectStore(DRAFTS), (draft: WorkProduct) => rows.put(draftMetadata(draft)));
+        each(upgrade.objectStore(FILES), (saved: StoredFile & { bytes?: ArrayBuffer }, cursor) => {
+          if (saved.bytes) cursor.update({ id: saved.id, mimeType: saved.mimeType,
+            blob: new Blob([saved.bytes], { type: saved.mimeType }) } satisfies StoredFile);
+        });
       }
     };
     opening.onsuccess = () => resolve(opening.result);
@@ -670,10 +679,20 @@ function openDatabase() {
   });
 }
 
-function draftMetadata({ state, ...metadata }: WorkProduct): WorkProductMetadata {
+function draftMetadata({ state, ...metadata }: WorkProduct): DraftRow {
   const profileId = metadata.kind === "court-record" && state && typeof state === "object" &&
     "profileId" in state && typeof state.profileId === "string" ? state.profileId : undefined;
-  return { ...metadata, ...(profileId ? { profileId } : {}) };
+  return { ...metadata, ...(profileId ? { profileId } : {}), inputs: workProductInputs(state) };
+}
+/** Every draft's row (the metadata store also keeps preferences and publisher PDFs' hashes). */
+const draftRows = async (rows: IDBObjectStore) =>
+  (await request<DraftRow[]>(rows.getAll())).filter((row) => Array.isArray(row.inputs));
+function each<T>(store: IDBObjectStore, visit: (value: T, cursor: IDBCursorWithValue) => void) {
+  const cursor = store.openCursor();
+  cursor.onsuccess = () => {
+    if (!cursor.result) return;
+    visit(cursor.result.value as T, cursor.result); cursor.result.continue();
+  };
 }
 
 async function unusedFile(directory: FileSystemDirectoryHandle, filename: string) {
