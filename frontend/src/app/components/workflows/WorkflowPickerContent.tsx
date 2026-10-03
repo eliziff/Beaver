@@ -146,7 +146,7 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                                 {group.items.map(row)}
                             </div>
                         </section>;
-                    })}</div> : <p className="py-10 text-center text-sm text-gray-500">{search.trim()
+                    })}</div> : <p className="py-10 text-center text-sm text-gray-600">{search.trim()
                         ? "No workflows match your search." : "No workflows are available."}</p>}
             </div>
         </div>

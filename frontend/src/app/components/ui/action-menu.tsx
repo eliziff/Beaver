@@ -138,7 +138,12 @@ export function ActionMenu({
                 onClick={(event) => {
                     event.stopPropagation();
                     if (open) close(true);
-                    else { onOpen?.(); setHost(event.currentTarget.closest(MODAL_BOUNDARY) ?? document.body); }
+                    else {
+                        onOpen?.();
+                        setHost(event.currentTarget.closest(MODAL_BOUNDARY) ??
+                            (typeof event.currentTarget.showPopover === "function"
+                                ? event.currentTarget.closest('main,[role="main"]') : null) ?? document.body);
+                    }
                 }}
             >
                 {children}

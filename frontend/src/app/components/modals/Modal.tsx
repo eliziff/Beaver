@@ -129,7 +129,7 @@ export function Modal({
                     <div className="flex shrink-0 items-center justify-between gap-3 p-4 pl-5">
                         {headerStart}
                         <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-hidden text-sm leading-5 text-gray-400">
+                            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-hidden text-sm leading-5 text-gray-600">
                                 {breadcrumbs?.map((segment, index) => (
                                     <span
                                         key={index}

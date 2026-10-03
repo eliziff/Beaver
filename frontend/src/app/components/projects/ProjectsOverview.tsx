@@ -202,7 +202,9 @@ export function ProjectsOverview() {
                         <div className="sm:hidden">
                             {selectionMenu("Actions", selectionItems)}
                         </div>
-                    </> : <TableHeaderCell className="w-8" />}
+                    </> : <TableHeaderCell className="w-8">
+                        <span className="sr-only">Actions</span>
+                    </TableHeaderCell>}
                 </TableSelectionHeader>}
             >
                 {initialLoading ? (
@@ -264,6 +266,7 @@ export function ProjectsOverview() {
                                     </div>
                                 </TablePrimaryCell>
                                 <div
+                                    role="cell"
                                     className="flex w-8 shrink-0 justify-end"
                                     onClick={(e) => e.stopPropagation()}
                                 >

@@ -34,7 +34,7 @@ pictures are native python-docx.
 In Review mode the program edits normally. `tracking.py` snapshots every story
 beforehand and records the difference as native revisions: removed content returns
 as `w:del` at its old position, new content becomes `w:ins` (paragraph marks and
-table rows included), moves become delete+insert, plain-text paragraphs are
+table rows and added cells included), moves become delete+insert, plain-text paragraphs are
 re-diffed word by word, and changed paragraph/run/table/row/cell/section properties
 gain `w:*PrChange`. Existing revisions compose as in Word: an edit inside Beaver's own
 pending insertion just changes (or withdraws) it, deleting another author's inserted
@@ -42,6 +42,11 @@ text nests a `w:del` inside their `w:ins`, and new text splits their insertion, 
 authorship stays true. Accepting every revision must give exactly the program's text.
 Style-definition edits, existing list definitions and removed table cells cannot be
 tracked, so they fail rather than silently becoming direct.
+Existing hyperlink and image relationship destinations also cannot change in Review mode:
+use a different relationship for a tracked replacement or direct editing. Text replacements
+preserve drawings, fields and references that share a run with the selected text.
+Existing binary parts, including picture bytes, must stay unchanged in Review mode;
+use a fresh picture part and relationship for a tracked replacement or direct editing.
 
 ## Verification
 

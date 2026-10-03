@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 from lxml import etree
 
-from ooxml import RUN_WRAPPERS, TEXTUAL, accepted_text, canon, resolve, w
+from ooxml import RUN_WRAPPERS, TEXTUAL, accepted_text, blocks, canon, resolve, w
 
 PROPS_OF = {w('p'): w('pPr'), w('tbl'): w('tblPr'), w('tr'): w('trPr'), w('tc'): w('tcPr')}
 PROPERTY = {w(t) for t in ('pPr', 'rPr', 'tblPr', 'trPr', 'tcPr', 'tblGrid', 'sdtPr', 'tblPrEx', 'sdtEndPr')}
@@ -57,11 +57,11 @@ def _signature(el):
 
 
 def _simple_text(run):
-    """Text of a run holding only text-like children, else None."""
+    """Text of a run whose children can be regenerated without losing controls, else None."""
     out = []
     for c in run:
         if c.tag in (w('rPr'), w('lastRenderedPageBreak')): continue   # the latter is Word's layout cache
-        if c.tag not in TEXTUAL or (c.tag == w('br') and c.get(w('type')) not in (None, 'textWrapping')): return None
+        if c.tag not in (w('t'), w('tab'), w('br')) or c.tag != w('t') and c.attrib: return None
         out.append((c.text or '') if TEXTUAL[c.tag] is None else TEXTUAL[c.tag])
     return ''.join(out)
 
@@ -225,7 +225,34 @@ class Recorder:
 
     def _diff_paragraph(self, p, original):
         now, before = self._inline(p), self._inline(original)
-        if now is None or before is None: return False
+        if now is None or before is None:
+            # A text edit can split a mixed image run. Diff its text around fixed,
+            # unchanged drawings instead of deleting and reinserting the image.
+            def image_items(paragraph):
+                items, images = [], []
+                for child in paragraph:
+                    if child.tag == w('pPr'): continue
+                    if child.tag in MARKERS: items.append(('mark', child)); continue
+                    if child.tag == w('r') and [c.tag for c in child if c.tag != w('rPr')] == [w('commentReference')]:
+                        items.append(('mark', child)); continue
+                    if child.tag != w('r') or any(c.tag not in (w('rPr'), w('t'), w('drawing')) for c in child): return None
+                    for content in child:
+                        if content.tag == w('rPr'): continue
+                        run = etree.Element(w('r'), dict(child.attrib))
+                        props = child.find(w('rPr'))
+                        if props is not None: run.append(copy.deepcopy(props))
+                        run.append(copy.deepcopy(content))
+                        if content.tag == w('drawing'):
+                            items.append(('mark', run)); images.append(run)
+                        else: items.append(('run', run, content.text or '', None))
+                return items, images
+            old_items, new_items = image_items(original), image_items(p)
+            if old_items is None or new_items is None: return False
+            before, old_images = old_items; now, new_images = new_items
+            if not old_images or list(map(canon, old_images)) != list(map(canon, new_images)): return False
+            for index, (old_image, image) in enumerate(zip(old_images, new_images)):
+                key = 'drawing:%s:%s' % (self._k(p), index)
+                self._tag(old_image, key); self._tag(image, key); self._done(image)
 
         def chars(items):
             out, marks = [], []
@@ -345,8 +372,21 @@ class Recorder:
                 if index not in keep and k in present: forget(present[k])
         # Plain-text paragraphs: one word-level diff.
         handled = set()
+        def block_key(p):
+            body = etree.Element(w('body')); body.append(copy.deepcopy(p))
+            return blocks(body)
         for key, el in list(present.items()):
-            if el.tag == w('p') and not manual(el) and self._diff_paragraph(el, self.snap[key]['el']):
+            if el.tag != w('p') or manual(el): continue
+            old = self.snap[key]['el']; runs = list(old.iter(w('r')))
+            # isolate() may split an unchanged mixed run to place an annotation.
+            # Keep the program's segmentation without inventing content revisions.
+            if any(r.find(w('t')) is not None and _simple_text(r) is None for r in runs) and \
+                    all(self._k(r) in present and el in present[self._k(r)].iterancestors() and
+                        dict(present[self._k(r)].attrib) == dict(r.attrib) for r in runs) and block_key(el) == block_key(old):
+                handled.update(self._k(r) for r in runs)
+                for run in el.iter(w('r')): self._done(run)
+                continue
+            if self._diff_paragraph(el, old):
                 handled.update(self._k(n) for n in self.snap[key]['el'].iter(etree.Element) if self._k(n) != key)
         # Removed content returns as a tracked deletion at its original position.
         covered, revived = set(), set()
@@ -391,7 +431,8 @@ class Recorder:
                 else: self._change(el, 'rPr', old.find(w('rPr')))
             elif el.tag == w('tbl'):
                 if sig[0] != before[0]: self._change(el, 'tblPr', old.find(w('tblPr')))
-                if sig[1] != before[1]:
+                # Compose pending grid edits against their original history, like _change.
+                if sig[1] != before[1] and el.find(w('tblGrid') + '/' + w('tblGridChange')) is None:
                     change = self._rev('tblGridChange'); inner = etree.SubElement(change, w('tblGrid'))
                     for c in old.findall(w('tblGrid') + '/' + w('gridCol')): inner.append(copy.deepcopy(c))
                     el.find(w('tblGrid')).append(change)
@@ -401,9 +442,13 @@ class Recorder:
             else: raise Untrackable('Changing <%s> attributes cannot be tracked' % etree.QName(el).localname)
         # New content becomes tracked insertions.
         for root in self.roots:
-            for el in list(root.iter(w('p'), w('tr'), w('r'))):
+            for el in list(root.iter(w('tc'), w('p'), w('tr'), w('r'))):
                 if self._k(el) or self.done.get(id(el)) in ('1', 'new') or any(self.done.get(id(a)) == '1' for a in el.iterancestors()): continue
-                if el.tag == w('p'): self._mark_paragraph(el, 'ins')
+                if el.tag == w('tc'):
+                    if not self._k(el.getparent()): continue  # a new row already tracks all its cells
+                    tcpr = self._props(el, 'tcPr')
+                    if tcpr.find(w('cellIns')) is None: tcpr.append(self._rev('cellIns'))
+                elif el.tag == w('p'): self._mark_paragraph(el, 'ins')
                 elif el.tag == w('tr'):
                     trpr = self._props(el, 'trPr')
                     if trpr.find(w('ins')) is None: trpr.append(self._rev('ins'))

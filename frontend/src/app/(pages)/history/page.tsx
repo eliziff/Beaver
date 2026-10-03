@@ -96,7 +96,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <main className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <PageHeader
         shrink
         actions={[{
@@ -156,9 +156,13 @@ export default function HistoryPage() {
       >
         <TableBody aria-busy={loading}>
           {loading ? (
+            <div role="row"><div role="cell">
             <p className="beaver-loading-indicator p-6 text-sm text-gray-500" role="status">Loading history…</p>
+            </div></div>
           ) : events.length === 0 ? (
+            <div role="row"><div role="cell">
             <TableEmptyState>No history matches these filters.</TableEmptyState>
+            </div></div>
           ) : events.map((event) => (
             <TableRow key={event.id} interactive={false} className="h-auto min-h-20 sm:h-11">
               <TableStickyCell widthClassName="min-w-0 flex-1 sm:w-[332px] sm:flex-none" className="min-w-0 flex-col">
@@ -187,6 +191,6 @@ export default function HistoryPage() {
 
       <Pagination page={page} pages={pageCount} label={`${total} history events`}
         disabled={loading} onPage={setPage} />
-    </main>
+    </div>
   );
 }

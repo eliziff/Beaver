@@ -127,7 +127,12 @@ def resolve(root, accept: bool):
     drop, keep = ((w('del'), w('moveFrom')), (w('ins'), w('moveTo'))) if accept else ((w('ins'), w('moveTo')), (w('del'), w('moveFrom')))
     inline = lambda n: n.getparent() is not None and n.getparent().tag not in (w('rPr'), w('trPr'), w('tcPr'))
     for node in [n for n in root.iter(*drop) if inline(n)]:
-        if node.getparent() is not None: node.getparent().remove(node)
+        parent = node.getparent()
+        if parent is not None:
+            parent.remove(node)
+            # A hyperlink whose only content was revised away must not leave an
+            # empty wrapper keeping an inserted paragraph alive after rejection.
+            if parent.tag == w('hyperlink') and not len(parent): parent.getparent().remove(parent)
     for node in [n for n in root.iter(*keep) if inline(n)]:
         for t in node.iter(w('delText')): t.tag = w('t')
         for t in node.iter(w('delInstrText')): t.tag = w('instrText')
@@ -141,6 +146,11 @@ def resolve(root, accept: bool):
         kept = [c for c in holder if c.tag in kept]
         for child in list(holder): holder.remove(child)
         for child in (list(inner) if inner is not None else []) + kept: holder.append(child)
+    for cell in list(root.iter(w('tc'))):
+        insertion = cell.find(w('tcPr') + '/' + w('cellIns'))
+        if insertion is None: continue
+        if accept: insertion.getparent().remove(insertion)
+        else: cell.getparent().remove(cell)
     for p in reversed(list(root.iter(w('p')))):
         mark = _mark(p, drop)
         if mark is not None:   # the paragraph mark goes away: content joins the next paragraph
@@ -179,7 +189,7 @@ def accepted_text(node) -> str:
 
 def revision_counts(root) -> dict[str, int]:
     counts = {}
-    for node in root.iter(*RUN_WRAPPERS, *CHANGE_TAGS):
+    for node in root.iter(*RUN_WRAPPERS, *CHANGE_TAGS, w('cellIns')):
         name = etree.QName(node).localname
         parent = node.getparent()
         if name in ('ins', 'del') and parent is not None and parent.tag == w('rPr'): name += '-paragraph-mark'
@@ -220,17 +230,22 @@ def _inline(p) -> list:
         if child.tag in SKIP or child.tag == w('pPr'): continue
         if child.tag == w('r'):
             body = [c for c in child if c.tag != w('rPr') and c.tag not in SKIP]
-            if all(c.tag in TEXTUAL and (c.tag != w('br') or not c.get(w('type'))) for c in body):
-                text = ''.join((c.text or '') if TEXTUAL[c.tag] is None else TEXTUAL[c.tag] for c in body)
-                if not text: continue
-                style = canon(child.find(w('rPr')))
-                if items and items[-1][0] == 'r' and items[-1][1] == style: items[-1] = ('r', style, items[-1][2] + text)
-                else: items.append(('r', style, text))
-            elif not (len(body) == 1 and body[0].tag == w('commentReference')):
-                run = _clean(child)
-                for n in list(run):
-                    if n.tag in SKIP: run.remove(n)
-                items.append(('x', canon(run)))
+            style = canon(child.find(w('rPr')))
+            # Compare mixed runs in content order, allowing equivalent run splits
+            # without merging text across drawings or structured controls.
+            for node in body:
+                if node.tag == w('commentReference'): continue
+                if node.tag in (w('t'), w('tab'), w('br')) and (node.tag == w('t') or not node.attrib):
+                    text = (node.text or '') if TEXTUAL[node.tag] is None else TEXTUAL[node.tag]
+                    if not text: continue
+                    if items and items[-1][0] == 'r' and items[-1][1] == style: items[-1] = ('r', style, items[-1][2] + text)
+                    else: items.append(('r', style, text))
+                else:
+                    run = _clean(child)
+                    for content in list(run):
+                        if content.tag != w('rPr'): run.remove(content)
+                    run.append(copy.deepcopy(node))
+                    items.append(('x', canon(run)))
         elif child.tag in (w('hyperlink'), w('smartTag'), w('customXml'), w('fldSimple')):
             items.append(('group', canon(etree.Element(child.tag, dict(child.attrib))), tuple(_inline(child))))
         elif child.tag == w('sdt'):

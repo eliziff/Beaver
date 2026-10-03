@@ -4,11 +4,12 @@ from __future__ import annotations
 import copy
 import re
 
-from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.opc.constants import CONTENT_TYPE as CT, RELATIONSHIP_TYPE as RT
 from docx.opc.packuri import PackURI
 from docx.opc.part import XmlPart
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn
+from docx.parts.numbering import NumberingPart
 from docx.shared import Mm
 from docx.table import Table, _Row
 from docx.text.paragraph import Paragraph
@@ -47,10 +48,15 @@ def find(needle: str, container=None, regex=False) -> list[Paragraph]:
     return [Paragraph(p, parent) for p in root.iter(qn('w:p')) if match(accepted_text(p))]
 
 
+def _paragraph_runs(paragraph):
+    return [r for r in paragraph._p.xpath('.//w:r[not(ancestor::w:del or ancestor::w:moveFrom)]')
+            if r.xpath('ancestor::w:p[1]')[0] is paragraph._p]
+
+
 def _text_match(paragraph: Paragraph, needle: str, occurrence: int):
     """Find a literal occurrence in the same accepted run text used by isolate and replace_text."""
-    runs = [r for r in paragraph._p.xpath('.//w:r[not(ancestor::w:del or ancestor::w:moveFrom)]')
-            if r.xpath('ancestor::w:p[1]')[0] is paragraph._p and (r.xpath('./w:t|./w:tab|./w:br') or not r.xpath('./*[not(self::w:rPr)]'))]
+    if not needle or occurrence < 0: raise ValueError('Search text must be nonempty and occurrence must be nonnegative')
+    runs = _paragraph_runs(paragraph)
     full, spans = '', []
     for r in runs:
         t = Run(r, paragraph).text
@@ -133,19 +139,20 @@ def _replace_text_node(spans, start, end, new):
 def replace_text(paragraph: Paragraph, old: str, new: str, count: int = 0) -> int:
     """Replace text in a paragraph, keeping the formatting of the first replaced run. count=0 replaces all.
     Raises when old is absent: a replacement that changes nothing is a wrong paragraph or wrong text."""
-    done = 0
-    while not count or done < count:
-        occurrence = done * new.count(old)
-        try: spans, start, end = _text_match(paragraph, old, occurrence)
-        except ValueError:
-            if done: break
-            raise
+    if not old or count < 0: raise ValueError('Search text must be nonempty and count must be nonnegative')
+    original = ''.join(Run(r, paragraph).text for r in _paragraph_runs(paragraph))
+    matches = len(list(re.finditer(re.escape(old), original)))
+    if not matches: raise ValueError('Text not found in paragraph: %r' % old[:80])
+    replacements = min(count, matches) if count else matches
+    # Match the original text from right to left, preserving the run and text node when possible.
+    for occurrence in reversed(range(replacements)):
+        spans, start, end = _text_match(paragraph, old, occurrence)
         if not _replace_text_node(spans, start, end, new):
             runs = isolate(paragraph, old, occurrence)
             runs[0].text = new
             for r in runs[1:]: r._r.getparent().remove(r._r)
-        done += 1
-    return done
+    return replacements
+
 
 
 def delete(obj) -> None:
@@ -199,8 +206,16 @@ LIST_KINDS = {  # numFmt and label per level (cycled); '#' is the level's own nu
 
 def numbered_list(items, kind: str = 'decimal', start: int = 1, indent_mm: float = 6.35) -> int:
     """Make paragraphs ONE list via numbering.xml (abstractNum + num). items: paragraphs or (paragraph, level) pairs.
-    kind: decimal | legal (1. / 1.1. / 1.1.1.) | bullet | upperLetter | lowerLetter | upperRoman. Returns the numId."""
-    numbering = DOC.part.numbering_part.element
+    kind: decimal | legal (1. / 1.1. / 1.1.1.) | bullet | upperLetter | lowerLetter | upperRoman. Requires at least one paragraph; returns the numId."""
+    items = list(items)
+    if not items: raise ValueError('numbered_list requires at least one paragraph')
+    try: part = DOC.part.part_related_by(RT.NUMBERING)
+    except KeyError:
+        # python-docx 1.2's NumberingPart.new() is unimplemented.
+        part = NumberingPart(PackURI('/word/numbering.xml'), CT.WML_NUMBERING,
+                             parse_xml('<w:numbering %s/>' % NSDECL), DOC.part.package)
+        DOC.part.relate_to(part, RT.NUMBERING)
+    numbering = part.element
     abstract_id = max([int(x) for x in numbering.xpath('./w:abstractNum/@w:abstractNumId')] + [-1]) + 1
     num_id = max([int(x) for x in numbering.xpath('./w:num/@w:numId')] + [0]) + 1
     levels = []
@@ -311,9 +326,11 @@ def add_field(paragraph: Paragraph, instr: str, result: str = '') -> list[Run]:
 def update_fields_on_open():
     """Ask Word to refresh fields (TOC, page refs) when the file is opened."""
     settings = DOC.settings.element
-    if settings.find(qn('w:updateFields')) is None:
-        el = OxmlElement('w:updateFields'); el.set(qn('w:val'), 'true')
+    el = settings.find(qn('w:updateFields'))
+    if el is None:
+        el = OxmlElement('w:updateFields')
         _settings_insert(settings, el, SETTINGS_AFTER_UPDATE)
+    el.set(qn('w:val'), 'true')
 
 
 def add_toc(anchor, levels: str = '1-3', title: str | None = 'Contents') -> Paragraph:

@@ -65,13 +65,13 @@ const DOCUMENT_METADATA_COLUMNS = [
 const DOCUMENT_METADATA_HEADERS = DOCUMENT_METADATA_COLUMNS.map(({ label, header }) =>
     <TableHeaderCell key={label} className={`${header} justify-center text-center`}><span>{label}</span></TableHeaderCell>);
 const FOLDER_METADATA_CELLS = DOCUMENT_METADATA_COLUMNS.map(({ label, row }) => (
-    <div key={label}
+    <div key={label} role="cell"
         className={`${row} text-center ${label === "Type" ? "text-xs" : "text-sm"} text-gray-300`}>
         —
     </div>
 ));
 const BLANK_METADATA_CELLS = DOCUMENT_METADATA_COLUMNS.map(({ label, row }) =>
-    <div key={label} className={row} />);
+    <div key={label} role="cell" className={row} />);
 const EMPTY_METADATA_VALUE = <span className="text-gray-300">—</span>;
 const WARNING_KINDS = ["upload", "rename", "collection"] as const;
 function prewarmDocumentView(doc: Document) {
@@ -140,7 +140,7 @@ function DocumentMetadataCells({ doc, onOpen }: { doc: Document; onOpen: () => v
         Updated: doc.updated_at ? formatDate(doc.updated_at) : EMPTY_METADATA_VALUE,
     };
     return DOCUMENT_METADATA_COLUMNS.map(({ label, row }) => (
-        <div key={label}
+        <div key={label} role="cell"
             className={`${row} text-center ${label === "Type" ? "text-xs uppercase" : "text-sm"} ${label === "Version" ? "flex items-center justify-center gap-1" : "truncate"} text-gray-500`}
             onClick={label === "Version" ? (event) => event.stopPropagation() : undefined}>
             {values[label]}</div>
@@ -608,8 +608,8 @@ export function DocTable({
         depth: number; statusLabel: string;
     }) {
         return (
-            <div key={key} className={DOCUMENT_ROW_CLASS}>
-                <div className={NAME_CELL_CLASS} style={treeNameCellStyle(depth)}>
+            <div key={key} role="row" className={DOCUMENT_ROW_CLASS}>
+                <div role="cell" className={NAME_CELL_CLASS} style={treeNameCellStyle(depth)}>
                     <div className="flex items-center">
                         <Loader2 className="mr-4 h-2.5 w-2.5 animate-spin text-gray-400 shrink-0" />
                         <span className="mr-2 shrink-0">
@@ -620,14 +620,14 @@ export function DocTable({
                     </div>
                 </div>
                 {DOCUMENT_METADATA_COLUMNS.map(({ label, row }) => (
-                    <div key={label}
+                    <div key={label} role="cell"
                         className={`${row} ${label === "Type" ? "text-xs uppercase truncate" : "text-sm"} text-gray-300`}>
                         {label === "Type"
                             ? fileType ?? (filename.includes(".") ? filename.split(".").pop() : "file")
                             : label === "Size" ? statusLabel : "—"}
                     </div>
                 ))}
-                <div className="w-8 shrink-0" />
+                <div role="cell" className="w-8 shrink-0" />
             </div>
         );
     }
@@ -706,9 +706,9 @@ export function DocTable({
                 )}
                 {tree.rows.map((row) => {
                     if (row.kind === "more") return (
-                        <div key={`more-${row.parentId ?? "root"}`}
+                        <div key={`more-${row.parentId ?? "root"}`} role="row"
                             className={DOCUMENT_ROW_CLASS}>
-                            <div className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
+                            <div role="cell" className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
                                 <Button variant="outline" size="compact"
                                     disabled={loadingParents.has(row.parentId)}
                                     onClick={() => onLoadMore?.(row.parentId)}
@@ -720,10 +720,10 @@ export function DocTable({
                     );
                     if (row.kind === "editor") return (
                         <div ref={(element) => element?.scrollIntoView({ block: "nearest" })}
-                            key={`new-folder-${row.parentId ?? "root"}`}
+                            key={`new-folder-${row.parentId ?? "root"}`} role="row"
                             data-tree-drop-folder={row.parentId ?? ""}
                             className={DOCUMENT_ROW_CLASS}>
-                            <div className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
+                            <div role="cell" className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
                                 <div className="flex items-center">
                                     <span className="mr-4 flex h-2.5 w-2.5 shrink-0 items-center justify-center">
                                         <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
@@ -736,7 +736,7 @@ export function DocTable({
                                 </div>
                             </div>
                             {BLANK_METADATA_CELLS}
-                            <div className="w-8 shrink-0" />
+                            <div role="cell" className="w-8 shrink-0" />
                         </div>
                     );
                     if (row.kind === "folder") {
@@ -752,12 +752,12 @@ export function DocTable({
                         </span><FolderSvgIcon open={isExpanded}
                             className="mr-2 h-4 w-4 shrink-0" /></>;
                         return (
-                            <div key={`folder-${folder.id}`}
+                            <div key={`folder-${folder.id}`} role="row"
                                 data-tree-drop-folder={folder.id}
                                 draggable={!isRenaming}
                                 onDragStart={(event) => handleFolderDragStart(event, folder.id)}
                                 className={`${DOCUMENT_ROW_CLASS} ${isRenaming ? "" : "select-none"} ${isDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}>
-                                <div className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
+                                <div role="cell" className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
                                     {isRenaming ? <div className="flex items-center">
                                         {folderPrefix}<InlineNameInput kind="folder"
                                                 value={folder.name}
@@ -772,7 +772,7 @@ export function DocTable({
                                     </button>}
                                 </div>
                                 {FOLDER_METADATA_CELLS}
-                                <div className="flex w-8 shrink-0 justify-end">
+                                <div role="cell" className="flex w-8 shrink-0 justify-end">
                                     <RowActions
                                         additionalItems={[
                                             ...(onOpenInChat ? [{ label: "Open in new chat",
@@ -822,10 +822,10 @@ export function DocTable({
                             onDoubleClick={(event) => handleDocumentRowDoubleClick(event, doc)}
                             onKeyDown={(event) => handleDocumentRowKeyDown(event, doc)}
                             tabIndex={selectionFirst ? 0 : undefined}
-                            role={selectionFirst ? "row" : undefined}
+                            role="row"
                             aria-selected={selectionFirst ? isSelected : undefined}
                             className={`${DOCUMENT_ROW_CLASS} cursor-pointer ${selectionFirst ? "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600" : ""} ${isVersionDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : isSelected ? APP_SURFACE_ACTIVE_CLASS : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}>
-                            <div className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
+                            <div role="cell" className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
                                 <div className="flex items-center">
                                     {isProcessing || isUploadingVersion ? (
                                         <span className="-ml-2 mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center">
@@ -883,7 +883,7 @@ export function DocTable({
                             </div>
                             <DocumentMetadataCells doc={doc}
                                 onOpen={() => openDocument(doc)} />
-                            <div className="flex w-8 shrink-0 justify-end">
+                            <div role="cell" className="flex w-8 shrink-0 justify-end">
                                 {!isProcessing && (
                                     <RowActions
                                         additionalItems={[
@@ -1058,23 +1058,28 @@ export function DocTable({
                         <span className="mr-1">Name</span>
                     </TableStickyCell>
                     {DOCUMENT_METADATA_HEADERS}
-                    <TableHeaderCell className="w-8" />
+                    <TableHeaderCell className="w-8">
+                        <span className="sr-only">Actions</span>
+                    </TableHeaderCell>
                 </TableHeaderRow>}
             >
                 {loading && isEmptyCollection ? <TableLoadingState /> : (
-                    <div className="relative flex min-h-0 flex-1 flex-col">
+                    <div role={isEmptyCollection ? "row" : "rowgroup"}
+                        className="relative flex min-h-0 flex-1 flex-col">
                         {dragOverSurface === "root" && dragOverFolderId === null && (
                             <div className="pointer-events-none absolute inset-0 z-[80] border-2 border-red-400" />
                         )}
                         {isEmptyCollection ? (
+                            <div role="cell" className="flex min-h-0 flex-1">
                             <button type="button" onClick={openAddDocuments}
                                 onDragOver={handleCollectionDragOver}
                                 onDragLeave={handleCollectionDragLeave}
                                 onDrop={(event) => void handleCollectionDrop(event)}
                                 className="flex w-full flex-1 cursor-pointer flex-col items-center justify-center py-24 text-center">
                                 <FolderSvgIcon className="mb-3 h-8 w-8 text-gray-700" />
-                                <p className="text-sm text-gray-400">{emptyDropLabel}</p>
+                                <p className="text-sm text-gray-600">{emptyDropLabel}</p>
                             </button>
+                            </div>
                         ) : (
                             <div className="flex flex-1 flex-col"
                                 onDragOver={handleCollectionDragOver}

@@ -18,7 +18,7 @@
 import diff from "fast-diff";
 import {
     ATTR_KEY, type XNode, cloneNode, createBuilder, ensureXmlDeclaration,
-    elAttrs, elChildren, elName, makeEl, makeText, setChildren,
+    elAttrs, elChildren, elName, getTextContent, makeEl, makeText, setChildren,
 } from "./docx/core";
 import { type DocxParagraphIndex, openDocxSession } from "./docx/session";
 
