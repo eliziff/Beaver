@@ -214,6 +214,7 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
     : authority.source.kind === "pending-canlii"
       ? "CanLII doesn't allow automatic downloads. Download the PDF from CanLII, then upload it here."
     : sources.length ? "This PDF is unavailable. Upload it again."
+    : uploadHint ? uploadHint
     : "No PDF attached. Upload a PDF for this authority.";
   const mark = missing ? { Icon: issue ? LockKeyhole
       : lookup || publisherUrl || authority.source.kind === "pending-canlii" ? CircleAlert : FileX2,
@@ -330,7 +331,6 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
       {choice("@min-[44rem]/sources:hidden")}
       <span className="truncate text-xs text-gray-500" title={copy.line || undefined}>{copy.line}</span>
     </div>}
-    {uploadHint && <p className="col-[3/-1] pb-1 text-xs text-red-800">{uploadHint}</p>}
     <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
       disabled={busy} aria-label={`Upload PDF for ${title}`} onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = "";
