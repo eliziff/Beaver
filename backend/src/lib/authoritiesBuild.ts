@@ -944,9 +944,12 @@ async function prepareAuthorityBook(
       const ocrTextByPage = source.authority ? source.ocrTextByPage?.map((text, index) =>
         bookScanPolicy(draft) === "full" || bookScanPolicy(draft) === "cited-pages" && cited.has(index)
           ? pdfNormalized(text).replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?") : "") : undefined;
-      const currency = source.authority?.kind === "legislation" ? statuteCurrency(source.pageTextByPage) : undefined;
+      // An excerpt that leaves out the page saying how current the statute is says it atop its first page.
+      const currency = source.excerpt ? statuteCurrency(source.pageTextByPage) : undefined;
+      const kept = currency && source.pageIndices.some((index) => source.pageTextByPage?.[index]
+        ?.replace(/\s+/gu, " ").toLowerCase().includes(currency.toLowerCase()));
       return { key: source.key, name: source.name, italic: source.italic, tab: source.tab, sourceUrl: source.sourceUrl,
-        ...(currency && { note: currency }),
+        ...(currency && !kept && { header: pdfText(currency) }),
         bytes: await source.document.save({ useObjectStreams: false }),
         pageIndices: source.pageIndices, databaseReference: source.databaseReference, ocrTextByPage, bookmarks,
         ...(source.outline?.length ? { outline: source.outline } : {}) };

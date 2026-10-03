@@ -4,11 +4,12 @@ import { mapOutline, pdfAssembly, splitPdfPageRanges, type PdfAssemblyInput,
   type PdfOutline } from "./pdfAssembly.mjs";
 
 type PdfModule = typeof import("pdf-lib");
-/** `italic`: how many of the name's first characters are italic, its style of cause or title;
- *  `note`: what its tab page says under the tab (a statute's currency, as its PDF states it). */
-export type BookRow = { key: string; name: string; italic?: number; tab: string; sourceUrl?: string | null; note?: string };
+/** `italic`: how many of the name's first characters are italic, its style of cause or title. */
+export type BookRow = { key: string; name: string; italic?: number; tab: string; sourceUrl?: string | null };
+/** `header`: a line at the top of its first page in the book (an excerpt's currency, where the
+ *  excerpt leaves out the page that states it). */
 export type PreparedBookSource<Bytes = Uint8Array> = BookRow & {
-  bytes: Bytes; pageIndices: number[]; ocrTextByPage?: string[];
+  bytes: Bytes; pageIndices: number[]; ocrTextByPage?: string[]; header?: string;
   databaseReference: { url: string; host: string } | null;
   bookmarks: Array<{ title: string; pageIndex: number }>;
   /** The source's own outline: its publisher bookmarks, or the headings and sections read from it. */
@@ -169,11 +170,14 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
           ocrTextByPage: source.ocrTextByPage,
           draw: tabbed || blankBefore ? ({ document, fonts }) => {
             if (blankBefore) document.addPage([612, 792]);
-            if (tabbed) drawTabPage(document.addPage([612, 792]), source.tab, fonts.bold, source.note, fonts.regular);
+            if (tabbed) drawTabPage(document.addPage([612, 792]), source.tab, fonts.bold);
             if (blankAfter) document.addPage([612, 792]);
           } : undefined,
-          decorate: source.databaseReference ? (page, _index, { fonts }) => {
-            const { url, host } = source.databaseReference!;
+          decorate: source.databaseReference || source.header ? (page, index, { fonts }) => {
+            if (source.header && index === source.pageIndices[0]) engine.drawPageNumber(page, source.header,
+              fonts.regular, "top-centre", 8, 72, 24);
+            if (!source.databaseReference) return;
+            const { url, host } = source.databaseReference;
             const crop = page.getCropBox(), label = `FREE PUBLIC DATABASE: ${host}`;
             const size = 12, width = fonts.bold.widthOfTextAtSize(label, size) + 10;
             const x = crop.x + 99.21, y = crop.y + crop.height - 80;
@@ -521,13 +525,9 @@ function drawFederalForm66Cover(page: PdfPage, regular: PdfFont, bold: PdfFont,
 }
 
 /** The page that opens an authority: its tab, large and alone. */
-function drawTabPage(page: PdfPage, tab: string, font: PdfFont, note?: string, regular = font) {
+function drawTabPage(page: PdfPage, tab: string, font: PdfFont) {
   const text = pdfText(tab).toUpperCase(), size = Math.min(54, 468 / Math.max(1, font.widthOfTextAtSize(text, 1)));
   page.drawText(text, { x: (612 - font.widthOfTextAtSize(text, size)) / 2, y: 396 - size / 3, size, font });
-  if (note) {
-    const line = fit(regular, note, 12, 468);
-    page.drawText(line, { x: (612 - regular.widthOfTextAtSize(line, 12)) / 2, y: 396 - size / 3 - 34, size: 12, font: regular });
-  }
 }
 
 /** The Alberta Rules of Court's cover (r 13.19): the court file number, court, judicial centre and
