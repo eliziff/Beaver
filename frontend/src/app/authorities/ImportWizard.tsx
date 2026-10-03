@@ -54,15 +54,15 @@ function wizardSettings(profileId: AuthoritiesProfileId, chosen: Partial<Setting
     settings.passageMarking = profile.defaults.settings.passageMarking;
   return settings;
 }
-/** What finishing makes of the draft read from the brief: its court, then every choice here, then its
- *  cover where one was written. */
+/** What finishing makes of the draft read from the brief: its court, then every choice here, then the
+ *  cover as the form shows it, so the book says what the form and the preview say. */
 function importActions(state: AuthoritiesProduct["state"], profileId: AuthoritiesProfileId, settings: Settings,
-  cover: AuthoritiesCover | undefined, keys: readonly (keyof Settings)[]): AuthoritiesAction[] {
+  cover: AuthoritiesCover, keys: readonly (keyof Settings)[]): AuthoritiesAction[] {
   const chosen = Object.fromEntries(keys.flatMap((key) => settings[key] === undefined ? [] : [[key, settings[key]]]));
-  const saved = cover && savedCover(cover, profileId);
+  const saved = savedCover(cover, profileId);
   return [...profileId === state.settings.profileId ? [] : [{ type: "set-profile", profileId } as const],
     { type: "set-settings", settings: chosen },
-    ...!saved || canonicalJson(saved) === canonicalJson(state.cover) ? [] : [{ type: "set-cover", cover: saved } as const]];
+    ...canonicalJson(saved) === canonicalJson(state.cover) ? [] : [{ type: "set-cover", cover: saved } as const]];
 }
 
 /** The import: the court and the front of the book, then the sources, then the marking, each beside a
@@ -89,11 +89,10 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
   const profile = authoritiesProfile(profileId);
   const book = (profile.locked?.outputMode ?? profile.defaults.outputMode) !== "table";
   const court = profileId === "general" ? "" : `${profile.label} `;
-  const written = cover && startedCover(cover, profileId);
-  const finish = () => onFinish((state) => importActions(state, profileId, settings, written, WIZARD_KEYS),
+  const finish = () => onFinish((state) => importActions(state, profileId, settings, shownCover, WIZARD_KEYS),
     { profileId, sourceMode: settings.sourceMode, passageMarking: settings.passageMarking });
   const busy = finishing;
-  const frontActions = draft ? importActions(draft.state, profileId, settings, written, FRONT_KEYS) : [];
+  const frontActions = draft ? importActions(draft.state, profileId, settings, shownCover, FRONT_KEYS) : [];
   return <Modal open onClose={onCancel} size="2xl" breadcrumbs={["Import"]}
     className="h-[min(54rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
     footerStatus={<div className="mr-auto flex min-w-0 items-center gap-3">
