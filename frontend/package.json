@@ -5,15 +5,16 @@
     "type": "module",
     "scripts": {
         "dev": "vite --host 127.0.0.1 --port 3000",
-        "prebuild": "npm run build:shared --prefix .. && node scripts/guard-live-build.mjs",
+        "prebuild": "node scripts/guard-live-build.mjs",
+        "check": "node --import ../scripts/background-work.mjs node_modules/typescript/bin/tsc --noEmit",
+        "build:app": "node --import ../scripts/background-work.mjs node_modules/vite/bin/vite.js build --outDir .tmp/app-dist",
+        "build:standalone": "node --import ../scripts/background-work.mjs node_modules/vite/bin/vite.js build --mode court-records --outDir .tmp/standalone-dist --emptyOutDir && node scripts/standalone-bundle-boundary.mjs .tmp/standalone-dist",
         "build": "node --import ../scripts/background-work.mjs node_modules/typescript/bin/tsc --noEmit && node --import ../scripts/background-work.mjs node_modules/vite/bin/vite.js build && node --import ../scripts/background-work.mjs node_modules/vite/bin/vite.js build --mode court-records && node scripts/standalone-bundle-boundary.mjs",
         "start": "vite preview --host 127.0.0.1 --port 3000",
         "lint": "eslint",
         "test": "node --import ../scripts/background-work.mjs --max-old-space-size=384 ./node_modules/vitest/vitest.mjs run",
         "test:guards": "node --test --test-concurrency=1 scripts/guard-live-build.test.mjs scripts/transport-boundary.test.mjs scripts/precompressed-assets.test.mjs",
-        "preview": "vite preview --host 127.0.0.1 --port 3000",
-        "pretest": "npm run build:shared --prefix ..",
-        "predev": "npm run build:shared --prefix .."
+        "preview": "vite preview --host 127.0.0.1 --port 3000"
     },
     "dependencies": {
         "@pdf-lib/fontkit": "^1.1.1",

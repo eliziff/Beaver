@@ -34,8 +34,10 @@ native citation/quotation tests remain independent behavior gates.
 Frontend CI installs root shared dependencies and frontend dependencies, without
 installing the backend. Shared TypeScript contracts and PDF helpers live in
 `shared/contracts/`; `npm run build:shared` produces ignored runtime modules and
-declarations in `shared/runtime/`. Normal build/test/dev commands compile that
-owner first. Direct Vitest or packaging commands need that shared build once.
+declarations in `shared/runtime/`. Production build/dev commands compile that
+owner first. Vitest resolves those modules to their TypeScript sources directly;
+focused tests do not compile shared output or build the application/native addon.
+Packaging and direct compiled-runtime commands need the shared build once.
 Both standalone entries are built together, so the frontend build uses one
 application pass and one standalone pass.
 
@@ -125,7 +127,7 @@ To use the existing local production build for the small browser suite, set
 
 ## Local resource use
 
-Local Vitest runs use one worker; CI uses four. Pure Node tests skip React/JSDOM
+Local Vitest runs use one isolated thread worker; CI uses four. Pure Node tests skip React/JSDOM
 setup. Normal npm builds/tests run below normal priority and limit Rayon/OpenMP
 pools to one thread. Root Cargo configuration limits compilation to one job
 and one codegen unit, including addon builds launched from this checkout.
@@ -133,6 +135,13 @@ Native CI commands explicitly use two jobs on their dedicated runners.
 Avoid running builds and tests concurrently on the workstation; use focused tests
 and reuse built production assets for browser checks. Full Rust builds belong in
 CI unless native source changed and a local integration build is necessary.
+
+Frontend Vite and Vitest read shared contracts from source; no shared build is
+needed. Backend focused tests do the same and use the SQLite worker's existing
+source mode, without generating test-only JavaScript copies. Frontend type checks are incremental. Use
+`npm run check --prefix frontend` to check types, `npm run build:app --prefix
+frontend` or `npm run build:standalone --prefix frontend` for one production
+surface in `frontend/.tmp/`, and the ordinary build for the complete release.
 
 To run the real Word suite locally after installing its prerequisites, set
 `BEAVER_WORD_INTEGRATION=1` and run `npm test --prefix backend`.

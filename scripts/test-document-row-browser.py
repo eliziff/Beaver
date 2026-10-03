@@ -15,7 +15,7 @@ def main():
     parser.add_argument("--url", default="http://127.0.0.1:3000/library")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    output = args.output or Path(tempfile.mkdtemp(prefix="beaver-document-row-"))
+    output = args.output or Path(__file__).resolve().parents[1] / ".tmp/document-row-browser"
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="beaver-document-row-chrome-") as profile:
         driver = chrome(Path(profile), False)

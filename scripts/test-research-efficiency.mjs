@@ -7,7 +7,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { chromium, expect } from '@playwright/test';
 const home = await mkdtemp(path.join(tmpdir(), 'beaver-research-ui-'));
-const output = process.env.RESEARCH_EFFICIENCY_OUTPUT || await mkdtemp(path.join(tmpdir(), 'beaver-research-screenshots-'));
+const output = process.env.RESEARCH_EFFICIENCY_OUTPUT || path.resolve(import.meta.dirname, '../.tmp/research-efficiency');
 await mkdir(output, { recursive: true });
 Object.assign(process.env, { AUTH_MODE: 'local', NODE_ENV: 'production', MIKE_LOCAL_DATA_DIR: home, OPEN_LEGAL_DATA_HOME: home });
 const require = createRequire(import.meta.url);

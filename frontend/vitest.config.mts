@@ -14,6 +14,7 @@ export default defineConfig({
     server: { fs: { allow: [resolvePath(".."), realpathSync(resolvePath("./node_modules"))] } },
     resolve: {
         alias: [
+            { find: /^(?:mike\/|.*\/)shared\/runtime\/(.*)\.mjs$/, replacement: resolvePath("../shared/contracts/$1.mts") },
             { find: /^mike\/shared\/(.*)$/, replacement: resolvePath("../shared/$1") },
             {
                 find: "docx-preview",
@@ -29,9 +30,8 @@ export default defineConfig({
     },
     test: {
         globals: true,
-        pool: "forks",
+        pool: "threads",
         maxWorkers: process.env.CI ? 4 : 1,
-        execArgv: ["--max-old-space-size=192"],
         silent: "passed-only",
         environment: "jsdom",
         setupFiles: ["./vitest.setup.ts"],

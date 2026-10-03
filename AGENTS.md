@@ -41,7 +41,30 @@ the latter owns project priorities and remaining gates.
 - After a privacy history rewrite, cherry-pick older work onto the cleaned branch;
   do not merge the old history back into it.
 
+## Artifact lifetime
+
+- `.tmp/`, `tmp/` and OS temp directories are disposable scratch only. Never put
+  benchmark inputs, corpora, independent gold or irreplaceable receipts there.
+  Keep redistributable fixtures with their owning tests; keep local/private
+  corpora in ignored `benchmarks/local-data/<suite>/` or existing private corpus
+  directories. Record source, hashes and regeneration instructions beside the
+  harness without publishing private data.
+- Clean up the scratch directories and processes you create in `finally`, even
+  on failure. If screenshots/results must remain for review, retain one latest
+  output directory per harness and overwrite it next time; put durable findings
+  in the owning documentation. No timestamped piles, abandoned worktrees,
+  duplicate dependency installs or extra Cargo targets after the task ends.
+- Never sweep existing ambiguous temp contents by name. Preserve/move valuable
+  inputs first, check for active users, and verify cleanup paths remain within
+  the intended workspace. Working Git checkouts, experiments and ordinary user
+  stores are not scratch. Never create a working repository in a temp directory.
+
 ## Validation and interface quality
+
+- Keep the edit-to-check loop narrow: focused source tests do not build shared
+  output, the frontend, native addons or releases. Run one local build/test at a
+  time; use the checked-in one-job Cargo and one-worker test defaults. Reuse
+  ordinary incremental targets, not per-task Cargo target copies.
 
 - Measure behavior before changing it. Native grammar/profile changes require the
   appropriate independent corpus/gold result, not a self-regenerated baseline.

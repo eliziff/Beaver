@@ -28,7 +28,7 @@ def main() -> None:
     parser.add_argument("--output")
     parser.add_argument("--headed", action="store_true")
     args = parser.parse_args()
-    output = Path(args.output) if args.output else Path(tempfile.mkdtemp(prefix="beaver-sources-dock-"))
+    output = Path(args.output) if args.output else Path(__file__).resolve().parents[1] / ".tmp/sources-dock-browser"
     output.mkdir(parents=True, exist_ok=True)
     report: dict[str, object] = {"screenshots": str(output)}
 

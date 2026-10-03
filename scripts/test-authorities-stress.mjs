@@ -10,7 +10,7 @@
 //     [--fixtures=dir] [--no-word] [--keep-outputs] [--headed] [--list]
 // No request reaches a live service: A2AJ and the publisher service answer from the stub or a
 // recorded HAR. Cases whose local fixture (a gitignored folder, --fixtures, default
-// .tmp/authorities-stress-fixtures) is absent are skipped and say so.
+// benchmarks/local-data/authorities-stress) is absent are skipped and say so.
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
@@ -30,7 +30,7 @@ const args = Object.fromEntries(process.argv.slice(2).map((arg) => {
 if (args.list) { for (const item of CASES) console.log(`${item.name.padEnd(22)} ${item.title}`); process.exit(0); }
 const html = path.resolve(args.html ?? path.join(root, "AuthoritiesHelper/modern/out/Authorities.html"));
 const out = path.resolve(args.out ?? path.join(root, ".tmp/authorities-stress"));
-const localDir = path.resolve(args.fixtures ?? path.join(root, ".tmp/authorities-stress-fixtures"));
+const localDir = path.resolve(args.fixtures ?? path.join(root, "benchmarks/local-data/authorities-stress"));
 const only = args.only ? new Set(String(args.only).split(",")) : null;
 const selected = CASES.filter(({ name }) => !only || only.has(name));
 if (only && selected.length !== only.size) throw new Error(`Unknown case: ${[...only].filter((name) => !CASES.some((item) => item.name === name)).join(", ")}`);

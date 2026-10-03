@@ -158,6 +158,7 @@ jobs:
       - run: npm run lint
         if: needs.changes.outputs.frontend == 'true'
       - run: git submodule update --init --depth 1 -- legal-structure
+        working-directory: .
       - run: npm run check:guards --prefix ..
         if: needs.changes.outputs.frontend == 'true'
       - run: npm run build

@@ -10,7 +10,7 @@
 import { deepStrictEqual, notStrictEqual, strictEqual } from "node:assert";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
@@ -63,6 +63,7 @@ after(() => stub.close());
 // go unanswered until they timed out, turning a 0.2s test into a 100s one.
 function runGate(lockfile) {
     const dir = mkdtempSync(join(tmpdir(), "audit-gate-"));
+    after(() => rmSync(dir, { recursive: true, force: true }));
     writeFileSync(join(dir, "package-lock.json"), JSON.stringify(lockfile));
     const child = spawn(process.execPath, [gatePath], {
         cwd: dir,
