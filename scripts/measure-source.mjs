@@ -11,7 +11,7 @@ const sourceExtensions = new Set([
   ".bat", ".c", ".cc", ".cjs", ".clj", ".cljs", ".cmd", ".cpp", ".cs",
   ".css", ".dart", ".erl", ".ex", ".exs", ".fs", ".fsx", ".go", ".gradle",
   ".groovy", ".h", ".hpp", ".hrl", ".html", ".java", ".js", ".jsx", ".kt",
-  ".kts", ".lua", ".mjs", ".php", ".pl", ".ps1", ".py", ".r", ".rb", ".rs",
+  ".kts", ".lua", ".mjs", ".mts", ".php", ".pl", ".ps1", ".py", ".r", ".rb", ".rs",
   ".scala", ".sh", ".sql", ".svelte", ".swift", ".toml", ".ts", ".tsx", ".vue", ".zig",
 ]);
 const fixtureExtensions = new Set([

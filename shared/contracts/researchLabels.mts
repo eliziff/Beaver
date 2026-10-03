@@ -1,4 +1,4 @@
-import type { ResearchLabel } from "./researchContract";
+import type { ResearchLabel } from "./researchContract.mjs";
 
 export function researchLabelPath(labels: Record<string, ResearchLabel>, id: string) {
   const path: ResearchLabel[] = [], seen = new Set<string>();

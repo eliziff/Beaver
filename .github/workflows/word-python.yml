@@ -10,6 +10,9 @@ on:
       - 'backend/src/lib/convert.ts'
       - 'backend/src/lib/__tests__/wordPython.test.ts'
       - 'backend/package*.json'
+      - 'shared/contracts/**'
+      - 'shared/tsconfig.json'
+      - 'package*.json'
       - 'backend/word-python.Dockerfile'
       - '.github/workflows/word-python.yml'
   workflow_dispatch:
@@ -56,7 +59,9 @@ jobs:
           "$bin/python" -m pip install -r backend/scripts/word_python/requirements.txt
           "$bin/python" -I backend/scripts/word_python/probe.py
           echo "BEAVER_WORD_PYTHON=$bin/python" >> "$GITHUB_ENV"
+      - run: npm ci --ignore-scripts
       - run: npm ci --prefix backend --ignore-scripts
+      - run: npm run build:shared
       - name: Programs, Review mode, publication and sandbox refusals on the real runtime
         working-directory: backend
         run: npx vitest run src/lib/__tests__/wordPython.test.ts src/lib/__tests__/wordEditApplication.test.ts

@@ -1,10 +1,10 @@
 import { readPatterns } from "./chat/resourceTools";
 import { previousEmptyScan, type QueryHistorySource } from "./chat/queryHistory";
 import { readDocumentProjection } from "./documentApplication";
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
-import { parseResourceReference, resourceReference } from "./resourceReferences";
+import { parseResourceReference, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { provenBlockLocator } from "./documentLocators";
 import { structureNative, type NativeDocument, type NativeDocumentBlock } from "./structureNative";
 import { legalSourceOperations } from "./legalSourceApplication";
@@ -29,8 +29,8 @@ import type { ResearchChange } from "./researchHistory";
 import type { ResearchSubject } from "./researchSelection";
 import type { ResearchOperationContext } from "./researchProvenance";
 
-import { researchFindingReferenceSchema } from "./researchFindingReference";
-import { researchLabelDesignSchema } from "./researchContract";
+import { researchFindingReferenceSchema } from "mike/shared/runtime/researchFindingReference.mjs";
+import { researchLabelDesignSchema } from "mike/shared/runtime/researchContract.mjs";
 
 
 const readCursor = z.object({ resource: z.string().min(1).max(4_000), offset: z.number().int().min(1),

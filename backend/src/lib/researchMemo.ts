@@ -1,8 +1,8 @@
 import { ApplicationError, type ApplicationScope } from "./applicationError";
-import { z } from "zod";
-import { renderCitedBlocks } from "./groundedAnswer";
-import { textField } from "./textField";
-import { researchFindingReferenceSchema } from "./researchFindingReference";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { renderCitedBlocks } from "mike/shared/runtime/groundedAnswer.mjs";
+import { textField } from "mike/shared/runtime/textField.mjs";
+import { researchFindingReferenceSchema } from "mike/shared/runtime/researchFindingReference.mjs";
 import type { ResearchFinding } from "./researchChat";
 import { legalEvidenceResourceReference } from "./chat/legalEvidence";
 import { researchSourceResource } from "./researchFile";

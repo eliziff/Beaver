@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { textField } from "./textField";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { sha256 } from "./hash";
 import { mapBounded } from "./mapBounded";

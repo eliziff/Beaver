@@ -1,7 +1,7 @@
 import type { ProtocolEvent } from "./assistantSession";
-import { publicEvent, PROVIDER_ERROR_MESSAGES } from "../../../../backend/src/lib/chat/assistantWire";
+import { publicEvent, PROVIDER_ERROR_MESSAGES } from "../../../../shared/runtime/assistantWire.mjs";
 export { ASSISTANT_LIMITS, FIELD_TEXT_LIMIT, SHORT_TEXT_LIMIT, parseAssistantCitations }
-  from "../../../../backend/src/lib/chat/assistantWire";
+  from "../../../../shared/runtime/assistantWire.mjs";
 
 export const ASSISTANT_GENERIC_ERROR = "Unable to get a response. Try again.";
 const status = (value: "running" | "completed" | "error" | "interrupted" | "cancelled") =>

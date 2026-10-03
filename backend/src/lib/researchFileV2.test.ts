@@ -3,7 +3,7 @@ import { ApplicationError } from "./applicationError";
 import { createA2AJPassageEvidence, createPublicJournalPassageEvidence, createLibraryEvidence,
   createLegalEvidenceTurnState, legalEvidenceReceiptEvent, registerLegalEvidence,
   type LegalEvidenceReceipt } from "./chat/legalEvidence";
-import type { GroundedAnswer } from "./groundedAnswer";
+import type { GroundedAnswer } from "mike/shared/runtime/groundedAnswer.mjs";
 import { createSourceWorkspaceApplication } from "./sourceWorkspaceApplication";
 import { resolveChatFindings } from "./researchChat";
 import { sha256 } from "./hash";

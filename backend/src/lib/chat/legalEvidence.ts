@@ -16,15 +16,15 @@ import { sha256 as hexSha256 } from "../hash";
 import { jsonRecord as object } from "../value";
 import { collapseProvisionLabels } from "../provisionLabels";
 import type { LegalEvidenceReceiptEvent, ReadSubagentEvent } from "./assistantEvents";
-import { renderCitedBlocks, type GroundedClaim } from "../groundedAnswer";
-import { legalSourceResource, resourceReference } from "../resourceReferences";
+import { renderCitedBlocks, type GroundedClaim } from "mike/shared/runtime/groundedAnswer.mjs";
+import { legalSourceResource, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { objectSchema } from "./toolRegistry";
 
-import { researchScanSchema } from "../researchContract";
+import { researchScanSchema } from "mike/shared/runtime/researchContract.mjs";
 import type { DirectSourceProvider, LegalEvidenceReceipt, LegalSourceClass,
-  LegalResearchQueryReceipt } from "../researchContract";
+  LegalResearchQueryReceipt } from "mike/shared/runtime/researchContract.mjs";
 export type { DirectSourceProvider, LegalEvidenceReceipt, LegalSourceClass,
-  LegalResearchQueryReceipt } from "../researchContract";
+  LegalResearchQueryReceipt } from "mike/shared/runtime/researchContract.mjs";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
 export type LegalEvidenceMode = "citation_structure";

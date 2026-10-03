@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import type { AuthoritiesDraft } from "mike/shared/authorities-contract.d.ts";
 import { assembleFinalAuthoritiesPdf, briefOccurrencePages } from "./authoritiesFinalPdf";
 import { createAuthoritiesDraft } from "./authoritiesDomain";
-import { pdfAssembly } from "./pdfAssembly";
+import { pdfAssembly } from "mike/shared/runtime/pdfAssembly.mjs";
 
 it("retains named and GoTo-action bookmarks in the brief and appended book", async () => {
   const source = await pdf.PDFDocument.create(); source.addPage(); source.addPage();

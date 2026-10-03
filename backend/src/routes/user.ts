@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import { z } from "zod";
-import { textField } from "../lib/textField";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
 import { ApplicationError, applicationScope } from "../lib/applicationError";
@@ -9,7 +9,7 @@ import { sha256 } from "../lib/hash";
 import { isSupportedModel } from "../lib/llm";
 import { publicOrigin } from "../lib/publicOrigin";
 import { safeErrorLog, safeErrorMessage, safePublicErrorMessage } from "../lib/safeError";
-import { API_KEY_PROVIDERS } from "../lib/userCredentials";
+import { API_KEY_PROVIDERS } from "mike/shared/runtime/clientContracts.mjs";
 import type { UserApplication } from "../lib/userApplication";
 import type { UserPreferencesPatch } from "../lib/userPreferences";
 

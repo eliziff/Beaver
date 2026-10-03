@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { PromptSubmission } from "../promptSubmission";
+import type { PromptSubmission } from "mike/shared/runtime/promptSubmission.mjs";
 import { readerHandoff } from "./readerHandoff";
 import type { QueryHistorySource } from "./queryHistory";
-import { parseAssistantCitations, PROVIDER_ERROR_MESSAGES } from "./assistantWire";
+import { parseAssistantCitations, PROVIDER_ERROR_MESSAGES } from "mike/shared/runtime/assistantWire.mjs";
 import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
   type NormalizedToolResult, type ProviderTurnControl,
   type ProviderContextCheckpoint, type SteeringMessage, type StreamChatResult,

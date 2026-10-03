@@ -23,7 +23,7 @@ import { structureNative,
 import type { WorkProductInput } from "./workProduct";
 import { citationAliasKeysBatch } from "./caselawCitator";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
-import { buildCanliiLawUrl } from "./canliiLawUrls";
+import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { mapBounded } from "./mapBounded";
 import type { Citation, ExtractResponse, ResolveResponse, SourceFields,
   SourcePart } from "legal-citations";

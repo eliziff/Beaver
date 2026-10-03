@@ -1,5 +1,5 @@
-import { readerSettings } from "./chat/assistantWire";
-import { promptSubmissionSchema } from "./promptSubmission";
+import { readerSettings } from "mike/shared/runtime/assistantWire.mjs";
+import { promptSubmissionSchema } from "mike/shared/runtime/promptSubmission.mjs";
 import { randomUUID } from "node:crypto";
 import { ChatApplicationError, chatTurnInputSchema,
   type ChatApplication, type EventSink } from "./chat/chatApplication";

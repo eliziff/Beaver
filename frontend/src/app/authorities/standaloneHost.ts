@@ -21,7 +21,7 @@ import { authoritiesProfile } from "./profiles";
 import { prepareAnnotations } from "./annotationPreparation";
 import { prepareSourceText, readSourceText, recognitionWaiting } from './standalonePdfText';
 import { mapAuthorityBookBytes, type BuiltAuthorityBook, type PreparedAuthoritiesBook } from
-  "../../../../backend/src/lib/authoritiesBook";
+  "../../../../shared/runtime/authoritiesBook.mjs";
 import BookWorker from "./bookWorker?worker&inline";
 
 /** Assembles the book in a worker: its pages are copied and saved there, not on the page's thread. */

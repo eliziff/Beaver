@@ -10,11 +10,11 @@ import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests,
 import { attachedAuthoritySources, createAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
-import { fit, renderAuthoritiesBook } from "./authoritiesBook";
+import { fit, renderAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 import { filingLinkUrl } from "./authoritiesFinalPdf";
 import { createAuthoritiesPreparation } from "./authoritiesPreparation";
 import type { NativePdfPassageGeometry } from "./structureNative";
-import { pdfAssembly } from "./pdfAssembly";
+import { pdfAssembly } from "mike/shared/runtime/pdfAssembly.mjs";
 import * as pdfLibrary from "pdf-lib";
 
 async function sourcePdf(label: string, sizes: Array<[number, number]>) {

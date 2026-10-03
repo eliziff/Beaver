@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "./schema.mjs";
 
 /** A required field of user text: trimmed, non-empty, and bounded. */
 export const textField = (max: number) => z.string().trim().min(1).max(max);

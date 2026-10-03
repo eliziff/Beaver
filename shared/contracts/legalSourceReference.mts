@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { textField } from "../textField";
+import { z } from "./schema.mjs";
+import { textField } from "./textField.mjs";
 
 export const legalSourceReferenceSchema = z.object({ provider: textField(100),
   family: textField(1_000).optional(), id: textField(500),

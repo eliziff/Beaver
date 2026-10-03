@@ -1,6 +1,6 @@
 import { readQueryHistory } from "../chat/queryHistory";
-import { z } from "zod";
-import { textField } from "../textField";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";

@@ -1,6 +1,6 @@
 import type { PDFDocument, PDFFont, PDFPage, PDFPageDrawTextOptions } from "pdf-lib";
 import * as pdf from "pdf-lib";
-import { pdfAssembly } from "../../../../backend/src/lib/pdfAssembly";
+import { pdfAssembly } from "../../../../shared/runtime/pdfAssembly.mjs";
 import { fetchBytes } from "@/app/lib/api/client";
 
 type CourtTextOptions = PDFPageDrawTextOptions & {

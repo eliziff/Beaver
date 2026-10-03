@@ -37,7 +37,7 @@ async function fixture(answered = true) {
   close = () => runtime.shutdown();
   const research = await import("../lib/researchFile"), evidence = await import("../lib/chat/legalEvidence"),
     { readResearchResource } = await import("../lib/researchReader"),
-    { resourceReference } = await import("../lib/resourceReferences"),
+    { resourceReference } = await import("mike/shared/runtime/resourceReferences.mjs"),
     documents = await runtime.documents(), chats = await runtime.chats(),
     bytes = Buffer.from("The agreed interest rate is five percent."),
     source = await documents.create(owner, { filename: "Agreement.txt", fileType: "txt", bytes }),

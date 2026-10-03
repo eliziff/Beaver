@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseResourceReference, resourceReference } from "./resourceReferences";
+import { parseResourceReference, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 
 describe("resource references", () => {
   it("round-trips every resource kind", () => {

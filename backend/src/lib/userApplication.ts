@@ -3,9 +3,8 @@ import {
   DEFAULT_TABULAR_MODEL, DEFAULT_TITLE_MODEL,
   resolveModel, type UserApiKeys,
 } from "./llm";
-import type {
-  ApiKeyProvider, UserCredentials,
-} from "./userCredentials";
+import type { UserCredentials } from "./userCredentials";
+import type { ApiKeyProvider } from "mike/shared/runtime/clientContracts.mjs";
 import type {
   UserPreferences, UserPreferencesPatch, UserPreferencesRepository,
 } from "./userPreferences";

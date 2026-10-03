@@ -2,7 +2,7 @@ import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFNa
   PDFNumber, PDFRawStream, StandardFonts, degrees } from "pdf-lib";
 import { expect, it } from "vitest";
 import * as pdf from "pdf-lib";
-import { nestedOutline, pdfAssembly, sourceOutline } from "./pdfAssembly";
+import { nestedOutline, pdfAssembly, sourceOutline } from "mike/shared/runtime/pdfAssembly.mjs";
 const { addInternalLink, applyOcrText, applyOutlines, applyPageLabels, drawPageNumber, assemble, appendPages } = pdfAssembly(pdf);
 
 it("preserves local named destinations through repeated page copies without changing remote links", async () => {

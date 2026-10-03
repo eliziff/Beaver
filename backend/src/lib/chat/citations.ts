@@ -1,4 +1,4 @@
-import { parseAssistantCitations, type AssistantCitation } from "./assistantWire";
+import { parseAssistantCitations, type AssistantCitation } from "mike/shared/runtime/assistantWire.mjs";
 import {
   legalEvidenceCitationGroupsFromEntries,
   legalEvidenceCitationPlan,

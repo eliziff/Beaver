@@ -1,7 +1,7 @@
-import { z } from "zod";
-import { promptSubmissionSchema } from "../promptSubmission";
-import { WORK_PRODUCT_KINDS } from "mike/shared/work-products.mjs";
-import { buildCanliiLawUrl } from "../canliiLawUrls";
+import { z } from "./schema.mjs";
+import { promptSubmissionSchema } from "./promptSubmission.mjs";
+import { WORK_PRODUCT_KINDS } from "../work-products.mjs";
+import { buildCanliiLawUrl } from "./canliiLawUrls.mjs";
 
 export const ASSISTANT_LIMITS = { activities: 256, artifacts: 64, blocks: 128,
   citations: 256, readers: 32, text: 1_000_000 } as const;

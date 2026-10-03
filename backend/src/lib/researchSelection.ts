@@ -4,9 +4,9 @@ import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { readResearchFile, visitResearchEvidenceParts, researchSourceResource,
   type ResearchFile, type ResearchFileState, type ResearchEvidence, type ResearchSourceReference } from "./researchFile";
 
-import { researchSelectionSchema, type ResearchSelection } from "./researchContract";
-export { researchSelectionSchema } from "./researchContract";
-export type { ResearchSelection } from "./researchContract";
+import { researchSelectionSchema, type ResearchSelection } from "mike/shared/runtime/researchContract.mjs";
+export { researchSelectionSchema } from "mike/shared/runtime/researchContract.mjs";
+export type { ResearchSelection } from "mike/shared/runtime/researchContract.mjs";
 export type ResearchSubject = { rowId?: string; sourceId: string; resource: string;
   reference: ResearchSourceReference; evidence?: LegalEvidenceReceipt[]; sourceSha256?: string;
   sourceSha256s?: string[] };

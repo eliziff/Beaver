@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { parsePublicAssistantEvent, publicEvent } from "./assistantWire";
+import { parsePublicAssistantEvent, publicEvent } from "mike/shared/runtime/assistantWire.mjs";
 import { parseAssistantEvent, publicAssistantEvent } from "./assistantEvents";
 
 it("keeps citation normalization stable across persistence and public replay", () => {

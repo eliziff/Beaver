@@ -1,14 +1,14 @@
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import type { DocumentStore } from "./documentStore";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { canonicalJson } from "./hash";
 import type { ResearchEvidence, ResearchFile, ResearchFileState } from "./researchFile";
 
 export const RESEARCH_HISTORY_PART = "history.json";
-import { researchChangeSchema as changeSchema } from "./researchContract";
-export { researchChangeSummarySchema } from "./researchContract";
-export type { ResearchChangeField, ResearchChangeSummary, ResearchChange } from "./researchContract";
-import type { ResearchChangeField, ResearchChangeSummary, ResearchChange } from "./researchContract";
+import { researchChangeSchema as changeSchema } from "mike/shared/runtime/researchContract.mjs";
+export { researchChangeSummarySchema } from "mike/shared/runtime/researchContract.mjs";
+export type { ResearchChangeField, ResearchChangeSummary, ResearchChange } from "mike/shared/runtime/researchContract.mjs";
+import type { ResearchChangeField, ResearchChangeSummary, ResearchChange } from "mike/shared/runtime/researchContract.mjs";
 export const sameResearchValue = (left: unknown, right: unknown) =>
   canonicalJson(left ?? null) === canonicalJson(right ?? null);
 export function assertResearchChangeBase(changes: ResearchChangeField[],

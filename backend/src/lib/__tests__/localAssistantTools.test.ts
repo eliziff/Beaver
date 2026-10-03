@@ -11,7 +11,7 @@ import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { docxBytes } from "./support/docxFixtures";
-import { resourceReference } from "../resourceReferences";
+import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { availableDocumentsPrompt, globPattern } from "../chat/resourceTools";
 
 vi.mock("../remoteUrlSafety", async (importOriginal) => ({

@@ -34,7 +34,7 @@ import { runLocalAssistantTools } from "./support/localAssistantTools";
 import { legalSourceOperations } from "../legalSourceApplication";
 import { courtlistenerLegalSourceProvider } from "../legalSources/courtlistener";
 import type { LegalSourcePassage, LegalSourceReference } from "../legalSources";
-import { resourceReference } from "../resourceReferences";
+import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 
 const fallback = {
   provider: "courtlistener",

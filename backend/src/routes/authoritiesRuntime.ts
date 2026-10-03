@@ -11,7 +11,7 @@ import { ApplicationError, reject } from "../lib/applicationError";
 import { authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations, statuteExcerptSummary,
   type AuthoritiesBuildInput } from "../lib/authoritiesBuild";
 import { sourceReadings } from "../lib/sourceReadings";
-import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "../lib/authoritiesBook";
+import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
   reduceAuthoritiesDraft, type AuthoritiesDraft } from "../lib/authoritiesDomain";
 import { importStandaloneAuthoritiesFile } from "../lib/authoritiesImport";

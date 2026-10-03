@@ -14,6 +14,7 @@
     "jsx": "react-jsx",
     "types": ["node", "react", "react-dom"],
     "paths": {
+      "mike/shared/*": ["../shared/*"],
       "@/*": ["./src/*"],
       "docx-preview": ["./vendor/docx-preview/index.ts"],
       "pdfjs-dist": ["./node_modules/pdfjs-dist"],

@@ -7,7 +7,7 @@ import { ApplicationError } from "./applicationError";
 import { applyTableChanges, resultState, tableChanges, type TableState } from "./tabular/history";
 import { researchChangeCounts, researchChangeSummary, sameResearchValue,
   type ResearchChange, type ResearchChangeField } from "./researchHistory";
-import { parseResourceReference } from "./resourceReferences";
+import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, documentAccess, missingProfileEmail, now, one, projectAccess,
   replaceMembers, resourcePeople, reviewAccess, rows, type Row } from "./relationalRepositorySupport";

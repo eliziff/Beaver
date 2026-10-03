@@ -111,6 +111,7 @@ original_details.jsonl
 /backend/experiments/a2aj-case-treatment/gold/packet-ranking-*.json
 
 # Local standalone Authorities build and runtime artifacts
+/shared/runtime/
 .authorities-dev/
 .court-records-dev/
 

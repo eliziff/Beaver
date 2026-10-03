@@ -1,13 +1,13 @@
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { randomUUID } from "node:crypto";
 import { ApplicationError } from "./applicationError";
 import { researchLabelPath, type PublicResearchFileAction, type ResearchFile, type ResearchLabel } from "./researchFile";
 import type { ResearchImportCatalog } from "./tabular/researchImport";
-import { textField } from "./textField";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import { researchLabelDesignSchema, type ResearchChange, type ResearchLabelDesign,
-  type ResearchSourceLabelNode, type ResearchHighlightTypeNode } from "./researchContract";
-export { researchLabelDesignSchema } from "./researchContract";
-export type { ResearchLabelDesign } from "./researchContract";
+  type ResearchSourceLabelNode, type ResearchHighlightTypeNode } from "mike/shared/runtime/researchContract.mjs";
+export { researchLabelDesignSchema } from "mike/shared/runtime/researchContract.mjs";
+export type { ResearchLabelDesign } from "mike/shared/runtime/researchContract.mjs";
 
 type BatchActions = Extract<PublicResearchFileAction, { type: "batch" }>["actions"];
 type Node = ResearchSourceLabelNode | ResearchHighlightTypeNode;

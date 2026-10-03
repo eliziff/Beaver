@@ -1,11 +1,11 @@
-import { z } from "zod";
-import { textField } from "../textField";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";
 import { researchLabelPath, researchSourceResource, visitResearchEvidenceParts,
   type ResearchEvidence, type ResearchFile } from "../researchFile";
 import { type ResearchFinding } from "../researchChat";
-import { researchFindingReferenceSchema, type ResearchFindingReference } from "../researchFindingReference";
+import { researchFindingReferenceSchema, type ResearchFindingReference } from "mike/shared/runtime/researchFindingReference.mjs";
 import { resolveResearchSelection, researchSelectionLabels, type ResearchSubject } from "../researchSelection";
 import type { TabularCell, TabularCellContent, TabularColumn } from "../tabularStore";
 

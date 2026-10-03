@@ -1,5 +1,5 @@
-import type { ResearchSourceReference } from "./researchContract";
-import type { LegalSourceReference } from "./legalSources/reference";
+import type { ResearchSourceReference } from "./researchContract.mjs";
+import type { LegalSourceReference } from "./legalSourceReference.mjs";
 
 export type ResourceReference =
   | { kind: "document"; documentId: string; versionId: string }

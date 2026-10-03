@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { previousEmptyScan, readQueryHistory } from "./queryHistory";
 import { priorLegalEvidencePrompt, storedLegalResearchQueryReceipt } from "./legalEvidence";
-import type { LegalResearchQueryReceipt } from "../researchContract";
+import type { LegalResearchQueryReceipt } from "mike/shared/runtime/researchContract.mjs";
 
 const resource = "source://a2aj/case/2024%20SCC%201";
 const sources = [{ resource, source_sha256: "a".repeat(64) }];

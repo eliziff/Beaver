@@ -1,7 +1,7 @@
-import { z } from "zod";
-import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources/reference";
-import { researchFindingReferenceSchema } from "./researchFindingReference";
-import { textField } from "./textField";
+import { z } from "./schema.mjs";
+import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSourceReference.mjs";
+import { researchFindingReferenceSchema } from "./researchFindingReference.mjs";
+import { textField } from "./textField.mjs";
 const counts = z.object({ labels: z.number().int().nonnegative(), sources: z.number().int().nonnegative(),
   passages: z.number().int().nonnegative(), tables: z.number().int().nonnegative().optional(),
   results: z.number().int().nonnegative().optional() }).strict();

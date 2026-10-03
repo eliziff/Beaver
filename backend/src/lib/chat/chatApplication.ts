@@ -2,8 +2,8 @@ import { sha256 } from "../hash";
 import { readResearchQueries, type ResearchQueryReceipt } from "../researchFile";
 import type { MemoryTurn } from "../memoryApplication";
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
-import { textField } from "../textField";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import type { BeaverTool } from "./toolRegistry";
 import {
   AssistantStreamError,
@@ -80,7 +80,8 @@ import type { ChatCreateInput } from "../chatStore";
 import { researchSelectionSchema } from "../researchSelection";
 import { researchResultFilter, researchReadContextPrompt } from "../researchReader";
 import type { AuditStore } from "../audit";
-import { promptSubmissionSchema, resolvePromptSubmission, type PromptSubmission } from "../promptSubmission";
+import { resolvePromptSubmission } from "../promptSubmission";
+import { promptSubmissionSchema, type PromptSubmission } from "mike/shared/runtime/promptSubmission.mjs";
 
 const uuid = z.string().uuid();
 const userMessage = textField(200_000);

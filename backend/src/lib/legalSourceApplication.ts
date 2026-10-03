@@ -1,5 +1,5 @@
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
-import { resourceReference } from "./resourceReferences";
+import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { jsonRecord as row, nonemptyString as text, positiveInteger as integer } from "./value";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
 import {

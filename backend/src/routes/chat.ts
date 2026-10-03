@@ -1,4 +1,4 @@
-import { readerSettings } from "../lib/chat/assistantWire";
+import { readerSettings } from "mike/shared/runtime/assistantWire.mjs";
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -13,9 +13,10 @@ import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming
 import { safeErrorLog } from "../lib/safeError";
 import { jsonRecord, trimmedText } from "../lib/value";
 import { ApplicationError } from "../lib/applicationError";
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { researchSelectionSchema } from "../lib/researchSelection";
-import { promptSubmissionSchema, resolvePromptSubmission } from "../lib/promptSubmission";
+import { resolvePromptSubmission } from "../lib/promptSubmission";
+import { promptSubmissionSchema } from "mike/shared/runtime/promptSubmission.mjs";
 
 const historyQuery = z.object({
   search_scope: z.enum(["all", "titles", "transcripts"]).default("all"),

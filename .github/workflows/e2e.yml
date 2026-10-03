@@ -1,9 +1,12 @@
 name: e2e
 
 on:
+  workflow_call:
+    inputs:
+      native-artifact:
+        required: true
+        type: string
   workflow_dispatch:
-  pull_request:
-    branches: [main, upstream-main]
 
 permissions:
   contents: read
@@ -13,22 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      application: ${{ steps.scope.outputs.frontend }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - id: scope
-        run: python3 scripts/ci-scope.py
-
   playwright:
-    needs: changes
-    if: needs.changes.outputs.application == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
@@ -51,7 +40,14 @@ jobs:
           curl -fsSL https://github.com/jgm/pandoc/releases/download/3.10/pandoc-3.10-1-amd64.deb -o "$RUNNER_TEMP/pandoc.deb"
           echo "d502599878eb29af3ae5f0cb5d559134df96534125d452c7a0674a5bad2c5ecf  $RUNNER_TEMP/pandoc.deb" | sha256sum --check
           sudo dpkg -i "$RUNNER_TEMP/pandoc.deb"
-      - run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: inputs.native-artifact != ''
+        with:
+          name: ${{ inputs.native-artifact }}
+          path: native/legal-structure-node/target/release
+      - name: Build native integration for a standalone manual run
+        if: inputs.native-artifact == ''
+        run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
       - run: npx playwright install --with-deps chromium
 
       - name: Start object storage

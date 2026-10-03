@@ -3,11 +3,8 @@ import { decryptSecret, encryptionSecret, encryptSecret } from "./secretEncrypti
 import { sql, type RelationalDatabase } from "./relational";
 import type { UserCredentials } from "./userCredentials";
 import { safeErrorLog } from "./safeError";
-import {
-  API_KEY_PROVIDERS,
-  type ApiKeyProvider,
-  type ApiKeyStatus,
-} from "./userCredentials";
+import { type ApiKeyStatus } from "./userCredentials";
+import { API_KEY_PROVIDERS, type ApiKeyProvider } from "mike/shared/runtime/clientContracts.mjs";
 
 type EncryptedKeyRow = { provider: string; encrypted_key: string; iv: string; auth_tag: string };
 

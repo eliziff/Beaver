@@ -73,7 +73,8 @@ for (const file of files) {
     if (!maintained || !specifier.startsWith(".")) continue;
     // A bundler query ("./bookWorker?worker&inline") names how a module is loaded, not its file.
     const target = path.resolve(root, path.dirname(file), specifier.replace(/\?.*$/u, ""));
-    if ([target, ...[".ts", ".tsx", ".js", ".mjs", ".cjs", ".json"].flatMap((ext) => [
+    if ([target, target.replace(/\.mjs$/u, ".mts"), target.replace(/\.js$/u, ".ts"),
+      ...[".ts", ".tsx", ".mts", ".js", ".mjs", ".cjs", ".json"].flatMap((ext) => [
       target + ext, path.join(target, `index${ext}`),
     ])].some(existsSync)) continue;
     failures.push(`${file}: missing relative import ${specifier}`);

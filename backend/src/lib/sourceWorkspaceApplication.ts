@@ -12,7 +12,7 @@ import { commitResearchFile, createResearchFileState, pageResearchItems, readRes
 import { runResearchFileQuery, verifyResearchPassage, type ResearchFileQueryInput } from "./researchFileQuery";
 import { readResearchMemoCitation, researchMemoFindingsSchema, researchFindingsMarkdown } from "./researchMemo";
 import { resolveChatFindings, selectFindingClaims, type ResearchFinding } from "./researchChat";
-import { researchFindingReferenceSchema, type ResearchFindingReference } from "./researchFindingReference";
+import { researchFindingReferenceSchema, type ResearchFindingReference } from "mike/shared/runtime/researchFindingReference.mjs";
 import { researchSelectionSchema, resolveResearchSelection, type ResearchSelection, type ResearchSubject } from "./researchSelection";
 import { researchResultFilter } from "./researchReader";
 import type { ResearchOperationContext } from "./researchProvenance";
@@ -20,13 +20,13 @@ import { priorLegalEvidenceReceipts, priorLegalResearchQueryReceipts,
   legalEvidenceResourceReference,
   type LegalEvidenceReceipt, type LegalResearchQueryReceipt } from "./chat/legalEvidence";
 import type { AssistantEvent, LegalEvidenceReceiptEvent } from "./chat/assistantEvents";
-import { parseResourceReference } from "./resourceReferences";
+import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { resolveResearchArrangement, type ResearchArrangement } from "./tabular/researchArrangement";
 import { researchImportCatalog, defaultResearchImport, researchImportPlan,
   type ResearchImportInput, type ResearchImportDesign, type ResearchImportCatalog } from "./tabular/researchImport";
 import { researchConceptKey, researchLabelMetadata as proposalMetadata, researchLabelPlan, type ProposalProgress, type ResearchLabelDesign } from "./researchLabelDesign";
 import { readResearchHistory, sameResearchValue } from "./researchHistory";
-import type { ResearchSourceLabelNode, ResearchHighlightTypeNode } from "./researchContract";
+import type { ResearchSourceLabelNode, ResearchHighlightTypeNode } from "mike/shared/runtime/researchContract.mjs";
 import type { TabularApplication } from "./tabular/application";
 import { tabularSubjectId,
   type TabularRepository, type TabularReview } from "./tabularStore";

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentRecord, DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
-import { parseResourceReference, researchSourceKey } from "./resourceReferences";
+import { parseResourceReference, researchSourceKey } from "mike/shared/runtime/resourceReferences.mjs";
 import { legalEvidenceSourceReference, legalEvidenceResourceReference, type LegalEvidenceReceipt,
   storedLegalEvidenceReceipt, storedLegalResearchQueryReceipt,
   type LegalResearchQueryReceipt } from "./chat/legalEvidence";
@@ -15,15 +15,15 @@ import { resolveResearchSelection } from "./researchSelection";
 import { RESEARCH_HISTORY_PART, readResearchHistory, researchChangeCounts, researchChangeSummary,
   researchChangeSummarySchema, researchStateChanges, assertResearchChangeBase,
   type ResearchChange, type ResearchChangeField } from "./researchHistory";
-export { researchSourceKey } from "./resourceReferences";
+export { researchSourceKey } from "mike/shared/runtime/resourceReferences.mjs";
 export { readResearchHistory } from "./researchHistory";
 import { researchSourceReferenceSchema as source, researchFileActionSchema, researchMutationSchema, type ResearchLabel, type ResearchFileState,
   type ResearchSource, type ResearchSourceReference, type PublicResearchFileAction,
   type ResearchEvidence, type ResearchQueryReceipt, type ResearchFileOf,
-  type ResearchPageItem } from "./researchContract";
+  type ResearchPageItem } from "mike/shared/runtime/researchContract.mjs";
 export { researchFileActionSchema, researchSourceReferenceSchema, type ResearchLabel, type ResearchFileState,
   type ResearchSource, type ResearchSourceReference, type PublicResearchFileAction,
-  type ResearchEvidence, type ResearchQueryReceipt, type ResearchPageItem } from "./researchContract";
+  type ResearchEvidence, type ResearchQueryReceipt, type ResearchPageItem } from "mike/shared/runtime/researchContract.mjs";
 
 export const researchQueryReceipt = (receipt: LegalResearchQueryReceipt): ResearchQueryReceipt => ({
   sourceIds: [], matchedSourceIds: [], evidenceIds: receipt.results.flatMap((item) =>
@@ -39,7 +39,7 @@ export type ResearchFileAction = PublicResearchFileAction | { type: "merge";
 const uuid = z.string().uuid();
 const SOURCE_PART = (id: string) => `source.${id}.json`, QUERIES_PART = "queries.json";
 
-import { researchLabelPath as labelPath } from "./researchLabels";
+import { researchLabelPath as labelPath } from "mike/shared/runtime/researchLabels.mjs";
 export const researchLabelPath = (state: ResearchFileState, id: string) =>
   labelPath(state.labels, id).map(({ name }) => name).join(" / ");
 const queryLabelIds = (query: ResearchQueryReceipt) => new Set([

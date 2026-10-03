@@ -1,5 +1,5 @@
 import type { ModelMessage } from "ai" with { "resolution-mode": "import" };
-import type { PromptSubmission } from "../promptSubmission";
+import type { PromptSubmission } from "mike/shared/runtime/promptSubmission.mjs";
 
 // Shared provider-neutral LLM types. Tool contracts use MCP's standard shape;
 // provider adapters only translate at their wire boundary.
@@ -90,7 +90,7 @@ export type StreamCallbacks = {
 export type ProviderTurnControl = {
   steer: (message: { id: string; text: string;
     submission?: PromptSubmission;
-    readers?: import("../chat/assistantWire").ReaderSettings }) => Promise<void>;
+    readers?: import("mike/shared/runtime/assistantWire.mjs").ReaderSettings }) => Promise<void>;
 };
 
 export type SteeringMessage = Parameters<ProviderTurnControl["steer"]>[0];

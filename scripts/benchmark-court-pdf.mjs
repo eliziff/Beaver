@@ -93,7 +93,7 @@ async function fixtures() {
 }
 if (mode === "freeze") {
   await newDirectory(root);
-  assert.equal(git("diff", "HEAD", "--", "frontend/src", "shared", "backend/src/lib/pdfAssembly.ts"), "",
+  assert.equal(git("diff", "HEAD", "--", "frontend/src", "shared"), "",
     "Freeze production source before making any changes");
   const inputs = await fixtures();
   const baseline = path.join(root, "baseline");

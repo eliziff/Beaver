@@ -1,6 +1,6 @@
 import { jsonRecord as row, trimmedText as text } from "../value";
 import type { WorkProductReference } from "../workProduct";
-import { workflow } from "./assistantWire";
+import { workflow } from "mike/shared/runtime/assistantWire.mjs";
 
 export const workProductResult = (product: WorkProductReference,
   values: Record<string, unknown> = {}) => ({ ok: true,

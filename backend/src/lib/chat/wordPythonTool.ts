@@ -1,5 +1,5 @@
 import { createWordEditApplication } from "../wordEditApplication";
-import { DOCUMENT_OR_DRAFT_PATTERN } from "../resourceReferences";
+import { DOCUMENT_OR_DRAFT_PATTERN } from "mike/shared/runtime/resourceReferences.mjs";
 import type { AssistantToolsDependencies } from "./assistantTools";
 import type { ChatToolContext } from "./turnEngine";
 import { objectSchema, toolText, type BeaverTool } from "./toolRegistry";

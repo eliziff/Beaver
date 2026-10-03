@@ -1,7 +1,7 @@
 import { ApplicationError } from "./applicationError";
-import type { ResearchFindingReference } from "./researchFindingReference";
+import type { ResearchFindingReference } from "mike/shared/runtime/researchFindingReference.mjs";
 import type { ChatMessageRecord } from "./chatStore";
-import type { GroundedAnswer, GroundedResult } from "./groundedAnswer";
+import type { GroundedAnswer, GroundedResult } from "mike/shared/runtime/groundedAnswer.mjs";
 import { legalEvidenceResourceReference, priorLegalEvidenceReceipts,
   type LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { type ResearchFile, researchSourceResource } from "./researchFile";

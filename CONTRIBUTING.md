@@ -33,6 +33,14 @@ During iteration, use focused tests and affected-crate checks; build the integra
 boundary once the candidate is ready. Preserve exact corpus/release gates for
 native semantic changes.
 
+Install the root dependencies as well as the affected surface dependencies.
+Shared contracts and PDF helpers compile with `npm run build:shared`; build,
+test and dev commands run that incremental compilation first. Run it once before
+direct Vitest or packaging commands.
+
+Source measurements include `.mts` shared contracts; historical counts taken before
+that extension was included are not directly comparable.
+
 From the repository root, select the relevant checks:
 
 ```sh

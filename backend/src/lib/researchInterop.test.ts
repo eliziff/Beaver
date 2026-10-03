@@ -59,7 +59,7 @@ async function fixture() {
 it.each([false, true])("records research reads without losing edit ownership (concurrent human edit: %s)", async (humanEdit) => {
   const f = await fixture(), { createChatToolRunner } = await import("./chat/chatToolRunner"),
     { TurnToolRegistry } = await import("./chat/toolRegistry"),
-    { resourceReference, parseResourceReference } = await import("./resourceReferences"),
+    { resourceReference, parseResourceReference } = await import("mike/shared/runtime/resourceReferences.mjs"),
     evidence = f.legal.createLegalEvidenceTurnState(), turnId = randomUUID(),
     context = { evidence, research: {}, operation: { executor: "assistant" as const, model: "test-model", turnId },
       addEvent() {} },
@@ -161,7 +161,7 @@ it("keeps superseded organization drafts and manual edits available to the next 
 it("creates a reviewable inline proposal from the ordinary research chat tool", async () => {
   const f = await fixture();
   const { runLocalAssistantTools } = await import("./__tests__/support/localAssistantTools"),
-    { resourceReference } = await import("./resourceReferences"), file = f.file(),
+    { resourceReference } = await import("mike/shared/runtime/resourceReferences.mjs"), file = f.file(),
     resource = resourceReference.document(file.document.id, file.versionId),
     design = { title: "Contract duties", sourceLabels: [{ id: randomUUID(), name: "Preservation of security", members: [f.sourceId], children: [] }], highlightTypes: [] },
     generate = vi.spyOn(f.tables, "designLabels").mockResolvedValue(design),

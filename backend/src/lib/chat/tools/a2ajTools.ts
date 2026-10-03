@@ -1,6 +1,6 @@
 import { readPatterns } from "../resourceTools";
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
-import { parseResourceReference } from "../../resourceReferences";
+import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { collapseProvisionLabels } from "../../provisionLabels";
 import type { LegalEvidenceReceipt } from "../legalEvidence";
 import { trimmedText } from "../../value";

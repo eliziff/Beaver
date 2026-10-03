@@ -1,10 +1,10 @@
 import { modelMessageSchema } from "ai";
 import type { ModelMessage } from "ai" with { "resolution-mode": "import" };
-import { z } from "zod";
-import { activity, subagent, sharedEvents, type PublicAssistantEvent } from "./assistantWire";
-export { parsePublicAssistantEvent } from "./assistantWire";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { activity, subagent, sharedEvents, type PublicAssistantEvent } from "mike/shared/runtime/assistantWire.mjs";
+export { parsePublicAssistantEvent } from "mike/shared/runtime/assistantWire.mjs";
 export type { PublicAssistantEvent, ToolActivity, AskInputItem, AskInputOption, AskInputsEvent,
-  AskInputResponseItem, AskInputsResponseRequest, WorkflowRunEvent } from "./assistantWire";
+  AskInputResponseItem, AskInputsResponseRequest, WorkflowRunEvent } from "mike/shared/runtime/assistantWire.mjs";
 import { researchReadContextSchema } from "../researchReader";
 import { storedLegalEvidenceReceipt, storedLegalResearchQueryReceipt,
   type LegalEvidenceReceipt, type LegalResearchQueryReceipt } from "./legalEvidence";
