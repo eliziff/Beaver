@@ -10,11 +10,19 @@ reference parity; remaining release gates are in
 
 ## Workflow
 
-Import a brief/factum and choose import options. DOCX intake starts with a **Word output**
-modal: book only, citation marks without a table, marks and a table, or marks and
-a table with `[Book of authorities Tab n]` / `[Tab n]` suffixes. The choice controls
-a Word copy; original input bytes remain unchanged. Reopen this setup from Build outputs.
-Source acquisition starts when
+Import a brief/factum through three steps, each beside a live preview: the court
+(the last one used is preselected) with the cover and the index, drawn by the book's
+renderer; source handling and scanned PDFs, beside a source that has arrived; and
+passage marking, beside a marked page. The court's defaults finish the import from
+any step. The brief is read when it is chosen, so its citations, sources and scans
+are worked on while the steps are open; finishing applies only the choices that
+differ from those it was read with. Changing the court later keeps every setting the
+user chose (any that differs from the outgoing court's default), applies the new
+court's locks and defaults, and says which settings it changed. The steps' choices
+reappear closed at Sources and Highlights and as the cover and index at Build.
+Build makes three outputs, each a card with one options dialog: the Book of
+Authorities, the Word copy (for a PDF brief, the Table of Authorities), and the final
+PDF. Original input bytes remain unchanged. Source acquisition starts when
 the imported citations enter review, before the user advances to Sources, and
 reconciles changed citations and newly linked references. Attached scans begin OCR
 after inspection unless the user chose page-margin mode. Pinpoint changes update
