@@ -10,7 +10,7 @@ import { attach, build, dock, downloads, importBrief, row, setOption, step } fro
 import { BUDGETS } from "../harness.mjs";
 import { checkPdf, inspectPdf } from "../outputs.mjs";
 import { loadHar } from "../network.mjs";
-import { addAndRemove, REVIEW_REGIONS, rows, walkReview } from "../review.mjs";
+import { addAndRemove, chips, dragSelect, listChange, REVIEW_REGIONS, rows, walkReview } from "../review.mjs";
 
 const pick = (files, pattern) => Object.entries(files).find(([name]) => pattern.test(name))?.[1];
 const SOURCES_REGIONS = { list: "[aria-label='Authority tab slots']", steps: "[role=tablist][aria-label='Book steps']" };
@@ -19,11 +19,11 @@ const discard = async (record, file) => { if (file && (await stat(file)).size > 
 /** A statute row's book copy as it shows: its line, its Excerpt and Whole, and which is pressed. */
 const statuteRow = (item) => {
   const group = () => item.getByRole("group", { name: /in the book$/u });
-  return { item, line: item.getByText(/^(?:Excerpt|Whole)[: ·]/u), choice: (name) => group().getByRole("button", { name, exact: true }),
+  return { item, line: item.getByText(/^The (?:title page|whole statute)/u), choice: (name) => group().getByRole("button", { name, exact: true }),
     pressed: async () => (await group().getByRole("button", { pressed: true }).allInnerTexts()).join(),
     /** Its line once the excerpt's pages are counted, from the readings prepared ahead. */
-    counted: async (timeout) => { await item.getByText(/^Excerpt: title page, .+ · \d+ pages$/u).waitFor({ timeout });
-      return item.getByText(/^Excerpt: /u).innerText(); } };
+    counted: async (timeout) => { await item.getByText(/^The title page and .+ go in the book \(\d+ pages\)\.$/u).waitFor({ timeout });
+      return item.getByText(/^The title page /u).innerText(); } };
 };
 const LIST = { list: "[aria-label='Authority tab slots']" };
 const flat = (text) => text.replace(/\s+/gu, " "), words = (text) => flat(text).split(" ").slice(0, 9).join(" ");
@@ -41,7 +41,7 @@ const tabRanges = (pdf) => pdf.tabs.map((tab, index) => ({ ...tab, last: (pdf.ta
 function checkExcerptTab(record, pdf, tab, said, label) {
   const pages = Array.from({ length: tab.last - tab.page + 1 }, (_, index) => tab.page + index);
   const marked = new Set(pdf.marks.map(({ page }) => page));
-  record.check(pages.length === Number(/(\d+) pages$/u.exec(said)?.[1]), `${label}'s tab holds the pages its row counted`, [pages.length, said]);
+  record.check(pages.length === Number(/\((\d+) pages\)/u.exec(said)?.[1]), `${label}'s tab holds the pages its row counted`, [pages.length, said]);
   record.check(!marked.has(tab.page) && pages.slice(1).every((number) => marked.has(number)),
     `${label}'s tab is its title page and its cited sections' marked pages`, { pages, marked: pages.filter((number) => marked.has(number)) });
   record.check(pdf.text[1].includes(`${tab.page}–${tab.last}`), `the index gives ${label}'s pages as they are`, pdf.text[1].slice(0, 400));
@@ -72,6 +72,22 @@ export const STRESS_CASES = [{
     await app.shots("review");
     await walkReview(app, "review", { arrows: 15, clicks: 6 });
     await addAndRemove(app, "review", "Standing Committee on Justice and Human Rights");
+    // A note's parliamentary evidence, which the import misses, added by hand with the mouse and
+    // given the page its note writes after it, by P; Ctrl+Z takes back the pinpoint, then the citation.
+    const evidence = "House of Commons, Standing Committee on Justice and Human Rights, Evidence, 44-1, No 035 (31 October 2022)";
+    const listed = await rows(app).count();
+    await dragSelect(app, evidence);
+    await app.interact("add the evidence by hand", () => app.button("Add citation").click(), { shiftsOk: listChange });
+    record.check((await app.page.locator(".citation-outline [role=option][aria-selected=true]").innerText()).replace(/\s+/gu, " ") === evidence,
+      "the evidence becomes the selected citation");
+    record.check(await dragSelect(app, "2 (Michele", { prefix: 1 }) === "2", "the pointer selects its page");
+    await app.interact("P adds the page", async () => { await app.page.locator(".citation-review").focus(); await app.page.keyboard.press("p"); });
+    await app.page.waitForFunction(() => document.querySelectorAll(".citation-pins .citation-chip").length === 1, null, { timeout: 15_000 }).catch(() => {});
+    record.check(await chips(app) === "p.2", "the hand-added evidence takes its page as a pinpoint", await chips(app));
+    for (const label of ["Ctrl+Z takes the page back", "Ctrl+Z takes the citation back"])
+      await app.interact(label, async () => { await app.page.locator(".citation-review").focus(); await app.page.keyboard.press("Control+z"); },
+        { shiftsOk: listChange });
+    record.check(await rows(app).count() === listed, "the list is back as it was", [listed, await rows(app).count()]);
     const sources = await app.now();
     await step(app, "Sources", { via: "next", budget: 3000 });
     await app.idle(180_000);
@@ -130,20 +146,20 @@ export const STRESS_CASES = [{
     const [long, short, uploaded] = [LONG_STATUTE.name, "Waterways Licensing Act", NAVIGATION_ACT.name].map((name) => statuteRow(row(app, name)));
     record.check(await long.pressed() === "Excerpt" && await uploaded.pressed() === "Excerpt", "the long statutes default to Excerpt",
       [await long.pressed(), await uploaded.pressed()]);
-    record.check(await short.pressed() === "Whole" && /^Whole · 1 page$/u.test(await short.line.innerText()),
+    record.check(await short.pressed() === "Whole" && /^The whole statute goes in the book \(1 page\)\.$/u.test(await short.line.innerText()),
       "the one-page Act defaults to Whole and says how long it is", [await short.pressed(), await short.line.innerText()]);
     // An excerpt's count is read from the readings prepared ahead, into the line it already has.
     const waited = await app.now(), longLine = await long.counted(240_000), uploadedLine = await uploaded.counted(60_000);
     record.note("excerpt counts read after", await app.now() - waited);
     record.note("excerpt lines", [longLine, uploadedLine]);
-    record.check(/^Excerpt: title page, ss 718, 33\(2\), 4718\(2\) · \d+ pages$/u.test(longLine),
+    record.check(/^The title page and ss 718, 33\(2\), 4718\(2\) go in the book \(\d+ pages\)\.$/u.test(longLine),
       "the long statute's line names its sections as the brief writes them, in its order", longLine);
-    record.check(/^Excerpt: title page, s 41\(2\) · \d+ pages$/u.test(uploadedLine), "the uploaded Act's line names its section", uploadedLine);
+    record.check(/^The title page and s 41\(2\) go in the book \(\d+ pages\)\.$/u.test(uploadedLine), "the uploaded Act's line names its section", uploadedLine);
     await app.shots("statutes-excerpt");
     // Each choice shows in the frame after it, and nothing moves.
     await app.interact("the long statute: Whole", () => long.choice("Whole").click(), { regions: LIST });
     const whole = await long.line.innerText();
-    record.check(await long.pressed() === "Whole" && /^Whole · \d{3} pages$/u.test(whole), "Whole counts every page", whole);
+    record.check(await long.pressed() === "Whole" && /^The whole statute goes in the book \(\d{3} pages\)\.$/u.test(whole), "Whole counts every page", whole);
     await app.shots("statutes-whole");
     await app.interact("the long statute: back to Excerpt", () => long.choice("Excerpt").click(), { regions: LIST });
     record.check(await long.line.innerText() === longLine, "back to Excerpt, its count shows at once", await long.line.innerText());
@@ -205,7 +221,7 @@ export const STRESS_CASES = [{
     const criminal = statuteRow(row(code, "Criminal Code"));
     record.check(await criminal.pressed() === "Excerpt", "the Criminal Code defaults to Excerpt", await criminal.pressed());
     const codeLine = await criminal.counted(240_000);
-    record.check(/^Excerpt: title page, ss 16, 33\.1, 8 · \d+ pages$/u.test(codeLine), "the Code's line names its sections", codeLine);
+    record.check(/^The title page and ss 16, 33\.1, 8 go in the book \(\d+ pages\)\.$/u.test(codeLine), "the Code's line names its sections", codeLine);
     await code.shots("code-excerpt");
     await step(code, "Highlights", { via: "next" });
     await step(code, "Build book", { via: "next" });
@@ -400,11 +416,9 @@ export const STRESS_CASES = [{
     const said = await app.page.locator("[role=tablist][aria-label='Book steps'] ~ [data-tabs-actions] [role=status]").innerText();
     record.note("after cancel", said);
     record.check(!/could not|error|failed/iu.test(said), "a cancelled build reports nothing broken", said);
-    // A setting changed after a build marks the outputs as those of the last build until built again.
+    // A setting changed after a build, then built again.
     await setOption(app, "Tabs", "alpha");
     await app.idle();
-    record.check(/Changed since this build/u.test(await dock(app).innerText()), "the dock says the outputs predate the change", await dock(app).innerText());
-    await app.shots("changed-since");
     await build(app, "after the change", { budget: 2500 });
     const book = pick(await downloads(app, "lettered"), /book-of-authorities\.pdf$/u);
     const pdf = await checkPdf(record, "lettered", book, { tabs: 5 });

@@ -208,7 +208,9 @@ function Run(page, mode) {
       await page.setViewportSize({ width, height: 900 }); await settle();
       const overflow = await page.evaluate(() => {
         const scrolling = document.scrollingElement, wide = scrolling.scrollWidth - scrolling.clientWidth;
+        // The review kept unseen behind another step is not on the page.
         const clipped = [...document.querySelectorAll("main *")].filter((element) => {
+          if (element.closest("[inert]")) return false;
           const box = element.getBoundingClientRect();
           return box.width && box.right > document.documentElement.clientWidth + 1 && getComputedStyle(element).position !== "fixed";
         }).slice(0, 3).map((element) => `${element.tagName.toLowerCase()}.${[...element.classList].slice(0, 2).join(".")}`);
@@ -293,12 +295,6 @@ function Run(page, mode) {
     await page.mouse.up();
     const selected = await page.evaluate(() => getSelection().toString().replace(/\s+/gu, " ").trim());
     check(selected === phrase, `${mode}: the pointer selects "${phrase}"`, selected);
-  }
-  /** Selects a phrase that starts or ends at a citation's edge, where a pointer would take the
-   *  edge's handle instead: the review keeps focus, as a pointer down in the document leaves it. */
-  async function selectAtEdge(phrase) {
-    await page.locator(".citation-review").evaluate((review) => review.focus({ preventScroll: true }));
-    await page.evaluate((phrase) => window.__e2e.select(phrase), phrase);
   }
   const rows = () => page.locator(".citation-outline [role=option]").allInnerTexts();
   const selectedRow = () => page.locator(".citation-outline [role=option][aria-selected=true]").innerText();
@@ -420,19 +416,20 @@ function Run(page, mode) {
     check(!await page.locator(".citation-grip[data-grip^=pin], .citation-split").count(), `${mode} ${label}: no pinpoint handles or split marker`);
 
     // Enter: the selection becomes the citation's range, and back.
-    await selectAtEdge("[1986] 1 SCR 103 at 138-139");
+    // Selected with the pointer: text at a citation's edges selects as any text, the handles' caps aside.
+    await dragSelect("[1986] 1 SCR 103 at 138-139");
     await interact(`${label} Enter sets range`, () => page.keyboard.press("Enter"));
     check(await selectedRow() === "[1986] 1 SCR 103 at 138-139", `${mode} ${label}: Enter narrows the range`, await selectedRow());
-    await selectAtEdge("R v Oakes, [1986] 1 SCR 103 at 138-139");
+    await dragSelect("R v Oakes, [1986] 1 SCR 103 at 138-139");
     await interact(`${label} Enter restores range`, () => page.keyboard.press("Enter"));
     check(await selectedRow() === EXPECTED_ROWS[2], `${mode} ${label}: Enter restores the range`, await selectedRow());
 
     if (full) {
-      // A grip drags the end a word at a time; Shift+→ extends it again.
+      // A grip's cap, below the line, drags the end a word at a time; Shift+→ extends it again.
       const grip = page.locator(".citation-grip[data-grip=end]").first();
       const handle = await grip.boundingBox(), word = await page.evaluate(() => window.__e2e.rect("138-139"));
       await interact(`${label} drag the end handle`, async () => {
-        await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+        await page.mouse.move(handle.x + 4, handle.y + handle.height - 4.5);
         await page.mouse.down();
         await page.mouse.move(word.left - 12, word.top + word.height / 2, { steps: 6 });
         await page.mouse.up();
@@ -459,7 +456,7 @@ function Run(page, mode) {
       await interact(`${label} remove a pinpoint`, () => page.getByRole("button", { name: "Remove pinpoint p. 138-139" }).click());
       check(await pinpoint() === "" && await selectedRow() === EXPECTED_ROWS[2], `${mode} ${label}: × removes the pinpoint, not the citation's text`, await pinpoint());
       check(await button("+ Pinpoint").isDisabled(), `${mode} ${label}: + Pinpoint waits for a selection`);
-      await selectAtEdge("138-139");
+      await dragSelect("138-139");
       check(await page.waitForFunction(() => !document.querySelector(".citation-add-pin").disabled).then(() => true, () => false),
         `${mode} ${label}: a selection enables + Pinpoint`);
       await interact(`${label} + Pinpoint`, () => button("+ Pinpoint").click());
@@ -467,7 +464,7 @@ function Run(page, mode) {
       check(await pinpoint() === "p.138-139" && await selectedRow() === EXPECTED_ROWS[2], `${mode} ${label}: + Pinpoint adds the selection with its kind`, await pinpoint());
       // A pinpoint written away from its citation: "supra note 2 at 135" also takes "46-48" from the note's other citation.
       await chooseRow(EXPECTED_ROWS[6]);
-      await selectAtEdge("46-48");
+      await dragSelect("46-48");
       await interact(`${label} P adds a pinpoint away from the citation`, () => page.keyboard.press("p"));
       await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 2);
       check(await pinpoint() === "¶46-48 p.135" && await selectedRow() === EXPECTED_ROWS[6], `${mode} ${label}: a pinpoint outside the citation is added, the range unchanged`, [await pinpoint(), await selectedRow()]);
@@ -484,7 +481,7 @@ function Run(page, mode) {
       await interact(`${label} Add citation without its pinpoint`, () => button("Add citation").click(), { listChanges: true });
       await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 1);
       check(await pinpoint() === "¶22", `${mode} ${label}: Add citation finds the pinpoint after the selection`, await pinpoint());
-      await selectAtEdge(EXPECTED_ROWS[7]);
+      await dragSelect(EXPECTED_ROWS[7]);
       await interact(`${label} Enter widens it back`, () => page.keyboard.press("Enter"));
       check(await selectedRow() === EXPECTED_ROWS[7] && await pinpoint() === "¶22", `${mode} ${label}: the range widens back with its pinpoint`, [await selectedRow(), await pinpoint()]);
 

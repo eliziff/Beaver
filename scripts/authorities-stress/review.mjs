@@ -28,15 +28,26 @@ export async function walkReview(app, label, { arrows = 10, clicks = 4 } = {}) {
   return count;
 }
 
-/** Selects `phrase` in the document with the pointer and makes it a citation, then takes it back. */
-export async function addAndRemove(app, label, phrase) {
-  const { first, last } = await app.page.evaluate((phrase) => window.__e2e.ends(phrase), phrase);
+/** A citation added or removed moves the list rows after it, and nothing else: a source that kept
+ *  its box (a count whose text changed) moved nothing. */
+export const listChange = ({ sources }) => sources.every(({ list, moved }) => { const [before, after] = moved.split(" -> "); return list || before === after; });
+/** The selected citation's pinpoint chips as the bar shows them, each its kind's symbol and value: "¶10 p.12". */
+export const chips = (app) => app.page.locator(".citation-pins .citation-chip").allInnerTexts()
+  .then((items) => items.map((chip) => chip.replace(/\s+/gu, "")).join(" "));
+/** Drags the pointer across `phrase` in the document (its `nth` occurrence, its first `prefix`
+ *  characters), as a reader selects text; returns what is selected. */
+export async function dragSelect(app, phrase, { nth = 0, prefix } = {}) {
+  const { first, last } = await app.page.evaluate(([phrase, nth, prefix]) => window.__e2e.ends(phrase, nth, prefix), [phrase, nth, prefix]);
   await app.page.mouse.move(first.left + 0.5, (first.top + first.bottom) / 2);
   await app.page.mouse.down();
   await app.page.mouse.move(last.right - 0.5, (last.top + last.bottom) / 2, { steps: 4 });
   await app.page.mouse.up();
-  // Adding or removing a citation moves the list rows after it; nothing else may move.
-  const listChange = ({ sources }) => sources.every(({ list }) => list);
+  return app.page.evaluate(() => getSelection().toString().replace(/\s+/gu, " ").trim());
+}
+
+/** Selects `phrase` in the document with the pointer and makes it a citation, then takes it back. */
+export async function addAndRemove(app, label, phrase) {
+  await dragSelect(app, phrase);
   await app.interact(`${label} Add citation`, () => app.button("Add citation").click(), { shiftsOk: listChange });
   const selected = await app.page.locator(".citation-outline [role=option][aria-selected=true]").innerText();
   app.record.check(selected.replace(/\s+/gu, " ").includes(phrase.slice(0, 20)), `${app.label} ${label}: the selection became a citation`, selected);

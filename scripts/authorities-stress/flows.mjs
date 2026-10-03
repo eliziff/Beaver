@@ -43,7 +43,8 @@ export async function importBrief(app, file, { court, sourceMode, marking, shot 
   await setup.waitFor();
   if (court) await chooseCourt(app, setup.getByRole("button", { name: /^Court:/u }), court);
   if (sourceMode) await chooseCard(app, setup, SOURCE_MODES[sourceMode]);
-  if (marking) await chooseCard(app, setup, MARKINGS[marking]);
+  // The passage marking is closed until opened.
+  if (marking) { await setup.locator("summary", { hasText: "Passage marking" }).click(); await chooseCard(app, setup, MARKINGS[marking]); }
   if (shot) await app.shots(shot);
   const started = await app.now();
   await app.button("Import and review").click();
