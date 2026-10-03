@@ -48,7 +48,19 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
   ]);
   const chunks = Array.from({ length: Math.ceil(tokens.length / 23) }, (_, index) =>
     tokens.slice(index * 23, index * 23 + 23));
-  const all = input.sources.map((source) => ({ source, pageIndices: source.pageIndices }));
+  const readSourceOutlines = async (bytes: Uint8Array) => {
+    signal?.throwIfAborted();
+    const document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
+    signal?.throwIfAborted();
+    return engine.readOutlines(document);
+  };
+  const [sources, coverOutline, indexOutline] = await Promise.all([
+    Promise.all(input.sources.map(async source => source.outline !== undefined ? source :
+      { ...source, outline: await readSourceOutlines(source.bytes) })),
+    customCover ? readSourceOutlines(customCover) : [],
+    customIndex ? readSourceOutlines(customIndex) : [],
+  ]);
+  const all = sources.map((source) => ({ source, pageIndices: source.pageIndices }));
   const singlePages = coverPageCount + (customIndexPages || chunks.length) +
     all.reduce((sum, item) => sum + item.pageIndices.length, 0) +
     (paperCover && !customCover ? 1 : 0);
@@ -196,8 +208,10 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
         pageNumbers: federal && electronic ? { font: "regular", start: plan.globalStart + 1,
           position: "bottom-right", size: 12, inset: 99.21, offset: 54 } : undefined,
         outlines: () => [
-          { title: documentTitle, pageIndex: 0 },
-          { title: "Table of Contents", pageIndex: coverPageCount + (generatedToc ? customIndexPages : 0) },
+          { title: documentTitle, pageIndex: 0,
+            ...(coverOutline.length ? { children: coverOutline } : {}) },
+          { title: "Table of Contents", pageIndex: coverPageCount + (generatedToc ? customIndexPages : 0),
+            ...(indexOutline.length ? { children: mapOutline(indexOutline, pageIndex => coverPageCount + pageIndex) } : {}) },
           ...groups.flatMap(({ label, entries }): PdfOutline[] => {
             const local = entries.filter(({ key }) => localStarts.has(key));
             return local.length ? [{ title: label, pageIndex: localStarts.get(local[0].key)!,
