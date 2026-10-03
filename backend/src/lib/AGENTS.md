@@ -6,4 +6,3 @@
 - `documentProjectionPdf.ts` is private PDF evidence/lookup implementation used by the service. Production consumers must not import it directly.
 - A projection identity always binds document ID, version ID, source SHA-256, compiler/parser version, and material options. Never key a projection by source bytes alone.
 - Do not restore `localPdfIngestion`, `localPdfLookup`, `parseCache`, compatibility exports, or a second cache. Update the service and its existing primitives instead.
-- Run `npm run check:source-boundaries` after changing document reading, provider attachments, evidence, or cache boundaries.

@@ -62,18 +62,13 @@ profile and ordinary target directory. Point `LEGAL_STRUCTURE_NATIVE` at
 backend test. Keep release optimization and independent corpus gates for the
 candidate, rather than each edit. Do not copy a target into a task scratchpad.
 
-Source measurements include `.mts` shared contracts; historical counts taken before
-that extension was included are not directly comparable.
-
 From the repository root, select the relevant checks:
 
 ```sh
 node --test docs/scripts/check-docs.test.mjs
 node docs/scripts/check-docs.mjs
-npm run check:guards
 npm test --prefix backend -- <focused-test-name>
 npm test --prefix frontend -- <focused-test-name>
-npm run check:source-boundaries
 npm run build --prefix backend
 npm run build --prefix frontend
 ```
@@ -104,8 +99,8 @@ to `.tmp/authorities-stress/`; `--only=`, `--skip-build`, `--html=`, `--no-word`
 `--keep-outputs` narrow a run or keep what it built.
 
 The documentation check needs the restored repository checkout. Backend `test`
-runs behavior tests only; `npm run check:guards` runs the shared grammar,
-source-boundary and export-integrity checks separately. Follow each native repository's agent
+runs behavior tests only. Shared grammar and export-integrity behavior are checked
+once in backend CI. Follow each native repository's agent
 instructions for the affected feature profile. Browser/stack prerequisites are in
 [safe local testing](docs/current/safe-local-testing.md) and
 [end-to-end testing](docs/current/e2e-ci.md).
@@ -122,17 +117,11 @@ become published fixtures, even through paraphrasing or a machine test. Keep the
 behavior being tested and independently invent the scenario and data. Private
 inputs and raw outputs belong in ignored local storage.
 
-For a release candidate, run both complete application test/build suites and the
-launcher-owned production smoke:
-
-```powershell
-npm test --prefix backend
-npm test --prefix frontend
-npm run check:guards
-npm run build --prefix backend
-npm run build --prefix frontend
-.\scripts\mike.ps1 smoke
-```
+Packaging, publishing and downstream binding releases are delivery work, not
+prerequisites for checking an edit. Build the affected distributable when it is
+being shipped and smoke that artifact once. Native semantic changes retain their
+independent corpus/output proof; ordinary edits do not inherit unrelated release
+gates or complete application suites.
 
 A full sweep is separately authorized under [AGENTS.md](AGENTS.md). Do not report
 unrun checks, skipped environmental gates or historical results as a passing

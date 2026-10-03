@@ -153,5 +153,3 @@ other assistant edits, including changes in footnotes and endnotes.
   shapes.
 - Cross-language boundaries use the smallest typed N-API call or validated
   versioned JSON/process envelope that the consumer needs.
-- Run `npm run check:source-boundaries` whenever composition, storage, document,
-  provider, or process boundaries change.

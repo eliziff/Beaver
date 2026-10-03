@@ -66,13 +66,6 @@ is not an implemented or approved confidential-document deployment.
 
 ## Measurement and release
 
-Use `npm run measure:source` and the existing source-budget checks with exact
-baseline/candidate revisions. Report production, tests and experiments separately.
-The original boundary-program baseline (69,783 production lines), acceptance
-ceiling (68,400) and stretch target (67,700) describe that frozen workstream scope,
-not a fresh measurement of today's application. Do not silently change scope or
-present historical counts as current results.
-
 [CONTRIBUTING.md](../../CONTRIBUTING.md) owns shared validation commands. Each spoke
 adds its necessary corpus, output or host proof. Release only the exact pinned
 combination that passed those gates; do not substitute cached-extraction parity

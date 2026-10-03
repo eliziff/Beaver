@@ -130,9 +130,9 @@ jobs:
             shared/runtime
           if-no-files-found: error
           retention-days: 1
-      - name: Check shared boundaries when frontend validation is unnecessary
-        if: needs.changes.outputs.frontend != 'true'
-        run: npm run check:guards:core --prefix ..
+      - name: Shared grammar and export behavior
+        working-directory: .
+        run: node packages/legal-grammar-tables/check.mjs && node --test shared/export-integrity.test.mjs
 
   frontend:
     needs: changes
@@ -157,9 +157,7 @@ jobs:
         if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.authorities == 'true'
       - run: npm run lint
         if: needs.changes.outputs.frontend == 'true'
-      - run: git submodule update --init --depth 1 -- legal-structure
-        working-directory: .
-      - run: npm run check:guards --prefix ..
+      - run: npm run test:guards
         if: needs.changes.outputs.frontend == 'true'
       - run: npm run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
