@@ -12,10 +12,13 @@ INPUTS = {
                         'crates/legal-citations/build.rs', 'crates/legal-citations/src',
                         'crates/legal-citations/registry', 'crates/legal-grammar/Cargo.toml',
                         'crates/legal-grammar/src', 'crates/legal-grammar/data'],
-    'legal-pdf-parser': ['Cargo.toml', 'build.rs', 'data', 'rust',
-                         'legal-pdf-core', 'legal-pdf-extraction', 'legal-pdf-extraction-processor',
-                         'legal-pdf-language', 'legal-pdf-ocr', 'legal-pdf-pairing',
-                         'legal-pdf-structure', 'legal-pdf-support'],
+    'legal-pdf-parser': ['Cargo.toml', 'build.rs', 'rust/native/tesseract_layout.c',
+                         *[f'rust/src/{module}.rs' for module in
+                           ('lib', 'contract', 'engine', 'structure_engine', 'supplied_ocr')],
+                         *[f'legal-pdf-{crate}/{path}' for crate in
+                           ('core', 'extraction', 'extraction-processor', 'language',
+                            'ocr', 'pairing', 'structure', 'support')
+                           for path in ('Cargo.toml', 'build.rs', 'src')]],
 }
 
 
