@@ -84,14 +84,18 @@ export function drawCourtPdfText(page: PDFPage, value: string, options: CourtTex
     return;
   }
   let x = options.x;
-  for (const run of fontRuns(lines[0], options.font)) {
+  const runs = fontRuns(lines[0], options.font);
+  for (let index = 0; index < runs.length; index += 1) {
+    const run = runs[index];
     page.drawText(run.text, { ...options, x, font: run.font });
-    x += run.font.widthOfTextAtSize(run.text, options.size);
+    if (index + 1 < runs.length) x += run.font.widthOfTextAtSize(run.text, options.size);
   }
 }
 
 function fontRuns(value: string, primary: PDFFont) {
   const text = courtPdfText(value);
+  if (!text) return [];
+  if (supports(primary, text)) return [{ text, font: primary }];
   const candidates = [primary, ...(fallbacks.get(primary) ?? [])];
   const segments = [...graphemes.segment(text)].map(({ segment }) => ({
     text: segment,
@@ -121,8 +125,11 @@ function supports(font: PDFFont, value: string) {
     set = new Set(font.getCharacterSet());
     characterSets.set(font, set);
   }
-  return [...value].every((character) => /[\r\n]/u.test(character) ||
-    set!.has(character.codePointAt(0)!));
+  for (const character of value) {
+    if (character !== "\r" && character !== "\n" &&
+        !set.has(character.codePointAt(0)!)) return false;
+  }
+  return true;
 }
 
 function uniqueCharacters(value: string) {
