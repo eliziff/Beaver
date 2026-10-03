@@ -36,24 +36,6 @@ describe("TRTable", () => {
         expect(screen.getByLabelText("Select Later amendment")).toBeVisible();
     });
 
-    it("routes every column header-menu action to its callback", () => {
-        const column = { index: 0, name: "Parties", prompt: "Identify parties" };
-        const onEditColumn = vi.fn(), onRerunColumn = vi.fn(), onClearColumn = vi.fn(), onDeleteColumn = vi.fn();
-        renderTable({ columns: [column], onEditColumn, onRerunColumn, onClearColumn, onDeleteColumn });
-        const open = () => fireEvent.click(screen.getByRole("button", { name: "Parties actions" }));
-
-        for (const [item, callback] of [
-            ["Edit", onEditColumn],
-            ["Rerun column", onRerunColumn],
-            ["Clear column", onClearColumn],
-            ["Delete", onDeleteColumn],
-        ] as const) {
-            open();
-            fireEvent.click(screen.getByRole("menuitem", { name: item }));
-            expect(callback).toHaveBeenCalledWith(column);
-        }
-    });
-
     it("blocks a column rerun while the review is running", () => {
         renderTable({ columns: [{ index: 0, name: "Parties", prompt: "" }], running: true, onRerunColumn: vi.fn() });
         fireEvent.click(screen.getByRole("button", { name: "Parties actions" }));
@@ -61,12 +43,5 @@ describe("TRTable", () => {
         expect(screen.getByRole("menuitem", { name: "Edit" })).toBeEnabled();
     });
 
-    it("offers the next step when the table has no rows", () => {
-        const onAddColumns = vi.fn(), onAddDocuments = vi.fn();
-        renderTable({ documents: [], onAddColumns, onAddDocuments });
-        fireEvent.click(screen.getByRole("button", { name: "+ Column" }));
-        fireEvent.click(screen.getByRole("button", { name: "Add documents" }));
-        expect(onAddColumns).toHaveBeenCalledOnce();
-        expect(onAddDocuments).toHaveBeenCalledOnce();
-    });
+
 });

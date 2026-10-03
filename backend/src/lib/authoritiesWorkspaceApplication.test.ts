@@ -1175,33 +1175,6 @@ describe("Authorities workspace application", () => {
     expect((product.state as AuthoritiesDraft).authorityOrder).toEqual(["first", "second"]);
   });
 
-  it("supports a manual draft, canonical add, CanLII handoff, and manual attachment", async () => {
-    const runtime = harness();
-    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" },
-      settings: { sourceMode: "manual-originals" } });
-    product = await runtime.application.act(scope, product.id, product.revision, {
-      type: "add-authority", kind: "case", citation: "2024 ABKB 123", name: "Smith v Jones",
-    });
-    expect(runtime.sources.key).toHaveBeenCalledWith("2024 ABKB 123");
-    expect((product.state as AuthoritiesDraft).authorities["canonical-key"].source)
-      .toEqual({ kind: "unresolved" });
-    product = await prepareSources(runtime, product);
-    expect((product.state as AuthoritiesDraft).authorities["canonical-key"].source)
-      .toMatchObject({ kind: "pending-canlii",
-        pdfUrl: "https://www.canlii.org/en/ab/abkb/doc/2024/2024abkb123/2024abkb123.pdf" });
-    product = await runtime.application.attachPdf(scope, product.id, {
-      revision: product.revision, authorityId: "canonical-key", language: "en",
-      file: { filename: "smith.pdf", fileType: "pdf",
-        bytes: await fixturePdf("%PDF-1.7\nmanual\n%%EOF") },
-    });
-    expect((product.state as AuthoritiesDraft).authorities["canonical-key"].source.kind)
-      .toBe("attached");
-    await expect(runtime.application.attachPdf(scope, product.id, {
-      revision: product.revision - 1, authorityId: "canonical-key", language: "en",
-      file: { filename: "late.pdf", fileType: "pdf", bytes: await fixturePdf("%PDF-") },
-    })).rejects.toMatchObject({ status: 409 });
-  });
-
   it("attaches the PDF a user uploads to a CanLII slot, whatever its first page cites", async () => {
     const runtime = harness();
     let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });

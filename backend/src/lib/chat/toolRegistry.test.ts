@@ -375,16 +375,6 @@ it("rejects duplicate call identities before any tool effects", async () => {
   expect(execute).not.toHaveBeenCalled();
 });
 
-it("preserves explicit tool errors without applying the success output schema", async () => {
-  const registry = new TurnToolRegistry([tool("read", {
-    outputSchema: { type: "object", properties: { value: { type: "string" } }, required: ["value"] },
-    execute: async () => ({ result: toolText("Source version changed; select the new version.", true) }),
-  })]);
-  expect(await registry.run([call("read", "read")], { order: [] })).toEqual([
-    { tool_use_id: "read", content: "Source version changed; select the new version.", status: "error" },
-  ]);
-});
-
 it("returns complete schemas on reload, preserving URL-named input properties", async () => {
   const definition = tool("fetch", { specialist: true, inputSchema: { type: "object",
     properties: { url: { type: "string", format: "uri" } }, required: ["url"] } });

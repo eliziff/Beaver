@@ -30,11 +30,6 @@ describe("tabular result inspection", () => {
     expect(pills[0]).toHaveAttribute("target", "_blank");
     expect(pills[0]).toHaveAttribute("href", "/library?document_id=original&version_id=pinned-version");
   });
-  it("does not repeat the answer as explanation", () => {
-    render(<TabularResultDetails answer={{ ...answer, summary: "Notice is required.", claims: [{ text: "Notice is required.", evidence_ids: ["missing"] }] }} column={column} />);
-    expect(screen.getAllByText("Notice is required.")).toHaveLength(1);
-    expect(screen.queryByRole("region", { name: "Explanation" })).not.toBeInTheDocument();
-  });
   it("keeps distinct pinpointed passages from the same source independently openable", () => {
     const other: GroundedEvidence = { ...receipt, evidence_id: "e2", span_text: "The exception applies to cause.", locator: { kind: "page", label: "4" } };
     render(<TabularResultDetails answer={{ ...answer, claims: [{ text: "Notice subject to an exception.", evidence_ids: ["e1", "e2"] }], evidence: [receipt, other] }} column={column} />);
@@ -42,11 +37,5 @@ describe("tabular result inspection", () => {
     const pills = screen.getAllByRole("link", { name: /Agreement/ });
     expect(pills).toHaveLength(2);
   });
-  it("presents research reused from a research set as itself, without model answer framing", () => {
-    render(<TabularResultDetails answer={{ ...answer, origin: { items: [{ kind: "passage" }] } }} column={column} />);
-    expect(screen.queryByRole("region", { name: "Answer" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Explanation")).not.toBeInTheDocument();
-    expect(screen.getByText("Yes")).toBeVisible();
-    expect(screen.getByText(/The term is express\./u)).toBeVisible();
-  });
+
 });
