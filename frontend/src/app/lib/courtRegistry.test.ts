@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 import { COURTS, COURT_JURISDICTIONS, COURT_LEVELS } from "./courtRegistry";
 

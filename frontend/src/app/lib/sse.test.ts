@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, expect, it, vi } from "vitest";
 import { readSseData } from "./sse";
 import { BeaverApiError, followedRequest, PROGRESS_STREAM } from "./api/client";

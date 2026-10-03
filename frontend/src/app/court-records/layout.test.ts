@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 import { INDEX_ROWS_PER_PAGE, indexChunks, indexPageCount } from "./layout";
 
