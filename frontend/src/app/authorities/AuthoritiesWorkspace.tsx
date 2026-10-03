@@ -43,7 +43,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesProfileId,
   AuthorityIdentity, AuthorityKind, AuthoritySourceLanguage } from "./types";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
-import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
+import { authoritiesInputPlan, authorityReproducedInBook } from "../../../../shared/authorities-sources.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 import { AuthoritiesHighlights, PASSAGE_OPTIONS, passageOptions, useHighlightsAhead } from "./AuthoritiesHighlightEditor";
@@ -1268,7 +1268,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           void build(undefined, true);
         } }}>
         <p className="text-sm leading-6 text-gray-700">{missingPdfs.length === 1 ? "One authority has" : `${missingPdfs.length} authorities have`} no
-          PDF. {draft?.state.settings.missingSourcePolicy === "omit"
+          PDF. {draft && missingPdfs.some(({ id }) => !authorityReproducedInBook({ ...draft.state,
+            settings: { ...draft.state.settings, allowIncomplete: true } }, draft.state.authorities[id]))
             ? `The book is built without ${missingPdfs.length === 1 ? "it" : "them"}, and every tab keeps its number.`
             : `${missingPdfs.length === 1 ? "It keeps" : "Each keeps"} its tab, with a page naming it where its PDF goes.`}</p>
         <ul className="mb-5 mt-3 max-h-[min(19rem,42dvh)] divide-y divide-gray-200 overflow-y-auto rounded-lg border border-gray-300">

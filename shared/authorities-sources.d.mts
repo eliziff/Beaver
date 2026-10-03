@@ -51,7 +51,8 @@ type RequirementDraft = {
   settings?: { finalPdf?: boolean };
 };
 type BookDraft = RequirementDraft & {
-  settings: { allowIncomplete?: boolean; missingSourcePolicy: "placeholder" | "omit"; finalPdf?: boolean };
+  settings: { allowIncomplete?: boolean; missingSourcePolicy: "placeholder" | "omit"; finalPdf?: boolean;
+    profileId?: string };
 };
 type RequirementAuthority = {
   kind: string;

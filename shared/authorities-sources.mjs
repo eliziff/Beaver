@@ -1,3 +1,9 @@
+import profiles from "./authorities-profiles.json" with { type: "json" };
+
+/** The courts whose preset, not the user, says what a filed book does with a missing PDF. */
+const COURT_SOURCE_POLICY = new Set(profiles.filter((profile) =>
+  !profile.options?.missingSourcePolicy).map(({ id }) => id));
+
 export const attachedAuthoritySources = (source) =>
   source.kind === "attached" ? source.sources : [];
 /** A federal enactment citation, which some courts require in both official languages. */
@@ -64,11 +70,13 @@ export function statuteExcerpt(authority, pageCounts = attachedAuthoritySources(
 /** Whether the book reproduces this authority, asked by the builder (which loads the
  *  PDF or a stub) and the workspace (which plans the same book). An authority whose PDF
  *  never arrived keeps its tab with a page naming it where missing sources keep their
- *  tabs, and is left out, its tab number kept, where they are left out; an incomplete
- *  draft only lets the book build without them, as the Missing PDFs warning says. */
+ *  tabs, and is left out, its tab number kept, where they are left out. An incomplete
+ *  draft for a court that leaves them out of a filed book keeps the page too: the draft is
+ *  finished in Acrobat, where Replace Pages puts the PDF under its tab, index line and bookmark. */
 export const authorityReproducedInBook = (draft, authority) =>
   !authority.excluded && !authoritySourceRequirement(draft, authority, {
-    completeBookSources: draft.settings.missingSourcePolicy !== "placeholder" });
+    completeBookSources: draft.settings.missingSourcePolicy !== "placeholder" &&
+      !(draft.settings.allowIncomplete && COURT_SOURCE_POLICY.has(draft.settings.profileId)) });
 
 export const authoritiesBookPdfs = (draft) => [
   ...(draft.bookParts.cover ? [draft.bookParts.cover] : []),
