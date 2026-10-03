@@ -88,7 +88,8 @@
 .citation-chip>button:first-child{min-width:1.75rem;padding:0 .2rem 0 .5rem;font-weight:650}
 .citation-chip>button:last-child{width:1.75rem;color:#92400e}
 .citation-chip>button:last-child>svg{width:.85rem;height:.85rem}
-.citation-chip>button:hover{background:#fde68a}
+.citation-chip>button:hover:not(:disabled){background:#fde68a}
+.citation-chip>button:disabled{cursor:default}
 .citation-chip>button:focus-visible{outline:2px solid #b45309;outline-offset:-2px}
 .citation-quote{grid-area:quote;justify-self:end;display:inline-flex;align-items:center;gap:.35rem;height:2rem;padding:0 .25rem;color:#991b1b;font-size:.8125rem;font-weight:500}
 .citation-quote>span{text-decoration:underline;text-underline-offset:3px}

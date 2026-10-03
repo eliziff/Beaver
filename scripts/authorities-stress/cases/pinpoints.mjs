@@ -26,9 +26,22 @@ async function select(app, label, phrase, options) {
   const wanted = options?.prefix ? phrase.replace(/\s+/gu, "").slice(0, options.prefix) : phrase.replace(/\s+/gu, " ");
   app.record.check(selected.replace(/\s+/gu, "") === wanted.replace(/\s+/gu, ""), `${app.label} ${label}: the pointer selects "${wanted}"`, selected);
 }
-const key = (app, label, combo, expected, options = {}) => app.interact(label, async () => {
-  await app.page.locator(".citation-review").focus(); await app.page.keyboard.press(combo);
-}, options).then(async () => app.record.check(await shows(app, expected) === expected, `${app.label} ${label} shows ${expected || "no pinpoint"}`, await chips(app)));
+/** Runs `action` (a click, or a key wherever the focus is after the last one) and checks what the bar
+ *  shows in the frame after it: an edit shows at once, never when its save lands. A pinpoint just
+ *  added may show its value before its kind, which the save reads. */
+async function inFrame(app, label, action, expected, options) {
+  let seen;
+  await app.interact(label, async () => {
+    await action();
+    seen = await app.page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve([...document
+      .querySelectorAll(".citation-pins .citation-chip")].map((chip) => chip.innerText.replace(/\s+/gu, "")).join(" ")))));
+  }, options);
+  const wanted = [expected].flat();
+  app.record.check(wanted.includes(seen), `${app.label} ${label}: the next frame shows ${wanted.join(" or ") || "no pinpoint"}`, seen);
+  const final = wanted.at(-1);
+  app.record.check(await shows(app, final) === final, `${app.label} ${label}: then shows ${final || "no pinpoint"}`, await chips(app));
+}
+const press = (app, combo) => () => app.page.keyboard.press(combo);
 
 export const PINPOINT_CASES = [{
   name: "hand-pinpoints",
@@ -45,8 +58,7 @@ export const PINPOINT_CASES = [{
     record.check(await shows(app, "¶46-48") === "¶46-48", "Jordan shows its pinpoint", await chips(app));
     await app.interact("remove Jordan's pinpoint", () => app.button("Remove pinpoint ¶ 46-48").click());
     await select(app, "Jordan's pinpoint", "46-48");
-    await app.interact("+ Pinpoint", () => app.button("+ Pinpoint").click());
-    record.check(await shows(app, "¶46-48") === "¶46-48", "+ Pinpoint adds the dragged pinpoint at the citation's end", await chips(app));
+    await inFrame(app, "+ Pinpoint at the citation's end", () => app.button("+ Pinpoint").click(), ["46-48", "¶46-48"]);
 
     // The guidance note, added by hand: identified from its own text, so nothing asks what it refers to.
     await select(app, "the guidance note", GUIDANCE.cited);
@@ -54,41 +66,47 @@ export const PINPOINT_CASES = [{
     record.check(await selectedRow(app) === GUIDANCE.cited, "the selection becomes the selected citation", await selectedRow(app));
     record.check(!await page.locator(".citation-authority-trigger").count(), "a full citation is not asked what it refers to");
     await app.shots("hand-added");
-    // Two pinpoints after it in its note: one by + Pinpoint, one by P.
+    // Each control of the bar leaves the keys with the review: Ctrl+Z right after Add citation takes
+    // it back, and Ctrl+Y makes it again.
+    const listed = await rows(app).count();
+    await app.interact("Ctrl+Z after Add citation", press(app, "Control+z"), { shiftsOk: listChange });
+    record.check(await rows(app).count() === listed - 1, "Ctrl+Z right after Add citation takes it back", await rows(app).count());
+    await app.interact("Ctrl+Y", press(app, "Control+y"), { shiftsOk: listChange });
+    record.check(await rows(app).count() === listed && await selectedRow(app) === GUIDANCE.cited, "Ctrl+Y adds it again, selected", await selectedRow(app));
+    // Two pinpoints after it in its note: one by + Pinpoint, one by P, each shown at once.
     await select(app, "the first pinpoint", "4, 9", { prefix: 1 });
-    await app.interact("+ Pinpoint on the hand-added citation", () => app.button("+ Pinpoint").click());
-    record.check(await shows(app, "p.4") === "p.4", "+ Pinpoint adds a pinpoint to the hand-added citation", await chips(app));
+    await inFrame(app, "+ Pinpoint on the hand-added citation", () => app.button("+ Pinpoint").click(), ["4", "p.4"]);
+    await inFrame(app, "Ctrl+Z right after + Pinpoint", press(app, "Control+z"), "");
+    await inFrame(app, "Ctrl+Y", press(app, "Control+y"), ["4", "p.4"]);
     await select(app, "the second pinpoint", "9.", { prefix: 1 });
-    await key(app, "P", "p", "p.4 p.9");
-    // One changed in kind (page, section, paragraph), the other removed.
-    for (const expected of ["s4 p.9", "¶4 p.9"]) {
-      await app.interact(`step the kind to ${expected}`, () => page.locator(".citation-chip > button").first().click());
-      record.check(await shows(app, expected) === expected, `the kind steps to ${expected}`, await chips(app));
-    }
-    await app.interact("remove p.9", () => app.button("Remove pinpoint p. 9").click());
-    record.check(await shows(app, "¶4") === "¶4", "× removes a pinpoint", await chips(app));
+    await inFrame(app, "P", press(app, "p"), ["p.4 9", "p.4 p.9"]);
+    // One changed in kind (page, section, paragraph), the other removed; Ctrl+Z works after each click.
+    for (const expected of ["s4 p.9", "¶4 p.9"])
+      await inFrame(app, `step the kind to ${expected}`, () => page.locator(".citation-chip > button").first().click(), expected);
+    await inFrame(app, "Ctrl+Z right after a kind step", press(app, "Control+z"), "s4 p.9");
+    await inFrame(app, "Ctrl+Y", press(app, "Control+y"), "¶4 p.9");
+    await inFrame(app, "remove p.9", () => app.button("Remove pinpoint p. 9").click(), "¶4");
     await app.shots("hand-pinpoints");
 
     // Every edit is its own step: back through the removal and a kind change, and forward again.
-    await key(app, "Ctrl+Z puts the removed pinpoint back", "Control+z", "¶4 p.9");
-    await key(app, "Ctrl+Z takes the kind back a step", "Control+z", "s4 p.9");
-    await key(app, "Ctrl+Shift+Z makes the kind again", "Control+Shift+z", "¶4 p.9");
-    await key(app, "Ctrl+Y removes the pinpoint again", "Control+y", "¶4");
+    await inFrame(app, "Ctrl+Z right after ×", press(app, "Control+z"), "¶4 p.9");
+    await inFrame(app, "Ctrl+Z takes the kind back a step", press(app, "Control+z"), "s4 p.9");
+    await inFrame(app, "Ctrl+Shift+Z makes the kind again", press(app, "Control+Shift+z"), "¶4 p.9");
+    await inFrame(app, "Ctrl+Y removes the pinpoint again", press(app, "Control+y"), "¶4");
     // A boundary moved a word, then taken back.
-    await app.interact("Shift+← moves the end a word", async () => { await page.locator(".citation-review").focus(); await page.keyboard.press("Shift+ArrowLeft"); }, { rest: 900 });
+    await app.interact("Shift+← moves the end a word", press(app, "Shift+ArrowLeft"), { rest: 900 });
     record.check(await selectedRow(app) === GUIDANCE.cited.replace(/ \(2029\)$/u, ""), "the end moves back a word", await selectedRow(app));
-    await key(app, "Ctrl+Z restores the end", "Control+z", "¶4");
+    await inFrame(app, "Ctrl+Z restores the end", press(app, "Control+z"), "¶4");
     record.check(await selectedRow(app) === GUIDANCE.cited, "Ctrl+Z restores the range", await selectedRow(app));
-    // Removed, then put back with its pinpoint.
-    const listed = await rows(app).count();
-    await app.interact("Delete the hand-added citation", async () => { await page.locator(".citation-review").focus(); await page.keyboard.press("Delete"); }, { shiftsOk: listChange });
-    record.check(await rows(app).count() === listed - 1, "Delete removes it", await rows(app).count());
-    await app.interact("Ctrl+Z after Delete", async () => { await page.locator(".citation-review").focus(); await page.keyboard.press("Control+z"); }, { shiftsOk: listChange });
+    // Removed by the bar's Remove, then put back by Ctrl+Z with its pinpoint.
+    await app.interact("Remove the hand-added citation", () => app.button("Remove").click(), { shiftsOk: listChange });
+    record.check(await rows(app).count() === listed - 1, "Remove removes it", await rows(app).count());
+    await app.interact("Ctrl+Z right after Remove", press(app, "Control+z"), { shiftsOk: listChange });
     record.check(await rows(app).count() === listed && await selectedRow(app) === GUIDANCE.cited && await shows(app, "¶4") === "¶4",
       "Ctrl+Z puts the citation back, selected, with its pinpoint", [await rows(app).count(), await selectedRow(app), await chips(app)]);
 
-    // A reload keeps it all.
-    await app.idle();
+    // A reload, once the edits have saved, keeps it all.
+    await app.idle(); await page.waitForTimeout(2000);
     await app.reload({ until: () => page.locator(".citation-document .citation-band[data-active]").first().waitFor({ timeout: 60_000 }) });
     await rows(app).filter({ hasText: GUIDANCE.cited }).click();
     record.check(await shows(app, "¶4") === "¶4", "after a reload the hand-added citation keeps its pinpoint", await chips(app));
@@ -121,7 +139,7 @@ export const PINPOINT_CASES = [{
     record.check(!!paragraph, "the book marks paragraph 4 in the guidance note's tab", marked.map(({ page: at }) => at));
     const table = await readDocx(pick(files, /table-of-authorities\.docx$/u));
     const entry = table.text.slice(table.text.indexOf("Riverbend"), table.text.indexOf("Riverbend") + 160);
-    record.check(table.text.includes(GUIDANCE.cited) && /\b4\b/u.test(entry.slice(GUIDANCE.cited.length)),
+    record.check(table.text.includes(GUIDANCE.cited) && /(?:^|\D)4(?!\d)/u.test(entry.slice(GUIDANCE.cited.length)),
       "the table lists the guidance note with its pinpoint", entry);
     await app.close();
 
@@ -132,14 +150,13 @@ export const PINPOINT_CASES = [{
     await rows(word).filter({ hasText: "R v Jordan" }).click();
     await word.interact("remove Jordan's pinpoint", () => word.button("Remove pinpoint ¶ 46-48").click());
     await select(word, "Jordan's pinpoint", "46-48");
-    await key(word, "P adds it back", "p", "¶46-48");
+    await inFrame(word, "P adds it back", press(word, "p"), ["46-48", "¶46-48"]);
     await select(word, "the guidance note", GUIDANCE.cited);
     await word.interact("Add citation", () => word.button("Add citation").click(), { shiftsOk: listChange });
     await select(word, "its pinpoint", "4, 9", { prefix: 1 });
-    await word.interact("+ Pinpoint", () => word.button("+ Pinpoint").click());
-    record.check(await shows(word, "p.4") === "p.4", "docx: + Pinpoint adds a pinpoint to the hand-added citation", await chips(word));
-    await key(word, "Ctrl+Z", "Control+z", "");
-    await key(word, "Ctrl+Y", "Control+y", "p.4");
+    await inFrame(word, "+ Pinpoint", () => word.button("+ Pinpoint").click(), ["4", "p.4"]);
+    await inFrame(word, "Ctrl+Z right after + Pinpoint", press(word, "Control+z"), "");
+    await inFrame(word, "Ctrl+Y", press(word, "Control+y"), ["4", "p.4"]);
     await word.shots("docx-hand-pinpoints");
     await word.close();
   },
