@@ -14,7 +14,7 @@ export const SOURCE_MODES = { automatic: "Automatic sources",
 const REGIONS = { header: "header[data-workspace-header]", steps: "[role=tablist][aria-label='Book steps']", panel: "#authorities-step" };
 
 /** A choice that changes what is made changes what the Build step and its Outputs dock list. */
-export const outputsChange = ({ sources }) => sources.every(({ node }) => (node ?? "").includes("@min-[52rem]/build"));
+export const outputsChange = ({ sources }) => sources.every(({ node }) => (node ?? "").includes("/build"));
 /** Picks a court in the court chooser that `opener` opens: its jurisdiction, then the court. */
 export async function chooseCourt(app, opener, court, { shiftsOk } = {}) {
   const id = PROFILE_IDS[court];
@@ -36,17 +36,22 @@ export async function chooseCard(app, scope, name) {
   await app.interact(`choose "${name}"`, () => option.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }));
 }
 
-/** Add file, the import's choices, Import and review: to the first citation marked in the document. */
+/** Add file, the import's steps (the court, the sources, the marking), Import: to the first citation
+ *  marked in the document. */
 export async function importBrief(app, file, { court, sourceMode, marking, shot = null, first = false, budget } = {}) {
   await app.pick(() => app.button("Add file").click(), [file]);
-  const setup = app.page.getByRole("dialog", { name: "Import options" });
+  const setup = app.page.getByRole("dialog", { name: "Import" });
   await setup.waitFor();
-  if (court) await chooseCourt(app, setup.getByRole("button", { name: /^Court:/u }), court);
-  if (sourceMode) await chooseCard(app, setup, SOURCE_MODES[sourceMode]);
-  if (marking) await chooseCard(app, setup, MARKINGS[marking]);
+  if (court) {
+    if (await setup.getByRole("radio", { name: PROFILES[court], exact: true }).count()) await chooseCard(app, setup, PROFILES[court]);
+    else await chooseCourt(app, setup.getByRole("button", { name: "Other court" }), court);
+  }
+  const step = (name) => setup.getByRole("list", { name: "Import steps" }).getByRole("button", { name }).click();
+  if (sourceMode) { await step("Sources"); await chooseCard(app, setup, SOURCE_MODES[sourceMode]); }
+  if (marking) { await step("Marking"); await chooseCard(app, setup, MARKINGS[marking]); }
   if (shot) await app.shots(shot);
   const started = await app.now();
-  await app.button("Import and review").click();
+  await setup.getByRole("button", { name: /^Import(?: with .*defaults)?$/u }).click();
   await app.page.locator(".citation-document .citation-band[data-active]").first().waitFor({ timeout: 120_000 });
   const ms = await app.now() - started;
   // A profile's first import starts the engine; every later one finds it warm.
@@ -83,7 +88,28 @@ export async function attach(app, name, file) {
   await item.getByRole("button", { name: /^View PDF for/u }).waitFor({ timeout: 30_000 });
 }
 
-export const dock = (app) => app.page.getByRole("complementary", { name: "Outputs" });
+export const dock = (app) => app.page.getByRole("region", { name: "Outputs" });
+/** An output's options, opened from its card: `run` works in the dialog, then Done closes it. */
+export async function outputOptions(app, card, run) {
+  await app.interact(`open the ${card} options`, () => dock(app).getByRole("button", { name: `${card} options` }).click(), { budget: BUDGETS.dialog });
+  const dialog = app.page.getByRole("dialog", { name: card });
+  await dialog.waitFor();
+  const result = await run(dialog);
+  await app.button("Done", dialog).click(); await dialog.waitFor({ state: "detached" }); await app.idle();
+  return result;
+}
+/** Ticks or unticks a checkbox card, where it can be changed. */
+export async function tick(app, box, on) {
+  if (await box.isChecked() === on || await box.isDisabled()) return;
+  await app.interact(`${on ? "tick" : "untick"} a box`, () => box.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }),
+    { shiftsOk: outputsChange });
+}
+/** What Build makes, the book, the table or both, through the two outputs' options. */
+export async function outputMode(app, mode) {
+  const table = await dock(app).getByRole("button", { name: "Word copy options" }).count() ? "Word copy" : "Table of Authorities";
+  await outputOptions(app, table, (dialog) => tick(app, dialog.getByRole("checkbox", { name: "A Table of Authorities in its own Word document" }), mode !== "book"));
+  await outputOptions(app, "Book of Authorities", (dialog) => tick(app, dialog.getByRole("checkbox", { name: "Make the Book of Authorities" }), mode !== "table"));
+}
 /** Build (or `start`), through Missing PDFs when it asks; to every output current. */
 export async function build(app, label, { missing = null, start = () => app.button("Build", dock(app)).click(), budget = 2500, shot = null } = {}) {
   let started = await app.now();
@@ -91,7 +117,7 @@ export async function build(app, label, { missing = null, start = () => app.butt
   await start();
   // The click shows at once: the build's Cancel, or a dialog.
   await app.page.waitForFunction(() => document.querySelector("dialog[open], [role=dialog]") ||
-    [...document.querySelectorAll("aside[aria-label=Outputs] button")].some((button) => button.textContent.trim() === "Cancel"),
+    [...document.querySelectorAll("[aria-label=Outputs] button")].some((button) => button.textContent.trim() === "Cancel"),
   null, { timeout: 10_000, polling: "raf" });
   // Once the sources are checked it asks about missing PDFs, or builds without asking: built
   // means outputs ready with no Cancel and no dialog left, which an open warning never is.
@@ -136,12 +162,27 @@ export async function downloads(app, label) {
   }
   return saved;
 }
-/** The More options select named `label`, set to `value`. */
+const SCANNED = { "page-margin": "Keep scans as images", "cited-pages": "Recognize cited pages", full: "Recognize every page" };
+/** A setting from Build, set where it lives: the book's or the table's options, or Sources (its scans
+ *  and tabs), coming back to Build after. */
 export async function setOption(app, label, value) {
-  const details = app.page.locator("details:has(> summary)").filter({ hasText: "More options" });
-  if (await details.count() && !await details.evaluate((element) => element.open)) await details.locator("summary").click();
-  // Each setting's select is named for its label (SelectField in AuthoritiesWorkspace).
-  const select = app.page.locator(`#authorities-${label.toLowerCase().replaceAll(" ", "-")}`);
-  if (await select.inputValue() === value) return;
-  await app.interact(`set ${label} to ${value}`, () => select.selectOption(value));
+  if (label === "Missing sources") return outputOptions(app, "Book of Authorities", (dialog) =>
+    chooseCard(app, dialog, value === "omit" ? "Leave out of the book" : "Keep their tabs"));
+  if (label === "Table locations") {
+    const table = await dock(app).getByRole("button", { name: "Word copy options" }).count() ? "Word copy" : "Table of Authorities";
+    return outputOptions(app, table, (dialog) => dialog.locator("#authorities-cited-at").selectOption(value));
+  }
+  await step(app, "Sources");
+  if (label === "Scanned PDFs") {
+    const summary = app.page.locator("summary", { hasText: "Scanned PDFs" });
+    if (!await summary.evaluate((element) => element.parentElement.open)) await summary.click();
+    await chooseCard(app, app.page.getByRole("group", { name: "Scanned PDFs" }), SCANNED[value]);
+  } else if (label === "Tabs") {
+    await app.button("Tab labels").click();
+    const dialog = app.page.getByRole("dialog", { name: "Tab labels" });
+    await dialog.getByLabel("Numbering").selectOption(value);
+    await app.button("Done", dialog).click();
+  } else throw new Error(`No setting ${label}`);
+  await app.idle();
+  await step(app, "Build book");
 }

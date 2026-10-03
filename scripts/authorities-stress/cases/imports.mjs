@@ -2,7 +2,7 @@
 // the ways real ones are, each taken through every step to its delivered files.
 import path from "node:path";
 import { fixtureA2aj, VARIETY } from "../fixtures.mjs";
-import { attach, build, dock, downloads, importBrief, outputsChange, step } from "../flows.mjs";
+import { attach, build, chooseCard, dock, downloads, importBrief, outputMode, outputOptions, step } from "../flows.mjs";
 import { BUDGETS } from "../harness.mjs";
 import { checkPdf } from "../outputs.mjs";
 import { rows, walkReview } from "../review.mjs";
@@ -12,24 +12,24 @@ const pick = (files, pattern) => Object.entries(files).find(([name]) => pattern.
 
 /** The Final PDF dialog's links, chosen, then built. */
 async function finalPdf(app, { brief = null, shot = "final-pdf" } = {}) {
-  await app.interact("open the Final PDF dialog", () => dock(app).getByRole("button", { name: /^(?:Set up|Final PDF options)$/u }).click(),
+  await app.interact("open the Final PDF dialog", () => dock(app).getByRole("button", { name: "Final PDF options" }).click(),
     { budget: BUDGETS.dialog });
   const dialog = app.page.getByRole("dialog", { name: "Final PDF" });
   await dialog.waitFor();
-  for (const name of ["Citations to their tabs", "Pinpoints to the passage"]) {
+  for (const name of ["Make the final PDF", "Citations to their tabs", "Pinpoints to the passage"]) {
     const box = dialog.getByRole("checkbox", { name });
     if (!await box.isChecked()) await app.interact(`tick ${name}`, () => box.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }));
   }
   if (brief) {
-    // Without the brief saved as PDF the dialog says so calmly, and waits for it.
-    app.record.check(await app.button("Build final PDF", dialog).isDisabled() && /Add your brief as PDF to build it/u.test(await dialog.innerText()),
+    // Without the brief saved as PDF its card says so calmly, and the final PDF waits for it.
+    app.record.check(/needs your brief saved as PDF/u.test(await dock(app).locator("[data-output=final]").innerText()),
       `${app.label}: the final PDF waits for the brief PDF, and says so`);
     await app.shots(`${shot}-without-brief`);
     await app.pick(() => app.button("Upload the brief PDF", dialog).click(), [brief]);
     await app.button("Replace the brief PDF", dialog).waitFor();
   }
   await app.shots(shot);
-  return dialog;
+  await app.button("Done", dialog).click(); await app.idle();
 }
 
 export const IMPORT_CASES = [{
@@ -58,8 +58,8 @@ export const IMPORT_CASES = [{
       const pdf = await checkPdf(record, "book", book, { unprinted: ["ca-case-2014-scc-bhasin-v-hrynew"] });
       record.check(pdf.tabs.length > 50, "the judgment's authorities each have a tab", pdf.tabs.length);
       await renderer.sheet(book, path.join(record.out, "book.jpg"), { first: 4, last: 4 });
-      const dialog = await finalPdf(app);
-      await build(app, "final", { start: () => app.button("Build final PDF", dialog).click(), budget: 10000 });
+      await finalPdf(app);
+      await build(app, "final", { budget: 10000 });
       const final = pick(await downloads(app, "final"), /\.final\.pdf$/u);
       const merged = await checkPdf(record, "final", final);
       record.check(merged.pages > pdf.pages, "the final PDF is the brief and then the book", [merged.pages, pdf.pages]);
@@ -89,13 +89,11 @@ export const IMPORT_CASES = [{
       await app.shots("sources");
       await step(app, "Highlights", { via: "next" });
       await step(app, "Build book", { via: "next" });
-      const copy = app.page.getByRole("group", { name: "Word copy" }), references = app.page.getByRole("group", { name: "Tab references" });
-      await app.interact("choose the marked copy and table", () => copy.getByRole("radio", { name: "Marked copy and table" })
-        .locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }), { shiftsOk: outputsChange });
-      await app.interact("choose [Tab 1]", () => references.getByRole("radio", { name: "[Tab 1]" })
-        .locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }));
-      await app.idle();
-      await app.interact("Create both", () => app.page.getByLabel("Create").selectOption("both"), { shiftsOk: outputsChange }); await app.idle();
+      await outputOptions(app, "Word copy", async (dialog) => {
+        await chooseCard(app, dialog.getByRole("group", { name: "Word copy" }), "Marked copy and table");
+        await chooseCard(app, dialog.getByRole("group", { name: "Tab references" }), "[Tab 1]");
+      });
+      await outputMode(app, "both");
       await app.shots("build");
       await build(app, "book and copy", { missing: /Lakeshore/u, budget: 4000 });
       const files = await downloads(app, "outputs");
@@ -106,8 +104,8 @@ export const IMPORT_CASES = [{
       const book = pick(files, /book-of-authorities\.pdf$/u);
       await checkPdf(record, "book", book, { unprinted: ["harbour-factum"] });
       await renderer.sheet(book, path.join(record.out, "book.jpg"), { first: 3, last: 3 });
-      const dialog = await finalPdf(app, { brief: fixtures.varietyPdf });
-      await build(app, "final", { start: () => app.button("Build final PDF", dialog).click(), missing: /Lakeshore/u, budget: 4000 });
+      await finalPdf(app, { brief: fixtures.varietyPdf });
+      await build(app, "final", { missing: /Lakeshore/u, budget: 4000 });
       const final = pick(await downloads(app, "final"), /\.final\.pdf$/u);
       const merged = await checkPdf(record, "final", final);
       record.check(merged.links.some(({ url }) => url === VARIETY.webLink), "the brief's own web link is kept", merged.links.map(({ url }) => url).filter(Boolean));

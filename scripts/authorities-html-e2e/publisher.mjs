@@ -146,11 +146,14 @@ async function blocked(page, { mode, sourceMode, url, brief, label, service, ope
       [{ name: path.basename(brief), base64: (await readFile(brief)).toString("base64") }]);
     await page.getByRole("button", { name: "Add file", exact: true }).click();
   }
-  const setup = page.getByRole("dialog", { name: "Import options" });
+  const setup = page.getByRole("dialog", { name: "Import" });
   await setup.waitFor();
-  if (sourceMode === "manual") await setup.locator("label", { has: page.getByRole("radio",
-    { name: "Use available original PDFs and manually add the PDFs myself for the rest" }) }).click({ position: { x: 6, y: 6 } });
-  await page.getByRole("button", { name: "Import and review", exact: true }).click();
+  if (sourceMode === "manual") {
+    await setup.getByRole("button", { name: "Sources" }).click();
+    await setup.locator("label", { has: page.getByRole("radio",
+      { name: "Use available original PDFs and manually add the PDFs myself for the rest" }) }).click({ position: { x: 6, y: 6 } });
+  }
+  await setup.getByRole("button", { name: /^Import with .*defaults$/u }).click();
   await page.locator(".citation-document .citation-band").first().waitFor({ timeout: 60000 });
   await page.waitForTimeout(500); await idle(page);
   await page.getByRole("button", { name: "Next", exact: true }).click();

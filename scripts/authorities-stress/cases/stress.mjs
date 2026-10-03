@@ -6,7 +6,7 @@ import path from "node:path";
 import { rm, stat, writeFile } from "node:fs/promises";
 import { briefHtml, fixtureA2aj, LONG_STATUTE, longBrief, longStatuteRecord, NAVIGATION_ACT,
   navigationSubsection } from "../fixtures.mjs";
-import { attach, build, dock, downloads, importBrief, row, setOption, step } from "../flows.mjs";
+import { attach, build, dock, downloads, importBrief, outputMode, outputOptions, row, setOption, step, tick } from "../flows.mjs";
 import { BUDGETS } from "../harness.mjs";
 import { checkPdf, inspectPdf } from "../outputs.mjs";
 import { loadHar } from "../network.mjs";
@@ -179,13 +179,11 @@ export const STRESS_CASES = [{
     await step(app, "Highlights", { via: "next" });
     await step(app, "Build book", { via: "next" });
     // The book and the final PDF, its citations linked to their tabs and pinpoints.
-    await app.button("Set up", dock(app)).click();
-    const final = app.page.getByRole("dialog", { name: "Final PDF" });
-    for (const name of ["Citations to their tabs", "Pinpoints to the passage"]) {
-      const box = final.getByRole("checkbox", { name });
-      if (!await box.isChecked()) await box.locator("xpath=ancestor::label[1]").click();
-    }
-    await build(app, "excerpt book", { missing: null, budget: 60_000, start: () => app.button("Build final PDF", final).click() });
+    await outputOptions(app, "Final PDF", async (final) => {
+      for (const name of ["Make the final PDF", "Citations to their tabs", "Pinpoints to the passage"])
+        await tick(app, final.getByRole("checkbox", { name }), true);
+    });
+    await build(app, "excerpt book", { missing: null, budget: 60_000 });
     const files = await downloads(app, "excerpts");
     const book = pick(files, /book-of-authorities\.pdf$/u), finalPdf = pick(files, /final\.pdf$/u);
     const pdf = await checkPdf(record, "excerpt book", book, { tabs: 3, marks: true });
@@ -274,7 +272,7 @@ export const STRESS_CASES = [{
     await app.page.locator(".authorities-workspace").evaluate((element) => element.scrollTo(0, 0));
     await step(app, "Highlights", { via: "next" });
     await step(app, "Build book", { via: "next" });
-    await app.interact("Create both", () => app.page.getByLabel("Create").selectOption("both"), { shiftsOk: () => true }); await app.idle();
+    await outputMode(app, "both");
     const ms = await build(app, "book and table", { missing: /./u, budget: 30_000 });
     record.note("build of 120 authorities", ms);
     const files = await downloads(app, "outputs"), book = pick(files, /book-of-authorities\.pdf$/u);
