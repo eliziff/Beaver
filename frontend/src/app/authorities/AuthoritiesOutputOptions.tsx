@@ -85,18 +85,18 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
           label="None" detail="Citations are left as the brief writes them." preview={<TabPreview mode="none" />} />
         <OptionCard row name={tabsName} checked={tabMode === "tab"} onChange={() => onChange({ citationSuffix: "tab" })}
           label={whole(`[${firstTab}]`)} preview={<TabPreview mode="tab" />}
-          detail={<>Each citation is followed by its tab: “R v Jordan, 2016 SCC 27 {whole(`[${firstTab}]`)}”.</>} />
+          detail={<>Adds the tab after each citation, as in “R v Jordan, 2016 SCC 27 {whole(`[${firstTab}]`)}”.</>} />
         <OptionCard row name={tabsName} checked={tabMode === "custom"} onChange={chooseCustom}
           preview={<TabPreview mode="custom" />} label="Your wording"
           detail={<>
             <input ref={input} type="text" value={words} maxLength={120} aria-label="Words before the tab number"
               aria-invalid={missing || undefined} placeholder="Appellant’s Book of Authorities, Tab"
-              className="block h-8 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600 aria-[invalid]:border-red-700"
+              className="block h-8 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-950 outline-none focus-visible:border-gray-600 aria-[invalid]:border-red-700"
               onChange={(event) => { setWords(event.target.value); if (event.target.value.trim()) setMissing(false); }}
               onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }}
               onBlur={() => { if (typed) chooseCustom(); else { setMissing(false); setWords(value.citationSuffixLabel ?? ""); } }} />
             <span className="mt-1 block truncate" aria-live="polite">{missing ? <span className="text-red-800">Type the words before the tab number.</span>
-              : <>Inserts <span className="font-medium text-gray-950">{whole(sample)}</span> after each citation.</>}</span>
+              : <>Adds <span className="font-medium text-gray-950">{whole(sample)}</span> after each citation.</>}</span>
           </>} />
       </div>
     </fieldset>
@@ -122,7 +122,7 @@ export function FinalPdfModal({ open, onClose, value, onChange, disabled = false
     primaryAction={{ label: "Build final PDF", disabled: disabled || !!blocked, onClick: onBuild }}>
     <div className="grid gap-5 pb-5">
       <p className="flex items-center gap-3 text-sm leading-6 text-gray-700">
-        <PdfPreview kind="append" />One PDF: your brief as filed, then the Book of Authorities.</p>
+        <PdfPreview kind="append" />Builds one PDF with your brief first and the Book of Authorities after it.</p>
       <fieldset disabled={disabled} className="min-w-0">
         <legend className={LEGEND}>Links</legend>
         <div className={ROWS}>
@@ -133,10 +133,10 @@ export function FinalPdfModal({ open, onClose, value, onChange, disabled = false
           <OptionCard row type="checkbox" checked={!!value.linkPinpoints}
             onChange={event => onChange({ linkPinpoints: event.target.checked })} label="Pinpoints to the passage"
             preview={<PdfPreview kind="pinpoints" />}
-            detail="In PDFs you uploaded, clicking “at para 105” opens Tab 4 at paragraph 105. Any it cannot place are listed." />
+            detail="In PDFs you uploaded, clicking “at para 105” opens Tab 4 at paragraph 105. Pinpoints it can’t place are listed in a report." />
         </div>
         <p className="mt-2 text-xs leading-4 text-gray-600">
-          These links jump within the PDF. Web links already in your brief are kept as they are.</p>
+          These links go to pages inside the PDF. Web links already in your brief still work.</p>
       </fieldset>
       {brief && <div className="min-w-0"><h3 className={LEGEND}>Your brief as PDF</h3>{brief}</div>}
     </div>

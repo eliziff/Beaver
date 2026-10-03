@@ -35,47 +35,53 @@
 .citation-band[data-active]{border-color:transparent;background:#f8d5cc}
 /* The active citation's pinpoints, in yellow wherever they lie, with no edge of their own. */
 .citation-pinpoint{border-radius:3px;background:#fde68a}
-/* A grip is a slim bar the height of its line with a round cap, like a text-selection handle. */
-.citation-grip{pointer-events:auto;cursor:ew-resize;opacity:.8;transition:opacity .12s}
+/* A grip is a slim bar the height of its line with a round cap, like a text-selection handle. Only
+   the cap, above or below the line, takes the pointer: the text beside the bar selects as any text. */
+.citation-grip{pointer-events:none;opacity:.8;transition:opacity .12s}
 .citation-grip::before,.citation-grip::after{content:'';position:absolute;background:#b91c1c}
 .citation-grip::before{left:11px;width:2px;top:0;bottom:0;border-radius:1px}
-.citation-grip::after{left:7.5px;width:9px;height:9px;border-radius:50%;transition:transform .12s}
+.citation-grip::after{pointer-events:auto;cursor:ew-resize;left:5.5px;width:13px;height:13px;border:2px solid transparent;border-radius:50%;background-clip:content-box;transition:transform .12s}
 .citation-grip[data-grip$=end]::before{left:3px}
-.citation-grip[data-grip$=end]::after{left:-.5px}
+.citation-grip[data-grip$=end]::after{left:-2.5px}
 .citation-grip[data-cap=top]::before{top:8px}
-.citation-grip[data-cap=top]::after{top:0}
+.citation-grip[data-cap=top]::after{top:-2px}
 .citation-grip[data-cap=bottom]::before{bottom:8px}
-.citation-grip[data-cap=bottom]::after{bottom:0}
+.citation-grip[data-cap=bottom]::after{bottom:-2px}
 .citation-grip:hover,[data-dragging] .citation-grip{opacity:1}
 .citation-grip:hover::after{transform:scale(1.2)}
-[data-dragging] .citation-grip{pointer-events:none}
+[data-dragging] .citation-grip::after{pointer-events:none}
 .citation-source-status{align-self:center;margin:auto;padding:2rem;color:#6b7280;font-size:.875rem}
 .citation-fallback{position:absolute;inset:auto 0 0;max-height:45%;display:flex;flex-direction:column;background:white;border-top:1px solid #e5e7eb;box-shadow:0 -4px 12px rgb(0 0 0 / .04);padding:.6rem .9rem;font-size:.875rem}
 .citation-fallback[data-full]{inset:0;max-height:none;border-top:0;box-shadow:none}
 .citation-fallback>p{margin:0;color:#6b7280;font-size:.8125rem}
 .citation-fallback>div{position:relative;isolation:isolate;white-space:pre-wrap;overflow:hidden auto;padding:.5rem 0;line-height:1.8;outline:none}
 
-/* One bar under the list and the document, its zones in fixed places: where you are, what the
-   citation refers to, the edits, and under them its pinpoints. Nothing in it moves or resizes
-   between citations. */
-.citation-panel{grid-column:1/-1;display:grid;grid-template:"nav meaning edit" 3rem ". pins quote" 2.5rem/auto minmax(0,1fr) auto;align-items:center;column-gap:1.5rem;padding:.25rem 1rem .4rem;border-top:1px solid #e5e7eb;background:#fafafa;font-size:.875rem;color:#374151}
+/* The bar under the list and the document: two rows in fixed columns, as the Sources rows are
+   laid out. Where you are, what a supra or ibid refers to and the edits; then the pinpoints and the
+   quotation to review. A hairline parts the rows. Nothing in it moves or resizes between citations. */
+.citation-panel{grid-column:1/-1;display:grid;grid-template:"nav reflabel refers edit" 2.75rem ". pinlabel pins quote" 2.75rem/auto 4.25rem minmax(0,1fr) auto;align-items:center;column-gap:1rem;padding:.25rem 1rem;border-top:1px solid #e5e7eb;background:#fff linear-gradient(#f3f4f6,#f3f4f6) center/100% 1px no-repeat;font-size:.875rem;color:#374151}
 .citation-panel>div{display:flex;align-items:center;min-width:0}
+.citation-label{color:#6b7280;font-size:.8125rem;white-space:nowrap}
+.citation-label[data-area=pins]{grid-area:pinlabel}
+.citation-label[data-area=refers]{grid-area:reflabel}
 .citation-nav{grid-area:nav;gap:.125rem}
-.citation-nav>span{min-width:6.25rem;text-align:center;font-variant-numeric:tabular-nums}
-.citation-panel .citation-nav button{width:2.25rem;height:2.25rem}
-.citation-meaning{grid-area:meaning;gap:.75rem}
-#citation-refers{flex:none;color:#6b7280}
-.citation-authority-trigger{display:flex;align-items:center;gap:.5rem;width:100%;height:2.25rem;padding:0 .5rem 0 .75rem;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#111827;font-weight:500}
-.citation-authority-trigger:hover{border-color:#9ca3af}
-.citation-authority-trigger:focus-visible{outline:2px solid #b91c1c;outline-offset:1px}
+.citation-nav>span{min-width:4.75rem;text-align:center;font-variant-numeric:tabular-nums;color:#374151}
+.citation-panel .citation-nav button{width:2rem;height:2rem}
+/* Controls one height, in the outline of the Sources rows' buttons. */
+.citation-add-pin,.citation-authority-trigger,.citation-panel .citation-edit button{height:2rem;border:1px solid #9ca3af;border-radius:6px;background:#fff;color:#111827;font-size:.8125rem;font-weight:500;box-shadow:none}
+.citation-authority-trigger{display:flex;align-items:center;gap:.5rem;width:100%;padding:0 .5rem 0 .75rem}
+.citation-authority-trigger:hover,.citation-add-pin:hover:not(:disabled){background:#f9fafb}
+.citation-authority-trigger:focus-visible,.citation-add-pin:focus-visible{outline:2px solid #b91c1c;outline-offset:1px}
 .citation-authority-trigger>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
 .citation-authority-trigger>[data-empty]{font-weight:400;color:#6b7280}
 .citation-authority-trigger>svg{flex:none;width:1rem;height:1rem;color:#6b7280}
-/* The pinpoint chips, in the yellow of the pinpoints they name: room for three is kept, and nothing
-   shows in it when a citation has none. */
-.citation-pins{grid-area:pins;gap:.75rem}
-.citation-chips{display:flex;align-items:center;gap:.375rem;width:calc(3 * 8.5rem + .75rem);margin:0;padding:0;list-style:none}
-.citation-chip{display:flex;align-items:center;min-width:0;max-width:8.5rem;height:1.875rem;border:1px solid #fcd34d;border-radius:999px;background:#fef3c7;color:#422006;white-space:nowrap}
+/* "+ Pinpoint" first, then the chips in the yellow of the pinpoints they name: the button never
+   moves, and a chip too long for the row is cut short, never pushed past it. */
+.citation-pins{grid-area:pins;gap:.5rem}
+.citation-add-pin{flex:none;padding:0 .75rem}
+.citation-add-pin:disabled{border-color:#e5e7eb;color:#9ca3af;cursor:default}
+.citation-chips{display:flex;align-items:center;gap:.375rem;min-width:0;margin:0;padding:0;list-style:none;overflow:hidden}
+.citation-chip{display:flex;align-items:center;flex:0 1 auto;min-width:3.5rem;max-width:8.5rem;height:1.75rem;border:1px solid #fcd34d;border-radius:999px;background:#fef3c7;color:#422006;white-space:nowrap}
 .citation-chip>span{min-width:0;overflow:hidden;text-overflow:ellipsis;padding:0 .1rem;font-variant-numeric:tabular-nums}
 .citation-chip[data-more]>span{padding:0 .7rem;color:#78350f}
 .citation-chip>button{flex:none;display:grid;place-items:center;height:100%;border-radius:999px;color:#78350f}
@@ -84,22 +90,15 @@
 .citation-chip>button:last-child>svg{width:.85rem;height:.85rem}
 .citation-chip>button:hover{background:#fde68a}
 .citation-chip>button:focus-visible{outline:2px solid #b45309;outline-offset:-2px}
-.citation-add-pin{flex:none;height:1.875rem;padding:0 .75rem;border:1px dashed #d1d5db;border-radius:999px;background:#fff;color:#374151;font-weight:500}
-.citation-add-pin:hover:not(:disabled){border-color:#9ca3af}
-.citation-add-pin:disabled{color:#9ca3af;background:transparent;cursor:default}
-.citation-add-pin:focus-visible{outline:2px solid #b91c1c;outline-offset:1px}
-.citation-quote{grid-area:quote;justify-self:end;display:inline-flex;align-items:center;gap:.35rem;height:2.25rem;padding:0 .25rem;color:#991b1b}
+.citation-quote{grid-area:quote;justify-self:end;display:inline-flex;align-items:center;gap:.35rem;height:2rem;padding:0 .25rem;color:#991b1b;font-size:.8125rem;font-weight:500}
 .citation-quote>span{text-decoration:underline;text-underline-offset:3px}
 .citation-quote>svg{display:none;width:1.1rem;height:1.1rem}
-/* The edits read as one group: joined buttons of one height. */
-.citation-edit{grid-area:edit}
-.citation-panel .citation-edit button{height:2.25rem;margin-left:-1px;padding-inline:.9rem;border-radius:0;border-color:#d1d5db;background:#fff;font-size:.875rem;font-weight:500;box-shadow:none}
-.citation-panel .citation-edit button:first-child{margin-left:0;border-radius:6px 0 0 6px}
-.citation-panel .citation-edit button:last-child{border-radius:0 6px 6px 0}
-.citation-panel .citation-edit button:disabled{opacity:1;color:#9ca3af}
-.citation-panel .citation-edit button:focus-visible{position:relative;z-index:1}
+.citation-edit{grid-area:edit;justify-self:end;gap:.375rem}
+.citation-panel .citation-edit button{padding-inline:.75rem}
+.citation-panel .citation-edit button:hover:not(:disabled){background:#f9fafb}
+.citation-panel .citation-edit button:disabled{opacity:1;border-color:#e5e7eb;color:#9ca3af}
 /* The authorities open upward over the document, each under the place that cites it. */
-.citation-authority{position:relative;flex:1 1 0;min-width:0;max-width:30rem}
+.citation-authority{grid-area:refers;position:relative;min-width:0;max-width:26rem}
 .citation-authority-menu{position:absolute;bottom:calc(100% + .6rem);left:0;right:0;z-index:20;display:flex;flex-direction:column;max-height:min(26rem,60vh);border:1px solid #d1d5db;border-radius:8px;background:#fff;box-shadow:0 10px 30px rgb(0 0 0 / .14)}
 .citation-authority-menu>[role=listbox]{overflow:hidden auto;padding:.6rem .5rem .4rem}
 .citation-authority-menu h4{margin:0 .5rem .4rem;font-size:.8125rem;font-weight:650;color:#4b5563}
@@ -115,23 +114,19 @@
 .citation-authority-menu p{margin:0;padding:.6rem .5rem;color:#6b7280}
 .citation-authority-menu>input{flex:none;height:2.25rem;margin:.4rem;padding:0 .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.875rem;outline:none}
 .citation-authority-menu>input:focus-visible{border-color:#b91c1c}
-/* Narrower: where you are and the edits share the first row, what the citation refers to takes the
-   second, and its pinpoints the third. */
+/* Narrower: where you are and the edits share the first row, the pinpoints with the quotation the
+   second, and what a supra or ibid refers to the third. */
 @container (max-width:48rem){
   .citation-review{grid-template:7.5rem minmax(0,1fr) auto/minmax(0,1fr)}
   .citation-outline{grid-row:1;border-inline-end:0;border-bottom:1px solid #e5e7eb}
   .citation-document{grid-column:1}
   .citation-note{margin-bottom:.3rem}
-  .citation-panel{grid-template:"nav edit" 3rem "meaning meaning" 3rem "pins quote" 2.5rem/minmax(0,1fr) auto;padding-inline:.75rem;column-gap:.75rem}
-  .citation-authority{max-width:none}
-  .citation-nav>span{min-width:5.25rem}
-  .citation-meaning{gap:.5rem}
+  .citation-panel{grid-template:"nav nav edit" 2.75rem "pinlabel pins quote" 2.75rem "reflabel refers refers" 2.75rem/4.25rem minmax(0,1fr) auto;
+    padding-inline:.75rem;column-gap:.75rem;background:#fff}
   .citation-quote>span{display:none}
   .citation-quote>svg{display:block}
 }
 @container (max-width:30rem){
   .citation-panel .citation-edit button{padding-inline:.6rem}
-  .citation-chips{width:calc(3 * 6.25rem + .75rem)}
   .citation-chip{max-width:6.25rem}
-  .citation-pins{gap:.5rem}
 }

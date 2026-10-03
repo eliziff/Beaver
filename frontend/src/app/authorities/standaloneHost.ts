@@ -408,12 +408,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return (await runtimeResponse("excerpt", form, false, signal)).json();
   },
   async inspectDraft(draft) {
-    const role = Object.keys(draft.outputs)[0];
-    let outputFreshness: "unbuilt" | "current" | "stale" = role ? "stale" : "unbuilt";
-    if (role) try {
-      outputFreshness = (await readStandaloneOutput(draft.id, role)).stale ? "stale" : "current";
-    } catch { /* A retained output whose bytes disappeared is stale. */ }
-    return { sourceIssues: await findSourceIssues(draft.state), outputFreshness };
+    return { sourceIssues: await findSourceIssues(draft.state) };
   },
   pickFiles: ({ multiple, accept }) => pickRetainedFiles(multiple, accept),
   requestSourceAccess: (draft) => requestStandaloneFileAccess(Object.values(draft.state.bindings)),

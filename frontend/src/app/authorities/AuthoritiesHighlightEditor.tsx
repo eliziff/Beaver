@@ -119,15 +119,15 @@ function MarkPreview({ type }: { type: Marking }) {
 }
 export const PASSAGE_OPTIONS: ReadonlyArray<CardOption<Marking>> = [
   { value: 'margin', label: 'Red line and quote highlight', preview: <MarkPreview type="margin" />,
-    detail: 'A red line beside each cited passage, and its quoted words highlighted in yellow.' },
+    detail: 'Draws a red line beside each cited passage and highlights the quoted words in yellow.' },
   { value: 'sidelined', label: 'Black line', preview: <MarkPreview type="sidelined" />,
-    detail: 'A black line beside each cited passage, with nothing highlighted.' },
+    detail: 'Draws a black line beside each cited passage. Nothing is highlighted.' },
   { value: 'paragraph', label: 'Paragraph highlight', preview: <MarkPreview type="paragraph" />,
-    detail: 'Each cited paragraph or section highlighted in yellow.' },
+    detail: 'Highlights each cited paragraph or section in yellow.' },
   { value: 'text', label: 'Quote highlight', preview: <MarkPreview type="text" />,
-    detail: 'Only the quoted words highlighted in yellow.' },
+    detail: 'Highlights only the quoted words in yellow.' },
   { value: 'none', label: 'No passage marks', preview: <MarkPreview type="none" />,
-    detail: 'Source pages stay unmarked.' },
+    detail: 'Leaves the source pages unmarked.' },
 ];
 const MARKED_PASSAGE_OPTIONS = PASSAGE_OPTIONS.filter(({ value }) => value !== 'none');
 export const passageOptions = (profileId: AuthoritiesProfileId) =>

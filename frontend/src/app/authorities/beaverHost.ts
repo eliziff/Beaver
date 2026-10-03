@@ -165,6 +165,6 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     const issues = Object.entries(resolved.inputs).flatMap<[string, AuthoritiesSourceIssue]>(([role, input]) =>
       input.status === "missing" ? [[role, { status: "missing" as const,
         reason: input.reason === "deleted" ? "deleted" as const : "unavailable" as const }]] : []);
-    return { sourceIssues: Object.fromEntries(issues), outputFreshness: resolved.freshness };
+    return { sourceIssues: Object.fromEntries(issues) };
   },
 };

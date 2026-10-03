@@ -28,7 +28,6 @@ export type AuthoritiesOcrPort = {
 };
 export type AuthoritiesDraftInspection = {
   sourceIssues: Record<string, AuthoritiesSourceIssue>;
-  outputFreshness: "unbuilt" | "current" | "stale";
 };
 export type AuthoritiesCreate = {
   source: { kind: "manual" } | { kind: "document"; document: Document } |
