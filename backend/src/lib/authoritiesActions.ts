@@ -199,6 +199,8 @@ const textAuthority = (citation: string): AuthorityIdentity => ({
 });
 const parsedAuthority = (match: NativeCitationOccurrence, key: string): AuthorityIdentity => ({
   id: key, key, kind: parsedKind(match), citation: match.coreCitation.text,
+  ...(["database", "docket"].includes(match.format ?? "")
+    ? { citationFormat: match.format as "database" | "docket" } : {}),
   name: match.reasons.includes("same_text_style") ? match.shortForm?.trim() || null : null,
   displayName: null, excluded: false, evidenceIds: [], locators: [],
   sourceIdentity: null,

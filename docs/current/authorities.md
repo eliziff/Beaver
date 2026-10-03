@@ -96,6 +96,15 @@ boundary and invalidate geometry that no longer describes the same bytes.
 Scanned engine groups without a durable lookup key remain visible under
 document-local review IDs. These IDs do not assert an authority identity or
 merge separate groups; references follow the engine's resolved groups.
+Supra association uses the indicated note, numbering sequence and written short
+name independently of source URLs. A missing URL does not prevent a detected
+authority from supplying an antecedent. The reference's review span retains the
+short name before the marker, with its pinpoint highlighted separately.
+
+Sources identifies database-only case citations and unreported date/file/court
+forms and asks for the decision PDF beside the affected row when a PDF is
+required. A resolved public copy or attached PDF satisfies that handoff; a WL
+or QL form does not prevent ordinary identity or reference association.
 Installed citation indexes supply alias evidence to the same resolver; the
 shared engine checks reciprocal agreement and contradictory identities before
 grouping sources.

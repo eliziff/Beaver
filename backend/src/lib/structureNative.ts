@@ -33,6 +33,7 @@ export type NativeOutlineEntry = { kind: "heading" | "section"; level: number; t
 export type NativeCitationOccurrence = NativeCitationTextSpan & {
   styledCitation: NativeCitationTextSpan;
   coreCitation: NativeCitationTextSpan;
+  format?: import("legal-citations").Citation["format"];
   pinpoints: Array<NativeCitationTextSpan & {
     kind: import("legal-citations").PinpointKind;
     first?: string; last?: string;
