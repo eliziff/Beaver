@@ -47,9 +47,8 @@ def find(needle: str, container=None, regex=False) -> list[Paragraph]:
     return [Paragraph(p, parent) for p in root.iter(qn('w:p')) if match(accepted_text(p))]
 
 
-def isolate(paragraph: Paragraph, needle: str, occurrence: int = 0) -> list[Run]:
-    """Split runs so that exactly `needle` (the n-th occurrence) is covered by whole runs; returns them.
-    Searches the accepted view: runs in insertions and hyperlinks count, deleted runs do not."""
+def _text_match(paragraph: Paragraph, needle: str, occurrence: int):
+    """Find a literal occurrence in the same accepted run text used by isolate and replace_text."""
     runs = [r for r in paragraph._p.xpath('.//w:r[not(ancestor::w:del or ancestor::w:moveFrom)]')
             if r.xpath('ancestor::w:p[1]')[0] is paragraph._p and (r.xpath('./w:t|./w:tab|./w:br') or not r.xpath('./*[not(self::w:rPr)]'))]
     full, spans = '', []
@@ -59,6 +58,39 @@ def isolate(paragraph: Paragraph, needle: str, occurrence: int = 0) -> list[Run]
     starts = [m.start() for m in re.finditer(re.escape(needle), full)]
     if len(starts) <= occurrence: raise ValueError('Text not found in paragraph: %r' % needle[:80])
     start, end = starts[occurrence], starts[occurrence] + len(needle)
+    return spans, start, end
+
+
+def isolate(paragraph: Paragraph, needle: str, occurrence: int = 0) -> list[Run]:
+    """Split runs so that exactly `needle` (the n-th occurrence) is covered by whole runs; returns them.
+    Searches the accepted view: runs in insertions and hyperlinks count, deleted runs do not."""
+    spans, start, end = _text_match(paragraph, needle, occurrence)
+
+    def text_runs(r):
+        """Keep non-text children intact while making text safe to split or replace."""
+        textual = {qn('w:' + name) for name in ('t', 'tab', 'br', 'cr', 'noBreakHyphen', 'ptab')}
+        children = [c for c in r if c.tag != qn('w:rPr')]
+        if all(c.tag in textual for c in children): return [r]
+        groups = []
+        for child in children:
+            is_text = child.tag in textual
+            if not groups or groups[-1][0] != is_text: groups.append((is_text, []))
+            groups[-1][1].append(child)
+        shell = copy.deepcopy(r)
+        for child in list(shell):
+            if child.tag != qn('w:rPr'): shell.remove(child)
+        shell.tail = None
+        tail, r.tail = r.tail, None
+        for child in children: r.remove(child)
+        out, previous = [], r
+        for index, (is_text, content) in enumerate(groups):
+            piece = r if index == 0 else copy.deepcopy(shell)
+            if index: previous.addnext(piece)
+            for child in content: piece.append(child)
+            if is_text: out.append(piece)
+            previous = piece
+        previous.tail = tail
+        return out
 
     def split(r, at):
         """Split run r at offset `at` inside it; returns the right half."""
@@ -69,10 +101,33 @@ def isolate(paragraph: Paragraph, needle: str, occurrence: int = 0) -> list[Run]
     out = []
     for s, e, r in spans:
         if e <= start or s >= end: continue
-        if s < start: r = split(r, start - s); s = start
-        if e > end: split(r, end - s)
-        out.append(Run(r, paragraph))
+        position = s
+        for piece in text_runs(r):
+            s, e = position, position + len(Run(piece, paragraph).text)
+            position = e
+            if e <= start or s >= end: continue
+            if s < start: piece = split(piece, start - s); s = start
+            if e > end: split(piece, end - s)
+            out.append(Run(piece, paragraph))
     return out
+
+
+
+def _replace_text_node(spans, start, end, new):
+    """Keep run grouping when a replacement fits an existing text node."""
+    if any(c in new for c in '\t\r\n'): return False
+    for s, e, run in spans:
+        if not s <= start < end <= e: continue
+        offset = s
+        for child in run.xpath('w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:tab'):
+            value = str(child)
+            stop = offset + len(value)
+            if child.tag == qn('w:t') and offset <= start and end <= stop:
+                child.text = value[:start - offset] + new + value[end - offset:]
+                if child.text and child.text != child.text.strip(): child.set(qn('xml:space'), 'preserve')
+                return True
+            offset = stop
+    return False
 
 
 def replace_text(paragraph: Paragraph, old: str, new: str, count: int = 0) -> int:
@@ -80,12 +135,15 @@ def replace_text(paragraph: Paragraph, old: str, new: str, count: int = 0) -> in
     Raises when old is absent: a replacement that changes nothing is a wrong paragraph or wrong text."""
     done = 0
     while not count or done < count:
-        try: runs = isolate(paragraph, old, done * new.count(old))
+        occurrence = done * new.count(old)
+        try: spans, start, end = _text_match(paragraph, old, occurrence)
         except ValueError:
             if done: break
             raise
-        runs[0].text = new
-        for r in runs[1:]: r._r.getparent().remove(r._r)
+        if not _replace_text_node(spans, start, end, new):
+            runs = isolate(paragraph, old, occurrence)
+            runs[0].text = new
+            for r in runs[1:]: r._r.getparent().remove(r._r)
         done += 1
     return done
 

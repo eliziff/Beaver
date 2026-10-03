@@ -3,10 +3,11 @@
  *
  * `applyTrackedEdits` rewrites a .docx so that the requested substitutions
  * appear as `<w:ins>` / `<w:del>` tracked changes rather than direct text
- * replacements. `resolveTrackedChange` accepts or rejects one change by
+ * replacements by default. Trusted Auto callers use the same plan to update
+ * text children in their original runs directly. `resolveTrackedChange` accepts or rejects one change by
  * its `w:id`, producing a new .docx with only that change collapsed.
  *
- * Only text inside `<w:p><w:r><w:t>` is considered. Headers, footers,
+ * Paragraph run text, including hyperlink text, is considered. Headers, footers,
  * comments, footnotes are left alone. Pre-existing tracked changes in the
  * paragraph are presented to the matcher in *accepted view*: w:ins runs are
  * treated as normal text, w:del wrappers are invisible. When a new edit's
@@ -60,6 +61,7 @@ export interface ApplyTrackedEditsResult {
     bytes: Buffer;
     changes: AppliedChange[];
     errors: EditError[];
+    emissionMode: EditMode;
 }
 
 export const revisionAttrs = (id: string, author: string, date: string) => ({
@@ -184,11 +186,11 @@ export function clusterTextChanges(parts: Iterable<diff.Diff>, coordinate: "old"
  * insertion) plus the text inserted at its start; the semantic cleanup keeps
  * word-shaped changes whole rather than character confetti.
  */
-function minimalTextEdit(find: string, replace: string): {
+function minimalTextEdit(find: string, replace: string, preserveAnchors = false): {
     clusters: { offset: number; deleted: string; inserted: string }[];
     diff: EditDiffSegment[];
 } {
-    const parts = diff(find, replace, undefined, true);
+    const parts = diff(find, replace, undefined, !preserveAnchors);
     return {
         clusters: clusterTextChanges(parts, "old"),
         diff: parts.map(([op, text]) => ({ text,
@@ -225,60 +227,93 @@ function rewrittenRuns(flat: DocxParagraphIndex, plan: readonly Pick<PlannedChan
 function rewritesRevision(flat: DocxParagraphIndex, plan: readonly Pick<PlannedChange, "deleteStart" | "deleteEnd">[]) {
     if (flat.acceptedText.length === 0) return false;
     const { first, last } = rewrittenRuns(flat, plan);
-    return flat.children.slice(flat.editRuns[first].childIndex, flat.editRuns[last].childIndex + 1)
-        .some((child) => /^w:(?:ins|del|moveFrom|moveTo)$/u.test(elName(child) ?? ""));
+    const pending = flat.children.slice(flat.editRuns[first].childIndex, flat.editRuns[last].childIndex + 1);
+    while (pending.length) {
+        const child = pending.pop()!;
+        if (/^w:(?:ins|del|moveFrom|moveTo)$/u.test(elName(child) ?? "")) return true;
+        pending.push(...elChildren(child));
+    }
+    return false;
 }
 
 /** Rewrite only the runs touched by sorted, non-overlapping changes. */
 function planParagraphRevision(flat: DocxParagraphIndex, plan: PlannedChange[],
-    now: string, author: string): XNode[] {
+    now: string, author: string, mode: EditMode): XNode[] {
     if (plan.length === 0 || flat.acceptedText.length === 0) return flat.children;
-    const { runAt, first: firstRunIdx, last: lastRunIdx } = rewrittenRuns(flat, plan);
-    const firstRun = flat.editRuns[firstRunIdx];
-    const lastRun = flat.editRuns[lastRunIdx];
-    const newRunGroup: XNode[] = [];
-    const revisions: DocxRevisionPlan[] = [];
-    const emitText = (start: number, end: number, deletionId?: string) => {
-        if (start >= end) return;
-        const output = deletionId === undefined ? newRunGroup : [];
-        for (let index = spanAt(flat.editRuns, start); index <= lastRunIdx; index++) {
-            const run = flat.editRuns[index];
-            if (run.start >= end) break;
-            for (let n = spanAt(run.textNodes, start); n < run.textNodes.length; n++) {
-                const node = run.textNodes[n];
-                if (node.start >= end) break;
-                const a = Math.max(start, node.start);
-                const b = Math.min(end, node.end);
-                if (a < b) output.push(buildRun(run.rPr, flat.acceptedText.slice(a, b),
-                    deletionId === undefined ? "w:t" : "w:delText"));
+    const { runAt } = rewrittenRuns(flat, plan);
+    const replacements = new Map<XNode, XNode[]>();
+    for (let index = 0; index < flat.editRuns.length; index++) {
+        const run = flat.editRuns[index];
+        const changes = plan.filter((change) =>
+            change.deleteStart < run.end && change.deleteEnd > run.start ||
+            change.insertedText && runAt(change.deleteStart) === index);
+        if (!changes.length) continue;
+        const source = run.node;
+        const output: XNode[] = [];
+        const directChildren: XNode[] = [];
+        const textRun = (value: string, deleted = false) => ({
+            ...source, ...buildRun(run.rPr, value, deleted ? "w:delText" : "w:t"),
+        });
+        const insertionNode = (change: PlannedChange) => spanAt(run.textNodes,
+            Math.min(change.deleteStart, run.end - 1));
+        let textIndex = 0;
+        for (const child of elChildren(source)) {
+            if (elName(child) === "w:rPr") {
+                if (mode === "auto") directChildren.push(child);
+                continue;
+            }
+            if (elName(child) !== "w:t") {
+                if (mode === "auto") directChildren.push(child);
+                else output.push({ ...source, "w:r": [...(run.rPr ? [cloneNode(run.rPr)] : []), child] });
+                continue;
+            }
+            const nodeIndex = textIndex++;
+            const node = run.textNodes[nodeIndex];
+            let cursor = node.start;
+            let directText = "";
+            const unchanged = (start: number, end: number) => {
+                if (start >= end) return;
+                const value = flat.acceptedText.slice(start, end);
+                if (mode === "auto") directText += value;
+                else output.push(textRun(value));
+            };
+            for (const change of changes) {
+                const start = Math.max(node.start, change.deleteStart);
+                const end = Math.min(node.end, change.deleteEnd);
+                const insert = change.insertedText && runAt(change.deleteStart) === index &&
+                    insertionNode(change) === nodeIndex;
+                if (end <= start && !insert) continue;
+                unchanged(cursor, start);
+                if (insert) {
+                    if (mode === "auto") directText += change.insertedText;
+                    else output.push(makeEl("w:ins", [textRun(change.insertedText)],
+                        revisionAttrs(change.insWId!, author, now)));
+                }
+                if (mode === "manual" && start < end) output.push(makeEl("w:del", [textRun(flat.acceptedText.slice(start, end), true)],
+                    revisionAttrs(change.delWId!, author, now)));
+                cursor = Math.max(cursor, start, end);
+            }
+            unchanged(cursor, node.end);
+            if (mode === "auto") {
+                if (directText === flat.acceptedText.slice(node.start, node.end)) directChildren.push(child);
+                else {
+                    // Keep the original run and its non-text children together.
+                    // The shared run builder retains the existing line-break semantics.
+                    const textNodes = directText ? elChildren(buildRun(null, directText, "w:t"))
+                        : [makeEl("w:t", [makeText("")])];
+                    directChildren.push(...textNodes.map((node) => elName(node) === "w:t"
+                        ? { ...child, "w:t": elChildren(node),
+                            [ATTR_KEY]: { ...elAttrs(child), "@_xml:space": "preserve" } }
+                        : node));
+                }
             }
         }
-        if (deletionId !== undefined) revisions.push({ start: newRunGroup.length,
-            end: newRunGroup.length, replacement: [],
-            deletion: { nodes: output, attributes: revisionAttrs(deletionId, author, now) } });
-    };
-
-    let cursor = firstRun.start;
-    for (const change of plan) {
-        emitText(cursor, change.deleteStart);
-        if (change.insertedText) {
-            const position = change.deleteStart === lastRun.end
-                ? change.deleteStart - 1 : change.deleteStart;
-            revisions.push({ start: newRunGroup.length, end: newRunGroup.length,
-                replacement: [buildRun(flat.editRuns[runAt(position)].rPr, change.insertedText, "w:t")],
-                insertion: revisionAttrs(change.insWId!, author, now) });
-        }
-        if (change.deleteEnd > change.deleteStart)
-            emitText(change.deleteStart, change.deleteEnd, change.delWId!);
-        cursor = change.deleteEnd;
+        replacements.set(source, mode === "auto" ? [{ ...source, "w:r": directChildren }] : output);
     }
-    emitText(cursor, lastRun.end);
-
-    const dropped = new Set(flat.editRuns.slice(firstRunIdx, lastRunIdx + 1)
-        .map((run) => run.childIndex));
-    const revised = emitDocxRevisionPlan(newRunGroup, revisions);
-    return flat.children.flatMap((child, index) =>
-        index === firstRun.childIndex ? revised : dropped.has(index) ? [] : [child]);
+    const rewrite = (children: XNode[]): XNode[] => children.flatMap((child) =>
+        replacements.get(child) ?? (elName(child) === "w:hyperlink"
+            ? [{ ...child, "w:hyperlink": rewrite(elChildren(child)) }] : [child]));
+    return rewrite(flat.children);
 }
 
 function touchesContentControl(flat: DocxParagraphIndex, start: number, end: number): boolean {
@@ -406,8 +441,9 @@ export async function extractTrackedChangeIds(bytes: Buffer):
 }
 
 export async function applyTrackedEdits(bytes: Buffer, edits: EditInput[],
-    opts?: { author?: string }): Promise<ApplyTrackedEditsResult> {
+    opts?: { author?: string; mode?: EditMode }): Promise<ApplyTrackedEditsResult> {
     const author = opts?.author ?? "Beaver";
+    const emissionMode = opts?.mode ?? "manual";
     const now = new Date().toISOString();
 
     const session = await openDocxSession(bytes);
@@ -526,7 +562,12 @@ export async function applyTrackedEdits(bytes: Buffer, edits: EditInput[],
             continue;
         }
 
-        const minimal = minimalTextEdit(find, replace);
+        // Equal text anchors on either side of an XML boundary keep replacements
+        // in their original style/bookmark/note region. Semantic cleanup may
+        // otherwise absorb those anchors into one paragraph-wide replacement.
+        const crossesTextBoundary = paragraph.editRuns.some((run) =>
+            run.textNodes.some((node) => node.start > findStart && node.start < findEnd));
+        const minimal = minimalTextEdit(find, replace, crossesTextBoundary);
         const clusters = minimal.clusters;
         if (!diffByEdit.has(editIdx)) diffByEdit.set(editIdx, minimal.diff);
         if (clusters.length === 0) {
@@ -552,9 +593,9 @@ export async function applyTrackedEdits(bytes: Buffer, edits: EditInput[],
         const revision = revisionIdsByEdit.get(editIdx) ?? {
             changeId: `mike-${editIdx}-${Date.now()}`,
         };
-        if (clusters.some((cluster) => cluster.deleted) && !revision.delWId)
+        if (emissionMode === "manual" && clusters.some((cluster) => cluster.deleted) && !revision.delWId)
             revision.delWId = String(nextWId++);
-        if (clusters.some((cluster) => cluster.inserted) && !revision.insWId)
+        if (emissionMode === "manual" && clusters.some((cluster) => cluster.inserted) && !revision.insWId)
             revision.insWId = String(nextWId++);
         revisionIdsByEdit.set(editIdx, revision);
 
@@ -607,11 +648,11 @@ export async function applyTrackedEdits(bytes: Buffer, edits: EditInput[],
 
     for (const [paraIdx, plan] of plansPerParagraph) {
         const paragraph = paragraphs[paraIdx];
-        setChildren(paragraph.node, planParagraphRevision(paragraph, plan, now, author));
+        setChildren(paragraph.node, planParagraphRevision(paragraph, plan, now, author, emissionMode));
     }
 
     session.writeDocument(tree);
-    return { bytes: await session.save(), errors,
+    return { bytes: await session.save(), errors, emissionMode,
         changes: [...appliedChangesByEdit.values()] };
 }
 
@@ -678,7 +719,7 @@ export async function insertTrackedBlocks(bytes: Buffer,
     });
     body.splice(insertionIndex, 0, ...paragraphs);
     session.writeDocument(tree);
-    return { bytes: await session.save(), changes, errors: [] };
+    return { bytes: await session.save(), changes, errors: [], emissionMode: "manual" };
 }
 
 /** Transform matching w:ins/w:del wrappers in place, in every story tree. */

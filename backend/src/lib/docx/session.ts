@@ -26,6 +26,7 @@ const REWRITE_ATOMIC = /^w:(?:footnoteReference|endnoteReference|commentReferenc
 const OBJECT_ELEMENT = /^w:(?:footnoteReference|endnoteReference|drawing|object|pict|fldChar|fldSimple)$/u;
 
 interface DocxEditRun {
+  node: XNode;
   childIndex: number;
   start: number;
   end: number;
@@ -196,7 +197,7 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
       if (state.compare && !state.del) compareText += run.rendered;
       if (!state.del) visibleText += run.visible;
       if (state.edit && !state.del) {
-        editRuns.push({ childIndex: topChildIndex, start: runStart, end: acceptedText.length,
+        editRuns.push({ node: current, childIndex: topChildIndex, start: runStart, end: acceptedText.length,
           rPr: run.rPr, protectedByContentControl: state.protected, textNodes });
       }
       events.push({ kind: "run", run: { text: run.text, ins: state.ins, del: state.del,
@@ -229,9 +230,9 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
     }
 
     let next = state;
-    if (name === "w:hyperlink" || name === "w:smartTag" || name === "w:customXml") {
+    if (name === "w:smartTag" || name === "w:customXml") {
       next = { ...state, edit: false };
-    } else if (name !== "w:sdtContent") {
+    } else if (name !== "w:sdtContent" && name !== "w:hyperlink") {
       next = { ...state, edit: false, compare: false };
     }
     for (const child of elChildren(current)) {

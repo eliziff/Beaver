@@ -463,14 +463,20 @@ async function saveDocxEdits(params: {
   turnEditState?: AssistantEditTurnState;
   turnId?: string;
   editMode: EditMode;
+  emissionMode?: EditMode;
 }) {
+  if (params.emissionMode === "auto" && params.editMode !== "auto") {
+    throw new Error("Direct Word edits cannot be published while Review mode is active");
+  }
   const stale = fail("The active document version changed.");
   const sourceVersionId = params.source.version.id;
   const workingRevision = params.source.version.working_revision;
   const existing = params.turnEditState?.get(params.documentId);
   if (existing && (existing.versionId !== sourceVersionId ||
       existing.workingRevision !== workingRevision)) return stale;
-  const finalized = params.edits.length
+  const finalized = params.emissionMode === "auto"
+    ? { bytes: params.bytes, status: "accepted" as const }
+    : params.edits.length
     ? await finalizeTrackedEdits(
         params.bytes,
         params.edits.flatMap((edit) =>
@@ -949,9 +955,9 @@ async function runCodingShapeCall(
     if (file.fileType.toLowerCase() !== "docx") {
       return fail("Edit only supports .docx files.");
     }
-    const save = (bytes: Buffer, edits: AssistantEdit[]) => saveDocxEdits({
+    const save = (bytes: Buffer, edits: AssistantEdit[], emissionMode: EditMode) => saveDocxEdits({
       documents, scope, documentId: meta.id, source: file, bytes, edits,
-      turnEditState, turnId, editMode });
+      turnEditState, turnId, editMode, emissionMode });
     if (args.replace_all === true) {
       const applied = await applyTextOpsToDocx(file.bytes, [{
         op: "replace_text",
@@ -959,16 +965,18 @@ async function runCodingShapeCall(
         replace: newString,
         match_case: true,
         scope: { kind: "whole_document" },
-      }], editAuthor);
+      }], editAuthor, editMode);
       if (!applied.replacementCount) return result(noChanges(meta.id, file));
-      return save(applied.bytes, applied.edits);
+      if (!applied.edits.length) return result({ ok: false, error: "No revision was saved",
+        ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}) });
+      return save(applied.bytes, applied.edits, applied.emissionMode);
     }
     const applied = await applyTrackedEdits(file.bytes, [{
       find: oldString,
       replace: newString,
       context_before: "",
       context_after: "",
-    }], { author: editAuthor });
+    }], { author: editAuthor, mode: editMode });
     if (!applied.changes.length) {
       const sourceText = await extractDocxBodyText(file.bytes);
       const spans: string[] = [];
@@ -983,7 +991,7 @@ async function runCodingShapeCall(
           oldString.replace(/^["'“‘]+|["'”’]+$/gu, ""), spans),
       });
     }
-    return save(applied.bytes, assistantEdits(applied.changes));
+    return save(applied.bytes, assistantEdits(applied.changes), applied.emissionMode);
   }
 
   const pattern = trimmed(args.pattern);
@@ -1457,12 +1465,13 @@ async function runAdvancedDocxEdit(params: {
               notes: [] as string[],
             }],
             replacementCount: inserted.changes.length,
+            emissionMode: inserted.emissionMode,
             editErrors: inserted.errors.map(
               ({ index, reason }) => `change ${index + 1}: ${reason}`,
             ),
           }),
         )
-      : await applyTextOpsToDocx(file.bytes, resolvedRequests, params.editAuthor);
+      : await applyTextOpsToDocx(file.bytes, resolvedRequests, params.editAuthor, params.editMode);
     if (!applied.replacementCount || !applied.edits.length) {
       return result({
         ...(!applied.replacementCount ? noChanges(params.documentId, file) : {
@@ -1481,6 +1490,7 @@ async function runAdvancedDocxEdit(params: {
       source: file,
       bytes: applied.bytes,
       edits: applied.edits,
+      emissionMode: applied.emissionMode,
       turnEditState: params.turnEditState,
       turnId: params.turnId,
       editMode: params.editMode,
