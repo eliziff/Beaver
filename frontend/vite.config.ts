@@ -133,13 +133,13 @@ export default defineConfig(({ mode }) => {
             },
         },
         resolve: {
-            alias: {
-                "mike/shared": fileURLToPath(new URL("../shared", import.meta.url)),
-                "@": fileURLToPath(new URL("./src", import.meta.url)),
-                "docx-preview": fileURLToPath(
-                    new URL("./vendor/docx-preview/index.ts", import.meta.url),
-                ),
-            },
+            alias: [
+                { find: /^(?:mike\/|.*\/)shared\/runtime\/(.*)\.mjs$/,
+                    replacement: fileURLToPath(new URL("../shared/contracts/$1.mts", import.meta.url)) },
+                { find: "mike/shared", replacement: fileURLToPath(new URL("../shared", import.meta.url)) },
+                { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
+                { find: "docx-preview", replacement: fileURLToPath(new URL("./vendor/docx-preview/index.ts", import.meta.url)) },
+            ],
         },
         server: {
             fs: { allow: [searchForWorkspaceRoot(process.cwd()),

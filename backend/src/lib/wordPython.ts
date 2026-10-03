@@ -109,14 +109,13 @@ function reply(stdout: string): Report {
   return report;
 }
 
-// A LibreOffice profile serves one process at a time; a container gets a fresh one in its /tmp.
+// Keep local Office work serial; its profile is disposable with the request sandbox.
 let officeQueue: Promise<unknown> = Promise.resolve();
-const officeProfile = path.join(os.tmpdir(), `beaver-word-python-office-${process.pid}`);
 
 /** LibreOffice headless must open and lay out the candidate; the page count is its witness. */
 function render(dir: string, file: string, signal: AbortSignal): Promise<number> {
   const convert = async () => {
-    const profile = image() ? "file:///tmp/office" : pathToFileURL(officeProfile).href;
+    const profile = image() ? "file:///tmp/office" : pathToFileURL(path.join(dir, "office-profile")).href;
     await mkdir(path.join(dir, "pdf"));
     await run({ command: "soffice", dir, timeoutMs: 90_000, args: [`-env:UserInstallation=${profile}`, "--headless",
       "--norestore", "--nolockcheck", "--nodefault", "--convert-to", "pdf", "--outdir", "pdf", file] }, signal);

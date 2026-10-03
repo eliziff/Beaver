@@ -6,6 +6,8 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./.tmp/frontend.tsbuildinfo",
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
@@ -14,6 +16,7 @@
     "jsx": "react-jsx",
     "types": ["node", "react", "react-dom"],
     "paths": {
+      "mike/shared/runtime/*.mjs": ["../shared/contracts/*.mts"],
       "mike/shared/*": ["../shared/*"],
       "@/*": ["./src/*"],
       "docx-preview": ["./vendor/docx-preview/index.ts"],

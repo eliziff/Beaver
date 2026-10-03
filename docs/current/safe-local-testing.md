@@ -52,6 +52,26 @@ isolated runs, set `PORT`, `MIKE_LAUNCHER_STATE_DIR`, `OPEN_LEGAL_DATA_HOME` and
 Before every test or commit, run `git status --short` and stop if an environment
 file, credential, downloaded corpus, cache, or generated artifact is staged.
 
+## Keep test inputs out of scratch
+
+`.tmp/`, `tmp/` and OS temp folders contain disposable output, not corpora or
+independent gold. Store redistributable fixtures with the owning tests and
+local/private inputs in ignored `benchmarks/local-data/<suite>/` or the existing
+private benchmark directories. Keep provenance, hashes and reproduction steps
+beside the harness without committing confidential content. Authorities stress
+fixtures now live in `benchmarks/local-data/authorities-stress/`.
+
+Clean up temporary stores, profiles and processes in `finally`, including failed
+runs. Browser helpers retain one latest report/screenshots directory under `.tmp`
+instead of creating a new OS temp output directory each run. Durable findings
+belong in documentation; irreplaceable baseline receipts belong with the corpus.
+Do not create extra Cargo targets, dependency trees or worktrees for routine
+tests. If isolation requires one, remove it before completing the task.
+
+Legacy `.tmp` contents have not all been classified. Do not delete that whole
+directory until valuable inputs have been identified and moved; never clear
+primary incremental Cargo caches merely to make routine agent outputs fit.
+
 ## Start with deterministic flows
 
 Test account creation, projects, uploads, folders, downloads, and deletion

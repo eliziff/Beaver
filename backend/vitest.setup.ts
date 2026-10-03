@@ -26,8 +26,10 @@ process.env.BEAVER_TEST_RUN_ID ??= `vitest-${randomUUID()}`;
 beforeEach(() => { process.env.BEAVER_TEST_SCENARIO = expect.getState().currentTestName?.slice(0, 300); });
 afterAll(async () => {
     // Module isolation does not close the process-wide SQLite worker.
-    await (await vi.importActual<typeof import("./src/lib/relationalDatabase")>(
-        "./src/lib/relationalDatabase")).closeRelationalDatabase();
+    if ("__beaverLocalDatabase" in globalThis) {
+        await (await vi.importActual<typeof import("./src/lib/relationalDatabase")>(
+            "./src/lib/relationalDatabase")).closeRelationalDatabase();
+    }
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();

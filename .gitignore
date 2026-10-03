@@ -52,6 +52,7 @@ backend/experiments/**/receipts/
 # privileged or otherwise non-redistributable material.  Keep the harness in
 # git, but never commit the private corpus.
 benchmarks/docx_corpus/private_sources/
+/benchmarks/local-data/
 benchmarks/docx_corpus/private_results/
 benchmarks/docx_corpus/private_manifest.json
 benchmarks/docx_corpus/private_manifest.jsonl

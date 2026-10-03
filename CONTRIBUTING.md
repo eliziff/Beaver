@@ -38,9 +38,29 @@ boundary once the candidate is ready. Preserve exact corpus/release gates for
 native semantic changes.
 
 Install the root dependencies as well as the affected surface dependencies.
-Shared contracts and PDF helpers compile with `npm run build:shared`; build,
-test and dev commands run that incremental compilation first. Run it once before
-direct Vitest or packaging commands.
+Frontend development, builds and Vitest read shared TypeScript directly; they
+need no shared build. Backend production/dev commands compile shared runtime
+with `npm run build:shared`. Focused backend tests read the source directly too.
+Run the shared build before packaging or direct compiled-runtime commands.
+
+Use `npm run check --prefix frontend` for an incremental type check. For a narrow
+production bundle, `npm run build:app --prefix frontend` or `npm run
+build:standalone --prefix frontend` builds only that surface into its latest
+`frontend/.tmp/` output, leaving the running application's `dist/` alone.
+`npm run build --prefix frontend` still checks and builds all production surfaces.
+
+For a Rust edit, check/test the owning crate first, not the addon or workspace:
+
+```sh
+cargo check --offline --manifest-path legal-structure/Cargo.toml -p legal-structure
+cargo test --offline --manifest-path legal-structure/Cargo.toml -p legal-structure --lib <test-name>
+```
+
+When the Node integration itself needs rebuilding, use its existing `iterate`
+profile and ordinary target directory. Point `LEGAL_STRUCTURE_NATIVE` at
+`native/legal-structure-node/target/iterate/<platform-library>` for the focused
+backend test. Keep release optimization and independent corpus gates for the
+candidate, rather than each edit. Do not copy a target into a task scratchpad.
 
 Source measurements include `.mts` shared contracts; historical counts taken before
 that extension was included are not directly comparable.
@@ -79,7 +99,7 @@ tasks, layout shifts, blank or flickering frames). It screenshots and judges eac
 1440×900 and 1280×720, reads each PDF back and renders its key pages, and opens each .docx
 in invisible Word without updating its fields. Two cases need a fixture that is never
 committed (a public journal article and the HAR of its lookups, in
-`.tmp/authorities-stress-fixtures/long-article/`) and are skipped without it. Results go
+`benchmarks/local-data/authorities-stress/long-article/`) and are skipped without it. Results go
 to `.tmp/authorities-stress/`; `--only=`, `--skip-build`, `--html=`, `--no-word` and
 `--keep-outputs` narrow a run or keep what it built.
 
