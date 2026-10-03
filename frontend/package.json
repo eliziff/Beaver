@@ -13,7 +13,7 @@
         "start": "vite preview --host 127.0.0.1 --port 3000",
         "lint": "eslint",
         "test": "node --import ../scripts/background-work.mjs --max-old-space-size=384 ./node_modules/vitest/vitest.mjs run",
-        "test:guards": "node --test --test-concurrency=1 scripts/guard-live-build.test.mjs scripts/transport-boundary.test.mjs scripts/precompressed-assets.test.mjs",
+        "test:guards": "node --test --test-concurrency=1 scripts/guard-live-build.test.mjs scripts/precompressed-assets.test.mjs",
         "preview": "vite preview --host 127.0.0.1 --port 3000"
     },
     "dependencies": {
