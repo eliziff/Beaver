@@ -4,6 +4,21 @@ type State = AuthoritiesProduct['state'];
 const overlap = (a: { start: number; end: number }, b: { start: number; end: number }) =>
   Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
 
+/** Whether a draft already holds an edit, so one made again after a reload is not made twice.
+ * Adding, removing and restoring show in the draft; every other edit sets a value, and setting it
+ * again changes nothing. An edit to a citation no longer there is held too. */
+export function holds(product: AuthoritiesProduct, action: AuthoritiesAction) {
+  const { occurrences, dismissedOccurrences = {}, units } = product.state;
+  if (action.type === 'restore-occurrence') return !dismissedOccurrences[action.occurrenceId];
+  if (action.type === 'add-occurrence') {
+    const text = units.find(({ id }) => id === action.unitId)?.text ?? '';
+    const start = action.start + (/^\s*/u.exec(text.slice(action.start, action.end))?.[0].length ?? 0);
+    const end = action.end - (/\s*$/u.exec(text.slice(start, action.end))?.[0].length ?? 0);
+    return Object.values(occurrences).some(item => item.unitId === action.unitId && item.start === start && item.end === end);
+  }
+  return 'occurrenceId' in action && !occurrences[action.occurrenceId];
+}
+
 /** An edit as the reviewer asked for it, shown while the save that makes it durable runs: the
  * citation's new range, removal or authority, an output choice, or a statute's excerpt or whole. The saved draft then replaces
  * this view with what the parser makes of the text, its pinpoint included. Other actions have no
