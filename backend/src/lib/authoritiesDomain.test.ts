@@ -5,6 +5,7 @@ vi.mock("./structureNative", () => ({
 }));
 
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
+import { STATUTE_EXCERPT_PAGES, statuteExcerpt } from "mike/shared/authorities-sources.mjs";
 import {
   AuthoritiesDomainError,
   type AuthoritiesDraft,
@@ -113,6 +114,34 @@ describe("authorities draft domain", () => {
       sources: [{ language: "bilingual", bindingRole: "authority:act:bilingual" }] });
     expect(Object.keys(draft.bindings)).toEqual(["authority:act:bilingual"]);
     expect(validateAuthoritiesDraft(draft)).toEqual([]);
+  });
+
+  it("keeps each statute's excerpt or whole, defaulting by the length recorded with its PDF", () => {
+    let draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }),
+      { type: "add-authority", authority: { ...authority("act"), kind: "legislation" } });
+    draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: authority("case") });
+    const attach = (pageCount: number) => draft = reduceAuthoritiesDraft(draft, { type: "attach-source",
+      authorityId: "act", bindingRole: "authority:act:en", binding: { kind: "local-file", handleId: "act",
+        lastSeen: { name: "act.pdf", size: 10, modified: 1, sha256: "a".repeat(64) } },
+      filename: "act.pdf", sourceSha256: "a".repeat(64), sourceUrl: null, language: "en", pageCount });
+    expect(statuteExcerpt(draft.authorities.act)).toBe(false);
+    attach(STATUTE_EXCERPT_PAGES + 1);
+    expect(draft.authorities.act.source).toMatchObject({ sources: [{ pageCount: STATUTE_EXCERPT_PAGES + 1 }] });
+    expect(statuteExcerpt(draft.authorities.act)).toBe(true);
+    attach(STATUTE_EXCERPT_PAGES);
+    expect(statuteExcerpt(draft.authorities.act)).toBe(false);
+    // A PDF attached before lengths were recorded is unknown until it is read.
+    expect(statuteExcerpt(draft.authorities.act, [undefined])).toBeUndefined();
+    expect(statuteExcerpt(draft.authorities.act, [12, 45])).toBe(true);
+    draft = reduceAuthoritiesDraft(draft, { type: "set-authority-excerpt", authorityId: "act", excerpt: true });
+    expect(statuteExcerpt(draft.authorities.act)).toBe(true);
+    expect(decodeAuthoritiesDraft(structuredClone(draft))?.authorities.act.excerpt).toBe(true);
+    draft = reduceAuthoritiesDraft(draft, { type: "set-authority-excerpt", authorityId: "act", excerpt: false });
+    expect(statuteExcerpt(draft.authorities.act, [800])).toBe(false);
+    expect(() => reduceAuthoritiesDraft(draft, { type: "set-authority-excerpt", authorityId: "case", excerpt: true }))
+      .toThrow(AuthoritiesDomainError);
+    expect(decodeAuthoritiesDraft({ ...structuredClone(draft), authorities: { ...draft.authorities,
+      act: { ...draft.authorities.act, excerpt: "yes" } } })).toBeNull();
   });
 
   it("carries highlight exclusions across a document refresh", () => {

@@ -47,6 +47,7 @@ import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 import { AuthoritiesHighlights, PASSAGE_OPTIONS, passageOptions, useHighlightsAhead } from "./AuthoritiesHighlightEditor";
+import { useStatuteCopies } from "./statuteExcerpts";
 
 type WorkspaceTab = "automatic" | "manual" | "drafts";
 type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
@@ -409,7 +410,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (draftId && refreshToken?.id === draftId) void refreshDraftEffect(refreshToken.revision);
   }, [draftId, refreshToken]);
 
-  // The review shows unsaved edits; everything else reads the saved draft.
+  // The review and the authorities show unsaved edits; everything else reads the saved draft.
   const shown = preview ?? draft;
   const occurrences = useMemo(() => orderedOccurrences(shown), [shown]);
   const currentReview = review && draft && review.id === draft.id && review.key === reviewKey
@@ -420,8 +421,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const selected = occurrences.find(({ id }) => id === selectedId) ?? occurrences[0];
   useEffect(() => { if (!selected) onFocusChange?.(); }, [selected, onFocusChange]);
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
-  const authorities = useMemo(() => draft ? authorityPlan.map(({ id }) => draft.state.authorities[id]) : [],
-    [draft, authorityPlan]);
+  const authorities = useMemo(() => shown ? authorityPlan.map(({ id }) => shown.state.authorities[id]) : [],
+    [shown, authorityPlan]);
   const authorityTabs = new Map(authorityPlan.map(({ id, tab }) => [id, tab]));
   const missingPdfs = draft ? missingSources(draft, sourceIssues) : [];
   const importedRole = draft?.state.import.kind === "document"
@@ -978,6 +979,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // Each source's marks are prepared while Sources or Highlights is on screen, so Highlights opens
   // them at once; never during the review or a build, which would wait behind it.
   useHighlightsAhead(host, draft && (stage === "sources" || stage === "highlights") ? draft : undefined, ocr.tracked);
+  const statuteCopies = useStatuteCopies(host, draft, shown, ocr.tracked, stage === "sources" || stage === "highlights");
   const steps = STEPS.filter(({ value }) => value !== "citations" || draft?.state.import.kind !== "manual")
     .map(step => ({ ...step, disabled: busy || STEPS.findIndex(({ value }) => value === step.value) >
       STEPS.findIndex(({ value }) => value === reached) }));
@@ -1012,7 +1014,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       onOpenSource={host.readSource ? openFindingSource : undefined}
       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
       onDone={() => setFindingId("")} />;
-  const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues,
+  const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues, statuteCopies,
     onAction: act, onEditIdentity: setEditingAuthority,
     onRetrySource: retryPublisherSource,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),

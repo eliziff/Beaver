@@ -1338,7 +1338,7 @@ describe("Authorities workspace application", () => {
     expect(draft.authorities["canonical-key"].source).toEqual({
       kind: "attached", sources: [{ bindingRole: expect.any(String),
         filename: "Smith updated.pdf", sourceSha256: current.source_sha256,
-        sourceUrl: null, origin: "manual", language: "en" }],
+        sourceUrl: null, origin: "manual", language: "en", pageCount: 1 }],
     });
     const attached = draft.authorities["canonical-key"].source;
     if (attached.kind !== "attached") throw new Error("expected attached source");

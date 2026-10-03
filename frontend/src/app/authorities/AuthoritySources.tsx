@@ -15,6 +15,7 @@ import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
 import type { AuthoritiesSourceIssue } from "./host";
 import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
+import type { StatuteCopy } from "./statuteExcerpts";
 import canliiLogo from "./canlii.ico";
 
 const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
@@ -43,6 +44,8 @@ export type AuthorityPanelProps = {
   onRetrySource?: (id: string) => void;
   onEditIdentity: (authority: AuthorityIdentity) => void;
   onWatchFolder?: () => void; watchedFolder?: string;
+  /** Each statute's book copy, by authority: every statute row has its line. */
+  statuteCopies?: ReadonlyMap<string, StatuteCopy>;
 };
 type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
@@ -56,7 +59,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
-  ocr }: PanelProps) {
+  ocr, statuteCopies }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
   return <><section className="@container/sources mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
@@ -83,10 +86,13 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           onClick={onLibraryAdd}><FolderSearch /> {sourceLabel}</Button>}
       </div>}
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
+      {/* A list with statutes keeps room for their Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
-        className="grid grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300 @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_7rem_7.5rem] @min-[44rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_11rem_13.75rem]">
+        className={cn("grid grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300 @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_7rem_7.5rem]",
+          statuteCopies?.size ? "@min-[44rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_11rem_21.5rem]"
+            : "@min-[44rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_11rem_13.75rem]")}>
         {authorities.map((authority) => <AuthorityRow key={authority.id} authority={authority} busy={busy}
-          order={state.authorityOrder}
+          order={state.authorityOrder} copy={statuteCopies?.get(authority.id)}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
           citations={authorityCitationForms(authority, occurrences)}
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
@@ -110,8 +116,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 
 function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onRetry, onEditIdentity, order, ocr }: {
-  order: string[];
+  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy }: {
+  order: string[]; copy?: StatuteCopy;
   authority: AuthorityIdentity; tab?: string; citations: string[]; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
   editableIdentity: boolean; rebuildsFromText: boolean; removable: boolean; sourceLabel: string;
@@ -171,6 +177,10 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const save = (value: string) => { setEditing(false);
     if (value.trim() !== name) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: value.trim() || null }); };
+  // Excerpt or whole sits beside View where the row is wide, and starts the line under it where not.
+  const choice = (className: string) => copy?.choosable && <ExcerptChoice title={title} excerpt={copy.excerpt}
+    disabled={busy} className={className}
+    onChoose={(excerpt) => onAction({ type: "set-authority-excerpt", authorityId: authority.id, excerpt })} />;
   return <article role="listitem" data-authority-id={authority.id}
     className={cn("group/row col-span-full grid min-h-12 min-w-0 grid-cols-subgrid items-center gap-y-1 px-2 py-1.5",
       authority.excluded && "opacity-65")}
@@ -209,6 +219,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       className="col-span-3 row-start-2 w-40 max-w-[calc(100%-8rem)] justify-self-start @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:row-start-auto @min-[30rem]/sources:w-full @min-[30rem]/sources:max-w-none @min-[30rem]/sources:pr-2" />}
     <div className={cn("col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1",
       recognition && "row-start-2 justify-self-end @min-[30rem]/sources:row-start-auto @min-[30rem]/sources:justify-self-stretch")}>
+      {choice("hidden @min-[44rem]/sources:grid")}
       {needsPdf && (publisherUrl
         ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
               title="Download the PDF from the publisher, then upload it here."
@@ -259,12 +270,31 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
           { label: "Delete entry", disabled: busy || !removable,
             onSelect: () => onAction({ type: "remove-authority", authorityId: authority.id }) }]} />
     </div>
+    {/* Every statute row keeps its line, so a choice, a PDF arriving or a count read moves nothing. */}
+    {copy && <div className="col-[3/-1] row-start-3 flex min-h-8 min-w-0 items-center gap-2 @min-[30rem]/sources:row-start-2 @min-[44rem]/sources:min-h-4">
+      {choice("@min-[44rem]/sources:hidden")}
+      <span className="truncate text-xs text-gray-500" title={copy.line || undefined}>{copy.line}</span>
+    </div>}
     <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
       disabled={busy} aria-label={`Upload PDF for ${title}`} onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = "";
         if (file) onAttach(file);
       }} />
   </article>;
+}
+
+/** A statute in the book as an excerpt or whole: two buttons the height of the row's other actions,
+ *  neither pressed while its length, and so its default, is unknown. */
+function ExcerptChoice({ title, excerpt, disabled, className, onChoose }: { title: string; excerpt?: boolean;
+  disabled: boolean; className: string; onChoose: (excerpt: boolean) => void }) {
+  return <div role="group" aria-label={`${title} in the book`}
+    className={cn("grid h-8 w-[7.5rem] shrink-0 grid-cols-2 gap-0.5 rounded-md border border-gray-400 bg-white p-0.5", className)}>
+    {[true, false].map((value) => <button key={String(value)} type="button" aria-pressed={excerpt === value}
+      disabled={disabled} onClick={() => { if (excerpt !== value) onChoose(value); }}
+      className={cn("rounded px-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50",
+        excerpt === value ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100")}>
+      {value ? "Excerpt" : "Whole"}</button>)}
+  </div>;
 }
 
 /** A2AJ's limit, asked again by Beaver itself. A page cannot read the Retry-After A2AJ sends with

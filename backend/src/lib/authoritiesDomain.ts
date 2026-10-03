@@ -64,6 +64,7 @@ export type AuthoritiesAction =
   | { type: "set-stage"; stage: "citations" | "sources" | "highlights" | "build" }
   | { type: "remove-authority"; authorityId: string }
   | { type: "exclude-authority"; authorityId: string; excluded: boolean }
+  | { type: "set-authority-excerpt"; authorityId: string; excerpt: boolean }
   | { type: "set-highlight-exclusion"; authorityId: string;
       locator: { kind: string; label: string }; excluded: boolean }
   | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;
@@ -87,7 +88,7 @@ export type AuthoritiesAction =
   | { type: "attach-source"; authorityId: string; bindingRole: string;
       binding: WorkProductInput; filename: string; sourceSha256: string;
       sourceUrl: string | null; language: AuthoritySourceLanguage;
-      origin?: "manual" | "original" | "reconstructed" }
+      origin?: "manual" | "original" | "reconstructed"; pageCount?: number }
   | { type: "clear-authority-source"; authorityId: string }
   | { type: "set-source-verification"; authorityId: string; pageUrl: string | null;
       reason?: NonNullable<AuthorityIdentity["sourceDownloadFailure"]> }
@@ -199,7 +200,7 @@ const sourceIdentity = closed<AuthoritySourceIdentity>({ provider: text, stableS
 const attachedSource = closed<AttachedAuthoritySource>({ bindingRole: text, filename: text,
   sourceSha256: text, sourceUrl: nullable(text),
   origin: oneOf(["manual", "original", "reconstructed"]),
-  language: oneOf(["en", "fr", "bilingual"]) });
+  language: oneOf(["en", "fr", "bilingual"]), pageCount: maybe((value) => integer(value) && Number(value) > 0) });
 const decisionShape = tagged<AuthoritySourceDecision>({ unresolved: {}, resolved: {},
   attached: { sources: list(50_000, attachedSource) },
   "pending-canlii": { authorityKey: text, pageUrl: text, pdfUrl: text } });
@@ -239,7 +240,7 @@ const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: au
   citation: text, name: nullable(text), displayName: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
   source: sourceDecision, highlightExclusions: maybe(list(500, locator)),
-  annotations: maybe(isJsonRecord), userAdded: maybe(literal(true)),
+  annotations: maybe(isJsonRecord), excerpt: maybe(flag), userAdded: maybe(literal(true)),
   scanOnly: maybe(literal(true)) });
 /** Import provenance and hand entry are exclusive: one authority is only ever one of them. */
 const authority: Check = (value) =>
@@ -845,6 +846,12 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     case "exclude-authority":
       requireRecord(draft.authorities, action.authorityId, "authority").excluded = action.excluded;
       break;
+    case "set-authority-excerpt": {
+      const authority = requireRecord(draft.authorities, action.authorityId, "authority");
+      if (authority.kind !== "legislation") throw new AuthoritiesDomainError("Only a statute goes in as an excerpt.");
+      authority.excerpt = action.excerpt;
+      break;
+    }
     case "set-annotations": {
       if (!Array.isArray(action.entries) || !action.entries.length || action.entries.length > 2_000)
         throw new AuthoritiesDomainError("Annotation sources are invalid.");
@@ -1012,6 +1019,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
         bindingRole: action.bindingRole, filename: action.filename,
         sourceSha256: action.sourceSha256, sourceUrl: action.sourceUrl,
         origin: action.origin ?? "manual", language: action.language,
+        ...(action.pageCount && { pageCount: action.pageCount }),
       }, action.binding);
       break;
     }

@@ -50,6 +50,17 @@ export function authoritySourceRequirement(draft, authority, requirements, prepa
       draft.import.kind === "document" && draft.import.fileType === "pdf")) ? "unlinked" : null;
 }
 
+/** A statute whose PDF runs longer than this goes in the book as an excerpt unless chosen whole. */
+export const STATUTE_EXCERPT_PAGES = 30;
+/** Whether a statute goes in the book as an excerpt: as chosen, else by the length of its longest
+ *  PDF (`pageCounts`, by default as recorded when each was attached); undefined while one is unknown. */
+export function statuteExcerpt(authority, pageCounts = attachedAuthoritySources(authority.source)
+  .map(({ pageCount }) => pageCount)) {
+  if (authority.kind !== "legislation" || authority.source.kind !== "attached") return false;
+  return authority.excerpt ?? (pageCounts.includes(undefined) ? undefined
+    : Math.max(...pageCounts) > STATUTE_EXCERPT_PAGES);
+}
+
 /** Whether the book reproduces this authority, asked by the builder (which loads the
  *  PDF or a stub) and the workspace (which plans the same book). An authority whose PDF
  *  never arrived keeps its tab with a page naming it where missing sources keep their

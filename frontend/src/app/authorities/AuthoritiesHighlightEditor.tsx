@@ -141,14 +141,16 @@ const savedSet = (product: AuthoritiesProduct, choice: Choice) => {
 type Prepared = { set: PdfAnnotationSet; warning: string };
 type Ahead = { choice: Choice; result?: Promise<Prepared>; ready?: Prepared };
 /** Automatic marks prepared before their source is opened, for one draft: all it asks of them but
- *  the step it is on and the marks saved, which preparing them reads neither of. */
+ *  the step it is on, the marks saved and how much of each statute goes in, which preparing them
+ *  reads none of. */
 type Store = { draft: string; product: AuthoritiesProduct; abort: AbortController; sources: Map<string, Ahead>;
   queue: Ahead[]; running: boolean };
 const stores = new WeakMap<AuthoritiesHost, Store>(), draftKeys = new WeakMap<AuthoritiesProduct['state'], string>();
 const draftKey = (product: AuthoritiesProduct) => {
   let key = draftKeys.get(product.state);
   if (key === undefined) draftKeys.set(product.state, key = `${product.id}\0${JSON.stringify(product.state,
-    function (name, value) { return name === 'annotations' || name === 'stage' && this === product.state ? undefined : value; })}`);
+    function (name, value) { return name === 'annotations' || name === 'excerpt' && typeof value === 'boolean' ||
+      name === 'stage' && this === product.state ? undefined : value; })}`);
   return key;
 };
 const sourceKey = (choice: Choice) => `${choice.bindingRole}\0${choice.sourceSha256}`;

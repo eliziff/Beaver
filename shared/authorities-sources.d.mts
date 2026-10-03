@@ -6,6 +6,8 @@ export type AttachedAuthoritySource = {
   sourceUrl: string | null;
   origin: "manual" | "original" | "reconstructed";
   language: AuthoritySourceLanguage;
+  /** The PDF's length, recorded when it was attached. */
+  pageCount?: number;
 };
 export type AuthoritySourceDecision =
   | { kind: "unresolved" }
@@ -74,6 +76,9 @@ export function authoritySourceRequirement(draft: RequirementDraft, authority: R
   requirements?: AuthoritySourceRequirements | null, prepared?: boolean): AuthoritySourceReason | null;
 export function authorityReproducedInBook(draft: BookDraft,
   authority: RequirementAuthority & { excluded: boolean }): boolean;
+export const STATUTE_EXCERPT_PAGES: number;
+export function statuteExcerpt(authority: { kind: string; excerpt?: boolean; source: AuthoritySourceDecision },
+  pageCounts?: Array<number | undefined>): boolean | undefined;
 export function authoritiesBookPdfs(draft: Pick<SourceDraft, "bookParts">): AuthoritiesBoundPdf[];
 export const AUTHORITIES_BOOK_SLOTS: readonly ["cover", "index", "supplemental", "brief"];
 export type AuthoritiesBookSlot = typeof AUTHORITIES_BOOK_SLOTS[number];

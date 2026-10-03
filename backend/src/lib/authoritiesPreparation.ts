@@ -65,7 +65,9 @@ function sourceReading(draft: AuthoritiesDraft, readings?: SourceReadings) {
         citations: authority ? authorityCitationForms(draft, authority.id) : [],
         reporterOriginal: attached?.source.origin === "original",
         ocrTargets: filing ? [] : targets,
-        passageTargets: brief ? [] : filing || linkGeometry || draft.settings.passageMarking !== "none" ? targets : [],
+        // A statute's cited provisions are placed whatever is marked: its excerpt keeps their pages.
+        passageTargets: brief ? [] : filing || linkGeometry || draft.settings.passageMarking !== "none" ||
+          authority?.kind === "legislation" ? targets : [],
         // A brief's citations are placed by its own text, as the draft reviewed them.
         ...(linkFiling ? { filing: { ...draft, stage: undefined, authorities: Object.fromEntries(Object.entries(
           draft.authorities).map(([id, { annotations: _, ...authority }]) => [id, authority])) } } : {}) },
