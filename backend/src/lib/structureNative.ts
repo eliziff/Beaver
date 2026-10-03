@@ -26,6 +26,10 @@ type CitatorExcerptClassification = {
 };
 
 export type NativeCitationTextSpan = { text: string; start: number; end: number };
+/** The citation engine's `noteReferences`: each split part that cites, with what it cites. */
+export type NativeReferencePart = { part: import("legal-citations").SourcePart;
+  references: Array<NativeCitationTextSpan & { form: "citation" | "bare" | "link";
+    authority: import("legal-citations").Citation["authority"]; link?: string; citation?: number }> };
 
 /** `start` is in the document's query text; `pageIndex` is a PDF's zero-based page. */
 export type NativeOutlineEntry = { kind: "heading" | "section"; level: number; title: string;

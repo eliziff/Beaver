@@ -57,7 +57,7 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
               item.start >= part.start && item.start < part.end);
             const first = matching[0];
             return { id: first?.id ?? `part:${sourceUnit.id}:${part.start}`,
-              citation: first?.citation || part.fields.bare_citation || part.text,
+              citation: first?.citation || part.reference,
               kind: first?.kind ?? (part.fields.kind === "statute" ? "legislation" :
                 part.fields.kind === "case" ? "case" : "commentary"),
               pinpoints: first?.pinpoints ?? [], text: part.text,
