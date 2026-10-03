@@ -615,6 +615,26 @@ describe("Authorities output builder", () => {
       children: [{ title: "4 Fares", pageIndex: tab.pageIndex + 2 }] }]);
   });
 
+  it("lists a long citation in full in the book index, wrapped beneath its tab", async () => {
+    const pdf = await sourcePdf("Article", [[400, 500]]);
+    const citation = "Wren Halloway & Pell Ostrander, \"Not Quite Idle: Delay, Notice and the Licensing Boards of the "
+      + "Northern Basins Reconsidered\" (2034) 41:2 Imaginary Journal of Waterway Administration 233";
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.wren = attached("wren", "commentary", citation, null, "wren", pdf);
+    state.authorityOrder = ["wren"];
+    state.bindings.wren = { kind: "local-file", handleId: "wren", lastSeen: {
+      name: "wren.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf) } };
+    const built = await buildAuthorities({ draft: state, title: "Article authorities",
+      workProduct: { id: "long-citation", revision: 1 }, sources: { wren: { bytes: pdf } } });
+    const book = await PDFDocument.load(built.artifacts.book!.bytes);
+    const index = pageContent(book, book.getPage(1)).toUpperCase();
+    // Never cut short: the citation runs on to further lines, its words whole and in order.
+    const lines = [...index.matchAll(/<([0-9A-F]+)> TJ/gu)].map(([, hex]) => Buffer.from(hex, "hex").toString("latin1"))
+      .filter((line) => citation.includes(line.trim()) && line.trim().length > 20);
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.join(" ").replace(/\s+/gu, " ")).toBe(citation);
+  });
+
   it("uses a corrected manual PDF identity in the generated book index", async () => {
     const pdf = await sourcePdf("Grant", [[400, 500]]);
     let state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
@@ -630,8 +650,10 @@ describe("Authorities output builder", () => {
     const built = await buildAuthorities({ draft: state, title: "Appeal authorities",
       workProduct: { id: "manual-identity", revision: 1 }, sources: { grant: { bytes: pdf } } });
     const book = await PDFDocument.load(built.artifacts.book!.bytes);
-    expect(pageContent(book, book.getPage(1)).toUpperCase()).toContain(
-      Buffer.from("R v Grant, 2009 SCC 32", "latin1").toString("hex").toUpperCase());
+    // The index cites it in full, its style of cause in italics.
+    const index = pageContent(book, book.getPage(1)).toUpperCase();
+    expect(index).toMatch(new RegExp(`/TIMES-ITALIC-\\d+ [\\d.]+ TF\\s+[\\s\\S]*?<${pdfTextHex("R v Grant")}> TJ`, "u"));
+    expect(index).toContain(pdfTextHex(", 2009 SCC 32"));
     expect(built.receipt.authorities[0]).toMatchObject({ kind: "case",
       citation: "2009 SCC 32", name: "R v Grant, 2009 SCC 32", tab: "Tab 1" });
   });
@@ -985,8 +1007,11 @@ describe("Authorities output builder", () => {
     expect(documentXml).toContain("Cases");
     expect(documentXml).toContain("Legislation");
     expect(documentXml).toContain("Secondary sources");
-    expect(documentXml).toContain("R v Grant, 2009 SCC 32");
-    expect(documentXml).toContain("Federal Courts Act, RSC 1985, c F-7");
+    // A style of cause is italic, as the brief cites it.
+    expect(documentXml).toMatch(/<w:i\/>(?:(?!<\/w:r>).)*<w:t[^>]*>R v Grant<\/w:t>/u);
+    expect(documentXml).toContain(", 2009 SCC 32");
+    expect(documentXml).toMatch(/<w:i\/>(?:(?!<\/w:r>).)*<w:t[^>]*>Federal Courts Act<\/w:t>/u);
+    expect(documentXml).toContain(", RSC 1985, c F-7");
     expect(documentXml).toContain("3, 5");
     expect(documentXml).toContain(">7<");
     expect(documentXml).not.toContain("¶ 12");
@@ -1809,7 +1834,9 @@ describe("Authorities output builder", () => {
         filename: "Brief.docx", sha256: digest } } } });
     const xml = (await (await JSZip.loadAsync(result.artifacts["annotated-document"]!.bytes)).file("word/document.xml")!
       .async("string")).replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">");
-    const entries = [...xml.matchAll(/ TA \\l "((?:\\.|[^"\\])*)"/gu)].map(([, entry]) => entry.replaceAll("\\“", "“")
+    // A field's code runs on across its runs, the style of cause in an italic one.
+    const codes = xml.replace(/<\/w:instrText><\/w:r><w:r>(?:<w:rPr>(?:(?!<\/w:rPr>).)*<\/w:rPr>)?<w:instrText[^>]*>/gu, "");
+    const entries = [...codes.matchAll(/ TA \\l "((?:\\.|[^"\\])*)"/gu)].map(([, entry]) => entry.replaceAll("\\“", "“")
       .replaceAll("\\”", "”"));
     expect(entries.sort()).toEqual(["Elm v Fir, 2031 ONCA 7", "Jo Pine, “Moss”, online: <example.test/moss>",
       "Oak v Gum, 2029 CanLII 5 (SCC)", "R v Ash, 2030 ABKB 1"]);
@@ -1862,11 +1889,10 @@ describe("Authorities output builder", () => {
       output: { role: "annotated-document" } } });
     const zip = await JSZip.loadAsync(result.artifacts["annotated-document"]!.bytes);
     const xml = await zip.file("word/document.xml")!.async("string");
-    expect(xml).toContain(
-      ' TA \\l &quot;R v Grant, 2009 SCC 32, [2009] 2 SCR 353&quot;',
-    );
+    expect(xml).toContain('<w:r><w:rPr><w:i></w:i></w:rPr><w:instrText xml:space="preserve">R v Grant</w:instrText></w:r>'
+      + '<w:r><w:instrText xml:space="preserve">, 2009 SCC 32, [2009] 2 SCR 353&quot;');
     // Word builds a table for one category per field: here, its cases.
-    expect(xml).toContain(' TOA \\h \\c &quot;1&quot; ');
+    expect(xml).toContain(' TOA \\c &quot;1&quot; ');
     expect(result.receipt.outputs["annotated-document"]?.sha256)
       .toBe(result.artifacts["annotated-document"]?.sha256);
 
@@ -1891,7 +1917,10 @@ describe("Authorities output builder", () => {
       .async("string");
     expect(linkedXml).toContain("TABLE OF AUTHORITIES");
     expect(linkedXml).toContain("Grant (custom)");
-    expect(linkedXml).toContain("Grant (custom), R v Grant, 2009 SCC 32, [2009] 2 SCR 353");
+    expect(linkedXml).toContain('<w:i></w:i><w:color w:val="0563C1"></w:color><w:u w:val="single"></w:u></w:rPr><w:t>Grant (custom)</w:t>');
+    expect(linkedXml).toContain("<w:t>, R v Grant, 2009 SCC 32, [2009] 2 SCR 353</w:t>");
+    // Its link is printed under it, for a reader on paper.
+    expect(linkedXml).toContain("<w:t>https://www.canlii.org/en/ca/scc/doc/2009/2009scc32/2009scc32.html</w:t>");
     expect(linkedXml).toContain("HYPERLINK &quot;https://www.canlii.org/");
     expect(linkedXml).not.toContain(" TA \\l ");
     expect(linkedTableXml).toContain("w:hyperlink");

@@ -20,7 +20,7 @@ import { chromium } from "@playwright/test";
 import { writeFixtures } from "./authorities-html-e2e/fixtures.mjs";
 import { writeStressFixtures } from "./authorities-stress/fixtures.mjs";
 import { CaseRecord, openApp } from "./authorities-stress/harness.mjs";
-import { openInWord, pdfRenderer } from "./authorities-stress/outputs.mjs";
+import { checkWordTables, openInWord, pdfRenderer, wordProcesses } from "./authorities-stress/outputs.mjs";
 import { CASES } from "./authorities-stress/cases.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -55,9 +55,6 @@ async function serve(file) {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   return { url: `http://127.0.0.1:${server.address().port}/`, close: () => new Promise((resolve) => server.close(resolve)) };
 }
-/** Word's running processes, by id. */
-const wordProcesses = () => execFileSync("tasklist", ["/FI", "IMAGENAME eq WINWORD.EXE", "/FO", "CSV", "/NH"], { encoding: "utf8" })
-  .split(/\r?\n/u).flatMap((line) => /^"WINWORD\.EXE","(\d+)"/iu.exec(line)?.[1] ?? []).map(Number);
 /** Local fixtures that are never committed: a public article with the HAR of its lookups. */
 function localFixtures() {
   const article = { pdf: path.join(localDir, "long-article/article.pdf"), har: path.join(localDir, "long-article/lookups.har") };
@@ -120,6 +117,7 @@ if (word.length && !args["no-word"]) {
     if (expect.toa !== undefined) record.check(expect.toa ? result.toaFields > 0 && /\S/u.test(result.toaText) : !result.toaFields,
       `${where}: ${expect.toa ? "its table shows as opened" : "no table"}`, { toaFields: result.toaFields, toaText: result.toaText?.slice(0, 200) });
     if (expect.toaHas) for (const name of expect.toaHas) record.check(result.toaText?.includes(name), `${where}: the table lists ${name}`, result.toaText?.slice(0, 300));
+    checkWordTables((...args) => record.check(...args), where, result, expect);
     // A table of authorities delivered as its own document is the document's text.
     if (expect.lists) for (const name of expect.lists) record.check(result.text?.includes(name), `${where}: the table lists ${name}`, result.text?.slice(0, 300));
     if (expect.tabs !== undefined) record.check(expect.tabs ? result.tabReferences >= expect.tabs : !result.tabReferences,
@@ -130,6 +128,8 @@ if (word.length && !args["no-word"]) {
     if (result.pdf && existsSync(result.pdf))
       await renderer.sheet(result.pdf, path.join(record.out, "word", `${named(index)}.jpg`), { first: 2, last: 4 });
     else if (!result.updatesFieldsAtPrint) record.check(false, `${where}: exported as Word lays it out`);
+    if (result.insertedPdf && existsSync(result.insertedPdf))
+      await renderer.sheet(result.insertedPdf, path.join(record.out, "word", `${named(index)}.inserted-table.jpg`), { last: 2 });
   }
   await browser.close();
   console.log(`  opened in ${Math.round((Date.now() - from) / 1000)} s`);

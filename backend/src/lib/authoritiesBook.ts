@@ -4,7 +4,8 @@ import { mapOutline, pdfAssembly, splitPdfPageRanges, type PdfAssemblyInput,
   type PdfOutline } from "./pdfAssembly";
 
 type PdfModule = typeof import("pdf-lib");
-export type BookRow = { key: string; name: string; tab: string; sourceUrl?: string | null };
+/** `italic`: how many of the name's first characters are italic, its style of cause or title. */
+export type BookRow = { key: string; name: string; italic?: number; tab: string; sourceUrl?: string | null };
 export type PreparedBookSource<Bytes = Uint8Array> = BookRow & {
   bytes: Bytes; pageIndices: number[]; ocrTextByPage?: string[];
   databaseReference: { url: string; host: string } | null;
@@ -42,12 +43,29 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
   const engine = pdfAssembly(pdf);
   const { federal, electronic, paperCover, coverLine, documentTitle, bookTitle, subtitle,
     customCover, customIndex, coverPageCount, customIndexPages, limits, groups } = input;
+  // The index lists each citation in full, wrapped onto as many lines as it takes, and runs onto as
+  // many pages as its entries fill.
+  const margin = federal ? 99.21 : 72, bodySize = federal ? 12 : 8.8, leading = bodySize + 3;
+  const titleX = federal ? margin + 52 : 102, sourceX = 447, pageRight = federal ? 612 - margin : 547;
+  const scratch = await pdf.PDFDocument.create(), measure = { roman: await scratch.embedFont(pdf.StandardFonts.TimesRoman),
+    italic: await scratch.embedFont(pdf.StandardFonts.TimesRomanItalic) };
   const tokens = groups.flatMap((group) => [
-    { label: group.label, entry: null as BookRow | null },
-    ...group.entries.map((entry) => ({ label: "", entry })),
+    { label: group.label, entry: null as BookRow | null, lines: [] as ReturnType<typeof citationLines>, height: 27 },
+    ...group.entries.map((entry) => {
+      // Clear of the page numbers, and of the Federal Court's source link.
+      const lines = citationLines(measure, entry.name, entry.italic ?? 0, bodySize,
+        federal && entry.sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - 48);
+      return { label: "", entry, lines, height: 25 + (lines.length - 1) * leading };
+    }),
   ]);
-  const chunks = Array.from({ length: Math.ceil(tokens.length / 23) }, (_, index) =>
-    tokens.slice(index * 23, index * 23 + 23));
+  const top = federal ? 670 : 690, bottom = 100, chunks: Array<typeof tokens> = [[]];
+  let room = top - bottom;
+  tokens.forEach((token, index) => {
+    // A heading never ends a page.
+    const needs = token.height + (token.entry ? 0 : tokens[index + 1]?.height ?? 0);
+    if (chunks[chunks.length - 1].length && needs > room) { chunks.push([]); room = top - bottom; }
+    chunks[chunks.length - 1].push(token); room -= token.height;
+  });
   const readSourceOutlines = async (bytes: Uint8Array) => {
     signal?.throwIfAborted();
     const document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
@@ -95,13 +113,14 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
     });
     placements = plans.map(({ slices }) => slices.map(({ source, localStart, pageIndices }) =>
       ({ key: source.key, pageIndex: localStart, sourcePageIndices: pageIndices })));
-    return plans.map((plan, volumeIndex): PdfAssemblyInput<"serif" | "serifBold" | "regular" | "bold"> => {
-      const margin = federal ? 99.21 : 72, contentWidth = 612 - (2 * margin);
+    return plans.map((plan, volumeIndex): PdfAssemblyInput<"serif" | "serifItalic" | "serifBold" | "regular" | "bold"> => {
+      const contentWidth = 612 - (2 * margin);
       const volumeLabel = `Volume ${volumeIndex + 1} of ${volumes.length}`;
       const localStarts = new Map(plan.slices.map(({ source, localStart }) => [source.key, localStart]));
       const links: NonNullable<PdfAssemblyInput<string>["links"]> = [];
       return {
-        signal, fonts: { serif: pdf.StandardFonts.TimesRoman, serifBold: pdf.StandardFonts.TimesRomanBold,
+        signal, fonts: { serif: pdf.StandardFonts.TimesRoman, serifItalic: pdf.StandardFonts.TimesRomanItalic,
+          serifBold: pdf.StandardFonts.TimesRomanBold,
           regular: federal ? pdf.StandardFonts.TimesRoman : pdf.StandardFonts.Helvetica,
           bold: federal ? pdf.StandardFonts.TimesRomanBold : pdf.StandardFonts.HelveticaBold },
         parts: plan.slices.map(({ source, pageIndices }) => ({
@@ -119,7 +138,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             links.push({ page, rect: [x - 5, y - 3, x - 5 + width, y + 15], url });
           } : undefined,
         })),
-        before: async ({ document, fonts: { regular, bold, serif } }) => {
+        before: async ({ document, fonts: { regular, bold, serif, serifItalic } }) => {
           let coverBottom = 400;
           if (customCover) await engine.appendPages(document, customCover);
           else {
@@ -150,7 +169,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             page.drawText(chunkIndex ? "Table of Contents — continued" : "Table of Contents",
               { x: federal ? margin : 48, y: federal ? 708 : 730,
                 size: federal ? 12 : 20, font: bold });
-            let y = federal ? 670 : 690;
+            let y = top;
             for (const token of chunk) {
               if (!token.entry) {
                 page.drawRectangle({ x: federal ? margin : 48, y: y - 8,
@@ -159,29 +178,27 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
                   size: federal ? 12 : 8.5, font: bold });
                 y -= 27; continue;
               }
-              const bodySize = federal ? 12 : 8.8, tabX = federal ? margin + 6 : 54;
-              const titleX = federal ? margin + 52 : 102, sourceX = 447;
-              const pageRight = federal ? 612 - margin : 547;
+              const tabX = federal ? margin + 6 : 54;
               // Only the Federal Court's index links each authority to its public source.
               const sourceUrl = federal ? token.entry.sourceUrl : null;
               page.drawText(pdfText(token.entry.tab), { x: tabX, y, size: federal ? 12 : 7.5, font: bold });
-              page.drawText(fit(serif, token.entry.name, bodySize,
-                sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - 28),
-              { x: titleX, y, size: bodySize, font: serif });
+              token.lines.forEach((line, index) => drawRuns(page, line, { x: titleX, y: y - index * leading,
+                size: bodySize, roman: serif, italic: serifItalic }));
               if (sourceUrl) page.drawText("source", { x: sourceX, y, size: 12, font: regular });
               const pageLabel = ranges.get(token.entry.key)?.join(", ") ?? "—";
               const pageSize = federal ? 12 : 8;
               page.drawText(pageLabel, { x: pageRight - bold.widthOfTextAtSize(pageLabel, pageSize),
                 y, size: pageSize, font: bold });
-              page.drawLine({ start: { x: titleX, y: y - 7 },
-                end: { x: federal ? 612 - margin : 564, y: y - 7 },
+              const last = y - (token.lines.length - 1) * leading;
+              page.drawLine({ start: { x: titleX, y: last - 7 },
+                end: { x: federal ? 612 - margin : 564, y: last - 7 },
                 thickness: .45, color: pdf.rgb(.82, .82, .82) });
               const start = localStarts.get(token.entry.key);
               if (start !== undefined) links.push({ page, targetPageIndex: start,
-                rect: [federal ? margin : 48, y - 10,
+                rect: [federal ? margin : 48, last - 10,
                   sourceUrl ? sourceX - 5 : federal ? 612 - margin : 564, y + 10] });
               if (sourceUrl) links.push({ page, url: sourceUrl, rect: [sourceX - 5, y - 10, 492, y + 10] });
-              y -= 25;
+              y -= token.height;
             }
             if (!(federal && electronic)) {
               const value = String(plan.globalStart + coverPageCount + customIndexPages + chunkIndex + 1);
@@ -269,6 +286,52 @@ export function wrapped(font: PdfFont, value: string, size: number, width: numbe
     if (line) lines.push(line);
   }
   return lines;
+}
+
+type Measure = Pick<PdfFont, "widthOfTextAtSize">;
+/** A citation's lines within `width`: runs of text, its first `italic` characters (the style of cause
+ *  or title) in the italic font. Lines break between words; a word wider than a line is split. */
+export function citationLines(fonts: { roman: Measure; italic: Measure }, value: string, italic: number,
+  size: number, width: number) {
+  type Run = { text: string; italic: boolean };
+  const words: Run[][] = [[]];
+  [value.slice(0, italic), value.slice(italic)].forEach((part, index) =>
+    pdfText(part).split(/(\s+)/u).forEach((piece, at) => {
+      if (at % 2) words.push([]);
+      else if (piece) words[words.length - 1].push({ text: piece, italic: !index });
+    }));
+  const measure = ({ text, italic }: Run) => (italic ? fonts.italic : fonts.roman).widthOfTextAtSize(text, size);
+  const lines: Run[][] = [[]];
+  let used = 0;
+  const put = (run: Run) => {
+    const line = lines[lines.length - 1], last = line[line.length - 1];
+    if (last?.italic === run.italic) last.text += run.text; else line.push({ ...run });
+    used += measure(run);
+  };
+  for (const word of words.filter((runs) => runs.length)) {
+    // A space between two italic words is italic too.
+    const line = lines[lines.length - 1], space = { text: " ", italic: !!line[line.length - 1]?.italic && word[0].italic };
+    const wide = word.reduce((sum, run) => sum + measure(run), 0);
+    if (used && used + measure(space) + wide > width) { lines.push([]); used = 0; }
+    if (used) put(space);
+    for (const run of word) for (const character of wide > width ? run.text : [run.text]) {
+      const piece = { text: character, italic: run.italic };
+      if (used && used + measure(piece) > width) { lines.push([]); used = 0; }
+      put(piece);
+    }
+  }
+  return lines;
+}
+
+/** Draws one line of runs from `x`. */
+export function drawRuns(page: PdfPage, runs: ReturnType<typeof citationLines>[number],
+  options: { x: number; y: number; size: number; roman: PdfFont; italic: PdfFont; color?: PdfColor }) {
+  let x = options.x;
+  for (const { text, italic } of runs) {
+    const font = italic ? options.italic : options.roman;
+    page.drawText(text, { x, y: options.y, size: options.size, font, color: options.color });
+    x += font.widthOfTextAtSize(text, options.size);
+  }
 }
 
 function drawFederalForm66Cover(page: PdfPage, regular: PdfFont, bold: PdfFont,

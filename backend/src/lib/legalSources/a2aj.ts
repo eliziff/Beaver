@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
 import { fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
 import { buildCanliiLawUrl } from "../canliiLawUrls";
+import { buildCanliiCaseUrl } from "../canliiUrls";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
@@ -102,9 +103,13 @@ function publisherUrl(record: JsonObject, language: Language) {
   return webUrl(languageText(record, "source_url", language)) ??
     webUrl(languageText(record, "url", language));
 }
+/** A record's public page: CanLII's for legislation (its publishers' own links are feeds), else the
+ *  publisher's, else the page CanLII publishes for a decision's citation. */
 function sourceUrl(record: JsonObject, language: Language) {
-  return buildCanliiLawUrl({ dataset: string(record.dataset) ?? "", citation: languageText(record, "citation", language), language }) ??
-    publisherUrl(record, language);
+  const dataset = string(record.dataset) ?? "";
+  return buildCanliiLawUrl({ dataset, citation: languageText(record, "citation", language), language }) ??
+    publisherUrl(record, language) ?? buildCanliiCaseUrl({ dataset, language,
+      citations: [languageText(record, "citation", language), languageText(record, "citation2", language)] });
 }
 
 export type A2AJFailureReason = "rate-limited" | "error" | "timeout" | "unreachable";

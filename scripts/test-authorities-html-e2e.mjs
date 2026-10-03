@@ -5,7 +5,8 @@
 // reads the downloads back, asserting performance budgets and layout invariants throughout.
 //
 //   npm run test:authorities-html-e2e -- [--skip-build] [--mode=file|http] [--only=pdf|docx|first|publisher] [--headed] [--live]
-//     [--html=path] [--out=dir] [--slow-a2aj=ms]
+//     [--html=path] [--out=dir] [--slow-a2aj=ms] [--no-word]
+// The Word outputs are opened in invisible Word (Windows with Word installed) unless --no-word.
 // --live lets A2AJ and publishers answer for real instead of the stub (not deterministic); a lookup
 // reported unchecked then fails the run unless A2AJ, asked once directly, is not answering either.
 // --slow-a2aj makes the stub answer that many ms late, as the live service can, so sources are still
@@ -21,6 +22,7 @@ import { A2AJ_CASES, a2ajRecord, BRIEF, writeFixtures } from "./authorities-html
 import { instrument } from "./authorities-html-e2e/instrument.mjs";
 import { flatOutline, readDocx, readPdf } from "./authorities-html-e2e/outputs.mjs";
 import { publisherRuns } from "./authorities-html-e2e/publisher.mjs";
+import { checkWordTables, openInWord, wordProcesses } from "./authorities-stress/outputs.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const args = Object.fromEntries(process.argv.slice(2).map((arg) => {
@@ -923,9 +925,9 @@ function Run(page, mode) {
         if (!word) continue;
         const docx = await readDocx(files[word]), all = `${docx.xml}${docx.notes}`, visible = `${docx.text}${docx.noteText}`.replace(/&apos;/gu, "'");
         const inserted = text ? visible.match(text) ?? [] : visible.match(/\[[^\]]*Tab \d\]/gu) ?? [];
-        check(/TA \\l/u.test(all) === fields && /TOA \\h/u.test(all) === toa && (text ? inserted.length >= 5 : !inserted.length),
+        check(/TA \\l/u.test(all) === fields && /TOA \\c/u.test(all) === toa && (text ? inserted.length >= 5 : !inserted.length),
           `${mode} ${label}: TA fields ${fields}, table ${toa}, tab references ${text ?? "none"}`,
-          { word, fields: /TA \\l/u.test(all), toa: /TOA \\h/u.test(all), inserted: inserted.slice(0, 3) });
+          { word, fields: /TA \\l/u.test(all), toa: /TOA \\c/u.test(all), inserted: inserted.slice(0, 3) });
       }
     await page.getByLabel("Create").selectOption("both");
     await choose(copy.getByRole("radio", { name: "Marked copy and table", exact: true }));
@@ -1042,7 +1044,25 @@ function Run(page, mode) {
     const docx = await readDocx(word), all = `${docx.xml}${docx.notes}`;
     const fields = [...all.matchAll(/TA \\l &quot;([^&]*)&quot;|TA \\l "([^"]*)"/gu)].map((match) => match[1] ?? match[2]);
     check(fields.length >= 5, `${mode}: the Word copy marks each authority with a TA field`, fields);
-    check(/TOA \\h/u.test(all), `${mode}: the Word copy has a table of authorities field`);
+    check(/TOA \\c/u.test(all), `${mode}: the Word copy has a table of authorities field`);
+    // Opened in invisible Word as their reader would: the table in the brief and the table on its own
+    // read as tables, each style of cause in italics, and Word's own table, inserted from the brief's
+    // citation fields, lists every authority with its pages.
+    const table = files[names.find((name) => name.endsWith(".table-of-authorities.docx"))];
+    if (!args["no-word"] && mode === modes[0] && table) {
+      const dir = path.join(out, "word"), before = wordProcesses();
+      await mkdir(dir, { recursive: true });
+      const [brief, own] = await openInWord([{ file: word, pdf: path.join(dir, "brief.pdf") },
+        { file: table, pdf: path.join(dir, "table.pdf") }], dir);
+      for (const [where, result, expect] of [[`${mode}: the Word copy in Word`, brief, { toa: true, ta: 5 }],
+        [`${mode}: the table in Word`, own, { table: true, italics: ["Vavilov", "Waterways Licensing Act"] }]]) {
+        check(result.opened && !result.error && !result.errors?.length, `${where}: opens without an error`, result.error ?? result.errors);
+        checkWordTables(check, where, result, expect);
+      }
+      note(mode, "word-tables", { brief: brief.toaEntries, inserted: brief.insertedEntries, table: own.tables?.map(({ cells }) => cells) });
+      const left = wordProcesses().filter((id) => !before.includes(id));
+      check(!left.length, `${mode}: Word was left running`, left);
+    }
     const references = [...`${docx.text}${docx.noteText}`.matchAll(/\[Tab \d+\]/gu)].map(([value]) => value);
     if (tabsAndFinal) {
       check(references.length >= 5, `${mode}: tab references follow the citations`, references);

@@ -102,7 +102,7 @@ export const IMPORT_CASES = [{
       const copyFile = pick(files, /with-table-of-authorities\.docx$/u), table = pick(files, /\.table-of-authorities\.docx$/u);
       record.check(copyFile && table, "the Word brief builds its Word copy and table", Object.keys(files));
       if (copyFile) word.push({ record, file: copyFile, expect: { ta: 4, toa: true, tabs: 4, toaHas: ["Jordan", "Vavilov"] } });
-      if (table) word.push({ record, file: table, expect: { lists: ["Jordan"] } });
+      if (table) word.push({ record, file: table, expect: { lists: ["Jordan"], table: true, italics: ["Jordan"] } });
       const book = pick(files, /book-of-authorities\.pdf$/u);
       await checkPdf(record, "book", book, { unprinted: ["harbour-factum"] });
       await renderer.sheet(book, path.join(record.out, "book.jpg"), { first: 3, last: 3 });
