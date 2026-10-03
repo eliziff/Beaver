@@ -39,6 +39,8 @@ export function courtChange(before: State, after: State) {
   });
   if (before.outputMode !== after.outputMode) changes.unshift(`Outputs: ${({ book: "the book",
     table: "the table", both: "the book and the table" })[after.outputMode]}`);
+  const roles = (state: State) => state.cover.partyGroups.map(({ role }) => role).join(", ");
+  if (roles(before) !== roles(after)) changes.push(`Cover roles: ${roles(after) || "none"}`);
   if (before.insertIntoDocument !== after.insertIntoDocument)
     changes.push(`Filing PDF: ${after.insertIntoDocument ? "made" : "not made"}`);
   const court = authoritiesProfile(after.settings.profileId).label;

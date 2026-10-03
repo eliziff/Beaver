@@ -8,6 +8,7 @@
   },
   {
     "id": "ab-court-of-kings-bench",
+    "coverRoles": ["Applicant","Respondent"],
     "label": "Court of King’s Bench of Alberta",
     "courtId": "ab-kb",
     "sourceIds": ["ab-kb-citation-guidelines","ab-kb-general-pn1"],
@@ -26,6 +27,7 @@
   },
   {
     "id": "federal-court",
+    "coverRoles": ["Applicant","Respondent"],
     "label": "Federal Court",
     "courtId": "fc",
     "bookTitle": "Book of Authorities",
@@ -36,6 +38,7 @@
   },
   {
     "id": "federal-court-appeal",
+    "coverRoles": ["Appellant","Respondent"],
     "label": "Federal Court — appeal",
     "courtId": "fc",
     "bookTitle": "Book of Statutes, Regulations and Authorities",
@@ -46,6 +49,7 @@
   },
   {
     "id": "federal-court-of-appeal",
+    "coverRoles": ["Appellant","Respondent"],
     "label": "Federal Court of Appeal",
     "courtId": "fca",
     "bookTitle": "Book of Statutes, Regulations and Authorities",
