@@ -175,7 +175,7 @@ export function Modal({
                     {children}
                 </div>
                 {hasFooter && (
-                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-white p-3">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-white py-3 pl-5 pr-4">
                         {footerStatus}
                         {secondaryAction && (
                             <ModalActionButton
