@@ -1,18 +1,17 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
-import { CourtChoiceModal } from "@/app/components/modals/CourtChoiceModal";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { Button } from "@/app/components/ui/button";
 import { cn, errorMessage } from "@/app/lib/utils";
 import type { PdfAnnotation } from "../../../../shared/pdf-annotations.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import { courtCover } from "../../../../shared/authorities-cover.mjs";
-import { OptionCard, OptionCards, type CardOption } from "./OptionCards";
-import { AUTHORITIES_PROFILES, authoritiesProfile } from "./profiles";
+import { OptionCards, type CardOption } from "./OptionCards";
+import { authoritiesProfile } from "./profiles";
 import { passageOptions } from "./AuthoritiesHighlightEditor";
 import { authorityName } from "./authorityPresentation";
-import { CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, LEGEND, Preview, savedCover,
+import { CourtSelect, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, Preview, SECTION, savedCover,
   useFilingContact, type Settings } from "./BookFront";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesProduct,
@@ -20,19 +19,19 @@ import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesCover, Aut
 
 export const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["sourceMode"]>> = [
   { value: "automatic", label: "Automatic sources",
-    detail: "Original PDFs are used where they exist. The rest are built from their text." },
+    detail: "Uses original PDFs where they exist and builds the rest from their text." },
   { value: "manual-originals", label: "Use available original PDFs and manually add the PDFs myself for the rest",
-    detail: "An authority without an original PDF waits for you to upload one." },
+    detail: "Uses original PDFs where they exist. Note: Requires you to upload a PDF for each of the rest." },
   { value: "render", label: "Rebuild all sources from text (where available)",
-    detail: "Every source is built from its text, even where an original PDF exists." },
+    detail: "Builds every source from its text, even where an original PDF exists." },
 ];
 export const SCANNED_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["scannedPdfPolicy"]>> = [
   { value: "page-margin", label: "Keep scans as images",
-    detail: "No text is recognized. A scanned page's passages are marked in its margin." },
+    detail: "Keeps scanned pages as images. Their cited passages are marked in the margin." },
   { value: "cited-pages", label: "Recognize cited pages",
-    detail: "The pages the brief cites get searchable text, and their passages are marked." },
+    detail: "Recognizes the text of the scanned pages your brief cites, so their passages can be marked." },
   { value: "full", label: "Recognize every page",
-    detail: "Every scanned page gets searchable text." },
+    detail: "Recognizes the text of every scanned page." },
 ];
 /** The import's choices: the court, the cover and the index, the sources, and the marking. */
 const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "passageMarking"] as const;
@@ -92,7 +91,6 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
   const choose = (patch: Partial<Settings>) => setChosen((current) => ({ ...current, ...patch }));
   const profile = authoritiesProfile(profileId);
   const book = (profile.locked?.outputMode ?? profile.defaults.outputMode) !== "table";
-  const court = profileId === "general" ? "" : `${profile.label} `;
   const finish = () => onFinish((state) => importActions(state, profileId, settings, shownCover, WIZARD_KEYS),
     { profileId, sourceMode: settings.sourceMode, passageMarking: settings.passageMarking });
   const busy = finishing;
@@ -107,9 +105,10 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
         {error || (finishing ? <span className="inline-flex items-center gap-2"><Loader2 className="size-4 motion-safe:animate-spin" />
           Finding citations</span> : "")}</span>
     </div>}
-    secondaryAction={step < STEPS.length - 1 ? { label: <>Next <ChevronRight /></>, disabled: busy, onClick: () => setStep(step + 1) } : undefined}
-    primaryAction={{ label: step < STEPS.length - 1 ? `Import with ${court}defaults` : "Import",
-      disabled: busy || !!error, onClick: finish }}>
+    // Next leads; before the last step, the rest can be left as they are and the brief imported now.
+    secondaryAction={step < STEPS.length - 1 ? { label: "Import now", disabled: busy || !!error, onClick: finish } : undefined}
+    primaryAction={step < STEPS.length - 1 ? { label: <>Next <ChevronRight /></>, disabled: busy, onClick: () => setStep(step + 1) }
+      : { label: "Import", disabled: busy || !!error, onClick: finish }}>
     <div className="mb-4 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1">
     <ol aria-label="Import steps" className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
       {STEPS.map((label, index) => <li key={label}>
@@ -123,8 +122,8 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
     </div>
     {step === 0 ? <FrontLayout preview={book ? <FrontPreview host={host} draft={draft} actions={frontActions} />
       : <Preview label="Preview"><p className="m-auto p-6 text-center text-sm text-gray-600">This court takes a Table of Authorities, not a book.</p></Preview>}>
-      <CourtPicker value={profileId} remembered={remembered.profileId} preferred={jurisdictionOrder} disabled={busy}
-        onChange={setProfileId} />
+      <div className="min-w-0"><h3 className={SECTION}>Court</h3>
+        <CourtSelect value={profileId} preferred={jurisdictionOrder} disabled={busy} onChange={setProfileId} /></div>
       {book && <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy}
         onCover={(next) => setCover(next)} onSettings={choose} />}
       {book && <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />}
@@ -142,35 +141,6 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
   </Modal>;
 }
 const EMPTY_COVER: AuthoritiesCover = { courtFileNumber: "", partyGroups: [], applicationUnder: "", title: "" };
-
-/** The courts at hand, the last one used first, and every other behind Other court. */
-function CourtPicker({ value, remembered, preferred, disabled, onChange }: {
-  value: AuthoritiesProfileId; remembered: AuthoritiesProfileId; preferred: string[]; disabled?: boolean;
-  onChange: (value: AuthoritiesProfileId) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [quick] = useState(() => {
-    const rank = (jurisdiction: string) => { const index = preferred.indexOf(jurisdiction); return index < 0 ? preferred.length : index; };
-    const others = AUTHORITIES_PROFILES.filter(({ id }) => id !== remembered && id !== "general")
-      .sort((left, right) => rank(left.jurisdiction.id) - rank(right.jurisdiction.id)).map(({ id }) => id);
-    return [...new Set([remembered, "general" as AuthoritiesProfileId, ...others])].slice(0, 4);
-  });
-  // A court chosen from the others takes the last place, so the row never grows.
-  const shown = quick.includes(value) ? quick : [...quick.slice(0, -1), value];
-  return <fieldset className="min-w-0" disabled={disabled}>
-    <legend className={LEGEND}>Court</legend>
-    <div className="grid gap-2 @min-[26rem]/front:grid-cols-2">
-      {shown.map((id) => <OptionCard key={id} name="authorities-court" checked={id === value} onChange={() => onChange(id)}
-        className="min-h-11 py-2" label={authoritiesProfile(id).label} />)}
-      <Button type="button" variant="outline" className="h-auto min-h-11 justify-start gap-3 rounded-lg border-gray-300 px-3 font-semibold text-gray-950"
-        onClick={() => setOpen(true)}><Search className="text-gray-500" /> Other court</Button>
-    </div>
-    <CourtChoiceModal open={open} title="Choose court" searchLabel="Search courts" value={value} preferredKeys={preferred}
-      options={AUTHORITIES_PROFILES.map(({ id, label, court, jurisdiction }) => ({ value: id, label,
-        jurisdictionId: jurisdiction.id, keywords: court.abbreviation }))}
-      onChange={(id) => { onChange(id as AuthoritiesProfileId); setOpen(false); }} onClose={() => setOpen(false)} />
-  </fieldset>;
-}
 
 /** The first source PDF the brief's citations have brought, as it will go in the book. */
 function SourcePreview({ host, draft }: { host: AuthoritiesHost; draft?: AuthoritiesProduct }) {
