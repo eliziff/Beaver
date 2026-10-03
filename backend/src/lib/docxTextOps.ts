@@ -15,12 +15,13 @@
  *   4. Emit the replacements as `EditInput[]` through the existing
  *      `applyTrackedEdits`, which produces native w:ins/w:del tracked
  *      changes (author "Beaver") with one accept/rejectable change per
- *      replacement — the same emission path as `Edit`.
+ *      replacement — the same emission path as `Edit`. Trusted Auto mode uses
+ *      that same plan to update text children directly in their original runs.
  */
 
 import diff from "fast-diff";
 import { applyTrackedEdits, clusterTextChanges, extractDocxBodyText, normalizeWs,
-  type AppliedChange, type EditInput } from "./docxTrackedChanges";
+  type AppliedChange, type EditInput, type EditMode } from "./docxTrackedChanges";
 import { runTextOp, type TextOpNote, type TextOpParams } from "./textOps";
 
 export type TextOpScope =
@@ -55,6 +56,7 @@ export type ApplyTextOpsResult = {
   reports: TextOpReport[];
   replacementCount: number;
   editErrors: string[];
+  emissionMode: EditMode;
 };
 
 type Replacement = { start: number; end: number; text: string };
@@ -191,11 +193,11 @@ export async function planTextOps(docText: string, ops: TextOpRequest[]):
  * persistence is the caller's job.
  */
 export async function applyTextOpsToDocx(originalBytes: Buffer,
-  ops: TextOpRequest[], author = "Beaver"): Promise<ApplyTextOpsResult> {
+  ops: TextOpRequest[], author = "Beaver", mode: EditMode = "manual"): Promise<ApplyTextOpsResult> {
   const docText = await extractDocxBodyText(originalBytes);
   const { replacements, reports } = await planTextOps(docText, ops);
   if (!replacements.length) {
-    return { bytes: originalBytes, edits: [], reports, replacementCount: 0, editErrors: [] };
+    return { bytes: originalBytes, edits: [], reports, replacementCount: 0, editErrors: [], emissionMode: mode };
   }
   const edits: EditInput[] = replacements.map((r) => ({
     find: docText.slice(r.start, r.end),
@@ -203,7 +205,7 @@ export async function applyTextOpsToDocx(originalBytes: Buffer,
     exact_start: r.start, exact_end: r.end,
     context_before: "", context_after: "",
   }));
-  const applied = await applyTrackedEdits(originalBytes, edits, { author });
+  const applied = await applyTrackedEdits(originalBytes, edits, { author, mode });
   return {
     bytes: applied.bytes,
     edits: applied.changes.map(({ id, delId, insId, ...edit }) => ({
@@ -212,5 +214,6 @@ export async function applyTextOpsToDocx(originalBytes: Buffer,
     reports,
     replacementCount: replacements.length,
     editErrors: applied.errors.map((error) => `change ${error.index + 1}: ${error.reason}`),
+    emissionMode: applied.emissionMode,
   };
 }

@@ -102,4 +102,72 @@ describe("tracked DOCX run emission", () => {
     expect((await (await openDocxSession(beside.bytes)).revisions()).changes)
       .toEqual(expect.arrayContaining([{ kind: "ins", w_id: "90" }, { kind: "del", w_id: "91" }]));
   });
+
+  it.each(["manual", "auto"] as const)("preserves pending hyperlink revisions in %s mode", async (mode) => {
+    const bytes = await packageWith('<w:r><w:t>Route </w:t></w:r>' +
+      '<w:hyperlink w:anchor="landing"><w:r><w:t>north</w:t></w:r>' +
+      '<w:ins w:id="90" w:author="Editor"><w:r><w:t> ridge</w:t></w:r></w:ins>' +
+      '<w:del w:id="91" w:author="Editor"><w:r><w:delText> valley</w:delText></w:r></w:del></w:hyperlink>');
+    const refused = await applyTrackedEdits(bytes, [{ find: "ridge", replace: "summit",
+      context_before: "", context_after: "" }], { mode });
+    expect(refused.changes).toEqual([]);
+    expect(refused.errors[0].reason).toMatch(/pending tracked changes/u);
+    await expect(extractDocxBodyText(refused.bytes)).resolves.toBe("Route north ridge");
+    const outside = await applyTrackedEdits(bytes, [{ find: "Route", replace: "Trail",
+      context_before: "", context_after: "" }], { mode });
+    expect(outside.errors).toEqual([]);
+    await expect(extractDocxBodyText(outside.bytes)).resolves.toBe("Trail north ridge");
+    const session = await openDocxSession(outside.bytes);
+    expect((await session.revisions()).changes).toEqual(expect.arrayContaining([
+      { kind: "ins", w_id: "90" }, { kind: "del", w_id: "91" },
+    ]));
+    expect(await session.readText("word/document.xml")).toContain('w:anchor="landing"');
+  });
+
+  it.each(["footnoteReference", "endnoteReference"])(
+    "keeps a mixed %s run intact in Auto and preserves Review resolution", async (reference) => {
+      const body = '<w:r w:rsidR="01234567"><w:rPr><w:i/></w:rPr>' +
+        `<w:t xml:space="preserve">Open red</w:t><w:${reference} w:id="17"/>` +
+        '<w:t xml:space="preserve"> at noon.</w:t></w:r>';
+      const bytes = await packageWith(body);
+      const edit = { find: "Open red at noon.", replace: "Close blue at dusk.",
+        context_before: "", context_after: "" };
+      const automatic = await applyTrackedEdits(bytes, [edit], { mode: "auto" });
+      expect(automatic.errors).toEqual([]);
+      expect(automatic.emissionMode).toBe("auto");
+      expect(automatic.changes).toHaveLength(1);
+      expect(automatic.changes[0].delId).toBeUndefined();
+      expect(automatic.changes[0].insId).toBeUndefined();
+      const actual = await (await openDocxSession(automatic.bytes)).document();
+      const expectedBytes = await packageWith(body.replace("Open red", "Close blue").replace("at noon", "at dusk"));
+      const expected = await (await openDocxSession(expectedBytes)).document();
+      expect(actual.paragraphs[0].node).toEqual(expected.paragraphs[0].node);
+      expect((await (await openDocxSession(automatic.bytes)).revisions()).changes).toEqual([]);
+
+      const manual = await applyTrackedEdits(bytes, [edit]);
+      expect(manual.emissionMode).toBe("manual");
+      const ids = manual.changes.flatMap(({ delId, insId }) => [delId, insId].filter((id): id is string => !!id));
+      expect(ids.length).toBeGreaterThan(0);
+      for (const mode of ["accept", "reject"] as const) {
+        const resolved = await resolveTrackedChange(manual.bytes, ids, mode);
+        expect(resolved.found).toBe(true);
+        await expect(extractDocxBodyText(resolved.bytes)).resolves.toBe(mode === "accept" ? edit.replace : edit.find);
+        const xml = (await (await openDocxSession(resolved.bytes)).readText("word/document.xml"))!;
+        expect(xml.split(`<w:${reference} `)).toHaveLength(2);
+        expect(xml).toContain('w:id="17"');
+      }
+    },
+  );
+
+  it("keeps Auto tabs and multi-paragraph replacements on the shared text plane", async () => {
+    const bytes = await new JSZip().file("word/document.xml",
+      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' +
+      '<w:p><w:r><w:t>Upper route.</w:t></w:r></w:p><w:p><w:r><w:t>Lower route.</w:t></w:r></w:p>' +
+      '</w:body></w:document>').generateAsync({ type: "nodebuffer" });
+    const result = await applyTrackedEdits(bytes, [{ find: "Upper route.\nLower route.",
+      replace: "Upper\tlane.\nLower\tlane.", context_before: "", context_after: "" }], { mode: "auto" });
+    expect(result.errors).toEqual([]);
+    await expect(extractDocxBodyText(result.bytes)).resolves.toBe("Upper\tlane.\nLower\tlane.");
+    expect((await (await openDocxSession(result.bytes)).document()).paragraphs).toHaveLength(2);
+  });
 });
