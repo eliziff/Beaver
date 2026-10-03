@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-export function nativeAddonFile(filename: string, root: string): string {
+export function nativeAddonFile(filename, root) {
   if (process.platform !== "win32" ||
       !/^target\/(debug|release)\/legal_structure_node\.dll$/.test(path.relative(root, filename).replaceAll("\\", "/")))
     return filename;
@@ -22,7 +22,7 @@ export function nativeAddonFile(filename: string, root: string): string {
     if (previous !== name && /^legal_structure_node\.[a-f0-9]{64}\.dll$/.test(previous)) {
       try { unlinkSync(path.join(directory, previous)); }
       catch (error) {
-        if (!["EPERM", "EACCES", "EBUSY"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+        if (!["EPERM", "EACCES", "EBUSY"].includes(error.code ?? "")) throw error;
       }
     }
   }

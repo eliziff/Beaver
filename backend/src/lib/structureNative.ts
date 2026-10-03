@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { nativeAddonFile } from "./nativeAddonFile";
+import { nativeAddonFile } from "mike/shared/nativeAddonFile.mjs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { SpreadsheetCellSpan } from "./spreadsheet";
