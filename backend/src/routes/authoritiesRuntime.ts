@@ -17,7 +17,7 @@ import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraf
 import { importStandaloneAuthoritiesFile } from "../lib/authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
-  autoFetchedPdf, attachAuthoritiesBookPdf, authoritiesReview, folderPdfAuthority } from "../lib/authoritiesActions";
+  autoFetchedPdf, attachAuthoritiesBookPdf, authoritiesReview, folderPdfAuthority, readPinpoints } from "../lib/authoritiesActions";
 import { validateAuthoritiesPdf } from "../lib/authoritiesPdf";
 import { authorityReferenceText, resolveAuthoritiesSources, retryableAuthoritySource,
   type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
@@ -200,6 +200,12 @@ export function createAuthoritiesRuntimeRouter(
     const abort = new AbortController(); res.once("close", () => abort.abort());
     res.json(statuteExcerptSummary(state, authority, source, await authoritiesSourceText(state, readings)(role,
       { bytes, sourceSha256: source.sourceSha256, signal: abort.signal })));
+  }));
+  router.post("/pinpoints", asyncRoute(async (req, res) => {
+    const text = String(req.body?.text ?? ""), start = Number(req.body?.start), end = Number(req.body?.end);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > text.length || end <= start)
+      return reject(400, "Select the pinpoint in this citation's paragraph or footnote");
+    res.json(readPinpoints(text, start, end).map(({ kind, start, end }) => ({ kind, start, end })));
   }));
   router.post("/page-labels", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const state = draft(json(req.body?.draft, "draft"));

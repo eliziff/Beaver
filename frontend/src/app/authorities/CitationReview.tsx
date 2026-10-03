@@ -503,10 +503,16 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   const pinTarget = (span = selection) => span && span.unitId === selected.unitId && span.end > span.start &&
     !(span.start < selected.authoritySpan.end && selected.authoritySpan.start < span.end) &&
     !pins.some(pin => pin.start < span.end && span.start < pin.end) && pins.length < PINPOINTS ? span : null;
-  const addPinpoint = (span = selection) => {
-    const target = pinTarget(span);
-    if (target) submit({ type: 'set-pinpoints', occurrenceId: selected.id,
-      pinpoints: [...edit(pins), { start: target.start, end: target.end }] });
+  /** The selection becomes a pinpoint with the kind its words give it ("at para" a paragraph): read
+   * in a few milliseconds, so the chip shows whole; a read that lags leaves the kind to the save. */
+  const addPinpoint = async (span = selection) => {
+    const target = pinTarget(span), occurrenceId = selected.id, kept = edit(pins);
+    if (!target) return;
+    const read = host.readPinpoints?.(unit.text, target.start, target.end).catch(() => null);
+    const found = read && await Promise.race([read, new Promise<null>(resolve => setTimeout(resolve, 40, null))]);
+    submit({ type: 'set-pinpoints', occurrenceId, pinpoints: [...kept, ...found?.length
+      ? found.map(({ start, end, kind }) => ({ start, end, kind: kind as PinpointEdit[number]['kind'] }))
+      : [{ start: target.start, end: target.end }]] });
   };
   /** A new citation from the selection; it becomes active where the view already is. */
   const addCitation = (span = selection) => {

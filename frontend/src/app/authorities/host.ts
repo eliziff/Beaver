@@ -82,6 +82,8 @@ export interface AuthoritiesHost {
   readSourcePageLabels?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Array<string | null>>;
   /** What a statute's excerpt holds of one of its PDFs, read as a build of the draft reads it. */
   statuteExcerpt?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<StatuteExcerptSummary>;
+  /** The pinpoints a selection of a unit's text holds, with their kinds, as a save would read them. */
+  readPinpoints?(text: string, start: number, end: number): Promise<Array<{ kind: string; start: number; end: number }>>;
   sourceOcr?: AuthoritiesOcrPort;
   outputFolder?: OutputFolderPort;
 }
