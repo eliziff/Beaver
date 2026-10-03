@@ -4,6 +4,7 @@ import { attachedAuthoritySources, authoritiesBriefPdf } from "mike/shared/autho
 import type { AuthoritiesBuildReceipt, AuthoritiesDraft, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
 import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
 import { nestedOutline, pdfAssembly, type PdfOutline } from "mike/shared/runtime/pdfAssembly.mjs";
+import { dropUnreachable } from "mike/shared/runtime/authoritiesBook.mjs";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabReference } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
@@ -265,6 +266,8 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   document.setTitle("Brief and Book of Authorities");
   document.setCreator("Beaver"); document.setProducer("Beaver / pdf-lib");
   input.signal?.throwIfAborted();
-  return { bytes: Buffer.from(await document.save({ useObjectStreams: false })),
+  // What the brief's and the book's copies carried in that nothing refers to stays out.
+  dropUnreachable(pdf, document);
+  return { bytes: Buffer.from(await document.save({ useObjectStreams: true })),
     pageCount: document.getPageCount(), warnings };
 }

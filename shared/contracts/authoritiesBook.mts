@@ -357,7 +357,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
 
 /** Leaves out of the file what nothing in it refers to: the pages, fonts and images a source's
  *  links to pages the book does not keep carried in when its pages were copied. */
-function dropUnreachable(pdf: PdfModule, document: import("pdf-lib").PDFDocument) {
+export function dropUnreachable(pdf: PdfModule, document: import("pdf-lib").PDFDocument) {
   const { context } = document, reached = new Set<string>();
   const queue: unknown[] = [context.trailerInfo.Root, context.trailerInfo.Info, context.trailerInfo.Encrypt];
   while (queue.length) {
