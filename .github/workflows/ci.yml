@@ -5,29 +5,41 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  privacy:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.scope.outputs.backend }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+      guards: ${{ steps.scope.outputs.guards }}
+      audit: ${{ steps.scope.outputs.audit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           fetch-depth: 0
-      - run: python3 scripts/check_privacy.py --self-test
-      - run: python3 scripts/check_privacy.py
-        env:
-          BEAVER_PRIVATE_EMAIL_SHA256: ${{ secrets.BEAVER_PRIVATE_EMAIL_SHA256 }}
+      - run: python3 -m unittest discover -s scripts/tests -p test_ci_scope.py
+      - id: scope
+        run: python3 scripts/ci-scope.py
+      - name: Check audit failure handling once
+        if: steps.scope.outputs.audit != '[]'
+        run: node --test scripts/audit-gate.test.mjs
 
-  dependency-audit:
+  guards:
+    needs: changes
+    if: needs.changes.outputs.guards == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        directory: [".", backend, frontend]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -35,14 +47,31 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
-      - name: Check audit failure handling
-        if: matrix.directory == '.'
-        run: node --test scripts/audit-gate.test.mjs
+      - run: git submodule update --init --depth 1 -- legal-structure
+      - run: npm run check:guards
+
+  dependency-audit:
+    needs: changes
+    if: needs.changes.outputs.audit != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: ${{ fromJSON(needs.changes.outputs.audit) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
       - name: Audit resolved dependencies
         working-directory: ${{ matrix.directory }}
         run: node "$GITHUB_WORKSPACE/scripts/audit-gate.mjs"
 
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -72,6 +101,8 @@ jobs:
       - run: npm test
 
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:

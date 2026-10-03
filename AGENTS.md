@@ -38,8 +38,6 @@ the latter owns project priorities and remaining gates.
 - Use repository-relative paths or runtime configuration and GitHub noreply
   attribution. Raw requests, histories, documents and receipts stay in ignored
   `.tmp/` or private storage. Preserve third-party licenses and public-source credit.
-- Run the privacy checks in CONTRIBUTING.md before committing or publishing,
-  including the artifact check for native packages and embedded HTML releases.
 - After a privacy history rewrite, cherry-pick older work onto the cleaned branch;
   do not merge the old history back into it.
 

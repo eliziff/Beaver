@@ -1,11 +1,22 @@
 # End-to-end CI
 
-The separate CI dependency audit checks all three lockfiles (root, backend and
-frontend; the Word surface shares the frontend). It uses npm's bulk advisory
+The separate CI dependency audit checks changed manifests/lockfiles (root, backend
+and frontend; the Word surface shares the frontend), plus all three weekly and
+on manual CI runs. Changes to its gate or allowlist also audit all three. It uses npm's bulk advisory
 service with an OSV fallback and fails closed when neither answers. Exceptions
 must identify an advisory and reason in `scripts/audit-allowlist.json`; no
 upstream exceptions are inherited. Its offline regression gate is
 `node --test scripts/audit-gate.test.mjs`.
+
+CI selects jobs from the complete Git diff, including deleted files and both
+sides of moves. Documentation-only changes skip application builds and browser
+tests. Frontend-only changes skip the backend native build; backend changes still
+validate the frontend because it imports backend helpers. Unknown inputs run both
+surfaces. Job conditions keep the existing backend/frontend/playwright check names;
+the workflows still start on every PR. Grammar, source-boundary and export-integrity
+checks run once as `guards`, separately from focused backend behavior tests. The
+TypeScript identifier-count heuristic is an optional maintenance tool, not a test
+gate. New commits cancel superseded CI runs.
 
 Cloud SAML sign-in uses GoTrue's configured providers. Set `SSO_ENABLED=true`
 and optionally restrict `SSO_ALLOWED_DOMAINS` to comma-separated DNS domains.
