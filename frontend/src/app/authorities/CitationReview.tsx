@@ -693,9 +693,9 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
           spellCheck={false}>{unit.text}</div>
       </div>}
     </div>
-    {/* Under the page and as wide as it: where you are and the edits, then the pinpoints, what a
-        supra or ibid refers to and the quotation. Every control keeps its place from one citation to
-        the next, and what a citation lacks keeps its room. */}
+    {/* Under the page and as wide as it, in three columns: where you are; the citation's authority
+        and its quotation over its pinpoints; the edits. Every control is always there, greyed where a
+        citation has no use for it, so nothing moves from one citation to the next. */}
     <div className="citation-panel">
       <div role="group" aria-label="Citations" className="citation-nav">
         <Button variant="ghost" size="icon-sm" aria-label="Previous citation" title="Previous citation (↑)"
@@ -710,17 +710,16 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
         <button type="button" disabled={busy} onClick={remove} aria-keyshortcuts="Delete"
           title="Not a citation (Delete). Ctrl+Z puts it back">Remove</button>
       </div>
+      {/* Every citation shows its authority; only a supra, ibid or short form can be pointed at another. */}
+      <span id="citation-refers" className="citation-label" data-row="1">{reference ? 'Refers to' : 'Authority'}</span>
+      <AuthorityPicker options={options} current={linked} currentLabel={linked && authorityCitationText(product.state, linked)}
+        busy={busy || !reference || !referenceKind} onPick={link} />
+      <button type="button" className="citation-quote" disabled={!finding}
+        title={finding ? 'Compare the quotation with the source' : 'No quotation to review in this citation'}
+        onClick={() => finding && onReview(finding.id)}><TextQuote aria-hidden="true" /><span>Review quotation</span></button>
+      <span className="citation-label" data-row="2" aria-hidden="true">Pinpoints</span>
       <PinpointChips occurrence={selected} unitText={unit.text} adding={!!pinTarget()}
         onSet={pinpoints => submit({ type: 'set-pinpoints', occurrenceId: selected.id, pinpoints })} onAdd={() => addPinpoint()} />
-      {reference ? <div className="citation-refers">
-        <span id="citation-refers">Refers to</span>
-        <AuthorityPicker options={options} current={linked} currentLabel={linked && authorityCitationText(product.state, linked)}
-          busy={busy || !referenceKind} onPick={link} />
-      </div> : <span className="citation-refers" aria-hidden="true" />}
-      {/* Its room is kept when there is nothing to review, so nothing beside it moves. */}
-      <button type="button" className="citation-quote" style={finding ? undefined : { visibility: 'hidden' }}
-        aria-label="Review quotation" onClick={() => finding && onReview(finding.id)}>
-        <TextQuote aria-hidden="true" /><span>Review quotation</span></button>
     </div>
   </div>;
 }

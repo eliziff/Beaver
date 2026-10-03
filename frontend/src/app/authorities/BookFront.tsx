@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Plus, Scale, X } from "lucide-react";
+import { Modal } from "@/app/components/modals/Modal";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
-import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
+import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
+import { CourtChoiceModal } from "@/app/components/modals/CourtChoiceModal";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, errorMessage } from "@/app/lib/utils";
-import { OptionCard, OptionCards } from "./OptionCards";
+import { getPdfJs, openPdfDocument, PDF_DOCUMENT_OPTIONS } from "@/app/lib/pdfJs";
+import type { PdfAnnotation } from "../../../../shared/pdf-annotations.mjs";
+import { OptionCard, OptionCards, Segments } from "./OptionCards";
 import { AUTHORITIES_PROFILES, authoritiesProfile } from "./profiles";
 import type { AuthoritiesHost } from "./host";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
@@ -15,11 +19,12 @@ export type Settings = AuthoritiesProduct["state"]["settings"];
 /** The settings the cover and the index are drawn from. */
 export const FRONT_KEYS = ["filingMedium", "bookRole", "indexShows", "tabPages", "rightHandStarts", "grouping",
   "tableOrder"] as const;
+export const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
 /** A part of the book's front: the cover, the index. */
-export const SECTION = "mb-3 w-full border-b border-gray-200 pb-1.5 text-base font-semibold text-gray-950";
-const FIELD = "mt-1.5 h-10 border-gray-400 md:text-base";
-const AREA = "mt-1.5 min-h-20 w-full resize-y rounded-md border border-gray-400 bg-white px-3 py-2 text-base text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600";
-const LABEL = "block min-w-0 text-sm font-medium text-gray-700";
+export const SECTION = "mb-2 w-full border-b border-gray-200 pb-1 text-sm font-semibold text-gray-950";
+const FIELD = "mt-1 h-9 border-gray-300 text-sm md:text-sm";
+const AREA = "mt-1 min-h-14 w-full resize-y rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600";
+const LABEL = "block min-w-0 text-sm font-medium text-gray-800";
 const GROUPINGS = [{ value: "cases-first", label: "Cases first" }, { value: "legislation-first", label: "Legislation first" },
   { value: "none", label: "None" }] as const;
 const ORDERS = [{ value: "alphabetical", label: "Alphabetical" }, { value: "first-reference", label: "First cited" },
@@ -28,42 +33,27 @@ type Contact = NonNullable<AuthoritiesCover["contact"]>;
 const EMPTY_CONTACT: Contact = { name: "", address: "", phone: "", fax: "", email: "" };
 const CONTACT = [["name", "Name"], ["email", "Email"], ["address", "Address"], ["phone", "Phone"], ["fax", "Fax"]] as const;
 
-/** The court, in one control the height of a text box: its jurisdiction, then the court there. A
- *  jurisdiction brings its first court; with no court preset the jurisdiction takes the whole box. */
-export function CourtSelect({ value, preferred = [], disabled, bookOnly = false, onChange, className }: {
-  value: AuthoritiesProfileId; preferred?: readonly string[]; disabled?: boolean; className?: string;
-  /** Only the courts a book is filed in. */
-  bookOnly?: boolean; onChange: (value: AuthoritiesProfileId) => void;
+/** The court: a button naming it, which opens the court chooser the court records share. */
+export function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, className,
+  bookOnly = false }: {
+  value: AuthoritiesProfileId; disabled?: boolean; preferredKeys: string[];
+  onChange: (value: AuthoritiesProfileId) => void; className?: string; bookOnly?: boolean;
 }) {
-  const profiles = AUTHORITIES_PROFILES.filter((item) => !bookOnly || item.locked?.outputMode !== "table");
-  // The user's own jurisdictions first, then the rest, and no court preset last.
-  const rank = ({ id, preferenceKey }: { id: string; preferenceKey?: string }) => {
-    const index = preferred.indexOf(preferenceKey ?? id);
-    return id === "general" ? preferred.length + 1 : index < 0 ? preferred.length : index;
-  };
-  const jurisdictions = [...new Map(profiles.map(({ jurisdiction }) => [jurisdiction.id, jurisdiction])).values()]
-    .sort((left, right) => rank(left) - rank(right) || left.order - right.order);
   const current = authoritiesProfile(value);
-  const courts = profiles.filter(({ jurisdiction }) => jurisdiction.id === current.jurisdiction.id);
-  return <div role="group" aria-label="Court" className={cn("grid h-9 min-w-0 rounded-md border border-gray-300 bg-white hover:border-gray-500",
-    value === "general" ? "grid-cols-1" : "grid-cols-[minmax(0,2fr)_minmax(0,3fr)]", className)}>
-    <Segment label="Jurisdiction" value={current.jurisdiction.id} disabled={disabled}
-      options={jurisdictions.map(({ id, label }) => ({ value: id, label }))}
-      onChange={(id) => onChange(profiles.find(({ jurisdiction }) => jurisdiction.id === id)!.id)} />
-    {value !== "general" && <Segment label="Court" value={value} disabled={disabled} className="border-l border-gray-300"
-      options={courts.map(({ id, label }) => ({ value: id, label }))} onChange={(id) => onChange(id as AuthoritiesProfileId)} />}
+  const [open, setOpen] = useState(false);
+  const available = AUTHORITIES_PROFILES
+    .filter((item) => !bookOnly || item.locked?.outputMode !== "table");
+
+  return <div className={className}>
+    <ChoiceModalButton icon={<Scale aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-500" />}
+      label="Court" value={current.label} disabled={disabled} className="w-full"
+      onClick={() => setOpen(true)} />
+    <CourtChoiceModal open={open} title="Choose court" searchLabel="Search courts"
+      value={value} preferredKeys={preferredKeys}
+      options={available.map(({ id, label, court, jurisdiction }) => ({ value: id, label,
+        jurisdictionId: jurisdiction.id, keywords: court.abbreviation }))}
+      onChange={(id) => onChange(id as AuthoritiesProfileId)} onClose={() => setOpen(false)} />
   </div>;
-}
-function Segment({ label, value, options, disabled, className, onChange }: { label: string; value: string;
-  options: ReadonlyArray<{ value: string; label: string }>; disabled?: boolean; className?: string; onChange: (value: string) => void }) {
-  return <span className={cn("relative min-w-0", className)}>
-    <select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}
-      title={options.find((option) => option.value === value)?.label}
-      className="h-full w-full appearance-none truncate rounded-md bg-transparent pl-3 pr-8 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 disabled:cursor-default disabled:opacity-60">
-      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
-    <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-500" />
-  </span>;
 }
 
 /** The cover the court files a book under: the Federal Court's Form 66, King's Bench's Alberta cover,
@@ -82,18 +72,14 @@ export function savedCover(cover: AuthoritiesCover): AuthoritiesCover {
     ...cover.judicialCentre !== undefined && { judicialCentre: cover.judicialCentre.trim() },
     ...cover.contact && { contact: Object.fromEntries(CONTACT.map(([key]) => [key, cover.contact?.[key]?.trim() ?? ""])) as Contact } };
 }
-/** A Federal Form 66 the book makes needs the court file number, the parties and who files before
- *  the book can be built. */
-export const coverNeedsDetails = ({ settings, outputMode, bookParts, cover }: AuthoritiesProduct["state"]) =>
-  outputMode !== "table" && coverForm(settings.profileId) === "federal" && !bookParts.cover && !(!!settings.bookRole &&
-    !!cover.courtFileNumber.trim() && cover.partyGroups.length >= 2 && cover.partyGroups.every(({ role, parties }) =>
-      !!role.trim() && parties.some((party) => !!party.trim())));
+/** The cover a Federal Form 66 needs before the book can be built. */
+export const completeFederalCover = (cover: AuthoritiesCover) => !!cover.courtFileNumber.trim() &&
+  cover.partyGroups.length >= 2 && cover.partyGroups.every(({ role, parties }) =>
+    !!role.trim() && parties.some((party) => !!party.trim()));
 
 /** The cover's details as the court's cover asks for them, with who files where the court asks. */
-export function CoverFields({ cover, profileId, settings, disabled, headless, onCover, onSettings }: {
-  cover: AuthoritiesCover; profileId: AuthoritiesProfileId; settings: Settings; disabled?: boolean;
-  /** Under a row that already names it. */
-  headless?: boolean;
+export function CoverFields({ cover, profileId, settings, disabled, court, onCover, onSettings }: {
+  cover: AuthoritiesCover; profileId: AuthoritiesProfileId; settings: Settings; disabled?: boolean; court?: ReactNode;
   onCover: (cover: AuthoritiesCover) => void; onSettings: (patch: Partial<Settings>) => void;
 }) {
   const form = coverForm(profileId), options = authoritiesProfile(profileId).options;
@@ -104,14 +90,16 @@ export function CoverFields({ cover, profileId, settings, disabled, headless, on
       <Input value={value} placeholder={placeholder} disabled={disabled} onChange={(event) => change(event.target.value)}
         className={FIELD} /></label>;
   const optional = <span className="font-normal text-gray-500">(optional)</span>;
-  return <fieldset className="grid min-w-0 gap-4" disabled={disabled}>
-    <legend className={headless ? "sr-only" : SECTION}>Cover</legend>
-    {form === "plain" ? text(<>Title {optional}</>, cover.title, (title) => onCover({ ...cover, title }), undefined, "Book of Authorities")
-      : <div className="grid gap-3 @min-[34rem]/front:grid-cols-2">
+  return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
+    <legend className={SECTION}>Cover</legend>
+    {form === "plain" ? <div className="grid grid-cols-2 gap-x-3 gap-y-2">{court}
+        {text(<>Title {optional}</>, cover.title, (title) => onCover({ ...cover, title }), undefined, "Book of Authorities")}</div>
+      : <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        {court && <div className="col-span-2">{court}</div>}
         {text("Court file number", cover.courtFileNumber, (courtFileNumber) => onCover({ ...cover, courtFileNumber }))}
-        {form === "alberta" && text("Judicial centre", cover.judicialCentre ?? "", (judicialCentre) => onCover({ ...cover, judicialCentre }))}
-        {text(<>Title {optional}</>, cover.title, (title) => onCover({ ...cover, title }),
-          form === "alberta" ? "@min-[34rem]/front:col-span-2" : undefined,
+        {form === "alberta" ? text("Judicial centre", cover.judicialCentre ?? "", (judicialCentre) => onCover({ ...cover, judicialCentre }))
+          : <span />}
+        {text(<>Title {optional}</>, cover.title, (title) => onCover({ ...cover, title }), "col-span-2",
           form === "alberta" ? "Book of Authorities of the Applicant" : undefined)}
       </div>}
     {form !== "plain" && options?.filingMedium && options.bookRole && <div className="grid gap-3 @min-[34rem]/front:grid-cols-2">
@@ -120,30 +108,31 @@ export function CoverFields({ cover, profileId, settings, disabled, headless, on
       <Choice label="Filed by" value={settings.bookRole ?? ""} options={options.bookRole} disabled={disabled}
         placeholder={settings.bookRole ? null : "Choose filing party"} onChange={(bookRole) => onSettings({ bookRole })} />
     </div>}
-    {form !== "plain" && <div className="grid gap-3 @min-[34rem]/front:grid-cols-2">
-      {cover.partyGroups.map(({ role, parties }, index) => <section key={index} aria-label={`Party group ${index + 1}`}
-        className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-        <label className={LABEL}>Role
-          <Input value={role} disabled={disabled} onChange={(event) => group(index, { role: event.target.value })}
-            className="mt-1 h-9 border-gray-400 bg-white md:text-base" /></label>
-        <label className={cn(LABEL, "mt-3")}>Party names <span className="font-normal text-gray-500">(one per line)</span>
-          <textarea rows={2} value={parties.join("\n")} disabled={disabled}
-            onChange={(event) => group(index, { parties: event.target.value.split(/\r?\n/u) })} className={AREA} /></label>
-        {cover.partyGroups.length > 2 && <Button type="button" variant="ghost" className="mt-1 h-8 px-2 text-xs"
-          onClick={() => onCover({ ...cover, partyGroups: cover.partyGroups.filter((_, position) => position !== index) })}>
-          Remove role</Button>}
-      </section>)}
-      <Button type="button" variant="outline" className="h-9 w-fit border-gray-400" disabled={disabled}
+    {/* The parties as a table: each role beside its parties, one per line. */}
+    {form !== "plain" && <div role="group" aria-label="Parties" className="grid grid-cols-[9rem_minmax(0,1fr)_1.75rem] items-start gap-x-2 gap-y-1.5">
+      <span className={LABEL}>Role</span>
+      <span className={LABEL}>Parties <span className="font-normal text-gray-500">(one per line)</span></span><span />
+      {cover.partyGroups.map(({ role, parties }, index) => <Fragment key={index}>
+        <Input aria-label={`Role ${index + 1}`} value={role} disabled={disabled} onChange={(event) => group(index, { role: event.target.value })}
+          className="h-8 border-gray-300 text-sm md:text-sm" />
+        <textarea aria-label={`Parties for ${role || `role ${index + 1}`}`} rows={Math.max(1, parties.length)} value={parties.join("\n")}
+          disabled={disabled} onChange={(event) => group(index, { parties: event.target.value.split(/\r?\n/u) })}
+          className="min-h-8 w-full resize-none rounded-md border border-gray-300 bg-white px-2.5 py-1 text-sm leading-5 text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600" />
+        <button type="button" aria-label={`Remove ${role || `role ${index + 1}`}`} disabled={disabled || cover.partyGroups.length <= 2}
+          title="Remove this role" onClick={() => onCover({ ...cover, partyGroups: cover.partyGroups.filter((_, position) => position !== index) })}
+          className="grid size-8 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:invisible"><X className="size-4" /></button>
+      </Fragment>)}
+      <button type="button" disabled={disabled} className="col-span-2 inline-flex h-7 w-fit items-center gap-1 rounded-md px-1.5 text-[0.8125rem] font-medium text-gray-700 hover:bg-gray-100"
         onClick={() => onCover({ ...cover, partyGroups: [...cover.partyGroups, { role: "", parties: [""] }] })}>
-        <Plus /> Add role</Button>
+        <Plus className="size-3.5" /> Add role</button>
     </div>}
     {form === "federal" && text(<>Application under {optional}</>, cover.applicationUnder,
       (applicationUnder) => onCover({ ...cover, applicationUnder }))}
-    {form === "alberta" && <fieldset className="grid gap-3 @min-[34rem]/front:grid-cols-2">
+    {form === "alberta" && <fieldset className="grid grid-cols-2 gap-x-3 gap-y-2">
       <legend className="mb-2 text-sm font-medium text-gray-800">Address for service and contact information</legend>
       {CONTACT.map(([key, label]) => key === "address"
-        ? <label key={key} className={cn(LABEL, "@min-[34rem]/front:col-span-2")}>{label}
-          <textarea rows={3} value={cover.contact?.address ?? ""} className={AREA}
+        ? <label key={key} className={cn(LABEL, "col-span-2")}>{label}
+          <textarea rows={2} value={cover.contact?.address ?? ""} className={AREA}
             onChange={(event) => onCover({ ...cover, contact: { ...EMPTY_CONTACT, ...cover.contact, address: event.target.value } })} /></label>
         : <label key={key} className={LABEL}>{label}
           <Input value={cover.contact?.[key] ?? ""} type={key === "email" ? "email" : "text"} className={FIELD}
@@ -153,30 +142,29 @@ export function CoverFields({ cover, profileId, settings, disabled, headless, on
 }
 
 /** What the index gives, how it groups and orders the authorities, and how each tab opens. */
-export function IndexFields({ settings, profileId, disabled, headless, onChange }: {
-  settings: Settings; profileId: AuthoritiesProfileId; disabled?: boolean; headless?: boolean;
-  onChange: (patch: Partial<Settings>) => void;
+export function IndexFields({ settings, profileId, disabled, onChange }: {
+  settings: Settings; profileId: AuthoritiesProfileId; disabled?: boolean; onChange: (patch: Partial<Settings>) => void;
 }) {
   const profile = authoritiesProfile(profileId), federal = !!profile.requirements?.federalFormatting;
   const electronic = settings.filingMedium === "electronic";
   const tabPages = settings.tabPages ?? !federal;
   const rightHand = !electronic && (settings.rightHandStarts ?? settings.filingMedium === "paper");
-  return <fieldset className="grid min-w-0 gap-4" disabled={disabled}>
-    <legend className={headless ? "sr-only" : SECTION}>Index</legend>
+  return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
+    <legend className={SECTION}>Index</legend>
     <OptionCards legend="Beside each authority" value={settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs")}
-      columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index lists the tab of each authority." },
-        { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index lists the tab of each authority and the book pages it fills." }]}
+      columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
+        { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index also gives the book pages each authority fills." }]}
       onChange={(indexShows) => onChange({ indexShows })} />
-    <div className="grid gap-3 @min-[34rem]/front:grid-cols-2">
-      <Choice label="Group" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
+    <div className="grid grid-cols-2 gap-3">
+      <Segments stacked label="Group" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
         options={GROUPINGS} disabled={disabled || !!profile.locked?.settings?.grouping} onChange={(grouping) => onChange({ grouping })} />
-      <Choice label="Order" value={settings.tableOrder} disabled={disabled || !!profile.locked?.settings?.tableOrder}
+      <Segments stacked label="Order" value={settings.tableOrder} disabled={disabled || !!profile.locked?.settings?.tableOrder}
         options={settings.tableOrder === "custom" ? ORDERS : ORDERS.filter(({ value }) => value !== "custom")}
         onChange={(tableOrder) => onChange({ tableOrder })} />
     </div>
-    <div className="grid gap-2">
+    <div className="grid grid-cols-2 gap-2">
       <OptionCard type="checkbox" checked={tabPages} onChange={() => onChange({ tabPages: !tabPages })}
-        label="A TAB page before each authority" detail="Adds a page reading TAB and its number before each authority. The index links and bookmarks go to it." />
+        label="A TAB page before each authority" detail="Where the index's link and the bookmark for each authority land." />
       <OptionCard type="checkbox" checked={rightHand} disabled={electronic} onChange={() => onChange({ rightHandStarts: !rightHand })}
         label="Start each on a right-hand page"
         detail={electronic ? "For a book printed on both sides. An electronic filing has no blank pages."
@@ -224,9 +212,49 @@ export function FrontPreview({ host, draft, actions, className }: {
     return () => { clearTimeout(timer); abort.abort(); };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return <Preview className={className} label="Preview of the cover and index">
-    <PdfCanvas bytes={shown?.bytes} loading={!shown?.bytes && !shown?.error} error={shown?.bytes ? undefined : shown?.error}
-      ariaLabel="Cover and index preview" />
+    {shown?.error && !shown.bytes ? <p role="alert" className="m-auto p-6 text-center text-sm text-red-800">{shown.error}</p>
+      : <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 p-3">
+        <PagePreview bytes={shown?.bytes} page={1} label="Cover" />
+        <PagePreview bytes={shown?.bytes} page={2} label="First page of the index" />
+      </div>}
   </Preview>;
+}
+
+/** One page of a PDF drawn whole in a still frame: the last drawing stays until the next is ready, so
+ *  nothing moves, and marks are laid over it in their own colours. */
+export function PagePreview({ bytes, page, marks = [], label }: { bytes?: Uint8Array; page: number;
+  marks?: readonly PdfAnnotation[]; label: string }) {
+  const [drawn, setDrawn] = useState<{ url: string; width: number; height: number; page: number }>();
+  useEffect(() => {
+    if (!bytes) return;
+    let active = true;
+    void (async () => {
+      const task = openPdfDocument(await getPdfJs(), { data: bytes.slice() }, PDF_DOCUMENT_OPTIONS);
+      try {
+        const document = await task.promise, at = Math.min(page, document.numPages), pdfPage = await document.getPage(at);
+        const { width, height } = pdfPage.getViewport({ scale: 1 }), viewport = pdfPage.getViewport({ scale: 2 });
+        const canvas = window.document.createElement("canvas");
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        await pdfPage.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
+        if (active) setDrawn({ url: canvas.toDataURL("image/png"), width, height, page: at });
+      } finally { await task.destroy(); }
+    })().catch(() => {});
+    return () => { active = false; };
+  }, [bytes, page]);
+  const colour = ([r, g, b]: readonly number[]) => `rgb(${[r, g, b].map((v) => v <= 1 ? Math.round(v * 255) : v).join(",")})`;
+  return <figure className="m-0 flex min-h-0 min-w-0 flex-col items-center gap-1.5">
+    <div className="grid min-h-0 w-full flex-1 place-items-center">
+      {drawn ? <svg role="img" aria-label={label} viewBox={`0 0 ${drawn.width} ${drawn.height}`}
+        className="h-full max-h-full w-auto max-w-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)]">
+        <image href={drawn.url} width={drawn.width} height={drawn.height} />
+        {marks.flatMap((mark) => mark.fragments.filter((fragment) => fragment.pageNumber === drawn.page)
+          .flatMap((fragment, f) => fragment.rects.map(([x0, y0, x1, y1], r) => <rect key={`${mark.id}:${f}:${r}`}
+            x={Math.min(x0, x1)} y={drawn.height - Math.max(y0, y1)} width={Math.abs(x1 - x0)} height={Math.abs(y1 - y0)}
+            fill={colour(mark.rgb)} fillOpacity={mark.kind === "margin" ? 1 : mark.opacity} />)))}
+      </svg> : <div aria-hidden="true" className="aspect-[8.5/11] h-full max-w-full animate-pulse bg-white/70" />}
+    </div>
+    <figcaption className="text-xs text-gray-600">{label}</figcaption>
+  </figure>;
 }
 
 /** The preview pane beside the options: a framed, full-height area. */
@@ -236,55 +264,39 @@ export function Preview({ label, className, children }: { label: string; classNa
   </section>;
 }
 
-/** The cover at Build: its details as at import, kept here as they are typed and saved when the cover
- *  is left or closed, with the book's front drawn beside them as typed. `file` is the cover's PDF line. */
-export function CoverEditor({ host, draft, busy, file, onActions }: { host: AuthoritiesHost; draft: AuthoritiesProduct;
-  busy: boolean; file: ReactNode; onActions: (actions: AuthoritiesAction[]) => void }) {
+/** The cover and the index at Build: the same choices as at import, the book's front beside them. */
+export function BookFrontModal({ host, draft, busy, onClose, onActions }: {
+  host: AuthoritiesHost; draft: AuthoritiesProduct; busy: boolean; onClose: () => void;
+  onActions: (actions: AuthoritiesAction[]) => void;
+}) {
   const { profileId } = draft.state.settings;
   const [cover, setCover] = useState(draft.state.cover);
+  const [settings, setSettings] = useState<Partial<Settings>>({});
   useFilingContact(host, draft.state.cover, profileId, setCover);
-  const latest = useRef({ cover, state: draft.state, onActions });
-  latest.current = { cover, state: draft.state, onActions };
-  const save = () => {
-    const { cover, state, onActions } = latest.current, actions = frontActions(state, cover, {});
-    if (!actions.length) return;
-    onActions(actions);
-    if (coverForm(state.settings.profileId) === "alberta" && cover.contact)
-      void host.filingContact?.save(savedCover(cover).contact!).catch(() => undefined);
-  };
-  useEffect(() => save, []); // eslint-disable-line react-hooks/exhaustive-deps
-  return <FrontColumns preview={<FrontPreview host={host} draft={draft} actions={frontActions(draft.state, cover, {})} />}>
-    {file}
-    <div onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) save(); }}>
-      <CoverFields cover={cover} profileId={profileId} settings={draft.state.settings} disabled={busy} headless
-        onCover={setCover} onSettings={(patch) => onActions(frontActions(draft.state, cover, patch))} />
-    </div>
-  </FrontColumns>;
-}
-
-/** The index at Build: its choices as at import, each made as it is chosen, with the book's front beside. */
-export function IndexEditor({ host, draft, busy, file, onActions }: { host: AuthoritiesHost; draft: AuthoritiesProduct;
-  busy: boolean; file: ReactNode; onActions: (actions: AuthoritiesAction[]) => void }) {
-  return <FrontColumns preview={<FrontPreview host={host} draft={draft} actions={[]} />}>
-    {file}
-    <IndexFields settings={draft.state.settings} profileId={draft.state.settings.profileId} disabled={busy} headless
-      onChange={(patch) => onActions(frontActions(draft.state, draft.state.cover, patch))} />
-  </FrontColumns>;
-}
-
-/** Options on the left at their own height, the preview on the right, kept in view as they scroll. */
-function FrontColumns({ preview, children }: { preview: ReactNode; children: ReactNode }) {
-  return <div className="grid gap-5 lg:grid-cols-2">
-    <div className="@container/front grid min-w-0 content-start gap-5">{children}</div>
-    <div className="h-[30rem] min-w-0 lg:sticky lg:top-4 lg:self-start [&>section]:h-full">{preview}</div>
-  </div>;
+  const shown = { ...draft.state.settings, ...settings };
+  const actions = frontActions(draft.state, cover, settings);
+  return <Modal open onClose={onClose} breadcrumbs={["Cover and index"]} size="2xl"
+    className="h-[min(52rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
+    secondaryAction={{ label: "Cancel", onClick: onClose }}
+    primaryAction={{ label: "Save", disabled: busy, onClick: () => {
+      onActions(actions); onClose();
+      if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover).contact!)
+        .catch(() => undefined);
+    } }}>
+    <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={actions} />}>
+      <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setCover}
+        onSettings={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+      <IndexFields settings={shown} profileId={profileId} disabled={busy}
+        onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+    </FrontLayout>
+  </Modal>;
 }
 
 /** Options on the left, each in its own scroll, and the preview on the right; one above the other
  *  where the window is narrow. */
 export function FrontLayout({ preview, children }: { preview: ReactNode; children: ReactNode }) {
   return <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-    <div className="@container/front grid min-w-0 content-start gap-6 pr-1 lg:min-h-0 lg:overflow-y-auto">{children}</div>
+    <div className="@container/front grid min-w-0 content-start gap-5 px-1 pb-1 lg:min-h-0 lg:overflow-y-auto">{children}</div>
     <div className="h-[28rem] min-w-0 lg:h-auto lg:min-h-0 [&>section]:h-full">{preview}</div>
   </div>;
 }
