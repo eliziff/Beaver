@@ -835,12 +835,9 @@ export async function authoritiesBookFront(draft: AuthoritiesDraft, title: strin
   // The cover's editable fields drawn into its page, so any viewer shows what they hold.
   document.getForm().flatten();
   const pages = Math.min(2, book.placements[0]?.tabPageIndex ?? book.pageCount);
-  // A plain cover says little more than the title, so the index, which lists the brief's
-  // authorities, comes first; a court's cover, with its parties, comes first where there is one.
-  const order = [...Array(pages).keys()];
-  if (!drawn.alberta && !drawn.federal) order.reverse();
+  // The cover, then the first page of the index, as the book has them.
   const front = await pdfLibrary.PDFDocument.create();
-  for (const page of await front.copyPages(document, order)) front.addPage(page);
+  for (const page of await front.copyPages(document, [...Array(pages).keys()])) front.addPage(page);
   return Buffer.from(await front.save());
 }
 

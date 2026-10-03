@@ -56,36 +56,50 @@
 .citation-fallback>p{margin:0;color:#6b7280;font-size:.8125rem}
 .citation-fallback>div{position:relative;isolation:isolate;white-space:pre-wrap;overflow:hidden auto;padding:.5rem 0;line-height:1.8;outline:none}
 
-/* The bar under the document, one band as wide as the page above: where you are, the pinpoints,
-   what a supra or ibid refers to, the quotation, and Add citation over Remove. One quiet control
-   style throughout, the pinpoints in the yellow of their highlights. Where you are and the edits
-   never move between citations. */
-.citation-panel{grid-column:2;display:grid;grid-template:"nav pins refers quote edit" 3.375rem/auto auto minmax(0,1fr) auto auto;align-items:center;gap:0 1rem;padding:.375rem max(1rem,calc((100% - 46rem)/2));border-top:1px solid var(--color-gray-200);background:var(--app-surface);font-size:.8125rem;color:var(--color-gray-700)}
+/* The bar under the document, as wide as the page above, in three columns divided by hairlines:
+   where you are; the citation's authority and quotation over its pinpoints, each row under its
+   label; Add citation over Remove. Every control is always there, greyed where this citation has
+   no use for it, so nothing moves from one citation to the next. */
+.citation-panel{grid-column:2;display:grid;grid-template:"nav l1 refers quote edit" 2rem "nav l2 pins pins edit" 2rem/auto 4.75rem minmax(0,1fr) auto 7.5rem;align-items:center;gap:.5rem .75rem;padding:.75rem max(1rem,calc((100% - 48rem)/2));border-top:1px solid var(--color-gray-200);background:var(--app-surface);font-size:.8125rem;color:var(--color-gray-700)}
 .citation-panel>div{display:flex;align-items:center;min-width:0}
-.citation-nav{grid-area:nav;gap:.125rem}
-.citation-nav>span{margin-inline-start:.375rem;font-variant-numeric:tabular-nums;color:var(--color-gray-600)}
-.citation-panel .citation-nav button{width:2rem;height:2rem;border-radius:6px;color:var(--color-gray-600)}
-.citation-panel .citation-nav button:disabled{opacity:1;color:var(--color-gray-300)}
+/* Where you are: the count over its arrows, set off from the rest. */
+.citation-nav{grid-area:nav;align-self:stretch;display:grid!important;grid-template:"count count" auto "prev next" auto/auto auto;align-content:center;justify-items:center;gap:.25rem .25rem;padding-inline-end:1rem;border-inline-end:1px solid var(--color-gray-200)}
+.citation-nav>span{grid-area:count;font-variant-numeric:tabular-nums;font-weight:600;color:var(--color-gray-900);white-space:nowrap}
+.citation-nav>button:first-child{grid-area:prev}
+.citation-nav>button:nth-child(2){grid-area:next}
+.citation-panel .citation-nav button{width:2.25rem;height:1.75rem;border:1px solid var(--color-gray-300);border-radius:6px;color:var(--color-gray-700)}
+.citation-panel .citation-nav button:disabled{opacity:1;border-color:var(--color-gray-200);color:var(--color-gray-300)}
 .citation-panel .citation-nav svg{width:1rem;height:1rem}
-.citation-edit{grid-area:edit;flex-direction:column;align-items:stretch;gap:0}
-.citation-panel .citation-edit>button{justify-content:flex-end;height:1.625rem}
-.citation-edit>button,.citation-add-pin{display:inline-flex;align-items:center;gap:.3rem;height:2rem;padding:0 .625rem;border-radius:6px;color:var(--color-gray-700);font-weight:500;white-space:nowrap}
-.citation-panel button:hover:not(:disabled){background:var(--app-surface-hover);color:var(--color-gray-900)}
-.citation-edit>button:last-child:hover:not(:disabled){color:var(--citation-accent, #991b1b)}
-.citation-edit>button:disabled,.citation-add-pin:disabled{color:var(--color-gray-400);cursor:default}
-.citation-panel button:focus-visible{outline:2px solid #b91c1c;outline-offset:-2px;box-shadow:none}
-.citation-authority-trigger{display:flex;align-items:center;gap:.5rem;width:100%;height:2rem;padding:0 .5rem 0 .625rem;border:1px solid var(--color-gray-300);border-radius:6px;background:var(--app-surface);color:var(--color-gray-900);font-size:.8125rem}
+.citation-label{color:var(--color-gray-500);white-space:nowrap}
+.citation-label[data-row="1"]{grid-area:l1}
+.citation-label[data-row="2"]{grid-area:l2}
+/* The edits, stacked, set off as where you are is. */
+.citation-edit{grid-area:edit;align-self:stretch;flex-direction:column;justify-content:center;align-items:stretch!important;gap:.5rem;padding-inline-start:1rem;border-inline-start:1px solid var(--color-gray-200)}
+.citation-panel button{font-size:.8125rem}
+.citation-edit>button,.citation-quote{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;height:2rem;padding:0 .75rem;border:1px solid var(--color-gray-300);border-radius:6px;background:var(--app-surface);color:var(--color-gray-800);font-weight:500;white-space:nowrap}
+.citation-panel .citation-edit>button:hover:not(:disabled),.citation-panel .citation-quote:hover:not(:disabled),.citation-panel .citation-nav button:hover:not(:disabled){background:var(--app-surface-hover);color:var(--color-gray-950)}
+.citation-panel .citation-edit>button:last-child:hover:not(:disabled){color:var(--citation-accent, #991b1b);border-color:#fca5a5}
+.citation-edit>button:disabled,.citation-quote:disabled{border-color:var(--color-gray-200);color:var(--color-gray-400);cursor:default}
+.citation-panel button:focus-visible{outline:2px solid #b91c1c;outline-offset:1px;box-shadow:none}
+.citation-quote{grid-area:quote}
+.citation-quote>svg{width:.9375rem;height:.9375rem}
+.citation-quote:not(:disabled){color:var(--citation-accent, #991b1b)}
+/* The authority: as wide as its row allows, a real field. */
+.citation-authority-trigger{display:flex;align-items:center;gap:.5rem;width:100%;height:2rem;padding:0 .5rem 0 .75rem;border:1px solid var(--color-gray-300);border-radius:6px;background:var(--app-surface);color:var(--color-gray-900)}
 .citation-authority-trigger>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
 .citation-authority-trigger>[data-empty]{color:var(--color-gray-500)}
 .citation-authority-trigger>svg{flex:none;width:1rem;height:1rem;color:var(--color-gray-500)}
-.citation-authority-trigger:disabled{color:var(--color-gray-400);cursor:default}
-.citation-authority-trigger:disabled>svg,.citation-authority-trigger:disabled>[data-empty]{color:var(--color-gray-400)}
+.citation-authority-trigger:hover:not(:disabled){border-color:var(--color-gray-400)}
+.citation-authority-trigger:disabled{background:var(--color-gray-50);border-color:var(--color-gray-200);color:var(--color-gray-500);cursor:default}
+.citation-authority-trigger:disabled>svg{visibility:hidden}
 /* "+ Pinpoint" first, so it never moves; then a chip per yellow pinpoint, cut short if too long. */
 .citation-pins{grid-area:pins;gap:.375rem}
-.citation-add-pin{flex:none;margin-inline-start:-.625rem}
+.citation-add-pin{flex:none;display:inline-flex;align-items:center;gap:.3rem;height:1.75rem;padding:0 .625rem;border:1px dashed var(--color-gray-400);border-radius:6px;color:var(--color-gray-700);font-weight:500;white-space:nowrap}
 .citation-add-pin>svg{width:.875rem;height:.875rem}
+.citation-panel .citation-add-pin:hover:not(:disabled){background:var(--app-surface-hover);color:var(--color-gray-950)}
+.citation-add-pin:disabled{border-color:var(--color-gray-200);color:var(--color-gray-400);cursor:default}
 .citation-chips{display:flex;align-items:center;gap:.375rem;min-width:0;margin:0;padding:0;list-style:none;overflow:hidden}
-.citation-chip{display:flex;align-items:center;flex:0 1 auto;min-width:3.5rem;max-width:9rem;height:1.75rem;border-radius:6px;background:var(--color-amber-100);color:var(--citation-warning, #451a03);white-space:nowrap;overflow:hidden}
+.citation-chip{display:flex;align-items:center;flex:0 1 auto;min-width:3.5rem;max-width:9rem;height:1.75rem;border:1px solid var(--color-amber-300);border-radius:6px;background:var(--color-amber-100);color:var(--citation-warning, #451a03);white-space:nowrap;overflow:hidden}
 .citation-chip>span{min-width:0;overflow:hidden;text-overflow:ellipsis;padding-inline:.125rem;font-variant-numeric:tabular-nums}
 .citation-chip[data-more]>span{padding:0 .625rem}
 .citation-chip>button{flex:none;display:grid;place-items:center;height:100%;color:#92400e}
@@ -94,11 +108,6 @@
 .citation-chip>button:last-child>svg{width:.75rem;height:.75rem}
 .citation-panel .citation-chip>button:hover:not(:disabled){background:var(--color-amber-200);color:var(--citation-warning, #451a03)}
 .citation-chip>button:disabled{cursor:default}
-.citation-refers{grid-area:refers;gap:.5rem;min-width:0}
-.citation-refers>span{color:var(--color-gray-500);white-space:nowrap}
-.citation-quote{grid-area:quote;display:inline-flex;align-items:center;gap:.35rem;height:2rem;padding:0 .625rem;border-radius:6px;color:var(--citation-accent, #991b1b);font-weight:500}
-.citation-panel .citation-quote:hover{background:var(--brand-red-soft);color:var(--citation-accent, #991b1b)}
-.citation-quote>svg{display:none;width:1rem;height:1rem}
 /* The authorities open upward over the document, each under the place that cites it. */
 .citation-authority{position:relative;width:17rem;min-width:0}
 .citation-authority-menu{position:absolute;bottom:calc(100% + .6rem);left:0;right:0;z-index:20;display:flex;flex-direction:column;max-height:min(26rem,60vh);border:1px solid #d1d5db;border-radius:8px;background:#fff;box-shadow:0 10px 30px rgb(0 0 0 / .14)}
@@ -116,17 +125,15 @@
 .citation-authority-menu p{margin:0;padding:.6rem .5rem;color:#6b7280}
 .citation-authority-menu>input{flex:none;height:2.25rem;margin:.4rem;padding:0 .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.875rem;outline:none}
 .citation-authority-menu>input:focus-visible{border-color:#b91c1c}
-/* Narrower: the list goes above the document; the bar keeps its two rows, and what a supra or ibid
-   refers to takes a third. */
+/* Narrower: the list goes above the document; the bar keeps its columns, the labels give way. */
 @container (max-width:48rem){
   .citation-review{grid-template:7.5rem minmax(0,1fr) auto/minmax(0,1fr)}
   .citation-outline{grid-row:1;border-inline-end:0;border-bottom:1px solid var(--color-gray-200)}
-  .citation-panel{grid-column:1;grid-template:"nav quote edit" 3.375rem "pins pins pins" 2.25rem "refers refers refers" auto/minmax(0,1fr) auto auto;padding-inline:.75rem}
+  .citation-panel{grid-column:1;grid-template:"nav refers quote edit" 2rem "nav pins pins edit" 2rem/auto minmax(0,1fr) auto 6.5rem;padding-inline:.75rem}
+  .citation-label{display:none}
   .citation-document{grid-column:1}
   .citation-note{margin-bottom:.3rem}
-  .citation-authority{flex:1;width:auto}
   .citation-quote>span{display:none}
-  .citation-quote>svg{display:block}
 }
 /* Narrowest: "+ Pinpoint" is its plus alone, so the chips keep their room. */
 @container (max-width:30rem){

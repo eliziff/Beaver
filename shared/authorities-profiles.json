@@ -3,7 +3,7 @@
     "id": "general",
     "label": "No court preset",
     "courtId": "general",
-    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"alphabetical","grouping":"cases-first","indexShows":"tabs","tabPages":true,"tableDelivery":"native-append","tableLocation":"pages","passageMarking":"margin","scannedPdfPolicy":"cited-pages","missingSourcePolicy":"placeholder"}},
+    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"first-reference","grouping":"legislation-first","indexShows":"tabs","tabPages":true,"tableDelivery":"native-append","tableLocation":"pages","passageMarking":"paragraph","scannedPdfPolicy":"cited-pages","missingSourcePolicy":"placeholder"}},
     "options": {"missingSourcePolicy":true}
   },
   {
@@ -12,7 +12,7 @@
     "label": "Court of King’s Bench of Alberta",
     "courtId": "ab-kb",
     "sourceIds": ["ab-kb-citation-guidelines","ab-kb-general-pn1"],
-    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"alphabetical","grouping":"legislation-first","indexShows":"tabs","tabPages":true,"tableDelivery":"native-append","tableLocation":"pages","passageMarking":"paragraph","scannedPdfPolicy":"full","missingSourcePolicy":"omit"}},
+    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"first-reference","grouping":"legislation-first","indexShows":"tabs","tabPages":true,"tableDelivery":"native-append","tableLocation":"pages","passageMarking":"paragraph","scannedPdfPolicy":"full","missingSourcePolicy":"omit"}},
     "locked": {"settings":{"missingSourcePolicy":"omit"}},
     "requirements": {"completeBookSources":true,"albertaCover":true,"electronicVolumes":{"maxBytes":100000000,"completeToc":false,"coverLabels":true}}
   },

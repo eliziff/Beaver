@@ -46,11 +46,11 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
   const modes: ReadonlyArray<{ value: WordMode; label: string; detail: string }> = [
     { value: "none", label: linked ? "No table" : "No marks", detail: "Citations are left unmarked." },
     { value: "marks", label: "Marked copy",
-      detail: "Creates a copy of your brief with each citation marked for Word’s Table of Authorities." },
+      detail: "A copy of the brief with each citation marked for Word’s Table of Authorities." },
     linked ? { value: "table", label: "Copy with a linked table",
-      detail: "Creates a copy of your brief with a Table of Authorities on a new last page. Each authority in it links to its source." }
+      detail: "A copy with a Table of Authorities on a new last page, each authority linked to its source." }
       : { value: "table", label: "Marked copy and table",
-        detail: "Creates a copy of your brief with each citation marked and Word’s Table of Authorities on a new last page." },
+        detail: "The marked copy, with Word’s Table of Authorities on a new last page." },
   ];
   const tabMode: TabMode = value.citationSuffix ?? "none";
   // The wording is the user's own, typed here (the box starts empty) and saved when it is left,

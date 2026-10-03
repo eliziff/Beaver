@@ -7,6 +7,7 @@ import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import { FileInputButton } from "./FileInputButton";
+import { Segments } from "./OptionCards";
 import { TabFormatModal } from "./TabFormatModal";
 import { authorityName, authorityLabel, authorityCitationLine, requiresBilingualSources,
   requiresPdf, sourceLanguageLabel, relinkable } from "./authorityPresentation";
@@ -17,11 +18,12 @@ import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
 import type { StatuteCopy } from "./statuteExcerpts";
 import { authoritiesProfile } from "./profiles";
+import canliiLogo from "./canlii.ico";
 
 const control = "h-8 shrink-0 border-gray-300 px-2.5 text-[0.8125rem]";
 /** A row's action: quiet, as the citation bar's, one width and icon size wherever a list of sources
  *  or book parts shows them, an icon alone where the list (a `@container/sources`) is narrow. */
-export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-100 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[6.5rem] @min-[44rem]/sources:justify-start @min-[44rem]/sources:px-2.5";
+export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-100 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[6.5rem] @min-[44rem]/sources:px-2.5";
 export const rowLabel = "hidden @min-[44rem]/sources:inline";
 type LookupFailure = NonNullable<AuthorityIdentity["sourceLookupFailure"]>;
 const lookupReason = ({ reason, detail }: LookupFailure) => ({
@@ -90,15 +92,16 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      {settings && <div className="mb-3 grid gap-1">{settings}</div>}
-      {/* How the book and the table group and order the authorities, then the list's own actions. */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <ListChoice label="Group" disabled={busy || !!profile.locked?.settings?.grouping} options={GROUPINGS}
+      {/* The settings, each a labelled row; then, under a rule, the list's own actions and the list. */}
+      <div className="grid gap-3">
+        {settings}
+        <Segments label="Group" disabled={busy || !!profile.locked?.settings?.grouping} options={GROUPINGS}
           value={state.settings.grouping ?? (state.settings.tableOrder === "first-reference" ? "none" : "cases-first")}
           onChange={(grouping) => onAction({ type: "set-settings", settings: { grouping } })} />
-        <ListChoice label="Order" disabled={busy || !!profile.locked?.settings?.tableOrder} options={ORDERS}
+        <Segments label="Order" disabled={busy || !!profile.locked?.settings?.tableOrder} options={ORDERS}
           value={state.settings.tableOrder} onChange={(tableOrder) => onAction({ type: "set-settings", settings: { tableOrder } })} />
-        <span className="flex-1" />
+      </div>
+      <div className="mb-3 mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-gray-200 pt-3">
         {onWatchFolder && <Button type="button" variant="outline" className={control}
           disabled={busy && !watchedFolder} onClick={onWatchFolder}
           title={watchedFolder ? "Stop watching this folder"
@@ -117,7 +120,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
       {/* A list with statutes keeps room for their Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
-        className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 border-b border-gray-200 @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_auto]">
+        className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 overflow-hidden rounded-lg border border-gray-300 bg-white @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_auto]">
         {authorities.map((authority, index) => <Fragment key={authority.id}>
           {/* Each group under its heading, as the book and the table set them out. */}
           {headed && groups?.get(authority.id) !== groups?.get(authorities[index - 1]?.id) &&
@@ -239,7 +242,7 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
       { label: "Whole statute", disabled: busy || copy?.excerpt === false, onSelect: () => choose(false) }]}>
     <ScrollText /><span className={rowLabel}>{copy?.excerpt === false ? "Whole" : "Excerpt"}</span></ActionMenu>;
   return <article role="listitem" data-authority-id={authority.id}
-    className={cn("group/row col-span-full grid min-h-14 min-w-0 grid-cols-subgrid items-center gap-y-1 border-t border-gray-200 px-2 py-2 first:border-t-0 hover:bg-gray-50/70 [p+&]:border-t-0",
+    className={cn("group/row col-span-full grid min-h-14 min-w-0 grid-cols-subgrid items-center gap-y-1 border-t border-gray-200 px-3 py-2 first:border-t-0 hover:bg-gray-50 [p+&]:border-t-0",
       authority.excluded && "opacity-65")}
     onDragOver={(event) => { if (!busy && (event.dataTransfer.types.includes("application/x-authority") ||
       needsPdf && event.dataTransfer.types.includes("Files"))) event.preventDefault(); }}
@@ -261,8 +264,9 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
     </span>
+    {/* Name and citation side by side where the list is wide, the citation under the name where not. */}
     {editing ? <AuthorityName value={name} label={nameLabel} spans={!recognition} onSave={save} onCancel={() => setEditing(false)} /> : <>
-      <div className="min-w-0">
+      <div className="min-w-0 @min-[44rem]/sources:grid @min-[44rem]/sources:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[44rem]/sources:items-center @min-[44rem]/sources:gap-4">
         <div className="flex min-w-0 items-center gap-1">
           <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name || citationLine}</h3>
           <button type="button" disabled={busy} onClick={edit} aria-label={`Edit ${nameLabel.toLocaleLowerCase()} for ${title}`}
@@ -289,7 +293,7 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
         ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
             aria-label={`CanLII PDF for ${title}`}
             className={rowControl}>
-            <ExternalLink /><span className={rowLabel}>CanLII</span></a>
+            <img src={canliiLogo} alt="" className="h-4 w-4" /><span className={rowLabel}>CanLII</span></a>
         : issue ? <Button type="button" variant="ghost" className={cn(rowControl, "text-red-800")}
             disabled={busy} onClick={() => onRelink(issue.bindingRole)}><FilePlus2 />
             <span className="truncate">Allow file access</span></Button>
@@ -350,7 +354,7 @@ function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, onAction, onR
     : issue ? { Icon: FileX2, tone: "text-red-700", label: "This PDF is unavailable. Upload it again." }
     : { Icon: FileCheck2, tone: "text-green-700", label: part.filename };
   return <article role="listitem" data-supplement-id={part.id}
-    className="group/row col-span-full grid min-h-14 min-w-0 grid-cols-subgrid items-center gap-y-1 border-t border-gray-200 px-2 py-2 first:border-t-0 hover:bg-gray-50/70 [p+&]:border-t-0">
+    className="group/row col-span-full grid min-h-14 min-w-0 grid-cols-subgrid items-center gap-y-1 border-t border-gray-200 px-3 py-2 first:border-t-0 hover:bg-gray-50 [p+&]:border-t-0">
     <span className="min-w-6 truncate py-2 text-[0.8125rem] font-medium tabular-nums text-gray-600">{tab.startsWith("Tab ")
       ? <><span className={rowLabel}>{tab}</span><span className="@min-[44rem]/sources:hidden">{tab.slice(4)}</span></> : tab}</span>
     <span className="flex h-4 w-4 items-center justify-center">
@@ -379,16 +383,7 @@ function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, onAction, onR
   </article>;
 }
 
-const GROUP = "col-span-full border-b border-gray-300 px-2 pb-2 pt-6 text-[0.9375rem] font-semibold text-gray-950 first:pt-1";
-/** A choice for the whole list, as compact as the list's own actions, its name beside it. */
-function ListChoice<T extends string>({ label, value, options, disabled, onChange }: { label: string; value: T;
-  options: ReadonlyArray<{ value: T; label: string }>; disabled: boolean; onChange: (value: T) => void }) {
-  return <label className="flex items-center gap-2 text-[0.8125rem] text-gray-600">{label}
-    <select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as T)}
-      className="h-8 rounded-md border border-gray-300 bg-white pl-2.5 pr-7 text-[0.8125rem] font-normal text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:border-gray-200 disabled:text-gray-500">
-      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select></label>;
-}
+const GROUP = "col-span-full border-b border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-900 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-t-gray-300";
 
 /** A2AJ's limit, asked again by Beaver itself. A page cannot read the Retry-After A2AJ sends with
  *  it, so Beaver waits about a minute (or until the time A2AJ named, where it could be read), asks

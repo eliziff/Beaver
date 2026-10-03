@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pause, Pencil, Play, Redo2,
   Trash2, Undo2, X } from 'lucide-react';
@@ -117,11 +117,27 @@ function MarkPreview({ type }: { type: Marking }) {
       style={{ top: 12, left: 22, width: 20, background: YELLOW }} />}
   </span>;
 }
+/** A sample decision page, the same every time, its cited paragraph marked as `type` marks it: what a
+ *  marking does, shown whatever the brief's own sources are. */
+export function MarkingSample({ type }: { type: Marking }) {
+  const quote = 'the conduct must be assessed as a whole, and not piece by piece';
+  const highlight = { background: YELLOW, boxDecorationBreak: 'clone' as const, WebkitBoxDecorationBreak: 'clone' as const };
+  const paragraph = (number: number, text: ReactNode, cited = false) => <p key={number} className="relative m-0 pl-7"
+    style={cited && type === 'paragraph' ? highlight : undefined}>
+    {cited && type === 'margin' && <span aria-hidden="true" className="absolute -left-3 inset-y-0 w-[3px]" style={{ background: RED_LINE }} />}
+    <span className="absolute left-0">[{number}]</span>{text}</p>;
+  return <div role="img" aria-label="A sample page marked as chosen"
+    style={{ fontFamily: '"Times New Roman", Times, serif' }} className="mx-auto flex aspect-[8.5/11] h-full max-w-full flex-col gap-2.5 bg-white px-[9%] py-[8%] text-[0.75rem] leading-[1.55] text-gray-900 shadow-[0_1px_3px_rgb(0_0_0/.15)]">
+    <p className="m-0 text-center font-semibold">R v Sample, 2024 ABKB 1</p>
+    {paragraph(11, 'The Crown relies on the accused’s statements to the officers and on the evidence of the two witnesses who saw the vehicle leave the lot shortly after midnight.')}
+    {paragraph(12, <>Where the question is whether the accused acted with the required intent, <span style={type === 'margin' || type === 'text' ? highlight : undefined}>{quote}</span>. A single remark, taken alone, will rarely decide it.</>, true)}
+    {paragraph(13, 'Counsel for the accused says the statements were made in a state of shock and should be given little weight. I do not accept that submission for the reasons that follow.')}
+    {paragraph(14, 'The witnesses were consistent with one another and with the video, and neither was shaken in cross-examination on the points that matter.')}
+  </div>;
+}
 export const PASSAGE_OPTIONS: ReadonlyArray<CardOption<Marking>> = [
   { value: 'margin', label: 'Red line and quote highlight', preview: <MarkPreview type="margin" />,
     detail: 'Draws a red line beside each cited passage and highlights the quoted words in yellow.' },
-  { value: 'sidelined', label: 'Black line', preview: <MarkPreview type="sidelined" />,
-    detail: 'Draws a black line beside each cited passage. Nothing is highlighted.' },
   { value: 'paragraph', label: 'Paragraph highlight', preview: <MarkPreview type="paragraph" />,
     detail: 'Highlights each cited paragraph or section in yellow.' },
   { value: 'text', label: 'Quote highlight', preview: <MarkPreview type="text" />,

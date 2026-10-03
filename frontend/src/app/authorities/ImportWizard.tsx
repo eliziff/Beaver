@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
-import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { Button } from "@/app/components/ui/button";
 import { cn, errorMessage } from "@/app/lib/utils";
 import type { PdfAnnotation } from "../../../../shared/pdf-annotations.mjs";
@@ -9,9 +8,9 @@ import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import { courtCover } from "../../../../shared/authorities-cover.mjs";
 import { OptionCards, type CardOption } from "./OptionCards";
 import { authoritiesProfile } from "./profiles";
-import { passageOptions } from "./AuthoritiesHighlightEditor";
+import { MarkingSample, passageOptions } from "./AuthoritiesHighlightEditor";
 import { authorityName } from "./authorityPresentation";
-import { CourtSelect, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, Preview, SECTION, savedCover,
+import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, PagePreview, Preview, savedCover,
   useFilingContact, type Settings } from "./BookFront";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesProduct,
@@ -33,6 +32,9 @@ export const SCANNED_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings[
   { value: "full", label: "Recognize every page",
     detail: "Recognizes the text of every scanned page." },
 ];
+/** The source and scan choices named in a word or two, for a setting shown as segments. */
+export const SHORT: Record<string, string> = { automatic: "Automatic", "manual-originals": "Originals, then my uploads",
+  render: "Rebuild all from text", "page-margin": "Keep as images", "cited-pages": "Recognize cited pages", full: "Recognize every page" };
 /** The import's choices: the court, the cover and the index, the sources, and the marking. */
 const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "passageMarking"] as const;
 const STEPS = ["Court and front of book", "Sources", "Marking"] as const;
@@ -95,7 +97,7 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
     { profileId, sourceMode: settings.sourceMode, passageMarking: settings.passageMarking });
   const busy = finishing;
   const frontActions = draft ? importActions(draft.state, profileId, settings, shownCover, FRONT_KEYS) : [];
-  return <Modal open onClose={onCancel} size="2xl" breadcrumbs={["Import"]}
+  return <Modal open onClose={onCancel} size="2xl" breadcrumbs={title ? ["Import", <span key="title" className="font-normal text-gray-600">{title}</span>] : ["Import"]}
     className="h-[min(54rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
     footerStatus={<div className="mr-auto flex min-w-0 items-center gap-3">
       <Button type="button" variant="outline" className={cn("border-gray-400", !step && "invisible")}
@@ -109,97 +111,31 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
     secondaryAction={step < STEPS.length - 1 ? { label: "Import now", disabled: busy || !!error, onClick: finish } : undefined}
     primaryAction={step < STEPS.length - 1 ? { label: <>Next <ChevronRight /></>, disabled: busy, onClick: () => setStep(step + 1) }
       : { label: "Import", disabled: busy || !!error, onClick: finish }}>
-    <div className="mb-4 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1">
-    <ol aria-label="Import steps" className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-      {STEPS.map((label, index) => <li key={label}>
+    {/* The steps as the workspace's own tabs: one fixed line, so nothing under it moves. */}
+    <ol aria-label="Import steps" className="mb-4 grid h-9 shrink-0 grid-cols-3 border-b border-gray-200 text-sm">
+      {STEPS.map((label, index) => <li key={label} className="min-w-0">
         <button type="button" aria-current={index === step ? "step" : undefined} disabled={busy} onClick={() => setStep(index)}
-          className="flex min-h-8 items-center gap-2 rounded-md pr-1 text-gray-600 outline-none hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 aria-[current=step]:font-semibold aria-[current=step]:text-gray-950">
-          <span className={cn("grid size-6 place-items-center rounded-full border text-xs tabular-nums",
-            index === step ? "border-red-700 bg-red-700 text-white" : "border-gray-400 bg-white")}>{index + 1}</span>
-          <span className={cn(index !== step && "max-sm:sr-only")}>{label}</span></button></li>)}
+          className="-mb-px h-full w-full truncate border-b-2 border-transparent px-2 text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 aria-[current=step]:border-gray-900 aria-[current=step]:font-medium aria-[current=step]:text-gray-950">
+          {label}</button></li>)}
     </ol>
-    <p className="ml-auto hidden min-w-0 max-w-full truncate text-sm text-gray-500 sm:block" title={title}>{title}</p>
-    </div>
     {step === 0 ? <FrontLayout preview={book ? <FrontPreview host={host} draft={draft} actions={frontActions} />
       : <Preview label="Preview"><p className="m-auto p-6 text-center text-sm text-gray-600">This court takes a Table of Authorities, not a book.</p></Preview>}>
-      <div className="min-w-0"><h3 className={SECTION}>Court</h3>
-        <CourtSelect value={profileId} preferred={jurisdictionOrder} disabled={busy} onChange={setProfileId} /></div>
+      {!book && <AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} onChange={setProfileId} />}
       {book && <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy}
+        court={<AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} onChange={setProfileId} />}
         onCover={(next) => setCover(next)} onSettings={choose} />}
       {book && <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />}
     </FrontLayout>
-    : step === 1 ? <FrontLayout preview={<SourcePreview host={host} draft={draft} />}>
+    : step === 1 ? <div className="grid content-start gap-5 overflow-y-auto px-1 pb-1 lg:grid-cols-2">
       <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
         onChange={(sourceMode) => choose({ sourceMode })} />
       {recognitionAvailable && <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}
         disabled={busy} onChange={(scannedPdfPolicy) => choose({ scannedPdfPolicy })} />}
-    </FrontLayout>
-    : <FrontLayout preview={<MarkedPreview host={host} draft={draft} passageMarking={settings.passageMarking} />}>
+    </div>
+    : <FrontLayout preview={<Preview label="Preview of a marked page"><div className="flex min-h-0 flex-1 p-4"><MarkingSample type={settings.passageMarking} /></div></Preview>}>
       <OptionCards legend="Passage marking" value={settings.passageMarking} options={passageOptions(profileId)}
         disabled={busy} onChange={(passageMarking) => choose({ passageMarking })} />
     </FrontLayout>}
   </Modal>;
 }
 const EMPTY_COVER: AuthoritiesCover = { courtFileNumber: "", partyGroups: [], applicationUnder: "", title: "" };
-
-/** The first source PDF the brief's citations have brought, as it will go in the book. */
-function SourcePreview({ host, draft }: { host: AuthoritiesHost; draft?: AuthoritiesProduct }) {
-  const source = draft && firstSource(draft);
-  const [shown, setShown] = useState<{ role: string; bytes?: Uint8Array; error?: string }>();
-  useEffect(() => {
-    if (!draft || !source || !host.readSource || shown?.role === source.role) return;
-    let active = true;
-    void host.readSource(draft, source.role).then((blob) => blob.arrayBuffer())
-      .then((buffer) => active && setShown({ role: source.role, bytes: new Uint8Array(buffer) }))
-      .catch((caught) => active && setShown({ role: source.role, error: errorMessage(caught, "This PDF could not be opened.") }));
-    return () => { active = false; };
-  }, [draft, source?.role]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <Preview label="Preview of a source">
-    {source ? <>
-      <p className="truncate border-b border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-950" title={source.name}>{source.name}</p>
-      <PdfCanvas bytes={shown?.bytes} loading={!shown} error={shown?.error} ariaLabel="Source preview" rounded={false} />
-    </> : <p role="status" className="m-auto p-6 text-center text-sm text-gray-600">
-      {draft ? "No source PDF has arrived yet." : "Reading the brief"}</p>}
-  </Preview>;
-}
-
-/** A cited page of the first source with a pinpoint, marked as the choice marks it. */
-function MarkedPreview({ host, draft, passageMarking }: { host: AuthoritiesHost; draft?: AuthoritiesProduct;
-  passageMarking: Settings["passageMarking"] }) {
-  const source = draft && firstSource(draft, true);
-  const key = source ? `${source.role}\0${passageMarking}` : "";
-  const [shown, setShown] = useState<{ key: string; bytes?: Uint8Array; marks?: PdfAnnotation[]; error?: string }>();
-  useEffect(() => {
-    if (!draft || !source || !host.readSource || !host.prepareAnnotations) return;
-    let active = true;
-    const product = { ...draft, state: { ...draft.state, settings: { ...draft.state.settings, passageMarking } } };
-    void host.readSource(draft, source.role).then(async (blob) => {
-      const [buffer, { annotations }] = await Promise.all([blob.arrayBuffer(),
-        host.prepareAnnotations!(product, source.authorityId, source.role, blob)]);
-      if (active) setShown({ key, bytes: new Uint8Array(buffer), marks: annotations.marks });
-    }).catch((caught) => active && setShown({ key, error: errorMessage(caught, "This PDF could not be marked.") }));
-    return () => { active = false; };
-  }, [key, draft?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const marks = shown?.marks ?? [];
-  return <Preview label="Preview of a marked page">
-    {source ? <>
-      <p className="truncate border-b border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-950" title={source.name}>{source.name}</p>
-      <PdfCanvas bytes={shown?.bytes} loading={shown?.key !== key && !shown?.bytes} error={shown?.error}
-        ariaLabel="Marked page preview" rounded={false}
-        annotationEditor={{ marks, selectedId: null, tool: "select", disabled: true,
-          focus: marks[0] ? { id: marks[0].id, request: 1 } : undefined, onSelect: () => {}, onCreate: () => {} }} />
-    </> : <p role="status" className="m-auto p-6 text-center text-sm text-gray-600">
-      {draft ? "No cited source PDF has arrived yet." : "Reading the brief"}</p>}
-  </Preview>;
-}
-
-/** The first authority, in the brief's order, whose PDF has arrived; with a pinpoint, where `cited`. */
-function firstSource({ state }: AuthoritiesProduct, cited = false) {
-  for (const id of state.authorityOrder) {
-    const authority = state.authorities[id];
-    if (authority.excluded || authority.source.kind !== "attached") continue;
-    if (cited && !Object.values(state.occurrences).some((item) => item.authorityId === id && item.pinpoints.length)) continue;
-    const role = authority.source.sources[0]?.bindingRole;
-    if (role) return { role, authorityId: id, name: authorityName(authority) };
-  }
-}
