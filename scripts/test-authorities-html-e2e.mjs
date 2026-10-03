@@ -1057,7 +1057,10 @@ function Run(page, mode) {
         checkWordTables(check, where, result, expect);
       }
       note(mode, "word-tables", { brief: brief.toaEntries, inserted: brief.insertedEntries, table: own.tables?.map(({ cells }) => cells) });
-      const left = wordProcesses().filter((id) => !before.includes(id));
+      // The Word started for them quits as it finishes, which takes it a moment.
+      let left = [];
+      for (let tries = 0; tries < 20 && (left = wordProcesses().filter((id) => !before.includes(id))).length; tries += 1)
+        await new Promise((resolve) => setTimeout(resolve, 250));
       check(!left.length, `${mode}: Word was left running`, left);
     }
     const references = [...`${docx.text}${docx.noteText}`.matchAll(/\[Tab \d+\]/gu)].map(([value]) => value);

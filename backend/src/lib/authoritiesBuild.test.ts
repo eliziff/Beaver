@@ -1917,7 +1917,8 @@ describe("Authorities output builder", () => {
       .async("string");
     expect(linkedXml).toContain("TABLE OF AUTHORITIES");
     expect(linkedXml).toContain("Grant (custom)");
-    expect(linkedXml).toContain('<w:i></w:i><w:color w:val="0563C1"></w:color><w:u w:val="single"></w:u></w:rPr><w:t>Grant (custom)</w:t>');
+    // The citation in black, its link printed in link blue.
+    expect(linkedXml).toContain('<w:rPr><w:i></w:i></w:rPr><w:t>Grant (custom)</w:t>');
     expect(linkedXml).toContain("<w:t>, R v Grant, 2009 SCC 32, [2009] 2 SCR 353</w:t>");
     // Its link is printed under it, for a reader on paper.
     expect(linkedXml).toContain("<w:t>https://www.canlii.org/en/ca/scc/doc/2009/2009scc32/2009scc32.html</w:t>");

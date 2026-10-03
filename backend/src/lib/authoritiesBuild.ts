@@ -31,7 +31,7 @@ import {
 import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
 import { hasPrintedParagraphLocator, initialAuthorityAnnotations } from "./authoritiesAnnotations";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
-import { applyTableOfAuthorities, type DocxAuthorityMark } from "./docxOperations";
+import { applyTableOfAuthorities, entryOrder, type DocxAuthorityMark } from "./docxOperations";
 import { structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry,
   type NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
@@ -310,68 +310,55 @@ function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
     const authority = draft.authorities[id], { text, italic } = authorityCitation(draft, authority);
     return { authority, name: text, italic, citedAt: citedAt(draft, authority.id),
     tab, sourceUrl: authoritySourceLink(authority) }; };
-  return [...new Set(planned.map(({ group }) => group))].map((label): Group =>
-    ({ label, entries: planned.filter(({ group }) => group === label).map(entry) }));
+  // A table in alphabetical order lists each group as Word sorts the brief's table: by the full citation.
+  const alphabetical = purpose === "table" && draft.settings.tableOrder !== "first-reference";
+  return [...new Set(planned.map(({ group }) => group))].map((label): Group => {
+    const entries = planned.filter(({ group }) => group === label).map(entry);
+    return { label, entries: alphabetical ? entries.sort((left, right) => entryOrder(left.name, right.name)) : entries };
+  });
 }
 
+/** The table of authorities as its own Word document, read as the table in a Word brief reads: a plain
+ *  bold heading, each group under a bold heading of its own, and each authority in full, its style of
+ *  cause in italics and its link (when it has one) on the citation itself, then after a dotted leader
+ *  the pages it is cited on (a PDF brief's) and its tab. A Court of Appeal table numbers each authority
+ *  in the order the brief first cites it, its link printed beneath it for a reader on paper. */
 async function tableArtifact(groups: Group[], filename: string, subtitle: string,
   linked = false, tabs = false) {
-  const { BorderStyle, Document, ExternalHyperlink, HeadingLevel, Packer, Paragraph,
-    Table, TableCell, TableRow, TextRun, WidthType } = await import("docx");
-  const border = { style: BorderStyle.SINGLE, size: 1, color: "B7B7B7" };
-  // A case's style of cause and a statute's title in italics, as the brief cites them.
-  const citationRuns = (value: string, italic: number, style: { bold?: boolean; size?: number; style?: string } = {}) =>
-    [value.slice(0, italic), value.slice(italic)].flatMap((text, index) => text
-      ? [new TextRun({ ...style, text, italics: !index })] : []);
-  const cell = (value: string, width: number, bold = false, italic = 0) => new TableCell({
-    width: { size: width, type: WidthType.DXA },
-    children: [new Paragraph({ children: citationRuns(value, italic, { bold, size: 19 }) })],
-  });
-  const children: Array<InstanceType<typeof Paragraph> | InstanceType<typeof Table>> = [
-    new Paragraph({ text: linked ? "TABLE OF AUTHORITIES" : "Table of Authorities",
-      heading: HeadingLevel.TITLE }),
-    ...(linked || !subtitle ? [] : [new Paragraph({ children: [new TextRun({ text: subtitle, italics: true,
-      color: "666666", size: 22 })] })]),
-  ];
+  const { Document, ExternalHyperlink, LeaderType, Packer, Paragraph, Tab, TabStopType, TextRun } = await import("docx");
+  const heading = (text: string) => new Paragraph({ keepNext: true, spacing: { before: 240, after: 120 },
+    children: [new TextRun({ text, bold: true })] });
+  const citation = ({ name, italic, sourceUrl }: Entry) => {
+    const runs = [name.slice(0, italic), name.slice(italic)].flatMap((text, index) => text
+      ? [new TextRun({ text, italics: !index })] : []);
+    return sourceUrl ? [new ExternalHyperlink({ link: sourceUrl, children: runs })] : runs;
+  };
   // Where an authority is cited is known for a PDF brief (its pages), never for a Word one (Word lays
-  // it out): the column goes when no entry has it.
+  // it out): that column goes when no entry has it.
   const citedAt = groups.some(({ entries }) => entries.some(({ citedAt }) => citedAt && citedAt !== "—"));
-  const nameWidth = 9360 - 1660 - (tabs ? 1050 : 0) - (citedAt ? 1850 : 0);
+  const width = 9360, stops = [
+    ...citedAt ? [{ type: TabStopType.RIGHT, position: tabs ? width - 1100 : width, leader: LeaderType.DOT }] : [],
+    ...tabs ? [{ type: TabStopType.RIGHT, position: width, leader: citedAt ? LeaderType.NONE : LeaderType.DOT }] : [],
+  ];
+  const children = [heading(linked ? "TABLE OF AUTHORITIES" : "Table of Authorities"),
+    ...(linked || !subtitle ? [] : [new Paragraph({ children: [new TextRun({ text: subtitle, italics: true })] })])];
   if (!groups.length) children.push(new Paragraph("No authorities."));
-  // Each authority with its hyperlink, printed too for a reader on paper.
   if (linked) groups.flatMap(({ entries }) => entries).forEach((entry, index) => {
-    children.push(new Paragraph({ children: [new TextRun(`${index + 1}. `),
-      ...entry.sourceUrl ? [new ExternalHyperlink({ link: entry.sourceUrl,
-        children: citationRuns(entry.name, entry.italic, { style: "Hyperlink" }) }), new TextRun({ break: 1 }),
-      new ExternalHyperlink({ link: entry.sourceUrl, children: [new TextRun({ text: entry.sourceUrl, style: "Hyperlink" })] })]
-        : citationRuns(entry.name, entry.italic)] }));
+    children.push(new Paragraph({ spacing: { after: 120 }, children: [new TextRun(`${index + 1}. `), ...citation(entry),
+      ...entry.sourceUrl ? [new TextRun({ break: 1 }), new ExternalHyperlink({ link: entry.sourceUrl,
+        children: [new TextRun({ text: entry.sourceUrl, style: "Hyperlink" })] })] : []] }));
   });
   else for (const group of groups) {
-    children.push(new Paragraph({ text: group.label, heading: HeadingLevel.HEADING_1,
-      keepNext: true }));
-    children.push(new Table({ width: { size: 9360, type: WidthType.DXA },
-      borders: { top: border, bottom: border, left: border, right: border,
-        insideHorizontal: border, insideVertical: border }, rows: [
-        new TableRow({ tableHeader: true, children: [
-          ...(tabs ? [cell("Tab", 1050, true)] : []),
-          cell("Authority", nameWidth, true),
-          ...(citedAt ? [cell("Cited at", 1850, true)] : []), cell("Source", 1660, true),
-        ] }),
-        ...group.entries.map((entry) => new TableRow({ cantSplit: true, children: [
-          ...(tabs ? [cell(entry.tab, 1050)] : []),
-          cell(entry.name, nameWidth, false, entry.italic), ...(citedAt ? [cell(entry.citedAt, 1850)] : []),
-          new TableCell({ width: { size: 1660, type: WidthType.DXA }, children: [
-            new Paragraph({ children: entry.sourceUrl ? [new ExternalHyperlink({
-              link: entry.sourceUrl, children: [new TextRun({ text: "Open source",
-                style: "Hyperlink", size: 19 })],
-            })] : [new TextRun({ text: "—", size: 19 })] }),
-          ] }),
-        ] })),
-      ] }));
+    children.push(heading(group.label));
+    for (const entry of group.entries) children.push(new Paragraph({ tabStops: stops, spacing: { after: 80 },
+      // The citation wraps short of the pages and the tab.
+      indent: { left: 220, hanging: 220, right: stops.length ? width - stops[0].position + 720 : 0 },
+      children: [...citation(entry), ...citedAt ? [new TextRun({ children: [new Tab(), entry.citedAt === "—" ? "" : entry.citedAt] })] : [],
+        ...tabs ? [new TextRun({ children: [new Tab(), entry.tab] })] : []] }));
   }
   const document = new Document({ creator: "Beaver", title: "Table of Authorities",
     description: "Legal authorities",
-    styles: { default: { document: { run: { font: "Times New Roman", size: 22 } } } },
+    styles: { default: { document: { run: { font: "Times New Roman", size: 24, color: "000000" } } } },
     // Letter paper, as Canadian courts file.
     sections: [{ properties: { page: { size: { width: 12240, height: 15840 }, margin: {
       top: 1440, right: 1440, bottom: 1440, left: 1440,
@@ -648,6 +635,7 @@ async function filingPdfArtifact(groups: Group[], filename: string,
   let page: PdfPage | null = null, y = 0;
   entries.forEach((entry, index) => {
     const name = citationLines({ roman: regular, italic }, entry.name, entry.italic, 10, 430);
+    // Black text, the link printed in ordinary link blue.
     const url = entry.sourceUrl ? citationLines({ roman: regular, italic }, entry.sourceUrl, 0, 8.5, 430) : [];
     const height = name.length * 13 + url.length * 11 + 10;
     if (!page || y - height < 60) {
@@ -657,10 +645,9 @@ async function filingPdfArtifact(groups: Group[], filename: string,
       y = 690;
     }
     page.drawText(`${index + 1}.`, { x: 54, y, size: 10, font: regular });
-    name.forEach((line, at) => drawRuns(page!, line, { x: 82, y: y - at * 13, size: 10, roman: regular, italic,
-      color: pdf.rgb(.55, .05, .05) }));
+    name.forEach((line, at) => drawRuns(page!, line, { x: 82, y: y - at * 13, size: 10, roman: regular, italic }));
     url.forEach((line, at) => drawRuns(page!, line, { x: 82, y: y - name.length * 13 - at * 11, size: 8.5,
-      roman: regular, italic, color: pdf.rgb(.05, .2, .55) }));
+      roman: regular, italic, color: pdf.rgb(5 / 255, 99 / 255, 193 / 255) }));
     links.push({ page, entry, rect: [78, y - height + 12, 520, y + 12] });
     y -= height;
   });
