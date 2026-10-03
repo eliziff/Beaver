@@ -170,7 +170,7 @@ export function frontActions(state: AuthoritiesProduct["state"], cover: Authorit
     !(key in locked) && canonicalJson(state.settings[key as keyof Settings]) !== canonicalJson(value)));
   const saved = savedCover(cover, state.settings.profileId);
   return [...Object.keys(changed).length ? [{ type: "set-settings", settings: changed } as const] : [],
-    ...canonicalJson(saved) !== canonicalJson(savedCover(startedCover(state.cover, state.settings.profileId), state.settings.profileId))
+    ...canonicalJson(saved) !== canonicalJson(state.cover)
       ? [{ type: "set-cover", cover: saved } as const] : []];
 }
 
