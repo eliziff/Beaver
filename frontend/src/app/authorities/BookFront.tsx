@@ -36,23 +36,15 @@ export function coverForm(profileId: AuthoritiesProfileId) {
   const { requirements } = authoritiesProfile(profileId);
   return requirements?.federalFormatting ? "federal" : requirements?.albertaCover ? "alberta" : "plain";
 }
-/** The cover with its parties' roles to fill in, named as the court's form names them. */
-export function startedCover(cover: AuthoritiesCover, profileId: AuthoritiesProfileId): AuthoritiesCover {
-  if (cover.partyGroups.length || coverForm(profileId) === "plain") return cover;
-  const roles = profileId === "federal-court" || coverForm(profileId) === "alberta"
-    ? ["Applicant", "Respondent"] : ["Appellant", "Respondent"];
-  return { ...cover, partyGroups: roles.map((role) => ({ role, parties: [""] })) };
-}
-/** The cover as it is saved: trimmed, empty party lines dropped, and an Alberta cover's contact whole. */
-export function savedCover(cover: AuthoritiesCover, profileId: AuthoritiesProfileId): AuthoritiesCover {
-  const alberta = coverForm(profileId) === "alberta";
+/** The cover as it is saved: trimmed, and empty party lines dropped. */
+export function savedCover(cover: AuthoritiesCover): AuthoritiesCover {
   return { ...cover, courtFileNumber: cover.courtFileNumber.trim(), applicationUnder: cover.applicationUnder.trim(),
     title: cover.title.trim(),
     partyGroups: cover.partyGroups.map(({ role, parties }) => ({ role: role.trim(),
       parties: parties.map((party) => party.trim()).filter(Boolean) }))
       .filter(({ role, parties }) => role || parties.length),
-    ...alberta && { judicialCentre: cover.judicialCentre?.trim() ?? "",
-      contact: Object.fromEntries(CONTACT.map(([key]) => [key, cover.contact?.[key]?.trim() ?? ""])) as Contact } };
+    ...cover.judicialCentre !== undefined && { judicialCentre: cover.judicialCentre.trim() },
+    ...cover.contact && { contact: Object.fromEntries(CONTACT.map(([key]) => [key, cover.contact?.[key]?.trim() ?? ""])) as Contact } };
 }
 /** The cover a Federal Form 66 needs before the book can be built. */
 export const completeFederalCover = (cover: AuthoritiesCover) => !!cover.courtFileNumber.trim() &&
@@ -168,7 +160,7 @@ export function frontActions(state: AuthoritiesProduct["state"], cover: Authorit
   const locked = authoritiesProfile(state.settings.profileId).locked?.settings ?? {};
   const changed = Object.fromEntries(Object.entries(settings).filter(([key, value]) => value !== undefined &&
     !(key in locked) && canonicalJson(state.settings[key as keyof Settings]) !== canonicalJson(value)));
-  const saved = savedCover(cover, state.settings.profileId);
+  const saved = savedCover(cover);
   return [...Object.keys(changed).length ? [{ type: "set-settings", settings: changed } as const] : [],
     ...canonicalJson(saved) !== canonicalJson(state.cover)
       ? [{ type: "set-cover", cover: saved } as const] : []];
@@ -209,7 +201,7 @@ export function BookFrontModal({ host, draft, busy, onClose, onActions }: {
   onActions: (actions: AuthoritiesAction[]) => void;
 }) {
   const { profileId } = draft.state.settings;
-  const [cover, setCover] = useState(() => startedCover(draft.state.cover, profileId));
+  const [cover, setCover] = useState(draft.state.cover);
   const [settings, setSettings] = useState<Partial<Settings>>({});
   useFilingContact(host, draft.state.cover, profileId, setCover);
   const shown = { ...draft.state.settings, ...settings };
@@ -219,7 +211,7 @@ export function BookFrontModal({ host, draft, busy, onClose, onActions }: {
     secondaryAction={{ label: "Cancel", onClick: onClose }}
     primaryAction={{ label: "Save", disabled: busy, onClick: () => {
       onActions(actions); onClose();
-      if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover, profileId).contact!)
+      if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover).contact!)
         .catch(() => undefined);
     } }}>
     <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={actions} />}>

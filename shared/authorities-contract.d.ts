@@ -232,6 +232,8 @@ export type AuthoritiesProfile = {
   label: string;
   courtId: string;
   bookTitle?: string;
+  /** The party roles its cover form names, filled in until the user names a party. */
+  coverRoles?: string[];
   sourceIds?: string[];
   defaults: { outputMode: AuthoritiesOutputMode; settings: AuthoritiesBuildSettings };
   locked?: { outputMode?: AuthoritiesOutputMode;

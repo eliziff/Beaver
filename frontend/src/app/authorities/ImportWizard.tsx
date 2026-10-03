@@ -7,11 +7,12 @@ import { Button } from "@/app/components/ui/button";
 import { cn, errorMessage } from "@/app/lib/utils";
 import type { PdfAnnotation } from "../../../../shared/pdf-annotations.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
+import { courtCover } from "../../../../shared/authorities-cover.mjs";
 import { OptionCard, OptionCards, type CardOption } from "./OptionCards";
 import { AUTHORITIES_PROFILES, authoritiesProfile } from "./profiles";
 import { passageOptions } from "./AuthoritiesHighlightEditor";
 import { authorityName } from "./authorityPresentation";
-import { CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, LEGEND, Preview, savedCover, startedCover,
+import { CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, LEGEND, Preview, savedCover,
   useFilingContact, type Settings } from "./BookFront";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesProduct,
@@ -59,7 +60,7 @@ function wizardSettings(profileId: AuthoritiesProfileId, chosen: Partial<Setting
 function importActions(state: AuthoritiesProduct["state"], profileId: AuthoritiesProfileId, settings: Settings,
   cover: AuthoritiesCover, keys: readonly (keyof Settings)[]): AuthoritiesAction[] {
   const chosen = Object.fromEntries(keys.flatMap((key) => settings[key] === undefined ? [] : [[key, settings[key]]]));
-  const saved = savedCover(cover, profileId);
+  const saved = savedCover(cover);
   return [...profileId === state.settings.profileId ? [] : [{ type: "set-profile", profileId } as const],
     { type: "set-settings", settings: chosen },
     ...canonicalJson(saved) === canonicalJson(state.cover) ? [] : [{ type: "set-cover", cover: saved } as const]];
@@ -80,9 +81,12 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
   const [profileId, setProfileId] = useState(remembered.profileId);
   const [chosen, setChosen] = useState<Partial<Settings>>({});
   const [cover, setCover] = useState<AuthoritiesCover>();
-  const shownCover = startedCover(cover ?? draft?.state.cover ?? EMPTY_COVER, profileId);
+  // The cover as the draft will hold it under the court chosen here: the court's party roles, until a
+  // party is named.
+  const courtOf = draft?.state.settings.profileId ?? remembered.profileId;
+  const shownCover = courtCover(cover ?? draft?.state.cover ?? EMPTY_COVER, courtOf, profileId);
   const changeCover = (change: (cover: AuthoritiesCover) => AuthoritiesCover) =>
-    setCover((current) => change(startedCover(current ?? draft?.state.cover ?? EMPTY_COVER, profileId)));
+    setCover((current) => change(courtCover(current ?? draft?.state.cover ?? EMPTY_COVER, courtOf, profileId)));
   useFilingContact(host, shownCover, profileId, changeCover);
   const settings = wizardSettings(profileId, chosen, remembered);
   const choose = (patch: Partial<Settings>) => setChosen((current) => ({ ...current, ...patch }));

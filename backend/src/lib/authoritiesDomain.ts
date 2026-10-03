@@ -35,6 +35,7 @@ import { closed, dictionary, flag, hash, integer, isJsonRecord, jsonRecord, list
   maybe, nonempty, nullable, oneOf, plain, tagged, text, trimmed,
   type Check, type FieldTable } from "./value";
 import profileValues from "mike/shared/authorities-profiles.json";
+import { courtCover } from "mike/shared/authorities-cover.mjs";
 import { authorityProcedureInput, currentTabReference, deriveAuthorityProcedure } from "mike/shared/authorities-order.mjs";
 
 import { AUTHORITIES_ACTION_CHOICES, AUTHORITIES_SETTINGS_CHOICES, authorityKinds,
@@ -1133,6 +1134,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       draft.outputMode = draft.import.kind === "manual" ? "book" : profile.locked?.outputMode ??
         (draft.outputMode === previous.defaults.outputMode ? profile.defaults.outputMode : draft.outputMode);
       draft.settings = settings;
+      draft.cover = courtCover(draft.cover, previous.id, profile.id);
       if (draft.import.kind === "document" && draft.import.fileType === "pdf" &&
           draft.insertIntoDocument === !!previous.requirements?.documentOutputDefault)
         draft.insertIntoDocument = !!profile.requirements?.documentOutputDefault;
