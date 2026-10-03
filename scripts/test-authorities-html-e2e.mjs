@@ -1097,7 +1097,9 @@ function Run(page, mode) {
         check(!stamped.length && ![bookPdf.title, pdf.title, ...names].some((value) => /incomplete/iu.test(value)),
           `${mode}: the incomplete book carries no draft stamp, title or file name`, { stamped, titles: [bookPdf.title, pdf.title], names });
         const missing = bookTabs.find(({ title }) => /Lakeshore/u.test(title));
-        check(/Lakeshore Rowing Club/u.test(bookPdf.pages[(missing?.page ?? 0) - 1]?.text ?? ""),
+        // The tab's bookmark opens its TAB page; the page after it names the authority.
+        check(/^\s*TAB 2\s*$/u.test(bookPdf.pages[(missing?.page ?? 0) - 1]?.text ?? "") &&
+          /Lakeshore Rowing Club/u.test(bookPdf.pages[missing?.page ?? 0]?.text ?? ""),
           `${mode}: the missing PDF's tab keeps a page naming its authority`, missing);
         const notes = [bookPdf, pdf].flatMap(({ pages }) => pages.flatMap(({ annotations }) => annotations.filter(({ note }) => note)));
         check(!notes.length, `${mode}: no mark in the Word brief's book carries an author or a comment`, notes.slice(0, 3));

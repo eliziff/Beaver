@@ -19,9 +19,9 @@ import { decisiaIndexUrl, publisherChallengeUrl, publisherPdfCandidate,
 import { sha256 } from "./hash";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
 import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources";
-import { resourceReference } from "./resourceReferences";
+import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { structureNative } from "./structureNative";
-import { isCanliiUrl } from "./canliiUrls";
+import { isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import {
   decodePdfProfileSelection,
   type PdfProfileSelection,

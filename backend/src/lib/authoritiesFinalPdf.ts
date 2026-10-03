@@ -106,7 +106,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
     for (const placement of output.bookPlacements ?? []) {
       if (!placement.key.startsWith("authority:")) continue;
       const id = placement.key.slice("authority:".length);
-      const placed = destinations.get(id) ?? { tab: offset + placement.pageIndex, pages: new Map<number, number>() };
+      const placed = destinations.get(id) ?? { tab: offset + placement.tabPageIndex, pages: new Map<number, number>() };
       placement.sourcePageIndices.forEach((pageIndex, index) =>
         placed.pages.set(pageIndex, offset + placement.pageIndex + index));
       destinations.set(id, placed);

@@ -18,15 +18,27 @@ export type PreparedAuthoritiesBook<Bytes = Uint8Array> = {
   federal: boolean; electronic: boolean; court: string; cover: AuthoritiesCover;
   coverLine: string | null;
   paperCover: { rgb: readonly [number, number, number]; dark: boolean } | null;
+  /** The Alberta Rules of Court's filing cover in place of the plain one. */
+  alberta?: boolean;
+  /** What the index gives beside each citation: its tab, or its tab and the pages it fills. */
+  indexShows?: "tabs" | "tabs-and-pages";
+  /** A "TAB n" page before each authority, where its index link and bookmark land. */
+  tabPages?: boolean;
   customCover?: Bytes; customIndex?: Bytes;
   coverPageCount: number; customIndexPages: number;
-  limits?: { maxPages: number; maxBytes: number; completeToc?: boolean; coverLabels?: boolean };
+  /** The court's upload limits: a book past them is divided into volumes at tab boundaries, each
+   *  cover saying which volume it is (`coverLabels`), and the index in every volume (`completeToc`)
+   *  or the first alone. */
+  limits?: { maxPages?: number; maxBytes?: number; completeToc?: boolean; coverLabels?: boolean };
+  /** For printing on both sides: each tab page and each authority's first page on a right-hand page. */
+  rightHandStarts?: boolean;
   groups: Array<{ label: string; entries: BookRow[] }>;
   sources: PreparedBookSource<Bytes>[];
 };
+/** `pageIndex`: an authority's first page; `tabPageIndex`: its tab page, or its first page without one. */
 export type BuiltAuthorityBook = { role: "book" | `book-${number}`; filename: string;
   mimeType: "application/pdf"; bytes: Uint8Array; pageCount: number;
-  placements: Array<{ key: string; pageIndex: number; sourcePageIndices: number[] }> };
+  placements: Array<{ key: string; pageIndex: number; tabPageIndex: number; sourcePageIndices: number[] }> };
 
 export async function mapAuthorityBookBytes<From, To>(book: PreparedAuthoritiesBook<From>,
   convert: (bytes: From, role: string) => To | Promise<To>): Promise<PreparedAuthoritiesBook<To>> {
@@ -43,22 +55,30 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
   const engine = pdfAssembly(pdf);
   const { federal, electronic, paperCover, coverLine, documentTitle, bookTitle, subtitle,
     customCover, customIndex, coverPageCount, customIndexPages, limits, groups } = input;
+  const showPages = input.indexShows === "tabs-and-pages", tabPages = !!input.tabPages;
+  const rightHand = !!input.rightHandStarts;
+  // Under headings where the authorities are grouped; one list, bookmarked tab by tab, where not.
+  const grouped = groups.length > 1 || !!groups.length && groups[0].label !== "Authorities";
   // The index lists each citation in full, wrapped onto as many lines as it takes, and runs onto as
-  // many pages as its entries fill.
-  const margin = federal ? 99.21 : 72, bodySize = federal ? 12 : 8.8, leading = bodySize + 3;
-  const titleX = federal ? margin + 52 : 102, sourceX = 447, pageRight = federal ? 612 - margin : 547;
+  // many pages as its entries fill. The Federal Court's index keeps its tab to the left and its
+  // source link; any other gives the citation, a dot leader and the tab (and the pages) to the right.
+  const margin = federal ? 99.21 : 72, bodySize = federal ? 12 : 11, leading = bodySize + 3;
+  const titleX = federal ? margin + 52 : margin, sourceX = 447, pageRight = 612 - margin;
+  const tabColumn = 58, pagesColumn = showPages ? 66 : 0;
   const scratch = await pdf.PDFDocument.create(), measure = { roman: await scratch.embedFont(pdf.StandardFonts.TimesRoman),
     italic: await scratch.embedFont(pdf.StandardFonts.TimesRomanItalic) };
   const tokens = groups.flatMap((group) => [
-    { label: group.label, entry: null as BookRow | null, lines: [] as ReturnType<typeof citationLines>, height: 27 },
+    ...grouped ? [{ label: group.label, entry: null as BookRow | null, lines: [] as ReturnType<typeof citationLines>,
+      height: federal ? 27 : 30 }] : [],
     ...group.entries.map((entry) => {
       // Clear of the page numbers, and of the Federal Court's source link.
-      const lines = citationLines(measure, entry.name, entry.italic ?? 0, bodySize,
-        federal && entry.sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - 48);
-      return { label: "", entry, lines, height: 25 + (lines.length - 1) * leading };
+      const lines = citationLines(measure, entry.name, entry.italic ?? 0, bodySize, federal
+        ? entry.sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - (showPages ? 48 : 8)
+        : pageRight - titleX - tabColumn - pagesColumn - 24);
+      return { label: "", entry, lines, height: (federal ? 25 : 12) + (lines.length - (federal ? 1 : 0)) * leading };
     }),
   ]);
-  const top = federal ? 670 : 690, bottom = 100, chunks: Array<typeof tokens> = [[]];
+  const top = federal ? 670 : 680, bottom = federal ? 100 : 84, chunks: Array<typeof tokens> = [[]];
   let room = top - bottom;
   tokens.forEach((token, index) => {
     // A heading never ends a page.
@@ -79,28 +99,41 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
     customIndex ? readSourceOutlines(customIndex) : [],
   ]);
   const all = sources.map((source) => ({ source, pageIndices: source.pageIndices }));
+  // The pages an authority may add around its own: its tab page, and the blanks that start it on
+  // the right.
+  const added = (tabPages ? 1 : 0) + (rightHand ? tabPages ? 2 : 1 : 0);
   const singlePages = coverPageCount + (customIndexPages || chunks.length) +
-    all.reduce((sum, item) => sum + item.pageIndices.length, 0) +
+    all.reduce((sum, item) => sum + item.pageIndices.length + added, 0) +
     (paperCover && !customCover ? 1 : 0);
   const splitOverhead = coverPageCount + (customIndexPages || chunks.length) +
     (limits?.coverLabels ? 1 : 0);
-  if (limits && splitOverhead >= limits.maxPages) throw new Error(
-    "The required Federal volume front matter exceeds the filing page limit.");
-  const volumes = limits && singlePages > limits.maxPages
-    ? splitPdfPageRanges(all, limits.maxPages - splitOverhead) : [all];
+  if (limits?.maxPages && splitOverhead >= limits.maxPages) throw new Error(
+    "The required volume front matter exceeds the filing page limit.");
+  const volumes = limits?.maxPages && singlePages > limits.maxPages
+    ? splitAtTabs(all, limits.maxPages - splitOverhead, added) : [all];
   let placements: BuiltAuthorityBook["placements"][] = [];
   const built = await engine.volumes(volumes, (volumes) => {
     const multi = volumes.length > 1, generatedToc = !customIndex;
     if (customIndex && multi && limits?.completeToc) throw new Error(
       "Remove the custom index so the builder can generate a complete index for every filing volume.");
-    const indexPageCount = customIndexPages + (generatedToc ? chunks.length : 0);
+    // The index opens every volume where the court wants it complete in each, else the first.
+    const indexed = (volumeIndex: number) => generatedToc && (!volumeIndex || !!limits?.completeToc);
     const backPageCount = multi && limits?.coverLabels ? 1 : paperCover && !customCover ? 1 : 0;
     let globalStart = 0;
-    const ranges = new Map<string, string[]>();
-    const plans = volumes.map((slices) => {
-      let localStart = coverPageCount + indexPageCount;
+    const ranges = new Map<string, string[]>(), volumeOf = new Map<string, number>();
+    const plans = volumes.map((slices, volumeIndex) => {
+      let localStart = coverPageCount + customIndexPages + (indexed(volumeIndex) ? chunks.length : 0);
       const placed = slices.map((slice) => {
-        const result = { ...slice, localStart };
+        // A tab page, and the blanks that put it on the right, open an authority, not each volume
+        // it runs into.
+        const opens = slice.pageIndices[0] === slice.source.pageIndices[0];
+        const tabbed = tabPages && opens;
+        if (opens && !volumeOf.has(slice.source.key)) volumeOf.set(slice.source.key, volumeIndex);
+        const blankBefore = rightHand && opens && localStart % 2 ? 1 : 0;
+        localStart += blankBefore;
+        const tabStart = localStart, blankAfter = rightHand && tabbed ? 1 : 0;
+        if (tabbed) localStart += 1 + blankAfter;
+        const result = { ...slice, localStart, tabStart, tabbed, blankBefore, blankAfter };
         const first = globalStart + localStart + 1, last = first + slice.pageIndices.length - 1;
         (ranges.get(slice.source.key) ?? ranges.set(slice.source.key, []).get(slice.source.key)!)
           .push(first === last ? String(first) : `${first}–${last}`);
@@ -111,21 +144,33 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
       globalStart += localStart + backPageCount;
       return result;
     });
-    placements = plans.map(({ slices }) => slices.map(({ source, localStart, pageIndices }) =>
-      ({ key: source.key, pageIndex: localStart, sourcePageIndices: pageIndices })));
+    placements = plans.map(({ slices }) => slices.map(({ source, localStart, tabStart, pageIndices }) =>
+      ({ key: source.key, pageIndex: localStart, tabPageIndex: tabStart, sourcePageIndices: pageIndices })));
     return plans.map((plan, volumeIndex): PdfAssemblyInput<"serif" | "serifItalic" | "serifBold" | "regular" | "bold"> => {
       const contentWidth = 612 - (2 * margin);
       const volumeLabel = `Volume ${volumeIndex + 1} of ${volumes.length}`;
       const localStarts = new Map(plan.slices.map(({ source, localStart }) => [source.key, localStart]));
+      // Where the index and the bookmarks take a reader: the tab page, else the authority's first page.
+      const tabStarts = new Map(plan.slices.filter(({ source, pageIndices }) => pageIndices[0] === source.pageIndices[0])
+        .map(({ source, tabStart }) => [source.key, tabStart]));
+      for (const { source, localStart } of plan.slices) if (!tabStarts.has(source.key)) tabStarts.set(source.key, localStart);
+      const indexStart = coverPageCount + (generatedToc ? customIndexPages : 0);
+      const indexPages = indexed(volumeIndex) ? chunks : [];
+      const indexTitle = federal ? "Table of Contents" : "Index";
       const links: NonNullable<PdfAssemblyInput<string>["links"]> = [];
       return {
         signal, fonts: { serif: pdf.StandardFonts.TimesRoman, serifItalic: pdf.StandardFonts.TimesRomanItalic,
           serifBold: pdf.StandardFonts.TimesRomanBold,
           regular: federal ? pdf.StandardFonts.TimesRoman : pdf.StandardFonts.Helvetica,
           bold: federal ? pdf.StandardFonts.TimesRomanBold : pdf.StandardFonts.HelveticaBold },
-        parts: plan.slices.map(({ source, pageIndices }) => ({
+        parts: plan.slices.map(({ source, pageIndices, tabbed, blankBefore, blankAfter }) => ({
           id: source.key, source: source.bytes, pageIndices, ocrFont: "regular",
           ocrTextByPage: source.ocrTextByPage,
+          draw: tabbed || blankBefore ? ({ document, fonts }) => {
+            if (blankBefore) document.addPage([612, 792]);
+            if (tabbed) drawTabPage(document.addPage([612, 792]), source.tab, fonts.bold);
+            if (blankAfter) document.addPage([612, 792]);
+          } : undefined,
           decorate: source.databaseReference ? (page, _index, { fonts }) => {
             const { url, host } = source.databaseReference!;
             const crop = page.getCropBox(), label = `FREE PUBLIC DATABASE: ${host}`;
@@ -138,7 +183,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             links.push({ page, rect: [x - 5, y - 3, x - 5 + width, y + 15], url });
           } : undefined,
         })),
-        before: async ({ document, fonts: { regular, bold, serif, serifItalic } }) => {
+        before: async ({ document, fonts: { regular, bold, serif, serifItalic, serifBold } }) => {
           let coverBottom = 400;
           if (customCover) await engine.appendPages(document, customCover);
           else {
@@ -148,6 +193,8 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             const ink = paperCover?.dark ? pdf.rgb(1, 1, 1) : pdf.rgb(.18, .18, .18);
             if (federal) coverBottom = drawFederalForm66Cover(cover, regular, bold, input.cover,
               input.court, documentTitle, coverLine, ink);
+            else if (input.alberta) coverBottom = drawAlbertaCover(pdf, cover, regular, bold, input.cover,
+              input.court, documentTitle);
             else {
               cover.drawRectangle({ x: 0, y: 0, width: 18, height: 792, color: ink });
               cover.drawLine({ start: { x: margin, y: 626 }, end: { x: 612 - margin, y: 626 },
@@ -164,47 +211,74 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
           if (multi && limits?.coverLabels) document.getPage(0).drawText(volumeLabel,
             { x: margin, y: Math.min(400, coverBottom), size: 12, font: bold });
           if (customIndex) await engine.appendPages(document, customIndex);
-          if (generatedToc) chunks.forEach((chunk, chunkIndex) => {
+          indexPages.forEach((chunk, chunkIndex) => {
             const page = document.addPage([612, 792]);
-            page.drawText(chunkIndex ? "Table of Contents — continued" : "Table of Contents",
-              { x: federal ? margin : 48, y: federal ? 708 : 730,
-                size: federal ? 12 : 20, font: bold });
+            const heading = chunkIndex ? `${indexTitle} — continued` : indexTitle;
+            if (federal) page.drawText(heading, { x: margin, y: 708, size: 12, font: bold });
+            else page.drawText(heading.toUpperCase(), { x: (612 - serifBold.widthOfTextAtSize(heading.toUpperCase(), 13)) / 2,
+              y: 724, size: 13, font: serifBold });
             let y = top;
             for (const token of chunk) {
               if (!token.entry) {
-                page.drawRectangle({ x: federal ? margin : 48, y: y - 8,
-                  width: federal ? contentWidth : 516, height: 22, color: pdf.rgb(.92, .92, .92) });
-                page.drawText(token.label.toUpperCase(), { x: federal ? margin + 8 : 56, y,
-                  size: federal ? 12 : 8.5, font: bold });
-                y -= 27; continue;
+                if (federal) {
+                  page.drawRectangle({ x: margin, y: y - 8, width: contentWidth, height: 22, color: pdf.rgb(.92, .92, .92) });
+                  page.drawText(token.label.toUpperCase(), { x: margin + 8, y, size: 12, font: bold });
+                  y -= 27;
+                } else {
+                  y -= 8;
+                  page.drawText(token.label.toUpperCase(), { x: margin, y, size: bodySize, font: serifBold });
+                  y -= 22;
+                }
+                continue;
               }
-              const tabX = federal ? margin + 6 : 54;
-              // Only the Federal Court's index links each authority to its public source.
-              const sourceUrl = federal ? token.entry.sourceUrl : null;
-              page.drawText(pdfText(token.entry.tab), { x: tabX, y, size: federal ? 12 : 7.5, font: bold });
+              const tabTarget = tabStarts.get(token.entry.key);
+              const pageLabel = ranges.get(token.entry.key)?.join(", ") ?? "—";
+              const last = y - (token.lines.length - 1) * leading;
               token.lines.forEach((line, index) => drawRuns(page, line, { x: titleX, y: y - index * leading,
                 size: bodySize, roman: serif, italic: serifItalic }));
-              if (sourceUrl) page.drawText("source", { x: sourceX, y, size: 12, font: regular });
-              const pageLabel = ranges.get(token.entry.key)?.join(", ") ?? "—";
-              const pageSize = federal ? 12 : 8;
-              page.drawText(pageLabel, { x: pageRight - bold.widthOfTextAtSize(pageLabel, pageSize),
-                y, size: pageSize, font: bold });
-              const last = y - (token.lines.length - 1) * leading;
-              page.drawLine({ start: { x: titleX, y: last - 7 },
-                end: { x: federal ? 612 - margin : 564, y: last - 7 },
-                thickness: .45, color: pdf.rgb(.82, .82, .82) });
-              const start = localStarts.get(token.entry.key);
-              if (start !== undefined) links.push({ page, targetPageIndex: start,
-                rect: [federal ? margin : 48, last - 10,
-                  sourceUrl ? sourceX - 5 : federal ? 612 - margin : 564, y + 10] });
-              if (sourceUrl) links.push({ page, url: sourceUrl, rect: [sourceX - 5, y - 10, 492, y + 10] });
+              if (federal) {
+                // Only the Federal Court's index links each authority to its public source.
+                const sourceUrl = token.entry.sourceUrl;
+                page.drawText(pdfText(token.entry.tab), { x: margin + 6, y, size: 12, font: bold });
+                if (sourceUrl) page.drawText("source", { x: sourceX, y, size: 12, font: regular });
+                if (showPages) page.drawText(pageLabel, { x: pageRight - bold.widthOfTextAtSize(pageLabel, 12),
+                  y, size: 12, font: bold });
+                page.drawLine({ start: { x: titleX, y: last - 7 }, end: { x: pageRight, y: last - 7 },
+                  thickness: .45, color: pdf.rgb(.82, .82, .82) });
+                if (tabTarget !== undefined) links.push({ page, targetPageIndex: tabTarget,
+                  rect: [margin, last - 10, sourceUrl ? sourceX - 5 : pageRight, y + 10] });
+                if (sourceUrl) links.push({ page, url: sourceUrl, rect: [sourceX - 5, y - 10, 492, y + 10] });
+                y -= token.height;
+                continue;
+              }
+              // The citation, a dot leader, then the tab (and the pages) on its last line.
+              // An authority in another volume is found there.
+              const elsewhere = multi && volumeOf.get(token.entry.key) !== volumeIndex
+                ? ` (Vol. ${(volumeOf.get(token.entry.key) ?? 0) + 1})` : "";
+              const tab = pdfText(`${token.entry.tab}${elsewhere}`), tabWidth = serifBold.widthOfTextAtSize(tab, bodySize);
+              page.drawText(tab, { x: pageRight - tabWidth, y: last, size: bodySize, font: serifBold });
+              let leaderEnd = pageRight - tabWidth - 8;
+              if (showPages) {
+                const width = serif.widthOfTextAtSize(pageLabel, bodySize), right = pageRight - tabColumn;
+                page.drawText(pageLabel, { x: right - width, y: last, size: bodySize, font: serif });
+                leaderEnd = right - width - 8;
+              }
+              const lastLine = token.lines[token.lines.length - 1] ?? [];
+              const leaderStart = titleX + lastLine.reduce((sum, run) =>
+                sum + (run.italic ? serifItalic : serif).widthOfTextAtSize(run.text, bodySize), 0) + 6;
+              const dot = serif.widthOfTextAtSize(" .", bodySize);
+              const dots = Math.floor((leaderEnd - leaderStart) / dot);
+              if (dots > 1) page.drawText(" .".repeat(dots), { x: leaderEnd - dots * dot, y: last,
+                size: bodySize, font: serif });
+              if (tabTarget !== undefined) links.push({ page, targetPageIndex: tabTarget,
+                rect: [margin - 2, last - 4, pageRight + 2, y + bodySize] });
               y -= token.height;
             }
             if (!(federal && electronic)) {
               const value = String(plan.globalStart + coverPageCount + customIndexPages + chunkIndex + 1);
-              const size = federal ? 12 : 8;
-              page.drawText(value, { x: federal ? (612 - regular.widthOfTextAtSize(value, size)) / 2 : 540,
-                y: federal ? 75 : 24, size, font: regular });
+              const size = federal ? 12 : 9;
+              engine.paginationArtifact(page, "Footer", () => page.drawText(value,
+                { x: (612 - regular.widthOfTextAtSize(value, size)) / 2, y: federal ? 75 : 36, size, font: regular }));
             }
           });
         },
@@ -220,41 +294,95 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
           document.setCreator("Beaver"); document.setProducer("Beaver · pdf-lib");
           document.setCreationDate(new Date(0)); document.setModificationDate(new Date(0));
           document.catalog.set(pdf.PDFName.of("Lang"), pdf.PDFHexString.fromText("en-CA"));
+          // Where the index gives tabs, a PDF viewer's page box gives them too: "Tab 3-2" is the second
+          // page of the authority at Tab 3. Where it gives book pages, the box gives those.
+          if (!federal && !showPages) {
+            const label = (prefix: string, start?: number) => document.context.obj({
+              P: pdf.PDFString.of(pdfText(prefix)), ...(start ? { S: pdf.PDFName.of("D"), St: start } : {}) });
+            const nums: unknown[] = [0, label("Cover")];
+            if (indexPages.length || customIndex) nums.push(coverPageCount, label("Index ", 1));
+            for (const { source, localStart, tabStart, tabbed, blankBefore, blankAfter, pageIndices } of plan.slices) {
+              const tab = pdfNormalized(source.tab);
+              if (blankBefore) nums.push(tabStart - 1, label(`${tab} (blank)`));
+              if (tabbed) nums.push(tabStart, label(tab));
+              if (blankAfter) nums.push(tabStart + 1, label(`${tab} (blank)`));
+              nums.push(localStart, label(`${tab}-`, source.pageIndices.indexOf(pageIndices[0]) + 1));
+            }
+            if (backPageCount) nums.push(document.getPageCount() - 1, label("Back cover"));
+            document.catalog.set(pdf.PDFName.of("PageLabels"), document.context.register(
+              document.context.obj({ Nums: nums as never })));
+          }
+          dropUnreachable(pdf, document);
         },
-        links, openBookmarks: true, pageLabels: plan.globalStart + 1,
+        links, openBookmarks: true, pageLabels: !federal && !showPages ? undefined : plan.globalStart + 1,
         pageNumbers: federal && electronic ? { font: "regular", start: plan.globalStart + 1,
           position: "bottom-right", size: 12, inset: 99.21, offset: 54 } : undefined,
         outlines: () => [
           { title: documentTitle, pageIndex: 0,
             ...(coverOutline.length ? { children: coverOutline } : {}) },
-          { title: "Table of Contents", pageIndex: coverPageCount + (generatedToc ? customIndexPages : 0),
-            ...(indexOutline.length ? { children: mapOutline(indexOutline, pageIndex => coverPageCount + pageIndex) } : {}) },
+          ...!indexPages.length && !customIndex ? [] : [{ title: indexTitle, pageIndex: indexStart,
+            ...(indexOutline.length ? { children: mapOutline(indexOutline, pageIndex => coverPageCount + pageIndex) } : {}) }],
           ...groups.flatMap(({ label, entries }): PdfOutline[] => {
-            const local = entries.filter(({ key }) => localStarts.has(key));
-            return local.length ? [{ title: label, pageIndex: localStarts.get(local[0].key)!,
-              children: local.map((entry) => {
-                const slice = plan.slices.find(({ source }) => source.key === entry.key)!;
-                const start = localStarts.get(entry.key)!, page = (pageIndex: number) => {
-                  const offset = slice.pageIndices.indexOf(pageIndex);
-                  return offset < 0 ? undefined : start + offset;
-                };
-                return { title: `${entry.tab} — ${entry.name}`, pageIndex: start,
-                  children: [...mapOutline(slice.source.outline ?? [], page),
-                    ...mapOutline(slice.source.bookmarks, page)] };
-              }) }] : [];
+            const tabs = entries.filter(({ key }) => tabStarts.has(key)).map((entry): PdfOutline => {
+              const slice = plan.slices.find(({ source }) => source.key === entry.key)!;
+              const start = localStarts.get(entry.key)!, page = (pageIndex: number) => {
+                const offset = slice.pageIndices.indexOf(pageIndex);
+                return offset < 0 ? undefined : start + offset;
+              };
+              return { title: `${entry.tab} – ${entry.name}`, pageIndex: tabStarts.get(entry.key)!,
+                children: [...mapOutline(slice.source.outline ?? [], page),
+                  ...mapOutline(slice.source.bookmarks, page)] };
+            });
+            return !tabs.length ? [] : grouped ? [{ title: label, pageIndex: tabs[0].pageIndex as number, children: tabs }] : tabs;
           }),
         ],
-        saveOptions: { useObjectStreams: false },
+        saveOptions: { useObjectStreams: true },
       };
     });
   }, limits, (volume) => {
     const count = volume.reduce((sum, item) => sum + item.pageIndices.length, 0);
-    if (count < 2) throw new Error("One PDF page exceeds the Federal electronic filing size limit.");
-    return splitPdfPageRanges(volume, Math.ceil(count / 2));
+    if (count < 2) throw new Error("One PDF page exceeds the court's electronic filing size limit.");
+    return splitAtTabs(volume, Math.ceil(count / 2) + (volume.length > 1 ? added : 0), added);
   });
   return built.map((output, index) => ({ ...output, placements: placements[index], role: index ? `book-${index + 1}` : "book",
     mimeType: "application/pdf", filename: volumes.length > 1 ? input.filename.replace(/\.pdf$/iu,
       `.volume-${index + 1}-of-${volumes.length}.pdf`) : input.filename }));
+}
+
+/** Leaves out of the file what nothing in it refers to: the pages, fonts and images a source's
+ *  links to pages the book does not keep carried in when its pages were copied. */
+function dropUnreachable(pdf: PdfModule, document: import("pdf-lib").PDFDocument) {
+  const { context } = document, reached = new Set<string>();
+  const queue: unknown[] = [context.trailerInfo.Root, context.trailerInfo.Info, context.trailerInfo.Encrypt];
+  while (queue.length) {
+    const item = queue.pop();
+    if (item instanceof pdf.PDFRef) {
+      if (reached.has(item.toString())) continue;
+      reached.add(item.toString()); queue.push(context.lookup(item));
+    } else if (item instanceof pdf.PDFDict) queue.push(...item.values());
+    else if (item instanceof pdf.PDFArray) queue.push(...item.asArray());
+    else if (item instanceof pdf.PDFStream) queue.push(item.dict);
+  }
+  for (const [ref] of context.enumerateIndirectObjects()) if (!reached.has(ref.toString())) context.delete(ref);
+}
+
+/** Volumes of whole authorities, in order, each as many as fit in `size` pages (each taking `added`
+ *  pages more than its own); only an authority longer than a volume is divided between volumes. */
+function splitAtTabs<T extends { pageIndices: number[] }>(items: T[], size: number, added = 0) {
+  const volumes: T[][] = [[]];
+  let used = 0;
+  for (const item of items) {
+    const length = item.pageIndices.length + added;
+    if (used && used + length > size) { volumes.push([]); used = 0; }
+    if (length <= size) { volumes[volumes.length - 1].push(item); used += length; continue; }
+    const parts = splitPdfPageRanges([item], Math.max(1, size - added));
+    parts.forEach((part, index) => {
+      if (index) volumes.push([]);
+      volumes[volumes.length - 1].push(...part);
+    });
+    used = parts[parts.length - 1].reduce((sum, part) => sum + part.pageIndices.length, 0);
+  }
+  return volumes;
 }
 
 export function fit(font: PdfFont, value: string, size: number, width: number) {
@@ -381,4 +509,48 @@ function drawFederalForm66Cover(page: PdfPage, regular: PdfFont, bold: PdfFont,
   if (y < 135) throw new Error(
     "The Federal style of cause is too long for one Form 66 cover page.");
   return y - 10;
+}
+
+/** The page that opens an authority: its tab, large and alone. */
+function drawTabPage(page: PdfPage, tab: string, font: PdfFont) {
+  const text = pdfText(tab).toUpperCase(), size = Math.min(54, 468 / Math.max(1, font.widthOfTextAtSize(text, 1)));
+  page.drawText(text, { x: (612 - font.widthOfTextAtSize(text, size)) / 2, y: 396 - size / 3, size, font });
+}
+
+/** The Alberta Rules of Court's cover (r 13.19): the court file number, court, judicial centre and
+ *  parties, the document's title and the filing party's address for service, each beside its label,
+ *  with the clerk's stamp box at the top right. Its values are plain text in a standard font, which
+ *  a PDF editor retypes: the King's Bench Filing Digital Service refuses a PDF with form fields. */
+function drawAlbertaCover(pdf: PdfModule, page: PdfPage, regular: PdfFont, bold: PdfFont,
+  cover: AuthoritiesCover, court: string, title: string) {
+  const left = 72, valueX = 214, right = 540, size = 10, leading = 13;
+  const stamp = { x: 396, top: 740, bottom: 596 };
+  page.drawRectangle({ x: stamp.x, y: stamp.bottom, width: right - stamp.x, height: stamp.top - stamp.bottom,
+    borderColor: pdf.rgb(0, 0, 0), borderWidth: .75 });
+  const stampLabel = "Clerk's Stamp";
+  page.drawText(stampLabel, { x: stamp.x + (right - stamp.x - regular.widthOfTextAtSize(stampLabel, 8)) / 2,
+    y: stamp.top - 12, size: 8, font: regular });
+  const contact = cover.contact;
+  const rows: Array<readonly [label: string, value: string, font?: PdfFont]> = [
+    ["COURT FILE NUMBER", cover.courtFileNumber],
+    ["COURT", court],
+    ["JUDICIAL CENTRE", (cover.judicialCentre ?? "").toUpperCase()],
+    ...cover.applicationUnder ? [["MATTER", cover.applicationUnder] as const] : [],
+    ...cover.partyGroups.map(({ role, parties }) => [role.toUpperCase(), parties.join("\n")] as const),
+    ["DOCUMENT", title.toUpperCase(), bold],
+    ["ADDRESS FOR SERVICE AND CONTACT INFORMATION OF PARTY FILING THIS DOCUMENT",
+      contact ? [contact.name, contact.address, contact.phone && `Telephone: ${contact.phone}`,
+        contact.fax && `Fax: ${contact.fax}`, contact.email && `Email: ${contact.email}`]
+        .filter(Boolean).join("\n") : ""],
+  ];
+  let y = 724;
+  for (const [label, value, font = regular] of rows) {
+    // A value beside the stamp box stops short of it.
+    const width = (y > stamp.bottom ? stamp.x - 12 : right) - valueX;
+    const labels = wrapped(bold, label, 8, valueX - left - 14), values = wrapped(font, value, size, width);
+    labels.forEach((line, index) => page.drawText(line, { x: left, y: y - index * 10, size: 8, font: bold }));
+    values.forEach((line, index) => page.drawText(line, { x: valueX, y: y - index * leading, size, font }));
+    y -= Math.max(labels.length * 10, values.length * leading) + 16;
+  }
+  return y;
 }
