@@ -30,6 +30,7 @@ import { directoryResource, downloadDocument, getDocument, readDocumentFile, get
 import { getDocumentPdfPageLabels } from "@/app/lib/pdfDocumentSource";
 import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
+import { getUserProfile, updateUserProfile } from "@/app/lib/api/account";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authorityCitationForms } from "./authorityPresentation";
 import { decodeAnnotationSet } from "../../../../shared/pdf-annotations.mjs";
@@ -86,6 +87,8 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   },
   mode: "beaver",
   wordToPdf: authoritiesWordToPdf,
+  filingContact: { get: async () => (await getUserProfile()).filingContact,
+    save: async (filingContact) => { await updateUserProfile({ filingContact }); } },
   drafts,
   async create({ source, title, projectId, settings }) {
     const imported = source.kind === "file"

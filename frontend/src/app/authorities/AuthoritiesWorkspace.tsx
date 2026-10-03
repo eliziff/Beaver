@@ -30,7 +30,7 @@ import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { rowControl, rowLabel, Sources, type BookFiles } from "./AuthoritySources";
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfModal, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
-import { FileCard, OptionCards, type CardOption } from "./OptionCards";
+import { FileCard, OptionCard, OptionCards, type CardOption } from "./OptionCards";
 import { OutputsDock } from "./OutputsDock";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
@@ -422,6 +422,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const authorities = useMemo(() => shown ? authorityPlan.map(({ id }) => shown.state.authorities[id]) : [],
     [shown, authorityPlan]);
   const authorityTabs = useMemo(() => new Map(authorityPlan.map(({ id, tab }) => [id, tab])), [authorityPlan]);
+  const authorityGroups = useMemo(() => new Map(authorityPlan.map(({ id, group }) => [id, group])), [authorityPlan]);
   const missingPdfs = useMemo(() => draft ? missingSources(draft, sourceIssues, authorityPlan) : [],
     [draft, sourceIssues, authorityPlan]);
   const importedRole = draft?.state.import.kind === "document"
@@ -1055,7 +1056,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
       ? buildLinks.warnings : undefined}
     onAction={act} sourceIssues={sourceIssues}
-    onRelink={relinkSource} onOpenSource={host.readSource ? openSource : undefined}
+    onRelink={relinkSource} onOpenSource={host.readSource ? openSource : undefined} filingContact={host.filingContact}
     files={bookFiles} sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights key={draft.id} product={draft}
@@ -1067,7 +1068,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       onOpenSource={host.readSource ? openFindingSource : undefined}
       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
       onDone={() => setFindingId("")} />;
-  const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues, statuteCopies,
+  const authorityPanelProps = { authorities, tabs: authorityTabs, groups: authorityGroups, busy, sourceIssues, statuteCopies,
     onAction: act, onEditIdentity: setEditingAuthority,
     onRetrySource: retryPublisherSource,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),
@@ -1441,7 +1442,7 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
 }
 
 function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
-  convertsWord, linkWarnings, onRelink, files, sourceLabel, onOpenSource,
+  convertsWord, linkWarnings, onRelink, files, sourceLabel, onOpenSource, filingContact,
   onBuild, onCancel, onDownload }: {
   draft: AuthoritiesProduct; busy: boolean; building: boolean;
   /** What the build is doing now. */
@@ -1454,9 +1455,10 @@ function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onActi
   files: BookFiles;
   sourceLabel?: string;
   onOpenSource?: (role: string) => void;
+  filingContact?: AuthoritiesHost["filingContact"];
   onDownload: (documentId: string, versionId: string, filename: string) => void;
 }) {
-  const [coverOpen, setCoverOpen] = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false), [indexOpen, setIndexOpen] = useState(false);
   const [finalOpen, setFinalOpen] = useState(false);
   const profile = authoritiesProfile(draft.state.settings.profileId);
   const manual = draft.state.import.kind === "manual";
@@ -1467,6 +1469,20 @@ function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onActi
   const generatedFederalCover = book && !!profile.requirements?.federalFormatting &&
     !draft.state.bookParts.cover;
   const coverDetailsReady = !generatedFederalCover || completeFederalCover(draft.state.cover);
+  // King's Bench draws an Alberta cover from its details; one without a contact starts from the one kept.
+  const albertaCover = book && !!profile.requirements?.albertaCover && !draft.state.bookParts.cover;
+  const contactAsked = useRef("");
+  useEffect(() => {
+    const { cover } = draft.state;
+    if (!albertaCover || !filingContact || contactAsked.current === draft.id ||
+      Object.values(cover.contact ?? {}).some((value) => value.trim())) return;
+    contactAsked.current = draft.id;
+    void filingContact.get().then((contact) => {
+      if (Object.values(contact).some((value) => value.trim())) onAction({ type: "set-cover", cover: { ...cover, contact } });
+    }).catch(() => undefined);
+  }, [albertaCover, draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const federal = !!profile.requirements?.federalFormatting, settings = draft.state.settings;
+  const indexShows = settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs");
   const filingRoleReady = !generatedFederalCover || !!draft.state.settings.bookRole;
   // Without a converter here, a Word brief reaches the final PDF as a PDF the user saved from Word.
   const briefSlot = wordDocument && convertsWord === false;
@@ -1511,8 +1527,12 @@ function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onActi
       firstTab={tabLabel(1, draft.state.settings.tabStyle, draft.state.settings)} onChange={onOptions} />}
     {book && <BookContents draft={draft} busy={busy} onAction={onAction}
       sourceIssues={sourceIssues} onRelink={onRelink} files={files} sourceLabel={sourceLabel}
-      onOpen={onOpenSource} settings={{ cover: generatedFederalCover ? { label: coverDetailsReady && filingRoleReady ? "Edit" : "Add details",
-        detail: coverDetailsReady && filingRoleReady ? "Generated" : "Details required", onClick: () => setCoverOpen(true) } : undefined }} />}
+      onOpen={onOpenSource} settings={{
+        cover: generatedFederalCover ? { label: coverDetailsReady && filingRoleReady ? "Edit" : "Add details",
+          detail: coverDetailsReady && filingRoleReady ? "Generated" : "Details required", onClick: () => setCoverOpen(true) }
+          : albertaCover ? { label: "Edit", detail: "Generated", onClick: () => setCoverOpen(true) } : undefined,
+        index: { label: "Edit", detail: `Generated · ${indexShows === "tabs-and-pages" ? "tabs and pages" : "tabs"}`,
+          onClick: () => setIndexOpen(true) } }} />}
     <details className="group">
       <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 rounded-md pr-2 text-sm font-medium text-gray-700 outline-none hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90 motion-reduce:transition-none" /> More options</summary>
@@ -1523,10 +1543,6 @@ function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onActi
         {draft.state.outputMode !== "table" && <SelectField label="Tabs" value={draft.state.settings.tabStyle}
           disabled={busy} onChange={(tabStyle) => onAction({ type: "set-settings", settings: { tabStyle } })}
           options={[{ value: "numeric", label: "Numbers" }, { value: "alpha", label: "Letters" }]} />}
-        {draft.state.import.kind === "document" && draft.state.outputMode !== "book" && <SelectField label="Table order" value={draft.state.settings.tableOrder}
-          disabled={busy} onChange={(tableOrder) => onAction({ type: "set-settings", settings: { tableOrder } })}
-          options={[{ value: "alphabetical", label: "Alphabetical" },
-            { value: "first-reference", label: "First reference" }]} />}
         {book && profile.options?.missingSourcePolicy && <SelectField label="Missing sources" value={draft.state.settings.missingSourcePolicy}
           disabled={busy} onChange={(missingSourcePolicy) => onAction({ type: "set-settings",
             settings: { missingSourcePolicy } })}
@@ -1568,10 +1584,13 @@ function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onActi
         if (!draft.state.settings.finalPdf) onOptions({ finalPdf: true });
         setFinalOpen(false); start();
       }} />}
-    {coverOpen && <FederalCoverModal cover={draft.state.cover} profileId={profile.id}
+    {coverOpen && <CoverModal cover={draft.state.cover} profileId={profile.id} alberta={albertaCover}
       busy={busy} onClose={() => setCoverOpen(false)} onSave={(cover) => {
         setCoverOpen(false); onAction({ type: "set-cover", cover });
+        if (albertaCover && cover.contact) void filingContact?.save(cover.contact).catch(() => undefined);
       }} />}
+    {indexOpen && <IndexModal settings={settings} indexShows={indexShows} federal={federal} busy={busy}
+      onClose={() => setIndexOpen(false)} onChange={(changed) => onAction({ type: "set-settings", settings: changed })} />}
   </section>;
 }
 
@@ -1606,11 +1625,13 @@ const completeFederalCover = (cover: AuthoritiesCover) => !!cover.courtFileNumbe
   cover.partyGroups.length >= 2 && cover.partyGroups.every(({ role, parties }) =>
     !!role.trim() && parties.some((party) => !!party.trim()));
 
-function FederalCoverModal({ cover, profileId, busy, onClose, onSave }: {
-  cover: AuthoritiesCover; profileId: AuthoritiesProfileId; busy: boolean;
+/** The cover's details: the Federal Court's, or King's Bench's Alberta cover with its judicial centre
+ *  and the filing party's address for service. */
+function CoverModal({ cover, profileId, alberta, busy, onClose, onSave }: {
+  cover: AuthoritiesCover; profileId: AuthoritiesProfileId; alberta: boolean; busy: boolean;
   onClose: () => void; onSave: (cover: AuthoritiesCover) => void;
 }) {
-  const roles = profileId === "federal-court"
+  const roles = profileId === "federal-court" || alberta
     ? ["Applicant", "Respondent"] : ["Appellant", "Respondent"];
   const [value, setValue] = useState<AuthoritiesCover>(() => ({ ...structuredClone(cover),
     partyGroups: cover.partyGroups.length ? structuredClone(cover.partyGroups)
@@ -1623,6 +1644,8 @@ function FederalCoverModal({ cover, profileId, busy, onClose, onSave }: {
       disabled: busy }}>
     <form id="authorities-cover-form" className="grid gap-4 pb-5" onSubmit={(event) => {
       event.preventDefault(); onSave({ ...value,
+        ...alberta && { judicialCentre: value.judicialCentre?.trim() ?? "",
+          contact: Object.fromEntries(CONTACT.map(([key]) => [key, value.contact?.[key]?.trim() ?? ""])) as Contact },
         courtFileNumber: value.courtFileNumber.trim(),
         applicationUnder: value.applicationUnder.trim(), title: value.title.trim(),
         partyGroups: value.partyGroups.map(({ role, parties }) => ({ role: role.trim(),
@@ -1634,8 +1657,13 @@ function FederalCoverModal({ cover, profileId, busy, onClose, onSave }: {
             onChange={(event) => setValue({ ...value, courtFileNumber: event.target.value })}
             className="mt-1.5 h-10 border-gray-400 md:text-base" />
         </label>
-        <label className="text-sm font-medium text-gray-700">Title <span className="font-normal text-gray-500">(optional)</span>
-          <Input value={value.title}
+        {alberta && <label className="text-sm font-medium text-gray-700">Judicial centre
+          <Input value={value.judicialCentre ?? ""}
+            onChange={(event) => setValue({ ...value, judicialCentre: event.target.value })}
+            className="mt-1.5 h-10 border-gray-400 md:text-base" />
+        </label>}
+        <label className={cn("text-sm font-medium text-gray-700", alberta && "sm:col-span-2")}>Title <span className="font-normal text-gray-500">(optional)</span>
+          <Input value={value.title} placeholder={alberta ? "Book of Authorities of the Applicant" : undefined}
             onChange={(event) => setValue({ ...value, title: event.target.value })}
             className="mt-1.5 h-10 border-gray-400 md:text-base" />
         </label>
@@ -1666,12 +1694,54 @@ function FederalCoverModal({ cover, profileId, busy, onClose, onSave }: {
           partyGroups: [...current.partyGroups, { role: "", parties: [""] }] }))}>
         <Plus /> Add role
       </Button>
-      <label className="text-sm font-medium text-gray-700">Application under <span className="font-normal text-gray-500">(optional)</span>
+      {alberta ? <fieldset className="grid gap-3 sm:grid-cols-2">
+        <legend className="mb-2 text-sm font-semibold text-gray-900">Address for service and contact information</legend>
+        {CONTACT.map(([key, label]) => <label key={key}
+          className={cn("text-sm font-medium text-gray-700", key === "address" && "sm:col-span-2")}>{label}
+          {key === "address" ? <textarea rows={3} value={value.contact?.address ?? ""}
+            onChange={(event) => setValue({ ...value, contact: { ...EMPTY_CONTACT, ...value.contact, address: event.target.value } })}
+            className="mt-1.5 min-h-20 w-full resize-y rounded-md border border-gray-400 bg-white px-3 py-2 text-base text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600" />
+            : <Input value={value.contact?.[key] ?? ""} type={key === "email" ? "email" : "text"}
+              onChange={(event) => setValue({ ...value, contact: { ...EMPTY_CONTACT, ...value.contact, [key]: event.target.value } })}
+              className="mt-1.5 h-10 border-gray-400 md:text-base" />}
+        </label>)}
+      </fieldset>
+      : <label className="text-sm font-medium text-gray-700">Application under <span className="font-normal text-gray-500">(optional)</span>
         <Input value={value.applicationUnder}
           onChange={(event) => setValue({ ...value, applicationUnder: event.target.value })}
           className="mt-1.5 h-10 border-gray-400 md:text-base" />
-      </label>
+      </label>}
     </form>
+  </Modal>;
+}
+type Contact = NonNullable<AuthoritiesCover["contact"]>;
+const EMPTY_CONTACT: Contact = { name: "", address: "", phone: "", fax: "", email: "" };
+const CONTACT = [["name", "Name"], ["email", "Email"], ["address", "Address"], ["phone", "Phone"], ["fax", "Fax"]] as const;
+
+/** What the generated index gives, and how the book's tabs are laid out: saved as each is chosen. */
+function IndexModal({ settings, indexShows, federal, busy, onClose, onChange }: {
+  settings: AuthoritiesProduct["state"]["settings"]; indexShows: "tabs" | "tabs-and-pages"; federal: boolean; busy: boolean;
+  onClose: () => void; onChange: (settings: Partial<AuthoritiesProduct["state"]["settings"]>) => void;
+}) {
+  const electronic = settings.filingMedium === "electronic";
+  const tabPages = settings.tabPages ?? !federal;
+  const rightHand = !electronic && (settings.rightHandStarts ?? settings.filingMedium === "paper");
+  return <Modal open onClose={onClose} breadcrumbs={["Index"]} size="xl" fit
+    primaryAction={{ label: "Done", onClick: onClose }}>
+    <OptionCards legend="Beside each authority" value={indexShows} columns disabled={busy}
+      options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
+        { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index also gives the book pages each authority fills." }]}
+      onChange={(value) => onChange({ indexShows: value })} />
+    <fieldset className="mt-5 grid gap-2" disabled={busy}>
+      <legend className="mb-2 text-sm font-semibold text-gray-950">Tabs</legend>
+      <OptionCard type="checkbox" checked={tabPages} onChange={() => onChange({ tabPages: !tabPages })}
+        label="A TAB page before each authority" detail="Where the index's link and the bookmark for each authority land." />
+      <OptionCard type="checkbox" checked={rightHand} disabled={electronic} onChange={() => onChange({ rightHandStarts: !rightHand })}
+        label="Start each on a right-hand page"
+        detail={electronic ? "For a book printed on both sides. An electronic filing has no blank pages."
+          : "For a book printed on both sides: a blank page is added where one is needed."} />
+    </fieldset>
+    <div className="h-5 shrink-0" />
   </Modal>;
 }
 

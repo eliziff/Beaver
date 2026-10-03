@@ -5,7 +5,7 @@ import { oneAtATime } from "../../../../shared/one-at-a-time.mjs";
 import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
-  getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readSourceAnswer, readSourcePdf,
+  getStandaloneFilingContact, getStandaloneOutputFolder, setStandaloneFilingContact, inspectStandaloneFile, pickRetainedFiles, readSourceAnswer, readSourcePdf,
   readStandaloneOutput, relinkStandaloneFile, rememberSourceAnswer, rememberSourcePdf, requestStandaloneFileAccess,
   resolveStandaloneFile, retainStandaloneFile,
   saveStandaloneArtifacts, standaloneWatchedFolder,
@@ -453,6 +453,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     choose: chooseStandaloneOutputFolder,
     clear: clearStandaloneOutputFolder,
   },
+  filingContact: { get: getStandaloneFilingContact, save: setStandaloneFilingContact },
 };
 
 async function readStandaloneOutputByDocument(documentId: string, versionId: string) {
