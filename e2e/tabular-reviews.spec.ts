@@ -36,7 +36,7 @@ test("creates a new tabular review and is redirected to the detail page", async 
 test("adds a document to a tabular review and the row persists", async ({ page }) => {
     test.setTimeout(60_000);
     const { id } = await createReview(page, "E2E Doc Review");
-    await page.getByRole("button", { name: "Add documents", exact: true }).click();
+    await page.getByRole("button", { name: "Add documents", exact: true }).first().click();
     const modal = page.getByRole("dialog");
     await modal.getByRole("button", { name: "Upload", exact: true }).click();
     const chooserPromise = page.waitForEvent("filechooser");

@@ -13,7 +13,7 @@ vi.mock("../codexCatalog", () => ({
   }),
 }));
 
-import { assistantTools } from "./assistantTools";
+import { RESOURCE_TOOLS } from "./resourceTools";
 import {
   createTnaEvidence,
   createPublicJournalPassageEvidence,
@@ -32,19 +32,11 @@ import { readResearchContext, readResearchContextInventory, researchReadCursors,
 import { parseAssistantEvent, type ReadSubagentEvent } from "./assistantEvents";
 import type { DocumentStore } from "../documentStore";
 import { sha256 } from "../hash";
-const ASSISTANT_TOOLS = assistantTools<ChatToolContext>({
-  userId: "test",
-  scope: "main",
-  documents: {} as never,
-  library: {} as never,
-  projects: {} as never,
-  resolveArtifact: () => undefined,
-  artifactFor: () => "draft-1",
-  onMutationCommitted: () => undefined,
-}).map((tool): BeaverTool<ChatToolContext> => ({
-  ...tool,
+const READ_TOOL: BeaverTool<ChatToolContext> = {
+  ...RESOURCE_TOOLS.find(({ name }) => name === "Read")!,
+  activity: () => "Reading test fixture",
   async execute() { return { result: toolText({ ok: true }) }; },
-}));
+};
 
 beforeEach(() => {
   stream.mockReset();
@@ -96,7 +88,7 @@ it("publishes source identity immediately and settles each parallel read before 
   let releaseSlow!: () => void;
   const slow = new Promise<void>((resolve) => { releaseSlow = resolve; });
   const read: BeaverTool<ChatToolContext> = {
-    ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
+    ...READ_TOOL,
     activityCitations: () => [source],
     async execute(input) {
       if (input.file_path === "document://slow/version/v1") {
@@ -261,7 +253,7 @@ it("persists private tool receipts without emitting them", async () => {
     status: "ok" as const,
   };
   const tool: BeaverTool<ChatToolContext> = {
-    ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
+    ...READ_TOOL,
     async execute() {
       return { result: toolText({ ok: true }), events: [receipt] };
     },
@@ -441,7 +433,7 @@ const observedPassage = (id: string, text: string) => createTnaEvidence({
   dataset: "test", locatorKind: "paragraph", locatorLabel: "12",
 });
 const observedRead = (evidence: ReturnType<typeof observedPassage>[]): BeaverTool<ChatToolContext> => ({
-  ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
+  ...READ_TOOL,
   reader: ["CA"],
   async execute(_input, _context, _signal, call) {
     return { result: toolText({ ok: true }), evidence, queryReceipts: [{
@@ -582,7 +574,7 @@ it("resumes child source scopes, queries and coverage with the actual reading mo
       expect(context.operation).toMatchObject({ executor: "assistant", model: "codex:gpt-5.6-luna",
         chatId: "chat", turnId: "turn", subagentId: expect.stringMatching(/^scopes:/u) });
       expect(context.research?.subjects).toHaveLength(1);
-      return [{ ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!, reader: ["CA"],
+      return [{ ...READ_TOOL, reader: ["CA"],
         async execute(input, context, signal, call) {
           if (input.file_path === "selection") return readResearchContextInventory(context.research!, {});
           const output = await readResearchContext(documents, { userId: "owner" }, context.research!, {
