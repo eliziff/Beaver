@@ -1,4 +1,4 @@
-import type { PDFDocumentProxy, TextLayer } from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFPageProxy, TextLayer } from 'pdfjs-dist';
 import type * as ViewerModule from 'pdfjs-dist/legacy/web/pdf_viewer.mjs';
 import { createPdfViewer } from '../browser-pdf.mjs';
 import { attachPdfAnnotationLayer, focusPdfAnnotation, type PdfAnnotationEditorPort } from './pdfAnnotationLayer';
@@ -121,10 +121,10 @@ export function createPdfSession(options: {
       },170);
     });
   };
+  const fitOf=(first: PDFPageProxy)=>Math.max(.1,(container.clientWidth-24)/first.getViewport({scale:1}).width)/(96/72);
   const resize=()=>{
     const first=viewer.getPageView(0)?.pdfPage;if(!first)return;
-    fit=Math.max(.1,(container.clientWidth-24)/first.getViewport({scale:1}).width)/(96/72);
-    viewer.currentScale=fit*zoom;
+    fit=fitOf(first);viewer.currentScale=fit*zoom;
   };
   let width=container.clientWidth;
   const observer=new ResizeObserver(()=>{
@@ -179,6 +179,11 @@ export function createPdfSession(options: {
     destroyViewer();options.signal.removeEventListener('abort',destroy);
   };
   options.signal.addEventListener('abort',destroy,{once:true});
+  // Pages are made at the scale they will fit (this runs before PDF.js reads its first page), so
+  // opening a long PDF does not lay every page out once more when the first resize fits it.
+  void pdf.getPage(1).then(first=>{
+    if(!signal.aborted && container.clientWidth)(viewer as unknown as {_currentScale: number})._currentScale=fitOf(first)*zoom;
+  },()=>{});
   viewer.setDocument(pdf);void viewer.pagesPromise?.catch((error: unknown)=>{if(!signal.aborted)options.onError(error);});
   if(options.signal.aborted)destroy();
   return {viewer,pages,ready,preparePage,ensureText,drawPage,navigate,setZoom,updateAnnotations,destroy,
