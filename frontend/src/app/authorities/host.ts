@@ -4,6 +4,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesOutputMode, AuthoritiesProduct,
   AuthoritiesProfileId, AuthoritySourceLanguage } from "./types";
 import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
+import type { FilingContact } from "../../../../shared/user-preferences.mjs";
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
 import type { PdfOpening } from "@/app/lib/inspectPdf";
@@ -86,4 +87,6 @@ export interface AuthoritiesHost {
   readPinpoints?(text: string, start: number, end: number): Promise<Array<{ kind: string; start: number; end: number }>>;
   sourceOcr?: AuthoritiesOcrPort;
   outputFolder?: OutputFolderPort;
+  /** The filing contact kept for the user: a cover without one starts from it, and a cover's is kept. */
+  filingContact?: { get(): Promise<FilingContact>; save(contact: FilingContact): Promise<void> };
 }

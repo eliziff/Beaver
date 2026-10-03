@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { CircleAlert, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2, FileX2, LockKeyhole,
   FolderInput, FolderSearch, Loader2, Pencil, Plus, RotateCw, Square, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
@@ -17,6 +17,7 @@ import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
 import type { StatuteCopy } from "./statuteExcerpts";
 import canliiLogo from "./canlii.ico";
+import { authoritiesProfile } from "./profiles";
 
 const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
 /** A row's action: one width, type weight and icon size wherever a list of sources or book parts
@@ -46,7 +47,13 @@ export type AuthorityPanelProps = {
   onWatchFolder?: () => void; watchedFolder?: string;
   /** Each statute's book copy, by authority: every statute row has its line. */
   statuteCopies?: ReadonlyMap<string, StatuteCopy>;
+  /** Each authority's group in the book ("Cases", "Legislation", ...), by authority. */
+  groups?: ReadonlyMap<string, string>;
 };
+const GROUPINGS = [{ value: "cases-first", label: "Cases first" }, { value: "legislation-first", label: "Legislation first" },
+  { value: "none", label: "None" }] as const;
+const ORDERS = [{ value: "alphabetical", label: "Alphabetical" }, { value: "first-reference", label: "First cited" },
+  { value: "custom", label: "As arranged" }] as const;
 /** The book's own PDFs, chosen from a file, a picker or the library. */
 export type BookFiles = {
   onFiles: (slot: AuthoritiesBookSlot, files: File[], supplementId?: string) => void;
@@ -68,8 +75,10 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
-  ocr, statuteCopies, others }: PanelProps) {
+  ocr, statuteCopies, groups, others }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
+  const profile = authoritiesProfile(state.settings.profileId), shown = authorities.map(({ id }) => id);
+  const headed = authorities.some(({ id }) => groups?.get(id) && groups.get(id) !== "Authorities");
   const otherInput = useRef<HTMLInputElement>(null);
   const addOther = () => { if (others?.onPick) others.onPick("supplemental", true); else otherInput.current?.click(); };
   return <><section className="@container/sources mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
@@ -80,7 +89,14 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      {(state.outputMode !== "table" || onFiles || onLibraryAdd || onWatchFolder) && <div className="mb-3 flex flex-wrap justify-end gap-2">
+      {/* How the book and the table group and order the authorities, then the list's own actions. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <ListChoice label="Group" disabled={busy || !!profile.locked?.settings?.grouping} options={GROUPINGS}
+          value={state.settings.grouping ?? (state.settings.tableOrder === "first-reference" ? "none" : "cases-first")}
+          onChange={(grouping) => onAction({ type: "set-settings", settings: { grouping } })} />
+        <ListChoice label="Order" disabled={busy || !!profile.locked?.settings?.tableOrder} options={ORDERS}
+          value={state.settings.tableOrder} onChange={(tableOrder) => onAction({ type: "set-settings", settings: { tableOrder } })} />
+        <span className="flex-1" />
         {onWatchFolder && <Button type="button" variant="outline" className={control}
           disabled={busy && !watchedFolder} onClick={onWatchFolder}
           title={watchedFolder ? "Stop watching this folder"
@@ -95,15 +111,19 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
             onFiles={onFiles} variant="outline" compact />)}
         {onLibraryAdd && <Button type="button" variant="outline" className={control} disabled={busy}
           onClick={onLibraryAdd}><FolderSearch /> {sourceLabel}</Button>}
-      </div>}
+      </div>
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
       {/* A list with statutes keeps room for their Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
         className={cn("grid grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300 @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_7rem_7.5rem]",
           statuteCopies?.size ? "@min-[44rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_11rem_21.5rem]"
             : "@min-[44rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_11rem_13.75rem]")}>
-        {authorities.map((authority) => <AuthorityRow key={authority.id} authority={authority} busy={busy}
-          order={state.authorityOrder} copy={statuteCopies?.get(authority.id)}
+        {authorities.map((authority, index) => <Fragment key={authority.id}>
+          {/* Each group under its heading, as the book and the table set them out. */}
+          {headed && groups?.get(authority.id) !== groups?.get(authorities[index - 1]?.id) &&
+            <p className={GROUP}>{groups?.get(authority.id)}</p>}
+          <AuthorityRow authority={authority} busy={busy}
+          order={shown} copy={statuteCopies?.get(authority.id)}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
           citations={authorityCitationForms(authority, occurrences)}
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
@@ -115,7 +135,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           onLibrary={onLibrary ? () => onLibrary(authority.id) : undefined} sourceLabel={sourceLabel}
           onAttach={(file) => onAttach(authority.id, file)} onRelink={onRelink}
           onOpen={onOpenSource} onRetry={onRetrySource ? () => onRetrySource(authority.id) : undefined}
-          onEditIdentity={() => onEditIdentity(authority)} ocr={ocr} />)}
+          onEditIdentity={() => onEditIdentity(authority)} ocr={ocr} /></Fragment>)}
+        {headed && !!others?.parts.length && <p className={GROUP}>Documents</p>}
         {others?.parts.map(({ part, tab }) => <OtherPdfRow key={part.id} part={part} tab={tab} busy={busy}
           issue={sourceIssues[part.bindingRole]} files={others} sourceLabel={sourceLabel}
           onAction={onAction} onRelink={onRelink} onOpen={onOpenSource} />)}
@@ -176,6 +197,12 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const fromText = sources.length ? sources.every(({ origin }) => origin === "reconstructed")
     : rebuildsFromText && authority.source.kind === "resolved";
   const missing = needsPdf && !loaded;
+  const uploadHint = missing && !authority.sourceIdentity && !publisherUrl &&
+    authority.source.kind !== "pending-canlii" && authority.citationFormat
+    ? authority.citationFormat === "database"
+      ? "Database citation. Upload a PDF of the decision."
+      : "Unreported decision. Upload a PDF of the decision."
+    : null;
   const missingIssue = sources.map(({ bindingRole }) => sourceIssues[bindingRole]).find(Boolean);
   const lookup = !sources.length ? authority.sourceLookupFailure : undefined;
   const missingLabel = issue ? "File access was denied. Allow access to this PDF to use it."
@@ -303,6 +330,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       {choice("@min-[44rem]/sources:hidden")}
       <span className="truncate text-xs text-gray-500" title={copy.line || undefined}>{copy.line}</span>
     </div>}
+    {uploadHint && <p className="col-[3/-1] pb-1 text-xs text-red-800">{uploadHint}</p>}
     <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
       disabled={busy} aria-label={`Upload PDF for ${title}`} onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = "";
@@ -353,6 +381,17 @@ function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, onAction, onR
         if (file) files.onFiles("supplemental", [file], part.id);
       }} />
   </article>;
+}
+
+const GROUP = "col-span-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-500";
+/** A choice for the whole list, as compact as the list's own actions, its name beside it. */
+function ListChoice<T extends string>({ label, value, options, disabled, onChange }: { label: string; value: T;
+  options: ReadonlyArray<{ value: T; label: string }>; disabled: boolean; onChange: (value: T) => void }) {
+  return <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500">{label}
+    <select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as T)}
+      className="h-8 rounded-md border border-gray-400 bg-white pl-2 pr-7 text-xs font-normal text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:border-gray-200 disabled:text-gray-500">
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select></label>;
 }
 
 /** A statute in the book as an excerpt or whole: two buttons the height of the row's other actions,
