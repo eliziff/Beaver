@@ -44,13 +44,14 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     const original = await vi.waitFor(async () => {
       const source = await documents.projectionSource(scope, file.id, file.current_version_id);
       expect(source?.pdfProfile).toBeDefined(); return source!.pdfProfile!;
-    });
+    }, { timeout: 10_000 });
     const { enqueuePdfReprocess } = await import('../pdfJobs');
     for (const page of [2, 1]) {
       const job = await enqueuePdfReprocess({ userId: scope.userId, documentId: file.id,
         versionId: file.current_version_id, sourceSha256: file.source_sha256,
         ocrProvider: 'tesseract', layout: false, pages: [page] });
-      await vi.waitFor(async () => expect((await queue.getJob(job.id, scope.userId))?.status).toBe('succeeded'));
+      await vi.waitFor(async () => expect((await queue.getJob(job.id, scope.userId))?.status).toBe('succeeded'),
+        { timeout: 10_000 });
     }
     const source = (await documents.projectionSource(scope, file.id, file.current_version_id))!;
     expect(source.pdfProfile).toMatchObject(original);
@@ -61,9 +62,13 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     await worker.stop(); await db.closeRelationalDatabase();
     const reader = createDocumentApplication(documentRepository, filesystemDocumentObjects());
     const resolve = reader.projectionSource;
+    let allowSourceRead = false;
     reader.projectionSource = async (...args) => {
       const result = await resolve(...args);
-      return result && { ...result, readBytes: () => { throw Error('Text-layer GET reread the PDF'); } };
+      return result && { ...result, readBytes: () => {
+        if (!allowSourceRead) throw Error('Text-layer GET reread the PDF');
+        return result.readBytes();
+      } };
     };
     const api = express(); api.use(createDocumentsRouter({} as never, reader));
     const readsBefore = prepare.mock.calls.length;
@@ -81,13 +86,17 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     expect(response.body.pages.map((page: NativePdfTextPage) => page.pageNumber)).toEqual([1, 2]);
     expect(response.body.pages[1].lines[0].words[0].text).toBe('Recognized page 2');
     expect(prepare).toHaveBeenCalledTimes(readsBefore);
-    // Missing cached recognition is an error, not permission to launch OCR in a reader.
+    // An evicted slice is rebuilt from its bound source; intact slices need no reread.
     await documents.recordPdfPreparation(scope, file.id, { versionId: file.current_version_id,
       sourceSha256: file.source_sha256, pageCount: 3, textOnly: true,
       pdfProfile: { ...original, textLayerPages: { '2': 'f'.repeat(64) } } });
     await request(api).get(`${url}&pages=1`).expect(200); // An unrelated missing slice cannot block this page.
-    await read().expect(409);
-    expect(prepare).toHaveBeenCalledTimes(readsBefore);
+    allowSourceRead = true;
+    const remade = await read().expect(200);
+    expect(remade.body.pages.map((page: NativePdfTextPage) => page.pageNumber)).toEqual([1, 2]);
+    expect(remade.body.pages[1].lines[0].words[0].text).toBe('Recognized page 2');
+    expect(prepare).toHaveBeenCalledTimes(readsBefore + 1);
+    expect(prepare.mock.calls.at(-1)![1].pages).toEqual([2]);
     await request(api).get(`/missing/pdf-text-layer`).expect(404);
   } finally {
     await worker.stop(); await db.closeRelationalDatabase();

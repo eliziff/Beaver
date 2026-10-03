@@ -19,11 +19,15 @@ superseded CI runs.
 
 The main CI coordinates the backend, browser and Authorities parity gates. One
 Ubuntu 24.04 job supplies the native addon to all three. Its exact cache key
-includes the addon source tree, both parser Git links and `rustc -vV`; there are
+includes committed addon/parser build inputs, root Cargo configuration and `rustc -vV`;
+workflow or documentation-only parser pin changes reuse the addon. There are
 no fallback cache keys. Each consumer downloads the artifact from the same run.
 The backend and frontend jobs also upload their compiled outputs for browser
 gates in the same run. Authorities parity keeps its native semantic, package and
 browser checks; it no longer repeats the main unit suites or TypeScript builds.
+Its focused Vite harness consumes backend output, without downloading or waiting
+for an unused frontend production build. E2E uses the production frontend artifact
+and does not install frontend dependencies unless a manual run must build it.
 Standalone manual e2e/parity runs build their own outputs and addon. Release/source-gold and
 native citation/quotation tests remain independent behavior gates.
 
@@ -68,6 +72,8 @@ start one production Beaver origin on port 3000, and drive Chromium. Standalone
 manual runs build locally. The cloud mode additionally starts disposable MinIO
 and Supabase and applies `backend/schema.sql` before its persistence checks.
 
+The ordinary backend suite excludes real Word-runtime tests; the Word workflow
+runs all fifteen suites with pinned Python requirements and LibreOffice.
 Word/Python runtime, dependency and platform changes keep Linux, Windows, macOS
 and the isolated container gate. Shared contracts and application orchestration
 use the Linux native runtime only. Documentation-only legal-structure changes
@@ -116,3 +122,17 @@ use synthetic or public documents and disposable credentials.
 To use the existing local production build for the small browser suite, set
 `CI=true`, `BEAVER_E2E_MODE=local` and `PLAYWRIGHT_BASE_URL` to its origin, then run
 `npx playwright test`. Use an isolated `MIKE_LOCAL_DATA_DIR` for the test server.
+
+## Local resource use
+
+Local Vitest runs use one worker; CI uses four. Pure Node tests skip React/JSDOM
+setup. Normal npm builds/tests run below normal priority and limit Rayon/OpenMP
+pools to two threads. Root Cargo configuration limits compilation to one job
+and one codegen unit, including addon builds launched from this checkout.
+Native CI commands explicitly use two jobs on their dedicated runners.
+Avoid running builds and tests concurrently on the workstation; use focused tests
+and reuse built production assets for browser checks. Full Rust builds belong in
+CI unless native source changed and a local integration build is necessary.
+
+To run the real Word suite locally after installing its prerequisites, set
+`BEAVER_WORD_INTEGRATION=1` and run `npm test --prefix backend`.

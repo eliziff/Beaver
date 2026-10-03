@@ -1,3 +1,5 @@
+import { constants, setPriority } from "node:os";
+setPriority(0, constants.priority.PRIORITY_BELOW_NORMAL);
 import { defineConfig, devices } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 

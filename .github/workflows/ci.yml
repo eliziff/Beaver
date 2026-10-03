@@ -31,7 +31,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - run: python3 -m unittest discover -s scripts/tests -p test_ci_scope.py
+      - run: python3 -m unittest discover -s scripts/tests -p test_ci_scope.py && python3 -m unittest discover -s scripts/tests -p test_native_cache_key.py
       - id: scope
         run: python3 scripts/ci-scope.py
       - name: Check audit failure handling once
@@ -67,23 +67,16 @@ jobs:
           persist-credentials: false
       - run: git submodule update --init --recursive -- legal-structure legal-pdf-parser
       - id: identity
-        name: Identify the exact native sources and Rust toolchain
-        shell: python
-        run: |
-          import hashlib, os, subprocess
-          identity = subprocess.check_output(['git', 'rev-parse',
-              'HEAD:native/legal-structure-node', 'HEAD:legal-structure', 'HEAD:legal-pdf-parser'])
-          identity += subprocess.check_output(['rustc', '-vV'])
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('key=' + hashlib.sha256(identity).hexdigest() + '\n')
+        name: Identify native build inputs and Rust toolchain
+        run: python3 scripts/native-cache-key.py >> "$GITHUB_OUTPUT"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         id: cache
         with:
           path: native/legal-structure-node/target/release/liblegal_structure_node.so
-          key: native-ubuntu24-${{ steps.identity.outputs.key }}
+          key: native-inputs-ubuntu24-${{ steps.identity.outputs.key }}
       - name: Build the native addon once
         if: steps.cache.outputs.cache-hit != 'true'
-        run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
+        run: cargo build --locked --release --jobs 2 --manifest-path native/legal-structure-node/Cargo.toml
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: native-${{ github.sha }}
@@ -187,10 +180,9 @@ jobs:
       frontend-artifact: frontend-${{ github.sha }}
 
   authorities:
-    needs: [changes, native, backend, frontend]
+    needs: [changes, native, backend]
     if: github.event_name != 'push' && needs.changes.outputs.authorities == 'true'
     uses: ./.github/workflows/authorities-parity.yml
     with:
       native-artifact: native-${{ github.sha }}
       backend-artifact: backend-${{ github.sha }}
-      frontend-artifact: frontend-${{ github.sha }}

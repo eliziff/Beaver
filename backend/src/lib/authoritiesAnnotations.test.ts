@@ -101,7 +101,7 @@ describe('persistent visual PDF annotations',()=>{
   it('exports manual annotations with automatic marking off, without flattening or changing source bytes',async()=>{
     const {draft,bytes,hash}=await fixture(true);draft.settings.passageMarking='none';
     const edited=reduceAuthoritiesDraft(draft,action(set(hash)));
-    const output=await build(edited,bytes),annotations=annots(output,2);
+    const output=await build(edited,bytes),page=output.getPageCount()-1,annotations=annots(output,page);
     expect(annotations.map(markId)).toEqual(['one']);
     expect(String(annotations[0].lookup(PDFName.of('Subtype')))).toBe('/Highlight');
     expect(annotations[0].lookup(PDFName.of('QuadPoints'),PDFArray).size()).toBe(8);
@@ -109,9 +109,9 @@ describe('persistent visual PDF annotations',()=>{
     expect(annotations[0].has(PDFName.of('AP'))).toBe(true);
     expect(sha256(Buffer.from(bytes))).toBe(hash);expect(annots(await PDFDocument.load(bytes))).toHaveLength(0);
     // A separate PDF consumer can remove the annotation and save without modifying the page text.
-    const refs=output.getPage(2).node.lookup(PDFName.of('Annots'),PDFArray);
+    const refs=output.getPage(page).node.lookup(PDFName.of('Annots'),PDFArray);
     refs.remove(0);
-    expect(annots(await PDFDocument.load(await output.save()),2)).toHaveLength(0);
+    expect(annots(await PDFDocument.load(await output.save()),page)).toHaveLength(0);
   });
   it('exports the edited set, never independently regenerating deleted automatic quotes',async()=>{
     const {draft,bytes,hash}=await fixture();draft.settings.passageMarking='text';
@@ -119,9 +119,11 @@ describe('persistent visual PDF annotations',()=>{
     const initial=prepareAuthorityAnnotations(pdf,source,draft,draft.authorities.case,
       {bindingRole:'case-en',filename:'case.pdf',sourceSha256:hash},{passageGeometry:geometry(hash)}).annotations;
     const edited=reduceAuthoritiesDraft(draft,action({...initial,marks:[initial.marks[1],mark()]}));
-    expect(annots(await build(edited,bytes,geometry(hash)),2).map(markId)).toEqual([initial.marks[1].id,'one']);
+    const output=await build(edited,bytes,geometry(hash));
+    expect(annots(output,output.getPageCount()-1).map(markId)).toEqual([initial.marks[1].id,'one']);
     const empty=reduceAuthoritiesDraft(edited,action(set(hash,[])));
-    expect(annots(await build(empty,bytes,geometry(hash)),2)).toHaveLength(0);
+    const cleared=await build(empty,bytes,geometry(hash));
+    expect(annots(cleared,cleared.getPageCount()-1)).toHaveLength(0);
   });
   it('rejects annotations on missing pages instead of dropping them during export',async()=>{
     const document=await PDFDocument.create();document.addPage();

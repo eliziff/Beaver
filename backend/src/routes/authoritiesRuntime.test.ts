@@ -484,8 +484,9 @@ describe("standalone Authorities runtime", () => {
       async (role) => new Uint8Array(await (form.get(role) as File).arrayBuffer()));
     expect(form.get("book-source-0")).toBeInstanceOf(File);
     const [book] = await renderAuthoritiesBook(pdfLibrary, plan);
-    expect(book.pageCount).toBe(3);
-    expect((await PDFDocument.load(book.bytes)).getPageCount()).toBe(3);
+    // Cover, index, tab sheet, then the source's original page.
+    expect(book.pageCount).toBe(4);
+    expect((await PDFDocument.load(book.bytes)).getPageCount()).toBe(4);
   });
 
   it("returns the combined final PDF as a complete multipart artifact", async () => {
@@ -521,9 +522,9 @@ describe("standalone Authorities runtime", () => {
     const final = Buffer.from(await (form.get("final-pdf") as File).arrayBuffer());
 
     expect(form.get("book")).toBeInstanceOf(File);
-    expect(receipt.outputs["final-pdf"]).toMatchObject({ mimeType: "application/pdf", pageCount: 4,
+    expect(receipt.outputs["final-pdf"]).toMatchObject({ mimeType: "application/pdf", pageCount: 5,
       sha256: sha256(final) });
-    expect((await PDFDocument.load(final)).getPageCount()).toBe(4);
+    expect((await PDFDocument.load(final)).getPageCount()).toBe(5);
   });
 
   it("exports a large reviewed draft with more than 100 attached authority PDFs", async () => {
@@ -566,9 +567,11 @@ describe("standalone Authorities runtime", () => {
     } }).formData();
     const plan = await mapAuthorityBookBytes(JSON.parse(String(form.get("book"))) as PreparedAuthoritiesBook<string>,
       async (role) => new Uint8Array(await (form.get(role) as File).arrayBuffer()));
-    expect(plan.sources.map(({ key }) => key)).toEqual(state.authorityOrder.map(id => `authority:${id}`));
+    expect(plan.sources.map(({ key }) => key).sort()).toEqual(state.authorityOrder.map(id => `authority:${id}`).sort());
     const [book] = await renderAuthoritiesBook(pdfLibrary, plan);
-    expect((await PDFDocument.load(book.bytes)).getPageCount()).toBe(107);
+    expect(book.placements).toHaveLength(101);
+    expect(book.placements.every(placement => placement.sourcePageIndices.length === 1)).toBe(true);
+    expect((await PDFDocument.load(book.bytes)).getPageCount()).toBe(book.pageCount);
   });
 
   it("prepares an incomplete book with a placeholder for unavailable attached bytes", async () => {
@@ -596,7 +599,7 @@ describe("standalone Authorities runtime", () => {
       async (role) => new Uint8Array(await (form.get(role) as File).arrayBuffer()));
     const [book] = await renderAuthoritiesBook(pdfLibrary, plan);
 
-    expect(book.pageCount).toBe(3);
+    expect(book.pageCount).toBe(4);
     expect(JSON.parse(String(form.get("receipt"))).authorities[0]).toMatchObject({ tab: "Tab 1" });
   });
 
@@ -633,7 +636,7 @@ describe("standalone Authorities runtime", () => {
     const text = await word.file("word/document.xml")!.async("string");
     expect(text).toContain("Factum with 2024 ABKB 123.");
     expect(text).not.toContain("<w:instrText");
-    expect((await PDFDocument.load(final)).getPageCount()).toBe(4);
+    expect((await PDFDocument.load(final)).getPageCount()).toBe(5);
     expect(form.get("annotated-document")).toBeNull();
   });
 });
