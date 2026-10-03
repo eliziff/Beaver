@@ -29,8 +29,8 @@ export const runResearchFileQuery = (id: string,
     ...input, version_id: input.versionId, working_revision: input.workingRevision,
     versionId: undefined, workingRevision: undefined,
   });
-export type { ResearchFindingReference } from "../../../../../shared/runtime/researchFindingReference.mjs";
-import type { ResearchFindingReference } from "../../../../../shared/runtime/researchFindingReference.mjs";
+export type { ResearchFindingReference } from "mike/shared/runtime/researchFindingReference.mjs";
+import type { ResearchFindingReference } from "mike/shared/runtime/researchFindingReference.mjs";
 export type ResearchFinding = {
   origin?: { subagentId?: string };
   reference: ResearchFindingReference;
@@ -82,8 +82,8 @@ export const proposeWorkspaceTable = (id: string, input: ResearchTableInput, onP
   proposalRequest<ResearchTablePreview>(`/source-workspaces/${segment(id)}/table/preview`, input, onProgress, signal);
 export const openWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<TabularReview>(`/source-workspaces/${segment(id)}/table`, input);
-export type { ResearchLabelDesign, ResearchSourceLabelNode, ResearchHighlightTypeNode } from "../../../../../shared/runtime/researchContract.mjs";
-import type { ResearchLabelDesign } from "../../../../../shared/runtime/researchContract.mjs";
+export type { ResearchLabelDesign, ResearchSourceLabelNode, ResearchHighlightTypeNode } from "mike/shared/runtime/researchContract.mjs";
+import type { ResearchLabelDesign } from "mike/shared/runtime/researchContract.mjs";
 export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean; reproposed?: boolean; proposalId?: string;
   sources: { id: string; title: string }[];
   items: { sourceId: string; evidenceId: string; title: string; text: string }[];

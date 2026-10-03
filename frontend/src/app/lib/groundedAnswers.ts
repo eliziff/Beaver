@@ -1,7 +1,7 @@
 import type { Citation } from "./citations";
-import type { LegalEvidenceReceipt } from "../../../../shared/runtime/researchContract.mjs";
+import type { LegalEvidenceReceipt } from "mike/shared/runtime/researchContract.mjs";
 
-export type { GroundedClaim, GroundedAnswer } from "../../../../shared/runtime/groundedAnswer.mjs";
+export type { GroundedClaim, GroundedAnswer } from "mike/shared/runtime/groundedAnswer.mjs";
 /** The evidence receipt the server attests; the browser only reads it. */
 export type GroundedEvidence = LegalEvidenceReceipt;
 

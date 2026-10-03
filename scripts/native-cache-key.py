@@ -6,9 +6,9 @@ import subprocess
 
 INPUTS = {
     '.': ['.cargo', 'native/legal-structure-node'],
-    'legal-structure': ['Cargo.toml', 'Cargo.lock', 'build.rs', 'src', '.cargo',
+    'legal-structure': ['Cargo.toml', 'build.rs', 'src',
                         'grammar/Cargo.toml', 'python/Cargo.toml'],
-    'legal-pdf-parser': ['Cargo.toml', 'Cargo.lock', 'build.rs', '.cargo', 'data', 'rust',
+    'legal-pdf-parser': ['Cargo.toml', 'build.rs', 'data', 'rust',
                          'legal-pdf-core', 'legal-pdf-extraction', 'legal-pdf-extraction-processor',
                          'legal-pdf-language', 'legal-pdf-ocr', 'legal-pdf-pairing',
                          'legal-pdf-structure', 'legal-pdf-support'],

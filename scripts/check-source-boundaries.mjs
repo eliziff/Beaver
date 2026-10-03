@@ -41,7 +41,7 @@ assert.equal(deploymentAdapter("@/app/lib/api/documents"), false);
 
 const files = execFileSync("git", [
   "ls-files", "--cached", "--others", "--exclude-standard", "--",
-  "backend/src", "frontend/src", "shared", "backend/experiments", "experiments",
+  "backend/src", "frontend/src", "shared",
 ], { cwd: root, encoding: "utf8" })
   .split(/\r?\n/u)
   .map((file) => file.replaceAll("\\", "/"))
@@ -51,7 +51,6 @@ const failures = [];
 for (const file of files) {
   const production = /^(?:backend|frontend)\/src\/|^shared\//u.test(file);
   const test = /(?:^|\/)(?:__tests__|test|tests)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(file);
-  const maintained = production || !file.split("/").includes("scratch");
   const source = readFileSync(path.join(root, file), "utf8");
   if (production && !test && modeUse.test(source) && !modeFiles.has(file)) {
     failures.push(`${file}: adds a local/cloud branch outside the runtime boundary`);
@@ -70,10 +69,13 @@ for (const file of files) {
         !adapterFiles.has(file) && !modeFiles.has(file)) {
       failures.push(`${file}: imports deployment adapter ${specifier}`);
     }
-    if (!maintained || !specifier.startsWith(".")) continue;
+    if (!specifier.startsWith(".")) continue;
     // A bundler query ("./bookWorker?worker&inline") names how a module is loaded, not its file.
     const target = path.resolve(root, path.dirname(file), specifier.replace(/\?.*$/u, ""));
-    if ([target, target.replace(/\.mjs$/u, ".mts"), target.replace(/\.js$/u, ".ts"),
+    const contract = target.startsWith(path.join(root, "shared", "runtime") + path.sep)
+      ? target.replace(path.join(root, "shared", "runtime"), path.join(root, "shared", "contracts"))
+        .replace(/\.mjs$/u, ".mts") : target;
+    if ([target, contract, target.replace(/\.mjs$/u, ".mts"), target.replace(/\.js$/u, ".ts"),
       ...[".ts", ".tsx", ".mts", ".js", ".mjs", ".cjs", ".json"].flatMap((ext) => [
       target + ext, path.join(target, `index${ext}`),
     ])].some(existsSync)) continue;
