@@ -401,6 +401,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const { pageLabels } = await (await runtimeResponse("page-labels", form, false, signal)).json();
     return pageLabels;
   },
+  readPinpoints: async (text, start, end) =>
+    (await runtimeResponse("pinpoints", JSON.stringify({ text, start, end }), true)).json(),
   async statuteExcerpt(draft, role, signal) {
     const file = await resolveExact(draft.state.bindings[role]);
     const form = new FormData(); form.append("file", file, file.name);

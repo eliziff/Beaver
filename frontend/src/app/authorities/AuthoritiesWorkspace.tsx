@@ -1200,7 +1200,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         breadcrumbs={["Settings"]} fit
         primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
         <p className="mb-4 text-sm text-gray-600">These settings are used for each new draft.</p>
-        <AuthoritiesSetupFields value={preferences} onChange={setPreferences} passages
+        <AuthoritiesSetupFields value={preferences} onChange={setPreferences} passages="closed"
           busy={busy} jurisdictionOrder={jurisdictionOrder} />
         {host.outputFolder && <div className="mt-5 border-t border-gray-200 pt-4">
           <OutputFolderSetting port={host.outputFolder} busy={busy} />
@@ -1340,7 +1340,7 @@ function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClo
     primaryAction={{ label: busy ? "Finding citations" : "Import and review", disabled: busy,
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined, onClick: onImport }}>
     <p ref={top} className="mb-4 shrink-0 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
-    <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy} jurisdictionOrder={jurisdictionOrder} passages />
+    <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy} jurisdictionOrder={jurisdictionOrder} passages="open" />
     <div className="h-5 shrink-0" />
   </Modal>;
 }
@@ -1420,12 +1420,15 @@ function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, class
   </div>;
 }
 
-function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder, passages = false }: {
+function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder, passages }: {
   value: StartPreferences; onChange: (value: StartPreferences) => void; busy: boolean;
   jurisdictionOrder: string[];
-  /** How passages are marked, asked wherever a draft starts. */
-  passages?: boolean;
+  /** How passages are marked, asked wherever a draft starts: open on import, closed in Settings. */
+  passages?: "open" | "closed";
 }) {
+  const marking = (className: string) => <OptionCards className={className} legend="Passage marking"
+    value={value.passageMarking} options={passageOptions(value.profileId)} columns disabled={busy}
+    onChange={(passageMarking) => onChange({ ...value, passageMarking })} />;
   return <>
     <AuthoritiesCourtField value={value.profileId} disabled={busy}
       preferredKeys={jurisdictionOrder}
@@ -1433,16 +1436,15 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder, pass
     <OptionCards legend="Source handling" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
       className="mt-5"
       onChange={(sourceMode) => onChange({ ...value, sourceMode })} />
-    {/* Closed until opened, naming the marking chosen; the Highlights step shows it open. */}
-    {passages && <details className="group mt-5">
+    {passages === "open" && marking("mt-5")}
+    {/* In Settings it is closed until opened, naming the marking chosen. */}
+    {passages === "closed" && <details className="group mt-5">
       <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 rounded-md pr-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-4 w-4 text-gray-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
         <span className="font-semibold text-gray-950">Passage marking</span>
         <span className="ml-1 text-gray-600">{PASSAGE_OPTIONS.find((option) => option.value === value.passageMarking)?.label}</span>
       </summary>
-      <OptionCards className="mt-3 [&>legend]:sr-only" legend="Passage marking" value={value.passageMarking}
-        options={passageOptions(value.profileId)} columns disabled={busy}
-        onChange={(passageMarking) => onChange({ ...value, passageMarking })} />
+      {marking("mt-3 [&>legend]:sr-only")}
     </details>}
   </>;
 }

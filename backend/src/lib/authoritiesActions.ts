@@ -418,6 +418,11 @@ function pinpointsAt(text: string, start: number, end: number, sources: Citation
   return strict ? [] : [{ kind: "page", text: text.slice(start, end).replace(/\s*[-–—]\s*/gu, "-"), start, end }];
 }
 
+/** The pinpoints a selection of a unit's text holds, read as a save reads them: the review shows
+ *  an added pinpoint whole, its kind included, without waiting for the save. */
+export const readPinpoints = (text: string, start: number, end: number) =>
+  pinpointsAt(text, start, end, authorityCitationServices);
+
 /** The citation's pinpoints as given, its range untouched: they may lie anywhere in its unit. */
 function placePinpoints(draft: AuthoritiesDraft, current: AuthorityOccurrence,
   unit: AuthoritiesDraft["units"][number], pinpoints: Pinpoint[]) {
