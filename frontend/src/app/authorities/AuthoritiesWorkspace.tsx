@@ -1,6 +1,6 @@
 import { autoFetchToast } from "../../../../shared/auto-fetch-toast.mjs";
 import { CitationReview } from "./CitationReview";
-import { previewEdit, savedIds } from "./reviewEdits";
+import { previewEdit, reviewStep, savedIds, type ReviewStep } from "./reviewEdits";
 import { QuotationReview } from "./QuotationFinding";
 import { StepProgress } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
@@ -176,10 +176,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const scanRequest = useRef<AbortController | null>(null);
   const previewRequest = useRef(0);
   const [sourceIssueState, setSourceIssueState] = useState<{
-    draftId: string; sourceKey: string; revision: number;
-    issues: Record<string, AuthoritiesSourceIssue>;
-    outputFreshness: "unbuilt" | "current" | "stale";
-  }>({ draftId: "", sourceKey: "", revision: -1, issues: {}, outputFreshness: "unbuilt" });
+    draftId: string; sourceKey: string; issues: Record<string, AuthoritiesSourceIssue>;
+  }>({ draftId: "", sourceKey: "", issues: {} });
   const [sourceAccessVersion, setSourceAccessVersion] = useState(0);
   const [accessPrompt, setAccessPrompt] = useState<{ draftId: string; denied: boolean }>();
   const [review, setReview] = useState<{ id: string; key: string;
@@ -190,7 +188,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const inspectionRequest = useRef(0), relinked = useRef(new Set<string>());
   const actionQueue = useRef(Promise.resolve());
   // Review edits shown at once and saved in order behind them, and the draft they make.
-  const edits = useRef<Array<{ action: AuthoritiesAction }>>([]);
+  const edits = useRef<Array<{ action: AuthoritiesAction; step?: ReviewStep }>>([]);
+  // This draft's review edits, for Ctrl+Z, and those taken back, for Ctrl+Shift+Z and Ctrl+Y.
+  const history = useRef<{ done: ReviewStep[]; undone: ReviewStep[] }>({ done: [], undone: [] });
+  const replaying = useRef<ReviewStep | null>(null);
   const [preview, setPreview] = useState<AuthoritiesProduct>();
   const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", revision: -1 });
   // Gathering that an edit interrupted, to run again once editing rests.
@@ -210,7 +211,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const current = draftRef.current;
     if (!navigate && (!next || current?.id !== next.id || next.revision < current.revision)) return false;
     if (navigate) {
-      edits.current = [];
+      edits.current = []; history.current = { done: [], undone: [] };
       reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
       setFindingId(""); setViewedStep(undefined);
       scanRequest.current?.abort(); resetOcr();
@@ -365,9 +366,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
     ? sourceIssueState.issues : NO_SOURCE_ISSUES;
-  const outputFreshness = !draft || !Object.keys(draft.outputs).length ? "unbuilt"
-    : sameDraft && sourceIssueState.revision === draft.revision
-      ? sourceIssueState.outputFreshness : sameDraft ? "stale" : "current";
   useEffect(() => {
     let active = true;
     const current = draftRef.current;
@@ -377,8 +375,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     void host.inspectDraft(current).then((inspection) => {
       if (!active || request !== inspectionRequest.current) return;
       setSourceIssueState({ draftId: current.id,
-        sourceKey: sourceIssueKey(current), revision: current.revision,
-        issues: inspection.sourceIssues, outputFreshness: inspection.outputFreshness });
+        sourceKey: sourceIssueKey(current), issues: inspection.sourceIssues });
       // A source with a newer file is picked up on its own, never behind a button.
       const changed = Object.entries(inspection.sourceIssues).find(([role, issue]) =>
         issue.status === "changed" && !relinked.current.has(`${current.id}\0${role}`));
@@ -420,6 +417,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // The list keeps the last check's findings while the next one runs, so its marks never blink.
   const findings = useMemo(() => review && review.id === draftId ? review.items : [], [review, draftId]);
   const selected = occurrences.find(({ id }) => id === selectedId) ?? occurrences[0];
+  const selectedRef = useRef(selected?.id);
+  selectedRef.current = selected?.id;
   useEffect(() => { if (!selected) onFocusChange?.(); }, [selected, onFocusChange]);
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
   const authorities = useMemo(() => shown ? authorityPlan.map(({ id }) => shown.state.authorities[id]) : [],
@@ -532,16 +531,24 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       items.find(({ start, end }) => start <= prior.start && end >= prior.end));
     if (replacement) setSelectedId(replacement.id);
   };
+  /** The draft as the review shows it: the saved draft with the edits still saving. */
+  const editedView = () => edits.current.reduce<AuthoritiesProduct>((view, { action }) =>
+    previewEdit(view, action) ?? view, draftRef.current!);
   const act: ActionHandler = (action, done) => {
     const targetId = draftRef.current?.id;
     if (!targetId) return;
     // A review edit shows at once and saves behind the view; anything else holds the workspace.
-    const shown = edits.current.reduce<AuthoritiesProduct>((view, { action }) =>
-      previewEdit(view, action) ?? view, draftRef.current!);
-    const view = previewEdit(shown, action), edit = view ? { action } : undefined;
+    const shown = editedView(), view = previewEdit(shown, action);
+    // A review edit is a step Ctrl+Z takes back; one replayed by Ctrl+Z or Ctrl+Y belongs to its step.
+    const step = view ? replaying.current ?? reviewStep(shown, view, action) ?? undefined : undefined;
+    const edit = view ? { action, step } : undefined;
     const blocking = !edit && action.type !== "rename-authority";
     if (blocking) setPendingActions((count) => count + 1);
     if (edit && view) {
+      if (step && !replaying.current) {
+        step.from = selectedRef.current;
+        history.current = { done: [...history.current.done, step], undone: [] };
+      }
       edits.current.push(edit); sourcesRequest.current?.abort();
       setPreview(view); carryOn(action, shown, view); void done?.(view);
     }
@@ -556,9 +563,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         if (edit) {
           // Later edits and the selection follow citations the save named differently.
           const names = savedIds(previewEdit(current, sent) ?? current, next);
-          edits.current = edits.current.filter((item) => item !== edit).map((item) =>
-            "occurrenceId" in item.action && names.has(item.action.occurrenceId)
-              ? { action: { ...item.action, occurrenceId: names.get(item.action.occurrenceId)! } } : item);
+          const renamed = (item: AuthoritiesAction) => "occurrenceId" in item && names.has(item.occurrenceId)
+            ? { ...item, occurrenceId: names.get(item.occurrenceId)! } : item;
+          // Renamed in place: each edit is found again by itself when its own save lands.
+          edits.current = edits.current.filter((item) => item !== edit);
+          for (const item of edits.current) item.action = renamed(item.action);
+          for (const step of [...history.current.done, ...history.current.undone]) Object.assign(step, {
+            undo: step.undo.map(renamed), redo: step.redo.map(renamed), target: names.get(step.target) ?? step.target });
           setSelectedId((id) => names.get(id) ?? id);
         }
         if (!adopt(next)) return;
@@ -567,14 +578,33 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         if (!edit) { carryOn(action, current, next); await done?.(next); }
       } catch (caught) {
         if (edit) {
-          // The edit is taken back: the view returns to the saved draft and the edits after it.
+          // The edit is taken back: the view returns to the saved draft and the edits after it, and
+          // its step leaves the history.
           edits.current = edits.current.filter((item) => item !== edit);
+          const { done, undone } = history.current, kept = (item: ReviewStep) => item !== edit.step;
+          history.current = { done: done.filter(kept), undone: undone.filter(kept) };
           adopt(draftRef.current);
         }
         setError(errorText(caught));
       }
       finally { if (blocking) setPendingActions((count) => Math.max(0, count - 1)); }
     });
+  };
+  /** Ctrl+Z takes the last review edit back, and Ctrl+Shift+Z or Ctrl+Y makes it again. Each shows
+   *  and saves as any edit does, and selects the citation it was about; where that citation is gone,
+   *  the one selected when the edit was made, or else the next one. */
+  const travel = (back: boolean) => {
+    const { done, undone } = history.current, step = (back ? done : undone).at(-1);
+    if (!step || !draftRef.current) return false;
+    history.current = back ? { done: done.slice(0, -1), undone: [...undone, step] }
+      : { done: [...done, step], undone: undone.slice(0, -1) };
+    const order = orderedOccurrences(editedView()).map(({ id }) => id);
+    replaying.current = step;
+    try { for (const action of back ? step.undo : step.redo) act(action); } finally { replaying.current = null; }
+    const now = new Set(orderedOccurrences(editedView()).map(({ id }) => id)), at = order.indexOf(step.target);
+    setSelectedId([step.target, step.from, ...order.slice(at + 1), ...order.slice(0, Math.max(0, at)).reverse()]
+      .find((id) => id && now.has(id)) ?? "");
+    return true;
   };
   const resolveDiscrepancy: DiscrepancyHandler = (finding, action, done) => {
     const id = draftRef.current?.id;
@@ -741,7 +771,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     folderTried.current.clear(); setFolderAccess(undefined);
     folder.current = { handle, timer: window.setInterval(() => void scanRef.current(), 2_000) };
     setWatchedFolder(handle.name);
-    if (chosen) setMessage(`Watching ${handle.name}: PDFs saved there are added to their authorities.`);
+    if (chosen) setMessage(`Watching ${handle.name}. Each PDF saved there is added to the authority it belongs to.`);
     void scanRef.current();
   }
   function stopWatching(text = "") {
@@ -770,7 +800,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       if (authorityId && !matches.some((match) => match.authorityId === authorityId)) matches.push({ authorityId, file });
     }
     if (!matches.length) {
-      if (!quiet) setMessage("No PDF there is an authority that still needs one.");
+      if (!quiet) setMessage("None of the PDFs there belongs to an authority that still needs one.");
       return;
     }
     await run(() => serialized(async () => {
@@ -802,7 +832,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       for await (const entry of watched.values())
         if (entry.kind === "file" && /\.pdf$/iu.test(entry.name)) files.push(await entry.getFile());
       await attachFromFolder(files, true);
-    } catch (caught) { stopWatching(`Stopped watching the folder: ${errorText(caught)}`); }
+    } catch (caught) { stopWatching(`Stopped watching the folder. ${errorText(caught)}`); }
     finally { folderScanning.current = false; }
   };
   async function watchFolder() {
@@ -858,9 +888,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       request.signal.throwIfAborted();
       if (draftRef.current?.id !== current.id || draftRef.current.revision !== current.revision)
         throw new Error("The draft changed. Build again to use the current version.");
-      setSourceIssueState({ draftId: current.id, sourceKey: sourceIssueKey(current),
-        revision: current.revision, issues: inspection.sourceIssues,
-        outputFreshness: inspection.outputFreshness });
+      setSourceIssueState({ draftId: current.id, sourceKey: sourceIssueKey(current), issues: inspection.sourceIssues });
       if (!force && missingSources(current, inspection.sourceIssues).length) {
         setStubWarning(true); return null;
       }
@@ -872,9 +900,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         inspectionRequest.current += 1;
         setSourceIssueState((current) => {
           const key = sourceIssueKey(product);
-          return { draftId: product.id, sourceKey: key, revision: product.revision,
+          return { draftId: product.id, sourceKey: key,
             issues: current.draftId === product.id && current.sourceKey === key
-              ? current.issues : {}, outputFreshness: "current" };
+              ? current.issues : {} };
         });
         adopt(product); setMessage(notice || "Outputs ready");
         setBuildLinks({ draftId: product.id, revision: product.revision,
@@ -996,7 +1024,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const buildPanel = draft && stage === "build" && <BuildPanel draft={shown!} busy={busy} building={building}
     progress={building ? message : ""}
     recognitionAvailable={host.recognitionAvailable !== false} convertsWord={convertsWord}
-    jurisdictionOrder={jurisdictionOrder} outputFreshness={outputFreshness}
+    jurisdictionOrder={jurisdictionOrder}
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
       ? buildLinks.warnings : undefined}
     onAction={act} sourceIssues={sourceIssues}
@@ -1039,7 +1067,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     disabled={!draft || busy || locked} title={draft ? undefined : "No draft is open"}
     onClick={() => newDraft()}><Plus /> New</Button>;
 
-  const reviewing = !!draft && stage === "citations" && tab !== "drafts" && draft.state.import.kind === "document";
+  const reviewable = !!draft && tab !== "drafts" && draft.state.import.kind === "document";
+  const reviewing = reviewable && stage === "citations";
+  // Once drawn, the review stays drawn, unseen, on the other steps, so going back to Citations shows
+  // it as it was left, in its first frame.
+  const [reviewed, setReviewed] = useState("");
+  if (reviewing && reviewed !== draft.id) setReviewed(draft.id);
   // An edit still saving takes the draft back to Citations when it lands, so Next waits for it
   // and finds the sources again, as it does once the edit has landed.
   const stepNext = reviewing ? () => reached === "citations" || edits.current.length ? findSources() : viewStep("sources")
@@ -1110,14 +1143,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                   {/* Every step starts the same distance below the steps, so switching moves nothing. */}
                   <div id="authorities-step" role="tabpanel" className="flow-root [&>*:first-child]:mt-2"
                     aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
-                  {/* The review stays drawn, held still, while Next finds the sources; Sources replaces it. */}
-                  {reviewing && <><section aria-label="Citations"
-                    className={cn(WIDE, "@container mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm")}>
-                    <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
-                      selected={selected} authorities={authorities} discrepancies={findings}
-                      busy={busy} onSelect={setSelectedId} onAction={act}
-                      onFocusChange={onFocusChange} onReview={setFindingId} />
-                  </section>{quotationReview && <div ref={revealFinding}>{quotationReview}</div>}</>}
                   {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences}
                     ocr={ocr}
                     {...authorityPanelProps}
@@ -1127,9 +1152,22 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                       onFiles: (files: File[]) => appendManual(files.map((file) => ({ file }))),
                     } : {})} />
                     {host.recognitionAvailable === false && scannedSources.files.length > 0 &&
-                      <p className="mt-3 text-sm text-gray-700">Scanned pages stay as images in this copy; text recognition is unavailable.</p>}</>}
+                      <p className="mt-3 text-sm text-gray-700">Text recognition isn’t available here, so scanned pages stay as images.</p>}</>}
                   {highlightPanel}
                   {buildPanel}
+                  {/* The review stays drawn, held still, while Next finds the sources; Sources replaces it. It comes
+                      last, so on another step that step's own panel is the first below the steps. */}
+                  {reviewable && reviewed === draft.id && <div inert={!reviewing} aria-hidden={!reviewing || undefined}
+                    // Unseen, it keeps its own size, place and scroll under a box of no height, so nothing in
+                    // it is laid out or drawn again either way.
+                    className={reviewing ? undefined : "h-0 overflow-clip"}><section aria-label="Citations"
+                    className={cn(WIDE, "@container overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm")}>
+                    <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
+                      selected={selected} authorities={authorities} discrepancies={findings} hidden={!reviewing}
+                      busy={busy} onSelect={setSelectedId} onAction={act} onHistory={travel}
+                      onFocusChange={onFocusChange} onReview={setFindingId} />
+                  </section></div>}
+                  {reviewing && quotationReview && <div ref={revealFinding}>{quotationReview}</div>}
                   </div>
                 </>}
         </div>
@@ -1143,7 +1181,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} size="xl"
         breadcrumbs={["Settings"]} fit
         primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
-        <p className="mb-4 text-sm text-gray-600">Defaults for new authorities drafts.</p>
+        <p className="mb-4 text-sm text-gray-600">These settings are used for each new draft.</p>
         <AuthoritiesSetupFields value={preferences} onChange={setPreferences} passages
           busy={busy} jurisdictionOrder={jurisdictionOrder} />
         {host.outputFolder && <div className="mt-5 border-t border-gray-200 pt-4">
@@ -1377,20 +1415,27 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder, pass
     <OptionCards legend="Source handling" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
       className="mt-5"
       onChange={(sourceMode) => onChange({ ...value, sourceMode })} />
-    {passages && <OptionCards className="mt-5" legend="Passage marking" value={value.passageMarking}
-      options={passageOptions(value.profileId)} columns disabled={busy}
-      onChange={(passageMarking) => onChange({ ...value, passageMarking })} />}
+    {/* Closed until opened, naming the marking chosen; the Highlights step shows it open. */}
+    {passages && <details className="group mt-5">
+      <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 rounded-md pr-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="h-4 w-4 text-gray-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+        <span className="font-semibold text-gray-950">Passage marking</span>
+        <span className="ml-1 text-gray-600">{PASSAGE_OPTIONS.find((option) => option.value === value.passageMarking)?.label}</span>
+      </summary>
+      <OptionCards className="mt-3 [&>legend]:sr-only" legend="Passage marking" value={value.passageMarking}
+        options={passageOptions(value.profileId)} columns disabled={busy}
+        onChange={(passageMarking) => onChange({ ...value, passageMarking })} />
+    </details>}
   </>;
 }
 
 function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
-  convertsWord, outputFreshness, linkWarnings, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
+  convertsWord, linkWarnings, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
   onBuild, onCancel, onDownload }: {
   draft: AuthoritiesProduct; busy: boolean; building: boolean;
   /** What the build is doing now. */
   progress: string;
   recognitionAvailable: boolean; convertsWord?: boolean;
-  outputFreshness: "unbuilt" | "current" | "stale";
   linkWarnings?: AuthoritiesBuildReceipt["linkWarnings"];
   jurisdictionOrder: string[];
   onAction: (action: AuthoritiesAction) => void; onBuild: () => void; onCancel: () => void;
@@ -1498,7 +1543,7 @@ function BuildPanel({ draft, busy, building, progress, jurisdictionOrder, onActi
     </div>
     <div className="rounded-b-xl border-t border-gray-200 bg-gray-50 p-4 @min-[52rem]/build:rounded-bl-none @min-[52rem]/build:rounded-tr-xl @min-[52rem]/build:border-l @min-[52rem]/build:border-t-0">
       <OutputsDock draft={draft} busy={busy} building={building} progress={progress} note={note}
-        previous={outputFreshness === "stale"} waiting={waiting} linkWarnings={linkWarnings}
+        waiting={waiting} linkWarnings={linkWarnings}
         onBuild={start} onCancel={onCancel} onDownload={onDownload}
         onFinalPdf={manual ? undefined : () => setFinalOpen(true)}
         className="@min-[52rem]/build:sticky @min-[52rem]/build:top-4" />
@@ -1715,7 +1760,7 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
       })}
       <div className={row}>
         <span className="text-sm font-medium text-gray-900">Other PDFs</span>
-        <span className="min-w-0 truncate text-xs text-gray-600">Added to the book as further tabs</span>
+        <span className="min-w-0 truncate text-xs text-gray-600">Each PDF added here gets its own tab.</span>
         <div className={actions}>
           {onPick ? <Button type="button" variant="outline" className={rowControl}
             aria-label="Add other book files" title="Add files" disabled={busy} onClick={() => add("supplemental", true)}>
@@ -1803,11 +1848,11 @@ type Step = typeof STEPS[number]["value"];
 
 const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["sourceMode"]>> = [
   { value: "automatic", label: "Automatic sources",
-    detail: "Use available original PDFs and rebuild anything missing from source text." },
+    detail: "Original PDFs are used where they exist. The rest are built from their text." },
   { value: "manual-originals", label: "Use available original PDFs and manually add the PDFs myself for the rest",
-    detail: "Keep missing sources open for PDFs you attach." },
+    detail: "An authority without an original PDF waits for you to upload one." },
   { value: "render", label: "Rebuild all sources from text (where available)",
-    detail: "Create consistent pages from the available source text." },
+    detail: "Every source is built from its text, even where an original PDF exists." },
 ];
 const withProfile = (value: StartPreferences, profileId: AuthoritiesProfileId): StartPreferences =>
   ({ ...value, profileId, passageMarking: authoritiesProfile(profileId).requirements?.markedPassages &&

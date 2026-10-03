@@ -158,7 +158,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       ? "The PDF could not be found. Upload it again."
     : publisherUrl ? publisherReason(authority)
     : authority.source.kind === "pending-canlii"
-      ? "Couldn't auto-fetch. Download from CanLII and upload the PDF. (CanLII doesn't let us automate this.)"
+      ? "CanLII doesn't allow automatic downloads. Download the PDF from CanLII, then upload it here."
     : sources.length ? "This PDF is unavailable. Upload it again."
     : "No PDF attached. Upload a PDF for this authority.";
   const mark = missing ? { Icon: issue ? LockKeyhole

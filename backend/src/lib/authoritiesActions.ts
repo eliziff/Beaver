@@ -191,6 +191,12 @@ const knownAuthority = (draft: AuthoritiesDraft, key: string, sources: CitationS
   return authorities.find((item) => item.key === key) ??
     authorities.find((item) => citationKey(sources, item.citation) === key) ?? null;
 };
+const textKey = (kind: AuthorityKind, citation: string) => `manual:${sha256(`${kind}\0${citation}`).slice(0, 24)}`;
+const textAuthority = (citation: string): AuthorityIdentity => ({
+  id: textKey("other", citation), key: textKey("other", citation), kind: "other", citation, name: null,
+  displayName: null, excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+  source: { kind: "unresolved" }, scanOnly: true,
+});
 const parsedAuthority = (match: NativeCitationOccurrence, key: string): AuthorityIdentity => ({
   id: key, key, kind: parsedKind(match), citation: match.coreCitation.text,
   name: match.reasons.includes("same_text_style") ? match.shortForm?.trim() || null : null,
@@ -506,8 +512,13 @@ function addOccurrence(draft: AuthoritiesDraft,
   const { occurrence, discovered } = manualOccurrence(draft, unit, range.start, range.end,
     [], sources);
   if (!occurrence.pinpoints.length) Object.assign(occurrence, followingPinpoints(draft, unit, occurrence, sources));
-  const changed = discovered && !draft.authorities[discovered.id]
-    ? updateAuthoritiesDraft(draft, { type: "add-authority", authority: discovered }) : draft;
+  // Text the engine reads no citation in names its own authority, keyed as an added authority is,
+  // so it is listed, tabbed and tabled like any other.
+  const named = discovered ?? (occurrence.authorityId || sources.occurrences(occurrence.text).length ||
+    sources.references(occurrence.text).length ? null : textAuthority(occurrence.citation));
+  if (named) occurrence.authorityId = named.id;
+  const changed = named && !draft.authorities[named.id]
+    ? updateAuthoritiesDraft(draft, { type: "add-authority", authority: named }) : draft;
   return updateAuthoritiesDraft(changed, { type: "add-occurrence", occurrence });
 }
 
@@ -592,8 +603,7 @@ export function applyAuthoritiesUserAction(
     // One authority per citation: a styled re-add of a citation already listed is
     // that authority, not a second, unresolved copy of it.
     if (knownAuthority(draft, parsed, sources)) return draft;
-    const base = parsed || `manual:${sha256(
-      `${action.kind}\0${citation}`).slice(0, 24)}`;
+    const base = parsed || textKey(action.kind, citation);
     let key = base;
     for (let suffix = 2; draft.authorities[key]; suffix += 1) key = `${base}:${suffix}`;
     return updateAuthoritiesDraft(draft, { type: action.type, authority: { id: key, key,

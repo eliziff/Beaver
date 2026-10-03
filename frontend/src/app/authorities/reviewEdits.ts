@@ -61,19 +61,18 @@ export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesActi
       if (!saved) return null;
       put(saved.occurrence); dismissed = { ...dismissed }; delete dismissed[action.occurrenceId]; break;
     }
-    // A pinpoint kind changed or one removed shows at once; one added shows when the save has read
-    // its value and kind from the text.
+    // A pinpoint kind changed, one removed or one put back shows at once; one added shows when the
+    // save has read its value and kind from the text.
     case 'set-pinpoints': {
       const known = action.pinpoints.flatMap(({ start, end, kind }) => {
         const pin = item!.pinpoints.find(other => other.start === start && other.end === end);
-        return pin ? [{ ...pin, kind: kind ?? pin.kind }] : [];
+        return pin ? [{ ...pin, kind: kind ?? pin.kind }] : kind ? [{ kind, text: unit.text.slice(start, end), start, end }] : [];
       });
       const span = known.length ? { start: known[0].start!, end: known.at(-1)!.end! } : null;
       occurrences[item!.id] = { ...item!, pinpoints: known, pinpointManual: true,
         pinpointSpan: span && { ...span, text: unit.text.slice(span.start, span.end) } };
       break;
     }
-    case 'relink-occurrence': occurrences[item!.id] = { ...item!, authorityId: action.authorityId }; break;
     case 'set-reference':
       occurrences[item!.id] = { ...item!, kind: 'reference', reference: action.reference,
         authorityId: action.reference?.targetAuthorityId ?? null };
@@ -83,6 +82,58 @@ export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesActi
   ids.sort((a, b) => occurrences[a].start - occurrences[b].start);
   const units = state.units.map(other => other === unit ? { ...unit, occurrenceIds: ids } : other);
   return { ...product, state: { ...state, units, occurrences, dismissedOccurrences: dismissed } as State };
+}
+
+type Pin = AuthorityOccurrence['pinpoints'][number] & { start: number; end: number };
+/** A citation's pinpoints where its unit writes them, in or out of its range. One saved before
+ * pinpoints kept their place takes the place of the pinpoint as written. */
+export function placedPins(item: AuthorityOccurrence): Pin[] {
+  return item.pinpoints.flatMap(pin => {
+    if (pin.start !== undefined && pin.end !== undefined) return [pin as Pin];
+    const span = item.pinpointSpan, at = span ? item.pinpoints.length === 1 ? 0 : span.text.indexOf(pin.text) : -1;
+    return span && at >= 0 ? [{ ...pin, start: span.start + at, end: item.pinpoints.length === 1 ? span.end
+      : span.start + at + pin.text.length }] : [];
+  });
+}
+type PinpointEdit = Extract<AuthoritiesAction, { type: 'set-pinpoints' }>['pinpoints'];
+export const pinpointEdit = (pins: Pin[]): PinpointEdit =>
+  pins.map(({ start, end, kind }) => ({ start, end, kind: kind as PinpointEdit[number]['kind'] }));
+
+/** A review edit as Ctrl+Z takes it back and Ctrl+Y makes it again: each a list of actions, the
+ * citation it was about, and the one selected when it was made. */
+export type ReviewStep = { undo: AuthoritiesAction[]; redo: AuthoritiesAction[]; target: string; from?: string };
+/** The step that takes an edit back, from the review before and after it: the prior value of what
+ * it changed. A range that took in or cut a neighbour gives the neighbour its range back. */
+export function reviewStep(before: AuthoritiesProduct, after: AuthoritiesProduct, action: AuthoritiesAction): ReviewStep | null {
+  const was = 'occurrenceId' in action ? before.state.occurrences[action.occurrenceId] : undefined;
+  const occurrenceId = 'occurrenceId' in action ? action.occurrenceId : '';
+  const step = (undo: AuthoritiesAction[], target = occurrenceId) => ({ undo, redo: [action], target });
+  switch (action.type) {
+    case 'remove-occurrence': return step([{ type: 'restore-occurrence', occurrenceId }]);
+    case 'restore-occurrence': return step([{ type: 'remove-occurrence', occurrenceId }]);
+    case 'add-occurrence': {
+      const id = after.state.units.find(({ id }) => id === action.unitId)?.occurrenceIds.find(id => !before.state.occurrences[id]);
+      return id ? { undo: [{ type: 'remove-occurrence', occurrenceId: id }], redo: [{ type: 'restore-occurrence', occurrenceId: id }], target: id } : null;
+    }
+    case 'set-pinpoints': return was ? step([{ type: 'set-pinpoints', occurrenceId, pinpoints: pinpointEdit(placedPins(was)) }]) : null;
+    case 'set-reference': return was ? step([{ type: 'set-reference', occurrenceId, reference: was.reference }]) : null;
+    case 'set-citation-range': {
+      const unit = was && before.state.units.find(({ id }) => id === was.unitId);
+      if (!was || !unit) return null;
+      const pieces = after.state.units.find(({ id }) => id === unit.id)!.occurrenceIds.filter(id => !before.state.occurrences[id])
+        .map(id => after.state.occurrences[id]);
+      return step([{ type: 'set-citation-range', occurrenceId, start: was.start, end: was.end },
+        ...unit.occurrenceIds.flatMap((id): AuthoritiesAction[] => {
+          const other = before.state.occurrences[id];
+          if (id === occurrenceId || !other || after.state.occurrences[id]) return [];
+          const piece = pieces.find(item => overlap(item, other));
+          return [piece ? { type: 'set-citation-range', occurrenceId: piece.id, start: other.start, end: other.end }
+            : { type: 'add-occurrence', unitId: unit.id, start: other.start, end: other.end }];
+        }),
+        { type: 'set-pinpoints', occurrenceId, pinpoints: pinpointEdit(placedPins(was)) }]);
+    }
+    default: return null;
+  }
 }
 
 /** What each citation of a preview became in the saved draft: the saved citation in the same unit

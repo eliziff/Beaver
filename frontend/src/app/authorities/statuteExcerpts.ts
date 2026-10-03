@@ -43,21 +43,24 @@ const written = (items: Provision[]) => [...new Set(items.map(({ kind }) => kind
   return `${labels.length > 1 ? many : one} ${labels.join(", ")}`;
 }).join(", ");
 
+/** What of the statute goes in the book, said as a sentence. */
 function line(excerpt: boolean | undefined, provisions: Provision[], titles: number, pageCount?: number,
   summaries?: StatuteExcerptSummary[]) {
-  const whole = (why = "") => `Whole${why}${pageCount ? ` · ${pages(pageCount)}` : ""}`;
+  const counted = (count?: number) => count ? ` (${pages(count)})` : "";
+  const whole = (why = "") => `${why}${why ? "the" : "The"} whole statute goes in the book${counted(pageCount)}.`;
   if (excerpt === undefined) return "";
   if (!excerpt) return whole();
-  if (!provisions.length) return whole(": no section cited");
-  const opening = `Excerpt: title page${titles > 1 ? "s" : ""}, `;
-  if (!summaries) return opening + written(provisions);
+  if (!provisions.length) return whole("No section is cited, so ");
+  const excerpted = (items: Provision[], count?: number) =>
+    `The title page${titles > 1 ? "s" : ""} and ${written(items)} go in the book${counted(count)}.`;
+  if (!summaries) return excerpted(provisions);
   const placed = new Set(summaries.flatMap(({ placed }) => placed));
   const found = provisions.filter((item) => placed.has(keyOf(item)));
   const missing = provisions.filter((item) => !placed.has(keyOf(item)));
-  if (!found.length) return whole(`: ${written(missing)} not found`);
+  const unfound = `${written(missing)} ${missing.length > 1 ? "were" : "was"} not found`;
+  if (!found.length) return whole(`${unfound}, so `);
   // A PDF in which nothing cited is placed keeps its title page.
-  return `${opening}${written(found)} · ${pages(summaries.reduce((sum, { pages: kept }) => sum + (kept ?? 1), 0))}` +
-    (missing.length ? ` · ${written(missing)} not found` : "");
+  return excerpted(found, summaries.reduce((sum, { pages: kept }) => sum + (kept ?? 1), 0)) + (missing.length ? ` ${unfound}.` : "");
 }
 
 async function pageCount(file: Blob) {

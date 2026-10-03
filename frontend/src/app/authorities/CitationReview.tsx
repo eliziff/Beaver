@@ -11,6 +11,7 @@ import type { AuthoritiesAction, AuthoritiesProduct, AuthorityOccurrence, Author
 import { caretAt, citationMarksChanged, citationSelection, clearCitationMarks, locateCitationUnits, markCitations, marksOf, paintCitations,
   selectedUnit, unitText, wholeUnit, type CitationPaint, type CitationSelection, type LocatedUnit, type PaintMode,
   type UnitText } from './citationDocument';
+import { pinpointEdit as edit, placedPins } from './reviewEdits';
 import './citationReview.css';
 
 type Unit = AuthoritiesProduct['state']['units'][number];
@@ -81,30 +82,20 @@ const Outline = memo(function Outline({ product, occurrences, findings, busy, on
   </>;
 });
 
-type Pin = AuthorityOccurrence['pinpoints'][number] & { start: number; end: number };
+type Pin = ReturnType<typeof placedPins>[number];
 type PinpointEdit = Extract<AuthoritiesAction, { type: 'set-pinpoints' }>['pinpoints'];
-/** A citation's pinpoints where its unit writes them, in or out of its range. One saved before
- * pinpoints kept their place takes the place of the pinpoint as written. */
-function placedPins(item: AuthorityOccurrence): Pin[] {
-  return item.pinpoints.flatMap(pin => {
-    if (pin.start !== undefined && pin.end !== undefined) return [pin as Pin];
-    const span = item.pinpointSpan, at = span ? item.pinpoints.length === 1 ? 0 : span.text.indexOf(pin.text) : -1;
-    return span && at >= 0 ? [{ ...pin, start: span.start + at, end: item.pinpoints.length === 1 ? span.end
-      : span.start + at + pin.text.length }] : [];
-  });
-}
 /** Each locator kind by its symbol and name. Clicking a pinpoint's symbol steps through the first three. */
 const KINDS: Record<string, [symbol: string, name: string]> = { paragraph: ['¶', 'Paragraph'], page: ['p.', 'Page'],
   section: ['s', 'Section'], subsection: ['ss', 'Subsection'], rule: ['r', 'Rule'], article: ['art', 'Article'],
   schedule: ['sch', 'Schedule'], footnote: ['n', 'Footnote'], clause: ['cl', 'Clause'] };
 const CYCLE = ['paragraph', 'page', 'section'];
 const PINPOINTS = 3;
-const edit = (pins: Pin[]): PinpointEdit => pins.map(({ start, end, kind }) => ({ start, end, kind: kind as PinpointEdit[number]['kind'] }));
 
-/** One chip per yellow pinpoint, in the order the text writes them: its kind's symbol, which
- * steps to the next kind, its value as written, and a remove. Room for three is kept whatever a
- * citation has; a fourth and more show as one count. "+ Pinpoint" adds the selected text. The chips
- * are drawn anew whenever any pinpoint changes, so none ever slides along the row. */
+/** "+ Pinpoint", which adds the selected text, then one chip per yellow pinpoint, in the order the
+ * text writes them: its kind's symbol, which steps to the next kind, its value as written, and a
+ * remove. The button comes first, so chips coming and going never move it; a fourth pinpoint and
+ * more show as one count. The chips are drawn anew whenever any pinpoint changes, so none ever
+ * slides along the row. */
 function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
   occurrence: AuthorityOccurrence; unitText: string; adding: boolean; onSet(pinpoints: PinpointEdit): void; onAdd(): void;
 }) {
@@ -118,7 +109,10 @@ function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
     if (refocus.current === null) return;
     list.current?.children[refocus.current]?.querySelector('button')?.focus(); refocus.current = null;
   });
-  return <div role="group" aria-label="Pinpoints" className="citation-pins">
+  return <div role="group" aria-labelledby="citation-pins-label" className="citation-pins">
+    <button type="button" className="citation-add-pin" disabled={!adding || full} aria-keyshortcuts="P"
+      title={full ? 'A citation takes up to three pinpoints' : 'Select the pinpoint in the text, then add it (P)'}
+      onClick={onAdd}>+ Pinpoint</button>
     <ul ref={list} className="citation-chips">
       {shown.map((pin, i) => {
         const [symbol, name] = KINDS[pin.kind] ?? [pin.kind, pin.kind], written = unitText.slice(pin.start, pin.end).replace(/\s+/gu, ' ');
@@ -137,9 +131,6 @@ function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
       {pins.length > PINPOINTS && <li className="citation-chip" data-more title={pins.slice(PINPOINTS - 1).map(label).join(', ')}>
         <span>+{pins.length - PINPOINTS + 1} more</span></li>}
     </ul>
-    <button type="button" className="citation-add-pin" disabled={!adding || full} aria-keyshortcuts="P"
-      title={full ? 'A citation takes up to three pinpoints' : 'Select the pinpoint in the text, then add it (P)'}
-      onClick={onAdd}>+ Pinpoint</button>
   </div>;
 }
 
@@ -207,12 +198,18 @@ function AuthorityPicker({ options, current, busy, onPick }: {
   </div>;
 }
 
-export function CitationReview({ product, host, sourceVersion, occurrences, selected, authorities, discrepancies,
-  busy, onSelect, onAction, onReview, onFocusChange }: {
+/** While unseen it is not drawn again: what changed meanwhile is marked when it is shown. */
+export const CitationReview = memo(Review, (before, after) => !!before.hidden && !!after.hidden);
+function Review({ product, host, sourceVersion, occurrences, selected, authorities, discrepancies,
+  busy, hidden = false, onSelect, onAction, onHistory, onReview, onFocusChange }: {
   product: AuthoritiesProduct; host: AuthoritiesHost; sourceVersion: number;
   occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence; authorities: AuthorityIdentity[];
-  discrepancies: AuthoritiesDiscrepancy[]; busy: boolean; onSelect(id: string): void;
+  discrepancies: AuthoritiesDiscrepancy[]; busy: boolean;
+  /** Kept drawn, unseen, while another step shows: it reports no focus and paints nothing. */
+  hidden?: boolean; onSelect(id: string): void;
   onAction(action: AuthoritiesAction, done?: (next: AuthoritiesProduct) => void): void;
+  /** Takes the last review edit back (`true`) or makes it again; false when there is none. */
+  onHistory(back: boolean): boolean;
   onReview(id: string): void; onFocusChange?(focus?: WorkProductFocus): void;
 }) {
   const reviewRef = useRef<HTMLDivElement>(null), listRef = useRef<HTMLDivElement>(null);
@@ -223,12 +220,10 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const decorated = useRef(new Map<number, HTMLElement>()), marked = useRef(new Map<string, string>());
   const preview = useRef<CitationPaint>({}), frame = useRef(0), mode = useRef<PaintMode | undefined>(undefined);
   const hot = useRef<string | undefined>(undefined);
-  // Citations removed in this session, the latest last, for Ctrl+Z.
-  const removed = useRef<string[]>([]);
   const nudge = useRef<{ id: string; from: number; to: number; commit(): void; timer: ReturnType<typeof setTimeout> }>(undefined);
   // Document events and frames read the latest props here.
-  const live = useRef({ product, selected, onAction, onSelect });
-  useLayoutEffect(() => { live.current = { product, selected, onAction, onSelect }; });
+  const live = useRef({ product, selected, onAction, onSelect, hidden });
+  useLayoutEffect(() => { live.current = { product, selected, onAction, onSelect, hidden }; });
   const [restore] = useState(() => (id: string) => live.current.onAction({ type: 'restore-occurrence', occurrenceId: id },
     () => live.current.onSelect(id)));
   const [source, setSource] = useState<{ buffer: ArrayBuffer; pdf: Uint8Array }>();
@@ -292,6 +287,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   };
   const paint = (next: PaintMode) => {
     cancelAnimationFrame(frame.current); frame.current = 0; mode.current = undefined;
+    if (live.current.hidden) return;
     documentRef.current?.querySelectorAll<HTMLElement>(SCROLLERS).forEach(scroller =>
       paintCitations(scroller, { active: live.current.selected?.id, ...preview.current, pins: pinRanges }, next));
   };
@@ -430,13 +426,14 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   }, [unit]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const own = selection?.unitId === selected?.unitId && selection;
-    onFocusChange?.(selected ? { itemId: selected.id, ...(own && { selection: { start: own.start, end: own.end } }) } : undefined);
-  }, [selected?.id, selection, onFocusChange]); // eslint-disable-line react-hooks/exhaustive-deps
+    onFocusChange?.(selected && !hidden ? { itemId: selected.id, ...(own && { selection: { start: own.start, end: own.end } }) } : undefined);
+  }, [selected?.id, selection, onFocusChange, hidden]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onFocusChange?.(), [onFocusChange]);
   // The review fills what its scroll frame shows below it, so nothing under it is cut off.
   useLayoutEffect(() => {
     const review = reviewRef.current;
-    if (!review) return;
+    // Unseen, it reads nothing; shown again, it is drawn as it was left, with anything that moved meanwhile.
+    if (!review || hidden) return;
     let scroller = review.parentElement;
     while (scroller && !/auto|scroll/u.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
     const frame = scroller ?? document.documentElement;
@@ -445,9 +442,9 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
         (scroller ? scroller.getBoundingClientRect().top : 0);
       review.style.setProperty('--citation-review-height', `${Math.max(336, frame.clientHeight - top - 16)}px`);
     };
-    fit(); addEventListener('resize', fit);
+    fit(); repaint('layout'); addEventListener('resize', fit);
     return () => removeEventListener('resize', fit);
-  }, [!!(selected && unit)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [!!(selected && unit), hidden]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The selected row is marked here rather than by rendering every row again.
   useLayoutEffect(() => {
@@ -478,7 +475,6 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   // The reviewer keeps their place: the next citation becomes active where the view already is.
   const remove = () => {
     const next = navigation[index + 1] ?? navigation[index - 1];
-    removed.current.push(selected.id);
     submit({ type: 'remove-occurrence', occurrenceId: selected.id }, () => { if (next) choose(next.id, false); });
   };
   // What a selection means: a new citation where it touches none, the active citation's own range
@@ -587,12 +583,11 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const keys = (event: React.KeyboardEvent) => {
     const element = event.target as Element, key = event.key;
     if (element.closest('input,textarea,select,[role=dialog]')) return;
-    // Ctrl+Z takes back the last removal still listed under Not citations.
-    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && (key === 'z' || key === 'Z')) {
-      const dismissed = product.state.dismissedOccurrences ?? {};
-      while (removed.current.length && !dismissed[removed.current.at(-1)!]) removed.current.pop();
-      const last = removed.current.pop();
-      if (last && !busy) { event.preventDefault(); restore(last); }
+    // Ctrl+Z takes back the last review edit, and Ctrl+Shift+Z or Ctrl+Y makes it again.
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && /^[zy]$/iu.test(key)) {
+      const back = key.toLowerCase() === 'z' && !event.shiftKey;
+      // A nudge still resting is an edit too: it is saved first, so Ctrl+Z takes it back.
+      if (!busy) { flushNudge(); if (onHistory(back)) event.preventDefault(); }
       return;
     }
     if (event.ctrlKey || event.metaKey) return;
@@ -620,9 +615,11 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const readOnly = (event: React.SyntheticEvent) => {
     if ((event.target as Element).closest('.docx-view-container,.citation-fallback')) event.preventDefault();
   };
+  // Only a supra, ibid or short form names its authority by reference, so only it is asked what it
+  // refers to; a full citation's authority is read from its own text.
+  const reference = selected.kind === 'reference', referenceKind = selected.reference?.kind ?? selected.referenceKind;
   const linked = authorityById.get(selected.reference?.targetAuthorityId ?? selected.authorityId ?? '');
-  const referenceKind = selected.reference?.kind ?? selected.referenceKind;
-  const options = [...new Map(navigation.flatMap(row => {
+  const options = !reference ? [] : [...new Map(navigation.flatMap(row => {
     const authority = !row.reference && authorityById.get(row.authorityId ?? ''), place = unitById.get(row.unitId);
     if (!authority || !place) return [];
     const note = place.kind === 'footnote' ? labels.get(place.id) : undefined;
@@ -630,13 +627,10 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
       label: authorityName(authority), description: authority.citation ?? '' } as AuthorityOption]] as const;
   })).values()];
   const cited = new Set(options.map(option => option.authorityId));
-  for (const authority of authorities) if (!cited.has(authority.id)) options.push({ authorityId: authority.id,
+  if (reference) for (const authority of authorities) if (!cited.has(authority.id)) options.push({ authorityId: authority.id,
     section: 'Other authorities', label: authorityName(authority), description: authority.citation ?? '' });
-  // A supra, ibid or short form names its authority by reference; a full citation is relinked.
-  const link = (authorityId: string | null) => selected.kind === 'reference'
-    ? referenceKind && submit({ type: 'set-reference', occurrenceId: selected.id,
-      reference: authorityId ? { kind: referenceKind, targetAuthorityId: authorityId } : null })
-    : submit({ type: 'relink-occurrence', occurrenceId: selected.id, authorityId });
+  const link = (authorityId: string | null) => referenceKind && submit({ type: 'set-reference', occurrenceId: selected.id,
+    reference: authorityId ? { kind: referenceKind, targetAuthorityId: authorityId } : null });
   const finding = discrepancies.find(item => item.occurrenceId === selected.id);
   return <div ref={reviewRef} className="authorities-review citation-review" tabIndex={-1} onKeyDown={keys}>
     <div ref={listRef} className="citation-outline" role="listbox" aria-label="Citations" onClick={event => {
@@ -674,7 +668,9 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
           spellCheck={false}>{unit.text}</div>
       </div>}
     </div>
-    {/* One bar in fixed zones: where you are, what the citation refers to and its pinpoints, and edits to it. */}
+    {/* Two rows in fixed columns: where you are, what a supra or ibid refers to, and the edits; then
+        the pinpoints and the quotation to review. Every control keeps its place from one citation to
+        the next, and what a citation lacks keeps its room. */}
     <div className="citation-panel">
       <div role="group" aria-label="Citations" className="citation-nav">
         <Button variant="ghost" size="icon-sm" aria-label="Previous citation" title="Previous citation (↑)"
@@ -683,22 +679,23 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
         <Button variant="ghost" size="icon-sm" aria-label="Next citation" title="Next citation (↓)" aria-keyshortcuts="ArrowDown"
           disabled={index === navigation.length - 1} onClick={() => step(1)}><ChevronRight /></Button>
       </div>
-      <div role="group" aria-label="This citation" className="citation-meaning">
-        <span id="citation-refers">Refers to</span>
-        <AuthorityPicker options={options} current={linked} busy={busy || selected.kind === 'reference' && !referenceKind} onPick={link} />
-      </div>
+      <span id="citation-pins-label" className="citation-label" data-area="pins">Pinpoints</span>
       <PinpointChips occurrence={selected} unitText={unit.text} adding={!!pinTarget()}
         onSet={pinpoints => submit({ type: 'set-pinpoints', occurrenceId: selected.id, pinpoints })} onAdd={() => addPinpoint()} />
+      <div role="group" aria-label="Edit citation" className="citation-edit">
+        <Button variant="outline" disabled={busy || intent !== 'new'} onClick={() => addCitation()} aria-keyshortcuts="N"
+          title={intent === 'other' ? 'The selection overlaps another citation' : 'Add the selected text as a citation (N)'}>Add citation</Button>
+        <Button variant="outline" disabled={busy} onClick={remove} aria-keyshortcuts="Delete"
+          title="Not a citation (Delete). Ctrl+Z puts it back">Remove</Button>
+      </div>
+      {reference ? <>
+        <span id="citation-refers" className="citation-label" data-area="refers">Refers to</span>
+        <AuthorityPicker options={options} current={linked} busy={busy || !referenceKind} onPick={link} />
+      </> : <span className="citation-authority" aria-hidden="true" />}
       {/* Its room is kept when there is nothing to review, so nothing beside it moves. */}
       <button type="button" className="citation-quote" style={finding ? undefined : { visibility: 'hidden' }}
         aria-label="Review quotation" onClick={() => finding && onReview(finding.id)}>
         <TextQuote aria-hidden="true" /><span>Review quotation</span></button>
-      <div role="group" aria-label="Edit citation" className="citation-edit">
-        <Button variant="outline" disabled={busy || intent !== 'new'} onClick={() => addCitation()} aria-keyshortcuts="N"
-          title={intent === 'other' ? 'The selection overlaps another citation' : 'Add the selected text as a citation (N)'}>Add citation</Button>
-        <Button variant="outline" disabled={busy} onClick={remove} aria-keyshortcuts="Delete Control+Z"
-          title="Not a citation (Delete). Ctrl+Z restores it, as does Restore under Not citations">Remove</Button>
-      </div>
     </div>
   </div>;
 }
