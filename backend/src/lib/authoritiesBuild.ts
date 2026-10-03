@@ -827,13 +827,20 @@ export async function authoritiesBookFront(draft: AuthoritiesDraft, title: strin
       ({ key: authority.id, name, italic, tab, sourceUrl })) })).filter(({ entries }) => entries.length);
   const stub = await pdfLibrary.PDFDocument.create(); stub.addPage([612, 792]);
   const bytes = await stub.save();
-  const [book] = await renderAuthoritiesBook(pdfLibrary, { filename: "front.pdf", ...bookFront(listed, subtitle),
+  const drawn = bookFront(listed, subtitle);
+  const [book] = await renderAuthoritiesBook(pdfLibrary, { filename: "front.pdf", ...drawn,
     coverPageCount: 1, customIndexPages: 0, groups, sources: groups.flatMap(({ entries }) => entries).map((row) =>
       ({ ...row, bytes, pageIndices: [0], databaseReference: null, bookmarks: [], outline: [] })) });
   const document = await pdfLibrary.PDFDocument.load(book.bytes, { updateMetadata: false });
-  const front = await pdfLibrary.PDFDocument.create();
+  // The cover's editable fields drawn into its page, so any viewer shows what they hold.
+  document.getForm().flatten();
   const pages = Math.min(2, book.placements[0]?.tabPageIndex ?? book.pageCount);
-  for (const page of await front.copyPages(document, [...Array(pages).keys()])) front.addPage(page);
+  // A plain cover says little more than the title, so the index, which lists the brief's
+  // authorities, comes first; a court's cover, with its parties, comes first where there is one.
+  const order = [...Array(pages).keys()];
+  if (!drawn.alberta && !drawn.federal) order.reverse();
+  const front = await pdfLibrary.PDFDocument.create();
+  for (const page of await front.copyPages(document, order)) front.addPage(page);
   return Buffer.from(await front.save());
 }
 
