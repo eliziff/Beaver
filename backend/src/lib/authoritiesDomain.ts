@@ -242,6 +242,7 @@ const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: au
     retryAfter: nullable((value) => typeof value === "string" && Number.isFinite(Date.parse(value))),
     detail: maybe(text) })),
   sourceUrl: maybe(isObservedSourceUrl),
+  citationFormat: maybe(oneOf(["database", "docket"])),
   citation: text, name: nullable(text), displayName: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
   source: sourceDecision, highlightExclusions: maybe(list(500, locator)),

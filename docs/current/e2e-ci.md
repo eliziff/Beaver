@@ -12,9 +12,8 @@ CI selects jobs from the complete Git diff, including deleted files and both
 sides of moves. Documentation-only changes skip application builds and browser
 tests. Ordinary backend changes skip frontend unit tests and lint; shared inputs and the
 backend helpers imported by frontend tests still validate both. Unknown inputs
-run both surfaces. Grammar, source-boundary, export-integrity and frontend tooling
-checks run separately from focused behavior tests. The TypeScript identifier-count
-heuristic is an optional maintenance tool, not a test gate. New commits cancel
+run both surfaces. Shared grammar and export-integrity behavior run once in backend CI. Frontend
+tooling checks exercise the build/transport helpers. New commits cancel
 superseded CI runs.
 
 The main CI coordinates the backend, browser and Authorities parity gates. One

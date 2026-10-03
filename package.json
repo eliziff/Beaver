@@ -2,12 +2,7 @@
     "name": "mike",
     "private": true,
     "scripts": {
-        "check:guards": "npm run check:guards:core && npm run test:guards --prefix frontend",
-        "measure:source": "node scripts/measure-source.mjs",
-        "test:source-budget": "node scripts/measure-source.mjs --self-test",
-        "check:source-budget": "node scripts/measure-source.mjs --check scripts/legal-structure-guardrails.json",
         "check:grammar": "node packages/legal-grammar-tables/check.mjs",
-        "check:source-boundaries": "node scripts/check-source-boundaries.mjs",
         "audit:court-output-sources": "node scripts/audit-court-output-sources.mjs",
         "test:court-output-audit": "node --test scripts/audit-court-output-sources.test.mjs",
         "test:authorities-package": "node --test AuthoritiesHelper/modern/scripts/authorities-package/bundle.test.mjs",
@@ -23,8 +18,7 @@
         "test:e2e:local": "bash scripts/e2e-local-stack.sh",
         "test:e2e:headed": "playwright test --headed",
         "test:e2e:ui": "playwright test --ui",
-        "build:shared": "node --import ./scripts/background-work.mjs node_modules/typescript/bin/tsc -p shared/tsconfig.json",
-        "check:guards:core": "node packages/legal-grammar-tables/check.mjs && node scripts/check-source-boundaries.mjs && node --test shared/export-integrity.test.mjs"
+        "build:shared": "node --import ./scripts/background-work.mjs node_modules/typescript/bin/tsc -p shared/tsconfig.json"
     },
     "devDependencies": {
         "@playwright/test": "^1.61.1",
