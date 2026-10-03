@@ -1,26 +1,31 @@
 import JSZip from "jszip";
-import { ExternalHyperlink, FootnoteReferenceRun, Paragraph, TextRun } from "docx";
+import { ExternalHyperlink, FootnoteReferenceRun, PageBreak, Paragraph, TextRun } from "docx";
 import { describe, expect, it } from "vitest";
 import { docxBytes } from "./support/docxFixtures";
 import {
   applyAuthorityDiscrepancyCorrection,
   applyTableOfAuthorities,
 } from "../docxOperations";
-/** What each TOA field shows before Word updates it: its result's lines, as Word stored them. */
+/** What each TOA field shows before Word updates it: its result's lines, as Word stored them, an
+ *  entry's tab before its pages written as a tab. */
 function tableAsOpened(document: string) {
   const tables: string[][] = [];
   let code = "", state: "code" | "result" | null = null, line = "";
   for (const [token, kind, text] of document.matchAll(
-    /<w:fldChar w:fldCharType="(begin|separate|end)"[^>]*>|<w:instrText[^>]*>([^<]*)<|<w:t(?:\s[^>]*)?>([^<]*)<|<\/w:p>/gu)) {
+    /<w:fldChar w:fldCharType="(begin|separate|end)"[^>]*>|<w:instrText[^>]*>([^<]*)<|<w:t(?:\s[^>]*)?>([^<]*)<|<w:tab(?:\/>|>)|<\/w:p>/gu)) {
     if (kind === "begin") { state = "code"; code = ""; }
     else if (kind === "separate" && state === "code") { state = /^\s*TOA\b/u.test(code) ? "result" : null; if (state) tables.push([]); }
     else if (kind === "end") { if (state === "result" && line) tables.at(-1)!.push(line); state = null; line = ""; }
     else if (token.startsWith("<w:instrText") && state === "code") code += text ?? "";
+    else if (token.startsWith("<w:tab") && state === "result") line += "\t";
     else if (token.startsWith("<w:t") && state === "result") line += (token.match(/>([^<]*)</u)?.[1] ?? "").replaceAll("&quot;", '"');
     else if (token === "</w:p>" && state === "result") { if (line) tables.at(-1)!.push(line); line = ""; }
   }
   return tables;
 }
+/** The heading over each category's table. */
+const tableHeadings = (document: string) => [...document.matchAll(
+  /<w:pStyle w:val="TOAHeading"><\/w:pStyle>.*?<w:t>([^<]*)<\/w:t>/gu)].map(([, heading]) => heading);
 
 describe("native Word Table of Authorities output", () => {
   it("appends fixed tab text in body and footnote citations and preserves pinpoint text for final links", async () => {
@@ -107,8 +112,9 @@ describe("native Word Table of Authorities output", () => {
     // An insertion at the end of a run's text leaves no empty run behind.
     expect(document).not.toMatch(/<w:t(?: [^>]*)?(?:\/>|><\/w:t>)/u);
     expect(document).toContain("[Tab 1]");
-    expect(document).toContain(' TOA \\h \\c &quot;3&quot; ');
-    expect(tableAsOpened(document)).toEqual([["Other Authorities", text]]);
+    expect(document).toContain(' TOA \\c &quot;3&quot; ');
+    expect(tableHeadings(document)).toEqual(["Other sources"]);
+    expect(tableAsOpened(document)).toEqual([[`${text}\t1`]]);
   });
 
   it("writes the table into the brief so it reads on opening, before Word updates a field", async () => {
@@ -127,12 +133,14 @@ describe("native Word Table of Authorities output", () => {
       { unitId: "footnote:3", offset: end(notes[2], "Imag LJ 2"), longName: "Jo Pine, “Moss” (2030) 1 Imag LJ 2", shortName: "Pine", category: 5 },
     ], "native-append");
     const zip = await JSZip.loadAsync(marked), document = await zip.file("word/document.xml")!.async("string");
-    // Each category's field already holds its heading and entries, sorted as Word sorts them.
-    expect(tableAsOpened(document)).toEqual([["Cases", "Birch v Ash, 2030 ABKB 1", "Oak v Elm, 2031 ONCA 5"],
-      ["Statutes", "Larch Act, SA 2031, c L-2"], ["Treatises", "Jo Pine, “Moss” (2030) 1 Imag LJ 2"]]);
+    // Each category's field, under its heading, already holds its entries, sorted as Word sorts them,
+    // each with the page its citations are on.
+    expect(tableHeadings(document)).toEqual(["Cases", "Legislation", "Secondary sources"]);
+    expect(tableAsOpened(document)).toEqual([["Birch v Ash, 2030 ABKB 1\t1", "Oak v Elm, 2031 ONCA 5\t1"],
+      ["Larch Act, SA 2031, c L-2\t1"], ["Jo Pine, “Moss” (2030) 1 Imag LJ 2\t1"]]);
     expect(document).not.toContain("w:dirty");
     // The table's heading takes the brief's heading look but none of its heading numbers.
-    expect(document).toMatch(/<w:pStyle w:val="Heading1"><\/w:pStyle><w:numPr><w:ilvl w:val="0"><\/w:ilvl><w:numId w:val="0"><\/w:numId><\/w:numPr><w:ind w:left="0" w:right="0" w:firstLine="0"><\/w:ind><\/w:pPr><w:r><w:t>Table of Authorities</u);
+    expect(document).toMatch(/<w:pStyle w:val="Heading1"><\/w:pStyle><w:numPr><w:ilvl w:val="0"><\/w:ilvl><w:numId w:val="0"><\/w:numId><\/w:numPr><w:ind w:left="0" w:right="0" w:firstLine="0"><\/w:ind><\/w:pPr><w:r><w:rPr><w:b><\/w:b><\/w:rPr><w:t>Table of Authorities</u);
     const styles = await zip.file("word/styles.xml")!.async("string");
     expect(styles).toContain('w:styleId="TOAHeading"'); expect(styles).toContain('w:styleId="TableofAuthorities"');
     expect(await zip.file("word/settings.xml")!.async("string")).toContain('<w:updateFields w:val="true"');
@@ -156,7 +164,21 @@ describe("native Word Table of Authorities output", () => {
     expect(document).toContain(' TA \\l "Jo Pine, \\“The \\“Moss\\” Rule: A \\"Draft\\"\\” (2030) 1 Imag LJ 2" \\s "Pine" \\c 5 ');
     expect(document).toContain(` TA \\l "${two}" \\s "${two}" \\c 1 `);
     expect(document).toContain(` TA \\l "${three}" \\s "${three}" \\c 1 `);
-    expect(tableAsOpened(document).flat()).toContain(one);
+    expect(tableAsOpened(document).flat()).toContain(`${one}\t1`);
+  });
+
+  it("italicizes a style of cause in Word's mark and table, and lists the pages Word last laid it out on", async () => {
+    const first = "See Oak v Elm, 2031 ONCA 5.", second = "Again, Oak v Elm, 2031 ONCA 5 at para 2.";
+    const source = await docxBytes([new Paragraph(first), new Paragraph({ children: [new PageBreak()] }),
+      new Paragraph({ children: [new PageBreak()] }), new Paragraph(second)]);
+    const long = "Oak v Elm, 2031 ONCA 5", mark = (unitId: string, text: string) =>
+      ({ unitId, offset: text.indexOf(long) + long.length, longName: long, italic: 9, shortName: "Oak", category: 1 as const });
+    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: first }, { id: "body:1", text: "\n" },
+      { id: "body:2", text: "\n" }, { id: "body:3", text: second }], [mark("body:0", first), mark("body:3", second)], "native-append");
+    const document = await (await JSZip.loadAsync(marked)).file("word/document.xml")!.async("string");
+    expect(document).toContain('<w:r><w:rPr><w:i></w:i></w:rPr><w:instrText xml:space="preserve">Oak v Elm</w:instrText></w:r>');
+    expect(document).toMatch(/<w:rPr><w:i><\/w:i><w:noProof><\/w:noProof><\/w:rPr><w:t>Oak v Elm<\/w:t>/u);
+    expect(tableAsOpened(document)).toEqual([[`${long}\t1, 3`]]);
   });
 
   it("replaces exact reviewed spans in body text and footnotes", async () => {
@@ -206,14 +228,16 @@ describe("native Word Table of Authorities output", () => {
 
     const linked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: body }],
       [mark], "linked-append", [
-        { label: body, url: "https://decisions.example.test/grant?a=1&b=2" },
-        { label: "Unlinked authority", url: null },
+        { label: body, italic: 9, url: "https://decisions.example.test/grant?a=1&b=2" },
+        { label: "Unlinked authority", italic: 0, url: null },
       ]);
     const linkedXml = await (await JSZip.loadAsync(linked))
       .file("word/document.xml")!.async("string");
     expect(linkedXml).not.toContain(" TA \\l");
     expect(linkedXml).toContain("TABLE OF AUTHORITIES");
-    expect(linkedXml).toContain("R v Grant, 2009 SCC 32");
+    expect(linkedXml).toMatch(/<w:i><\/w:i>.*?<w:t>R v Grant<\/w:t>.*?<w:t>, 2009 SCC 32<\/w:t>/u);
+    // The link is printed too, for a reader on paper.
+    expect(linkedXml).toContain("<w:t>https://decisions.example.test/grant?a=1&amp;b=2</w:t>");
     expect(linkedXml).toContain("HYPERLINK &quot;https://decisions.example.test/grant?a=1&amp;b=2&quot;");
     expect(linkedXml).toContain("Unlinked authority");
     expect(linkedXml).not.toContain("copy required");
@@ -248,9 +272,9 @@ describe("native Word Table of Authorities output", () => {
     expect(notes).toContain(' TA \\l &quot;Federal Courts Act, RSC 1985, c F-7&quot;');
     // Word lists a TA mark only when it is not hidden text, and builds a table only for a category.
     expect(document).not.toContain("w:vanish");
-    expect(document).toContain(' TOA \\h \\c &quot;1&quot; ');
-    expect(document).toContain(' TOA \\h \\c &quot;2&quot; ');
-    expect(document).toContain(' TOA \\h \\c &quot;5&quot; ');
+    expect(document).toContain(' TOA \\c &quot;1&quot; ');
+    expect(document).toContain(' TOA \\c &quot;2&quot; ');
+    expect(document).toContain(' TOA \\c &quot;5&quot; ');
     // Word ends a field argument at any double quote, straight or curly, unless it is escaped.
     expect(document).toContain('Ann Writer, \\“A Study\\” and \\&quot;Another\\&quot; (2001)');
     expect(document.indexOf("Table of Authorities")).toBeLessThan(document.indexOf("w:sectPr"));

@@ -40,7 +40,8 @@ export const SETTINGS_CASES = [{
       const book = pick(files, /book-of-authorities\.pdf$/u), table = pick(files, /table-of-authorities\.docx$/u);
       record.check(!!book === (mode !== "table") && !!table === (mode !== "book"), `no preset, ${mode}: builds what it names`, Object.keys(files));
       if (book) await checkPdf(record, `general ${mode}`, book, { tabs: 5, unprinted: ["harbourside-brief"] });
-      if (table && mode === "table") word.push({ record, file: table, expect: { lists: ["Vavilov", "Waterways"] } });
+      if (table && mode === "table") word.push({ record, file: table, expect: { lists: ["Vavilov", "Waterways"], table: true,
+        italics: ["Vavilov", "Waterways Licensing Act"] } });
     }
     await app.shots("general-both");
     // Alberta King's Bench: missing sources leave the book; every tab keeps its number.
@@ -60,7 +61,7 @@ export const SETTINGS_CASES = [{
     const abca = await downloads(app, "abca");
     record.check(!pick(abca, /book-of-authorities\.pdf$/u) && !!pick(abca, /table-of-authorities/u), "the Court of Appeal builds its table and no book", Object.keys(abca));
     const linked = pick(abca, /table-of-authorities\.docx$/u);
-    if (linked) word.push({ record, file: linked, expect: { lists: ["Vavilov"] } });
+    if (linked) word.push({ record, file: linked, expect: { lists: ["Vavilov"], italics: ["Vavilov"] } });
     // Federal Court: its cover needs the court file and the parties, and who files.
     await chooseCourt(app, court(), "federal", { shiftsOk: outputsChange });
     await app.idle();

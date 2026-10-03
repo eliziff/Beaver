@@ -1,9 +1,12 @@
 # Opens each Word document in invisible Word, as a reader would open it: read-only, no field
-# updated, nothing saved. Reports what Word shows (pages, the table of authorities' text as stored,
-# citation fields, tab references) and exports each as Word lays it out to PDF, only when Word
-# would not update fields to export. One JSON line per document is appended to the results file
-# as it is done, and Word's process id is written first, so the caller can stop a Word that hangs.
-# Word is quit afterwards; only the instance started here.
+# updated, nothing saved. Reports what Word shows (pages, each table of authorities' entries as
+# stored, each table's rows and cells, the italic text of each, citation fields, tab references)
+# and saves each as Word lays it out to PDF, only when Word would not update fields to do so. A
+# document with citation fields is then opened again as a copy, where References > Insert Table of
+# Authorities builds Word's own table from them, reported the same way and saved to PDF beside it.
+# One JSON line per document is appended to the results file as it is done, and Word's process id
+# is written first, so the caller can stop a Word that hangs. Word is quit afterwards; only the
+# instance started here.
 param([Parameter(Mandatory = $true)][string]$Manifest, [Parameter(Mandatory = $true)][string]$Results,
   [Parameter(Mandatory = $true)][string]$PidFile)
 $ErrorActionPreference = 'Stop'
@@ -12,6 +15,43 @@ $before = @(Get-Process WINWORD -ErrorAction SilentlyContinue | ForEach-Object {
 $word = New-Object -ComObject Word.Application
 $started = @(Get-Process WINWORD -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id } | ForEach-Object { $_.Id })
 Set-Content -Encoding ascii -Path $PidFile -Value ($started -join ',')
+# A range's text, and the italic text in it, word by word as Word formats it: character by character
+# in a word only partly italic, where a field's first visible character carries its hidden code with it.
+function Styled($range) {
+  $italic = ''
+  foreach ($word in $range.Words) {
+    if ($word.Italic -eq -1) { $italic += $word.Text }
+    elseif ($word.Italic -ne 0) {
+      foreach ($character in $word.Characters) {
+        $shown = $range.Document.Range($character.End - 1, $character.End)
+        if ($shown.Italic -eq -1) { $italic += $shown.Text }
+      }
+    }
+  }
+  [ordered]@{ text = $range.Text.Trim([char[]]"`r`a`n "); italic = $italic.Trim() }
+}
+# The entries of each table of authorities from the `$from`th on: one per paragraph of its result.
+function TableEntries($doc, $from = 1) {
+  $entries = @()
+  for ($index = $from; $index -le $doc.TablesOfAuthorities.Count; $index++) {
+    $toa = $doc.TablesOfAuthorities.Item($index)
+    foreach ($paragraph in $toa.Range.Paragraphs) {
+      $entry = Styled $paragraph.Range
+      if ($entry.text) { $entries += [pscustomobject]$entry }
+    }
+  }
+  , $entries
+}
+# Each table's shape and its cells, row by row.
+function Tables($doc) {
+  $tables = @()
+  foreach ($table in $doc.Tables) {
+    $rows = @()
+    foreach ($row in $table.Rows) { $rows += , @($row.Cells | ForEach-Object { [pscustomobject](Styled $_.Range) }) }
+    $tables += [pscustomobject]@{ rows = $table.Rows.Count; columns = $table.Columns.Count; cells = $rows }
+  }
+  , $tables
+}
 try {
   $word.Visible = $false
   $word.DisplayAlerts = 0
@@ -37,14 +77,35 @@ try {
       $result.taFields = @($codes | Where-Object { $_ -match '^TA\b' }).Count
       $result.toaFields = @($codes | Where-Object { $_ -match '^TOA\b' }).Count
       $result.toaText = ($toa -join "`n")
+      $result.toaEntries = TableEntries $doc
+      $result.tables = Tables $doc
+      if (-not $result.taFields -and -not $result.tables.Count) { $result.italic = (Styled $doc.Content).italic }
       $text = $doc.Content.Text
       foreach ($note in $doc.Footnotes) { $text += "`n" + $note.Range.Text }
       $result.tabReferences = ([regex]::Matches($text, '\[[^\]\r\n]{0,80}Tab [0-9A-Z]+\]')).Count
       $result.errors = @([regex]::Matches(($text + $result.toaText), 'Error! [^\r\n]{0,80}') | ForEach-Object { $_.Value })
       $result.text = $text.Substring(0, [Math]::Min(4000, $text.Length))
       if ($item.pdf -and -not $updatesAtPrint) {
-        $doc.ExportAsFixedFormat($item.pdf, 17)
+        Remove-Item -LiteralPath $item.pdf -ErrorAction SilentlyContinue
+        $doc.SaveAs2($item.pdf, 17)
         $result.pdf = $item.pdf
+      }
+      if ($result.taFields -and $item.pdf) {
+        $doc.Close([ref]0); $doc = $null
+        $copy = [IO.Path]::ChangeExtension($item.pdf, '.marked-copy.docx')
+        Copy-Item -LiteralPath $item.file -Destination $copy -Force
+        $doc = $word.Documents.Open($copy, $false, $false, $false)
+        $end = $doc.Content; $end.Collapse(0); $end.InsertBreak(7)
+        $end = $doc.Content; $end.Collapse(0)
+        # Category 0: every category, as the dialog's "All" inserts it, one table per category.
+        $from = $doc.TablesOfAuthorities.Count + 1
+        [void]$doc.TablesOfAuthorities.Add($end, 0)
+        for ($index = $from; $index -le $doc.TablesOfAuthorities.Count; $index++) { $doc.TablesOfAuthorities.Item($index).Update() }
+        $result.insertedEntries = TableEntries $doc $from
+        $result.insertedPdf = [IO.Path]::ChangeExtension($item.pdf, '.inserted-table.pdf')
+        $doc.SaveAs2($result.insertedPdf, 17)
+        $doc.Close([ref]0); $doc = $null
+        Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue
       }
     } catch {
       $result.error = $_.Exception.Message
@@ -54,7 +115,7 @@ try {
         [void][Runtime.InteropServices.Marshal]::ReleaseComObject($doc)
       }
     }
-    Add-Content -Encoding utf8 -Path $Results -Value (ConvertTo-Json -InputObject ([pscustomobject]$result) -Depth 4 -Compress)
+    Add-Content -Encoding utf8 -Path $Results -Value (ConvertTo-Json -InputObject ([pscustomobject]$result) -Depth 6 -Compress)
   }
 } finally {
   try { $word.Quit([ref]0) } catch { }

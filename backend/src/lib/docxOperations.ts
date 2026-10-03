@@ -17,6 +17,8 @@ export type DocxAuthorityMark = {
   unitId: string;
   offset: number;
   longName: string;
+  /** How many of longName's first characters are italic: its style of cause or title. */
+  italic?: number;
   shortName: string;
   category: 1 | 2 | 3 | 5;
   suffix?: string;
@@ -25,7 +27,7 @@ export type DocxAuthorityMark = {
   pinpointLink?: { start: number; end: number; url: string };
 };
 export type DocxTableDelivery = "native-marks" | "native-append" | "linked-append";
-export type DocxLinkedAuthority = { label: string; url: string | null };
+export type DocxLinkedAuthority = { label: string; italic: number; url: string | null };
 
 function walk(root: XNode | XNode[], visit: (node: XNode) => boolean | void) {
   const pending = (Array.isArray(root) ? root : [root]).slice().reverse();
@@ -127,12 +129,14 @@ export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
   return save();
 }
 
-/** A TA mark as Word itself writes it: no result, and not hidden text, or Word's table leaves it out. */
-function fieldRuns(instruction: string) {
-  const run = (child: XNode) => makeEl("w:r", [child]);
+/** A TA mark as Word itself writes it: no result, and not hidden text, or Word's table leaves it out.
+ *  Its code is in parts, an italic part as the citation's style of cause, which Word's table keeps. */
+function fieldRuns(...instruction: Array<string | { italic: string }>) {
+  const run = (child: XNode, italic = false) => makeEl("w:r", [...italic ? [makeEl("w:rPr", [makeEl("w:i", [])])] : [], child]);
   return [
     run(makeEl("w:fldChar", [], { "w:fldCharType": "begin" })),
-    run(makeEl("w:instrText", [makeText(instruction)], { "xml:space": "preserve" })),
+    ...instruction.map((part) => run(makeEl("w:instrText", [makeText(typeof part === "string" ? part : part.italic)],
+      { "xml:space": "preserve" }), typeof part !== "string")),
     run(makeEl("w:fldChar", [], { "w:fldCharType": "end" })),
   ];
 }
@@ -200,8 +204,6 @@ function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
     ...(tail.some((child) => elName(child) !== "w:rPr" && (child !== rightChildren[textIndex] || value.slice(local)))
       ? [rightRun] : []));
 }
-const insertField = (root: XNode, offset: number, instruction: string) =>
-  insertAtOffset(root, offset, fieldRuns(instruction));
 
 /** Settings Word writes after updateFields (CT_Settings order); extension settings come last. */
 const SETTINGS_AFTER_UPDATE_FIELDS = new Set(["w:hdrShapeDefaults", "w:footnotePr", "w:endnotePr",
@@ -213,7 +215,7 @@ const SETTINGS_AFTER_UPDATE_FIELDS = new Set(["w:hdrShapeDefaults", "w:footnoteP
 const entryText = (value: string) => value.replace(/\s+/gu, " ").trim();
 /** A field argument. Word ends a quoted argument at a straight or a curly double quote, so each is
  *  escaped with a backslash; Word shows any other backslash as it stands. */
-const fieldText = (value: string) => entryText(value).replace(/["“”]/gu, "\\$&");
+const fieldText = (value: string) => value.replace(/["“”]/gu, "\\$&");
 /** The text of a field's quoted or bare argument after `switch`, with its escapes read. */
 function fieldArgument(code: string, name: string) {
   const at = code.search(new RegExp(`\\\\${name}\\s`, "u"));
@@ -228,14 +230,16 @@ function fieldArgument(code: string, name: string) {
   }
   return value;
 }
-/** Word's own names for its first seven citation categories. */
-const CATEGORY_NAMES: Record<number, string> = { 1: "Cases", 2: "Statutes", 3: "Other Authorities", 4: "Rules",
-  5: "Treatises", 6: "Regulations", 7: "Constitutional Provisions" };
+/** The heading over each citation category: the table's own groups for ours (cases, legislation,
+ *  secondary and other sources), and Word's names for the categories only an author's marks use. */
+const CATEGORY_NAMES: Record<number, string> = { 1: "Cases", 2: "Legislation", 3: "Other sources", 4: "Rules",
+  5: "Secondary sources", 6: "Regulations", 7: "Constitutional Provisions" };
 /** Word's sort of a table's entries: case and accents second, spaces and punctuation before digits
  *  and digits before letters. */
 const entryOrder = new Intl.Collator("en", { numeric: false }).compare;
-/** The styles Word gives a table of authorities, added when the brief has none of its own. */
-const TABLE_STYLES = [
+/** The styles Word gives a table of authorities, added when the brief has none of its own: each
+ *  entry's pages at the margin, after a dotted leader. */
+const tableStyles = (width: number) => [
   makeEl("w:style", [makeEl("w:name", [], { "w:val": "toa heading" }), makeEl("w:basedOn", [], { "w:val": "Normal" }),
     makeEl("w:next", [], { "w:val": "Normal" }), makeEl("w:uiPriority", [], { "w:val": "99" }), makeEl("w:semiHidden", []),
     makeEl("w:unhideWhenUsed", []),
@@ -247,7 +251,8 @@ const TABLE_STYLES = [
   makeEl("w:style", [makeEl("w:name", [], { "w:val": "table of authorities" }), makeEl("w:basedOn", [], { "w:val": "Normal" }),
     makeEl("w:next", [], { "w:val": "Normal" }), makeEl("w:uiPriority", [], { "w:val": "99" }), makeEl("w:semiHidden", []),
     makeEl("w:unhideWhenUsed", []),
-    makeEl("w:pPr", [makeEl("w:ind", [], { "w:left": "220", "w:hanging": "220" })])],
+    makeEl("w:pPr", [makeEl("w:tabs", [makeEl("w:tab", [], { "w:val": "right", "w:leader": "dot", "w:pos": String(width) })]),
+      makeEl("w:ind", [], { "w:left": "220", "w:right": "720", "w:hanging": "220" })])],
   { "w:type": "paragraph", "w:styleId": "TableofAuthorities" }),
 ];
 
@@ -261,32 +266,67 @@ function textWidth(section: XNode | undefined) {
   return width > 0 ? width : 9360;
 }
 
-/** One TOA field per category, each with the table Word would show for it already in its result,
- *  so the table reads as soon as the brief opens: the category's heading, then each entry on its
- *  own line, sorted as Word sorts them. Page numbers are Word's own layout, so they come when Word
- *  updates the field. */
-function tableFields(entries: ReadonlyMap<number, ReadonlySet<string>>, width: number) {
+type TableEntry = { italic: number; pages: Set<number> };
+/** Under each category's heading, a TOA field holding the table Word would show for it already in its
+ *  result, so the table reads as a table as soon as the brief opens: each entry on its own line, sorted
+ *  as Word sorts them, its style of cause in italics, and after a dotted leader the pages it is cited
+ *  on as Word last laid the brief out. Word's update of the field puts its own. */
+function tableFields(entries: ReadonlyMap<number, ReadonlyMap<string, TableEntry>>, width: number) {
   const tabs = makeEl("w:tabs", [makeEl("w:tab", [], { "w:val": "right", "w:leader": "dot", "w:pos": String(width) })]);
-  const paragraph = (style: string, runs: XNode[]) => makeEl("w:p", [
-    makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": style }), cloneNode(tabs)]), ...runs]);
-  const text = (value: string) => makeEl("w:r", [makeEl("w:rPr", [makeEl("w:noProof", [])]),
-    makeEl("w:t", [makeText(value)], /^\s|\s$/u.test(value) ? { "xml:space": "preserve" } : {})]);
+  const paragraph = (style: string, runs: XNode[], extra: XNode[] = []) => makeEl("w:p", [
+    makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": style }), ...extra]), ...runs]);
+  const text = (value: string, format: XNode[] = []) => makeEl("w:r", [makeEl("w:rPr", [...format, makeEl("w:noProof", [])]),
+    makeEl(value === "\t" ? "w:tab" : "w:t", value === "\t" ? [] : [makeText(value)],
+      /^\s|\s$/u.test(value) && value !== "\t" ? { "xml:space": "preserve" } : {})]);
   const char = (type: string) => makeEl("w:r", [makeEl("w:fldChar", [], { "w:fldCharType": type })]);
   return [...entries].sort(([left], [right]) => left - right).flatMap(([category, names]) => [
-    paragraph("TOAHeading", [char("begin"), makeEl("w:r", [makeEl("w:instrText", [makeText(` TOA \\h \\c "${category}" `)],
-      { "xml:space": "preserve" })]), char("separate"), text(CATEGORY_NAMES[category] ?? String(category))]),
-    ...[...names].sort(entryOrder).map((name) => paragraph("TableofAuthorities", [text(name)])),
-    makeEl("w:p", [char("end")]),
+    paragraph("TOAHeading", [text(CATEGORY_NAMES[category] ?? String(category), [makeEl("w:b", [])])],
+      [makeEl("w:keepNext", []), makeEl("w:spacing", [], { "w:before": "240", "w:after": "120" })]),
+    ...[...names].sort(([left], [right]) => entryOrder(left, right)).map(([name, { italic, pages }], index, all) =>
+      paragraph("TableofAuthorities", [
+        ...index ? [] : [char("begin"), makeEl("w:r", [makeEl("w:instrText", [makeText(` TOA \\c "${category}" `)],
+          { "xml:space": "preserve" })]), char("separate")],
+        ...italic ? [text(name.slice(0, italic), [makeEl("w:i", [])])] : [], text(name.slice(italic)),
+        ...pages.size ? [text("\t"), text([...pages].sort((left, right) => left - right).join(", "))] : [],
+        ...index === all.length - 1 ? [char("end")] : [],
+      ], [cloneNode(tabs), makeEl("w:ind", [], { "w:left": "220", "w:right": "720", "w:hanging": "220" })])),
   ]);
 }
 
+/** The page each place in the brief was on when Word last laid it out: Word marks where each page
+ *  began whenever it saves (lastRenderedPageBreak); a brief Word never laid out has only its hard page
+ *  breaks. A note is on the page of its reference. */
+function renderedPages(body: XNode, targets: ReadonlyMap<string, XNode>) {
+  const units = new Map([...targets].map(([id, node]) => [node, id]));
+  let laidOut = false, page = 1, cursor = 0, starts: Array<[number, number]> = [];
+  walk(body, (node) => { if (elName(node) === "w:lastRenderedPageBreak") laidOut = true; });
+  const pages = new Map<string, Array<[number, number]>>(), notes = new Map<string, number>();
+  walk(body, (node) => {
+    const name = elName(node), attrs = elAttrs(node);
+    if (name === "w:del") return false;
+    if (name === "w:p") {
+      starts = [[0, page]]; cursor = 0;
+      const id = units.get(node);
+      if (id) pages.set(id, starts);
+    } else if (name === "w:t") cursor += getTextContent(node).length;
+    else if (name === "w:tab" || name === "w:cr" || name === "w:br") cursor += 1;
+    else if (name === "w:footnoteReference") notes.set(`footnote:${attrs["@_w:id"]}`, page);
+    if (laidOut ? name === "w:lastRenderedPageBreak" : name === "w:br" && attrs["@_w:type"] === "page" ||
+      name === "w:pageBreakBefore" && !["0", "false"].includes(attrs["@_w:val"] ?? "")) starts.push([cursor, ++page]);
+  });
+  return (unitId: string, offset: number) => notes.get(unitId) ??
+    (pages.get(unitId) ?? [[0, 1]]).filter(([at]) => at <= offset).at(-1)![1];
+}
+
 function linkedTable(entries: readonly DocxLinkedAuthority[]) {
-  const run = (value: string, linked = false) => makeEl("w:r", [
-    ...(linked ? [makeEl("w:rPr", [makeEl("w:color", [], { "w:val": "0563C1" }),
-      makeEl("w:u", [], { "w:val": "single" })])] : []),
+  const run = (value: string, linked = false, italic = false) => makeEl("w:r", [
+    ...(linked || italic ? [makeEl("w:rPr", [...italic ? [makeEl("w:i", [])] : [],
+      ...linked ? [makeEl("w:color", [], { "w:val": "0563C1" }), makeEl("w:u", [], { "w:val": "single" })] : []])] : []),
     makeEl("w:t", [makeText(value)], /^\s|\s$/u.test(value)
       ? { "xml:space": "preserve" } : {}),
   ]);
+  const citation = (value: string, italic: number, linked = false) => [value.slice(0, italic), value.slice(italic)]
+    .flatMap((part, index) => part ? [run(part, linked, !index)] : []);
   const link = (value: string | null) => {
     try {
       const parsed = new URL(value ?? "");
@@ -297,12 +337,11 @@ function linkedTable(entries: readonly DocxLinkedAuthority[]) {
     makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
     makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" })]),
       run("TABLE OF AUTHORITIES")]),
-    ...entries.map(({ label, url }, index) => {
-      const href = link(url), children = [run(`${index + 1}. `)];
-      children.push(href ? makeEl("w:fldSimple", [run(label, true)], {
-        "w:instr": ` HYPERLINK "${href}" `,
-      }) : run(label));
-      return makeEl("w:p", children);
+    // Each authority with its hyperlink, printed too for a reader on paper.
+    ...entries.map(({ label, italic, url }, index) => {
+      const href = link(url), hyperlink = (runs: XNode[]) => makeEl("w:fldSimple", runs, { "w:instr": ` HYPERLINK "${href}" ` });
+      return makeEl("w:p", [run(`${index + 1}. `), ...href ? [hyperlink(citation(label, italic, true)),
+        makeEl("w:r", [makeEl("w:br", [])]), hyperlink([run(href, true)])] : citation(label, italic)]);
     }),
   ];
 }
@@ -357,6 +396,7 @@ export async function applyTableOfAuthorities(
   linked: readonly DocxLinkedAuthority[] = [],
 ) {
   const { session, document, targets, save } = await authorityUnitPackage(bytes, units);
+  const pageAt = renderedPages(document.body, targets);
   // A citation the author already marked keeps that mark, and the table lists the author's categories too.
   const existing = new Map([...targets].map(([id, node]) => [id, existingMarks(node)]));
   // Each entry is marked in full once, at its first citation, and by its short name after that, as
@@ -385,9 +425,13 @@ export async function applyTableOfAuthorities(
           "w:instr": ` HYPERLINK "${mark.tabUrl}" `,
         }) : run]);
       }
-      if (placed.includes(mark)) insertField(target, mark.offset, firsts.has(mark)
-        ? ` TA \\l "${fieldText(mark.longName)}" \\s "${fieldText(shortOf(mark))}" \\c ${mark.category} `
-        : ` TA \\s "${fieldText(shortOf(mark))}" `);
+      if (placed.includes(mark)) {
+        const long = entryText(mark.longName), lead = fieldText(long.slice(0, mark.italic ?? 0));
+        const short = fieldText(entryText(shortOf(mark)));
+        const rest = `${fieldText(long.slice(mark.italic ?? 0))}" \\s "${short}" \\c ${mark.category} `;
+        insertAtOffset(target, mark.offset, !firsts.has(mark) ? fieldRuns(` TA \\s "${short}" `)
+          : lead ? fieldRuns(" TA \\l \"", { italic: lead }, rest) : fieldRuns(` TA \\l "${rest}`));
+      }
       // A pinpoint the author already linked keeps that link.
       if (mark.pinpointLink && !linkedRanges(target).some(([from, to]) =>
         mark.pinpointLink!.start < to && from < mark.pinpointLink!.end)) {
@@ -401,15 +445,20 @@ export async function applyTableOfAuthorities(
       }
     }
   const body = document.body, children = elChildren(body);
-  const section = children.findIndex((node) => elName(node) === "w:sectPr");
+  const section = children.findIndex((node) => elName(node) === "w:sectPr"), width = textWidth(children[section]);
   // Word's table lists one category per field, under that category's heading, as Word does for "All";
-  // the brief's own marks are listed with ours.
-  const entries = new Map<number, Set<string>>();
-  for (const { category, long } of [...[...firsts].map(({ category, longName }) => ({ category, long: longName })),
-    ...[...existing.values()].flat()]) {
-    const names = entries.get(category) ?? entries.set(category, new Set()).get(category)!;
-    if (long) names.add(entryText(long));
-  }
+  // the brief's own marks are listed with ours, each entry with the pages its citations are on.
+  const entries = new Map<number, Map<string, TableEntry>>(), longOf = new Map<string, number>();
+  for (const { category, longName } of firsts) longOf.set(entryText(longName), category);
+  const add = (category: number, long: string, italic: number, page?: number) => {
+    const names = entries.get(category) ?? entries.set(category, new Map()).get(category)!;
+    const entry = names.get(long) ?? names.set(long, { italic, pages: new Set() }).get(long)!;
+    if (page) entry.pages.add(page);
+  };
+  for (const mark of placed) add(longOf.get(entryText(mark.longName))!, entryText(mark.longName), mark.italic ?? 0,
+    pageAt(mark.unitId, mark.offset));
+  for (const [unitId, marks] of existing) for (const { category, long, offset } of marks)
+    if (long) add(category, entryText(long), 0, pageAt(unitId, offset));
   const appended = delivery === "native-append" ? [
     makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
     // A heading of the brief's own look, without the number its headings may carry ("V.") or the
@@ -417,8 +466,8 @@ export async function applyTableOfAuthorities(
     makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" }),
       makeEl("w:numPr", [makeEl("w:ilvl", [], { "w:val": "0" }), makeEl("w:numId", [], { "w:val": "0" })]),
       makeEl("w:ind", [], { "w:left": "0", "w:right": "0", "w:firstLine": "0" })]),
-    makeEl("w:r", [makeEl("w:t", [makeText("Table of Authorities")])])]),
-    ...tableFields(entries.size ? entries : new Map([[1, new Set<string>()]]), textWidth(children[section])),
+    makeEl("w:r", [makeEl("w:rPr", [makeEl("w:b", [])]), makeEl("w:t", [makeText("Table of Authorities")])])]),
+    ...tableFields(entries, width),
   ] : delivery === "linked-append" ? linkedTable(linked) : [];
   children.splice(section < 0 ? children.length : section, 0, ...appended);
   if (delivery === "native-append") {
@@ -426,7 +475,7 @@ export async function applyTableOfAuthorities(
     const styleRoot = styles?.find((node) => elName(node) === "w:styles");
     if (styles && styleRoot) {
       const present = new Set(elChildren(styleRoot).map((node) => elAttrs(node)["@_w:styleId"]));
-      elChildren(styleRoot).push(...TABLE_STYLES.filter((style) => !present.has(elAttrs(style)["@_w:styleId"]))
+      elChildren(styleRoot).push(...tableStyles(width).filter((style) => !present.has(elAttrs(style)["@_w:styleId"]))
         .map(cloneNode));
       session.write("word/styles.xml", ensureXmlDeclaration(createBuilder().build(styles)));
     }

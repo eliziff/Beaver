@@ -2,7 +2,7 @@
 // marks, any text nobody asked for) and their key pages rendered with PDF.js in Chromium; Word
 // documents are opened in invisible Word (scripts/authorities-stress/word.ps1), unchanged, and
 // what Word shows is read back and exported to PDF to be rendered the same way.
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -125,6 +125,9 @@ export async function pdfRenderer(browser) {
   return { sheet, close: () => context.close() };
 }
 
+/** Word's running processes, by id. */
+export const wordProcesses = () => execFileSync("tasklist", ["/FI", "IMAGENAME eq WINWORD.EXE", "/FO", "CSV", "/NH"], { encoding: "utf8" })
+  .split(/\r?\n/u).flatMap((line) => /^"WINWORD\.EXE","(\d+)"/iu.exec(line)?.[1] ?? []).map(Number);
 /** Opens every Word document in invisible Word, unchanged; returns what Word showed, in order. A
  *  document Word does not finish opening within `stall` ms (a dialog it shows unseen) is recorded as
  *  such, the Word started for it is stopped, and the rest are opened in a new one. Only the Word
@@ -161,4 +164,31 @@ export async function openInWord(items, dir, { stall = 45_000 } = {}) {
       error: `Word did not finish opening it within ${stall / 1000} s; it shows invisible Word a dialog.` });
   }
   return done;
+}
+
+/** What Word showed of a document's tables of authorities (scripts/authorities-stress/word.ps1),
+ *  checked as its reader sees them. `expect`: `toa`, a table in the brief; `ta`, the citation fields
+ *  Word's own inserted table lists; `table`, a document of real tables; `italics`, names in italics. */
+export function checkWordTables(check, where, result, expect) {
+  // A table of authorities reads as one as Word shows it: each entry on its own line, its pages after a
+  // tab, and its style of cause in italics where the citation begins.
+  const listed = (entries = []) => entries.filter(({ text }) => text.includes("\t"));
+  const styled = (entries) => entries.some(({ italic }) => italic) && entries.every(({ text, italic }) => !italic || text.startsWith(italic));
+  if (expect.toa) {
+    const entries = listed(result.toaEntries);
+    check(entries.length && entries.every(({ text }) => /\t\d[\d, ]*$/u.test(text)), `${where}: its table lists each entry with its pages`, result.toaEntries);
+    check(styled(entries), `${where}: its table italicizes each style of cause where the citation begins`, entries);
+  }
+  // Word's own table, inserted from the citation fields as its reader would (References > Insert Table of
+  // Authorities), lists every authority marked, with its pages and its italics.
+  if (expect.ta) {
+    const entries = listed(result.insertedEntries);
+    check(entries.length >= expect.ta && entries.every(({ text }) => /\t\d[\d, ]*$/u.test(text)),
+      `${where}: Word's own table, inserted from its fields, lists ${expect.ta} authorities with their pages`, result.insertedEntries);
+    check(styled(entries), `${where}: Word's own table keeps each style of cause in italics`, entries);
+  }
+  if (expect.table) check(result.tables?.length && result.tables.every(({ rows, columns }) => rows > 1 && columns > 1) &&
+    styled(result.tables.flatMap(({ cells }) => cells.flat())), `${where}: is a table, each style of cause in italics where it begins`, result.tables);
+  for (const name of expect.italics ?? []) check([result.italic, ...(result.tables ?? []).flatMap(({ cells }) => cells.flat()
+    .map(({ italic }) => italic))].some((text) => text?.includes(name)), `${where}: ${name} is in italics`, result.italic ?? result.tables);
 }

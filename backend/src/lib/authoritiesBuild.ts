@@ -6,7 +6,7 @@ import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { Nodes } from "mdast";
 import { nestedOutline, pdfAssembly, sourceOutline, type PdfOutline } from "./pdfAssembly";
-import { renderAuthoritiesBook, fit, pdfNormalized, pdfText, wrapped,
+import { renderAuthoritiesBook, citationLines, drawRuns, fit, pdfNormalized, pdfText, wrapped,
   type BookRow, type PreparedAuthoritiesBook } from "./authoritiesBook";
 const { addInternalLink: addLink, applyOutlines, appendPages, readOutlines } = pdfAssembly(pdfLibrary);
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
@@ -19,7 +19,6 @@ import {
   attachedAuthoritySources,
   authoritiesProfile,
   validateAuthoritiesDraft,
-  authorityCitationForms,
   authorityReproducedInBook,
   authoritySourceRequirement,
   authoritySourceUrl,
@@ -189,6 +188,8 @@ type BareArtifact = Omit<AuthoritiesBuildArtifact, "receipt">;
 type Entry = {
   authority: AuthorityIdentity;
   name: string;
+  /** How many of the name's first characters are italic: its style of cause or title. */
+  italic: number;
   citedAt: string;
   tab: string;
   sourceUrl: string | null;
@@ -206,21 +207,53 @@ const RENDERERS: Record<RequestedRole, string> = {
   "final-pdf": "beaver.authorities.final-pdf.v1",
 };
 
-function authorityName(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
-  const forms = authorityCitationForms(draft, authority.id), values: string[] = [];
-  // "R. v. Oakes" (a source's title) and "R v Oakes" (the brief) are one name.
-  const lower = (value: string) => value.toLocaleLowerCase("en-CA").replace(/\./gu, "").replace(/\s+/gu, " ");
-  const add = (value: string | null | undefined) => {
-    const exact = value?.trim();
-    if (!exact || values.some((item) => lower(item).includes(lower(exact)))) return;
-    // A fuller form replaces the shorter forms it already contains, so none repeats.
-    values.splice(0, values.length, ...values.filter((item) => !lower(exact).includes(lower(item))), exact);
-  };
-  const heading = authority.displayName ?? authority.name;
-  if (!heading || !forms.some((form) => lower(form).includes(lower(heading.trim())))) add(heading);
-  forms.forEach(add);
-  // A name the brief broke across lines reads on one line in the index, the bookmarks and the tables.
-  return values.join(", ").replace(/\s+/gu, " ").trim();
+/** An authority as every output cites it (the index and its bookmarks, the tables, Word's citation
+ *  fields): as the brief first cites it in full, led by the style of cause or title (the name its source
+ *  gives it where the brief cites it by its citation alone), then each other citation of it the brief or
+ *  its source gives, a parallel report or a CanLII ID. A case's style of cause and a statute's title are
+ *  italic: `italic` is the length of that lead, read from where the brief's citation span begins and its
+ *  core citation starts. */
+function authorityCitation(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
+  const [first, ...rest] = draft.units.flatMap((unit) => unit.occurrenceIds.map((id) => draft.occurrences[id]))
+    .filter((occurrence) => occurrence?.authorityId === authority.id && occurrence.kind !== "reference");
+  // "R. v. Oakes" (a source's title) and "R v Oakes" (the brief) are one name, and "(2016) ABQB 16"
+  // and "2016 ABQB 16" one citation.
+  const lower = (value: string) => value.toLocaleLowerCase("en-CA").replace(/[.()]/gu, "").replace(/\s+/gu, " ").trim();
+  const line = (value: string) => value.replace(/\s+/gu, " ").trim();
+  const name = line(authority.displayName ?? authority.name ?? "");
+  const citation = line(authority.citation);
+  // A brief that cites an authority only by a word of its name has not cited it in full.
+  let text = first && !(name && lower(name).includes(lower(first.authoritySpan.text))) ? line(first.authoritySpan.text)
+    : citation, lead = "";
+  if (first) {
+    const unit = draft.units.find(({ id }) => id === first.unitId)?.text ?? "";
+    // A link the brief writes in angle or square brackets keeps its closing bracket.
+    const closer = unit[first.authoritySpan.end];
+    if (closer === ">" && text.split("<").length > text.split(">").length ||
+      closer === "]" && text.split("[").length > text.split("]").length) text += closer;
+    // The court a CanLII ID is cited with belongs to its citation ("1954 CanLII 3 (SCC)"), though the
+    // brief may write it after a pinpoint.
+    const core = line(first.coreSpan.text);
+    if (citation !== core && citation.startsWith(core) && text.includes(core) && !lower(text).includes(lower(citation)))
+      text = text.replace(core, citation);
+    if (first.authoritySpan.start < first.coreSpan.start)
+      lead = line(unit.slice(first.authoritySpan.start, first.coreSpan.start)).replace(/,$/u, "");
+  }
+  // Where the brief's citation opens with the source's name ("R v Grant" for "R. v. Grant"), that is its lead.
+  if (!lead && name) {
+    let at = 0;
+    const same = [...name].every((character) => {
+      if (character === ".") { if (text[at] === ".") at += 1; return true; }
+      while (text[at] === ".") at += 1;
+      return text[at++]?.toLocaleLowerCase("en-CA") === character.toLocaleLowerCase("en-CA");
+    });
+    if (same && !/[\p{L}\p{N}]/u.test(text[at] ?? "")) lead = text.slice(0, at);
+  }
+  if (!lead && name && !lower(text).includes(lower(name))) { text = `${name}, ${text}`; lead = name; }
+  for (const form of [...rest.map(({ coreSpan }) => coreSpan.text), citation,
+    ...authority.sourceIdentity?.citationForms ?? []].map(line))
+    if (form && !lower(text).includes(lower(form)) && !(lead && lower(form).includes(lower(lead)))) text += `, ${form}`;
+  return { text, italic: ["case", "legislation"].includes(authority.kind) && text.startsWith(lead) ? lead.length : 0 };
 }
 
 function citedPages(draft: AuthoritiesDraft, authorityId: string) {
@@ -274,8 +307,8 @@ function freePublicDatabaseReference(authority: AuthorityIdentity) {
 function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
   const planned = authorityProcedure(draft, purpose);
   const entry = ({ id, tab }: typeof planned[number]): Entry => {
-    const authority = draft.authorities[id]; return { authority,
-    name: authorityName(draft, authority), citedAt: citedAt(draft, authority.id),
+    const authority = draft.authorities[id], { text, italic } = authorityCitation(draft, authority);
+    return { authority, name: text, italic, citedAt: citedAt(draft, authority.id),
     tab, sourceUrl: authoritySourceLink(authority) }; };
   return [...new Set(planned.map(({ group }) => group))].map((label): Group =>
     ({ label, entries: planned.filter(({ group }) => group === label).map(entry) }));
@@ -286,9 +319,13 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
   const { BorderStyle, Document, ExternalHyperlink, HeadingLevel, Packer, Paragraph,
     Table, TableCell, TableRow, TextRun, WidthType } = await import("docx");
   const border = { style: BorderStyle.SINGLE, size: 1, color: "B7B7B7" };
-  const cell = (value: string, width: number, bold = false) => new TableCell({
+  // A case's style of cause and a statute's title in italics, as the brief cites them.
+  const citationRuns = (value: string, italic: number, style: { bold?: boolean; size?: number; style?: string } = {}) =>
+    [value.slice(0, italic), value.slice(italic)].flatMap((text, index) => text
+      ? [new TextRun({ ...style, text, italics: !index })] : []);
+  const cell = (value: string, width: number, bold = false, italic = 0) => new TableCell({
     width: { size: width, type: WidthType.DXA },
-    children: [new Paragraph({ children: [new TextRun({ text: value, bold, size: 19 })] })],
+    children: [new Paragraph({ children: citationRuns(value, italic, { bold, size: 19 }) })],
   });
   const children: Array<InstanceType<typeof Paragraph> | InstanceType<typeof Table>> = [
     new Paragraph({ text: linked ? "TABLE OF AUTHORITIES" : "Table of Authorities",
@@ -301,11 +338,13 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
   const citedAt = groups.some(({ entries }) => entries.some(({ citedAt }) => citedAt && citedAt !== "—"));
   const nameWidth = 9360 - 1660 - (tabs ? 1050 : 0) - (citedAt ? 1850 : 0);
   if (!groups.length) children.push(new Paragraph("No authorities."));
+  // Each authority with its hyperlink, printed too for a reader on paper.
   if (linked) groups.flatMap(({ entries }) => entries).forEach((entry, index) => {
     children.push(new Paragraph({ children: [new TextRun(`${index + 1}. `),
-      ...(entry.sourceUrl ? [new ExternalHyperlink({ link: entry.sourceUrl,
-        children: [new TextRun({ text: entry.name, style: "Hyperlink" })] })]
-        : [new TextRun(entry.name)])] }));
+      ...entry.sourceUrl ? [new ExternalHyperlink({ link: entry.sourceUrl,
+        children: citationRuns(entry.name, entry.italic, { style: "Hyperlink" }) }), new TextRun({ break: 1 }),
+      new ExternalHyperlink({ link: entry.sourceUrl, children: [new TextRun({ text: entry.sourceUrl, style: "Hyperlink" })] })]
+        : citationRuns(entry.name, entry.italic)] }));
   });
   else for (const group of groups) {
     children.push(new Paragraph({ text: group.label, heading: HeadingLevel.HEADING_1,
@@ -320,7 +359,7 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
         ] }),
         ...group.entries.map((entry) => new TableRow({ cantSplit: true, children: [
           ...(tabs ? [cell(entry.tab, 1050)] : []),
-          cell(entry.name, nameWidth), ...(citedAt ? [cell(entry.citedAt, 1850)] : []),
+          cell(entry.name, nameWidth, false, entry.italic), ...(citedAt ? [cell(entry.citedAt, 1850)] : []),
           new TableCell({ width: { size: 1660, type: WidthType.DXA }, children: [
             new Paragraph({ children: entry.sourceUrl ? [new ExternalHyperlink({
               link: entry.sourceUrl, children: [new TextRun({ text: "Open source",
@@ -343,33 +382,6 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
     bytes, null);
 }
 
-/** An authority as a table of authorities lists it: as the brief first cites it in full, led by the
- *  name its source gives it where the brief cites it by its citation alone, and followed by any other
- *  citation the brief gives it (a parallel report). */
-function tableEntry(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
-  const [first, ...rest] = draft.units.flatMap((unit) => unit.occurrenceIds.map((id) => draft.occurrences[id]))
-    .filter((occurrence) => occurrence?.authorityId === authority.id && occurrence.kind !== "reference");
-  if (!first) return authorityName(draft, authority);
-  // "R. v. Oakes" (a source's title) and "R v Oakes" (the brief) are one name, and "(2016) ABQB 16"
-  // and "2016 ABQB 16" one citation.
-  const lower = (value: string) => value.toLocaleLowerCase("en-CA").replace(/[.()]/gu, "").replace(/\s+/gu, " ").trim();
-  const name = (authority.displayName ?? authority.name)?.trim();
-  let entry = first.authoritySpan.text.replace(/\s+/gu, " ").trim();
-  // A link the brief writes in angle or square brackets keeps its closing bracket.
-  const closer = draft.units.find(({ id }) => id === first.unitId)?.text[first.authoritySpan.end];
-  if (closer === ">" && entry.split("<").length > entry.split(">").length ||
-    closer === "]" && entry.split("[").length > entry.split("]").length) entry += closer;
-  // The court a CanLII ID is cited with belongs to its citation ("1954 CanLII 3 (SCC)"), though the
-  // brief may write it after a pinpoint.
-  const citation = authority.citation.trim(), core = first.coreSpan.text.trim();
-  if (citation !== core && citation.startsWith(core) && entry.includes(core) && !lower(entry).includes(lower(citation)))
-    entry = entry.replace(core, citation);
-  if (name && first.authoritySpan.start >= first.coreSpan.start && !lower(entry).includes(lower(name)))
-    entry = `${name}, ${entry}`;
-  for (const { coreSpan } of rest) if (!lower(entry).includes(lower(coreSpan.text))) entry += `, ${coreSpan.text.trim()}`;
-  return entry;
-}
-
 /** Where a citation's tab reference goes: after the short form the brief defines right after it
  *  ("… 2012 SCC 47 [Mabior] [Tab 3]"), whether or not the citation's span takes that bracket in. */
 function afterShortForm(text: string, end: number) {
@@ -381,8 +393,8 @@ function nativeMark(draft: AuthoritiesDraft, authority: AuthorityIdentity,
   unitId: string, offset: number): DocxAuthorityMark {
   const citation = authority.citation.trim();
   const shortName = (authority.displayName ?? authority.name ?? citation).trim();
-  const longName = tableEntry(draft, authority);
-  return { unitId, offset, longName, shortName: shortName || citation,
+  const { text: longName, italic } = authorityCitation(draft, authority);
+  return { unitId, offset, longName, italic, shortName: shortName || citation,
     category: authority.kind === "case" ? 1 : authority.kind === "legislation" ? 2
       : authority.kind === "commentary" ? 5 : 3 };
 }
@@ -416,8 +428,8 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
       }),
     }];
   }));
-  const linked = groups.flatMap(({ entries }) => entries.map(({ name, sourceUrl }) => ({
-    label: name, url: sourceUrl,
+  const linked = groups.flatMap(({ entries }) => entries.map(({ name, italic, sourceUrl }) => ({
+    label: name, italic, url: sourceUrl,
   })));
   const output = await applyTableOfAuthorities(Buffer.from(bytes), draft.units, marks,
     draft.insertIntoDocument ? finalLinks && draft.settings.tableDelivery === "native-append"
@@ -622,31 +634,37 @@ async function filingPdfArtifact(groups: Group[], filename: string,
   const appended = await Promise.all(entries.flatMap((entry) => {
     const source = entry.authority.source;
     return !entry.sourceUrl && source.kind === "attached"
-      ? [loadAuthorityPdf(pdf, source.sources, entry.name, attached, undefined, allowIncomplete)
+      ? [loadAuthorityPdf(pdf, source.sources, entry, attached, undefined, allowIncomplete)
         .then(({ document }) => ({ entry, document }))]
       : [];
   }));
-  const document = await pdf.PDFDocument.create(), regular = await document.embedFont(
-    pdf.StandardFonts.TimesRoman), bold = await document.embedFont(pdf.StandardFonts.TimesRomanBold);
+  const document = await pdf.PDFDocument.create(), [regular, italic, bold] = await Promise.all([
+    pdf.StandardFonts.TimesRoman, pdf.StandardFonts.TimesRomanItalic, pdf.StandardFonts.TimesRomanBold]
+    .map((font) => document.embedFont(font)));
   await appendPages(document, filing);
-  const tableStart = document.getPageCount(), chunks = Array.from(
-    { length: Math.max(1, Math.ceil(entries.length / 24)) }, (_, index) =>
-      entries.slice(index * 24, index * 24 + 24));
+  const tableStart = document.getPageCount();
   const links: Array<{ page: PdfPage; entry: Entry; rect: number[] }> = [];
-  chunks.forEach((chunk, index) => {
-    const page = document.addPage([612, 792]);
-    page.drawText(index ? "TABLE OF AUTHORITIES - CONTINUED" : "TABLE OF AUTHORITIES",
-      { x: 54, y: 730, size: 16, font: bold });
-    let y = 690;
-    chunk.forEach((entry, item) => {
-      const number = String(index * 24 + item + 1);
-      page.drawText(`${number}.`, { x: 54, y, size: 10, font: regular });
-      page.drawText(fit(regular, entry.name, 10, 430), { x: 82, y, size: 10, font: regular,
-        color: pdf.rgb(.55, .05, .05) });
-      links.push({ page, entry, rect: [78, y - 4, 520, y + 12] });
-      y -= 25;
-    });
+  // Each authority in full, wrapped, with its hyperlink printed beneath it for a reader on paper.
+  let page: PdfPage | null = null, y = 0;
+  entries.forEach((entry, index) => {
+    const name = citationLines({ roman: regular, italic }, entry.name, entry.italic, 10, 430);
+    const url = entry.sourceUrl ? citationLines({ roman: regular, italic }, entry.sourceUrl, 0, 8.5, 430) : [];
+    const height = name.length * 13 + url.length * 11 + 10;
+    if (!page || y - height < 60) {
+      const heading = page ? "TABLE OF AUTHORITIES - CONTINUED" : "TABLE OF AUTHORITIES";
+      page = document.addPage([612, 792]);
+      page.drawText(heading, { x: 54, y: 730, size: 16, font: bold });
+      y = 690;
+    }
+    page.drawText(`${index + 1}.`, { x: 54, y, size: 10, font: regular });
+    name.forEach((line, at) => drawRuns(page!, line, { x: 82, y: y - at * 13, size: 10, roman: regular, italic,
+      color: pdf.rgb(.55, .05, .05) }));
+    url.forEach((line, at) => drawRuns(page!, line, { x: 82, y: y - name.length * 13 - at * 11, size: 8.5,
+      roman: regular, italic, color: pdf.rgb(.05, .2, .55) }));
+    links.push({ page, entry, rect: [78, y - height + 12, 520, y + 12] });
+    y -= height;
   });
+  if (!entries.length) document.addPage([612, 792]).drawText("TABLE OF AUTHORITIES", { x: 54, y: 730, size: 16, font: bold });
   const starts = new Map<string, number>();
   for (const { entry, document: authority } of appended) {
     starts.set(entry.authority.id, document.getPageCount());
@@ -737,7 +755,7 @@ export function prepareAuthorityAnnotations(
 }
 
 async function loadAuthorityPdf(
-  pdf: PdfModule, sources: AttachedAuthoritySource[], label: string,
+  pdf: PdfModule, sources: AttachedAuthoritySource[], label: Pick<Entry, "name" | "italic">,
   attached: NonNullable<AuthoritiesBuildInput["sources"]>,
   editing?: { draft: AuthoritiesDraft; authority: AuthorityIdentity },
   allowIncomplete = !!editing?.draft.settings.allowIncomplete,
@@ -745,7 +763,7 @@ async function loadAuthorityPdf(
   const loaded = await Promise.all(sources.map(async (source) => ({ source,
     document: allowIncomplete && attached[source.bindingRole]?.bytes === undefined
       ? await missingSourcePdf(pdf, label, false, sources.length > 1 ? `${source.language === "fr" ? "French" : "English"} version` : undefined)
-      : await loadBookPdf(pdf, source, label, attached),
+      : await loadBookPdf(pdf, source, label.name, attached),
     text: attached[source.bindingRole] })));
   const markedPages = new Set<number>();
   // Each source keeps its publisher's bookmarks and the headings and sections read from it.
@@ -808,17 +826,17 @@ async function loadAuthorityPdf(
 
 /** The page a missing PDF's tab keeps: it names the authority (and the language, where one of two
  *  is missing), so the PDF can be put in its place later. */
-async function missingSourcePdf(pdf: PdfModule, label: string, federal = false, detail?: string) {
+async function missingSourcePdf(pdf: PdfModule, label: Pick<Entry, "name" | "italic">, federal = false, detail?: string) {
   const document = await pdf.PDFDocument.create();
-  const regular = await document.embedFont(federal
-    ? pdf.StandardFonts.TimesRoman : pdf.StandardFonts.Helvetica);
-  const bold = await document.embedFont(federal
-    ? pdf.StandardFonts.TimesRomanBold : pdf.StandardFonts.HelveticaBold);
+  const [regular, bold, italic] = await Promise.all((federal
+    ? [pdf.StandardFonts.TimesRoman, pdf.StandardFonts.TimesRomanBold, pdf.StandardFonts.TimesRomanBoldItalic]
+    : [pdf.StandardFonts.Helvetica, pdf.StandardFonts.HelveticaBold, pdf.StandardFonts.HelveticaBoldOblique])
+    .map((font) => document.embedFont(font)));
   const page = document.addPage([612, 792]);
   const margin = federal ? 99.21 : 72, size = federal ? 12 : 14;
   let y = 620;
-  for (const line of wrapped(bold, label, size, 612 - (2 * margin))) {
-    page.drawText(line, { x: margin, y, size, font: bold }); y -= size + 6;
+  for (const line of citationLines({ roman: bold, italic }, label.name, label.italic, size, 612 - (2 * margin))) {
+    drawRuns(page, line, { x: margin, y, size, roman: bold, italic }); y -= size + 6;
   }
   if (detail) page.drawText(detail, { x: margin, y: y - 6, size: 12, font: regular });
   return document;
@@ -860,7 +878,7 @@ async function prepareAuthorityBook(
       draft.settings.tabStyle, draft.settings),
   }));
   const rows: BookRow[] = [...authorityRows.map((entry) => ({
-    key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
+    key: `authority:${entry.authority.id}`, name: entry.name, italic: entry.italic, tab: entry.tab,
     sourceUrl: entry.sourceUrl,
   })), ...supplementRows];
   if (!rows.length) throw new Error(
@@ -872,18 +890,18 @@ async function prepareAuthorityBook(
     Promise.all(authorityRows.map(async (entry): Promise<LoadedBookPdf> => {
       const source = entry.authority.source;
       const loaded = source.kind === "attached"
-        ? await loadAuthorityPdf(pdf, source.sources, entry.name, attached,
+        ? await loadAuthorityPdf(pdf, source.sources, entry, attached,
           { draft, authority: entry.authority })
-        : { document: await missingSourcePdf(pdf, entry.name, federal) };
+        : { document: await missingSourcePdf(pdf, entry, federal) };
       if (source.kind === "attached" && draft.settings.allowIncomplete &&
           authoritySourceRequirement(draft, entry.authority, profile.requirements) ===
             "incomplete-enactment") {
         const missingLanguage = source.sources.some(({ language }) => language === "en") ? "French" : "English";
-        const stub = await missingSourcePdf(pdf, entry.name, federal, `${missingLanguage} version`);
+        const stub = await missingSourcePdf(pdf, entry, federal, `${missingLanguage} version`);
         await appendPages(loaded.document, stub);
       }
       marked += 1; marking();
-      return { key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
+      return { key: `authority:${entry.authority.id}`, name: entry.name, italic: entry.italic, tab: entry.tab,
         sourceUrl: entry.sourceUrl, authority: entry.authority,
         ...loaded };
     })),
@@ -944,7 +962,7 @@ async function prepareAuthorityBook(
       const ocrTextByPage = source.authority ? source.ocrTextByPage?.map((text, index) =>
         bookScanPolicy(draft) === "full" || bookScanPolicy(draft) === "cited-pages" && cited.has(index)
           ? pdfNormalized(text).replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?") : "") : undefined;
-      return { key: source.key, name: source.name, tab: source.tab, sourceUrl: source.sourceUrl,
+      return { key: source.key, name: source.name, italic: source.italic, tab: source.tab, sourceUrl: source.sourceUrl,
         bytes: await source.document.save({ useObjectStreams: false }),
         pageIndices: source.pageIndices, databaseReference: source.databaseReference, ocrTextByPage, bookmarks,
         ...(source.outline?.length ? { outline: source.outline } : {}) };
@@ -1101,7 +1119,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
     bilingualEnactments: strictBook && !!profile.requirements?.bilingualEnactments,
     unlinkedPdfTableSources: !input.draft.settings.allowIncomplete && !!profile.requirements?.unlinkedPdfTableSources,
   };
-  const owed = (authority: AuthorityIdentity) => authorityName(input.draft, authority);
+  const owed = (authority: AuthorityIdentity) => authorityCitation(input.draft, authority).text;
   const sourceMessage = {
     missing: (authority: AuthorityIdentity) =>
       `Attach a complete PDF or exclude ${owed(authority)} before building this ${profile.label} book.`,
