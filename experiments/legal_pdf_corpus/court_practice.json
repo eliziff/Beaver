@@ -1,0 +1,73 @@
+{
+  "about": "Per court: where its official filing rules live (direct URLs, or a landing page plus a link pattern so a reissued document is picked up on the next run) and real filed books of authorities. Court ids are Authorities preset ids. Official URLs were seeded from docs/decisions/court-output-preset-receipts.json. Fetch with: python experiments/legal_pdf_corpus/court_practice.py fetch",
+  "courts": {
+    "ab-court-of-kings-bench": {
+      "profiles": ["ab-court-of-kings-bench"],
+      "rules": [
+        {"id": "ab-rules-vol-1", "url": "https://kings-printer.alberta.ca/documents/rules2010/Rules_vol_1.pdf", "title": "Alberta Rules of Court, Alta Reg 124/2010, volume 1 (Parts 1-15)"},
+        {"id": "ab-rules-vol-2", "url": "https://kings-printer.alberta.ca/documents/rules2010/Rules_vol_2.pdf", "title": "Alberta Rules of Court, volume 2 (Part 16 and Schedules, including forms)"},
+        {"id": "ab-kb-general-practice-notes", "landing": "https://www.albertacourts.ca/kb/areas-of-law/general-practice-notes", "pattern": "general-practice-note-\\d+-english\\.pdf", "title": "King's Bench General Practice Notes"},
+        {"id": "ab-kb-civil-practice-notes", "landing": "https://www.albertacourts.ca/kb/areas-of-law/civil/practice-notes", "pattern": "/qb/.*civil-practice-note.*\\.pdf", "title": "King's Bench Civil Practice Notes"},
+        {"id": "ab-kb-commercial-practice-notes", "landing": "https://www.albertacourts.ca/kb/areas-of-law/commercial/practice-notes", "pattern": "/qb/.*commercial-practice-note.*\\.pdf", "title": "King's Bench Commercial Practice Notes"},
+        {"id": "ab-kb-notices", "landing": "https://www.albertacourts.ca/kb/resources/notices-to-the-profession-public", "pattern": "/docs/default-source/qb/npp/.*(authorit|citation|legislation|electronic|digital|filing|brief).*\\.pdf", "title": "King's Bench Notices to the Profession and Public"},
+        {"id": "ab-kb-citation-guidelines", "url": "https://albertacourts.ca/kb/resources/citation-guidelines", "title": "King's Bench Citation Guidelines"},
+        {"id": "ab-kb-digital-guidelines", "url": "https://www.albertacourts.ca/kb/court-operations-schedules/guidelines-for-documents-filed-by-email-or-digital-upload", "title": "Guidelines for Documents filed by Email or Digital Upload"},
+        {"id": "ab-kb-efiling-checklist", "url": "https://www.albertacourts.ca/kb/court-operations-schedules/guidelines-for-documents-filed-by-email-or-digital-upload/efiling-checklist", "title": "Checklist for Filing of Electronic Documents"},
+        {"id": "ab-kb-efiling-checklist-pdf", "landing": "https://www.albertacourts.ca/kb/court-operations-schedules/guidelines-for-documents-filed-by-email-or-digital-upload/efiling-checklist", "pattern": "checklist.*\\.pdf", "title": "Email filing checklist (PDF)"},
+        {"id": "ab-kb-civil-special-chambers", "url": "https://www.albertacourts.ca/kb/court-operations-schedules/scheduling/civil-special-chambers", "title": "Civil Special Chambers filing requirements"}
+      ],
+      "examples": [
+        {"id": "kb-2024-rmap-boa", "url": "http://cfcanada.fticonsulting.com/RMAP/docs/2401%2006383-Filed-2024-07-02-Book%20of%20Authorities.pdf", "cover": "KING'S BENCH", "description": "Book of Authorities filed 2024-07-02, KB action 2401 06383 (FTI monitor site)"},
+        {"id": "kb-mantle-boa", "url": "http://cfcanada.fticonsulting.com/mantle/docs/Book%20of%20Authorities%20-%20filed.pdf", "cover": "KING'S BENCH", "description": "Book of Authorities (filed), Mantle Materials proceeding (FTI monitor site)"},
+        {"id": "kb-2025-freedom-cannabis-boa", "url": "https://assets.kpmg.com/content/dam/kpmgsites/ca/pdf/creditorlinks/freedom-cannabis/2025-04-22-book-of-authorities.pdf", "cover": "KING'S BENCH", "description": "Book of Authorities 2025-04-22, Freedom Cannabis proceeding (KPMG)"},
+        {"id": "kb-2024-cop-bp-energy-boa", "url": "https://cdncases.alixpartners.com/docs/default-source/insolvency-case-documents/canadian-overseas-petroleum/ccaa-proceedings/motion-materials/book-of-authorities-to-the-bench-brief-of-bp-energy-dated-april-23-2024.pdf", "cover": "KING'S BENCH", "description": "Book of Authorities to the Bench Brief of BP Energy, 2024-04-23, Canadian Overseas Petroleum CCAA (AlixPartners)"},
+        {"id": "kb-2025-irrc-boa", "url": "https://cdncases.alixpartners.com/docs/default-source/insolvency-case-documents/independent-renewable-resources-corp/receivership-proceedings/application-materials/book-of-authorities-opposing-receivership-dated-november-6-2025.pdf", "cover": "KING'S BENCH", "description": "Book of Authorities opposing receivership, 2025-11-06, Independent Renewable Resources Corp (AlixPartners)"},
+        {"id": "kb-2025-ask-courier-boa", "url": "https://mnpdebt.ca/-/media/files/mnpdebt/corporate/corporate-engagements/bankruptcy/ask-courier-express-corp/aug-18-2025-book-of-authorities.pdf", "cover": "KING'S BENCH", "description": "Book of Authorities 2025-08-18, ASK Courier Express Corp bankruptcy (MNP)"},
+        {"id": "kb-2026-skyview-boa", "url": "https://mnpdebt.ca/-/media/files/mnpdebt/corporate/corporate-engagements/receivership/skyview-parking-and-to-let-housing/april-7-2026-book-of-authorities.pdf", "cover": "KING'S BENCH", "description": "Book of Authorities 2026-04-07, Skyview Parking receivership (MNP)"},
+        {"id": "kb-2025-rbc-boa", "url": "https://www.bdo.ca/getmedia/1fae6404-e489-464e-a7c1-93fdf7e3cb62/Book-of-Authorities-filed-by-RBC-filed-January-31-2025.pdf", "cover": "KING'S BENCH", "description": "Book of Authorities filed by RBC, 2025-01-31 (BDO)"}
+      ]
+    },
+    "ab-court-of-appeal": {
+      "profiles": ["ab-court-of-appeal"],
+      "rules": [
+        {"id": "ab-rules-vol-1", "url": "https://kings-printer.alberta.ca/documents/rules2010/Rules_vol_1.pdf", "title": "Alberta Rules of Court, volume 1 (Part 14 appeals)"},
+        {"id": "ab-ca-authorities-guide", "url": "https://www.albertacourts.ca/docs/default-source/ca/finding-and-providing-authorities.pdf", "title": "Finding and Providing Authorities"},
+        {"id": "ab-ca-boa-requirements-2019", "url": "https://albertacourts.ca/docs/default-source/ca/book-of-authorities-mandatory-requirements-and-check-return-form.pdf", "title": "Book of Authorities mandatory requirements and check/return form (2019; superseded by the 2024 guide)"},
+        {"id": "ab-ca-directions", "landing": "https://www.albertacourts.ca/ca/publications/directions", "pattern": "consolidated-practice-directions\\.pdf|practice-direction---electronic-filing\\.pdf", "title": "Consolidated Practice Directions and the Electronic Filing Practice Direction"},
+        {"id": "ab-ca-electronic-filing-direction", "url": "https://cams.albertacourts.ca/public-portal/files/practiceDirection.pdf", "title": "Practice Direction on Electronic Filing (CAMS)"},
+        {"id": "ab-ca-electronic-format", "url": "https://cams.albertacourts.ca/public-portal/files/electronicFilingFormatRequirements.pdf", "title": "Electronic Filing Format Requirements (CAMS)"},
+        {"id": "ab-ca-condensed-books-overview", "url": "https://albertacourts.ca/docs/default-source/ca/condensed-books-overview.pdf", "title": "Condensed Books Overview"},
+        {"id": "ab-ca-notices", "landing": "https://www.albertacourts.ca/ca/publications/notices", "pattern": "/ca/publications/notices/.*(part-14|consolidated-practice-directions|condensed-books|e-filing)", "title": "Court of Appeal Notices to the Profession and Public"}
+      ],
+      "examples": []
+    },
+    "federal-court": {
+      "profiles": ["federal-court", "federal-court-appeal"],
+      "rules": [
+        {"id": "fc-rules", "url": "https://laws-lois.justice.gc.ca/PDF/SOR-98-106.pdf", "title": "Federal Courts Rules, SOR/98-106 (Justice Laws PDF)"},
+        {"id": "fc-practice-guidelines", "landing": "https://www.fct-cf.ca/en/pages/law-and-practice/notices", "pattern": "^(?!.*ARCHIVED).*Consolidated-General-Practice-Guidelines.*\\.pdf$", "title": "Federal Court Consolidated General Practice Guidelines"},
+        {"id": "fc-common-list-of-authorities", "landing": "https://www.fct-cf.ca/en/pages/law-and-practice/notices", "pattern": "Common(%20| )List|Book-of-Authorities", "title": "Federal Court Common List of Authorities notice and volumes"},
+        {"id": "fc-efiling", "url": "https://www.fct-cf.ca/en/pages/online-access/e-filing", "title": "Federal Court e-filing page"},
+        {"id": "fc-efiling-guide", "landing": "https://www.fct-cf.ca/en/pages/online-access/e-filing", "pattern": "E-filing-Guide.*\\.pdf", "title": "Federal Court e-filing guide"}
+      ],
+      "examples": [
+        {"id": "fc-2019-t-1621-19-agc-boa", "url": "https://fncaringsociety.com/sites/default/files/book_of_authorities_of_the_attorney_general_of_canada_-_t-1621-19_-_22_november_2019.pdf", "cover": "FEDERAL COURT", "description": "Book of Authorities of the Attorney General of Canada, T-1621-19, 2019-11-22 (motion for stay; First Nations Child and Family Caring Society site)"},
+        {"id": "fc-2019-t-1621-19-fncfcsc-boa", "url": "https://fncaringsociety.com/sites/default/files/book_of_authorities_of_fncfcsc.pdf", "cover": "FEDERAL COURT", "description": "Book of Authorities of the Respondent First Nations Child and Family Caring Society, T-1621-19, December 2019 (costs submissions)"},
+        {"id": "fc-2019-t-1621-19-afn-boa", "url": "https://fncaringsociety.com/sites/default/files/2019_11_19_afn_book_of_authorities.pdf", "cover": "FEDERAL COURT", "description": "Book of Authorities of the Respondent Assembly of First Nations, T-1621-19, 2019-11-19"}
+      ]
+    },
+    "federal-court-of-appeal": {
+      "profiles": ["federal-court-of-appeal"],
+      "rules": [
+        {"id": "fc-rules", "url": "https://laws-lois.justice.gc.ca/PDF/SOR-98-106.pdf", "title": "Federal Courts Rules, SOR/98-106 (Justice Laws PDF)"},
+        {"id": "fca-consolidated-direction", "landing": "https://www.fca-caf.ca/en/pages/how-to-proceed-in-the-court/consolidated-practice-direction", "pattern": "Consolidated-Practice-Direction.*\\.pdf", "title": "Federal Court of Appeal Consolidated Practice Direction"},
+        {"id": "fca-efiling-guide", "url": "https://efiling.fca-caf.gc.ca/en/online-access/guide", "title": "Federal Court of Appeal e-filing guide"}
+      ],
+      "examples": [
+        {"id": "fca-2024-a-102-20-apr-supp-boa", "url": "http://docs.airpassengerrights.ca/Federal_Court_of_Appeal/A-102-20/2024-04-04--APR--supplementary_book_of_authorities.pdf", "cover": "FEDERAL COURT OF APPEAL", "description": "Applicant's Supplementary Book of Authorities, Air Passenger Rights v Canada (AG), A-102-20, 2024-04-04"},
+        {"id": "fca-2015-a-366-14-appellant-boa", "url": "http://docs.airpassengerrights.ca/Federal_Court_of_Appeal/A-366-14/2015-02-16--Lukacs--book_of_authorities--DIGITAL-R.pdf", "cover": "FEDERAL COURT OF APPEAL", "description": "Book of Authorities of the Appellant, Lukács v Canadian Transportation Agency, A-366-14, 2015-02-16"},
+        {"id": "fca-2015-a-218-14-intervener-boa", "url": "http://docs.airpassengerrights.ca/Federal_Court_of_Appeal/A-218-14/2015-02-12--Commissioner--book_of_authorities--R.pdf", "cover": "FEDERAL COURT OF APPEAL", "description": "Book of Authorities of the Intervener Privacy Commissioner of Canada, Lukács v Canadian Transportation Agency, A-218-14, 2015-02-12"}
+      ]
+    }
+  }
+}

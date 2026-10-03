@@ -80,3 +80,15 @@ python experiments/legal_pdf_corpus/harvest.py verify
 Only public links are used. A public link does not imply unrestricted
 republication rights; consult the originating body and item-level terms where
 applicable.
+
+## Court practice sources
+
+`court_practice.json` lists, for each court an Authorities preset targets, where
+its filing rules live (direct URLs, or a landing page plus a link pattern so a
+reissued practice direction is found on the next run) and real filed books of
+authorities. `court_practice.py fetch` stores every distinct version under
+`pdfs/ca/court-practice/<court>/{rules,examples}/` and indexes metadata and
+per-page text in the ignored `court_practice.sqlite`; `court_practice.py search
+"<fts query>" --court <court>` cites a passage by document, sha256 and page.
+Adding a court means adding a registry entry. Example books are party filings:
+keep them, their text and the index out of Git.
