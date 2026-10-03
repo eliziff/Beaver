@@ -7,14 +7,12 @@ import { FileInputButton } from "./FileInputButton";
 import { authorityName, authorityLabel, authorityCitationLine, authorityCitationText,
   requiresBilingualSources, requiresPdf,
   missingSource, relinkable } from "./authorityPresentation";
-import { BookOpen, ChevronRight, Eye, FileCheck2, FilePlus2, FileType2, FileX2, FolderSearch, LockKeyhole,
-  History, Loader2, Plus, Scale, Settings2, SlidersHorizontal, Upload } from "lucide-react";
+import { BookOpen, ChevronRight, Eye, FilePlus2, FolderSearch,
+  History, Loader2, Plus, Scale, Settings2, Upload } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 import { pdfOpening } from "@/app/lib/inspectPdf";
-import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
-import { CourtChoiceModal } from "@/app/components/modals/CourtChoiceModal";
 import { ModalSelect, SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
@@ -28,11 +26,11 @@ import { downloadBlob } from "@/app/lib/download";
 import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
-import { rowControl, rowLabel, Sources, type BookFiles } from "./AuthoritySources";
+import { Sources, type BookFiles } from "./AuthoritySources";
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCard, OptionCards } from "./OptionCards";
-import { OutputCards, OutputOptionsModal, type OutputCard } from "./OutputCards";
-import { BookFrontModal, completeFederalCover, coverForm } from "./BookFront";
+import { BuildRows, type BuildRow } from "./OutputCards";
+import { CourtSelect, CoverEditor, IndexEditor, coverForm, coverNeedsDetails } from "./BookFront";
 import { ImportWizard, SCANNED_OPTIONS, SOURCE_OPTIONS, type Remembered } from "./ImportWizard";
 import { courtChange } from "./courtChange";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
@@ -40,7 +38,7 @@ import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
   AuthoritiesLibraryPdfTarget,
   AuthoritiesSourceIssue } from "./host";
-import { AUTHORITIES_PROFILES, AUTHORITY_PROFILE_BY_ID, authoritiesProfile } from "./profiles";
+import { AUTHORITY_PROFILE_BY_ID, authoritiesProfile } from "./profiles";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesProduct,
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesProfileId,
   AuthorityIdentity, AuthorityKind, AuthoritySourceLanguage } from "./types";
@@ -141,6 +139,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const runningRef = useRef(false);
   const [operation, setOperation] = useState("");
   const [building, setBuilding] = useState(false);
+  /** The Build step's row open, for the draft it was opened in. */
+  const [buildRow, setBuildRow] = useState<{ draftId: string; key: string }>();
   const [message, setMessage] = useState(""), [error, setError] = useState("");
   const [stepFailure, setStepFailure] = useState("");
   const [libraryTarget, setLibraryTarget] = useState<LibraryTarget>(), [addOpen, setAddOpen] = useState(false);
@@ -1078,14 +1078,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     parts: draft.state.bookParts.supplements.map((part, index) => ({ part,
       tab: tabLabel(reproduced + index + 1, draft.state.settings.tabStyle, draft.state.settings) })) } : undefined;
   const buildPanel = draft && stage === "build" && <BuildPanel host={host} draft={shown!} busy={busy} building={building}
-    progress={building ? message : ""} convertsWord={convertsWord}
+    open={buildRow?.draftId === draft.id ? buildRow.key : undefined}
+    onOpen={(key) => setBuildRow(key ? { draftId: draft.id, key } : undefined)} convertsWord={convertsWord}
     jurisdictionOrder={jurisdictionOrder}
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
       ? buildLinks.warnings : undefined}
     onAction={act} sourceIssues={sourceIssues}
     onRelink={relinkSource} onOpenSource={host.readSource ? openSource : undefined}
-    files={bookFiles} sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
-    onDownload={download} />;
+    files={bookFiles} sourceLabel={sourceLabel} onDownload={download} />;
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights key={draft.id} product={draft}
     tabs={authorityTabs} busy={busy} host={host} ocr={ocr} onAction={act} onSaved={adopt} />;
   // An open finding stays in place while its quotations are rechecked (items undefined).
@@ -1198,10 +1198,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                         {briefMoved ? "Reconnect" : "Allow file access"}</Button>}
                       <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
                         error={stepError} className="min-w-0" />
-                      {/* Every step's Next sits here; the last step keeps its room. */}
-                      <Button className={cn("h-9", !stepNext && "invisible")} aria-hidden={!stepNext || undefined}
-                        tabIndex={stepNext ? undefined : -1} disabled={busy || !stepNext}
-                        onClick={stepNext}>Next<ChevronRight /></Button></>} />
+                      {/* Every step's Next sits here, and on the last step, Build. A cover still needing its
+                          details opens where they are given. */}
+                      {stage === "build" ? <Button className="h-9 min-w-24" disabled={busy && !building}
+                        onClick={building ? () => buildRequest.current?.abort() : coverNeedsDetails(draft.state)
+                          ? () => setBuildRow({ draftId: draft.id, key: "cover" }) : () => build()}>
+                        {building ? <><Loader2 className="motion-safe:animate-spin" /> Cancel</> : <><BookOpen /> Build</>}</Button>
+                        : <Button className={cn("h-9 min-w-24", !stepNext && "invisible")} aria-hidden={!stepNext || undefined}
+                          tabIndex={stepNext ? undefined : -1} disabled={busy || !stepNext}
+                          onClick={stepNext}>Next<ChevronRight /></Button>}</>} />
                   {/* Every step starts the same distance below the steps, so switching moves nothing. */}
                   <div id="authorities-step" role="tabpanel" className="flow-root [&>*:first-child]:mt-2"
                     aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
@@ -1375,9 +1380,9 @@ function ManualStart({ title, busy, preferences, jurisdictionOrder,
     <label className="mt-5 block text-sm font-medium text-gray-800">Book title
       <Input value={title} onChange={(event) => onTitle(event.target.value)}
         className="mt-1 h-10 border-gray-400 md:text-base" /></label>
-    <AuthoritiesCourtField value={preferences.profileId} disabled={busy}
-      preferredKeys={jurisdictionOrder} className="mt-4 w-full" bookOnly
-      onChange={(profileId) => onPreferences(courtChosen(preferences, profileId))} />
+    <div className="mt-4 text-sm font-medium text-gray-800">Court
+      <CourtSelect value={preferences.profileId} disabled={busy} preferred={jurisdictionOrder} className="mt-1" bookOnly
+        onChange={(profileId) => onPreferences(courtChosen(preferences, profileId))} /></div>
     <div className="mt-4 flex flex-wrap gap-2">
         {onPick ? <Button type="button" className="h-11" disabled={busy} onClick={onPick}>
         <FilePlus2 /> Add files</Button> : <FileInputButton multiple disabled={busy}
@@ -1413,54 +1418,30 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
   </section>;
 }
 
-function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, className,
-  bookOnly = false }: {
-  value: AuthoritiesProfileId; disabled?: boolean; preferredKeys: string[];
-  onChange: (value: AuthoritiesProfileId) => void; className?: string; bookOnly?: boolean;
-}) {
-  const current = authoritiesProfile(value);
-  const [open, setOpen] = useState(false);
-  const available = AUTHORITIES_PROFILES
-    .filter((item) => !bookOnly || item.locked?.outputMode !== "table");
+const LOCATIONS = { pages: "pages", pinpoints: "pinpoints", combined: "pages and pinpoints" } as const;
+const ACTION = "h-8 border-gray-400 px-2.5 text-xs";
 
-  return <div className={className}>
-    <ChoiceModalButton icon={<Scale aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-500" />}
-      label="Court" value={current.label} disabled={disabled} className="w-full"
-      onClick={() => setOpen(true)} />
-    <CourtChoiceModal open={open} title="Choose court" searchLabel="Search courts"
-      value={value} preferredKeys={preferredKeys}
-      options={available.map(({ id, label, court, jurisdiction }) => ({ value: id, label,
-        jurisdictionId: jurisdiction.id, keywords: court.abbreviation }))}
-      onChange={(id) => onChange(id as AuthoritiesProfileId)} onClose={() => setOpen(false)} />
-  </div>;
-}
-
-function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, onAction, sourceIssues,
-  convertsWord, linkWarnings, onRelink, files, sourceLabel, onOpenSource, onBuild, onCancel, onDownload }: {
+function BuildPanel({ host, draft, busy, building, open, onOpen, jurisdictionOrder, onAction, sourceIssues,
+  convertsWord, linkWarnings, onRelink, files, sourceLabel, onOpenSource, onDownload }: {
   host: AuthoritiesHost; draft: AuthoritiesProduct; busy: boolean; building: boolean;
-  /** What the build is doing now. */
-  progress: string;
+  /** The row open, one at a time. */
+  open?: string; onOpen: (key?: string) => void;
   convertsWord?: boolean;
   linkWarnings?: AuthoritiesBuildReceipt["linkWarnings"];
   jurisdictionOrder: string[];
-  onAction: ActionHandler; onBuild: () => void; onCancel: () => void;
+  onAction: ActionHandler;
   sourceIssues: Record<string, AuthoritiesSourceIssue>; onRelink: (role: string) => void;
   files: BookFiles;
   sourceLabel?: string;
   onOpenSource?: (role: string) => void;
   onDownload: (documentId: string, versionId: string, filename: string) => void;
 }) {
-  const [frontOpen, setFrontOpen] = useState(false);
-  const [options, setOptions] = useState<"book" | "word" | "final">();
   const [courtNote, setCourtNote] = useState<{ id: string; text: string }>();
   const { state } = draft, settings = state.settings;
   const profile = authoritiesProfile(settings.profileId);
   const manual = state.import.kind === "manual";
   const wordDocument = state.import.kind === "document" && state.import.fileType === "docx";
   const book = state.outputMode !== "table", table = state.outputMode !== "book";
-  const generatedFederalCover = book && coverForm(settings.profileId) === "federal" && !state.bookParts.cover;
-  const coverDetailsReady = !generatedFederalCover || completeFederalCover(state.cover);
-  const filingRoleReady = !generatedFederalCover || !!settings.bookRole;
   const indexShows = settings.indexShows ?? (profile.requirements?.federalFormatting ? "tabs-and-pages" : "tabs");
   // Without a converter here, a Word brief reaches the final PDF as a PDF the user saved from Word.
   const briefSlot = wordDocument && convertsWord === false;
@@ -1472,91 +1453,120 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   };
   const outputMode = (makeBook: boolean, makeTable: boolean) => onAction({ type: "set-output-mode",
     outputMode: makeBook && makeTable ? "both" : makeTable ? "table" : "book" });
-  // What Build still needs is said beside it. A missing PDF is no such thing: the book builds without it.
-  const note = !coverDetailsReady ? "Add the cover details to build." : !filingRoleReady ? "Choose who is filing to build." : "";
-  const lockedMode = profile.locked?.outputMode ? `${profile.label} takes a Table of Authorities, not a book.` : undefined;
+  const lockedMode = profile.locked?.outputMode ? `The ${profile.label} takes a Table of Authorities, not a book.` : undefined;
   const tabbed = (settings.citationSuffix ?? "none") !== "none";
-  const wordParts = [...state.insertIntoDocument ? [settings.tableDelivery === "native-marks"
-      ? "each citation marked for Word’s Table of Authorities"
-      : settings.tableDelivery === "linked-append" ? "a linked Table of Authorities on a new last page"
-        : "each citation marked and Word’s Table of Authorities on a new last page"] : [],
-    ...tabbed ? ["its tab after each citation"] : []];
-  const cards: OutputCard[] = [
-    { key: "book", title: "Book of Authorities", roles: Object.keys(draft.outputs).filter((role) => /^book(?:-\d+)?$/u.test(role)),
-      sentence: book ? "A PDF of each authority behind its tab, after the cover and the index." : lockedMode ?? "Not made.",
-      onOptions: () => setOptions("book") },
-    ...manual ? [] : [wordDocument ? { key: "word", title: "Word copy", roles: ["annotated-document", "table"],
-      sentence: [wordParts.length ? `A copy of your brief with ${wordParts.join(", and ")}.` : "",
-        table ? "A Table of Authorities in a Word document of its own." : ""].join(" ").trim() || "Not made.",
-      onOptions: () => setOptions("word") }
-      : { key: "word", title: "Table of Authorities", roles: ["table", "annotated-document"],
-        sentence: [table ? "A Table of Authorities as a Word document." : "",
-          state.insertIntoDocument ? "Your brief, then the table and the authorities, in one PDF." : ""].join(" ").trim() || "Not made.",
-        onOptions: () => setOptions("word") },
-    { key: "final", title: "Final PDF", roles: ["final-pdf", "link-report"],
-      sentence: settings.finalPdf ? `Your brief, then the book, in one PDF.${waiting ? " It needs your brief saved as PDF." : ""}` : "Not made.",
-      onOptions: () => setOptions("final") }],
-  ];
-  return <section className="@container/build mt-3 grid gap-5 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-    <div className="grid gap-1">
-      <AuthoritiesCourtField value={settings.profileId} disabled={busy} className="max-w-md"
-        preferredKeys={jurisdictionOrder} bookOnly={manual}
+  const marks = !state.insertIntoDocument ? "" : settings.tableDelivery === "native-marks"
+    ? "each citation marked for Word’s Table of Authorities" : settings.tableDelivery === "linked-append"
+      ? "a linked Table of Authorities on a new last page" : "each citation marked and Word’s Table of Authorities on a new last page";
+  const wordCopy = marks ? `Creates a copy of your brief with ${marks}.${tabbed ? " Each citation is followed by its tab." : ""}`
+    : tabbed ? "Creates a copy of your brief with each citation followed by its tab." : "Not created.";
+  const form = coverForm(settings.profileId), needsDetails = coverNeedsDetails(state);
+  const grouping = settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first");
+  const actions = (list: AuthoritiesAction[]) => list.forEach((action) => onAction(action));
+  const partFile = (slot: "cover" | "index") => <PartFile slot={slot} draft={draft} busy={busy} files={files}
+    issue={state.bookParts[slot] ? sourceIssues[state.bookParts[slot]!.bindingRole] : undefined} sourceLabel={sourceLabel}
+    onOpen={onOpenSource} onRelink={onRelink} onAction={onAction} />;
+  const front: BuildRow[] = [
+    { key: "court", title: "Court", summary: profile.label, settings: <div className="grid max-w-xl gap-1">
+      <CourtSelect value={settings.profileId} disabled={busy} preferred={jurisdictionOrder} bookOnly={manual}
         onChange={(profileId) => profileId !== settings.profileId && onAction({ type: "set-profile", profileId },
           (next) => setCourtNote({ id: next.id, text: courtChange(state, next.state) }))} />
       {/* What the court changed: its line is always there, so saying it moves nothing. */}
       <p role="status" className="min-h-4 text-xs leading-4 text-gray-600">{courtNote?.id === draft.id ? courtNote.text : ""}</p>
-    </div>
-    {book && <BookContents draft={draft} busy={busy} onAction={onAction}
-      sourceIssues={sourceIssues} onRelink={onRelink} files={files} sourceLabel={sourceLabel}
-      onOpen={onOpenSource} settings={{
-        cover: { label: coverDetailsReady && filingRoleReady ? "Edit" : "Add details",
-          detail: generatedFederalCover && !(coverDetailsReady && filingRoleReady) ? "Details required"
-            : `Generated${state.cover.title ? ` · ${state.cover.title}` : ""}`, onClick: () => setFrontOpen(true) },
-        index: { label: "Edit", detail: `Generated · ${indexShows === "tabs-and-pages" ? "tabs and pages" : "tabs"}`,
-          onClick: () => setFrontOpen(true) } }} />}
-    <OutputCards draft={draft} cards={cards} busy={busy} building={building} progress={progress} note={note}
-      linkWarnings={linkWarnings} onBuild={note ? () => setFrontOpen(true) : onBuild} onCancel={onCancel} onDownload={onDownload} />
-    <OutputOptionsModal open={options === "book"} onClose={() => setOptions(undefined)} title="Book of Authorities"
-      made={book} madeLabel="Make the Book of Authorities" madeDetail="A PDF of each authority behind its tab, after the cover and the index."
-      lockedReason={lockedMode} disabled={busy || manual || !table}
-      onMade={(made) => outputMode(made, table)}>
-      {profile.options?.missingSourcePolicy && <OptionCards legend="Authorities without a PDF" value={settings.missingSourcePolicy}
-        disabled={busy} options={[{ value: "placeholder", label: "Keep their tabs", detail: "A page naming the authority takes its place." },
-          { value: "omit", label: "Leave out of the book", detail: "The other tabs keep their numbers." }]} columns
-        onChange={(missingSourcePolicy) => onAction({ type: "set-settings", settings: { missingSourcePolicy } })} />}
-    </OutputOptionsModal>
-    {!manual && (wordDocument ? <OutputOptionsModal open={options === "word"} onClose={() => setOptions(undefined)} title="Word copy">
-      <AuthoritiesOutputOptions disabled={busy}
-        value={{ ...settings, insertIntoDocument: state.insertIntoDocument }}
-        lockedDelivery={profile.locked?.settings?.tableDelivery}
-        firstTab={tabLabel(1, settings.tabStyle, settings)} onChange={onOptions} />
-      <TableOptions draft={draft} busy={busy} onMade={(made) => outputMode(book || !made, made)} onAction={onAction} />
-    </OutputOptionsModal> : <OutputOptionsModal open={options === "word"} onClose={() => setOptions(undefined)} title="Table of Authorities">
-      <TableOptions draft={draft} busy={busy} onMade={(made) => outputMode(book || !made, made)} onAction={onAction} pdfBrief />
-    </OutputOptionsModal>)}
-    {!manual && <OutputOptionsModal open={options === "final"} onClose={() => setOptions(undefined)} title="Final PDF"
-      made={!!settings.finalPdf} madeLabel="Make the final PDF" disabled={busy}
-      madeDetail="Your brief first and the Book of Authorities after it, in one PDF." onMade={(finalPdf) => onOptions({ finalPdf })}>
-      <FinalPdfOptions value={settings} onChange={onOptions} disabled={busy}
-        brief={briefSlot ? <BriefPdf draft={draft} busy={busy} part={brief}
-          onAction={onAction} onPick={files.onPick} onFiles={files.onFiles} /> : undefined} />
-    </OutputOptionsModal>}
-    {frontOpen && <BookFrontModal host={host} draft={draft} busy={busy} onClose={() => setFrontOpen(false)}
-      onActions={(actions) => actions.forEach((action) => onAction(action))} />}
+    </div> },
+    ...book ? [{ key: "cover", title: "Cover", alert: needsDetails,
+      summary: state.bookParts.cover ? `Uses your PDF, ${state.bookParts.cover.filename}.`
+        : needsDetails ? "Note: Requires the court file number, the parties and who is filing."
+        : `Creates ${form === "federal" ? "Form 66" : form === "alberta" ? "the Alberta cover" : "a plain cover"}, titled “${
+          state.cover.title || "Book of Authorities"}”${state.cover.courtFileNumber ? `, for court file ${state.cover.courtFileNumber}` : ""}.`,
+      settings: <CoverEditor host={host} draft={draft} busy={busy} file={partFile("cover")} onActions={actions} /> },
+    { key: "index", title: "Index", summary: state.bookParts.index ? `Uses your PDF, ${state.bookParts.index.filename}.`
+      : `Creates an index of each authority’s tab${indexShows === "tabs-and-pages" ? " and pages" : ""}, ${
+        ({ "cases-first": "cases first", "legislation-first": "legislation first", none: "not grouped" })[grouping]}, ${
+        ({ alphabetical: "in alphabetical order", "first-reference": "in the order first cited", custom: "in the order you arranged" })[settings.tableOrder]}.`,
+      settings: <IndexEditor host={host} draft={draft} busy={busy} file={partFile("index")} onActions={actions} /> }] : [],
+  ];
+  // Each output is a row; what it holds opens under it, where there is anything to choose.
+  const bookChoice = !manual && !lockedMode && table;
+  const missingPolicy = book && !!profile.options?.missingSourcePolicy;
+  const outputs: BuildRow[] = [
+    { key: "book", title: "Book of Authorities", roles: Object.keys(draft.outputs).filter((role) => /^book(?:-\d+)?$/u.test(role)),
+      summary: book ? "Creates a PDF of each authority, in tab order, after the cover and index." : lockedMode ?? "Not created.",
+      settings: (bookChoice || missingPolicy) && <>
+        {bookChoice && <OptionCard type="checkbox" checked={book} disabled={busy} onChange={(event) => outputMode(event.target.checked, table)}
+          label="Create the Book of Authorities" detail="When this is off, only the Table of Authorities is created." />}
+        {missingPolicy && <OptionCards legend="Authorities without a PDF" value={settings.missingSourcePolicy}
+          disabled={busy} options={[{ value: "placeholder", label: "Keep their tabs", detail: "Each keeps its tab, with a page naming the authority in place of its PDF." },
+            { value: "omit", label: "Leave out of the book", detail: "They are left out, and the other tabs keep their numbers." }]} columns
+          onChange={(missingSourcePolicy) => onAction({ type: "set-settings", settings: { missingSourcePolicy } })} />}
+      </> },
+    ...manual ? [] : [{ key: "table", title: "Table of Authorities",
+      roles: wordDocument ? ["table"] : ["table", "annotated-document"],
+      summary: [table ? `Creates a Word document listing the authorities your brief cites, with the ${LOCATIONS[settings.tableLocation]} where each is cited.` : "",
+        !wordDocument && state.insertIntoDocument ? "Also creates a PDF that contains your brief followed by the table and the authorities." : ""]
+        .filter(Boolean).join(" ") || "Not created.",
+      settings: <TableOptions draft={draft} busy={busy} onMade={(made) => outputMode(book || !made, made)} onAction={onAction}
+        pdfBrief={!wordDocument} /> },
+    ...wordDocument ? [{ key: "word", title: "Word copy", roles: ["annotated-document"], summary: wordCopy,
+      settings: <AuthoritiesOutputOptions disabled={busy} value={{ ...settings, insertIntoDocument: state.insertIntoDocument }}
+        lockedDelivery={profile.locked?.settings?.tableDelivery} firstTab={tabLabel(1, settings.tabStyle, settings)}
+        onChange={onOptions} /> }] : [],
+    { key: "final", title: "Final PDF", roles: ["final-pdf", "link-report"], alert: waiting,
+      summary: settings.finalPdf ? `Creates a PDF that contains your brief followed by the book.${waiting
+        ? " Note: Requires you to upload your brief as a PDF." : ""}` : "Not created.",
+      settings: <>
+        <OptionCard type="checkbox" checked={!!settings.finalPdf} disabled={busy} onChange={(event) => onOptions({ finalPdf: event.target.checked })}
+          label="Create the final PDF" />
+        {settings.finalPdf && <FinalPdfOptions value={settings} onChange={onOptions} disabled={busy}
+          brief={briefSlot ? <BriefPdf draft={draft} busy={busy} part={brief}
+            onAction={onAction} onPick={files.onPick} onFiles={files.onFiles} /> : undefined} />}
+      </> }]];
+  return <section aria-label="Build book" className="mt-3">
+    <BuildRows draft={draft} open={open} onOpen={onOpen} building={building} linkWarnings={linkWarnings} onDownload={onDownload}
+      groups={[{ label: "Court and front of book", rows: front }, { label: "Outputs", rows: outputs }]} />
   </section>;
 }
 
-/** The Table of Authorities as a Word document of its own: whether it is made and where it says an
- *  authority is cited; for a PDF brief, also how the table is made and the brief with it in one PDF. */
+/** The cover's or the index's own PDF, where one replaces the page the book makes: which it is, and
+ *  the actions on it, at the top of its settings. */
+function PartFile({ slot, draft, busy, issue, files, sourceLabel = "Library", onOpen, onRelink, onAction }: {
+  slot: "cover" | "index"; draft: AuthoritiesProduct; busy: boolean; issue?: AuthoritiesSourceIssue; files: BookFiles;
+  sourceLabel?: string; onOpen?: (role: string) => void; onRelink: (role: string) => void; onAction: ActionHandler;
+}) {
+  const part = draft.state.bookParts[slot], name = slot === "cover" ? "cover" : "index";
+  const replace = part ? "Replace" : "Use a PDF instead";
+  return <div className="flex min-h-8 flex-wrap items-center gap-2 text-sm text-gray-700">
+    <p className="min-w-0 flex-1 truncate" title={part?.filename}>{part
+      ? <>Uses your PDF, <span className="font-medium text-gray-950">{part.filename}</span>.{issue && " It can’t be opened."}</>
+      : slot === "cover" ? "The cover is created from the details below." : "The index is created from the settings below."}</p>
+    {part && onOpen && <Button type="button" variant="outline" className={ACTION} disabled={busy}
+      aria-label={`View the ${name}`} onClick={() => onOpen(part.bindingRole)}><Eye />View</Button>}
+    {part && relinkable(issue) ? <Button type="button" variant="outline" className={cn(ACTION, "text-red-800")} disabled={busy}
+      onClick={() => onRelink(part.bindingRole)}><FilePlus2 />Allow file access</Button>
+      : files.onPick ? <Button type="button" variant="outline" className={ACTION} disabled={busy}
+        aria-label={`${replace}: ${name}`} onClick={() => files.onPick!(slot, false)}><Upload />{replace}</Button>
+      : <FileInputButton multiple={false} disabled={busy} label={replace} ariaLabel={`${replace}: ${name}`}
+        accept=".pdf,application/pdf" onFiles={(chosen) => files.onFiles(slot, chosen)} variant="outline" className={ACTION}
+        icon={<Upload />} />}
+    {files.onLibrary && <Button type="button" variant="outline" className={ACTION} disabled={busy}
+      aria-label={`Choose the ${name} from ${sourceLabel}`} onClick={() => files.onLibrary!(slot)}><FolderSearch />{sourceLabel}</Button>}
+    {part && <Button type="button" variant="outline" className={ACTION} disabled={busy}
+      onClick={() => onAction({ type: "clear-book-part", slot })}>Use generated</Button>}
+  </div>;
+}
+
+/** The Table of Authorities as a Word document of its own: whether it is made, where the court leaves
+ *  that open, and where it says an authority is cited; for a PDF brief, also how the table is made and
+ *  the brief with it in one PDF. */
 function TableOptions({ draft, busy, onMade, onAction, pdfBrief = false }: { draft: AuthoritiesProduct; busy: boolean;
   onMade: (made: boolean) => void; onAction: ActionHandler; pdfBrief?: boolean }) {
   const { state } = draft, profile = authoritiesProfile(state.settings.profileId);
   const table = state.outputMode !== "book";
   return <>
-    <OptionCard type="checkbox" checked={table} disabled={busy || !!profile.locked?.outputMode}
-      onChange={(event) => onMade(event.target.checked)} label="A Table of Authorities in its own Word document"
-      detail={profile.locked?.outputMode ? `${profile.label} takes a Table of Authorities.` : "Each authority, grouped and ordered as the book is, with where the brief cites it."} />
-    {table && <div className="grid gap-3 sm:grid-cols-2">
+    {!profile.locked?.outputMode && <OptionCard type="checkbox" checked={table} disabled={busy}
+      onChange={(event) => onMade(event.target.checked)} label="Create the Table of Authorities"
+      detail="Creates a Word document listing the authorities your brief cites, grouped and ordered as in the book." />}
+    {table && <div className="grid max-w-xl gap-3 sm:grid-cols-2">
       {pdfBrief && <SelectField label="Table" value={state.settings.tableDelivery}
         disabled={busy || !!profile.locked?.settings?.tableDelivery}
         onChange={(tableDelivery) => onAction({ type: "set-settings", settings: { tableDelivery } })}
@@ -1569,7 +1579,7 @@ function TableOptions({ draft, busy, onMade, onAction, pdfBrief = false }: { dra
     </div>}
     {pdfBrief && <OptionCard type="checkbox" checked={state.insertIntoDocument} disabled={busy}
       onChange={(event) => onAction({ type: "set-document-output", enabled: event.target.checked })}
-      label="Filing PDF" detail="Your brief, then the Table of Authorities, then the authorities, in one PDF." />}
+      label="Filing PDF" detail="Creates a PDF that contains your brief followed by the Table of Authorities and the authorities." />}
   </>;
 }
 
@@ -1581,7 +1591,7 @@ function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
   onFiles?: (slot: AuthoritiesBookSlot, files: File[]) => void;
 }) {
   const filename = draft.state.import.kind === "document" ? draft.state.import.filename : "the brief";
-  const label = part ? "Replace" : "Upload", control = cn(rowControl, "w-[5.625rem] px-2.5");
+  const label = part ? "Replace" : "Upload", control = cn(ACTION, "w-[5.625rem]");
   return <FileCard disabled={busy} label={part?.filename ?? "Not added yet"} detail={part
     ? "If you change the brief, save it as PDF again and replace this one."
     : briefPdfAdvice(filename, { ...draft.state.settings, insertIntoDocument: draft.state.insertIntoDocument })}
@@ -1597,65 +1607,6 @@ function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
         triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600" />
         : <span className="w-8 shrink-0" />}
     </span>} />;
-}
-
-/** What a generated cover or index is made from, and the button that opens its settings. */
-type BookPartSettings = { label: string; detail: string; onClick: () => void };
-/** The book's cover and index, each the page the book makes until a PDF replaces it, in rows as dense
- *  as the Sources list's: what it is, how it is made, then its settings, View, Replace and its options.
- *  Each row keeps the room of the buttons it may show, so a PDF arriving moves nothing. */
-function BookContents({ draft, busy, onAction, sourceIssues, onRelink, files, sourceLabel = "Library", onOpen, settings }: {
-  draft: AuthoritiesProduct; busy: boolean; onAction: (action: AuthoritiesAction) => void;
-  sourceIssues: Record<string, AuthoritiesSourceIssue>; onRelink: (role: string) => void;
-  files: BookFiles; sourceLabel?: string; onOpen?: (role: string) => void;
-  settings: Partial<Record<"cover" | "index", BookPartSettings>>;
-}) {
-  const moreTrigger = "flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600";
-  const room = "w-10 shrink-0 @min-[44rem]/sources:w-[5.625rem]";
-  return <div className="@container/sources min-w-0">
-    <h3 className="mb-2 text-sm font-semibold text-gray-950">Cover and index</h3>
-    <div className="grid grid-cols-[auto_fit-content(8rem)_minmax(0,1fr)_auto] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300">
-      {(["cover", "index"] as const).map((slot) => {
-        const part = draft.state.bookParts[slot], issue = part ? sourceIssues[part.bindingRole] : undefined;
-        const title = slot === "cover" ? "Cover" : "Index", own = settings[slot];
-        const mark = !part ? { Icon: FileType2, tone: "text-indigo-700", label: "Generated page" }
-          : issue ? { Icon: relinkable(issue) ? LockKeyhole : FileX2, tone: "text-red-700", label: "This PDF is unavailable" }
-          : { Icon: FileCheck2, tone: "text-green-700", label: "Your PDF" };
-        return <div key={slot} className="col-span-full grid min-h-10 grid-cols-subgrid items-center py-1 pl-3 pr-2">
-          <span className="flex h-4 w-4 items-center justify-center"><mark.Icon role="img" aria-label={mark.label}
-            className={cn("h-4 w-4", mark.tone)}><title>{mark.label}</title></mark.Icon></span>
-          <span className="pr-4 text-sm font-medium text-gray-950">{title}</span>
-          <span className="min-w-0 truncate text-xs text-gray-500" title={part?.filename}>
-            {part?.filename ?? own?.detail ?? "Generated"}</span>
-          <div className="flex items-center justify-end gap-1">
-            {own && !part ? <Button type="button" variant="outline" className={rowControl} disabled={busy}
-              aria-label={`${own.label}: ${title.toLowerCase()}`} title={own.label} onClick={own.onClick}>
-              <SlidersHorizontal /><span className={rowLabel}>{own.label}</span></Button>
-              : part && onOpen ? <Button type="button" variant="outline" className={rowControl}
-              aria-label={`View the ${slot}`} title="View" disabled={busy}
-              onClick={() => onOpen(part.bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>
-              : <span className={room} />}
-            {/* A slot without a PDF holds the generated page, so a chosen PDF always replaces one. */}
-            {part && relinkable(issue) ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
-              disabled={busy} onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
-              : files.onPick ? <Button type="button" variant="outline" className={rowControl}
-              aria-label={`Replace the ${part ? "" : "generated "}${slot} with a PDF`} title="Replace"
-              disabled={busy} onClick={() => files.onPick!(slot, false)}><Upload /><span className={rowLabel}>Replace</span></Button>
-              : <FileInputButton multiple={false} disabled={busy} label="Replace"
-                ariaLabel={`Replace the ${part ? "" : "generated "}${slot} with a PDF`} accept=".pdf,application/pdf"
-                onFiles={(chosen) => files.onFiles(slot, chosen)} variant="outline" compact className={rowControl}
-                icon={<Upload />} labelClassName={rowLabel} />}
-            {files.onLibrary && <Button type="button" variant="outline" className={rowControl}
-              aria-label={`Choose ${title} from ${sourceLabel}`} title={sourceLabel} disabled={busy}
-              onClick={() => files.onLibrary!(slot)}><FolderSearch /><span className={rowLabel}>{sourceLabel}</span></Button>}
-            {part ? <MoreActionsMenu label={`${title} options`} triggerClassName={moreTrigger} items={[{ label: "Use generated",
-              disabled: busy, onSelect: () => onAction({ type: "clear-book-part", slot }) }]} />
-              : <span className="w-8 shrink-0" />}
-          </div>
-        </div>;
-      })}
-    </div>
-  </div>;
 }
 
 function AuthorityDetailsModal({ open, busy, authority, onClose, onSave }: {

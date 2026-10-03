@@ -1,13 +1,12 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Plus } from "lucide-react";
-import { Modal } from "@/app/components/modals/Modal";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, Plus } from "lucide-react";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, errorMessage } from "@/app/lib/utils";
 import { OptionCard, OptionCards } from "./OptionCards";
-import { authoritiesProfile } from "./profiles";
+import { AUTHORITIES_PROFILES, authoritiesProfile } from "./profiles";
 import type { AuthoritiesHost } from "./host";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import type { AuthoritiesAction, AuthoritiesCover, AuthoritiesProduct, AuthoritiesProfileId } from "./types";
@@ -16,9 +15,8 @@ export type Settings = AuthoritiesProduct["state"]["settings"];
 /** The settings the cover and the index are drawn from. */
 export const FRONT_KEYS = ["filingMedium", "bookRole", "indexShows", "tabPages", "rightHandStarts", "grouping",
   "tableOrder"] as const;
-export const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
 /** A part of the book's front: the cover, the index. */
-const SECTION = "mb-3 w-full border-b border-gray-200 pb-1.5 text-base font-semibold text-gray-950";
+export const SECTION = "mb-3 w-full border-b border-gray-200 pb-1.5 text-base font-semibold text-gray-950";
 const FIELD = "mt-1.5 h-10 border-gray-400 md:text-base";
 const AREA = "mt-1.5 min-h-20 w-full resize-y rounded-md border border-gray-400 bg-white px-3 py-2 text-base text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600";
 const LABEL = "block min-w-0 text-sm font-medium text-gray-700";
@@ -29,6 +27,44 @@ const ORDERS = [{ value: "alphabetical", label: "Alphabetical" }, { value: "firs
 type Contact = NonNullable<AuthoritiesCover["contact"]>;
 const EMPTY_CONTACT: Contact = { name: "", address: "", phone: "", fax: "", email: "" };
 const CONTACT = [["name", "Name"], ["email", "Email"], ["address", "Address"], ["phone", "Phone"], ["fax", "Fax"]] as const;
+
+/** The court, in one control the height of a text box: its jurisdiction, then the court there. A
+ *  jurisdiction brings its first court; with no court preset the jurisdiction takes the whole box. */
+export function CourtSelect({ value, preferred = [], disabled, bookOnly = false, onChange, className }: {
+  value: AuthoritiesProfileId; preferred?: readonly string[]; disabled?: boolean; className?: string;
+  /** Only the courts a book is filed in. */
+  bookOnly?: boolean; onChange: (value: AuthoritiesProfileId) => void;
+}) {
+  const profiles = AUTHORITIES_PROFILES.filter((item) => !bookOnly || item.locked?.outputMode !== "table");
+  // The user's own jurisdictions first, then the rest, and no court preset last.
+  const rank = ({ id, preferenceKey }: { id: string; preferenceKey?: string }) => {
+    const index = preferred.indexOf(preferenceKey ?? id);
+    return id === "general" ? preferred.length + 1 : index < 0 ? preferred.length : index;
+  };
+  const jurisdictions = [...new Map(profiles.map(({ jurisdiction }) => [jurisdiction.id, jurisdiction])).values()]
+    .sort((left, right) => rank(left) - rank(right) || left.order - right.order);
+  const current = authoritiesProfile(value);
+  const courts = profiles.filter(({ jurisdiction }) => jurisdiction.id === current.jurisdiction.id);
+  return <div role="group" aria-label="Court" className={cn("grid h-9 min-w-0 rounded-md border border-gray-300 bg-white hover:border-gray-500",
+    value === "general" ? "grid-cols-1" : "grid-cols-[minmax(0,2fr)_minmax(0,3fr)]", className)}>
+    <Segment label="Jurisdiction" value={current.jurisdiction.id} disabled={disabled}
+      options={jurisdictions.map(({ id, label }) => ({ value: id, label }))}
+      onChange={(id) => onChange(profiles.find(({ jurisdiction }) => jurisdiction.id === id)!.id)} />
+    {value !== "general" && <Segment label="Court" value={value} disabled={disabled} className="border-l border-gray-300"
+      options={courts.map(({ id, label }) => ({ value: id, label }))} onChange={(id) => onChange(id as AuthoritiesProfileId)} />}
+  </div>;
+}
+function Segment({ label, value, options, disabled, className, onChange }: { label: string; value: string;
+  options: ReadonlyArray<{ value: string; label: string }>; disabled?: boolean; className?: string; onChange: (value: string) => void }) {
+  return <span className={cn("relative min-w-0", className)}>
+    <select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}
+      title={options.find((option) => option.value === value)?.label}
+      className="h-full w-full appearance-none truncate rounded-md bg-transparent pl-3 pr-8 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 disabled:cursor-default disabled:opacity-60">
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+    <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-500" />
+  </span>;
+}
 
 /** The cover the court files a book under: the Federal Court's Form 66, King's Bench's Alberta cover,
  *  or the plain one every other book has. */
@@ -46,14 +82,18 @@ export function savedCover(cover: AuthoritiesCover): AuthoritiesCover {
     ...cover.judicialCentre !== undefined && { judicialCentre: cover.judicialCentre.trim() },
     ...cover.contact && { contact: Object.fromEntries(CONTACT.map(([key]) => [key, cover.contact?.[key]?.trim() ?? ""])) as Contact } };
 }
-/** The cover a Federal Form 66 needs before the book can be built. */
-export const completeFederalCover = (cover: AuthoritiesCover) => !!cover.courtFileNumber.trim() &&
-  cover.partyGroups.length >= 2 && cover.partyGroups.every(({ role, parties }) =>
-    !!role.trim() && parties.some((party) => !!party.trim()));
+/** A Federal Form 66 the book makes needs the court file number, the parties and who files before
+ *  the book can be built. */
+export const coverNeedsDetails = ({ settings, outputMode, bookParts, cover }: AuthoritiesProduct["state"]) =>
+  outputMode !== "table" && coverForm(settings.profileId) === "federal" && !bookParts.cover && !(!!settings.bookRole &&
+    !!cover.courtFileNumber.trim() && cover.partyGroups.length >= 2 && cover.partyGroups.every(({ role, parties }) =>
+      !!role.trim() && parties.some((party) => !!party.trim())));
 
 /** The cover's details as the court's cover asks for them, with who files where the court asks. */
-export function CoverFields({ cover, profileId, settings, disabled, onCover, onSettings }: {
+export function CoverFields({ cover, profileId, settings, disabled, headless, onCover, onSettings }: {
   cover: AuthoritiesCover; profileId: AuthoritiesProfileId; settings: Settings; disabled?: boolean;
+  /** Under a row that already names it. */
+  headless?: boolean;
   onCover: (cover: AuthoritiesCover) => void; onSettings: (patch: Partial<Settings>) => void;
 }) {
   const form = coverForm(profileId), options = authoritiesProfile(profileId).options;
@@ -65,7 +105,7 @@ export function CoverFields({ cover, profileId, settings, disabled, onCover, onS
         className={FIELD} /></label>;
   const optional = <span className="font-normal text-gray-500">(optional)</span>;
   return <fieldset className="grid min-w-0 gap-4" disabled={disabled}>
-    <legend className={SECTION}>Cover</legend>
+    <legend className={headless ? "sr-only" : SECTION}>Cover</legend>
     {form === "plain" ? text(<>Title {optional}</>, cover.title, (title) => onCover({ ...cover, title }), undefined, "Book of Authorities")
       : <div className="grid gap-3 @min-[34rem]/front:grid-cols-2">
         {text("Court file number", cover.courtFileNumber, (courtFileNumber) => onCover({ ...cover, courtFileNumber }))}
@@ -113,18 +153,19 @@ export function CoverFields({ cover, profileId, settings, disabled, onCover, onS
 }
 
 /** What the index gives, how it groups and orders the authorities, and how each tab opens. */
-export function IndexFields({ settings, profileId, disabled, onChange }: {
-  settings: Settings; profileId: AuthoritiesProfileId; disabled?: boolean; onChange: (patch: Partial<Settings>) => void;
+export function IndexFields({ settings, profileId, disabled, headless, onChange }: {
+  settings: Settings; profileId: AuthoritiesProfileId; disabled?: boolean; headless?: boolean;
+  onChange: (patch: Partial<Settings>) => void;
 }) {
   const profile = authoritiesProfile(profileId), federal = !!profile.requirements?.federalFormatting;
   const electronic = settings.filingMedium === "electronic";
   const tabPages = settings.tabPages ?? !federal;
   const rightHand = !electronic && (settings.rightHandStarts ?? settings.filingMedium === "paper");
   return <fieldset className="grid min-w-0 gap-4" disabled={disabled}>
-    <legend className={SECTION}>Index</legend>
+    <legend className={headless ? "sr-only" : SECTION}>Index</legend>
     <OptionCards legend="Beside each authority" value={settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs")}
-      columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
-        { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index also gives the book pages each authority fills." }]}
+      columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index lists the tab of each authority." },
+        { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index lists the tab of each authority and the book pages it fills." }]}
       onChange={(indexShows) => onChange({ indexShows })} />
     <div className="grid gap-3 @min-[34rem]/front:grid-cols-2">
       <Choice label="Group" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
@@ -135,7 +176,7 @@ export function IndexFields({ settings, profileId, disabled, onChange }: {
     </div>
     <div className="grid gap-2">
       <OptionCard type="checkbox" checked={tabPages} onChange={() => onChange({ tabPages: !tabPages })}
-        label="A TAB page before each authority" detail="Where the index's link and the bookmark for each authority land." />
+        label="A TAB page before each authority" detail="Adds a page reading TAB and its number before each authority. The index links and bookmarks go to it." />
       <OptionCard type="checkbox" checked={rightHand} disabled={electronic} onChange={() => onChange({ rightHandStarts: !rightHand })}
         label="Start each on a right-hand page"
         detail={electronic ? "For a book printed on both sides. An electronic filing has no blank pages."
@@ -195,32 +236,48 @@ export function Preview({ label, className, children }: { label: string; classNa
   </section>;
 }
 
-/** The cover and the index at Build: the same choices as at import, the book's front beside them. */
-export function BookFrontModal({ host, draft, busy, onClose, onActions }: {
-  host: AuthoritiesHost; draft: AuthoritiesProduct; busy: boolean; onClose: () => void;
-  onActions: (actions: AuthoritiesAction[]) => void;
-}) {
+/** The cover at Build: its details as at import, kept here as they are typed and saved when the cover
+ *  is left or closed, with the book's front drawn beside them as typed. `file` is the cover's PDF line. */
+export function CoverEditor({ host, draft, busy, file, onActions }: { host: AuthoritiesHost; draft: AuthoritiesProduct;
+  busy: boolean; file: ReactNode; onActions: (actions: AuthoritiesAction[]) => void }) {
   const { profileId } = draft.state.settings;
   const [cover, setCover] = useState(draft.state.cover);
-  const [settings, setSettings] = useState<Partial<Settings>>({});
   useFilingContact(host, draft.state.cover, profileId, setCover);
-  const shown = { ...draft.state.settings, ...settings };
-  const actions = frontActions(draft.state, cover, settings);
-  return <Modal open onClose={onClose} breadcrumbs={["Cover and index"]} size="2xl"
-    className="h-[min(52rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
-    secondaryAction={{ label: "Cancel", onClick: onClose }}
-    primaryAction={{ label: "Save", disabled: busy, onClick: () => {
-      onActions(actions); onClose();
-      if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover).contact!)
-        .catch(() => undefined);
-    } }}>
-    <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={actions} />}>
-      <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setCover}
-        onSettings={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
-      <IndexFields settings={shown} profileId={profileId} disabled={busy}
-        onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
-    </FrontLayout>
-  </Modal>;
+  const latest = useRef({ cover, state: draft.state, onActions });
+  latest.current = { cover, state: draft.state, onActions };
+  const save = () => {
+    const { cover, state, onActions } = latest.current, actions = frontActions(state, cover, {});
+    if (!actions.length) return;
+    onActions(actions);
+    if (coverForm(state.settings.profileId) === "alberta" && cover.contact)
+      void host.filingContact?.save(savedCover(cover).contact!).catch(() => undefined);
+  };
+  useEffect(() => save, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return <FrontColumns preview={<FrontPreview host={host} draft={draft} actions={frontActions(draft.state, cover, {})} />}>
+    {file}
+    <div onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) save(); }}>
+      <CoverFields cover={cover} profileId={profileId} settings={draft.state.settings} disabled={busy} headless
+        onCover={setCover} onSettings={(patch) => onActions(frontActions(draft.state, cover, patch))} />
+    </div>
+  </FrontColumns>;
+}
+
+/** The index at Build: its choices as at import, each made as it is chosen, with the book's front beside. */
+export function IndexEditor({ host, draft, busy, file, onActions }: { host: AuthoritiesHost; draft: AuthoritiesProduct;
+  busy: boolean; file: ReactNode; onActions: (actions: AuthoritiesAction[]) => void }) {
+  return <FrontColumns preview={<FrontPreview host={host} draft={draft} actions={[]} />}>
+    {file}
+    <IndexFields settings={draft.state.settings} profileId={draft.state.settings.profileId} disabled={busy} headless
+      onChange={(patch) => onActions(frontActions(draft.state, draft.state.cover, patch))} />
+  </FrontColumns>;
+}
+
+/** Options on the left at their own height, the preview on the right, kept in view as they scroll. */
+function FrontColumns({ preview, children }: { preview: ReactNode; children: ReactNode }) {
+  return <div className="grid gap-5 lg:grid-cols-2">
+    <div className="@container/front grid min-w-0 content-start gap-5">{children}</div>
+    <div className="h-[30rem] min-w-0 lg:sticky lg:top-4 lg:self-start [&>section]:h-full">{preview}</div>
+  </div>;
 }
 
 /** Options on the left, each in its own scroll, and the preview on the right; one above the other
