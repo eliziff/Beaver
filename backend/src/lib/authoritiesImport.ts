@@ -466,10 +466,22 @@ function importedCover(units: NativeAuthorityTextUnit[]): AuthoritiesCover {
   const firstPage = body.filter(({ page_numbers }) => page_numbers.includes(1));
   const opening = (firstPage.length ? firstPage : body.slice(0, 80))
     .map(({ text }) => text).join("\n");
-  const fields = sourceDocumentFields(opening ? [opening] : []);
-  return { courtFileNumber: fields?.cover.courtFileNumber ?? "",
+  const fields = sourceDocumentFields(opening ? [opening] : [])?.cover;
+  // A brief "of the Applicant" is answered by a book of authorities of the same party, a role named
+  // as a role ("of the Applicant") and any other party as the brief names it.
+  const lines = opening.split(/\r?\n/u).map((line) => line.trim()), document = lines.findIndex((line) => /^DOCUMENT\s*:?$/u.test(line));
+  const named = fields?.recordTitle || (document < 0 ? "" : lines[document + 1]) ||
+    lines.map((line) => /^DOCUMENT\s*:?\s+(.+)$/u.exec(line)?.[1]).find(Boolean) || "";
+  const [, the, party] = /\bof\s+(the\s+)?(.{2,120}?)\s*$/iu.exec(named) ?? [];
+  const role = party && COVER_ROLE.test(party) ? party.charAt(0).toUpperCase() + party.slice(1).toLowerCase() : party;
+  const contact = { name: fields?.counselName ?? "", address: fields?.counselAddress ?? "",
+    phone: fields?.counselPhone ?? "", fax: fields?.counselFax ?? "", email: fields?.counselEmail ?? "" };
+  return { courtFileNumber: fields?.courtFileNumber ?? "",
     partyGroups: coverParties(opening),
-    applicationUnder: fields?.cover.applicationUnder ?? "", title: "" };
+    applicationUnder: fields?.applicationUnder ?? "",
+    title: role ? `Book of Authorities of ${the ? "the " : ""}${role}` : "",
+    ...(fields?.registry && { judicialCentre: fields.registry }),
+    ...(Object.values(contact).some(Boolean) && { contact }) };
 }
 
 async function documentDraft(

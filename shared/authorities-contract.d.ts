@@ -32,7 +32,20 @@ export type AuthoritiesBuildSettings = {
   finalPdf?: boolean;
   linkTabs?: boolean;
   linkPinpoints?: boolean;
-  tableOrder: "first-reference" | "alphabetical";
+  /** Within each group, the book's tabs and the table's entries: alphabetical, in the order the
+   *  brief first cites them, or as the user arranged them in Sources (`custom`). */
+  tableOrder: "first-reference" | "alphabetical" | "custom";
+  /** Groups by kind under headings, cases or legislation first, or one list. A draft without it
+   *  groups cases first unless it lists them as first cited. */
+  grouping?: "none" | "cases-first" | "legislation-first";
+  /** What the book's index gives for each authority beside its citation: its tab ("tabs", the
+   *  default) or its tab and the book pages it fills. */
+  indexShows?: "tabs" | "tabs-and-pages";
+  /** A "TAB n" page before each authority, where its index link and bookmark land (default true). */
+  tabPages?: boolean;
+  /** For a book printed on both sides: each tab page and each authority's first page on a right-hand
+   *  page, a blank page added where needed. By default on for a paper filing; never electronic. */
+  rightHandStarts?: boolean;
   tableDelivery: "native-marks" | "native-append" | "linked-append";
   tableLocation: "pages" | "pinpoints" | "combined";
   passageMarking: "none" | "margin" | "paragraph" | "text" | "sidelined";
@@ -62,6 +75,11 @@ export type AuthoritiesCover = {
   partyGroups: Array<{ role: string; parties: string[] }>;
   applicationUnder: string;
   title: string;
+  /** Where the court sits for the matter, as an Alberta cover names it ("Calgary"). */
+  judicialCentre?: string;
+  /** The address for service and contact information of the party filing the book; `address`
+   *  may run onto several lines. */
+  contact?: { name: string; address: string; phone: string; fax: string; email: string };
 };
 
 export type AuthoritySourceIdentity = {
@@ -222,9 +240,12 @@ export type AuthoritiesProfile = {
     missingSourcePolicy?: boolean;
   };
   requirements?: { completeBookSources?: boolean; documentOutputDefault?: boolean;
+    /** The court's filing cover on the book: the Alberta Rules of Court's backsheet. */
+    albertaCover?: boolean;
     unlinkedPdfTableSources?: boolean; markedPassages?: boolean;
     federalFormatting?: boolean; appealPaperCovers?: boolean; bilingualEnactments?: boolean;
-    electronicVolumes?: { maxPages: number; maxBytes: number;
+    /** The court's e-filing upload limits; a book past them is divided into volumes. */
+    electronicVolumes?: { maxPages?: number; maxBytes?: number;
       completeToc: boolean; coverLabels: boolean } };
 };
 

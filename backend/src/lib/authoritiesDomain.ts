@@ -35,7 +35,7 @@ import { closed, dictionary, flag, hash, integer, isJsonRecord, jsonRecord, list
   maybe, nonempty, nullable, oneOf, plain, tagged, text, trimmed,
   type Check, type FieldTable } from "./value";
 import profileValues from "mike/shared/authorities-profiles.json";
-import { currentTabReference } from "mike/shared/authorities-order.mjs";
+import { authorityProcedureInput, currentTabReference, deriveAuthorityProcedure } from "mike/shared/authorities-order.mjs";
 
 import { AUTHORITIES_ACTION_CHOICES, AUTHORITIES_SETTINGS_CHOICES, authorityKinds,
   decodeAuthoritiesInitialSettings } from "./authoritiesActionContract";
@@ -146,7 +146,8 @@ const choice = (key: keyof typeof AUTHORITIES_SETTINGS_CHOICES): Check =>
 const settingsShape = closed<AuthoritiesSettings>({
   profileId: text, sourceMode: choice("sourceMode"), tabStyle: choice("tabStyle"),
   tabStart: maybe(integer), tabPrefix: maybe(text), tabLabels: maybe(list(10_000, text)),
-  allowIncomplete: maybe(flag), tableOrder: choice("tableOrder"),
+  allowIncomplete: maybe(flag), tableOrder: choice("tableOrder"), grouping: maybe(choice("grouping")),
+  indexShows: maybe(choice("indexShows")), tabPages: maybe(flag), rightHandStarts: maybe(flag),
   citationSuffix: maybe(choice("citationSuffix")), citationSuffixLabel: maybe(text), finalPdf: maybe(flag),
   linkTabs: maybe(flag), linkPinpoints: maybe(flag),
   tableDelivery: choice("tableDelivery"), tableLocation: choice("tableLocation"),
@@ -181,8 +182,12 @@ const bookParts = closed<AuthoritiesBookParts>({ cover: nullable(boundPdf),
 
 const partyGroup = closed<AuthoritiesCover["partyGroups"][number]>({ role: plain(100),
   parties: list(50, plain(500)) });
+const contactLines: Check = (value) => typeof value === "string" && value.length <= 1_000 &&
+  value.split("\n").every((line) => plain(1_000)(line));
 const authoritiesCover = closed<AuthoritiesCover>({ courtFileNumber: plain(100),
-  applicationUnder: plain(2_000), title: plain(500), partyGroups: list(50, partyGroup) });
+  applicationUnder: plain(2_000), title: plain(500), partyGroups: list(50, partyGroup),
+  judicialCentre: maybe(plain(100)), contact: maybe(closed<NonNullable<AuthoritiesCover["contact"]>>({
+    name: plain(300), address: contactLines, phone: plain(300), fax: plain(300), email: plain(300) })) });
 
 const authorityKind = oneOf(authorityKinds);
 const pinpoint = closed<AuthorityOccurrence["pinpoints"][number]>({
@@ -632,6 +637,9 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     partyGroups: draft.cover.partyGroups.length ? draft.cover.partyGroups : incoming.partyGroups,
     applicationUnder: draft.cover.applicationUnder || incoming.applicationUnder,
     title: draft.cover.title || incoming.title,
+    ...(draft.cover.judicialCentre || incoming.judicialCentre
+      ? { judicialCentre: draft.cover.judicialCentre || incoming.judicialCentre } : {}),
+    ...(draft.cover.contact ?? incoming.contact ? { contact: draft.cover.contact ?? incoming.contact } : {}),
   } : draft.cover;
   const fresh: AuthoritiesDraft = { ...draft, ...structuredClone(review),
     cover: structuredClone(cover), ledger: null,
@@ -823,6 +831,12 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       draft.stage = action.stage;
       break;
     case "move-authority": {
+      // A move is made in the order the user sees, and from then on that order is theirs: the
+      // book's order is written down, and kept as arranged, where the court leaves it free.
+      draft.authorityOrder = deriveAuthorityProcedure(authorityProcedureInput(draft, { purpose: "book" }))
+        .map(({ id }) => id);
+      if (!authoritiesProfile(draft.settings.profileId).locked?.settings?.tableOrder)
+        draft.settings.tableOrder = "custom";
       const from = draft.authorityOrder.indexOf(action.authorityId);
       if (from < 0 || !Number.isSafeInteger(action.toIndex) || action.toIndex < 0 ||
           action.toIndex >= draft.authorityOrder.length)
@@ -1087,6 +1101,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     }
     case "set-cover":
       draft.cover = { ...structuredClone(action.cover),
+        ...(action.cover.judicialCentre !== undefined && { judicialCentre: action.cover.judicialCentre.trim() }),
         courtFileNumber: action.cover.courtFileNumber.trim(),
         applicationUnder: action.cover.applicationUnder.trim(),
         title: action.cover.title.trim(),

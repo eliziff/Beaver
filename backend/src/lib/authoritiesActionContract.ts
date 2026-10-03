@@ -22,6 +22,8 @@ const plain = (value: unknown, max = 500) => {
       /[\u0000-\u001f\u007f]/u.test(value)) return bad();
   return value.trim();
 };
+const lines = (value: unknown, max: number) => typeof value === "string" && value.length <= max
+  ? value.split(/\r?\n/u).map((line) => plain(line, max)).join("\n").trim() : bad();
 export function integer(value: unknown, min = 0) {
   if (!Number.isSafeInteger(value) || Number(value) < min) return bad();
   return Number(value);
@@ -57,7 +59,9 @@ export const AUTHORITIES_TOOL_ACTIONS = [
   ] as const;
 export const AUTHORITIES_SETTINGS_CHOICES = {
   sourceMode: ["automatic", "manual-originals", "render"], tabStyle: ["numeric", "alpha", "lower-alpha", "roman", "lower-roman"],
-  tableOrder: ["first-reference", "alphabetical"],
+  tableOrder: ["first-reference", "alphabetical", "custom"],
+  grouping: ["none", "cases-first", "legislation-first"],
+  indexShows: ["tabs", "tabs-and-pages"],
   tableDelivery: ["native-marks", "native-append", "linked-append"],
   citationSuffix: ["none", "tab", "custom"],
   tableLocation: ["pages", "pinpoints", "combined"],
@@ -75,7 +79,7 @@ function settings(value: unknown, initial: true): AuthoritiesInitialSettings;
 function settings(value: unknown, initial?: false): Partial<AuthoritiesBuildSettings>;
 function settings(value: unknown, initial = false) {
   const item = object(value), allowed = new Set([
-    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "citationSuffixLabel", "allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", ...(initial
+    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "citationSuffixLabel", "allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", "tabPages", "rightHandStarts", ...(initial
       ? ["profileId", "outputMode", "insertIntoDocument"] : []),
   ]);
   if (Object.keys(item).some((key) => !allowed.has(key))) return bad();
@@ -96,7 +100,7 @@ function settings(value: unknown, initial = false) {
     if (!Array.isArray(item.tabLabels) || item.tabLabels.length > 10_000) return bad();
     result.tabLabels = item.tabLabels.map((label) => plain(label, 100));
   }
-  for (const key of ["allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints"])
+  for (const key of ["allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", "tabPages", "rightHandStarts"])
     if (item[key] !== undefined) result[key] = typeof item[key] === "boolean" ? item[key] : bad();
   if (initial && item.profileId !== undefined) result.profileId = choice(
     item.profileId, authoritiesProfileIds) as AuthoritiesProfileId;
@@ -115,12 +119,20 @@ function reference(value: unknown): AuthorityOccurrence["reference"] {
     targetAuthorityId: text(item.targetAuthorityId) };
 }
 
+const CONTACT_FIELDS = ["name", "address", "phone", "fax", "email"] as const;
 function cover(value: unknown): AuthoritiesCover {
-  const item = object(value), keys = ["courtFileNumber", "partyGroups", "applicationUnder", "title"];
+  const item = object(value), keys = ["courtFileNumber", "partyGroups", "applicationUnder", "title",
+    "judicialCentre", "contact"];
   if (Object.keys(item).some((key) => !keys.includes(key)) ||
       !Array.isArray(item.partyGroups) || item.partyGroups.length > 50) return bad();
+  const contact = item.contact === undefined ? undefined : object(item.contact);
+  if (contact && Object.keys(contact).some((key) => !(CONTACT_FIELDS as readonly string[]).includes(key))) return bad();
   return { courtFileNumber: plain(item.courtFileNumber, 100),
     applicationUnder: plain(item.applicationUnder, 2_000), title: plain(item.title),
+    ...(item.judicialCentre !== undefined && { judicialCentre: plain(item.judicialCentre, 100) }),
+    // An address keeps its lines.
+    ...(contact && { contact: Object.fromEntries(CONTACT_FIELDS.map((key) => [key, key === "address"
+      ? lines(contact[key] ?? "", 1_000) : plain(contact[key] ?? "", 300)])) as NonNullable<AuthoritiesCover["contact"]> }),
     partyGroups: item.partyGroups.map((value) => {
       const group = object(value);
       if (Object.keys(group).some((key) => !["role", "parties"].includes(key)) ||
