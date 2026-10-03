@@ -294,21 +294,15 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onAction
   };
   // The marking chosen at import is shown here too, closed under its name, and can be changed at any time.
   return <><StepSection title="Highlights" className="mt-3"
-    subtitle={choices.length ? 'Review and adjust passage marks in your source PDFs.' : 'No source PDFs to mark yet.'}
+    // Preparing or failing reports in the subtitle's own line, so nothing moves and no room is held for it.
+    subtitle={preparing ? `Preparing highlights: ${progress.done} of ${progress.total} PDFs.` : failure
+      || (choices.length ? 'Review and adjust passage marks in your source PDFs.' : 'No source PDFs to mark yet.')}
     actions={<Button type="button" variant="outline" className="h-9 border-gray-400"
       disabled={busy || preparing || !host.readSource || !choices.length} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>}>
     <div className="p-4">
       <OptionCards legend="Passage marking" value={product.state.settings.passageMarking}
         options={passageOptions(product.state.settings.profileId)} columns collapsed disabled={busy || preparing}
         onChange={choose} />
-      {/* Preparation reports in a line that is always there, so nothing moves while it runs. */}
-      <div className="mt-3 min-h-9 text-sm">
-        {preparing ? <div role="status" className="text-gray-700">
-          Preparing highlights · {progress.done}/{progress.total}
-          <progress value={progress.done} max={progress.total} aria-hidden
-            className={cn('mt-1 block h-0.5 w-full max-w-64', ocrBar)} /></div>
-          : failure && <p role="alert" className="text-red-800">{failure}</p>}
-      </div>
     </div>
   </StepSection>
     {open && <AuthoritiesHighlightEditor product={product} choices={choices} host={host} ocr={ocr}

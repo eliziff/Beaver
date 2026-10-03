@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2, FileX2, LockKeyhole,
-  FolderInput, FolderSearch, Loader2, Pencil, Plus, RotateCw, Square, Upload } from "lucide-react";
+  FolderInput, FolderSearch, Loader2, Pencil, Plus, RotateCw, ScrollText, Square, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
 import { Button, buttonClassName } from "@/app/components/ui/button";
@@ -16,13 +16,12 @@ import type { AuthoritiesBookSlot, AuthoritiesSourceIssue } from "./host";
 import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
 import type { StatuteCopy } from "./statuteExcerpts";
-import canliiLogo from "./canlii.ico";
 import { authoritiesProfile } from "./profiles";
 
-const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
-/** A row's action: one width, type weight and icon size wherever a list of sources or book parts
- *  shows them, an icon alone where the list (a `@container/sources`) is narrow. */
-export const rowControl = cn(control, "w-10 justify-center px-1 font-normal [&_svg]:size-3.5 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2.5");
+const control = "h-8 shrink-0 border-gray-300 px-2.5 text-[0.8125rem]";
+/** A row's action: quiet, as the citation bar's, one width and icon size wherever a list of sources
+ *  or book parts shows them, an icon alone where the list (a `@container/sources`) is narrow. */
+export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-100 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[6.5rem] @min-[44rem]/sources:justify-start @min-[44rem]/sources:px-2.5";
 export const rowLabel = "hidden @min-[44rem]/sources:inline";
 type LookupFailure = NonNullable<AuthorityIdentity["sourceLookupFailure"]>;
 const lookupReason = ({ reason, detail }: LookupFailure) => ({
@@ -118,15 +117,13 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
       {/* A list with statutes keeps room for their Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
-        className={cn("grid grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300 @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_7rem_7.5rem]",
-          statuteCopies?.size ? "@min-[44rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_11rem_21.5rem]"
-            : "@min-[44rem]/sources:grid-cols-[fit-content(8rem)_1.25rem_minmax(0,1fr)_11rem_13.75rem]")}>
+        className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 border-b border-gray-200 @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_auto]">
         {authorities.map((authority, index) => <Fragment key={authority.id}>
           {/* Each group under its heading, as the book and the table set them out. */}
           {headed && groups?.get(authority.id) !== groups?.get(authorities[index - 1]?.id) &&
             <p className={GROUP}>{groups?.get(authority.id)}</p>}
           <AuthorityRow authority={authority} busy={busy}
-          order={shown} copy={statuteCopies?.get(authority.id)}
+          order={shown} copy={statuteCopies?.get(authority.id)} statutes={!!statuteCopies?.size}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
           citationLine={authorityCitationLine(state, authority)}
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
@@ -168,8 +165,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 
 function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy }: {
-  order: string[]; copy?: StatuteCopy;
+  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes }: {
+  order: string[]; copy?: StatuteCopy; statutes: boolean;
   authority: AuthorityIdentity; tab?: string; citationLine: string; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
   editableIdentity: boolean; rebuildsFromText: boolean; removable: boolean; sourceLabel: string;
@@ -235,12 +232,14 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
   const save = (value: string) => { setEditing(false);
     if (value.trim() !== name) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: value.trim() || null }); };
-  // Excerpt or whole sits beside View where the row is wide, and starts the line under it where not.
-  const choice = (className: string) => copy?.choosable && <ExcerptChoice title={title} excerpt={copy.excerpt}
-    disabled={busy} className={className}
-    onChoose={(excerpt) => onAction({ type: "set-authority-excerpt", authorityId: authority.id, excerpt })} />;
+  // A statute in the book as an excerpt or whole, chosen among the row's actions.
+  const choose = (excerpt: boolean) => onAction({ type: "set-authority-excerpt", authorityId: authority.id, excerpt });
+  const choice = <ActionMenu label={`${title} in the book`} triggerClassName={rowControl}
+    items={[{ label: "Cited provisions only", disabled: busy || copy?.excerpt === true, onSelect: () => choose(true) },
+      { label: "Whole statute", disabled: busy || copy?.excerpt === false, onSelect: () => choose(false) }]}>
+    <ScrollText /><span className={rowLabel}>{copy?.excerpt === false ? "Whole" : "Excerpt"}</span></ActionMenu>;
   return <article role="listitem" data-authority-id={authority.id}
-    className={cn("group/row col-span-full grid min-h-12 min-w-0 grid-cols-subgrid items-center gap-y-1 px-2 py-1.5",
+    className={cn("group/row col-span-full grid min-h-14 min-w-0 grid-cols-subgrid items-center gap-y-1 border-t border-gray-200 px-2 py-2 first:border-t-0 hover:bg-gray-50/70 [p+&]:border-t-0",
       authority.excluded && "opacity-65")}
     onDragOver={(event) => { if (!busy && (event.dataTransfer.types.includes("application/x-authority") ||
       needsPdf && event.dataTransfer.types.includes("Files"))) event.preventDefault(); }}
@@ -253,7 +252,7 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
       if (!busy && needsPdf) onAttach(event.dataTransfer.files[0]);
     }}>
     <button type="button" draggable={!busy} disabled={busy} title="Drag to reorder, or use arrow keys"
-      aria-label={`Reorder ${title}`} className="min-w-6 cursor-grab truncate rounded py-2 text-left text-xs font-semibold tabular-nums text-gray-600 focus-visible:ring-2 focus-visible:ring-red-600"
+      aria-label={`Reorder ${title}`} className="min-w-6 cursor-grab truncate rounded py-2 text-left text-[0.8125rem] font-medium tabular-nums text-gray-600 focus-visible:ring-2 focus-visible:ring-red-600"
       onDragStart={event => event.dataTransfer.setData("application/x-authority", authority.id)}
       onKeyDown={event => { if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
         event.preventDefault(); onAction({ type: "move-authority", authorityId: authority.id,
@@ -263,50 +262,51 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
         <title>{mark.label}</title></mark.Icon>}
     </span>
     {editing ? <AuthorityName value={name} label={nameLabel} spans={!recognition} onSave={save} onCancel={() => setEditing(false)} /> : <>
-      <div className="flex min-w-0 items-center gap-1">
-        {name ? <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name}</h3>
-          : <span className="truncate text-sm italic text-gray-500">Add {nameLabel.toLocaleLowerCase()}</span>}
-        <button type="button" disabled={busy} onClick={edit} aria-label={`Edit ${nameLabel.toLocaleLowerCase()} for ${title}`}
-          className={cn("shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-600 group-hover/row:opacity-100",
-            name && "opacity-0")}><Pencil className="h-3.5 w-3.5" /></button>
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-1">
+          <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name || citationLine}</h3>
+          <button type="button" disabled={busy} onClick={edit} aria-label={`Edit ${nameLabel.toLocaleLowerCase()} for ${title}`}
+            className="shrink-0 rounded p-1 text-gray-500 opacity-0 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-600 group-hover/row:opacity-100">
+            <Pencil className="h-3.5 w-3.5" /></button>
+        </div>
+        {!recognition && (name || copy?.line) && <p className="truncate text-[0.8125rem] text-gray-500"
+          title={[name && citationLine, copy?.line].filter(Boolean).join(" · ")}>
+          {[name && citationLine, copy?.line].filter(Boolean).join(" · ")}</p>}
       </div>
-      {!recognition && <span className="hidden truncate text-xs font-normal text-gray-500 @min-[30rem]/sources:block"
-        title={citationLine}>{citationLine}</span>}
     </>}
     {recognition && ocr && <SourceOcrInline status={recognition} ocr={ocr}
-      className="col-span-3 row-start-2 w-40 max-w-[calc(100%-8rem)] justify-self-start @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:row-start-auto @min-[30rem]/sources:w-full @min-[30rem]/sources:max-w-none @min-[30rem]/sources:pr-2" />}
-    <div className={cn("col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1",
-      recognition && "row-start-2 justify-self-end @min-[30rem]/sources:row-start-auto @min-[30rem]/sources:justify-self-stretch")}>
-      {choice("hidden @min-[44rem]/sources:grid")}
+      className="col-start-3 row-start-2 w-full max-w-sm justify-self-start" />}
+    <div className="col-span-3 row-start-1 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-4">
+      {statutes && (copy?.choosable ? choice : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
       {needsPdf && (publisherUrl
         ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
               title="Download the PDF from the publisher, then upload it here."
               aria-label={`Open publisher for ${title}`}
               // One line, as wide as its words where the row shows them; the actions stay right-aligned.
-              className={cn(rowControl, "inline-flex items-center gap-1 whitespace-nowrap rounded-md border bg-white text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600 @min-[44rem]/sources:w-auto")}>
+              className={cn(rowControl, "@min-[44rem]/sources:w-auto")}>
               <ExternalLink className="h-3.5 w-3.5" /><span className={rowLabel}>Open publisher</span></a>
         : authority.source.kind === "pending-canlii"
         ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
             aria-label={`CanLII PDF for ${title}`}
-            className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
-            <ExternalLink className="h-3.5 w-3.5" /><img src={canliiLogo} alt="" className="h-4 w-4 @min-[44rem]/sources:hidden" /><span className={rowLabel}>CanLII</span></a>
-        : issue ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
+            className={rowControl}>
+            <ExternalLink /><span className={rowLabel}>CanLII</span></a>
+        : issue ? <Button type="button" variant="ghost" className={cn(rowControl, "text-red-800")}
             disabled={busy} onClick={() => onRelink(issue.bindingRole)}><FilePlus2 />
             <span className="truncate">Allow file access</span></Button>
-        : sources.length && !loaded ? <span className={cn(rowControl, "grid place-items-center text-red-800")}>PDF unavailable</span>
+        : sources.length && !loaded ? <span className={cn(rowControl, "text-red-800 hover:bg-transparent")}>Unavailable</span>
         : sources.length && onOpen ? (sources.length === 1
-          ? <Button type="button" variant="outline" className={rowControl} disabled={busy || !loaded}
+          ? <Button type="button" variant="ghost" className={rowControl} disabled={busy || !loaded}
               aria-label={`View PDF for ${title}`} title="View" onClick={() => onOpen(sources[0].bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>
-          : <ActionMenu label={`View PDFs for ${title}`} triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border")}
+          : <ActionMenu label={`View PDFs for ${title}`} triggerClassName={rowControl}
               items={sources.map((source) => ({ label: sourceLanguageLabel(source.language),
                 disabled: busy || !!sourceIssues[source.bindingRole], onSelect: () => onOpen(source.bindingRole) }))}>
               <Eye className="h-3.5 w-3.5" /><span className={rowLabel}>View</span></ActionMenu>)
-        : <span className="w-10 @min-[44rem]/sources:w-[5.625rem]" />)}
+        : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
       {needsPdf && (authority.source.kind === "pending-canlii"
-        ? <Button type="button" variant="outline" className={rowControl} disabled={busy}
+        ? <Button type="button" variant="ghost" className={rowControl} disabled={busy}
             aria-label={`Upload PDF for ${title}`} title="Upload" onClick={pick}><Upload /><span className={rowLabel}>Upload</span></Button>
         : <ActionMenu label={`${replacement} for ${title}`}
-        triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
+        triggerClassName={rowControl}
         items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
           ...(onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: onLibrary }] : [])]}>
         <Upload className="h-3.5 w-3.5" /><span className={rowLabel}>{replacement}</span></ActionMenu>)}
@@ -328,12 +328,6 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
           { label: "Delete entry", disabled: busy || !removable,
             onSelect: () => onAction({ type: "remove-authority", authorityId: authority.id }) }]} />
     </div>
-    {/* A statute row that can be excerpted keeps its line, so a choice, a PDF arriving or a count read
-        moves nothing; one with nothing to say there is as tall as any other row. */}
-    {copy && (copy.choosable || copy.line) && <div className="col-[3/-1] row-start-3 flex min-h-8 min-w-0 items-center gap-2 @min-[30rem]/sources:row-start-2 @min-[44rem]/sources:min-h-4">
-      {choice("@min-[44rem]/sources:hidden")}
-      <span className="truncate text-xs text-gray-500" title={copy.line || undefined}>{copy.line}</span>
-    </div>}
     <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
       disabled={busy} aria-label={`Upload PDF for ${title}`} onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = "";
@@ -356,22 +350,21 @@ function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, onAction, onR
     : issue ? { Icon: FileX2, tone: "text-red-700", label: "This PDF is unavailable. Upload it again." }
     : { Icon: FileCheck2, tone: "text-green-700", label: part.filename };
   return <article role="listitem" data-supplement-id={part.id}
-    className="group/row col-span-full grid min-h-12 min-w-0 grid-cols-subgrid items-center gap-y-1 px-2 py-1.5">
-    <span className="min-w-6 truncate py-2 text-xs font-semibold tabular-nums text-gray-600">{tab.startsWith("Tab ")
+    className="group/row col-span-full grid min-h-14 min-w-0 grid-cols-subgrid items-center gap-y-1 border-t border-gray-200 px-2 py-2 first:border-t-0 hover:bg-gray-50/70 [p+&]:border-t-0">
+    <span className="min-w-6 truncate py-2 text-[0.8125rem] font-medium tabular-nums text-gray-600">{tab.startsWith("Tab ")
       ? <><span className={rowLabel}>{tab}</span><span className="@min-[44rem]/sources:hidden">{tab.slice(4)}</span></> : tab}</span>
     <span className="flex h-4 w-4 items-center justify-center">
       <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}><title>{mark.label}</title></mark.Icon>
     </span>
     <h3 className="min-w-0 truncate text-sm font-medium text-gray-950" title={part.filename}>{name}</h3>
-    <span className="hidden @min-[30rem]/sources:block" />
     <div className="col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1">
-      {relinkable(issue) ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")} disabled={busy}
+      {relinkable(issue) ? <Button type="button" variant="ghost" className={cn(rowControl, "text-red-800")} disabled={busy}
           onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
-        : onOpen ? <Button type="button" variant="outline" className={rowControl} disabled={busy || !!issue}
+        : onOpen ? <Button type="button" variant="ghost" className={rowControl} disabled={busy || !!issue}
           aria-label={`View ${part.filename}`} title="View" onClick={() => onOpen(part.bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>
-        : <span className="w-10 @min-[44rem]/sources:w-[5.625rem]" />}
+        : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />}
       <ActionMenu label={`Replace ${part.filename}`}
-        triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
+        triggerClassName={rowControl}
         items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
           ...(files.onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: () => files.onLibrary!("supplemental", part.id) }] : [])]}>
         <Upload className="h-3.5 w-3.5" /><span className={rowLabel}>Replace</span></ActionMenu>
@@ -386,29 +379,15 @@ function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, onAction, onR
   </article>;
 }
 
-const GROUP = "col-span-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-500";
+const GROUP = "col-span-full border-b border-gray-300 px-2 pb-2 pt-6 text-[0.9375rem] font-semibold text-gray-950 first:pt-1";
 /** A choice for the whole list, as compact as the list's own actions, its name beside it. */
 function ListChoice<T extends string>({ label, value, options, disabled, onChange }: { label: string; value: T;
   options: ReadonlyArray<{ value: T; label: string }>; disabled: boolean; onChange: (value: T) => void }) {
-  return <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500">{label}
+  return <label className="flex items-center gap-2 text-[0.8125rem] text-gray-600">{label}
     <select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as T)}
-      className="h-8 rounded-md border border-gray-400 bg-white pl-2 pr-7 text-xs font-normal text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:border-gray-200 disabled:text-gray-500">
+      className="h-8 rounded-md border border-gray-300 bg-white pl-2.5 pr-7 text-[0.8125rem] font-normal text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:border-gray-200 disabled:text-gray-500">
       {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select></label>;
-}
-
-/** A statute in the book as an excerpt or whole: two buttons the height of the row's other actions,
- *  neither pressed while its length, and so its default, is unknown. */
-function ExcerptChoice({ title, excerpt, disabled, className, onChoose }: { title: string; excerpt?: boolean;
-  disabled: boolean; className: string; onChoose: (excerpt: boolean) => void }) {
-  return <div role="group" aria-label={`${title} in the book`}
-    className={cn("grid h-8 w-[7.5rem] shrink-0 grid-cols-2 gap-0.5 rounded-md border border-gray-400 bg-white p-0.5", className)}>
-    {[true, false].map((value) => <button key={String(value)} type="button" aria-pressed={excerpt === value}
-      disabled={disabled} onClick={() => { if (excerpt !== value) onChoose(value); }}
-      className={cn("rounded px-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50",
-        excerpt === value ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100")}>
-      {value ? "Excerpt" : "Whole"}</button>)}
-  </div>;
 }
 
 /** A2AJ's limit, asked again by Beaver itself. A page cannot read the Retry-After A2AJ sends with
