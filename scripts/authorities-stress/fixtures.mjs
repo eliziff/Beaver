@@ -253,6 +253,15 @@ export const longStatuteRecord = (count = 5400) => lawRecord({ ...LONG_STATUTE, 
       `${WORDS[(index * 11 + at) % WORDS.length]} of a person holding a permit under this Act.`).join("\n\n")]) });
 
 /** Writes every input into `directory` with the browser that runs the suite. */
+/** An invented brief whose first note cites a guidance note no citation grammar reads, its pinpoints
+ *  written after it; the other notes cite cases the stub knows. */
+export const GUIDANCE = { title: "Memorandum of the Applicant", cited: "Riverbend Waterways Board, Launch Guidance Note 7 (2029)",
+  paragraphs: [
+    { text: "1. The board's own guidance governs launch licences at the north basin.", note: "Riverbend Waterways Board, Launch Guidance Note 7 (2029) at 4, 9." },
+    { text: "2. Reasonableness is the presumptive standard of review.", note: "Canada (Minister of Citizenship and Immigration) v Vavilov, 2019 SCC 65 at para 10." },
+    { text: "3. Delay in deciding the renewal compounded the unfairness.", note: "R v Jordan, 2016 SCC 27 at paras 46-48." },
+  ] };
+
 export async function writeStressFixtures(browser, directory, { longCount = 120 } = {}) {
   await mkdir(directory, { recursive: true });
   const page = await browser.newPage();
@@ -265,6 +274,8 @@ export async function writeStressFixtures(browser, directory, { longCount = 120 
     await writeFile(files.varietyDocx = file("harbour-factum.docx"), await varietyDocx());
     files.varietyPdf = await pdf(varietyHtml(), "harbour-factum.pdf");
     files.navigationAct = await pdf(navigationActHtml(), "inland-navigation-act.pdf");
+    files.guidancePdf = await pdf(briefHtml(GUIDANCE), "guidance-brief.pdf");
+    await writeFile(files.guidanceDocx = file("guidance-brief.docx"), await longBriefDocx(GUIDANCE));
     // Decisions to build a book from by hand, as text PDFs, and scans of others.
     files.decisions = inventedDecisions(6);
     files.decisionPdfs = [];
