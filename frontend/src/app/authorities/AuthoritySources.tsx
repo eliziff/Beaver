@@ -3,16 +3,16 @@ import { CircleAlert, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2, FileX
   FolderInput, FolderSearch, Loader2, Pencil, Plus, RotateCw, Square, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
-import { Button } from "@/app/components/ui/button";
+import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import { FileInputButton } from "./FileInputButton";
 import { TabFormatModal } from "./TabFormatModal";
 import { authorityName, authorityLabel, authorityCitationForms, requiresBilingualSources,
   requiresPdf, sourceLanguageLabel, relinkable } from "./authorityPresentation";
-import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
+import type { AuthoritiesAction, AuthoritiesBookSupplement, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
-import type { AuthoritiesSourceIssue } from "./host";
+import type { AuthoritiesBookSlot, AuthoritiesSourceIssue } from "./host";
 import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
 import type { StatuteCopy } from "./statuteExcerpts";
@@ -47,10 +47,19 @@ export type AuthorityPanelProps = {
   /** Each statute's book copy, by authority: every statute row has its line. */
   statuteCopies?: ReadonlyMap<string, StatuteCopy>;
 };
+/** The book's own PDFs, chosen from a file, a picker or the library. */
+export type BookFiles = {
+  onFiles: (slot: AuthoritiesBookSlot, files: File[], supplementId?: string) => void;
+  onPick?: (slot: AuthoritiesBookSlot, multiple: boolean, supplementId?: string) => void;
+  onLibrary?: (slot: AuthoritiesBookSlot, supplementId?: string) => void;
+};
 type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
   ocr?: SourceOcrPanel;
+  /** Any other PDF in the book, each under a tab of its own after the authorities: listed with them,
+   *  and added here where the authorities come from a brief. */
+  others?: BookFiles & { parts: Array<{ part: AuthoritiesBookSupplement; tab: string }>; addable: boolean };
 };
 export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft: AuthoritiesProduct }) {
   return <SourcePanel {...props} state={draft.state} />;
@@ -59,8 +68,10 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
-  ocr, statuteCopies }: PanelProps) {
+  ocr, statuteCopies, others }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
+  const otherInput = useRef<HTMLInputElement>(null);
+  const addOther = () => { if (others?.onPick) others.onPick("supplemental", true); else otherInput.current?.click(); };
   return <><section className="@container/sources mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
       onDragOver={(event) => { if (!busy && onFiles && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
@@ -105,9 +116,26 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           onAttach={(file) => onAttach(authority.id, file)} onRelink={onRelink}
           onOpen={onOpenSource} onRetry={onRetrySource ? () => onRetrySource(authority.id) : undefined}
           onEditIdentity={() => onEditIdentity(authority)} ocr={ocr} />)}
-        {!authorities.length && <p className="col-span-full px-4 py-8 text-center text-sm text-gray-500">Add authorities to begin.</p>}
+        {others?.parts.map(({ part, tab }) => <OtherPdfRow key={part.id} part={part} tab={tab} busy={busy}
+          issue={sourceIssues[part.bindingRole]} files={others} sourceLabel={sourceLabel}
+          onAction={onAction} onRelink={onRelink} onOpen={onOpenSource} />)}
+        {!authorities.length && !others?.parts.length && <p className="col-span-full px-4 py-8 text-center text-sm text-gray-500">Add authorities to begin.</p>}
       </div>
-      <Button type="button" variant="ghost" className="mt-2 h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
+      <div className="mt-2 flex flex-wrap gap-1">
+        <Button type="button" variant="ghost" className="h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
+        {others?.addable && (others.onLibrary
+          ? <ActionMenu label="Add PDF" triggerClassName={cn(buttonClassName({ variant: "ghost" }), "h-9")}
+              items={[{ label: "Upload from computer", disabled: busy, onSelect: addOther },
+                { label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: () => others.onLibrary!("supplemental") }]}>
+              <Plus /> Add PDF</ActionMenu>
+          : <Button type="button" variant="ghost" className="h-9" disabled={busy} onClick={addOther}
+              title="Add any PDF to the book, under a tab of its own"><Plus /> Add PDF</Button>)}
+        {others?.addable && <input ref={otherInput} className="sr-only" tabIndex={-1} type="file" multiple accept=".pdf,application/pdf"
+          disabled={busy} aria-label="Add PDF to the book" onChange={(event) => {
+            const files = Array.from(event.target.files ?? []); event.target.value = "";
+            if (files.length) others.onFiles("supplemental", files);
+          }} />}
+      </div>
     </div>
   </section>
   {tabSettings && <TabFormatModal settings={state.settings} busy={busy} onClose={() => setTabSettings(false)}
@@ -279,6 +307,50 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       disabled={busy} aria-label={`Upload PDF for ${title}`} onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = "";
         if (file) onAttach(file);
+      }} />
+  </article>;
+}
+
+/** Another PDF in the book, laid out as an authority's row: its tab, its file, View, Replace and Remove.
+ *  Its name is the one the book's index gives it. */
+function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, onAction, onRelink, onOpen }: {
+  part: AuthoritiesBookSupplement; tab: string; busy: boolean; issue?: AuthoritiesSourceIssue;
+  files: BookFiles; sourceLabel: string; onAction: (action: AuthoritiesAction) => void;
+  onRelink: (role: string) => void; onOpen?: (role: string) => void;
+}) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  const name = part.filename.replace(/\.pdf$/iu, "").trim() || part.filename;
+  const pick = () => { if (files.onPick) files.onPick("supplemental", false, part.id); else fileInput.current?.click(); };
+  const mark = relinkable(issue) ? { Icon: LockKeyhole, tone: "text-red-700", label: "File access was denied. Allow access to this PDF to use it." }
+    : issue ? { Icon: FileX2, tone: "text-red-700", label: "This PDF is unavailable. Upload it again." }
+    : { Icon: FileCheck2, tone: "text-green-700", label: part.filename };
+  return <article role="listitem" data-supplement-id={part.id}
+    className="group/row col-span-full grid min-h-12 min-w-0 grid-cols-subgrid items-center gap-y-1 px-2 py-1.5">
+    <span className="min-w-6 truncate py-2 text-xs font-semibold tabular-nums text-gray-600">{tab.startsWith("Tab ")
+      ? <><span className={rowLabel}>{tab}</span><span className="@min-[44rem]/sources:hidden">{tab.slice(4)}</span></> : tab}</span>
+    <span className="flex h-4 w-4 items-center justify-center">
+      <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}><title>{mark.label}</title></mark.Icon>
+    </span>
+    <h3 className="min-w-0 truncate text-sm font-medium text-gray-950" title={part.filename}>{name}</h3>
+    <span className="hidden @min-[30rem]/sources:block" />
+    <div className="col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1">
+      {relinkable(issue) ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")} disabled={busy}
+          onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
+        : onOpen ? <Button type="button" variant="outline" className={rowControl} disabled={busy || !!issue}
+          aria-label={`View ${part.filename}`} title="View" onClick={() => onOpen(part.bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>
+        : <span className="w-10 @min-[44rem]/sources:w-[5.625rem]" />}
+      <ActionMenu label={`Replace ${part.filename}`}
+        triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
+        items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
+          ...(files.onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: () => files.onLibrary!("supplemental", part.id) }] : [])]}>
+        <Upload className="h-3.5 w-3.5" /><span className={rowLabel}>Replace</span></ActionMenu>
+      <MoreActionsMenu label={`${part.filename} options`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
+        items={[{ label: "Remove from book", disabled: busy, onSelect: () => onAction({ type: "remove-book-supplement", id: part.id }) }]} />
+    </div>
+    <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
+      disabled={busy} aria-label={`Replace ${part.filename} with a PDF`} onChange={(event) => {
+        const file = event.target.files?.[0]; event.target.value = "";
+        if (file) files.onFiles("supplemental", [file], part.id);
       }} />
   </article>;
 }

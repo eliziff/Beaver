@@ -9,6 +9,7 @@ import { buildCanliiCaseUrlFromCitation, buildCanliiPdfUrl, isCanliiUrl } from "
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
+import { legisQuebecLegalSourceProvider, legisQuebecSource } from "./legalSources/legisQuebec";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { mapBounded } from "./mapBounded";
 import { publisherOpenUrl } from "./legalSourcePresentation";
@@ -16,23 +17,26 @@ import { downloadProviderOriginalPdf, PublisherDownloadFailure } from "./provide
 import { structureNative } from "./structureNative";
 
 /**
- * Case providers for citations the Canadian corpus does not hold: UK neutral
- * citations through the National Archives, US reporter citations through the
- * local CourtListener bulk index. Each claims only what its own citation
- * grammar matches exactly and returns nothing when the match is ambiguous.
+ * Providers for citations the A2AJ corpus does not hold: UK neutral citations
+ * through the National Archives, US reporter citations through the local
+ * CourtListener bulk index, Quebec legislation through LégisQuébec. Each claims
+ * only what its own citation grammar matches exactly and returns nothing when
+ * the match is ambiguous.
  */
 const foreignProviders = [
   { id: "tna", claims: tnaLegalSourceProvider, source: tnaCaseSource },
   { id: "courtlistener", claims: courtlistenerLegalSourceProvider,
     source: courtlistenerLegalSourceProvider.caseSource },
+  { id: "legisquebec", claims: legisQuebecLegalSourceProvider, source: legisQuebecSource },
 ] as const;
 
 /** Resolves the first citation form a provider matches; never a best guess. */
-async function resolveForeignAuthoritySource(citations: readonly string[], signal?: AbortSignal) {
+async function resolveForeignAuthoritySource(citations: readonly string[], signal?: AbortSignal,
+  kind: "case" | "legislation" = "case") {
   for (const citation of citations.map((value) => value.trim()).filter(Boolean)) {
     signal?.throwIfAborted();
     for (const { id, claims, source } of foreignProviders) {
-      if (!claims.canResolve?.({ text: citation, kind: "case" })) continue;
+      if (!claims.canResolve?.({ text: citation, kind })) continue;
       let found: Awaited<ReturnType<typeof source>> = null;
       try { found = await source(citation, signal); } catch { signal?.throwIfAborted(); }
       if (!found || (!found.pdfUrl && !found.text.trim())) continue;
@@ -187,14 +191,15 @@ export async function resolveAuthoritiesSources(
           source.alternateCitation].filter((value): value is string => !!value?.trim()))].slice(0, 50),
         sourceSha256: resolved.revision, version: source.date, externalUrl: source.url } });
   }
-  // Authorities the Canadian corpus does not hold: US reporter and UK neutral
-  // citations resolve through their own providers into the same source pipeline.
+  // Authorities A2AJ does not hold: US reporter and UK neutral citations, and Quebec
+  // legislation, resolve through their own providers into the same source pipeline.
   const foreign = await mapBounded(candidates.flatMap(({ id, authority }, index) =>
-    authority.kind === "case" && authority.sourceIdentity?.provider !== "a2aj" &&
+    authority.sourceIdentity?.provider !== "a2aj" &&
       !("mismatch" in resolutions[index]) && !resolutions[index].source &&
       ["unresolved", "resolved"].includes(draft.authorities[id]?.source.kind) ? [id] : []), async (id) => {
     signal?.throwIfAborted();
-    try { return [id, await sources.resolveForeign(authorityCitationForms(draft, id), signal)] as const; }
+    try { return [id, await sources.resolveForeign(authorityCitationForms(draft, id), signal,
+      draft.authorities[id].kind as "case" | "legislation")] as const; }
     catch { signal?.throwIfAborted(); return [id, null] as const; }
   });
   for (const [id, found] of foreign) {
@@ -263,8 +268,9 @@ export async function resolveAuthoritiesSources(
     let publisher: string | undefined;
     let original: Awaited<ReturnType<SourceServices["download"]>> | undefined;
     let stopped: { url: string; reason: PublisherDownloadFailure["reason"] } | undefined;
-    if (originals && (authority.kind !== "legislation" || draft.settings.sourceMode === "manual-originals") &&
-        (pdfUrl || sourceUrl)) try {
+    // A statute is rebuilt from its text but where the original is the only copy there is.
+    if (originals && (authority.kind !== "legislation" || draft.settings.sourceMode === "manual-originals" ||
+        !source.searchText.trim()) && (pdfUrl || sourceUrl)) try {
       publisher = new URL(sourceUrl ?? pdfUrl!).origin;
       const held = blockedPublishers.get(publisher);
       if (held) throw new PublisherDownloadFailure(sourceUrl ?? pdfUrl!, held);

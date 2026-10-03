@@ -1325,10 +1325,16 @@ describe("Authorities UI contracts", () => {
       expect(within(warning).getByRole("listitem")).toHaveTextContent("Alpha");
       expect(api.buildAuthorities).not.toHaveBeenCalled();
       await userEvent.click(within(warning).getByRole("button", { name: "Close" }));
-      const row = slot === "supplemental" ? screen.getByText("shared.pdf").closest("div.grid")!
+      // Another PDF in the book is listed at Sources, the cover and index at Build.
+      if (slot === "supplemental") await userEvent.click(screen.getByRole("tab", { name: "Sources" }));
+      const row = slot === "supplemental" ? (await screen.findByRole("heading", { name: "shared" })).closest<HTMLElement>("[role=listitem]")!
         : screen.getByText(slot === "cover" ? "Cover" : "Index").parentElement!;
-      await userEvent.upload(within(row).getByLabelText("Replace"),
+      await userEvent.upload(within(row).getByLabelText(slot === "supplemental" ? "Replace shared.pdf with a PDF" : "Replace"),
         new File(["%PDF-1.7"], "shared.pdf", { type: "application/pdf" }));
+      if (slot === "supplemental") {
+        await waitFor(() => expect(api.attachAuthoritiesBookPdf).toHaveBeenCalled());
+        await userEvent.click(screen.getByRole("tab", { name: "Build book" }));
+      }
       await waitFor(() => expect(screen.getByRole("button", { name: "Build" })).toBeEnabled());
       await userEvent.click(screen.getByRole("button", { name: "Build" }));
       await waitFor(() => expect(api.buildAuthorities).toHaveBeenCalledWith(
@@ -1623,9 +1629,10 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByText("Saved to Court outputs")).toBeVisible();
   });
 
-  it("adds other book PDFs in fixed order with procedural tabs and removes them", async () => {
-    const saved = add(draft(), authority("included", "Included case", { kind: "unresolved" }),
+  it("adds any PDF at Sources under a tab of its own after the authorities, and removes it", async () => {
+    const saved = add(documentDraft(), authority("included", "Included case", { kind: "unresolved" }),
       { ...authority("excluded", "Excluded case", { kind: "unresolved" }), excluded: true });
+    saved.state.outputMode = "book"; saved.state.stage = "sources";
     saved.state.settings.missingSourcePolicy = "omit";
     const added = structuredClone(saved); added.revision = 2;
     added.state.bookParts.supplements = [{ id: "other-1", bindingRole: "book:other-1",
@@ -1640,19 +1647,19 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    expect(await screen.findByLabelText("Add other book files")).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Add PDF" })).toBeVisible();
     const file = new File(["%PDF-other"], "Other material.pdf", { type: "application/pdf" });
-    await userEvent.upload(screen.getByLabelText("Add other book files"), file);
+    await userEvent.upload(screen.getByLabelText("Add PDF to the book"), file);
 
     await waitFor(() => expect(api.attachAuthoritiesBookPdf)
       .toHaveBeenCalledWith("draft-1", 1, "supplemental", file, undefined));
-    expect(await screen.findByText("Other material.pdf")).toBeVisible();
-    expect(screen.getByText("Tab 2")).toBeVisible();
+    // Named as the book's index names it, with the tab after the authorities the book reproduces.
+    const row = (await screen.findByRole("heading", { name: "Other material" })).closest<HTMLElement>("[role=listitem]")!;
+    expect(within(row).getByText("Tab 2")).toBeVisible();
     expect(screen.queryByText(/appendix/iu)).not.toBeInTheDocument();
-    const row = screen.getByText("Other material.pdf").closest("div.grid")!;
     const replacement = new File(["%PDF-replacement"], "Replacement.pdf",
       { type: "application/pdf" });
-    await userEvent.upload(within(row).getByLabelText("Replace"), replacement);
+    await userEvent.upload(within(row).getByLabelText("Replace Other material.pdf with a PDF"), replacement);
     await waitFor(() => expect(api.attachAuthoritiesBookPdf)
       .toHaveBeenCalledWith("draft-1", 2, "supplemental", replacement, "other-1"));
     await userEvent.click(screen.getByRole("button", { name: "Replacement.pdf options" }));

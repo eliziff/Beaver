@@ -1,4 +1,5 @@
 import { useId, type ChangeEvent, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
 /** The card every Authorities choice is drawn as: a control, a name and one sentence about it.
@@ -47,15 +48,25 @@ function CardText({ id, label, detail, wide = false, row = false }: { id: string
 
 export type CardOption<T extends string> = { value: T; label: string; detail?: string; preview?: ReactNode };
 
+/** The choices as cards under their legend; `collapsed`, closed until opened, its summary naming
+ *  the choice made. */
 export function OptionCards<T extends string>({ legend, value, options, onChange, columns, disabled,
-  className }: { legend: string; value: T; options: ReadonlyArray<CardOption<T>>;
-  onChange: (value: T) => void; columns?: boolean; disabled?: boolean; className?: string }) {
-  return <fieldset className={className} disabled={disabled}>
-    <legend className="mb-2 text-sm font-semibold text-gray-950">{legend}</legend>
+  className, collapsed = false }: { legend: string; value: T; options: ReadonlyArray<CardOption<T>>;
+  onChange: (value: T) => void; columns?: boolean; disabled?: boolean; className?: string; collapsed?: boolean }) {
+  const cards = <fieldset className={collapsed ? "mt-3" : className} disabled={disabled}>
+    <legend className={collapsed ? "sr-only" : "mb-2 text-sm font-semibold text-gray-950"}>{legend}</legend>
     <div className={cn("grid auto-rows-fr gap-2", columns && "sm:grid-cols-2")}>
       {options.map((option) => <OptionCard key={option.value} name={`authorities-${legend}`}
         checked={value === option.value} onChange={() => onChange(option.value)}
         label={option.label} detail={option.detail} preview={option.preview} />)}
     </div>
   </fieldset>;
+  return collapsed ? <details className={cn("group", className)}>
+    <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 rounded-md pr-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
+      <ChevronRight className="h-4 w-4 text-gray-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+      <span className="font-semibold text-gray-950">{legend}</span>
+      <span className="ml-1 text-gray-600">{options.find((option) => option.value === value)?.label}</span>
+    </summary>
+    {cards}
+  </details> : cards;
 }

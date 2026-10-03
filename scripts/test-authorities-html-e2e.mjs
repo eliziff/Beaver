@@ -236,7 +236,7 @@ function Run(page, mode) {
     }
     await page.setViewportSize({ width: 1440, height: 900 }); await settle();
   });
-  const bookRows = () => page.getByRole("heading", { name: "Cover, index and other PDFs" }).locator("xpath=..").locator(":scope > .divide-y > div");
+  const bookRows = () => page.getByRole("heading", { name: "Cover and index" }).locator("xpath=..").locator(":scope > .divide-y > div");
   /** Runs `action` and returns what the page measured meanwhile, once its effects have painted. */
   async function measure(label, action, { rest = 250, listChanges = false } = {}) {
     const from = await now();
@@ -652,9 +652,10 @@ function Run(page, mode) {
     else if (await recognize.count()) check(false, `${mode} ${label}: Next asked to recognize text after recognition finished`);
     await button("Edit in PDF").waitFor();
     note(mode, `${label}-step-highlights`, await now() - started);
-    // The marking chosen at import is on the step as well, with nothing to get past.
-    check(await page.getByRole("group", { name: "Passage marking" }).isVisible() && !await button("Continue").count(),
-      `${mode} ${label}: Highlights shows the passage marking and holds nothing back`);
+    // The marking chosen at import is on the step as well, closed under its name, with nothing to get past.
+    check(await page.locator("summary", { hasText: "Passage marking" }).isVisible() &&
+      !await page.getByRole("group", { name: "Passage marking" }).isVisible() && !await button("Continue").count(),
+      `${mode} ${label}: Highlights shows the passage marking closed and holds nothing back`);
     await shots(`${label}-09-highlights`);
     await noHorizontalScroll(`${label} highlights`);
     await button("Edit in PDF").click();
@@ -754,6 +755,7 @@ function Run(page, mode) {
    *  highlights again and keeps the passage the reviewer added; the first marking is then put back. */
   async function remark(label) {
     const step = page.getByRole("region", { name: "Highlights" }), marking = step.getByRole("group", { name: "Passage marking" });
+    await step.locator("summary", { hasText: "Passage marking" }).click();
     await marking.waitFor();
     await shots(`${label}-10c-passage-marking`);
     const first = await marking.locator("input:checked").evaluate((input) => input.closest("label").querySelector("[id]").textContent);
