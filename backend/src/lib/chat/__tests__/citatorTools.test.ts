@@ -1,5 +1,4 @@
-import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -17,6 +16,7 @@ let temporaryDirectory: string | null = null;
 afterEach(async () => {
   vi.restoreAllMocks();
   delete process.env.MIKE_CITATOR_DB;
+  delete process.env.MIKE_A2AJ_BULK_DB;
   delete process.env.MIKE_JOURNAL_COMMENTARY_DB;
   if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true });
   temporaryDirectory = null;
@@ -38,39 +38,20 @@ it("validates note-up calls before opening the graph", () => {
 
 it("returns judicial and journal analysis as separate attributed lanes", { timeout: 60_000 }, async () => {
   temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-note-up-"));
-  const input = path.join(temporaryDirectory, "cases.jsonl");
   const database = path.join(temporaryDirectory, "noteup.sqlite");
-  await writeFile(input, [
-    {
-      dataset: "SCC",
-      citation_en: "2016 SCC 27",
-      name_en: "R. v. Jordan",
-      document_date_en: "2016-07-08",
-      unofficial_text_en:
-        "R. v. Jordan\nNeutral citation\n2016 SCC 27\n[1] The presumptive ceiling applies.",
-    },
-    {
-      dataset: "ONCA",
-      citation_en: "2022 ONCA 400",
-      name_en: "R. v. Second",
-      document_date_en: "2022-06-20",
-      cases_cited_en: ["2016 SCC 27"],
-      unofficial_text_en:
-        "R. v. Second\nNeutral citation\n2022 ONCA 400\n[1] Jordan, 2016 SCC 27 at para 1, establishes a presumptive ceiling beyond which delay is presumed unreasonable.",
-    },
-  ].map(JSON.stringify).join("\n"));
-  const built = spawnSync("python", [
-    path.resolve("scripts/build_citator_graph.py"),
-    "--jsonl",
-    input,
-    "--output",
-    database,
-  ], { encoding: "utf8" });
-  expect(built.status, built.stderr).toBe(0);
-  process.env.MIKE_CITATOR_DB = database;
+  // Consumer fixture: pre-indexed rows, not a replay of the Python citation miner.
   const graph = new DatabaseSync(database);
-  graph.exec("UPDATE case_doc SET language = 'fr' WHERE citation = '2022 ONCA 400'");
-  graph.close();
+  try {
+    graph.exec(`CREATE TABLE case_doc(id INTEGER PRIMARY KEY,citation,name,court,date,url,language);
+      CREATE TABLE edge(id INTEGER PRIMARY KEY,cited_key,cited_citation,cited_short,case_id,
+        paragraph,text_offset,pinpoints,excerpt);
+      CREATE TABLE resolution(cited_key,path,file_row_number,exact_value);
+      INSERT INTO case_doc VALUES(1,'2022 ONCA 400','R. v. Second','ONCA','2022-06-20',NULL,'fr');
+      INSERT INTO edge VALUES(1,'3:neutral:2016:scc:27','2016 SCC 27',NULL,1,NULL,0,'par1',
+        'Jordan, 2016 SCC 27 at para 1, establishes a presumptive ceiling beyond which delay is presumed unreasonable.');`);
+  } finally { graph.close(); }
+  process.env.MIKE_CITATOR_DB = database;
+  process.env.MIKE_A2AJ_BULK_DB = path.join(temporaryDirectory, "absent.sqlite");
 
   const commentaryDb = path.join(temporaryDirectory, "journal.sqlite");
   const commentary = new DatabaseSync(commentaryDb);

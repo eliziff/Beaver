@@ -1,6 +1,6 @@
-import { spawnSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,8 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 /**
  * Fixture rows are six verbatim interventions captured from the real
  * huggingface.co/datasets/a2aj/hansard datasets-server on 2026-07-28 (capture
- * metadata inside the file). The test drives the actual import script over
- * them and searches through the product surface; nothing touches the network.
+ * metadata inside the file). The test reads their indexed SQLite representation through the product
+ * surface; importer transformation belongs to the dataset producer.
  */
 const fixture = JSON.parse(
   readFileSync(
@@ -34,27 +34,26 @@ afterEach(async () => {
 });
 
 describe("local A2AJ Hansard store", () => {
-  it("imports captured rows and searches interventions", async () => {
+  it("queries indexed public rows and fetches interventions", async () => {
     temporaryDirectory = await mkdtemp(
       path.join(os.tmpdir(), "beaver-hansard-"),
     );
-    const input = path.join(temporaryDirectory, "rows.jsonl");
     const database = path.join(temporaryDirectory, "hansard.sqlite");
-    await writeFile(
-      input,
-      fixture.rows.map((row) => JSON.stringify(row)).join("\n"),
-    );
-    const imported = spawnSync(
-      "python",
-      [
-        path.resolve("scripts/import_a2aj_hansard.py"),
-        input,
-        "--output",
-        database,
-      ],
-      { encoding: "utf8" },
-    );
-    expect(imported.status, imported.stderr).toBe(0);
+    const connection = new DatabaseSync(database);
+    try {
+      connection.exec(`CREATE TABLE intervention(id INTEGER PRIMARY KEY, source_id, date,
+        jurisdiction, chamber, language, order_of_business, subject_of_business, speaker,
+        intervention_type, text, upstream_license, source_url);
+        CREATE VIRTUAL TABLE intervention_search USING fts5(speaker, subject_of_business,
+          order_of_business, text, content='intervention', content_rowid='id');`);
+      const insert = connection.prepare("INSERT INTO intervention VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+      for (const [index, row] of fixture.rows.entries()) insert.run(index + 1,
+        ...["ID", "Date", "jurisdiction", "chamber", "language", "OrderofBusiness",
+          "SubjectofBusiness", "PersonSpeaking", "intervention_type", "Intervention",
+          "upstream_license", "source_url"].map(field => String(row[field] ?? "")));
+      connection.exec(`INSERT INTO intervention_search(rowid,speaker,subject_of_business,order_of_business,text)
+        SELECT id,speaker,subject_of_business,order_of_business,text FROM intervention;`);
+    } finally { connection.close(); }
     process.env.MIKE_A2AJ_HANSARD_DB = database;
     const hansard = await import("../a2ajHansard");
 

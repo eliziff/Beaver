@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 
 const root = path.resolve(import.meta.dirname, "../..");
@@ -17,9 +18,9 @@ test("a loaded addon does not lock Cargo's output", {
     const source = path.join(scratch, "target/release/legal_structure_node.dll");
     mkdirSync(path.dirname(source), { recursive: true });
     copyFileSync(addon, source);
-    const script = `const assert=require('node:assert/strict');
-      const {renameSync}=require('node:fs');
-      const {nativeAddonFile}=require(${JSON.stringify(path.join(root, "backend/src/lib/nativeAddonFile.ts"))});
+    const script = `import assert from 'node:assert/strict';
+      import {renameSync} from 'node:fs';
+      import {nativeAddonFile} from ${JSON.stringify(pathToFileURL(path.join(root, "shared/nativeAddonFile.mjs")).href)};
       const source=${JSON.stringify(source)}, root=${JSON.stringify(scratch)};
       const loaded=nativeAddonFile(source,root), module={exports:{}};
       process.dlopen(module,loaded);
@@ -28,8 +29,7 @@ test("a loaded addon does not lock Cargo's output", {
       assert.equal(module.exports.nativeBuildFeatures(),features);
       renameSync(source+'.replacement',source);
       assert.equal(nativeAddonFile(source,root),loaded);`;
-    const result = spawnSync(process.execPath, ["--require",
-      path.join(root, "backend/node_modules/tsx/dist/cjs/index.cjs"), "-e", script], { cwd: root, encoding: "utf8" });
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || String(result.error ?? ""));
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 });
