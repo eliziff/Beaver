@@ -36,7 +36,7 @@ import { structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry
   type NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
-import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference } from "mike/shared/authorities-order.mjs";
+import { authorityCitation, authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference } from "mike/shared/authorities-order.mjs";
 import { isCanliiUrl, urlHostname } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { assembleFinalAuthoritiesPdf, assertBriefPdfMatches, briefOccurrencePages, filingLinkUrl,
   filingTabText } from "./authoritiesFinalPdf";
@@ -206,55 +206,6 @@ const RENDERERS: Record<RequestedRole, string> = {
   "annotated-document": "beaver.authorities.filing-output.v2",
   "final-pdf": "beaver.authorities.final-pdf.v1",
 };
-
-/** An authority as every output cites it (the index and its bookmarks, the tables, Word's citation
- *  fields): as the brief first cites it in full, led by the style of cause or title (the name its source
- *  gives it where the brief cites it by its citation alone), then each other citation of it the brief or
- *  its source gives, a parallel report or a CanLII ID. A case's style of cause and a statute's title are
- *  italic: `italic` is the length of that lead, read from where the brief's citation span begins and its
- *  core citation starts. */
-function authorityCitation(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
-  const [first, ...rest] = draft.units.flatMap((unit) => unit.occurrenceIds.map((id) => draft.occurrences[id]))
-    .filter((occurrence) => occurrence?.authorityId === authority.id && occurrence.kind !== "reference");
-  // "R. v. Oakes" (a source's title) and "R v Oakes" (the brief) are one name, and "(2016) ABQB 16"
-  // and "2016 ABQB 16" one citation.
-  const lower = (value: string) => value.toLocaleLowerCase("en-CA").replace(/[.()]/gu, "").replace(/\s+/gu, " ").trim();
-  const line = (value: string) => value.replace(/\s+/gu, " ").trim();
-  const name = line(authority.displayName ?? authority.name ?? "");
-  const citation = line(authority.citation);
-  // A brief that cites an authority only by a word of its name has not cited it in full.
-  let text = first && !(name && lower(name).includes(lower(first.authoritySpan.text))) ? line(first.authoritySpan.text)
-    : citation, lead = "";
-  if (first) {
-    const unit = draft.units.find(({ id }) => id === first.unitId)?.text ?? "";
-    // A link the brief writes in angle or square brackets keeps its closing bracket.
-    const closer = unit[first.authoritySpan.end];
-    if (closer === ">" && text.split("<").length > text.split(">").length ||
-      closer === "]" && text.split("[").length > text.split("]").length) text += closer;
-    // The court a CanLII ID is cited with belongs to its citation ("1954 CanLII 3 (SCC)"), though the
-    // brief may write it after a pinpoint.
-    const core = line(first.coreSpan.text);
-    if (citation !== core && citation.startsWith(core) && text.includes(core) && !lower(text).includes(lower(citation)))
-      text = text.replace(core, citation);
-    if (first.authoritySpan.start < first.coreSpan.start)
-      lead = line(unit.slice(first.authoritySpan.start, first.coreSpan.start)).replace(/,$/u, "");
-  }
-  // Where the brief's citation opens with the source's name ("R v Grant" for "R. v. Grant"), that is its lead.
-  if (!lead && name) {
-    let at = 0;
-    const same = [...name].every((character) => {
-      if (character === ".") { if (text[at] === ".") at += 1; return true; }
-      while (text[at] === ".") at += 1;
-      return text[at++]?.toLocaleLowerCase("en-CA") === character.toLocaleLowerCase("en-CA");
-    });
-    if (same && !/[\p{L}\p{N}]/u.test(text[at] ?? "")) lead = text.slice(0, at);
-  }
-  if (!lead && name && !lower(text).includes(lower(name))) { text = `${name}, ${text}`; lead = name; }
-  for (const form of [...rest.map(({ coreSpan }) => coreSpan.text), citation,
-    ...authority.sourceIdentity?.citationForms ?? []].map(line))
-    if (form && !lower(text).includes(lower(form)) && !(lead && lower(form).includes(lower(lead)))) text += `, ${form}`;
-  return { text, italic: ["case", "legislation"].includes(authority.kind) && text.startsWith(lead) ? lead.length : 0 };
-}
 
 function citedPages(draft: AuthoritiesDraft, authorityId: string) {
   return [...new Set(draft.units.flatMap((unit) => unit.occurrenceIds.some((id) =>

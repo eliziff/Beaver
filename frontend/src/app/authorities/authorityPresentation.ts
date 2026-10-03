@@ -3,6 +3,7 @@ import { authorityPdfRequired, authoritySourceRequirement,
 import type { AuthorityIdentity, AuthorityOccurrence, AuthoritiesProduct, AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
+import { authorityCitation } from "../../../../shared/authorities-order.mjs";
 
 export function authorityName(item: AuthorityIdentity) {
   return item.displayName || item.name || item.citation || "Untitled authority";
@@ -19,6 +20,15 @@ export function authorityCitationForms(item: AuthorityIdentity, occurrences: Aut
     .map((citation) => citation.replace(/\s+/gu, " ").trim()).filter(Boolean))];
   // "1954 CanLII 3" is "1954 CanLII 3 (SCC)" without the court it is cited with: one form.
   return forms.filter((form) => !forms.some((other) => other.startsWith(`${form} (`)));
+}
+/** An authority as the book's index and the table cite it: its style of cause or title first, then
+ *  each other citation of it ("R v Oakes, [1986] 1 SCR 103, 1986 CanLII 46 (SCC)"). */
+export const authorityCitationText = (state: AuthoritiesProduct["state"], item: AuthorityIdentity) =>
+  authorityCitation(state, item).text;
+/** That citation after the name a row already shows: "[1986] 1 SCR 103, 1986 CanLII 46 (SCC)". */
+export function authorityCitationLine(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
+  const { text, lead } = authorityCitation(state, item);
+  return text.slice(lead).replace(/^[\s,]+/u, "") || text;
 }
 const courtRequirements = (state: AuthoritiesProduct["state"]) =>
   authoritiesProfile(state.settings.profileId).requirements;

@@ -8,7 +8,7 @@ import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import { FileInputButton } from "./FileInputButton";
 import { TabFormatModal } from "./TabFormatModal";
-import { authorityName, authorityLabel, authorityCitationForms, requiresBilingualSources,
+import { authorityName, authorityLabel, authorityCitationLine, requiresBilingualSources,
   requiresPdf, sourceLanguageLabel, relinkable } from "./authorityPresentation";
 import type { AuthoritiesAction, AuthoritiesBookSupplement, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
@@ -125,7 +125,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           <AuthorityRow authority={authority} busy={busy}
           order={shown} copy={statuteCopies?.get(authority.id)}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
-          citations={authorityCitationForms(authority, occurrences)}
+          citationLine={authorityCitationLine(state, authority)}
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
           requireLanguages={requiresBilingualSources(state, authority)} sourceIssues={sourceIssues}
           editableIdentity={state.import.kind === "manual" || !!authority.userAdded}
@@ -163,11 +163,11 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
     onSave={(settings) => onAction({ type: "set-settings", settings })} />}</>;
 }
 
-function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLanguages, sourceIssues,
+function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
   onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy }: {
   order: string[]; copy?: StatuteCopy;
-  authority: AuthorityIdentity; tab?: string; citations: string[]; busy: boolean; needsPdf: boolean;
+  authority: AuthorityIdentity; tab?: string; citationLine: string; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
   editableIdentity: boolean; rebuildsFromText: boolean; removable: boolean; sourceLabel: string;
   onAction: (action: AuthoritiesAction) => void; onPick?: () => void; onLibrary?: () => void;
@@ -181,8 +181,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const nameLabel = authority.kind === "case" ? "Style of cause" : "Title";
   const [editing, setEditing] = useState(false);
   const sources = authority.source.kind === "attached" ? authority.source.sources : [];
-  const title = authorityName(authority), citationLine = citations.filter((citation) =>
-    !name.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
+  const title = authorityName(authority);
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
   const replacement = sources.length && !requireLanguages ? "Replace" : "Upload";
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
@@ -325,8 +324,9 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
           { label: "Delete entry", disabled: busy || !removable,
             onSelect: () => onAction({ type: "remove-authority", authorityId: authority.id }) }]} />
     </div>
-    {/* Every statute row keeps its line, so a choice, a PDF arriving or a count read moves nothing. */}
-    {copy && <div className="col-[3/-1] row-start-3 flex min-h-8 min-w-0 items-center gap-2 @min-[30rem]/sources:row-start-2 @min-[44rem]/sources:min-h-4">
+    {/* A statute row that can be excerpted keeps its line, so a choice, a PDF arriving or a count read
+        moves nothing; one with nothing to say there is as tall as any other row. */}
+    {copy && (copy.choosable || copy.line) && <div className="col-[3/-1] row-start-3 flex min-h-8 min-w-0 items-center gap-2 @min-[30rem]/sources:row-start-2 @min-[44rem]/sources:min-h-4">
       {choice("@min-[44rem]/sources:hidden")}
       <span className="truncate text-xs text-gray-500" title={copy.line || undefined}>{copy.line}</span>
     </div>}
