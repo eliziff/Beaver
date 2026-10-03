@@ -203,8 +203,8 @@ async function preparePdf(input: PdfOpenInput) {
       if (input.sourceSha256 && sourceSha256 !== input.sourceSha256)
         throw new Error("PDF source changed after preparation began");
       const cached = await structureNative().restorePdfDocument(pdfCacheRequest({ ...input, sourceSha256 }, input.pdfProfile.cacheKey));
-      if (!cached) throw new Error("Prepared PDF text is no longer cached. Resume text recognition for this PDF.");
-      return { summary: preparedSummary(structureNative().pdfDocumentSummary(cached),
+      // A reading no longer kept is made again below, as it was first made.
+      if (cached) return { summary: preparedSummary(structureNative().pdfDocumentSummary(cached),
         sourceSha256, input.pdfProfile.cacheKey), profile };
     }
     const prepare = () => pdfLifecyclePhase("prepare.native", input.documentId, () =>
@@ -659,15 +659,25 @@ async function pdfTextLayer(
     : [...(profile.profile.ocr ? [profile.cacheKey] : []), ...Object.values(owners)]);
   if (!keys.size) return [];
   const native = structureNative(), result = new Map<number, NativePdfTextPage>();
-  const unavailable = () => new ApplicationError(409,
-    "Recognized text is no longer cached. Run Recognize text again for this PDF.");
+  const unavailable = () => new ApplicationError(409, "This PDF's recognized text could not be read.");
+  // A reading no longer kept is made again as it was first made (a page-bound one for its own
+  // pages): whoever asks for its text never learns it was gone.
+  const remade = async (key: string) => {
+    const pages = key === profile.cacheKey ? undefined
+      : Object.entries(owners).filter(([, owner]) => owner === key).map(([page]) => Number(page));
+    const bytes = await _readBytes();
+    const summary = preparedSummary(await withPdfRequest({ ...reference, bytes, pages, pdfProfile: profile,
+      signal: options.signal }, (request) => recognitionTurn(() =>
+      native.preparePdfDocument(bytes, request, options.signal), options.signal)), reference.sourceSha256);
+    const document = await native.restorePdfDocument(pdfCacheRequest(reference, summary.cacheKey));
+    if (!document) throw unavailable();
+    return document;
+  };
   for (const key of keys) {
     options.signal?.throwIfAborted();
     // Reuse the existing weak working set and single-flight restore, not a second OCR cache.
     const document = await waitForProjection(projectionFor(projectionKey({ ...reference, cacheKey: key }), async () => {
-      const document = await native.restorePdfDocument(pdfCacheRequest(reference, key));
-      if (!document) throw unavailable();
-      return document;
+      return await native.restorePdfDocument(pdfCacheRequest(reference, key)) ?? remade(key);
     }), options.signal);
     options.signal?.throwIfAborted();
     const geometry = native.pdfRecognizedText(document, requested?.filter(page => owner(page) === key));
