@@ -82,9 +82,10 @@ export function pinpointValues<Kind extends string>(pinpoints: ReadonlyArray<{ k
 }
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, match.pinpointPhrase, offset);
-/** A supra, ibid or short form: its own token names the authority, and its pinpoints follow it. */
+/** Keep the written short name with the reference marker and its pinpoints separate. */
 export const nativeReferenceSpans = (reference: NativeAuthorityReferenceOccurrence, text: string, offset = 0) =>
-  occurrenceSpans(text, reference.token, reference.token, reference.pinpoints, reference.pinpointPhrase, offset);
+  occurrenceSpans(text, { start: reference.start, end: reference.token.end }, reference.token,
+    reference.pinpoints, reference.pinpointPhrase, offset);
 
 const CANLII_STATUTE = /^https?:\/\/(?:www\.)?canlii\.org\/(en|fr)\/(ca|on|bc)\/laws\/(?:stat|astat)\/([^/#?]+)\//iu;
 const STATUTE_DATASET = { ca: "LEGISLATION-FED", on: "LEGISLATION-ON",
@@ -235,26 +236,6 @@ async function scanReview(
     supraHintMode: "aggressive", supraLinkingMode: "safe",
     aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
   })) as ResolveResponse;
-  // Case references follow the document's citation reading order. Source-part
-  // URL chains serve sources without citation cores and do not define case identity.
-  if (cases.length) {
-    const caseResult = native.citationEngineCall("resolve", JSON.stringify({ citations: extracted.citations,
-      notes, readingOrder: order, sourceParts: [], supraHintMode: "aggressive", supraLinkingMode: "safe",
-      aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
-    })) as ResolveResponse;
-    const fullCases = new Set(cases.map(({ index }) => index));
-    const isCaseGroup = (group: number[]) => group.some(index => fullCases.has(index));
-    const groups = caseResult.authorities.filter(isCaseGroup);
-    const caseIndices = new Set([...groups, ...result.authorities.filter(isCaseGroup)].flat());
-    const citations = new Map(caseResult.citations.map(citation => [citation.index, citation]));
-    const resolutions = new Map(caseResult.resolutions.map(resolution => [resolution.index, resolution]));
-    result.citations = result.citations.map(citation => caseIndices.has(citation.index)
-      ? citations.get(citation.index)! : citation);
-    result.resolutions = result.resolutions.map(resolution => caseIndices.has(resolution.index)
-      ? resolutions.get(resolution.index)! : resolution);
-    result.authorities = [...result.authorities.filter(group => !isCaseGroup(group))
-      .map(group => group.filter(index => !caseIndices.has(index))).filter(group => group.length), ...groups];
-  }
   const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
   const byResolution = new Map(result.resolutions.map((resolution) => [resolution.index, resolution]));
   const authorityOf = new Map<number, string>();
@@ -268,15 +249,13 @@ async function scanReview(
       default: return "other";
     }
   };
-  const urlParts = result.resolutions.some(({ url }) => url) ? sourceParts
-    .filter((part) => part.anchors.filter((anchor) => anchor === "url").length === 1 &&
-      !result.citations.some((citation) =>
-      citation.span.start < part.end && part.start < citation.span.end))
-    .map((part) => ({ part, fields: native.citationEngineCall("sourceFields",
-      JSON.stringify({ part })) as SourceFields }))
-    .filter(({ fields }) => isObservedSourceUrl(fields.link_candidate) &&
-      !fields.reasons.includes("embedded_second_source")) : [];
-  const sourceGroups = new Map<string, string>();
+  const origins = new Set(result.resolutions.flatMap(({ sourcePart }) => sourcePart == null ? [] : [sourcePart]));
+  const originParts = sourceParts.flatMap((part, index) => origins.has(index) &&
+    !result.citations.some(citation => citation.span.start < part.end && part.start < citation.span.end)
+    ? [{ index, part, fields: native.citationEngineCall("sourceFields",
+      JSON.stringify({ part })) as SourceFields }] : [])
+    .filter(({ fields }) => !fields.reasons.includes("embedded_second_source"));
+  const sourceGroups = new Map<number, string>();
   const unkeyed = new Map<string, string>();
   for (const group of result.authorities) {
     const full = group.map((index) => byIndex.get(index))
@@ -289,26 +268,26 @@ async function scanReview(
     const url = sourceUrl ??
       full.map((citation) => citation.fields.url).find(isObservedSourceUrl) ??
       (full.length && referenceUrl ? referenceUrl.split("#")[0] : referenceUrl);
-    const source = !full.length && url ? urlParts.find(({ fields }) =>
-      fields.link_candidate.split("#")[0] === url.split("#")[0]) : undefined;
+    const origin = group.map(index => byResolution.get(index)?.sourcePart).find(index => index != null);
+    const source = !full.length ? originParts.find(({ index }) => index === origin) : undefined;
     const representative = full.find((citation) => citation.key) ?? full[0] ??
-      (url ? group.map((index) => byIndex.get(index)).find(Boolean) : undefined);
+      (source ? group.map((index) => byIndex.get(index)).find(Boolean) : undefined);
     if (!representative) continue;
     // A document-local review identity keeps unkeyed sources visible without
     // asserting a bibliographic identity; a citation written alike, style and all, names one.
     const written = full.length ? `${representative.style?.text ?? ""} ${representative.span.text}`
       .replace(/\s+/gu, " ").trim() : null;
     const key = full.length && representative.key || written && unkeyed.get(written) ||
-      `scan:${documentHash}:${representative.index}`;
+      `scan:${documentHash}:${source ? `source:${source.index}` : representative.index}`;
     if (written) unkeyed.set(written, key);
     group.forEach((index) => authorityOf.set(index, key));
     if (authorities[key]) continue;
     const sourceLink = source?.fields.link_candidate ?? url;
     const explicitUrl = isObservedSourceUrl(sourceLink) ? sourceLink : null;
-    if (explicitUrl) sourceGroups.set(explicitUrl.split("#")[0], key);
-    const sourceKind: AuthorityKind = source?.fields.kind === "case" ? "case"
-      : source?.fields.kind === "statute" ? "legislation"
-      : ["journal", "book", "essay_collection"].includes(source?.fields.kind ?? "")
+    if (source) sourceGroups.set(source.index, key);
+    const sourceKind: AuthorityKind = ["case", "unreported"].includes(source?.fields.kind ?? "") ? "case"
+      : ["statute", "regulation"].includes(source?.fields.kind ?? "") ? "legislation"
+      : ["journal", "book", "essay_collection", "article"].includes(source?.fields.kind ?? "")
       ? "commentary" : "other";
     // A core that does not name its court (a CanLII ID, a reporter) keeps the court written
     // after it, as McGill cites it: "1961 CanLII 7 (SCC)", even past a pinpoint.
@@ -317,6 +296,9 @@ async function scanReview(
     const observedText = source?.fields.citation_with_style || source?.part.text.trim() ||
       (full.length ? [representative.span.text, court].filter(Boolean).join(" ") : representative.fullSpan.text);
     authorities[key] = { id: key, key, kind: source ? sourceKind : kindOf(representative),
+      ...(full.length && full.every(citation => citation.authority === "case" &&
+          ["database", "docket"].includes(citation.format ?? ""))
+        ? { citationFormat: representative.format as "database" | "docket" } : {}),
       citation: source?.fields.bare_citation || observedText,
       name: source ? null : representative.style?.text?.trim() || null,
       displayName: null, excluded: false,
@@ -325,12 +307,14 @@ async function scanReview(
       ...(explicitUrl ? { sourceUrl: explicitUrl } : {}) };
     authorityOrder.push(key);
   }
-  const sourceOccurrences = urlParts.flatMap(({ part, fields }) => {
-    const authorityId = sourceGroups.get(fields.link_candidate.split("#")[0]);
-    const coreOffset = part.text.indexOf(fields.link_candidate);
+  const sourceOccurrences = originParts.flatMap(({ index, part, fields }) => {
+    const authorityId = sourceGroups.get(index);
+    const candidate = isObservedSourceUrl(fields.link_candidate) ? fields.link_candidate : fields.bare_citation;
+    const coreText = candidate && part.text.includes(candidate) ? candidate : part.text;
+    const coreOffset = part.text.indexOf(coreText);
     if (!authorityId || coreOffset < 0) return [];
     const core = { start: part.start + coreOffset,
-      end: part.start + coreOffset + fields.link_candidate.length };
+      end: part.start + coreOffset + coreText.length };
     const styledOffset = part.text.indexOf(fields.citation_with_style);
     const styled = styledOffset >= 0 ? { start: part.start + styledOffset,
       end: part.start + styledOffset + fields.citation_with_style.length } : core;
@@ -375,9 +359,8 @@ async function scanReview(
         start <= span.start && span.end <= end);
       const marker = citation.fields.inlineReference?.span;
       const core = local(marker ?? citation.span);
-      const full = marker ? { start: core.start,
-        end: Math.max(core.end, ...pinpoints.map(({ span }) => local(span).end)) } : local(citation.fullSpan);
-      const styled = marker ? core : { start: citation.style &&
+      const full = local(citation.fullSpan);
+      const styled = { start: citation.style &&
         citation.style.start >= Math.max(start, citation.fullSpan.start) &&
         citation.style.start <= citation.span.start
         ? citation.style.start - start : core.start, end: core.end };

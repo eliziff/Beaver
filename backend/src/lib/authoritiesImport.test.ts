@@ -220,7 +220,7 @@ describe("authorities import application", () => {
           pinpointSpan: { text: "9" }, sourceTextSha256: sha256("Ibid at para 9."),
           localOrdinal: 0, authorityId: state.authorityOrder[0], reviewed: true,
           reference: { kind: "ibid", targetAuthorityId: state.authorityOrder[0] } },
-        { citation: "supra", text: "supra at para 11", authoritySpan: { text: "supra" },
+        { citation: "supra", text: "Example, supra at para 11", authoritySpan: { text: "Example, supra" },
           pinpointSpan: { text: "11" }, authorityId: state.authorityOrder[0], reviewed: true,
           reference: { kind: "supra", targetAuthorityId: state.authorityOrder[0] } },
       ]);
@@ -268,7 +268,7 @@ describe("authorities import application", () => {
     const unit = state.units.find(({ text: value }) => value === text)!;
     expect(unit.occurrenceIds.map((id) => state.occurrences[id]).map(
       ({ text: value, pinpointSpan }) => [value, pinpointSpan?.text])).toEqual([
-      ["supra note 1 at para 43", "43"],
+      [text.slice(0, text.indexOf(".")), "43"],
       ["R v Lukacs, 2021 BCSC 1769 at para 40", "40"],
     ]);
   });
