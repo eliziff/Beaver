@@ -31,7 +31,7 @@
     "mike-workflows": {
       "branch": "main",
       "bundle": null,
-      "remote": "https://github.com/Open-Legal-Products/mike-workflows.git"
+      "remote": "https://github.com/eliziff/mike-workflows.git"
     }
   }
 }
