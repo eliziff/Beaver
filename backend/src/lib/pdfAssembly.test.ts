@@ -84,7 +84,7 @@ it("keeps numbers inside rotated crop boxes and preserves navigation and hidden 
     const streams = page.node.Contents() as PDFArray;
     const content = streams.asArray().map((ref) => Buffer.from(decodePDFRawStream(
       saved.context.lookup(ref, PDFRawStream)).decode()).toString("latin1")).join("\n");
-    const matrix = content.match(/([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) Tm/u)!;
+    const matrix = content.match(/([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) cm/u)!;
     expect(matrix.slice(5).map(Number)).toEqual(expected[index]);
     expect(content).toContain(Buffer.from("Recognized passage").toString("hex").toUpperCase());
   });

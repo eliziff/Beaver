@@ -10,7 +10,7 @@ import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
 import { normalizedWords } from "./structureNative";
 
-const { appendPages, applyOutlines, readOutlines } = pdfAssembly(pdf);
+const { adoptFormsAndLayers, appendPages, applyOutlines, describeDocument, readOutlines } = pdfAssembly(pdf);
 const LINK_PREFIX = "https://beaver-authorities.invalid/";
 export const filingLinkUrl = (kind: "tab" | "pinpoint", id: string) =>
   `${LINK_PREFIX}${kind}/${encodeURIComponent(id)}`;
@@ -263,8 +263,8 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
     }
   }
   applyOutlines(document, outlines, true);
-  document.setTitle("Brief and Book of Authorities");
-  document.setCreator("Beaver"); document.setProducer("Beaver / pdf-lib");
+  adoptFormsAndLayers(document);
+  describeDocument(document, "Brief and Book of Authorities", "Brief and its book of legal authorities", "Beaver / pdf-lib");
   input.signal?.throwIfAborted();
   // What the brief's and the book's copies carried in that nothing refers to stays out.
   dropUnreachable(pdf, document);

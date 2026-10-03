@@ -196,7 +196,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             if (paperCover) cover.drawRectangle({ x: 0, y: 0, width: 612, height: 792,
               color: pdf.rgb(...paperCover.rgb) });
             const ink = paperCover?.dark ? pdf.rgb(1, 1, 1) : pdf.rgb(.18, .18, .18);
-            if (federal) coverBottom = drawFederalForm66Cover(cover, regular, bold, input.cover,
+            if (federal) coverBottom = drawFederalForm66Cover(pdf, cover, regular, bold, input.cover,
               input.court, documentTitle, coverLine, ink);
             else if (input.alberta) coverBottom = drawAlbertaCover(pdf, cover, regular, bold, input.cover,
               input.court, documentTitle);
@@ -206,8 +206,8 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
                 thickness: 2, color: ink });
               // The title wraps rather than losing its end; the subtitle follows its last line.
               const title = wrapped(bold, documentTitle, 28, contentWidth).slice(0, 4);
-              title.forEach((line, index) => cover.drawText(line,
-                { x: margin, y: 500 - index * 34, size: 28, font: bold, color: ink }));
+              coverField(pdf, cover, "Title", title.join("\n"),
+                [margin - 4, 492 - (title.length - 1) * 34, contentWidth + 8, (title.length - 1) * 34 + 36], bold, 28, "left", ink);
               if (subtitle && bookTitle !== subtitle) cover.drawText(fit(serif, subtitle, 13, contentWidth),
                 { x: margin, y: 462 - (title.length - 1) * 34, size: 13, font: serif, color: ink });
               coverBottom = 432 - (title.length - 1) * 34;
@@ -280,10 +280,8 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
               y -= token.height;
             }
             if (!(federal && electronic)) {
-              const value = String(plan.globalStart + coverPageCount + customIndexPages + chunkIndex + 1);
-              const size = federal ? 12 : 9;
-              engine.paginationArtifact(page, "Footer", () => page.drawText(value,
-                { x: (612 - regular.widthOfTextAtSize(value, size)) / 2, y: federal ? 75 : 36, size, font: regular }));
+              engine.drawPageNumber(page, plan.globalStart + coverPageCount + customIndexPages + chunkIndex + 1,
+                regular, "bottom-centre", federal ? 12 : 9, 72, federal ? 75 : 36);
             }
           });
         },
@@ -295,9 +293,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             if (multi && limits?.coverLabels) back.drawText(volumeLabel,
               { x: margin, y: 400, size: 12, font: bold });
           }
-          document.setTitle(documentTitle); document.setSubject("Navigable book of legal authorities");
-          document.setCreator("Beaver"); document.setProducer("Beaver · pdf-lib");
-          document.setCreationDate(new Date(0)); document.setModificationDate(new Date(0));
+          engine.describeDocument(document, documentTitle, "Navigable book of legal authorities", "Beaver · pdf-lib");
           document.catalog.set(pdf.PDFName.of("Lang"), pdf.PDFHexString.fromText("en-CA"));
           // Where the index gives tabs, a PDF viewer's page box gives them too: "Tab 3-2" is the second
           // page of the authority at Tab 3. Where it gives book pages, the box gives those.
@@ -475,7 +471,7 @@ export function drawRuns(page: PdfPage, runs: ReturnType<typeof citationLines>[n
   }
 }
 
-function drawFederalForm66Cover(page: PdfPage, regular: PdfFont, bold: PdfFont,
+function drawFederalForm66Cover(pdf: PdfModule, page: PdfPage, regular: PdfFont, bold: PdfFont,
   cover: AuthoritiesCover, court: string, title: string, filedBy: string | null,
   color: PdfColor) {
   const margin = 99.21, { width, height } = page.getSize();
@@ -490,15 +486,20 @@ function drawFederalForm66Cover(page: PdfPage, regular: PdfFont, bold: PdfFont,
     page.drawText(text, { x: (width - font.widthOfTextAtSize(text, 12)) / 2,
       y, size: 12, font, color });
   };
-  const file = clean(`Court File No. ${cover.courtFileNumber}`);
-  page.drawText(file, { x: width - margin - regular.widthOfTextAtSize(file, 12),
+  // The file number, the parties and the title are fields Acrobat fills in, each where it stands.
+  const file = clean(cover.courtFileNumber), fileWidth = Math.max(90, regular.widthOfTextAtSize(file, 12) + 6);
+  const label = "Court File No.";
+  page.drawText(label, { x: width - margin - fileWidth - regular.widthOfTextAtSize(label, 12) - 2,
     y: height - 78, size: 12, font: regular, color });
+  coverField(pdf, page, "Court file number", file, [width - margin - fileWidth, height - 82, fileWidth, 16], regular, 12, "left", color);
   centred(court, height - 118, bold);
   page.drawText("BETWEEN:", { x: margin, y: height - 157, size: 12, font: regular, color });
   let y = height - 193;
   cover.partyGroups.forEach(({ role, parties }, index) => {
     const names = wrapped(regular, clean(parties.join(", ")), 12, width - (2 * margin));
-    names.forEach((name) => { centred(name, y); y -= 14; });
+    coverField(pdf, page, `Parties ${index + 1}`, names.join("\n"),
+      [margin - 4, y - 14 * (names.length - 1) - 5, width - 2 * margin + 8, 14 * names.length + 4], regular, 12, "center", color);
+    y -= 14 * names.length;
     y -= 20;
     const label = clean(role);
     page.drawText(label, { x: width - margin - regular.widthOfTextAtSize(label, 12),
@@ -515,13 +516,34 @@ function drawFederalForm66Cover(page: PdfPage, regular: PdfFont, bold: PdfFont,
     y -= 17;
   }
   y -= 8;
-  for (const line of wrapped(bold, clean(title.toUpperCase()), 12, width - (2 * margin))) {
-    centred(line, y, bold); y -= 16;
-  }
+  const titleLines = wrapped(bold, clean(title.toUpperCase()), 12, width - (2 * margin));
+  coverField(pdf, page, "Title", titleLines.join("\n"),
+    [margin - 4, y - 16 * (titleLines.length - 1) - 5, width - 2 * margin + 8, 16 * titleLines.length + 4], bold, 12, "center", color);
+  y -= 16 * titleLines.length;
   if (filedBy) { y -= 10; centred(filedBy, y); y -= 16; }
   if (y < 135) throw new Error(
     "The Federal style of cause is too long for one Form 66 cover page.");
   return y - 10;
+}
+
+/** A cover's value as a form field Acrobat fills in, in the cover's own font where the value stands:
+ *  `rect` is [x, y, width, height]; text on more than one line wraps. */
+function coverField(pdf: PdfModule, page: PdfPage, name: string, value: string, rect: number[], font: PdfFont,
+  size: number, align: "left" | "center", color: PdfColor) {
+  const form = page.doc.getForm(), field = form.createTextField(name);
+  field.setText(value);
+  if (rect[3] > size * 1.6) field.enableMultiline();
+  field.setAlignment(align === "center" ? pdf.TextAlignment.Center : pdf.TextAlignment.Left);
+  field.addToPage(page, { x: rect[0], y: rect[1], width: rect[2], height: rect[3], font, textColor: color,
+    backgroundColor: undefined, borderColor: undefined, borderWidth: 0 });
+  field.setFontSize(size); field.updateAppearances(font);
+  form.markFieldAsClean(field.ref);
+  // The font its appearance names, where Acrobat finds it to redraw the value once edited.
+  const { PDFName, PDFDict } = pdf, context = page.doc.context, acroForm = form.acroForm.dict;
+  const resources = acroForm.lookupMaybe(PDFName.of("DR"), PDFDict) ?? context.obj({});
+  const fonts = resources.lookupMaybe(PDFName.of("Font"), PDFDict) ?? context.obj({});
+  fonts.set(PDFName.of(font.name), font.ref); resources.set(PDFName.of("Font"), fonts);
+  acroForm.set(PDFName.of("DR"), resources);
 }
 
 /** The page that opens an authority: its tab, large and alone. */
