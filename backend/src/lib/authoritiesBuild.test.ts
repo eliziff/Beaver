@@ -2,7 +2,7 @@ import { resolvePdfPagination } from "./pdfPagination";
 import JSZip from "jszip";
 import { Document as WordDocument, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx";
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName,
-  PDFNumber, PDFRawStream, PDFString, StandardFonts } from "pdf-lib";
+  PDFNumber, PDFRawStream, PDFRef, PDFString, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
 import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests, authorityPassageTargets,
@@ -43,13 +43,26 @@ async function withDecimalPageLabels(bytes: Uint8Array, start: number) {
   return Buffer.from(await pdf.save());
 }
 
+/** What a page draws: its content, with each form it shows (a header or a page number) and each
+ *  field's appearance (a cover's values) where they stand. */
 function pageContent(document: PDFDocument, page: ReturnType<PDFDocument["getPage"]>) {
+  const read = (item: unknown) => Buffer.from(decodePDFRawStream(item instanceof PDFRawStream ? item
+    : document.context.lookup(item as PDFRef, PDFRawStream)).decode()).toString("latin1");
+  const shift = (content: string, x: number, y: number) => content.replace(/1 0 0 1 ([-\d.]+) ([-\d.]+) Tm/gu,
+    (_, left, bottom) => `1 0 0 1 ${Number(left) + x} ${Number(bottom) + y} Tm`);
   const contents = page.node.Contents();
   const items = contents instanceof PDFArray ? contents.asArray() : contents ? [contents] : [];
-  return items.map((item) => {
-    const stream = item instanceof PDFRawStream ? item : document.context.lookup(item, PDFRawStream);
-    return Buffer.from(decodePDFRawStream(stream).decode()).toString("latin1");
-  }).join("\n");
+  const forms = page.node.Resources()?.lookupMaybe(PDFName.of("XObject"), PDFDict);
+  const drawn = items.map(read).join("\n").replace(/1 0 0 1 ([-\d.]+) ([-\d.]+) cm\s+\/(\S+) Do/gu,
+    (whole, x, y, name) => forms?.has(PDFName.of(name)) ? shift(read(forms.get(PDFName.of(name))), Number(x), Number(y)) : whole);
+  const fields = (page.node.lookupMaybe(PDFName.of("Annots"), PDFArray)?.asArray() ?? [])
+    .map((ref) => document.context.lookup(ref, PDFDict))
+    .filter((annotation) => annotation.get(PDFName.of("Subtype"))?.toString() === "/Widget")
+    .map((widget) => {
+      const [x, y] = widget.lookup(PDFName.of("Rect"), PDFArray).asArray().map((value) => Number(value.toString()));
+      return shift(read(widget.lookup(PDFName.of("AP"), PDFDict).get(PDFName.of("N"))), x, y);
+    });
+  return [drawn, ...fields].join("\n");
 }
 
 const pdfTextHex = (value: string) => Buffer.from(value
@@ -1404,7 +1417,7 @@ describe("Authorities output builder", () => {
       .toEqual(expect.arrayContaining(["fc-rules", "fc-practice-guidelines-2025",
         "fc-efiling", "fc-efiling-guide-2020"]));
     const cover = pageContent(book, book.getPage(0)).toUpperCase();
-    for (const value of ["Court File No. T-123-26", "FEDERAL COURT", "BETWEEN:",
+    for (const value of ["Court File No.", "T-123-26", "FEDERAL COURT", "BETWEEN:",
       "North Prairie Ltd.", "Applicant", "Attorney General of Canada", "Respondent",
       "APPLICATION UNDER Federal Courts Act, section 18.1", title.toUpperCase()]) {
       expect(cover).toContain(pdfTextHex(value));

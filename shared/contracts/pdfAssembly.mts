@@ -108,8 +108,15 @@ export function mapOutline(outline: PdfOutline[], page: (pageIndex: number) => n
   });
 }
 
+type HeaderFooterSet = { kind: "Header" | "Footer"; slot: "Center" | "Right"; font: string; size: number;
+  inset: number; offset: number; text: string | null; settings: PDFRef;
+  pages: Array<{ page: PDFPage; number: number }> };
+
 export function pdfAssembly(pdf: typeof import("pdf-lib")) {
   const { PDFHexString, PDFName, degrees, rgb } = pdf;
+  // Each document's headers and footers by their settings, written out when it is saved.
+  const headerFooterSets = new WeakMap<PDFDocument, Map<string, HeaderFooterSet>>();
+  const EPOCH = pdf.PDFString.of("D:19700101000000Z");
 
   /** Plain PDF values survive both document contexts and the book worker's structured clone. */
   function readOutlineValue(document: PDFDocument, value: PDFObject | undefined,
@@ -191,7 +198,10 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
       return undefined;
     };
   }
-  /** Draws a page number, or a running line such as a statute's currency, as page furniture. */
+  /** Draws a page number, or a running line such as a statute's currency, as Acrobat draws its own
+   *  headers and footers: a pagination artifact showing a form on the Headers/Footers layer, which
+   *  carries the settings Header & Footer > Update and Remove work from. A number's settings count
+   *  the pages it runs over, so a page inserted among them is numbered on Update. */
   function drawPageNumber(page: PDFPage, number: number | string, font: PDFFont,
     position: PdfPageNumberPosition, size = 9, inset = 72, offset = 36) {
     const text = String(number), textWidth = font.widthOfTextAtSize(text, size);
@@ -204,18 +214,137 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     const [pageX, pageY] = angle === 90 ? [crop.width - y, x]
       : angle === 180 ? [crop.width - x, crop.height - y]
         : angle === 270 ? [y, crop.height - x] : [x, y];
-    paginationArtifact(page, position.startsWith("top") ? "Header" : "Footer", () =>
-      page.drawText(text, { x: crop.x + pageX, y: crop.y + pageY, size, font,
-        rotate: degrees(angle), color: rgb(.12, .12, .12) }));
+    const kind = position.startsWith("top") ? "Header" : "Footer", context = page.doc.context;
+    const slot = position.endsWith("right") ? "Right" : "Center", numbered = typeof number === "number";
+    const key = [kind, slot, font.name, size, inset, offset, numbered ? "" : text].join("\0");
+    const sets = headerFooterSets.get(page.doc) ?? headerFooterSets.set(page.doc, new Map()).get(page.doc)!;
+    const set = sets.get(key) ?? sets.set(key, { kind, slot, font: font.name, size, inset, offset,
+      text: numbered ? null : text, settings: context.nextRef(), pages: [] }).get(key)!;
+    set.pages.push({ page, number: numbered ? number : 0 });
+    const form = context.register(context.formXObject([
+      ...pdf.drawText(font.encodeText(text), { font: font.name, size, x: 0, y: 0, color: rgb(.12, .12, .12),
+        rotate: degrees(0), xSkew: degrees(0), ySkew: degrees(0) }),
+    ], { BBox: [0, -size / 4, textWidth, size], Matrix: [1, 0, 0, 1, 0, 0], LastModified: EPOCH,
+      Resources: { Font: { [font.name]: font.ref } }, OC: context.obj({ Type: "OCMD", OCGs: headerFooterLayer(page.doc) }),
+      PieceInfo: { ADBE_CompoundType: { DocSettings: set.settings, LastModified: EPOCH, Private: kind } } }));
+    const radians = angle * Math.PI / 180, [cos, sin] = [Math.round(Math.cos(radians)), Math.round(Math.sin(radians))];
+    page.pushOperators(pdf.PDFOperator.of(pdf.PDFOperatorNames.BeginMarkedContentSequence, [PDFName.of("Artifact"),
+      context.obj({ Contents: pdf.PDFString.of(text), Type: "Pagination", Subtype: kind,
+        Attached: [kind === "Header" ? "Top" : "Bottom"] }) as unknown as string]),
+    pdf.pushGraphicsState(), pdf.concatTransformationMatrix(cos, sin, -sin, cos, crop.x + pageX, crop.y + pageY),
+    pdf.drawObject(page.node.newXObject("HF", form)), pdf.popGraphicsState(), pdf.endMarkedContent());
   }
 
-  /** Draws a page number or running header as a pagination artifact, the marked content a PDF
-   *  editor's header and footer tools and a screen reader take for page furniture, not text. */
-  function paginationArtifact(page: PDFPage, kind: "Header" | "Footer", draw: () => void) {
-    page.pushOperators(pdf.PDFOperator.of(pdf.PDFOperatorNames.BeginMarkedContentSequence, [PDFName.of("Artifact"),
-      page.doc.context.obj({ Type: "Pagination", Subtype: kind, Attached: [kind === "Header" ? "Top" : "Bottom"] }) as unknown as string]));
-    draw();
-    page.pushOperators(pdf.endMarkedContent());
+  /** Names a document as Acrobat shows it: its title in the title bar, and in both the document
+   *  information and the XMP metadata Document Properties reads. Dated the epoch, so a build of the
+   *  same input is the same file. */
+  function describeDocument(document: PDFDocument, title: string, subject: string, producer: string) {
+    document.setTitle(title, { showInWindowTitleBar: true }); document.setSubject(subject);
+    document.setCreator("Beaver"); document.setProducer(producer);
+    document.setCreationDate(new Date(0)); document.setModificationDate(new Date(0));
+    const xml = (value: string) => value.replace(/[&<>"]/gu, (character) =>
+      `&${{ "&": "amp", "<": "lt", ">": "gt", "\"": "quot" }[character]};`);
+    const alt = (value: string) => `<rdf:Alt><rdf:li xml:lang="x-default">${xml(value)}</rdf:li></rdf:Alt>`;
+    document.catalog.set(PDFName.of("Metadata"), document.context.register(document.context.stream(new TextEncoder().encode(
+      `<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/">` +
+      `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" ` +
+      `xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" ` +
+      `xmlns:pdf="http://ns.adobe.com/pdf/1.3/"><dc:format>application/pdf</dc:format>` +
+      `<dc:title>${alt(title)}</dc:title><dc:description>${alt(subject)}</dc:description>` +
+      `<xmp:CreatorTool>Beaver</xmp:CreatorTool><xmp:CreateDate>1970-01-01T00:00:00Z</xmp:CreateDate>` +
+      `<xmp:ModifyDate>1970-01-01T00:00:00Z</xmp:ModifyDate><pdf:Producer>${xml(producer)}</pdf:Producer>` +
+      `</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>`), { Type: "Metadata", Subtype: "XML" })));
+  }
+
+  /** Lists the form fields and the Headers/Footers layers that pages copied in from other PDFs
+   *  carry, which a copied page leaves out of the document's own form and layer lists: a cover's
+   *  fields stay fillable, and its headers and footers stay Acrobat's, in a PDF it is part of. */
+  function adoptFormsAndLayers(document: PDFDocument) {
+    const { context } = document, { PDFArray, PDFDict, PDFRef } = pdf;
+    const fields = new Set<PDFRef>(), layers = new Set<PDFRef>(), fonts = new Map<string, PDFObject>();
+    for (const page of document.getPages()) {
+      for (const ref of page.node.lookupMaybe(PDFName.of("Annots"), PDFArray)?.asArray() ?? []) {
+        const widget = context.lookup(ref, PDFDict);
+        if (widget.get(PDFName.of("Subtype")) !== PDFName.of("Widget") || !(ref instanceof PDFRef)) continue;
+        const parent = widget.get(PDFName.of("Parent")), field = parent instanceof PDFRef ? parent : ref;
+        fields.add(field);
+        // The font its value is set in, by the name the field's appearance asks for.
+        const name = context.lookup(field, PDFDict).lookupMaybe(PDFName.of("DA"), pdf.PDFString, PDFHexString)
+          ?.decodeText().match(/\/(\S+)\s+[\d.]+\s+Tf/u)?.[1];
+        const shown = widget.lookupMaybe(PDFName.of("AP"), PDFDict)?.get(PDFName.of("N"));
+        const resources = shown && context.lookup(shown);
+        const available = resources instanceof pdf.PDFRawStream || resources instanceof pdf.PDFContentStream
+          ? resources.dict.lookupMaybe(PDFName.of("Resources"), PDFDict)?.lookupMaybe(PDFName.of("Font"), PDFDict) : undefined;
+        for (const [, font] of available?.entries() ?? []) if (name && context.lookup(font, PDFDict)
+          .get(PDFName.of("BaseFont"))?.toString() === `/${name}`) fonts.set(name, font);
+      }
+      for (const [, ref] of page.node.Resources()?.lookupMaybe(PDFName.of("XObject"), PDFDict)?.entries() ?? []) {
+        const form = context.lookup(ref);
+        const layer = form instanceof pdf.PDFRawStream || form instanceof pdf.PDFContentStream
+          ? form.dict.lookupMaybe(PDFName.of("OC"), PDFDict)?.get(PDFName.of("OCGs")) : undefined;
+        if (layer instanceof PDFRef) layers.add(layer);
+      }
+    }
+    if (fields.size) {
+      const acroForm = document.catalog.lookupMaybe(PDFName.of("AcroForm"), PDFDict) ?? context.obj({ Fields: [] });
+      const listed = acroForm.lookup(PDFName.of("Fields"), PDFArray);
+      for (const field of fields) if (!listed.asArray().includes(field)) listed.push(field);
+      const resources = acroForm.lookupMaybe(PDFName.of("DR"), PDFDict) ?? context.obj({});
+      const named = resources.lookupMaybe(PDFName.of("Font"), PDFDict) ?? context.obj({});
+      for (const [name, font] of fonts) if (!named.has(PDFName.of(name))) named.set(PDFName.of(name), font);
+      resources.set(PDFName.of("Font"), named); acroForm.set(PDFName.of("DR"), resources);
+      document.catalog.set(PDFName.of("AcroForm"), acroForm);
+    }
+    if (layers.size) {
+      const listed = layerList(document);
+      for (const layer of layers) if (!listed.asArray().includes(layer)) listed.push(layer);
+    }
+  }
+
+  /** The document's list of layers (optional content groups). */
+  function layerList(document: PDFDocument) {
+    const properties = document.catalog.lookupMaybe(PDFName.of("OCProperties"), pdf.PDFDict) ??
+      document.context.obj({ OCGs: [], D: { Order: [], RBGroups: [] } });
+    document.catalog.set(PDFName.of("OCProperties"), properties);
+    return properties.lookup(PDFName.of("OCGs"), pdf.PDFArray);
+  }
+
+  /** The Headers/Footers layer Acrobat puts its own headers and footers on. */
+  function headerFooterLayer(document: PDFDocument) {
+    const layers = layerList(document);
+    const found = layers.asArray().find((ref) => document.context.lookup(ref, pdf.PDFDict)
+      .lookupMaybe(PDFName.of("Name"), pdf.PDFString, PDFHexString)?.decodeText() === "Headers/Footers");
+    if (found) return found;
+    const layer = document.context.register(document.context.obj({ Type: "OCG",
+      Name: pdf.PDFString.of("Headers/Footers"), Usage: { PageElement: { Subtype: "HF" } } }));
+    layers.push(layer);
+    return layer;
+  }
+
+  /** Writes each header and footer's settings, as Acrobat's Header & Footer dialog saves them: its
+   *  font, margins, place and page range, and the page number counted from the range's first page. */
+  function finishHeaderFooters(document: PDFDocument) {
+    const order = new Map(document.getPages().map((page, index) => [page, index]));
+    for (const set of headerFooterSets.get(document)?.values() ?? []) {
+      const placed = set.pages.map(({ page, number }) => ({ index: order.get(page)!, number }))
+        .sort((left, right) => left.index - right.index);
+      const first = placed[0], escape = (value: string) => value.replace(/[&<>"]/gu, (character) =>
+        `&${{ "&": "amp", "<": "lt", ">": "gt", "\"": "quot" }[character]};`);
+      const slot = set.text === null ? `<Page offset = "${first.number - 1}"><PageIndex format="1"/></Page>` : escape(set.text);
+      const slots = (kind: string) => ["Left", "Center", "Right"].map((name) =>
+        `<${name}>${kind === set.kind && name === set.slot ? slot : ""}</${name}>`).join("");
+      const margin = set.kind === "Header" ? Math.max(0, set.offset - set.size) : set.offset;
+      const xml = `<?xml version = "1.0" encoding = "UTF-8" ?><HeaderFooterSettings version = "8.0">` +
+        `<Font underline="false" type="Type1" size="${set.size.toFixed(1)}" name="${set.font}"/>` +
+        `<Color r="0.12" b="0.12" g="0.12"/><Margin left="${set.inset}" right="${set.inset}" ` +
+        `top="${set.kind === "Header" ? margin : 36}" bottom="${set.kind === "Footer" ? margin : 36}"/>` +
+        `<Appearance shrink="0" fixedprint="0"/><PageRange end="${placed[placed.length - 1].index}" ` +
+        `start="${first.index}" even="1" odd="1"/><Page offset = "0"><PageIndex format="1"/></Page>` +
+        `<Date><Month format="1"/>/<Day format="1"/><Year format="0"/></Date>` +
+        `<Header>${slots("Header")}</Header><Footer>${slots("Footer")}</Footer></HeaderFooterSettings>`;
+      document.context.assign(set.settings, document.context.stream(new TextEncoder().encode(`﻿${xml}`)));
+    }
+    headerFooterSets.delete(document);
   }
 
   /** A scan's recognized text as an invisible text layer (render mode 3): found by search and
@@ -499,6 +628,7 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
       numbers.size, numbers.inset, numbers.offset));
     for (const link of input.links ?? [])
       addInternalLink(link.page, link.rect, "url" in link ? link.url : document.getPage(link.targetPageIndex));
+    finishHeaderFooters(document);
     if (input.pageLabels !== undefined) applyPageLabels(document, input.pageLabels);
     if (input.outlines) {
       const outlines = input.outlines(context);
@@ -527,6 +657,6 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
       plans.splice(oversized, 1, ...divided);
     }
   }
-  return { drawPageNumber, paginationArtifact, applyOcrText, applyPageLabels, applyOutlines, readOutlines, addInternalLink,
+  return { drawPageNumber, finishHeaderFooters, describeDocument, adoptFormsAndLayers, applyOcrText, applyPageLabels, applyOutlines, readOutlines, addInternalLink,
     destinationReader, embedFonts, appendPages, assemble, volumes };
 }
