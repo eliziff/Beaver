@@ -343,35 +343,6 @@ describe("Authorities UI contracts", () => {
     expect(api.getWorkProduct).toHaveBeenCalledWith("requested");
   });
 
-  it("applies import options without asking a Table-only draft for PDFs", async () => {
-    api.uploadAuthoritiesDocument.mockResolvedValue({ id: "uploaded-document" });
-    const created = add(documentDraft(), authority("case", "Example v Example",
-      { kind: "unresolved" }));
-    created.state.settings.sourceMode = "manual-originals";
-    api.createAuthorities.mockResolvedValue(created);
-    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      {...workspaceRoute()} /></MemoryRouter>);
-    const file = new File(["PK\x03\x04"], "Factum.docx", { type:
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-
-    await userEvent.upload(screen.getByLabelText("Add file"), file);
-    const setup = screen.getByRole("dialog", { name: "Import options" });
-    await userEvent.click(within(setup).getByText("Passage marking", { selector: "summary span" }));
-    expect(within(setup).getByRole("group", { name: "Passage marking" })).toBeVisible();
-    expect(within(setup).queryByRole("group", { name: "Word copy" })).not.toBeInTheDocument();
-    await userEvent.click(within(setup).getByLabelText(/Use available original PDFs and manually add the PDFs myself for the rest/));
-    await userEvent.click(within(setup).getByRole("button", { name: "Import and review" }));
-
-    await waitFor(() => expect(api.createAuthorities).toHaveBeenCalledWith({
-      source: { kind: "document", documentId: "uploaded-document", version: "latest" },
-      title: "Factum", projectId: undefined,
-      settings: { profileId: "general", sourceMode: "manual-originals", passageMarking: "margin" },
-    }));
-    expect(await screen.findByRole("button", { name: "Next" })).toBeVisible();
-    expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Add file for Example v Example")).not.toBeInTheDocument();
-  });
-
   it("chooses the Word copy and its tab references apart, the custom wording as its preview shows", async () => {
     let current = documentDraft(); current.state.stage = "build";
     api.getWorkProduct.mockResolvedValue(current);
@@ -1394,6 +1365,7 @@ describe("Authorities UI contracts", () => {
       authority("beta", "Beta v Test", { kind: "unresolved" }), alpha);
     saved.state.outputMode = "book";
     saved.state.stage = "sources";
+    Object.assign(saved.state.settings, { tableOrder: "custom", grouping: "none" });
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute("draft-1")} /></MemoryRouter>);

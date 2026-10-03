@@ -45,6 +45,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm ci --ignore-scripts --prefix backend
       - run: npm ci --ignore-scripts --prefix frontend
+        if: inputs.frontend-artifact == ''
       - name: Install document conversion dependency
         if: env.BEAVER_E2E_MODE == 'cloud'
         run: |
@@ -58,7 +59,7 @@ jobs:
           path: native/legal-structure-node/target/release
       - name: Build native integration for a standalone manual run
         if: inputs.native-artifact == ''
-        run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
+        run: cargo build --locked --release --jobs 2 --manifest-path native/legal-structure-node/Cargo.toml
       - run: npx playwright install --with-deps chromium
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8

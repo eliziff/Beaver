@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { ASSISTANT_LIMITS, parseAssistantCitations, parseAssistantProtocolEvent } from "./assistantProtocol";
 import { safeAssistantUrl } from "./safeAssistantUrl";
 import { describe, expect, it } from "vitest";

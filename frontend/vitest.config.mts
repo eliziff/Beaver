@@ -1,15 +1,16 @@
+import { constants, setPriority } from "node:os";
+setPriority(0, constants.priority.PRIORITY_BELOW_NORMAL);
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
-import react, { reactCompilerPreset } from "@vitejs/plugin-react";
-import babel from "@rolldown/plugin-babel";
+import react from "@vitejs/plugin-react";
 
 const resolvePath = (relative: string) =>
     fileURLToPath(new URL(relative, import.meta.url));
 
 export default defineConfig({
-    // Tests run the same compiled components the build ships (see vite.config.ts).
-    plugins: [react(), babel({ presets: [reactCompilerPreset()] })],
+    // Production builds/browser tests cover the React Compiler; unit tests need JSX only.
+    plugins: [react()],
     server: { fs: { allow: [resolvePath(".."), realpathSync(resolvePath("./node_modules"))] } },
     resolve: {
         alias: [
@@ -29,14 +30,14 @@ export default defineConfig({
     test: {
         globals: true,
         pool: "forks",
-        maxWorkers: 4,
+        maxWorkers: process.env.CI ? 4 : 1,
         execArgv: ["--max-old-space-size=192"],
         silent: "passed-only",
         environment: "jsdom",
         setupFiles: ["./vitest.setup.ts"],
         include: ["src/**/*.test.{ts,tsx}"],
         exclude: ["node_modules/**", "e2e/**", "**/*.spec.ts"],
-        testTimeout: 20000,
-        hookTimeout: 20000,
+        testTimeout: process.env.CI ? 20000 : 60000,
+        hookTimeout: process.env.CI ? 20000 : 60000,
     },
 });

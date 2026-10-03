@@ -9,13 +9,42 @@ on:
       - 'backend/src/lib/chat/chatToolRunner.ts'
       - 'backend/src/lib/convert.ts'
       - 'backend/src/lib/subprocessEnv.ts'
+      - 'backend/src/lib/docx*'
+      - 'backend/src/lib/docx/**'
       - 'backend/src/lib/__tests__/wordPython.test.ts'
+      - 'backend/src/lib/__tests__/word*.test.ts'
+      - 'backend/src/lib/__tests__/support/docxFixtures.ts'
+      - 'backend/vitest.config.mts'
       - 'backend/package*.json'
       - 'shared/contracts/**'
       - 'shared/tsconfig.json'
       - 'package*.json'
       - 'backend/word-python.Dockerfile'
       - '.github/workflows/word-python.yml'
+      - '.github/workflows/ci.yml'
+      - 'scripts/ci-scope.py'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/scripts/word_python/**'
+      - 'backend/src/lib/word*.ts'
+      - 'backend/src/lib/__tests__/word*.test.ts'
+      - 'backend/src/lib/__tests__/support/docxFixtures.ts'
+      - 'backend/src/lib/chat/wordPythonTool.ts'
+      - 'backend/src/lib/chat/chatToolRunner.ts'
+      - 'backend/src/lib/convert.ts'
+      - 'backend/src/lib/subprocessEnv.ts'
+      - 'backend/src/lib/docx*'
+      - 'backend/src/lib/docx/**'
+      - 'backend/package*.json'
+      - 'backend/vitest.config.mts'
+      - 'backend/word-python.Dockerfile'
+      - 'shared/contracts/**'
+      - 'shared/tsconfig.json'
+      - 'package*.json'
+      - '.github/workflows/word-python.yml'
+      - '.github/workflows/ci.yml'
+      - 'scripts/ci-scope.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -80,10 +109,14 @@ jobs:
       - run: npm run build:shared
       - name: Programs, Review mode, publication and sandbox refusals on the real runtime
         working-directory: backend
-        run: npx vitest run src/lib/__tests__/wordPython.test.ts src/lib/__tests__/wordEditApplication.test.ts
+        env:
+          BEAVER_WORD_INTEGRATION: "1"
+        run: npx vitest run
       - name: The same tests in the network-isolated container
         if: runner.os == 'Linux' && contains(needs.changes.outputs.os, 'windows-2022')
         working-directory: backend
+        env:
+          BEAVER_WORD_INTEGRATION: "1"
         run: |
           docker build -f word-python.Dockerfile -t beaver-word-python:test .
           WORD_PYTHON_CONTAINER_IMAGE=beaver-word-python:test npx vitest run src/lib/__tests__/wordPython.test.ts

@@ -1,0 +1,12 @@
+# Keep local compilation from occupying every CPU core. CI may override with -j.
+[build]
+jobs = 1
+
+[profile.dev]
+codegen-units = 1
+
+[profile.release]
+codegen-units = 1
+
+[env]
+RAYON_NUM_THREADS = { value = "1", force = false }
