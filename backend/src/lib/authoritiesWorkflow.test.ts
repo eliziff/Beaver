@@ -12,7 +12,7 @@ const state = () => ["Zulu", "Alpha", "Middle"].reduce((draft, id) => reduceAuth
 const procedure = (ids = ["Zulu", "Alpha", "Middle"]) => deriveAuthorityProcedure({
   authorities: ids.map((id) => ({ id, citation: id, sortLabel: id, kind: "case" as const,
     excluded: false, reproduced: id !== "Alpha" })), units: [], occurrences: {},
-  purpose: "book", manual: false, tableOrder: "alphabetical", tabStyle: "numeric",
+  purpose: "book", manual: false, tableOrder: "custom", grouping: "none", tabStyle: "numeric",
 });
 
 describe("Authorities workflow contracts", () => {
@@ -28,10 +28,11 @@ describe("Authorities workflow contracts", () => {
     const configured = reduceAuthoritiesDraft(state(), { type: "set-settings", settings: {
       tabStyle: "roman", tabPrefix: "Schedule ", tabStart: 4, tabLabels: ["Front", "", "Annex Z"],
     } });
+    // A move is made in the order shown (alphabetical) and makes that order the user's own.
     const moved = reduceAuthoritiesDraft(configured, { type: "move-authority", authorityId: "Middle", toIndex: 0 });
-    expect(moved.authorityOrder).toEqual(["Middle", "Zulu", "Alpha"]);
+    expect(moved.authorityOrder).toEqual(["Middle", "Alpha", "Zulu"]);
     expect(moved.authorities).toEqual(configured.authorities);
-    expect(moved.settings).toEqual(configured.settings);
+    expect(moved.settings).toEqual({ ...configured.settings, tableOrder: "custom" });
     expect([1, 2, 3, 4].map((slot) => tabLabel(slot, moved.settings.tabStyle, moved.settings)))
       .toEqual(["Front", "Schedule V", "Annex Z", "Schedule VII"]);
     expect(decodeAuthoritiesDraft(moved)?.settings.tabLabels).toEqual(["Front", "", "Annex Z"]);
