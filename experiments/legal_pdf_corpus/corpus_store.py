@@ -72,7 +72,7 @@ def now() -> str:
 
 def connect() -> sqlite3.Connection:
     ROOT.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(DB, timeout=60)
+    db = sqlite3.connect(DB, timeout=600)
     db.execute("pragma journal_mode=wal")
     db.executescript(SCHEMA)
     return db
@@ -182,6 +182,7 @@ def fetch(db, url: str, meta: dict, refresh: bool = True) -> tuple[str | None, s
         return (known[0] if known else None), f"error {e}"
     sha = hashlib.sha256(body).hexdigest() if body else None
     db.execute("insert into fetches(url, fetched_at, http_status, final_url, bytes, sha256) values (?,?,?,?,?,?)", (url, now(), status, final, len(body), sha))
+    db.commit()  # never hold the write lock across text extraction
     if status == 304 and known:
         db.execute("update documents set last_seen_at=? where url=?", (now(), url))
         return known[0], "unchanged"
@@ -232,6 +233,7 @@ def sync(args) -> None:
                         docs.append((f"{doc_id}--brief", entry["brief"], f"Brief filed with {doc_id}", doc_id, "brief"))
                     for did, u, t, pair, kind in docs:
                         db.execute("insert or replace into court_documents values (?,?,?,?,?,?,?)", (court, did, role, t, u, entry.get("landing", "direct"), pair))
+                        db.commit()
                         meta = {"collection": "court-practice", "kind": kind, "jurisdiction": spec["jurisdiction"], "label": f"{court}: {t}"[:300],
                                 "provenance": f"court_practice.json {court}/{did}"}
                         sha, status = fetch(db, u, meta)
