@@ -430,6 +430,8 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
 export async function renderAuthoritySourcePdf(input: {
   kind: AuthorityKind; name: string | null; citation: string; date: string | null;
   sourceUrl: string | null; text: string;
+  /** Who gave the text, and the day it was retrieved (YYYY-MM-DD): a statute says both. */
+  provider?: string; retrieved?: string;
 }) {
   if (!input.text.trim()) throw new Error("Authority source text is empty.");
   const pdf = await import("pdf-lib"), document = await pdf.PDFDocument.create();
@@ -454,6 +456,15 @@ export async function renderAuthoritySourcePdf(input: {
   for (const line of wrapped(serif, citation, 13, width - left - right)) {
     current.drawText(line, { x: left, y, size: 13, font: serif,
       color: pdf.rgb(.2, .2, .2) }); y -= 18;
+  }
+  // A statute rebuilt from text says whose text it is and when it was retrieved: its publisher's
+  // currency date is not in the text, and the court asks how current a statute is.
+  if (input.kind === "legislation" && input.provider && input.retrieved) {
+    const day = new Date(`${input.retrieved}T12:00:00Z`).toLocaleDateString("en-CA",
+      { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+    current.drawText(pdfText(`Unofficial text from ${input.provider}, retrieved ${day}`),
+      { x: left, y, size: 10.5, font: italic, color: pdf.rgb(.2, .2, .2) });
+    y -= 16;
   }
   current.drawLine({ start: { x: left, y: y - 6 }, end: { x: width - right, y: y - 6 },
     thickness: .8, color: pdf.rgb(.6, .6, .6) });
@@ -920,14 +931,21 @@ async function prepareAuthorityBook(
   progress?.("Preparing the book");
   return {
     filename, subtitle, documentTitle, bookTitle, federal,
+    alberta: !!profile.requirements?.albertaCover,
+    indexShows: draft.settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs"),
+    tabPages: draft.settings.tabPages ?? !federal,
+    // Blank backs are for paper: an electronic filing never has them.
+    rightHandStarts: draft.settings.filingMedium !== "electronic" &&
+      (draft.settings.rightHandStarts ?? draft.settings.filingMedium === "paper"),
     electronic: draft.settings.filingMedium === "electronic",
-    court: profile.courtId === "fca" ? "FEDERAL COURT OF APPEAL" : "FEDERAL COURT",
+    court: profile.courtId === "fca" ? "FEDERAL COURT OF APPEAL" : federal ? "FEDERAL COURT"
+      : profile.label.toUpperCase(),
     cover: draft.cover, coverLine, paperCover,
     customCover: draft.bookParts.cover ? attached[draft.bookParts.cover.bindingRole]?.bytes : undefined,
     customIndex: draft.bookParts.index ? attached[draft.bookParts.index.bindingRole]?.bytes : undefined,
     coverPageCount: customCover?.getPageCount() ?? 1,
     customIndexPages: customIndex?.getPageCount() ?? 0,
-    limits: draft.settings.filingMedium === "electronic" ? profile.requirements?.electronicVolumes : undefined,
+    limits: draft.settings.filingMedium !== "paper" ? profile.requirements?.electronicVolumes : undefined,
     groups: rowGroups,
     sources: await Promise.all(sources.map(async (source) => {
       const seen = new Set<string>();

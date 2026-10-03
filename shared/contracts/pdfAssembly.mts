@@ -203,17 +203,31 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     const [pageX, pageY] = angle === 90 ? [crop.width - y, x]
       : angle === 180 ? [crop.width - x, crop.height - y]
         : angle === 270 ? [y, crop.height - x] : [x, y];
-    page.drawText(text, { x: crop.x + pageX, y: crop.y + pageY, size, font,
-      rotate: degrees(angle), color: rgb(.12, .12, .12) });
+    paginationArtifact(page, position.startsWith("top") ? "Header" : "Footer", () =>
+      page.drawText(text, { x: crop.x + pageX, y: crop.y + pageY, size, font,
+        rotate: degrees(angle), color: rgb(.12, .12, .12) }));
   }
 
+  /** Draws a page number or running header as a pagination artifact, the marked content a PDF
+   *  editor's header and footer tools and a screen reader take for page furniture, not text. */
+  function paginationArtifact(page: PDFPage, kind: "Header" | "Footer", draw: () => void) {
+    page.pushOperators(pdf.PDFOperator.of(pdf.PDFOperatorNames.BeginMarkedContentSequence, [PDFName.of("Artifact"),
+      page.doc.context.obj({ Type: "Pagination", Subtype: kind, Attached: [kind === "Header" ? "Top" : "Bottom"] }) as unknown as string]));
+    draw();
+    page.pushOperators(pdf.endMarkedContent());
+  }
+
+  /** A scan's recognized text as an invisible text layer (render mode 3): found by search and
+   *  selection, never drawn over the page. */
   function applyOcrText(page: PDFPage, font: PDFFont, value?: string) {
     if (!value?.trim()) return;
-    const text = value.normalize("NFC").replace(/\t/gu, " ").slice(0, 60_000);
-    for (const [index, chunk] of (text.match(/[\s\S]{1,1800}/gu) ?? []).entries()) {
-      page.drawText(chunk, { x: 1, y: 1 + index % 4, size: 1, lineHeight: 1,
-        maxWidth: Math.max(1, page.getWidth() - 2), font, opacity: 0 });
-    }
+    const lines = value.normalize("NFC").replace(/\t/gu, " ").slice(0, 60_000).split(/\r?\n/u)
+      .filter((line) => line.trim());
+    page.pushOperators(pdf.pushGraphicsState(), pdf.beginText(),
+      pdf.setFontAndSize(page.node.newFontDictionary(font.name, font.ref), 1),
+      pdf.setTextRenderingMode(pdf.TextRenderingMode.Invisible), pdf.setLineHeight(1), pdf.moveText(1, 1),
+      ...lines.flatMap((line) => [pdf.showText(font.encodeText(line)), pdf.nextLine()]),
+      pdf.endText(), pdf.popGraphicsState());
   }
 
   /** The PDF's own bookmarks, as titled, with the pages they open (shifted by `offset`). */
@@ -512,6 +526,6 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
       plans.splice(oversized, 1, ...divided);
     }
   }
-  return { drawPageNumber, applyOcrText, applyPageLabels, applyOutlines, readOutlines, addInternalLink,
+  return { drawPageNumber, paginationArtifact, applyOcrText, applyPageLabels, applyOutlines, readOutlines, addInternalLink,
     destinationReader, embedFonts, appendPages, assemble, volumes };
 }
