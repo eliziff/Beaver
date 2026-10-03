@@ -4,7 +4,7 @@ import { holds, previewEdit, reviewStep, savedIds, type ReviewStep } from "./rev
 import { QuotationReview } from "./QuotationFinding";
 import { StepProgress } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
-import { authorityName, authorityLabel,
+import { authorityName, authorityLabel, authorityCitationLine, authorityCitationText,
   requiresBilingualSources, requiresPdf,
   missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, Eye, FileCheck2, FilePlus2, FileType2, FileX2, FolderSearch, LockKeyhole,
@@ -1274,8 +1274,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         <ul className="mb-5 mt-3 max-h-[min(19rem,42dvh)] divide-y divide-gray-200 overflow-y-auto rounded-lg border border-gray-300">
           {missingPdfs.map(item => <li key={item.id} className="grid min-h-10 grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-1.5">
             <span className="truncate text-xs tabular-nums text-gray-500">{authorityTabs.get(item.id)}</span>
-            <span className="truncate text-sm font-medium text-gray-950" title={authorityLabel(item)}>{authorityName(item)}</span>
-            <span className="max-w-48 truncate text-xs text-gray-600">{authorityName(item) !== item.citation ? item.citation : ""}</span>
+            <span className="truncate text-sm font-medium text-gray-950" title={draft ? authorityCitationText(draft.state, item) : authorityLabel(item)}>{authorityName(item)}</span>
+            <span className="max-w-48 truncate text-xs text-gray-600">{draft && authorityCitationLine(draft.state, item)}</span>
           </li>)}
         </ul>
       </Modal>

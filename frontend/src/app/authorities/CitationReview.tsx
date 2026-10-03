@@ -5,7 +5,7 @@ import { DocxCanvas } from '@/app/components/shared/views/DocxCanvas';
 import { PdfCanvas } from '@/app/components/shared/views/PdfCanvas';
 import type { WorkProductFocus } from '@/app/lib/workProducts';
 import { errorMessage } from '@/app/lib/utils';
-import { authorityLabel, authorityName } from './authorityPresentation';
+import { authorityCitationLine, authorityCitationText, authorityName } from './authorityPresentation';
 import type { AuthoritiesHost } from './host';
 import type { AuthoritiesAction, AuthoritiesProduct, AuthorityOccurrence, AuthorityIdentity, AuthoritiesDiscrepancy } from './types';
 import { caretAt, citationMarksChanged, citationSelection, clearCitationMarks, locateCitationUnits, markCitations, marksOf, paintCitations,
@@ -140,8 +140,8 @@ type AuthorityOption = { authorityId: string; section: typeof SECTIONS[number]; 
 /** The authority a citation refers to, chosen from a searchable list that opens upward over the
  * document. It is laid out as the citation list is: the authorities cited in-text, each footnote's
  * under its number, then the rest. */
-function AuthorityPicker({ options, current, busy, onPick }: {
-  options: AuthorityOption[]; current?: AuthorityIdentity; busy: boolean; onPick(authorityId: string | null): void;
+function AuthorityPicker({ options, current, currentLabel, busy, onPick }: {
+  options: AuthorityOption[]; current?: AuthorityIdentity; currentLabel?: string; busy: boolean; onPick(authorityId: string | null): void;
 }) {
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
   const root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null);
@@ -169,8 +169,8 @@ function AuthorityPicker({ options, current, busy, onPick }: {
   }}>
     <button ref={trigger} type="button" className="citation-authority-trigger" disabled={busy} aria-haspopup="listbox"
       aria-expanded={open} aria-labelledby="citation-refers citation-authority-name"
-      title={current ? authorityLabel(current) : undefined} onClick={() => setOpen(value => !value)}>
-      <span id="citation-authority-name" data-empty={current ? undefined : ''}>{current ? authorityLabel(current) : 'No authority'}</span>
+      title={currentLabel} onClick={() => setOpen(value => !value)}>
+      <span id="citation-authority-name" data-empty={current ? undefined : ''}>{currentLabel ?? 'No authority'}</span>
       <ChevronUp aria-hidden="true" />
     </button>
     {open && <div className="citation-authority-menu">
@@ -640,11 +640,11 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     if (!authority || !place) return [];
     const note = place.kind === 'footnote' ? labels.get(place.id) : undefined;
     return [[`${note}\0${authority.id}`, { authorityId: authority.id, section: note ? 'Footnotes' : 'In-text', note,
-      label: authorityName(authority), description: authority.citation ?? '' } as AuthorityOption]] as const;
+      label: authorityName(authority), description: authorityCitationLine(product.state, authority) } as AuthorityOption]] as const;
   })).values()];
   const cited = new Set(options.map(option => option.authorityId));
   if (reference) for (const authority of authorities) if (!cited.has(authority.id)) options.push({ authorityId: authority.id,
-    section: 'Other authorities', label: authorityName(authority), description: authority.citation ?? '' });
+    section: 'Other authorities', label: authorityName(authority), description: authorityCitationLine(product.state, authority) });
   const link = (authorityId: string | null) => referenceKind && submit({ type: 'set-reference', occurrenceId: selected.id,
     reference: authorityId ? { kind: referenceKind, targetAuthorityId: authorityId } : null });
   const finding = discrepancies.find(item => item.occurrenceId === selected.id);
@@ -715,7 +715,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       </div>
       {reference ? <>
         <span id="citation-refers" className="citation-label" data-area="refers">Refers to</span>
-        <AuthorityPicker options={options} current={linked} busy={busy || !referenceKind} onPick={link} />
+        <AuthorityPicker options={options} current={linked} currentLabel={linked && authorityCitationText(product.state, linked)}
+          busy={busy || !referenceKind} onPick={link} />
       </> : <span className="citation-authority" aria-hidden="true" />}
       {/* Its room is kept when there is nothing to review, so nothing beside it moves. */}
       <button type="button" className="citation-quote" style={finding ? undefined : { visibility: 'hidden' }}

@@ -75,3 +75,14 @@ export type TabReferenceSettings = Pick<AuthorityTabFormat, "tabPrefix"> & {
 };
 export function tabReference(settings: TabReferenceSettings, tab: string): string | null;
 export function currentTabReference<T extends object>(settings: T): T;
+
+/** An authority as every output and the interface cite it: as the brief first cites it in full, led
+ *  by its style of cause or title, then each other citation of it. `lead` is that lead's length, and
+ *  `italic` the same for a case or an enactment, whose lead is italic. */
+export function authorityCitation(
+  draft: { units: ReadonlyArray<{ id: string; text: string; occurrenceIds: readonly string[] }>;
+    occurrences: Record<string, { authorityId: string | null; unitId: string; kind: string;
+      authoritySpan: { start: number; end: number; text: string }; coreSpan: { start: number; text: string } } | undefined> },
+  authority: { id: string; kind: string; citation: string; name?: string | null; displayName?: string | null;
+    sourceIdentity?: { citationForms?: string[] } | null },
+): { text: string; italic: number; lead: number };
