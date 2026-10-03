@@ -206,7 +206,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
                 thickness: 2, color: ink });
               // The title wraps rather than losing its end; the subtitle follows its last line.
               const title = wrapped(bold, documentTitle, 28, contentWidth).slice(0, 4);
-              coverField(pdf, cover, "Title", title.join("\n"),
+              coverField(pdf, cover, "Title", title.map((line, index) => [line, margin, 500 - index * 34]),
                 [margin - 4, 492 - (title.length - 1) * 34, contentWidth + 8, (title.length - 1) * 34 + 36], bold, 28, "left", ink);
               if (subtitle && bookTitle !== subtitle) cover.drawText(fit(serif, subtitle, 13, contentWidth),
                 { x: margin, y: 462 - (title.length - 1) * 34, size: 13, font: serif, color: ink });
@@ -487,17 +487,18 @@ function drawFederalForm66Cover(pdf: PdfModule, page: PdfPage, regular: PdfFont,
       y, size: 12, font, color });
   };
   // The file number, the parties and the title are fields Acrobat fills in, each where it stands.
-  const file = clean(cover.courtFileNumber), fileWidth = Math.max(90, regular.widthOfTextAtSize(file, 12) + 6);
-  const label = "Court File No.";
-  page.drawText(label, { x: width - margin - fileWidth - regular.widthOfTextAtSize(label, 12) - 2,
-    y: height - 78, size: 12, font: regular, color });
-  coverField(pdf, page, "Court file number", file, [width - margin - fileWidth, height - 82, fileWidth, 16], regular, 12, "left", color);
+  const file = clean(cover.courtFileNumber), label = "Court File No. ";
+  const fileX = width - margin - regular.widthOfTextAtSize(label + file, 12) + regular.widthOfTextAtSize(label, 12);
+  page.drawText(label.trim(), { x: fileX - regular.widthOfTextAtSize(label, 12), y: height - 78, size: 12, font: regular, color });
+  coverField(pdf, page, "Court file number", [[file, fileX, height - 78]],
+    [fileX - 1, height - 82, Math.max(width - margin - fileX + 1, 80), 16], regular, 12, "left", color);
   centred(court, height - 118, bold);
   page.drawText("BETWEEN:", { x: margin, y: height - 157, size: 12, font: regular, color });
   let y = height - 193;
   cover.partyGroups.forEach(({ role, parties }, index) => {
     const names = wrapped(regular, clean(parties.join(", ")), 12, width - (2 * margin));
-    coverField(pdf, page, `Parties ${index + 1}`, names.join("\n"),
+    coverField(pdf, page, `Parties ${index + 1}`,
+      names.map((name, line) => [name, (width - regular.widthOfTextAtSize(name, 12)) / 2, y - line * 14]),
       [margin - 4, y - 14 * (names.length - 1) - 5, width - 2 * margin + 8, 14 * names.length + 4], regular, 12, "center", color);
     y -= 14 * names.length;
     y -= 20;
@@ -517,7 +518,8 @@ function drawFederalForm66Cover(pdf: PdfModule, page: PdfPage, regular: PdfFont,
   }
   y -= 8;
   const titleLines = wrapped(bold, clean(title.toUpperCase()), 12, width - (2 * margin));
-  coverField(pdf, page, "Title", titleLines.join("\n"),
+  coverField(pdf, page, "Title",
+    titleLines.map((line, index) => [line, (width - bold.widthOfTextAtSize(line, 12)) / 2, y - index * 16]),
     [margin - 4, y - 16 * (titleLines.length - 1) - 5, width - 2 * margin + 8, 16 * titleLines.length + 4], bold, 12, "center", color);
   y -= 16 * titleLines.length;
   if (filedBy) { y -= 10; centred(filedBy, y); y -= 16; }
@@ -526,20 +528,27 @@ function drawFederalForm66Cover(pdf: PdfModule, page: PdfPage, regular: PdfFont,
   return y - 10;
 }
 
-/** A cover's value as a form field Acrobat fills in, in the cover's own font where the value stands:
- *  `rect` is [x, y, width, height]; text on more than one line wraps. */
-function coverField(pdf: PdfModule, page: PdfPage, name: string, value: string, rect: number[], font: PdfFont,
-  size: number, align: "left" | "center", color: PdfColor) {
-  const form = page.doc.getForm(), field = form.createTextField(name);
-  field.setText(value);
-  if (rect[3] > size * 1.6) field.enableMultiline();
+/** A cover's value as a form field Acrobat fills in. It shows its `lines` (text and page position)
+ *  exactly as the cover would draw them, and Acrobat edits it in `rect` ([x, y, width, height]). */
+function coverField(pdf: PdfModule, page: PdfPage, name: string, lines: Array<[text: string, x: number, y: number]>,
+  rect: number[], font: PdfFont, size: number, align: "left" | "center", color: PdfColor) {
+  const form = page.doc.getForm(), field = form.createTextField(name), context = page.doc.context;
+  field.setText(lines.map(([text]) => text).join("\n"));
+  if (lines.length > 1 || rect[3] > size * 1.6) field.enableMultiline();
   field.setAlignment(align === "center" ? pdf.TextAlignment.Center : pdf.TextAlignment.Left);
   field.addToPage(page, { x: rect[0], y: rect[1], width: rect[2], height: rect[3], font, textColor: color,
     backgroundColor: undefined, borderColor: undefined, borderWidth: 0 });
-  field.setFontSize(size); field.updateAppearances(font);
+  field.setFontSize(size);
+  const shown = context.register(context.formXObject([
+    pdf.PDFOperator.of(pdf.PDFOperatorNames.BeginMarkedContent, [pdf.PDFName.of("Tx")]),
+    ...lines.flatMap(([text, x, y]) => pdf.drawText(font.encodeText(text), { font: font.name, size, color,
+      x: x - rect[0], y: y - rect[1], rotate: pdf.degrees(0), xSkew: pdf.degrees(0), ySkew: pdf.degrees(0) })),
+    pdf.endMarkedContent(),
+  ], { BBox: [0, 0, rect[2], rect[3]], Resources: { Font: { [font.name]: font.ref } } }));
+  for (const widget of field.acroField.getWidgets()) widget.setNormalAppearance(shown);
   form.markFieldAsClean(field.ref);
   // The font its appearance names, where Acrobat finds it to redraw the value once edited.
-  const { PDFName, PDFDict } = pdf, context = page.doc.context, acroForm = form.acroForm.dict;
+  const { PDFName, PDFDict } = pdf, acroForm = form.acroForm.dict;
   const resources = acroForm.lookupMaybe(PDFName.of("DR"), PDFDict) ?? context.obj({});
   const fonts = resources.lookupMaybe(PDFName.of("Font"), PDFDict) ?? context.obj({});
   fonts.set(PDFName.of(font.name), font.ref); resources.set(PDFName.of("Font"), fonts);
@@ -554,8 +563,8 @@ function drawTabPage(page: PdfPage, tab: string, font: PdfFont) {
 
 /** The Alberta Rules of Court's cover (r 13.19): the court file number, court, judicial centre and
  *  parties, the document's title and the filing party's address for service, each beside its label,
- *  with the clerk's stamp box at the top right. Its values are plain text in a standard font, which
- *  a PDF editor retypes: the King's Bench Filing Digital Service refuses a PDF with form fields. */
+ *  with the clerk's stamp box at the top right. Its values but the court's name are fields Acrobat
+ *  fills in. */
 function drawAlbertaCover(pdf: PdfModule, page: PdfPage, regular: PdfFont, bold: PdfFont,
   cover: AuthoritiesCover, court: string, title: string) {
   const left = 72, valueX = 214, right = 540, size = 10, leading = 13;
@@ -566,25 +575,30 @@ function drawAlbertaCover(pdf: PdfModule, page: PdfPage, regular: PdfFont, bold:
   page.drawText(stampLabel, { x: stamp.x + (right - stamp.x - regular.widthOfTextAtSize(stampLabel, 8)) / 2,
     y: stamp.top - 12, size: 8, font: regular });
   const contact = cover.contact;
-  const rows: Array<readonly [label: string, value: string, font?: PdfFont]> = [
-    ["COURT FILE NUMBER", cover.courtFileNumber],
-    ["COURT", court],
-    ["JUDICIAL CENTRE", (cover.judicialCentre ?? "").toUpperCase()],
-    ...cover.applicationUnder ? [["MATTER", cover.applicationUnder] as const] : [],
-    ...cover.partyGroups.map(({ role, parties }) => [role.toUpperCase(), parties.join("\n")] as const),
-    ["DOCUMENT", title.toUpperCase(), bold],
+  // [label, value, the field it is in (none for the court's name), its font]
+  const rows: Array<readonly [label: string, value: string, field: string | null, font?: PdfFont]> = [
+    ["COURT FILE NUMBER", cover.courtFileNumber, "Court file number"],
+    ["COURT", court, null],
+    ["JUDICIAL CENTRE", (cover.judicialCentre ?? "").toUpperCase(), "Judicial centre"],
+    ...cover.applicationUnder ? [["MATTER", cover.applicationUnder, "Matter"] as const] : [],
+    ...cover.partyGroups.map(({ role, parties }, index) =>
+      [role.toUpperCase(), parties.join("\n"), `Parties ${index + 1}`] as const),
+    ["DOCUMENT", title.toUpperCase(), "Title", bold],
     ["ADDRESS FOR SERVICE AND CONTACT INFORMATION OF PARTY FILING THIS DOCUMENT",
       contact ? [contact.name, contact.address, contact.phone && `Telephone: ${contact.phone}`,
         contact.fax && `Fax: ${contact.fax}`, contact.email && `Email: ${contact.email}`]
-        .filter(Boolean).join("\n") : ""],
+        .filter(Boolean).join("\n") : "", "Address for service"],
   ];
   let y = 724;
-  for (const [label, value, font = regular] of rows) {
+  for (const [label, value, field, font = regular] of rows) {
     // A value beside the stamp box stops short of it.
     const width = (y > stamp.bottom ? stamp.x - 12 : right) - valueX;
     const labels = wrapped(bold, label, 8, valueX - left - 14), values = wrapped(font, value, size, width);
     labels.forEach((line, index) => page.drawText(line, { x: left, y: y - index * 10, size: 8, font: bold }));
-    values.forEach((line, index) => page.drawText(line, { x: valueX, y: y - index * leading, size, font }));
+    const lines = values.map((line, index): [string, number, number] => [line, valueX, y - index * leading]);
+    if (field) coverField(pdf, page, field, lines, [valueX - 2, y - Math.max(values.length, 1) * leading + 8,
+      width + 4, Math.max(values.length, 1) * leading + 2], font, size, "left", pdf.rgb(0, 0, 0));
+    else for (const [line, x, lineY] of lines) page.drawText(line, { x, y: lineY, size, font });
     y -= Math.max(labels.length * 10, values.length * leading) + 16;
   }
   return y;
