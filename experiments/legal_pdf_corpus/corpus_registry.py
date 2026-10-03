@@ -21,6 +21,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
+from corpus_store import LEGAL_PDF
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = "beaver.legal-structure-corpus-registry.v1"
@@ -408,7 +410,7 @@ def installed_provider_rows() -> list[dict[str, Any]]:
 
 
 def ledger_rows(items: list[dict[str, Any]], repo_root: Path) -> list[dict[str, Any]]:
-    ledger = repo_root / "experiments/legal_pdf_corpus/ledger.jsonl"
+    ledger = LEGAL_PDF / "ledger.jsonl"
     latest: dict[str, dict[str, Any]] = {}
     with ledger.open(encoding="utf-8") as source:
         for line in source:
@@ -440,7 +442,7 @@ def ledger_rows(items: list[dict[str, Any]], repo_root: Path) -> list[dict[str, 
         duplicate_counts = [count for count in hashes.values() if count > 1]
         results.append({
             "id": item["id"], "owner": item["owner"],
-            "path_identity": "repo:experiments/legal_pdf_corpus/ledger.jsonl",
+            "path_identity": "configured:OpenLegalData/corpus/legal-pdf/ledger.jsonl",
             "input_type": "pdf", "oracle": "source ledger", "applicable": True,
             "exclusion": None, "gates": item["gates"], "availability": "current",
             "runnable_offline": True,

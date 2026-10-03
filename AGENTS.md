@@ -23,6 +23,7 @@ the latter owns project priorities and remaining gates.
 
 ## Working safely
 
+- Real-world legal documents live once by sha256 in `%LOCALAPPDATA%/OpenLegalData/corpus` (index `corpus.sqlite`): add or find one with `python experiments/legal_pdf_corpus/corpus_store.py add <url|file> --kind K --jurisdiction J --label L` / `path <url|sha>`.
 - Check local data and existing implementations before fetching or adding a
   dependency. Consult official documentation for unfamiliar packages or standard
   engineering problems instead of probing blindly.

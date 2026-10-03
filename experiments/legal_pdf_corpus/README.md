@@ -81,14 +81,25 @@ Only public links are used. A public link does not imply unrestricted
 republication rights; consult the originating body and item-level terms where
 applicable.
 
-## Court practice sources
+## Where the data lives
+
+The PDFs, `ledger.jsonl` and `state/` live outside the repository in the shared
+corpus root, `%LOCALAPPDATA%/OpenLegalData/corpus/legal-pdf/` (paths in the
+ledger are relative to it). `corpus_store.py` keeps every real-world document
+gathered for this project once by sha256 under that root, laid out
+`<collection>/<jurisdiction>/<kind>/`, and indexes it in `corpus.sqlite` with its
+source URL, fetch times, provenance and per-page text (FTS5):
+
+```powershell
+python experiments/legal_pdf_corpus/corpus_store.py add <url|file> --kind legislation --jurisdiction mb --label "CCSM c C280"
+python experiments/legal_pdf_corpus/corpus_store.py path <url|sha prefix>
+python experiments/legal_pdf_corpus/corpus_store.py search "\"physical tab\"" --court federal-court
+python experiments/legal_pdf_corpus/corpus_store.py sync    # court_practice.json
+python experiments/legal_pdf_corpus/corpus_store.py index   # this corpus and court-record-exhibits, in place
+```
 
 `court_practice.json` lists, for each court an Authorities preset targets, where
 its filing rules live (direct URLs, or a landing page plus a link pattern so a
 reissued practice direction is found on the next run) and real filed books of
-authorities. `court_practice.py fetch` stores every distinct version under
-`pdfs/ca/court-practice/<court>/{rules,examples}/` and indexes metadata and
-per-page text in the ignored `court_practice.sqlite`; `court_practice.py search
-"<fts query>" --court <court>` cites a passage by document, sha256 and page.
-Adding a court means adding a registry entry. Example books are party filings:
-keep them, their text and the index out of Git.
+authorities with the brief filed alongside each. Adding a court means adding a
+registry entry. Documents, their text and the index stay out of Git.

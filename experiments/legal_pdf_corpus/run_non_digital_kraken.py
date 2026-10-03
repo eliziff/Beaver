@@ -14,6 +14,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from corpus_store import LEGAL_PDF
+
 
 REQUEST_SCHEMA = "legalpdf.document-request.v1"
 RECEIPT_SCHEMA = "legalpdf.non-digital-kraken-receipt.v2"
@@ -583,7 +585,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     here = Path(__file__).resolve().parent
     repo = here.parents[1]
-    parser.add_argument("--corpus-root", type=Path, default=here)
+    parser.add_argument("--corpus-root", type=Path, default=LEGAL_PDF)
     parser.add_argument("--binary", type=Path, default=repo / ".tmp/release-live/bin/legalpdf.exe")
     parser.add_argument("--model", type=Path, default=repo / "legal-pdf-parser/runtime/kraken/model.onnx")
     parser.add_argument("--codec", type=Path, default=repo / "legal-pdf-parser/runtime/kraken/codec.json")

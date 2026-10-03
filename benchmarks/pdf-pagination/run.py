@@ -1,5 +1,5 @@
 """Public-corpus visual checks. No private PDFs, detector predictions, or gold reach Codex."""
-import argparse, concurrent.futures, hashlib, json, random, shutil, subprocess, threading, time
+import argparse, concurrent.futures, hashlib, json, os, random, shutil, subprocess, threading, time
 from collections import defaultdict
 from pathlib import Path
 import fitz
@@ -16,9 +16,10 @@ def digest(data):
 def prepare():
     OUT.mkdir(parents=True, exist_ok=True)
     groups = defaultdict(list)
-    for line in (ROOT/'experiments/legal_pdf_corpus/ledger.jsonl').read_text(encoding='utf-8').splitlines():
+    corpus = Path(os.environ.get('OPEN_LEGAL_DATA_HOME') or Path(os.environ.get('LOCALAPPDATA') or Path.home()/'AppData/Local')/'OpenLegalData')/'corpus/legal-pdf'
+    for line in (corpus/'ledger.jsonl').read_text(encoding='utf-8').splitlines():
         row = json.loads(line)
-        path = ROOT/'experiments/legal_pdf_corpus'/(row.get('relative_path') or '')
+        path = corpus/(row.get('relative_path') or '')
         if row.get('status') == 'accepted' and row.get('kind') in ('judgment', 'law_report') and 3 <= row.get('page_count',0) <= 150 and path.is_file():
             groups[(row['jurisdiction'],row['source'],row['generation'])].append(dict(row,path=str(path),category='case'))
     rng = random.Random(20260927)

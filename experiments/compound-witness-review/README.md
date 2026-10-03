@@ -39,7 +39,7 @@ The historical corpus identity is documented in
 111,542 pages, split 750 native and 750 non-digital. The replay baseline has
 748 successful native documents. These are historical denominators, not a new run.
 
-The source PDFs are present at `experiments/legal_pdf_corpus/pdfs`: a fresh
+The source PDFs are present at `%LOCALAPPDATA%/OpenLegalData/corpus/legal-pdf/pdfs`: a fresh
 recursive count found 1,500 PDFs and all 750 native-manifest paths exist.
 The earlier search missed ignored files. The four selected affidavit, application
 pack, and e-filing-guide PDFs match their recorded SHA-256 hashes. Missing old

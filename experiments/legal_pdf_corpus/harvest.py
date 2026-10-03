@@ -20,7 +20,9 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
-ROOT = Path(__file__).resolve().parent
+from corpus_store import LEGAL_PDF
+
+ROOT = LEGAL_PDF  # ledger.jsonl, state/ and pdfs/ live in the shared corpus root
 STATE = ROOT / "state"
 CANDIDATES = STATE / "candidates.jsonl"
 LEDGER = ROOT / "ledger.jsonl"
