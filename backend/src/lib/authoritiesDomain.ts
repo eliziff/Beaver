@@ -1114,15 +1114,26 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       if (draft.import.kind === "manual" && profile.locked?.outputMode === "table") {
         throw new AuthoritiesDomainError("That court profile requires a filing document.");
       }
-      const sourceModeChanged = profile.defaults.settings.sourceMode !== draft.settings.sourceMode;
-      const delivery = profile.locked?.settings?.tableDelivery ?? draft.settings.tableDelivery;
-      const exportSettings = Object.fromEntries(["citationSuffix", "citationSuffixLabel", "finalPdf", "linkTabs", "linkPinpoints"]
-        .filter((key) => Object.hasOwn(draft.settings, key))
-        .map((key) => [key, draft.settings[key as keyof AuthoritiesBuildSettings]]));
-      draft.outputMode = draft.import.kind === "manual" ? "book" : profile.defaults.outputMode;
-      draft.settings = { profileId: action.profileId,
-        ...structuredClone(profile.defaults.settings), ...exportSettings, tableDelivery: delivery };
-      if (draft.import.kind === "document" && draft.import.fileType === "pdf")
+      // A setting still at the outgoing court's default was never chosen, so it takes the new court's;
+      // any other is the user's and stays, unless the new court locks it or does not offer it.
+      const previous = authoritiesProfile(draft.settings.profileId);
+      const defaults: Partial<AuthoritiesBuildSettings> = previous.defaults.settings;
+      const unchosen = (key: string, value: unknown) => Object.hasOwn(defaults, key) &&
+        JSON.stringify(defaults[key as keyof AuthoritiesBuildSettings]) === JSON.stringify(value);
+      const chosen = Object.entries(draft.settings).filter(([key, value]) => key !== "profileId" &&
+        !unchosen(key, value) && (key !== "filingMedium" && key !== "bookRole" ||
+          !!profile.options?.[key]?.some((option) => option.value === value)));
+      const settings: AuthoritiesSettings = { profileId: action.profileId,
+        ...structuredClone(profile.defaults.settings), ...structuredClone(Object.fromEntries(chosen)),
+        ...structuredClone(profile.locked?.settings ?? {}) };
+      if (profile.requirements?.markedPassages && settings.passageMarking === "none")
+        settings.passageMarking = profile.defaults.settings.passageMarking;
+      const sourceModeChanged = settings.sourceMode !== draft.settings.sourceMode;
+      draft.outputMode = draft.import.kind === "manual" ? "book" : profile.locked?.outputMode ??
+        (draft.outputMode === previous.defaults.outputMode ? profile.defaults.outputMode : draft.outputMode);
+      draft.settings = settings;
+      if (draft.import.kind === "document" && draft.import.fileType === "pdf" &&
+          draft.insertIntoDocument === !!previous.requirements?.documentOutputDefault)
         draft.insertIntoDocument = !!profile.requirements?.documentOutputDefault;
       if (sourceModeChanged) clearAutomaticSources(draft);
       break;
