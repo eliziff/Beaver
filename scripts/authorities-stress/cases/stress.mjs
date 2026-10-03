@@ -1,13 +1,14 @@
-// Stress: a long real article replayed from its recorded lookups, a book of nearly 900 pages
-// rebuilt from a statute's text, a brief with more than a hundred authorities, several scans read
-// at once and a reload while they are read, edits made while slow sources are still gathering, and
-// builds repeated, cancelled and rebuilt.
+// Stress: a long real article replayed from its recorded lookups, a statute of nearly 900 pages
+// rebuilt from its text and put in as an excerpt, a brief with more than a hundred authorities,
+// several scans read at once and a reload while they are read, edits made while slow sources are
+// still gathering, and builds repeated, cancelled and rebuilt.
 import path from "node:path";
 import { rm, stat, writeFile } from "node:fs/promises";
-import { briefHtml, fixtureA2aj, longBrief } from "../fixtures.mjs";
+import { briefHtml, fixtureA2aj, LONG_STATUTE, longBrief, longStatuteRecord, NAVIGATION_ACT,
+  navigationSubsection } from "../fixtures.mjs";
 import { attach, build, dock, downloads, importBrief, row, setOption, step } from "../flows.mjs";
 import { BUDGETS } from "../harness.mjs";
-import { checkPdf } from "../outputs.mjs";
+import { checkPdf, inspectPdf } from "../outputs.mjs";
 import { loadHar } from "../network.mjs";
 import { addAndRemove, REVIEW_REGIONS, rows, walkReview } from "../review.mjs";
 
@@ -15,6 +16,40 @@ const pick = (files, pattern) => Object.entries(files).find(([name]) => pattern.
 const SOURCES_REGIONS = { list: "[aria-label='Authority tab slots']", steps: "[role=tablist][aria-label='Book steps']" };
 /** A delivered file too big to keep once it has been read back. */
 const discard = async (record, file) => { if (file && (await stat(file)).size > 5_000_000) { record.note(`discarded ${path.basename(file)}`, `${((await stat(file)).size / 1e6).toFixed(1)} MB`); await rm(file); } };
+/** A statute row's book copy as it shows: its line, its Excerpt and Whole, and which is pressed. */
+const statuteRow = (item) => {
+  const group = () => item.getByRole("group", { name: /in the book$/u });
+  return { item, line: item.getByText(/^(?:Excerpt|Whole)[: ·]/u), choice: (name) => group().getByRole("button", { name, exact: true }),
+    pressed: async () => (await group().getByRole("button", { pressed: true }).allInnerTexts()).join(),
+    /** Its line once the excerpt's pages are counted, from the readings prepared ahead. */
+    counted: async (timeout) => { await item.getByText(/^Excerpt: title page, .+ · \d+ pages$/u).waitFor({ timeout });
+      return item.getByText(/^Excerpt: /u).innerText(); } };
+};
+const LIST = { list: "[aria-label='Authority tab slots']" };
+const flat = (text) => text.replace(/\s+/gu, " "), words = (text) => flat(text).split(" ").slice(0, 9).join(" ");
+/** An invented brief as a PDF: each paragraph with its note. */
+async function briefPdf(browser, file, title, paragraphs) {
+  const page = await browser.newPage();
+  await page.setContent(briefHtml({ title, paragraphs: paragraphs.map(([text, note], index) => ({ text: `${index + 1}. ${text}`, note })) }));
+  await writeFile(file, await page.pdf({ preferCSSPageSize: true })); await page.close();
+  return file;
+}
+/** A book's tab bookmarks, each with the last page before the next. */
+const tabRanges = (pdf) => pdf.tabs.map((tab, index) => ({ ...tab, last: (pdf.tabs[index + 1]?.page ?? pdf.pages + 1) - 1 }));
+/** A book's tab holding a statute's excerpt: the pages its row counted (`said`), its title page and
+ *  then only the marked pages its cited sections span, its range in the index, its bookmarks inside it. */
+function checkExcerptTab(record, pdf, tab, said, label) {
+  const pages = Array.from({ length: tab.last - tab.page + 1 }, (_, index) => tab.page + index);
+  const marked = new Set(pdf.marks.map(({ page }) => page));
+  record.check(pages.length === Number(/(\d+) pages$/u.exec(said)?.[1]), `${label}'s tab holds the pages its row counted`, [pages.length, said]);
+  record.check(!marked.has(tab.page) && pages.slice(1).every((number) => marked.has(number)),
+    `${label}'s tab is its title page and its cited sections' marked pages`, { pages, marked: pages.filter((number) => marked.has(number)) });
+  record.check(pdf.text[1].includes(`${tab.page}–${tab.last}`), `the index gives ${label}'s pages as they are`, pdf.text[1].slice(0, 400));
+  const at = pdf.outline.findIndex(({ title }) => title === tab.title);
+  const own = pdf.outline.slice(at + 1).filter((_, index, rest) => rest.slice(0, index + 1).every(({ depth }) => depth > tab.depth));
+  record.check(own.length && own.every(({ page }) => page >= tab.page && page <= tab.last), `${label}'s bookmarks all open its pages`,
+    own.map(({ title, page }) => [title.slice(0, 30), page]).slice(0, 12));
+}
 /** Frames sampled while the editor moves through `count` sources. */
 async function switchSources(app, count) {
   const editor = app.page.getByRole("dialog", { name: "Highlights" });
@@ -71,40 +106,131 @@ export const STRESS_CASES = [{
   },
 }, {
   name: "big-statute",
-  needs: ["article"],
-  title: "A book of nearly 900 pages: the Criminal Code rebuilt from its text, its cited sections marked",
-  async run({ open, local, record, renderer, browser }) {
-    const har = await loadHar(local.article.har);
-    // An invented brief that cites the public Code; its text is what A2AJ answered when recorded.
-    const brief = path.join(record.out, "code-brief.pdf"), page = await browser.newPage();
-    await page.setContent(briefHtml({ title: "Memorandum on Intoxication", paragraphs: [
-      { text: "1. The accused relies on the defence of mental disorder.", note: "Criminal Code, RSC 1985, c C-46, s 16." },
-      { text: "2. Self-induced intoxication is addressed by statute.", note: "Criminal Code, RSC 1985, c C-46, s 33.1." },
-      { text: "3. The Code's general part applies.", note: "Ibid, s 8." }] }));
-    await writeFile(brief, await page.pdf({ preferCSSPageSize: true })); await page.close();
-    const app = await open({ network: { har } });
+  title: "Statutes in the book as excerpts: one of nearly 900 pages rebuilt from its text, a forty-page Act uploaded and " +
+    "linked into from the final PDF, and a one-page Act whole, each chosen on its row; the public Criminal Code too where its HAR is kept",
+  async run({ open, fixtures, local, record, renderer, browser }) {
+    // An invented brief citing an invented consolidation A2AJ serves as text, the e2e's one-page Act and a long Act uploaded.
+    const big = `${LONG_STATUTE.name}, ${LONG_STATUTE.citation}`;
+    const brief = await briefPdf(browser, path.join(record.out, "statutes-brief.pdf"), "Memorandum on Inland Waters", [
+      ["A permit lapses when the vessel is sold.", `${big}, s 718.`],
+      ["The registrar keeps the register of permits.", `${big}, s 33(2).`],
+      ["An appeal lies to the minister.", `${big}, s 4718(2).`],
+      ["A licence is not refused without notice.", "Waterways Licensing Act, SA 2031, c W-4, s 12(2)."],
+      ["Every vessel is inspected before it is licensed.", `${NAVIGATION_ACT.name}, ${NAVIGATION_ACT.citation}, s 41(2).`]]);
+    const statute = longStatuteRecord(), app = await open({ network: { a2aj: new Map([[LONG_STATUTE.citation, statute]]) } });
     await app.load();
     await importBrief(app, brief);
-    await step(app, "Sources", { via: "next", budget: 5000 });
+    // Next waits while the 900 pages are rebuilt from the statute's text.
+    const sources = await app.now();
+    await step(app, "Sources", { via: "next", budget: 30_000 });
+    record.note("to Sources, the statute rebuilt", await app.now() - sources);
     await app.idle(120_000);
-    await app.shots("sources");
+    await attach(app, "Waterways Licensing Act", fixtures.statute);
+    await attach(app, NAVIGATION_ACT.name, fixtures.navigationAct);
+    const [long, short, uploaded] = [LONG_STATUTE.name, "Waterways Licensing Act", NAVIGATION_ACT.name].map((name) => statuteRow(row(app, name)));
+    record.check(await long.pressed() === "Excerpt" && await uploaded.pressed() === "Excerpt", "the long statutes default to Excerpt",
+      [await long.pressed(), await uploaded.pressed()]);
+    record.check(await short.pressed() === "Whole" && /^Whole · 1 page$/u.test(await short.line.innerText()),
+      "the one-page Act defaults to Whole and says how long it is", [await short.pressed(), await short.line.innerText()]);
+    // An excerpt's count is read from the readings prepared ahead, into the line it already has.
+    const waited = await app.now(), longLine = await long.counted(240_000), uploadedLine = await uploaded.counted(60_000);
+    record.note("excerpt counts read after", await app.now() - waited);
+    record.note("excerpt lines", [longLine, uploadedLine]);
+    record.check(/^Excerpt: title page, ss 718, 33\(2\), 4718\(2\) · \d+ pages$/u.test(longLine),
+      "the long statute's line names its sections as the brief writes them, in its order", longLine);
+    record.check(/^Excerpt: title page, s 41\(2\) · \d+ pages$/u.test(uploadedLine), "the uploaded Act's line names its section", uploadedLine);
+    await app.shots("statutes-excerpt");
+    // Each choice shows in the frame after it, and nothing moves.
+    await app.interact("the long statute: Whole", () => long.choice("Whole").click(), { regions: LIST });
+    const whole = await long.line.innerText();
+    record.check(await long.pressed() === "Whole" && /^Whole · \d{3} pages$/u.test(whole), "Whole counts every page", whole);
+    await app.shots("statutes-whole");
+    await app.interact("the long statute: back to Excerpt", () => long.choice("Excerpt").click(), { regions: LIST });
+    record.check(await long.line.innerText() === longLine, "back to Excerpt, its count shows at once", await long.line.innerText());
+    await app.interact("the one-page Act: Excerpt", () => short.choice("Excerpt").click(), { regions: LIST });
+    await app.interact("the one-page Act: back to Whole", () => short.choice("Whole").click(), { regions: LIST });
+    // From the keyboard, the same.
+    await long.choice("Whole").focus();
+    await app.interact("the long statute: Whole by Enter", () => app.page.keyboard.press("Enter"), { regions: LIST });
+    await long.choice("Excerpt").focus();
+    await app.interact("the long statute: Excerpt by Space", () => app.page.keyboard.press("Space"), { regions: LIST });
+    record.check(await long.pressed() === "Excerpt" && await short.pressed() === "Whole", "the choices end where they began",
+      [await long.pressed(), await short.pressed()]);
+    record.note("choices: input-to-paint ms, shift, long tasks", app.interactions.filter(({ label }) => / statute: | Act: /u.test(label))
+      .map(({ label, inputToPaint, shift, longTasks }) => [label, Math.round(inputToPaint), shift, longTasks.length]));
     await step(app, "Highlights", { via: "next" });
     await step(app, "Build book", { via: "next" });
-    await build(app, "code book", { missing: null, budget: 60_000 });
-    const book = pick(await downloads(app, "book"), /book-of-authorities\.pdf$/u);
-    const pdf = await checkPdf(record, "code book", book, { tabs: 1, marks: true });
-    record.check(pdf.pages > 800, "the whole Code is rebuilt", pdf.pages);
-    record.check(pdf.outline.length > 1000, "its Parts, headings and sections are bookmarked", pdf.outline.length);
-    const marked = [...new Set(pdf.marks.map(({ page }) => page))];
-    record.note("marked pages", marked);
-    const sections = (number) => pdf.text.findIndex((text) => new RegExp(`(?:^|\\n)${number.replace(".", "\\.")}\\s?\\(1\\)|(?:^|\\n)${number.replace(".", "\\.")} `, "u").test(text)) + 1;
+    // The book and the final PDF, its citations linked to their tabs and pinpoints.
+    await app.button("Set up", dock(app)).click();
+    const final = app.page.getByRole("dialog", { name: "Final PDF" });
+    for (const name of ["Citations to their tabs", "Pinpoints to the passage"]) {
+      const box = final.getByRole("checkbox", { name });
+      if (!await box.isChecked()) await box.locator("xpath=ancestor::label[1]").click();
+    }
+    await build(app, "excerpt book", { missing: null, budget: 60_000, start: () => app.button("Build final PDF", final).click() });
+    const files = await downloads(app, "excerpts");
+    const book = pick(files, /book-of-authorities\.pdf$/u), finalPdf = pick(files, /final\.pdf$/u);
+    const pdf = await checkPdf(record, "excerpt book", book, { tabs: 3, marks: true });
+    const [longTab, shortTab, uploadedTab] = tabRanges(pdf);
+    checkExcerptTab(record, pdf, longTab, longLine, "the long statute");
+    checkExcerptTab(record, pdf, uploadedTab, uploadedLine, "the uploaded Act");
+    // The words each cited subsection opens with, as printed.
+    const subsection = (number, sub) => words(statute.unofficial_text_en.split(`**${number}** `)[1].split("\n\n")[sub - 1]);
+    const longText = flat(pdf.text.slice(longTab.page - 1, longTab.last).join(" "));
+    record.check(/Inland Waters Consolidation Act/u.test(pdf.text[longTab.page - 1]) && longTab.last - longTab.page < 20,
+      "the long statute opens on its title page", pdf.text[longTab.page - 1].slice(0, 160));
+    for (const [number, sub] of [[718, 1], [33, 2], [4718, 2]]) record.check(longText.includes(subsection(number, sub)),
+      `s ${number}${sub > 1 ? `(${sub})` : ""} is printed in the long statute's tab`, subsection(number, sub));
+    record.check(shortTab.last === shortTab.page, "the one-page Act goes in whole", [shortTab.page, shortTab.last]);
+    // The final PDF is the brief and then the book: the s 41(2) pinpoint opens its page inside the uploaded Act's excerpt.
+    const combined = await inspectPdf(finalPdf), front = combined.pages - pdf.pages;
+    const pinpoint = combined.links.find(({ page, destinationPage }) => page <= front && destinationPage > uploadedTab.page + front &&
+      destinationPage <= uploadedTab.last + front && flat(combined.text[destinationPage - 1]).includes(words(navigationSubsection(41, 2))));
+    record.check(!!pinpoint, "the final PDF's s 41(2) pinpoint opens its page inside the uploaded Act's excerpt",
+      combined.links.filter(({ page }) => page <= front).map(({ destinationPage }) => destinationPage));
+    await renderer.sheet(book, path.join(record.out, "excerpt-book.jpg"), { pages: [2, longTab.page, longTab.page + 1, longTab.page + 2,
+      uploadedTab.page, uploadedTab.page + 1] });
+    await app.close();
+    if (!local.article) return record.note("the Criminal Code", "skipped: its HAR is not kept");
+    // The public Criminal Code, rebuilt from the text A2AJ answered when recorded: an excerpt, then whole.
+    const codeBrief = await briefPdf(browser, path.join(record.out, "code-brief.pdf"), "Memorandum on Intoxication", [
+      ["The accused relies on the defence of mental disorder.", "Criminal Code, RSC 1985, c C-46, s 16."],
+      ["Self-induced intoxication is addressed by statute.", "Criminal Code, RSC 1985, c C-46, s 33.1."],
+      ["The Code's general part applies.", "Criminal Code, RSC 1985, c C-46, s 8."]]);
+    const code = await open({ network: { har: await loadHar(local.article.har) }, label: "code" });
+    await code.load();
+    await importBrief(code, codeBrief);
+    await step(code, "Sources", { via: "next", budget: 5000 });
+    await code.idle(120_000);
+    const criminal = statuteRow(row(code, "Criminal Code"));
+    record.check(await criminal.pressed() === "Excerpt", "the Criminal Code defaults to Excerpt", await criminal.pressed());
+    const codeLine = await criminal.counted(240_000);
+    record.check(/^Excerpt: title page, ss 16, 33\.1, 8 · \d+ pages$/u.test(codeLine), "the Code's line names its sections", codeLine);
+    await code.shots("code-excerpt");
+    await step(code, "Highlights", { via: "next" });
+    await step(code, "Build book", { via: "next" });
+    await build(code, "code excerpt", { missing: null, budget: 60_000 });
+    const excerpt = await checkPdf(record, "code excerpt", pick(await downloads(code, "code-excerpt"), /book-of-authorities\.pdf$/u),
+      { tabs: 1, marks: true });
+    checkExcerptTab(record, excerpt, tabRanges(excerpt)[0], codeLine, "the Criminal Code");
+    // Chosen whole, all of it with its structure.
+    await step(code, "Sources");
+    await code.interact("the Code: Whole", () => criminal.choice("Whole").click(), { regions: LIST });
+    await step(code, "Build book");
+    await build(code, "whole code", { missing: null, budget: 60_000 });
+    const wholeBook = pick(await downloads(code, "whole-code"), /book-of-authorities\.pdf$/u);
+    const codePdf = await checkPdf(record, "whole code", wholeBook, { tabs: 1, marks: true });
+    record.check(codePdf.pages > 800, "the whole Code is rebuilt", codePdf.pages);
+    record.check(codePdf.outline.length > 1000, "its Parts, headings and sections are bookmarked", codePdf.outline.length);
+    const marked = [...new Set(codePdf.marks.map(({ page }) => page))];
+    const sections = (number) => codePdf.text.findIndex((text) => new RegExp(`(?:^|\\n)${number.replace(".", "\\.")}\\s?\\(1\\)|(?:^|\\n)${number.replace(".", "\\.")} `, "u").test(text)) + 1;
     for (const section of ["16", "33.1"]) {
       const at = sections(section);
       record.check(at && marked.some((page) => Math.abs(page - at) <= 1), `s ${section} is marked where it is printed`, { at, marked: marked.slice(0, 10) });
     }
-    await renderer.sheet(book, path.join(record.out, "code-book.jpg"), { pages: [1, 2, 3, ...marked.slice(0, 5)] });
-    await discard(record, book);
-    await app.close();
+    await renderer.sheet(wholeBook, path.join(record.out, "code-book.jpg"), { pages: [1, 2, 3, ...marked.slice(0, 5)] });
+    await discard(record, wholeBook);
+    await code.close();
   },
 }, {
   name: "many-authorities",
