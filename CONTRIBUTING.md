@@ -72,18 +72,7 @@ npm run build --prefix backend
 npm run build --prefix frontend
 ```
 
-The standalone Authorities page has its own end-to-end proof. `npm run
-test:authorities-html-e2e` builds `Authorities.html` (cargo with the `wasm32-wasip1`
-target) and drives it in Playwright's Chromium from `file://` and over http, with
-invented inputs and a stubbed A2AJ, so it needs no network. It imports a PDF and a
-Word brief, edits citations, provides and recognizes sources, highlights, builds every
-output and reads the downloads back, asserting the budgets and layout rules at the top
-of `scripts/test-authorities-html-e2e.mjs`. Screenshots, downloads and `report.json`
-go to `.tmp/authorities-html-e2e/`. `--skip-build` reuses the built page, `--mode=file`
-or `--mode=http` and `--only=pdf` or `--only=docx` narrow the run, and `--live` lets
-A2AJ answer for real.
-
-`npm run test:authorities-stress` drives the same page through realistic stress: a
+`npm run test:authorities-stress` builds `Authorities.html` and drives it through realistic stress: a
 public Supreme Court judgment and invented briefs (a Word brief with numbering, tracked
 changes, a table and split runs; a brief citing 120 authorities), every court preset and
 output setting, drafts, Manual mode, file access and moved files, the Highlights editor,
