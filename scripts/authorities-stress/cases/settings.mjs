@@ -3,7 +3,7 @@
 // what it delivers is opened.
 import path from "node:path";
 import { fixtureA2aj } from "../fixtures.mjs";
-import { attach, build, chooseCourt, dock, downloads, importBrief, outputsChange, row, setOption, step } from "../flows.mjs";
+import { attach, build, chooseCourt, dock, downloads, importBrief, outputMode, outputOptions, outputsChange, row, setOption, step } from "../flows.mjs";
 import { BUDGETS } from "../harness.mjs";
 import { checkPdf } from "../outputs.mjs";
 
@@ -21,7 +21,11 @@ async function toBuild(app, fixtures, { sourceMode, scan = true } = {}) {
   await step(app, "Build book", { via: "next" });
   await dock(app).waitFor();
 }
-const create = (app) => app.page.getByLabel("Create");
+/** Whether the book can be made, and is. */
+const bookChoice = (app) => outputOptions(app, "Book of Authorities", async (dialog) => {
+  const box = dialog.getByRole("checkbox", { name: "Make the Book of Authorities" });
+  return { locked: await box.isDisabled(), made: await box.isChecked() };
+});
 
 export const SETTINGS_CASES = [{
   name: "courts",
@@ -33,8 +37,7 @@ export const SETTINGS_CASES = [{
     const court = () => app.page.getByRole("button", { name: /^Court:/u });
     // No preset: a book, a table, or both.
     for (const mode of ["book", "table", "both"]) {
-      await app.interact(`Create ${mode}`, () => create(app).selectOption(mode), { shiftsOk: outputsChange });
-      await app.idle();
+      await outputMode(app, mode);
       await build(app, `general ${mode}`, { missing: null });
       const files = await downloads(app, `general-${mode}`);
       const book = pick(files, /book-of-authorities\.pdf$/u), table = pick(files, /table-of-authorities\.docx$/u);
@@ -54,8 +57,8 @@ export const SETTINGS_CASES = [{
     // Alberta Court of Appeal: a table only, its entries linked to their sources.
     await chooseCourt(app, court(), "abca", { shiftsOk: outputsChange });
     await app.idle();
-    record.check(await create(app).isDisabled() && await create(app).inputValue() === "table", "the Court of Appeal makes a table only",
-      await create(app).inputValue());
+    const appeal = await bookChoice(app);
+    record.check(appeal.locked && !appeal.made, "the Court of Appeal makes a table only", appeal);
     await app.shots("abca");
     await build(app, "abca", { missing: null });
     const abca = await downloads(app, "abca");
@@ -65,21 +68,22 @@ export const SETTINGS_CASES = [{
     // Federal Court: its cover needs the court file and the parties, and who files.
     await chooseCourt(app, court(), "federal", { shiftsOk: outputsChange });
     await app.idle();
-    if (await create(app).inputValue() === "table") await create(app).selectOption("book");
-    await app.idle();
+    // Leaving a court that locks the table brings the book back: the table was never the user's choice.
+    const federalBook = await bookChoice(app);
+    record.check(federalBook.made && !federalBook.locked, "the Federal Court makes its book again", federalBook);
     await app.shots("federal");
     record.check(/Add the cover details to build/u.test(await dock(app).innerText()), "the Federal Court asks for its cover details", await dock(app).innerText());
     await app.interact("Build opens the cover details", () => app.button("Build", dock(app)).click(), { budget: BUDGETS.dialog });
-    const cover = app.page.getByRole("dialog", { name: "Cover details" });
+    const cover = app.page.getByRole("dialog", { name: "Cover and index" });
     await cover.waitFor();
     await cover.getByLabel("Court file number").fill("T-1234-31");
     const groups = cover.getByRole("region", { name: /^Party group/u });
     await groups.nth(0).getByLabel("Party names").fill("Harbourside Paddling Co-operative");
     await groups.nth(1).getByLabel("Party names").fill("Marsh Harbour Licensing Board");
+    await cover.getByLabel("Filed by").selectOption("applicant");
     await app.shots("federal-cover");
-    await app.button("Save cover", cover).click(); await app.idle();
-    record.check(/Choose who is filing to build/u.test(await dock(app).innerText()), "then asks who is filing", await dock(app).innerText());
-    await app.page.getByLabel("Filed by").selectOption("applicant"); await app.idle();
+    await app.button("Save", cover).click(); await app.idle();
+    record.check(!/Add the cover details|Choose who is filing/u.test(await dock(app).innerText()), "the cover's details let it build", await dock(app).innerText());
     await build(app, "federal", { missing: null });
     const federal = pick(await downloads(app, "federal"), /\.pdf$/u);
     if (federal) {
@@ -101,18 +105,22 @@ export const SETTINGS_CASES = [{
     await step(app, "Highlights", { via: "next" });
     await step(app, "Build book", { via: "next" });
     const copy = app.page.getByRole("group", { name: "Word copy" }), references = app.page.getByRole("group", { name: "Tab references" });
+    const options = async (run) => { await dock(app).getByRole("button", { name: "Word copy options" }).click(); await run();
+      await app.button("Done", app.page.getByRole("dialog", { name: "Word copy" })).click(); await app.idle(); };
     const choose = async (group, name, exact = true) => {
       const option = group.getByRole("radio", { name, exact });
       if (!await option.isChecked()) await app.interact(`choose ${name}`, () => option.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }),
         { shiftsOk: outputsChange });
     };
     // The wording typed shows as it is inserted.
-    const words = references.getByRole("textbox", { name: "Words before the tab number" });
-    await words.fill("Respondent's Book of Authorities, Tab"); await words.press("Enter"); await app.idle();
-    await app.interact("Create table", () => create(app).selectOption("table"), { shiftsOk: outputsChange }); await app.idle();
+    await options(async () => {
+      const words = references.getByRole("textbox", { name: "Words before the tab number" });
+      await words.fill("Respondent's Book of Authorities, Tab"); await words.press("Enter"); await app.idle();
+    });
+    await outputMode(app, "table");
     for (const [mark, fields, table] of [["No marks", false, false], ["Marked copy", true, false], ["Marked copy and table", true, true]])
       for (const [reference, written] of [["None", null], ["[Tab 1]", /\[Tab \d+\]/u], ["Your wording", /\[Respondent.s Book of Authorities, Tab \d+\]/u]]) {
-        await choose(copy, mark); await choose(references, reference); await app.idle();
+        await options(async () => { await choose(copy, mark); await choose(references, reference); });
         const label = `${mark} · ${reference}`;
         // A table alone has no book to miss a PDF from.
         await build(app, label, { missing: null });

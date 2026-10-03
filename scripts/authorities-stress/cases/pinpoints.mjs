@@ -6,7 +6,7 @@
 import path from "node:path";
 import { readDocx } from "../../authorities-html-e2e/outputs.mjs";
 import { fixtureA2aj, GUIDANCE } from "../fixtures.mjs";
-import { build, downloads, importBrief, outputsChange, setOption, step } from "../flows.mjs";
+import { build, downloads, importBrief, outputMode, setOption, step } from "../flows.mjs";
 import { checkPdf } from "../outputs.mjs";
 import { chips, dragSelect, listChange, rows } from "../review.mjs";
 
@@ -125,7 +125,7 @@ export const PINPOINT_CASES = [{
     await guidance.getByRole("button", { name: /^View PDF for/u }).waitFor({ timeout: 30_000 });
     await step(app, "Highlights", { via: "next" });
     await step(app, "Build book", { via: "next" });
-    await app.interact("Create both", () => page.getByLabel("Create").selectOption("both"), { shiftsOk: outputsChange }); await app.idle();
+    await outputMode(app, "both");
     await setOption(app, "Table locations", "pinpoints");
     await build(app, "book and table", { budget: 15_000 });
     const files = await downloads(app, "outputs");

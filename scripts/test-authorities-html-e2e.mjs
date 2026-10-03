@@ -36,7 +36,7 @@ const modes = args.mode ? [args.mode] : ["file", "http"];
  *  with modest headroom. Interactions are timed in the page with Event Timing and rAF. */
 export const BUDGETS = {
   coldLoad: 1200,     // navigation start to an enabled "Add file"; 470–860
-  importPdf: 3000,    // "Import and review" to the citations marked in the PDF; 1400–2430
+  importPdf: 3000,    // the import's finish to the citations marked in the PDF; 1400–2430
   importDocx: 1500,   // the same for the Word brief; 130–920 (920 when it is the first import)
   firstImport: 5000,  // either brief as a new profile's first import, nothing warmed; 1390–4660
   inputToPaint: 50,   // every key, click or drag in the review, to the frame that shows it; max 24–40
@@ -311,18 +311,19 @@ function Run(page, mode) {
     await noHorizontalScroll("start");
   };
 
-  /** Import: the court, the source handling and the passage marking, so marks are prepared as the
-   *  sources arrive; then the review. The outputs are chosen at Build. */
+  /** Import: the court and the front of the book, the sources, the marking, each a step of the
+   *  import; the brief is read behind them, so the review is there when the import finishes. The
+   *  court's defaults finish it at once. The outputs are chosen at Build. */
   async function importBrief(file, label) {
     await pick(() => button("Add file").click(), [file]);
-    const setup = page.getByRole("dialog", { name: "Import options" });
+    const setup = page.getByRole("dialog", { name: "Import" });
     await setup.waitFor();
-    check(await setup.getByRole("group", { name: "Source handling" }).isVisible() &&
-      await setup.getByRole("group", { name: "Passage marking" }).isVisible(),
-      `${mode} ${label}: source handling and the passage marking choices show open at import`);
+    const steps = await setup.getByRole("list", { name: "Import steps" }).getByRole("button").allInnerTexts();
+    check(JSON.stringify(steps.map((step) => step.replace(/^\d+\s*/u, ""))) === JSON.stringify(["Court and front of book", "Sources", "Marking"]),
+      `${mode} ${label}: the import asks for the court and the front of the book, the sources and the marking`, steps);
     await shots(`${label}-02-import-options`);
     const started = await now();
-    await button("Import and review").click();
+    await setup.getByRole("button", { name: /^Import with .*defaults$/u }).click();
     await page.locator(".citation-document .citation-band").first().waitFor({ timeout: 60000 });
     await page.locator(".citation-document .citation-band[data-active]").first().waitFor();
     const imported = await now() - started;
@@ -623,7 +624,7 @@ function Run(page, mode) {
     await pick(() => button("Add file").click(), [fixtures.briefPdf]);
     await page.getByRole("dialog").waitFor();
     // Through the import dialog's steps with their defaults.
-    const importing = button("Import and review");
+    const importing = button("Import", page.getByRole("dialog"));
     for (let step = 0; step < 3 && !await importing.isVisible(); step += 1) {
       await button("Next", page.getByRole("dialog")).click(); await settle();
     }
@@ -833,22 +834,26 @@ function Run(page, mode) {
     await highlights("pdf");
     await button("Next").click();
     await dock().waitFor();
-    await page.getByLabel("Create").selectOption("both");
-    // A PDF brief has no Word copy; its final PDF is set up in its own dialog, the brief already a PDF.
-    check(!await page.getByRole("group", { name: "Word copy" }).count(), `${mode}: a PDF brief has no Word copy choice`);
+    // A PDF brief has no Word copy: its second output is the Table of Authorities.
+    check(!await button("Word copy options", dock()).count(), `${mode}: a PDF brief has no Word copy choice`);
+    await button("Table of Authorities options", dock()).click();
+    await choose(page.getByRole("dialog", { name: "Table of Authorities" }).getByRole("checkbox", { name: "A Table of Authorities in its own Word document" }));
+    await button("Done").click();
     await shots("pdf-11-build");
     await noHorizontalScroll("pdf build");
     await tabColumn("pdf build", bookRows());
     // The dock keeps each output's place and size through its first build: its download's line is reserved.
-    const rows = () => page.getByRole("complementary", { name: "Outputs" }).locator("[data-output=book], [data-output=table]")
+    const rows = () => dock().locator("[data-output]")
       .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().height)).join());
     const unbuilt = await rows();
-    await button("Set up", dock()).click();
+    await button("Final PDF options", dock()).click();
     const final = page.getByRole("dialog", { name: "Final PDF" });
+    await choose(final.getByRole("checkbox", { name: "Make the final PDF" }));
     await choose(final.getByRole("checkbox", { name: "Citations to their tabs" }));
     await choose(final.getByRole("checkbox", { name: "Pinpoints to the passage" }));
     await shots("pdf-11b-final-pdf");
-    const files = await build("pdf", undefined, () => button("Build final PDF", final).click());
+    await button("Done", final).click();
+    const files = await build("pdf");
     check(await rows() === unbuilt, `${mode}: the outputs dock's rows keep their size when built`, [unbuilt, await rows()]);
     await shots("pdf-12-built");
     // Every step tab switches at once and leaves the header and the steps where they are.
@@ -885,7 +890,9 @@ function Run(page, mode) {
     check(shown < BUDGETS.inputToPaint, `${mode}: "${name}" shows as chosen in ${Math.round(shown)} ms`);
   }
 
-  const dock = () => page.getByRole("complementary", { name: "Outputs" });
+  const dock = () => page.getByRole("region", { name: "Outputs" });
+  /** The Word copy's dialog, opened from its card. */
+  const wordOptions = async () => { await button("Word copy options", dock()).click(); return page.getByRole("dialog", { name: "Word copy" }); };
   // Where the dock's column is: it stays put while it scrolls with the page.
   const dockBox = () => dock().evaluate((element) => { const box = element.getBoundingClientRect();
     return [box.x, box.width].map(Math.round).join(","); });
@@ -898,31 +905,43 @@ function Run(page, mode) {
     await highlights("docx", false);
     await button("Next").click();
     await dock().waitFor();
-    // The Word copy and its tab references are two choices; the final PDF is a third, off until chosen.
+    // The Word copy and its tab references are two choices in the Word copy's dialog; the final PDF is
+    // a card of its own, off until chosen.
+    let dialog = await wordOptions();
     const copy = page.getByRole("group", { name: "Word copy" }), references = page.getByRole("group", { name: "Tab references" });
     const names = (group) => group.getByRole("radio").evaluateAll((radios) => radios.map((radio) =>
       document.getElementById(radio.getAttribute("aria-labelledby"))?.textContent));
     check(JSON.stringify(await names(copy)) === JSON.stringify(["No marks", "Marked copy", "Marked copy and table"]) &&
       JSON.stringify(await names(references)) === JSON.stringify(["None", "[Tab 1]", "Your wording"]),
     `${mode}: the Word copy and the tab references are separate choices`, [await names(copy), await names(references)]);
-    // The final PDF is an occasional path: a row in the dock, its choices in a dialog of their own.
-    check(!await page.getByRole("checkbox", { name: /to their tabs/u }).count() && await button("Set up", dock()).isVisible(),
-      `${mode}: the final PDF is off until set up, and its choices stay out of the step`);
+    await shots("docx-11a-word-copy");
+    await button("Done", dialog).click();
+    // The final PDF is an output of its own, off until chosen, its choices in its dialog.
+    check(!await page.getByRole("checkbox", { name: /to their tabs/u }).count() &&
+      /Not made/u.test(await dock().locator("[data-output=final]").innerText()),
+      `${mode}: the final PDF is off until chosen, and its choices stay out of the step`);
     await shots("docx-11-build");
     await tabColumn("docx build", bookRows());
+    dialog = await wordOptions();
     // Typed wording shows as it goes in: the app adds the tab number and the brackets.
     const words = references.getByRole("textbox", { name: "Words before the tab number" });
     const custom = "Appellant's Book of Authorities, Tab";
     await words.fill(` ${custom} `);
     check(await references.getByText(`[${custom} 1]`, { exact: true }).isVisible(), `${mode}: the custom wording previews what is inserted`);
     await words.press("Enter"); await idle();
-    // Each combination builds the Word copy it names: Word's citation fields, its table, the tab reference as worded.
-    await page.getByLabel("Create").selectOption("table"); await idle();
+    // Each combination builds the Word copy it names: Word's citation fields, its table, the tab reference as
+    // worded. The table alone goes with it, the book left out, so each build is quick.
+    await choose(dialog.getByRole("checkbox", { name: "A Table of Authorities in its own Word document" }));
+    await button("Done", dialog).click(); await idle();
+    await button("Book of Authorities options", dock()).click();
+    await page.getByRole("dialog", { name: "Book of Authorities" }).getByRole("checkbox", { name: "Make the Book of Authorities" }).uncheck();
+    await button("Done").click(); await idle();
     for (const [mark, fields, toa] of [["No marks", false, false], ["Marked copy", true, false], ["Marked copy and table", true, true]])
       for (const [reference, text] of [["None", null], ["[Tab 1]", /\[Tab \d\]/gu], [/Your wording/u, /\[Appellant's Book of Authorities, Tab \d\]/gu]]) {
+        dialog = await wordOptions();
         await choose(copy.getByRole("radio", { name: mark, exact: true }));
         await choose(references.getByRole("radio", { name: reference, exact: typeof reference === "string" }));
-        await idle();
+        await button("Done", dialog).click(); await idle();
         const label = `docx-${mark.split(" ").at(-1)}-${String(reference).replace(/\W+/gu, "").slice(0, 8) || "tab"}`.toLowerCase();
         const files = await build(label), word = Object.keys(files).find((name) => name.endsWith(".docx") && !/\.table-of-authorities\.docx$/u.test(name));
         if (!fields && !text) { check(!word, `${mode} ${label}: no marks and no tab references make no Word copy`, Object.keys(files)); continue; }
@@ -934,22 +953,30 @@ function Run(page, mode) {
           `${mode} ${label}: TA fields ${fields}, table ${toa}, tab references ${text ?? "none"}`,
           { word, fields: /TA \\l/u.test(all), toa: /TOA \\c/u.test(all), inserted: inserted.slice(0, 3) });
       }
-    await page.getByLabel("Create").selectOption("both");
+    await button("Book of Authorities options", dock()).click();
+    await page.getByRole("dialog", { name: "Book of Authorities" }).getByRole("checkbox", { name: "Make the Book of Authorities" }).check();
+    await button("Done").click(); await idle();
+    dialog = await wordOptions();
     await choose(copy.getByRole("radio", { name: "Marked copy and table", exact: true }));
     await choose(references.getByRole("radio", { name: "[Tab 1]", exact: true }));
+    await button("Done", dialog).click(); await idle();
     // The final PDF, set up in its dialog: opening it and choosing its links moves nothing beneath.
     const options = await frame(), docked = await dockBox();
-    await button("Set up", dock()).click();
+    await button("Final PDF options", dock()).click();
     const final = page.getByRole("dialog", { name: "Final PDF" });
+    await choose(final.getByRole("checkbox", { name: "Make the final PDF" }));
     await choose(final.getByRole("checkbox", { name: "Citations to their tabs" }));
     check(JSON.stringify(await frame()) === JSON.stringify(options), `${mode}: the final PDF's dialog keeps the frame still`, [options, await frame()]);
-    // A Word brief needs the brief saved as PDF; until it is added the dialog says so, calmly.
-    check(await button("Build final PDF", final).isDisabled() && /Add your brief as PDF to build it/u.test(await final.innerText()) &&
-      !await final.locator(".text-red-800").count(), `${mode}: the final PDF waits for the brief PDF without an error`);
     await shots("docx-12-final-pdf");
+    await button("Done", final).click(); await idle();
+    // A Word brief needs the brief saved as PDF; until it is added its card says so, calmly.
+    check(/needs your brief saved as PDF/u.test(await dock().locator("[data-output=final]").innerText()) &&
+      !await dock().locator(".text-red-800").count(), `${mode}: the final PDF waits for the brief PDF without an error`);
+    await button("Final PDF options", dock()).click();
     await pick(() => button("Upload the brief PDF", final).click(), [fixtures.briefPdf]);
     await button("Replace the brief PDF", final).waitFor();
-    const tabs = await build("docx-tabs", /Lakeshore/u, () => button("Build final PDF", final).click());
+    await button("Done", final).click();
+    const tabs = await build("docx-tabs", /Lakeshore/u);
     await shots("docx-13-built");
     check(await dock().locator("[data-output=final][data-ready]").count() === 1 && await dockBox() === docked,
       `${mode}: the built final PDF is a download in the dock, which has not moved`);
@@ -969,7 +996,9 @@ function Run(page, mode) {
         return send(input, init);
       };
     });
+    dialog = await wordOptions();
     await page.locator("label", { has: marks }).click();
+    await button("Done", dialog).click();
     await button("Final PDF options", dock()).click();
     const replace = () => button("Replace the brief PDF", final).click();
     if (mode === "file") {
@@ -982,7 +1011,10 @@ function Run(page, mode) {
     await idle(); await page.evaluate(() => { window.fetch = window.__e2eFetch; });
     check(await replaced.isVisible(), `${mode}: the brief PDF replaced while a Word copy choice saves is saved after it`,
       (await page.locator("body").innerText()).match(/[^\n]*(?:draft changed|brief PDF)[^\n]*\n?[^\n]*/giu));
+    await button("Done", final).click();
+    dialog = await wordOptions();
     check(await marks.isChecked(), `${mode}: the Word copy choice outlasts the brief PDF replaced after it`);
+    await button("Done", dialog).click();
   };
 
   async function verifyPdfOutputs(files) {
