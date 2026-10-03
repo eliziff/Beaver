@@ -13,7 +13,7 @@ import {
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
 import { apiRequest, BeaverApiError, followedRequest } from "@/app/lib/api/client";
-import type { WorkProductInput } from "@/app/lib/workProducts";
+import type { WorkProduct, WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
   AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
@@ -79,11 +79,16 @@ async function findSourceIssues(state: AuthoritiesDraft) {
   ));
 }
 
+// Each draft as this page last saved or read it: a change starts from it rather than reading the
+// whole draft back. A revision saved elsewhere meanwhile still fails the save, which reads afresh.
+const latest = new Map<string, WorkProduct<AuthoritiesDraft>>();
+const kept = (product: WorkProduct<AuthoritiesDraft>) => (latest.set(product.id, product), product);
 async function save(id: string, revision: number, state: AuthoritiesDraft) {
-  return standaloneWorkProducts.update<AuthoritiesDraft>(id, { revision, state: supportedDraft(state) });
+  return kept(await standaloneWorkProducts.update<AuthoritiesDraft>(id, { revision, state: supportedDraft(state) }));
 }
 async function currentProduct(id: string, revision: number) {
-  const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
+  const known = latest.get(id);
+  const product = known?.revision === revision ? known : kept(await standaloneWorkProducts.get<AuthoritiesDraft>(id));
   if (product.revision !== revision)
     throw new BeaverApiError({ status: 409, message: "This draft changed. Reopen it and try again." });
   return { ...product, state: supportedDraft(product.state) };
@@ -135,8 +140,7 @@ async function runtimeDraft(path: string, body: BodyInit, json = false, signal?:
         !/^[a-f0-9]{64}$/u.test(item.sourceSha256)) {
       throw new Error("An automatic authority source was invalid.");
     }
-    const file = new File([await part.arrayBuffer()], item.filename,
-      { type: "application/pdf", lastModified: 0 });
+    const file = new File([part], item.filename, { type: "application/pdf", lastModified: 0 });
     const binding = await retainStandaloneFile(file);
     if (binding.lastSeen.sha256 !== item.sourceSha256 ||
         source.sourceSha256 !== item.sourceSha256) {
@@ -305,8 +309,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const source = form.get("source"), imported = state.import;
     if (!(source instanceof File) || imported.kind !== "document" || imported.fileType !== "docx")
       throw new Error("The corrected Word document was invalid.");
-    const file = new File([await source.arrayBuffer()], imported.filename,
-      { type: source.type, lastModified: 0 });
+    const file = new File([source], imported.filename, { type: source.type, lastModified: 0 });
     const binding = await retainStandaloneFile(file), expected = state.bindings[imported.bindingRole];
     if (expected?.kind !== "local-file" ||
         expected.lastSeen.sha256 !== binding.lastSeen.sha256) {

@@ -323,7 +323,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     reviewRequest.current?.abort();
   }, []);
   const draftId = draft?.id;
-  const sourceKey = sourceIssueKey(draft);
+  const sourceKey = useMemo(() => sourceIssueKey(draft), [draft]);
   // Work that follows the citations (sources, scans, the quotation check) reads the draft once
   // editing rests, so an edit never waits for it and its results never interrupt one. A draft
   // that opens is read at once.
@@ -343,7 +343,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     }), Object.values(settled.state.occurrences).flatMap(({ authorityId, reference, pinpoints }) =>
       authorityId || reference ? [[authorityId, reference, pinpoints]] : []), settled.state.settings.sourceMode,
   ]) : "", [settled]);
-  const scannedSources = useScannedSources(host, settled, `${sourceIssueKey(settled)}:${citationKey}:${sourceAccessVersion}`);
+  const settledSourceKey = useMemo(() => sourceIssueKey(settled), [settled]);
+  const scannedSources = useScannedSources(host, settled, `${settledSourceKey}:${citationKey}:${sourceAccessVersion}`);
   useEffect(() => {
     if (scannedSources.checking || draft?.state.settings.scannedPdfPolicy === "page-margin") return;
     const pending = scannedSources.files.filter(file => {
@@ -363,7 +364,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }, [settled, citationKey, draft?.state.stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
-    ? sourceIssueState.issues : {};
+    ? sourceIssueState.issues : NO_SOURCE_ISSUES;
   const outputFreshness = !draft || !Object.keys(draft.outputs).length ? "unbuilt"
     : sameDraft && sourceIssueState.revision === draft.revision
       ? sourceIssueState.outputFreshness : sameDraft ? "stale" : "current";
@@ -423,8 +424,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
   const authorities = useMemo(() => shown ? authorityPlan.map(({ id }) => shown.state.authorities[id]) : [],
     [shown, authorityPlan]);
-  const authorityTabs = new Map(authorityPlan.map(({ id, tab }) => [id, tab]));
-  const missingPdfs = draft ? missingSources(draft, sourceIssues) : [];
+  const authorityTabs = useMemo(() => new Map(authorityPlan.map(({ id, tab }) => [id, tab])), [authorityPlan]);
+  const missingPdfs = useMemo(() => draft ? missingSources(draft, sourceIssues, authorityPlan) : [],
+    [draft, sourceIssues, authorityPlan]);
   const importedRole = draft?.state.import.kind === "document"
     ? draft.state.import.bindingRole : undefined;
   const importedIssue = importedRole ? sourceIssues[importedRole] : undefined;
@@ -545,6 +547,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     }
     actionQueue.current = actionQueue.current.then(async () => {
       try {
+        // An edit already shows: its save starts once that frame is painted, never ahead of it.
+        if (edit) await afterPaint();
         const current = draftRef.current;
         if (!current || current.id !== targetId) return;
         const sent = edit?.action ?? action;
@@ -1809,11 +1813,13 @@ const withProfile = (value: StartPreferences, profileId: AuthoritiesProfileId): 
   ({ ...value, profileId, passageMarking: authoritiesProfile(profileId).requirements?.markedPassages &&
     value.passageMarking === "none" ? "margin" : value.passageMarking });
 
+const NO_SOURCE_ISSUES: Record<string, AuthoritiesSourceIssue> = {};
+const afterPaint = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
 function missingSources(draft: AuthoritiesProduct,
-  sourceIssues: Record<string, AuthoritiesSourceIssue> = {}) {
+  sourceIssues: Record<string, AuthoritiesSourceIssue> = {}, plan = planAuthorities(draft)) {
   const roles = authoritiesInputPlan(draft.state,
     authoritiesProfile(draft.state.settings.profileId).requirements).byteRoles;
-  return planAuthorities(draft).map(({ id }) => draft.state.authorities[id])
+  return plan.map(({ id }) => draft.state.authorities[id])
     .filter((item) => !item.excluded &&
       (missingSource(draft.state, item, draft.state.stage !== "citations") ||
         item.source.kind === "attached" && item.source.sources.some(source =>
