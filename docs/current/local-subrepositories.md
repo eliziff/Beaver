@@ -12,7 +12,7 @@ are pinned by Git links, not by the upstream branch name or newest README.
 | `legal-structure` / [Legal Structure Parser](https://github.com/eliziff/legal-structure-parser) | Provider-neutral Rust structure, citations, queries, grammar and Python binding |
 | `legal-pdf-parser` / [Legal PDF Parser](https://github.com/eliziff/legal-pdf-parser) | PDF extraction, geometry, OCR and PDF Inspector integration |
 | `legal-browser-ocr` / [Legal Browser OCR](https://github.com/eliziff/legal-browser-ocr) | Browser/HTML OCR application and packaging |
-| `mike-workflows` / [Mike Workflows](https://github.com/Open-Legal-Products/mike-workflows) | Upstream-owned workflow definitions and schema; Beaver consumes a pin |
+| `mike-workflows` / [Mike Workflows fork](https://github.com/eliziff/mike-workflows) | Workflow definitions and schema; integrates [upstream Mike Workflows](https://github.com/Open-Legal-Products/mike-workflows) with Beaver revisions and consumes a published pin |
 | `OpenLegalData` | Local repository restored from the tracked bundle; no public remote is declared |
 
 Related repositories, **not Beaver submodules**:
@@ -78,6 +78,6 @@ Verify that a fresh bundle clone contains the locked commit. A prose guide or
 copied README is not a replacement for that source repository. Bundles contain
 source, not private corpora, indexes, caches, model packs or credentials.
 
-Upstream `mike-workflows` changes follow that project's contribution/validation
-rules. Beaver's integration notes must not claim that an upstream proposal has
+The `mike-workflows` fork integrates upstream changes on `main` and follows
+that project's contribution/validation rules. Beaver's integration notes must not claim that an upstream proposal has
 been accepted or that the pinned catalogue automatically tracks its branch.

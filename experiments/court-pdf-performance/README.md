@@ -35,7 +35,8 @@ are not included here. This README was written for the repository copy.
 
 ## Missing inputs and evidence
 
-`prepare.mjs` imports `fixtures.mjs`, which is deliberately omitted because it
+`prepare.mjs` requires `COURT_PDF_FIXTURES_MODULE`, an explicit path to the private
+fixture generator formerly named `fixtures.mjs`. That generator is omitted because it
 contains scenario-bearing fixture generation. There are no source PDFs, document
 bodies, corpus fixtures, gold data, sealed holdout data, or baseline PDF oracles
 in this directory. Those exclusions are not permission to publish them later.
