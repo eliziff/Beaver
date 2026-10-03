@@ -115,16 +115,17 @@ function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
       onClick={onAdd}>+ Pinpoint</button>
     <ul ref={list} className="citation-chips">
       {shown.map((pin, i) => {
-        const [symbol, name] = KINDS[pin.kind] ?? [pin.kind, pin.kind], written = unitText.slice(pin.start, pin.end).replace(/\s+/gu, ' ');
+        // A pinpoint just added waits for the save to read its kind, its value already shown.
+        const [symbol, name] = KINDS[pin.kind] ?? [pin.kind, pin.kind || 'Pinpoint'], written = unitText.slice(pin.start, pin.end).replace(/\s+/gu, ' ');
         const next = CYCLE[(CYCLE.indexOf(pin.kind) + 1) % CYCLE.length], nextName = KINDS[next][1].toLowerCase();
         return <li key={`${drawn}:${i}`} className="citation-chip" title={`${name} ${written}`}>
           <button type="button" aria-label={`${name} ${written}: make it a ${nextName}`} title={`${name}; click for ${nextName}`}
-            onClick={event => {
+            disabled={!pin.kind} onClick={event => {
               if (event.currentTarget === document.activeElement) refocus.current = i;
               onSet(edit(pins.map((other, j) => j === i ? { ...other, kind: next } : other)));
             }}>{symbol}</button>
           <span>{written}</span>
-          <button type="button" aria-label={`Remove pinpoint ${symbol} ${written}`} title="Remove this pinpoint"
+          <button type="button" aria-label={`Remove pinpoint ${symbol ? `${symbol} ` : ''}${written}`} title="Remove this pinpoint"
             onClick={() => onSet(edit(pins.filter((_, j) => j !== i)))}><X aria-hidden="true" /></button>
         </li>;
       })}
@@ -446,6 +447,15 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     return () => removeEventListener('resize', fit);
   }, [!!(selected && unit), hidden]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A control an edit removed or disabled while it had the focus hands the focus to the review, so
+  // its keys keep working.
+  const focused = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const control = focused.current;
+    if (control && [document.body, control].includes(document.activeElement as HTMLElement) &&
+      (!control.isConnected || control.matches(':disabled')))
+      reviewRef.current?.focus({ preventScroll: true });
+  });
   // The selected row is marked here rather than by rendering every row again.
   useLayoutEffect(() => {
     listRef.current?.querySelectorAll<HTMLElement>('[role=option]').forEach(option => {
@@ -632,7 +642,16 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   const link = (authorityId: string | null) => referenceKind && submit({ type: 'set-reference', occurrenceId: selected.id,
     reference: authorityId ? { kind: referenceKind, targetAuthorityId: authorityId } : null });
   const finding = discrepancies.find(item => item.occurrenceId === selected.id);
-  return <div ref={reviewRef} className="authorities-review citation-review" tabIndex={-1} onKeyDown={keys}>
+  return <div ref={reviewRef} className="authorities-review citation-review" tabIndex={-1} onKeyDown={keys}
+    onFocus={event => { focused.current = event.target as HTMLElement; }}
+    onMouseDown={event => {
+      // A click on the bar's controls (or Restore) leaves the keys with the review: the button it
+      // pressed may go or be disabled by the edit, and the focus would fall out of the review.
+      if (!(event.target as Element).closest('.citation-panel button,.citation-dismissed button') ||
+        (event.target as Element).closest('.citation-authority')) return;
+      event.preventDefault();
+      if (!reviewRef.current?.contains(document.activeElement)) reviewRef.current?.focus({ preventScroll: true });
+    }}>
     <div ref={listRef} className="citation-outline" role="listbox" aria-label="Citations" onClick={event => {
       const id = (event.target as Element).closest<HTMLElement>('[role=option]')?.dataset.id;
       if (id) choose(id, true);

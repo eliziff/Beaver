@@ -82,7 +82,9 @@ export const STRESS_CASES = [{
       "the evidence becomes the selected citation");
     record.check(await dragSelect(app, "2 (Michele", { prefix: 1 }) === "2", "the pointer selects its page");
     await app.interact("P adds the page", async () => { await app.page.locator(".citation-review").focus(); await app.page.keyboard.press("p"); });
-    await app.page.waitForFunction(() => document.querySelectorAll(".citation-pins .citation-chip").length === 1, null, { timeout: 15_000 }).catch(() => {});
+    // It shows at once; its kind once the save has read it.
+    record.check(await app.page.locator(".citation-pins .citation-chip").count() === 1, "the pinpoint shows at once");
+    await app.page.waitForFunction(() => document.querySelector(".citation-pins .citation-chip > button")?.textContent, null, { timeout: 30_000 }).catch(() => {});
     record.check(await chips(app) === "p.2", "the hand-added evidence takes its page as a pinpoint", await chips(app));
     for (const label of ["Ctrl+Z takes the page back", "Ctrl+Z takes the citation back"])
       await app.interact(label, async () => { await app.page.locator(".citation-review").focus(); await app.page.keyboard.press("Control+z"); },

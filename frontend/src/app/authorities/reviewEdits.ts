@@ -61,13 +61,13 @@ export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesActi
       if (!saved) return null;
       put(saved.occurrence); dismissed = { ...dismissed }; delete dismissed[action.occurrenceId]; break;
     }
-    // A pinpoint kind changed, one removed or one put back shows at once; one added shows when the
-    // save has read its value and kind from the text.
+    // Every pinpoint edit shows at once. One added shows its value as written, and its kind once the
+    // save has read it from the words before it.
     case 'set-pinpoints': {
-      const known = action.pinpoints.flatMap(({ start, end, kind }) => {
+      const known = action.pinpoints.map(({ start, end, kind }) => {
         const pin = item!.pinpoints.find(other => other.start === start && other.end === end);
-        return pin ? [{ ...pin, kind: kind ?? pin.kind }] : kind ? [{ kind, text: unit.text.slice(start, end), start, end }] : [];
-      });
+        return pin ? { ...pin, kind: kind ?? pin.kind } : { kind: kind ?? '', text: unit.text.slice(start, end), start, end };
+      }).sort((left, right) => left.start! - right.start!);
       const span = known.length ? { start: known[0].start!, end: known.at(-1)!.end! } : null;
       occurrences[item!.id] = { ...item!, pinpoints: known, pinpointManual: true,
         pinpointSpan: span && { ...span, text: unit.text.slice(span.start, span.end) } };
@@ -96,8 +96,9 @@ export function placedPins(item: AuthorityOccurrence): Pin[] {
   });
 }
 type PinpointEdit = Extract<AuthoritiesAction, { type: 'set-pinpoints' }>['pinpoints'];
+/** Pinpoints as an edit sends them: a kind not yet read is left for the save to read. */
 export const pinpointEdit = (pins: Pin[]): PinpointEdit =>
-  pins.map(({ start, end, kind }) => ({ start, end, kind: kind as PinpointEdit[number]['kind'] }));
+  pins.map(({ start, end, kind }) => ({ start, end, ...(kind && { kind: kind as PinpointEdit[number]['kind'] }) }));
 
 /** A review edit as Ctrl+Z takes it back and Ctrl+Y makes it again: each a list of actions, the
  * citation it was about, and the one selected when it was made. */

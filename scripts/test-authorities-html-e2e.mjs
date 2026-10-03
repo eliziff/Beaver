@@ -460,13 +460,17 @@ function Run(page, mode) {
       check(await page.waitForFunction(() => !document.querySelector(".citation-add-pin").disabled).then(() => true, () => false),
         `${mode} ${label}: a selection enables + Pinpoint`);
       await interact(`${label} + Pinpoint`, () => button("+ Pinpoint").click());
-      await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 1);
+      await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 1 &&
+        // A pinpoint just added shows its value at once, and its kind once the save has read it.
+        [...document.querySelectorAll(".citation-chip > button:first-child")].every((kind) => kind.textContent));
       check(await pinpoint() === "p.138-139" && await selectedRow() === EXPECTED_ROWS[2], `${mode} ${label}: + Pinpoint adds the selection with its kind`, await pinpoint());
       // A pinpoint written away from its citation: "supra note 2 at 135" also takes "46-48" from the note's other citation.
       await chooseRow(EXPECTED_ROWS[6]);
       await dragSelect("46-48");
       await interact(`${label} P adds a pinpoint away from the citation`, () => page.keyboard.press("p"));
-      await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 2);
+      await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 2 &&
+        // A pinpoint just added shows its value at once, and its kind once the save has read it.
+        [...document.querySelectorAll(".citation-chip > button:first-child")].every((kind) => kind.textContent));
       check(await pinpoint() === "¶46-48 p.135" && await selectedRow() === EXPECTED_ROWS[6], `${mode} ${label}: a pinpoint outside the citation is added, the range unchanged`, [await pinpoint(), await selectedRow()]);
       await onlySelectedYellow(label, "paras 46-48; Oakes, supra note 2 at 135");
       await shots(`${label}-04b-pinpoint-chips`);
@@ -479,7 +483,9 @@ function Run(page, mode) {
       await interact(`${label} Delete Lakeshore`, () => page.keyboard.press("Delete"), { listChanges: true });
       await dragSelect("Lakeshore Rowing Club v Marsh Harbour Board, 2030 ABKB 417");
       await interact(`${label} Add citation without its pinpoint`, () => button("Add citation").click(), { listChanges: true });
-      await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 1);
+      await page.waitForFunction(() => document.querySelectorAll(".citation-chip").length === 1 &&
+        // A pinpoint just added shows its value at once, and its kind once the save has read it.
+        [...document.querySelectorAll(".citation-chip > button:first-child")].every((kind) => kind.textContent));
       check(await pinpoint() === "¶22", `${mode} ${label}: Add citation finds the pinpoint after the selection`, await pinpoint());
       await dragSelect(EXPECTED_ROWS[7]);
       await interact(`${label} Enter widens it back`, () => page.keyboard.press("Enter"));
