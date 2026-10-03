@@ -110,6 +110,8 @@ export type AuthorityIdentity = {
    *  address, or the publisher or the service did not answer. */
   sourceDownloadFailure?: "refused" | "failed";
   sourceLookupFailure?: AuthoritySourceLookupFailure;
+  /** The detected case form, when its citation alone offers no public copy. */
+  citationFormat?: "database" | "docket";
   /** Explicit link printed in the imported document; not a verified source identity. */
   sourceUrl?: string;
   id: string;

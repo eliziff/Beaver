@@ -68,6 +68,7 @@ test.describe("Workflows", () => {
 });
 
 test.describe("Account Settings", () => {
+    test.skip(process.env.BEAVER_E2E_MODE === "local", "Account settings belong to the cloud account gate.");
     test("updating display name saves and persists across navigation", async ({ page }) => {
         const loaded = page.waitForResponse((response) =>
             new URL(response.url()).pathname === "/api/user/profile" &&

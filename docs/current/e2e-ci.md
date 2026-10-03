@@ -63,8 +63,9 @@ These settings reuse the existing encrypted token storage and refresh flow.
 application pull requests to `main` and `upstream-main`; it can also be started manually.
 
 UI-only changes run the account-free production application with a disposable
-local store. Eleven browser checks cover responsive navigation, persisted chat
-lifecycle/selection and project operations. No Supabase or MinIO is started.
+local store. Sixteen browser checks cover responsive navigation, persisted chat
+lifecycle/selection, project operations, workflow editing/read-only built-ins
+and tabular review creation/document uploads. No Supabase or MinIO is started.
 Auth, API/persistence, schema, deployment and unknown infrastructure inputs keep
 the complete cloud browser and live persistence/RLS/S3 suite. Manual runs retain
 the cloud gate. `scripts/ci-scope.py` owns routing; mixed changes keep the broader gate.

@@ -34,7 +34,7 @@ export default defineConfig({
 
     projects: localSmoke ? [{
         name: "local-chromium",
-        testMatch: ["assistant-interface.spec.ts", "chat-management.spec.ts", "project-management.spec.ts"],
+        testMatch: ["assistant-interface.spec.ts", "chat-management.spec.ts", "project-management.spec.ts", "workflows-account.spec.ts", "tabular-reviews.spec.ts"],
         use: { ...devices["Desktop Chrome"] },
     }] : [
         /* Run the auth setup before all other tests */

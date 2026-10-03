@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
         // only what changed. Code that breaks the Rules of React is left uncompiled.
         plugins: [react(), babel({ presets: [reactCompilerPreset()],
             // The browser-shared contracts the runtime aliases resolve to are TypeScript modules too.
-            overrides: [{ test: /\.mts(?:$|\?)/, parserOpts: { plugins: ["typescript"] } }] }), precompressedAssets(), {
+            overrides: [{ include: /\.mts(?:$|\?)/, parserOpts: { plugins: ["typescript"] } }] }), precompressedAssets(), {
             name: "shared-schema-entry",
             config(config, { command }) {
                 const output = config.build?.rolldownOptions?.output;
