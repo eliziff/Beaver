@@ -1,1 +1,1 @@
-export { safeAssistantUrl } from "../../../../shared/runtime/assistantWire.mjs";
+export { safeAssistantUrl } from "mike/shared/runtime/assistantWire.mjs";

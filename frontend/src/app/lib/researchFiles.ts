@@ -3,10 +3,10 @@ import type { Document } from "@/app/lib/api/documents";
 export type { ResearchLabel, ResearchSourceReference, ResearchSource, ResearchPartReference,
   ResearchFileState, PublicResearchFileAction as ResearchAction, ResearchEvidence,
   ResearchQueryReceipt, ResearchChange, ResearchPageItem,
-  ResearchSelection } from "../../../../shared/runtime/researchContract.mjs";
+  ResearchSelection } from "mike/shared/runtime/researchContract.mjs";
 import type { ResearchSource, ResearchChange, ResearchQueryReceipt, ResearchFileOf,
   ResearchFileState, ResearchSourceReference, ResearchSelection,
-  LegalEvidenceReceipt } from "../../../../shared/runtime/researchContract.mjs";
+  LegalEvidenceReceipt } from "mike/shared/runtime/researchContract.mjs";
 export type ResearchEvidenceReceipt = LegalEvidenceReceipt;
 export type ResearchProposal = Pick<ResearchChange, "id" | "title" | "createdAt" | "executor" | "model" | "counts">;
 export type ResearchFile = ResearchFileOf<Document>;
@@ -27,9 +27,9 @@ export const newResearchState = (): ResearchFileState => ({ schemaVersion: "beav
   labels: {}, sources: {}, queries: null, note: "" });
 export const isResearchDocument = (document: Document) =>
   document.file_type === "md" && document.filename.toLowerCase().endsWith(".research.md");
-export { researchSourceKey } from "../../../../shared/runtime/resourceReferences.mjs";
+export { researchSourceKey } from "mike/shared/runtime/resourceReferences.mjs";
 
-export { researchLabelPath } from "../../../../shared/runtime/researchLabels.mjs";
+export { researchLabelPath } from "mike/shared/runtime/researchLabels.mjs";
 export const legalSourceViewerHref = (reference: ResearchSourceReference, research?: {
   fileId: string; sourceId: string }) => `/sources/view?${new URLSearchParams({
     provider: reference.provider, citation: reference.citation ?? reference.id,

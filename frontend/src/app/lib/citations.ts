@@ -5,7 +5,7 @@ export interface CitationQuote {
   page?: number;
   quote: string;
 }
-import type { AssistantCitation } from "../../../../shared/runtime/assistantWire.mjs";
+import type { AssistantCitation } from "mike/shared/runtime/assistantWire.mjs";
 export type Citation = AssistantCitation;
 export type DocumentCitation = Extract<Citation, { kind: "document" }>;
 type DocumentCitationQuote = DocumentCitation["quotes"][number];

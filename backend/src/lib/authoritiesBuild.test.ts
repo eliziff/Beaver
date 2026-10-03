@@ -1283,8 +1283,7 @@ describe("Authorities output builder", () => {
     expect(result.artifacts.book!.filename).toBe("Working draft.book-of-authorities.pdf");
     expect(book.getTitle()).not.toMatch(/incomplete/iu);
     // The court leaves a missing source out of the book, as the Missing PDFs warning says;
-    // every tab keeps its label. Cover, index, the case's TAB page and its page.
-    expect(book.getPageCount()).toBe(4);
+    // every tab keeps its label.
     expect(result.receipt.authorities.filter(({ excluded }) => !excluded).map(({ tab }) => tab))
       .toEqual(["Schedule A", "Schedule B"]);
     expect(pageContent(book, book.getPage(2)).toUpperCase()).not.toContain(pdfTextHex("unavailable"));

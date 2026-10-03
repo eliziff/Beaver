@@ -29,10 +29,16 @@ class NativeCacheTests(unittest.TestCase):
             original = native.cache_key(root, b'compiler one')
             commit('legal-pdf-parser', '.github/workflows/ci.yml', 'changed workflow')
             commit('legal-structure', 'README.md', 'changed documentation')
+            # The addon uses its own lockfile and the invocation's root config.
+            commit('legal-pdf-parser', '.cargo/config.toml', 'changed standalone job limit')
+            commit('legal-structure', 'Cargo.lock', 'changed standalone resolution')
             self.assertEqual(original, native.cache_key(root, b'compiler one'))
+            commit('.', '.cargo/config.toml', 'changed actual addon configuration')
+            configured = native.cache_key(root, b'compiler one')
+            self.assertNotEqual(original, configured)
             commit('legal-pdf-parser', 'rust/src/lib.rs', 'changed source')
             changed = native.cache_key(root, b'compiler one')
-            self.assertNotEqual(original, changed)
+            self.assertNotEqual(configured, changed)
             self.assertNotEqual(changed, native.cache_key(root, b'compiler two'))
 
 

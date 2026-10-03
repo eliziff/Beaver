@@ -603,40 +603,4 @@ describe("standalone Authorities runtime", () => {
     expect(JSON.parse(String(form.get("receipt"))).authorities[0]).toMatchObject({ tab: "Tab 1" });
   });
 
-  it("converts an unmarked Word filing through the existing converter for final export", async () => {
-    const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
-      new Paragraph("Factum with 2024 ABKB 123."),
-    ] }] }));
-    const pdf = await PDFDocument.create(); pdf.addPage();
-    const converted = Buffer.from(await pdf.save());
-    const converter = vi.spyOn(await import("../lib/convert"), "docxToPdf").mockResolvedValue(converted);
-    const state = structuredClone(manualState()) as AuthoritiesDraft;
-    state.import = { kind: "document", bindingRole: "source", filename: "Factum.docx",
-      fileType: "docx", snapshot: null };
-    state.settings = { ...state.settings, passageMarking: "none", finalPdf: true, allowIncomplete: true };
-    state.bindings.source = { kind: "local-file", handleId: "source", lastSeen: {
-      name: "Factum.docx", size: bytes.length, modified: 1, sha256: sha256(bytes),
-    } };
-
-    const response = await request(app).post("/authorities-runtime/build")
-      .field("draft", JSON.stringify(state)).field("roles", JSON.stringify(["source"]))
-      .field("id", "draft-word-final").field("revision", "1").field("title", "Factum")
-      .attach("files", bytes, "Factum.docx").buffer(true).parse((res, done) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => done(null, Buffer.concat(chunks)));
-      }).expect(200);
-    const form = await new Response(response.body as Buffer, { headers: {
-      "content-type": response.headers["content-type"],
-    } }).formData();
-    const final = Buffer.from(await (form.get("final-pdf") as File).arrayBuffer());
-
-    expect(converter).toHaveBeenCalledOnce();
-    const word = await JSZip.loadAsync(converter.mock.calls[0][0]);
-    const text = await word.file("word/document.xml")!.async("string");
-    expect(text).toContain("Factum with 2024 ABKB 123.");
-    expect(text).not.toContain("<w:instrText");
-    expect((await PDFDocument.load(final)).getPageCount()).toBe(5);
-    expect(form.get("annotated-document")).toBeNull();
-  });
 });

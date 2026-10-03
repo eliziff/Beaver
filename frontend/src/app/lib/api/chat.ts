@@ -44,8 +44,8 @@ export interface Chat {
   created_at: string;
   deleted_at?: string | null;
 }
-import type { WorkflowRunEvent as WireWorkflowRunEvent } from "../../../../../shared/runtime/assistantWire.mjs";
-export type { AskInputsEvent, AskInputsResponseEvent } from "../../../../../shared/runtime/assistantWire.mjs";
+import type { WorkflowRunEvent as WireWorkflowRunEvent } from "mike/shared/runtime/assistantWire.mjs";
+export type { AskInputsEvent, AskInputsResponseEvent } from "mike/shared/runtime/assistantWire.mjs";
 export type WorkflowRunEvent = WireWorkflowRunEvent & { id: string };
 export type WorkflowOperationName = WorkflowRunEvent["tool"];
 export interface Message {
@@ -131,7 +131,7 @@ export const streamChatJob = (jobId: string, signal: AbortSignal) =>
     headers: { Accept: "text/event-stream" }, signal,
   });
 export const steerChat = (chatId: string, id: string, text: string,
-  readers?: import("../../../../../shared/runtime/assistantWire.mjs").ReaderSettings) =>
+  readers?: import("mike/shared/runtime/assistantWire.mjs").ReaderSettings) =>
   post<{ steered: true }>(`/chat/${segment(chatId)}/steer`, {
     id, text, submission: browserPromptSubmission(), ...(readers && { readers }),
   });
