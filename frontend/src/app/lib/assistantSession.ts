@@ -33,7 +33,7 @@ export type AssistantActivity = {
   items?: { label: string; detail?: string; url?: string | null; error?: boolean }[];
   citations?: Citation[];
   action?: { type: "reader"; readerId: string };
-  read?: import("../../../../backend/src/lib/chat/assistantWire").ToolActivity["read"];
+  read?: import("../../../../shared/runtime/assistantWire.mjs").ToolActivity["read"];
   callCount?: number;
 };
 

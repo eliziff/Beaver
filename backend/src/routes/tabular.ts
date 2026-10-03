@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { z, type ZodType } from "zod";
+import { z, type ZodType } from "mike/shared/runtime/schema.mjs";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";

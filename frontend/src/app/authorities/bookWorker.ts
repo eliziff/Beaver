@@ -2,7 +2,7 @@
 // Assembles a prepared book away from the page, so building never stalls scrolling or typing.
 // Imported inline (?worker&inline): the self-contained page carries it, with no file of its own.
 import * as pdf from "pdf-lib";
-import { renderAuthoritiesBook, type PreparedAuthoritiesBook } from "../../../../backend/src/lib/authoritiesBook";
+import { renderAuthoritiesBook, type PreparedAuthoritiesBook } from "../../../../shared/runtime/authoritiesBook.mjs";
 
 self.onmessage = async ({ data }: MessageEvent<PreparedAuthoritiesBook>) => {
   try {

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
 import { fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
-import { buildCanliiLawUrl } from "../canliiLawUrls";
+import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { buildCanliiCaseUrl } from "../canliiUrls";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import { decisiaIndexUrl, verifiedDecisiaPdf,
@@ -12,8 +12,8 @@ import { structureNative, type NativeDocument } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { isUnitedStatesSearch } from ".";
-import type { LegalSourceProvider, LegalSourceReference,
-  LegalSourceResolveRequest, LegalSourceSearchHit, LegalSourceSearchRequest } from ".";
+import type { LegalSourceProvider, LegalSourceReference, LegalSourceResolveRequest, LegalSourceSearchRequest } from ".";
+import type { LegalSourceSearchHit } from "mike/shared/runtime/clientContracts.mjs";
 
 type DocType = "cases" | "laws";
 type Language = "en" | "fr";

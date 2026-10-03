@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "./schema.mjs";
 
 const findingId = z.string().min(1).max(200);
 export const researchFindingReferenceSchema = z.discriminatedUnion("kind", [

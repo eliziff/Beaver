@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { ResearchFinding } from "../researchChat";
 import type { ResearchFile } from "../researchFile";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
-import { researchFindingReferenceSchema, type ResearchFindingReference } from "../researchFindingReference";
+import { researchFindingReferenceSchema, type ResearchFindingReference } from "mike/shared/runtime/researchFindingReference.mjs";
 import type { ResearchSubject } from "../researchSelection";
 import { researchResultFilter } from "../researchReader";
 import { safeErrorMessage } from "../safeError";

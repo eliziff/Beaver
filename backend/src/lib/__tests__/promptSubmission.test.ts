@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { promptSubmissionSchema, resolvePromptSubmission } from "../promptSubmission";
+import { resolvePromptSubmission } from "../promptSubmission";
+import { promptSubmissionSchema } from "mike/shared/runtime/promptSubmission.mjs";
 
 afterEach(() => vi.unstubAllEnvs());
 

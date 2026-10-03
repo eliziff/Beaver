@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
-import { textField } from "./textField";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import type { ResearchOperationContext } from "./researchProvenance";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { createLegalEvidenceTurnState, createLibraryEvidence, legalSourceEvidence, registerLegalResearchQueries,

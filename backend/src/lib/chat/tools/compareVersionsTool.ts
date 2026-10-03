@@ -1,7 +1,7 @@
 import { compareDocxVersions } from "../../docxCompareVersions";
 import type { DocumentScope, DocumentStore } from "../../documentStore";
 import type { Tool } from "../../llm";
-import { DOCUMENT_OR_DRAFT_PATTERN } from "../../resourceReferences";
+import { DOCUMENT_OR_DRAFT_PATTERN } from "mike/shared/runtime/resourceReferences.mjs";
 import { objectSchema, type BeaverToolPolicy } from "../toolRegistry";
 
 export const COMPARE_VERSIONS_TOOL: Tool & BeaverToolPolicy = {

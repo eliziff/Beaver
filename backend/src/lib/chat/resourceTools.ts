@@ -1,4 +1,4 @@
-import { researchFindingReferenceToolSchema } from "../researchFindingReference";
+import { researchFindingReferenceToolSchema } from "mike/shared/runtime/researchFindingReference.mjs";
 import type { Tool } from "../llm";
 import type { DocIndex } from "./types";
 import { objectSchema } from "./toolRegistry";
@@ -6,7 +6,7 @@ import {
   DOCUMENT_OR_DRAFT_PATTERN,
   READABLE_RESOURCE_PATTERN,
   RESOURCE_LOCATOR_KINDS,
-} from "../resourceReferences";
+} from "mike/shared/runtime/resourceReferences.mjs";
 
 const tool = (
   name: string,

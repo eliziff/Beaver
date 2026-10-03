@@ -2,7 +2,7 @@ import { assistantTools, type AssistantToolsDependencies } from "./assistantTool
 import type { ChatToolContext } from "./turnEngine";
 import type { BeaverTool } from "./toolRegistry";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
-import { resourceReference } from "../resourceReferences";
+import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import type { ReadSubagentAssignment } from "./assistantEvents";
 import type { ResearchFile } from "../researchFile";
 import { createResearchTableTool } from "./researchTableTool";

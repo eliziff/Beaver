@@ -2,7 +2,7 @@ import { visibleChatMessages, type VisibleChatMessage } from "./chat/chatTranscr
 import type { AssistantEvent } from "./chat/assistantEvents";
 import { abortChatTurnForDeletion } from "./chatTurns";
 import type { ResearchSelection } from "./researchSelection";
-import type { PromptSubmission } from "./promptSubmission";
+import type { PromptSubmission } from "mike/shared/runtime/promptSubmission.mjs";
 
 export type ChatScope = { userId: string; userEmail?: string };
 export type ChatRecord = Record<string, unknown> & {

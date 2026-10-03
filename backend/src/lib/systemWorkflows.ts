@@ -1,7 +1,6 @@
+import { type WorkflowAudience } from "mike/shared/runtime/clientContracts.mjs";
 import manifest from "./systemWorkflows.json";
 
-export const WORKFLOW_AUDIENCES = ["general", "solicitor", "litigator"] as const;
-export type WorkflowAudience = typeof WORKFLOW_AUDIENCES[number];
 export const WORKFLOW_CATEGORIES = [
   "Drafting and document preparation",
   "Document review and comparison",

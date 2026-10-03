@@ -134,6 +134,7 @@ export default defineConfig(({ mode }) => {
         },
         resolve: {
             alias: {
+                "mike/shared": fileURLToPath(new URL("../shared", import.meta.url)),
                 "@": fileURLToPath(new URL("./src", import.meta.url)),
                 "docx-preview": fileURLToPath(
                     new URL("./vendor/docx-preview/index.ts", import.meta.url),

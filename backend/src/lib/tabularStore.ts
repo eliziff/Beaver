@@ -1,11 +1,11 @@
 import type { ApplicationScope } from "./applicationError";
-import type { GroundedResult, GroundedAnswerFlag } from "./groundedAnswer";
+import type { GroundedResult, GroundedAnswerFlag } from "mike/shared/runtime/groundedAnswer.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { parseResourceReference } from "./resourceReferences";
+import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import type { ResearchChange, ResearchChangeSummary } from "./researchHistory";
 import type { ResearchArrangement } from "./tabular/researchArrangement";
 import type { ResearchSelection, ResearchSubject } from "./researchSelection";
-import type { ResearchFindingReference } from "./researchFindingReference";
+import type { ResearchFindingReference } from "mike/shared/runtime/researchFindingReference.mjs";
 import type { JevRouting } from "./tabular/jev";
 
 export type TabularScope = ApplicationScope;

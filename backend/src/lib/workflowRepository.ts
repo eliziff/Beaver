@@ -1,10 +1,7 @@
 import type { ApplicationScope } from "./applicationError";
 import type { WorkflowStore } from "./chat/types";
-import type {
-  WorkflowAudience,
-  WorkflowCategory,
-  WorkflowExecution,
-} from "./systemWorkflows";
+import type { WorkflowCategory, WorkflowExecution } from "./systemWorkflows";
+import type { WorkflowAudience } from "mike/shared/runtime/clientContracts.mjs";
 
 export type WorkflowRecord = Record<string, unknown> & {
   id: string;

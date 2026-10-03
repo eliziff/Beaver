@@ -3,7 +3,7 @@ import { Document, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx
 import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
 import * as pdfLibrary from "pdf-lib";
-import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from "../lib/authoritiesBook";
+import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthoritiesDraft } from "../lib/authoritiesDomain";

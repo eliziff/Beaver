@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { ZodError } from "zod";
+import { ZodError } from "mike/shared/runtime/schema.mjs";
 import { ApplicationError } from "./applicationError";
 import { PageCursorError } from "./pagination";
 

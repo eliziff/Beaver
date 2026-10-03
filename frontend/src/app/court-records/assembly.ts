@@ -1,4 +1,4 @@
-import { pdfAssembly, type PdfAssemblyInput, type PdfOutline as Outline } from "../../../../backend/src/lib/pdfAssembly";
+import { pdfAssembly, type PdfAssemblyInput, type PdfOutline as Outline } from "../../../../shared/runtime/pdfAssembly.mjs";
 import * as pdf from "pdf-lib";
 import {
   PDFDocument,

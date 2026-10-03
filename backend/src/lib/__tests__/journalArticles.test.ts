@@ -17,7 +17,7 @@ import { journalLegalSourceProvider as journal } from "../legalSources/journal";
 import { runLocalAssistantTools } from "./support/localAssistantTools";
 import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
 import { legalSourceOperations } from "../legalSourceApplication";
-import { resourceReference } from "../resourceReferences";
+import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { researchSourceFromResource } from "../researchFile";
 import { structureNative } from "../structureNative";
 

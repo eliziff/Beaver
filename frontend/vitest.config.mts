@@ -13,6 +13,7 @@ export default defineConfig({
     server: { fs: { allow: [resolvePath(".."), realpathSync(resolvePath("./node_modules"))] } },
     resolve: {
         alias: [
+            { find: /^mike\/shared\/(.*)$/, replacement: resolvePath("../shared/$1") },
             {
                 find: "docx-preview",
                 replacement: resolvePath(

@@ -1,7 +1,7 @@
 import type { PDFFont as PdfFont, PDFPage as PdfPage, Color as PdfColor } from "pdf-lib";
-import type { AuthoritiesCover } from "mike/shared/authorities-contract.d.ts";
+import type { AuthoritiesCover } from "../authorities-contract.d.ts";
 import { mapOutline, pdfAssembly, splitPdfPageRanges, type PdfAssemblyInput,
-  type PdfOutline } from "./pdfAssembly";
+  type PdfOutline } from "./pdfAssembly.mjs";
 
 type PdfModule = typeof import("pdf-lib");
 /** `italic`: how many of the name's first characters are italic, its style of cause or title. */

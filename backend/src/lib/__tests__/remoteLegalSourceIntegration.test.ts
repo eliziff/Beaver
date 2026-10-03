@@ -12,7 +12,7 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 }));
 
 import { legalSourceOperations } from "../legalSourceApplication";
-import { resourceReference } from "../resourceReferences";
+import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { researchSourceFromResource } from "../researchFile";
 import { runLocalAssistantTools } from "./support/localAssistantTools";
 

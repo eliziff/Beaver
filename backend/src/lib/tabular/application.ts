@@ -1,8 +1,8 @@
 import type { ResearchFinding } from "../researchChat";
 import { RESEARCH_LABEL_PROMPT } from "../researchOrganizationPrompt";
-import { researchFindingReferenceSchema, type ResearchFindingReference } from "../researchFindingReference";
-import { z } from "zod";
-import { textField } from "../textField";
+import { researchFindingReferenceSchema, type ResearchFindingReference } from "mike/shared/runtime/researchFindingReference.mjs";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import { randomUUID } from "node:crypto";
 import { runChatTurn } from "../chat/turnEngine";
 import { throwIfAborted } from "../llm/abort";
@@ -25,7 +25,7 @@ import {
   type WriteResult,
 } from "../tabularStore";
 import { ApplicationError, reject as fail } from "../applicationError";
-import { parseResourceReference, resourceReference } from "../resourceReferences";
+import { parseResourceReference, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { researchSelectionSchema } from "../researchSelection";
 import { readResearchQueries, researchSourceResource, type ResearchFile } from "../researchFile";
 import { researchCategoryBudget, researchLabelDraft, researchLabelInventory, researchLabelModelView, researchLabelPlan,

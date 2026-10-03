@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { runWordPython } from "./wordPython";
-import { parseResourceReference, resourceReference } from "./resourceReferences";
+import { parseResourceReference, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import type { DocumentContent, DocumentRecord, DocumentStore } from "./documentStore";
 
 const RECEIPT = "word-preview.json";

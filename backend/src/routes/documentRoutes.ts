@@ -5,7 +5,7 @@ import { pipeline } from "node:stream/promises";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
-import { textField } from "../lib/textField";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import { trimmedText } from "../lib/value";
 import { contentTypeForDocumentType } from "../lib/documentTypes";
 import type { DocumentStore } from "../lib/documentStore";
@@ -14,7 +14,7 @@ import { pageRequest, pageResponse } from "../lib/pagination";
 import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
   normalizeDownloadFilename } from "../lib/storage";
 import { requiredFile, requiredUpload, singleFileUpload, uploadedDocument } from "../lib/upload";
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { documentProjectionService } from "../lib/documentProjectionService";
 import { structureNative } from "../lib/structureNative";
 const scope = applicationScope, MAX_ZIP_FILES = 100;

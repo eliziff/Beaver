@@ -4,7 +4,7 @@ import { researchCategoryBudget, researchLabelDesignSchema, researchLabelDraft, 
 import { researchSourceResource, type ResearchFile } from "./researchFile";
 import { resolveChatFindings, selectFindingClaims } from "./researchChat";
 import type { ChatMessageRecord } from "./chatStore";
-import type { LegalEvidenceReceipt, ResearchEvidence, ResearchLabelDesign, ResearchSourceLabelNode, ResearchHighlightTypeNode } from "./researchContract";
+import type { LegalEvidenceReceipt, ResearchEvidence, ResearchLabelDesign, ResearchSourceLabelNode, ResearchHighlightTypeNode } from "mike/shared/runtime/researchContract.mjs";
 import { researchImportCatalog, type ResearchImportCatalog } from "./tabular/researchImport";
 
 const first = randomUUID(), second = randomUUID(), outside = randomUUID();

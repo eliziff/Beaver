@@ -1,5 +1,5 @@
-import type { LegalResearchQueryReceipt } from "../researchContract";
-import { researchSourceKey } from "../resourceReferences";
+import type { LegalResearchQueryReceipt } from "mike/shared/runtime/researchContract.mjs";
+import { researchSourceKey } from "mike/shared/runtime/resourceReferences.mjs";
 import { modelToolData } from "./toolRegistry";
 
 export type QueryHistorySource = () => Iterable<LegalResearchQueryReceipt> | Promise<Iterable<LegalResearchQueryReceipt>>;
@@ -8,7 +8,7 @@ const term = (query: LegalResearchQueryReceipt) => String(query.input.pattern ??
 export const queryResources = (query: LegalResearchQueryReceipt) => [
   ...(typeof query.input.resource === "string" ? [query.input.resource] : []),
   ...(query.scan?.sources.map(source => source.resource) ?? []),
-  ...Object.values((query as import("../researchContract").ResearchQueryReceipt).sourceReferences ?? {}).map(researchSourceKey),
+  ...Object.values((query as import("mike/shared/runtime/researchContract.mjs").ResearchQueryReceipt).sourceReferences ?? {}).map(researchSourceKey),
   ...query.results.flatMap(result => "resource" in result ? [result.resource] : []),
 ];
 const queryHistoryPreview = (query: LegalResearchQueryReceipt) => ({

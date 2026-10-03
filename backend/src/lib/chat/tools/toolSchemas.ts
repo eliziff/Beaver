@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 import { workbookSheetsSchema } from "../../spreadsheet";
 import type { Tool } from "../../llm";
-import { DOCUMENT_OR_DRAFT_PATTERN } from "../../resourceReferences";
+import { DOCUMENT_OR_DRAFT_PATTERN } from "mike/shared/runtime/resourceReferences.mjs";
 import { objectSchema as object, type BeaverToolPolicy } from "../toolRegistry";
 
 

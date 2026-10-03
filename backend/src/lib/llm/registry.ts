@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { API_KEY_PROVIDERS } from "../userCredentials";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { API_KEY_PROVIDERS } from "mike/shared/runtime/clientContracts.mjs";
 import type { UserApiKeys } from "./types";
 
 const endpoint = z.object({

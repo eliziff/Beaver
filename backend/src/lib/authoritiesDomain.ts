@@ -26,8 +26,8 @@ export { attachedAuthoritySources, federalEnactmentCitation, hasBilingualAuthori
   bilingualEnactmentRequired } from "mike/shared/authorities-sources.mjs";
 export type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,
   AuthoritiesBoundPdf, AuthoritiesBookSupplement, AuthoritiesBookParts } from "mike/shared/authorities-sources.mjs";
-import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { buildCanliiPdfUrl } from "./canliiUrls";
+import type { LegalEvidenceReceipt } from "mike/shared/runtime/researchContract.mjs";
+import { buildCanliiPdfUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { sha256 } from "./hash";
 import { normalizeWhitespace } from "./text";
 import { decodeWorkProductBindings, type WorkProductInput } from "./workProduct";

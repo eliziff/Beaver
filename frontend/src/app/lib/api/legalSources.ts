@@ -2,8 +2,8 @@ import { apiRequest, pagePath, segment } from "@/app/lib/api/client";
 
 export type LegalDocumentType = "cases" | "laws" | "articles";
 export type LegalSearchDocumentType = LegalDocumentType | "hansard";
-export type { LegalSourceSearchHit as LegalSourceSearchResult } from "../../../../../backend/src/lib/legalSources";
-import type { LegalSourceSearchHit as LegalSourceSearchResult } from "../../../../../backend/src/lib/legalSources";
+export type { LegalSourceSearchHit as LegalSourceSearchResult } from "mike/shared/runtime/clientContracts.mjs";
+import type { LegalSourceSearchHit as LegalSourceSearchResult } from "mike/shared/runtime/clientContracts.mjs";
 export interface LegalSourceCoverage {
   dataset: string;
   description: string;

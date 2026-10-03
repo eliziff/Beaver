@@ -1,3 +1,4 @@
+import { type LegalSourceSearchHit } from "mike/shared/runtime/clientContracts.mjs";
 import { safeErrorLog } from "../safeError";
 import type { NativeDocument, NativeDocumentBlock } from "../structureNative";
 
@@ -9,8 +10,8 @@ export type LegalSourceLocator = {
   endValue?: string;
 };
 
-export { legalSourceReferenceSchema, type LegalSourceReference } from "./reference";
-import type { LegalSourceReference } from "./reference";
+export { legalSourceReferenceSchema, type LegalSourceReference } from "mike/shared/runtime/legalSourceReference.mjs";
+import type { LegalSourceReference } from "mike/shared/runtime/legalSourceReference.mjs";
 
 export type LegalSourceSearchRequest = {
   text: string;
@@ -43,19 +44,6 @@ export function isUnitedStatesSearch(request: Pick<LegalSourceSearchRequest, "ju
   return ["us", "usa", "unitedstates", "unitedstatesofamerica"]
     .includes(searchJurisdiction(request));
 }
-
-export type LegalSourceSearchHit = LegalSourceReference & {
-  snippet?: string | null;
-  authors?: string | null;
-  speaker?: string | null;
-  passageStart?: number;
-  passageEnd?: number;
-  authority?: {
-    citingCases: number;
-    citingParagraphs: number;
-    occurrences: number;
-  };
-};
 
 export type LegalSourceResolveRequest = {
   text: string;

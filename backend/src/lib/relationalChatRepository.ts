@@ -7,7 +7,7 @@ import { patchChatEditEvents, type ChatCommitResult, type ChatMessageRecord, typ
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { chatAccess, changes, documentAccess, now, one, rows, type Row } from "./relationalRepositorySupport";
 import { parseAssistantEvent, type AssistantEvent } from "./chat/assistantEvents";
-import { withCanliiLawLinks } from "./chat/assistantWire";
+import { withCanliiLawLinks } from "mike/shared/runtime/assistantWire.mjs";
 
 const chatRecord = (row: Row): ChatRecord => ({ ...row, role: roleFromRank(row.access_rank), id: String(row.id),
   user_id: String(row.user_id), project_id: typeof row.project_id === "string" ? row.project_id : null,

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, upstream-main]
   workflow_dispatch:
   schedule:
     - cron: '23 6 * * 1'
@@ -22,8 +22,9 @@ jobs:
     outputs:
       backend: ${{ steps.scope.outputs.backend }}
       frontend: ${{ steps.scope.outputs.frontend }}
-      guards: ${{ steps.scope.outputs.guards }}
+      application: ${{ steps.scope.outputs.application }}
       audit: ${{ steps.scope.outputs.audit }}
+      authorities: ${{ steps.scope.outputs.authorities }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -35,20 +36,6 @@ jobs:
       - name: Check audit failure handling once
         if: steps.scope.outputs.audit != '[]'
         run: node --test scripts/audit-gate.test.mjs
-
-  guards:
-    needs: changes
-    if: needs.changes.outputs.guards == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 22
-      - run: git submodule update --init --depth 1 -- legal-structure
-      - run: npm run check:guards
 
   dependency-audit:
     needs: changes
@@ -69,10 +56,44 @@ jobs:
         working-directory: ${{ matrix.directory }}
         run: node "$GITHUB_WORKSPACE/scripts/audit-gate.mjs"
 
-  backend:
+  native:
     needs: changes
+    if: needs.changes.outputs.backend == 'true' || (github.event_name != 'push' && needs.changes.outputs.application == 'true')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - run: git submodule update --init --recursive -- legal-structure legal-pdf-parser
+      - id: identity
+        name: Identify the exact native sources and Rust toolchain
+        shell: python
+        run: |
+          import hashlib, os, subprocess
+          identity = subprocess.check_output(['git', 'rev-parse',
+              'HEAD:native/legal-structure-node', 'HEAD:legal-structure', 'HEAD:legal-pdf-parser'])
+          identity += subprocess.check_output(['rustc', '-vV'])
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('key=' + hashlib.sha256(identity).hexdigest() + '\n')
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        id: cache
+        with:
+          path: native/legal-structure-node/target/release/liblegal_structure_node.so
+          key: native-ubuntu24-${{ steps.identity.outputs.key }}
+      - name: Build the native addon once
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: native-${{ github.sha }}
+          path: native/legal-structure-node/target/release/liblegal_structure_node.so
+          if-no-files-found: error
+          retention-days: 1
+
+  backend:
+    needs: [changes, native]
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: backend
@@ -88,6 +109,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
+      - run: npm ci --prefix .. --ignore-scripts
       - run: npm ci --ignore-scripts
       - name: Install document conversion dependency
         run: |
@@ -96,9 +118,15 @@ jobs:
           sudo dpkg -i "$RUNNER_TEMP/pandoc.deb"
       - name: Install shared Python citation runtime
         run: python -m pip install -r scripts/requirements-citations.txt
-      - run: cargo build --locked --release --manifest-path ../native/legal-structure-node/Cargo.toml
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: native-${{ github.sha }}
+          path: native/legal-structure-node/target/release
       - run: npm run build
       - run: npm test
+      - name: Check shared boundaries when frontend validation is unnecessary
+        if: needs.changes.outputs.frontend != 'true'
+        run: npm run check:guards:core --prefix ..
 
   frontend:
     needs: changes
@@ -116,9 +144,25 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install shared wire-contract dependencies
-        run: npm ci --prefix ../backend --ignore-scripts
+      - name: Install shared runtime dependencies
+        run: npm ci --prefix .. --ignore-scripts
       - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm run lint
+      - run: git submodule update --init --depth 1 -- legal-structure
+      - run: npm run check:guards --prefix ..
       - run: npm run build
+
+  e2e:
+    needs: [changes, native]
+    if: github.event_name != 'push' && needs.changes.outputs.application == 'true'
+    uses: ./.github/workflows/e2e.yml
+    with:
+      native-artifact: native-${{ github.sha }}
+
+  authorities:
+    needs: [changes, native]
+    if: github.event_name != 'push' && needs.changes.outputs.authorities == 'true'
+    uses: ./.github/workflows/authorities-parity.yml
+    with:
+      native-artifact: native-${{ github.sha }}

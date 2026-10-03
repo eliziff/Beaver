@@ -10,13 +10,27 @@ upstream exceptions are inherited. Its offline regression gate is
 
 CI selects jobs from the complete Git diff, including deleted files and both
 sides of moves. Documentation-only changes skip application builds and browser
-tests. Frontend-only changes skip the backend native build; backend changes still
-validate the frontend because it imports backend helpers. Unknown inputs run both
-surfaces. Job conditions keep the existing backend/frontend/playwright check names;
-the workflows still start on every PR. Grammar, source-boundary and export-integrity
-checks run once as `guards`, separately from focused backend behavior tests. The
-TypeScript identifier-count heuristic is an optional maintenance tool, not a test
-gate. New commits cancel superseded CI runs.
+tests. Ordinary backend changes skip frontend validation; shared inputs and the
+backend helpers imported by frontend tests still validate both. Unknown inputs
+run both surfaces. Grammar, source-boundary, export-integrity and frontend tooling
+checks run separately from focused behavior tests. The TypeScript identifier-count
+heuristic is an optional maintenance tool, not a test gate. New commits cancel
+superseded CI runs.
+
+The main CI coordinates the backend, browser and Authorities parity gates. One
+Ubuntu 24.04 job supplies the native addon to all three. Its exact cache key
+includes the addon source tree, both parser Git links and `rustc -vV`; there are
+no fallback cache keys. Each consumer downloads the artifact from the same run.
+Standalone manual e2e/parity runs build their own addon. Release/source-gold and
+native citation/quotation tests remain independent behavior gates.
+
+Frontend CI installs root shared dependencies and frontend dependencies, without
+installing the backend. Shared TypeScript contracts and PDF helpers live in
+`shared/contracts/`; `npm run build:shared` produces ignored runtime modules and
+declarations in `shared/runtime/`. Normal build/test/dev commands compile that
+owner first. Direct Vitest or packaging commands need that shared build once.
+Both standalone entries are built together, so the frontend build uses one
+application pass and one standalone pass.
 
 Cloud SAML sign-in uses GoTrue's configured providers. Set `SSO_ENABLED=true`
 and optionally restrict `SSO_ALLOWED_DOMAINS` to comma-separated DNS domains.
@@ -36,8 +50,8 @@ adds `access_type=offline` and `prompt=consent` for durable refresh tokens,
 following [Google's OAuth flow](https://developers.google.com/identity/protocols/oauth2/web-server).
 These settings reuse the existing encrypted token storage and refresh flow.
 
-`.github/workflows/e2e.yml` is the production-path browser gate. It runs on
-pull requests to `main` and `upstream-main`, and can be started manually.
+`.github/workflows/e2e.yml` is the production-path browser gate. CI calls it for
+application pull requests to `main` and `upstream-main`; it can also be started manually.
 
 The job:
 

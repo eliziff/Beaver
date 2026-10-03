@@ -73,8 +73,8 @@ export const updateUserProfile = (
 ) => patch<UserProfile>("/user/profile", payload);
 export const updateUserMfaOnLogin = (enabled: boolean) =>
   patch<UserProfile>("/user/security/mfa-login", { enabled });
-export type { ApiKeyProvider } from "../../../../../backend/src/lib/userCredentials";
-import type { ApiKeyProvider } from "../../../../../backend/src/lib/userCredentials";
+export type { ApiKeyProvider } from "mike/shared/runtime/clientContracts.mjs";
+import type { ApiKeyProvider } from "mike/shared/runtime/clientContracts.mjs";
 type ApiKeySource = "user" | "env" | null;
 export type ApiKeyState = Record<ApiKeyProvider, {
   configured: boolean; source: ApiKeySource;

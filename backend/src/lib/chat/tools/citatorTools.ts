@@ -8,7 +8,7 @@ import {
 import type { Tool } from "../../llm";
 import { trimmedText } from "../../value";
 import { safeErrorLog } from "../../safeError";
-import { legalSourceResource } from "../../resourceReferences";
+import { legalSourceResource } from "mike/shared/runtime/resourceReferences.mjs";
 import { objectSchema, type BeaverToolPolicy } from "../toolRegistry";
 import {
   attestedPassageReceipt,

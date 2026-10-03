@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildCanliiCaseUrlFromCitation, buildCanliiPdfUrl } from "./canliiUrls";
+import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
+import { buildCanliiPdfUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 
 describe("CanLII citation handoff", () => {
   it("uses the canonical legal-structure parser and court routes", () => {

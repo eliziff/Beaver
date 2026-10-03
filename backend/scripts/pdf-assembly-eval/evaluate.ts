@@ -4,8 +4,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pdfAssembly } from '../../src/lib/pdfAssembly';
-import { renderAuthoritiesBook } from '../../src/lib/authoritiesBook';
+import { pdfAssembly } from 'mike/shared/runtime/pdfAssembly.mjs';
+import { renderAuthoritiesBook } from 'mike/shared/runtime/authoritiesBook.mjs';
 import { assembleFinalAuthoritiesPdf } from '../../src/lib/authoritiesFinalPdf';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');

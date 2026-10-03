@@ -4,8 +4,8 @@ import { activeJobForGroup, enqueueJob, jsonValue, PermanentJobError,
   requestGroupCancellation, type JobHandler } from "../jobQueue";
 import { jsonRecord, trimmedText } from "../value";
 import type { TabularApplication } from "./application";
-import { parseResourceReference } from "../resourceReferences";
-import { z } from "zod";
+import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { researchSourceReferenceSchema } from "../researchFile";
 import { tabularSubjectId, type TabularColumn, type TabularSelection } from "../tabularStore";
 import type { ResearchSubject } from "../researchSelection";

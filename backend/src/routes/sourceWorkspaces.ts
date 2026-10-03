@@ -1,6 +1,6 @@
 import { Router, type Response } from "express";
-import { z } from "zod";
-import { textField } from "../lib/textField";
+import { z } from "mike/shared/runtime/schema.mjs";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -10,7 +10,7 @@ import { proposalRoute } from "../lib/proposalRoute";
 import { researchFileActionSchema } from "../lib/researchFile";
 import { researchCaptureRuleSchema } from "../lib/researchFileQuery";
 import { researchSelectionSchema } from "../lib/researchSelection";
-import { researchFindingReferenceSchema } from "../lib/researchFindingReference";
+import { researchFindingReferenceSchema } from "mike/shared/runtime/researchFindingReference.mjs";
 import { researchMemoFindingsSchema } from "../lib/researchMemo";
 import type { SourceWorkspaceApplication } from "../lib/sourceWorkspaceApplication";
 

@@ -1,9 +1,9 @@
 import type { Request, Response, Router } from "express";
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import type { ApplicationScope } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import { proposalRoute } from "../lib/proposalRoute";
-import { textField } from "../lib/textField";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import { folderDesignSchema, type createFolderOrganize } from "../lib/folderOrganize";
 
 const previewInput = z.object({ instruction: textField(2_000), model: textField(200).optional(),

@@ -14,7 +14,7 @@ import {
   DOCUMENT_OR_DRAFT_PATTERN,
   parseResourceReference,
   resourceReference,
-} from "../resourceReferences";
+} from "mike/shared/runtime/resourceReferences.mjs";
 import {
   type LegalSourceReference,
 } from "../legalSources";
@@ -123,7 +123,7 @@ import {
 } from "./toolRegistry";
 import { tabularTool, type ResearchTableResolver } from "./tabularCells";
 import { readResearchFindings } from "./researchTableTool";
-import { researchFindingReferenceSchema } from "../researchFindingReference";
+import { researchFindingReferenceSchema } from "mike/shared/runtime/researchFindingReference.mjs";
 import type { DocIndex, WorkflowStore } from "./types";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { ResearchOperationContext } from "../researchProvenance";

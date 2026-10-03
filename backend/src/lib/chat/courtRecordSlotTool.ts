@@ -10,7 +10,7 @@ import type { DocumentStore } from "../documentStore";
 import { contentTypeForDocumentType } from "../documentTypes";
 import type { LibraryStore } from "../libraryStore";
 import { renderPdfPage } from "../pdfPageImage";
-import { DOCUMENT_OR_DRAFT_PATTERN, parseResourceReference } from "../resourceReferences";
+import { DOCUMENT_OR_DRAFT_PATTERN, parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { safeErrorMessage } from "../safeError";
 import { isJsonRecord, trimmedText as text } from "../value";
 import type { WorkProductApplication } from "../workProductApplication";

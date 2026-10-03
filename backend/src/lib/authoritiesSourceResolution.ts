@@ -5,7 +5,8 @@ import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
   type AuthoritiesDraft, type AuthorityIdentity, type AuthoritySourceLookupFailure } from "./authoritiesDomain";
-import { buildCanliiCaseUrlFromCitation, buildCanliiPdfUrl, isCanliiUrl } from "./canliiUrls";
+import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
+import { buildCanliiPdfUrl, isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";

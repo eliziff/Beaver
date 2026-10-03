@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { applicationScope } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
-import { textField } from "../lib/textField";
+import { textField } from "mike/shared/runtime/textField.mjs";
 import type { WorkProductApplication } from "../lib/workProductApplication";
 import { WORK_PRODUCT_KINDS } from "../lib/workProduct";
 import { requireAuth } from "../middleware/auth";

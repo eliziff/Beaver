@@ -1,12 +1,12 @@
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { sha256, canonicalJsonSha256, deterministicUuid } from "./hash";
 import { documentFileType, validateDocumentFile, isPlainTextDocumentType } from "./documentTypes";
-import { resourceReference } from "./resourceReferences";
+import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import type { WorkflowStore } from "./chat/types";
 import bundledAssets from "./systemWorkflowAssets.json";
 import type { ObjectStorage } from "./storage";
-import { SYSTEM_WORKFLOWS, SYSTEM_WORKFLOW_SNAPSHOT, WORKFLOW_AUDIENCES, WORKFLOW_CATEGORIES, assistantWorkflows,
-  type SystemWorkflow } from "./systemWorkflows";
+import { SYSTEM_WORKFLOWS, SYSTEM_WORKFLOW_SNAPSHOT, WORKFLOW_CATEGORIES, assistantWorkflows, type SystemWorkflow } from "./systemWorkflows";
+import { WORKFLOW_AUDIENCES } from "mike/shared/runtime/clientContracts.mjs";
 
 const id = z.string().min(1).max(200).regex(/^[a-z0-9][a-z0-9-]*$/u);
 const text = z.string().max(1_000_000);

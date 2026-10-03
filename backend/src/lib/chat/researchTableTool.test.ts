@@ -26,7 +26,7 @@ afterAll(async () => {
 async function fixture() {
   const { runtime } = await import("../../runtime"), research = await import("../researchFile"),
     { readResearchResource } = await import("../researchReader"),
-    { resourceReference } = await import("../resourceReferences"),
+    { resourceReference } = await import("mike/shared/runtime/resourceReferences.mjs"),
     { createResearchTableTool, readResearchFindings } = await import("./researchTableTool"),
     { TurnToolRegistry } = await import("./toolRegistry");
   close = () => runtime.shutdown();

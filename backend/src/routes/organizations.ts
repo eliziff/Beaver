@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
 import { applicationScope } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";

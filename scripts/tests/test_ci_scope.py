@@ -18,16 +18,25 @@ class ScopeTests(unittest.TestCase):
         selected = ci.scope(["frontend/src/widget.tsx"])
         self.assertFalse(selected["backend"])
         self.assertTrue(selected["frontend"])
-        self.assertTrue(selected["guards"])
+        self.assertTrue(selected["application"])
         self.assertEqual(selected["audit"], [])
 
     def test_shared_backend_native_and_unknown_inputs_keep_consumers(self):
-        for path in ("shared/wire.mjs", "backend/src/handler.ts", "legal-structure",
+        for path in ("shared/wire.mjs", "backend/src/lib/authoritiesDomain.ts", "legal-structure",
                      "native/legal-structure-node/Cargo.lock", "new-build-input.json"):
             with self.subTest(path=path):
                 selected = ci.scope([path])
                 self.assertTrue(selected["backend"])
                 self.assertTrue(selected["frontend"])
+
+    def test_backend_implementation_does_not_retest_the_frontend(self):
+        selected = ci.scope(["backend/src/routes/example.ts"])
+        self.assertTrue(selected["backend"])
+        self.assertFalse(selected["frontend"])
+        self.assertTrue(selected["application"])
+        self.assertFalse(selected["authorities"])
+        for path in ("shared/contracts/pdfAssembly.mts", "AuthoritiesHelper", "legal-pdf-parser"):
+            self.assertTrue(ci.scope([path])["authorities"])
 
     def test_audits_follow_manifests_and_gate_changes(self):
         self.assertEqual(ci.scope(["frontend/package-lock.json"])["audit"], ["frontend"])

@@ -10,8 +10,8 @@ import {
   streamRequest,
 } from "@/app/lib/api/client";
 
-export type { WorkflowAudience } from "../../../../../backend/src/lib/systemWorkflows";
-import type { WorkflowAudience } from "../../../../../backend/src/lib/systemWorkflows";
+export type { WorkflowAudience } from "mike/shared/runtime/clientContracts.mjs";
+import type { WorkflowAudience } from "mike/shared/runtime/clientContracts.mjs";
 export interface WorkflowVariant {
   id: string;
   label: string;

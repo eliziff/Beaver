@@ -1,7 +1,8 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { API_KEY_PROVIDERS, type ApiKeyStatus } from "../../lib/userCredentials";
+import { type ApiKeyStatus } from "../../lib/userCredentials";
+import { API_KEY_PROVIDERS } from "mike/shared/runtime/clientContracts.mjs";
 import { createUserApplication } from "../../lib/userApplication";
 import {
   DEFAULT_USER_PREFERENCES,

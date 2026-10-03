@@ -5,9 +5,9 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { Nodes } from "mdast";
-import { nestedOutline, pdfAssembly, sourceOutline, type PdfOutline } from "./pdfAssembly";
+import { nestedOutline, pdfAssembly, sourceOutline, type PdfOutline } from "mike/shared/runtime/pdfAssembly.mjs";
 import { renderAuthoritiesBook, citationLines, drawRuns, fit, pdfNormalized, pdfText, wrapped,
-  type BookRow, type PreparedAuthoritiesBook } from "./authoritiesBook";
+  type BookRow, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 const { addInternalLink: addLink, applyOutlines, appendPages, readOutlines } = pdfAssembly(pdfLibrary);
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
 import { legalSourceLocatorAnchor, sourceUrl as legalSourceUrl } from "./legalSourceLinks";
@@ -37,7 +37,7 @@ import { structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference } from "mike/shared/authorities-order.mjs";
-import { isCanliiUrl, urlHostname } from "./canliiUrls";
+import { isCanliiUrl, urlHostname } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { assembleFinalAuthoritiesPdf, assertBriefPdfMatches, briefOccurrencePages, filingLinkUrl,
   filingTabText } from "./authoritiesFinalPdf";
 import { authoritiesBriefPdf, statuteExcerpt } from "mike/shared/authorities-sources.mjs";
@@ -51,7 +51,7 @@ export type AuthoritiesBuildArtifact = {
   sha256: string;
   pageCount: number | null;
   receipt: WorkProductBuildReceipt;
-  bookPlacements?: import("./authoritiesBook").BuiltAuthorityBook["placements"];
+  bookPlacements?: import("mike/shared/runtime/authoritiesBook.mjs").BuiltAuthorityBook["placements"];
 };
 export type AuthoritiesBuildResult = {
   artifacts: Partial<Record<AuthoritiesOutputRole, AuthoritiesBuildArtifact>>;

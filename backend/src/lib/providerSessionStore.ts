@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { sha256 } from "./hash";
 import { relationalDatabase, sql } from "./relationalDatabase";
 

@@ -4,8 +4,9 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { CreateWorkflowRepository, WorkflowAccess, WorkflowCollaboration, WorkflowRecord } from "./workflowRepository";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, deleteDocumentRows, missingProfileEmail, now, one, rows, type Row } from "./relationalRepositorySupport";
-import { resourceReference } from "./resourceReferences";
-import { workflowVisibleTo, type WorkflowAudience } from "./systemWorkflows";
+import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
+import { workflowVisibleTo } from "./systemWorkflows";
+import { type WorkflowAudience } from "mike/shared/runtime/clientContracts.mjs";
 
 const workflowRecord = (row: Row): WorkflowRecord => ({ ...row, id: String(row.id),
   user_id: typeof row.user_id === "string" ? row.user_id : null,

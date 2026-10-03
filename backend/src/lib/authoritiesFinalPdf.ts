@@ -3,7 +3,7 @@ import { quadBounds, rectToPdfQuad, validRect } from "mike/shared/pdf-annotation
 import { attachedAuthoritySources, authoritiesBriefPdf } from "mike/shared/authorities-sources.mjs";
 import type { AuthoritiesBuildReceipt, AuthoritiesDraft, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
 import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
-import { nestedOutline, pdfAssembly, type PdfOutline } from "./pdfAssembly";
+import { nestedOutline, pdfAssembly, type PdfOutline } from "mike/shared/runtime/pdfAssembly.mjs";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabReference } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";

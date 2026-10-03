@@ -3,7 +3,7 @@ import { sha256 } from "./hash";
 import { structureNative, type NativeDocument,
   type PdfStructureLookup } from "./structureNative";
 import { immutableReceiptPath, writeImmutableReceipt } from "./documentProjection";
-import { RESOURCE_LOCATOR_KINDS } from "./resourceReferences";
+import { RESOURCE_LOCATOR_KINDS } from "mike/shared/runtime/resourceReferences.mjs";
 
 export type PdfLocatorKind = (typeof RESOURCE_LOCATOR_KINDS)[number];
 

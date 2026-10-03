@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
+import { z } from "mike/shared/runtime/schema.mjs";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentRepository } from "./documentRepository";
 import type { DocumentStore } from "./documentStore";
