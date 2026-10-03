@@ -23,6 +23,7 @@ the latter owns project priorities and remaining gates.
 
 ## Working safely
 
+- Real-world legal documents live once by sha256 in `%LOCALAPPDATA%/OpenLegalData/corpus` (index `corpus.sqlite`): add or find one with the corpus store in the private benchmarks checkout (`benchmarks/local-data`).
 - Check local data and existing implementations before fetching or adding a
   dependency. Consult official documentation for unfamiliar packages or standard
   engineering problems instead of probing blindly.

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 
@@ -10,7 +10,8 @@ const AGREEMENT_ROOTS = [
   path.join(ROOT, "benchmarks/legalbench_rag/data/mini"),
   path.join(ROOT, "benchmarks/legalbench_rag/data/holdout"),
 ];
-const PDF_ROOT = path.join(ROOT, "experiments/legal_pdf_corpus");
+const PDF_ROOT = path.join(process.env.OPEN_LEGAL_DATA_HOME ??
+  path.join(process.env.LOCALAPPDATA ?? path.join(homedir(), "AppData/Local"), "OpenLegalData"), "corpus/legal-pdf");
 const PDF_BASELINE = path.join(
   ROOT, "legal-pdf-parser/experiments/structure-engine-parity/all-cache-baseline.json",
 );
