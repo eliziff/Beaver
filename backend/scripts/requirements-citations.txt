@@ -1,1 +1,0 @@
-legal-citations @ https://github.com/eliziff/common-law-cite/releases/download/v0.1.0-rc.10/legal_citations-0.1.0.tar.gz

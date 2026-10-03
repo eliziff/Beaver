@@ -1,83 +1,51 @@
 # Repositories and local checkout
 
-Beaver is the application and integration repository. [subrepos.lock.json](../../subrepos.lock.json)
-records repository ownership and the local-bundle strategy;
-[.gitmodules](../../.gitmodules) declares five public submodules and the bundled local repository. Public revisions
-are pinned by Git links, not by the upstream branch name or newest README.
+Beaver owns the application and integration. [repositories.json](../../repositories.json)
+records the independent owner checkouts. First-party repositories use `main`;
+there are no consumer Git links, revision pins or required binding releases.
 
-| Checkout / repository | Owner and role |
+| Checkout | Owner and role |
 | --- | --- |
-| [Beaver](https://github.com/eliziff/Beaver) | Application, UI, Node adapter, persistence and cross-project roadmap |
-| `AuthoritiesHelper` / [AuthoritiesHelper](https://github.com/eliziff/AuthoritiesHelper) | Modern standalone Authorities deployment, launcher and packaging adapter; the retired Python product remains in Git history |
-| `legal-structure` / [Legal Structure Parser](https://github.com/eliziff/legal-structure-parser) | Provider-neutral Rust structure, citations, queries, grammar and Python binding |
-| `legal-pdf-parser` / [Legal PDF Parser](https://github.com/eliziff/legal-pdf-parser) | PDF extraction, geometry, OCR and PDF Inspector integration |
-| `legal-browser-ocr` / [Legal Browser OCR](https://github.com/eliziff/legal-browser-ocr) | Browser/HTML OCR application and packaging |
-| `mike-workflows` / [Mike Workflows fork](https://github.com/eliziff/mike-workflows) | Workflow definitions and schema; integrates [upstream Mike Workflows](https://github.com/Open-Legal-Products/mike-workflows) with Beaver revisions and consumes a published pin |
-| `OpenLegalData` | Local repository restored from the tracked bundle; no public remote is declared |
+| `AuthoritiesHelper` | Standalone Authorities deployment, launcher and packaging |
+| `legal-structure` | Legal structure, bounded queries and provider adapters |
+| `legal-pdf-parser` | PDF extraction, geometry, OCR and the synchronized PDF Inspector lineage |
+| `common-law-cite` | Citation grammar and bindings |
+| `legal-browser-ocr` | Browser/HTML OCR application |
+| `mike-workflows` | Workflow definitions, schema and upstream integration |
+| `OpenLegalData` | Shared data access; local source bundle, no public remote |
 
-Related repositories, **not Beaver submodules**:
-[Legal Pinpointer](https://github.com/eliziff/legal-pinpointer) consumes packaged
-structure WASM and legal-source metadata. Archived repositories preserve history,
-not another active product or backlog.
+[Legal Pinpointer](https://github.com/eliziff/legal-pinpointer) is a separate
+consumer of structure WASM and legal-source metadata.
 
 ## Fresh checkout
 
-The integration branch replaces the unavailable historical workflow pin with
-`ce62e6a2d3f47e1d3567a4f2edc61898cfe9e78a`. On September 19, 2026 a fresh public
-clone served this exact revision and passed source validation (141 workflows,
-16 column files, five packs) and seven source-validation tests. Beaver's package
-builder generated its grouped catalogue and six reference files from that clone.
-This resolves the workflow fetch blocker, not every application bootstrap gate.
-Do not use `--remote` or a newer branch as an undocumented substitute.
-
-Initialize the four public paths explicitly, then restore the bundled repository.
-`OpenLegalData` declares its local bundle with `update = none`: Git tooling can
-identify the Git link, but ordinary submodule updates do not fetch it from a public
-remote or replace an existing local checkout. From PowerShell:
-
-```powershell
+```sh
 git clone https://github.com/eliziff/Beaver.git
 cd Beaver
-git submodule update --init --recursive -- AuthoritiesHelper legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
-git clone .\subrepos\OpenLegalData.bundle .\OpenLegalData
-$lock = Get-Content .\subrepos.lock.json -Raw | ConvertFrom-Json
-git -C OpenLegalData checkout --detach $lock.repositories.OpenLegalData.commit
+python scripts/bootstrap-repositories.py
 ```
 
-Then follow the [application setup](../../README.md#run-locally). The native Node
-addon is built inside Beaver; standalone parser/browser guides own their separate
-executables and model/runtime packages. The documentation CI checks its linked
-source repositories; passing it does not certify complete application bootstrap
-or certify the native build and runtime gates.
+The bootstrap clones missing public repositories from `main` and restores
+OpenLegalData from `subrepos/OpenLegalData.bundle` on `main`. Existing directories
+are left untouched, including dirty working trees. Select only needed owners by
+passing their names, for example `python scripts/bootstrap-repositories.py
+legal-structure legal-pdf-parser common-law-cite`.
+
+Then follow [application setup](../../README.md#run-locally). Native and OCR model
+assets remain separate from source checkouts.
 
 ## Existing checkout and changes
 
-Inspect each working tree before updating; never reset or overwrite another
-session's work. Once the required pins are available, for the public paths:
+Work and commit in the owning repository. Inspect its working tree before any
+ordinary `git pull --ff-only`; bootstrap never pulls, resets or checks out over
+existing work. No Beaver pin update is needed after publishing an owner change.
+Release packaging happens only when explicitly requested.
 
-```sh
-git submodule sync -- AuthoritiesHelper legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
-git submodule update --init --recursive -- AuthoritiesHelper legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
-```
+OpenLegalData has no remote: commit its source changes there and refresh its
+source bundle with `git -C OpenLegalData bundle create ../subrepos/OpenLegalData.bundle main`.
+The bundle carries source, not corpora, caches, models or credentials.
 
-For an existing OpenLegalData checkout, fetch the current bundle from its absolute
-path if it does not already contain the locked commit, then check out that exact
-commit after preserving local work. Do not clone over an existing checkout.
-Verify its HEAD against both `repositories.OpenLegalData.commit` and Beaver's
-`git ls-tree HEAD OpenLegalData` entry.
-
-Publish standalone changes in the owning repository first. Advance consumer pins
-only intentionally, preserving exact structure/parser/Inspector/native identities
-and their required gates. A local Cargo path override is not proof of a published
-pin. Documentation updates alone do not justify incorporating unrelated newer
-runtime code.
-
-OpenLegalData has no configured remote: source changes must be committed in that
-repository and carried by an updated bundle, Git link and lock entry together.
-Verify that a fresh bundle clone contains the locked commit. A prose guide or
-copied README is not a replacement for that source repository. Bundles contain
-source, not private corpora, indexes, caches, model packs or credentials.
-
-The `mike-workflows` fork integrates upstream changes on `main` and follows
-that project's contribution/validation rules. Beaver's integration notes must not claim that an upstream proposal has
-been accepted or that the pinned catalogue automatically tracks its branch.
+CI resolves owner `main` revisions once per run and passes that transient source
+identity to native, backend and browser jobs. Those jobs test the same combination
+without maintaining checked-in revision pins. Native cache keys hash actual
+build inputs and the toolchain, so documentation-only owner commits reuse the addon.

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { nativeAddonFile } from "./nativeAddonFile";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { SpreadsheetCellSpan } from "./spreadsheet";
@@ -358,13 +359,13 @@ export function structureNative() {
     throw new Error(`Missing legal structure native module: ${filename}`);
   }
   const module = { exports: {} } as NodeModule;
-  process.dlopen(module, filename);
+  process.dlopen(module, nativeAddonFile(filename, root));
   // An engine built before an operation existed says so, rather than failing as `undefined`.
   addon = new Proxy(module.exports as StructureAddon, { get(engine, name) {
     const value = Reflect.get(engine, name);
     if (value === undefined && typeof name === "string" && name !== "then") throw new Error(
       `The legal structure engine at ${filename} predates ${name}. Rebuild it: ` +
-      "cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml");
+      "npm run native:build");
     return value;
   } });
   return addon;

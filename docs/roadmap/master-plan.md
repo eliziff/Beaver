@@ -67,8 +67,8 @@ is not an implemented or approved confidential-document deployment.
 ## Measurement and release
 
 [CONTRIBUTING.md](../../CONTRIBUTING.md) owns shared validation commands. Each spoke
-adds its necessary corpus, output or host proof. Release only the exact pinned
-combination that passed those gates; do not substitute cached-extraction parity
+adds its necessary corpus, output or host proof. Release packaging is performed only
+when explicitly requested; do not substitute cached-extraction parity
 for the full PDF lifecycle, mock tests for real-host behavior, or one passing
 profile for every court product. Full sweeps require the authorization in
 [AGENTS.md](../../AGENTS.md).

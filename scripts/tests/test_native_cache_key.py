@@ -20,7 +20,8 @@ class NativeCacheTests(unittest.TestCase):
                 subprocess.run(['git', '-C', str(root / repository), 'add', '.'], check=True)
                 subprocess.run(['git', '-C', str(root / repository), 'commit', '-qm', 'invented input'], check=True)
             for repository, path in [('.', 'native/legal-structure-node/Cargo.toml'),
-                                     ('legal-structure', 'src/lib.rs'), ('legal-pdf-parser', 'rust/src/lib.rs')]:
+                                     ('legal-structure', 'src/lib.rs'), ('legal-pdf-parser', 'rust/src/lib.rs'),
+                                     ('common-law-cite', 'crates/legal-citations/src/lib.rs')]:
                 (root / repository).mkdir(exist_ok=True)
                 subprocess.run(['git', 'init', '-q', str(root / repository)], check=True)
                 for setting, value in [('user.name', 'CI test'), ('user.email', 'ci-test@users.noreply.github.com')]:
@@ -39,6 +40,8 @@ class NativeCacheTests(unittest.TestCase):
             commit('legal-pdf-parser', 'rust/src/lib.rs', 'changed source')
             changed = native.cache_key(root, b'compiler one')
             self.assertNotEqual(configured, changed)
+            commit('common-law-cite', 'crates/legal-citations/src/lib.rs', 'changed citation source')
+            self.assertNotEqual(changed, native.cache_key(root, b'compiler one'))
             self.assertNotEqual(changed, native.cache_key(root, b'compiler two'))
 
 

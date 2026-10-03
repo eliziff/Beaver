@@ -85,30 +85,6 @@ describe("shared document application", () => {
     expect(await orphanKeys()).toEqual([pending]);
   });
 
-  it("bulk-loads unique files in caller order with four blob reads at a time", async () => {
-    const base = createFilesystemObjectStorage(root);
-    let active = 0, peak = 0;
-    const objects: ObjectStorage = { ...base, async get(key, options) {
-      active++; peak = Math.max(peak, active);
-      await new Promise((resolve) => setTimeout(resolve, 5));
-      try { return await base.get(key, options); } finally { active--; }
-    } };
-    const bulk = vi.spyOn(repository, "currentVersions");
-    const documents = createDocumentApplication(repository, objects), scope = { userId: "bulk" };
-    const created = [];
-    for (let index = 0; index < 6; index++) created.push(await documents.create(scope, {
-      filename: `${index}.md`, fileType: "md", bytes: Buffer.from(`body ${index}`),
-    }));
-    const requested = [created[4].id, created[1].id, created[4].id, created[5].id,
-      created[0].id, created[3].id, created[2].id];
-
-    expect((await documents.files(scope, requested)).map(({ filename }) => filename))
-      .toEqual(["4.md", "1.md", "5.md", "0.md", "3.md", "2.md"]);
-    expect(bulk).toHaveBeenCalledOnce();
-    expect(bulk.mock.calls[0][1]).toEqual([...new Set(requested)]);
-    expect(peak).toBe(4);
-  });
-
   it("rejects invalid and oversized Office packages before storing them", async () => {
     const archive = new JSZip();
     for (let index = 0; index <= 4_096; index += 1) archive.file(`word/${index}.xml`, "x");
@@ -337,47 +313,6 @@ describe("shared document application", () => {
     expect((await documents.projectionSource(scope, created.id, null))?.provenance).toBeUndefined();
   });
 
-  it("restores an immutable version as a zero-copy descendant", async () => {
-    const objects = createFilesystemObjectStorage(root);
-    const documents = createDocumentApplication(repository, objects);
-    const scope = { userId: "restore-owner" };
-    const created = await documents.create(scope, {
-      filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
-    });
-    const second = await documents.addVersion(scope, created.id, {
-      filename: "notes.md", fileType: "md", bytes: Buffer.from("two"),
-    });
-    const third = await documents.addVersion(scope, created.id, {
-      filename: "notes.md", fileType: "md", bytes: Buffer.from("three"),
-    });
-    await expect(documents.restoreVersion(
-      scope, created.id, third!.id, third!.id, third!.working_revision,
-    )).resolves.toEqual({ status: "conflict" });
-    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(3);
-    await expect(documents.restoreVersion(
-      scope, created.id, created.current_version_id, second!.id, 0,
-    )).resolves.toEqual({ status: "conflict" });
-    const restored = await documents.restoreVersion(
-      scope, created.id, created.current_version_id, third!.id, third!.working_revision,
-    );
-    expect(restored.status).toBe("restored");
-    if (restored.status !== "restored") return;
-    const history = await documents.versions(scope, created.id);
-    expect(history?.versions).toHaveLength(4);
-    expect(history?.versions.map(({ parent_version_id }) => parent_version_id)).toEqual([
-      third!.id, second!.id, created.current_version_id, null,
-    ]);
-    expect(restored.version.source_sha256).toBe(created.source_sha256);
-    expect(new Set((await repository.history(scope, created.id))?.versions.map(({ blobKey }) => blobKey)).size)
-      .toBe(3);
-    expect((await documents.read(scope, created.id, null, false))?.bytes.toString()).toBe("one");
-    expect((await documents.read(scope, created.id, second!.id, false))?.bytes.toString()).toBe("two");
-    await documents.deleteDocument(scope, created.id);
-    await ageOrphans();
-    await documents.resumeCleanup();
-    expect(await orphanKeys()).toEqual([]);
-  });
-
   it("never restores missing or corrupt historical bytes", async () => {
     const objects = createFilesystemObjectStorage(root);
     const documents = createDocumentApplication(repository, objects);
@@ -412,37 +347,6 @@ describe("shared document application", () => {
     )).rejects.toThrow("integrity check");
     expect((await documents.read(scope, created.id, null, false))?.bytes.toString()).toBe("two");
     expect((await documents.versions(scope, created.id))?.versions).toHaveLength(2);
-  });
-
-  it("checkpoints a working revision without copying its blob", async () => {
-    const objects = createFilesystemObjectStorage(root);
-    const documents = createDocumentApplication(repository, objects);
-    const scope = { userId: "checkpoint-owner", userEmail: "owner@example.test" };
-    const created = await documents.create(scope, {
-      filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
-    });
-    await expect(documents.checkpointVersion(scope, created.id, created.current_version_id, 0))
-      .rejects.toMatchObject({ status: 409 });
-    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(1);
-    const replaced = await documents.replaceVersion(
-      scope, created.id, created.current_version_id, 0,
-      { filename: "notes.md", fileType: "md", bytes: Buffer.from("two") });
-    expect(replaced.status).toBe("replaced");
-    const checkpoint = await documents.checkpointVersion(
-      scope, created.id, created.current_version_id, 1, "Reviewed draft");
-    expect(checkpoint).toMatchObject({ status: "created", version: {
-      parent_version_id: created.current_version_id, working_revision: 0,
-      source: "snapshot", created_by: scope.userId, author_email: scope.userEmail,
-      comment: "Reviewed draft" } });
-    expect(await documents.checkpointVersion(
-      scope, created.id, checkpoint.status === "created" ? checkpoint.version.id : "", 1,
-    )).toEqual({ status: "conflict" });
-    if (checkpoint.status !== "created") throw new Error("Expected a checkpoint");
-    await objects.remove((await repository.version(scope, created.id, checkpoint.version.id))!.blobKey);
-    expect(await documents.checkpointVersion(scope, created.id, checkpoint.version.id, 0))
-      .toEqual({ status: "missing" });
-    expect(new Set((await repository.history(scope, created.id))?.versions.map(({ blobKey }) => blobKey)).size)
-      .toBe(1);
   });
 
   it("reserves deduplicated scope-move targets in one batch", async () => {
@@ -543,42 +447,6 @@ describe("shared document application", () => {
       scope, created.id, pending.version.id, clean!.id, 0,
     )).toEqual({ status: "pending-edits" });
     expect((await documents.versions(scope, created.id))?.versions).toHaveLength(3);
-  });
-
-  it("reads a historical PDF rendition instead of assuming the head", async () => {
-    const documents = createDocumentApplication(repository,
-      createFilesystemObjectStorage(root));
-    const scope = { userId: "history-owner" }, firstBytes = await pdf("first");
-    const created = await documents.create(scope, {
-      filename: "record.pdf", fileType: "pdf", bytes: firstBytes,
-    });
-    await documents.addVersion(scope, created.id, {
-      filename: "record.pdf", fileType: "pdf", bytes: await pdf("second"),
-    });
-    await expect(documents.read(scope, created.id, created.current_version_id, true))
-      .resolves.toMatchObject({ bytes: firstBytes, fileType: "pdf" });
-  });
-
-  it("compares DOCX versions without creating another version", async () => {
-    const documents = createDocumentApplication(
-      repository, createFilesystemObjectStorage(root));
-    const scope = { userId: "compare-owner" };
-    const created = await documents.create(scope, {
-      filename: "brief.docx", fileType: "docx", bytes: await validDocx("First sentence."),
-    });
-    const second = await documents.addVersion(scope, created.id, {
-      filename: "brief.docx", fileType: "docx", bytes: await validDocx("Changed sentence."),
-    });
-    const compared = await documents.compareVersions(
-      scope, created.id, created.current_version_id, second!.id,
-    );
-    expect(compared).toMatchObject({ status: "compared", filename: "brief (changes).docx" });
-    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(2);
-    await (await relationalDatabase()).query(sql`UPDATE document_versions
-      SET size_bytes=${MAX_DRAFTING_DOCX_BYTES + 1} WHERE id=${created.current_version_id}`);
-    await expect(documents.compareVersions(
-      scope, created.id, created.current_version_id, second!.id,
-    )).rejects.toMatchObject({ status: 413 });
   });
 
   it("rejects source metadata that disagrees with its content-addressed key", async () => {

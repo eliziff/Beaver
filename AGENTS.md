@@ -7,14 +7,16 @@ the latter owns project priorities and remaining gates.
 ## Architecture and scope
 
 - Preserve local and cloud/Supabase support, the modular monolith and the boundaries
-  in `subrepos.lock.json`. Features use runtime/application operations and existing
+  in `repositories.json`. Features use runtime/application operations and existing
   persistence ports, not deployment imports or local/cloud branches.
 - Before adding code, trace existing primitives, data and all consumers. Refactors
   must fix the root problem and preserve capabilities, not current module boundaries.
   Replace obsolete designs outright; no transitions, compatibility or migration
   infrastructure unless explicitly requested.
-- PDF Inspector is one automatically synchronized, tagged lineage in
-  `legal-pdf-parser`. Pin a gated revision; never maintain a second fork copy.
+- First-party repositories use independent `main` checkouts. No consumer pins,
+  binding releases or release gates unless the user explicitly requests a release.
+- PDF Inspector is one automatically synchronized lineage in
+  `legal-pdf-parser`; never maintain a second fork copy.
   Repositories keep only `main` and `gh-pages` branches.
 - Put a requested new experimental feature in `experiments/`. An ordinary refactor
   must not delete, consolidate or work through experiments.

@@ -355,7 +355,7 @@ PDFs, partial OCR, and independent visual agreement.
 Shared compilation/test guidance is in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 The citation graph builder and A2AJ bulk importer use the same published engine
 as the application. Install their Python binding with
-`python -m pip install -r backend/scripts/requirements-citations.txt` before running them.
+`python -m pip install ./common-law-cite/crates/legal-citations-py` before running them.
 Useful product checks from the root are:
 
 ```sh

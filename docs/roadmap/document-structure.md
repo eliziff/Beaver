@@ -87,8 +87,8 @@ Preserve the existing release gates below; each stage must leave a usable engine
    references through every affected consumer. Remove superseded production
    paths in the same cut, preserving capabilities. Enforce query/document
    identity where lazy indexes currently depend on caller discipline. Check
-   both local path overrides and published Git pins; release only matching,
-   gated structure/parser/Inspector/Beaver identities.
+   the owner checkouts used by each affected consumer. Ordinary development
+   does not require revision pins or binding releases.
 
 ### Additional acceptance cases
 
@@ -117,7 +117,7 @@ throughput, memory, or authoritative-source preservation to pass new cases.
   diagnostics, shared grammars and bounded queries. Adapters preserve native
   markup/IDs/locators/coverage/provenance; never flatten authoritative structure
   and redetect it.
-- Parser owns PDF loading/geometry/images/OCR/rich witnesses and calls the pinned
+- Parser owns PDF loading/geometry/images/OCR/rich witnesses and calls the local
   structure crate in-process, producing the same native document, not a second
   graph. Beaver owns fetching/versions/persistence/evidence/mutation policy/UI.
 - Retain format-specific semantics: PDF geometry, DOCX XML/session state, grids,
