@@ -791,6 +791,52 @@ async function missingSourcePdf(pdf: PdfModule, label: Pick<Entry, "name" | "ita
   return document;
 }
 
+/** What the book's front is drawn from: the court, the titles, the cover and how the index is laid out. */
+function bookFront(draft: AuthoritiesDraft, subtitle: string) {
+  const profile = authoritiesProfile(draft.settings.profileId);
+  const federal = !!profile.requirements?.federalFormatting;
+  const role = draft.settings.bookRole;
+  const bookTitle = profile.bookTitle ??
+    (draft.import.kind === "manual" ? subtitle : "Book of Authorities");
+  return { subtitle, documentTitle: draft.cover.title || bookTitle, bookTitle, federal,
+    alberta: !!profile.requirements?.albertaCover,
+    indexShows: draft.settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs"),
+    tabPages: draft.settings.tabPages ?? !federal,
+    // Blank backs are for paper: an electronic filing never has them.
+    rightHandStarts: draft.settings.filingMedium !== "electronic" &&
+      (draft.settings.rightHandStarts ?? draft.settings.filingMedium === "paper"),
+    electronic: draft.settings.filingMedium === "electronic",
+    court: profile.courtId === "fca" ? "FEDERAL COURT OF APPEAL" : federal ? "FEDERAL COURT"
+      : profile.label.toUpperCase(),
+    cover: draft.cover,
+    coverLine: federal && role ? role === "joint" ? "Filed jointly" : `Filed by ${FEDERAL_BOOK_ROLE_LABELS[role]}` : null,
+    paperCover: profile.requirements?.appealPaperCovers && draft.settings.filingMedium === "paper" &&
+      role && role in FEDERAL_APPEAL_PAPER_COVERS
+      ? FEDERAL_APPEAL_PAPER_COVERS[role as keyof typeof FEDERAL_APPEAL_PAPER_COVERS] : null,
+  } satisfies Partial<PreparedAuthoritiesBook>;
+}
+
+/** The book's cover and the first page of its index, drawn as a build draws them from the draft as it
+ *  is, though every listed authority stands in a blank page: nothing is read, so it is quick. */
+export async function authoritiesBookFront(draft: AuthoritiesDraft, title: string) {
+  // A build names a manual book's cover after its title, an imported brief's after nothing else.
+  const subtitle = draft.import.kind === "document" ? "" : title;
+  const listed: AuthoritiesDraft = { ...draft, settings: { ...draft.settings, missingSourcePolicy: "placeholder" } };
+  const groups = groupedEntries(listed, "book").map(({ label, entries }) => ({ label,
+    entries: entries.filter(({ authority }) => !authority.excluded).map(({ authority, name, italic, tab, sourceUrl }) =>
+      ({ key: authority.id, name, italic, tab, sourceUrl })) })).filter(({ entries }) => entries.length);
+  const stub = await pdfLibrary.PDFDocument.create(); stub.addPage([612, 792]);
+  const bytes = await stub.save();
+  const [book] = await renderAuthoritiesBook(pdfLibrary, { filename: "front.pdf", ...bookFront(listed, subtitle),
+    coverPageCount: 1, customIndexPages: 0, groups, sources: groups.flatMap(({ entries }) => entries).map((row) =>
+      ({ ...row, bytes, pageIndices: [0], databaseReference: null, bookmarks: [], outline: [] })) });
+  const document = await pdfLibrary.PDFDocument.load(book.bytes, { updateMetadata: false });
+  const front = await pdfLibrary.PDFDocument.create();
+  const pages = Math.min(2, book.placements[0]?.tabPageIndex ?? book.pageCount);
+  for (const page of await front.copyPages(document, [...Array(pages).keys()])) front.addPage(page);
+  return Buffer.from(await front.save());
+}
+
 async function prepareAuthorityBook(
   draft: AuthoritiesDraft, groups: Group[], filename: string, subtitle: string,
   attached: NonNullable<AuthoritiesBuildInput["sources"]>, signal?: AbortSignal,
@@ -799,17 +845,7 @@ async function prepareAuthorityBook(
   signal?.throwIfAborted();
   const pdf = await import("pdf-lib");
   const profile = authoritiesProfile(draft.settings.profileId);
-  const federal = !!profile.requirements?.federalFormatting;
-  const role = draft.settings.bookRole;
-  const coverLine = federal && role
-    ? role === "joint" ? "Filed jointly" : `Filed by ${FEDERAL_BOOK_ROLE_LABELS[role]}`
-    : null;
-  const paperCover = profile.requirements?.appealPaperCovers &&
-    draft.settings.filingMedium === "paper" && role && role in FEDERAL_APPEAL_PAPER_COVERS
-    ? FEDERAL_APPEAL_PAPER_COVERS[role as keyof typeof FEDERAL_APPEAL_PAPER_COVERS] : null;
-  const bookTitle = profile.bookTitle ??
-    (draft.import.kind === "manual" ? subtitle : "Book of Authorities");
-  const documentTitle = draft.cover.title || bookTitle;
+  const front = bookFront(draft, subtitle), { federal } = front, role = draft.settings.bookRole;
   if (federal && !draft.bookParts.cover && !role) {
     throw new Error("Choose who is filing the Federal Court book.");
   }
@@ -881,17 +917,7 @@ async function prepareAuthorityBook(
   if (supplementRows.length) rowGroups.push({ label: "Documents", entries: supplementRows });
   progress?.("Preparing the book");
   return {
-    filename, subtitle, documentTitle, bookTitle, federal,
-    alberta: !!profile.requirements?.albertaCover,
-    indexShows: draft.settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs"),
-    tabPages: draft.settings.tabPages ?? !federal,
-    // Blank backs are for paper: an electronic filing never has them.
-    rightHandStarts: draft.settings.filingMedium !== "electronic" &&
-      (draft.settings.rightHandStarts ?? draft.settings.filingMedium === "paper"),
-    electronic: draft.settings.filingMedium === "electronic",
-    court: profile.courtId === "fca" ? "FEDERAL COURT OF APPEAL" : federal ? "FEDERAL COURT"
-      : profile.label.toUpperCase(),
-    cover: draft.cover, coverLine, paperCover,
+    filename, ...front,
     customCover: draft.bookParts.cover ? attached[draft.bookParts.cover.bindingRole]?.bytes : undefined,
     customIndex: draft.bookParts.index ? attached[draft.bookParts.index.bindingRole]?.bytes : undefined,
     coverPageCount: customCover?.getPageCount() ?? 1,

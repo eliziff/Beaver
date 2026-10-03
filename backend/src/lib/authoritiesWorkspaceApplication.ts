@@ -493,8 +493,12 @@ export function createAuthoritiesWorkspaceApplication(
     },
     async annotations(scope: ApplicationScope, id: string, input: {
       authorityId: string; bindingRole: string; sourceSha256: string;
+      /** Marks the passages as this marking would, without saving it: an import's preview. */
+      passageMarking?: AuthoritiesDraft["settings"]["passageMarking"];
     }, signal?: AbortSignal) {
-      const { draft } = await open(scope, id), authority = attachableAuthority(draft, input.authorityId);
+      const opened = (await open(scope, id)).draft;
+      const draft = input.passageMarking ? { ...opened, settings: { ...opened.settings, passageMarking: input.passageMarking } } : opened;
+      const authority = attachableAuthority(draft, input.authorityId);
       const attached = attachedAuthoritySources(authority.source).find(source => source.bindingRole === input.bindingRole);
       const binding = libraryBinding(draft, input.bindingRole);
       const source = await documents.projectionSource(scope, binding.documentId,
