@@ -7,7 +7,9 @@ import { sequenceOpcodes } from "mike/shared/sequence-diff.mjs";
 import { editorialQuote } from "./authoritiesDiscrepancy";
 
 const WORD = String.raw`[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*`;
-const TOKEN = new RegExp(String.raw`\.\.\.|\[[^\]]+\]|${WORD}|["“”‘’]|[^\p{L}\p{N}_\s]`, "gu");
+// An editorial bracket is short and on one line; a stray "[" in extracted source text must not
+// swallow the pages up to the next "]".
+const TOKEN = new RegExp(String.raw`\.\.\.|\[[^\][\n]{1,80}\]|${WORD}|["“”‘’]|[^\p{L}\p{N}_\s]`, "gu");
 const WORD_TOKEN = new RegExp(WORD, "gu");
 const SINGLE_WORD = new RegExp(`^${WORD}$`, "u");
 const DOUBLE_QUOTES = new Set(['"', "“", "”", "«", "»", "„"]);
