@@ -249,7 +249,7 @@ const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: au
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
   source: sourceDecision, highlightExclusions: maybe(list(500, locator)),
   annotations: maybe(isJsonRecord), excerpt: maybe(flag), userAdded: maybe(literal(true)),
-  scanOnly: maybe(literal(true)), historyOf: maybe(text), historyRelation: maybe(text) });
+  scanOnly: maybe(literal(true)), historyOf: maybe(text) });
 /** Import provenance and hand entry are exclusive: one authority is only ever one of them. */
 const authority: Check = (value) =>
   authorityShape(value) && !(value.scanOnly && value.userAdded);

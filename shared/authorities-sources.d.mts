@@ -51,7 +51,7 @@ type RequirementDraft = {
   import: { kind: "manual" } | { kind: "document"; fileType: "pdf" | "docx" };
   outputMode: "table" | "book" | "both";
   insertIntoDocument: boolean;
-  settings?: { finalPdf?: boolean; subsequentHistory?: "own-tab" | "with-case" };
+  settings?: { finalPdf?: boolean; subsequentHistory?: "omit" | "include" };
   authorities?: Record<string, { excluded?: boolean }>;
 };
 type BookDraft = RequirementDraft & {

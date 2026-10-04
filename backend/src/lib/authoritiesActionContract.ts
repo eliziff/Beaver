@@ -71,7 +71,7 @@ export const AUTHORITIES_SETTINGS_CHOICES = {
   missingSourcePolicy: ["placeholder", "omit"],
   filingMedium: ["electronic", "paper"],
   bookRole: AUTHORITIES_BOOK_ROLES,
-  subsequentHistory: ["own-tab", "with-case"],
+  subsequentHistory: ["omit", "include"],
 } as const;
 
 export function decodeAuthoritiesInitialSettings(value: unknown): AuthoritiesInitialSettings {

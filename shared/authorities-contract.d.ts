@@ -61,7 +61,7 @@ export type AuthoritiesBuildSettings = {
   bookRole?: AuthoritiesBookRole;
   /** A decision of subsequent history ("aff'd 2010 ABCA 191"): a tab of its own (the default), or
    *  printed with the case it follows, with no tab, index line or source of its own. */
-  subsequentHistory?: "own-tab" | "with-case";
+  subsequentHistory?: "omit" | "include";
 };
 
 export type AuthoritiesSettings = AuthoritiesBuildSettings & {
@@ -144,7 +144,6 @@ export type AuthorityIdentity = {
   /** The authority this one is subsequent history of ("aff'd 2010 ABCA 191"), and the relation as
    *  the brief writes it ("aff'd in"). */
   historyOf?: string;
-  historyRelation?: string;
 };
 
 export type AuthoritiesReviewUnit = {

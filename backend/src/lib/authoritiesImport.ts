@@ -357,12 +357,11 @@ async function scanReview(
     authorityOrder.push(key);
   }
   // A decision the engine reads as another's subsequent history ("…, 2010 ABQB 242, aff'd 2010
-  // ABCA 191") records which authority it follows and the relation as the brief writes it.
+  // ABCA 191") records which authority it follows.
   for (const citation of extracted.citations) for (const { span, target } of citation.history ?? []) {
     const parent = authorityOf.get(citation.index), child = target == null ? undefined : authorityOf.get(target);
     if (!parent || !child || parent === child || authorities[child].historyOf) continue;
     authorities[child].historyOf = parent;
-    authorities[child].historyRelation = span.text.replace(/\s+/gu, " ").trim();
     // A later decision in the same matter is known by its case's style of cause unless the brief
     // gives it one of its own.
     authorities[child].name ??= authorities[parent].name;

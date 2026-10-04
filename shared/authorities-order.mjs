@@ -155,13 +155,6 @@ function authorityCitation(draft, authority) {
     if (same && !/[\p{L}\p{N}]/u.test(text[at] ?? "")) lead = text.slice(0, at);
   }
   if (!lead && name && !lower(text).includes(lower(name))) { text = `${name}, ${text}`; lead = name; }
-  // A decision of subsequent history printed with this case follows its citation as the brief
-  // writes it: "…, 2010 ABQB 242, aff'd 2010 ABCA 191".
-  if (draft.settings?.subsequentHistory === "with-case") for (const id of draft.authorityOrder) {
-    const history = draft.authorities[id];
-    if (history?.historyOf === authority.id && !history.excluded)
-      text += `, ${[history.historyRelation, line(history.citation)].filter(Boolean).join(" ")}`;
-  }
   const cited = text.length;
   for (const form of [...rest.map(({ coreSpan }) => coreSpan.text), citation,
     ...authority.sourceIdentity?.citationForms ?? []].map(line))

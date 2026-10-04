@@ -41,10 +41,10 @@ export const authorityPdfRequired = (draft, authority, requirements) => draft.se
     draft.import.kind === "document" && draft.import.fileType === "pdf" &&
     !authoritySourceUrl(authority));
 
-/** Whether an authority stands in the book on its own: not left out, and not a decision of
- *  subsequent history printed with the case it follows ("with-case"). */
+/** Whether an authority stands in the book: not left out, and not a decision of subsequent
+ *  history unless the book includes subsequent history. */
 export const authorityTabbed = (draft, authority) => !authority.excluded &&
-  !(draft.settings?.subsequentHistory === "with-case" && authority.historyOf &&
+  !(draft.settings?.subsequentHistory !== "include" && authority.historyOf &&
     draft.authorities?.[authority.historyOf] && !draft.authorities[authority.historyOf].excluded);
 
 /** The one rule for "does this authority still owe a source", asked by the builder
