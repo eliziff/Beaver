@@ -203,6 +203,8 @@ function noteWindowAccepts(verbatim: string, link: string, registry: RegistryEnt
 }
 
 type Resolution = { methods: Map<number, string> };
+/** The engine's registry source: the link is the identity a reference resolves to. */
+const asSource = (entry: RegistryEntry) => ({ verbatim: entry.verbatim, target: entry.link, short_form: entry.short_form, note: entry.note });
 async function resolveReferences(split: FootnotePart[], registry: RegistryEntry[], options: {
   aggressive: boolean; supraAggressive: boolean; allowFallback: boolean; proposition: string;
   inferred: InferredForm[]; chooser?: AlrLlm["chooseReference"] }): Promise<Resolution> {
@@ -217,15 +219,27 @@ async function resolveReferences(split: FootnotePart[], registry: RegistryEntry[
       continue;
     }
     const [resolved, method] = engine<[string, string]>("resolveRegistryReference",
-      { text: part.verbatim, registry, aggressive: options.supraAggressive });
+      { text: part.verbatim, registry: registry.map(asSource), aggressive: options.supraAggressive });
     if (resolved) {
       split[index] = { ...part, link: reanchor(resolved, part.verbatim) };
       methods.set(index, method === "note_number" ? "note_number" : "registry");
       continue;
     }
+    // ALR links a supra whose note number names another note (or none) by the short name it writes,
+    // when that name names exactly one earlier citation (the engine's "named" linking).
+    if (method === "note_name_conflict" || method === "note_without_authority") {
+      const name = supraHint(part.verbatim, true);
+      const [named, namedMethod] = name ? engine<[string, string]>("resolveRegistryReference",
+        { text: `${name}, supra`, registry: registry.map(asSource), aggressive: options.supraAggressive }) : ["", ""];
+      if (named && ["exact_sf", "token_sf", "bracket_definition"].includes(namedMethod)) {
+        split[index] = { ...part, link: reanchor(named, part.verbatim) }; methods.set(index, "registry"); continue;
+      }
+    }
     if (options.aggressive) {
       const [fallback, fallbackMethod] = engine<[string, string]>("resolveInferredReference",
-        { text: part.verbatim, registry, inferredForms: options.inferred });
+        { text: part.verbatim, registry: registry.map(asSource), inferredForms: options.inferred.map((form) =>
+          ({ short_form: form.short_form, short_form_norm: form.short_form_norm, rule: form.rule, target: form.link,
+            note: form.note, verbatim: form.origin })) });
       if (fallback) { split[index] = { ...part, link: reanchor(fallback, part.verbatim) }; methods.set(index, fallbackMethod); continue; }
     }
     abstained.push(index);

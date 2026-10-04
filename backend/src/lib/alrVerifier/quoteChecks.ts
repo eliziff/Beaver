@@ -163,7 +163,7 @@ export function resolveQuote(document: SourceDocument, quote: string, scopes: Sc
     const location = scoped.length || targetKindAvailable ? "alternate" : hasScopes(scopes) ? "scope_unavailable" : "uncited";
     return { location, score: matches[0][0], labels, text: matches[0][1].text };
   }
-  const score = quoteMatchScore(quote, document.text);
+  const score = documentScore(quote, document.text);
   if (score >= MIN_MATCH) return { location: scoped.length || targetKindAvailable ? "alternate_document"
     : hasScopes(scopes) ? "scope_unavailable_document" : "uncited_document", score, labels: [], text: document.text };
   return { location: "unmatched", score, labels: [], text: "" };
@@ -244,6 +244,11 @@ async function rowSource(row: AlrRow, options: QuoteCheckOptions): Promise<Check
   return null;
 }
 
+/** A whole-document alignment can anchor on words far from the passage; the best region scores it too. */
+const documentScore = (quote: string, text: string) => {
+  const whole = quoteMatchScore(quote, text);
+  return whole >= STRONG_MATCH ? whole : Math.max(whole, quoteMatchScore(quote, quoteRegion(quote, text, 400) || ""));
+};
 const original = (entry: Entry) => { const [open, close] = outerQuoteMarks(entry.raw, entry.style); return withOuterQuotes(quoteText(entry), open, close); };
 const pageLabel = (value: string) => { const found = /\bpages?\s+(\d{1,5})\b/iu.exec(value); return found ? Number(found[1]) : null; };
 
@@ -309,7 +314,7 @@ export async function checkRowQuotes(row: AlrRow, quotes: readonly InlineQuote[]
   }
   const matched = entries.map((entry): [number, Entry] => {
     const resolution = resolutions.get(quoteDedupeKey(quoteText(entry)));
-    return [resolution ? resolution.score : quoteMatchScore(quoteText(entry), anchorText), entry];
+    return [resolution ? resolution.score : documentScore(quoteText(entry), anchorText), entry];
   }).sort((a, b) => b[0] - a[0]).filter(([score]) => score >= MIN_MATCH);
   const notFound = () => entries.some((entry) => quoteWords(quoteText(entry)).length < 3 && anchorText.length > 80_000)
     ? entries.every((entry) => quoteWords(quoteText(entry)).length < 3)
