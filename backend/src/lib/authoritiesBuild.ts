@@ -562,8 +562,10 @@ export async function renderAuthoritySourcePdf(input: {
       .filter((line) => line && !line.startsWith("#") && line !== input.citation.trim()).join(" ");
     if (opening) draw([{ text: opening, font: italic }]);
     let sectionLevel = 0, carried: Run[] = [];
-    for (const entry of statute) {
+    for (const [index, entry] of statute.entries()) {
       if (!provision(entry.kind)) {
+        // A heading keeps a marginal note and a few lines of what it heads with it.
+        if (y - 110 < bottom + 18) { current = page(); y = height - top; }
         placing = { start: entry.start, heading: entry.level + 2, title: [entry.label, entry.title ?? entry.text].filter(Boolean).join(" ") };
         draw([{ text: placing.title!, font: bold }], 0, [13, 12, 11][Math.min(entry.level, 2)], true);
         continue;
@@ -571,20 +573,26 @@ export async function renderAuthoritySourcePdf(input: {
       const opens = ["section", "article"].includes(entry.kind);
       if (opens) sectionLevel = entry.level;
       const indent = carried.length ? 0 : 18 * Math.max(0, entry.level - sectionLevel);
+      const label = { text: `${entry.label} `, font: opens ? bold : serif }, text = plain(entry.text);
+      // A section whose words start in its first subsection prints on one line with it: "2 (1) In this Act,".
+      const [first = "", ...rest] = text.split("\n");
+      const opening: Run[] = [...carried, label, { text: first, font: serif }];
       if (entry.title) {
-        // A marginal note keeps a few lines of its provision with it.
-        if (y < bottom + 70) { current = page(); y = height - top; }
+        // A marginal note keeps the opening lines of its provision (as a short block keeps
+        // together, up to six) with it on its page; a section whose words start in its first
+        // subsection, that subsection's.
+        const next = statute[index + 1];
+        const lead = opens && !text && next ? [...opening, { text: plain(next.text).split("\n")[0], font: serif }] : opening;
+        const lines = Math.min(layout(lead, 10.5, width - left - right - indent).length, 6);
+        if (y - (14 + gap(10) + gap(10.5) + lines * 14.5) < bottom + 18) { current = page(); y = height - top; }
         placing = { start: entry.start, note: entry.title };
         draw([{ text: entry.title, font: bold }], indent, 10, true);
       }
       placing ??= { start: entry.start };
-      const label = { text: `${entry.label} `, font: opens ? bold : serif }, text = plain(entry.text);
-      // A section whose words start in its first subsection prints on one line with it: "2 (1) In this Act,".
       if (opens && !text) { carried = [label]; continue; }
       // Each of its paragraphs (a definitions list's entries) is laid out on its own, so a long
       // provision runs on from the page it starts on.
-      const [first = "", ...rest] = text.split("\n");
-      draw([...carried, label, { text: first, font: serif }], indent);
+      draw(opening, indent);
       for (const paragraph of rest) draw([{ text: paragraph, font: serif }], indent);
       carried = [];
     }
