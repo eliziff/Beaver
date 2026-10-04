@@ -148,6 +148,8 @@ CREATE TABLE IF NOT EXISTS source_file (doc_type TEXT NOT NULL, dataset TEXT NOT
 CREATE INDEX IF NOT EXISTS document_dataset_idx ON document(doc_type, dataset);
 CREATE INDEX IF NOT EXISTS document_date_en_idx ON document(document_date_en);
 CREATE INDEX IF NOT EXISTS document_date_fr_idx ON document(document_date_fr);
+CREATE INDEX IF NOT EXISTS citation_lookup_document_idx ON citation_lookup(document_id);
+CREATE INDEX IF NOT EXISTS name_lookup_document_idx ON name_lookup(document_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS document_search USING fts5(citation_en, citation_fr, citation2_en, citation2_fr,
   name_en, name_fr, unofficial_text_en, unofficial_text_fr, content='document', content_rowid='id');`;
 const COLUMNS = ["doc_type", "dataset", "citation_en", "citation_fr", "citation2_en", "citation2_fr", "name_en", "name_fr",
