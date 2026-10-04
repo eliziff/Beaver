@@ -84,8 +84,12 @@ async function deriveA2AJDocument(
   });
 }
 
+// Some A2AJ texts carry Windows-1252 punctuation read as Latin-1 control characters ("\u0096" for "–"):
+// the characters Windows-1252 puts at 0x80–0x9F, the five it leaves undefined kept as they are.
+const WINDOWS_1252 = "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ";
 const string = (value: unknown): string | null =>
-  typeof value === "string" && value.trim() ? value.trim() : null;
+  typeof value === "string" && value.trim() ? value.trim().replace(/[\u0080-\u009f]/gu,
+    (character) => WINDOWS_1252[character.charCodeAt(0) - 0x80]) : null;
 const languageText = (record: JsonObject, field: string, language: Language) =>
   string(record[`${field}_${language}`]) ??
   string(record[`${field}_${language === "en" ? "fr" : "en"}`]) ??

@@ -403,7 +403,7 @@ export async function renderAuthoritySourcePdf(input: {
   const page = () => {
     const item = document.addPage([width, height]); pages.push(item); return item;
   };
-  let current = page(), y = height - 180;
+  let current = page(), y = height - top - 40;
   for (const line of wrapped(bold, title, 23, width - left - right)) {
     current.drawText(line, { x: left, y, size: 23, font: bold }); y -= 29;
   }
@@ -600,10 +600,33 @@ export async function renderAuthoritySourcePdf(input: {
     // A judgment is laid out from the outline the structure layer reads from its text: its headings
     // sized by level, each numbered paragraph with its number hanging in the margin, and the lists
     // within a paragraph indented a step for each level.
-    for (const entry of judgment) {
+    // Its front matter (the court, the parties, counsel) is set as a judgment sets it: short lines
+    // centred, each party's role at the right margin, a labelled line ("DOCKET: C69420") at the left.
+    const body = judgment.findIndex((entry) => entry.kind === "heading" || entry.kind === "paragraph");
+    const role = /^(?:(?:the\s+)?(?:appellants?|respondents?|applicants?|plaintiffs?|defendants?|petitioners?|intervener?s?|intervenors?|moving\s+part(?:y|ies)|responding\s+part(?:y|ies))(?:\s*\([^()]*\))?(?:\s+and\s+\S.*)?)$/iu;
+    const aligned = (text: string, align: "center" | "right") => {
+      // A line set in capitals (the court, WARNING) is set bold, as the judgment sets it.
+      const font = text === text.toLocaleUpperCase("en-CA") && /\p{Lu}{3}/u.test(text) ? bold : serif;
+      const available = width - left - right, lines = layout([{ text, font }], 10.5, available);
+      if (y - lines.length * 14.5 < bottom + 18) { current = page(); y = height - top; }
+      for (const line of lines) {
+        if (placing) { placed.push({ ...placing, pageIndex: pages.length - 1 }); placing = null; }
+        const used = line.reduce((sum, run) => sum + run.font.widthOfTextAtSize(run.text, 10.5), 0);
+        drawLine(line, left + (align === "center" ? (available - used) / 2 : available - used), 10.5);
+        y -= 14.5;
+      }
+      y -= gap(10.5);
+    };
+    for (const [index, entry] of judgment.entries()) {
       const title = [entry.label, entry.text].filter(Boolean).join(" ");
       placing = { start: entry.start, ...(entry.kind === "heading" ? { heading: entry.level + 2, title } : {}) };
-      if (entry.kind === "heading") draw([{ text: title, font: bold }], 0, [13, 12, 11][Math.min(entry.level, 2)], true);
+      const front = index < body && entry.kind === "text" && !entry.level;
+      // The provider's opening line repeats the title block ("R. v. Murphy, 2022 ONCA 615").
+      if (!index && front && entry.text.trim() === `${input.name?.trim()}, ${input.citation.trim()}`) continue;
+      if (front && role.test(entry.text.trim())) aligned(entry.text.trim(), "right");
+      else if (front && entry.text.trim().length <= 72 && !/^[\p{L}\s]+:\s/u.test(entry.text)
+        && !/,\s+for\s+the\s/iu.test(entry.text) && !/[.;:]$/u.test(entry.text.trim())) aligned(entry.text.trim(), "center");
+      else if (entry.kind === "heading") draw([{ text: title, font: bold }], 0, [13, 12, 11][Math.min(entry.level, 2)], true);
       else if (entry.kind === "paragraph") draw([{ text: entry.text, font: serif }], 36, 10.5, false,
         { runs: [{ text: entry.label, font: bold }], x: 0 });
       else if (entry.kind === "item") draw([{ text: entry.text, font: serif }], 36 + 22 * entry.level, 10.5, false,
