@@ -1761,7 +1761,7 @@ type Step = typeof STEPS[number]["value"];
 
 const withProfile = (value: StartPreferences, profileId: AuthoritiesProfileId): StartPreferences =>
   ({ ...value, profileId, passageMarking: authoritiesProfile(profileId).requirements?.markedPassages &&
-    value.passageMarking === "none" ? "margin" : value.passageMarking });
+    value.passageMarking === "none" ? "paragraph" : value.passageMarking });
 /** A court chosen at import brings its own passage marking (King's Bench: the yellow paragraph). */
 const courtChosen = (value: StartPreferences, profileId: AuthoritiesProfileId): StartPreferences =>
   withProfile({ ...value, passageMarking: authoritiesProfile(profileId).defaults.settings.passageMarking }, profileId);
