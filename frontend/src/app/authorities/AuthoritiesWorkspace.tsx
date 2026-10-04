@@ -1581,7 +1581,7 @@ function TableOptions({ draft, busy, onMade, onAction, pdfBrief = false }: { dra
     </div>}
     {pdfBrief && <OptionCard type="checkbox" checked={state.insertIntoDocument} disabled={busy}
       onChange={(event) => onAction({ type: "set-document-output", enabled: event.target.checked })}
-      label="Filing PDF" detail="Your brief, then the Table of Authorities, then the authorities, in one PDF." />}
+      label="Filing PDF" detail="Creates a PDF that contains your brief followed by the Table of Authorities and the authorities." />}
   </>;
 }
 
