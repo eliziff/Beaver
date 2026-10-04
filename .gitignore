@@ -5,7 +5,6 @@ out
 build
 target/
 /AuthoritiesHelper/
-/ALR-Verifier/
 /OpenLegalData/
 /legal-structure/
 /legal-pdf-parser/
