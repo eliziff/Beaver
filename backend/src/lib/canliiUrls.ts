@@ -54,4 +54,21 @@ export function buildCanliiCaseUrlFromCitation(
   return resolvedCanliiCaseUrl(citations, language);
 }
 
+/** The CanLII page of the first statute or regulation a citation text names, or null. */
+export function buildCanliiLawUrlFromCitation(text: string) {
+  const native = structureNative();
+  const result = native.citationEngineCall("extract", JSON.stringify({
+    text, options: { resolve: false, parallel: false },
+  })) as ExtractResponse;
+  for (const citation of result.citations) {
+    if (citation.form !== "full" || (citation.authority !== "statute" && citation.authority !== "regulation")) continue;
+    const { urls } = native.citationEngineCall("url", JSON.stringify({ citation, anchor: false })) as {
+      urls: Array<{ url: string | null }>;
+    };
+    const url = urls[0]?.url;
+    if (url && isCanliiUrl(url)) return url;
+  }
+  return null;
+}
+
 import { isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";

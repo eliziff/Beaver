@@ -2,7 +2,7 @@
 // diagnostic columns, colours and links, and the export-detail policy. Ported from
 // alr_quote_verifier.py write_workbook, apply_cell_formatting and finalize_workbook_export; the look
 // is the Python app's as it writes it (no rich quote highlighting reaches its files).
-import JSZip from "jszip";
+import { styledXlsx, type XlsxCell, type XlsxStyles } from "../quoteCheckWorkbook";
 import { anchorLink } from "./quoteChecks";
 import { REF_FIELDS } from "./references";
 import type { AlrRow } from "./rows";
@@ -18,7 +18,7 @@ export const DIAGNOSTIC_COLUMNS = ["footnote_id", "footnote_internal_id", "citat
   "quote_match_link", "matched_source", "matched_source_fragment", "alternate_matched_source_fragment",
   "journal_match_info", ...REF_FIELDS] as const;
 const WIDTHS: Record<string, number> = { Document: 34, "Footnote #": 12, "Footnote Text": 60, "Quotes and proposition": 70,
-  Citation: 60, [DIVIDER]: 15, "Corrected quote": 55, citation_part_anchor_text: 80, ref_chain_origin_citation_part_text: 80 };
+  Citation: 60, [DIVIDER]: 12, "Corrected quote": 55, citation_part_anchor_text: 80, ref_chain_origin_citation_part_text: 80 };
 
 const compactPinpoint = (summary: string) => (summary ?? "").replace(/\s*\[\+(\d+)\s+more instances\]/gu, " +$1 more").trim();
 function statusPrefix(row: AlrRow) {
@@ -76,17 +76,6 @@ function correctedTarget(row: AlrRow) {
   return "";
 }
 
-const ILLEGAL = /[\x00-\x08\x0B\x0C\x0E-\x1F]/gu;
-const escape = (value: string) => value.replace(ILLEGAL, "").replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;");
-const attribute = (value: string) => escape(value).replace(/"/gu, "&quot;");
-const textNode = (value: string) => `<t${/^\s|\s$/u.test(value) ? ' xml:space="preserve"' : ""}>${escape(value)}</t>`;
-export function columnLetter(index: number) {
-  let name = "";
-  for (let n = index; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
-  return name;
-}
-
-// Styles: fonts, fills and cell formats as the Python app's formatting leaves them.
 const FONTS = ['<font><name val="Calibri"/><family val="2"/><color theme="1"/><sz val="11"/><scheme val="minor"/></font>',
   '<font><name val="Calibri"/><family val="2"/><color theme="1"/><sz val="13"/><scheme val="minor"/></font>',
   '<font><b val="1"/><color rgb="00FFFFFF"/><sz val="13"/></font>', '<font><color rgb="000000FF"/><sz val="13"/><u val="single"/></font>',
@@ -104,34 +93,8 @@ const CELL_XFS = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" pivotButt
   XF(5, fill("FF9000"), CENTER), XF(2, fill("0C343D"), CENTER), XF(1, fill("FFC7CE"), TOP), XF(1, fill("C3C3C3"), TOP),
   XF(1, fill("C6EFCE"), TOP), XF(2, fill("0C343D"), '<alignment horizontal="center" vertical="center" wrapText="1"/>'),
   XF(6, 0, TOP), XF(6, fill("F3F3F3"), TOP)];
-const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="0"/><fonts count="${FONTS.length}">${FONTS.join("")}</fonts><fills count="${FILLS.length + 2}"><fill><patternFill/></fill><fill><patternFill patternType="gray125"/></fill>${FILLS.map((color) => `<fill><patternFill patternType="solid"><fgColor rgb="00${color}"/></patternFill></fill>`).join("")}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${CELL_XFS.length}">${CELL_XFS.join("")}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0" hidden="0"/></cellStyles><tableStyles count="0" defaultTableStyle="TableStyleMedium9" defaultPivotStyle="PivotStyleLight16"/></styleSheet>`;
+const STYLES: XlsxStyles = { fonts: FONTS, fills: FILLS, cellXfs: CELL_XFS };
 
-type Cell = { value: string | number; style: number; link?: string; rich?: Array<{ text: string; font: string }> };
-
-function sheetXml(header: string[], rows: Cell[][], widths: number[], hiddenFrom: number | null) {
-  const columns = widths.map((width, index) => `<col${hiddenFrom !== null && index + 1 >= hiddenFrom ? ' hidden="1"' : ""} width="${width}" customWidth="1" min="${index + 1}" max="${index + 1}"/>`).join("") +
-    (header.length < 16384 ? `<col hidden="1" outlineLevel="1" width="13" customWidth="1" min="${header.length + 1}" max="16384"/>` : "");
-  const links: Array<{ ref: string; target: string }> = [];
-  const body = [header.map((value): Cell => ({ value, style: S.header })), ...rows].map((cells, rowIndex) => {
-    const r = rowIndex + 1;
-    return `<row r="${r}">${cells.map((cell, columnIndex) => {
-      const ref = `${columnLetter(columnIndex + 1)}${r}`;
-      if (cell.link) links.push({ ref, target: cell.link });
-      if (typeof cell.value === "number") return `<c r="${ref}" s="${cell.style}" t="n"><v>${cell.value}</v></c>`;
-      const inline = cell.rich ? cell.rich.map((run) => `<r><rPr>${run.font}</rPr>${textNode(run.text)}</r>`).join("")
-        : cell.value === "" ? "" : textNode(cell.value);
-      return `<c r="${ref}" s="${cell.style}" t="inlineStr">${inline ? `<is>${inline}</is>` : ""}</c>`;
-    }).join("")}</row>`;
-  }).join("");
-  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><outlinePr summaryBelow="1" summaryRight="1"/><pageSetUpPr/></sheetPr><dimension ref="A1:${columnLetter(header.length)}${rows.length + 1}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A1" sqref="A1"/></sheetView></sheetViews><sheetFormatPr baseColWidth="8" defaultRowHeight="15"/><cols>${columns}</cols><sheetData>${body}</sheetData>${links.length ? `<hyperlinks>${links.map((link, index) => `<hyperlink ref="${link.ref}" r:id="rId${index + 1}"/>`).join("")}</hyperlinks>` : ""}<pageMargins left="0.75" right="0.75" top="1" bottom="1" header="0.5" footer="0.5"/></worksheet>`;
-  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${links.map((link, index) => `<Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${attribute(link.target)}" TargetMode="External" Id="rId${index + 1}"/>`).join("")}</Relationships>`;
-  return { xml, rels: links.length ? rels : null };
-}
-
-/** Builds the workbook bytes for rows already checked; `identifier` marks a display-json sidecar pairing. */
 export async function alrWorkbook(rows: AlrRow[], exportDetail: ExportDetail, identifier = "") {
   const multi = rows.some((row) => row.source_doc);
   const display = multi ? ["Document", ...DISPLAY] : DISPLAY;
@@ -139,10 +102,10 @@ export async function alrWorkbook(rows: AlrRow[], exportDetail: ExportDetail, id
   const header = rows.length ? [...display, ...diagnostics] : ["(no rows)"];
   const at = (name: string) => display.indexOf(name);
   let previousNote: string | null = null, previousProposition: string | null = null;
-  const cells = rows.map((row): Cell[] => {
+  const cells = rows.map((row): XlsxCell[] => {
     const odd = row.footnote_internal_id % 2 === 1;
     const plain = odd ? S.body : S.light;
-    const values: Cell[] = display.map((): Cell => ({ value: "", style: plain }));
+    const values: XlsxCell[] = display.map((): XlsxCell => ({ value: "", style: plain }));
     const document = row.source_doc ?? "";
     if (multi) values[at("Document")].value = document;
     values[at("Footnote #")] = { value: row.footnote_display_id || String(row.footnote_id), style: odd ? S.oddNumber : S.evenNumber };
@@ -162,13 +125,13 @@ export async function alrWorkbook(rows: AlrRow[], exportDetail: ExportDetail, id
       corrected.link = target;
       const marker = text.indexOf("Perfect match found at");
       if (row.quote_check_status === "OG_PINPOINT_PARTIAL" && marker > 0 && text.includes("Partial match at")) {
-        corrected.rich = [{ text: text.slice(0, marker), font: '<color rgb="FF000000"/><sz val="13"/>' },
+        corrected.runs = [{ text: text.slice(0, marker), font: '<color rgb="FF000000"/><sz val="13"/>' },
           { text: text.slice(marker), font: '<color rgb="FF0000FF"/><sz val="13"/><u val="single"/>' }];
         corrected.style = odd ? S.black : S.blackLight;
       } else corrected.style = odd ? S.link : S.linkLight;
     }
     const raw = row as unknown as Record<string, string | number>;
-    return [...values, ...diagnostics.map((name): Cell => {
+    return [...values, ...diagnostics.map((name): XlsxCell => {
       const value = raw[name] ?? "";
       const status = name === "quote_check_status" ? String(value) : "";
       const style = status.startsWith("ALT_") || status === "OG_PINPOINT_MATCH" || status === "OG_PINPOINT_PARTIAL" ? S.green
@@ -178,24 +141,8 @@ export async function alrWorkbook(rows: AlrRow[], exportDetail: ExportDetail, id
   });
   const widths = header.map((name) => WIDTHS[name] ?? 15);
   const hiddenFrom = exportDetail === "diagnostic-hidden" && diagnostics.length ? display.length + 1 : null;
-  const sheet = sheetXml(header, cells, widths, hiddenFrom);
-  const zip = new JSZip(), now = new Date().toISOString().replace(/\.\d+Z$/u, "Z");
-  zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`);
-  zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`);
-  zip.file("docProps/app.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>ALR Quote Verifier</Application></Properties>`);
-  zip.file("docProps/core.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>ALR Quote Verifier</dc:creator>${identifier ? `<dc:identifier>${escape(identifier)}</dc:identifier>` : ""}<dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`);
-  zip.file("xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><workbookPr/><bookViews><workbookView visibility="visible" minimized="0" showHorizontalScroll="1" showVerticalScroll="1" showSheetTabs="1" tabRatio="600" firstSheet="0" activeTab="0"/></bookViews><sheets><sheet name="FootnoteReferences" sheetId="1" state="visible" r:id="rId1"/></sheets><calcPr calcId="124519" fullCalcOnLoad="1"/></workbook>`);
-  zip.file("xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
-  zip.file("xl/styles.xml", STYLES);
-  zip.file("xl/worksheets/sheet1.xml", sheet.xml);
-  if (sheet.rels) zip.file("xl/worksheets/_rels/sheet1.xml.rels", sheet.rels);
-  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  return styledXlsx("FootnoteReferences", [{ name: "FootnoteReferences", widths, hiddenFrom, hideUnused: true,
+    frozenHeader: true, rows: [header.map((value) => ({ value, style: S.header })), ...cells] }], STYLES, identifier);
 }
 
 async function sha256(text: string) {

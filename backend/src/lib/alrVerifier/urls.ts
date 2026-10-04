@@ -1,5 +1,7 @@
 // Link handling ALR applies to citation links (alr_quote_verifier.py _split_url, _sanitize_url_candidate,
 // _canlii_source_lookup_url, _append_first_pinpoint_fragment, _strip_invalid_page_fragment and kin).
+import { isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
+
 const TRAILING_URL_PUNCT = /[.,;:!?)\]}>"'“”’‘]+$/u;
 
 export function splitUrl(url: string): [string, string] {
@@ -10,7 +12,7 @@ export function splitUrl(url: string): [string, string] {
 }
 export const recombineUrl = (base: string, fragment: string) =>
   !base ? "" : fragment.replace(/^#+/u, "") ? `${base}#${fragment.replace(/^#+/u, "")}` : base;
-export const isCanlii = (url: string) => (url ?? "").toLowerCase().includes("canlii.org");
+export const isCanlii = (url: string) => isCanliiUrl(url ?? "");
 const path = (url: string) => { try { return new URL(url).pathname.toLowerCase(); } catch { return ""; } };
 export const host = (url: string) => { try { return new URL(url).host.toLowerCase(); } catch { return ""; } };
 
