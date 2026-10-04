@@ -227,7 +227,8 @@ export async function resolveAuthoritiesSources(
       searchText: found.text, verifiedPdf: found.pdfUrl
         ? { url: found.pdfUrl, pdfOnly: true } : null });
     editor.apply({ type: "resolve-authority", authorityId: id,
-      citation: found.citation, name: found.name,
+      citation: found.citation, name: "titleIfUnnamed" in found && found.titleIfUnnamed
+        ? draft.authorities[id].name || found.name : found.name,
       source: { provider: found.provider, stableSourceId: found.stableSourceId,
         citationForms: [...new Set([...authorityCitationForms(initial, id), found.citation])].slice(0, 50),
         sourceSha256: found.sourceSha256, version: found.date, externalUrl: found.url } });

@@ -14,12 +14,11 @@ const HOSTS = ["laws-lois.justice.gc.ca"] as const;
 
 /** The Constitution Acts, 1867 to 1982, as Justice Laws consolidates them in one PDF. */
 const CONSTITUTION = { url: `${ORIGIN}/eng/Const/`, pdfUrl: `${ORIGIN}/PDF/Const_TRD.pdf` };
-const CONSTITUTION_ACTS: Record<string, { citation: string; title: string }> = {
+const CONSTITUTION_ACTS: Record<string, { title: string }> = {
   // "Part I of the Constitution Act, 1982, being Schedule B to the Canada Act 1982 (UK), 1982, c 11".
-  "statute:ca:-:1982:11": { citation: "Constitution Act, 1982, being Schedule B to the Canada Act 1982 (UK), 1982, c 11",
-    title: "Constitution Act, 1982" },
+  "statute:ca:-:1982:11": { title: "Constitution Act, 1982" },
   // "Constitution Act, 1867, 30 & 31 Vict, c 3".
-  "statute:-:-:30-31-vict:3": { citation: "Constitution Act, 1867, 30 & 31 Vict, c 3 (UK)", title: "Constitution Act, 1867" },
+  "statute:-:-:30-31-vict:3": { title: "Constitution Act, 1867" },
 };
 
 /** What the engine reads a citation as: an annual statute of Canada's year and chapter, or a
@@ -55,13 +54,15 @@ const decodeEntities = (text: string) => text.replace(/&(amp|lt|gt|quot|#39|#x27
 export async function justiceLawsSource(citation: string, signal?: AbortSignal) {
   const claim = claimed(citation);
   if (!claim) return null;
-  if (claim.kind === "constitution") return { id: claim.key, citation: claim.citation, date: null, title: claim.title,
-    url: CONSTITUTION.url, pdfUrl: CONSTITUTION.pdfUrl, text: "" };
+  // The title names the authority only where its citation gives no name of its own (the Charter keeps its name).
+  // The brief's own citation stays the authority's, so the index prints the Act once.
+  if (claim.kind === "constitution") return { id: claim.key, citation: citation.trim(), date: null, title: claim.title,
+    url: CONSTITUTION.url, pdfUrl: CONSTITUTION.pdfUrl, text: "", titleIfUnnamed: true };
   const title = await annualTitle(claim.year, claim.chapter, signal);
   if (!title) return null;
   return { id: claim.key, citation: `SC ${claim.year}, c ${claim.chapter}`, date: null, title,
     url: `${ORIGIN}/eng/AnnualStatutes/${claim.year}_${claim.chapter}/`,
-    pdfUrl: `${ORIGIN}/PDF/${claim.year}_${claim.chapter}.pdf`, text: "" };
+    pdfUrl: `${ORIGIN}/PDF/${claim.year}_${claim.chapter}.pdf`, text: "", titleIfUnnamed: true };
 }
 
 export const justiceLawsLegalSourceProvider = {
