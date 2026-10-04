@@ -42,7 +42,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesProfileId,
   AuthorityIdentity, AuthorityKind, AuthoritySourceLanguage } from "./types";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
-import { authoritiesInputPlan, authorityReproducedInBook } from "../../../../shared/authorities-sources.mjs";
+import { attachedAuthoritySources, authoritiesInputPlan, authorityReproducedInBook } from "../../../../shared/authorities-sources.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 import { AuthoritiesHighlights, PASSAGE_OPTIONS, useHighlightsAhead } from "./AuthoritiesHighlightEditor";
@@ -146,6 +146,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const draftsLoading = draftsListedFor?.host !== host || draftsListedFor.projectId !== projectId;
   const [restoredScope, setRestoredScope] = useState("");
   const [draft, setDraft] = useState<AuthoritiesProduct>();
+  const [labelTurn, setLabelTurn] = useState(0);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(!!requested), [running, setBusy] = useState(false);
   const [pendingActions, setPendingActions] = useState(0);
@@ -168,7 +169,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [viewedStep, setViewedStep] = useState<{ key: string; value: Step }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
-    quote?: string; bytes?: Uint8Array; error?: string; recognizedText?: PdfRecognizedText; pageLabels?: Array<string | null> }>();
+    quote?: string; bytes?: Uint8Array; error?: string; recognizedText?: PdfRecognizedText }>();
   const ocr = useSourceOcr(host, draft?.id), resetOcr = ocr.reset;
   // Asked once per host; a Word brief's final PDF then needs the brief saved as PDF only where it is false.
   const [wordToPdf, setWordToPdf] = useState<{ host: AuthoritiesHost; value: boolean }>();
@@ -398,6 +399,27 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     }).catch((caught) => active && setError(errorText(caught)));
     return () => { active = false; };
   }, [draftId, sourceKey, sourceAccessVersion, refreshToken, host]);
+  // A source attached before its printed page numbers were kept with it has them read once, one
+  // source at a time and away from any viewer, and kept in the draft.
+  const labelling = useRef<{ draftId: string; keys: Set<string>; busy: boolean }>({ draftId: "", keys: new Set(), busy: false });
+  useEffect(() => {
+    const current = draftRef.current, read = host.readSourcePageLabels;
+    if (!current || current.id !== draftId || !read) return;
+    if (labelling.current.draftId !== current.id) labelling.current = { draftId: current.id, keys: new Set(), busy: false };
+    const state = labelling.current;
+    if (state.busy) return;
+    const next = Object.values(current.state.authorities).flatMap((authority) =>
+      attachedAuthoritySources(authority.source).map((source) => ({ authority, source })))
+      .find(({ source }) => !source.pageLabels && !state.keys.has(`${source.bindingRole}\0${source.sourceSha256}`));
+    if (!next) return;
+    const { authority, source } = next;
+    state.keys.add(`${source.bindingRole}\0${source.sourceSha256}`); state.busy = true;
+    void read(current, source.bindingRole).then((pageLabels) => {
+      if (draftRef.current?.id === current.id) act({ type: "set-source-page-labels", authorityId: authority.id,
+        bindingRole: source.bindingRole, sourceSha256: source.sourceSha256, pageLabels });
+    }).catch(() => { /* Its viewer keeps physical page numbers. */ })
+      .finally(() => { state.busy = false; setLabelTurn((turn) => turn + 1); });
+  }, [draftId, draft?.revision, labelTurn, host]);
   const reviewKey = useMemo(() => discrepancyKey(settled), [settled]);
   useEffect(() => {
     reviewRequest.current?.abort();
@@ -556,7 +578,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     // A review edit is a step Ctrl+Z takes back; one replayed by Ctrl+Z or Ctrl+Y belongs to its step.
     const step = view ? replaying.current ?? reviewStep(shown, view, action) ?? undefined : undefined;
     const edit = view ? { action, step } : undefined;
-    const blocking = !edit && action.type !== "rename-authority";
+    const blocking = !edit && action.type !== "rename-authority" && action.type !== "set-source-page-labels";
     if (blocking) setPendingActions((count) => count + 1);
     if (edit && view) {
       if (step && !replaying.current) {
@@ -1012,10 +1034,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       if (request === previewRequest.current && draftRef.current?.id === current.id)
         setSourcePreview(value => value ? { ...value, recognizedText } : value);
     }).catch(() => { /* The PDF remains readable if optional text preparation fails. */ });
-    void host.readSourcePageLabels?.(current, role).then(pageLabels => {
-      if (request === previewRequest.current && draftRef.current?.id === current.id)
-        setSourcePreview(value => value ? { ...value, pageLabels } : value);
-    }).catch(() => { /* Unknown labels retain physical navigation. */ });
   }
   // The quotation belongs at the pinpoint the author cited, so open the PDF on that passage.
   function openFindingSource(finding: AuthoritiesDiscrepancy) {
@@ -1388,7 +1406,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         onClose={() => { previewRequest.current += 1; setSourcePreview(undefined); }}>
         <div className="flex min-h-60 flex-1">
           <PdfCanvas bytes={sourcePreview?.bytes} loading={!!sourcePreview && !sourcePreview.bytes && !sourcePreview.error}
-            recognizedText={sourcePreview?.recognizedText} pageLabels={sourcePreview?.pageLabels}
+            recognizedText={sourcePreview?.recognizedText} pageLabels={sourcePreview && sourcePageLabels(draft, sourcePreview.role)}
             error={sourcePreview?.error} quoteFocusKey={sourcePreview?.quote}
             quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined} />
         </div>
@@ -1843,6 +1861,10 @@ function discrepancyKey(draft?: AuthoritiesProduct) {
   ]);
 }
 function metadata({ state: _state, ...item }: AuthoritiesProduct) { return item; }
+/** A source's printed page numbers, as they were read when it was attached. */
+const sourcePageLabels = (draft: AuthoritiesProduct | undefined, role: string) => draft &&
+  Object.values(draft.state.authorities).flatMap((authority) => attachedAuthoritySources(authority.source))
+    .find((source) => source.bindingRole === role)?.pageLabels;
 const sourceIssueKey = (draft?: AuthoritiesProduct) => draft
   ? canonicalJson([draft.id, draft.state.bindings]) : "";
 function planAuthorities({ state }: AuthoritiesProduct) {

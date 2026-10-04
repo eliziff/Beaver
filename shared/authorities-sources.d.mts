@@ -8,6 +8,9 @@ export type AttachedAuthoritySource = {
   language: AuthoritySourceLanguage;
   /** The PDF's length, recorded when it was attached. */
   pageCount?: number;
+  /** Each page's printed number ("12", "iv") or null, read from the PDF once, when it was attached:
+   *  a viewer shows it with the page, without reading the PDF again. */
+  pageLabels?: Array<string | null>;
 };
 export type AuthoritySourceDecision =
   | { kind: "unresolved" }

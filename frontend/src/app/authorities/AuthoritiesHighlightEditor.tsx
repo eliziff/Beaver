@@ -355,7 +355,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const [choices] = useState(initialChoices);
   const [role, setRole] = useState(choices[0].bindingRole);
   const [documents, setDocuments] = useState<Record<string,OpenPdf>>({});
-  const [pdfs, setPdfs] = useState<Record<string, { bytes: Uint8Array; pageLabels?: Array<string | null> }>>({});
+  const [pdfs, setPdfs] = useState<Record<string, { bytes: Uint8Array }>>({});
   const [tool, setTool] = useState<AnnotationTool>('select');
   const [highlightSelection, setHighlightSelection] = useState(0);
   const [selectedId, setSelectedId] = useState<string|null>(null);
@@ -383,6 +383,9 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const loading = !pdfs[role] && !error;
   const current = documents[shown], marks = current?.history[current.position] ?? [];
   const marksOf = (key: string) => { const document = documents[key]; return document?.history[document.position] ?? []; };
+  // A source's printed page numbers were read when it was attached: they show with its first page.
+  const pageLabelsOf = (key: string) => Object.values(base.state.authorities).flatMap(authority =>
+    authority.source.kind === 'attached' ? authority.source.sources : []).find(source => source.bindingRole === key)?.pageLabels;
   // The count is the shown source's own, and only once its marks are known.
   const count = current && current.review !== 'preparing' ? marks.length : undefined;
   const visibleError = error || current?.warning || textError;
@@ -437,9 +440,6 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     signal.throwIfAborted();
     if (hash !== choice.sourceSha256) throw new Error('This PDF changed. Relink the source before editing highlights.');
     setPdfs(values => ({ ...values, [key]: { bytes } }));
-    void host.readSourcePageLabels?.(base, key, signal).then(pageLabels => {
-      if (!signal.aborted) setPdfs(values => values[key] ? { ...values, [key]: { ...values[key], pageLabels } } : values);
-    }).catch(() => { /* Unknown labels retain physical navigation. */ });
     const loaded = readDocument(key);
     if (loaded && loaded.review !== 'preparing') return;
     if (saved && saved.sourceSha256 !== hash)
@@ -582,7 +582,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
               // Stacked rather than hidden: hiding a PDF, or making it inert, restyles every text run on its pages.
               return <div key={key} className={cn('absolute inset-0 flex', key === shown && 'z-10')}>
                 <PdfView doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor" hidden={key !== shown}
-                  pageLabels={pdf.pageLabels} loadRecognizedText={on && host.readSourceText ? loadRecognizedText : undefined}
+                  pageLabels={pageLabelsOf(key)} loadRecognizedText={on && host.readSourceText ? loadRecognizedText : undefined}
                   onRendered={() => { if (on) flushSync(draw); else draw(); }} onUnavailable={draw}
                   annotationEditor={{marks:marksOf(key),tool,selectedId:on ? selectedId : null,focus:on ? focus : undefined,
                     // The source left on screen while the next one draws takes no edits; one out of sight
