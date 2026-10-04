@@ -101,7 +101,9 @@ not its whole note split (`splitNotes`): only a part that cites (a recognized
 citation, a bare citation or a source link) reaches the resolver and the list,
 with just the cited span. Each reference names its authority kind and the
 `link` its citation writes; a consumer can ask for some kinds only, and import
-asks for all. A prose note is never an authority; an ibid after it stays
+asks for all. The engine recognizes each citation guide's own forms (McGill,
+COAL, Bluebook, AGLC, OSCOLA, the New Zealand guide) on request; import reads a
+brief with McGill's and COAL's. A prose note is never an authority; an ibid after it stays
 unresolved. Ibid looks back only within its own numbering sequence, so an
 unnumbered author's note does not interrupt the numbered notes.
 Supra association uses the indicated note, numbering sequence and written short
