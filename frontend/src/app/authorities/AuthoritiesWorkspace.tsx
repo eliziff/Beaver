@@ -26,12 +26,12 @@ import { downloadBlob } from "@/app/lib/download";
 import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
-import { rowControl, rowLabel, Sources, type BookFiles } from "./AuthoritySources";
+import { rowControl, Sources, type BookFiles } from "./AuthoritySources";
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCard, OptionCards } from "./OptionCards";
 import { OutputCards, OutputOptions, type OutputCard } from "./OutputCards";
 import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, coverForm } from "./BookFront";
-import { ImportWizard, SOURCE_OPTIONS, SourceChoices, sourceChoiceSummary, type Remembered } from "./ImportWizard";
+import { ImportWizard, SOURCE_OPTIONS, SourceChoices, type Remembered } from "./ImportWizard";
 import { courtChange } from "./courtChange";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
@@ -39,7 +39,7 @@ import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
   AuthoritiesLibraryPdfTarget,
   AuthoritiesSourceIssue } from "./host";
 import { AUTHORITY_PROFILE_BY_ID, authoritiesProfile } from "./profiles";
-import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesProduct,
+import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettings, AuthoritiesProduct,
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesProfileId,
   AuthorityIdentity, AuthorityKind, AuthoritySourceLanguage } from "./types";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
@@ -60,8 +60,6 @@ const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
 // Every view, the citation review among them, and the header and steps above it share one
 // readable frame, so nothing moves between them and a document page shows at about its own size.
 const FRAME = "mx-auto w-full max-w-[68rem] px-4 sm:px-6 md:mx-auto";
-/** Sources, Highlights and Build take a narrower column than the review, which needs the document's width. */
-const NARROW = "mx-auto w-full max-w-[58rem] px-4 sm:px-6 md:mx-auto";
 const SOURCE_LANGUAGE_OPTIONS = [
   { value: "bilingual", label: "English and French", description: "One bilingual official PDF." },
   { value: "en", label: "English", description: "The English official PDF." },
@@ -150,6 +148,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     authorityId: string; selected: PdfChoice;
   }>();
   const [findingId, setFindingId] = useState("");
+  const [sourceChange, setSourceChange] = useState<AuthoritiesBuildSettings["sourceMode"]>();
   // An opened finding is reviewed below the citations, so opening it brings it into view.
   const revealFinding = useCallback((node: HTMLDivElement | null) => node?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }), []);
   const [viewedStep, setViewedStep] = useState<{ key: string; value: Step }>();
@@ -1074,7 +1073,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onLibrary: attachLibraryAvailable ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined,
   };
   const reproduced = authorityPlan.filter(({ tab }) => tab !== "Not reproduced").length;
-  const others = draft && draft.state.outputMode !== "table" ? { ...bookFiles, addable: draft.state.import.kind === "document",
+  const others = draft && draft.state.outputMode !== "table" ? { ...bookFiles,
     parts: draft.state.bookParts.supplements.map((part, index) => ({ part,
       tab: tabLabel(reproduced + index + 1, draft.state.settings.tabStyle, draft.state.settings) })) } : undefined;
   const buildPanel = draft && stage === "build" && <BuildPanel host={host} draft={shown!} busy={busy} building={building}
@@ -1099,22 +1098,18 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // cards as the import's Sources step. A new source handling drops only the PDFs found for it and
   // finds them again; uploaded PDFs stay.
   const sourced = !!draft && draft.state.import.kind === "document", recognition = host.recognitionAvailable !== false;
-  const sourceSettings = draft && <details className="group rounded-lg border border-gray-300 bg-white">
-    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
-      <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-gray-600 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
-      <span className="font-medium text-gray-950">Settings</span>
-      <span className="min-w-0 truncate text-gray-600">{sourceChoiceSummary(draft.state.settings, sourced, recognition)}</span>
-    </summary>
-    <div className="border-t border-gray-200 p-3">
-      <SourceChoices settings={draft.state.settings} profileId={draft.state.settings.profileId} sources={sourced}
-        recognition={recognition} disabled={busy} imported onChange={({ sourceMode, ...patch }) => sourceMode
-          ? act({ type: "set-settings", settings: { sourceMode } }, async (next) => {
-            setOperation("Finding source PDFs");
-            try { adopt(await onLatest(next.id, (latest) => host.prepareSources(latest, undefined, undefined, noteSources))); }
-            finally { setOperation(""); }
-          }) : act({ type: "set-settings", settings: patch })} />
-    </div>
-  </details>;
+  const sourceSettings = draft && <SourceChoices settings={draft.state.settings} profileId={draft.state.settings.profileId}
+    sources={sourced} recognition={recognition} disabled={busy} onChange={({ sourceMode, ...patch }) => sourceMode
+      ? setSourceChange(sourceMode) : act({ type: "set-settings", settings: patch })} />;
+  // A new source handling throws away the PDFs the app found, so it asks first.
+  const changeSources = (sourceMode: AuthoritiesBuildSettings["sourceMode"]) => {
+    setSourceChange(undefined);
+    act({ type: "set-settings", settings: { sourceMode } }, async (next) => {
+      setOperation("Finding source PDFs");
+      try { adopt(await onLatest(next.id, (latest) => host.prepareSources(latest, undefined, undefined, noteSources))); }
+      finally { setOperation(""); }
+    });
+  };
   const authorityPanelProps = { authorities, tabs: authorityTabs, groups: authorityGroups, busy, sourceIssues, statuteCopies,
     onAction: act, onEditIdentity: setEditingAuthority,
     onRetrySource: retryPublisherSource,
@@ -1156,7 +1151,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     className="min-h-0 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:justify-between max-[22rem]:[&_.tab-list]:gap-0 max-[22rem]:[&_[role=tab]]:px-1" />;
   const statusLine = <Status busy={busy} inline={!!draft && tab !== "drafts"}
     busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />;
-  return <div className={cn("authorities-workspace @container/workspace bg-app-background [scrollbar-gutter:stable]",
+  return <div className={cn("authorities-workspace @container/workspace relative bg-app-background [scrollbar-gutter:stable]",
     host.mode === "standalone" ? "h-dvh overflow-y-auto" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
     {draft ? <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
@@ -1165,7 +1160,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         : <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} title="Authorities"
           headerActions={<>{sections}{newAction}{headerActions}{settingsAction}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
-          <main className={cn(reviewing ? FRAME : NARROW, "min-h-80", stepping ? "pt-1" : "pt-4", reviewing ? "pb-0" : "pb-4")}>
+          <main className={cn(FRAME, "min-h-80", stepping ? "pt-1" : "pt-4", reviewing ? "pb-0" : "pb-4")}>
         {!(draft && tab !== "drafts") && statusLine}
         <div id="authorities-panel" role="tabpanel"
           aria-labelledby={`authorities-panel-tab-${TABS.findIndex(({ value }) => value === tab)}`}>
@@ -1210,8 +1205,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                         tabIndex={stepNext ? undefined : -1} disabled={busy || !stepNext}
                         onClick={stepNext}>Next<ChevronRight /></Button></>} />
                   {/* Every step starts the same distance below the steps, so switching moves nothing. */}
-                  <div id="authorities-step" role="tabpanel" className="flow-root [&>*:first-child]:mt-2"
+                  {/* The header and the steps keep one width; Sources, Highlights and Build take a narrower
+                      column under them than the review, which needs the document's width. */}
+                  <div id="authorities-step" role="tabpanel" className={cn("flow-root [&>*:first-child]:mt-2", !reviewing && "mx-auto max-w-[56rem]")}
                     aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
+                  {sourceChange && <Modal open fit onClose={() => setSourceChange(undefined)} breadcrumbs={["Change source handling"]} size="md"
+                    secondaryAction={{ label: "Cancel", onClick: () => setSourceChange(undefined) }}
+                    primaryAction={{ label: "Change", disabled: busy, onClick: () => changeSources(sourceChange) }}>
+                    <p className="pb-4 text-sm text-gray-700">Changing source handling removes the PDFs the app found and finds them
+                      again for the new choice. PDFs you uploaded stay.</p></Modal>}
                   {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences}
                     ocr={ocr} others={others} settings={sourceSettings}
                     {...authorityPanelProps}
@@ -1662,7 +1664,7 @@ function AuthorityDetailsModal({ open, busy, authority, onClose, onSave }: {
   };
   const action = authority ? "Save" : "Add";
   return <Modal open={open} onClose={onClose} size="md"
-    breadcrumbs={[authority ? "Edit authority" : "Add authority"]}
+    breadcrumbs={[authority ? "Edit source" : "Add source"]}
     fit
     primaryAction={{ label: action, disabled: busy || !citation.trim(), onClick: submit }}>
     <div className="grid gap-4 pb-5">

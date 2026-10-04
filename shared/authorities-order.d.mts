@@ -85,4 +85,4 @@ export function authorityCitation(
       authoritySpan: { start: number; end: number; text: string }; coreSpan: { start: number; text: string } } | undefined> },
   authority: { id: string; kind: string; citation: string; name?: string | null; displayName?: string | null;
     sourceIdentity?: { citationForms?: string[] } | null },
-): { text: string; italic: number; lead: number };
+): { text: string; italic: number; lead: number; cited: number };

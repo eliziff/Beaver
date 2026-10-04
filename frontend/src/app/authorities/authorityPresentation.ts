@@ -25,10 +25,10 @@ export function authorityCitationForms(item: AuthorityIdentity, occurrences: Aut
  *  each other citation of it ("R v Oakes, [1986] 1 SCR 103, 1986 CanLII 46 (SCC)"). */
 export const authorityCitationText = (state: AuthoritiesProduct["state"], item: AuthorityIdentity) =>
   authorityCitation(state, item).text;
-/** That citation after the name a row already shows: "[1986] 1 SCR 103, 1986 CanLII 46 (SCC)". */
+/** That citation after the name a row already shows, as the brief writes it: "[1986] 1 SCR 103". */
 export function authorityCitationLine(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
-  const { text, lead } = authorityCitation(state, item);
-  return text.slice(lead).replace(/^[\s,]+/u, "") || text;
+  const { text, lead, cited } = authorityCitation(state, item);
+  return text.slice(lead, cited).replace(/^[\s,]+/u, "") || text.slice(0, cited);
 }
 const courtRequirements = (state: AuthoritiesProduct["state"]) =>
   authoritiesProfile(state.settings.profileId).requirements;
