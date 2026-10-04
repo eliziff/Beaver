@@ -84,7 +84,7 @@ route/application cleanup is tracked in the
   citation, locator, and text-coordinate operations.
 - `legal-pdf-parser` owns PDF extraction, geometry, OCR routing, and PDF
   witnesses. It uses the local `legal-structure` checkout and contains the single
-  synchronized PDF Inspector lineage.
+  vendored Firecrawl PDF Inspector patchset, including our required modifications.
 - Provider-native facts are preserved. Beaver does not maintain a parallel
   TypeScript structure engine or a lossy universal document AST.
 - Exact source versions, locators, hashes, evidence, mutation manifests, and
@@ -131,16 +131,6 @@ Neither product gets a second engine, UI, store, worker, or local/cloud branch.
 `saveWorkProductBuild` owns durable build publication for both products: exact
 version writes, workflow destinations, output-reference commits and guarded
 rollback. Product operations validate their inputs and receipts before publication.
-
-`LibraryDocumentPicker` owns file-search state and cancellation for Authorities,
-and Court Records. Hosts supply search results; closing the picker
-discards pending responses. Search progress is separate from import progress.
-Court Records searches use the open draft's project context; each data request
-still passes through the authorized application endpoint.
-Fix supras uses the shared AddDocumentsModal with a DOCX filter and launches an
-ordinary assistant turn in the originating chat, or a new chat. Its native Word
-fields use the same tracked-change persistence and accept/reject controls as
-other assistant edits, including changes in footnotes and endnotes.
 
 ## Dependency rules
 

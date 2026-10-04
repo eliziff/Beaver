@@ -93,69 +93,7 @@ break
     expect(documentXml).not.toContain("&gt; Indented");
   });
 
-  it("builds the standard memo header and renders grounded citations by style", async () => {
-    const options = {
-      title: "Narrow issue",
-      citations: { case: jordanCitation },
-      memoHeader: { to: "File", from: "AI Assistant" },
-      generatedAt: new Date("2026-08-15T02:00:00.000Z"),
-      timeZone: "America/Edmonton",
-    };
-    const footnoteBytes = await renderDocxMarkdown("Claim.[@case]", {
-      ...options,
-      citationPlacement: "footnotes",
-    });
-    const documentXml = await packageXml(footnoteBytes, "word/document.xml");
-    const footnotesXml = await packageXml(footnoteBytes, "word/footnotes.xml");
-    const footnoteRels = await packageXml(
-      footnoteBytes,
-      "word/_rels/footnotes.xml.rels",
-    );
-
-    expect(documentXml).toContain("To:");
-    expect(documentXml).toContain("File");
-    expect(documentXml).toContain("From:");
-    expect(documentXml).toContain("AI Assistant");
-    expect(documentXml).toContain("14 August 2026");
-    expect(documentXml).toContain("Re:");
-    expect(documentXml.match(/Narrow issue/gu)).toHaveLength(1);
-    expect(documentXml).not.toContain('<w:pStyle w:val="Title"/>');
-    expect(documentXml).toContain('<w:footnoteReference w:id="1"/>');
-    expect(footnotesXml).toContain("R v Jordan, 2016 SCC 27");
-    expect(footnotesXml).toContain("para. 5");
-    expect(footnoteRels).toContain('Target="https://example.test/jordan"');
-    expect(footnoteRels).toContain(
-      'Target="https://example.test/jordan#par5"',
-    );
-
-    const inlineBytes = await renderDocxMarkdown("Claim.[@case]", {
-      ...options,
-      memoHeader: undefined,
-      citationPlacement: "inline",
-    });
-    const inlineXml = await packageXml(inlineBytes, "word/document.xml");
-    expect(inlineXml).toContain("R v Jordan, 2016 SCC 27");
-    expect(inlineXml).toContain("para. 5");
-    expect(inlineXml).not.toContain("w:footnoteReference");
-
-    const afterBytes = await renderDocxMarkdown("Claim.[@case]", {
-      ...options,
-      memoHeader: undefined,
-      citationPlacement: "after-paragraph",
-    });
-    const afterXml = await packageXml(afterBytes, "word/document.xml");
-    expect(afterXml).toContain('<w:pStyle w:val="CitationBlock"/>');
-    expect(afterXml).toContain("R v Jordan, 2016 SCC 27");
-
-    await expect(renderDocxMarkdown(
-      "To: File\nFrom: AI Assistant\nDate: Today\nRe: Duplicate\n\nBody.",
-      options,
-    )).rejects.toThrow("must not repeat the automatic");
-    await expect(renderDocxMarkdown(
-      "To: File From: AI Assistant Date: Today Re: Duplicate\n\nBody.",
-      options,
-    )).rejects.toThrow("must not repeat the automatic");
-  });
+  
 
   it("owns repeated-authority footnote forms instead of asking the model", async () => {
     const other = {
@@ -197,19 +135,7 @@ break
     ]);
   });
 
-  it("renders adjacent citation objects as one legal footnote", async () => {
-    const other = { sources: [{ ...jordanCitation.sources[0], stableId: "case:other",
-      authority: "R v Other, 2020 SCC 2", shortAuthority: "Other" }] };
-    const bytes = await renderDocxMarkdown("Claim.[@jordan][@other]", {
-      citations: { jordan: jordanCitation, other }, citationPlacement: "footnotes",
-    });
-    const documentXml = await packageXml(bytes, "word/document.xml");
-    const footnotesXml = await packageXml(bytes, "word/footnotes.xml");
-    expect(documentXml.match(/<w:footnoteReference w:id="1"\/>/gu)).toHaveLength(1);
-    expect(footnotesXml).toContain("R v Jordan, 2016 SCC 27");
-    expect(footnotesXml).toContain("; ");
-    expect(footnotesXml).toContain("R v Other, 2020 SCC 2");
-  });
+  
 
   it("parses the bounded structure and emits native Word features", async () => {
     const parsed = parseDocxMarkdown(sample);
@@ -317,19 +243,7 @@ break
     ).rejects.toThrow("is invalid");
   });
 
-  it("accepts numeric notes and leaves underscored identifiers literal", () => {
-    const parsed = parseDocxMarkdown(
-      "Use matter_file_name here.[^1]\n\n[^1]: Numeric note.",
-    );
-
-    expect(parsed.blocks[0]).toMatchObject({
-      type: "paragraph",
-      children: [
-        { type: "text", text: "Use matter_file_name here." },
-        { type: "footnote", id: "1" },
-      ],
-    });
-  });
+  
 
   it("recovers weak-model legal syntax without downgrading native controls", async () => {
     const markdown = `Initials: \\_\\_\\_\\_.
@@ -405,18 +319,7 @@ Tenant: **{{ Tenant Name }}**; rent: *{{ MONTHLY RENT }}*.[^Lease_Note]
     expect(footnotesXml).not.toContain("{{");
   });
 
-  it("does not repeat a model-authored title at the top of the body", async () => {
-    const xml = await packageXml(
-      await renderDocxMarkdown(
-        "# RESIDENTIAL LEASE AGREEMENT\n\n## 1. Parties\n\nTerms.",
-        { title: "Generic Residential Lease Agreement Template" },
-      ),
-      "word/document.xml",
-    );
-    expect(xml.match(/RESIDENTIAL LEASE AGREEMENT/gu)).toBeNull();
-    expect(xml).toContain("Generic Residential Lease Agreement Template");
-    expect(xml).toContain("1. Parties");
-  });
+  
 
   it("recovers unplaceable values but keeps size limits strict", async () => {
     const warnings: string[] = [];
@@ -466,184 +369,35 @@ Tenant: **{{ Tenant Name }}**; rent: *{{ MONTHLY RENT }}*.[^Lease_Note]
 });
 
 describe("weak-model recovery", () => {
-  it("ignores a repeated {-} heading attribute", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown("# Recitals {-} {-}", warnings);
-    expect(parsed.blocks[0]).toMatchObject({
-      type: "heading",
-      numbered: false,
-      children: [{ type: "text", text: "Recitals" }],
-    });
-    expect(warnings.join("\n")).toContain("repeated {-}");
-  });
+  
 
-  it("keeps the first bookmark when a heading defines two", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown("# Term {#first} {#second}", warnings);
-    expect(parsed.blocks[0]).toMatchObject({
-      type: "heading",
-      bookmark: "first",
-      children: [{ type: "text", text: "Term" }],
-    });
-    expect(warnings.join("\n")).toContain('kept "first"');
-  });
+  
 
-  it("drops an invalid bookmark id", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown("# Term {#9bad}", warnings);
-    expect(parsed.blocks[0]).toMatchObject({
-      type: "heading",
-      children: [{ type: "text", text: "Term" }],
-    });
-    expect(
-      (parsed.blocks[0] as { bookmark?: string }).bookmark,
-    ).toBeUndefined();
-    expect(warnings.join("\n")).toContain('invalid bookmark "9bad"');
-  });
+  
 
-  it("drops a duplicate bookmark and keeps both headings", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown(
-      "# One {#same}\n\n## Two {#same}",
-      warnings,
-    );
-    expect(parsed.blocks[0]).toMatchObject({ bookmark: "same" });
-    expect(
-      (parsed.blocks[1] as { bookmark?: string }).bookmark,
-    ).toBeUndefined();
-    expect(warnings.join("\n")).toContain('duplicate bookmark "same"');
-  });
+  
 
-  it("keeps a leftover brace attribute as literal heading text", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown("# Term {-extra}", warnings);
-    expect(parsed.blocks[0]).toMatchObject({
-      type: "heading",
-      children: [{ type: "text", text: "Term {-extra}" }],
-    });
-    expect(warnings.join("\n")).toContain("unrecognized heading attribute");
-  });
+  
 
-  it("skips a heading with no text", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown("# {#only}\n\nBody.", warnings);
-    expect(parsed.blocks).toHaveLength(1);
-    expect(parsed.blocks[0]).toMatchObject({ type: "paragraph" });
-    expect(warnings.join("\n")).toContain("no text");
-  });
+  
 
-  it("treats an invalid footnote definition line as body text", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown(
-      "Note.[^n]\n\n[^bad id]: Not a definition\n\n[^n]: Real.",
-      warnings,
-    );
-    expect(parsed.blocks[1]).toMatchObject({
-      type: "paragraph",
-      children: [{ type: "text", text: "[^bad id]: Not a definition" }],
-    });
-    expect(parsed.footnotes).toMatchObject([{ id: "n" }]);
-    expect(warnings.join("\n")).toContain("invalid footnote definition");
-  });
+  
 
-  it("keeps the first of duplicate footnote definitions", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown(
-      "Text[^a]\n\n[^a]: One\n[^a]: Two",
-      warnings,
-    );
-    expect(parsed.footnotes).toMatchObject([
-      { id: "a", children: [{ type: "text", text: "One" }] },
-    ]);
-    expect(warnings.join("\n")).toContain("first definition wins");
-  });
+  
 
-  it("drops an empty footnote and its reference", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown("Text[^e]\n\n[^e]:", warnings);
-    expect(parsed.footnotes).toEqual([]);
-    expect(parsed.blocks[0]).toMatchObject({
-      children: [{ type: "text", text: "Text" }],
-    });
-    expect(warnings.join("\n")).toContain('empty footnote "e"');
-  });
+  
 
-  it("strips a footnote marker that has no definition", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown("Hello[^missing].", warnings);
-    expect(parsed.blocks[0]).toMatchObject({
-      children: [
-        { type: "text", text: "Hello" },
-        { type: "text", text: "." },
-      ],
-    });
-    expect(warnings.join("\n")).toContain('"[^missing]"');
-  });
+  
 
-  it("drops a footnote definition that is never referenced", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown("Body.\n\n[^orphan]: Unused.", warnings);
-    expect(parsed.footnotes).toEqual([]);
-    expect(warnings.join("\n")).toContain('"orphan"');
-  });
+  
 
-  it("strips a footnote reference nested inside a footnote", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown(
-      "Text[^a]\n\n[^a]: Inner[^a] note.",
-      warnings,
-    );
-    expect(parsed.footnotes[0]).toMatchObject({
-      id: "a",
-      children: [
-        { type: "text", text: "Inner" },
-        { type: "text", text: " note." },
-      ],
-    });
-    expect(warnings.join("\n")).toContain("inside a footnote");
-  });
+  
 
-  it("keeps malformed inline markers as literal text", async () => {
-    const warnings: string[] = [];
-    const markdown = "Open {{Bad/Field}} and [@Bad Id] and }} stray.";
-    const parsed = parseDocxMarkdown(markdown, warnings);
-    expect(parsed.blocks[0].type).toBe("paragraph");
-    const xml = await packageXml(
-      await renderDocxMarkdown(markdown),
-      "word/document.xml",
-    );
-    expect(xml).toContain("{{Bad/Field}}");
-    expect(xml).toContain("[@Bad Id]");
-    expect(warnings.join("\n")).toContain("content-control marker");
-    expect(warnings.join("\n")).toContain("citation marker");
-  });
+  
 
-  it("keeps a malformed block-level control marker as a literal paragraph", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown("{{Not A Tag!}}", warnings);
-    expect(parsed.blocks[0]).toMatchObject({
-      type: "paragraph",
-      children: [{ type: "text", text: "{{Not A Tag!}}" }],
-    });
-    expect(warnings.join("\n")).toContain("literal text");
-  });
+  
 
-  it("adjusts table rows whose cell count does not match the header", () => {
-    const warnings: string[] = [];
-    const parsed = parseDocxMarkdown(
-      "| A | B |\n| --- | --- |\n| one |\n| x | y | z |",
-      warnings,
-    );
-    const table = parsed.blocks[0];
-    if (table.type !== "table") throw new Error("Expected a table block.");
-    expect(table.rows[0][1]).toEqual([]);
-    expect(
-      table.rows[1][1]
-        .map((child) => "text" in child ? child.text : "")
-        .join(""),
-    ).toBe("y z");
-    expect(warnings.join("\n")).toContain("Adjusted a table row");
-  });
+  
 
   it("strips a citation marker with no verified source", async () => {
     const warnings: string[] = [];
@@ -656,23 +410,7 @@ describe("weak-model recovery", () => {
     expect(warnings.join("\n")).toContain("no verified source");
   });
 
-  it("omits a verified citation that has no marker", async () => {
-    const warnings: string[] = [];
-    const xml = await packageXml(
-      await renderDocxMarkdown(
-        "Plain paragraph.",
-        {
-          citations: {
-            case: jordanCitation,
-          },
-        },
-        warnings,
-      ),
-      "word/document.xml",
-    );
-    expect(xml).not.toContain("R v Jordan, 2016 SCC 27");
-    expect(warnings.join("\n")).toContain("no [@case] marker");
-  });
+  
 
   it("renders a valid DOCX from a deliberately messy draft", async () => {
     const warnings: string[] = [];

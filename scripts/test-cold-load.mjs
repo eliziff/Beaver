@@ -5,7 +5,8 @@ import { createServer } from 'node:http';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { chromium } from '@playwright/test';
-import express from '../backend/node_modules/express/index.js';
+import { createRequire } from 'node:module';
+const express = createRequire(new URL('../backend/package.json', import.meta.url))('express');
 import { precompressedAssets } from '../backend/dist/lib/precompressedAssets.js';
 
 const [candidate, baseline, output = '.perf/report'] = process.argv.slice(2);

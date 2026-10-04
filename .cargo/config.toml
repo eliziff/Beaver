@@ -1,6 +1,6 @@
-# Keep local compilation from occupying every CPU core. CI may override with -j.
+# Leave two cores to the desktop; the build scripts also run Cargo below normal priority.
 [build]
-jobs = 1
+jobs = -2
 target-dir = "native/legal-structure-node/target"
 
 [profile.dev]

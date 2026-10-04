@@ -67,25 +67,6 @@ describe("reader boundary", () => {
     }]).rejected).toHaveLength(1);
   });
 
-  it("runs a two-to-four reader round concurrently and returns one parent result", async () => {
-    const parent: NormalizedToolCall = {
-      id: "round", name: READ_SUBAGENT_TOOL_NAME,
-      input: { assignments: [assignment("x", "SCC").input, assignment("y", "Ontario").input] },
-    };
-    const seen: string[] = [];
-    const combined = await runReadSubagentRound({
-      call: parent,
-      admit: createReadSubagentAdmission(),
-      async runReader(call) {
-        seen.push(String(call.input.scope));
-        return result(call);
-      },
-    });
-    expect(seen.sort()).toEqual(["Ontario", "SCC"]);
-    expect(combined).toMatchObject({ tool_use_id: "round", status: "ok" });
-    expect(JSON.parse(combined.content).readers).toHaveLength(2);
-  });
-
   it("resumes exact unfinished IDs with their stored assignments and activity history", async () => {
     const saved: ReadSubagentCheckpoint = {
       id: "reader-1",

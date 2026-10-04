@@ -154,9 +154,10 @@ gates. Standalone Rust/Python use direct bindings; keep one Node addon.
 
 ## Release and retained follow-on requirements
 
-- Publish/pin structure separately; advance parser/Inspector/Beaver only as the
-  gated combination. Inspector remains one automatically synchronized branch
-  with the smallest Beaver patch stack. No corpus/cache/generated/runtime commits.
+- Maintain first-party owners directly on main; record the source combination
+  used for semantic corpus proof without per-edit publication or consumer pins.
+  Inspector is one vendored third-party patchset with explicit upstream updates
+  preserving our modifications. No corpus/cache/generated/runtime commits.
 - Preserve digital/OCR separation and optional bounded Luna repair: anchored,
   typed, validated and provenance-bearing. OCR never licenses redetection of
   authoritative provider facts.

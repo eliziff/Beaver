@@ -32,7 +32,7 @@ research table conversion, tabular extraction/regeneration and parallel research
 readers. All live legs use `codex:gpt-6-luna` at low effort with synthetic or public
 sources; the tabular leg disables optional Jev routing so it exercises Luna.
 New test submissions carry `submission.origin = machine_test`, a `run_id` and
-an optional scenario. FullSweep, backend Vitest, Playwright, Selenium helpers and
+an optional scenario. FullSweep, backend Vitest, Playwright, Node Playwright smoke fixtures and
 lean smoke set these declarations. Standalone model harnesses must set
 `BEAVER_TEST_RUN_ID` and optionally `BEAVER_TEST_SCENARIO`, or declare
 `submission: { origin: "machine_test", run_id: "...", scenario: "..." }` on a

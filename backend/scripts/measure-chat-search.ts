@@ -9,8 +9,10 @@ async function main() {
   const directory = await mkdtemp(path.join(os.tmpdir(), "beaver-search-bench-"));
   process.env.AUTH_MODE = "local";
   process.env.MIKE_LOCAL_DATA_DIR = directory;
-  const { relationalDatabase, closeRelationalDatabase, sql } = await import("../src/lib/relationalDatabase");
+  let close: (() => Promise<void>) | undefined;
   try {
+    const { relationalDatabase, closeRelationalDatabase, sql } = await import("../src/lib/relationalDatabase");
+    close = closeRelationalDatabase;
     const db = await relationalDatabase();
     const owner = { userId: "00000000-0000-0000-0000-000000000001", userEmail: "fixture@example.test" };
     await db.query(sql`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<1000)
@@ -39,8 +41,8 @@ async function main() {
         medianMs: elapsed.slice(1).sort((a, b) => a - b)[2] }));
     }
   } finally {
-    await closeRelationalDatabase();
-    await rm(directory, { recursive: true, force: true });
+    try { await close?.(); }
+    finally { await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
   }
 }
 void main();

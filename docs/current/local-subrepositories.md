@@ -8,14 +8,16 @@ there are no consumer Git links, revision pins or required binding releases.
 | --- | --- |
 | `AuthoritiesHelper` | Standalone Authorities deployment, launcher and packaging |
 | `legal-structure` | Legal structure, bounded queries and provider adapters |
-| `legal-pdf-parser` | PDF extraction, geometry, OCR and the synchronized PDF Inspector lineage |
+| `legal-pdf-parser` | PDF extraction, geometry, OCR and our vendored Firecrawl PDF Inspector patchset |
 | `common-law-cite` | Citation grammar and bindings |
 | `legal-browser-ocr` | Browser/HTML OCR application |
+| `legal-pinpointer` | Legal-source aliases consumed directly by Authorities Lite |
 | `mike-workflows` | Workflow definitions, schema and upstream integration |
 | `OpenLegalData` | Shared data access; local source bundle, no public remote |
 
-[Legal Pinpointer](https://github.com/eliziff/legal-pinpointer) is a separate
-consumer of structure WASM and legal-source metadata.
+[Legal Pinpointer](https://github.com/eliziff/legal-pinpointer) also consumes
+structure WASM and legal-source metadata. An existing checkout elsewhere can be
+selected for Lite with `LEGAL_PINPOINTER_ROOT` instead of making another copy.
 
 ## Fresh checkout
 
@@ -40,6 +42,11 @@ Work and commit in the owning repository. Inspect its working tree before any
 ordinary `git pull --ff-only`; bootstrap never pulls, resets or checks out over
 existing work. No Beaver pin update is needed after publishing an owner change.
 Release packaging happens only when explicitly requested.
+
+PDF Inspector is third-party code with required local modifications, maintained
+once in `legal-pdf-parser/vendor/pdf-inspector`. Its recorded upstream revision
+supports explicit three-way updates; ordinary edits need no separate release or
+pin bump. Follow the parser's `docs/pdf-inspector-agent-guide.md` for updates.
 
 OpenLegalData has no remote: commit its source changes there and refresh its
 source bundle with `git -C OpenLegalData bundle create ../subrepos/OpenLegalData.bundle main`.

@@ -10,14 +10,15 @@ import { spawnSync } from 'node:child_process';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 if (process.argv[2] === '--sample') {
   const mode = process.argv[3], dir = await mkdtemp(path.join(os.tmpdir(), 'beaver-lock-probe-'));
+  let contender, db, closeRelationalDatabase;
+  try {
   process.env.AUTH_MODE = 'local'; process.env.MIKE_LOCAL_DATA_DIR = dir;
   const require = createRequire(path.join(root, 'backend/package.json'));
   if (!process.env.BEAVER_BENCH_COMPILED) require('tsx/cjs');
-  const { relationalDatabase, LocalDatabase, localDatabaseSync, closeRelationalDatabase, sql } = require(path.join(root, process.env.BEAVER_BENCH_COMPILED ? 'backend/dist/lib/relationalDatabase.js' : 'backend/src/lib/relationalDatabase.ts'));
+  const { relationalDatabase, LocalDatabase, localDatabaseSync, closeRelationalDatabase: closeDatabase, sql } = require(path.join(root, process.env.BEAVER_BENCH_COMPILED ? 'backend/dist/lib/relationalDatabase.js' : 'backend/src/lib/relationalDatabase.ts'));
+  closeRelationalDatabase = closeDatabase;
   const setup = performance.now();
-  const db = mode === 'worker' ? await relationalDatabase() : new LocalDatabase(localDatabaseSync());
-  let contender;
-  try {
+  db = mode === 'worker' ? await relationalDatabase() : new LocalDatabase(localDatabaseSync());
     await db.query(sql`CREATE TABLE contention(id INTEGER PRIMARY KEY)`);
     const startupMs = performance.now() - setup;
     const reads = performance.now();
@@ -37,10 +38,12 @@ if (process.argv[2] === '--sample') {
     const writeMs = performance.now() - start, timerMs = await timer;
     console.log(JSON.stringify({ mode, startupMs, sequential1000Ms, writeMs, timerMs }));
   } finally {
-    if (contender) await contender.terminate();
-    if (mode === 'worker') await closeRelationalDatabase();
-    else { await db.close(); }
-    await rm(dir, { recursive: true, force: true });
+    try { await contender?.terminate(); } finally {
+      try {
+        if (mode === 'worker') await closeRelationalDatabase?.();
+        else await db?.close();
+      } finally { await rm(dir, { recursive: true, force: true }); }
+    }
   }
 } else {
   const samples = [];

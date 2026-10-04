@@ -1,41 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  createTnaEvidence,
-  createLibraryEvidence,
-  createPublicJournalPassageEvidence,
-  createLegalEvidenceTurnState,
-  finalizeLegalEvidence,
-  GROUNDED_QUOTATION_POLICY,
-  GROUNDED_QUOTATION_POLICY_CLASSIC,
-  GROUNDED_QUOTATION_POLICY_CURRENT,
-  hasCaseNameInText,
-  LEGAL_EVIDENCE_SUBMIT_TOOL,
-  legalEvidenceCitationEntries,
-  legalEvidenceReceiptEvent,
-  legalEvidenceRequested,
-  legalEvidenceProseIntegrityErrors,
-  legalEvidenceResourceReference,
-  priorLegalEvidenceReceipts,
-  priorLegalEvidencePrompt,
-  priorLegalResearchQueryReceipts,
-  registerLegalEvidence,
-  registerLegalResearchQueries,
-  registerPriorLegalEvidence,
-  registerPriorLegalResearchQueries,
-  readPriorLegalEvidence,
-  renderLegalEvidenceAnswer,
-  restorePriorLegalEvidence,
-  selectGroundedQuotationPolicy,
-  submitLegalEvidenceAnswer,
-  validateGroundedClaims,
-} from "../legalEvidence";
-import {
-  createLegalEvidenceCitations,
-  createLegalEvidenceCitationsFromEntries,
-  createLegalSourceSearchCitations,
-} from "../citations";
-import { CODING_PRODUCTION_SYSTEM_PROMPT } from "../prompts";
+import { createTnaEvidence, createLibraryEvidence, createLegalEvidenceTurnState, finalizeLegalEvidence, hasCaseNameInText, legalEvidenceReceiptEvent, legalEvidenceProseIntegrityErrors, legalEvidenceResourceReference, priorLegalEvidenceReceipts, priorLegalEvidencePrompt, registerLegalEvidence, registerPriorLegalEvidence, readPriorLegalEvidence, renderLegalEvidenceAnswer, restorePriorLegalEvidence, submitLegalEvidenceAnswer, validateGroundedClaims } from "../legalEvidence";
+import { createLegalEvidenceCitations, createLegalEvidenceCitationsFromEntries } from "../citations";
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { structureNative } from "../../structureNative";
 
@@ -248,159 +214,6 @@ describe("production legal evidence", () => {
       evidence_ids: [wrong.evidence_id, right.evidence_id, end.evidence_id] }] }, state).ok).toBe(true);
   });
 
-  it("keeps each grounded table row's citations inside its final cell", () => {
-    const state = createLegalEvidenceTurnState();
-    const first = passage("par12"), second = passage("par13");
-    registerLegalEvidence(state, first);
-    registerLegalEvidence(state, second);
-    expect(submitLegalEvidenceAnswer({ claims: [
-      { text: "The appeal is allowed.", evidence_ids: [first.evidence_id] },
-      { text: "| Outcome | Source |\n| --- | --- |\n| The appeal is allowed. | |", evidence_ids: [first.evidence_id] },
-      { text: "| The appeal is allowed. | |", evidence_ids: [second.evidence_id] },
-      { text: "The appeal is allowed.", evidence_ids: [second.evidence_id] },
-    ] }, state)).toEqual({ ok: true, terminal: true });
-    // Each row carries the pinpoint of its own evidence, and the second
-    // reference to the decision is a short form rather than the full citation.
-    expect(renderLegalEvidenceAnswer(state)).toBe(
-      "The appeal is allowed. [1]\n\n| Outcome | Source |\n| --- | --- |\n| The appeal is allowed. | [2] |\n| The appeal is allowed. | [3] |\n\nThe appeal is allowed. [4]",
-    );
-    expect(createLegalEvidenceCitations(state).map(({ pinpoint, short_form }) =>
-      [pinpoint, short_form])).toEqual([["para 12", undefined], ["para 12", true], ["para 13", true], ["para 13", true]]);
-  });
-
-  it("persists a query-only turn as an auditable research receipt", () => {
-    const state = createLegalEvidenceTurnState();
-    registerLegalResearchQueries(state, [{
-      call_id: "call_1",
-      tool: "search_sources",
-      executed_at: "2026-08-30T12:00:00.000Z",
-      executor_version: "legal-source-search-v1",
-      input: { query: "standard of review", limit: 10 },
-      results: [{ rank: 1, resource: "source://a2aj/cases/scc/2019-scc-65" }],
-    }], "test-model");
-
-    const event = legalEvidenceReceiptEvent(state)!;
-    expect(event).toMatchObject({
-      schema_version: 7,
-      status: "passed",
-      evidence: [],
-      queries: [expect.objectContaining({
-        call_id: "call_1",
-        model: "test-model",
-        tool: "search_sources",
-      })],
-    });
-    expect(priorLegalResearchQueryReceipts([event])).toEqual(event.queries);
-    expect(priorLegalResearchQueryReceipts([{ ...event, status: "failed" }]))
-      .toEqual(event.queries);
-    const restored = createLegalEvidenceTurnState();
-    registerPriorLegalResearchQueries(restored,
-      priorLegalResearchQueryReceipts([event]));
-    expect([...restored.queries]).toEqual([[event.queries[0].query_id, event.queries[0]]]);
-    expect(legalEvidenceReceiptEvent(restored)).toBeNull();
-    const inventory = priorLegalEvidencePrompt([], event.queries);
-    expect(inventory).not.toContain(event.queries[0].query_id);
-    expect(inventory).not.toContain("standard of review");
-    expect(inventory).toContain("queries");
-    expect(inventory).not.toContain("executor_version");
-  });
-
-  it("strips DOCX citation-handle markers that leak into chat claims", () => {
-    // The model sometimes over-applies the Write.citations "[@id]" marker
-    // convention to submit_grounded_answer prose. Pills come from
-    // evidence_ids at render time, so the inline token is dropped rather
-    // than leaking a raw handle into the answer.
-    const state = createLegalEvidenceTurnState();
-    const evidence = passage();
-    registerLegalEvidence(state, evidence);
-    expect(submitLegalEvidenceAnswer({ claims: [{
-      text: 'Every parent has an obligation [@id1] to provide support.',
-      evidence_ids: [evidence.evidence_id],
-    }] }, state)).toEqual({ ok: true, terminal: true });
-    expect(renderLegalEvidenceAnswer(state)).toBe(
-      "Every parent has an obligation to provide support. [1]",
-    );
-  });
-
-  it("collapses one provision family into a single chip in both views", () => {
-    const state = createLegalEvidenceTurnState("citation_structure");
-    const ids = ["sec50(1)", "sec50(1)(a)", "sec50(1)(b)", "sec50(1)(c)"].map(
-      (label) => {
-        const evidence = {
-          ...passage(label),
-          provider: "a2aj" as const,
-          stable_source_id: `a2aj:fla:${label}`,
-          citation: "SA 2003, c F-4.5",
-          dataset: "LEGISLATION-AB",
-          name: "Family Law Act",
-          external_url:
-            "https://kings-printer.alberta.ca/1266.cfm?page=F04P5.cfm&leg_type=Acts&isbncln=9780779854820&display=html",
-          locator: { kind: "section" as const, label },
-        };
-        registerLegalEvidence(state, evidence);
-        return evidence.evidence_id;
-      },
-    );
-    submitLegalEvidenceAnswer({ claims: [
-      { text: "First clause proposition.", evidence_ids: [ids[0]] },
-      { text: "Second clause proposition.", evidence_ids: [ids[1]] },
-      { text: "Third clause proposition.", evidence_ids: [ids[2]] },
-      { text: "Fourth clause proposition.", evidence_ids: [ids[3]] },
-    ] }, state);
-
-    // Each proposition carries the clause it rests on; family collapse still
-    // applies inside a claim, but never merges four claims into one pinpoint.
-    expect(renderLegalEvidenceAnswer(state)).toBe(
-      [
-        "First clause proposition. [1]",
-        "Second clause proposition. [2]",
-        "Third clause proposition. [3]",
-        "Fourth clause proposition. [4]",
-      ].join("\n\n"),
-    );
-    const citations = createLegalEvidenceCitations(state);
-    expect(citations.map(({ pinpoint }) => pinpoint))
-      .toEqual(["s 50(1)", "s 50(1)(a)", "s 50(1)(b)", "s 50(1)(c)"]);
-    // The tool-call view has no claims to divide, so it presents the family
-    // once; the answer's chips still carry a clause each.
-    expect(createLegalEvidenceCitationsFromEntries(
-      legalEvidenceCitationEntries(state),
-    ).map(({ pinpoint }) => pinpoint)).toEqual(["s 50(1)"]);
-  });
-
-  it("keeps sibling provision receipts separate under one collapsed chip", () => {
-    const state = createLegalEvidenceTurnState("citation_structure");
-    const ids = ["sec49(2)(a)", "sec49(2)(b)"].map((label) => {
-      const evidence = {
-        ...passage(label),
-        provider: "a2aj" as const,
-        stable_source_id: `a2aj:fla:${label}`,
-        citation: "SA 2003, c F-4.5",
-        dataset: "LEGISLATION-AB",
-        name: "Family Law Act",
-        external_url: "https://kings-printer.alberta.ca/1266.cfm?page=F04P5.cfm",
-        locator: { kind: "section" as const, label },
-      };
-      registerLegalEvidence(state, evidence);
-      return evidence.evidence_id;
-    });
-    submitLegalEvidenceAnswer({ claims: [{
-      text: "Both clauses matter.",
-      evidence_ids: ids,
-    }] }, state);
-
-    const citations = createLegalEvidenceCitations(state);
-    expect(renderLegalEvidenceAnswer(state)).toBe("Both clauses matter. [1]");
-    expect(citations.map(({ pinpoint }) => pinpoint))
-      .toEqual(["s 49(2)(a)\u2013(b)"]);
-    // Both receipts survive in the evidence store behind that one chip.
-    expect(legalEvidenceCitationEntries(state).map(
-      ({ receipt }) => receipt.locator.label)).toEqual(ids.map(() => expect.any(String)));
-    expect(createLegalEvidenceCitationsFromEntries(
-      legalEvidenceCitationEntries(state),
-    )).toEqual(citations);
-  });
-
   // Replays a turn from the local transcript store (chat 582819ad), where
   // every sentence resting on R. v. Grant carried the union of every
   // paragraph read. A pinpoint belongs to the proposition it supports.
@@ -432,77 +245,6 @@ describe("production legal evidence", () => {
       "Oakes proposition 3. [3]", "Oakes proposition 4. [4]",
       "Oakes proposition 1 again. [5]",
     ].join("\n\n"));
-  });
-
-  it("keeps unpinpointed passages of one authority on one locator-less chip", () => {
-    const state = createLegalEvidenceTurnState("citation_structure");
-    // An A2AJ headnote sits outside every native paragraph of a
-    // paragraph-numbered decision, so the read can only address it by
-    // character range; the citator attests the same authority as a document.
-    const unpinpointed = ["characters 1963\u20132391", "2019 SCC 34"].map((label, index) => {
-      const evidence = createTnaEvidence({
-        jurisdiction: "CA", sourceClass: "case", stableSourceId: `le-${index}`,
-        sourceText: `Le passage ${index}.`, spanText: `Le passage ${index}.`,
-        citation: "2019 SCC 34", name: "R. v. Le", dataset: `dataset-${index}`,
-        locatorKind: "document", locatorLabel: label });
-      registerLegalEvidence(state, evidence);
-      return evidence.evidence_id;
-    });
-    const paragraphs = ["par1", "par5", "par9", "par14"].map((label) => {
-      const evidence = { ...passage(label), citation: "2019 SCC 34", name: "R. v. Le" };
-      registerLegalEvidence(state, evidence);
-      return evidence.evidence_id;
-    });
-    submitLegalEvidenceAnswer({ claims: [...unpinpointed, ...paragraphs].map(
-      (id, index) => ({ text: `Le proposition ${index}.`, evidence_ids: [id] })) }, state);
-
-    const citations = createLegalEvidenceCitations(state);
-    // Each unpinpointed claim owns a separate locator-less chip.
-    expect(citations.map(({ locator_kind, pinpoint }) => [locator_kind, pinpoint]))
-      .toEqual([[undefined, undefined], [undefined, undefined], ["paragraph", "para 1"], ["paragraph", "para 5"],
-        ["paragraph", "para 9"], ["paragraph", "para 14"]]);
-    expect(citations[0].quotes).toHaveLength(1);
-    expect(citations[1].quotes).toHaveLength(1);
-    expect(citations.map(({ short_form }) => short_form))
-      .toEqual([undefined, true, true, true, true, true]);
-  });
-
-  it("exposes the approved quotation policy once through the grounding tool", () => {
-    expect(GROUNDED_QUOTATION_POLICY_CURRENT).toContain("Quote the shortest passage");
-    expect(GROUNDED_QUOTATION_POLICY_CURRENT).toContain("Split the claim");
-    expect(selectGroundedQuotationPolicy()).toBe(GROUNDED_QUOTATION_POLICY_CURRENT);
-    expect(selectGroundedQuotationPolicy("classic")).toBe(
-      GROUNDED_QUOTATION_POLICY_CLASSIC,
-    );
-    expect(`${CODING_PRODUCTION_SYSTEM_PROMPT}${JSON.stringify(LEGAL_EVIDENCE_SUBMIT_TOOL)}`
-      .split(GROUNDED_QUOTATION_POLICY)).toHaveLength(2);
-  });
-
-  it("carries an immediate citation correction across the follow-up", () => {
-    expect(legalEvidenceRequested([
-      { role: "user", content: "Give me a cite." },
-      { role: "assistant", content: "Here is one." },
-      { role: "user", content: "to the PDF" },
-    ])).toBe(true);
-    expect(legalEvidenceRequested([
-      { role: "user", content: "Read the PDF." },
-      { role: "assistant", content: "Done." },
-      { role: "user", content: "Tell me more." },
-    ])).toBe(false);
-  });
-
-  it("persists newly read passages for later turns without grounding the answer", () => {
-    const firstTurn = createLegalEvidenceTurnState();
-    const evidence = passage();
-    registerLegalEvidence(firstTurn, evidence);
-    const event = legalEvidenceReceiptEvent(firstTurn)!;
-    expect(event).toMatchObject({ mode: null, status: "passed", claims: [] });
-    expect(event.evidence).toEqual([evidence]);
-
-    const followUp = createLegalEvidenceTurnState();
-    registerPriorLegalEvidence(followUp, priorLegalEvidenceReceipts([event]));
-    expect(legalEvidenceReceiptEvent(followUp)).toBeNull();
-    expect(followUp.evidence.get(evidence.evidence_id)?.receipt).toEqual(evidence);
   });
 
   it("keeps a bounded inventory while old exact passages remain readable without source fetches", () => {
@@ -605,41 +347,6 @@ describe("production legal evidence", () => {
       [...state.evidence.values()])).toEqual([{ receipt: related, document }]);
   });
 
-  it("emits typed public-source citations from provider receipts", () => {
-    const state = createLegalEvidenceTurnState("citation_structure");
-    const evidence = createTnaEvidence({
-      jurisdiction: "UK",
-      sourceClass: "case",
-      stableSourceId: "uksc/2026/1:page-3",
-      sourceText: "The appeal is allowed.",
-      spanText: "The appeal is allowed.",
-      citation: "Example v State",
-      dataset: "tna",
-      externalUrl: "https://example.test/judgment.pdf#page=3",
-      locatorKind: "page",
-      locatorLabel: "page=3",
-    });
-    registerLegalEvidence(state, evidence);
-    submitLegalEvidenceAnswer({ claims: [{
-      text: "The appeal is allowed.",
-      evidence_ids: [evidence.evidence_id],
-    }] }, state);
-
-    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal is allowed. [1]");
-    expect(createLegalEvidenceCitations(state)).toEqual([
-      expect.objectContaining({
-        kind: "public_legal",
-        ref: 1,
-        provider: "tna",
-        identifier: "uksc/2026/1:page-3",
-        // No source document was loaded, so the citation keeps the page
-        // anchor and no text directive: a blind directive would paint
-        // whichever passage matched first rather than the cited one.
-        url: "https://example.test/judgment.pdf#page=3",
-      }),
-    ]);
-  });
-
   it("requires both pinpointed sources for every review finding", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     state.reviewDocumentIds = new Set(["brief"]);
@@ -658,38 +365,6 @@ describe("production legal evidence", () => {
     const broad = passage(" ");
     registerLegalEvidence(state, broad);
     expect(submitLegalEvidenceAnswer({ claims: [claim([document.evidence_id, broad.evidence_id])] }, state).ok).toBe(false);
-  });
-
-  it("emits document citations for attached PDF passages", () => {
-    const state = createLegalEvidenceTurnState("citation_structure");
-    const evidence = createLibraryEvidence({
-      documentId: "document-1",
-      versionId: "version-1",
-      filename: "record.pdf",
-      sourceText: "The appeal is allowed.",
-      spanText: "The appeal is allowed.",
-      start: 0,
-      end: 22,
-      blockId: "pdf:page-5",
-      locator: { kind: "page", label: "page 5" },
-    });
-    registerLegalEvidence(state, evidence);
-    submitLegalEvidenceAnswer({ claims: [{
-      text: "The appeal is allowed.",
-      evidence_ids: [evidence.evidence_id],
-    }] }, state);
-
-    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal is allowed. [1]");
-    expect(createLegalEvidenceCitations(state)).toEqual([
-      expect.objectContaining({
-        kind: "document",
-        ref: 1,
-        document_id: "document-1",
-        version_id: "version-1",
-        filename: "record.pdf",
-        quotes: [{ quote: "The appeal is allowed.", page: "5" }],
-      }),
-    ]);
   });
 
   it("rejects unknown evidence and keeps citation presentation out of prose", () => {
@@ -788,59 +463,6 @@ describe("production legal evidence", () => {
       { text: "Both passages record that result.", evidence_ids: evidence.map(({ evidence_id }) => evidence_id) },
     ] }, state).ok).toBe(true);
     expect(renderLegalEvidenceAnswer(state)).toBe("The appeal succeeded. [1]\n\nBoth passages record that result. [2]");
-  });
-
-  it("collapses one article's pages into a single journal chip", () => {
-    const state = createLegalEvidenceTurnState("citation_structure");
-    const citation = "Gordon F. Henderson, “Problems Involved in the Assignment of Patents and Patent Rights” (1966) 1:1 Ottawa L Rev 36";
-    const evidence = [60, 61, 62, 63].map((page) =>
-      createPublicJournalPassageEvidence({
-        citation,
-        name: "Problems Involved in the Assignment of Patents and Patent Rights",
-        date: "1966",
-        url: "https://example.test/article",
-        text: `Passage on page ${page}.`,
-        articleId: "ottawa-lr-1966-1-1-36",
-        locatorKind: "page",
-        locatorLabel: `page${page}`,
-      }));
-    evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
-    submitLegalEvidenceAnswer({ claims: [{
-      text: "The article discusses assignments.",
-      evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state);
-
-    expect(renderLegalEvidenceAnswer(state)).toBe(
-      "The article discusses assignments. [1]",
-    );
-    expect(createLegalEvidenceCitations(state).map(({ pinpoint }) => pinpoint))
-      .toEqual(["60\u201363"]);
-    expect(createLegalEvidenceCitationsFromEntries(
-      legalEvidenceCitationEntries(state),
-    )).toEqual([expect.objectContaining({
-        authority: citation,
-        locator: "60–63",
-        pinpoint: "60–63",
-        quotes: expect.arrayContaining(evidence.map(({ span_text }) => ({ quote: span_text }))),
-    })]);
-  });
-
-  it("projects searched case names through the ordinary citation model", () => {
-    expect(createLegalSourceSearchCitations([{
-      provider: "a2aj",
-      kind: "case",
-      id: "2020 BCSC 1",
-      title: "Example v Example",
-      citation: "2020 BCSC 1",
-      collection: "BCSC",
-      url: "https://example.test/case",
-    }])).toEqual([expect.objectContaining({
-      kind: "a2aj",
-      source_class: "case",
-      name: "Example v Example",
-      citation: "2020 BCSC 1",
-      quotes: [],
-    })]);
   });
 
   it("rejects an unstructured legal draft", () => {

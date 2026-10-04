@@ -59,6 +59,37 @@ test("cold-load restores a real chat's saved draft", async ({ page, created }) =
     await expect(page).toHaveURL(new RegExp(`/assistant/chat/${chat.id}$`));
     await page.reload();
     await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue(chat.draft);
+
+    // Delay a real persisted response, then select another chat before it arrives.
+    const delayed = await savedChat(page, created);
+    let release!: () => void, observed!: () => void, delivered!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const requested = new Promise<void>(resolve => { observed = resolve; });
+    const delivery = new Promise<void>(resolve => { delivered = resolve; });
+    const endpoint = new RegExp(`/api/chat/${delayed.id}(?:\\?.*)?$`);
+    await page.route(endpoint, async route => {
+        if (route.request().method() !== "GET") return route.continue();
+        const response = await route.fetch();
+        observed();
+        await gate;
+        await route.fulfill({ response }).catch(() => {}); // Selection may abort this request.
+        delivered();
+    });
+    try {
+        await openHistory(page);
+        await chatRow(page, delayed.id).getByRole("link").click();
+        await requested;
+        await chatRow(page, chat.id).getByRole("link").click();
+        release();
+        await delivery;
+        await expect(page).toHaveURL(new RegExp(`/assistant/chat/${chat.id}$`));
+        await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue(chat.draft);
+        await expect.poll(async () => (await json(await page.request.get(`/api/chat/${chat.id}`))).chat.draft.content)
+            .toBe(chat.draft);
+    } finally {
+        release();
+        await page.unroute(endpoint);
+    }
 });
 
 test("rename persists the trimmed title beyond the optimistic sidebar update", async ({ page, created }) => {
@@ -80,6 +111,11 @@ test("rename persists the trimmed title beyond the optimistic sidebar update", a
 
 test("delete requires confirmation and persists in the recycling bin", async ({ page, created }) => {
     const survivor = await savedChat(page, created), chat = await savedChat(page, created);
+    const destructiveRequests: string[] = [];
+    page.on("request", request => {
+        if (request.method() === "DELETE" && new URL(request.url()).pathname === `/api/chat/${chat.id}`)
+            destructiveRequests.push(request.url());
+    });
     await page.goto("/assistant");
     await openHistory(page);
     const row = chatRow(page, chat.id);
@@ -94,6 +130,7 @@ test("delete requires confirmation and persists in the recycling bin", async ({ 
     await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(row).toBeVisible();
     expect((await json(await page.request.get(`/api/chat/${chat.id}`))).chat.id).toBe(chat.id);
+    expect(destructiveRequests).toEqual([]);
     await row.hover();
     await row.getByRole("button", { name: `Delete ${chat.title}`, exact: true }).click();
     await confirmation.getByRole("button", { name: "Move", exact: true }).click();

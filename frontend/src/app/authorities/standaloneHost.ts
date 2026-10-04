@@ -57,7 +57,7 @@ function supportedDraft(state: AuthoritiesDraft): AuthoritiesDraft {
 async function resolveExact(input: WorkProductInput): Promise<File>;
 async function resolveExact(input: WorkProductInput, allowMissing: boolean): Promise<File | null>;
 async function resolveExact(input: WorkProductInput, allowMissing = false) {
-  const result = await resolveStandaloneFile(input, true);
+  const result = await resolveStandaloneFile(input);
   if (result.status === "missing" && allowMissing) return null;
   if (result.status === "missing") throw new Error(result.reason === "permission"
     ? "Chrome needs your permission to read this file again."
@@ -382,7 +382,6 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     catch { notice = "Built files are ready to download; the output folder could not be used."; }
     return { product: saved, receipt, ...(notice ? { notice } : {}) };
   },
-  download: async (documentId, versionId) => {
   async checkQuotes(selected, progress, signal) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
@@ -399,6 +398,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       progress?.(`Checking quotations · ${completed} of ${total}`);
     } })).data;
   },
+  download: async (documentId, versionId) => {
     const saved = await readStandaloneOutputByDocument(documentId, versionId);
     return new Blob([saved.bytes.slice().buffer], { type: saved.output.mimeType });
   },

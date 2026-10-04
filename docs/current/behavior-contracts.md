@@ -185,6 +185,15 @@ JSON and embedded reference bytes when advancing the application distribution.
 - Human and assistant edits use the same reversible history. A highlight-type
   change is atomic; undo preserves unrelated later edits. Pending proposals do
   not affect active classifications or extraction scopes.
+- Research documents store authored memo Markdown as their source bytes and one
+  `research.json` named part as the canonical workspace manifest. Evidence,
+  queries and history retain their existing version-scoped named parts; saves
+  commit them atomically with the memo. Existing portable footer documents are
+  decoded in memory without rewriting stored versions; their next actual save
+  uses the canonical representation. Downloads and document ZIPs render the
+  portable Markdown footer at the export boundary. That export retains the
+  existing limitation: it does not include evidence, query or history part
+  payloads and is not a complete workspace archive.
 - Memo autosave remains mounted across tabs. Interrupted saves retain the draft,
   reconcile before retrying and do not overwrite another writer. Citations render
   as ordinary linked text, not Cite chips; insertion and dragging preserve exact

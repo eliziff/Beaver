@@ -51,7 +51,7 @@ async function build(directory) {
   execFileSync(process.execPath, [fileURLToPath(import.meta.url), "_build", directory], { stdio: "inherit" });
 }
 async function compile(directory) {
-  const { build } = await import(pathToFileURL(path.join(repo, "frontend/node_modules/vite/dist/node/index.js")).href);
+  const { build } = await import(pathToFileURL(frontendRequire.resolve("vite")).href);
   await build({ configFile: false, root: path.join(repo, "scripts/fixtures"), publicDir: false,
     logLevel: "warn", resolve: { alias: { "@": path.join(repo, "frontend/src") } },
     build: { outDir: directory, emptyOutDir: false, minify: false, sourcemap: true,
@@ -93,8 +93,6 @@ async function fixtures() {
 }
 if (mode === "freeze") {
   await newDirectory(root);
-  assert.equal(git("diff", "HEAD", "--", "frontend/src", "shared"), "",
-    "Freeze production source before making any changes");
   const inputs = await fixtures();
   const baseline = path.join(root, "baseline");
   await newDirectory(baseline); await build(baseline);

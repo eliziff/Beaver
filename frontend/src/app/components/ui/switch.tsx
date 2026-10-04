@@ -24,7 +24,7 @@ export function Switch({ checked, disabled, loading, onChange, size = "sm",
             checked ? tone === "green" ? "bg-emerald-600" : "bg-gray-900"
                 : tone === "dark" ? "bg-gray-100" : tone === "dock" ? "bg-gray-300" : "bg-gray-200", track,
         )}>
-            <span className={cn("flex items-center justify-center rounded-full bg-white transition-transform", thumb, checked && shift)}>
+            <span className={cn("flex items-center justify-center rounded-full bg-primary-foreground motion-safe:transition-transform", thumb, checked && shift)}>
                 {loading && <Loader2 className="size-2.5 animate-spin text-gray-400" />}
             </span>
         </span>

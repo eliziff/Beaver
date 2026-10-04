@@ -1,6 +1,17 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+/** Reuse the most recently built full-capability addon; never retry a failed load with older code. */
+export function defaultNativeAddon(root) {
+  const name = process.platform === "win32" ? "legal_structure_node.dll" :
+    process.platform === "darwin" ? "liblegal_structure_node.dylib" : "liblegal_structure_node.so";
+  const artifacts = ["debug", "release"].map(profile => path.join(root, "target", profile, name))
+    .filter(filename => existsSync(filename))
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  if (!artifacts.length) throw new Error("Native engine missing. Run npm run native:build once.");
+  return artifacts[0];
+}
 
 export function nativeAddonFile(filename, root) {
   if (process.platform !== "win32" ||

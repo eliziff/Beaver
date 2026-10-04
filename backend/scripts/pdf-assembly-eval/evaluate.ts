@@ -5,12 +5,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pdfAssembly } from 'mike/shared/runtime/pdfAssembly.mjs';
-import { renderAuthoritiesBook } from 'mike/shared/runtime/authoritiesBook.mjs';
+import { renderAuthoritiesBook } from '../../src/lib/authoritiesBook';
 import { assembleFinalAuthoritiesPdf } from '../../src/lib/authoritiesFinalPdf';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const data = path.join(root, '.tmp/pdf-assembly-eval/v1');
-const sources = ['backend/src/lib/pdfAssembly.ts', 'backend/src/lib/authoritiesBook.ts', 'backend/src/lib/authoritiesFinalPdf.ts'];
+const data = path.join(root, 'benchmarks/local-data/pdf-assembly/v1');
+const sources = ['shared/contracts/pdfAssembly.mts', 'shared/contracts/authoritiesBook.mts', 'backend/src/lib/authoritiesFinalPdf.ts'];
 const engine = pdfAssembly(pdf);
 const N = pdf.PDFName.of;
 const hash = (x: string | Uint8Array) => createHash('sha256').update(x).digest('hex');
@@ -413,7 +413,10 @@ async function checkFamily(family: Family,directory: string) {
     for(const part of scenario.parts) gate(id+'/source-unchanged/'+part.fixture.id,await fileHash(path.join(directory,part.fixture.filename)),hash(part.bytes));
   }
 }
-async function run(split:string,name:string) {
+async function run(split:string,name:string,replace=false) {
+  if(!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(name)||name.includes('..')) throw new Error('Run name must be one path component');
+  const receipt=path.join(data,name+'.json');
+  if(!replace && await fs.access(receipt).then(()=>true,()=>false)) throw new Error('Named receipt already exists: '+name);
   const manifest=await verify(split,false),production=await productionHashes();
   if(split==='sealed') {
     const finalHash=process.argv.find(x=>x.startsWith('--final-incumbent='))?.slice('--final-incumbent='.length);
@@ -421,7 +424,10 @@ async function run(split:string,name:string) {
     await fs.writeFile(path.join(data,'SEALED-OPENED.json'),JSON.stringify({openedAt:new Date().toISOString(),production,finalHash})+'\n',{flag:'wx'});
   }
   await verify(split);
-  outputs=path.join(data,'outputs',name);await fs.mkdir(outputs,{recursive:true});
+  const outputRoot=path.resolve(data,'outputs');outputs=path.resolve(outputRoot,name);
+  if(path.dirname(outputs)!==outputRoot) throw new Error('Output must stay in the evaluator output directory');
+  if(replace) await fs.rm(outputs,{recursive:true,force:true});
+  await fs.mkdir(outputs,{recursive:true});
   const directory=path.join(data,split);
   const families=(await fs.readdir(directory)).filter(file=>file.endsWith('.json')).sort();
   for(const file of families) { const family=await readJson(path.join(directory,file));try {await checkFamily(family,directory);} catch(error) {gate(family.id+'/execution',String((error as Error).stack), 'completed');} }
@@ -434,11 +440,11 @@ async function run(split:string,name:string) {
   } catch(error) {if((error as NodeJS.ErrnoException).code!=='ENOENT') throw error;}
   const result={version:1,machine_test:true,runId:name,split,startedAt:new Date().toISOString(),manifestSha256:await fileHash(path.join(data,'manifest.json')),
     production,productionSha256:hash(json(production)),score:{passed,total:gates.length,failed},constraints:{noBaselineRegression:regressions.length===0,gateSetStable,completed:gates.every(gate=>!gate.id.endsWith('/execution')),regressions},gates};
-  const receipt=path.join(data,name+'.json');await fs.writeFile(receipt,JSON.stringify(result,null,2)+'\n',{flag:'wx'});
+  await fs.writeFile(receipt,JSON.stringify(result,null,2)+'\n',{flag:replace?'w':'wx'});
   if(name==='baseline-dev' && split!=='dev') throw new Error('Baseline must be development');
-  await fs.appendFile(path.join(data,'attempts.jsonl'),JSON.stringify({...result,gates:undefined,receipt:path.relative(root,receipt),receiptSha256:await fileHash(receipt)})+'\n');
+  if(!replace) await fs.appendFile(path.join(data,'attempts.jsonl'),JSON.stringify({...result,gates:undefined,receipt:path.relative(root,receipt),receiptSha256:await fileHash(receipt)})+'\n');
   console.log(json({receipt:path.relative(root,receipt),score:result.score,constraints:result.constraints,productionSha256:result.productionSha256,failures:gates.filter(gate=>!gate.pass).map(gate=>gate.id)}));
   if(regressions.length||!gateSetStable||gates.some(gate=>gate.id.endsWith('/execution'))) process.exitCode=2;
 }
-async function main(){const [command,name]=process.argv.slice(2);if(command==='init') await initialize();else if(command==='dev'||command==='sealed') await run(command,name??command+'-'+Date.now());else if(command==='hash') console.log(hash(json(await productionHashes())));else throw new Error('Usage: evaluate.ts init | dev NAME | hash | sealed NAME --final-incumbent=HASH');}
+async function main(){const [command,name]=process.argv.slice(2);if(command==='init') await initialize();else if(command==='dev'||command==='sealed') await run(command,name??'latest-'+command,name===undefined);else if(command==='hash') console.log(hash(json(await productionHashes())));else throw new Error('Usage: evaluate.ts init | dev NAME | hash | sealed NAME --final-incumbent=HASH');}
 main().catch(error=>{console.error(error);process.exitCode=1;});

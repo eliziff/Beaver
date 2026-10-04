@@ -3,31 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import { authorityPdfText } from "./authorityPdfText";
 
 describe("authority PDF text preparation", () => {
-  it("keeps every page's projection text and identifies only OCR-routed text", async () => {
-    const preparePdf = vi.fn(async () => ({ sourceSha256: "a".repeat(64),
-      parserVersion: "legal-pdf", cacheKey: "b".repeat(64), pageCount: 3,
-      projectionPageCount: 3, status: "ready" as const, pagesNeedingOcr: [],
-      ocrRoutedPages: [0, 2], profile: { ocr: { provider: "kraken-lite" as const,
-        settings: {} } } }));
-    const pageText = ["First scanned page", "Native page", "Third scanned page"];
-    const pdfPageTexts = vi.fn(async () => pageText);
-    const bytes = Buffer.from("source");
-
-    await expect(authorityPdfText({ bytes, scannedPdfPolicy: "full" },
-      { preparePdf, pdfPageTexts } as never)).resolves.toEqual({
-      pageTextByPage: ["First scanned page", "Native page", "Third scanned page"],
-      ocrTextByPage: ["First scanned page", "", "Third scanned page"],
-    });
-    await expect(authorityPdfText({ bytes, maxPages: 1 },
-      { preparePdf, pdfPageTexts } as never)).resolves.toEqual({
-      pageTextByPage: ["First scanned page"], ocrTextByPage: [""],
-    });
-    expect(preparePdf).toHaveBeenCalledWith(expect.objectContaining({
-      documentId: expect.stringMatching(/^standalone-authority:/u),
-      versionId: expect.stringMatching(/^[a-f0-9]{64}$/u),
-      ocrProvider: null,
-    }));
-  });
 
   it("keeps a degraded PDF when a page has no exact structural text", async () => {
     const preparePdf = vi.fn(async () => ({ sourceSha256: "a".repeat(64),

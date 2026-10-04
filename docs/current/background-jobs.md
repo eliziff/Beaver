@@ -170,13 +170,11 @@ OCR timeout fallback.
    page-targeted and canonical full preparation. Text, structure, order,
    locators, evidence hashes/handles, and links must be exact. No representative
    samples or proxy metrics are accepted.
-5. ChromeDriver verifies honest progress, refresh consistency, cancellation,
+5. Playwright verifies honest progress, refresh consistency, cancellation,
    corrupt-file errors, and shared PDF/DOCX/XLSX/text viewers.
 6. Live Luna reads exact pages from newly uploaded native and scanned PDFs,
    reuses evidence without a duplicate Read, survives a backend restart, and
    cannot access another user's/project's job or document.
-7. Backend/frontend tests, builds, and the full local smoke command pass before
-   commit and push.
 
 ## Verification receipt
 

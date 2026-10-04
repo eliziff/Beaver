@@ -384,16 +384,13 @@ export async function readResearchResource(documents: DocumentStore, scope: Appl
     return readLibraryResearchWindow({ ...input, documentId: reference.documentId,
       versionId: reference.versionId, filename: meta!.filename, document: document! });
   }
-  const outcome = await readLegalSourceResource({ name: "Read", id: input.callId ?? "research-read",
+  const outcome = await readLegalSource({ name: "Read", id: input.callId ?? "research-read",
     input: {} }, { file_path: input.resource, offset: input.offset ?? 1,
       start_char: input.start_char ?? 0, limit: input.limit ?? 100 }, {
         userId: scope.userId, signal: input.signal, reader: input.reader, knownSources: new Map() });
-  if (!outcome || outcome.result.isError) throw new ApplicationError(409, "Source could not be read");
-  const payload = outcome.result.content.find((item) => item.type === "text"),
-    value = payload?.type === "text" ? objectRecord(JSON.parse(payload.text)) : null,
-    continuations = Array.isArray(value?.next) ? value.next as { file_path: string; offset: number; start_char?: number }[] : [],
-    next = continuations.map(({ file_path, ...cursor }) => ({ resource: file_path, ...cursor }));
-  return { ...outcome, coverage: { complete: !next.length, next } };
+  if (!outcome || outcome.error !== undefined) throw new ApplicationError(409, "Source could not be read");
+  const { data, error: _error, ...read } = outcome;
+  return { ...read, ...result(data), coverage: outcome.coverage! };
 }
 
 export async function restoreResearchEvidence(documents: DocumentStore, scope: ApplicationScope,
@@ -487,7 +484,20 @@ function readerBoundary(source: LegalSourceReference, reader: ReadSubagentAssign
   if (reader?.source_types?.length && !reader.source_types.includes(source.kind)) return "This source is outside the reader's source-type boundary.";
 }
 
+type LegalSourceRead = Omit<BeaverOutcome, "result"> & {
+  data?: unknown; error?: string; coverage?: ResearchRead["coverage"];
+};
+
 export async function readLegalSourceResource(
+  ...args: Parameters<typeof readLegalSource>
+): Promise<BeaverOutcome | null> {
+  const read = await readLegalSource(...args);
+  if (!read) return null;
+  const { data, error, coverage: _coverage, ...metadata } = read;
+  return { ...metadata, ...(error !== undefined ? fail(error) : result(data)) };
+}
+
+async function readLegalSource(
   call: NormalizedToolCall,
   args: Record<string, unknown>,
   options: {
@@ -497,7 +507,9 @@ export async function readLegalSourceResource(
     knownSources: Map<string, LegalSourceReference>;
     priorQueries?: QueryHistorySource;
   },
-): Promise<BeaverOutcome | null> {
+): Promise<LegalSourceRead | null> {
+  const result = (data: unknown): LegalSourceRead => ({ data });
+  const fail = (error: string): LegalSourceRead => ({ error });
   if (call.name !== "Read") return null;
   const resource = parseResourceReference(trimmed(args.file_path));
   if (resource?.kind !== "source" || resource.provider === "pdf") return null;
@@ -696,6 +708,7 @@ export async function readLegalSourceResource(
         hits: hits.map(({ receipt: _receipt, ...hit }) => hit) }));
       return {
         activityCitations,
+        coverage: { complete: true, next: [] },
         ...result({ ok: true, sources: sourceDetails,
           ...(args.patterns ? { queries: visible } : visible[0]),
           ...(evidence.length ? { passages: evidence.map(modelPassage) } : {}),
@@ -794,6 +807,7 @@ export async function readLegalSourceResource(
     };
     return {
       ...result(payload),
+      coverage: { complete: !next.length, next: next.map(({ file_path, ...cursor }) => ({ resource: file_path, ...cursor })) },
       activityCitations,
       evidence: evidences,
       queryReceipts: [{ call_id: call.id, tool: "Read", executed_at: new Date().toISOString(),

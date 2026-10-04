@@ -100,6 +100,9 @@ export function createCodexLlm(options: {
       "--ignore-user-config", "-C", emptyCwd,
       "--disable", "apps", "--disable", "browser_use", "--disable", "computer_use",
       "--disable", "goals", "--disable", "hooks",
+      // The answer needs no tools; without them the model cannot spend turns exploring.
+      "--disable", "shell_tool", "--disable", "image_generation", "--disable", "skill_search",
+      "--disable", "sleep_tool", "-c", "web_search=\"disabled\"",
       "--output-schema", schemaPath, "--json", "-",
     ];
     return new Promise((resolveTurn, reject) => {

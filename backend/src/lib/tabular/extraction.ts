@@ -4,7 +4,7 @@ import { textField } from "mike/shared/runtime/textField.mjs";
 import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";
-import { runChatTurn, type ChatToolContext } from "../chat/turnEngine";
+import type { runChatTurn, ChatToolContext } from "../chat/turnEngine";
 import { createLegalEvidenceTurnState, legalEvidenceReceiptEvent, modelEvidencePreview,
   registerLegalEvidence, registerLegalResearchQueries,
   registerPriorLegalEvidence, registerPriorLegalResearchQueries,
@@ -113,7 +113,8 @@ export async function extractTabularAnswers(input: {
   onMeasurement?: (measurement: TabularMeasurement) => void;
   accept(index: number, result: TabularCellContent): Promise<void>;
 }) {
-  const state = createLegalEvidenceTurnState(), received = new Set<number>(), turn = input.runTurn ?? runChatTurn,
+  const state = createLegalEvidenceTurnState(), received = new Set<number>(), turn: typeof runChatTurn = input.runTurn ?? (async options =>
+      (await import("../chat/turnEngine")).runChatTurn(options)),
     started = performance.now(), measure = (event: TabularMeasurement) => input.onMeasurement?.(event);
   let origin: "jev" | "answer" | "repair" = "jev", publicationFailure: unknown;
   if (!input.columns.length) return received;

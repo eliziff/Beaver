@@ -75,6 +75,14 @@ it("continues every exact Unicode span through long lines and serialized-budget 
   const received: string[] = [], ids = new Set<string>();
   for (let page = 0; input && page < 100; page++) {
     const { payload, outcome } = await read(input);
+    if (page === 0) {
+      const internal = await readResearchResource({} as DocumentStore, { userId: "local-user" },
+        { resource: researchSourceResource(source), limit: 2_000 });
+      expect(internal.coverage).toEqual({ complete: !payload.next?.length,
+        next: (payload.next ?? []).map(({ file_path, ...cursor }: { file_path: string; offset: number; start_char?: number }) =>
+          ({ resource: file_path, ...cursor })) });
+      expect(internal.evidence).toEqual(outcome.evidence);
+    }
     expect(payload.sources[0].qualification).toContain("editorial material");
     expect(JSON.stringify(payload).length).toBeLessThan(34_000);
     for (const passage of payload.passages) {

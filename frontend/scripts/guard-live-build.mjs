@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const BUILD_BLOCKED_MESSAGE =
-    "Frontend build blocked because Beaver is listening on 127.0.0.1:" + (process.env.PORT || "3000") +
+    "Frontend deployment blocked because Beaver is listening on 127.0.0.1:" + (process.env.PORT || "3000") +
     ". Run `.\\scripts\\mike.ps1 stop`, build, then run `.\\scripts\\mike.ps1 start`.";
 
 export function isFrontendLive({
@@ -24,17 +24,13 @@ export function isFrontendLive({
     });
 }
 
-export async function assertBuildSafe(probe = isFrontendLive) {
-    if (await probe()) throw new Error(BUILD_BLOCKED_MESSAGE);
-}
-
 const isMain =
     process.argv[1] &&
     import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 
 if (isMain) {
     try {
-        await assertBuildSafe();
+        if (await isFrontendLive()) throw new Error(BUILD_BLOCKED_MESSAGE);
     } catch (error) {
         console.error(error instanceof Error ? error.message : error);
         process.exitCode = 1;

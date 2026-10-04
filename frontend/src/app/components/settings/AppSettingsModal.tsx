@@ -3,7 +3,6 @@
 import { Link } from "react-router-dom";
 import { useState, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
-import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { Tabs } from "@/app/components/ui/tabs";
 import { JurisdictionPreferenceEditor } from "./JurisdictionPreferenceEditor";
 import { SubagentSettings } from "./SubagentSettings";
@@ -15,8 +14,9 @@ import { DisplaySettings, ModelProviderSettings } from "./DisplaySettings";
 import { WorkflowFileTargetSettings } from "./WorkflowFileTargetSettings";
 import { MemoryEditor } from "./MemoryEditor";
 import { OrganizationSettings } from "./OrganizationSettings";
+import { ModalSelect } from "../modals/ModalSelect";
 
-const TABS = ["General", "Display", "Drafting", "Model Providers", "Subagents", "Memory", "Organizations"] as const;
+const TABS = ["General", "Display", "Drafting", "Providers", "Subagents", "Memory", "Organizations"] as const;
 type SettingsTab = (typeof TABS)[number];
 const TAB_OPTIONS = TABS.map((value) => ({ value, label: value }));
 
@@ -32,7 +32,10 @@ export function AppSettingsModal({
 
     const panels: Record<SettingsTab, ReactNode> = {
         Organizations: <OrganizationSettings />,
-        Memory: <MemoryEditor />,
+        Memory: <section>
+            <h2 className="mb-1 text-base font-semibold text-gray-900">Memory</h2>
+            <MemoryEditor />
+        </section>,
         General: (
             <div className="space-y-6">
                 <section>
@@ -62,28 +65,24 @@ export function AppSettingsModal({
                 </h2>
                 <AccountSection className="space-y-5 p-4">
                     <DisplaySettings />
-                    <label className="grid gap-2 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
-                        <span>
-                            <span className="block font-medium">
-                                Assistant activity
-                            </span>
-                            <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                                Auto shows available model thinking summaries without exposing tool arguments.
-                            </span>
-                        </span>
-                        <ModalSelect
-                            id="assistant-activity-detail" value={preferences.activityDetail}
-                            onChange={(activityDetail) => savePreferences({
-                                activityDetail: activityDetail as typeof preferences.activityDetail,
-                            })} placeholder={null}
-                            className="w-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                    <div className="space-y-2">
+                        <label htmlFor="assistant-activity" className="block text-sm font-medium text-gray-900">Assistant activity</label>
+                        <ModalSelect id="assistant-activity"
+                            value={preferences.activityDetail}
+                            onChange={(value) => savePreferences({ activityDetail: value as typeof preferences.activityDetail })}
                             options={[
                                 { value: "auto", label: "Auto" },
                                 { value: "standard", label: "Standard" },
                                 { value: "tools", label: "Tool calls" },
                                 { value: "trace", label: "Full trace" },
-                            ]} />
-                    </label>
+                            ]}
+                            placeholder={null}
+                            className="bg-app-surface h-10"
+                        />
+                        <p className="text-xs leading-5 text-gray-500">
+                            Auto shows available thinking summaries without tool arguments.
+                        </p>
+                    </div>
                 </AccountSection>
             </section>
         ),
@@ -100,9 +99,9 @@ export function AppSettingsModal({
                 </AccountSection>
             </section>
         ),
-        "Model Providers": (
+        Providers: (
             <section>
-                <h2 className="mb-1 text-base font-semibold text-gray-900">Model Providers</h2>
+                <h2 className="mb-1 text-base font-semibold text-gray-900">Providers</h2>
                 <p className="mb-4 max-w-2xl text-sm leading-6 text-gray-600">
                     Turn off a provider to hide it from the model picker.
                 </p>
@@ -121,6 +120,7 @@ export function AppSettingsModal({
             breadcrumbs={["Settings"]}
             size="xl"
             className="h-[min(40rem,calc(100dvh-2rem))]"
+            bodyClassName="overflow-hidden px-0 py-0"
             headerAction={
                 !isLocalMode ? (
                     <Link
@@ -134,8 +134,9 @@ export function AppSettingsModal({
             }
         >
             <Tabs value={selectedTab} onValueChange={setSelectedTab}
-                options={TAB_OPTIONS} ariaLabel="Settings sections" variant="settings">
-                <div className="min-w-0 py-4 focus-visible:outline-none">
+                options={TAB_OPTIONS} ariaLabel="Settings sections" variant="settings"
+                className="min-h-0 flex-1 overflow-hidden" railClassName="static px-5">
+                <div key={selectedTab} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
                     {panels[selectedTab]}
                 </div>
             </Tabs>

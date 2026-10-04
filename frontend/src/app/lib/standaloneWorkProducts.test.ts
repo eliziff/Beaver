@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment node
 import { afterEach, expect, it, vi } from "vitest";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });

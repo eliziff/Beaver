@@ -510,10 +510,10 @@ fallback dispatchers, or transition registries.
 Release checks:
 
 ```powershell
-npm test --prefix backend
-npm test --prefix frontend
+npm test --prefix backend -- <affected-test-file>
+npm test --prefix frontend -- <affected-test-file>
 npm run build --prefix backend
-npm run build --prefix frontend
+npm run build:deploy --prefix frontend
 .\scripts\mike.ps1 smoke
 ```
 

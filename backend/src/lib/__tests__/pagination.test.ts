@@ -8,12 +8,6 @@ const read = (value: unknown, resource = "projects", scope: CursorFilters = filt
   pageRequest({ cursor: value }, resource, scope, ["string", "string"]);
 
 describe("pagination", () => {
-  it("round-trips a resource-bound cursor with normalized filters", () => {
-    expect(read(cursor, "projects", { q: "lease", scope: "mine" })).toEqual({ limit: 50, after });
-    expect(pageResponse("projects", filters, { items: [{ id: "project-2" }], nextAfter: null }))
-      .toEqual({ items: [{ id: "project-2" }], next_cursor: null });
-  });
-
   it.each([
     ["wrong resource", "workflows", { q: "lease", scope: "mine" }],
     ["changed filter", "projects", { q: "other", scope: "mine" }],

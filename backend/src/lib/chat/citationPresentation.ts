@@ -39,6 +39,17 @@ function presentLegalEvidenceLocator(
   };
 }
 
+/** The authority an entry names (style of cause and citation), without planning a passage link. */
+export function legalEvidenceAuthority(receipt: RegisteredEvidence["receipt"]) {
+  const name = receipt.name?.trim() ?? "";
+  const citation = receipt.citation.trim();
+  return plainInlineText(receipt.provider === "journal"
+    ? citation || name || "Source"
+    : name && !name.toLocaleLowerCase("en-CA").includes(citation.toLocaleLowerCase("en-CA"))
+      ? `${name}, ${citation}`
+      : citation || name || "Source");
+}
+
 /** The pinpoint text an entry presents on its own, without planning a passage link. */
 export function legalEvidenceLocatorText(entry: RegisteredEvidence) {
   return legalEvidenceLocator(entry, [entry.receipt.locator.label], entry.receipt.locator.kind)?.text ?? null;
@@ -121,13 +132,8 @@ export function presentLegalEvidence(
   }
   const name = receipt.name?.trim() ?? "";
   const citation = receipt.citation.trim();
-  const authority = receipt.provider === "journal"
-    ? citation || name || "Source"
-    : name && !name.toLocaleLowerCase("en-CA").includes(citation.toLocaleLowerCase("en-CA"))
-      ? `${name}, ${citation}`
-      : citation || name || "Source";
   return {
-    authority: plainInlineText(authority),
+    authority: legalEvidenceAuthority(receipt),
     shortAuthority: plainInlineText(
       receipt.provider === "journal" ? citation.split(/, “/u)[0] || name || "Source"
         : name || citation || "Source",

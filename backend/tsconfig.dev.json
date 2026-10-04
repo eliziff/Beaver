@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "mike/shared/runtime/*.mjs": ["../shared/contracts/*.mts"],
+      "mike/shared/*": ["../shared/*"]
+    }
+  }
+}

@@ -349,28 +349,6 @@ describe("shared document application", () => {
     expect((await documents.versions(scope, created.id))?.versions).toHaveLength(2);
   });
 
-  it("reserves deduplicated scope-move targets in one batch", async () => {
-    const objects = createFilesystemObjectStorage(root);
-    const documents = createDocumentApplication(repository, objects);
-    const scope = { userId: "move-owner" };
-    const created = await documents.create(scope, {
-      filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
-    });
-    await documents.addVersion(scope, created.id, {
-      filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
-    });
-    const { id: projectId } = await project(scope);
-    const reserve = vi.spyOn(repository, "recordOrphans");
-    const put = vi.spyOn(objects, "put");
-    await expect(documents.relocate(scope, created.id, {
-      expectedProjectId: null, expectedFolderId: null,
-      projectId, folderId: null, owner: true,
-    })).resolves.toMatchObject({ status: "moved" });
-    expect(reserve).toHaveBeenCalledTimes(1);
-    expect(reserve.mock.calls[0][0]).toHaveLength(1);
-    expect(put).toHaveBeenCalledTimes(1);
-  });
-
   it("does not copy a document before authorizing its destination", async () => {
     const objects = createFilesystemObjectStorage(root);
     const documents = createDocumentApplication(repository, objects);

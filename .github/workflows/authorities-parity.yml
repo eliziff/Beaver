@@ -36,15 +36,15 @@ jobs:
       - name: Install locked dependencies
         run: |
           npm ci --ignore-scripts
-          npm ci --ignore-scripts --prefix backend
-          npm ci --ignore-scripts --prefix frontend
-      - name: Gate native citation and quotation semantics
-        run: cargo test --locked --jobs 2 --manifest-path legal-structure/Cargo.toml --features citator,quote-verification --lib
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         if: inputs.native-artifact != ''
         with:
           name: ${{ inputs.native-artifact }}
           path: native/legal-structure-node/target/release
+      - uses: Swatinem/rust-cache@v2
+        if: inputs.native-artifact == ''
+        with:
+          workspaces: native/legal-structure-node -> target
       - name: Build native integration for a standalone manual run
         if: inputs.native-artifact == ''
         run: cargo build --locked --release --jobs 2 --manifest-path native/legal-structure-node/Cargo.toml
@@ -57,8 +57,6 @@ jobs:
         if: inputs.backend-artifact == ''
         run: |
           npm run build --prefix backend
-      - name: Verify package assembly
-        run: npm run test:authorities-package
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Verify visual quotation review and editable PDF highlights

@@ -212,6 +212,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     const settings = initialSettings(input?.settings);
     const imported = await importStandaloneAuthoritiesFile({
       ...await standaloneSource(input), sourceMode: settings?.sourceMode,
+      ...(input.supraLinking === "aggressive" ? { supraLinking: "aggressive" as const } : {}),
     });
     return draftResult( applyAuthoritiesInitialSettings(imported, settings), []);
     },

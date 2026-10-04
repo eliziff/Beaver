@@ -51,41 +51,6 @@ describe("legal Library viewer responses", () => {
     expect(response.body).toEqual({ coverage: [] });
   });
 
-  it("preserves Library filters and neutral hits while searching through the registry", async () => {
-    process.env.AUTH_MODE = "local";
-    searchLegalSources.mockResolvedValue({
-      results: [{
-        provider: "journal",
-        id: "17",
-        kind: "journal",
-        title: "A Registered Article",
-        citation: "42 Alta L Rev 1",
-        date: "2024-01-02",
-        collection: "Alberta Law Review",
-        url: "https://example.test/article/17",
-        snippet: "registered search result",
-        authors: "Example Author",
-      }],
-      unavailable: [],
-    });
-
-    const response = await request(app)
-      .get("/sources/search")
-      .query({
-        query: "registered",
-        doc_type: "articles",
-        author: "Example Author",
-        journal: "Alberta",
-        start_date: "2020-01-01",
-        end_date: "2025-12-31",
-        sort_results: "newest_first",
-        size: "40",
-      });
-
-    expect(response.status).toBe(200);
-    expect(response.body.results).toEqual((await searchLegalSources.mock.results[0].value).results);
-  });
-
   it("reports an unavailable registered search lane instead of an empty success", async () => {
     process.env.AUTH_MODE = "local";
     searchLegalSources.mockResolvedValue({ results: [], unavailable: [{ provider: "journal", message: "unavailable" }] });

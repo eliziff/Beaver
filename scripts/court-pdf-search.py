@@ -166,7 +166,7 @@ def main():
             row["preflightCpuPercent"] = cpu_samples
             if mode == "evaluate":
                 git("diff", "--check")
-                tests = ["node", "--max-old-space-size=384", "./node_modules/vitest/vitest.mjs", "run", "src/app/court-records/assembly.test.ts"]
+                tests = ["node", "../scripts/focused-tests.mjs", "src/app/court-records/assembly.test.ts"]
                 with (attempt / "focused-tests.log").open("w", encoding="utf-8") as output:
                     if subprocess.run(tests, cwd=REPO / "frontend", stdout=output, stderr=subprocess.STDOUT).returncode:
                         raise RuntimeError("Focused PDF assembly behavior tests failed")

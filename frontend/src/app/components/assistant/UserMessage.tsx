@@ -1,7 +1,7 @@
 import { useState, type ClipboardEvent } from "react";
 import { Check, Copy, Library } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
-import { GfmMarkdown } from "./message/MarkdownContent";
+import { GfmMarkdown } from "../shared/GfmMarkdown";
 interface Props {
     content: string;
     files?: { filename: string; document_id?: string }[];

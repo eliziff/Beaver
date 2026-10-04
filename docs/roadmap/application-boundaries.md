@@ -47,9 +47,10 @@ files/receipts. No feature registry or portable-feature lifecycle.
 - One nativeContract reports boundary/features/structure/parser/Inspector/schema
   identities; validate once in structureNative. Type actual crossing variants and
   exercise Unicode/UTF-16 revision/fingerprint, lookup, PDF summary and identities.
-- Gate structure, advance/gate parser's exact structure pin, then Beaver parser/
-  addon together, including both Inspector Cargo locks and corpus denominators.
-  Reject combinations different from those corpus-tested.
+- Validate affected native semantics against independent gold and record the
+  actual source combination and corpus denominators. First-party source uses
+  local owners; parser and addon share one vendored Inspector patchset without
+  publication or pin-update gates. Reject semantic claims for untested combinations.
 - Native loader owns no detector/semantic mirror. Rust/Python use direct bindings;
   delete the one-off JSONL bridge. Actual subprocess edges get one validated
   versioned envelope/fixture set, no generated SDK.

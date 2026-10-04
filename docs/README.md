@@ -15,6 +15,7 @@ priority list.
 | [Tool runtime](current/tool-runtime.md) | Tool execution and boundaries |
 | [Grounded drafting](current/grounded-drafting.md) | Document generation and evidence |
 | [Authorities](current/authorities.md) | Embedded/standalone workflow, highlights and output |
+| [ChatGPT and Claude connector](current/ai-connectors.md) | MCP server, tools, app page and hosting |
 | [Performance](current/performance.md) | Cache/transport/worker contracts, limits and reproduction |
 | [Repositories](current/local-subrepositories.md) | Ownership, public submodules and OpenLegalData bundle |
 | [Local data](current/local-data-storage.md) | Shared corpus location, consolidation and live snapshot refresh |
@@ -49,6 +50,3 @@ handoffs and duplicated plans; Git retains their history. Do not add root-level
 progress diaries, transcript appendices or a second normative specification for
 an existing contract. Preserve useful benchmark receipts and notices.
 
-Run `node docs/scripts/check-docs.mjs` on a restored checkout. It checks root guides,
-local links, status directories, roadmap reachability and the Harvey Labs index.
-Its focused tests are `node --test docs/scripts/check-docs.test.mjs`.

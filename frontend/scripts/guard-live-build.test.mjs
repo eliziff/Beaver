@@ -1,22 +1,7 @@
 import assert from "node:assert/strict";
 import net from "node:net";
 import test from "node:test";
-import {
-    assertBuildSafe,
-    BUILD_BLOCKED_MESSAGE,
-    isFrontendLive,
-} from "./guard-live-build.mjs";
-
-test("allows a build when the frontend port is free", async () => {
-    await assert.doesNotReject(assertBuildSafe(async () => false));
-});
-
-test("blocks a build with the recovery sequence when the frontend is live", async () => {
-    await assert.rejects(
-        assertBuildSafe(async () => true),
-        new Error(BUILD_BLOCKED_MESSAGE),
-    );
-});
+import { isFrontendLive } from "./guard-live-build.mjs";
 
 test("detects a listening socket", async (context) => {
     const server = net.createServer();

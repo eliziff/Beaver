@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createPdfDocumentSource } from "./pdfDocumentSource";
 import { clearDocumentFileCache, invalidateDocumentFile } from "@/app/hooks/useDocumentFile";

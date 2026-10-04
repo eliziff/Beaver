@@ -123,7 +123,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
                                     {item === "login" ? "Log in" : "Sign up"}
                                 </span>
                             ) : (
-                                <Link key={item} to={`/${item}${accessQuery}`} className="inline-flex h-6 items-center rounded-full border border-transparent px-3 text-gray-500 hover:bg-white/40 hover:text-gray-900">
+                                <Link key={item} to={`/${item}${accessQuery}`} className="inline-flex h-6 items-center rounded-full border border-transparent px-3 text-gray-500 hover:bg-app-surface-hover hover:text-gray-900">
                                     {item === "login" ? "Log in" : "Sign up"}
                                 </Link>
                             ),

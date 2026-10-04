@@ -2,7 +2,7 @@ import { fileURLToPath, URL } from "node:url";
 import { realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
-import babel from "@rolldown/plugin-babel";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, searchForWorkspaceRoot } from "vite";
 import { precompressedAssets } from "./scripts/precompressed-assets.mjs";
 
@@ -12,18 +12,29 @@ const pages = {
     word: fileURLToPath(new URL("./word.html", import.meta.url)),
     courtRecords: fileURLToPath(new URL("./court-records.html", import.meta.url)),
     authorities: fileURLToPath(new URL("./authorities.html", import.meta.url)),
+    mcpApp: fileURLToPath(new URL("./mcp-app.html", import.meta.url)),
 };
 
-export default defineConfig(({ mode }) => {
-    const input: Record<string, string> = mode === "court-records" || mode === "authorities"
-        ? { courtRecords: pages.courtRecords, authorities: pages.authorities }
-        : { main: pages.main, word: pages.word };
+export default defineConfig(async ({ mode, command }) => {
+    const deployment = mode === "deployment";
+    const optimize = command === "build" && (deployment || mode === "authorities");
+    const deliveryPlugins = optimize ? [(await import("@rolldown/plugin-babel")).default({
+        presets: [reactCompilerPreset()], sourceMap: false,
+        overrides: [{ include: /\.mts(?:$|\?)/, parserOpts: { plugins: ["typescript"] } }],
+    }), precompressedAssets()] : [];
+    const input: Record<string, string> = mode === "mcp-app" ? { mcpApp: pages.mcpApp }
+        : mode === "court-records"
+        ? { courtRecords: pages.courtRecords }
+        : mode.startsWith("authorities")
+            ? { authorities: pages.authorities }
+            : mode === "word"
+                ? { word: pages.word }
+                : deployment
+                    ? { main: pages.main, word: pages.word }
+                    : { main: pages.main };
     return {
-        // React Compiler memoizes components and hooks at build time, so a render re-runs
-        // only what changed. Code that breaks the Rules of React is left uncompiled.
-        plugins: [react(), babel({ presets: [reactCompilerPreset()],
-            // The browser-shared contracts the runtime aliases resolve to are TypeScript modules too.
-            overrides: [{ include: /\.mts(?:$|\?)/, parserOpts: { plugins: ["typescript"] } }] }), precompressedAssets(), {
+        // Development and staging use Oxc; delivery adds React Compiler and precompression.
+        plugins: [react(), tailwindcss(), ...deliveryPlugins, {
             name: "shared-schema-entry",
             config(config, { command }) {
                 const output = config.build?.rolldownOptions?.output;
@@ -46,8 +57,16 @@ export default defineConfig(({ mode }) => {
             },
         }],
         build: {
+            reportCompressedSize: false,
+            outDir: deployment ? "dist"
+                : mode === "word" ? ".tmp/word-dist"
+                : mode === "court-records" ? ".tmp/standalone-dist"
+                : mode === "mcp-app" ? ".tmp/mcp-app-dist"
+                : mode.startsWith("authorities") ? ".tmp/authorities-dist"
+                : ".tmp/app-dist",
             modulePreload: { polyfill: false },
-            emptyOutDir: mode === "production",
+            // Each staging directory has one owner; deployment replaces the full app/add-in.
+            emptyOutDir: true,
             rolldownOptions: {
                 input,
                 output: {
@@ -131,6 +150,8 @@ export default defineConfig(({ mode }) => {
                             includeDependenciesRecursively: false,
                         }],
                     },
+                    // ChatGPT and Claude show the connector page with nothing to fetch: one module, inlined.
+                    ...(mode === "mcp-app" ? { codeSplitting: false } : {}),
                 },
             },
         },
@@ -139,11 +160,17 @@ export default defineConfig(({ mode }) => {
                 { find: /^(?:mike\/|.*\/)shared\/runtime\/(.*)\.mjs$/,
                     replacement: fileURLToPath(new URL("../shared/contracts/$1.mts", import.meta.url)) },
                 { find: "mike/shared", replacement: fileURLToPath(new URL("../shared", import.meta.url)) },
+                // In ChatGPT and Claude the page is another origin's: PDF.js starts its worker from a copy.
+                ...(mode === "mcp-app" ? [{ find: /^\.\/pdfWorkerUrl$/,
+                    replacement: fileURLToPath(new URL("./src/mcpApp/pdfWorkerUrl.ts", import.meta.url)) }, {
+                    find: /^(?:@\/app|\.\.\/\.\.)\/lib\/download$/,
+                    replacement: fileURLToPath(new URL("./src/mcpApp/download.ts", import.meta.url)) }] : []),
                 { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
                 { find: "docx-preview", replacement: fileURLToPath(new URL("./vendor/docx-preview/index.ts", import.meta.url)) },
             ],
         },
         server: {
+            watch: { ignored: ["**/.tmp/**", "**/dist/**"] },
             fs: { allow: [searchForWorkspaceRoot(process.cwd()),
                 realpathSync(new URL("./node_modules", import.meta.url))] },
             proxy: {

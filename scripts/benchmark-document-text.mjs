@@ -17,13 +17,15 @@ const repeats = 8;
 if (process.argv[2] === '--sample') {
   const target = path.resolve(process.argv[3]), format = process.argv[4];
   const home = await mkdtemp(path.join(os.tmpdir(), 'beaver-text-bench-'));
+  let closeRelationalDatabase;
+  try {
   process.env.AUTH_MODE = 'local'; process.env.MIKE_LOCAL_DATA_DIR = home;
   const require = createRequire(path.join(target, 'backend/package.json'));
   require('tsx/cjs');
   const { createDocumentApplication } = require(path.join(target, 'backend/src/lib/documentApplication.ts'));
   const { documentRepository } = require(path.join(target, 'backend/src/lib/relationalDocumentRepository.ts'));
   const { createFilesystemObjectStorage } = require(path.join(target, 'backend/src/lib/storage.ts'));
-  const { closeRelationalDatabase } = require(path.join(target, 'backend/src/lib/relationalDatabase.ts'));
+  ({ closeRelationalDatabase } = require(path.join(target, 'backend/src/lib/relationalDatabase.ts')));
   const { documentProjectionService: projections } = require(path.join(target, 'backend/src/lib/documentProjectionService.ts'));
   const scope = { userId: randomUUID() };
   const objects = createFilesystemObjectStorage(path.join(home, 'objects'));
@@ -31,7 +33,6 @@ if (process.argv[2] === '--sample') {
   let sourceReads = 0, track = false;
   const get = objects.get.bind(objects);
   objects.get = key => { if (track) sourceReads++; return get(key); };
-  try {
     let bytes;
     if (format === 'xlsx') {
       const { utils, write } = require('xlsx'), workbook = utils.book_new();
@@ -67,7 +68,9 @@ if (process.argv[2] === '--sample') {
     console.log(JSON.stringify({ format, repeats, coldMs, repeatedMs, concurrentMs,
       coldSourceReads, repeatedSourceReads, concurrentSourceReads: sourceReads,
       inputBytes: bytes.length, outputBytes: Buffer.byteLength(expected), outputSha256: hash(expected) }));
-  } finally { await closeRelationalDatabase(); await rm(home, { recursive: true, force: true }); }
+  } finally {
+    try { await closeRelationalDatabase?.(); } finally { await rm(home, { recursive: true, force: true }); }
+  }
 } else {
   if (!process.argv[2]) throw new Error('Supply the baseline checkout (with locked backend dependencies installed).');
   const baseline = path.resolve(process.argv[2]), samples = [], summary = [];

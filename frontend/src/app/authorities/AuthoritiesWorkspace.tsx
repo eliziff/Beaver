@@ -1180,7 +1180,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       finally { setOperation(""); }
     });
   };
-  const authorityPanelProps = { authorities, tabs: authorityTabs, groups: authorityGroups, busy, sourceIssues, statuteCopies,
+  const authorityPanelProps = { authorities, tabs: app ? NO_TABS : authorityTabs, groups: authorityGroups, busy, sourceIssues, statuteCopies,
     onAction: act, onEditIdentity: setEditingAuthority,
     onRetrySource: retryPublisherSource,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),
@@ -1822,6 +1822,8 @@ const courtChosen = (value: StartPreferences, profileId: AuthoritiesProfileId): 
   withProfile({ ...value, passageMarking: authoritiesProfile(profileId).defaults.settings.passageMarking }, profileId);
 
 const NO_SOURCE_ISSUES: Record<string, AuthoritiesSourceIssue> = {};
+/** An app without a book gives its sources no tabs. */
+const NO_TABS: ReadonlyMap<string, string> = new Map();
 const pendingKey = (id: string) => `beaver.authorities.pending.${id}`;
 const afterPaint = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
 function missingSources(draft: AuthoritiesProduct,

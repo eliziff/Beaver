@@ -13,7 +13,6 @@ const subscribe = (listener: () => void) => {
 export const useModelCatalog = () =>
     useSyncExternalStore(subscribe, () => catalog ??= readCachedCatalog(), () => null);
 function readCachedCatalog() {
-    if (typeof window === "undefined") return null;
     try {
         const value = JSON.parse(
             window.localStorage.getItem(STORAGE_KEY) ?? "null",
@@ -29,7 +28,7 @@ function readCachedCatalog() {
     }
 }
 function cacheCatalog(value: ModelCatalog) {
-    if (typeof window === "undefined" || !value.models.length) return;
+    if (!value.models.length) return;
     try {
         window.localStorage.setItem(
             STORAGE_KEY,

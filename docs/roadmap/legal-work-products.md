@@ -272,7 +272,7 @@ corpus or all-profile release readiness.
    exhibit corpus and assistant handoff. Preserve the shared TypeScript product;
    do not restart its replacement project or add compatibility routes/old DTOs/
    dual reads/feature flags.
-3. Before release run real ChromeDriver and rendered-PDF inspection for every
+3. Before release run real Playwright and rendered-PDF inspection for every
    profile and reference workflow, with screenshots at desktop/narrow/zoom.
    Required scenarios: restart with handles; moved/deleted/permission-revoked
    Relink; changed file hashes; latest vs pinned versions; original affidavit;

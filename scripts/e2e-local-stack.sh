@@ -1,28 +1,8 @@
 #!/usr/bin/env bash
-# Boot the full local e2e stack and run the Playwright suite.
-#
-# Local-machine mirror of .github/workflows/e2e.yml: starts the Supabase CLI
-# stack (Docker), resets its disposable database, loads backend/schema.sql,
-# points backend/.env at the local stack, then runs
-# `npx playwright test`.
-#
-# Usage, from the repo root:
-#   npm run test:e2e:local            # whole suite
-#   npm run test:e2e:local -- -g "display name"   # extra args go to Playwright
-#
-# With --setup-only the script prepares the stack and exits without running
-# Playwright — playwright.config.ts uses this in the backend webServer command
-# so a plain `npm run test:e2e` also boots against a ready local stack.
-#
-# The first run rewrites the Supabase lines in backend/.env; the previous
-# hosted values are kept once as .env.hosted.bak.
+# Explicit cloud E2E: start/reset disposable Supabase, then run Playwright.
+# npm run test:e2e:cloud [-- PLAYWRIGHT_ARGS]
+# Environment is inherited by the API/fixtures; backend/.env is never rewritten.
 set -euo pipefail
-
-SETUP_ONLY=0
-if [ "${1:-}" = "--setup-only" ]; then
-    SETUP_ONLY=1
-    shift
-fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND="$ROOT/backend"
@@ -53,45 +33,19 @@ npx supabase db reset --no-seed
 psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f schema.sql
 psql "$DB_URL" -v ON_ERROR_STOP=1 -q -c "NOTIFY pgrst, 'reload schema';"
 
-# Rewrite only the Supabase lines of the env files, preserving everything else
-# (API keys, S3 storage, …). Keep a one-time backup of the pre-local versions.
-set_kv() {
-    local file=$1 key=$2 value=$3
-    if grep -q "^${key}=" "$file" 2>/dev/null; then
-        awk -v k="$key" -v v="$value" \
-            'index($0, k"=") == 1 { print k "=" v; next } { print }' \
-            "$file" >"$file.tmp" && mv "$file.tmp" "$file"
-    else
-        echo "${key}=${value}" >>"$file"
-    fi
-}
-
-[ -f .env ] || cp .env.example .env
-[ -f .env.hosted.bak ] || cp .env .env.hosted.bak
-set_kv .env SUPABASE_URL "$API_URL"
-set_kv .env SUPABASE_PUBLISHABLE_KEY "$ANON_KEY"
-set_kv .env SUPABASE_SECRET_KEY "$SERVICE_KEY"
-set_kv .env DATABASE_URL "${DB_URL}?sslmode=disable"
-set_kv .env AUTH_MODE cloud
-# The suite fires well over the backend's default 300-requests/15-min general
-# cap in one run; once tripped every call 429s and profile/list waits time out.
-# Same overrides CI uses — e2e is not testing throttling.
-set_kv .env RATE_LIMIT_GENERAL_MAX 100000
-set_kv .env RATE_LIMIT_AUTH_MAX 100000
-set_kv .env RATE_LIMIT_CHAT_MAX 100000
-set_kv .env RATE_LIMIT_CHAT_CREATE_MAX 100000
-set_kv .env RATE_LIMIT_UPLOAD_MAX 100000
-set_kv .env RATE_LIMIT_EXPORT_MAX 100000
-set_kv .env RATE_LIMIT_DATA_DELETE_MAX 100000
+# Node's backend .env loader does not override inherited environment values.
+export SUPABASE_URL="$API_URL"
+export SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
+export SUPABASE_SECRET_KEY="$SERVICE_KEY"
+export DATABASE_URL="${DB_URL}?sslmode=disable"
+export AUTH_MODE=cloud
+export BEAVER_E2E_MODE=cloud
+# This suite checks application behavior, not request throttling.
+for name in GENERAL AUTH CHAT CHAT_CREATE UPLOAD EXPORT DATA_DELETE; do
+    export "RATE_LIMIT_${name}_MAX=100000"
+done
 
 echo "Local stack ready: $API_URL (db: ${DB_URL%%\?*})"
-
-if [ "$SETUP_ONLY" = "1" ]; then
-    exit 0
-fi
-
-echo "NOTE: kill any backend/frontend dev servers started before this script —"
-echo "they hold the old env. playwright.config.ts starts fresh ones if none run."
 
 cd "$ROOT"
 npx playwright test "$@"

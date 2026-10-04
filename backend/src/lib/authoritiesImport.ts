@@ -161,10 +161,14 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
   });
 }
 
+/** `supraLinking`: "named" links a supra by its note number, or by the short name it writes when that
+ *  names one earlier citation; "aggressive" also links by a cited note holding one source and by a
+ *  predictable short name (the ALR Quote Verifier's aggressive supra linking). */
 async function scanReview(
   imported: AuthoritiesImport,
   bindings: Record<string, WorkProductInput>,
   units: NativeAuthorityTextUnit[],
+  supraLinking: "named" | "aggressive" = "named",
 ): Promise<AuthoritiesFreshReview> {
   const occurrences: Record<string, AuthorityOccurrence> = {};
   const authorities: Record<string, AuthorityIdentity> = {};
@@ -256,7 +260,7 @@ async function scanReview(
   const sourceParts = await enrichStatuteSources(references.map(({ part }) => part), extracted.citations, native);
   const result = native.citationEngineCall("resolve", JSON.stringify({ citations: extracted.citations, notes,
     readingOrder: order, sourceParts,
-    supraHintMode: "aggressive", supraLinkingMode: "named",
+    supraHintMode: "aggressive", supraLinkingMode: supraLinking,
     aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
   })) as ResolveResponse;
   const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
@@ -620,7 +624,7 @@ const withScheme = (link: unknown) => typeof link === "string" && /^[a-z0-9-]+(?
 
 export async function importStandaloneAuthoritiesFile(input: {
   filename: string; fileType: "docx" | "pdf"; bytes: Buffer; modified: number;
-  sourceMode?: AuthoritiesSourceMode;
+  sourceMode?: AuthoritiesSourceMode; supraLinking?: "named" | "aggressive";
 }, projection: ProjectionReader = documentProjectionService,
 native: AuthoritiesNative = structureNative()) {
   const sourceSha256 = sha256(input.bytes);
@@ -659,7 +663,7 @@ native: AuthoritiesNative = structureNative()) {
   if (input.sourceMode) initial = reduceAuthoritiesDraft(initial, { type: "set-settings",
     settings: { sourceMode: input.sourceMode } });
   return reduceAuthoritiesDraft(initial, {
-    type: "refresh", review: await scanReview(imported, bindings, units),
+    type: "refresh", review: await scanReview(imported, bindings, units, input.supraLinking),
   });
 }
 

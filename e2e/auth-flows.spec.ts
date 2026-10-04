@@ -1,15 +1,22 @@
-import { test, expect } from "./fixtures/test";
-import { sharedUser, logoutUser, signIn } from "./fixtures/auth";
+import { test as base, expect } from "./fixtures/test";
+import { createTestUser, signIn } from "./fixtures/auth";
+
+const test = base.extend({
+    e2eUser: async ({}, use) => {
+        const user = await createTestUser();
+        try { await use(user); } finally { await user.remove(); }
+    },
+});
 
 // These cases must not inherit the authenticated storage state.
 test.describe("unauthenticated", () => {
     test.use({ storageState: { cookies: [], origins: [] } });
 
     test("login with invalid credentials shows error message", async ({
-        page,
+        page, e2eUser,
     }) => {
         await signIn(page, {
-            email: "e2e@mike.local", password: "definitely-wrong-password",
+            email: e2eUser.email, password: "definitely-wrong-password",
         });
 
         await page.waitForLoadState("networkidle");
@@ -22,9 +29,9 @@ test.describe("unauthenticated", () => {
     });
 
     test("login with valid credentials redirects to /assistant", async ({
-        page,
+        page, e2eUser,
     }) => {
-        await signIn(page, sharedUser);
+        await signIn(page, e2eUser);
 
         await expect(page).toHaveURL(/\/assistant/, { timeout: 15_000 });
     });
@@ -47,14 +54,14 @@ test.describe("unauthenticated", () => {
     });
 });
 
-// A dedicated user prevents logout from invalidating other tests' shared session.
+// Each test owns its account, so logout cannot invalidate another session.
 test.describe("logout (isolated user)", () => {
     test.use({ storageState: { cookies: [], origins: [] } });
 
     test("logout from account settings redirects to /login", async ({
-        page,
+        page, e2eUser,
     }) => {
-        await signIn(page, logoutUser);
+        await signIn(page, e2eUser);
 
         await page.waitForURL(/\/assistant/, { timeout: 15_000 });
         await page.waitForLoadState("networkidle");

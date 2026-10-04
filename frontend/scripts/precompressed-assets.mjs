@@ -14,10 +14,10 @@ export function precompressedAssets() {
         generateBundle: {
             order: "post",
             async handler(_options, bundle) {
-                await Promise.all(Object.values(bundle).map(async (asset) => {
-                    if (!/^assets\/.*\.(?:m?js|css|svg)$/u.test(asset.fileName)) return;
+                for (const asset of Object.values(bundle)) {
+                    if (!/^assets\/.*\.(?:m?js|css|svg)$/u.test(asset.fileName)) continue;
                     const bytes = Buffer.from(asset.type === "chunk" ? asset.code : asset.source);
-                    if (bytes.length < 1024) return;
+                    if (bytes.length < 1024) continue;
                     const variants = await Promise.all([
                         brotli(bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 5 } }),
                         gz(bytes, { level: 6 }),
@@ -27,7 +27,7 @@ export function precompressedAssets() {
                         this.emitFile({ type: "asset", fileName: `${asset.fileName}.${extension}`,
                             source: variants[index] });
                     }
-                }));
+                }
             },
         },
     };

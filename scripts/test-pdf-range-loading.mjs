@@ -20,12 +20,15 @@ const react = (await import(pathToFileURL(frontendRequire.resolve('@vitejs/plugi
 const output = path.resolve(process.argv[2] || path.join(repo, '.perf/pdf-ranges'));
 await mkdir(output, { recursive: true });
 const temporary = await mkdtemp(path.join(os.tmpdir(), 'beaver-pdf-range-'));
+let server, browser, entry, closeRelationalDatabase;
+const report = { bytes: 0, checks: {}, requests: [], browserErrors: [] };
+try {
 process.env.AUTH_MODE = 'local'; process.env.MIKE_LOCAL_DATA_DIR = temporary;
 const { createDocumentApplication } = require(path.join(repo, 'backend/src/lib/documentApplication.ts'));
 const { documentRepository } = require(path.join(repo, 'backend/src/lib/relationalDocumentRepository.ts'));
 const { createFilesystemObjectStorage } = require(path.join(repo, 'backend/src/lib/storage.ts'));
 const { createDocumentsRouter } = require(path.join(repo, 'backend/src/routes/documentRoutes.ts'));
-const { closeRelationalDatabase } = require(path.join(repo, 'backend/src/lib/relationalDatabase.ts'));
+({ closeRelationalDatabase } = require(path.join(repo, 'backend/src/lib/relationalDatabase.ts')));
 const objects = createFilesystemObjectStorage(path.join(temporary, 'objects'));
 let blobReads = 0;
 const get = objects.get.bind(objects); objects.get = key => { blobReads++; return get(key); };
@@ -47,11 +50,9 @@ for (let n = 1; n <= pages.length; n++) {
 const bytes = Buffer.from(await pdf.save({ useObjectStreams: false }));
 const doc = await documents.create(owner, { filename: 'Range fixture.pdf', fileType: 'pdf', bytes });
 blobReads = 0;
-const entry = await mkdtemp(path.join(frontend, '.pdf-range-'));
+entry = await mkdtemp(path.join(frontend, '.pdf-range-'));
 const dist = path.join(output, 'dist');
-let server, browser;
-const report = { bytes: bytes.length, checks: {}, requests: [], browserErrors: [] };
-try {
+report.bytes = bytes.length;
   await writeFile(path.join(entry, 'index.html'), '<!doctype html><html><body><div id="root"></div><script type="module" src="./main.tsx"></script></body></html>');
   await writeFile(path.join(entry, 'main.tsx'), `
 import { useEffect, useState } from 'react';
@@ -124,9 +125,19 @@ createRoot(document.getElementById('root')).render(<App/>);`);
   console.log(JSON.stringify(report, null, 2));
 } catch (error) { report.failure = error.stack; throw error; }
 finally {
-  await writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
-  await browser?.close();
-  if (server) await new Promise(resolve => server.close(resolve));
-  await closeRelationalDatabase();
-  await rm(entry, { recursive: true, force: true }); await rm(temporary, { recursive: true, force: true });
+  try {
+    await writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
+  } finally {
+    try { await browser?.close(); } finally {
+      try {
+        if (server) await new Promise(resolve => server.close(resolve));
+      } finally {
+        try { await closeRelationalDatabase?.(); } finally {
+          try {
+            if (entry) await rm(entry, { recursive: true, force: true });
+          } finally { await rm(temporary, { recursive: true, force: true }); }
+        }
+      }
+    }
+  }
 }

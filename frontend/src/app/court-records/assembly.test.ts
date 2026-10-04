@@ -1,7 +1,8 @@
-// @vitest-environment jsdom
+// @vitest-environment node
 
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRawStream,
   StandardFonts } from "pdf-lib";
@@ -104,13 +105,14 @@ function profileCover(profile: CourtProfile): CoverValues {
   };
 }
 
+const require = createRequire(import.meta.url);
 beforeAll(async () => {
   const { GlobalWorkerOptions } = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  GlobalWorkerOptions.workerSrc = pathToFileURL(resolve("node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs")).href;
+  GlobalWorkerOptions.workerSrc = pathToFileURL(require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs")).href;
 });
 
 const pdfJsOptions = {
-  standardFontDataUrl: resolve("node_modules/pdfjs-dist/standard_fonts").replaceAll("\\", "/") + "/",
+  standardFontDataUrl: resolve(dirname(require.resolve("pdfjs-dist/package.json")), "standard_fonts").replaceAll("\\", "/") + "/",
 };
 
 async function pdfText(bytes: Uint8Array, pageNumber = 1) {

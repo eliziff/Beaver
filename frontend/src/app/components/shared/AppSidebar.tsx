@@ -1,7 +1,7 @@
 import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
 import { lazy, Suspense, useEffect, useRef, useState,
   type DragEvent } from "react";
-import { BookOpenCheck, BookOpenText, ChevronRight, Files, History, PanelLeft, Settings, SlidersHorizontal, SquarePen, Trash2 } from "lucide-react";
+import { BookOpenCheck, BookOpenText, ChevronRight, Files, History, PanelLeft, Settings, SlidersHorizontal, SquarePen, Trash2, Upload } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
@@ -189,7 +189,7 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
   return (
     <>
       {mobileOpen && (
-        <div className="fixed inset-0 z-[100] bg-gray-950/30 lg:hidden"
+        <div className="fixed inset-0 z-[100] bg-black/30 lg:hidden"
           onClick={onToggle} aria-hidden="true" />
       )}
       <aside
@@ -362,7 +362,10 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
             <History aria-hidden="true" className="h-4 w-4" />
           </Link>
           <button type="button" onClick={() => { setUploadsOpen(true); if (mobileOpen) onToggle(); }}
-            className="h-10 rounded-md px-2 text-xs hover:bg-gray-200/60">Uploads</button>
+            aria-label="Uploads" title="Upload status" aria-haspopup="dialog" aria-expanded={uploadsOpen}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-700 hover:bg-app-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+            <Upload aria-hidden="true" className="h-4 w-4" />
+          </button>
           </div>
         </div>
       </aside>

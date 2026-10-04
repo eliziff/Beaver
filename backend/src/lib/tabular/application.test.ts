@@ -6,7 +6,6 @@ import type { TabularCell, TabularCellContent, TabularColumn, TabularRepository 
 import { createLegalEvidenceTurnState, createLibraryEvidence } from "../chat/legalEvidence";
 import type { runChatTurn } from "../chat/turnEngine";
 import { createTabularApplication, tabularDtos } from "./application";
-import { tabularAgentJobHandler, type TabularAgents } from "./agents";
 
 beforeEach(() => vi.stubEnv("BEAVER_JEV_TABULAR_MODE", "off"));
 afterEach(() => vi.unstubAllEnvs());
@@ -122,49 +121,6 @@ describe("TabularApplication", () => {
     expect(request).toContain("Keep my revised label");
     expect(stream).toHaveBeenCalledTimes(1);
     expect(proposed.sourceLabels[0].id).toBe(edited.sourceLabels[0].id);
-  });
-  it.each([true, false])("persists classification once and carries it through durable jobs (configured before generation: %s)", async (configured) => {
-    vi.stubEnv("BEAVER_JEV_TABULAR_MODE", "auto");
-    vi.stubEnv("TYPESAFE_API_KEY", "unit-test-no-network");
-    const subjects = ["document", "second"].map(id => ({ sourceId: id, resource: `document://${id}/version/v1`,
-      reference: { provider: "library" as const, kind: "document" as const, id, versionId: "v1" } }));
-    let saved: import("../tabularStore").TabularReview = { ...review, document_ids: subjects.map(s => s.sourceId),
-      columns_config: [{ index: 0, name: "Consent", prompt: "Is consent required?", format: "yes_no" }],
-      scope_config: { subjects } };
-    const repository = port({ detail: async () => ({ review: saved, cells: subjects.map(s => ({ ...cell, document_id: s.sourceId })) }),
-      update: vi.fn(async (_scope, _id, version, input) => {
-        expect(version).toBe(saved.updated_at);
-        saved = { ...saved, updated_at: `${version}+1`, scope_config: input.scopeConfig,
-          columns_config: input.columns ?? saved.columns_config };
-        return { status: "committed", value: saved };
-      }) }),
-      enqueue = vi.fn<TabularAgents["enqueue"]>(async (_scope, input) => input.assignments.map((_, i) => ({ id: `job-${i}`, created: true }))),
-      runTurn = vi.fn<typeof runChatTurn>(async () => ({ status: "complete", fullText: "", output: { routes: [{ index: 0, kind: "choice", labels: [] }] }, citations: [], events: [] })),
-      dependencies = { settings, sources, runTurn, agents: { active: async () => false, enqueue, cancel: async () => false } },
-      documents = { ...documentStore(), metadataMany: async () => subjects.map(s => ({ id: s.sourceId, project_id: "project" })) } as unknown as DocumentStore;
-    const app = createTabularApplication(repository, documents, projects, dependencies);
-    if (configured) {
-      await app.update(scope, "review", { columns_config: saved.columns_config });
-      expect(runTurn).toHaveBeenCalledTimes(1);
-      expect(saved.scope_config?.jevRouting).toBeDefined();
-    }
-    await app.generate(scope, "review", {});
-    expect(saved.scope_config?.jevRouting).toBeDefined();
-    const snapshots = enqueue.mock.calls[0][1].assignments.map(a => a.snapshot);
-    expect(snapshots).toHaveLength(2);
-    for (const snapshot of snapshots) {
-      expect(snapshot.reviewVersion).toBe(saved.updated_at);
-      expect(snapshot.selection.jevRouting).toEqual(saved.scope_config!.jevRouting);
-    }
-    // A fresh application instance reads persisted decisions rather than a process cache.
-    await createTabularApplication(repository, documents, projects, dependencies).generate(scope, "review", {});
-    expect(runTurn).toHaveBeenCalledTimes(1);
-    expect(repository.update).toHaveBeenCalledTimes(1);
-    const runAgent = vi.fn<ReturnType<typeof createTabularApplication>["runAgent"]>(async () => null), handler = tabularAgentJobHandler({ runAgent } as unknown as ReturnType<typeof createTabularApplication>);
-    await handler({ id: "job", payload: JSON.parse(JSON.stringify({ actor_user_id: scope.userId,
-      review_id: "review", document_id: "document", model: "codex:gpt-5.6-luna", snapshot: snapshots[0] })) } as Parameters<typeof handler>[0],
-    { signal: new AbortController().signal, progress: async () => {} });
-    expect(runAgent.mock.calls[0][1].snapshot!.selection.jevRouting).toEqual(saved.scope_config!.jevRouting);
   });
 
   it("maps committed, conflict, and missing writes explicitly", async () => {

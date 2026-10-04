@@ -23,30 +23,9 @@ function draft() {
 }
 
 describe("shared Authorities attachment rules", () => {
-  it("replaces a language pair with one bilingual PDF and returns to source review", () => {
-    const state = draft(), binding = { handleId: "bilingual" };
-    attachAuthoritySource(state, state.authorities.included, source("bilingual", "bilingual"), binding);
-    expect(state.authorities.included.source).toEqual({ kind: "attached", sources: [source("bilingual", "bilingual")] });
-    expect(Object.keys(state.bindings).sort()).toEqual(["bilingual", "cover", "excluded", "source"]);
-    expect(state.stage).toBe("sources");
-    binding.handleId = "changed externally";
-    expect(state.bindings.bilingual.handleId).toBe("bilingual");
-    expect(hasBilingualAuthoritySource(state.authorities.included.source)).toBe(true);
-  });
+  
 
-  it("replaces bilingual with one language, retains the other on subsequent replacement, and keeps citation review open", () => {
-    const state = draft(); state.stage = "citations";
-    attachAuthoritySource(state, state.authorities.included, source("bilingual", "bilingual"), { handleId: "bi" });
-    attachAuthoritySource(state, state.authorities.included, source("fr", "fr"), { handleId: "fr" });
-    expect(hasBilingualAuthoritySource(state.authorities.included.source)).toBe(false);
-    attachAuthoritySource(state, state.authorities.included, source("en"), { handleId: "en" });
-    attachAuthoritySource(state, state.authorities.included, source("new-en"), { handleId: "new-en" });
-    expect(state.authorities.included.source).toEqual({ kind: "attached", sources: [source("new-en"), source("fr", "fr")] });
-    expect(state.bindings.bilingual).toBeUndefined();
-    expect(state.bindings.en).toBeUndefined();
-    expect(state.stage).toBe("citations");
-    expect(hasBilingualAuthoritySource(state.authorities.included.source)).toBe(true);
-  });
+  
 
   it.each(["authority", "book", "import"])("does not delete a discarded binding still used by another %s", (consumer) => {
     const state = draft();

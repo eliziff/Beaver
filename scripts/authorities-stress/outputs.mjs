@@ -6,9 +6,10 @@ import { execFileSync, spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
 import { flatOutline } from "../authorities-html-e2e/outputs.mjs";
 
-const pdfjs = path.resolve(import.meta.dirname, "../../frontend/node_modules/pdfjs-dist");
+const pdfjs = path.dirname(createRequire(new URL("../../frontend/package.json", import.meta.url)).resolve("pdfjs-dist/package.json"));
 const pdfjsLib = await import(pathToFileURL(path.join(pdfjs, "legacy/build/pdf.mjs")).href);
 // Text no output may carry: draft stamps, and labels or times the app never asked to print.
 const STAMPS = /\b(?:INCOMPLETE|DO NOT FILE|NOT FOR FILING|DRAFT COPY)\b|Generated (?:by|on)|\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/u;
