@@ -44,15 +44,14 @@ const written = (items: Provision[]) => [...new Set(items.map(({ kind }) => kind
 }).join(", ");
 
 /** What of the statute goes in the book, said as a sentence. */
-function line(excerpt: boolean | undefined, provisions: Provision[], titles: number, pageCount?: number,
+function line(excerpt: boolean | undefined, provisions: Provision[], pageCount?: number,
   summaries?: StatuteExcerptSummary[]) {
   const counted = (count?: number) => count ? ` (${pages(count)})` : "";
   const whole = (why = "") => `${why}Includes the whole statute${counted(pageCount)}.`;
   if (excerpt === undefined) return "";
   if (!excerpt) return whole();
   if (!provisions.length) return whole("No section is cited. ");
-  const excerpted = (items: Provision[], count?: number) =>
-    `Includes the title page${titles > 1 ? "s" : ""} and ${written(items)}${counted(count)}.`;
+  const excerpted = (items: Provision[], count?: number) => `Includes ${written(items)}${counted(count)}.`;
   if (!summaries) return excerpted(provisions);
   const placed = new Set(summaries.flatMap(({ placed }) => placed));
   const found = provisions.filter((item) => placed.has(keyOf(item)));
@@ -61,7 +60,7 @@ function line(excerpt: boolean | undefined, provisions: Provision[], titles: num
   if (!missing.length) return excerpted(found, kept);
   // What the PDF does not place goes in rebuilt from the statute's text.
   const rebuilt = `${written(missing)}, rebuilt from the A2AJ text`;
-  return `Includes the title page${titles > 1 ? "s" : ""}${found.length ? `, ${written(found)}` : ""}${counted(kept)} and ${rebuilt}.`;
+  return `Includes ${found.length ? `${written(found)}${counted(kept)} and ` : ""}${rebuilt}.`;
 }
 
 async function pageCount(file: Blob) {
@@ -120,7 +119,7 @@ export function useStatuteCopies(host: AuthoritiesHost, product: AuthoritiesProd
             !["running", "paused"].includes(tracked[bindingRole]?.state ?? "")) wanted.push({ kind: "summary", key, role: bindingRole });
         return value && typeof value === "object" ? value : undefined;
       });
-      rows.set(id, { choosable: true, excerpt, line: line(excerpt, provisions, sources.length,
+      rows.set(id, { choosable: true, excerpt, line: line(excerpt, provisions,
         counts.includes(undefined) ? undefined : counts.reduce<number>((sum, count) => sum + count!, 0),
         summaries.includes(undefined) ? undefined : summaries as StatuteExcerptSummary[]) });
     }

@@ -139,11 +139,13 @@ function authorityCitation(draft, authority) {
     if (same && !/[\p{L}\p{N}]/u.test(text[at] ?? "")) lead = text.slice(0, at);
   }
   if (!lead && name && !lower(text).includes(lower(name))) { text = `${name}, ${text}`; lead = name; }
+  const cited = text.length;
   for (const form of [...rest.map(({ coreSpan }) => coreSpan.text), citation,
     ...authority.sourceIdentity?.citationForms ?? []].map(line))
     if (form && !lower(text).includes(lower(form)) && !(lead && lower(form).includes(lower(lead)))) text += `, ${form}`;
   const led = text.startsWith(lead) ? lead.length : 0;
-  return { text, italic: ["case", "legislation"].includes(authority.kind) ? led : 0, lead: led };
+  // `cited` ends the citation as the brief writes it, before the other citations of it.
+  return { text, italic: ["case", "legislation"].includes(authority.kind) ? led : 0, lead: led, cited };
 }
 
 export { authorityCitation, authorityGrouping, authorityProcedureInput, currentTabReference, deriveAuthorityProcedure, tabLabel, tabReference };

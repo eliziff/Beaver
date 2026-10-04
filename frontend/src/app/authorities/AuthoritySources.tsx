@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2, FileX2, LockKeyhole,
-  FolderInput, FolderSearch, Loader2, Pencil, Plus, RotateCw, ScrollText, Square, Upload } from "lucide-react";
+  ChevronDown, FolderInput, FolderSearch, Loader2, Pencil, Plus, RotateCw, ScrollText, SlidersHorizontal, Square, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
-import { Button, buttonClassName } from "@/app/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import { FileInputButton } from "./FileInputButton";
@@ -16,13 +16,12 @@ import type { AuthoritiesBookSlot, AuthoritiesSourceIssue } from "./host";
 import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
 import type { StatuteCopy } from "./statuteExcerpts";
-import { authoritiesProfile } from "./profiles";
 import canliiLogo from "./canlii.ico";
 
 const control = "h-8 shrink-0 border-gray-300 px-2.5 text-[0.8125rem]";
 /** A row's action: quiet, as the citation bar's, one width and icon size wherever a list of sources
  *  or book parts shows them, an icon alone where the list (a `@container/sources`) is narrow. */
-export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-50 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[6.5rem] @min-[44rem]/sources:px-2.5";
+export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-50 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2";
 export const rowLabel = "hidden @min-[44rem]/sources:inline";
 type LookupFailure = NonNullable<AuthorityIdentity["sourceLookupFailure"]>;
 const lookupReason = ({ reason, detail }: LookupFailure) => ({
@@ -62,7 +61,7 @@ type PanelProps = AuthorityPanelProps & {
   ocr?: SourceOcrPanel;
   /** Any other PDF in the book, each under a tab of its own after the authorities: listed with them,
    *  and added here where the authorities come from a brief. */
-  others?: BookFiles & { parts: Array<{ part: AuthoritiesBookSupplement; tab: string }>; addable: boolean };
+  others?: BookFiles & { parts: Array<{ part: AuthoritiesBookSupplement; tab: string }> };
   /** The import's choices about sources, shown above the list. */
   settings?: ReactNode;
 };
@@ -74,11 +73,9 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
   ocr, statuteCopies, groups, others, settings }: PanelProps) {
-  const [tabSettings, setTabSettings] = useState(false);
-  const profile = authoritiesProfile(state.settings.profileId), shown = authorities.map(({ id }) => id);
+  const [tabSettings, setTabSettings] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
+  const shown = authorities.map(({ id }) => id);
   const headed = authorities.some(({ id }) => groups?.get(id) && groups.get(id) !== "Authorities");
-  const otherInput = useRef<HTMLInputElement>(null);
-  const addOther = () => { if (others?.onPick) others.onPick("supplemental", true); else otherInput.current?.click(); };
   return <><section className="@container/sources mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
       onDragOver={(event) => { if (!busy && onFiles && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
@@ -87,11 +84,11 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      {/* The settings, closed under one bar; then the list's own actions and the list. */}
-      <div className="grid gap-3">
-        {settings}
-      </div>
-      <div className="mb-3 mt-3 flex flex-wrap items-center justify-end gap-2">
+      {/* The list's actions in one row, Settings first; its choices open under the row. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {settings && <Button type="button" variant="outline" aria-expanded={settingsOpen} className={cn(control,
+          settingsOpen && "border-red-600 bg-red-50 text-red-800 hover:bg-red-50")} onClick={() => setSettingsOpen((open) => !open)}>
+          <SlidersHorizontal /> Source settings <ChevronDown className={cn("transition-transform motion-reduce:transition-none", settingsOpen && "rotate-180")} /></Button>}
         {onWatchFolder && <Button type="button" variant="outline" className={control}
           disabled={busy && !watchedFolder} onClick={onWatchFolder}
           title={watchedFolder ? "Stop watching this folder"
@@ -107,6 +104,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
         {onLibraryAdd && <Button type="button" variant="outline" className={control} disabled={busy}
           onClick={onLibraryAdd}><FolderSearch /> {sourceLabel}</Button>}
       </div>
+      {settings && settingsOpen && <div className="mb-3 rounded-lg border border-gray-300 bg-gray-50 p-3">{settings}</div>}
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
       {/* A list with statutes keeps room for their Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
@@ -133,23 +131,9 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
         {others?.parts.map(({ part, tab }) => <OtherPdfRow key={part.id} part={part} tab={tab} busy={busy}
           issue={sourceIssues[part.bindingRole]} files={others} sourceLabel={sourceLabel}
           onAction={onAction} onRelink={onRelink} onOpen={onOpenSource} />)}
-        {!authorities.length && !others?.parts.length && <p className="col-span-full px-4 py-8 text-center text-sm text-gray-500">Add authorities to begin.</p>}
+        {!authorities.length && !others?.parts.length && <p className="col-span-full px-4 py-8 text-center text-sm text-gray-500">Add sources to begin.</p>}
       </div>
-      <div className="mt-2 flex flex-wrap gap-1">
-        <Button type="button" variant="ghost" className="h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
-        {others?.addable && (others.onLibrary
-          ? <ActionMenu label="Add PDF" triggerClassName={cn(buttonClassName({ variant: "ghost" }), "h-9")}
-              items={[{ label: "Upload from computer", disabled: busy, onSelect: addOther },
-                { label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: () => others.onLibrary!("supplemental") }]}>
-              <Plus /> Add PDF</ActionMenu>
-          : <Button type="button" variant="ghost" className="h-9" disabled={busy} onClick={addOther}
-              title="Add any PDF to the book, under a tab of its own"><Plus /> Add PDF</Button>)}
-        {others?.addable && <input ref={otherInput} className="sr-only" tabIndex={-1} type="file" multiple accept=".pdf,application/pdf"
-          disabled={busy} aria-label="Add PDF to the book" onChange={(event) => {
-            const files = Array.from(event.target.files ?? []); event.target.value = "";
-            if (files.length) others.onFiles("supplemental", files);
-          }} />}
-      </div>
+      <Button type="button" variant="outline" className={cn(control, "mt-3")} disabled={busy} onClick={onAdd}><Plus /> Add source</Button>
     </div>
   </section>
   {tabSettings && <TabFormatModal settings={state.settings} busy={busy} onClose={() => setTabSettings(false)}

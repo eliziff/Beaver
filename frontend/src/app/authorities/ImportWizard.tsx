@@ -1,16 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { Button } from "@/app/components/ui/button";
-import { cn, errorMessage } from "@/app/lib/utils";
-import type { PdfAnnotation } from "../../../../shared/pdf-annotations.mjs";
+import { cn } from "@/app/lib/utils";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import { courtCover } from "../../../../shared/authorities-cover.mjs";
 import { OptionCards, type CardOption } from "./OptionCards";
 import { authoritiesProfile } from "./profiles";
 import { MarkingSample, passageOptions } from "./AuthoritiesHighlightEditor";
-import { authorityName } from "./authorityPresentation";
-import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, PagePreview, Preview, savedCover,
+import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, Preview, savedCover,
   useFilingContact, type Settings } from "./BookFront";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesProduct,
@@ -44,20 +42,14 @@ export const ORDER_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["t
 ];
 type SourceSettings = Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy" | "grouping" | "tableOrder">;
 /** The sources' settings as cards, two columns: the same at import and, opened, at Sources. */
-export function SourceChoices({ settings, profileId, sources = true, recognition = true, disabled, imported = false, onChange }: {
+export function SourceChoices({ settings, profileId, sources = true, recognition = true, disabled, onChange }: {
   settings: SourceSettings; profileId: AuthoritiesProfileId; sources?: boolean; recognition?: boolean; disabled?: boolean;
-  /** Sources are already gathered, so each choice says what changing it does to them. */
-  imported?: boolean;
   onChange: (patch: Partial<SourceSettings>) => void;
 }) {
   const locked = authoritiesProfile(profileId).locked?.settings;
   return <div className="grid content-start gap-5 lg:grid-cols-2">
-    {sources && <div className="grid content-start gap-2">
-      <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={disabled}
-        onChange={(sourceMode) => onChange({ sourceMode })} />
-      {imported && <p className="text-xs leading-4 text-gray-600">Note: Changing this removes the PDFs the app found and
-        finds them again for the new choice. PDFs you uploaded stay.</p>}
-    </div>}
+    {sources && <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={disabled}
+      onChange={(sourceMode) => onChange({ sourceMode })} />}
     {sources && recognition && <div className="grid content-start gap-2">
       <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}
         disabled={disabled} onChange={(scannedPdfPolicy) => onChange({ scannedPdfPolicy })} />
@@ -68,13 +60,6 @@ export function SourceChoices({ settings, profileId, sources = true, recognition
       options={settings.tableOrder === "custom" ? ORDER_OPTIONS : ORDER_OPTIONS.filter(({ value }) => value !== "custom")}
       onChange={(tableOrder) => onChange({ tableOrder })} />
   </div>;
-}
-/** The same choices named in a line, for the closed bar at Sources. */
-export function sourceChoiceSummary(settings: SourceSettings, sources: boolean, recognition: boolean) {
-  const name = <T extends string>(options: ReadonlyArray<CardOption<T>>, value?: T) => options.find((option) => option.value === value)?.label;
-  return [sources && SHORT[settings.sourceMode], sources && recognition && SHORT[settings.scannedPdfPolicy],
-    name(GROUP_OPTIONS, settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")),
-    name(ORDER_OPTIONS, settings.tableOrder)].filter(Boolean).join(" · ");
 }
 
 /** The source and scan choices named in a word or two, for a setting shown as segments. */

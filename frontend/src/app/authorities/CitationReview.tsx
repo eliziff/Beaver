@@ -711,15 +711,17 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
           title="Not a citation (Delete). Ctrl+Z puts it back">Remove</button>
       </div>
       {/* Every citation shows its authority; only a supra, ibid or short form can be pointed at another. */}
-      <span id="citation-refers" className="citation-label" data-row="1">{reference ? 'Refers to' : 'Authority'}</span>
+      <span id="citation-refers" className="citation-label" data-row="1">{reference ? 'Refers to' : 'Source'}</span>
       <AuthorityPicker options={options} current={linked} currentLabel={linked && authorityCitationText(product.state, linked)}
         busy={busy || !reference || !referenceKind} onPick={link} />
-      {/* What the quote check found for this citation, opening the brief's words beside the source's. */}
+      {/* What the quote check found for this citation: lit when there is something, opening the brief's
+          words beside the source's. */}
       <button type="button" className="citation-quote" disabled={!finding}
-        title={finding ? 'Open the brief’s words beside the source’s' : 'The quote check found nothing to look at in this citation'}
-        onClick={() => finding && onReview(finding.id)}><TextQuote aria-hidden="true" /><span>{!finding ? 'No quote issue'
-          : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong' : finding.kind === 'quote_unlocated' ? 'Quote not found in source'
-          : 'Quote differs from source'}</span></button>
+        aria-label={!finding ? 'No quote issue' : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong'
+          : finding.kind === 'quote_unlocated' ? 'Quote not found in source' : 'Quote differs from source'}
+        title={!finding ? 'No quote issue' : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong: open it'
+          : finding.kind === 'quote_unlocated' ? 'Quote not found in source: open it' : 'Quote differs from source: open it'}
+        onClick={() => finding && onReview(finding.id)}><TextQuote aria-hidden="true" /></button>
       <span className="citation-label" data-row="2" aria-hidden="true">Pinpoints</span>
       <PinpointChips occurrence={selected} unitText={unit.text} adding={!!pinTarget()}
         onSet={pinpoints => submit({ type: 'set-pinpoints', occurrenceId: selected.id, pinpoints })} onAdd={() => addPinpoint()} />
