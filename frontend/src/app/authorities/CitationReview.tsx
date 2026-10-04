@@ -63,15 +63,12 @@ function remarked(before: string, after: string) {
 /** An outline row: the citation as it reads in the article, with a quotation finding marked in its
  * padding. The review marks the selected row itself, so choosing another re-renders no row, and a
  * saved draft re-renders only the rows whose text it changed. */
-const Row = memo(function Row({ row, finding, italic, end }: { row: AuthorityOccurrence; finding: boolean;
+const Row = memo(function Row({ row, finding, italic }: { row: AuthorityOccurrence; finding: boolean;
   /** The style of cause or title in the citation as the brief writes it, set in italics. */
-  italic?: readonly [number, number];
-  /** The last citation of its paragraph or footnote: its rule is the stronger one. */
-  end?: boolean }) {
-  return <button type="button" role="option" data-id={row.id} aria-selected="false" tabIndex={-1} title={row.text}
-    data-unit-end={end || undefined}>
+  italic?: readonly [number, number] }) {
+  return <button type="button" role="option" data-id={row.id} aria-selected="false" tabIndex={-1} title={row.text}>
     <span><CitationText text={row.text} italic={italic} /></span>{finding && <i className="citation-finding" role="img" aria-label="Quotation to review" />}</button>;
-}, (a, b) => a.finding === b.finding && a.end === b.end && a.row.id === b.row.id && a.row.text === b.row.text &&
+}, (a, b) => a.finding === b.finding && a.row.id === b.row.id && a.row.text === b.row.text &&
   a.italic?.[0] === b.italic?.[0] && a.italic?.[1] === b.italic?.[1]);
 /** Where a citation's style of cause or title runs in the text the brief gives it: from where its span
  *  begins to where its core citation starts, as the shared formatter reads its lead. Cases and statutes only. */
@@ -92,16 +89,22 @@ const Outline = memo(function Outline({ product, occurrences, findings, busy, on
   const body = occurrences.filter(row => kinds.get(row.unitId) === 'body');
   const notes = units.filter(unit => unit.kind === 'footnote' && unit.occurrenceIds.some(id => byId[id]));
   const dismissed = Object.values(product.state.dismissedOccurrences ?? {}), labels = noteLabels(units);
-  const row = (item: AuthorityOccurrence, at: number, list: AuthorityOccurrence[]) => <Row key={item.id} row={item}
-    finding={findings.has(item.id)} italic={italicSpan(item, product.state.authorities[item.authorityId ?? '']?.kind)}
-    end={list[at + 1]?.unitId !== item.unitId} />;
+  const row = (item: AuthorityOccurrence) => <Row key={item.id} row={item}
+    finding={findings.has(item.id)} italic={italicSpan(item, product.state.authorities[item.authorityId ?? '']?.kind)} />;
+  // Each paragraph's citations, in reading order, as one group.
+  const paragraphs: AuthorityOccurrence[][] = [];
+  for (const item of body) {
+    const last = paragraphs.at(-1);
+    if (last?.[0].unitId === item.unitId) last.push(item); else paragraphs.push([item]);
+  }
   return <>
     {!!body.length && <div role="group" aria-labelledby="citation-body-heading">
-      <h3 id="citation-body-heading">In-text</h3>{body.map(row)}</div>}
+      <h3 id="citation-body-heading">In-text</h3>{paragraphs.map((rows) =>
+        <div key={rows[0].unitId} className="citation-group" role="group" aria-label="Paragraph"><div>{rows.map(row)}</div></div>)}</div>}
     {!!notes.length && <div role="group" aria-labelledby="citation-notes-heading">
       <h3 id="citation-notes-heading">Footnotes</h3>{notes.map(note => {
         const label = labels.get(note.id);
-        return <div key={note.id} className="citation-note" role="group" aria-label={`Footnote ${label}`}>
+        return <div key={note.id} className="citation-note citation-group" role="group" aria-label={`Footnote ${label}`}>
           <span className="citation-note-number" aria-hidden="true">{label}</span>
           <div>{note.occurrenceIds.map(id => byId[id]).filter(Boolean).map(row)}</div>
         </div>;
