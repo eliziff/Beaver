@@ -44,16 +44,24 @@ export const ORDER_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["t
 ];
 type SourceSettings = Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy" | "grouping" | "tableOrder">;
 /** The sources' settings as cards, two columns: the same at import and, opened, at Sources. */
-export function SourceChoices({ settings, profileId, sources = true, recognition = true, disabled, onChange }: {
+export function SourceChoices({ settings, profileId, sources = true, recognition = true, disabled, imported = false, onChange }: {
   settings: SourceSettings; profileId: AuthoritiesProfileId; sources?: boolean; recognition?: boolean; disabled?: boolean;
+  /** Sources are already gathered, so each choice says what changing it does to them. */
+  imported?: boolean;
   onChange: (patch: Partial<SourceSettings>) => void;
 }) {
   const locked = authoritiesProfile(profileId).locked?.settings;
   return <div className="grid content-start gap-5 lg:grid-cols-2">
-    {sources && <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={disabled}
-      onChange={(sourceMode) => onChange({ sourceMode })} />}
-    {sources && recognition && <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}
-      disabled={disabled} onChange={(scannedPdfPolicy) => onChange({ scannedPdfPolicy })} />}
+    {sources && <div className="grid content-start gap-2">
+      <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={disabled}
+        onChange={(sourceMode) => onChange({ sourceMode })} />
+      {imported && <p className="text-xs leading-4 text-gray-600">Note: Changing this removes the PDFs the app found and
+        finds them again for the new choice. PDFs you uploaded stay.</p>}
+    </div>}
+    {sources && recognition && <div className="grid content-start gap-2">
+      <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}
+        disabled={disabled} onChange={(scannedPdfPolicy) => onChange({ scannedPdfPolicy })} />
+    </div>}
     <OptionCards legend="Groups" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
       options={GROUP_OPTIONS} disabled={disabled || !!locked?.grouping} onChange={(grouping) => onChange({ grouping })} />
     <OptionCards legend="Order" value={settings.tableOrder} disabled={disabled || !!locked?.tableOrder}
