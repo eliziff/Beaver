@@ -13,6 +13,7 @@ import type { AuthoritiesHost } from "./host";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import type { AuthoritiesAction, AuthoritiesCover, AuthoritiesDraft, AuthoritiesProduct, AuthoritiesProfileId } from "./types";
 import previewState from "./previewBook.json";
+import { courtChange, courtState } from "./courtChange";
 
 export type Settings = AuthoritiesProduct["state"]["settings"];
 /** The settings the cover and the index are drawn from. */
@@ -280,31 +281,62 @@ export function Preview({ label, className, children }: { label: string; classNa
   </section>;
 }
 
-/** The cover and the index at Build: the same choices as at import, the book's front beside them. */
-export function BookFrontModal({ host, draft, busy, onClose, onActions }: {
-  host: AuthoritiesHost; draft: AuthoritiesProduct; busy: boolean; onClose: () => void;
-  onActions: (actions: AuthoritiesAction[]) => void;
+/** The steps as the workspace's own tabs: one fixed line, so nothing under it moves. */
+export function StepTabs({ steps, at, disabled, onStep }: {
+  steps: readonly string[]; at: number; disabled?: boolean; onStep: (index: number) => void;
 }) {
-  const { profileId } = draft.state.settings;
-  const [cover, setCover] = useState(draft.state.cover);
+  return <ol aria-label="Steps" className="mb-4 grid h-9 shrink-0 auto-cols-fr grid-flow-col border-b border-gray-200 text-sm">
+    {steps.map((label, index) => <li key={label} className="min-w-0">
+      <button type="button" aria-current={index === at ? "step" : undefined} disabled={disabled} onClick={() => onStep(index)}
+        className="-mb-px h-full w-full truncate border-b-2 border-transparent px-2 font-medium text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 aria-[current=step]:border-red-700 aria-[current=step]:text-gray-950">
+        {label}</button></li>)}
+  </ol>;
+}
+
+export const FRONT_STEPS = ["Cover", "Index"] as const;
+/** The court, the cover and the index at Build: the import's own Cover and Index steps, the book's front
+ *  beside them, saved together. The footer says what a new court changes. */
+export function BookFrontModal({ host, draft, busy, step: first, jurisdictionOrder, onClose, onActions }: {
+  host: AuthoritiesHost; draft: AuthoritiesProduct; busy: boolean; step: typeof FRONT_STEPS[number];
+  jurisdictionOrder: string[]; onClose: () => void; onActions: (actions: AuthoritiesAction[]) => void;
+}) {
+  const before = draft.state, manual = before.import.kind === "manual";
+  const [at, setAt] = useState<number>(FRONT_STEPS.indexOf(first));
+  const [profileId, setProfileId] = useState(before.settings.profileId);
+  const [edited, setEdited] = useState<AuthoritiesCover>();
   const [settings, setSettings] = useState<Partial<Settings>>({});
-  useFilingContact(host, draft.state.cover, profileId, setCover);
-  const shown = { ...draft.state.settings, ...settings };
-  const actions = frontActions(draft.state, cover, settings);
-  return <Modal open onClose={onClose} breadcrumbs={["Cover and index"]} size="2xl"
-    className="h-[min(52rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
+  // The draft as the court chosen here leaves it, then the cover and settings changed here.
+  const court = courtState(before, profileId);
+  const cover = edited ?? court.cover;
+  useFilingContact(host, cover, profileId, (change) => setEdited((current) => change(current ?? courtState(before, profileId).cover)));
+  const shown = { ...court.settings, ...settings };
+  const actions: AuthoritiesAction[] = [...profileId === before.settings.profileId ? [] : [{ type: "set-profile", profileId } as const],
+    ...frontActions(court, cover, settings)];
+  const front = previewBook(host, draft);
+  const preview = front ? previewActions(front.state, profileId, shown, cover, FRONT_KEYS) : [];
+  const save = () => {
+    onActions(actions); onClose();
+    if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover).contact!)
+      .catch(() => undefined);
+  };
+  const step = FRONT_STEPS[at];
+  return <Modal open onClose={onClose} breadcrumbs={["Book"]} size="2xl"
+    className="h-[min(54rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
+    footerStatus={<p role="status" className="mr-auto min-w-0 flex-1 text-sm text-gray-700">
+      {profileId === before.settings.profileId ? "" : courtChange(before, court)}</p>}
     secondaryAction={{ label: "Cancel", onClick: onClose }}
-    primaryAction={{ label: "Save", disabled: busy, onClick: () => {
-      onActions(actions); onClose();
-      if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover).contact!)
-        .catch(() => undefined);
-    } }}>
-    <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={actions} page={1} label="Cover" />}>
-      <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setCover}
+    primaryAction={{ label: "Save", disabled: busy || !actions.length, onClick: save }}>
+    <StepTabs steps={FRONT_STEPS} at={at} disabled={busy} onStep={setAt} />
+    {step === "Cover" ? <FrontLayout preview={<FrontPreview host={host} draft={front} actions={preview} page={1} label="Cover" />}>
+      <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setEdited}
+        court={<AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} bookOnly={manual}
+          onChange={(next) => { setProfileId(next); setSettings({}); }} />}
         onSettings={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+    </FrontLayout>
+    : <FrontLayout preview={<FrontPreview host={host} draft={front} actions={preview} page={2} label="First page of the index" />}>
       <IndexFields settings={shown} profileId={profileId} disabled={busy}
         onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
-    </FrontLayout>
+    </FrontLayout>}
   </Modal>;
 }
 

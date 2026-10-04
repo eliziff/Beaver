@@ -8,7 +8,7 @@ import { OptionCards, type CardOption } from "./OptionCards";
 import { authoritiesProfile } from "./profiles";
 import { MarkingSample, passageOptions } from "./AuthoritiesHighlightEditor";
 import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, Preview, previewActions,
-  previewBook, useFilingContact, type Settings } from "./BookFront";
+  previewBook, StepTabs, useFilingContact, type Settings } from "./BookFront";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesProduct,
   AuthoritiesProfileId } from "./types";
@@ -145,13 +145,7 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
     </div>}
     // Next on every step; the last imports.
     primaryAction={{ label: <>Next <ChevronRight /></>, disabled: busy || last && !!error, onClick: last ? finish : () => setStep(at + 1) }}>
-    {/* The steps as the workspace's own tabs: one fixed line, so nothing under it moves. */}
-    <ol aria-label="Import steps" className="mb-4 grid h-9 shrink-0 auto-cols-fr grid-flow-col border-b border-gray-200 text-sm">
-      {steps.map((label, index) => <li key={label} className="min-w-0">
-        <button type="button" aria-current={index === at ? "step" : undefined} disabled={busy} onClick={() => setStep(index)}
-          className="-mb-px h-full w-full truncate border-b-2 border-transparent px-2 font-medium text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 aria-[current=step]:border-red-700 aria-[current=step]:text-gray-950">
-          {label}</button></li>)}
-    </ol>
+    <StepTabs steps={steps} at={at} disabled={busy} onStep={setStep} />
     {name === "Cover" ? <FrontLayout preview={<FrontPreview host={host} draft={front} actions={frontActions} page={1} label="Cover" />}>
       <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy} court={courtField}
         onCover={(next) => setCover(next)} onSettings={choose} />
