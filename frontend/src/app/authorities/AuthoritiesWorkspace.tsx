@@ -52,7 +52,7 @@ import { useStatuteCopies } from "./statuteExcerpts";
 type WorkspaceTab = "automatic" | "manual" | "drafts";
 type StartPreferences = Remembered;
 /** A brief being imported: read, and its sources found, while the import's choices are made. */
-type PendingImport = { title: string; finishing: boolean; error: string };
+type PendingImport = { file: string; finishing: boolean; error: string };
 const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
   { value: "automatic", label: "Automatic" }, { value: "manual", label: "Manual" },
   { value: "drafts", label: "Drafts" },
@@ -636,7 +636,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   function startImport(source: NonNullable<Parameters<AuthoritiesHost["create"]>[0]["source"]>, name: string) {
     setLibraryTarget(undefined); setError(""); setMessage("");
     const request = ++importRequest.current, title = name.replace(/\.[^.]+$/u, "") || "Authorities";
-    setPendingImport({ title, finishing: false, error: "" });
+    setPendingImport({ file: name, finishing: false, error: "" });
     staged.current = host.create({ source, title, projectId, settings: preferences }).then((next) => {
       if (request !== importRequest.current) { void host.drafts.remove(next.id).catch(() => undefined); return undefined; }
       adopt(next, true); return next;
@@ -1253,7 +1253,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         breadcrumbs={["Settings"]} fit primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
         <div className="pb-4"><OutputFolderSetting port={host.outputFolder} busy={busy} /></div>
       </Modal>}
-      {pendingImport && <ImportWizard key={importRequest.current} title={pendingImport.title} host={host}
+      {pendingImport && <ImportWizard key={importRequest.current} file={pendingImport.file} host={host}
         draft={draft} remembered={preferences} jurisdictionOrder={jurisdictionOrder}
         recognitionAvailable={host.recognitionAvailable !== false} finishing={pendingImport.finishing}
         error={pendingImport.error} onCancel={cancelImport} onFinish={finishImport} />}

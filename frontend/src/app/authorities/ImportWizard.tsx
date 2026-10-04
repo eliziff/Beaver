@@ -1,15 +1,14 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Loader2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
-import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import { courtCover } from "../../../../shared/authorities-cover.mjs";
 import { OptionCards, type CardOption } from "./OptionCards";
 import { authoritiesProfile } from "./profiles";
 import { MarkingSample, passageOptions } from "./AuthoritiesHighlightEditor";
-import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, Preview, savedCover,
-  useFilingContact, type Settings } from "./BookFront";
+import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, Preview, previewActions,
+  previewBook, useFilingContact, type Settings } from "./BookFront";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesProduct,
   AuthoritiesProfileId } from "./types";
@@ -89,20 +88,14 @@ function wizardSettings(profileId: AuthoritiesProfileId, chosen: Partial<Setting
 }
 /** What finishing makes of the draft read from the brief: its court, then every choice here, then the
  *  cover as the form shows it, so the book says what the form and the preview say. */
-function importActions(state: AuthoritiesProduct["state"], profileId: AuthoritiesProfileId, settings: Settings,
-  cover: AuthoritiesCover, keys: readonly (keyof Settings)[]): AuthoritiesAction[] {
-  const chosen = Object.fromEntries(keys.flatMap((key) => settings[key] === undefined ? [] : [[key, settings[key]]]));
-  const saved = savedCover(cover);
-  return [...profileId === state.settings.profileId ? [] : [{ type: "set-profile", profileId } as const],
-    { type: "set-settings", settings: chosen },
-    ...canonicalJson(saved) === canonicalJson(state.cover) ? [] : [{ type: "set-cover", cover: saved } as const]];
-}
+const importActions = previewActions;
 
 /** The import: the court and the front of the book, then the sources, then the marking, each beside a
  *  preview of what it makes. The brief is read, and its sources found, while these are chosen. */
-export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder, recognitionAvailable, finishing,
+export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder, recognitionAvailable, finishing,
   error, onCancel, onFinish }: {
-  title?: string; host: AuthoritiesHost; draft?: AuthoritiesProduct; remembered: Remembered;
+  /** The brief's file name. */
+  file?: string; host: AuthoritiesHost; draft?: AuthoritiesProduct; remembered: Remembered;
   jurisdictionOrder: string[]; recognitionAvailable: boolean;
   /** The finish was asked for and waits for the brief to be read. */
   finishing: boolean; error: string;
@@ -127,15 +120,20 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
   const finish = () => onFinish((state) => importActions(state, profileId, settings, shownCover, WIZARD_KEYS),
     { profileId, sourceMode: settings.sourceMode, passageMarking: settings.passageMarking });
   const busy = finishing;
-  const frontActions = draft ? importActions(draft.state, profileId, settings, shownCover, FRONT_KEYS) : [];
+  const front = previewBook(host, draft);
+  const frontActions = front ? importActions(front.state, profileId, settings, shownCover, FRONT_KEYS) : [];
   const steps: readonly string[] = book ? BOOK_STEPS : TABLE_STEPS, at = Math.min(step, steps.length - 1), name = steps[at];
   const last = at === steps.length - 1;
-  // The court, its own section above the cover (or above the sources, where the court takes no book).
+  // The court is the cover's first field (above the sources, where the court takes no book).
+  const courtField = <AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} onChange={setProfileId} />;
   const court = <section aria-label="Court" className="grid max-w-md gap-1.5">
-    <AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} onChange={setProfileId} />
-    {!book && <p className="text-sm text-gray-600">This court takes a Table of Authorities, not a book.</p>}
+    {courtField}
+    <p className="text-sm text-gray-600">This court takes a Table of Authorities, not a book.</p>
   </section>;
-  return <Modal open onClose={onCancel} size="2xl" breadcrumbs={title ? ["Import", <span key="title" className="font-normal text-gray-600">{title}</span>] : ["Import"]}
+  // The brief named by its file, quietly, beside the title.
+  const brief = file && <span title={file} className="inline-flex min-w-0 max-w-[min(34rem,60vw)] items-center gap-1.5 rounded-md border border-gray-300 bg-gray-50 px-2 py-0.5 text-sm font-normal leading-5 text-gray-700">
+    <FileText aria-hidden="true" className="size-3.5 shrink-0 text-gray-500" /><span className="truncate">{file}</span></span>;
+  return <Modal open onClose={onCancel} size="2xl" breadcrumbs={[<span key="title" className="flex min-w-0 items-center gap-3">Import{brief}</span>]}
     className="h-[min(54rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
     footerStatus={<div className="mr-auto flex min-w-0 items-center gap-3">
       <Button type="button" variant="outline" className={cn("border-gray-400", !at && "invisible")}
@@ -154,12 +152,11 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
           className="-mb-px h-full w-full truncate border-b-2 border-transparent px-2 font-medium text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 aria-[current=step]:border-red-700 aria-[current=step]:text-gray-950">
           {label}</button></li>)}
     </ol>
-    {name === "Cover" ? <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={frontActions} page={1} label="Cover" />}>
-      {court}
-      <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy}
+    {name === "Cover" ? <FrontLayout preview={<FrontPreview host={host} draft={front} actions={frontActions} page={1} label="Cover" />}>
+      <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy} court={courtField}
         onCover={(next) => setCover(next)} onSettings={choose} />
     </FrontLayout>
-    : name === "Index" ? <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={frontActions} page={2} label="First page of the index" />}>
+    : name === "Index" ? <FrontLayout preview={<FrontPreview host={host} draft={front} actions={frontActions} page={2} label="First page of the index" />}>
       <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />
     </FrontLayout>
     : name === "Sources" ? <div className="grid content-start gap-5 overflow-y-auto p-1">

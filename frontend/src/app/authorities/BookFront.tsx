@@ -1,10 +1,9 @@
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Plus, Scale, X } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
 import { CourtChoiceModal } from "@/app/components/modals/CourtChoiceModal";
-import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, errorMessage } from "@/app/lib/utils";
 import { getPdfJs, openPdfDocument, PDF_DOCUMENT_OPTIONS } from "@/app/lib/pdfJs";
@@ -12,21 +11,22 @@ import { OptionCard, OptionCards } from "./OptionCards";
 import { AUTHORITIES_PROFILES, authoritiesProfile } from "./profiles";
 import type { AuthoritiesHost } from "./host";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
-import type { AuthoritiesAction, AuthoritiesCover, AuthoritiesProduct, AuthoritiesProfileId } from "./types";
+import type { AuthoritiesAction, AuthoritiesCover, AuthoritiesDraft, AuthoritiesProduct, AuthoritiesProfileId } from "./types";
+import previewState from "./previewBook.json";
 
 export type Settings = AuthoritiesProduct["state"]["settings"];
 /** The settings the cover and the index are drawn from. */
 export const FRONT_KEYS = ["filingMedium", "bookRole", "indexShows", "tabPages", "rightHandStarts", "grouping",
   "tableOrder"] as const;
 export const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
-/** A part of the book's front: the cover, the index. */
-export const SECTION = "mb-2 w-full border-b border-gray-200 pb-1 text-sm font-semibold text-gray-950";
 const FIELD = "mt-1 h-9 border-gray-300 text-sm md:text-sm";
 const AREA = "mt-1 min-h-14 w-full resize-y rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600";
 const LABEL = "block min-w-0 text-sm font-medium text-gray-800";
 type Contact = NonNullable<AuthoritiesCover["contact"]>;
 const EMPTY_CONTACT: Contact = { name: "", address: "", phone: "", fax: "", email: "" };
 const CONTACT = [["name", "Name"], ["email", "Email"], ["address", "Address"], ["phone", "Phone"], ["fax", "Fax"]] as const;
+/** The contact as the form lays it out: the short fields two to a line, the address under them. */
+const CONTACT_ORDER = [CONTACT[0], CONTACT[1], CONTACT[3], CONTACT[4], CONTACT[2]] as const;
 
 /** The court: a button naming it, which opens the court chooser the court records share. */
 export function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, className,
@@ -85,26 +85,28 @@ export function CoverFields({ cover, profileId, settings, disabled, court, onCov
       <Input value={value} placeholder={placeholder} disabled={disabled} onChange={(event) => change(event.target.value)}
         className={FIELD} /></label>;
   const optional = <span className="font-normal text-gray-500">(optional)</span>;
-  return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
-    <legend className={SECTION}>Cover</legend>
-    {form === "plain" ? <div className="grid grid-cols-2 gap-x-3 gap-y-2">{court}
-        {text(<>Title {optional}</>, cover.title, (title) => onCover({ ...cover, title }), undefined, "Book of Authorities")}</div>
-      : <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-        {court && <div className="col-span-2">{court}</div>}
-        {text("Court file number", cover.courtFileNumber, (courtFileNumber) => onCover({ ...cover, courtFileNumber }))}
-        {form === "alberta" ? text("Judicial centre", cover.judicialCentre ?? "", (judicialCentre) => onCover({ ...cover, judicialCentre }))
-          : <span />}
-        {text(<>Title {optional}</>, cover.title, (title) => onCover({ ...cover, title }), "col-span-2",
-          form === "alberta" ? "Book of Authorities of the Applicant" : undefined)}
-      </div>}
-    {form !== "plain" && options?.filingMedium && options.bookRole && <div className="grid gap-3 @min-[34rem]/front:grid-cols-2">
-      <Choice label="Filing" value={settings.filingMedium ?? "electronic"} options={options.filingMedium} disabled={disabled}
-        onChange={(filingMedium) => onSettings({ filingMedium })} />
-      <Choice label="Filed by" value={settings.bookRole ?? ""} options={options.bookRole} disabled={disabled}
-        placeholder={settings.bookRole ? null : "Choose filing party"} onChange={(bookRole) => onSettings({ bookRole })} />
-    </div>}
+  const title = (className?: string) => text(<>Title {optional}</>, cover.title, (title) => onCover({ ...cover, title }), className,
+    form === "alberta" ? "Book of Authorities of the Applicant" : form === "plain" ? "Book of Authorities" : undefined);
+  // Two to a line: the court beside its file number, a short field beside another; only the title of a
+  // Federal cover and the parties take the width.
+  return <fieldset className="grid min-w-0 gap-4" disabled={disabled}>
+    <legend className="sr-only">Cover</legend>
+    <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+      {court}
+      {form === "plain" ? title()
+        : text("Court file number", cover.courtFileNumber, (courtFileNumber) => onCover({ ...cover, courtFileNumber }))}
+      {form === "alberta" && text("Judicial centre", cover.judicialCentre ?? "", (judicialCentre) => onCover({ ...cover, judicialCentre }))}
+      {form === "alberta" && title()}
+      {form !== "plain" && options?.filingMedium && options.bookRole && <>
+        <Choice label="Filing" value={settings.filingMedium ?? "electronic"} options={options.filingMedium} disabled={disabled}
+          onChange={(filingMedium) => onSettings({ filingMedium })} />
+        <Choice label="Filed by" value={settings.bookRole ?? ""} options={options.bookRole} disabled={disabled}
+          placeholder={settings.bookRole ? null : "Choose filing party"} onChange={(bookRole) => onSettings({ bookRole })} />
+      </>}
+      {form === "federal" && title("col-span-2")}
+    </div>
     {/* The parties as a table: each role beside its parties, one per line. */}
-    {form !== "plain" && <div role="group" aria-label="Parties" className="grid grid-cols-[9rem_minmax(0,1fr)_1.75rem] items-start gap-x-2 gap-y-1.5">
+    {form !== "plain" && <div role="group" aria-label="Parties" className="grid grid-cols-[9rem_minmax(0,1fr)_1.75rem] items-start gap-x-2 gap-y-1.5 border-t border-gray-200 pt-3">
       <span className={LABEL}>Role</span>
       <span className={LABEL}>Parties <span className="font-normal text-gray-500">(one per line)</span></span><span />
       {cover.partyGroups.map(({ role, parties }, index) => <Fragment key={index}>
@@ -123,16 +125,16 @@ export function CoverFields({ cover, profileId, settings, disabled, court, onCov
     </div>}
     {form === "federal" && text(<>Application under {optional}</>, cover.applicationUnder,
       (applicationUnder) => onCover({ ...cover, applicationUnder }))}
-    {form === "alberta" && <fieldset className="grid grid-cols-2 gap-x-3 gap-y-2">
-      <legend className="mb-2 text-sm font-medium text-gray-800">Address for service and contact information</legend>
-      {CONTACT.map(([key, label]) => key === "address"
+    {form === "alberta" && <div className="border-t border-gray-200 pt-3"><fieldset className="grid grid-cols-2 gap-x-3 gap-y-3">
+      <legend className="mb-2 text-sm font-semibold text-gray-950">Address for service and contact information</legend>
+      {CONTACT_ORDER.map(([key, label]) => key === "address"
         ? <label key={key} className={cn(LABEL, "col-span-2")}>{label}
           <textarea rows={2} value={cover.contact?.address ?? ""} className={AREA}
             onChange={(event) => onCover({ ...cover, contact: { ...EMPTY_CONTACT, ...cover.contact, address: event.target.value } })} /></label>
         : <label key={key} className={LABEL}>{label}
           <Input value={cover.contact?.[key] ?? ""} type={key === "email" ? "email" : "text"} className={FIELD}
             onChange={(event) => onCover({ ...cover, contact: { ...EMPTY_CONTACT, ...cover.contact, [key]: event.target.value } })} /></label>)}
-    </fieldset>}
+    </fieldset></div>}
   </fieldset>;
 }
 
@@ -145,7 +147,7 @@ export function IndexFields({ settings, profileId, disabled, onChange }: {
   const tabPages = settings.tabPages ?? true;
   const rightHand = !electronic && (settings.rightHandStarts ?? settings.filingMedium === "paper");
   return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
-    <legend className={SECTION}>Index</legend>
+    <legend className="sr-only">Index</legend>
     <OptionCards legend="Beside each authority" value={settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs")}
       columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
         { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index also gives the book pages each authority fills." }]}
@@ -167,7 +169,7 @@ function Choice<T extends string>({ label, value, options, onChange, disabled, p
 }) {
   return <label className={LABEL}>{label}
     <ModalSelect id={`authorities-${label.toLowerCase().replaceAll(" ", "-")}`} value={value} disabled={disabled}
-      placeholder={placeholder} className="mt-1.5" options={options} onChange={(next) => next && onChange(next as T)} />
+      placeholder={placeholder} className="mt-1" options={options} onChange={(next) => next && onChange(next as T)} />
   </label>;
 }
 
@@ -183,22 +185,55 @@ export function frontActions(state: AuthoritiesProduct["state"], cover: Authorit
       ? [{ type: "set-cover", cover: saved } as const] : []];
 }
 
+/** The book the cover and index previews are drawn from: seven made-up authorities in three groups,
+ *  so the index shows every kind of entry whatever the brief cites, and nothing waits for the brief. The
+ *  Beaver server draws only a saved draft's front, so there the preview is the draft's own. */
+const PREVIEW_BOOK: AuthoritiesProduct = { id: "preview", kind: "authorities", title: "Book of Authorities",
+  projectId: null, revision: 0, state: previewState as unknown as AuthoritiesDraft, outputs: {}, createdAt: "", updatedAt: "" };
+export const previewBook = (host: AuthoritiesHost, draft?: AuthoritiesProduct) =>
+  host.mode === "standalone" ? PREVIEW_BOOK : draft;
+/** The changes that make the preview book's front the one chosen: the court, the settings named, the cover. */
+export function previewActions(state: AuthoritiesProduct["state"], profileId: AuthoritiesProfileId, settings: Settings,
+  cover: AuthoritiesCover, keys: readonly (keyof Settings)[]): AuthoritiesAction[] {
+  const chosen = Object.fromEntries(keys.flatMap((key) => settings[key] === undefined ? [] : [[key, settings[key]]]));
+  const saved = savedCover(cover);
+  return [...profileId === state.settings.profileId ? [] : [{ type: "set-profile", profileId } as const],
+    { type: "set-settings", settings: chosen },
+    ...canonicalJson(saved) === canonicalJson(state.cover) ? [] : [{ type: "set-cover", cover: saved } as const]];
+}
+
 /** The book's cover and the first page of its index, drawn by the book's own renderer from the draft
- *  with the changes not yet made to it, a moment after the last of them. */
+ *  with the changes not yet made to it. One drawing is asked for at a time, a moment after a change,
+ *  and the next once it is back, so a draft that keeps changing (its sources arriving) never holds the
+ *  preview back. */
 export function FrontPreview({ host, draft, actions, page, label, className }: {
   host: AuthoritiesHost; draft?: AuthoritiesProduct; actions: AuthoritiesAction[]; page: number; label: string; className?: string;
 }) {
   const key = draft ? JSON.stringify([draft.id, draft.revision, actions]) : "";
   const [shown, setShown] = useState<{ bytes?: Uint8Array; error?: string }>();
+  const latest = useRef({ key, draft, actions }), [again, setAgain] = useState(0);
+  latest.current = { key, draft, actions };
+  const asking = useRef<{ timer?: number; running: boolean; drawn: string; stop: AbortController }>(
+    { running: false, drawn: "", stop: new AbortController() });
   useEffect(() => {
-    if (!draft || !host.bookFront) return;
-    const abort = new AbortController();
-    const timer = setTimeout(() => void host.bookFront!(draft, actions, abort.signal)
-      .then((blob) => blob.arrayBuffer()).then((buffer) => setShown({ bytes: new Uint8Array(buffer) }))
-      .catch((error) => { if (!abort.signal.aborted) setShown((current) => ({ ...current,
-        error: errorMessage(error, "The preview could not be drawn.") })); }), 300);
-    return () => { clearTimeout(timer); abort.abort(); };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+    const state = asking.current, stop = new AbortController();
+    state.stop = stop;
+    return () => { clearTimeout(state.timer); state.timer = undefined; stop.abort(); };
+  }, []);
+  useEffect(() => {
+    const state = asking.current;
+    if (!draft || !host.bookFront || state.running || state.timer || key === state.drawn) return;
+    state.timer = window.setTimeout(() => {
+      const asked = latest.current;
+      state.timer = undefined; state.running = true;
+      void host.bookFront!(asked.draft!, asked.actions, state.stop.signal)
+        .then((blob) => blob.arrayBuffer()).then((buffer) => setShown({ bytes: new Uint8Array(buffer) }))
+        .catch((error) => { if (!state.stop.signal.aborted) setShown((current) => ({ ...current,
+          error: errorMessage(error, "The preview could not be drawn.") })); })
+        .finally(() => { state.running = false; state.drawn = asked.key;
+          if (!state.stop.signal.aborted && latest.current.key !== asked.key) setAgain((value) => value + 1); });
+    }, 300);
+  }, [key, again]); // eslint-disable-line react-hooks/exhaustive-deps
   return <Preview className={className} label={`Preview: ${label}`}>
     {shown?.error && !shown.bytes ? <p role="alert" className="m-auto p-6 text-center text-sm text-red-800">{shown.error}</p>
       : <div className="flex min-h-0 flex-1 p-4"><PagePreview bytes={shown?.bytes} page={page} label={label} /></div>}
