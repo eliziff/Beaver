@@ -15,36 +15,19 @@ the authoritative content store; `document_search` is an external-content FTS5
 index referencing that table. Exact citation lookup and full-text search use the
 same document IDs and snapshot. Case/law selection is a query filter.
 
-`backend/scripts/consolidate_a2aj_sqlite.py <provider-directory>` is the maintenance
-command for installed older split snapshots. It retains primary document IDs,
-adds older-only records, uses newer source rows, preserves distinct records that
-share citation identities, and checks the completed FTS index against its content.
-It records snapshot metadata and counts beside the corpus. It deliberately leaves
-the source files intact until consumers and the live handoff have been verified.
+`npm run a2aj --prefix backend` installs, updates and removes courts and jurisdictions in this
+store from A2AJ's Hugging Face datasets (`backend/src/lib/a2ajInstall.ts`; no Python). Each court's
+Parquet file is downloaded into `providers/a2aj/downloads/` (a stopped download resumes), checked
+against its published SHA-256, read into the store in one transaction and deleted. The
+`source_file` table records each court's file hash and dataset revision, so `-- --update` fetches
+only courts whose file changed. A document keeps its ID across updates and is rewritten only when
+its content changed. `-- --update` also remakes the citation lookup keys when the citation engine's
+key version changed (`meta.citation_key_version`); lookups find nothing through keys of another
+version.
 
-To refresh from complete case and law snapshots, use the configured Python
-environment that already provides `legal_citations` (and `pyarrow` for Parquet):
-
-```powershell
-$dataRoot = if ($env:OPEN_LEGAL_DATA_HOME) { $env:OPEN_LEGAL_DATA_HOME } else { Join-Path $env:LOCALAPPDATA 'OpenLegalData' }
-python backend/scripts/import_a2aj_bulk.py '<durable-case-snapshot-directory>' '<durable-law-snapshot-directory>' --fts --output (Join-Path $dataRoot 'providers\a2aj\a2aj.sqlite')
-```
-
-The importer builds `a2aj.sqlite.new` beside the live database, checks an actual
-FTS citation match for each document type, runs SQLite `quick_check`, refuses empty snapshots, closes its
-writer, then atomically replaces the live file. Keep enough disk space for both
-snapshots while importing. Supply the complete corpus: this command replaces it.
-
-Provider operations open and close readonly connections per query, so subsequent
-queries read the replacement without restarting the service. On Windows, the
-replacement retries every 100 ms for at most two seconds if an in-flight reader
-holds the old file. If that handoff fails, the old snapshot remains live and the
-validated `.new` remains beside it; retry the rename when readers have finished.
-Use the preserved candidate without importing again:
-
-```powershell
-python -c "import os,sys; os.replace(sys.argv[1]+'.new',sys.argv[1])" (Join-Path $dataRoot 'providers\a2aj\a2aj.sqlite')
-```
+Readers open and close readonly connections per query and the store is in WAL mode, so an install
+can run while Beaver serves lookups. An install ends by checkpointing the log, which lets a browser
+page read the file without SQLite's shared memory.
 
 Do not delete an active SQLite WAL or SHM file. Keep raw upstream revisions and
 regeneration instructions in durable storage, not scratch directories.
