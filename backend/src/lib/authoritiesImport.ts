@@ -236,7 +236,7 @@ async function scanReview(
   const sourceParts = await enrichStatuteSources(references.map(({ part }) => part), extracted.citations, native);
   const result = native.citationEngineCall("resolve", JSON.stringify({ citations: extracted.citations, notes,
     readingOrder: order, sourceParts,
-    supraHintMode: "aggressive", supraLinkingMode: "safe",
+    supraHintMode: "aggressive", supraLinkingMode: "named",
     aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
   })) as ResolveResponse;
   const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
