@@ -21,6 +21,8 @@ export type Settings = AuthoritiesProduct["state"]["settings"];
 /** The settings the cover and the index are drawn from. */
 export const FRONT_KEYS = ["filingMedium", "bookRole", "indexShows", "bookmarks", "tabPages", "rightHandStarts", "grouping",
   "tableOrder"] as const;
+/** The settings the cover and the index are drawn from: the bookmarks change neither. */
+export const PREVIEW_KEYS = FRONT_KEYS.filter((key) => key !== "bookmarks");
 export const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
 const FIELD = "mt-1 h-9 border-gray-300 text-sm md:text-sm";
 const AREA = "mt-1 min-h-14 w-full resize-y rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-accent-600";
@@ -236,9 +238,9 @@ export function warmFrontPreviews(host: AuthoritiesHost) {
   if ("requestIdleCallback" in window) window.requestIdleCallback(draw, { timeout: 3000 }); else setTimeout(draw, 1000);
 }
 /** The book's cover, or the whole of its index, drawn by the book's own renderer from the draft with the
- *  changes not yet made to it. The first drawing is asked for at once, a later one a moment after a
- *  change; one at a time, and the next once it is back, so a draft that keeps changing (its sources
- *  arriving) never holds the preview back. */
+ *  changes not yet made to it. A drawing is asked for as soon as a change is made, one at a time; a
+ *  change made meanwhile is asked for once the drawing is back, so a draft that keeps changing (its
+ *  sources arriving, a field typed in) never holds the preview back. */
 export function FrontPreview({ host, draft, actions, part, label, className }: {
   host: AuthoritiesHost; draft?: AuthoritiesProduct; actions: AuthoritiesAction[]; part: FrontSlot; label: string; className?: string;
 }) {
@@ -272,7 +274,7 @@ export function FrontPreview({ host, draft, actions, part, label, className }: {
           error: errorMessage(error, "The preview could not be drawn.") })); })
         .finally(() => { state.running = false; state.drawn = asked.key;
           if (!state.stop.signal.aborted && latest.current.key !== asked.key) setAgain((value) => value + 1); });
-    }, state.drawn ? 300 : 0);
+    }, 0);
   }, [key, again]); // eslint-disable-line react-hooks/exhaustive-deps
   return <Preview className={className} label={`Preview: ${label}`}>
     {shown?.error && !shown.bytes ? <p role="alert" className="m-auto p-6 text-center text-sm text-red-800">{shown.error}</p>
@@ -394,7 +396,7 @@ export function BookFrontModal({ host, draft, busy, step: first, jurisdictionOrd
     ...FRONT_SLOTS.flatMap((slot) => !own[slot].own && before.bookParts[slot] ? [{ type: "clear-book-part", slot } as const] : [])];
   // At Build the draft's authorities are known, so its own index is drawn, every page of it.
   const front = draft;
-  const preview = previewActions(front.state, profileId, shown, cover, FRONT_KEYS);
+  const preview = previewActions(front.state, profileId, shown, cover, PREVIEW_KEYS);
   const save = () => {
     onActions(actions); chosen.forEach(([slot, file]) => onOwn(slot, file)); onClose();
     if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover).contact!)
