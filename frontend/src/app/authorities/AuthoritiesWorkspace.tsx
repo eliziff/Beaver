@@ -1500,7 +1500,7 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
         onRelink={onRelink} files={files} sourceLabel={sourceLabel} onOpen={onOpenSource} onFront={setFront}
         coverDetail={generatedFederalCover && !(coverDetailsReady && filingRoleReady) ? "Details required"
           : `Generated${state.cover.title ? ` · ${state.cover.title}` : ""}`}
-        indexDetail={`Generated · ${indexShows === "tabs-and-pages" ? "each authority’s tab and pages" : "each authority’s tab"}`}
+        indexDetail={`Generated · ${indexShows === "tabs-and-pages" ? "tabs and pages" : "tabs"}`}
         tabs={tabs} missing={missing} onReview={onReview} />
       <OutputDock draft={draft} rows={rows} busy={busy} building={building} progress={progress} note={note}
         linkWarnings={linkWarnings} onBuild={note ? () => setFront("Cover") : onBuild} onCancel={onCancel} onDownload={onDownload} />
