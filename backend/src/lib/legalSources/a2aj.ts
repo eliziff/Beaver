@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import { statSync } from "node:fs";
 import { cachedContent } from "../contentCache";
 import { a2ajLocalBulkPath, fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
+import { directoryA2AJFolder } from "../a2ajCorpus";
+import { a2ajParquetDirectory, nodeA2AJCorpus } from "../a2ajCorpusNode";
+import { A2AJParquetCorpus, browserA2AJIndexes, folderA2AJSource, huggingFaceA2AJSource } from "../a2ajParquet";
 import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { buildCanliiCaseUrl } from "../canliiUrls";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
@@ -117,14 +120,80 @@ function sourceUrl(record: JsonObject, language: Language) {
       citations: [languageText(record, "citation", language), languageText(record, "citation2", language)] });
 }
 
-export type A2AJFailureReason = "rate-limited" | "error" | "timeout" | "unreachable";
+export type A2AJFailureReason = "rate-limited" | "error" | "timeout" | "unreachable" | "local-only";
 /** A2AJ did not answer a lookup: the authority was not checked, which is not the same as not found. */
 export class A2AJUnavailable extends Error {
   constructor(readonly reason: A2AJFailureReason, readonly retryAt: number | null = null, detail?: string) {
     super(detail || (reason === "rate-limited" ? "A2AJ is limiting requests."
       : reason === "timeout" ? "A2AJ did not answer in time."
-      : reason === "unreachable" ? "A2AJ could not be reached." : "A2AJ answered with an error."));
+      : reason === "unreachable" ? "A2AJ could not be reached."
+      : reason === "local-only" ? "This source is not in the A2AJ corpus on this computer, and A2AJ is not asked while working locally only."
+      : "A2AJ answered with an error."));
   }
+}
+
+// A2AJ's corpus on this computer (a2ajParquet.ts), read before A2AJ is asked. Unless a runtime sets
+// one, it is the folder Beaver's shared legal data keeps it in, when that folder holds one.
+let corpusSetting: { corpus: A2AJParquetCorpus | null } | null = null;
+let defaultCorpus: { folder: string; corpus: A2AJParquetCorpus | null } | null = null;
+let remoteAllowed = true;
+function localCorpus() {
+  if (corpusSetting) return corpusSetting.corpus;
+  const folder = a2ajParquetDirectory();
+  if (defaultCorpus?.folder !== folder) {
+    const installed = ["cases", "laws"].some((kind) =>
+      statSync(`${folder}/${kind}/manifest.json`, { throwIfNoEntry: false }));
+    defaultCorpus = { folder, corpus: installed ? nodeA2AJCorpus(folder) : null };
+  }
+  return defaultCorpus.corpus;
+}
+/**
+ * Where lookups read A2AJ's sources: `corpus` is the local corpus (null for none, undefined to
+ * leave it as it is), and `remote: false` keeps every lookup on this computer, so a source the
+ * corpus lacks is reported as unavailable rather than asked of A2AJ.
+ */
+export function configureA2AJ(options: { corpus?: A2AJParquetCorpus | null; remote?: boolean }) {
+  if (options.corpus !== undefined && options.corpus !== corpusSetting?.corpus) {
+    corpusSetting = { corpus: options.corpus };
+    documents.clear();
+  }
+  if (options.remote !== undefined && options.remote !== remoteAllowed) {
+    remoteAllowed = options.remote;
+    documents.clear();
+  }
+}
+
+type DirectoryHandle = Parameters<typeof directoryA2AJFolder>[0] & {
+  kind: "directory"; isSameEntry(other: unknown): Promise<boolean> };
+/** A corpus given as a run's input: a folder the user picked in a browser, a folder path on this
+ *  computer, A2AJ's files on Hugging Face read as they are needed, or a corpus already open. */
+export type A2AJCorpusInput = A2AJParquetCorpus | DirectoryHandle | string | { huggingFace: true };
+let picked: { handle: DirectoryHandle; corpus: A2AJParquetCorpus } | null = null;
+let huggingFace: A2AJParquetCorpus | null = null;
+/**
+ * Points lookups at the corpus a run was given, and keeps them on this computer when `localOnly`.
+ * Without a corpus, Node reads the shared folder when it holds one, and a page reads none.
+ * The same picked folder, sent again, keeps the corpus already open with its indexes loaded.
+ */
+export async function useA2AJCorpus(input: A2AJCorpusInput | null | undefined, options: { localOnly?: boolean } = {}) {
+  let corpus: A2AJParquetCorpus | null | undefined;
+  if (input instanceof A2AJParquetCorpus) corpus = input;
+  else if (typeof input === "string") corpus = input === defaultCorpus?.folder && defaultCorpus.corpus
+    ? defaultCorpus.corpus : nodeA2AJCorpus(input);
+  // Hugging Face is a network source too: working locally only, it is not read.
+  else if (input && "huggingFace" in input) {
+    corpus = options.localOnly ? null : huggingFace ??= new A2AJParquetCorpus(huggingFaceA2AJSource({
+      fetch: (url, init) => globalThis.fetch(url, init), indexes: browserA2AJIndexes() }),
+    (texts) => structureNative().citationLookupKeys(texts));
+  } else if (input?.kind === "directory") {
+    if (!picked || !await picked.handle.isSameEntry(input).catch(() => false))
+      picked = { handle: input, corpus: new A2AJParquetCorpus(folderA2AJSource(directoryA2AJFolder(input)),
+        (texts) => structureNative().citationLookupKeys(texts)) };
+    corpus = picked.corpus;
+  }
+  if (corpus) configureA2AJ({ corpus });
+  else if (corpusSetting) { corpusSetting = null; documents.clear(); }
+  configureA2AJ({ remote: !options.localOnly });
 }
 // A limit A2AJ sets (429, or a 503 that names a Retry-After) holds every lookup until it passes.
 // Only a time A2AJ named is reported as when it allows lookups again; a hold of our own
@@ -228,10 +297,19 @@ async function decisiaPdf(rawUrl: string | null, signal?: AbortSignal) {
  *  colons and the like as query syntax, and refuses "[2016] OJ No 1" as a query it cannot parse. */
 const literalQuery = (text: string) => text.replace(/[+\-=&|<>!(){}[\]^"~*?:\\/]/gu, "\\$&");
 
-// A2AJ limits clients that ask in bursts: its requests go one after another, never at once.
+// A2AJ limits clients that ask in bursts: its requests go one after another, never at once, and
+// each starts at least this long after the one before it.
+const REQUEST_SPACING_MS = 250;
 let line: Promise<unknown> = Promise.resolve();
+let lastSent = 0;
 function inTurn<T>(work: () => Promise<T>) {
-  const turn = line.then(work, work);
+  const paced = async () => {
+    const wait = lastSent + REQUEST_SPACING_MS - Date.now();
+    if (wait > 0 && wait <= REQUEST_SPACING_MS) await new Promise((resolve) => setTimeout(resolve, wait));
+    lastSent = Date.now();
+    return work();
+  };
+  const turn = line.then(paced, paced);
   line = turn.catch(() => undefined);
   return turn;
 }
@@ -241,6 +319,7 @@ async function request(
   params: Record<string, string | number | undefined>, signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();
+  if (!remoteAllowed) throw new A2AJUnavailable("local-only");
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") query.set(key, String(value));
@@ -380,7 +459,11 @@ async function document(args: {
   if (section) {
     const full = await document({ ...args, section: undefined });
     if (!full) return null;
-    const payload = await request("/fetch", {
+    const local = await localCorpus()?.byCitation(docType, full.citation, { dataset: full.dataset, language });
+    const payload = local?.length ? { results: local.map((record) => {
+      const sections = sectionMap(record as JsonObject, language);
+      return { ...record, [`unofficial_text_${language}`]: sections?.[section] ?? "" };
+    }) } : await request("/fetch", {
       citation, doc_type: docType, output_language: language, section,
     }, args.signal);
     const candidates = (Array.isArray(payload.results) ? payload.results : [])
@@ -416,6 +499,13 @@ async function document(args: {
       sourceUrl: args.sourceUrl ?? undefined, maxChars: Number.MAX_SAFE_INTEGER });
     if (source) break;
   }
+  const corpus = localCorpus();
+  if (!source && corpus) for (const form of forms) {
+    args.signal?.throwIfAborted();
+    const accepted = accept(await corpus.byCitation(docType, form, { dataset: args.dataset, language }), form);
+    source = accepted ? mapDocument(accepted, language, docType) : null;
+    if (source) break;
+  }
   if (!source) for (const form of forms) {
     args.signal?.throwIfAborted();
     const payload = await request("/fetch", { citation: form, doc_type: docType, output_language: language }, args.signal);
@@ -441,7 +531,8 @@ async function document(args: {
     if (source) break;
   }
   if (!source) return null;
-  source = { ...source, verifiedPdf: args.discoverPdf === false ? null : await decisiaPdf(source.url, args.signal) };
+  source = { ...source, verifiedPdf: args.discoverPdf === false || !remoteAllowed ? null
+    : await decisiaPdf(source.url, args.signal) };
   const result = await compileDocument(source);
   documents.set(key, {
     expires: Date.now() + (docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000),
@@ -657,5 +748,5 @@ export const a2ajLegalSourceProvider = Object.assign(provider, {
   document,
   viewer,
   coverage,
-  clearCache: () => { documents.clear(); paused = { until: 0, reason: "rate-limited", named: false }; },
+  clearCache: () => { documents.clear(); paused = { until: 0, reason: "rate-limited", named: false }; lastSent = 0; },
 });
