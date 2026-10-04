@@ -552,6 +552,11 @@ pub fn statute_outline_node(env: Env, text: String, articles: Option<bool>) -> n
     js_value(env, &engine::statute_outline(&text, articles.unwrap_or(false)).map_err(reason)?)
 }
 
+#[napi(js_name = "caseOutline")]
+pub fn case_outline_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
+    js_value(env, &engine::case_outline(&text).map_err(reason)?)
+}
+
 #[napi(js_name = "documentOutline")]
 pub fn document_outline_node(
     env: Env,

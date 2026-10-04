@@ -253,6 +253,12 @@ pub fn statute_outline(text: &str, articles: bool) -> CoreResult<Vec<legal_struc
     legal_structure::statute_outline(text, articles).map_err(native_error)
 }
 
+/// A judgment's outline from its text: its headings by level, its numbered paragraphs, the lists
+/// within them, and the matter around its reasons, each with its span (UTF-16).
+pub fn case_outline(text: &str) -> CoreResult<Vec<legal_structure::CaseOutlineEntry>> {
+    legal_structure::case_outline(text).map_err(native_error)
+}
+
 /// The document's own outline: its headings and its top-level sections, in order.
 /// A PDF's numbered sections come from the reading of its body as a statute, for legislation.
 pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<OutlineEntry> {
