@@ -467,6 +467,13 @@ pub fn document_has_origin(document: &NativeDocument, origin: &str) -> CoreResul
 #[cfg(feature = "legalpdf")]
 pub use pdf::*;
 
+/// Supplies this engine to the PDF and DOCX parsers, which are built without it so that an
+/// engine edit does not recompile them.
+pub fn install_structure_analysis() {
+    #[cfg(feature = "legalpdf")]
+    legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
+}
+
 #[cfg(feature = "legalpdf")]
 mod pdf {
     use super::*;

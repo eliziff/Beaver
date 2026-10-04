@@ -265,6 +265,7 @@ pub unsafe extern "C" fn authorities_free(pointer: *mut u8, length: usize) {
 /// `pointer` must address `length` initialized bytes from `authorities_alloc`.
 #[no_mangle]
 pub unsafe extern "C" fn authorities_call(pointer: *const u8, length: usize) -> *mut u8 {
+    engine::install_structure_analysis();
     let input = std::slice::from_raw_parts(pointer, length);
     let result = std::panic::catch_unwind(|| -> CoreResult<(Value, Vec<u8>)> {
         let header = input.get(..4).ok_or("truncated engine request")?;
