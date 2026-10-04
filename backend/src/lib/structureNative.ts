@@ -95,6 +95,8 @@ export type NativePdfPassageTarget = {
   id: string;
   locatorKind: "paragraph" | "section" | "article" | "rule" | "page";
   locator: string;
+  /** The Act a statute locator is of, where its PDF prints several Acts. */
+  instrument?: string;
   exactQuotes?: string[];
   quoteSelections?: Array<{ text: string; start: number; end: number }>;
 };

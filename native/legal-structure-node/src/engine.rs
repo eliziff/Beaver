@@ -68,12 +68,26 @@ impl NativeDocument {
 
     #[cfg(feature = "legalpdf")]
     fn read_instrument(&self) -> Option<PrintedStatute> {
+        self.read_printed(None)
+    }
+
+    /// One instrument of a PDF that prints several, read on its own.
+    #[cfg(feature = "legalpdf")]
+    fn instrument_within(&self, instrument: &str) -> Option<PrintedStatute> {
+        self.read_printed(Some(instrument))
+    }
+
+    #[cfg(feature = "legalpdf")]
+    fn read_printed(&self, instrument: Option<&str>) -> Option<PrintedStatute> {
         let NativeProduct::Pdf(pdf) = &self.product else { return None };
         let pages = pdf.passage_pages();
         let lines = pages.iter().flat_map(|page| page.lines.iter().map(move |line| (line.id.as_str(),
             legal_structure::PrintedLine { id: &line.id, text: &line.text, rect: line.rect, page: page.page_number })))
             .collect::<std::collections::HashMap<_, _>>();
-        PrintedStatute::read(pdf.structure(), &lines, pages.len())
+        match instrument {
+            Some(instrument) => PrintedStatute::read_within(pdf.structure(), &lines, pages.len(), instrument),
+            None => PrintedStatute::read(pdf.structure(), &lines, pages.len()),
+        }
     }
 
     #[cfg(not(feature = "legalpdf"))]
@@ -607,11 +621,12 @@ mod pdf {
     /// A provision where the reading of the PDF's body as a statute places it.
     fn instrument_section(
         native: &NativeDocument,
+        within: Option<&PrintedStatute>,
         kind: &str,
         locator: &str,
     ) -> Option<(legalpdf::PdfLookupStatus, Vec<String>, Vec<u32>)> {
         use legalpdf::PdfLookupStatus as Status;
-        Some(match native.instrument()?.provision(native.structure(), kind, locator)? {
+        Some(match within.or_else(|| native.instrument())?.provision(native.structure(), kind, locator)? {
             legal_structure::ProvisionPlacement::Found { lines, pages } => (Status::Found, lines, pages),
             legal_structure::ProvisionPlacement::Ambiguous => (Status::Ambiguous, Vec::new(), Vec::new()),
         })
@@ -629,6 +644,10 @@ mod pdf {
         physical_pages: Option<Vec<u32>>,
         locator_kind: String,
         locator: String,
+        /// The instrument the locator is of, where the PDF prints several ("Canadian Charter of
+        /// Rights and Freedoms" in "The Constitution Acts 1867 to 1982").
+        #[serde(default)]
+        instrument: Option<String>,
     }
 
     struct PassagePlan {
@@ -653,6 +672,8 @@ mod pdf {
         targets: Vec<PassageTarget>,
     ) -> CoreResult<PdfPassagePagesJob> {
         let document = pdf_of(native, "PDF passage geometry requires a PDF document")?;
+        // Each instrument a target names is read on its own, once.
+        let mut readings = std::collections::HashMap::<String, Option<PrintedStatute>>::new();
         let plans = targets
             .into_iter()
             .map(|target| {
@@ -680,7 +701,9 @@ mod pdf {
                 let mut status = lookup.status;
                 // A statute's provisions are placed by the reading of its body as a statute.
                 if legal_structure::PrintedStatute::places(&target.locator_kind) {
-                    if let Some((found, found_lines, found_pages)) = instrument_section(native, &target.locator_kind, &target.locator) {
+                    let within = target.instrument.as_ref().and_then(|instrument| readings.entry(instrument.clone())
+                        .or_insert_with(|| native.instrument_within(instrument)).as_ref());
+                    if let Some((found, found_lines, found_pages)) = instrument_section(native, within, &target.locator_kind, &target.locator) {
                         (status, lines, pages) = (found, found_lines, found_pages);
                     }
                 }

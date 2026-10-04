@@ -110,10 +110,14 @@ export function authorityPassageTargets(draft: AuthoritiesDraft, authorityId: st
       request.exactQuotes.forEach((quote) => target.quotes.add(quote)); grouped.set(key, target);
     }
   }
+  // A statute's provisions are placed in the Act the brief cites, where its PDF prints several.
+  const authority = draft.authorities[authorityId];
+  const instrument = authority?.kind === "legislation" ? (authority.displayName ?? authority.name)?.trim() : undefined;
   return [...grouped.values()].flatMap(({ quotes, ...target }) => {
     const values = [...quotes];
     return Array.from({ length: Math.max(1, Math.ceil(values.length / 20)) }, (_, index) =>
-      ({ ...target, exactQuotes: values.slice(index * 20, index * 20 + 20) }));
+      ({ ...target, exactQuotes: values.slice(index * 20, index * 20 + 20),
+        ...(instrument && target.locatorKind !== "page" && target.locatorKind !== "paragraph" ? { instrument } : {}) }));
   }).map((target, index) => ({ id: `passage:${index + 1}`, ...target }));
 }
 
