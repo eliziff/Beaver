@@ -10,6 +10,11 @@ use napi::{
 use napi_derive::napi;
 use serde::Serialize;
 
+#[napi_derive::module_init]
+fn init() {
+    engine::install_structure_analysis();
+}
+
 fn js_value(env: Env, value: &impl Serialize) -> napi::Result<Unknown<'static>> {
     env.to_js_value(value)
 }
