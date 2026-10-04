@@ -204,7 +204,8 @@ function noteWindowAccepts(verbatim: string, link: string, registry: RegistryEnt
 
 type Resolution = { methods: Map<number, string> };
 /** The engine's registry source: the link is the identity a reference resolves to. */
-const asSource = (entry: RegistryEntry) => ({ verbatim: entry.verbatim, target: entry.link, short_form: entry.short_form, note: entry.note });
+const asSource = (entry: RegistryEntry) => ({ verbatim: entry.verbatim, target: isUsableLink(entry.link) ? entry.link : "",
+  short_form: entry.short_form, note: entry.note });
 async function resolveReferences(split: FootnotePart[], registry: RegistryEntry[], options: {
   aggressive: boolean; supraAggressive: boolean; allowFallback: boolean; proposition: string;
   inferred: InferredForm[]; chooser?: AlrLlm["chooseReference"] }): Promise<Resolution> {
@@ -227,7 +228,7 @@ async function resolveReferences(split: FootnotePart[], registry: RegistryEntry[
     }
     // ALR links a supra whose note number names another note (or none) by the short name it writes,
     // when that name names exactly one earlier citation (the engine's "named" linking).
-    if (method === "note_name_conflict" || method === "note_without_authority") {
+    if (["note_name_conflict", "note_without_authority", "abstain_ambiguous_note_number"].includes(method)) {
       const name = supraHint(part.verbatim, true);
       const [named, namedMethod] = name ? engine<[string, string]>("resolveRegistryReference",
         { text: `${name}, supra`, registry: registry.map(asSource), aggressive: options.supraAggressive }) : ["", ""];
