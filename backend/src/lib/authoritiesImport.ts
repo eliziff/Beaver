@@ -184,8 +184,9 @@ async function scanReview(
     .map(({ unit, start, end }) => ({ number: unit.note_number === null
       ? unknownNote : unit.note_number ?? unit.footnote_id!, start, end,
     sequence: unit.note_number === null ? unknownNote : unit.restart_sequence ?? 0 }));
+  // A Canadian brief is read with McGill's and COAL's forms.
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
-    options: { resolve: false, notes },
+    options: { resolve: false, notes, styles: ["mcgill", "coal"] },
   })) as ExtractResponse;
   // PDF layout units can end in the middle of a citation. Join only those body
   // boundaries, retaining the engine's exact text and global UTF-16 addresses.
