@@ -414,12 +414,6 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   readSourcePageLabels: pageLabels.labels,
   readPinpoints: async (text, start, end) =>
     (await runtimeResponse("pinpoints", JSON.stringify({ text, start, end }), true)).json(),
-  async statuteExcerpt(draft, role, signal) {
-    const file = await resolveExact(draft.state.bindings[role]);
-    const form = new FormData(); form.append("file", file, file.name);
-    form.append("draft", JSON.stringify(supportedDraft(draft.state))); form.append("role", role);
-    return (await runtimeResponse("excerpt", form, false, signal)).json();
-  },
   async inspectDraft(draft) {
     // An opened draft's sources have their printed page numbers read ahead of any viewer.
     pageLabels.readAhead(draft);

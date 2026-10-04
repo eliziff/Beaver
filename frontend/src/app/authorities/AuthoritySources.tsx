@@ -211,8 +211,8 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
   // Once every scan is recognized, the slot goes back to the citation: a finished job says nothing more.
   const recognition = recognitions.find(({ state }) => state !== "done");
   const edit = () => setEditing(true);
-  // The citation and what of it goes in the book, beside the name; a row without either gives the name both columns.
-  const subline = recognition ? "" : [name && citationLine, copy?.line].filter(Boolean).join(" · ");
+  // The citation beside the name; a row without one gives the name both columns.
+  const subline = recognition ? "" : name ? citationLine : "";
   const save = (value: string) => { setEditing(false);
     if (value.trim() !== name) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: value.trim() || null }); };
