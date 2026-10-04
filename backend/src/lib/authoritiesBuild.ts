@@ -40,7 +40,7 @@ import { authorityCitation, authorityProcedureInput, deriveAuthorityProcedure, t
 import { isCanliiUrl, urlHostname } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { assembleFinalAuthoritiesPdf, assertBriefPdfMatches, briefOccurrencePages, filingLinkUrl,
   filingTabText } from "./authoritiesFinalPdf";
-import { authoritiesBriefPdf, statuteExcerpt } from "mike/shared/authorities-sources.mjs";
+import { authoritiesBriefPdf, authorityTabbed, statuteExcerpt } from "mike/shared/authorities-sources.mjs";
 
 export type { AuthoritiesBuildReceipt, AuthoritiesOutputRole };
 export type AuthoritiesBuildArtifact = {
@@ -134,7 +134,7 @@ export function authorityFilingTargets(draft: AuthoritiesDraft, briefPageText?: 
   return draft.units.flatMap((unit) => unit.occurrenceIds.flatMap((id) => {
     const occurrence = draft.occurrences[id], authority = draft.authorities[occurrence?.authorityId ?? ""];
     const pages = located ? located.has(id) ? [located.get(id)!] : [] : unit.pageNumbers;
-    if (!authority || authority.excluded || !pages.length) return [];
+    if (!authority || !authorityTabbed(draft, authority) || !pages.length) return [];
     const tab = tabs.get(authority.id), tabText = filingTabText(unit.text, occurrence, tab);
     const tabStart = tabText === occurrence.authoritySpan.text ? occurrence.authoritySpan.start
       : unit.text.indexOf(tabText, occurrence.end), suffixText = tab && tabReference(draft.settings, tab);
@@ -165,7 +165,7 @@ export function authoritiesTextRoles(draft: AuthoritiesDraft) {
   if (draft.outputMode === "table" && !draft.settings.finalPdf) return new Set(filingRoles);
   const federal = authoritiesProfile(draft.settings.profileId).requirements?.federalFormatting;
   return new Set([...filingRoles, ...Object.values(draft.authorities).flatMap((authority) => {
-    if (authority.excluded || authority.source.kind !== "attached") return [];
+    if (!authorityTabbed(draft, authority) || authority.source.kind !== "attached") return [];
     const paperExtract = federal && draft.settings.filingMedium === "paper" &&
       freePublicDatabaseReference(authority);
     const requests = authorityPassageRequests(draft, authority.id);
@@ -352,7 +352,7 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
     const occurrence = draft.occurrences[id], authority = occurrence?.authorityId
       ? draft.authorities[occurrence.authorityId] : null;
     const key = authority && `${unit.id}\0${occurrence.end}\0${authority.id}`;
-    if (!authority || authority.excluded || !key || seen.has(key)) return [];
+    if (!authority || !authorityTabbed(draft, authority) || !key || seen.has(key)) return [];
     seen.add(key);
     const tab = tabs.get(authority.id)!;
     // A linked tab needs its reference to click, even where none was chosen.
@@ -970,7 +970,7 @@ async function prepareAuthorityBook(
   const supplementRows: BookRow[] = draft.bookParts.supplements.map((item, index) => ({
     key: `supplement:${item.id}`,
     name: item.filename.replace(/\.pdf$/iu, "").trim() || item.filename,
-    tab: tabLabel(draft.authorityOrder.filter((id) => !draft.authorities[id].excluded).length + index + 1,
+    tab: tabLabel(draft.authorityOrder.filter((id) => authorityTabbed(draft, draft.authorities[id])).length + index + 1,
       draft.settings.tabStyle, draft.settings),
   }));
   const rows: BookRow[] = [...authorityRows.map((entry) => ({

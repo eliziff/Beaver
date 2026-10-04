@@ -48,7 +48,8 @@ type RequirementDraft = {
   import: { kind: "manual" } | { kind: "document"; fileType: "pdf" | "docx" };
   outputMode: "table" | "book" | "both";
   insertIntoDocument: boolean;
-  settings?: { finalPdf?: boolean };
+  settings?: { finalPdf?: boolean; subsequentHistory?: "own-tab" | "with-case" };
+  authorities?: Record<string, { excluded?: boolean }>;
 };
 type BookDraft = RequirementDraft & {
   settings: { allowIncomplete?: boolean; missingSourcePolicy: "placeholder" | "omit"; finalPdf?: boolean;
@@ -61,6 +62,7 @@ type RequirementAuthority = {
   source: AuthoritySourceDecision;
   sourceUrl?: string;
   sourceIdentity?: { externalUrl?: string | null } | null;
+  historyOf?: string;
 };
 
 export function attachedAuthoritySources(source: AuthoritySourceDecision): AttachedAuthoritySource[];
@@ -75,6 +77,7 @@ export function authorityPdfRequired(draft: RequirementDraft, authority: Require
   requirements?: AuthoritySourceRequirements | null): boolean;
 export function authoritySourceRequirement(draft: RequirementDraft, authority: RequirementAuthority,
   requirements?: AuthoritySourceRequirements | null, prepared?: boolean): AuthoritySourceReason | null;
+export function authorityTabbed(draft: RequirementDraft, authority: RequirementAuthority): boolean;
 export function authorityReproducedInBook(draft: BookDraft,
   authority: RequirementAuthority & { excluded: boolean }): boolean;
 export const STATUTE_EXCERPT_PAGES: number;

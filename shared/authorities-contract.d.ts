@@ -53,6 +53,9 @@ export type AuthoritiesBuildSettings = {
   missingSourcePolicy: "placeholder" | "omit";
   filingMedium?: "electronic" | "paper";
   bookRole?: AuthoritiesBookRole;
+  /** A decision of subsequent history ("aff'd 2010 ABCA 191"): a tab of its own (the default), or
+   *  printed with the case it follows, with no tab, index line or source of its own. */
+  subsequentHistory?: "own-tab" | "with-case";
 };
 
 export type AuthoritiesSettings = AuthoritiesBuildSettings & {
@@ -132,6 +135,10 @@ export type AuthorityIdentity = {
   userAdded?: true;
   /** Import provenance: detected while scanning, never entered by hand. */
   scanOnly?: true;
+  /** The authority this one is subsequent history of ("aff'd 2010 ABCA 191"), and the relation as
+   *  the brief writes it ("aff'd in"). */
+  historyOf?: string;
+  historyRelation?: string;
 };
 
 export type AuthoritiesReviewUnit = {
