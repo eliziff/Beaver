@@ -65,17 +65,20 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
   // many pages as its entries fill. The Federal Court's index keeps its tab to the left and its
   // source link; any other gives the citation, a dot leader and the tab (and the pages) to the right.
   const margin = federal ? 99.21 : 72, bodySize = federal ? 12 : 11, leading = bodySize + 3;
-  const titleX = federal ? margin + 52 : margin, sourceX = 447, pageRight = 612 - margin;
+  const titleX = federal ? margin + 52 : margin, pageRight = 612 - margin;
   const tabColumn = 58, pagesColumn = showPages ? 66 : 0;
   const scratch = await pdf.PDFDocument.create(), measure = { roman: await scratch.embedFont(pdf.StandardFonts.TimesRoman),
     italic: await scratch.embedFont(pdf.StandardFonts.TimesRomanItalic) };
+  // The Federal Court's source link stands clear of the page numbers when the index gives them.
+  const sourceWidth = measure.roman.widthOfTextAtSize("source", 12);
+  const sourceX = showPages ? pageRight - pagesColumn - sourceWidth : 447;
   const tokens = groups.flatMap((group) => [
     ...grouped ? [{ label: group.label, entry: null as BookRow | null, lines: [] as ReturnType<typeof citationLines>,
       height: federal ? 27 : 30 }] : [],
     ...group.entries.map((entry) => {
       // Clear of the page numbers, and of the Federal Court's source link.
       const lines = citationLines(measure, entry.name, entry.italic ?? 0, bodySize, federal
-        ? entry.sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - (showPages ? 48 : 8)
+        ? entry.sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - (showPages ? pagesColumn : 8)
         : pageRight - titleX - tabColumn - pagesColumn - 24);
       return { label: "", entry, lines, height: (federal ? 25 : 12) + (lines.length - (federal ? 1 : 0)) * leading };
     }),
@@ -251,7 +254,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
                   thickness: .45, color: pdf.rgb(.82, .82, .82) });
                 if (tabTarget !== undefined) links.push({ page, targetPageIndex: tabTarget,
                   rect: [margin, last - 10, sourceUrl ? sourceX - 5 : pageRight, y + 10] });
-                if (sourceUrl) links.push({ page, url: sourceUrl, rect: [sourceX - 5, y - 10, 492, y + 10] });
+                if (sourceUrl) links.push({ page, url: sourceUrl, rect: [sourceX - 5, y - 10, sourceX + sourceWidth + 5, y + 10] });
                 y -= token.height;
                 continue;
               }
