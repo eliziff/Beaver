@@ -3,7 +3,7 @@ import { authorityPdfRequired, authoritySourceRequirement,
 import type { AuthorityIdentity, AuthorityOccurrence, AuthoritiesProduct, AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
-import { authorityCitation } from "../../../../shared/authorities-order.mjs";
+import { authorityCitation as citationOf } from "../../../../shared/authorities-order.mjs";
 
 export function authorityName(item: AuthorityIdentity) {
   return item.displayName || item.name || item.citation || "Untitled authority";
@@ -23,6 +23,16 @@ export function authorityCitationForms(item: AuthorityIdentity, occurrences: Aut
 }
 /** An authority as the book's index and the table cite it: its style of cause or title first, then
  *  each other citation of it ("R v Oakes, [1986] 1 SCR 103, 1986 CanLII 46 (SCC)"). */
+// Each reads every citation in the brief, and a step lists every authority on each render; a draft
+// is never changed in place, so each draft's citations are read once.
+const citations = new WeakMap<AuthoritiesProduct["state"], WeakMap<AuthorityIdentity, ReturnType<typeof citationOf>>>();
+function authorityCitation(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
+  let held = citations.get(state);
+  if (!held) citations.set(state, held = new WeakMap());
+  let citation = held.get(item);
+  if (!citation) held.set(item, citation = citationOf(state, item));
+  return citation;
+}
 export const authorityCitationText = (state: AuthoritiesProduct["state"], item: AuthorityIdentity) =>
   authorityCitation(state, item).text;
 /** That citation after the name a row already shows, as the brief writes it: "[1986] 1 SCR 103". */
