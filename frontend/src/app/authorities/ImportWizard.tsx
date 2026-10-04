@@ -41,8 +41,8 @@ export const ORDER_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["t
   { value: "custom", label: "As arranged", detail: "Keeps the order you set by dragging in Sources." },
 ];
 export const HISTORY_OPTIONS: ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildSettings["subsequentHistory"]>>> = [
-  { value: "omit", label: "Do not include subsequent history in book" },
   { value: "include", label: "Include subsequent history in book" },
+  { value: "omit", label: "Do not include subsequent history in book" },
 ];
 type SourceSettings = Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy" | "grouping" | "tableOrder" | "subsequentHistory">;
 /** The sources' settings as cards, two columns: the same at import and, opened, at Sources. */
@@ -66,7 +66,7 @@ export function SourceChoices({ settings, profileId, sources = true, recognition
       <OptionCards legend="Order" value={settings.tableOrder} disabled={disabled || !!locked?.tableOrder}
         options={settings.tableOrder === "custom" ? ORDER_OPTIONS : ORDER_OPTIONS.filter(({ value }) => value !== "custom")}
         onChange={(tableOrder) => onChange({ tableOrder })} />
-      <OptionCards legend="Subsequent history" value={settings.subsequentHistory ?? "omit"} options={HISTORY_OPTIONS}
+      <OptionCards legend="Subsequent history" value={settings.subsequentHistory ?? "include"} options={HISTORY_OPTIONS}
         disabled={disabled} onChange={(subsequentHistory) => onChange({ subsequentHistory })} />
     </div>
   </div>;
