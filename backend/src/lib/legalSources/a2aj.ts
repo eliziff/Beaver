@@ -202,7 +202,14 @@ let paused = { until: 0, reason: "rate-limited" as A2AJFailureReason, named: fal
 const pause = (reason: A2AJFailureReason, retryAfter: string | null, hold: number | null) => {
   const named = retryAt(retryAfter), until = named ?? (hold === null ? null : Date.now() + hold);
   if (until && until > paused.until) paused = { until, reason, named: !!named };
-  return new A2AJUnavailable(reason, named);
+  return held(reason, named, until);
+};
+/** A lookup refused while a hold lasts, saying when lookups start again: A2AJ's own time when it
+ *  named one, else the time of our own hold. */
+const held = (reason: A2AJFailureReason, named: number | null, until: number | null) => {
+  const time = until && new Date(until).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return new A2AJUnavailable(reason, named, reason !== "rate-limited" || !time ? undefined : named
+    ? `A2AJ is limiting requests until ${time}.` : `A2AJ is limiting requests. Lookups start again at ${time}.`);
 };
 const retryAt = (value: string | null) => {
   const seconds = Number(value), date = value ? Date.parse(value) : NaN;
@@ -332,7 +339,7 @@ async function request(
     // One request at a time, a limit applying to every one still waiting its turn.
     produce: () => inTurn(async () => {
       signal?.throwIfAborted();
-      if (Date.now() < paused.until) throw new A2AJUnavailable(paused.reason, paused.named ? paused.until : null);
+      if (Date.now() < paused.until) throw held(paused.reason, paused.named ? paused.until : null, paused.until);
       const response = await send(url, signal);
       const body = await response.json().catch(() => null);
       if (!response.ok) throw apiError(response.status, body);

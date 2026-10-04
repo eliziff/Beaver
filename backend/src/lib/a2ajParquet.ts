@@ -326,12 +326,22 @@ export function folderA2AJSource(folder: A2AJCorpusFolder): A2AJCorpusSource {
       return bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
         ? bytes.buffer as ArrayBuffer : bytes.slice().buffer as ArrayBuffer;
     } }),
+    // Kept gzipped: the whole corpus's indexes are 20 MB as JSON and 4.3 MB compressed.
     indexes: {
       async get(sha256) {
-        const text = await folder.readText(`index/${sha256}.json`);
-        return text ? JSON.parse(text) as A2AJParquetIndex : null;
+        const path = `index/${sha256}.json.gz`, size = await folder.size(path);
+        if (!size) return null;
+        const stream = new Blob([await folder.read(path, 0, size)]).stream().pipeThrough(new DecompressionStream("gzip"));
+        return JSON.parse(await new Response(stream).text()) as A2AJParquetIndex;
       },
-      put: (index) => folder.writeText(`index/${index.sha256}.json`, JSON.stringify(index)),
+      async put(index) {
+        const path = `index/${index.sha256}.json.gz`, part = `${path}.part`;
+        const stream = new Blob([JSON.stringify(index)]).stream().pipeThrough(new CompressionStream("gzip"));
+        const writer = await folder.append(part, 0);
+        await writer.write(new Uint8Array(await new Response(stream).arrayBuffer()));
+        await writer.close();
+        await folder.rename(part, path);
+      },
     },
   };
 }
