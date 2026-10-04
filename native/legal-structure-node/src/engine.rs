@@ -665,6 +665,7 @@ mod pdf {
         pages: std::sync::Arc<Vec<legal_pdf_support::PdfTextPage>>,
         plans: Vec<PassagePlan>,
         paragraphs: Vec<Vec<String>>,
+        headings: HashSet<String>,
     }
 
     pub fn pdf_passage_pages_job(
@@ -733,6 +734,9 @@ mod pdf {
             paragraphs: document.structure().nodes.iter().filter(|node|
                 matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading))
                 .map(|node| node.line_ids.clone()).collect(),
+            // A printed paragraph ends where the next heading of the outline begins.
+            headings: document.structure().nodes.iter().filter(|node| node.kind == legal_structure::NodeKind::Heading)
+                .flat_map(|node| node.line_ids.iter().cloned()).collect(),
         })
     }
 
@@ -753,8 +757,8 @@ mod pdf {
                 .into_iter()
                 .map(|plan| {
                     let printed = plan.paragraph.as_ref().and_then(|locator|
-                        marginal_paragraph_plan(&self.pages, locator).or_else(||
-                            printed_paragraph_plan(&prose_lines, &self.paragraphs, locator)));
+                        marginal_paragraph_plan(&self.pages, &self.headings, locator).or_else(||
+                            printed_paragraph_plan(&prose_lines, &self.paragraphs, &self.headings, locator)));
                     let structural = printed.is_none();
                     let (status, selected) = printed.unwrap_or_else(|| (plan.status,
                         plan.lines.iter().map(String::as_str).collect::<HashSet<_>>()));
