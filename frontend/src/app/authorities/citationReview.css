@@ -115,7 +115,7 @@
 .citation-chip>button:disabled{cursor:default}
 /* The authorities open upward over the document, each under the place that cites it. */
 .citation-authority{position:relative;width:17rem;min-width:0}
-.citation-authority-menu{position:absolute;bottom:calc(100% + .6rem);left:0;right:0;z-index:20;display:flex;flex-direction:column;max-height:min(26rem,60vh);border:1px solid #d1d5db;border-radius:8px;background:#fff;box-shadow:0 10px 30px rgb(0 0 0 / .14)}
+.citation-authority-menu{position:absolute;bottom:calc(100% + .6rem);left:0;min-width:max(100%,30rem);z-index:20;display:flex;flex-direction:column;max-height:min(36rem,72vh);border:1px solid #d1d5db;border-radius:8px;background:#fff;box-shadow:0 10px 30px rgb(0 0 0 / .14)}
 .citation-authority-menu>[role=listbox]{overflow:hidden auto;padding:.6rem .5rem .4rem}
 .citation-authority-menu h4{margin:0 .5rem .4rem;font-size:.8125rem;font-weight:650;color:#4b5563}
 .citation-authority-menu [role=listbox]>[role=group]+[role=group]{margin-top:1rem}
