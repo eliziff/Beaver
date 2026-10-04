@@ -1314,7 +1314,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           <strong>{folderAccess?.handle.name}</strong>. Choose <strong>Allow on every visit</strong> so it
           won’t ask next time.</p>
       </Modal>
-      <SourcesExplainer open={explaining} missing={missingPdfs.length} folderKept={!!host.watchedFolder}
+      <SourcesExplainer open={explaining} missing={missingPdfs.length}
         onClose={closeExplainer} onChooseFolder={watchedFolder ? undefined : () => { closeExplainer(); void watchFolder(); }} />
       <Modal open={!!missingOpen} onClose={() => setMissingOpen(undefined)} size="lg"
         breadcrumbs={["Authorities without a PDF"]} fit
