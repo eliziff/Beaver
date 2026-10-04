@@ -37,6 +37,12 @@ export const authorityPdfRequired = (draft, authority, requirements) =>
     draft.import.kind === "document" && draft.import.fileType === "pdf" &&
     !authoritySourceUrl(authority));
 
+/** Whether an authority stands in the book on its own: not left out, and not a decision of
+ *  subsequent history printed with the case it follows ("with-case"). */
+export const authorityTabbed = (draft, authority) => !authority.excluded &&
+  !(draft.settings?.subsequentHistory === "with-case" && authority.historyOf &&
+    draft.authorities?.[authority.historyOf] && !draft.authorities[authority.historyOf].excluded);
+
 /** The one rule for "does this authority still owe a source", asked by the builder
  *  (which throws), the resolver (which fetches) and the workspace (which warns).
  *  `requirements` names the obligations the caller enforces; `prepared` says whether
@@ -44,7 +50,7 @@ export const authorityPdfRequired = (draft, authority, requirements) =>
 export function authoritySourceRequirement(draft, authority, requirements, prepared = true) {
   const attached = authority.source.kind === "attached";
   if (!prepared && ["unresolved", "resolved"].includes(authority.source.kind)) return null;
-  if (!authority.excluded) {
+  if (authorityTabbed(draft, authority)) {
     if (attached && bilingualEnactmentRequired(authority, requirements) &&
         !hasBilingualAuthoritySource(authority.source)) return "incomplete-enactment";
     if (!attached && requirements?.completeBookSources) return "missing";
@@ -74,7 +80,7 @@ export function statuteExcerpt(authority, pageCounts = attachedAuthoritySources(
  *  draft for a court that leaves them out of a filed book keeps the page too: the draft is
  *  finished in Acrobat, where Replace Pages puts the PDF under its tab, index line and bookmark. */
 export const authorityReproducedInBook = (draft, authority) =>
-  !authority.excluded && !authoritySourceRequirement(draft, authority, {
+  authorityTabbed(draft, authority) && !authoritySourceRequirement(draft, authority, {
     completeBookSources: draft.settings.missingSourcePolicy !== "placeholder" &&
       !(draft.settings.allowIncomplete && COURT_SOURCE_POLICY.has(draft.settings.profileId)) });
 
@@ -122,7 +128,7 @@ export function attachAuthoritySource(draft, authority, source, binding) {
 export function authoritiesInputPlan(draft, requirements) {
   const authoritySources = Object.values(draft.authorities).flatMap((authority) =>
     attachedAuthoritySources(authority.source).map((source) => ({ authority, source })));
-  const included = authoritySources.filter(({ authority }) => !authority.excluded);
+  const included = authoritySources.filter(({ authority }) => authorityTabbed(draft, authority));
   const needsBook = draft.outputMode !== "table" || !!draft.settings?.finalPdf;
   const bookPdfs = needsBook ? authoritiesBookPdfs(draft) : [], briefPdf = authoritiesBriefPdf(draft);
   return {

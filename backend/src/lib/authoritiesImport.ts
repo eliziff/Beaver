@@ -184,9 +184,10 @@ async function scanReview(
     .map(({ unit, start, end }) => ({ number: unit.note_number === null
       ? unknownNote : unit.note_number ?? unit.footnote_id!, start, end,
     sequence: unit.note_number === null ? unknownNote : unit.restart_sequence ?? 0 }));
-  // A Canadian brief is read with McGill's and COAL's forms.
+  // A Canadian brief is read with McGill's and COAL's forms, without the Bluebook's extended
+  // United States forms (a registration or account number reads as one of its codes).
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
-    options: { resolve: false, notes, styles: ["mcgill", "coal"] },
+    options: { resolve: false, notes, styles: ["mcgill", "coal"], extendedUs: false },
   })) as ExtractResponse;
   // The brief's own court file number (its cover's) is never one of its authorities.
   const fileNumber = (value: unknown) => typeof value === "string" ? value.replace(/\D/gu, "") : "";
@@ -312,6 +313,14 @@ async function scanReview(
       source: { kind: "unresolved" }, scanOnly: true,
       ...(explicitUrl ? { sourceUrl: explicitUrl } : {}) };
     authorityOrder.push(key);
+  }
+  // A decision the engine reads as another's subsequent history ("…, 2010 ABQB 242, aff'd 2010
+  // ABCA 191") records which authority it follows and the relation as the brief writes it.
+  for (const citation of extracted.citations) for (const { span, target } of citation.history ?? []) {
+    const parent = authorityOf.get(citation.index), child = target == null ? undefined : authorityOf.get(target);
+    if (!parent || !child || parent === child || authorities[child].historyOf) continue;
+    authorities[child].historyOf = parent;
+    authorities[child].historyRelation = span.text.replace(/\s+/gu, " ").trim();
   }
   const sourceOccurrences = originParts.flatMap(({ index, reference: { start, end } }) => {
     const authorityId = sourceGroups.get(index);

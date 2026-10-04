@@ -1,4 +1,4 @@
-import { authorityReproducedInBook } from "./authorities-sources.mjs";
+import { authorityReproducedInBook, authorityTabbed } from "./authorities-sources.mjs";
 
 const GROUPS = { case: "Cases", legislation: "Legislation", commentary: "Secondary sources", other: "Other sources" };
 const KIND_ORDER = { "cases-first": ["case", "legislation", "commentary", "other"],
@@ -59,8 +59,10 @@ function deriveAuthorityProcedure(input) {
 /** Shapes a draft's stored state into `deriveAuthorityProcedure` input; the caller
  *  supplies only the purpose, so server and browser plan the same book. */
 function authorityProcedureInput(state, { purpose }) {
+  // A decision printed with the case it follows has no tab or index line of its own.
+  const listed = state.authorityOrder.filter((id) => state.authorities[id].excluded || authorityTabbed(state, state.authorities[id]));
   return {
-    authorities: state.authorityOrder.map((id) => {
+    authorities: listed.map((id) => {
       const authority = state.authorities[id];
       return { id, kind: authority.kind, citation: authority.citation,
         sortLabel: authority.displayName || authority.name || authority.citation,
@@ -139,6 +141,13 @@ function authorityCitation(draft, authority) {
     if (same && !/[\p{L}\p{N}]/u.test(text[at] ?? "")) lead = text.slice(0, at);
   }
   if (!lead && name && !lower(text).includes(lower(name))) { text = `${name}, ${text}`; lead = name; }
+  // A decision of subsequent history printed with this case follows its citation as the brief
+  // writes it: "…, 2010 ABQB 242, aff'd 2010 ABCA 191".
+  if (draft.settings?.subsequentHistory === "with-case") for (const id of draft.authorityOrder) {
+    const history = draft.authorities[id];
+    if (history?.historyOf === authority.id && !history.excluded)
+      text += `, ${[history.historyRelation, line(history.citation)].filter(Boolean).join(" ")}`;
+  }
   const cited = text.length;
   for (const form of [...rest.map(({ coreSpan }) => coreSpan.text), citation,
     ...authority.sourceIdentity?.citationForms ?? []].map(line))
