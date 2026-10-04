@@ -160,11 +160,12 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
   const sources = authority.source.kind === "attached" ? authority.source.sources : [];
   const title = authorityName(authority);
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
-  const replacement = sources.length && !requireLanguages ? "Replace" : "Upload";
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
   const missingLanguage = requireLanguages && !sources.some(source => source.language === "bilingual") &&
     !(sources.some(source => source.language === "en") && sources.some(source => source.language === "fr"));
+  // A court that files both languages takes another PDF until it has them; then a PDF replaces.
+  const replacement = sources.length && !missingLanguage ? "Replace" : "Upload";
   // The original the publisher's download did not bring: its row opens the publisher while the PDF
   // is missing, and its options do beside a PDF built from source text.
   const publisher = needsPdf ? /\/robocop\/captcha\//iu.test(authority.sourceVerificationUrl ?? "")
@@ -405,7 +406,9 @@ function LookupFailures({ authorities, busy, onRetry }: {
       {reasons.map((reason) => {
         const items = failed.filter(({ sourceLookupFailure }) => lookupReason(sourceLookupFailure!) === reason);
         const names = items.map(named);
-        return <p key={reason}>{reason}, so {names.length === 1 ? "this authority wasn't" : `${names.length} authorities weren't`} checked: {names.join("; ")}.
+        // A few are named; more are left to their rows, each marked.
+        return <p key={reason}>{reason}, so {names.length === 1 ? "this authority wasn't" : `${names.length} authorities weren't`} checked{names.length <= 3
+          ? `: ${names.join("; ")}.` : ". Each is marked in the list."}
           {again && items[0].sourceLookupFailure!.reason === "rate-limited" && ` Beaver will try again ${again}.`}</p>;
       })}
     </div>

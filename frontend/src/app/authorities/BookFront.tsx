@@ -88,16 +88,18 @@ export function CoverFields({ cover, profileId, settings, disabled, court, onCov
   const optional = <span className="font-normal text-gray-500">(optional)</span>;
   const title = (className?: string) => text(<>Title {optional}</>, cover.title, (title) => onCover({ ...cover, title }), className,
     form === "alberta" ? "Book of Authorities of the Applicant" : form === "plain" ? "Book of Authorities" : undefined);
+  const longCourt = !!court && authoritiesProfile(profileId).label.length > 22;
   // Two to a line: the court beside its file number, a short field beside another; only the title of a
   // Federal cover and the parties take the width.
   return <fieldset className="grid min-w-0 gap-4" disabled={disabled}>
     <legend className="sr-only">Cover</legend>
     <div className="grid grid-cols-2 gap-x-3 gap-y-3">
-      {court}
-      {form === "plain" ? title()
+      {/* A court whose name would not fit half the width takes the whole line, so it is never cut. */}
+      {court && <div className={cn("min-w-0", longCourt && "col-span-2")}>{court}</div>}
+      {form === "plain" ? title(longCourt ? "col-span-2" : undefined)
         : text("Court file number", cover.courtFileNumber, (courtFileNumber) => onCover({ ...cover, courtFileNumber }))}
       {form === "alberta" && text("Judicial centre", cover.judicialCentre ?? "", (judicialCentre) => onCover({ ...cover, judicialCentre }))}
-      {form === "alberta" && title()}
+      {form === "alberta" && title("col-span-2")}
       {form !== "plain" && options?.filingMedium && options.bookRole && <>
         <Choice label="Filing" value={settings.filingMedium ?? "electronic"} options={options.filingMedium} disabled={disabled}
           onChange={(filingMedium) => onSettings({ filingMedium })} />
