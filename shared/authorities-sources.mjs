@@ -42,9 +42,9 @@ export const authorityPdfRequired = (draft, authority, requirements) => draft.se
     !authoritySourceUrl(authority));
 
 /** Whether an authority stands in the book: not left out, and not a decision of subsequent
- *  history unless the book includes subsequent history. */
+ *  history in a book that leaves subsequent history out. */
 export const authorityTabbed = (draft, authority) => !authority.excluded &&
-  !(draft.settings?.subsequentHistory !== "include" && authority.historyOf &&
+  !(draft.settings?.subsequentHistory === "omit" && authority.historyOf &&
     draft.authorities?.[authority.historyOf] && !draft.authorities[authority.historyOf].excluded);
 
 /** The one rule for "does this authority still owe a source", asked by the builder
