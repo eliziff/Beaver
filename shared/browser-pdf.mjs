@@ -36,7 +36,10 @@ export function createPdfViewer({ PDFViewer, EventBus }, container, element, sig
     removePageBorders: true, // Page, canvas and selection coordinates must share the same box.
     textLayerMode: 0, annotationMode: 0, annotationEditorMode: -1,
     maxCanvasPixels: (globalThis.devicePixelRatio || 1) > 2 ? 2_000_000 : undefined,
-    enableHWA: true, enableDetailCanvas: (globalThis.devicePixelRatio || 1) <= 2, abortSignal: signal });
+    enableHWA: true, enableDetailCanvas: (globalThis.devicePixelRatio || 1) <= 2, abortSignal: signal,
+    // Without one, every viewer parses PDF.js's whole Fluent bundle and translates each page as it
+    // is added; the page names it would give are set where the pages are made (pdf/viewer.ts).
+    l10n: { translate() {}, pause() {}, resume() {} } });
   eventBus.on('pagerendered', ({pageNumber, error}) => {
     if (!error || signal.aborted) return;
     const page = viewer.getPageView(pageNumber - 1).div;

@@ -39,6 +39,10 @@ export interface PdfCanvasProps {
     onRendered?: () => void;
     /** Given the means to draw a page (and its text) before a view is moved to it. */
     drawPage?: { current: ((page: number) => Promise<boolean>) | null };
+    /** Drawn out of sight, under the view on screen: its controls are left out and it is neither
+     *  focused nor announced. Nothing that styles its pages changes as it is shown, so showing it
+     *  restyles none of them. */
+    hidden?: boolean;
 }
 
 
@@ -47,7 +51,7 @@ type Layout = PdfSession & { search(quotes: CitationQuote[]): Promise<void> };
 
 export function PdfCanvas({source, bytes, loading = false, error, quotes = [], quoteFocusKey,
     rounded = true, ariaLabel = "PDF document", onUnavailable, annotationEditor,
-    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady, onRendered, drawPage}: PdfCanvasProps) {
+    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady, onRendered, drawPage, hidden}: PdfCanvasProps) {
     const containerRef = useRef<HTMLDivElement>(null), scrollRef = useRef<HTMLDivElement>(null);
     const layoutRef = useRef<Layout | null>(null);
     const previewRef = useRef<HTMLDivElement | null>(null);
@@ -65,6 +69,9 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
     const [preparing, setPreparing] = useState(true), [viewerError, setViewerError] = useState<string | null>(null);
     const [zoom, setZoom] = useState(1), [currentPage, setCurrentPage] = useState(1), [numPages, setNumPages] = useState(0);
     const [embeddedPageLabels, setEmbeddedPageLabels] = useState<readonly (string | null)[]>();
+    // A viewer that is going away leaves nothing on screen, so it copies nothing to paint over.
+    const mountedRef = useRef(true);
+    useLayoutEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
     const notifyTextReady = useEffectEvent((page: number, element: HTMLElement, focus = false) => onTextReady?.(page, element, focus));
     const notifyRendered = useEffectEvent(() => onRendered?.());
@@ -182,7 +189,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
             setNumPages(pdf.numPages); setLayoutRevision(value => value + 1);
             void search(quotesRef.current).catch(fail);
         })().catch(fail);
-        return () => dispose(true);
+        return () => dispose(mountedRef.current);
     }, [bytes, source, error, clearPreview, authoredPageLabels, drawPage]);
     useEffect(() => clearPreview, [clearPreview]);
 
@@ -215,7 +222,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
     return (
         <section
             className={`relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
-            aria-label={ariaLabel}
+            aria-label={ariaLabel} aria-hidden={hidden || undefined}
         >
             {numPages === 0 && ((loading) || (preparing && !error && !viewerError)) && (
                 <div role="status" className="beaver-loading-indicator pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
@@ -223,7 +230,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                     <span className="sr-only">Loading PDF…</span>
                 </div>
             )}
-            <div ref={scrollRef} tabIndex={annotationEditor ? 0 : undefined} style={{ position: "absolute", scrollbarGutter: "stable", isolation: "isolate" }} className="absolute inset-0 overflow-auto p-3 beaver-pdf-scroll">
+            <div ref={scrollRef} tabIndex={annotationEditor && !hidden ? 0 : undefined} style={{ position: "absolute", scrollbarGutter: "stable", isolation: "isolate" }} className="absolute inset-0 overflow-auto p-3 beaver-pdf-scroll">
                 {(error || viewerError) && (
                     <div role="alert" className="flex h-full items-center justify-center">
                         <p className="max-w-sm px-6 text-center text-sm text-red-600">
@@ -234,7 +241,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
             </div>
             {/* Page and zoom controls float over the pages. They keep their look while the next PDF opens;
                 a page or zoom asked for meanwhile is ignored. */}
-            {numPages > 0 && (
+            {numPages > 0 && !hidden && (
                 <>
                     <div className="absolute bottom-4 left-4 z-10 max-w-[calc(100%-9rem)]">
                         <PdfPageNavigation page={currentPage} count={numPages} labels={pageLabels ?? recognizedText?.pageLabels ?? embeddedPageLabels}

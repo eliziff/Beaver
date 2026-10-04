@@ -64,10 +64,10 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
       for(const fragment of mark.fragments) {
         const page=pages[fragment.pageNumber-1]; if(!page) continue;
         const group=document.createElementNS(NS,'g'); group.dataset.annotationId=mark.id; overlay(page).appendChild(group);
-        const scale=Number(page.dataset.pdfScale) || 1;
+        // The page's size from its data, not its box: reading the box after drawing the last mark
+        // laid the whole viewer out again for every mark.
         const rects=mark.kind==='highlight' ? annotationLineBands(fragment.rects,
-          (page.clientWidth || parseFloat(page.style.width))/scale,
-          (page.clientHeight || parseFloat(page.style.height))/scale) : fragment.rects;
+          Number(page.dataset.pdfWidth),Number(page.dataset.pdfHeight)) : fragment.rects;
         fragments.push({pageNumber:fragment.pageNumber,rects});
         for(const r of rects) rectangle(group,r,`rgb(${mark.rgb.map(v=>Math.round(v*255)).join(' ')})`,
           Math.min(1,mark.opacity+(selected ? .1 : 0)),selected && mark.kind==='margin');
