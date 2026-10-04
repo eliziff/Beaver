@@ -30,6 +30,24 @@ function noteLabels(units: Unit[]) {
   }
   return labels;
 }
+/** The citations read before `until`, in the order the brief is read: each paragraph's citations
+ * and footnotes as they come in its text, then any note no paragraph calls. */
+function readingOrder(units: Unit[], occurrences: AuthoritiesProduct['state']['occurrences'], until: string) {
+  const notes = new Map(units.filter(unit => unit.kind === 'footnote').map(unit => [unit.footnoteId, unit]));
+  const read: AuthorityOccurrence[] = [], called = new Set<Unit>();
+  const rows = (unit: Unit) => unit.occurrenceIds.map(id => occurrences[id]).filter(Boolean);
+  for (const unit of units) if (unit.kind !== 'footnote') {
+    const events = [...rows(unit).map(row => [row.start, row] as const), ...unit.footnoteRefs.flatMap(([id, at]) => {
+      const note = notes.get(id); return note ? [[at, note] as const] : [];
+    })].sort((a, b) => a[0] - b[0]);
+    for (const [, item] of events) {
+      if ('occurrenceIds' in item) { called.add(item); read.push(...rows(item)); } else read.push(item);
+    }
+  }
+  for (const note of notes.values()) if (!called.has(note)) read.push(...rows(note));
+  const at = read.findIndex(row => row.id === until);
+  return at < 0 ? [] : read.slice(0, at);
+}
 /** A unit's citations as marked in the document: an edit marks again only the citations it changed. */
 const marking = (unit: Unit, occurrences: AuthoritiesProduct['state']['occurrences']) => unit.occurrenceIds.map(id => {
   const item = occurrences[id];
@@ -135,11 +153,11 @@ function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
   </div>;
 }
 
-const SECTIONS = ['In-text', 'Footnotes', 'Other authorities'] as const;
+const SECTIONS = ['In-text', 'Footnotes'] as const;
 type AuthorityOption = { authorityId: string; section: typeof SECTIONS[number]; note?: string; label: string; description: string };
-/** The authority a citation refers to, chosen from a searchable list that opens upward over the
- * document. It is laid out as the citation list is: the authorities cited in-text, each footnote's
- * under its number, then the rest. */
+/** The authority a short form refers to, chosen from a searchable list that opens upward over the
+ * document: the authorities cited in full before it, laid out as the citation list is (those cited
+ * in-text, then each footnote's under its number), and None. */
 function AuthorityPicker({ options, current, currentLabel, busy, onPick }: {
   options: AuthorityOption[]; current?: AuthorityIdentity; currentLabel?: string; busy: boolean; onPick(authorityId: string | null): void;
 }) {
@@ -190,8 +208,8 @@ function AuthorityPicker({ options, current, currentLabel, busy, onPick }: {
           </div>;
         })}
         {!shown.length && <p>No authority matches</p>}
-        {current && <button type="button" role="option" aria-selected="false" className="citation-authority-unlink"
-          onClick={() => pick(null)}>Unlink</button>}
+        <button type="button" role="option" aria-selected={!current} className="citation-authority-none"
+          onClick={() => pick(null)}>None</button>
       </div>
       <input autoFocus aria-label="Search authorities" placeholder="Search authorities" value={query}
         onChange={event => setQuery(event.target.value)} />
@@ -633,18 +651,18 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   };
   // Only a supra, ibid or short form names its authority by reference, so only it is asked what it
   // refers to; a full citation's authority is read from its own text.
-  const reference = selected.kind === 'reference', referenceKind = selected.reference?.kind ?? selected.referenceKind;
+  // A bare name ("Jordan at para 46") is a short form too, though the engine reads it as a reference.
+  const reference = selected.kind === 'reference', referenceKind = selected.reference?.kind ?? selected.referenceKind ?? (reference ? 'short' : undefined);
   const linked = authorityById.get(selected.reference?.targetAuthorityId ?? selected.authorityId ?? '');
-  const options = !reference ? [] : [...new Map(navigation.flatMap(row => {
-    const authority = !row.reference && authorityById.get(row.authorityId ?? ''), place = unitById.get(row.unitId);
+  // It can refer only to an authority cited in full before it, in the order the brief is read.
+  const earlier = reference ? readingOrder(units, product.state.occurrences, selected.id) : [];
+  const options = [...new Map(earlier.flatMap(row => {
+    const authority = row.kind !== 'reference' && authorityById.get(row.authorityId ?? ''), place = unitById.get(row.unitId);
     if (!authority || !place) return [];
     const note = place.kind === 'footnote' ? labels.get(place.id) : undefined;
     return [[`${note}\0${authority.id}`, { authorityId: authority.id, section: note ? 'Footnotes' : 'In-text', note,
       label: authorityName(authority), description: authorityCitationLine(product.state, authority) } as AuthorityOption]] as const;
   })).values()];
-  const cited = new Set(options.map(option => option.authorityId));
-  if (reference) for (const authority of authorities) if (!cited.has(authority.id)) options.push({ authorityId: authority.id,
-    section: 'Other authorities', label: authorityName(authority), description: authorityCitationLine(product.state, authority) });
   const link = (authorityId: string | null) => referenceKind && submit({ type: 'set-reference', occurrenceId: selected.id,
     reference: authorityId ? { kind: referenceKind, targetAuthorityId: authorityId } : null });
   const finding = discrepancies.find(item => item.occurrenceId === selected.id);
@@ -712,8 +730,9 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       </div>
       {/* Every citation shows its authority; only a supra, ibid or short form can be pointed at another. */}
       <span id="citation-refers" className="citation-label" data-row="1">{reference ? 'Refers to' : 'Source'}</span>
-      <AuthorityPicker options={options} current={linked} currentLabel={linked && authorityCitationText(product.state, linked)}
-        busy={busy || !reference || !referenceKind} onPick={link} />
+      <AuthorityPicker options={options} current={linked} currentLabel={linked ? authorityCitationText(product.state, linked)
+          : reference && !options.length ? 'No earlier citation' : reference ? 'None' : undefined}
+        busy={busy || !reference || !options.length && !linked} onPick={link} />
       {/* What the quote check found for this citation: lit when there is something, opening the brief's
           words beside the source's. */}
       <button type="button" className="citation-quote" disabled={!finding}

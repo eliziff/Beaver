@@ -128,7 +128,7 @@
 .citation-authority-menu [role=option]:hover,.citation-authority-menu [role=option]:focus-visible{background:#f3f4f6;outline:none}
 .citation-authority-menu [role=option][aria-selected=true]{background:#fff1f0;box-shadow:inset 2px 0 #b91c1c}
 .citation-authority-menu [role=option][aria-selected=true]>span{color:#991b1b}
-.citation-authority-unlink{display:block;width:100%;margin-top:.75rem;padding:.45rem .6rem;border-top:1px solid #f3f4f6;text-align:start;color:#991b1b}
+.citation-authority-menu .citation-authority-none{margin-top:.5rem;border-top:1px solid var(--color-gray-200);border-radius:0;color:var(--color-gray-700)}
 .citation-authority-menu p{margin:0;padding:.6rem .5rem;color:#6b7280}
 .citation-authority-menu>input{flex:none;height:2.25rem;margin:.4rem;padding:0 .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.875rem;outline:none}
 .citation-authority-menu>input:focus-visible{border-color:#b91c1c}
