@@ -1,4 +1,4 @@
-import { apiResponse } from '@/app/lib/api/client';
+import { authoritiesOperation } from './runtimeClient';
 import { decodeAnnotationSet, type AnnotationPreparation } from '../../../../shared/pdf-annotations.mjs';
 export type { AnnotationPreparation } from '../../../../shared/pdf-annotations.mjs';
 import type { AuthoritiesProduct } from './types';
@@ -6,11 +6,9 @@ import type { AuthoritiesProduct } from './types';
  *  uses its bound-document operation. */
 export async function prepareAnnotations(product: AuthoritiesProduct, authorityId: string,
   bindingRole: string, file: Blob | (() => Promise<Blob>), signal?: AbortSignal): Promise<AnnotationPreparation> {
-  const form = new FormData();
-  form.append('draft', JSON.stringify(product.state));
-  form.append('authorityId', authorityId); form.append('bindingRole', bindingRole);
-  form.append('file', typeof file === 'function' ? await file() : file, 'authority.pdf');
-  const response = await apiResponse('/authorities-runtime/annotations', { method: 'POST', body: form, signal });
-  const result = await response.json() as AnnotationPreparation;
+  const response = await authoritiesOperation('annotations', {
+    draft: product.state, authorityId, bindingRole, files: [typeof file === 'function' ? await file() : file],
+  }, { signal });
+  const result = response.data as AnnotationPreparation;
   return { annotations: decodeAnnotationSet(result.annotations), pageMarked: result.pageMarked };
 }

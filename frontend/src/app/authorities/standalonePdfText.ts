@@ -1,4 +1,4 @@
-import { followedRequest } from '@/app/lib/api/client';
+import { authoritiesOperation } from './runtimeClient';
 import type { PdfRecognizedText } from '@/app/lib/api/documents';
 import type { AuthoritiesProduct } from './types';
 import { oneAtATime } from '../../../../shared/one-at-a-time.mjs';
@@ -24,7 +24,6 @@ export async function prepareSourceText(product: AuthoritiesProduct, role: strin
   if (binding.kind !== 'local-file') return;
   const hash = binding.lastSeen.sha256;
   if (!hash) return;
-  const draft = JSON.stringify(product.state);
   const retainedPages = () => new Map((text.get(hash) ?? []).map(page => [page.pageNumber, page]));
   const count = (retained: Map<number, unknown>) => scanned ? scanned.filter(page => retained.has(page)).length : retained.size;
   for (const pages of passes(priority, scanned)) {
@@ -34,19 +33,15 @@ export async function prepareSourceText(product: AuthoritiesProduct, role: strin
     const settle = () => { if (queued) { queued = false; waiting.set(hash, waiting.get(hash)! - 1); } };
     await onePass(async () => {
       settle();
-      const form = new FormData();
-      form.append('draft', draft); form.append('role', role);
-      form.append('file', file, file.name); form.append('prepareOnly', 'true');
-      if (pages) form.append('pages', JSON.stringify(pages));
-      // Pages done before this pass, plus the engine's count of this pass's pages.
       const before = retainedPages();
       const done = count(new Map([...before].filter(([page]) => !pages || !pages.includes(page))));
-      const response = await followedRequest('/authorities-runtime/source-text',
-        { method: 'POST', body: form, signal }, (message) => {
+      const response = await authoritiesOperation('source-text', {
+        draft: product.state, role, files: [file], prepareOnly: 'true', pages,
+      }, { signal, progress: message => {
         const recognized = Number(message.split('/')[0]);
         if (Number.isFinite(recognized)) completed(Math.min(scanned?.length ?? Infinity, done + recognized));
-      });
-      const result = await response.json() as PdfRecognizedText;
+      }});
+      const result = response.data as PdfRecognizedText;
       const retained = retainedPages();
       for (const page of result.pages) retained.set(page.pageNumber, page);
       text.set(hash, [...retained.values()]); completed(count(retained));

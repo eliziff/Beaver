@@ -12,10 +12,11 @@ import {
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
-import { apiRequest, BeaverApiError, followedRequest } from "@/app/lib/api/client";
+import { BeaverApiError } from "@/app/lib/api/client";
+import { authoritiesOperation, type AuthoritiesRequest } from "./runtimeClient";
+import type { AuthoritiesOperation } from "mike/shared/runtime/authoritiesRuntime.mjs";
 import type { WorkProduct, WorkProductInput } from "@/app/lib/workProducts";
-import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
-  AuthoritySourceLanguage } from "./types";
+import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft } from "./types";
 import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
 import { prepareAnnotations } from "./annotationPreparation";
@@ -99,12 +100,9 @@ async function currentProduct(id: string, revision: number) {
   return { ...product, state: supportedDraft(product.state) };
 }
 
-async function runtimeResponse(path: string, body: BodyInit, json = false,
+async function runtimeResponse(operation: AuthoritiesOperation, input: AuthoritiesRequest,
   signal?: AbortSignal, progress?: (message: string) => void) {
-  return followedRequest(`/authorities-runtime/${path}`, {
-    method: "POST", body, signal,
-    ...(json ? { headers: { "Content-Type": "application/json" } } : {}),
-  }, progress);
+  return authoritiesOperation(operation, input, { signal, progress });
 }
 // A read holds an upload slot for as long as it reads (a scan's pages can take a while), so reads
 // go one at a time, in tab order, and the workspace's own requests always find a slot free.
@@ -113,53 +111,37 @@ const readingAhead = oneAtATime();
  *  A failure here is the build's to report; the scan is still recognized for the highlights. */
 async function readAsBuild(product: AuthoritiesProduct, role: string, file: File, signal: AbortSignal,
   recognized: (count: number) => void) {
-  const form = new FormData();
-  form.append("draft", JSON.stringify(product.state)); form.append("role", role);
-  form.append("file", file, file.name);
-  await readingAhead(() => runtimeResponse("source-read", form, false, signal, (message) => {
+  const form: AuthoritiesRequest = {};
+  form["draft"] = product.state; form["role"] = role;
+  form.files = [file];
+  await readingAhead(() => runtimeResponse("source-read", form, signal, (message) => {
     const done = Number(message.split("/")[0]);
     if (Number.isFinite(done)) recognized(done);
   }), signal).catch((error) => { if (signal.aborted) throw error; });
 }
-async function runtimeDraft(path: string, body: BodyInit, json = false, signal?: AbortSignal,
+async function runtimeDraft(operation: AuthoritiesOperation, input: AuthoritiesRequest, signal?: AbortSignal,
   progress?: (message: string) => void) {
-  const response = await runtimeResponse(path, body, json, signal, progress);
-  if (!response.headers.get("content-type")?.startsWith("multipart/form-data")) {
-    return supportedDraft(await response.json() as AuthoritiesDraft);
-  }
-  const form = await response.formData();
-  const state = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
-  const attachments = JSON.parse(String(form.get("attachments"))) as Array<{
-    part: string; authorityId: string; filename: string; sourceSha256: string;
-    language: AuthoritySourceLanguage;
-  }>;
-  for (const item of attachments) {
+  const result = await runtimeResponse(operation, input, signal, progress);
+  const state = result.data as AuthoritiesDraft;
+  for (const item of result.attachments ?? []) {
     signal?.throwIfAborted();
     const decision = state.authorities[item.authorityId]?.source;
-    const source = decision?.kind === "attached" ? decision.sources.find((candidate) =>
-      candidate.language === item.language && candidate.filename === item.filename &&
-      candidate.sourceSha256 === item.sourceSha256) : undefined;
-    const part = form.get(item.part);
-    if (!source ||
-        !(part instanceof File) ||
-        !/^[a-f0-9]{64}$/u.test(item.sourceSha256)) {
-      throw new Error("An automatic authority source was invalid.");
-    }
-    const file = new File([part], item.filename, { type: "application/pdf", lastModified: 0 });
+    const source = decision?.kind === "attached" ? decision.sources.find(candidate =>
+      candidate.language === item.language && candidate.filename === item.filename && candidate.sourceSha256 === item.sourceSha256) : undefined;
+    if (!source) throw new Error("An automatic authority source was invalid.");
+    const file = new File([item.bytes.slice().buffer as ArrayBuffer], item.filename, { type: "application/pdf", lastModified: 0 });
     const binding = await retainStandaloneFile(file);
-    if (binding.lastSeen.sha256 !== item.sourceSha256 ||
-        source.sourceSha256 !== item.sourceSha256) {
+    if (binding.lastSeen.sha256 !== item.sourceSha256 || source.sourceSha256 !== item.sourceSha256)
       throw new Error(`The downloaded bytes do not match ${item.filename}.`);
-    }
     state.bindings[source.bindingRole] = binding;
   }
   return supportedDraft(state);
 }
 
 async function refreshImported(state: AuthoritiesDraft, file: File, replace = false) {
-  const form = new FormData(); form.append("draft", JSON.stringify(state));
-  form.append("file", file, file.name); form.append("modified", String(file.lastModified));
-  if (replace) form.append("replace", "true");
+  const form: AuthoritiesRequest = {}; form["draft"] = state;
+  form.files = [file]; form["modified"] = String(file.lastModified);
+  if (replace) form["replace"] = "true";
   return runtimeDraft("refresh", form);
 }
 const validPdf = async (file: File) => await file.slice(0, 5).text() === "%PDF-";
@@ -174,9 +156,9 @@ async function buildInputs(product: AuthoritiesProduct, progress?: (message: str
       ...(product.state.import.kind === "document" ? [product.state.import.bindingRole] : []),
     ]);
     const roles: string[] = [];
-    const form = new FormData(); form.append("draft", JSON.stringify(product.state));
-    form.append("id", product.id); form.append("revision", String(product.revision));
-    form.append("title", product.title);
+    const form: AuthoritiesRequest = {}; form["draft"] = product.state;
+    form["id"] = product.id; form["revision"] = String(product.revision);
+    form["title"] = product.title;
     progress?.("Preparing sources");
     for (const role of plan.byteRoles) {
       signal?.throwIfAborted();
@@ -184,18 +166,18 @@ async function buildInputs(product: AuthoritiesProduct, progress?: (message: str
         !!product.state.settings.allowIncomplete && authorityRoles.has(role) && !requiredRoles.has(role));
       signal?.throwIfAborted();
       if (!file) continue;
-      form.append("files", file, file.name);
+      (form.files ??= []).push(file);
       roles.push(role);
     }
-    form.append("roles", JSON.stringify(roles));
+    form["roles"] = roles;
     return form;
 }
 
 async function attachPdf(id: string, revision: number, selected: AuthoritiesFile, fields: Record<string, string>) {
-  const product = await currentProduct(id, revision), form = new FormData();
-  form.append("draft", JSON.stringify(product.state)); form.append("file", selected.file, selected.file.name);
-  form.append("modified", String(selected.file.lastModified));
-  for (const [key, value] of Object.entries(fields)) form.append(key, value);
+  const product = await currentProduct(id, revision), form: AuthoritiesRequest = {};
+  form["draft"] = product.state; form.files = [selected.file];
+  form["modified"] = String(selected.file.lastModified);
+  for (const [key, value] of Object.entries(fields)) form[key] = value;
   const state = await runtimeDraft("pdf", form);
   const role = Object.keys(state.bindings).find((role) => {
     const input = state.bindings[role]; return input.kind === "local-file" && input.handleId === "standalone";
@@ -220,10 +202,9 @@ const recognitionJobs = new Map<string, RecognitionJob>();
 
 const pageLabels = keptPageLabels(async (draft, role, signal) => {
   const file = await resolveExact(draft.state.bindings[role]);
-  const form = new FormData(); form.append("file", file, file.name);
-  form.append("draft", JSON.stringify(draft.state)); form.append("bindingRole", role);
-  const { pageLabels } = await (await runtimeResponse("page-labels", form, false, signal)).json();
-  return pageLabels;
+  const form: AuthoritiesRequest = {}; form.files = [file];
+  form["draft"] = draft.state; form["bindingRole"] = role;
+  return ((await runtimeResponse("page-labels", form, signal)).data as { pageLabels: Array<string | null> }).pageLabels;
 });
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
@@ -231,8 +212,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     prepareAnnotations({ ...product, state: supportedDraft(product.state) }, ...args),
   mode: "standalone",
   recognitionAvailable,
-  wordToPdf: () => apiRequest<{ wordToPdf: boolean }>("/authorities-runtime/capabilities")
-    .then(({ wordToPdf }) => wordToPdf),
+  wordToPdf: () => authoritiesOperation("capabilities").then(result => (result.data as { wordToPdf: boolean }).wordToPdf),
   sourceOcr: {
     async start(id, roles, pages, scannedPages) {
       const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
@@ -280,49 +260,46 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       const extension = source.selected.file.name
         .split(".").at(-1)?.toLowerCase();
       if (extension !== "pdf" && extension !== "docx") throw new Error("Add a PDF or Word document.");
-      const form = new FormData(); form.append("file", source.selected.file);
-      form.append("modified", String(source.selected.file.lastModified));
-      if (settings) form.append("settings", JSON.stringify(settings));
+      const form: AuthoritiesRequest = {}; form.files = [source.selected.file];
+      form["modified"] = String(source.selected.file.lastModified);
+      if (settings) form["settings"] = settings;
       state = await runtimeDraft("import", form);
       state.bindings.source = binding;
-    } else state = await runtimeDraft("create", JSON.stringify({ settings }), true);
+    } else state = await runtimeDraft("create", { settings });
     return standaloneWorkProducts.create<AuthoritiesDraft>({ kind: "authorities", title, state });
   },
   async act(id, revision, action: AuthoritiesAction) {
     const product = await currentProduct(id, revision);
     const state = await runtimeDraft("action",
-      JSON.stringify({ draft: product.state, action }), true);
+      { draft: product.state, action });
     return save(id, revision, state);
   },
   async review(id, signal) {
     const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
-    return runtimeResponse("discrepancies", JSON.stringify({ draft: product.state }), true, signal)
-      .then((response) => response.json());
+    return runtimeResponse("discrepancies", { draft: product.state }, signal)
+      .then(result => result.data as Awaited<ReturnType<NonNullable<AuthoritiesHost["review"]>>>);
   },
   async resolveDiscrepancy(id, input) {
     const product = await currentProduct(id, input.revision);
-    let response: Response;
+    let response: Awaited<ReturnType<typeof runtimeResponse>>;
     if (input.action === "ignore") {
       response = await runtimeResponse("discrepancies/actions",
-        JSON.stringify({ draft: product.state, request: input }), true);
+        { draft: product.state, request: input });
     } else {
       const imported = product.state.import;
       if (imported.kind !== "document" || imported.fileType !== "docx")
         throw new Error("Source corrections require an imported Word document.");
       const file = await resolveExact(product.state.bindings[imported.bindingRole]);
-      const form = new FormData(); form.append("draft", JSON.stringify(product.state));
-      form.append("request", JSON.stringify(input)); form.append("file", file, file.name);
-      form.append("modified", String(file.lastModified));
+      const form: AuthoritiesRequest = {}; form["draft"] = product.state;
+      form["request"] = input; form.files = [file];
+      form["modified"] = String(file.lastModified);
       response = await runtimeResponse("discrepancies/actions", form);
     }
-    if (!response.headers.get("content-type")?.startsWith("multipart/form-data")) {
-      return save(id, input.revision, await response.json() as AuthoritiesDraft);
-    }
-    const form = await response.formData(), state = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
-    const source = form.get("source"), imported = state.import;
-    if (!(source instanceof File) || imported.kind !== "document" || imported.fileType !== "docx")
-      throw new Error("The corrected Word document was invalid.");
-    const file = new File([source], imported.filename, { type: source.type, lastModified: 0 });
+    if (!response.files?.length) return save(id, input.revision, response.data as AuthoritiesDraft);
+    const state = (response.data as { draft: AuthoritiesDraft }).draft;
+    const source = response.files.find(file => file.role === "source"), imported = state.import;
+    if (!source || imported.kind !== "document" || imported.fileType !== "docx") throw new Error("The corrected Word document was invalid.");
+    const file = new File([source.bytes.slice().buffer as ArrayBuffer], imported.filename, { type: source.mimeType, lastModified: 0 });
     const binding = await retainStandaloneFile(file), expected = state.bindings[imported.bindingRole];
     if (expected?.kind !== "local-file" ||
         expected.lastSeen.sha256 !== binding.lastSeen.sha256) {
@@ -346,20 +323,20 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
     const prepared = await runtimeDraft("sources",
-      JSON.stringify({ draft: product.state, authorityId }), true, signal, progress);
+      { draft: product.state, authorityId }, signal, progress);
     signal?.throwIfAborted();
     return JSON.stringify(prepared) === JSON.stringify(product.state)
       ? product : save(product.id, product.revision, prepared);
   },
   bookFront: async (product, actions, signal) => (await runtimeResponse("book-front",
-    JSON.stringify({ draft: product.state, actions, title: product.title }), true, signal)).blob(),
+    { draft: product.state, actions, title: product.title }, signal)).files!.map(file => new Blob([file.bytes.slice().buffer as ArrayBuffer], { type: file.mimeType }))[0],
   attach: (id, authorityId, revision, selected, language = "en") =>
     attachPdf(id, revision, selected, { authority_id: authorityId, language,
       ...(selected.autoFetched ? { auto_fetched: "true" } : {}) }),
   attachBookPdf: (id, revision, slot, selected, supplementId) =>
     attachPdf(id, revision, selected, { slot, ...(supplementId ? { supplement_id: supplementId } : {}) }),
-  pdfAuthority: async (product, opening) => (await (await runtimeResponse("pdf-authority",
-    JSON.stringify({ draft: product.state, ...opening }), true)).json()).authorityId,
+  pdfAuthority: async (product, opening) => ((await runtimeResponse("pdf-authority",
+    { draft: product.state, ...opening })).data as { authorityId: string | null }).authorityId,
   watchedFolder: standaloneWatchedFolder,
   async build(selected, progress, signal) {
     signal?.throwIfAborted();
@@ -368,25 +345,24 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const product = await currentProduct(selected.id, selected.revision);
     const form = await buildInputs(product, progress, signal);
     progress?.("Building outputs");
-    const response = await (await runtimeResponse("build", form, false, signal, progress)).formData();
+    const response = await runtimeResponse("build", form, signal, progress);
     signal?.throwIfAborted();
-    const receipt = JSON.parse(String(response.get("receipt"))) as AuthoritiesBuildReceipt;
+    const { receipt, book } = response.data as { receipt: AuthoritiesBuildReceipt; book?: PreparedAuthoritiesBook<string> };
     const artifacts: Omit<StandaloneArtifact, "receipt">[] = await Promise.all(
       Object.entries(receipt.outputs).map(async ([role, detail]) => {
-        const file = response.get(role);
-        if (!detail || !(file instanceof File)) throw new Error(`The ${role} output is missing.`);
-        return { role, ...detail, bytes: new Uint8Array(await file.arrayBuffer()) };
+        const file = response.files?.find(file => file.role === role);
+        if (!detail || !file) throw new Error(`The ${role} output is missing.`);
+        return { role, ...detail, bytes: file.bytes };
       }));
-    const prepared = response.get("book");
-    if (typeof prepared === "string") {
-      const book = await mapAuthorityBookBytes(JSON.parse(prepared) as PreparedAuthoritiesBook<string>,
+    if (book) {
+      const preparedBook = await mapAuthorityBookBytes(book,
         async (role) => {
-          const source = response.get(role);
-          if (!(source instanceof File)) throw new Error(`The prepared PDF ${role} is missing.`);
-          return new Uint8Array(await source.arrayBuffer());
+          const source = response.files?.find(file => file.role === role);
+          if (!source) throw new Error(`The prepared PDF ${role} is missing.`);
+          return source.bytes;
         });
       progress?.("Assembling the book");
-      const built = await renderBook({ ...book, arial: await arial }, signal);
+      const built = await renderBook({ ...preparedBook, arial: await arial }, signal);
       for (const item of built) {
         const hash = await crypto.subtle.digest("SHA-256", item.bytes as Uint8Array<ArrayBuffer>);
         const sha256 = [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -413,7 +389,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   readSourceText: sourceText,
   readSourcePageLabels: pageLabels.labels,
   readPinpoints: async (text, start, end) =>
-    (await runtimeResponse("pinpoints", JSON.stringify({ text, start, end }), true)).json(),
+    (await runtimeResponse("pinpoints", { text, start, end })).data as Awaited<ReturnType<NonNullable<AuthoritiesHost["readPinpoints"]>>>,
   async inspectDraft(draft) {
     // An opened draft's sources have their printed page numbers read ahead of any viewer.
     pageLabels.readAhead(draft);
