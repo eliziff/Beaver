@@ -118,10 +118,14 @@ function authorityCitation(draft, authority) {
     : citation, lead = "";
   if (first) {
     const unit = draft.units.find(({ id }) => id === first.unitId)?.text ?? "";
-    // A link the brief writes in angle or square brackets keeps its closing bracket.
+    // A link the brief writes in square brackets keeps its closing bracket; one it writes in
+    // angle brackets is cited without either ("online: <example.org/a>" cites "online:
+    // example.org/a").
     const closer = unit[first.authoritySpan.end];
-    if (closer === ">" && text.split("<").length > text.split(">").length ||
-      closer === "]" && text.split("[").length > text.split("]").length) text += closer;
+    if (closer === "]" && text.split("[").length > text.split("]").length) text += closer;
+    const opener = text.lastIndexOf("<");
+    if (opener >= 0 && !text.slice(opener).includes(">") && !/\s/u.test(text.slice(opener + 1)))
+      text = text.slice(0, opener) + text.slice(opener + 1);
     // The court a CanLII ID is cited with belongs to its citation ("1954 CanLII 3 (SCC)"), though the
     // brief may write it after a pinpoint.
     const core = line(first.coreSpan.text);
