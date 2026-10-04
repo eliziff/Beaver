@@ -1,15 +1,17 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { Plus, Scale, X } from "lucide-react";
+import { FolderSearch, Plus, Scale, Upload, X } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
 import { CourtChoiceModal } from "@/app/components/modals/CourtChoiceModal";
+import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, errorMessage } from "@/app/lib/utils";
 import { getPdfJs, openPdfDocument, PDF_DOCUMENT_OPTIONS } from "@/app/lib/pdfJs";
-import { OptionCard, OptionCards } from "./OptionCards";
+import { FileCard, OptionCard, OptionCards } from "./OptionCards";
+import { FileInputButton } from "./FileInputButton";
 import { AUTHORITIES_PROFILES, authoritiesProfile } from "./profiles";
-import type { AuthoritiesHost } from "./host";
+import type { AuthoritiesFile, AuthoritiesHost } from "./host";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import type { AuthoritiesAction, AuthoritiesCover, AuthoritiesDraft, AuthoritiesProduct, AuthoritiesProfileId } from "./types";
 import previewState from "./previewBook.json";
@@ -142,8 +144,10 @@ export function CoverFields({ cover, profileId, settings, disabled, court, onCov
 }
 
 /** What the index gives, how it groups and orders the authorities, and how each tab opens. */
-export function IndexFields({ settings, profileId, disabled, onChange }: {
+export function IndexFields({ settings, profileId, disabled, onChange, own = false }: {
   settings: Settings; profileId: AuthoritiesProfileId; disabled?: boolean; onChange: (patch: Partial<Settings>) => void;
+  /** The index is the user's own PDF: only how each tab opens is asked. */
+  own?: boolean;
 }) {
   const profile = authoritiesProfile(profileId), federal = !!profile.requirements?.federalFormatting;
   const electronic = settings.filingMedium === "electronic";
@@ -151,10 +155,10 @@ export function IndexFields({ settings, profileId, disabled, onChange }: {
   const rightHand = !electronic && (settings.rightHandStarts ?? settings.filingMedium === "paper");
   return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
     <legend className="sr-only">Index</legend>
-    <OptionCards legend="Beside each authority" value={settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs")}
+    {!own && <OptionCards legend="Beside each authority" value={settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs")}
       columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
         { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index also gives the book pages each authority fills." }]}
-      onChange={(indexShows) => onChange({ indexShows })} />
+      onChange={(indexShows) => onChange({ indexShows })} />}
     <div className="grid gap-2">
       <OptionCard type="checkbox" checked={tabPages} onChange={() => onChange({ tabPages: !tabPages })}
         label="A TAB page before each authority" detail="Where the index's link and the bookmark for each authority land." />
@@ -296,48 +300,66 @@ export function StepTabs({ steps, at, disabled, onStep }: {
 }
 
 export const FRONT_STEPS = ["Cover", "Index"] as const;
+const FRONT_SLOTS = ["cover", "index"] as const;
 /** The court, the cover and the index at Build: the import's own Cover and Index steps, the book's front
  *  beside them, saved together. The footer says what a new court changes. */
-export function BookFrontModal({ host, draft, busy, step: first, jurisdictionOrder, onClose, onActions }: {
+export function BookFrontModal({ host, draft, busy, step: first, jurisdictionOrder, pdfs, onClose, onActions, onOwn }: {
   host: AuthoritiesHost; draft: AuthoritiesProduct; busy: boolean; step: typeof FRONT_STEPS[number];
-  jurisdictionOrder: string[]; onClose: () => void; onActions: (actions: AuthoritiesAction[]) => void;
+  jurisdictionOrder: string[]; pdfs: OwnPdfs; onClose: () => void; onActions: (actions: AuthoritiesAction[]) => void;
+  /** Adds a PDF chosen here as the cover or the index, once the other changes are saved. */
+  onOwn: (slot: FrontSlot, chosen: AuthoritiesFile) => void;
 }) {
   const before = draft.state, manual = before.import.kind === "manual";
   const [at, setAt] = useState<number>(FRONT_STEPS.indexOf(first));
   const [profileId, setProfileId] = useState(before.settings.profileId);
   const [edited, setEdited] = useState<AuthoritiesCover>();
   const [settings, setSettings] = useState<Partial<Settings>>({});
+  // Each page as the draft has it, generated or the user's own, until chosen otherwise here.
+  const [own, setOwn] = useState<Record<FrontSlot, OwnFront>>(() =>
+    ({ cover: { own: !!before.bookParts.cover }, index: { own: !!before.bookParts.index } }));
   // The draft as the court chosen here leaves it, then the cover and settings changed here.
   const court = courtState(before, profileId);
   const cover = edited ?? court.cover;
   useFilingContact(host, cover, profileId, (change) => setEdited((current) => change(current ?? courtState(before, profileId).cover)));
   const shown = { ...court.settings, ...settings };
+  const chosen = FRONT_SLOTS.flatMap((slot) => own[slot].own && own[slot].chosen ? [[slot, own[slot].chosen!] as const] : []);
   const actions: AuthoritiesAction[] = [...profileId === before.settings.profileId ? [] : [{ type: "set-profile", profileId } as const],
-    ...frontActions(court, cover, settings)];
+    ...frontActions(court, cover, settings),
+    // A page set back to Generated lets its own PDF go.
+    ...FRONT_SLOTS.flatMap((slot) => !own[slot].own && before.bookParts[slot] ? [{ type: "clear-book-part", slot } as const] : [])];
   const front = previewBook(host, draft);
   const preview = front ? previewActions(front.state, profileId, shown, cover, FRONT_KEYS) : [];
   const save = () => {
-    onActions(actions); onClose();
+    onActions(actions); chosen.forEach(([slot, file]) => onOwn(slot, file)); onClose();
     if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover).contact!)
       .catch(() => undefined);
   };
   const step = FRONT_STEPS[at];
+  const courtField = <AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} bookOnly={manual}
+    onChange={(next) => { setProfileId(next); setSettings({}); }} />;
   return <Modal open onClose={onClose} breadcrumbs={["Book"]} size="2xl"
     className="h-[min(54rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
     footerStatus={<p role="status" className="mr-auto min-w-0 flex-1 text-sm text-gray-700">
       {profileId === before.settings.profileId ? "" : courtChange(before, court)}</p>}
     secondaryAction={{ label: "Cancel", onClick: onClose }}
-    primaryAction={{ label: "Save", disabled: busy || !actions.length, onClick: save }}>
+    primaryAction={{ label: "Save", disabled: busy || !actions.length && !chosen.length, onClick: save }}>
     <StepTabs steps={FRONT_STEPS} at={at} disabled={busy} onStep={setAt} />
-    {step === "Cover" ? <FrontLayout preview={<FrontPreview host={host} draft={front} actions={preview} page={1} label="Cover" />}>
-      <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setEdited}
-        court={<AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} bookOnly={manual}
-          onChange={(next) => { setProfileId(next); setSettings({}); }} />}
-        onSettings={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+    {step === "Cover" ? <FrontLayout preview={<FrontSourcePreview slot="cover" value={own.cover} pdfs={pdfs}
+      generated={<FrontPreview host={host} draft={front} actions={preview} page={1} label="Cover" />} />}>
+      <FrontSource slot="cover" value={own.cover} pdfs={pdfs} disabled={busy} onChange={(cover) => setOwn((current) => ({ ...current, cover }))}
+        own={<div className="grid grid-cols-2 gap-3"><div className="min-w-0">{courtField}</div></div>}>
+        <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setEdited} court={courtField}
+          onSettings={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+      </FrontSource>
     </FrontLayout>
-    : <FrontLayout preview={<FrontPreview host={host} draft={front} actions={preview} page={2} label="First page of the index" />}>
-      <IndexFields settings={shown} profileId={profileId} disabled={busy}
-        onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+    : <FrontLayout preview={<FrontSourcePreview slot="index" value={own.index} pdfs={pdfs}
+      generated={<FrontPreview host={host} draft={front} actions={preview} page={2} label="First page of the index" />} />}>
+      <FrontSource slot="index" value={own.index} pdfs={pdfs} disabled={busy} onChange={(index) => setOwn((current) => ({ ...current, index }))}
+        own={<IndexFields own settings={shown} profileId={profileId} disabled={busy}
+          onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />}>
+        <IndexFields settings={shown} profileId={profileId} disabled={busy}
+          onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+      </FrontSource>
     </FrontLayout>}
   </Modal>;
 }
@@ -365,4 +387,86 @@ export function useFilingContact(host: AuthoritiesHost, cover: AuthoritiesCover,
     }).catch(() => undefined);
     return () => { active = false; };
   }, [alberta, host]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+export type FrontSlot = "cover" | "index";
+/** Whether a step's page is the user's own PDF, and the PDF chosen here that the draft takes on saving. */
+export type OwnFront = { own: boolean; chosen?: AuthoritiesFile };
+/** How a step reaches the user's own PDFs: the picker, the Library, and the PDF the draft keeps. */
+export type OwnPdfs = {
+  /** Whether a PDF of the user's own can be added here at all; without it, the step is the generated page alone. */
+  attach: boolean;
+  /** Asks for one PDF; without it, a file input does. */
+  choose?: () => Promise<AuthoritiesFile | undefined>;
+  library?: { label: string; open: (slot: FrontSlot) => void };
+  kept?: (slot: FrontSlot) => KeptPdf | undefined;
+  /** The kept PDF's bytes, for the preview. */
+  read?: (role: string) => Promise<Blob>;
+  relink?: (role: string) => void;
+};
+export type KeptPdf = { filename: string; role: string; issue?: "denied" | "unavailable" };
+const NAME: Record<FrontSlot, string> = { cover: "cover", index: "index" };
+
+/** A step's first choice: the page made here, or a PDF of the user's own in its place. The own PDF's
+ *  card holds what the step's menu used to: its upload, the Library, and access to it again. */
+export function FrontSource({ slot, value, pdfs, disabled, onChange, children, own }: {
+  slot: FrontSlot; value: OwnFront; pdfs: OwnPdfs; disabled?: boolean; onChange: (value: OwnFront) => void;
+  /** The step's fields for a generated page. */
+  children: ReactNode;
+  /** What the step still asks with a PDF of the user's own. */
+  own?: ReactNode;
+}) {
+  const kept = pdfs.kept?.(slot), name = NAME[slot];
+  const choose = async () => { const chosen = await pdfs.choose?.(); if (chosen) onChange({ own: true, chosen }); };
+  if (!pdfs.attach && !kept) return children;
+  const label = value.chosen ? "Replace" : kept ? "Replace" : "Upload";
+  const control = "h-8 shrink-0 gap-1.5 border-gray-300 px-2.5 text-[0.8125rem] font-medium text-gray-800 [&_svg]:size-3.5";
+  const detail = value.chosen ? "Added to the book when you save."
+    : kept?.issue === "denied" ? "File access was denied. Allow access to use it."
+    : kept?.issue === "unavailable" ? "This PDF is unavailable. Upload it again."
+    : kept ? `The book's ${name} now.` : `Upload the ${name} as a PDF.`;
+  return <>
+    <OptionCards legend={slot === "cover" ? "Cover" : "Index"} columns value={value.own ? "own" : "generated"} disabled={disabled}
+      options={[{ value: "generated", label: "Generated", detail: slot === "cover" ? "Made from the details below." : "Made from the choices below." },
+        { value: "own", label: "Your own PDF", detail: `Use ${slot === "cover" ? "a cover" : "an index"} you made yourself.` }]}
+      onChange={(choice) => onChange({ ...value, own: choice === "own" })} />
+    {value.own ? <>
+      <FileCard disabled={disabled}
+        label={value.chosen?.file.name ?? kept?.filename ?? "Not added yet"} detail={detail}
+        action={<span className="flex items-center gap-1.5">
+          {kept?.issue === "denied" && !value.chosen && pdfs.relink && <Button type="button" variant="outline" className={control}
+            disabled={disabled} onClick={() => pdfs.relink!(kept.role)}>Allow file access</Button>}
+          {pdfs.choose ? <Button type="button" variant="outline" className={control} disabled={disabled}
+            aria-label={`${label} the ${name} PDF`} onClick={() => void choose()}><Upload />{label}</Button>
+            : <FileInputButton multiple={false} disabled={!!disabled} label={label} ariaLabel={`${label} the ${name} PDF`}
+              accept=".pdf,application/pdf" variant="outline" compact icon={<Upload />} className={control}
+              onFiles={([file]) => file && onChange({ own: true, chosen: { file } })} />}
+          {pdfs.library && <Button type="button" variant="outline" className={control} disabled={disabled}
+            onClick={() => pdfs.library!.open(slot)}><FolderSearch />{pdfs.library.label}</Button>}
+        </span>} />
+      {own}
+    </> : children}
+  </>;
+}
+
+/** The preview beside a step: the page made here, or the first page of the user's own PDF. */
+export function FrontSourcePreview({ slot, value, pdfs, generated }: {
+  slot: FrontSlot; value: OwnFront; pdfs: OwnPdfs; generated: ReactNode;
+}) {
+  const kept = pdfs.kept?.(slot), source = value.chosen?.file ?? (kept && !kept.issue ? kept.role : undefined);
+  const [bytes, setBytes] = useState<{ source: File | string; bytes: Uint8Array }>();
+  useEffect(() => {
+    if (!value.own || !source || bytes?.source === source) return;
+    let active = true;
+    void (typeof source === "string" ? pdfs.read?.(source) : Promise.resolve(source))?.then((blob) => blob.arrayBuffer())
+      .then((buffer) => { if (active) setBytes({ source, bytes: new Uint8Array(buffer) }); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [value.own, source]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!value.own) return generated;
+  const label = `Your ${NAME[slot]}`;
+  return <Preview label={`Preview: ${label}`}>
+    {source ? <div className="flex min-h-0 flex-1 p-4">
+      <PagePreview bytes={bytes?.source === source ? bytes.bytes : undefined} page={1} label={label} /></div>
+      : <p className="m-auto p-6 text-center text-sm text-gray-600">The first page of your PDF shows here.</p>}
+  </Preview>;
 }

@@ -13,7 +13,7 @@ import { authorityName, authorityLabel, authorityCitationLine, requiresBilingual
   requiresPdf, sourceLanguageLabel, relinkable } from "./authorityPresentation";
 import type { AuthoritiesAction, AuthoritiesBookSupplement, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
-import type { AuthoritiesBookSlot, AuthoritiesSourceIssue } from "./host";
+import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesSourceIssue } from "./host";
 import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
 import type { StatuteCopy } from "./statuteExcerpts";
@@ -55,6 +55,8 @@ export type BookFiles = {
   onFiles: (slot: AuthoritiesBookSlot, files: File[], supplementId?: string) => void;
   onPick?: (slot: AuthoritiesBookSlot, multiple: boolean, supplementId?: string) => void;
   onLibrary?: (slot: AuthoritiesBookSlot, supplementId?: string) => void;
+  /** Adds a PDF already chosen (the cover's or the index's, from its step), with its kept file handle. */
+  onSelected?: (slot: AuthoritiesBookSlot, selected: AuthoritiesFile) => void;
 };
 type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
