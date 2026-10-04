@@ -28,10 +28,10 @@ import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { rowControl, rowLabel, Sources, type BookFiles } from "./AuthoritySources";
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
-import { FileCard, OptionCard, OptionCards, Segments } from "./OptionCards";
-import { OutputCards, OutputOptionsModal, type OutputCard } from "./OutputCards";
+import { FileCard, OptionCard, OptionCards } from "./OptionCards";
+import { OutputCards, OutputOptions, type OutputCard } from "./OutputCards";
 import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, coverForm } from "./BookFront";
-import { ImportWizard, SCANNED_OPTIONS, SHORT, SOURCE_OPTIONS, type Remembered } from "./ImportWizard";
+import { ImportWizard, SOURCE_OPTIONS, SourceChoices, sourceChoiceSummary, type Remembered } from "./ImportWizard";
 import { courtChange } from "./courtChange";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
@@ -60,6 +60,8 @@ const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
 // Every view, the citation review among them, and the header and steps above it share one
 // readable frame, so nothing moves between them and a document page shows at about its own size.
 const FRAME = "mx-auto w-full max-w-[68rem] px-4 sm:px-6 md:mx-auto";
+/** Sources, Highlights and Build take a narrower column than the review, which needs the document's width. */
+const NARROW = "mx-auto w-full max-w-[58rem] px-4 sm:px-6 md:mx-auto";
 const SOURCE_LANGUAGE_OPTIONS = [
   { value: "bilingual", label: "English and French", description: "One bilingual official PDF." },
   { value: "en", label: "English", description: "The English official PDF." },
@@ -1093,20 +1095,26 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       onOpenSource={host.readSource ? openFindingSource : undefined}
       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
       onDone={() => setFindingId("")} />;
-  // The source handling and the scanned-PDF choice made at import, closed under their names. A new
-  // source handling drops only the PDFs found for it and finds them again; uploaded PDFs stay.
-  const sourceSettings = draft && draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <>
-    <Segments label="Source handling" value={draft.state.settings.sourceMode}
-      options={SOURCE_OPTIONS.map((option) => ({ ...option, label: SHORT[option.value] }))}
-      disabled={busy} onChange={(sourceMode) => act({ type: "set-settings", settings: { sourceMode } }, async (next) => {
-        setOperation("Finding source PDFs");
-        try { adopt(await onLatest(next.id, (latest) => host.prepareSources(latest, undefined, undefined, noteSources))); }
-        finally { setOperation(""); }
-      })} />
-    {host.recognitionAvailable !== false && <Segments label="Scanned PDFs" value={draft.state.settings.scannedPdfPolicy}
-      options={SCANNED_OPTIONS.map((option) => ({ ...option, label: SHORT[option.value] }))} disabled={busy}
-      onChange={(scannedPdfPolicy) => act({ type: "set-settings", settings: { scannedPdfPolicy } })} />}
-  </>;
+  // The sources' settings chosen at import, closed under one bar naming them, opening to the same
+  // cards as the import's Sources step. A new source handling drops only the PDFs found for it and
+  // finds them again; uploaded PDFs stay.
+  const sourced = !!draft && draft.state.import.kind === "document", recognition = host.recognitionAvailable !== false;
+  const sourceSettings = draft && <details className="group rounded-lg border border-gray-300 bg-white">
+    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
+      <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-gray-600 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+      <span className="font-medium text-gray-950">Settings</span>
+      <span className="min-w-0 truncate text-gray-600">{sourceChoiceSummary(draft.state.settings, sourced, recognition)}</span>
+    </summary>
+    <div className="border-t border-gray-200 p-3">
+      <SourceChoices settings={draft.state.settings} profileId={draft.state.settings.profileId} sources={sourced}
+        recognition={recognition} disabled={busy} onChange={({ sourceMode, ...patch }) => sourceMode
+          ? act({ type: "set-settings", settings: { sourceMode } }, async (next) => {
+            setOperation("Finding source PDFs");
+            try { adopt(await onLatest(next.id, (latest) => host.prepareSources(latest, undefined, undefined, noteSources))); }
+            finally { setOperation(""); }
+          }) : act({ type: "set-settings", settings: patch })} />
+    </div>
+  </details>;
   const authorityPanelProps = { authorities, tabs: authorityTabs, groups: authorityGroups, busy, sourceIssues, statuteCopies,
     onAction: act, onEditIdentity: setEditingAuthority,
     onRetrySource: retryPublisherSource,
@@ -1157,7 +1165,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         : <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} title="Authorities"
           headerActions={<>{sections}{newAction}{headerActions}{settingsAction}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
-          <main className={cn(FRAME, "min-h-80", stepping ? "pt-1" : "pt-4", reviewing ? "pb-0" : "pb-4")}>
+          <main className={cn(reviewing ? FRAME : NARROW, "min-h-80", stepping ? "pt-1" : "pt-4", reviewing ? "pb-0" : "pb-4")}>
         {!(draft && tab !== "drafts") && statusLine}
         <div id="authorities-panel" role="tabpanel"
           aria-labelledby={`authorities-panel-tab-${TABS.findIndex(({ value }) => value === tab)}`}>
@@ -1459,67 +1467,67 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
         : "each citation marked and Word’s Table of Authorities on a new last page"] : [],
     ...tabbed ? ["its tab after each citation"] : []];
   const toggle = (key: NonNullable<typeof options>) => setOptions((open) => open === key ? undefined : key);
+  const tableOptions = !manual && (wordDocument ? <>
+    <AuthoritiesOutputOptions disabled={busy} value={{ ...settings, insertIntoDocument: state.insertIntoDocument }}
+      lockedDelivery={profile.locked?.settings?.tableDelivery}
+      firstTab={tabLabel(1, settings.tabStyle, settings)} onChange={onOptions} />
+    <TableOptions draft={draft} busy={busy} onMade={(made) => outputMode(book || !made, made)} onAction={onAction} />
+  </> : <TableOptions draft={draft} busy={busy} onMade={(made) => outputMode(book || !made, made)} onAction={onAction} pdfBrief />);
   const cards: OutputCard[] = [
     { key: "book", title: "Book of Authorities", roles: Object.keys(draft.outputs).filter((role) => /^book(?:-\d+)?$/u.test(role)),
       sentence: book ? "Creates a PDF that contains the cover, the index and each authority behind its tab." : lockedMode ?? "Not made.",
       // Options only where there is a choice: whether to make it, or what to do without a PDF.
-      ...(!manual && !lockedMode && table) || profile.options?.missingSourcePolicy ? { onOptions: () => toggle("book"), open: options === "book" } : {} },
+      ...(!manual && !lockedMode && table) || profile.options?.missingSourcePolicy ? { onOptions: () => toggle("book"), open: options === "book",
+        options: <OutputOptions made={book} madeLabel="Make the Book of Authorities" lockedReason={lockedMode}
+          disabled={busy || manual || !table} onMade={(made) => outputMode(made, table)}
+          madeDetail="Creates a PDF that contains the cover, the index and each authority behind its tab.">
+          {profile.options?.missingSourcePolicy && <OptionCards legend="Authorities without a PDF" value={settings.missingSourcePolicy}
+            disabled={busy} options={[{ value: "placeholder", label: "Keep their tabs", detail: "A page naming the authority takes its place." },
+              { value: "omit", label: "Leave out of the book", detail: "The other tabs keep their numbers." }]}
+            onChange={(missingSourcePolicy) => onAction({ type: "set-settings", settings: { missingSourcePolicy } })} />}
+        </OutputOptions> } : {} },
     ...manual ? [] : [wordDocument ? { key: "word", title: "Word copy", roles: ["annotated-document", "table"],
       sentence: [wordParts.length ? `Creates a copy of your brief with ${wordParts.join(", and ")}.` : "",
         table ? "Creates a Table of Authorities as a separate Word document." : ""].join(" ").trim() || "Not made.",
-      onOptions: () => toggle("word"), open: options === "word" }
+      onOptions: () => toggle("word"), open: options === "word", options: tableOptions }
       : { key: "word", title: "Table of Authorities", roles: ["table", "annotated-document"],
         sentence: [table ? "Creates a Table of Authorities as a Word document." : "",
           state.insertIntoDocument ? "Creates a PDF that contains your brief followed by the table and the authorities." : ""].join(" ").trim() || "Not made.",
-        onOptions: () => toggle("word"), open: options === "word" },
+        onOptions: () => toggle("word"), open: options === "word", options: tableOptions },
     { key: "final", title: "Final PDF", roles: ["final-pdf", "link-report"],
       sentence: settings.finalPdf ? `Creates a PDF that contains your brief followed by the book.${waiting ? " Note: Requires you to upload your brief as a PDF." : ""}` : "Not made.",
-      onOptions: () => toggle("final"), open: options === "final" }],
+      onOptions: () => toggle("final"), open: options === "final",
+      options: <OutputOptions made={!!settings.finalPdf} madeLabel="Make the final PDF" disabled={busy}
+        madeDetail="Creates a PDF that contains your brief followed by the book." onMade={(finalPdf) => onOptions({ finalPdf })}>
+        <FinalPdfOptions value={settings} onChange={onOptions} disabled={busy}
+          brief={briefSlot ? <BriefPdf draft={draft} busy={busy} part={brief}
+            onAction={onAction} onPick={files.onPick} onFiles={files.onFiles} /> : undefined} />
+      </OutputOptions> }],
   ];
-  return <section className="@container/build mt-3 grid gap-5 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-    <div className="grid gap-1">
-      <AuthoritiesCourtField value={settings.profileId} disabled={busy} className="max-w-md"
-        preferredKeys={jurisdictionOrder} bookOnly={manual}
-        onChange={(profileId) => profileId !== settings.profileId && onAction({ type: "set-profile", profileId },
-          (next) => setCourtNote({ id: next.id, text: courtChange(state, next.state) }))} />
-      {/* What the court changed: its line is always there, so saying it moves nothing. */}
-      <p role="status" className="min-h-4 text-xs leading-4 text-gray-600">{courtNote?.id === draft.id ? courtNote.text : ""}</p>
+  // The book on the left, the outputs and Build on the right, one above the other where narrow.
+  return <section className="@container/build mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
+    <div className="grid items-start gap-6 @min-[56rem]/build:grid-cols-[minmax(0,1fr)_26rem]">
+    <div className="grid min-w-0 gap-5">
+      <div className="grid max-w-md gap-1">
+        <AuthoritiesCourtField value={settings.profileId} disabled={busy}
+          preferredKeys={jurisdictionOrder} bookOnly={manual}
+          onChange={(profileId) => profileId !== settings.profileId && onAction({ type: "set-profile", profileId },
+            (next) => setCourtNote({ id: next.id, text: courtChange(state, next.state) }))} />
+        {/* What the court changed: its line is always there, so saying it moves nothing. */}
+        <p role="status" className="min-h-4 text-xs leading-4 text-gray-600">{courtNote?.id === draft.id ? courtNote.text : ""}</p>
+      </div>
+      {book && <BookContents draft={draft} busy={busy} onAction={onAction}
+        sourceIssues={sourceIssues} onRelink={onRelink} files={files} sourceLabel={sourceLabel}
+        onOpen={onOpenSource} settings={{
+          cover: { label: coverDetailsReady && filingRoleReady ? "Edit" : "Add details",
+            detail: generatedFederalCover && !(coverDetailsReady && filingRoleReady) ? "Details required"
+              : `Generated${state.cover.title ? ` · ${state.cover.title}` : ""}`, onClick: () => setFrontOpen(true) },
+          index: { label: "Edit", detail: `Generated · ${indexShows === "tabs-and-pages" ? "tabs and pages" : "tabs"}`,
+            onClick: () => setFrontOpen(true) } }} />}
     </div>
-    {book && <BookContents draft={draft} busy={busy} onAction={onAction}
-      sourceIssues={sourceIssues} onRelink={onRelink} files={files} sourceLabel={sourceLabel}
-      onOpen={onOpenSource} settings={{
-        cover: { label: coverDetailsReady && filingRoleReady ? "Edit" : "Add details",
-          detail: generatedFederalCover && !(coverDetailsReady && filingRoleReady) ? "Details required"
-            : `Generated${state.cover.title ? ` · ${state.cover.title}` : ""}`, onClick: () => setFrontOpen(true) },
-        index: { label: "Edit", detail: `Generated · ${indexShows === "tabs-and-pages" ? "tabs and pages" : "tabs"}`,
-          onClick: () => setFrontOpen(true) } }} />}
     <OutputCards draft={draft} cards={cards} busy={busy} building={building} progress={progress} note={note}
       linkWarnings={linkWarnings} onBuild={note ? () => setFrontOpen(true) : onBuild} onCancel={onCancel} onDownload={onDownload} />
-    <OutputOptionsModal open={options === "book"} onClose={() => setOptions(undefined)} title="Book of Authorities"
-      made={book} madeLabel="Make the Book of Authorities" madeDetail="Creates a PDF that contains the cover, the index and each authority behind its tab."
-      lockedReason={lockedMode} disabled={busy || manual || !table}
-      onMade={(made) => outputMode(made, table)}>
-      {profile.options?.missingSourcePolicy && <OptionCards legend="Authorities without a PDF" value={settings.missingSourcePolicy}
-        disabled={busy} options={[{ value: "placeholder", label: "Keep their tabs", detail: "A page naming the authority takes its place." },
-          { value: "omit", label: "Leave out of the book", detail: "The other tabs keep their numbers." }]} columns
-        onChange={(missingSourcePolicy) => onAction({ type: "set-settings", settings: { missingSourcePolicy } })} />}
-    </OutputOptionsModal>
-    {!manual && (wordDocument ? <OutputOptionsModal open={options === "word"} onClose={() => setOptions(undefined)} title="Word copy">
-      <AuthoritiesOutputOptions disabled={busy}
-        value={{ ...settings, insertIntoDocument: state.insertIntoDocument }}
-        lockedDelivery={profile.locked?.settings?.tableDelivery}
-        firstTab={tabLabel(1, settings.tabStyle, settings)} onChange={onOptions} />
-      <TableOptions draft={draft} busy={busy} onMade={(made) => outputMode(book || !made, made)} onAction={onAction} />
-    </OutputOptionsModal> : <OutputOptionsModal open={options === "word"} onClose={() => setOptions(undefined)} title="Table of Authorities">
-      <TableOptions draft={draft} busy={busy} onMade={(made) => outputMode(book || !made, made)} onAction={onAction} pdfBrief />
-    </OutputOptionsModal>)}
-    {!manual && <OutputOptionsModal open={options === "final"} onClose={() => setOptions(undefined)} title="Final PDF"
-      made={!!settings.finalPdf} madeLabel="Make the final PDF" disabled={busy}
-      madeDetail="Creates a PDF that contains your brief followed by the book." onMade={(finalPdf) => onOptions({ finalPdf })}>
-      <FinalPdfOptions value={settings} onChange={onOptions} disabled={busy}
-        brief={briefSlot ? <BriefPdf draft={draft} busy={busy} part={brief}
-          onAction={onAction} onPick={files.onPick} onFiles={files.onFiles} /> : undefined} />
-    </OutputOptionsModal>}
+    </div>
     {frontOpen && <BookFrontModal host={host} draft={draft} busy={busy} onClose={() => setFrontOpen(false)}
       onActions={(actions) => actions.forEach((action) => onAction(action))} />}
   </section>;

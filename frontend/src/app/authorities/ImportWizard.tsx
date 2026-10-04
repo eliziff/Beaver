@@ -32,8 +32,45 @@ export const SCANNED_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings[
   { value: "page-margin", label: "Keep scans as images",
     detail: "Keeps scanned pages as images. Their cited passages are marked in the margin." },
 ];
+export const GROUP_OPTIONS: ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildSettings["grouping"]>>> = [
+  { value: "legislation-first", label: "Legislation first", detail: "Lists legislation, then cases, then other authorities." },
+  { value: "cases-first", label: "Cases first", detail: "Lists cases, then legislation, then other authorities." },
+  { value: "none", label: "No groups", detail: "Lists every authority in one sequence." },
+];
+export const ORDER_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["tableOrder"]>> = [
+  { value: "first-reference", label: "First cited", detail: "Orders each group as your brief first cites its authorities." },
+  { value: "alphabetical", label: "Alphabetical", detail: "Orders each group alphabetically." },
+  { value: "custom", label: "As arranged", detail: "Keeps the order you set by dragging in Sources." },
+];
+type SourceSettings = Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy" | "grouping" | "tableOrder">;
+/** The sources' settings as cards, two columns: the same at import and, opened, at Sources. */
+export function SourceChoices({ settings, profileId, sources = true, recognition = true, disabled, onChange }: {
+  settings: SourceSettings; profileId: AuthoritiesProfileId; sources?: boolean; recognition?: boolean; disabled?: boolean;
+  onChange: (patch: Partial<SourceSettings>) => void;
+}) {
+  const locked = authoritiesProfile(profileId).locked?.settings;
+  return <div className="grid content-start gap-5 lg:grid-cols-2">
+    {sources && <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={disabled}
+      onChange={(sourceMode) => onChange({ sourceMode })} />}
+    {sources && recognition && <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}
+      disabled={disabled} onChange={(scannedPdfPolicy) => onChange({ scannedPdfPolicy })} />}
+    <OptionCards legend="Groups" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
+      options={GROUP_OPTIONS} disabled={disabled || !!locked?.grouping} onChange={(grouping) => onChange({ grouping })} />
+    <OptionCards legend="Order" value={settings.tableOrder} disabled={disabled || !!locked?.tableOrder}
+      options={settings.tableOrder === "custom" ? ORDER_OPTIONS : ORDER_OPTIONS.filter(({ value }) => value !== "custom")}
+      onChange={(tableOrder) => onChange({ tableOrder })} />
+  </div>;
+}
+/** The same choices named in a line, for the closed bar at Sources. */
+export function sourceChoiceSummary(settings: SourceSettings, sources: boolean, recognition: boolean) {
+  const name = <T extends string>(options: ReadonlyArray<CardOption<T>>, value?: T) => options.find((option) => option.value === value)?.label;
+  return [sources && SHORT[settings.sourceMode], sources && recognition && SHORT[settings.scannedPdfPolicy],
+    name(GROUP_OPTIONS, settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")),
+    name(ORDER_OPTIONS, settings.tableOrder)].filter(Boolean).join(" · ");
+}
+
 /** The source and scan choices named in a word or two, for a setting shown as segments. */
-export const SHORT: Record<string, string> = { automatic: "Automatic", "manual-originals": "Originals, then my uploads",
+export const SHORT: Record<string, string> = { automatic: "Automatic sources", "manual-originals": "Original PDFs, then my uploads",
   render: "Rebuild all from text", "page-margin": "Keep as images", "cited-pages": "Recognize cited pages", full: "Recognize every page" };
 /** The import's choices: the court, the cover and the index, the sources, and the marking. */
 const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "passageMarking"] as const;
@@ -132,12 +169,9 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
     : name === "Index" ? <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={frontActions} page={2} label="First page of the index" />}>
       <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />
     </FrontLayout>
-    : name === "Sources" ? <div className="grid content-start gap-5 overflow-y-auto p-1 lg:grid-cols-2">
-      {!book && <div className="lg:col-span-2">{court}</div>}
-      <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
-        onChange={(sourceMode) => choose({ sourceMode })} />
-      {recognitionAvailable && <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}
-        disabled={busy} onChange={(scannedPdfPolicy) => choose({ scannedPdfPolicy })} />}
+    : name === "Sources" ? <div className="grid content-start gap-5 overflow-y-auto p-1">
+      {!book && court}
+      <SourceChoices settings={settings} profileId={profileId} recognition={recognitionAvailable} disabled={busy} onChange={choose} />
     </div>
     : <FrontLayout preview={<Preview label="Preview of a marked page"><div className="flex min-h-0 flex-1 p-4"><MarkingSample type={settings.passageMarking} /></div></Preview>}>
       <OptionCards legend="Passage marking" value={settings.passageMarking} options={passageOptions(profileId)}
