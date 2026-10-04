@@ -83,8 +83,9 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
       })}
     </ul>
     <div className="mt-3 flex items-center justify-end gap-3">
-      {/* The line is always there, so progress, notes and what is ready never move Build. */}
-      <p role="status" aria-live="polite" title={status} className="min-h-5 min-w-0 flex-1 truncate text-right text-sm text-gray-700">{status}</p>
+      {/* Two lines, always there and as tall as Build, so progress, notes and what is ready never move it. */}
+      <div className="flex min-h-10 min-w-0 flex-1 items-center justify-end">
+        <p role="status" aria-live="polite" title={status} className="line-clamp-2 text-right text-sm leading-5 text-gray-700">{status}</p></div>
       <Button type="button" className="h-10 w-32 shrink-0" disabled={busy && !building} onClick={building ? onCancel : onBuild}>
         {building ? <><Loader2 className="motion-safe:animate-spin" /> Cancel</> : <><BookOpen /> Build</>}</Button>
     </div>
