@@ -625,8 +625,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
             <ul className="space-y-1">{inReadingOrder(marks).map(mark=><li key={mark.id}
               ref={node=>{if(node)cardRefs.current.set(mark.id,node);else cardRefs.current.delete(mark.id);}}
-              className={cn('flex rounded-md border',mark.id===selectedId?'border-red-700 bg-red-50':'border-gray-200 bg-white hover:border-gray-400')}>
-              <button type="button" aria-pressed={mark.id===selectedId} className="min-w-0 flex-1 px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600" onClick={()=>{setSelectedId(mark.id);setFocus({id:mark.id,request:++focusRequests.current});}}>
+              className={cn('flex rounded-md border',mark.id===selectedId?'border-accent-700 bg-accent-50':'border-gray-200 bg-white hover:border-gray-400')}>
+              <button type="button" aria-pressed={mark.id===selectedId} className="min-w-0 flex-1 px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-accent-600" onClick={()=>{setSelectedId(mark.id);setFocus({id:mark.id,request:++focusRequests.current});}}>
                 <span className="flex items-baseline justify-between gap-2 text-sm font-medium text-gray-950">{mark.label}<span className="shrink-0 text-xs font-normal text-gray-500">p {mark.fragments.map(f=>f.pageNumber).join(", ")}</span></span>
                 {mark.excerpt && <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-gray-600">{mark.excerpt}</span>}
               </button>

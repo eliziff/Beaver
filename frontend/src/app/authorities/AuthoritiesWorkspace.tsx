@@ -99,10 +99,25 @@ type ActionHandler = (action: AuthoritiesAction,
 type DiscrepancyHandler = (finding: AuthoritiesDiscrepancy,
   action: AuthoritiesDiscrepancyAction, done: () => void) => void;
 
+/** Another app made of this workspace (the ALR Quote Verifier): its name, look, the steps it shows,
+ *  the settings every document starts with (the import's choices are then not asked), and its own
+ *  last step and settings in place of the book's. */
+export type AuthoritiesApp = {
+  title: string; className: string;
+  start: { title: string; detail: string; accept: string };
+  settings: NonNullable<Parameters<AuthoritiesHost["create"]>[0]["settings"]>;
+  steps: Partial<Record<Step, string>>;
+  build: (props: { draft: AuthoritiesProduct; busy: boolean;
+    onDownload: (documentId: string, versionId: string, filename: string) => void;
+    onBuilt: (next: AuthoritiesProduct) => void; onError: (message: string) => void }) => ReactNode;
+  preferences?: ReactNode;
+};
+
 export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initialDraftId,
   onFocusChange, refreshToken, locked = false, LibraryPicker, projectId, jurisdictionOrder = [],
-  initialNewDraft = false, onInitialConsumed }: {
+  initialNewDraft = false, onInitialConsumed, app }: {
   host: AuthoritiesHost;
+  app?: AuthoritiesApp;
   headerActions?: ReactNode;
   onDraftChange?: (draft: AuthoritiesProduct | undefined, synced: boolean) => void;
   onFocusChange?: (focus?: WorkProductFocus) => void;
@@ -353,7 +368,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const gatheredKey = useRef("");
   useEffect(() => {
     const current = draftRef.current, key = `${draftId}\0${citationKey}`;
-    if (!settled || !current || current.id !== draftId || current.state.stage !== "citations" ||
+    // An app's documents find their sources at once (startImport), not behind a review.
+    if (app || !settled || !current || current.id !== draftId || current.state.stage !== "citations" ||
         current.state.import.kind !== "document" || key === gatheredKey.current && !sourcesStale.current) return;
     gatheredKey.current = key; sourcesStale.current = false;
     gathering.current = gathering.current.then(() => gatherSources(2));
@@ -638,12 +654,18 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   function startImport(source: NonNullable<Parameters<AuthoritiesHost["create"]>[0]["source"]>, name: string) {
     setLibraryTarget(undefined); setError(""); setMessage("");
     const request = ++importRequest.current, title = name.replace(/\.[^.]+$/u, "") || "Authorities";
-    setPendingImport({ file: name, finishing: false, error: "" });
-    staged.current = host.create({ source, title, projectId, settings: preferences }).then((next) => {
+    // An app's documents start with its settings, and go straight on to their sources.
+    if (!app) setPendingImport({ file: name, finishing: false, error: "" });
+    staged.current = host.create({ source, title, projectId, settings: app?.settings ?? preferences }).then((next) => {
       if (request !== importRequest.current) { void host.drafts.remove(next.id).catch(() => undefined); return undefined; }
-      adopt(next, true); return next;
+      adopt(next, true);
+      if (app) findSources();
+      return next;
     }, (caught) => {
-      if (request === importRequest.current) setPendingImport((current) => current && { ...current, error: errorText(caught) });
+      if (request === importRequest.current) {
+        if (app) setError(errorText(caught));
+        else setPendingImport((current) => current && { ...current, error: errorText(caught) });
+      }
       return undefined;
     });
   }
@@ -1082,8 +1104,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   };
   // A step already reached can be looked at while work runs (PDFs attaching, a save): looking at it changes
   // nothing, and each step holds its own controls while busy.
-  const steps = STEPS.filter(({ value }) => value !== "citations" || draft?.state.import.kind !== "manual")
-    .map(step => ({ ...step, disabled: STEPS.findIndex(({ value }) => value === step.value) >
+  const steps = STEPS.filter(({ value }) => (value !== "citations" || draft?.state.import.kind !== "manual") &&
+    (!app || value in app.steps))
+    .map(step => ({ ...step, label: app?.steps[step.value] ?? step.label, disabled: STEPS.findIndex(({ value }) => value === step.value) >
       STEPS.findIndex(({ value }) => value === reached) }));
   // A step's note ("… attached") belongs to that step, so moving on clears it.
   const viewStep = (value: Step) => { setMessage(""); setViewedStep({ key: stepKey, value }); };
@@ -1103,7 +1126,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const others = draft && draft.state.outputMode !== "table" ? { ...bookFiles,
     parts: draft.state.bookParts.supplements.map((part, index) => ({ part,
       tab: tabLabel(reproduced + index + 1, draft.state.settings.tabStyle, draft.state.settings) })) } : undefined;
-  const buildPanel = draft && stage === "build" && <BuildPanel host={host} draft={shown!} busy={busy} building={building}
+  const buildPanel = draft && stage === "build" && (app ? app.build({ draft: shown!, busy, onDownload: download,
+      onBuilt: (next) => adopt(next), onError: setError }) : <BuildPanel host={host} draft={shown!} busy={busy} building={building}
     tabs={reproduced} missing={missingPdfs.length} onReview={() => setMissingOpen("review")}
     progress={building ? message : ""} convertsWord={convertsWord}
     jurisdictionOrder={jurisdictionOrder}
@@ -1112,7 +1136,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onAction={act} sourceIssues={sourceIssues}
     onRelink={relinkSource}
     files={bookFiles} sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
-    onDownload={download} />;
+    onDownload={download} />);
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights key={draft.id} product={draft}
     tabs={authorityTabs} busy={busy} host={host} ocr={ocr} onAction={act} onSaved={adopt} />;
   // An open finding stays in place while its quotations are rechecked (items undefined).
@@ -1170,7 +1194,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const stepNext = reviewing ? () => reached === "citations" || edits.current.length ? findSources() : viewStep("sources")
     // Next goes straight on: scans are read in the background as the draft's scanned-PDF choice
     // says, each row showing how far, and nothing waits on them.
-    : stage === "sources" ? () => advance("highlights")
+    : stage === "sources" ? () => advance(app ? "build" : "highlights")
     : stage === "highlights" ? () => advance("build") : undefined;
   const stepping = !!draft && tab !== "drafts";
   // The sections share the header row and the status shares the step row, so the step below starts high.
@@ -1179,13 +1203,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     className="min-h-0 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:justify-between max-[22rem]:[&_.tab-list]:gap-0 max-[22rem]:[&_[role=tab]]:px-1" />;
   const statusLine = <Status busy={busy} inline={!!draft && tab !== "drafts"}
     busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />;
-  return <div className={cn("authorities-workspace @container/workspace relative bg-app-background [scrollbar-gutter:stable]",
+  return <div className={cn("authorities-workspace @container/workspace relative bg-app-background [scrollbar-gutter:stable]", app?.className,
     host.mode === "standalone" ? "h-dvh overflow-y-auto" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
     {draft ? <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
         onBack={() => newDraft(false)} onRename={rename} onDuplicate={duplicate}
         onDelete={removeDraft} headerActions={<>{sections}{newAction}{headerActions}{settingsAction}</>} />
-        : <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} title="Authorities"
+        : <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} title={app?.title ?? "Authorities"}
           headerActions={<>{sections}{newAction}{headerActions}{settingsAction}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
           <main className={cn(FRAME, "min-h-80", stepping ? "pt-1" : "pt-4", reviewing ? "pb-0" : "pb-4")}>
@@ -1208,7 +1232,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     onLibrary={attachLibraryAvailable ? () => openLibrary({ kind: "manual" }) : undefined}
                     sourceLabel={sourceLabel}
                     onFiles={(files) => appendManual(files.map((file) => ({ file })))} />
-                : <AutomaticStart busy={busy}
+                : <AutomaticStart busy={busy} copy={app?.start}
                     onPick={host.pickFiles ? () => void pickFiles(false, "source",
                       (files) => queueFile(files[0])) : undefined}
                     onFile={(file) => queueFile(file && { file })}
@@ -1279,7 +1303,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         onSelect={chooseLibrary} onClose={() => setLibraryTarget(undefined)} />}
       {host.outputFolder && <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} size="xl"
         breadcrumbs={["Settings"]} fit primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
-        <div className="pb-4"><OutputFolderSetting port={host.outputFolder} busy={busy} /></div>
+        <div className="grid gap-5 pb-4">{app?.preferences}<OutputFolderSetting port={host.outputFolder} busy={busy} /></div>
       </Modal>}
       {pendingImport && <ImportWizard key={importRequest.current} file={pendingImport.file} host={host}
         draft={draft} remembered={preferences} jurisdictionOrder={jurisdictionOrder}
@@ -1393,18 +1417,18 @@ function Loading() {
   </div>;
 }
 
-function AutomaticStart({ busy, onFile, onPick, onLibrary, sourceLabel = "Library" }: {
-  busy: boolean; onFile: (file?: File) => void;
+function AutomaticStart({ busy, onFile, onPick, onLibrary, sourceLabel = "Library", copy }: {
+  busy: boolean; onFile: (file?: File) => void; copy?: AuthoritiesApp["start"];
   onPick?: () => void; onLibrary?: () => void; sourceLabel?: string;
 }) {
   return <section className="max-w-xl rounded-xl border border-gray-300 bg-white p-4 shadow-sm sm:p-5">
-    <div className="flex items-center gap-3"><Scale className="h-6 w-6 shrink-0 text-red-700" aria-hidden="true" />
-      <div className="min-w-0"><h2 className="font-semibold text-gray-950">Import and review</h2>
-        <p className="text-sm text-gray-600">Add a factum, brief, or other PDF or Word document.</p></div></div>
+    <div className="flex items-center gap-3"><Scale className="h-6 w-6 shrink-0 text-accent-700" aria-hidden="true" />
+      <div className="min-w-0"><h2 className="font-semibold text-gray-950">{copy?.title ?? "Import and review"}</h2>
+        <p className="text-sm text-gray-600">{copy?.detail ?? "Add a factum, brief, or other PDF or Word document."}</p></div></div>
     <div className="mt-5 flex flex-wrap gap-2">
       {onPick ? <Button type="button" disabled={busy} onClick={onPick}>
         <FilePlus2 /> Add file</Button> : <FileInputButton multiple={false} disabled={busy}
-          label="Add file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          label="Add file" accept={copy?.accept ?? ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
           onFiles={(files) => onFile(files[0])} />}
       {onLibrary && <Button type="button" variant="outline" className="border-gray-400"
         disabled={busy} onClick={onLibrary}><FolderSearch /> {sourceLabel}</Button>}
@@ -1421,7 +1445,7 @@ function ManualStart({ title, busy, preferences, jurisdictionOrder,
   onLibrary?: () => void; sourceLabel?: string;
 }) {
   return <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm sm:p-5">
-    <div className="flex items-center gap-3"><BookOpen className="h-6 w-6 shrink-0 text-red-700" aria-hidden="true" />
+    <div className="flex items-center gap-3"><BookOpen className="h-6 w-6 shrink-0 text-accent-700" aria-hidden="true" />
       <div className="min-w-0"><h2 className="font-semibold text-gray-950">Build a book from PDFs</h2>
         <p className="text-sm text-gray-600">Add the authorities in the order you want them.</p></div></div>
     <label className="mt-5 block text-sm font-medium text-gray-800">Book title
@@ -1446,14 +1470,14 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
   const [requestedPage, setPage] = useState(1), page = Math.min(requestedPage, pages);
   return <section className="overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="flex min-h-12 items-center gap-2 border-b border-gray-200 px-4">
-      <History className="h-4 w-4 shrink-0 text-red-700" />
+      <History className="h-4 w-4 shrink-0 text-accent-700" />
       <h2 className="font-semibold text-gray-950">Saved drafts</h2></div>
     <div className="h-[28rem] overflow-y-auto">
       {loading ? <div className="beaver-loading-indicator grid h-full place-items-center px-4 py-12 text-sm text-gray-500"
         role="status"><span className="inline-flex items-center"><Loader2
           className="mr-2 h-4 w-4 motion-safe:animate-spin" />Loading saved drafts</span></div>
         : drafts.slice((page - 1) * 8, page * 8).map((item) => <button key={item.id} type="button" disabled={busy}
-        onClick={() => onOpen(item.id)} className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 px-4 text-left outline-none last:border-0 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600">
+        onClick={() => onOpen(item.id)} className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 px-4 text-left outline-none last:border-0 hover:bg-accent-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-600">
         <span className="min-w-0"><span className="block truncate text-sm font-medium text-gray-950">{item.title}</span>
           <span className="block text-xs text-gray-500">{formatDateTime(item.updatedAt)}</span></span>
         <ChevronRight className="h-4 w-4 text-gray-500" />
@@ -1650,7 +1674,7 @@ function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
       {/* The menu keeps its room when there is nothing to remove, so the button never moves. */}
       {part ? <MoreActionsMenu label="Brief PDF options" items={[{ label: "Remove", disabled: busy,
         onSelect: () => onAction({ type: "clear-book-part", slot: "brief" }) }]}
-        triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600" />
+        triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-accent-600" />
         : <span className="w-8 shrink-0" />}
     </span>} />;
 }

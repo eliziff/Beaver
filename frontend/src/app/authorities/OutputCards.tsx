@@ -10,14 +10,14 @@ type Output = AuthoritiesProduct["outputs"][string];
 export type OutputRow = { key: string; title: string; sentence: ReactNode; roles: string[];
   /** Whether it is made, where that is a choice. */
   made?: boolean; onMade?: (made: boolean) => void; madeLocked?: boolean; onChange?: () => void };
-const FILE_LABEL: Record<string, string> = { pdf: "PDF", docx: "Word" };
+const FILE_LABEL: Record<string, string> = { pdf: "PDF", docx: "Word", xlsx: "Excel", json: "JSON" };
 const ICON: Record<string, ComponentType<{ className?: string }>> = { book: BookOpen, word: TableProperties, final: FileStack };
 /** What has just been built draws in: its check and its downloads, briefly, and not at all where motion is reduced. */
 const ARRIVE: Keyframe[] = [{ opacity: 0, transform: "scale(.6)" }, { opacity: 1, transform: "scale(1)" }];
 const listed = (names: string[]) => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 
 /** Build's own action, the Book's and the Outputs' alike: bordered at all times, its word in red. */
-export const buildAction = "h-8 shrink-0 gap-1.5 border-gray-300 px-2.5 text-[0.8125rem] font-medium text-red-800 hover:bg-red-50 hover:text-red-900 [&_svg]:size-3.5";
+export const buildAction = "h-8 shrink-0 gap-1.5 border-gray-300 px-2.5 text-[0.8125rem] font-medium text-accent-800 hover:bg-accent-50 hover:text-accent-900 [&_svg]:size-3.5";
 /** A row's icon in a tile of its own; quiet where the output is not made. */
 export function IconTile({ icon: Icon, muted = false }: { icon: ComponentType<{ className?: string }>; muted?: boolean }) {
   return <span aria-hidden="true" className={cn("grid size-10 shrink-0 place-items-center rounded-lg border border-gray-200 bg-gray-50",
@@ -38,8 +38,8 @@ function MadeSwitch({ checked, disabled, labelledBy, onChange }: {
     <input type="checkbox" role="switch" checked={checked} disabled={disabled} aria-labelledby={labelledBy}
       onChange={(event) => onChange(event.target.checked)}
       className="peer absolute inset-0 z-10 m-0 cursor-pointer opacity-0 disabled:cursor-default" />
-    <span aria-hidden="true" className={cn("flex h-6 w-11 items-center rounded-full border p-0.5 transition-colors motion-reduce:transition-none peer-focus-visible:ring-2 peer-focus-visible:ring-red-600 peer-focus-visible:ring-offset-2 peer-disabled:opacity-50",
-      checked ? "border-red-700 bg-red-700" : "border-gray-400 bg-gray-100")}>
+    <span aria-hidden="true" className={cn("flex h-6 w-11 items-center rounded-full border p-0.5 transition-colors motion-reduce:transition-none peer-focus-visible:ring-2 peer-focus-visible:ring-accent-600 peer-focus-visible:ring-offset-2 peer-disabled:opacity-50",
+      checked ? "border-accent-700 bg-accent-700" : "border-gray-400 bg-gray-100")}>
       <span className={cn("size-[1.125rem] rounded-full bg-white shadow-sm transition-transform motion-reduce:transition-none",
         checked ? "translate-x-5" : "border border-gray-300")} />
     </span>
@@ -50,7 +50,8 @@ function MadeSwitch({ checked, disabled, labelledBy, onChange }: {
  *  and its check from the start, and Build keeps its status line, so a build fills them in without moving
  *  anything: each built output's downloads turn into solid buttons, its check draws in, and the status
  *  line says what is ready. */
-export function OutputDock({ draft, rows, busy, building, progress, note, linkWarnings, onBuild, onCancel, onDownload }: {
+export function OutputDock({ draft, rows, busy, building, progress, note, linkWarnings, onBuild, onCancel, onDownload,
+  heading = { title: "Outputs", detail: "What Build makes, and the files it made." }, action = { label: "Build", icon: BookOpen } }: {
   draft: AuthoritiesProduct; rows: OutputRow[]; busy: boolean; building: boolean;
   /** What the build is doing now. */
   progress: string;
@@ -59,8 +60,10 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
   linkWarnings?: AuthoritiesBuildReceipt["linkWarnings"];
   onBuild: () => void; onCancel: () => void;
   onDownload: (documentId: string, versionId: string, filename: string) => void;
+  /** Another app's names for the outputs and for Build. */
+  heading?: { title: string; detail: string }; action?: { label: string; icon: ComponentType };
 }) {
-  const { outputs } = draft, id = useId();
+  const { outputs } = draft, id = useId(), ActionIcon = action.icon;
   const list = useRef<HTMLUListElement>(null);
   const versions = Object.keys(outputs).map((role) => `${role}:${outputs[role].versionId}`).join(",");
   const seen = useRef({ id: draft.id, versions });
@@ -80,7 +83,7 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
   const status = building ? progress || "Building…" : note
     || (built.length ? `${listed(built.map(({ title }) => title))} ${built.length === 1 ? "is" : "are"} ready.` : "");
   return <section aria-labelledby={`${id}-outputs`} className="min-w-0">
-    <BuildHeading id={`${id}-outputs`} title="Outputs" detail="What Build makes, and the files it made." />
+    <BuildHeading id={`${id}-outputs`} title={heading.title} detail={heading.detail} />
     <ul ref={list} className="grid gap-3">
       {rows.map((row) => {
         const files = row.roles.flatMap((role) => outputs[role] ? [[role, outputs[role]] as [string, Output]] : []);
@@ -107,7 +110,7 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
           <div className="mt-3 border-t border-gray-200 pt-3"><div className="flex min-h-8 flex-wrap items-center gap-1.5">
             {files.length ? files.map(([role, output], index) => <button key={role} type="button" data-arrive title={output.filename}
               aria-label={`Download ${output.filename}`} onClick={() => onDownload(output.documentId, output.versionId, output.filename)}
-              className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-md border border-gray-950 bg-gray-950 px-2.5 text-xs font-medium text-white outline-none hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1">
+              className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-md border border-gray-950 bg-gray-950 px-2.5 text-xs font-medium text-white outline-none hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-1">
               <Download className="size-3.5 shrink-0" />
               <span className="truncate">{role === "link-report" ? linkWarnings?.length
                 ? `${linkWarnings.length} citation${linkWarnings.length === 1 ? "" : "s"} not linked` : "Unlinked citations"
@@ -124,8 +127,8 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
       {/* Two lines, always there and as tall as Build, so progress, notes and what is ready never move it. */}
       <div className="flex min-h-10 min-w-0 flex-1 items-center justify-end">
         <p role="status" aria-live="polite" title={status} className="line-clamp-2 text-right text-sm leading-5 text-gray-700">{status}</p></div>
-      <Button type="button" className="h-10 w-32 shrink-0" disabled={busy && !building} onClick={building ? onCancel : onBuild}>
-        {building ? <><Loader2 className="motion-safe:animate-spin" /> Cancel</> : <><BookOpen /> Build</>}</Button>
+      <Button type="button" className="h-10 min-w-32 shrink-0" disabled={busy && !building} onClick={building ? onCancel : onBuild}>
+        {building ? <><Loader2 className="motion-safe:animate-spin" /> Cancel</> : <><ActionIcon /> {action.label}</>}</Button>
     </div>
   </section>;
 }

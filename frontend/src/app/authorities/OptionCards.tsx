@@ -14,9 +14,9 @@ export function OptionCard({ type = "radio", name, checked, disabled, onChange, 
   row?: boolean;
 }) {
   const id = useId();
-  return <label className={cn(CARD, row && "min-h-0 py-2", "cursor-pointer has-[:checked]:border-red-600 has-[:checked]:bg-red-50 [&:has(>input:focus-visible)]:ring-2 [&:has(>input:focus-visible)]:ring-red-600 has-[:disabled]:cursor-default has-[:disabled]:opacity-60", className)}>
+  return <label className={cn(CARD, row && "min-h-0 py-2", "cursor-pointer has-[:checked]:border-accent-600 has-[:checked]:bg-accent-50 [&:has(>input:focus-visible)]:ring-2 [&:has(>input:focus-visible)]:ring-accent-600 has-[:disabled]:cursor-default has-[:disabled]:opacity-60", className)}>
     <input type={type} name={name} checked={checked} disabled={disabled} onChange={onChange}
-      aria-labelledby={id} aria-describedby={detail ? `${id}-detail` : undefined} className="h-4 w-4 accent-red-700" />
+      aria-labelledby={id} aria-describedby={detail ? `${id}-detail` : undefined} className="h-4 w-4 accent-accent-700" />
     {preview}
     <CardText id={id} label={label} detail={detail} wide={!preview} row={row} />
   </label>;
@@ -62,7 +62,7 @@ export function OptionCards<T extends string>({ legend, value, options, onChange
     </div>
   </fieldset>;
   return collapsed ? <details className={cn("group", className)}>
-    <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 rounded-md pr-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
+    <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 rounded-md pr-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent-600 [&::-webkit-details-marker]:hidden">
       <ChevronRight className="h-4 w-4 text-gray-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
       <span className="font-semibold text-gray-950">{legend}</span>
       <span className="ml-1 text-gray-600">{options.find((option) => option.value === value)?.label}</span>

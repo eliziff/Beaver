@@ -108,7 +108,7 @@ export function QuotationReview({ items, currentId, busy, error, onSelect, onOpe
         <legend className="sr-only">Quotation decision</legend>
         {finding.actions.map(value => <label key={value} className="flex cursor-pointer items-center gap-2 text-sm text-gray-800">
           <input type="radio" name="quotation-decision" value={value} checked={action === value} disabled={busy}
-            onChange={() => setChoice({ id: finding.id, action: value })} className="accent-red-700" />{label(value)}
+            onChange={() => setChoice({ id: finding.id, action: value })} className="accent-accent-700" />{label(value)}
         </label>)}
       </fieldset>
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 pt-3">
