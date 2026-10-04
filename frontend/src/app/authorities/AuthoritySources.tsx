@@ -259,7 +259,7 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
     {/* Name and citation side by side where the list is wide, the citation under the name where not.
         Editing the name, or a scan being recognized, takes its own place in the same cells, so the
         row never changes size or moves its actions. */}
-    <div className="min-w-0 @min-[44rem]/sources:grid @min-[44rem]/sources:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[44rem]/sources:items-center @min-[44rem]/sources:gap-4">
+    <div className="min-w-0 @min-[44rem]/sources:grid @min-[44rem]/sources:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @min-[44rem]/sources:items-center @min-[44rem]/sources:gap-4">
       <div className={cn("flex min-h-8 min-w-0 items-center gap-1", !subline && !recognition && "@min-[44rem]/sources:col-span-2")}>
         {editing ? <AuthorityName value={name} label={nameLabel} onSave={save} onCancel={() => setEditing(false)} /> : <>
           <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name || citationLine}</h3>
@@ -272,6 +272,9 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
     </div>
     <div className="col-span-3 row-start-1 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-4">
       {statutes && (copy?.choosable ? choice : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
+      {!needsPdf && authority.sourceUrl && <a href={authority.sourceUrl} target="_blank" rel="noopener noreferrer"
+        title={authority.sourceUrl} aria-label={`Open the link for ${title}`} className={rowControl}>
+        <ExternalLink /><span className={rowLabel}>Link</span></a>}
       {needsPdf && (publisherUrl
         ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
               title="Download the PDF from the publisher, then upload it here."
@@ -295,6 +298,10 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
               items={sources.map((source) => ({ label: sourceLanguageLabel(source.language),
                 disabled: busy || !!sourceIssues[source.bindingRole], onSelect: () => onOpen(source.bindingRole) }))}>
               <Eye className="h-3.5 w-3.5" /><span className={rowLabel}>View</span></ActionMenu>)
+        // A citation that prints its own link (a news story, a report online) opens it, as CanLII's do.
+        : authority.sourceUrl ? <a href={authority.sourceUrl} target="_blank" rel="noopener noreferrer"
+            title={authority.sourceUrl} aria-label={`Open the link for ${title}`} className={rowControl}>
+            <ExternalLink /><span className={rowLabel}>Link</span></a>
         : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
       {needsPdf && (authority.source.kind === "pending-canlii"
         ? <Button type="button" variant="ghost" className={rowControl} disabled={busy}
