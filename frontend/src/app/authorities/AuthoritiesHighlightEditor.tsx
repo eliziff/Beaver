@@ -360,6 +360,9 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const [highlightSelection, setHighlightSelection] = useState(0);
   const [selectedId, setSelectedId] = useState<string|null>(null);
   const [focus, setFocus] = useState<{ id: string; request: number }>();
+  // Numbered across sources: a viewer skips a request number it has already scrolled to, so one
+  // that started again at 1 for each source dropped the first card click after a single click before.
+  const focusRequests = useRef(0);
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false);
   const [error, setError] = useState(''), [textError, setTextError] = useState('');
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
@@ -586,7 +589,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
             <ul className="space-y-1">{inReadingOrder(marks).map(mark=><li key={mark.id}
               ref={node=>{if(node)cardRefs.current.set(mark.id,node);else cardRefs.current.delete(mark.id);}}
               className={cn('flex rounded-md border',mark.id===selectedId?'border-red-700 bg-red-50':'border-gray-200 bg-white hover:border-gray-400')}>
-              <button type="button" aria-pressed={mark.id===selectedId} className="min-w-0 flex-1 px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600" onClick={()=>{setSelectedId(mark.id);setFocus(value=>({id:mark.id,request:(value?.request??0)+1}));}}>
+              <button type="button" aria-pressed={mark.id===selectedId} className="min-w-0 flex-1 px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600" onClick={()=>{setSelectedId(mark.id);setFocus({id:mark.id,request:++focusRequests.current});}}>
                 <span className="flex items-baseline justify-between gap-2 text-sm font-medium text-gray-950">{mark.label}<span className="shrink-0 text-xs font-normal text-gray-500">p {mark.fragments.map(f=>f.pageNumber).join(", ")}</span></span>
                 {mark.excerpt && <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-gray-600">{mark.excerpt}</span>}
               </button>
