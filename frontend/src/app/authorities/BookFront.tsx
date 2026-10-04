@@ -142,7 +142,7 @@ export function IndexFields({ settings, profileId, disabled, onChange }: {
 }) {
   const profile = authoritiesProfile(profileId), federal = !!profile.requirements?.federalFormatting;
   const electronic = settings.filingMedium === "electronic";
-  const tabPages = settings.tabPages ?? !federal;
+  const tabPages = settings.tabPages ?? true;
   const rightHand = !electronic && (settings.rightHandStarts ?? settings.filingMedium === "paper");
   return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
     <legend className={SECTION}>Index</legend>
