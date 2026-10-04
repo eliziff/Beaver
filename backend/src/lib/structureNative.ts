@@ -346,6 +346,8 @@ export type PdfPreparationSummary = {
   status: string;
   pagesNeedingOcr: number[];
   ocrRoutedPages: number[];
+  /** Pages that are a picture of their text (a scan, an image of a page): only these may be recognized on import. */
+  scannedPages?: number[];
 };
 
 export type NativeDocumentBlock = {

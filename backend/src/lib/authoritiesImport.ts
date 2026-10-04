@@ -625,19 +625,28 @@ native: AuthoritiesNative = structureNative()) {
       modified: input.modified, sha256: sourceSha256 } };
   const reference = { documentId: `standalone-${sourceSha256}`, versionId: sourceSha256, sourceSha256,
     fileType: input.fileType, readBytes: () => input.bytes };
-  // A scanned brief's pages whose own text layer is missing or reads poorly are recognized, where
-  // the runtime has a recognizer; its text layer stands where it has none.
-  const recognized = async (document: Awaited<ReturnType<ProjectionReader["read"]>>) => {
-    if (!projection.preparePdf || !native.pdfDocumentSummary?.(document).pagesNeedingOcr.length) return document;
-    try {
-      const prepared = await projection.preparePdf({ ...reference, bytes: input.bytes, ocrProvider: "kraken-lite" });
-      return await projection.read({ ...reference, pdfProfile: { cacheKey: prepared.cacheKey,
+  // A brief's own text is what it says, however it reads. Only its scanned pages (a picture of a page,
+  // its text layer invisible or absent) are recognized, where the runtime has a recognizer, and a scan's
+  // layer that reads better than its recognition stands.
+  const readPdf = async () => {
+    const prepare = projection.preparePdf;
+    if (!prepare) return projection.read(reference);
+    const read = async (options: Parameters<typeof prepare>[0]) => {
+      const prepared = await prepare(options);
+      return projection.read({ ...reference, pdfProfile: { cacheKey: prepared.cacheKey,
         profile: prepared.profile, status: prepared.status } });
-    } catch { return document; }
+    };
+    const own = await read({ ...reference, bytes: input.bytes, ocrProvider: null });
+    const scanned = native.pdfDocumentSummary?.(own).scannedPages ?? [];
+    if (!scanned.length) return own;
+    try {
+      return await read({ ...reference, bytes: input.bytes, ocrProvider: "kraken-lite",
+        pages: scanned.map((index) => index + 1) });
+    } catch { return own; }
   };
   const units = await readImportUnits(input.fileType, async () => {
     if (input.fileType === "docx") return native.docxAuthorityTextUnits(input.bytes);
-    return native.pdfAuthorityTextUnits(await recognized(await projection.read(reference)));
+    return native.pdfAuthorityTextUnits(await readPdf());
   }, () => input.bytes);
   const imported: AuthoritiesImport = { kind: "document", bindingRole: "source",
     filename: input.filename, fileType: input.fileType, snapshot: null };
