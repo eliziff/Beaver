@@ -193,11 +193,15 @@ async function scanReview(
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
     options: { resolve: false, notes, styles: ["mcgill", "coal"], extendedUs: false, earlyReferences: true },
   })) as ExtractResponse;
-  // The brief's own court file number (its cover's) is never one of its authorities.
+  // The brief's own court file number (its cover's) is never one of its authorities, though an
+  // order made under it that the brief names ("Re Ash Ltd, Order of Madam Justice Fen dated …,
+  // Court File No. 1601-06131") is.
   const fileNumber = (value: unknown) => typeof value === "string" ? value.replace(/\D/gu, "") : "";
   const ownFile = fileNumber(importedCover(units).courtFileNumber);
+  const namedOrder = (citation: Citation) => !!citation.style?.text.trim() &&
+    ["Order of", "Endorsement of"].some((words) => citation.fullSpan.text.includes(words));
   if (ownFile) extracted.citations = extracted.citations.filter((citation) =>
-    citation.format !== "docket" || fileNumber(citation.fields.docket) !== ownFile);
+    citation.format !== "docket" || namedOrder(citation) || fileNumber(citation.fields.docket) !== ownFile);
   // A web address written with no title of a work before it points the reader to a site; it
   // names no authority a book could hold.
   extracted.citations = extracted.citations.filter((citation) =>
@@ -288,7 +292,10 @@ async function scanReview(
     const origin = group.map(index => byResolution.get(index)?.sourcePart).find(index => index != null);
     const source = !full.length ? originParts.find(({ index }) => index === origin) : undefined;
     // A decision's report or neutral citation names it before the court file it was made under.
-    const representative = full.find((citation) => citation.key && citation.format !== "docket") ??
+    // A citation written with a recognizer's confusion (an "ocr_twin") does not represent its authority.
+    const representative = full.find((citation) => citation.key && citation.format !== "docket"
+        && !citation.reasons.includes("ocr_twin")) ??
+      full.find((citation) => citation.key && citation.format !== "docket") ??
       full.find((citation) => citation.key) ?? full[0] ??
       (source ? group.map((index) => byIndex.get(index)).find(Boolean) : undefined);
     if (!representative) continue;
@@ -296,7 +303,11 @@ async function scanReview(
     // asserting a bibliographic identity; a citation written alike, style and all, names one.
     const written = full.length ? `${representative.style?.text ?? ""} ${representative.span.text}`
       .replace(/\s+/gu, " ").trim() : null;
-    const key = full.length && representative.key || written && unkeyed.get(written) ||
+    // A recognizer may misread a letter of the name ("Re Pacifio …" for "Re Pacific …"): an order cited
+    // by the same file number under a name a letter or two apart is the same order.
+    const misread = written && representative.format === "docket" ? [...unkeyed].find(([other]) =>
+      other.endsWith(` ${representative.span.text.replace(/\s+/gu, " ").trim()}`) && withinTwoEdits(other, written))?.[1] : undefined;
+    const key = full.length && representative.key || written && (unkeyed.get(written) ?? misread) ||
       `scan:${documentHash}:${source ? `source:${source.index}` : representative.index}`;
     if (written) unkeyed.set(written, key);
     group.forEach((index) => authorityOf.set(index, key));
@@ -573,6 +584,20 @@ export function createAuthoritiesImporter(
 }
 
 const oneLine = (value: string) => value.replace(/\s+/gu, " ").trim();
+
+/** Whether two strings of some length differ by at most two letters added, dropped or changed. */
+function withinTwoEdits(left: string, right: string) {
+  if (Math.min(left.length, right.length) < 12 || Math.abs(left.length - right.length) > 2) return false;
+  let previous = Array.from({ length: right.length + 1 }, (_, at) => at);
+  for (let row = 1; row <= left.length; row++) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column++) current.push(Math.min(previous[column] + 1,
+      current[column - 1] + 1, previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1)));
+    if (Math.min(...current) > 2) return false;
+    previous = current;
+  }
+  return previous[right.length] <= 2;
+}
 
 /** Stateless local-runtime import; the browser remains the draft/file owner. */
 /** A link written without its scheme ("online: <example.org/report>") is the web address it names. */
