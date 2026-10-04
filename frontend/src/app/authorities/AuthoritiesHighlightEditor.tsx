@@ -140,10 +140,10 @@ export function MarkingSample({ type }: { type: Marking }) {
   </div>;
 }
 export const PASSAGE_OPTIONS: ReadonlyArray<CardOption<Marking>> = [
-  { value: 'margin', label: 'Red line and quote highlight', preview: <MarkPreview type="margin" />,
-    detail: 'Draws a red line beside each cited passage and highlights the quoted words in yellow.' },
   { value: 'paragraph', label: 'Paragraph highlight', preview: <MarkPreview type="paragraph" />,
     detail: 'Highlights each cited paragraph or section in yellow.' },
+  { value: 'margin', label: 'Red line and quote highlight', preview: <MarkPreview type="margin" />,
+    detail: 'Draws a red line beside each cited passage and highlights the quoted words in yellow.' },
   { value: 'text', label: 'Quote highlight', preview: <MarkPreview type="text" />,
     detail: 'Highlights only the quoted words in yellow.' },
   { value: 'none', label: 'No passage marks', preview: <MarkPreview type="none" />,
