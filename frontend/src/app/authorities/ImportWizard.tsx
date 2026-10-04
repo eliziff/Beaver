@@ -7,9 +7,10 @@ import { courtCover } from "../../../../shared/authorities-cover.mjs";
 import { OptionCards, type CardOption } from "./OptionCards";
 import { authoritiesProfile } from "./profiles";
 import { MarkingSample, passageOptions } from "./AuthoritiesHighlightEditor";
-import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, IndexFields, Preview, previewActions,
-  previewBook, StepTabs, useFilingContact, type Settings } from "./BookFront";
-import type { AuthoritiesHost } from "./host";
+import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, FrontSource, FrontSourcePreview, IndexFields,
+  Preview, previewActions, previewBook, StepTabs, useFilingContact, type FrontSlot, type OwnFront, type OwnPdfs,
+  type Settings } from "./BookFront";
+import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost } from "./host";
 import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesProduct,
   AuthoritiesProfileId } from "./types";
 
@@ -112,12 +113,17 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
   /** The finish was asked for and waits for the brief to be read. */
   finishing: boolean; error: string;
   onCancel: () => void; onFinish: (actions: (state: AuthoritiesProduct["state"]) => AuthoritiesAction[],
-    remembered: Remembered) => void;
+    remembered: Remembered, own: ReadonlyArray<readonly [AuthoritiesBookSlot, AuthoritiesFile]>) => void;
 }) {
   const [step, setStep] = useState(0);
   const [profileId, setProfileId] = useState(remembered.profileId);
   const [chosen, setChosen] = useState<Partial<Settings>>({});
   const [cover, setCover] = useState<AuthoritiesCover>();
+  // A cover or index of the user's own, added once the import finishes.
+  const [own, setOwn] = useState<Record<FrontSlot, OwnFront>>({ cover: { own: false }, index: { own: false } });
+  const pdfs: OwnPdfs = { attach: !!host.attachBookPdf,
+    choose: host.pickFiles ? async () => (await host.pickFiles!({ multiple: false, accept: "pdf" }).catch(() => []))[0] : undefined };
+  const ownFor = (slot: FrontSlot) => (value: OwnFront) => setOwn((current) => ({ ...current, [slot]: value }));
   // The cover as the draft will hold it under the court chosen here: the court's party roles, until a
   // party is named.
   const courtOf = draft?.state.settings.profileId ?? remembered.profileId;
@@ -130,7 +136,8 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
   const profile = authoritiesProfile(profileId);
   const book = (profile.locked?.outputMode ?? profile.defaults.outputMode) !== "table";
   const finish = () => onFinish((state) => importActions(state, profileId, settings, shownCover, WIZARD_KEYS),
-    { profileId, sourceMode: settings.sourceMode, passageMarking: settings.passageMarking });
+    { profileId, sourceMode: settings.sourceMode, passageMarking: settings.passageMarking },
+    (["cover", "index"] as const).flatMap((slot) => book && own[slot].own && own[slot].chosen ? [[slot, own[slot].chosen!] as const] : []));
   const busy = finishing;
   const front = previewBook(host, draft);
   const frontActions = front ? importActions(front.state, profileId, settings, shownCover, FRONT_KEYS) : [];
@@ -158,12 +165,20 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
     // Next on every step; the last imports.
     primaryAction={{ label: <>Next <ChevronRight /></>, disabled: busy || last && !!error, onClick: last ? finish : () => setStep(at + 1) }}>
     <StepTabs steps={steps} at={at} disabled={busy} onStep={setStep} />
-    {name === "Cover" ? <FrontLayout preview={<FrontPreview host={host} draft={front} actions={frontActions} page={1} label="Cover" />}>
-      <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy} court={courtField}
-        onCover={(next) => setCover(next)} onSettings={choose} />
+    {name === "Cover" ? <FrontLayout preview={<FrontSourcePreview slot="cover" value={own.cover} pdfs={pdfs}
+      generated={<FrontPreview host={host} draft={front} actions={frontActions} page={1} label="Cover" />} />}>
+      <FrontSource slot="cover" value={own.cover} pdfs={pdfs} disabled={busy} onChange={ownFor("cover")}
+        own={<div className="grid grid-cols-2 gap-3"><div className="min-w-0">{courtField}</div></div>}>
+        <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy} court={courtField}
+          onCover={(next) => setCover(next)} onSettings={choose} />
+      </FrontSource>
     </FrontLayout>
-    : name === "Index" ? <FrontLayout preview={<FrontPreview host={host} draft={front} actions={frontActions} page={2} label="First page of the index" />}>
-      <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />
+    : name === "Index" ? <FrontLayout preview={<FrontSourcePreview slot="index" value={own.index} pdfs={pdfs}
+      generated={<FrontPreview host={host} draft={front} actions={frontActions} page={2} label="First page of the index" />} />}>
+      <FrontSource slot="index" value={own.index} pdfs={pdfs} disabled={busy} onChange={ownFor("index")}
+        own={<IndexFields own settings={settings} profileId={profileId} disabled={busy} onChange={choose} />}>
+        <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />
+      </FrontSource>
     </FrontLayout>
     : name === "Sources" ? <div className="grid content-start gap-5 overflow-y-auto p-1">
       {!book && court}

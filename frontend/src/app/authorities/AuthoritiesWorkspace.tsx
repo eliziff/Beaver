@@ -30,7 +30,7 @@ import { rowControl, Sources, SourcesExplainer, type BookFiles } from "./Authori
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCard, OptionCards } from "./OptionCards";
 import { OutputDock, rowButton, type OutputRow } from "./OutputCards";
-import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, coverForm } from "./BookFront";
+import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, coverForm, type OwnPdfs } from "./BookFront";
 import { ImportWizard, SOURCE_OPTIONS, SourceChoices, type Remembered } from "./ImportWizard";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
@@ -658,7 +658,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }
   /** The draft read from the brief takes the choices that differ from those it was read with: the
    *  review is there at once, and anything a choice changes is done behind it. */
-  function finishImport(actionsFor: (state: AuthoritiesProduct["state"]) => AuthoritiesAction[], chosen: Remembered) {
+  function finishImport(actionsFor: (state: AuthoritiesProduct["state"]) => AuthoritiesAction[], chosen: Remembered,
+    own: ReadonlyArray<readonly [AuthoritiesBookSlot, AuthoritiesFile]> = []) {
     const request = importRequest.current;
     setPendingImport((current) => current && { ...current, finishing: true });
     void staged.current.then((created) => {
@@ -671,15 +672,18 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           JSON.stringify(state.settings[key as keyof typeof state.settings]) !== JSON.stringify(value)));
         return Object.keys(settings).length ? [{ ...action, settings }] : [];
       });
-      if (!draftRef.current || !pending(draftRef.current.state).length) return;
+      if (!draftRef.current || !pending(draftRef.current.state).length && !own.length) return;
       void run(() => serialized(async () => {
         let current = draftRef.current!;
-        for (let index = 0; ; index += 1) {
+        for (let index = 0; index <= 3; index += 1) {
           const action = pending(current.state)[0];
-          if (!action || index > 3) return current;
+          if (!action) break;
           current = await onLatest(current.id, (latest) => host.act(latest.id, latest.revision, pending(latest.state)[0] ?? action));
           adopt(current);
         }
+        // A cover or index of the user's own, chosen in its step, once the choices are saved.
+        for (const [slot, selected] of own) { current = await writeBookFile(current.id, slot, selected); adoptSourceWrite(current); }
+        return current;
       }), adopt);
     });
   }
@@ -746,15 +750,19 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       for (let index = 0; index < files.length; index += 1) {
         const selected = files[index];
         setMessage(files.length > 1 ? `Adding ${index + 1} of ${files.length}` : "Adding file");
-        current = await onLatest(id, (latest) => isLibraryDocument(selected)
-          ? host.attachLibraryPdf!(latest.id, latest.revision, selected, { kind: "book", slot, supplementId })
-          : host.attachBookPdf!(latest.id, latest.revision, slot, selected, supplementId));
+        current = await writeBookFile(id, slot, selected, supplementId);
         adoptSourceWrite(current);
       }
       return current;
     }), adopt, files.length > 1 ? `${files.length} files added` : `${pdfChoiceName(files[0])} added`);
   }
 
+  /** One PDF saved as a part of the book, to the draft as it is by then. */
+  function writeBookFile(id: string, slot: AuthoritiesBookSlot, selected: PdfChoice, supplementId?: string) {
+    return onLatest(id, (latest) => isLibraryDocument(selected)
+      ? host.attachLibraryPdf!(latest.id, latest.revision, selected, { kind: "book", slot, supplementId })
+      : host.attachBookPdf!(latest.id, latest.revision, slot, selected, supplementId));
+  }
   function openLibrary(target: LibraryTarget) {
     setLibraryTarget(target);
   }
@@ -1087,6 +1095,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onPick: host.pickFiles ? (slot, multiple, supplementId) => void pickFiles(
       multiple, "pdf", (files) => attachBookFiles(slot, files, supplementId)) : undefined,
     onLibrary: attachLibraryAvailable ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined,
+    onSelected: (slot, selected) => attachBookFiles(slot, [selected]),
   };
   const reproduced = authorityPlan.filter(({ tab }) => tab !== "Not reproduced").length;
   const others = draft && draft.state.outputMode !== "table" ? { ...bookFiles,
@@ -1099,7 +1108,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
       ? buildLinks.warnings : undefined}
     onAction={act} sourceIssues={sourceIssues}
-    onRelink={relinkSource} onOpenSource={host.readSource ? openSource : undefined}
+    onRelink={relinkSource}
     files={bookFiles} sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights key={draft.id} product={draft}
@@ -1455,7 +1464,7 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
 }
 
 function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, onAction, sourceIssues,
-  convertsWord, linkWarnings, onRelink, files, sourceLabel, onOpenSource, onBuild, onCancel, onDownload, tabs, missing, onReview }: {
+  convertsWord, linkWarnings, onRelink, files, sourceLabel, onBuild, onCancel, onDownload, tabs, missing, onReview }: {
   host: AuthoritiesHost; draft: AuthoritiesProduct; busy: boolean; building: boolean;
   /** What the build is doing now. */
   progress: string;
@@ -1466,7 +1475,6 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   sourceIssues: Record<string, AuthoritiesSourceIssue>; onRelink: (role: string) => void;
   files: BookFiles;
   sourceLabel?: string;
-  onOpenSource?: (role: string) => void;
   onDownload: (documentId: string, versionId: string, filename: string) => void;
   /** The authorities the book gives a tab, and how many of them have no PDF. */
   tabs: number; missing: number; onReview: () => void;
@@ -1500,6 +1508,17 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
     if (!made && tabbed) onAction({ type: "set-settings", settings: { citationSuffix: "none" } });
     if (!made && table && !profile.locked?.outputMode) onAction({ type: "set-output-mode", outputMode: "book" });
   };
+  // The cover's and the index's own PDFs, chosen, viewed and let go in their steps.
+  const pdfs: OwnPdfs = { attach: !!host.attachBookPdf || !!files.onLibrary,
+    choose: host.pickFiles ? async () => (await host.pickFiles!({ multiple: false, accept: "pdf" }).catch(() => []))[0] : undefined,
+    library: files.onLibrary ? { label: sourceLabel ?? "Library", open: (slot) => files.onLibrary!(slot) } : undefined,
+    kept: (slot) => {
+      const own = state.bookParts[slot], issue = own ? sourceIssues[own.bindingRole] : undefined;
+      return own ? { filename: own.filename, role: own.bindingRole, issue: issue ? relinkable(issue) ? "denied" : "unavailable" : undefined } : undefined;
+    },
+    read: host.readSource ? (role) => host.readSource!(draft, role) : undefined,
+    relink: onRelink,
+  };
   const rows: OutputRow[] = [
     { key: "book", title: "Book of Authorities", roles: Object.keys(draft.outputs).filter((role) => /^book(?:-\d+)?$/u.test(role)),
       sentence: lockedMode ?? "Creates a PDF that contains the cover, the index and each authority behind its tab." },
@@ -1519,8 +1538,7 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   // The book on the left, the outputs and Build on the right, one above the other where narrow.
   return <section className="@container/build mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
     <div className="grid items-start gap-6 @min-[46rem]/build:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
-      <BookRows draft={draft} busy={busy} book={book} lockedMode={lockedMode} onAction={onAction} sourceIssues={sourceIssues}
-        onRelink={onRelink} files={files} sourceLabel={sourceLabel} onOpen={onOpenSource} onFront={setFront}
+      <BookRows draft={draft} busy={busy} book={book} lockedMode={lockedMode} pdfs={pdfs} onFront={setFront}
         coverDetail={generatedFederalCover && !(coverDetailsReady && filingRoleReady) ? "Details required"
           : `Generated${state.cover.title ? ` · ${state.cover.title}` : ""}`}
         indexDetail={`Generated · ${indexShows === "tabs-and-pages" ? "tabs and pages" : "tabs"}`}
@@ -1528,7 +1546,8 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
       <OutputDock draft={draft} rows={rows} busy={busy} building={building} progress={progress} note={note}
         linkWarnings={linkWarnings} onBuild={note ? () => setFront("Cover") : onBuild} onCancel={onCancel} onDownload={onDownload} />
     </div>
-    {front && <BookFrontModal host={host} draft={draft} busy={busy} step={front} jurisdictionOrder={jurisdictionOrder}
+    {front && <BookFrontModal host={host} draft={draft} busy={busy} step={front} jurisdictionOrder={jurisdictionOrder} pdfs={pdfs}
+      onOwn={(slot, chosen) => files.onSelected?.(slot, chosen)}
       onClose={() => setFront(undefined)} onActions={(actions) => actions.forEach((action) => onAction(action))} />}
     {output && <OutputModal title={output === "word" ? rows[1].title : "Final PDF"} draft={draft} busy={busy}
       onClose={() => setOutput(undefined)} onActions={(actions) => actions.forEach((action) => onAction(action))}>
@@ -1636,39 +1655,28 @@ function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
 
 /** The book, a row each for its court, cover, index and tabs: what each is, in plain words, and the
  *  button that changes it, down one column. A cover or index can be a PDF of the user's own. */
-function BookRows({ draft, busy, book, lockedMode, onAction, sourceIssues, onRelink, files, sourceLabel = "Library", onOpen,
-  onFront, coverDetail, indexDetail, tabs, missing, onReview }: {
-  draft: AuthoritiesProduct; busy: boolean; book: boolean; lockedMode?: string; onAction: (action: AuthoritiesAction) => void;
-  sourceIssues: Record<string, AuthoritiesSourceIssue>; onRelink: (role: string) => void;
-  files: BookFiles; sourceLabel?: string; onOpen?: (role: string) => void;
+function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, coverDetail, indexDetail, tabs, missing, onReview }: {
+  draft: AuthoritiesProduct; busy: boolean; book: boolean; lockedMode?: string; pdfs: OwnPdfs;
   onFront: (step: "Cover" | "Index") => void; coverDetail: string; indexDetail: string;
   tabs: number; missing: number; onReview: () => void;
 }) {
-  const input = useRef<HTMLInputElement>(null), [picking, setPicking] = useState<"cover" | "index">("cover");
   const action = rowButton;
-  const more = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600";
+  // Generated, or the name of the user's own PDF (and what keeps it from the book).
   const part = (slot: "cover" | "index") => {
-    const own = draft.state.bookParts[slot], issue = own ? sourceIssues[own.bindingRole] : undefined, title = slot === "cover" ? "Cover" : "Index";
-    const pick = () => { if (files.onPick) files.onPick(slot, false); else { setPicking(slot); input.current?.click(); } };
-    return { value: own ? issue ? relinkable(issue) ? "Your PDF · file access was denied" : "Your PDF · unavailable" : `Your PDF · ${own.filename}`
-        : slot === "cover" ? coverDetail : indexDetail,
-      menu: <MoreActionsMenu label={`${title} options`} triggerClassName={more} items={[
-        { label: own ? "Replace your PDF" : `Use a PDF of your own`, disabled: busy, onSelect: pick },
-        ...files.onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: () => files.onLibrary!(slot) }] : [],
-        ...own && onOpen ? [{ label: "View your PDF", disabled: busy || !!issue, onSelect: () => onOpen(own.bindingRole) }] : [],
-        ...own && relinkable(issue) ? [{ label: "Allow file access", disabled: busy, onSelect: () => onRelink(own.bindingRole) }] : [],
-        ...own ? [{ label: "Use the generated page", disabled: busy, onSelect: () => onAction({ type: "clear-book-part", slot }) }] : []]} /> };
+    const own = pdfs.kept?.(slot);
+    return own ? `${own.filename}${own.issue === "denied" ? " · file access was denied" : own.issue ? " · unavailable" : ""}`
+      : slot === "cover" ? coverDetail : indexDetail;
   };
-  const cover = part("cover"), index = part("index");
-  const rows: Array<{ label: string; value: ReactNode; title?: string; button: ReactNode; menu?: ReactNode; alert?: boolean }> = [
+  const rows: Array<{ label: string; value: ReactNode; title?: string; button: ReactNode; alert?: boolean }> = [
     { label: "Court", value: authoritiesProfile(draft.state.settings.profileId).label,
       button: <Button type="button" variant="outline" className={action} aria-label="Change the court" disabled={busy} onClick={() => onFront("Cover")}><SlidersHorizontal />Change</Button> },
-    { label: "Cover", value: book ? cover.value : lockedMode, alert: book && coverDetail === "Details required" && !draft.state.bookParts.cover,
-      button: <Button type="button" variant="outline" className={action} aria-label="Change the cover" disabled={busy || !book || !!draft.state.bookParts.cover}
-        onClick={() => onFront("Cover")}><SlidersHorizontal />Change</Button>, menu: book ? cover.menu : undefined },
-    { label: "Index", value: book ? index.value : lockedMode,
-      button: <Button type="button" variant="outline" className={action} aria-label="Change the index" disabled={busy || !book || !!draft.state.bookParts.index}
-        onClick={() => onFront("Index")}><SlidersHorizontal />Change</Button>, menu: book ? index.menu : undefined },
+    { label: "Cover", value: book ? part("cover") : lockedMode,
+      alert: book && (coverDetail === "Details required" && !draft.state.bookParts.cover || !!pdfs.kept?.("cover")?.issue),
+      button: <Button type="button" variant="outline" className={action} aria-label="Change the cover" disabled={busy || !book}
+        onClick={() => onFront("Cover")}><SlidersHorizontal />Change</Button> },
+    { label: "Index", value: book ? part("index") : lockedMode, alert: book && !!pdfs.kept?.("index")?.issue,
+      button: <Button type="button" variant="outline" className={action} aria-label="Change the index" disabled={busy || !book}
+        onClick={() => onFront("Index")}><SlidersHorizontal />Change</Button> },
     { label: "Tabs", value: `${tabs} ${tabs === 1 ? "authority" : "authorities"}${missing ? `, ${missing} without a PDF` : ", each with a PDF"}`,
       button: <Button type="button" variant="outline" className={action} aria-label="Review the authorities without a PDF"
         disabled={busy || !missing} onClick={onReview}><ListChecks />Review</Button> },
@@ -1680,14 +1688,9 @@ function BookRows({ draft, busy, book, lockedMode, onAction, sourceIssues, onRel
         <dt className="text-[0.8125rem] font-medium text-gray-600">{row.label}</dt>
         <dd className={cn("min-w-0 truncate text-sm", row.alert ? "font-medium text-red-800" : "text-gray-950")}
           title={typeof row.value === "string" ? row.value : undefined}>{row.value}</dd>
-        <dd className="flex items-center gap-1">{row.button}{row.menu ?? <span className="w-8 shrink-0" />}</dd>
+        <dd>{row.button}</dd>
       </div>)}
     </dl>
-    <input ref={input} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf" disabled={busy}
-      aria-label={`A PDF for the ${picking}`} onChange={(event) => {
-        const chosen = Array.from(event.target.files ?? []); event.target.value = "";
-        if (chosen.length) files.onFiles(picking, chosen);
-      }} />
   </section>;
 }
 
