@@ -22,6 +22,12 @@ textarea,
     --color-brand: var(--brand-red);
     --color-brand-dark: var(--brand-red-dark);
     --color-brand-soft: var(--brand-red-soft);
+    /* An app's accent (choices, focus, step marks): Beaver's red, another app's own colour. */
+    --color-accent-50: var(--accent-50);
+    --color-accent-600: var(--accent-600);
+    --color-accent-700: var(--accent-700);
+    --color-accent-800: var(--accent-800);
+    --color-accent-900: var(--accent-900);
     --font-sans: var(--font-inter);
     --font-serif: var(--font-inter);
     --color-ring: var(--ring);
@@ -57,6 +63,12 @@ textarea,
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: var(--brand-red);
+    /* Tailwind's red, which the accent is unless an app sets its own. */
+    --accent-50: oklch(97.1% 0.013 17.38);
+    --accent-600: oklch(57.7% 0.245 27.325);
+    --accent-700: oklch(50.5% 0.213 27.518);
+    --accent-800: oklch(44.4% 0.177 26.899);
+    --accent-900: oklch(39.6% 0.141 25.723);
 }
 /* The page follows the appearance it was given, never the system's on its own: PDF.js's viewer
    styles opt the root into "light dark", which on a dark system turns uncoloured text and native
@@ -75,6 +87,7 @@ html:root[data-appearance="dark"] { color-scheme: dark; }
     --border: #465365;
     --input: #465365;
     --brand-red-soft: #402421;
+    --accent-50: #402421;
     --color-gray-50: #1b2028;
     --color-gray-100: #262e39;
     --color-gray-200: #354050;

@@ -22,7 +22,7 @@ import canliiLogo from "./canlii.ico";
 const control = "h-8 shrink-0 border-gray-300 px-2.5 text-[0.8125rem]";
 /** A row's action: quiet, as the citation bar's, one width and icon size wherever a list of sources
  *  or book parts shows them, an icon alone where the list (a `@container/sources`) is narrow. */
-export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-50 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2";
+export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-50 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-accent-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2";
 export const rowLabel = "hidden @min-[44rem]/sources:inline";
 type LookupFailure = NonNullable<AuthorityIdentity["sourceLookupFailure"]>;
 const lookupReason = ({ reason, detail }: LookupFailure) => ({
@@ -90,7 +90,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       {/* The list's actions in one row, Settings first; its choices open under the row. */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {settings && <Button type="button" variant="outline" aria-expanded={settingsOpen} className={cn(control,
-          settingsOpen && "border-red-600 bg-red-50 text-red-800 hover:bg-red-50")} onClick={() => setSettingsOpen((open) => !open)}>
+          settingsOpen && "border-accent-600 bg-accent-50 text-accent-800 hover:bg-accent-50")} onClick={() => setSettingsOpen((open) => !open)}>
           <SlidersHorizontal /> Source settings <ChevronDown className={cn("transition-transform motion-reduce:transition-none", settingsOpen && "rotate-180")} /></Button>}
         {onWatchFolder && <Button type="button" variant="outline" className={control}
           disabled={busy && !watchedFolder} onClick={onWatchFolder}
@@ -236,7 +236,7 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
       if (!busy && needsPdf) onAttach(event.dataTransfer.files[0]);
     }}>
     <button type="button" draggable={!busy} disabled={busy} title="Drag to reorder, or use arrow keys"
-      aria-label={`Reorder ${title}`} className="min-w-6 cursor-grab truncate rounded py-2 text-left text-[0.8125rem] font-medium tabular-nums text-gray-600 focus-visible:ring-2 focus-visible:ring-red-600"
+      aria-label={`Reorder ${title}`} className="min-w-6 cursor-grab truncate rounded py-2 text-left text-[0.8125rem] font-medium tabular-nums text-gray-600 focus-visible:ring-2 focus-visible:ring-accent-600"
       onDragStart={event => event.dataTransfer.setData("application/x-authority", authority.id)}
       onKeyDown={event => { if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
         event.preventDefault(); onAction({ type: "move-authority", authorityId: authority.id,
@@ -253,7 +253,7 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
         {editing ? <AuthorityName value={name} label={nameLabel} onSave={save} onCancel={() => setEditing(false)} /> : <>
           <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name || citationLine}</h3>
           <button type="button" disabled={busy} onClick={edit} aria-label={`Edit ${nameLabel.toLocaleLowerCase()} for ${title}`}
-            className="shrink-0 rounded p-1 text-gray-500 opacity-0 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-600 group-hover/row:opacity-100">
+            className="shrink-0 rounded p-1 text-gray-500 opacity-0 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent-600 group-hover/row:opacity-100">
             <Pencil className="h-3.5 w-3.5" /></button></>}
       </div>
       {recognition && ocr ? <SourceOcrInline status={recognition} ocr={ocr} className="w-full max-w-sm" />
@@ -300,7 +300,7 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
         items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
           ...(onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: onLibrary }] : [])]}>
         <Upload className="h-3.5 w-3.5" /><span className={rowLabel}>{replacement}</span></ActionMenu>)}
-      <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
+      <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-accent-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
           ...(publisherUrl && onRetry && authority.sourceDownloadFailure !== "refused"
@@ -358,7 +358,7 @@ function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, onAction, onR
         items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
           ...(files.onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: () => files.onLibrary!("supplemental", part.id) }] : [])]}>
         <Upload className="h-3.5 w-3.5" /><span className={rowLabel}>Replace</span></ActionMenu>
-      <MoreActionsMenu label={`${part.filename} options`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
+      <MoreActionsMenu label={`${part.filename} options`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-accent-600"
         items={[{ label: "Remove from book", disabled: busy, onSelect: () => onAction({ type: "remove-book-supplement", id: part.id }) }]} />
     </div>
     <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"

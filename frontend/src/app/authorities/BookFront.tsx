@@ -23,7 +23,7 @@ export const FRONT_KEYS = ["filingMedium", "bookRole", "indexShows", "bookmarks"
   "tableOrder"] as const;
 export const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
 const FIELD = "mt-1 h-9 border-gray-300 text-sm md:text-sm";
-const AREA = "mt-1 min-h-14 w-full resize-y rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600";
+const AREA = "mt-1 min-h-14 w-full resize-y rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-accent-600";
 const LABEL = "block min-w-0 text-sm font-medium text-gray-800";
 type Contact = NonNullable<AuthoritiesCover["contact"]>;
 const EMPTY_CONTACT: Contact = { name: "", address: "", phone: "", fax: "", email: "" };
@@ -120,7 +120,7 @@ export function CoverFields({ cover, profileId, settings, disabled, court, onCov
         {/* As tall as its parties, a long name's wrapped lines included, so no line is cut off. */}
         <textarea aria-label={`Parties for ${role || `role ${index + 1}`}`} rows={1} value={parties.join("\n")}
           disabled={disabled} onChange={(event) => group(index, { parties: event.target.value.split(/\r?\n/u) })}
-          className="min-h-8 w-full resize-none overflow-hidden rounded-md border border-gray-300 bg-white px-2.5 py-1 text-sm leading-5 text-gray-950 outline-none [field-sizing:content] focus-visible:ring-2 focus-visible:ring-red-600" />
+          className="min-h-8 w-full resize-none overflow-hidden rounded-md border border-gray-300 bg-white px-2.5 py-1 text-sm leading-5 text-gray-950 outline-none [field-sizing:content] focus-visible:ring-2 focus-visible:ring-accent-600" />
         <button type="button" aria-label={`Remove ${role || `role ${index + 1}`}`} disabled={disabled || cover.partyGroups.length <= 2}
           title="Remove this role" onClick={() => onCover({ ...cover, partyGroups: cover.partyGroups.filter((_, position) => position !== index) })}
           className="grid size-8 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:invisible"><X className="size-4" /></button>
@@ -350,7 +350,7 @@ export function StepTabs({ steps, at, disabled, onStep }: {
   return <ol aria-label="Steps" className="mb-4 grid h-9 shrink-0 auto-cols-fr grid-flow-col border-b border-gray-200 text-sm">
     {steps.map((label, index) => <li key={label} className="min-w-0">
       <button type="button" aria-current={index === at ? "step" : undefined} disabled={disabled} onClick={() => onStep(index)}
-        className="-mb-px h-full w-full truncate border-b-2 border-transparent px-2 font-medium text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 aria-[current=step]:border-red-700 aria-[current=step]:text-gray-950">
+        className="-mb-px h-full w-full truncate border-b-2 border-transparent px-2 font-medium text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-600 aria-[current=step]:border-accent-700 aria-[current=step]:text-gray-950">
         {label}</button></li>)}
   </ol>;
 }
