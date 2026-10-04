@@ -2,6 +2,7 @@
 // A2AJ (local corpus first, then api.a2aj.ca), the journals database, and US/UK case providers.
 import { legalSourceOperations } from "../legalSourceApplication";
 import { journalLegalSourceProvider } from "../legalSources/journal";
+import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
 import type { LegalSourceReference } from "../legalSources";
 import { structureNative, type NativeDocument } from "../structureNative";
 
@@ -33,7 +34,9 @@ export function sourceDocument(native: NativeDocument): SourceDocument {
   return { text, blocks, native };
 }
 
-export function beaverSources(operations = legalSourceOperations): AlrSources {
+/** Quotation sources from Beaver's providers. Citations resolve through A2AJ alone; other case
+ *  providers answer only foreign citations, and never in a local-only run. */
+export function beaverSources(options: { localOnly?: boolean } = {}, operations = legalSourceOperations): AlrSources {
   const failures: string[] = [];
   const resolved = new Map<string, Promise<LegalSourceReference | null>>();
   const documents = new Map<string, Promise<SourceDocument | null>>();
@@ -47,8 +50,10 @@ export function beaverSources(operations = legalSourceOperations): AlrSources {
       const key = JSON.stringify([text, kind, language]);
       if (!text.trim()) return Promise.resolve(null);
       if (!resolved.has(key)) resolved.set(key, attempt(`resolve ${text}`, async () => {
-        const result = await operations.resolve({ text, kind, language });
-        return result.status === "found" ? result.value : null;
+        const request = { text, kind, language };
+        if (!a2ajLegalSourceProvider.canResolve?.(request)) return null;
+        const found = await a2ajLegalSourceProvider.resolve!(request);
+        return found.length === 1 ? found[0] : null;
       }, null));
       return resolved.get(key)!;
     },
@@ -62,8 +67,9 @@ export function beaverSources(operations = legalSourceOperations): AlrSources {
       return documents.get(key)!;
     },
     async foreignCaseUrl(text) {
-      const foreign = structureNative().providerCitationsInText(text).some(({ jurisdiction }) => jurisdiction !== "ca");
-      if (!foreign) return "";
+      const foreign = structureNative().providerCitationsInText(text).some(({ jurisdiction }) =>
+        jurisdiction !== "ca" && !jurisdiction?.startsWith("ca-"));
+      if (!foreign || options.localOnly) return "";
       return attempt(`resolve ${text}`, async () => {
         const result = await operations.resolve({ text, kind: "case" });
         return result.status === "found" && result.value.provider !== "a2aj" ? result.value.url ?? "" : "";

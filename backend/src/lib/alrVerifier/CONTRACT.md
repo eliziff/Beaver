@@ -18,8 +18,11 @@
   `read | analyze | journal | supra | quotes | write`.
 - returns `{ runId, documents: [{ name, workbook: Uint8Array, workbookName: "[CHECKED] <stem>.xlsx",
   sidecar: object | null, sidecarName, rows, summary: { footnotes, parts, quotes, perfect, partial,
-  noMatch, unavailable }, missingSources: [{ key, citation, canliiPageUrl, canliiPdfUrl, rows }],
+  noMatch, unavailable, notCheckable }, missingSources: [{ key, citation, canliiPageUrl, canliiPdfUrl, rows }],
   state }] }`. `sidecar` is set only for `export_detail: "display-json"`.
+- `noMatch`: source read, quotation not found; `unavailable`: a case, legislation or matched journal
+  source the run could not read (local-only miss, offline, CanLII-only); `notCheckable`: quotations from
+  material no provider holds (websites, books, unlinked notes).
 - `state` is plain JSON (survives a page reload); pass it back to `attachSource`.
 
 ## attachSource

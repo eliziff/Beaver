@@ -41,6 +41,7 @@ undici.fetch = (async (resource: Parameters<typeof fetch>[0], init?: Parameters<
   live--; liveUsed++;
   const response = await realFetch(resource, init);
   const body = method === "HEAD" ? "" : await response.text();
+  console.error(`A2AJ live ${method} ${response.status} ${url}`);
   if (response.status !== 429 && response.status < 500) {
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(file, JSON.stringify({ url, status: response.status,
