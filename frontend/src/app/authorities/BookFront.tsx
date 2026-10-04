@@ -158,17 +158,16 @@ export function CoverFields({ cover, profileId, settings, disabled, court, onCov
 }
 
 /** What the index gives, how it groups and orders the authorities, and how each tab opens. */
-export function IndexFields({ settings, profileId, disabled, onChange, own = false }: {
-  settings: Settings; profileId: AuthoritiesProfileId; disabled?: boolean; onChange: (patch: Partial<Settings>) => void;
+export function IndexFields({ settings, disabled, onChange, own = false }: {
+  settings: Settings; disabled?: boolean; onChange: (patch: Partial<Settings>) => void;
   /** The index is the user's own PDF: only how each tab opens is asked. */
   own?: boolean;
 }) {
-  const profile = authoritiesProfile(profileId), federal = !!profile.requirements?.federalFormatting;
   const tabPages = settings.tabPages ?? true;
   const rightHand = settings.rightHandStarts ?? true;
   return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
     <legend className="sr-only">Index</legend>
-    {!own && <OptionCards legend="Beside each authority" value={settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs")}
+    {!own && <OptionCards legend="Beside each authority" value={settings.indexShows ?? "tabs"}
       columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
         { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index also gives the book pages each authority fills." }]}
       onChange={(indexShows) => onChange({ indexShows })} />}
@@ -422,9 +421,9 @@ export function BookFrontModal({ host, draft, busy, step: first, jurisdictionOrd
     : <FrontLayout preview={<FrontSourcePreview slot="index" value={own.index} pdfs={pdfs}
       generated={<FrontPreview host={host} draft={front} actions={preview} part="index" label="Index" />} />}>
       <FrontSource slot="index" value={own.index} pdfs={pdfs} disabled={busy} onChange={(index) => setOwn((current) => ({ ...current, index }))}
-        own={<IndexFields own settings={shown} profileId={profileId} disabled={busy}
+        own={<IndexFields own settings={shown} disabled={busy}
           onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />}>
-        <IndexFields settings={shown} profileId={profileId} disabled={busy}
+        <IndexFields settings={shown} disabled={busy}
           onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
       </FrontSource>
     </FrontLayout>}

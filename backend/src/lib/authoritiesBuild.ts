@@ -925,7 +925,7 @@ function bookFront(draft: AuthoritiesDraft, subtitle: string) {
     (draft.import.kind === "manual" ? subtitle : "Book of Authorities");
   return { subtitle, documentTitle: draft.cover.title || bookTitle, bookTitle, federal,
     alberta: !!profile.requirements?.albertaCover,
-    indexShows: draft.settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs"),
+    indexShows: draft.settings.indexShows ?? "tabs",
     tabPages: draft.settings.tabPages ?? true,
     rightHandStarts: draft.settings.rightHandStarts ?? true,
     electronic: draft.settings.filingMedium === "electronic",
