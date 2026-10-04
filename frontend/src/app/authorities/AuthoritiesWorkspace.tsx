@@ -26,7 +26,7 @@ import { downloadBlob } from "@/app/lib/download";
 import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
-import { rowControl, Sources, type BookFiles } from "./AuthoritySources";
+import { rowControl, Sources, SourcesExplainer, type BookFiles } from "./AuthoritySources";
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCard, OptionCards } from "./OptionCards";
 import { OutputDock, type OutputRow } from "./OutputCards";
@@ -1057,6 +1057,19 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // them at once; never during the review or a build, which would wait behind it.
   useHighlightsAhead(host, draft && (stage === "sources" || stage === "highlights") ? draft : undefined, ocr.tracked);
   const statuteCopies = useStatuteCopies(host, draft, shown, ocr.tracked, stage === "sources" || stage === "highlights");
+  // Once in a browser: the first time Sources settles, nothing fetching, with authorities still
+  // needing a PDF, what to do about them. Storage that can't be read means no explainer.
+  const [explaining, setExplaining] = useState(false);
+  const explainable = !!draft && stage === "sources" && !busy && missingPdfs.length > 0 && !missingOpen && !pendingImport;
+  useEffect(() => {
+    if (!explainable || sourcesExplained()) return;
+    const settled = window.setTimeout(() => setExplaining(true), 800);
+    return () => clearTimeout(settled);
+  }, [explainable]);
+  const closeExplainer = () => {
+    setExplaining(false);
+    try { localStorage.setItem(SOURCES_EXPLAINED, "1"); } catch { /* It shows again on the next visit. */ }
+  };
   // A step already reached can be looked at while work runs (PDFs attaching, a save): looking at it changes
   // nothing, and each step holds its own controls while busy.
   const steps = STEPS.filter(({ value }) => value !== "citations" || draft?.state.import.kind !== "manual")
@@ -1301,6 +1314,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           <strong>{folderAccess?.handle.name}</strong>. Choose <strong>Allow on every visit</strong> so it
           won’t ask next time.</p>
       </Modal>
+      <SourcesExplainer open={explaining} missing={missingPdfs.length} folderKept={!!host.watchedFolder}
+        onClose={closeExplainer} onChooseFolder={watchedFolder ? undefined : () => { closeExplainer(); void watchFolder(); }} />
       <Modal open={!!missingOpen} onClose={() => setMissingOpen(undefined)} size="lg"
         breadcrumbs={["Authorities without a PDF"]} fit
         secondaryAction={missingOpen === "build" ? { label: "Review sources", disabled: busy, onClick: () => {
@@ -1800,6 +1815,10 @@ function planAuthorities({ state }: AuthoritiesProduct) {
 const errorText = (error: unknown) => errorMessage(error, "Authorities could not be updated.");
 const lastDraftKey = (projectId: string | undefined, mode: AuthoritiesHost["mode"]) =>
   `beaver.authorities.${mode === "standalone" ? "standalone." : ""}last.${projectId ?? "library"}`;
+const SOURCES_EXPLAINED = "beaver.authorities.sourcesExplained";
+function sourcesExplained() {
+  try { return !!localStorage.getItem(SOURCES_EXPLAINED); } catch { return true; }
+}
 function loadPreferences(): StartPreferences {
   try {
     const value = JSON.parse(localStorage.getItem("beaver.authorities.preferences") ?? "null") as
