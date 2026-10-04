@@ -20,7 +20,7 @@ import { createAuthoritiesImporter, type AuthoritiesImporter, type AuthoritiesIm
   type GroundedReceiptSeed } from "./authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
-import { authorityReferenceText, authoritySourceServices, resolveAuthoritiesSources,
+import { authorityReferenceText, authorityStatuteText, authoritySourceServices, resolveAuthoritiesSources,
   retryableAuthoritySource, type SourceServices } from "./authoritiesSourceResolution";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
@@ -590,6 +590,7 @@ export function createAuthoritiesWorkspaceApplication(
       try {
         built = await builder({ draft, title: product.title,
           workProduct: { id, revision }, sources: await buildSources(scope, draft, signal), signal, progress,
+          statuteText: (authority, abort) => authorityStatuteText(draft, authority, sources, abort),
           ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
         });
       } catch (error) {

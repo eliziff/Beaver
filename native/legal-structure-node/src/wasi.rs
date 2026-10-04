@@ -183,8 +183,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
         "documentAnchors" => done(with_document(doc()?, |d| value(engine::document_anchors(d, call.get("end")?)))),
         "legalSourceViewer" => done(with_document(doc()?, |d| engine::legal_source_viewer(
             d, &call.get::<String>("primaryKind")?, call.get("limit")?).and_then(value))),
-        #[cfg(feature = "legalpdf")]
-        "textLayout" => done(value(engine::text_layout(&call.get::<String>("text")?))),
+        "statuteOutline" => done(engine::statute_outline(&call.get::<String>("text")?,
+            call.get::<Option<bool>>("articles")?.unwrap_or(false)).and_then(value)),
         "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(
             d, call.get::<Option<bool>>("legislation")?.unwrap_or(false))))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),

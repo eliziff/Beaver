@@ -31,6 +31,12 @@ export type NativeReferencePart = { part: import("legal-citations").SourcePart;
   references: Array<NativeCitationTextSpan & { form: "citation" | "bare" | "link";
     authority: import("legal-citations").Citation["authority"]; link?: string; citation?: number }> };
 
+/** `label` as printed ("726.1", "(2)", "PART XXIII"); `title` a marginal note or heading; `text` the
+ *  entry's own words; `start`/`end` (string indices) span it and everything under it. */
+export type NativeStatuteOutlineEntry = { kind: "part" | "division" | "heading" | "schedule" | "section" |
+  "article" | "subsection" | "paragraph" | "subparagraph" | "clause"; level: number; label: string;
+  title?: string; text: string; start: number; end: number };
+
 /** `start` is in the document's query text; `pageIndex` is a PDF's zero-based page. */
 export type NativeOutlineEntry = { kind: "heading" | "section"; level: number; title: string;
   start: number; pageIndex?: number };
@@ -82,7 +88,7 @@ type PassageStatus = "found" | "not_found" | "ambiguous" | "invalid" | "unavaila
 export type NativePdfPassageTarget = {
   physicalPages?: number[];
   id: string;
-  locatorKind: "paragraph" | "section" | "page";
+  locatorKind: "paragraph" | "section" | "article" | "rule" | "page";
   locator: string;
   exactQuotes?: string[];
   quoteSelections?: Array<{ text: string; start: number; end: number }>;
@@ -263,9 +269,9 @@ type StructureAddon = {
   documentTableCells(document: NativeDocument): SpreadsheetCellSpan[];
   /** The document's headings and top-level sections in order; a section sits under the heading before it. */
   documentOutline(document: NativeDocument, legislation?: boolean): NativeOutlineEntry[];
-  /** Plain text line by line as headings, list items and paragraphs, with nesting levels. */
-  textLayout(text: string): Array<{ kind: "heading" | "list_item" | "paragraph"; level: number;
-    marker?: string; text: string }>;
+  /** A statute's outline read from its text: parts, headings and provisions in order, each with
+   *  its level, printed label, marginal note or heading, own text, and the span of its subtree. */
+  statuteOutline(text: string, articles?: boolean): NativeStatuteOutlineEntry[];
   textFragmentPlan(blockText: string, quotes: string[], pdf: boolean,
     publisherMayAnnotateLegalReference: boolean,
     splitHtmlSourceBlocks: boolean,

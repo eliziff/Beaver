@@ -19,7 +19,7 @@ import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
   autoFetchedPdf, attachAuthoritiesBookPdf, authoritiesReview, folderPdfAuthority, readPinpoints } from "../lib/authoritiesActions";
 import { validateAuthoritiesPdf } from "../lib/authoritiesPdf";
-import { authorityReferenceText, resolveAuthoritiesSources, retryableAuthoritySource,
+import { authorityReferenceText, authorityStatuteText, resolveAuthoritiesSources, retryableAuthoritySource,
   type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
 import { authoritiesSourceText, createAuthoritiesPreparation, prepareAuthoritiesCorrection } from
   "../lib/authoritiesPreparation";
@@ -407,6 +407,7 @@ export function createAuthoritiesRuntimeRouter(
     let book: PreparedAuthoritiesBook | undefined;
     const built = await buildAuthorities({ draft: state, title,
       workProduct: { id, revision }, sources, signal: build.signal, progress,
+      statuteText: (authority, signal) => authorityStatuteText(state, authority, undefined, signal),
       ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
     }, state.settings.finalPdf ? undefined : async (prepared) => {
       book = prepared; return [];

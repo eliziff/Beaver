@@ -29,7 +29,7 @@ import {
   type AuthorityKind,
 } from "./authoritiesDomain";
 import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
-import { hasPrintedParagraphLocator, initialAuthorityAnnotations } from "./authoritiesAnnotations";
+import { hasPrintedParagraphLocator, initialAuthorityAnnotations, locatorLabel } from "./authoritiesAnnotations";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, entryOrder, type DocxAuthorityMark } from "./docxOperations";
 import { structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry,
@@ -68,10 +68,14 @@ export type AuthoritiesBuildInput = {
   finalPdfSource?: (bytes: Uint8Array, filename: string) => Promise<Uint8Array>;
   /** Told what the build is doing, as it starts each part. */
   progress?: (message: string) => void;
+  /** A statute's text from its provider, for the cited provisions its PDF does not place. */
+  statuteText?: StatuteText;
 };
+export type StatuteText = (authority: AuthorityIdentity, signal?: AbortSignal) =>
+  Promise<{ text: string; provider: string } | null>;
 
 export type AuthorityPassageRequest = {
-  locators: Array<{ kind: "paragraph" | "section" | "page"; label: string }>;
+  locators: Array<{ kind: NativePdfPassageTarget["locatorKind"]; label: string }>;
   exactQuotes: string[];
 };
 
@@ -79,7 +83,7 @@ export type AuthorityPassageRequest = {
 export function authorityPassageRequests(draft: AuthoritiesDraft, authorityId: string) {
   const quoteByFootnote = footnotePropositions(draft.units), requests: AuthorityPassageRequest[] = [];
   const valid = (locator: { kind: string; label: string }): locator is AuthorityPassageRequest["locators"][number] =>
-    ["paragraph", "section", "page"].includes(locator.kind) && !!locator.label.trim();
+    ["paragraph", "section", "article", "rule", "page"].includes(locator.kind) && !!locator.label.trim();
   const authority = draft.authorities[authorityId];
   const direct = authority?.locators.filter(valid) ?? [];
   if (direct.length) requests.push({ locators: direct, exactQuotes: [] });
@@ -170,7 +174,7 @@ export function authoritiesTextRoles(draft: AuthoritiesDraft) {
     const needsOcr = draft.settings.scannedPdfPolicy !== "page-margin";
     const needsLinkGeometry = !!(draft.settings.finalPdf && draft.settings.linkPinpoints && requests.length);
     const needsLocatorText = (draft.settings.passageMarking !== "none" || draft.settings.finalPdf && draft.settings.linkPinpoints) &&
-      (locatorKinds.has("paragraph") || locatorKinds.has("section"));
+      [...locatorKinds].some((kind) => kind !== "page");
     const needsQuoteText = ["margin", "text"].includes(draft.settings.passageMarking) &&
       requests.some(({ exactQuotes }) => exactQuotes.length);
     // A statute that may go in as an excerpt is read for where its cited provisions are.
@@ -216,7 +220,7 @@ function citedPages(draft: AuthoritiesDraft, authorityId: string) {
 function citedPinpoints(draft: AuthoritiesDraft, authorityId: string) {
   const labels = Object.values(draft.occurrences).flatMap((occurrence) =>
     occurrence.authorityId === authorityId ? occurrence.pinpoints.map(({ kind, text }) =>
-      `${kind === "paragraph" ? "para" : kind === "section" ? "s" : "p"} ${text}`) : []);
+      locatorLabel(kind, text)) : []);
   return [...new Set(labels)].join(", ");
 }
 
@@ -404,7 +408,7 @@ export async function renderAuthoritySourcePdf(input: {
     current.drawText(line, { x: left, y, size: 23, font: bold }); y -= 29;
   }
   y -= 8;
-  for (const line of wrapped(serif, citation, 13, width - left - right)) {
+  for (const line of citation === title ? [] : wrapped(serif, citation, 13, width - left - right)) {
     current.drawText(line, { x: left, y, size: 13, font: serif,
       color: pdf.rgb(.2, .2, .2) }); y -= 18;
   }
@@ -537,10 +541,56 @@ export async function renderAuthoritySourcePdf(input: {
     } else draw(inline(node, node.type === "heading"), indent,
       node.type === "heading" ? 17 - node.depth : 10.5, node.type === "heading");
   };
-  block(fromMarkdown(input.text, { extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()] }));
+  // A statute is laid out from the outline the structure layer reads from its text: its parts and
+  // headings, and each provision under its marginal note, indented a step for each level below its
+  // section. Anything else is laid out from its Markdown.
+  const statute = input.kind === "legislation" ? structureNative().statuteOutline(input.text) : [];
+  if (statute.length) {
+    const provision = (kind: string) => !["part", "division", "heading", "schedule"].includes(kind);
+    // The words before the first heading (the long title, an enacting formula), without the title
+    // and citation already on the page or the source's emphasis marks.
+    const plain = (value: string) => value.replace(/[*_]+/gu, "").replace(/\n\s*\n+/gu, "\n").trim();
+    const opening = plain(input.text.slice(0, statute[0].start)).split("\n").map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#") && line !== input.citation.trim()).join(" ");
+    if (opening) draw([{ text: opening, font: italic }]);
+    let sectionLevel = 0, carried: Run[] = [];
+    for (const entry of statute) {
+      if (!provision(entry.kind)) {
+        placing = { start: entry.start, heading: entry.level + 2, title: [entry.label, entry.title ?? entry.text].filter(Boolean).join(" ") };
+        draw([{ text: placing.title!, font: bold }], 0, [13, 12, 11][Math.min(entry.level, 2)], true);
+        continue;
+      }
+      const opens = ["section", "article"].includes(entry.kind);
+      if (opens) sectionLevel = entry.level;
+      const indent = carried.length ? 0 : 18 * Math.max(0, entry.level - sectionLevel);
+      if (entry.title) {
+        // A marginal note keeps a few lines of its provision with it.
+        if (y < bottom + 70) { current = page(); y = height - top; }
+        placing = { start: entry.start, note: entry.title };
+        draw([{ text: entry.title, font: bold }], indent, 10, true);
+      }
+      placing ??= { start: entry.start };
+      const label = { text: `${entry.label} `, font: opens ? bold : serif }, text = plain(entry.text);
+      // A section whose words start in its first subsection prints on one line with it: "2 (1) In this Act,".
+      if (opens && !text) { carried = [label]; continue; }
+      // Each of its paragraphs (a definitions list's entries) is laid out on its own, so a long
+      // provision runs on from the page it starts on.
+      const [first = "", ...rest] = text.split("\n");
+      draw([...carried, label, { text: first, font: serif }], indent);
+      for (const paragraph of rest) draw([{ text: paragraph, font: serif }], indent);
+      carried = [];
+    }
+  } else block(fromMarkdown(input.text, { extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()] }));
   // Headings below the title, then each top-level section titled with its marginal note.
   let headingLevel = 0;
-  const outline = nestedOutline([...placed.filter(item => (item.heading ?? 0) > 1).map(item => ({
+  const outline = statute.length ? nestedOutline(placed.filter((item) => item.heading || item.note === undefined &&
+    statute.some((entry) => entry.start === item.start && ["section", "article"].includes(entry.kind)))
+    .map((item) => {
+      const entry = statute.find((candidate) => candidate.start === item.start)!;
+      if (item.heading) headingLevel = item.heading;
+      return { title: pdfText(item.heading ? item.title! : [entry.label, entry.title].filter(Boolean).join(" ")),
+        level: item.heading ?? headingLevel + 1, pageIndex: item.pageIndex };
+    })) : nestedOutline([...placed.filter(item => (item.heading ?? 0) > 1).map(item => ({
     start: item.start, kind: "heading", level: item.heading!, title: item.title!, pageIndex: item.pageIndex })),
   ...sections.filter(entry => entry.kind === "section").map(entry => {
     const at = placed.reduce((last, item, index) => item.start <= entry.start ? index : last, -1);
@@ -646,7 +696,9 @@ type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIden
   pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[]; pageBindings?: PdfPageBinding[];
   passageGeometry?: NativePdfPassageGeometry; outline?: PdfOutline[] };
 type PreparedBookPdf = LoadedBookPdf & { pageIndices: number[];
-  databaseReference: { url: string; host: string } | null; excerpt?: boolean };
+  databaseReference: { url: string; host: string } | null; excerpt?: boolean;
+  /** The cited provisions rebuilt from the statute's text, where each is in the rebuilt pages. */
+  rebuiltBookmarks?: Array<{ title: string; pageIndex: number }> };
 
 const FEDERAL_BOOK_ROLE_LABELS = {
   applicant: "Applicant", respondent: "Respondent", joint: "Joint",
@@ -844,7 +896,7 @@ export async function authoritiesBookFront(draft: AuthoritiesDraft, title: strin
 async function prepareAuthorityBook(
   draft: AuthoritiesDraft, groups: Group[], filename: string, subtitle: string,
   attached: NonNullable<AuthoritiesBuildInput["sources"]>, signal?: AbortSignal,
-  progress?: (message: string) => void,
+  progress?: (message: string) => void, statuteText?: StatuteText,
 ): Promise<PreparedAuthoritiesBook> {
   signal?.throwIfAborted();
   const pdf = await import("pdf-lib");
@@ -903,15 +955,30 @@ async function prepareAuthorityBook(
     draft.bookParts.index
       ? loadBookPdf(pdf, draft.bookParts.index, "the custom index", attached) : null,
   ]);
-  const sources: PreparedBookPdf[] = [...authoritySources, ...supplementalSources].map((source) => {
+  const sources: PreparedBookPdf[] = await Promise.all([...authoritySources, ...supplementalSources].map(async (source) => {
     const extract = federalPaperExtract(draft, source);
     const excerpt = !extract && source.authority && source.parts && statuteExcerpt(source.authority, source.parts)
       ? statuteExcerptPages(draft, source.authority, { pageCount: source.document.getPageCount(), parts: source.parts,
         marked: source.markedPages, pageTextByPage: source.pageTextByPage, pageBindings: source.pageBindings,
-        passageGeometry: source.passageGeometry }).pages : null;
-    return { ...source, pageIndices: extract?.pageIndices ?? excerpt ?? source.document.getPageIndices(),
-      databaseReference: extract?.databaseReference ?? null, excerpt: !!excerpt };
-  });
+        passageGeometry: source.passageGeometry }) : null;
+    // What the PDF does not place is rebuilt from the statute's text, after the pages it does.
+    const rebuilt = excerpt?.missing.length && source.authority
+      ? await rebuiltProvisions(source.authority, source.name, excerpt.missing, statuteText, signal) : null;
+    let rebuiltBookmarks: PreparedBookPdf["rebuiltBookmarks"];
+    if (rebuilt) {
+      const offset = source.document.getPageCount();
+      await appendPages(source.document, rebuilt);
+      excerpt!.pages!.push(...rebuilt.getPageIndices().map((index) => offset + index));
+      // Each rebuilt provision is bookmarked where its section opens in the rebuilt pages.
+      const flat = (items: PdfOutline[]): PdfOutline[] => items.flatMap((item) => [item, ...flat(item.children ?? [])]);
+      const sections = flat(readOutlines(rebuilt, offset));
+      rebuiltBookmarks = excerpt!.missing.map(({ kind, label }) => ({ title: locatorLabel(kind, label),
+        pageIndex: sections.find((item) => item.title === label.split("(")[0] || item.title.startsWith(`${label.split("(")[0]} `))
+          ?.pageIndex ?? offset }));
+    }
+    return { ...source, pageIndices: extract?.pageIndices ?? excerpt?.pages ?? source.document.getPageIndices(),
+      databaseReference: extract?.databaseReference ?? null, excerpt: !!excerpt, rebuiltBookmarks };
+  }));
   const rowByKey = new Map(rows.map((row) => [row.key, row]));
   const rowGroups = groups.flatMap(({ label, entries }) => {
     const kept = entries.filter(({ authority }) => authorityReproducedInBook(draft, authority))
@@ -938,9 +1005,8 @@ async function prepareAuthorityBook(
           ? target.pages.slice(0, 1).flatMap(({ pageNumber }) => {
           const key = `${target.locatorKind}\0${target.locator}`;
           if (seen.has(key)) return []; seen.add(key);
-          const title = target.locatorKind === "paragraph" ? "para" : target.locatorKind === "section" ? "s" : "p";
-          return [{ title: `${title} ${target.locator}`, pageIndex: pageNumber - 1 }];
-        }) : []) ?? []).sort((left, right) => left.pageIndex - right.pageIndex);
+          return [{ title: locatorLabel(target.locatorKind, target.locator), pageIndex: pageNumber - 1 }];
+        }) : []) ?? []).concat(source.rebuiltBookmarks ?? []).sort((left, right) => left.pageIndex - right.pageIndex);
       // A scan's text where only cited pages are read: those pages, or every page an excerpt keeps.
       const cited = source.excerpt ? new Set(source.pageIndices) : source.authority ? citedSourcePages(draft,
         source.authority.id, source.pageTextByPage ?? [], undefined, source.document.getPageCount(), source.passageGeometry,
@@ -1017,8 +1083,43 @@ function statuteExcerptPages(draft: AuthoritiesDraft, authority: AuthorityIdenti
   let start = 0;
   for (const count of input.parts) { kept.add(start); start += count; }
   for (let page = start; page < input.pageCount; page++) kept.add(page);
-  return { placed: [...placed.keys()], pages: placed.size
+  // The cited provisions the PDF does not place, each once. A statute with none cited goes in whole.
+  const cited = authorityPassageRequests(draft, authority.id).flatMap(({ locators }) => locators);
+  const missing = [...new Map(cited.filter(({ kind, label }) => kind !== "page" && !placed.has(`${kind}\0${label.trim()}`))
+    .map((locator) => [`${locator.kind}\0${locator.label.trim()}`, locator])).values()];
+  return { placed: [...placed.keys()], missing, pages: cited.length || placed.size
     ? [...kept].filter((page) => page < input.pageCount).sort((left, right) => left - right) : null };
+}
+
+/** The cited provisions a statute's PDF does not place, rebuilt from its provider's text: each cut
+ *  from the text by the structure layer's outline, with everything under it. Null where the text
+ *  cannot be had or holds none of them. */
+async function rebuiltProvisions(authority: AuthorityIdentity, name: string,
+  wanted: AuthorityPassageRequest["locators"], statuteText?: StatuteText, signal?: AbortSignal) {
+  const found = await statuteText?.(authority, signal);
+  if (!found?.text.trim()) return null;
+  const outline = structureNative().statuteOutline(found.text);
+  const entry = (label: string) => {
+    const [top, ...parts] = label.replace(/\s+/gu, "").match(/^[^(]+|\([^)]*\)/gu) ?? [];
+    let at = outline.find((item) => ["section", "article"].includes(item.kind) &&
+      item.label.replace(/\.$/u, "") === top?.replace(/\.$/u, ""));
+    for (const part of parts) at = at && outline.find((item) => item.start >= at!.start && item.end <= at!.end &&
+      item.level > at!.level && item.label === part);
+    return at;
+  };
+  const spans = wanted.flatMap(({ label }) => {
+    const whole = entry(label);
+    if (whole) return [[whole.start, whole.end]];
+    // A range ("49-51", "33 to 35") runs from its first provision through its last.
+    const [from, to] = label.split(/\s*(?:-|–|to)\s*/u);
+    const [first, last] = [entry(from ?? ""), to ? entry(to) : undefined];
+    return first && last ? [[first.start, last.end]] : [];
+  }).sort(([left], [right]) => left - right);
+  if (!spans.length) return null;
+  const text = spans.map(([start, end]) => found.text.slice(start, end).trim()).join("\n\n");
+  const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: authority.name ?? name, citation: authority.citation,
+    date: null, sourceUrl: null, text, provider: found.provider, retrieved: new Date().toISOString().slice(0, 10) });
+  return pdfLibrary.PDFDocument.load(bytes);
 }
 
 /** What a statute's excerpt holds of one of its PDFs, read as a build of the draft reads it. */
@@ -1202,7 +1303,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
       input.draft.settings.tableDelivery === "linked-append", wanted.includes("book"))]
     : role === "book"
       ? assembleBook(await prepareAuthorityBook(input.draft, bookGroups, `${base}.${bookName}.pdf`, subtitle,
-        sources, input.signal, input.progress).then((plan) => {
+        sources, input.signal, input.progress, input.statuteText).then((plan) => {
           input.progress?.("Assembling the book"); return plan;
         }), input.signal)
       : input.draft.import.kind === "document" && input.draft.import.fileType === "pdf"

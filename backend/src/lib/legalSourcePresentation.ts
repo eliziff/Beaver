@@ -128,10 +128,6 @@ const LEGISLATION_PDFS: Record<string, (url: URL) => string | null> = {
     const name = /^\/sites\/default\/files\/legc\/statutes(?: HTML)?\/([^/]+)\.html?$/iu.exec(decodeURIComponent(pathname))?.[1];
     return name && pathPart.test(name) ? `https://nslegislature.ca/sites/default/files/legc/statutes/${encodeURI(name)}.pdf` : null;
   },
-  "www.legisquebec.gouv.qc.ca": ({ pathname }) => {
-    const [, language, corpus, id] = /^\/(en|fr)\/(?:document|pdf)\/(cs|cr)\/([^/]+?)(?:\.pdf)?$/iu.exec(decodeURIComponent(pathname)) ?? [];
-    return id && pathPart.test(id) ? `https://www.legisquebec.gouv.qc.ca/${language}/pdf/${corpus}/${encodeURI(id)}.pdf` : null;
-  },
 };
 
 function federalLegislationPdf({ pathname }: URL) {
@@ -158,7 +154,6 @@ const LEGISLATION_PDF_PATHS: Record<string, RegExp> = {
   "web2.gov.mb.ca": /^\/laws\/(?:statutes\/ccsm\/_pdf\.php\?cap=[a-z]\d+(?:\.\d+)?|regs\/current\/_pdf-regs\.php\?reg=\d+\/\d+(?: R)?)$/iu,
   "laws.gnb.ca": /^\/en\/pdf\/c[sr]\/[\p{L}\p{N}][\p{L}\p{N} .,_-]*\.pdf$/u,
   "nslegislature.ca": /^\/sites\/default\/files\/legc\/statutes\/[\p{L}\p{N}][\p{L}\p{N} .,_'()&-]*\.pdf$/u,
-  "www.legisquebec.gouv.qc.ca": /^\/(?:en|fr)\/pdf\/c[sr]\/[\p{L}\p{N}][\p{L}\p{N} .,_-]*\.pdf$/u,
   "www.justice.gov.nt.ca": /^\/en\/files\/legislation\/[a-z0-9-]+\/[a-z0-9.-]+\.pdf$/iu,
   "www.princeedwardisland.ca": /^\/sites\/default\/files\/[a-z0-9]+\/[\p{L}\p{N}][\p{L}\p{N} .,_'()&;-]*\.pdf$/u,
   "publications.saskatchewan.ca": /^\/api\/v1\/products\/\d+\/formats\/\d+\/download$/u,
