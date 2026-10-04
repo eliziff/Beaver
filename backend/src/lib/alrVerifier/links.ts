@@ -3,8 +3,9 @@
 // _a2aj_resolve_case_before_browser, _a2aj_case_link, _a2aj_has_law_before_browser,
 // _a2aj_official_law_url and _generate_fallback_url. CanLII is never fetched.
 import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
+import { buildCanliiCaseUrl, buildCanliiCaseUrlFromCitation, buildCanliiLawUrlFromCitation } from "../canliiUrls";
 import type { LegalSourceReference } from "../legalSources";
-import { citations, citationUrl, engine, refKind } from "./engine";
+import { citations, engine, refKind } from "./engine";
 import type { AlrSources } from "./sources";
 import { appendFirstPinpoint, canliiLookupUrl, host, isCanlii, isUsableLink, splitUrl } from "./urls";
 
@@ -15,20 +16,11 @@ export type LockedSource = { reference: LegalSourceReference; kind: "case" | "le
 const CASE_KINDS = new Set(["case", "unreported"]);
 const LAW_KINDS = new Set(["statute", "gazette"]);
 
-/** CanLII URL the engine builds for a neutral or CanLII citation (or a statute), "" when none. */
+/** CanLII URL for a neutral or CanLII citation (or, for legislation, a statute), "" when none. */
 export function fallbackUrl(text: string, firstPinpoint: string, kind: string) {
-  const found = citations(text);
-  for (const citation of found) {
-    if (citation.form !== "full" || (citation.format !== "neutral" && citation.format !== "can_lii")) continue;
-    const link = citationUrl(citation, { anchor: true });
-    if (link && isCanlii(link)) return firstPinpoint.startsWith("par") ? `${link.split("#")[0]}#${firstPinpoint}` : link;
-  }
-  if (LAW_KINDS.has(kind)) for (const citation of found) {
-    if (citation.form !== "full" || !["statute", "regulation"].includes(citation.authority ?? "")) continue;
-    const link = citationUrl(citation, { anchor: false });
-    if (link && isCanlii(link)) return link;
-  }
-  return "";
+  const link = buildCanliiCaseUrlFromCitation([text]);
+  if (link) return firstPinpoint.startsWith("par") ? `${link.split("#")[0]}#${firstPinpoint}` : link;
+  return LAW_KINDS.has(kind) ? buildCanliiLawUrlFromCitation(text) ?? "" : "";
 }
 
 /** The official human page for an A2AJ law whose source URL is a machine format, or "". */
@@ -80,13 +72,8 @@ export function createLinker(sources: AlrSources, options: { a2aj: boolean; usUk
     const language = (candidate ?? "").toLowerCase().includes("/fr/") ? "fr" : "en";
     const reference = await sources.resolve(identity, "case", language);
     if (!reference) return "";
-    let link = "";
-    for (const value of [reference.citation, reference.alternateCitation]) {
-      const found = citations(value ?? "").find((citation) => citation.format === "neutral" &&
-        (citation.fields.series ?? "").toUpperCase() === (reference.collection ?? "").toUpperCase());
-      const url = found && citationUrl(found, { language });
-      if (url && isCanlii(url)) { link = url; break; }
-    }
+    let link = buildCanliiCaseUrl({ dataset: reference.collection ?? "", language,
+      citations: [reference.citation, reference.alternateCitation] }) ?? "";
     if (!link && reference.url && /^https?:\/\//iu.test(reference.url)) link = reference.url;
     if (!link) return "";
     link = appendFirstPinpoint(link, fragments);

@@ -3,6 +3,7 @@
 import { matchFolderPdf } from "mike/shared/folder-pdf-match.mjs";
 import { sequenceOpcodes } from "mike/shared/sequence-diff.mjs";
 import { useA2AJCorpus, type A2AJCorpusInput } from "../legalSources/a2aj";
+import { buildCanliiPdfUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { structureNative } from "../structureNative";
 import { alrDocument, parseDocx, type InlineQuote } from "./document";
 import { engine, isIbid, referenceInfo } from "./engine";
@@ -134,7 +135,7 @@ function missingSources(rows: AlrRow[]): MissingSource[] {
     if (!isCanlii(base) || !/\/(?:doc|laws)\/.*\.html$/iu.test(base)) continue;
     row._missing_source_key = base;
     const citation = row.ref_chain_origin_citation_part_text || row.citation_with_style || row.citation_part_text;
-    const entry = found.get(base) ?? { key: base, citation, canliiPageUrl: base, canliiPdfUrl: base.replace(/\.html$/iu, ".pdf"), rows: 0 };
+    const entry = found.get(base) ?? { key: base, citation, canliiPageUrl: base, canliiPdfUrl: buildCanliiPdfUrl(base) ?? "", rows: 0 };
     entry.rows++;
     found.set(base, entry);
   }

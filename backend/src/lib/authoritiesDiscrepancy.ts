@@ -10,6 +10,7 @@ import { mapBounded } from "./mapBounded";
 import { structureNative } from "./structureNative";
 import { normalizeWhitespace } from "./text";
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
+import { quoteTokens } from "./quoteCheck";
 
 export type { AuthoritiesSourcePassage };
 
@@ -163,20 +164,7 @@ export function findAuthoritiesDiscrepancies(
 }
 
 const word = /^[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*$/u;
-const tokenPattern = /\.\.\.|\[[^\]]+\]|[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|["“”‘’]|[^\p{L}\p{N}_\s]/gu;
-const mergeable = (value: string) => word.test(value) || /^\[[^\]]+\]$/u.test(value);
-function tokens(value: string) {
-  const raw = [...value.matchAll(tokenPattern)].map((match) => ({ text: match[0],
-    start: match.index, end: match.index + match[0].length }));
-  const result: string[] = [];
-  for (let i = 0; i < raw.length;) {
-    let { text, end } = raw[i], next = i + 1;
-    while (next < raw.length && end === raw[next].start && mergeable(text) &&
-        mergeable(raw[next].text)) { text += raw[next].text; end = raw[next++].end; }
-    result.push(text); i = next;
-  }
-  return result;
-}
+const tokens = (value: string) => quoteTokens(value).map(({ text }) => text);
 const equivalent = (value: string) => {
   if ('"“”«»„'.includes(value)) return '"';
   if ("'‘’‚".includes(value)) return "'";

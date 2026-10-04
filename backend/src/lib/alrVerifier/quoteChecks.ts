@@ -5,7 +5,7 @@
 // CanLII PDFs the reader downloads (attachSource); CanLII pages are never fetched.
 import { structureNative } from "../structureNative";
 import { correctedQuote, isOnlyBracketedQuote, outerQuoteMarks, plausibleContentOverlap, quoteDedupeKey,
-  quoteExactKey, quoteMatchScore, quoteRegion, quoteWords, sourceSideQuoteFragment, withOuterQuotes } from "../quoteMatch";
+  quoteExactKey, quoteMatchScore, quoteRegion, quoteWords, sourceSideQuoteFragment, withOuterQuotes } from "../quoteCheck";
 import type { InlineQuote } from "./document";
 import { citations } from "./engine";
 import type { Linker } from "./links";

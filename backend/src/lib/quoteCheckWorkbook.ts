@@ -20,6 +20,81 @@ function chunks(value: string, limit = 30_000): string[] {
   return result.length ? result : [""];
 }
 
+/** A run of differently formatted text in one cell; `font` is the run's rPr content. */
+export type XlsxRun = { text: string; font: string };
+export type XlsxCell = { value: string | number; style?: number; link?: string; runs?: XlsxRun[] };
+export type XlsxSheet = {
+  name: string;
+  /** The header row first. */
+  rows: XlsxCell[][];
+  widths: number[];
+  /** Columns from this (1-based) one on are hidden. */
+  hiddenFrom?: number | null;
+  /** Hide the empty grid right of the last column. */
+  hideUnused?: boolean;
+  frozenHeader?: boolean;
+  /** Extra sheetView attributes, e.g. ` showGridLines="0" zoomScale="85"`. */
+  view?: string;
+  heights?: Array<number | null>;
+  autoFilter?: boolean;
+  hidden?: boolean;
+};
+/** Fonts and cell formats as SpreadsheetML; fills as RGB colours (fill ids from 2 in this order). */
+export type XlsxStyles = { fonts: string[]; fills: string[]; cellXfs: string[] };
+
+const cellText = (value: string) => `<t${/^\s|\s$/u.test(value) ? ' xml:space="preserve"' : ""}>${
+  escapeXmlText(value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/gu, ""))}</t>`;
+export function columnLetter(index: number) {
+  let name = "";
+  for (let n = index; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
+  return name;
+}
+
+/** A formatted workbook: the package from the shared renderer, each sheet's cells, styles, links,
+ *  rich text, widths, hidden columns and frozen header written here. Strings are inline. */
+export async function styledXlsx(title: string, sheets: XlsxSheet[], styles: XlsxStyles, identifier = "") {
+  const zip = await JSZip.loadAsync(await renderXlsxWorkbook(title, sheets.map(({ name }) => ({ name, rows: [[""]] }))));
+  zip.file("xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="${styles.fonts.length}">${styles.fonts.join("")}</fonts><fills count="${styles.fills.length + 2}"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${styles.fills.map((color) => `<fill><patternFill patternType="solid"><fgColor rgb="FF${color}"/><bgColor indexed="64"/></patternFill></fill>`).join("")}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${styles.cellXfs.length}">${styles.cellXfs.join("")}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
+  for (const [index, sheet] of sheets.entries()) {
+    const links: Array<{ ref: string; url: string }> = [];
+    const width = Math.max(1, ...sheet.rows.map((row) => row.length));
+    const columns = sheet.widths.map((value, column) => `<col min="${column + 1}" max="${column + 1}" width="${value}" customWidth="1"${
+      sheet.hiddenFrom && column + 1 >= sheet.hiddenFrom ? ' hidden="1"' : ""}/>`).join("") +
+      (sheet.hideUnused && width < 16384 ? `<col min="${width + 1}" max="16384" width="13" customWidth="1" hidden="1" outlineLevel="1"/>` : "");
+    const data = sheet.rows.map((cells, rowIndex) => {
+      const row = rowIndex + 1, height = sheet.heights?.[rowIndex];
+      return `<row r="${row}"${height ? ` ht="${height}" customHeight="1"` : ""}>${cells.map((cell, column) => {
+        const ref = `${columnLetter(column + 1)}${row}`, style = cell.style ? ` s="${cell.style}"` : "";
+        if (cell.link && /^https?:\/\//iu.test(cell.link)) links.push({ ref, url: cell.link });
+        if (typeof cell.value === "number") return `<c r="${ref}"${style}><v>${cell.value}</v></c>`;
+        const inline = cell.runs?.length ? cell.runs.map((run) => `<r>${run.font ? `<rPr>${run.font}</rPr>` : ""}${cellText(run.text)}</r>`).join("")
+          : cell.value ? cellText(cell.value) : "";
+        return `<c r="${ref}"${style} t="inlineStr">${inline ? `<is>${inline}</is>` : ""}</c>`;
+      }).join("")}</row>`;
+    }).join("");
+    const last = `${columnLetter(width)}${Math.max(1, sheet.rows.length)}`;
+    zip.file(`xl/worksheets/sheet${index + 1}.xml`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><dimension ref="A1:${last}"/><sheetViews><sheetView workbookViewId="0"${sheet.view ?? ""}>${sheet.frozenHeader ? '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/>' : ""}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>${columns ? `<cols>${columns}</cols>` : ""}<sheetData>${data}</sheetData>${sheet.autoFilter ? `<autoFilter ref="A1:${last}"/>` : ""}${links.length ? `<hyperlinks>${links.map(({ ref }, i) => `<hyperlink ref="${ref}" r:id="link${i}"/>`).join("")}</hyperlinks>` : ""}<pageMargins left="0.75" right="0.75" top="1" bottom="1" header="0.5" footer="0.5"/></worksheet>`);
+    const rels = `xl/worksheets/_rels/sheet${index + 1}.xml.rels`;
+    if (links.length) zip.file(rels, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${links.map(({ url }, i) => `<Relationship Id="link${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${escapeXmlText(url).replace(/"/gu, "&quot;")}" TargetMode="External"/>`).join("")}</Relationships>`);
+    else zip.remove(rels);
+  }
+  const hidden = new Set(sheets.filter((sheet) => sheet.hidden).map((sheet) => sheet.name));
+  if (hidden.size) {
+    const workbook = await zip.file("xl/workbook.xml")!.async("string");
+    zip.file("xl/workbook.xml", workbook.replace(/<sheet name="([^"]*)"/gu, (sheet, name: string) =>
+      hidden.has(name) ? `${sheet} state="hidden"` : sheet));
+  }
+  if (identifier) {
+    const core = await zip.file("docProps/core.xml")?.async("string");
+    if (core) zip.file("docProps/core.xml", core.replace(/<\/cp:coreProperties>/u,
+      `<dc:identifier>${escapeXmlText(identifier)}</dc:identifier></cp:coreProperties>`));
+  }
+  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+}
+
 /** ALR's display order: draft context and citation beside the checked source; diagnostics remain secondary. */
 export async function quoteCheckWorkbook(filename: string, result: Result, analysis?: QuoteAnalysis) {
   const incomplete = isIncompleteCheck(result);
@@ -49,7 +124,7 @@ export async function quoteCheckWorkbook(filename: string, result: Result, analy
   });
   const receiptRows = result.quotes.flatMap((quote, quoteIndex) => chunks(json(quote)).map((text, index) =>
     [String(quoteIndex + 1), quote.id, String(index + 1), text]));
-  const sheets = [{ name: "Quote check", columns: ["Quote", "Draft location", "Quotation and context", "Citation",
+  const tables = [{ name: "Quote check", columns: ["Quote", "Draft location", "Quotation and context", "Citation",
     incomplete ? "Mechanical result — incomplete" : "Mechanical result", "Source comparison", ...(analysis ? ["AI analysis"] : [])],
     widths: [8, 13, 64, 38, 27, 64, ...(analysis ? [54] : [])], rows: display.map(({ values }) => values) },
     { name: "Summary", columns: ["Quote check", filename], widths: [27, 85], rows: [
@@ -63,85 +138,67 @@ export async function quoteCheckWorkbook(filename: string, result: Result, analy
     { name: "Citation units", columns: ["Unit ID", "Part", "Exact splitter JSON"], widths: [30, 8, 100],
       rows: result.citationUnits.flatMap((unit) => chunks(json(unit)).map((text, index) =>
         [unit.unitId, String(index + 1), text])) }];
-  const zip = await JSZip.loadAsync(await renderXlsxWorkbook(`${filename} — Quote check`, sheets));
   const statusStyles: Record<string, number> = { verified: 6, mismatch: 7, ambiguous: 8, unresolved: 8, unavailable: 9 };
   const colors = ["FFFFFF", "F6F7F8", "17212B", "E7F3EA", "FCEAEC", "FFF3D6", "EEF0F3"];
   const font = (color: string, extra = "") => `<font><sz val="11"/><color rgb="FF${color}"/><name val="Arial"/>${extra}</font>`;
-  const fonts = [font("263341"), font("FFFFFF", "<b/>"), font("263341", "<b/>"),
-    font("245785", '<u val="single"/>'), font("1F603D", "<b/>"), font("9B2432", "<b/>"), font("795A13", "<b/>")];
   const xf = (fontId: number, fillId: number, center = false) =>
     `<xf numFmtId="0" fontId="${fontId}" fillId="${fillId}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="${center ? "center" : "top"}"${center ? ' horizontal="center"' : ""} wrapText="1"/></xf>`;
   // Styles: body, alternate, heading, identifier, link, alternate link, verified, differs, unresolved, unavailable.
-  const styles = [xf(0, 2), xf(0, 3), xf(1, 4, true), xf(2, 3, true), xf(3, 2), xf(3, 3),
-    xf(4, 5), xf(5, 6), xf(6, 7), xf(0, 8)];
-  zip.file("xl/styles.xml", `<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${colors.length + 2}"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${colors.map((color) => `<fill><patternFill patternType="solid"><fgColor rgb="FF${color}"/><bgColor indexed="64"/></patternFill></fill>`).join("")}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1">${xf(0, 0)}</cellStyleXfs><cellXfs count="${styles.length}">${styles.join("")}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
-  for (let index = 0; index < sheets.length; index++) {
-    const sheet = sheets[index], name = `xl/worksheets/sheet${index + 1}.xml`;
-    let xml = (await zip.file(name)!.async("nodebuffer")).toString("utf8");
-    const widths = sheet.widths.map((width, col) => `<col min="${col + 1}" max="${col + 1}" width="${width}" customWidth="1"/>`).join("");
-    xml = xml.replace(/<sheetViews>[\s\S]*?<\/sheetViews>/u,
-      `<sheetViews><sheetView workbookViewId="0" showGridLines="0" zoomScale="85">${index === 1 ? "" : '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>'}</sheetView></sheetViews>`)
-      .replace("<sheetData>", `<cols>${widths}</cols><sheetData>`)
-      .replace(/<row r="(\d+)"[^>]*>([\s\S]*?)<\/row>/gu, (_, rowText, cells: string) => {
-        const row = Number(rowText), entry = display[row - 2], values = sheet.rows[row - 2];
-        const lines = values ? Math.max(...values.map((value, col) => value.split("\n").reduce((sum, line) =>
-          sum + Math.max(1, Math.ceil(line.length / (sheet.widths[col] - 3))), 0))) : 1;
-        const height = row === 1 ? 34 : Math.min(409, Math.max(index === 0 ? 86 : 30, lines * 14 + 14));
-        const styled = cells.replace(/<c r="([A-Z]+)(\d+)"/gu, (cell, column: string) => {
-          const alternate = index === 0 ? Number(entry?.values[0]) % 2 === 0 : row % 2 === 0;
-          const style = row === 1 ? 2 : index === 0 && column === "A" ? 3
-            : index === 0 && column === "D" && entry?.quote.receipt?.source.url ? (alternate ? 5 : 4)
-            : index === 0 && column === "E" ? (statusStyles[entry?.quote.status] ?? 0)
-            : alternate ? 1 : 0;
-          return `${cell} s="${style}"`;
-        });
-        return `<row r="${row}" ht="${height}" customHeight="1">${styled}</row>`;
-      });
-    if (index === 0) {
-      const links: Array<{ ref: string; url: string }> = [];
-      display.forEach(({ quote, part, values }, rowIndex) => {
-        const row = rowIndex + 2;
-        if (quote.receipt?.source.url && /^https?:\/\//iu.test(quote.receipt.source.url) && !part)
-          links.push({ ref: `D${row}`, url: quote.receipt.source.url });
-        const richCell = (column: string, text: string, spans: Array<{ start: number; end: number; color: string; strike?: boolean }>) => {
-          if (!spans.length) return;
-          let cursor = 0, rich = "";
-          const run = (value: string, properties = "") => `<r>${properties ? `<rPr>${properties}</rPr>` : ""}<t xml:space="preserve">${escapeXmlText(value)}</t></r>`;
-          for (const span of spans.sort((a, b) => a.start - b.start)) {
-            if (span.start < cursor) continue;
-            rich += run(text.slice(cursor, span.start)) + run(text.slice(span.start, span.end),
-              `<b/><color rgb="FF${span.color}"/>${span.strike ? "<strike/>" : ""}`);
-            cursor = span.end;
-          }
-          rich += run(text.slice(cursor));
-          xml = xml.replace(new RegExp(`<c r="${column}${row}"([^>]*)>[\\s\\S]*?<\\/c>`, "u"), (_, attributes: string) =>
-            `<c r="${column}${row}"${attributes.replace(/ t="[^"]*"/u, "")} t="inlineStr"><is>${rich}</is></c>`);
-        };
-        const at = values[2].indexOf(quote.quote);
-        if (at >= 0 && quote.quote) richCell("C", values[2], [{ start: at, end: at + quote.quote.length, color: "A34E13" }]);
-        const spans: Array<{ start: number; end: number; color: string; strike?: boolean }> = [];
-        const sourceText = values[5];
-        for (const change of quote.receipt?.comparison.changes ?? []) {
-          for (const [text, color, strike] of [[change.authored, "9B2432", true], [change.source, "1F603D", false]] as const) {
-            const start = sourceText.lastIndexOf(`“${text}”`);
-            if (text && start >= 0) spans.push({ start, end: start + text.length + 2, color, strike });
-          }
-        }
-        richCell("F", sourceText, spans);
-      });
-      xml = xml.replace("</sheetData>", `</sheetData><autoFilter ref="A1:${analysis ? "G" : "F"}${Math.max(1, display.length + 1)}"/>`);
-      if (links.length) {
-        xml = xml.replace(/(?=<printOptions|<pageMargins|<pageSetup|<ignoredErrors|<\/worksheet>)/u, `<hyperlinks>${links.map(({ ref }, i) =>
-          `<hyperlink ref="${ref}" r:id="quoteLink${i}"/>`).join("")}</hyperlinks>`);
-        zip.file("xl/worksheets/_rels/sheet1.xml.rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${links.map(({ url }, i) =>
-          `<Relationship Id="quoteLink${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${escapeXmlText(url).replace(/"/gu, "&quot;")}" TargetMode="External"/>`).join("")}</Relationships>`);
-      }
+  const styles: XlsxStyles = { fills: colors, fonts: [font("263341"), font("FFFFFF", "<b/>"), font("263341", "<b/>"),
+    font("245785", '<u val="single"/>'), font("1F603D", "<b/>"), font("9B2432", "<b/>"), font("795A13", "<b/>")],
+    cellXfs: [xf(0, 2), xf(0, 3), xf(1, 4, true), xf(2, 3, true), xf(3, 2), xf(3, 3), xf(4, 5), xf(5, 6), xf(6, 7), xf(0, 8)] };
+  type Span = { start: number; end: number; color: string; strike?: boolean };
+  const runs = (text: string, spans: Span[]) => {
+    if (!spans.length) return undefined;
+    const out: XlsxRun[] = [];
+    let cursor = 0;
+    for (const span of spans.sort((a, b) => a.start - b.start)) {
+      if (span.start < cursor) continue;
+      out.push({ text: text.slice(cursor, span.start), font: "" },
+        { text: text.slice(span.start, span.end), font: `<b/><color rgb="FF${span.color}"/>${span.strike ? "<strike/>" : ""}` });
+      cursor = span.end;
     }
-    zip.file(name, Buffer.from(xml, "utf8"));
-  }
-  const workbook = await zip.file("xl/workbook.xml")!.async("string");
-  zip.file("xl/workbook.xml", workbook.replace(/<sheet name="(?:Evidence|Citation units)"/gu, (sheet) => `${sheet} state="hidden"`));
-  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+    out.push({ text: text.slice(cursor), font: "" });
+    return out;
+  };
+  const sheets = tables.map((table, index): XlsxSheet => {
+    const height = (values?: string[]) => {
+      const lines = values ? Math.max(...values.map((value, col) => value.split("\n").reduce((sum, line) =>
+        sum + Math.max(1, Math.ceil(line.length / (table.widths[col] - 3))), 0))) : 1;
+      return Math.min(409, Math.max(index === 0 ? 86 : 30, lines * 14 + 14));
+    };
+    const rows = table.rows.map((values, rowIndex): XlsxCell[] => {
+      const entry = index === 0 ? display[rowIndex] : undefined;
+      const alternate = entry ? Number(entry.values[0]) % 2 === 0 : (rowIndex + 2) % 2 === 0;
+      return values.map((value, column): XlsxCell => {
+        const cell: XlsxCell = { value, style: alternate ? 1 : 0 };
+        if (!entry) return cell;
+        const { quote, part } = entry, url = quote.receipt?.source.url;
+        if (column === 0) cell.style = 3;
+        if (column === 3 && url) { cell.style = alternate ? 5 : 4; if (!part && /^https?:\/\//iu.test(url)) cell.link = url; }
+        if (column === 4) cell.style = statusStyles[quote.status] ?? 0;
+        if (column === 2) {
+          const at = value.indexOf(quote.quote);
+          if (at >= 0 && quote.quote) cell.runs = runs(value, [{ start: at, end: at + quote.quote.length, color: "A34E13" }]);
+        }
+        if (column === 5) {
+          const spans: Span[] = [];
+          for (const change of quote.receipt?.comparison.changes ?? []) {
+            for (const [text, color, strike] of [[change.authored, "9B2432", true], [change.source, "1F603D", false]] as const) {
+              const start = value.lastIndexOf(`“${text}”`);
+              if (text && start >= 0) spans.push({ start, end: start + text.length + 2, color, strike });
+            }
+          }
+          cell.runs = runs(value, spans);
+        }
+        return cell;
+      });
+    });
+    return { name: table.name, rows: [table.columns.map((value) => ({ value, style: 2 })), ...rows], widths: table.widths,
+      frozenHeader: index !== 1, view: ' showGridLines="0" zoomScale="85"',
+      heights: [34, ...table.rows.map((values) => height(values))], autoFilter: index === 0, hidden: index >= 2 };
+  });
+  return Buffer.from(await styledXlsx(`${filename} — Quote check`, sheets, styles));
 }
 
 export async function saveQuoteCheckWorkbook(documents: Pick<DocumentStore, "metadata" | "create">,

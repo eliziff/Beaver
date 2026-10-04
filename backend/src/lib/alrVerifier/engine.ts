@@ -26,6 +26,3 @@ export const reanchor = (link: string, text: string) => engine<string>("reanchor
 export const bareCitation = (text: string, kind: string) => engine<string>("bareCitation", { text: text ?? "", kind });
 export const citations = (text: string) => engine<{ citations: EngineCitation[] }>("extract",
   { text, options: { resolve: false, parallel: false }, offsetUnit: "utf16" }).citations;
-export function citationUrl(citation: EngineCitation, options: { anchor?: boolean; language?: string } = {}) {
-  return engine<{ urls: Array<{ url: string | null }> }>("url", { citation, ...options }).urls[0]?.url ?? null;
-}

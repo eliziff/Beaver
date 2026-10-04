@@ -1,75 +1,19 @@
-// ALR's document model: body text with footnote markers, footnote text, author hyperlinks,
+// ALR's document model, read with Beaver's native .docx units: body text with footnote markers,
+// footnote text, author hyperlinks,
 // footnote order and display numbers, the proposition before each note and its quotations.
 // Ported from ALR-Quote-Verifier alr_quote_verifier.py (_load_parsed_document,
 // extract_doc_stream_with_styles, build_global_text, extract_footnotes,
 // build_clean_text_and_index_map, find_inline_quotes, build_anchor_propositions,
 // _compute_footnote_display_ids, compute_footnote_order, build_audit_data).
 import JSZip from "jszip";
-import { decodeXmlText } from "../text";
+import { createParser, elAttrs, elChildren, elName, getTextContent, type XNode } from "../docx/core";
+import { structureNative } from "../structureNative";
 import type { PropositionMode } from "./settings";
 
 export type AuthorLink = { start: number; end: number; target: string; text: string; source: "hyperlink" | "literal" };
 type Paragraph = { text: string; anchors: Array<{ footnoteId: number; offset: number }> };
 type Anchor = { footnoteId: number; globalPos: number };
 export type InlineQuote = { raw: string; inner: string; type: string; style: "SMART" | "STRAIGHT" | "MIXED" };
-
-type XmlEvent = { kind: "open" | "close" | "empty"; name: string; attributes: Record<string, string> } | { kind: "text"; text: string };
-const XML_TOKEN = /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\[CDATA\[([\s\S]*?)\]\]>|<!(?:[^>]*)>|<(\/?)([^\s/>]+)((?:\s+[^\s=/>]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)/gu;
-function* xmlEvents(xml: string): Generator<XmlEvent> {
-  for (const match of xml.matchAll(XML_TOKEN)) {
-    if (match[1] !== undefined) { yield { kind: "text", text: match[1] }; continue; }
-    if (match[6] !== undefined) { yield { kind: "text", text: decodeXmlText(match[6]) }; continue; }
-    if (!match[3]) continue;
-    const attributes: Record<string, string> = {};
-    for (const [, key, quoted, single] of (match[4] ?? "").matchAll(/([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/gu))
-      attributes[key] = decodeXmlText(quoted ?? single ?? "");
-    yield { kind: match[2] ? "close" : match[5] ? "empty" : "open", name: match[3], attributes };
-  }
-}
-const local = (name: string) => name.slice(name.indexOf(":") + 1);
-const attribute = (attributes: Record<string, string>, name: string) =>
-  Object.entries(attributes).find(([key]) => local(key) === name)?.[1];
-
-/** One character run each element of a paragraph or note contributes, as Word lays them out. */
-function runText(name: string) {
-  return name === "tab" ? "\t" : name === "br" || name === "cr" ? "\n" : null;
-}
-
-function bodyParagraphs(xml: string): Paragraph[] {
-  const paragraphs: Paragraph[] = [], stack: string[] = [];
-  let current: Paragraph | null = null, depth = -1, inText = false;
-  for (const event of xmlEvents(xml)) {
-    if (event.kind === "text") { if (current && inText) current.text += event.text; continue; }
-    const name = local(event.name);
-    if (event.kind === "close") {
-      stack.pop();
-      if (name === "t") inText = false;
-      if (current && stack.length === depth) { paragraphs.push(current); current = null; depth = -1; }
-      continue;
-    }
-    // Only the body's own paragraphs are read; tables and other containers are not.
-    if (!current && name === "p" && stack.length >= 1 && local(stack.at(-1)!) === "body") {
-      current = { text: "", anchors: [] };
-      depth = stack.length;
-      if (event.kind === "empty") { paragraphs.push(current); current = null; depth = -1; }
-      else stack.push(event.name);
-      continue;
-    }
-    if (current) {
-      const value = runText(name);
-      if (value) current.text += value;
-      else if (name === "footnoteReference") {
-        const id = Number(attribute(event.attributes, "id"));
-        if (Number.isInteger(id)) {
-          current.anchors.push({ footnoteId: id, offset: current.text.length });
-          current.text += `⟦FN:${id}⟧`;
-        }
-      } else if (name === "t" && event.kind === "open") inText = true;
-    }
-    if (event.kind === "open") stack.push(event.name);
-  }
-  return paragraphs;
-}
 
 const HYPERLINK_FIELD = /\bHYPERLINK\s+["']([^"']+)["']/iu;
 const EXPLICIT_URL = /(?<![\p{L}\p{N}_@])(?:[a-z][a-z0-9+.-]*:\/\/|www\.|(?:[a-z0-9-]+\.)+[a-z]{2,}\/)[^\s<>"']+/giu;
@@ -79,93 +23,90 @@ const trimUrlTail = (url: string) => {
     value = value.slice(0, -1).replace(/[.,;:!?\]}>"]+$/u, "");
   return value;
 };
+const attribute = (node: XNode, name: string) => Object.entries(elAttrs(node)).find(([key]) => key.endsWith(`:${name}`))?.[1];
 
-function footnotes(xml: string, relationships: Map<string, string>) {
-  const notes = new Map<number, string>(), links = new Map<number, AuthorLink[]>();
-  const stack: XmlEvent[] = [];
-  let id: number | null = null, depth = -1, raw = "", runs: Array<[number, number, string]> = [], inText = false;
-  const target = () => {
-    for (let index = stack.length - 1; index > depth; index--) {
-      const event = stack[index] as Extract<XmlEvent, { name: string }>, name = local(event.name);
-      if (name === "hyperlink") return relationships.get(attribute(event.attributes, "id") ?? "") ?? "";
-      if (name === "fldSimple") {
-        const field = HYPERLINK_FIELD.exec(attribute(event.attributes, "instr") ?? "");
-        if (field) return field[1];
-      }
-    }
-    return "";
-  };
-  const add = (value: string) => {
-    if (!value) return;
-    const href = target();
-    if (href) runs.push([raw.length, raw.length + value.length, href]);
-    raw += value;
-  };
-  const finish = (noteId: number) => {
-    const text = raw.replace(/\s+/gu, " ").trim();
-    notes.set(noteId, text);
-    const found: AuthorLink[] = [];
-    let from = 0;
-    for (const [start, end, href] of runs) {
-      const anchor = raw.slice(start, end).replace(/\s+/gu, " ").trim();
-      if (!anchor) continue;
-      let at = text.indexOf(anchor, from);
-      if (at < 0) at = text.indexOf(anchor);
-      if (at < 0) continue;
-      from = at + anchor.length;
-      found.push({ start: at, end: at + anchor.length, target: href, text: anchor, source: "hyperlink" });
-    }
-    for (const match of text.matchAll(EXPLICIT_URL)) {
-      let href = trimUrlTail(match[0]);
-      if (!href) continue;
-      const start = match.index, end = start + href.length;
-      if (!/^[a-z][a-z0-9+.-]*:\/\//iu.test(href)) href = `https://${href}`;
-      if (found.some((item) => item.start === start && item.end === end &&
-          item.target.replace(/\/+$/u, "") === href.replace(/\/+$/u, ""))) continue;
-      found.push({ start, end, target: href, text: text.slice(start, end), source: "literal" });
-    }
-    if (found.length) links.set(noteId, found.sort((a, b) => a.start - b.start || a.end - b.end));
-  };
-  for (const event of xmlEvents(xml)) {
-    if (event.kind === "text") { if (id !== null && inText) add(event.text); continue; }
-    const name = local(event.name);
-    if (event.kind === "close") {
-      stack.pop();
-      if (name === "t") inText = false;
-      if (id !== null && stack.length === depth) { finish(id); id = null; depth = -1; }
-      continue;
-    }
-    if (id === null && name === "footnote") {
-      const noteId = Number(attribute(event.attributes, "id"));
-      // Separator and continuation notes carry a type; real notes have positive ids.
-      if (attribute(event.attributes, "type") === undefined && Number.isInteger(noteId) && noteId > 0) {
-        id = noteId; depth = stack.length; raw = ""; runs = [];
-        if (event.kind === "empty") { finish(id); id = null; depth = -1; continue; }
-      }
-    } else if (id !== null) {
-      const value = runText(name);
-      if (value) add(value);
-      else if (name === "t" && event.kind === "open") inText = true;
-    }
-    if (event.kind === "open") stack.push(event);
+/** Each note's linked runs (text and target), from Word's hyperlinks and HYPERLINK fields. */
+function footnoteHyperlinks(xml: string, relationships: Map<string, string>) {
+  const runs = new Map<number, Array<{ text: string; target: string }>>();
+  const root = createParser().parse(xml) as XNode[];
+  const notes = root.flatMap((node) => elName(node) === "w:footnotes" ? elChildren(node) : [])
+    .filter((node) => elName(node) === "w:footnote" && attribute(node, "type") === undefined);
+  for (const note of notes) {
+    const id = Number(attribute(note, "id"));
+    if (!Number.isInteger(id) || id <= 0) continue;
+    const found: Array<{ text: string; target: string }> = [];
+    const walk = (node: XNode, target: string) => {
+      const name = elName(node);
+      if (name === "w:hyperlink") target = relationships.get(attribute(node, "id") ?? "") ?? "";
+      else if (name === "w:fldSimple") target = HYPERLINK_FIELD.exec(attribute(node, "instr") ?? "")?.[1] ?? target;
+      if (name === "w:t" && target) found.push({ text: getTextContent(node), target });
+      for (const child of elChildren(node)) walk(child, target);
+    };
+    walk(note, "");
+    if (found.length) runs.set(id, found);
   }
-  return { notes, links };
+  return runs;
+}
+
+/** Author links in a note's text: its hyperlinked runs, then any URL it writes out. */
+function authorLinks(text: string, runs: Array<{ text: string; target: string }>) {
+  const found: AuthorLink[] = [];
+  let from = 0;
+  for (const run of runs) {
+    const anchor = run.text.replace(/\s+/gu, " ").trim();
+    if (!anchor) continue;
+    let at = text.indexOf(anchor, from);
+    if (at < 0) at = text.indexOf(anchor);
+    if (at < 0) continue;
+    from = at + anchor.length;
+    found.push({ start: at, end: at + anchor.length, target: run.target, text: anchor, source: "hyperlink" });
+  }
+  for (const match of text.matchAll(EXPLICIT_URL)) {
+    let href = trimUrlTail(match[0]);
+    if (!href) continue;
+    const start = match.index, end = start + href.length;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//iu.test(href)) href = `https://${href}`;
+    if (found.some((item) => item.start === start && item.end === end &&
+        item.target.replace(/\/+$/u, "") === href.replace(/\/+$/u, ""))) continue;
+    found.push({ start, end, target: href, text: text.slice(start, end), source: "literal" });
+  }
+  return found.sort((a, b) => a.start - b.start || a.end - b.end);
 }
 
 export type ParsedDocument = { paragraphs: Paragraph[]; footnotes: Map<number, string>; authorLinks: Map<number, AuthorLink[]> };
 
-/** Reads a .docx the way ALR reads one: body paragraphs, real footnotes, and their hyperlinks. */
+/** A .docx as ALR reads it: Beaver's native body and note units, with each note's author links. */
 export async function parseDocx(bytes: Uint8Array): Promise<ParsedDocument> {
+  const units = await structureNative().docxAuthorityTextUnits(Buffer.from(bytes));
+  const paragraphs = units.filter((unit) => unit.kind === "body").map((unit): Paragraph => {
+    let text = "", cursor = 0;
+    const anchors: Paragraph["anchors"] = [];
+    for (const [footnoteId, offset] of [...unit.footnote_refs].sort((a, b) => a[1] - b[1])) {
+      text += unit.text.slice(cursor, offset);
+      anchors.push({ footnoteId, offset: text.length });
+      text += `⟦FN:${footnoteId}⟧`;
+      cursor = offset;
+    }
+    return { text: text + unit.text.slice(cursor), anchors };
+  });
+  const footnotes = new Map(units.filter((unit) => unit.kind === "footnote" && unit.footnote_id !== null)
+    .map((unit) => [unit.footnote_id!, unit.text.replace(/\s+/gu, " ").trim()]));
   const zip = await JSZip.loadAsync(bytes);
-  const read = (name: string) => zip.file(name)?.async("string") ?? Promise.resolve(null);
-  const [document, notes, rels] = await Promise.all([read("word/document.xml"),
-    read("word/footnotes.xml"), read("word/_rels/footnotes.xml.rels")]);
-  if (!document) throw new Error("This Word file has no document body.");
+  const [notes, rels] = await Promise.all(["word/footnotes.xml", "word/_rels/footnotes.xml.rels"]
+    .map((name) => zip.file(name)?.async("string") ?? Promise.resolve(null)));
   const relationships = new Map<string, string>();
-  for (const event of xmlEvents(rels ?? "")) if (event.kind !== "text" && local(event.name) === "Relationship" &&
-      event.attributes.Id && event.attributes.Target) relationships.set(event.attributes.Id, event.attributes.Target);
-  const read2 = notes ? footnotes(notes, relationships) : { notes: new Map<number, string>(), links: new Map<number, AuthorLink[]>() };
-  return { paragraphs: bodyParagraphs(document), footnotes: read2.notes, authorLinks: read2.links };
+  for (const node of rels ? (createParser().parse(rels) as XNode[]).flatMap(elChildren) : [])
+    if (elName(node) === "Relationship") {
+      const { "@_Id": id, "@_Target": target } = elAttrs(node);
+      if (id && target) relationships.set(id, target);
+    }
+  const hyperlinks = notes ? footnoteHyperlinks(notes, relationships) : new Map();
+  const links = new Map<number, AuthorLink[]>();
+  for (const [id, text] of footnotes) {
+    const found = authorLinks(text, hyperlinks.get(id) ?? []);
+    if (found.length) links.set(id, found);
+  }
+  return { paragraphs, footnotes, authorLinks: links };
 }
 
 /** Inline double-quoted passages in order: smart or straight marks, pairing the next closer. */
