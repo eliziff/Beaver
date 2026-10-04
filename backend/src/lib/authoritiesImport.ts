@@ -334,9 +334,13 @@ async function scanReview(
       citation: oneLine(observedText),
       // An untitled Act cited in a note is named as the sentence the note hangs from names it, and
       // an instrument cited only by where it is enacted (the Charter) by its own name.
+      // A citation written without its title ("R.S.C. 1985, c. C-36" in a heading) takes the title
+      // another citation of the same authority gives, as written ("Companies' Creditors Arangement Act").
       name: source ? null : oneLine(representative.style?.text ??
         (representative.fields as { anchorTitle?: { text: string } }).anchorTitle?.text ??
-        (representative.fields as { instrumentTitle?: string }).instrumentTitle ?? "") || null,
+        (representative.fields as { instrumentTitle?: string }).instrumentTitle ??
+        (representative.authority === "case" ? undefined
+          : full.find((citation) => citation.style?.text.trim())?.style?.text) ?? "") || null,
       displayName: null, excluded: false,
       evidenceIds: [], locators: [], sourceIdentity: null,
       source: { kind: "unresolved" }, scanOnly: true,
