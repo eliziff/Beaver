@@ -13,7 +13,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 import { pdfOpening } from "@/app/lib/inspectPdf";
-import { ModalSelect, SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
+import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
@@ -1341,13 +1341,19 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
             quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined} />
         </div>
       </Modal>
-      <SearchableChoiceModal open={!!pendingAttachment} title="PDF language" searchable={false}
-        value={null} options={SOURCE_LANGUAGE_OPTIONS} onClose={() => setPendingAttachment(undefined)}
-        onChange={(value) => {
-          const pending = pendingAttachment; setPendingAttachment(undefined);
-          if (pending && value) attach(pending.authorityId, pending.selected,
-            value as AuthoritySourceLanguage);
-        }} />
+      {/* A statute's PDF for a court that files them in both languages: its language, chosen as the import's choices are. */}
+      <Modal open={!!pendingAttachment} size="md" fit breadcrumbs={["PDF language"]} onClose={() => setPendingAttachment(undefined)}
+        secondaryAction={{ label: "Cancel", onClick: () => setPendingAttachment(undefined) }}>
+        <div className="grid gap-2 pb-4">
+          <p className="mb-1 text-sm text-gray-700">The court files statutes in English and French. Choose the language
+            of {pendingAttachment ? pdfChoiceName(pendingAttachment.selected) : "this PDF"}.</p>
+          {SOURCE_LANGUAGE_OPTIONS.map((option) => <OptionCard key={option.value} name="authorities-pdf-language" checked={false}
+            label={option.label} detail={option.description} onChange={() => {
+              const pending = pendingAttachment; setPendingAttachment(undefined);
+              if (pending) attach(pending.authorityId, pending.selected, option.value);
+            }} />)}
+        </div>
+      </Modal>
     </div>
   </div>;
 
