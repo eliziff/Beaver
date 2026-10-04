@@ -43,8 +43,11 @@ export function createPdfSession(options: {
   const sync=(number: number)=>{
     const view=viewer.getPageView(number-1);if(!view)return;
     pages[number-1]=view.div;
-    Object.assign(view.div.dataset,{pdfScale:String(view.viewport.scale),geometryReady:String(!!view.pdfPage),
-      legalBlock:'',locatorKind:'page',locatorValue:String(number)});
+    const {viewport}=view;
+    Object.assign(view.div.dataset,{pdfScale:String(viewport.scale),pdfWidth:String(viewport.width/viewport.scale),
+      pdfHeight:String(viewport.height/viewport.scale),
+      geometryReady:String(!!view.pdfPage),legalBlock:'',locatorKind:'page',locatorValue:String(number)});
+    view.div.ariaLabel=`Page ${number}`;
     view.div.style.visibility=view.pdfPage?'':'hidden';
     const entry=layers.get(number);
     if(entry) {
@@ -121,7 +124,8 @@ export function createPdfSession(options: {
       },170);
     });
   };
-  const fitOf=(first: PDFPageProxy)=>Math.max(.1,(container.clientWidth-24)/first.getViewport({scale:1}).width)/(96/72);
+  // From the width last observed, not read from the box: a read after PDF.js adds its pages lays them all out at once.
+  const fitOf=(first: PDFPageProxy)=>Math.max(.1,(width-24)/first.getViewport({scale:1}).width)/(96/72);
   const resize=()=>{
     const first=viewer.getPageView(0)?.pdfPage;if(!first)return;
     fit=fitOf(first);viewer.currentScale=fit*zoom;
@@ -182,7 +186,7 @@ export function createPdfSession(options: {
   // Pages are made at the scale they will fit (this runs before PDF.js reads its first page), so
   // opening a long PDF does not lay every page out once more when the first resize fits it.
   void pdf.getPage(1).then(first=>{
-    if(!signal.aborted && container.clientWidth)(viewer as unknown as {_currentScale: number})._currentScale=fitOf(first)*zoom;
+    if(!signal.aborted && width)(viewer as unknown as {_currentScale: number})._currentScale=fitOf(first)*zoom;
   },()=>{});
   viewer.setDocument(pdf);void viewer.pagesPromise?.catch((error: unknown)=>{if(!signal.aborted)options.onError(error);});
   if(options.signal.aborted)destroy();
