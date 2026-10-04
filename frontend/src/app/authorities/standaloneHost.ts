@@ -19,6 +19,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
 import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
 import { prepareAnnotations } from "./annotationPreparation";
+import { keptPageLabels } from "./standalonePageLabels";
 import { prepareSourceText, readSourceText, recognitionWaiting } from './standalonePdfText';
 import { mapAuthorityBookBytes, type BuiltAuthorityBook, type PreparedAuthoritiesBook } from
   "mike/shared/runtime/authoritiesBook.mjs";
@@ -85,7 +86,10 @@ async function findSourceIssues(state: AuthoritiesDraft) {
 const latest = new Map<string, WorkProduct<AuthoritiesDraft>>();
 const kept = (product: WorkProduct<AuthoritiesDraft>) => (latest.set(product.id, product), product);
 async function save(id: string, revision: number, state: AuthoritiesDraft) {
-  return kept(await standaloneWorkProducts.update<AuthoritiesDraft>(id, { revision, state: supportedDraft(state) }));
+  const product = kept(await standaloneWorkProducts.update<AuthoritiesDraft>(id, { revision, state: supportedDraft(state) }));
+  // A source just attached has its printed page numbers read before anyone opens it.
+  pageLabels.readAhead(product);
+  return product;
 }
 async function currentProduct(id: string, revision: number) {
   const known = latest.get(id);
@@ -213,6 +217,14 @@ async function sourceText(product: AuthoritiesProduct, role: string, signal?: Ab
 
 type RecognitionJob = { controller: AbortController; progress: PdfProgress };
 const recognitionJobs = new Map<string, RecognitionJob>();
+
+const pageLabels = keptPageLabels(async (draft, role, signal) => {
+  const file = await resolveExact(draft.state.bindings[role]);
+  const form = new FormData(); form.append("file", file, file.name);
+  form.append("draft", JSON.stringify(draft.state)); form.append("bindingRole", role);
+  const { pageLabels } = await (await runtimeResponse("page-labels", form, false, signal)).json();
+  return pageLabels;
+});
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
   prepareAnnotations: (product, ...args) =>
@@ -399,13 +411,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   },
   readSource: async (draft, role) => resolveExact(draft.state.bindings[role]),
   readSourceText: sourceText,
-  async readSourcePageLabels(draft, role, signal) {
-    const file = await resolveExact(draft.state.bindings[role]);
-    const form = new FormData(); form.append("file", file, file.name);
-    form.append("draft", JSON.stringify(draft.state)); form.append("bindingRole", role);
-    const { pageLabels } = await (await runtimeResponse("page-labels", form, false, signal)).json();
-    return pageLabels;
-  },
+  readSourcePageLabels: pageLabels.labels,
   readPinpoints: async (text, start, end) =>
     (await runtimeResponse("pinpoints", JSON.stringify({ text, start, end }), true)).json(),
   async statuteExcerpt(draft, role, signal) {
@@ -415,6 +421,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return (await runtimeResponse("excerpt", form, false, signal)).json();
   },
   async inspectDraft(draft) {
+    // An opened draft's sources have their printed page numbers read ahead of any viewer.
+    pageLabels.readAhead(draft);
     return { sourceIssues: await findSourceIssues(draft.state) };
   },
   pickFiles: ({ multiple, accept }) => pickRetainedFiles(multiple, accept),
