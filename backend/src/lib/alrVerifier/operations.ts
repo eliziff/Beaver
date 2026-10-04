@@ -10,10 +10,10 @@ import { createLinker } from "./links";
 import { alrLlm, type AlrLlmClient, type LlmCache } from "./llm";
 import { buildFootnoteParts } from "./parts";
 import { alternateSupplement, checkRowQuotes } from "./quoteChecks";
-import { applyChainOrigins, resolveReferenceChains, usesChainOrigin } from "./references";
+import { applyChainOrigins, resolveReferenceChains } from "./references";
 import { buildRows, type AlrRow } from "./rows";
 import { alrSettings, footnoteFilter, type AlrSettings } from "./settings";
-import { beaverSources, sourceDocument, type AlrSources, type SourceDocument } from "./sources";
+import { beaverSources, judgmentDocument, type AlrSources, type SourceDocument } from "./sources";
 import { canliiLookupUrl, isCanlii, isUsableLink, splitUrl, stripInvalidPageFragment } from "./urls";
 import { exportWorkbook, sidecarName } from "./workbook";
 
@@ -32,7 +32,6 @@ export type AlrDeps = { sources?: AlrSources; llmCache?: LlmCache;
 
 const workbookName = (name: string) => `[CHECKED] ${name.replace(/\.[^.]+$/u, "")}.xlsx`;
 const JOURNAL_KINDS = new Set(["journal", "book", "report", "essay_collection"]);
-const CHECKABLE_KINDS = new Set(["case", "unreported", "statute", "regulation", "legislation", "gazette"]);
 
 function summarize(rows: AlrRow[], footnotes: number) {
   const checked = rows.filter((row) => row.quote_check_status);
@@ -130,9 +129,9 @@ function missingSources(rows: AlrRow[]): MissingSource[] {
   for (const row of rows) {
     row._missing_source_key = "";
     if (row.quote_check_status !== "NO_MATCH" || row._quote_source_tag) continue;
-    const kind = (usesChainOrigin(row) && row._origin?.kind) || row.citation_part_kind;
+    // Any row whose working link is a CanLII decision or law page can be checked from that page's PDF.
     const [base] = splitUrl(canliiLookupUrl(row._check_link ?? row.citation_part_link));
-    if (!CHECKABLE_KINDS.has(kind.trim().toLowerCase()) || !isCanlii(base) || !/\.html$/iu.test(base)) continue;
+    if (!isCanlii(base) || !/\/(?:doc|laws)\/.*\.html$/iu.test(base)) continue;
     row._missing_source_key = base;
     const citation = row.ref_chain_origin_citation_part_text || row.citation_with_style || row.citation_part_text;
     const entry = found.get(base) ?? { key: base, citation, canliiPageUrl: base, canliiPdfUrl: base.replace(/\.html$/iu, ".pdf"), rows: 0 };
@@ -233,7 +232,7 @@ export function createAlrVerifierOperations(deps: AlrDeps = {}) {
       const key = match.record.key;
       progress({ document: state.name, phase: "quotes", message: `Checking quotations against ${match.record.citation}` });
       const native = await structureNative().derivePdfDocument(Buffer.from(input.pdf.bytes), {});
-      const attached = new Map([[key, sourceDocument(native)]]);
+      const attached = new Map([[key, judgmentDocument(native)]]);
       const sources = deps.sources ?? beaverSources({ localOnly: true });
       const linker = createLinker(sources, { a2aj: false, usUk: false });
       const affected = state.rows.filter((row) => row._missing_source_key === key);

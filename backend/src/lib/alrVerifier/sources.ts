@@ -34,6 +34,19 @@ export function sourceDocument(native: NativeDocument): SourceDocument {
   return { text, blocks, native };
 }
 
+/** A judgment PDF: its printed paragraph numbers ("[265]") from the case outline, and its pages. */
+export function judgmentDocument(native: NativeDocument): SourceDocument {
+  const document = sourceDocument(native), engine = structureNative();
+  const paragraphs = engine.caseOutline(document.text).filter((entry) => entry.kind === "paragraph")
+    .flatMap((entry): SourceBlock[] => {
+      const number = /^\[?(\d{1,4})\]?\.?$/u.exec(entry.label.trim())?.[1];
+      return number ? [{ kind: "paragraph", label: `par${number}`, start: entry.start, end: entry.end,
+        text: document.text.slice(entry.start, entry.end) }] : [];
+    });
+  // A judgment is cited by paragraph when it numbers them; its pages locate quotations otherwise.
+  return paragraphs.length ? { ...document, blocks: paragraphs } : document;
+}
+
 /** Quotation sources from Beaver's providers. Citations resolve through A2AJ alone; other case
  *  providers answer only foreign citations, and never in a local-only run. */
 export function beaverSources(options: { localOnly?: boolean } = {}, operations = legalSourceOperations): AlrSources {
