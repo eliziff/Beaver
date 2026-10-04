@@ -166,7 +166,7 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
     primaryAction={{ label: <>Next <ChevronRight /></>, disabled: busy || last && !!error, onClick: last ? finish : () => setStep(at + 1) }}>
     <StepTabs steps={steps} at={at} disabled={busy} onStep={setStep} />
     {name === "Cover" ? <FrontLayout preview={<FrontSourcePreview slot="cover" value={own.cover} pdfs={pdfs}
-      generated={<FrontPreview host={host} draft={front} actions={frontActions} page={1} label="Cover" />} />}>
+      generated={<FrontPreview host={host} draft={front} actions={frontActions} part="cover" label="Cover" />} />}>
       <FrontSource slot="cover" value={own.cover} pdfs={pdfs} disabled={busy} onChange={ownFor("cover")}
         own={<div className="grid grid-cols-2 gap-3"><div className="min-w-0">{courtField}</div></div>}>
         <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy} court={courtField}
@@ -174,7 +174,7 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
       </FrontSource>
     </FrontLayout>
     : name === "Index" ? <FrontLayout preview={<FrontSourcePreview slot="index" value={own.index} pdfs={pdfs}
-      generated={<FrontPreview host={host} draft={front} actions={frontActions} page={2} label="First page of the index" />} />}>
+      generated={<FrontPreview host={host} draft={front} actions={frontActions} part="index" label="Index" />} />}>
       <FrontSource slot="index" value={own.index} pdfs={pdfs} disabled={busy} onChange={ownFor("index")}
         own={<IndexFields own settings={settings} profileId={profileId} disabled={busy} onChange={choose} />}>
         <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />

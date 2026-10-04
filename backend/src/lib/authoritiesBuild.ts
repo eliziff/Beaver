@@ -933,8 +933,8 @@ function bookFront(draft: AuthoritiesDraft, subtitle: string) {
   } satisfies Partial<PreparedAuthoritiesBook>;
 }
 
-/** The book's cover and the first page of its index, drawn as a build draws them from the draft as it
- *  is, though every listed authority stands in a blank page: nothing is read, so it is quick. */
+/** The book's cover and its whole index, drawn as a build draws them from the draft as it is, though
+ *  every listed authority stands in a blank page: nothing is read, so it is quick. */
 export async function authoritiesBookFront(draft: AuthoritiesDraft, title: string) {
   // A build names a manual book's cover after its title, an imported brief's after nothing else.
   const subtitle = draft.import.kind === "document" ? "" : title;
@@ -952,8 +952,8 @@ export async function authoritiesBookFront(draft: AuthoritiesDraft, title: strin
   const document = await pdfLibrary.PDFDocument.load(book.bytes, { updateMetadata: false });
   // The cover's editable fields drawn into its page, so any viewer shows what they hold.
   document.getForm().flatten();
-  const pages = Math.min(2, book.placements[0]?.tabPageIndex ?? book.pageCount);
-  // The cover, then the first page of the index, as the book has them.
+  const pages = book.placements[0]?.tabPageIndex ?? book.pageCount;
+  // The cover, then every page of the index, as the book has them.
   const front = await pdfLibrary.PDFDocument.create();
   for (const page of await front.copyPages(document, [...Array(pages).keys()])) front.addPage(page);
   return Buffer.from(await front.save());

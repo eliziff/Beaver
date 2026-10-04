@@ -8,7 +8,7 @@ import { authorityName, authorityLabel, authorityCitationLine, authorityCitation
   requiresBilingualSources, requiresPdf,
   missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, FilePlus2, FolderSearch,
-  History, ListChecks, Loader2, Plus, Scale, Settings2, SlidersHorizontal, Upload } from "lucide-react";
+  CircleAlert, FileStack, FileText, History, ListChecks, ListOrdered, Loader2, Plus, Scale, Settings2, SlidersHorizontal, Upload } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
@@ -29,8 +29,8 @@ import type { WorkProductFocus, WorkProductMetadata,
 import { rowControl, Sources, SourcesExplainer, type BookFiles } from "./AuthoritySources";
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCard, OptionCards } from "./OptionCards";
-import { OutputDock, rowButton, type OutputRow } from "./OutputCards";
-import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, coverForm, type OwnPdfs } from "./BookFront";
+import { buildAction, BuildHeading, IconTile, OutputDock, type OutputRow } from "./OutputCards";
+import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, coverForm, warmFrontPreviews, type OwnPdfs } from "./BookFront";
 import { ImportWizard, SOURCE_OPTIONS, SourceChoices, type Remembered } from "./ImportWizard";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
@@ -415,6 +415,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const selectedRef = useRef(selected?.id);
   selectedRef.current = selected?.id;
   useEffect(() => { if (!selected) onFocusChange?.(); }, [selected, onFocusChange]);
+  // The cover and index previews are drawn by the runtime; it is readied while nothing else is asked of it.
+  useEffect(() => warmFrontPreviews(host), [host]);
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
   const authorities = useMemo(() => shown ? authorityPlan.map(({ id }) => shown.state.authorities[id]) : [],
     [shown, authorityPlan]);
@@ -1660,34 +1662,41 @@ function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, coverDetail, i
   onFront: (step: "Cover" | "Index") => void; coverDetail: string; indexDetail: string;
   tabs: number; missing: number; onReview: () => void;
 }) {
-  const action = rowButton;
+  const action = buildAction;
   // Generated, or the name of the user's own PDF (and what keeps it from the book).
   const part = (slot: "cover" | "index") => {
     const own = pdfs.kept?.(slot);
     return own ? `${own.filename}${own.issue === "denied" ? " · file access was denied" : own.issue ? " · unavailable" : ""}`
       : slot === "cover" ? coverDetail : indexDetail;
   };
-  const rows: Array<{ label: string; value: ReactNode; title?: string; button: ReactNode; alert?: boolean }> = [
-    { label: "Court", value: authoritiesProfile(draft.state.settings.profileId).label,
+  const rows: Array<{ label: string; icon: ComponentType<{ className?: string }>; value: ReactNode; detail?: ReactNode;
+    button: ReactNode; alert?: boolean }> = [
+    { label: "Court", icon: Scale, value: authoritiesProfile(draft.state.settings.profileId).label,
       button: <Button type="button" variant="outline" className={action} aria-label="Change the court" disabled={busy} onClick={() => onFront("Cover")}><SlidersHorizontal />Change</Button> },
-    { label: "Cover", value: book ? part("cover") : lockedMode,
+    { label: "Cover", icon: FileText, value: book ? part("cover") : lockedMode,
       alert: book && (coverDetail === "Details required" && !draft.state.bookParts.cover || !!pdfs.kept?.("cover")?.issue),
       button: <Button type="button" variant="outline" className={action} aria-label="Change the cover" disabled={busy || !book}
         onClick={() => onFront("Cover")}><SlidersHorizontal />Change</Button> },
-    { label: "Index", value: book ? part("index") : lockedMode, alert: book && !!pdfs.kept?.("index")?.issue,
+    { label: "Index", icon: ListOrdered, value: book ? part("index") : lockedMode, alert: book && !!pdfs.kept?.("index")?.issue,
       button: <Button type="button" variant="outline" className={action} aria-label="Change the index" disabled={busy || !book}
         onClick={() => onFront("Index")}><SlidersHorizontal />Change</Button> },
-    { label: "Tabs", value: `${tabs} ${tabs === 1 ? "authority" : "authorities"}${missing ? `, ${missing} without a PDF` : ", each with a PDF"}`,
+    { label: "Tabs", icon: missing ? CircleAlert : FileStack, value: `${tabs} ${tabs === 1 ? "authority" : "authorities"}`,
+      detail: <span className={missing ? "font-medium text-red-800" : "text-gray-500"}>{missing ? `${missing} without a PDF` : "Each with a PDF"}</span>,
       button: <Button type="button" variant="outline" className={action} aria-label="Review the authorities without a PDF"
         disabled={busy || !missing} onClick={onReview}><ListChecks />Review</Button> },
   ];
+  // One card, a row each: its icon, a small label over its value, and its action.
   return <section aria-label="Book" className="min-w-0">
-    <h3 className="mb-2 text-base font-semibold text-gray-950">Book</h3>
-    <dl className="divide-y divide-gray-300 rounded-lg border border-gray-300 bg-white">
-      {rows.map((row) => <div key={row.label} className="grid min-h-12 grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-x-3 py-2 pl-3 pr-2">
-        <dt className="text-[0.8125rem] font-medium text-gray-600">{row.label}</dt>
-        <dd className={cn("min-w-0 truncate text-sm", row.alert ? "font-medium text-red-800" : "text-gray-950")}
-          title={typeof row.value === "string" ? row.value : undefined}>{row.value}</dd>
+    <BuildHeading title="Book" detail="What the book is made of." />
+    <dl className="divide-y divide-gray-200 rounded-lg border border-gray-400 bg-white px-3">
+      {rows.map((row) => <div key={row.label} className="flex min-h-16 items-center gap-3 py-3">
+        <IconTile icon={row.icon} />
+        <div className="min-w-0 flex-1">
+          <dt className="text-xs font-medium text-gray-500">{row.label}</dt>
+          <dd className={cn("truncate text-base font-medium", row.alert ? "text-red-800" : "text-gray-950")}
+            title={typeof row.value === "string" ? row.value : undefined}>{row.value}</dd>
+          {row.detail && <dd className="text-xs">{row.detail}</dd>}
+        </div>
         <dd>{row.button}</dd>
       </div>)}
     </dl>

@@ -209,15 +209,27 @@ export function previewActions(state: AuthoritiesProduct["state"], profileId: Au
     ...canonicalJson(saved) === canonicalJson(state.cover) ? [] : [{ type: "set-cover", cover: saved } as const]];
 }
 
-/** The book's cover and the first page of its index, drawn by the book's own renderer from the draft
- *  with the changes not yet made to it. One drawing is asked for at a time, a moment after a change,
- *  and the next once it is back, so a draft that keeps changing (its sources arriving) never holds the
- *  preview back. */
-export function FrontPreview({ host, draft, actions, page, label, className }: {
-  host: AuthoritiesHost; draft?: AuthoritiesProduct; actions: AuthoritiesAction[]; page: number; label: string; className?: string;
+/** The front drawings the runtime made, by what they were drawn from, so a step opened again has its
+ *  drawing at once. */
+const fronts = new Map<string, Uint8Array>();
+let warmed = false;
+/** Draws the preview book's front once while the page is idle, so the runtime that draws previews is
+ *  ready before the first one is wanted. */
+export function warmFrontPreviews(host: AuthoritiesHost) {
+  if (warmed || host.mode !== "standalone" || !host.bookFront) return;
+  warmed = true;
+  const draw = () => void host.bookFront!(PREVIEW_BOOK, []).catch(() => undefined);
+  if ("requestIdleCallback" in window) window.requestIdleCallback(draw, { timeout: 3000 }); else setTimeout(draw, 1000);
+}
+/** The book's cover, or the whole of its index, drawn by the book's own renderer from the draft with the
+ *  changes not yet made to it. The first drawing is asked for at once, a later one a moment after a
+ *  change; one at a time, and the next once it is back, so a draft that keeps changing (its sources
+ *  arriving) never holds the preview back. */
+export function FrontPreview({ host, draft, actions, part, label, className }: {
+  host: AuthoritiesHost; draft?: AuthoritiesProduct; actions: AuthoritiesAction[]; part: FrontSlot; label: string; className?: string;
 }) {
   const key = draft ? JSON.stringify([draft.id, draft.revision, actions]) : "";
-  const [shown, setShown] = useState<{ bytes?: Uint8Array; error?: string }>();
+  const [shown, setShown] = useState<{ bytes?: Uint8Array; error?: string }>(() => ({ bytes: fronts.get(key) }));
   const latest = useRef({ key, draft, actions }), [again, setAgain] = useState(0);
   latest.current = { key, draft, actions };
   const asking = useRef<{ timer?: number; running: boolean; drawn: string; stop: AbortController }>(
@@ -230,54 +242,93 @@ export function FrontPreview({ host, draft, actions, page, label, className }: {
   useEffect(() => {
     const state = asking.current;
     if (!draft || !host.bookFront || state.running || state.timer || key === state.drawn) return;
+    const kept = fronts.get(key);
+    if (kept) { state.drawn = key; setShown({ bytes: kept }); return; }
     state.timer = window.setTimeout(() => {
       const asked = latest.current;
       state.timer = undefined; state.running = true;
       void host.bookFront!(asked.draft!, asked.actions, state.stop.signal)
-        .then((blob) => blob.arrayBuffer()).then((buffer) => setShown({ bytes: new Uint8Array(buffer) }))
+        .then((blob) => blob.arrayBuffer()).then((buffer) => {
+          const bytes = new Uint8Array(buffer);
+          fronts.delete(asked.key); fronts.set(asked.key, bytes);
+          for (const old of [...fronts.keys()].slice(0, -8)) fronts.delete(old);
+          setShown({ bytes });
+        })
         .catch((error) => { if (!state.stop.signal.aborted) setShown((current) => ({ ...current,
           error: errorMessage(error, "The preview could not be drawn.") })); })
         .finally(() => { state.running = false; state.drawn = asked.key;
           if (!state.stop.signal.aborted && latest.current.key !== asked.key) setAgain((value) => value + 1); });
-    }, 300);
+    }, state.drawn ? 300 : 0);
   }, [key, again]); // eslint-disable-line react-hooks/exhaustive-deps
   return <Preview className={className} label={`Preview: ${label}`}>
     {shown?.error && !shown.bytes ? <p role="alert" className="m-auto p-6 text-center text-sm text-red-800">{shown.error}</p>
-      : <div className="flex min-h-0 flex-1 p-4"><PagePreview bytes={shown?.bytes} page={page} label={label} /></div>}
+      : <PagesPreview bytes={shown?.bytes} pages={part === "cover" ? "first" : "after-first"} label={label} keep={`front:${draft?.id}:${part}`} />}
   </Preview>;
 }
 
-/** One page of a PDF drawn whole in a still frame: the last drawing stays until the next is ready, so
- *  nothing moves. */
-export function PagePreview({ bytes, page, label }: { bytes?: Uint8Array; page: number; label: string }) {
-  const [drawn, setDrawn] = useState<{ url: string; width: number; height: number; page: number }>();
+type DrawnPage = { url: string; width: number; height: number };
+/** The pages each pane drew last, with what they were drawn from, so a pane opened again shows them at
+ *  once and draws again only what changed. */
+const drawings = new Map<string, { bytes: Uint8Array; width: number; pages: DrawnPage[] }>();
+/** A PDF's pages as wide as the pane, crisp at the screen's own resolution, one under another in a box
+ *  that scrolls inside itself. The last drawing stays until each new page is ready, page by page, so
+ *  nothing blinks and nothing outside the box moves. */
+export function PagesPreview({ bytes, pages, label, keep }: {
+  bytes?: Uint8Array; pages: "first" | "after-first" | "all"; label: string;
+  /** What the pane shows, so its last drawing is found again. */
+  keep: string;
+}) {
+  const sheet = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  const [drawn, setDrawn] = useState(() => drawings.get(keep)?.pages);
   useEffect(() => {
-    if (!bytes) return;
+    const element = sheet.current;
+    if (!element) return;
+    // Drawn again only for a change of a tenth of the width or more.
+    const measure = () => setWidth((current) => Math.abs(element.clientWidth - current) > element.clientWidth / 10
+      ? element.clientWidth : current);
+    measure();
+    const observer = new ResizeObserver(measure); observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    const kept = drawings.get(keep);
+    if (!bytes || !width || kept?.bytes === bytes && kept.width === width) return;
     let active = true;
     void (async () => {
       const task = openPdfDocument(await getPdfJs(), { data: bytes.slice() }, PDF_DOCUMENT_OPTIONS);
+      const made: DrawnPage[] = [];
       try {
-        const document = await task.promise, at = Math.min(page, document.numPages), pdfPage = await document.getPage(at);
-        const { width, height } = pdfPage.getViewport({ scale: 1 }), viewport = pdfPage.getViewport({ scale: 2 });
-        const canvas = window.document.createElement("canvas");
-        canvas.width = viewport.width; canvas.height = viewport.height;
-        await pdfPage.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
-        if (active) setDrawn({ url: canvas.toDataURL("image/png"), width, height, page: at });
+        const document = await task.promise;
+        const numbers = [...Array(document.numPages).keys()].map((index) => index + 1)
+          .filter((number) => pages === "all" || (pages === "first" ? number === 1 : number > 1 || document.numPages === 1));
+        for (const number of numbers) {
+          const page = await document.getPage(number), base = page.getViewport({ scale: 1 });
+          const viewport = page.getViewport({ scale: width * window.devicePixelRatio / base.width });
+          const canvas = window.document.createElement("canvas");
+          canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
+          await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
+          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve));
+          if (!active || !blob) return;
+          made.push({ url: URL.createObjectURL(blob), width: base.width, height: base.height });
+          // Each page takes its place as it is ready; the rest of the last drawing stays until then.
+          setDrawn((current) => [...made, ...(current ?? []).slice(made.length)]);
+        }
+        const old = drawings.get(keep);
+        drawings.set(keep, { bytes, width, pages: made });
+        setDrawn(made);
+        if (old) setTimeout(() => old.pages.forEach(({ url }) => { if (!made.some((page) => page.url === url)) URL.revokeObjectURL(url); }), 1000);
       } finally { await task.destroy(); }
     })().catch(() => {});
     return () => { active = false; };
-  }, [bytes, page]);
-  return <figure className="m-0 flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
-    {/* The page fits the frame whole, centred, at the page's own proportions. */}
-    <div className="relative min-h-0 w-full flex-1">
-      {drawn ? <svg role="img" aria-label={label} viewBox={`0 0 ${drawn.width} ${drawn.height}`}
-        style={{ aspectRatio: `${drawn.width} / ${drawn.height}` }}
-        className="absolute inset-0 m-auto h-full max-h-full w-auto max-w-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)]">
-        <image href={drawn.url} width={drawn.width} height={drawn.height} />
-      </svg> : <div aria-hidden="true" className="absolute inset-0 m-auto aspect-[8.5/11] h-full max-w-full animate-pulse bg-white/70" />}
+  }, [bytes, pages, width, keep]);
+  return <div className="min-h-0 flex-1 overflow-y-auto p-3">
+    <div ref={sheet} className="grid gap-3">
+      {drawn?.length ? drawn.map((page, index) => <img key={index} src={page.url} alt={drawn.length > 1 ? `${label}, page ${index + 1}` : label}
+        style={{ aspectRatio: `${page.width} / ${page.height}` }} className="block h-auto w-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)]" />)
+        : <div aria-hidden="true" className="aspect-[8.5/11] w-full animate-pulse bg-white/70" />}
     </div>
-    <figcaption className="text-xs text-gray-600">{label}</figcaption>
-  </figure>;
+  </div>;
 }
 
 /** The preview pane beside the options: a framed, full-height area. */
@@ -327,8 +378,9 @@ export function BookFrontModal({ host, draft, busy, step: first, jurisdictionOrd
     ...frontActions(court, cover, settings),
     // A page set back to Generated lets its own PDF go.
     ...FRONT_SLOTS.flatMap((slot) => !own[slot].own && before.bookParts[slot] ? [{ type: "clear-book-part", slot } as const] : [])];
-  const front = previewBook(host, draft);
-  const preview = front ? previewActions(front.state, profileId, shown, cover, FRONT_KEYS) : [];
+  // At Build the draft's authorities are known, so its own index is drawn, every page of it.
+  const front = draft;
+  const preview = previewActions(front.state, profileId, shown, cover, FRONT_KEYS);
   const save = () => {
     onActions(actions); chosen.forEach(([slot, file]) => onOwn(slot, file)); onClose();
     if (coverForm(profileId) === "alberta" && cover.contact) void host.filingContact?.save(savedCover(cover).contact!)
@@ -345,7 +397,7 @@ export function BookFrontModal({ host, draft, busy, step: first, jurisdictionOrd
     primaryAction={{ label: "Save", disabled: busy || !actions.length && !chosen.length, onClick: save }}>
     <StepTabs steps={FRONT_STEPS} at={at} disabled={busy} onStep={setAt} />
     {step === "Cover" ? <FrontLayout preview={<FrontSourcePreview slot="cover" value={own.cover} pdfs={pdfs}
-      generated={<FrontPreview host={host} draft={front} actions={preview} page={1} label="Cover" />} />}>
+      generated={<FrontPreview host={host} draft={front} actions={preview} part="cover" label="Cover" />} />}>
       <FrontSource slot="cover" value={own.cover} pdfs={pdfs} disabled={busy} onChange={(cover) => setOwn((current) => ({ ...current, cover }))}
         own={<div className="grid grid-cols-2 gap-3"><div className="min-w-0">{courtField}</div></div>}>
         <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setEdited} court={courtField}
@@ -353,7 +405,7 @@ export function BookFrontModal({ host, draft, busy, step: first, jurisdictionOrd
       </FrontSource>
     </FrontLayout>
     : <FrontLayout preview={<FrontSourcePreview slot="index" value={own.index} pdfs={pdfs}
-      generated={<FrontPreview host={host} draft={front} actions={preview} page={2} label="First page of the index" />} />}>
+      generated={<FrontPreview host={host} draft={front} actions={preview} part="index" label="Index" />} />}>
       <FrontSource slot="index" value={own.index} pdfs={pdfs} disabled={busy} onChange={(index) => setOwn((current) => ({ ...current, index }))}
         own={<IndexFields own settings={shown} profileId={profileId} disabled={busy}
           onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />}>
@@ -465,8 +517,8 @@ export function FrontSourcePreview({ slot, value, pdfs, generated }: {
   if (!value.own) return generated;
   const label = `Your ${NAME[slot]}`;
   return <Preview label={`Preview: ${label}`}>
-    {source ? <div className="flex min-h-0 flex-1 p-4">
-      <PagePreview bytes={bytes?.source === source ? bytes.bytes : undefined} page={1} label={label} /></div>
-      : <p className="m-auto p-6 text-center text-sm text-gray-600">The first page of your PDF shows here.</p>}
+    {source ? <PagesPreview bytes={bytes?.source === source ? bytes.bytes : undefined} pages={slot === "cover" ? "first" : "all"}
+      label={label} keep={`own:${slot}`} />
+      : <p className="m-auto p-6 text-center text-sm text-gray-600">Your PDF shows here.</p>}
   </Preview>;
 }
