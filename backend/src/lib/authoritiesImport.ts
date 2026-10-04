@@ -194,6 +194,10 @@ async function scanReview(
   const ownFile = fileNumber(importedCover(units).courtFileNumber);
   if (ownFile) extracted.citations = extracted.citations.filter((citation) =>
     citation.format !== "docket" || fileNumber(citation.fields.docket) !== ownFile);
+  // A web address written with no title of a work before it points the reader to a site; it
+  // names no authority a book could hold.
+  extracted.citations = extracted.citations.filter((citation) =>
+    citation.form !== "full" || citation.authority !== "webpage" || !!citation.style?.text.trim());
   // PDF layout units can end in the middle of a citation. Join only those body
   // boundaries, retaining the engine's exact text and global UTF-16 addresses.
   if (imported.kind === "document" && imported.fileType === "pdf") {
