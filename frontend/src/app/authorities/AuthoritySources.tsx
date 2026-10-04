@@ -205,7 +205,8 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
   // A scan being recognized reports in the citation's slot (on the actions line where the row is
   // narrow), so the row never grows. The one still running speaks for a bilingual pair.
   const recognitions = sources.flatMap(({ bindingRole }) => ocr?.tracked[bindingRole] ?? []);
-  const recognition = recognitions.find(({ state }) => state !== "done") ?? recognitions[0];
+  // Once every scan is recognized, the slot goes back to the citation: a finished job says nothing more.
+  const recognition = recognitions.find(({ state }) => state !== "done");
   const edit = () => setEditing(true);
   // The citation and what of it goes in the book, beside the name; a row without either gives the name both columns.
   const subline = recognition ? "" : [name && citationLine, copy?.line].filter(Boolean).join(" · ");
