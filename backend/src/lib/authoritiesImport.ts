@@ -28,9 +28,11 @@ import { mapBounded } from "./mapBounded";
 import type { Citation, ExtractResponse, ResolveResponse, SourcePart } from "legal-citations";
 
 type DocumentInput = Extract<WorkProductInput, { kind: "document" }>;
-type ProjectionReader = Pick<typeof documentProjectionService, "read">;
+type ProjectionReader = Pick<typeof documentProjectionService, "read"> &
+  Partial<Pick<typeof documentProjectionService, "preparePdf">>;
 type AuthoritiesNative = Pick<ReturnType<typeof structureNative>,
-  "docxAuthorityTextUnits" | "pdfAuthorityTextUnits">;
+  "docxAuthorityTextUnits" | "pdfAuthorityTextUnits"> &
+  Partial<Pick<ReturnType<typeof structureNative>, "pdfDocumentSummary">>;
 
 export type GroundedReceiptSeed = {
   authorityKey: string;
@@ -301,7 +303,10 @@ async function scanReview(
     if (!representative) continue;
     // A document-local review identity keeps unkeyed sources visible without
     // asserting a bibliographic identity; a citation written alike, style and all, names one.
-    const written = full.length ? `${representative.style?.text ?? ""} ${representative.span.text}`
+    // An order cited by its judge, date and number ("Order of Mr. Justice Butler dated August 13,
+    // 2015, No. S-154746") is that order whatever matter is written before it.
+    const selfNamed = representative.format === "docket" && representative.span.text.includes("Order of");
+    const written = full.length ? `${selfNamed ? "" : representative.style?.text ?? ""} ${representative.span.text}`
       .replace(/\s+/gu, " ").trim() : null;
     // A recognizer may misread a letter of the name ("Re Pacifio …" for "Re Pacific …"): an order cited
     // by the same file number under a name a letter or two apart is the same order.
@@ -613,12 +618,21 @@ native: AuthoritiesNative = structureNative()) {
   const binding: WorkProductInput = { kind: "local-file", handleId: "standalone",
     lastSeen: { name: input.filename, size: input.bytes.length,
       modified: input.modified, sha256: sourceSha256 } };
+  const reference = { documentId: `standalone-${sourceSha256}`, versionId: sourceSha256, sourceSha256,
+    fileType: input.fileType, readBytes: () => input.bytes };
+  // A scanned brief's pages whose own text layer is missing or reads poorly are recognized, where
+  // the runtime has a recognizer; its text layer stands where it has none.
+  const recognized = async (document: Awaited<ReturnType<ProjectionReader["read"]>>) => {
+    if (!projection.preparePdf || !native.pdfDocumentSummary?.(document).pagesNeedingOcr.length) return document;
+    try {
+      const prepared = await projection.preparePdf({ ...reference, bytes: input.bytes, ocrProvider: "kraken-lite" });
+      return await projection.read({ ...reference, pdfProfile: { cacheKey: prepared.cacheKey,
+        profile: prepared.profile, status: prepared.status } });
+    } catch { return document; }
+  };
   const units = await readImportUnits(input.fileType, async () => {
     if (input.fileType === "docx") return native.docxAuthorityTextUnits(input.bytes);
-    return native.pdfAuthorityTextUnits(await projection.read({
-      documentId: `standalone-${sourceSha256}`, versionId: sourceSha256,
-      sourceSha256, fileType: input.fileType, readBytes: () => input.bytes,
-    }));
+    return native.pdfAuthorityTextUnits(await recognized(await projection.read(reference)));
   }, () => input.bytes);
   const imported: AuthoritiesImport = { kind: "document", bindingRole: "source",
     filename: input.filename, fileType: input.fileType, snapshot: null };
