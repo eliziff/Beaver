@@ -38,3 +38,33 @@ export function sequenceOpcodes(left, right) {
   }
   return result;
 }
+
+/** The fewest inserted and deleted characters that turn `t` (the text at `base`, `spanLength` positions
+ *  long) into `s`, as [start, length, replacement] edits in ascending order: a character LCS, each gap
+ *  between matched characters one edit. A span whose positions are not its characters (hidden content,
+ *  fields), or a side longer than 200 characters, is replaced whole. Equal texts plan nothing.
+ *  Ported exactly from the ALR macro (typesetting-macro-upload source/vba/ALR_Rules.bas ALR_PlanTextEdits,
+ *  Option Compare Binary): same tie-breaks, UTF-16 units as VBA's Len and Mid$ count them. */
+export function minimalEditPlan(t, s, base = 0, spanLength = t.length) {
+  if (t === s) return [];
+  const a = t.length, b = s.length;
+  if (a !== spanLength || a > 200 || b > 200) return [[base, spanLength, s]];
+  const width = b + 1, L = new Int32Array((a + 1) * width);
+  for (let i = a - 1; i >= 0; i -= 1) for (let j = b - 1; j >= 0; j -= 1)
+    L[i * width + j] = t[i] === s[j] ? L[(i + 1) * width + j + 1] + 1
+      : Math.max(L[(i + 1) * width + j], L[i * width + j + 1]);
+  const plan = [];
+  let i = 0, j = 0, gapT = -1, gapS = 0;
+  while (i < a || j < b) {
+    if (i < a && j < b && t[i] === s[j]) {
+      if (gapT >= 0) { plan.push([base + gapT, i - gapT, s.slice(gapS, j)]); gapT = -1; }
+      i += 1; j += 1;
+      continue;
+    }
+    if (gapT < 0) { gapT = i; gapS = j; }
+    if (i < a && j < b) { if (L[(i + 1) * width + j] >= L[i * width + j + 1]) i += 1; else j += 1; }
+    else if (i < a) i += 1; else j += 1;
+  }
+  if (gapT >= 0) plan.push([base + gapT, a - gapT, s.slice(gapS)]);
+  return plan;
+}
