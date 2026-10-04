@@ -114,8 +114,8 @@ const PINPOINTS = 3;
  * remove. The button comes first, so chips coming and going never move it; a fourth pinpoint and
  * more show as one count. The chips are drawn anew whenever any pinpoint changes, so none ever
  * slides along the row. */
-function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
-  occurrence: AuthorityOccurrence; unitText: string; adding: boolean; onSet(pinpoints: PinpointEdit): void; onAdd(): void;
+function PinpointChips({ occurrence, unitText, adding, hint, onSet, onAdd }: {
+  occurrence: AuthorityOccurrence; unitText: string; adding: boolean; hint: string; onSet(pinpoints: PinpointEdit): void; onAdd(): void;
 }) {
   const pins = placedPins(occurrence), shown = pins.length > PINPOINTS ? pins.slice(0, PINPOINTS - 1) : pins;
   const label = (pin: Pin) => `${KINDS[pin.kind]?.[0] ?? pin.kind} ${unitText.slice(pin.start, pin.end).replace(/\s+/gu, ' ')}`;
@@ -129,7 +129,7 @@ function PinpointChips({ occurrence, unitText, adding, onSet, onAdd }: {
   });
   return <div role="group" aria-label="Pinpoints" className="citation-pins">
     <button type="button" className="citation-add-pin" disabled={!adding || full} aria-keyshortcuts="P"
-      title={full ? 'A citation takes up to three pinpoints' : 'Select the pinpoint in the text, then add it (P)'}
+      title={full ? 'A citation takes up to three pinpoints' : hint}
       aria-label="+ Pinpoint" onClick={onAdd}><Plus aria-hidden="true" /><span>Pinpoint</span></button>
     <ul ref={list} className="citation-chips">
       {shown.map((pin, i) => {
@@ -521,13 +521,19 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   const pinTarget = (span = selection) => span && span.unitId === selected.unitId && span.end > span.start &&
     !(span.start < selected.authoritySpan.end && selected.authoritySpan.start < span.end) &&
     !pins.some(pin => pin.start < span.end && span.start < pin.end) && pins.length < PINPOINTS ? span : null;
+  /** Why the selection cannot be added as a pinpoint, or how to add one. */
+  const pinHint = (span = selection) => !span ? 'Select the pinpoint in the text, then add it (P)'
+    : span.unitId !== selected.unitId ? 'Select the pinpoint in this citation’s paragraph or footnote'
+    : span.start < selected.authoritySpan.end && selected.authoritySpan.start < span.end ? 'Select the pinpoint without the authority'
+    : pins.some(pin => pin.start < span.end && span.start < pin.end) ? 'This text is already a pinpoint'
+    : 'Add the selected text as a pinpoint (P)';
   /** The selection becomes a pinpoint with the kind its words give it ("at para" a paragraph): read
    * in a few milliseconds, so the chip shows whole; a read that lags leaves the kind to the save. */
   const addPinpoint = async (span = selection) => {
     const target = pinTarget(span), occurrenceId = selected.id, kept = edit(pins);
     if (!target) return;
     const read = host.readPinpoints?.(unit.text, target.start, target.end).catch(() => null);
-    const found = read && await Promise.race([read, new Promise<null>(resolve => setTimeout(resolve, 40, null))]);
+    const found = read && await Promise.race([read, new Promise<null>(resolve => setTimeout(resolve, 25, null))]);
     submit({ type: 'set-pinpoints', occurrenceId, pinpoints: [...kept, ...found?.length
       ? found.map(({ start, end, kind }) => ({ start, end, kind: kind as PinpointEdit[number]['kind'] }))
       : [{ start: target.start, end: target.end }]] });
@@ -742,7 +748,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
           : finding.kind === 'quote_unlocated' ? 'Quote not found in source: open it' : 'Quote differs from source: open it'}
         onClick={() => finding && onReview(finding.id)}><TextQuote aria-hidden="true" /></button>
       <span className="citation-label" data-row="2" aria-hidden="true">Pinpoints</span>
-      <PinpointChips occurrence={selected} unitText={unit.text} adding={!!pinTarget()}
+      <PinpointChips occurrence={selected} unitText={unit.text} adding={!!pinTarget()} hint={pinHint()}
         onSet={pinpoints => submit({ type: 'set-pinpoints', occurrenceId: selected.id, pinpoints })} onAdd={() => addPinpoint()} />
     </div>
   </div>;
