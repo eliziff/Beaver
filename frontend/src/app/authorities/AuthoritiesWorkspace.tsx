@@ -1064,7 +1064,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // Each source's marks are prepared while Sources or Highlights is on screen, so Highlights opens
   // them at once; never during the review or a build, which would wait behind it.
   useHighlightsAhead(host, draft && (stage === "sources" || stage === "highlights") ? draft : undefined, ocr.tracked);
-  const statuteCopies = useStatuteCopies(host, draft, shown, ocr.tracked, stage === "sources" || stage === "highlights");
+  const statuteCopies = useStatuteCopies(host, draft, shown, stage === "sources" || stage === "highlights");
   // Once in a browser: the first time Sources settles, nothing fetching, with authorities still
   // needing a PDF, what to do about them. Storage that can't be read means no explainer.
   const [explaining, setExplaining] = useState(false);

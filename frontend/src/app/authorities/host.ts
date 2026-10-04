@@ -8,7 +8,6 @@ import type { FilingContact } from "../../../../shared/user-preferences.mjs";
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
 import type { PdfOpening } from "@/app/lib/inspectPdf";
-import type { StatuteExcerptSummary } from "./statuteExcerpts";
 
 /** `autoFetched`: found by auto-fetch rather than chosen, so its citation is checked before it is attached. */
 export type AuthoritiesFile = { file: File; input?: WorkProductInput; autoFetched?: boolean };
@@ -83,8 +82,6 @@ export interface AuthoritiesHost {
   readSource?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Blob>;
   readSourceText?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal, pages?: number[]): Promise<PdfRecognizedText>;
   readSourcePageLabels?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Array<string | null>>;
-  /** What a statute's excerpt holds of one of its PDFs, read as a build of the draft reads it. */
-  statuteExcerpt?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<StatuteExcerptSummary>;
   /** The pinpoints a selection of a unit's text holds, with their kinds, as a save would read them. */
   readPinpoints?(text: string, start: number, end: number): Promise<Array<{ kind: string; start: number; end: number }>>;
   sourceOcr?: AuthoritiesOcrPort;
