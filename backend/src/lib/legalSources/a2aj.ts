@@ -693,7 +693,7 @@ const provider: LegalSourceProvider<A2AJCompiledDocument> = {
   id: "a2aj",
   canResolve: (request: LegalSourceResolveRequest) => request.kind === "legislation" ||
     (request.kind === "case" && structureNative().providerCitationsInText(request.text)
-      .some(({ jurisdiction }) => jurisdiction === "ca")),
+      .some(({ jurisdiction }) => jurisdiction === "ca" || jurisdiction?.startsWith("ca-"))),
   async resolve(request) {
     const kind = request.kind === "legislation" ? "legislation" : "case";
     const found = await document({ citation: request.text,

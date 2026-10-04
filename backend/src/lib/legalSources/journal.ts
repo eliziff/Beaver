@@ -355,17 +355,14 @@ function finalContractPages(articleId: number): FinalContractPages | null {
 
 function articleRow(identifier: string) {
   const articleId = identifier.match(/^(?:journal:)?(\d+)$/iu)?.[1];
-  const exactSql = articleId
-    ? "article_id = ?"
-    : "(LOWER(citation_en) = LOWER(?) OR LOWER(name_en) = LOWER(?))";
-  const values = articleId ? [Number(articleId)] : [identifier, identifier];
-  const rows = database()
-    .prepare(
-      `SELECT * FROM articles
-       WHERE ${exactSql} AND text IS NOT NULL AND length(text) > 0
-       ORDER BY article_id LIMIT 2`,
-    )
-    .all(...values) as Row[];
+  // Matching never reads article text (the database's bulk); only the few hits are checked for it.
+  const ids = articleId ? [Number(articleId)] : (database()
+    .prepare(`SELECT article_id FROM articles
+       WHERE (LOWER(citation_en) = LOWER(?) OR LOWER(name_en) = LOWER(?)) ORDER BY article_id LIMIT 8`)
+    .all(identifier, identifier) as Row[]).map((row) => Number(row.article_id));
+  const withText = database().prepare(
+    "SELECT * FROM articles WHERE article_id = ? AND text IS NOT NULL AND length(text) > 0");
+  const rows = ids.map((id) => withText.get(id) as Row | undefined).filter((row): row is Row => !!row).slice(0, 2);
   return rows.length === 1 ? rows[0] : null;
 }
 

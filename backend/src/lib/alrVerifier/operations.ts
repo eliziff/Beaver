@@ -40,7 +40,11 @@ function summarize(rows: AlrRow[], footnotes: number) {
     perfect: checked.filter((row) => row.quote_check_status.includes("MATCH") && !row.quote_check_status.includes("NO_MATCH")).length,
     partial: checked.filter((row) => row.quote_check_status.includes("PARTIAL")).length,
     noMatch: checked.filter((row) => row.quote_check_status === "NO_MATCH" && row._quote_source_tag).length,
-    unavailable: checked.filter((row) => row.quote_check_status === "NO_MATCH" && !row._quote_source_tag).length };
+    // A source the run should have read but could not; quotations from other material are not checkable.
+    unavailable: checked.filter((row) => row.quote_check_status === "NO_MATCH" && !row._quote_source_tag &&
+      row.quote_check_notes.startsWith("No source text found")).length,
+    notCheckable: checked.filter((row) => row.quote_check_status === "NO_MATCH" && !row._quote_source_tag &&
+      !row.quote_check_notes.startsWith("No source text found")).length };
 }
 
 /** Python's char-level SequenceMatcher ratio on normalized titles. */
@@ -207,7 +211,7 @@ export function createAlrVerifierOperations(deps: AlrDeps = {}) {
       const runId = crypto.randomUUID(), documents: AlrDocumentResult[] = [];
       for (const document of input.documents) {
         input.signal?.throwIfAborted();
-        documents.push(await runDocument(document, settings, input.llm, deps.sources ?? beaverSources(), runId, progress));
+        documents.push(await runDocument(document, settings, input.llm, deps.sources ?? beaverSources({ localOnly: settings.local_only }), runId, progress));
       }
       return { runId, documents };
     },
@@ -230,7 +234,7 @@ export function createAlrVerifierOperations(deps: AlrDeps = {}) {
       progress({ document: state.name, phase: "quotes", message: `Checking quotations against ${match.record.citation}` });
       const native = await structureNative().derivePdfDocument(Buffer.from(input.pdf.bytes), {});
       const attached = new Map([[key, sourceDocument(native)]]);
-      const sources = deps.sources ?? beaverSources();
+      const sources = deps.sources ?? beaverSources({ localOnly: true });
       const linker = createLinker(sources, { a2aj: false, usUk: false });
       const affected = state.rows.filter((row) => row._missing_source_key === key);
       for (const row of affected) {
