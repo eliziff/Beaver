@@ -188,6 +188,11 @@ async function scanReview(
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
     options: { resolve: false, notes, styles: ["mcgill", "coal"] },
   })) as ExtractResponse;
+  // The brief's own court file number (its cover's) is never one of its authorities.
+  const fileNumber = (value: unknown) => typeof value === "string" ? value.replace(/\D/gu, "") : "";
+  const ownFile = fileNumber(importedCover(units).courtFileNumber);
+  if (ownFile) extracted.citations = extracted.citations.filter((citation) =>
+    citation.format !== "docket" || fileNumber(citation.fields.docket) !== ownFile);
   // PDF layout units can end in the middle of a citation. Join only those body
   // boundaries, retaining the engine's exact text and global UTF-16 addresses.
   if (imported.kind === "document" && imported.fileType === "pdf") {
@@ -273,7 +278,9 @@ async function scanReview(
       (full.length && referenceUrl ? referenceUrl.split("#")[0] : referenceUrl);
     const origin = group.map(index => byResolution.get(index)?.sourcePart).find(index => index != null);
     const source = !full.length ? originParts.find(({ index }) => index === origin) : undefined;
-    const representative = full.find((citation) => citation.key) ?? full[0] ??
+    // A decision's report or neutral citation names it before the court file it was made under.
+    const representative = full.find((citation) => citation.key && citation.format !== "docket") ??
+      full.find((citation) => citation.key) ?? full[0] ??
       (source ? group.map((index) => byIndex.get(index)).find(Boolean) : undefined);
     if (!representative) continue;
     // A document-local review identity keeps unkeyed sources visible without

@@ -108,7 +108,11 @@ unresolved. Ibid looks back only within its own numbering sequence, so an
 unnumbered author's note does not interrupt the numbered notes.
 Supra association uses the indicated note, numbering sequence and written short
 name independently of source URLs. A missing URL does not prevent a detected
-authority from supplying an antecedent. The reference's review span retains the
+authority from supplying an antecedent. Where the note number points to a note
+that does not cite the work (a brief renumbered after the supra was written), a
+short name that names exactly one earlier citation by its short form still links
+to it. An order or endorsement cited by its court file number is an authority;
+the brief's own court file number never is. The reference's review span retains the
 short name before the marker, with its pinpoint highlighted separately.
 
 Sources identifies database-only case citations and unreported date/file/court
