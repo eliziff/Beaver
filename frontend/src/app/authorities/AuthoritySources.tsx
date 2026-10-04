@@ -9,7 +9,7 @@ import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import { FileInputButton } from "./FileInputButton";
 import { TabFormatModal } from "./TabFormatModal";
-import { authorityName, authorityLabel, authorityCitationLine, requiresBilingualSources,
+import { authorityName, authorityLabel, authorityCitationLine, authorityNameItalic, requiresBilingualSources,
   requiresPdf, sourceLanguageLabel, relinkable } from "./authorityPresentation";
 import type { AuthoritiesAction, AuthoritiesBookSupplement, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
@@ -119,7 +119,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           <AuthorityRow authority={authority} busy={busy}
           order={shown} copy={statuteCopies?.get(authority.id)} statutes={!!statuteCopies?.size}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
-          citationLine={authorityCitationLine(state, authority)}
+          citationLine={authorityCitationLine(state, authority)} italicName={authorityNameItalic(state, authority)}
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
           requireLanguages={requiresBilingualSources(state, authority)} sourceIssues={sourceIssues}
           editableIdentity={state.import.kind === "manual" || !!authority.userAdded}
@@ -143,11 +143,13 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
     onSave={(settings) => onAction({ type: "set-settings", settings })} />}</>;
 }
 
-function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLanguages, sourceIssues,
+function AuthorityRow({ authority, tab, citationLine, italicName, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
   onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes }: {
   order: string[]; copy?: StatuteCopy; statutes: boolean;
   authority: AuthorityIdentity; tab?: string; citationLine: string; busy: boolean; needsPdf: boolean;
+  /** The name is a style of cause or title, set in italics. */
+  italicName: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
   editableIdentity: boolean; rebuildsFromText: boolean; removable: boolean; sourceLabel: string;
   onAction: (action: AuthoritiesAction) => void; onPick?: () => void; onLibrary?: () => void;
@@ -251,7 +253,7 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
     <div className="min-w-0 @min-[44rem]/sources:grid @min-[44rem]/sources:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @min-[44rem]/sources:items-center @min-[44rem]/sources:gap-4">
       <div className={cn("flex min-h-8 min-w-0 items-center gap-1", !subline && !recognition && "@min-[44rem]/sources:col-span-2")}>
         {editing ? <AuthorityName value={name} label={nameLabel} onSave={save} onCancel={() => setEditing(false)} /> : <>
-          <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name || citationLine}</h3>
+          <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name ? italicName ? <i>{name}</i> : name : citationLine}</h3>
           <button type="button" disabled={busy} onClick={edit} aria-label={`Edit ${nameLabel.toLocaleLowerCase()} for ${title}`}
             className="shrink-0 rounded p-1 text-gray-500 opacity-0 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent-600 group-hover/row:opacity-100">
             <Pencil className="h-3.5 w-3.5" /></button></>}

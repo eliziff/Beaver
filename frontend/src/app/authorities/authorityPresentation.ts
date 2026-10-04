@@ -35,6 +35,14 @@ function authorityCitation(state: AuthoritiesProduct["state"], item: AuthorityId
 }
 export const authorityCitationText = (state: AuthoritiesProduct["state"], item: AuthorityIdentity) =>
   authorityCitation(state, item).text;
+/** How many of that citation's first characters are a case's style of cause or a statute's title, set in
+ *  italics as McGill does. */
+export const authorityItalic = (state: AuthoritiesProduct["state"], item: AuthorityIdentity) =>
+  authorityCitation(state, item).italic;
+/** Whether the name a row shows for an authority is that style of cause or title, so set in italics:
+ *  a name it has, not its citation standing in for one. */
+export const authorityNameItalic = (state: AuthoritiesProduct["state"], item: AuthorityIdentity) =>
+  authorityItalic(state, item) > 0 && !!(item.displayName || item.name);
 /** That citation after the name a row already shows, as the brief writes it: "[1986] 1 SCR 103". */
 export function authorityCitationLine(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   const { text, lead, cited } = authorityCitation(state, item);

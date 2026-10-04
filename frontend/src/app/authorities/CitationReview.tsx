@@ -5,7 +5,8 @@ import { DocxCanvas } from '@/app/components/shared/views/DocxCanvas';
 import { PdfCanvas } from '@/app/components/shared/views/PdfCanvas';
 import type { WorkProductFocus } from '@/app/lib/workProducts';
 import { errorMessage } from '@/app/lib/utils';
-import { authorityCitationLine, authorityCitationText, authorityName } from './authorityPresentation';
+import { authorityCitationLine, authorityCitationText, authorityItalic, authorityName } from './authorityPresentation';
+import { CitationText } from './CitationText';
 import type { AuthoritiesHost } from './host';
 import type { AuthoritiesAction, AuthoritiesProduct, AuthorityOccurrence, AuthorityIdentity, AuthoritiesDiscrepancy } from './types';
 import { caretAt, citationMarksChanged, citationSelection, clearCitationMarks, locateCitationUnits, markCitations, marksOf, paintCitations,
@@ -62,10 +63,24 @@ function remarked(before: string, after: string) {
 /** An outline row: the citation as it reads in the article, with a quotation finding marked in its
  * padding. The review marks the selected row itself, so choosing another re-renders no row, and a
  * saved draft re-renders only the rows whose text it changed. */
-const Row = memo(function Row({ row, finding }: { row: AuthorityOccurrence; finding: boolean }) {
-  return <button type="button" role="option" data-id={row.id} aria-selected="false" tabIndex={-1} title={row.text}>
-    <span>{row.text}</span>{finding && <i className="citation-finding" role="img" aria-label="Quotation to review" />}</button>;
-}, (a, b) => a.finding === b.finding && a.row.id === b.row.id && a.row.text === b.row.text);
+const Row = memo(function Row({ row, finding, italic, end }: { row: AuthorityOccurrence; finding: boolean;
+  /** The style of cause or title in the citation as the brief writes it, set in italics. */
+  italic?: readonly [number, number];
+  /** The last citation of its paragraph or footnote: its rule is the stronger one. */
+  end?: boolean }) {
+  return <button type="button" role="option" data-id={row.id} aria-selected="false" tabIndex={-1} title={row.text}
+    data-unit-end={end || undefined}>
+    <span><CitationText text={row.text} italic={italic} /></span>{finding && <i className="citation-finding" role="img" aria-label="Quotation to review" />}</button>;
+}, (a, b) => a.finding === b.finding && a.end === b.end && a.row.id === b.row.id && a.row.text === b.row.text &&
+  a.italic?.[0] === b.italic?.[0] && a.italic?.[1] === b.italic?.[1]);
+/** Where a citation's style of cause or title runs in the text the brief gives it: from where its span
+ *  begins to where its core citation starts, as the shared formatter reads its lead. Cases and statutes only. */
+function italicSpan(row: AuthorityOccurrence, kind?: string): readonly [number, number] | undefined {
+  if (kind !== 'case' && kind !== 'legislation' || row.authoritySpan.start >= row.coreSpan.start) return undefined;
+  const start = Math.max(0, row.authoritySpan.start - row.start);
+  const lead = row.text.slice(start, row.coreSpan.start - row.start).replace(/[\s,]+$/u, '');
+  return lead ? [start, start + lead.length] : undefined;
+}
 
 /** The citations in reading order, and the text marked "Not a citation", which stays listed so a
  * wrong call can be taken back. It renders again only when the draft or its review changes. */
@@ -77,7 +92,9 @@ const Outline = memo(function Outline({ product, occurrences, findings, busy, on
   const body = occurrences.filter(row => kinds.get(row.unitId) === 'body');
   const notes = units.filter(unit => unit.kind === 'footnote' && unit.occurrenceIds.some(id => byId[id]));
   const dismissed = Object.values(product.state.dismissedOccurrences ?? {}), labels = noteLabels(units);
-  const row = (item: AuthorityOccurrence) => <Row key={item.id} row={item} finding={findings.has(item.id)} />;
+  const row = (item: AuthorityOccurrence, at: number, list: AuthorityOccurrence[]) => <Row key={item.id} row={item}
+    finding={findings.has(item.id)} italic={italicSpan(item, product.state.authorities[item.authorityId ?? '']?.kind)}
+    end={list[at + 1]?.unitId !== item.unitId} />;
   return <>
     {!!body.length && <div role="group" aria-labelledby="citation-body-heading">
       <h3 id="citation-body-heading">In-text</h3>{body.map(row)}</div>}
@@ -154,12 +171,16 @@ function PinpointChips({ occurrence, unitText, adding, hint, onSet, onAdd }: {
 }
 
 const SECTIONS = ['In-text', 'Footnotes'] as const;
-type AuthorityOption = { authorityId: string; section: typeof SECTIONS[number]; note?: string; label: string; description: string };
+type AuthorityOption = { authorityId: string; section: typeof SECTIONS[number]; note?: string; label: string; description: string;
+  /** The label is a style of cause or title, set in italics. */
+  italic: boolean };
 /** The authority a short form refers to, chosen from a searchable list that opens upward over the
  * document: the authorities cited in full before it, laid out as the citation list is (those cited
  * in-text, then each footnote's under its number), and None. */
-function AuthorityPicker({ options, current, currentLabel, busy, onPick }: {
-  options: AuthorityOption[]; current?: AuthorityIdentity; currentLabel?: string; busy: boolean; onPick(authorityId: string | null): void;
+function AuthorityPicker({ options, current, currentLabel, currentItalic = 0, busy, onPick }: {
+  options: AuthorityOption[]; current?: AuthorityIdentity; currentLabel?: string;
+  /** How much of the current label is its style of cause or title. */
+  currentItalic?: number; busy: boolean; onPick(authorityId: string | null): void;
 }) {
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
   const root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null);
@@ -188,7 +209,8 @@ function AuthorityPicker({ options, current, currentLabel, busy, onPick }: {
     <button ref={trigger} type="button" className="citation-authority-trigger" disabled={busy} aria-haspopup="listbox"
       aria-expanded={open} aria-labelledby="citation-refers citation-authority-name"
       title={currentLabel} onClick={() => setOpen(value => !value)}>
-      <span id="citation-authority-name" data-empty={current ? undefined : ''}>{currentLabel ?? 'No authority'}</span>
+      <span id="citation-authority-name" data-empty={current ? undefined : ''}>{currentLabel
+        ? <CitationText text={currentLabel} italic={currentItalic} /> : 'No authority'}</span>
       <ChevronUp aria-hidden="true" />
     </button>
     {open && <div className="citation-authority-menu">
@@ -197,7 +219,7 @@ function AuthorityPicker({ options, current, currentLabel, busy, onPick }: {
           const items = shown.filter(option => option.section === section);
           const choice = (option: AuthorityOption) => <button key={option.authorityId} type="button" role="option"
             aria-selected={option.authorityId === current?.id} onClick={() => pick(option.authorityId)}>
-            <span>{option.label}</span>{option.description !== option.label && <small>{option.description}</small>}</button>;
+            <span>{option.italic ? <i>{option.label}</i> : option.label}</span>{option.description !== option.label && <small>{option.description}</small>}</button>;
           return !!items.length && <div key={section} role="group" aria-label={section}>
             <h4 aria-hidden="true">{section}</h4>
             {section === 'Footnotes' ? [...new Set(items.map(option => option.note))].map(note =>
@@ -668,7 +690,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     if (!authority || !place) return [];
     const note = place.kind === 'footnote' ? labels.get(place.id) : undefined;
     return [[`${note}\0${authority.id}`, { authorityId: authority.id, section: note ? 'Footnotes' : 'In-text', note,
-      label: authorityName(authority), description: authorityCitationLine(product.state, authority) } as AuthorityOption]] as const;
+      label: authorityName(authority), description: authorityCitationLine(product.state, authority),
+      italic: authorityItalic(product.state, authority) > 0 && !!(authority.displayName || authority.name) } as AuthorityOption]] as const;
   })).values()];
   const link = (authorityId: string | null) => referenceKind && selected && submit({ type: 'set-reference', occurrenceId: selected.id,
     reference: authorityId ? { kind: referenceKind, targetAuthorityId: authorityId } : null });
@@ -739,7 +762,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       </div>
       {/* Every citation shows its authority; only a supra, ibid or short form can be pointed at another. */}
       <span id="citation-refers" className="citation-label" data-row="1">{reference ? 'Refers to' : 'Source'}</span>
-      <AuthorityPicker options={options} current={linked} currentLabel={linked ? authorityCitationText(product.state, linked)
+      <AuthorityPicker options={options} current={linked} currentItalic={linked ? authorityItalic(product.state, linked) : 0}
+        currentLabel={linked ? authorityCitationText(product.state, linked)
           : reference && !options.length ? 'No earlier citation' : reference ? 'None' : undefined}
         busy={busy || !reference || !options.length && !linked} onPick={link} />
       {/* What the quote check found for this citation: lit when there is something, opening the brief's
