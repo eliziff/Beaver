@@ -8,7 +8,6 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, errorMessage } from "@/app/lib/utils";
 import { getPdfJs, openPdfDocument, PDF_DOCUMENT_OPTIONS } from "@/app/lib/pdfJs";
-import type { PdfAnnotation } from "../../../../shared/pdf-annotations.mjs";
 import { OptionCard, OptionCards } from "./OptionCards";
 import { AUTHORITIES_PROFILES, authoritiesProfile } from "./profiles";
 import type { AuthoritiesHost } from "./host";
@@ -207,9 +206,8 @@ export function FrontPreview({ host, draft, actions, page, label, className }: {
 }
 
 /** One page of a PDF drawn whole in a still frame: the last drawing stays until the next is ready, so
- *  nothing moves, and marks are laid over it in their own colours. */
-export function PagePreview({ bytes, page, marks = [], label }: { bytes?: Uint8Array; page: number;
-  marks?: readonly PdfAnnotation[]; label: string }) {
+ *  nothing moves. */
+export function PagePreview({ bytes, page, label }: { bytes?: Uint8Array; page: number; label: string }) {
   const [drawn, setDrawn] = useState<{ url: string; width: number; height: number; page: number }>();
   useEffect(() => {
     if (!bytes) return;
@@ -227,7 +225,6 @@ export function PagePreview({ bytes, page, marks = [], label }: { bytes?: Uint8A
     })().catch(() => {});
     return () => { active = false; };
   }, [bytes, page]);
-  const colour = ([r, g, b]: readonly number[]) => `rgb(${[r, g, b].map((v) => v <= 1 ? Math.round(v * 255) : v).join(",")})`;
   return <figure className="m-0 flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
     {/* The page fits the frame whole, centred, at the page's own proportions. */}
     <div className="relative min-h-0 w-full flex-1">
@@ -235,10 +232,6 @@ export function PagePreview({ bytes, page, marks = [], label }: { bytes?: Uint8A
         style={{ aspectRatio: `${drawn.width} / ${drawn.height}` }}
         className="absolute inset-0 m-auto h-full max-h-full w-auto max-w-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)]">
         <image href={drawn.url} width={drawn.width} height={drawn.height} />
-        {marks.flatMap((mark) => mark.fragments.filter((fragment) => fragment.pageNumber === drawn.page)
-          .flatMap((fragment, f) => fragment.rects.map(([x0, y0, x1, y1], r) => <rect key={`${mark.id}:${f}:${r}`}
-            x={Math.min(x0, x1)} y={drawn.height - Math.max(y0, y1)} width={Math.abs(x1 - x0)} height={Math.abs(y1 - y0)}
-            fill={colour(mark.rgb)} fillOpacity={mark.kind === "margin" ? 1 : mark.opacity} />)))}
       </svg> : <div aria-hidden="true" className="absolute inset-0 m-auto aspect-[8.5/11] h-full max-w-full animate-pulse bg-white/70" />}
     </div>
     <figcaption className="text-xs text-gray-600">{label}</figcaption>

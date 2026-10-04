@@ -330,6 +330,15 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onAction
   </>;
 }
 
+/** The marks from the start of the PDF to its end: by page, then from the top of the page down. */
+const inReadingOrder = (marks: readonly PdfAnnotation[]) => [...marks].sort((a, b) => {
+  // Rects run from the page's top-left, so the smallest top is highest on the page.
+  const at = (mark: PdfAnnotation) => { const first = mark.fragments[0]; const top = first ? Math.min(...first.rects.map(r => r[1])) : 0;
+    return [first?.pageNumber ?? 0, top]; };
+  const [pa, ta] = at(a), [pb, tb] = at(b);
+  return pa - pb || ta - tb;
+});
+
 /** Mark content independent of object key order, to tell whether stored highlights match. */
 const marksKey = (marks: readonly PdfAnnotation[]) => JSON.stringify(marks.map(mark => [mark.id, mark.kind,
   mark.origin, mark.label, mark.excerpt, mark.rgb, mark.opacity,
@@ -574,7 +583,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           </div>
         </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            <ul className="space-y-1">{marks.map(mark=><li key={mark.id}
+            <ul className="space-y-1">{inReadingOrder(marks).map(mark=><li key={mark.id}
               ref={node=>{if(node)cardRefs.current.set(mark.id,node);else cardRefs.current.delete(mark.id);}}
               className={cn('flex rounded-md border',mark.id===selectedId?'border-red-700 bg-red-50':'border-gray-200 bg-white hover:border-gray-400')}>
               <button type="button" aria-pressed={mark.id===selectedId} className="min-w-0 flex-1 px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600" onClick={()=>{setSelectedId(mark.id);setFocus(value=>({id:mark.id,request:(value?.request??0)+1}));}}>

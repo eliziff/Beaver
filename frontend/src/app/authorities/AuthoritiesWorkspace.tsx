@@ -1107,7 +1107,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     </summary>
     <div className="border-t border-gray-200 p-3">
       <SourceChoices settings={draft.state.settings} profileId={draft.state.settings.profileId} sources={sourced}
-        recognition={recognition} disabled={busy} onChange={({ sourceMode, ...patch }) => sourceMode
+        recognition={recognition} disabled={busy} imported onChange={({ sourceMode, ...patch }) => sourceMode
           ? act({ type: "set-settings", settings: { sourceMode } }, async (next) => {
             setOperation("Finding source PDFs");
             try { adopt(await onLatest(next.id, (latest) => host.prepareSources(latest, undefined, undefined, noteSources))); }
@@ -1506,7 +1506,7 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   ];
   // The book on the left, the outputs and Build on the right, one above the other where narrow.
   return <section className="@container/build mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-    <div className="grid items-start gap-6 @min-[56rem]/build:grid-cols-[minmax(0,1fr)_26rem]">
+    <div className="grid items-start gap-6 @min-[46rem]/build:grid-cols-[minmax(0,1fr)_24rem]">
     <div className="grid min-w-0 gap-5">
       <div className="grid max-w-md gap-1">
         <AuthoritiesCourtField value={settings.profileId} disabled={busy}
@@ -1599,6 +1599,8 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, files, so
 }) {
   const moreTrigger = "flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600";
   const room = "w-10 shrink-0 @min-[44rem]/sources:w-[5.625rem]";
+  // Its actions always name themselves: the cover and index rows have the room.
+  const frontControl = cn(rowControl, "w-auto px-2.5");
   return <div className="@container/sources min-w-0">
     <h3 className="mb-2 text-sm font-semibold text-gray-950">Cover and index</h3>
     <div className="grid grid-cols-[auto_fit-content(8rem)_minmax(0,max-content)_auto_minmax(0,1fr)] gap-x-2 divide-y divide-gray-200 rounded-lg border border-gray-300">
@@ -1615,26 +1617,26 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, files, so
           <span className="min-w-0 truncate text-xs text-gray-500" title={part?.filename}>
             {part?.filename ?? own?.detail ?? "Generated"}</span>
           <div className="flex items-center gap-1 pl-4">
-            {own && !part ? <Button type="button" variant="outline" className={rowControl} disabled={busy}
+            {own && !part ? <Button type="button" variant="outline" className={frontControl} disabled={busy}
               aria-label={`${own.label}: ${title.toLowerCase()}`} title={own.label} onClick={own.onClick}>
-              <SlidersHorizontal /><span className={rowLabel}>{own.label}</span></Button>
-              : part && onOpen ? <Button type="button" variant="outline" className={rowControl}
+              <SlidersHorizontal /><span>{own.label}</span></Button>
+              : part && onOpen ? <Button type="button" variant="outline" className={frontControl}
               aria-label={`View the ${slot}`} title="View" disabled={busy}
-              onClick={() => onOpen(part.bindingRole)}><Eye /><span className={rowLabel}>View</span></Button>
+              onClick={() => onOpen(part.bindingRole)}><Eye /><span>View</span></Button>
               : <span className={room} />}
             {/* A slot without a PDF holds the generated page, so a chosen PDF always replaces one. */}
-            {part && relinkable(issue) ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
+            {part && relinkable(issue) ? <Button type="button" variant="outline" className={cn(frontControl, "text-red-800")}
               disabled={busy} onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
-              : files.onPick ? <Button type="button" variant="outline" className={rowControl}
+              : files.onPick ? <Button type="button" variant="outline" className={frontControl}
               aria-label={`Replace the ${part ? "" : "generated "}${slot} with a PDF`} title="Replace"
-              disabled={busy} onClick={() => files.onPick!(slot, false)}><Upload /><span className={rowLabel}>Replace</span></Button>
+              disabled={busy} onClick={() => files.onPick!(slot, false)}><Upload /><span>Replace</span></Button>
               : <FileInputButton multiple={false} disabled={busy} label="Replace"
                 ariaLabel={`Replace the ${part ? "" : "generated "}${slot} with a PDF`} accept=".pdf,application/pdf"
-                onFiles={(chosen) => files.onFiles(slot, chosen)} variant="outline" compact className={rowControl}
-                icon={<Upload />} labelClassName={rowLabel} />}
-            {files.onLibrary && <Button type="button" variant="outline" className={rowControl}
+                onFiles={(chosen) => files.onFiles(slot, chosen)} variant="outline" compact className={frontControl}
+                icon={<Upload />} labelClassName="inline" />}
+            {files.onLibrary && <Button type="button" variant="outline" className={frontControl}
               aria-label={`Choose ${title} from ${sourceLabel}`} title={sourceLabel} disabled={busy}
-              onClick={() => files.onLibrary!(slot)}><FolderSearch /><span className={rowLabel}>{sourceLabel}</span></Button>}
+              onClick={() => files.onLibrary!(slot)}><FolderSearch /><span>{sourceLabel}</span></Button>}
             {part ? <MoreActionsMenu label={`${title} options`} triggerClassName={moreTrigger} items={[{ label: "Use generated",
               disabled: busy, onSelect: () => onAction({ type: "clear-book-part", slot }) }]} />
               : <span className="w-8 shrink-0" />}

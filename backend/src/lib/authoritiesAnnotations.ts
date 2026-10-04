@@ -86,7 +86,16 @@ export function initialAuthorityAnnotations(input: {
     }
   }
   const marked = marks.some(mark => mark.label === 'Cited page');
+  // A bare reference whose passage another mark of the same kind already covers gets no mark of its
+  // own; a quote keeps its own, as it marks its words.
+  const inside = (a: AnnotationRect, b: AnnotationRect) => a[0] >= b[0] - 1e-3 && a[1] >= b[1] - 1e-3 && a[2] <= b[2] + 1e-3 && a[3] <= b[3] + 1e-3;
+  const covers = (outer: PdfAnnotation, inner: PdfAnnotation) => outer !== inner && outer.kind === inner.kind &&
+    inner.fragments.every(fragment => fragment.rects.every(rect => outer.fragments.some(other =>
+      other.pageNumber === fragment.pageNumber && other.rects.some(box => inside(rect, box)))));
+  const quote = (mark: PdfAnnotation) => mark.label.endsWith('· Quote');
+  const kept = marks.filter((mark, index) => quote(mark) || !marks.some((other, at) => !quote(other) && covers(other, mark) &&
+    (!covers(mark, other) || at < index)));
   return { annotations: decodeAnnotationSet({ schemaVersion: ANNOTATION_SCHEMA,
-    sourceSha256: input.sourceSha256, marks }),
+    sourceSha256: input.sourceSha256, marks: kept }),
     pageMarked: marked ? [...new Set(unlocated)] : [] };
 }
