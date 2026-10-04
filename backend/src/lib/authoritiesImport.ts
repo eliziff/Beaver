@@ -321,6 +321,9 @@ async function scanReview(
     if (!parent || !child || parent === child || authorities[child].historyOf) continue;
     authorities[child].historyOf = parent;
     authorities[child].historyRelation = span.text.replace(/\s+/gu, " ").trim();
+    // A later decision in the same matter is known by its case's style of cause unless the brief
+    // gives it one of its own.
+    authorities[child].name ??= authorities[parent].name;
   }
   const sourceOccurrences = originParts.flatMap(({ index, reference: { start, end } }) => {
     const authorityId = sourceGroups.get(index);
