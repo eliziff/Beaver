@@ -7,7 +7,6 @@ import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import { FileInputButton } from "./FileInputButton";
-import { Segments } from "./OptionCards";
 import { TabFormatModal } from "./TabFormatModal";
 import { authorityName, authorityLabel, authorityCitationLine, requiresBilingualSources,
   requiresPdf, sourceLanguageLabel, relinkable } from "./authorityPresentation";
@@ -23,7 +22,7 @@ import canliiLogo from "./canlii.ico";
 const control = "h-8 shrink-0 border-gray-300 px-2.5 text-[0.8125rem]";
 /** A row's action: quiet, as the citation bar's, one width and icon size wherever a list of sources
  *  or book parts shows them, an icon alone where the list (a `@container/sources`) is narrow. */
-export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-100 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[6.5rem] @min-[44rem]/sources:px-2.5";
+export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-50 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[6.5rem] @min-[44rem]/sources:px-2.5";
 export const rowLabel = "hidden @min-[44rem]/sources:inline";
 type LookupFailure = NonNullable<AuthorityIdentity["sourceLookupFailure"]>;
 const lookupReason = ({ reason, detail }: LookupFailure) => ({
@@ -51,10 +50,6 @@ export type AuthorityPanelProps = {
   /** Each authority's group in the book ("Cases", "Legislation", ...), by authority. */
   groups?: ReadonlyMap<string, string>;
 };
-const GROUPINGS = [{ value: "cases-first", label: "Cases first" }, { value: "legislation-first", label: "Legislation first" },
-  { value: "none", label: "None" }] as const;
-const ORDERS = [{ value: "alphabetical", label: "Alphabetical" }, { value: "first-reference", label: "First cited" },
-  { value: "custom", label: "As arranged" }] as const;
 /** The book's own PDFs, chosen from a file, a picker or the library. */
 export type BookFiles = {
   onFiles: (slot: AuthoritiesBookSlot, files: File[], supplementId?: string) => void;
@@ -92,16 +87,11 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      {/* The settings, each a labelled row; then, under a rule, the list's own actions and the list. */}
+      {/* The settings, closed under one bar; then the list's own actions and the list. */}
       <div className="grid gap-3">
         {settings}
-        <Segments label="Group" disabled={busy || !!profile.locked?.settings?.grouping} options={GROUPINGS}
-          value={state.settings.grouping ?? (state.settings.tableOrder === "first-reference" ? "none" : "cases-first")}
-          onChange={(grouping) => onAction({ type: "set-settings", settings: { grouping } })} />
-        <Segments label="Order" disabled={busy || !!profile.locked?.settings?.tableOrder} options={ORDERS}
-          value={state.settings.tableOrder} onChange={(tableOrder) => onAction({ type: "set-settings", settings: { tableOrder } })} />
       </div>
-      <div className="mb-3 mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-gray-200 pt-3">
+      <div className="mb-3 mt-3 flex flex-wrap items-center justify-end gap-2">
         {onWatchFolder && <Button type="button" variant="outline" className={control}
           disabled={busy && !watchedFolder} onClick={onWatchFolder}
           title={watchedFolder ? "Stop watching this folder"
@@ -266,20 +256,20 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
     </span>
-    {/* Name and citation side by side where the list is wide, the citation under the name where not. */}
-    {editing ? <AuthorityName value={name} label={nameLabel} spans={!recognition} onSave={save} onCancel={() => setEditing(false)} /> : <>
-      <div className="min-w-0 @min-[44rem]/sources:grid @min-[44rem]/sources:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[44rem]/sources:items-center @min-[44rem]/sources:gap-4">
-        <div className={cn("flex min-w-0 items-center gap-1", !subline && "@min-[44rem]/sources:col-span-2")}>
+    {/* Name and citation side by side where the list is wide, the citation under the name where not.
+        Editing the name, or a scan being recognized, takes its own place in the same cells, so the
+        row never changes size or moves its actions. */}
+    <div className="min-w-0 @min-[44rem]/sources:grid @min-[44rem]/sources:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[44rem]/sources:items-center @min-[44rem]/sources:gap-4">
+      <div className={cn("flex min-h-8 min-w-0 items-center gap-1", !subline && !recognition && "@min-[44rem]/sources:col-span-2")}>
+        {editing ? <AuthorityName value={name} label={nameLabel} onSave={save} onCancel={() => setEditing(false)} /> : <>
           <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name || citationLine}</h3>
           <button type="button" disabled={busy} onClick={edit} aria-label={`Edit ${nameLabel.toLocaleLowerCase()} for ${title}`}
             className="shrink-0 rounded p-1 text-gray-500 opacity-0 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-600 group-hover/row:opacity-100">
-            <Pencil className="h-3.5 w-3.5" /></button>
-        </div>
-        {subline && <p className="line-clamp-2 text-[0.8125rem] leading-5 text-gray-500" title={subline}>{subline}</p>}
+            <Pencil className="h-3.5 w-3.5" /></button></>}
       </div>
-    </>}
-    {recognition && ocr && <SourceOcrInline status={recognition} ocr={ocr}
-      className="col-start-3 row-start-2 w-full max-w-sm justify-self-start" />}
+      {recognition && ocr ? <SourceOcrInline status={recognition} ocr={ocr} className="w-full max-w-sm" />
+        : subline && <p className="line-clamp-2 text-[0.8125rem] leading-5 text-gray-500" title={subline}>{subline}</p>}
+    </div>
     <div className="col-span-3 row-start-1 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-4">
       {statutes && (copy?.choosable ? choice : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
       {needsPdf && (publisherUrl
@@ -433,8 +423,8 @@ function LookupFailures({ authorities, busy, onRetry }: {
   </div>;
 }
 
-function AuthorityName({ value, label, spans, onSave, onCancel }: {
-  value: string; label: string; spans: boolean; onSave: (value: string) => void; onCancel: () => void;
+function AuthorityName({ value, label, onSave, onCancel }: {
+  value: string; label: string; onSave: (value: string) => void; onCancel: () => void;
 }) {
   const [name, setName] = useState(value), finished = useRef(false);
   return <Input autoFocus aria-label={label} placeholder={`Add ${label.toLocaleLowerCase()}`} value={name}
@@ -443,5 +433,5 @@ function AuthorityName({ value, label, spans, onSave, onCancel }: {
     onKeyDown={(event) => {
       if (event.key === "Enter") event.currentTarget.blur();
       if (event.key === "Escape") { finished.current = true; onCancel(); }
-    }} className={cn("col-span-1 h-8 min-w-0 border-gray-400 text-sm", spans && "sm:col-span-2")} />;
+    }} className="h-8 w-full min-w-0 border-gray-400 text-sm md:text-sm" />;
 }

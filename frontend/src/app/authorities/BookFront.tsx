@@ -9,7 +9,7 @@ import { Input } from "@/app/components/ui/input";
 import { cn, errorMessage } from "@/app/lib/utils";
 import { getPdfJs, openPdfDocument, PDF_DOCUMENT_OPTIONS } from "@/app/lib/pdfJs";
 import type { PdfAnnotation } from "../../../../shared/pdf-annotations.mjs";
-import { OptionCard, OptionCards, Segments } from "./OptionCards";
+import { OptionCard, OptionCards } from "./OptionCards";
 import { AUTHORITIES_PROFILES, authoritiesProfile } from "./profiles";
 import type { AuthoritiesHost } from "./host";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
@@ -25,10 +25,6 @@ export const SECTION = "mb-2 w-full border-b border-gray-200 pb-1 text-sm font-s
 const FIELD = "mt-1 h-9 border-gray-300 text-sm md:text-sm";
 const AREA = "mt-1 min-h-14 w-full resize-y rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600";
 const LABEL = "block min-w-0 text-sm font-medium text-gray-800";
-const GROUPINGS = [{ value: "cases-first", label: "Cases first" }, { value: "legislation-first", label: "Legislation first" },
-  { value: "none", label: "None" }] as const;
-const ORDERS = [{ value: "alphabetical", label: "Alphabetical" }, { value: "first-reference", label: "First cited" },
-  { value: "custom", label: "As arranged" }] as const;
 type Contact = NonNullable<AuthoritiesCover["contact"]>;
 const EMPTY_CONTACT: Contact = { name: "", address: "", phone: "", fax: "", email: "" };
 const CONTACT = [["name", "Name"], ["email", "Email"], ["address", "Address"], ["phone", "Phone"], ["fax", "Fax"]] as const;
@@ -155,13 +151,6 @@ export function IndexFields({ settings, profileId, disabled, onChange }: {
       columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
         { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index also gives the book pages each authority fills." }]}
       onChange={(indexShows) => onChange({ indexShows })} />
-    <div className="grid gap-3">
-      <Segments stacked label="Group" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
-        options={GROUPINGS} disabled={disabled || !!profile.locked?.settings?.grouping} onChange={(grouping) => onChange({ grouping })} />
-      <Segments stacked label="Order" value={settings.tableOrder} disabled={disabled || !!profile.locked?.settings?.tableOrder}
-        options={settings.tableOrder === "custom" ? ORDERS : ORDERS.filter(({ value }) => value !== "custom")}
-        onChange={(tableOrder) => onChange({ tableOrder })} />
-    </div>
     <div className="grid gap-2">
       <OptionCard type="checkbox" checked={tabPages} onChange={() => onChange({ tabPages: !tabPages })}
         label="A TAB page before each authority" detail="Where the index's link and the bookmark for each authority land." />

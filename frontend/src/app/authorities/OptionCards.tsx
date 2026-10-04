@@ -46,29 +46,6 @@ function CardText({ id, label, detail, wide = false, row = false }: { id: string
   </span>;
 }
 
-/** A setting as one row: its name in the column every row shares, its options as segments, and the
- *  chosen option said in a plain sentence under them. */
-export function Segments<T extends string>({ label, value, options, disabled, onChange, stacked = false }: {
-  label: string; value: T; options: ReadonlyArray<{ value: T; label: string; detail?: string }>;
-  disabled?: boolean; onChange: (value: T) => void; stacked?: boolean;
-}) {
-  const chosen = options.find((option) => option.value === value);
-  return <div role="radiogroup" aria-label={label}
-    className={stacked ? "grid min-w-0 gap-1.5" : "grid grid-cols-[8rem_minmax(0,1fr)] items-start gap-x-3"}>
-    <span className={cn("text-[0.8125rem] font-medium text-gray-700", !stacked && "pt-1.5")}>{label}</span>
-    <div className="min-w-0">
-      <div className="flex w-fit max-w-full flex-wrap gap-0.5 rounded-md border border-gray-300 bg-white p-0.5">
-        {options.map((option) => <button key={option.value} type="button" role="radio" aria-checked={option.value === value}
-          disabled={disabled} onClick={() => { if (option.value !== value) onChange(option.value); }}
-          className={cn("h-7 rounded border px-2.5 text-[0.8125rem] font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600",
-            option.value === value ? "border-red-600 bg-red-50 text-red-800" : "border-transparent text-gray-700 hover:bg-gray-100 disabled:text-gray-400")}>
-          {option.label}</button>)}
-      </div>
-      {chosen?.detail && <p className="mt-1 text-xs leading-4 text-gray-600">{chosen.detail}</p>}
-    </div>
-  </div>;
-}
-
 export type CardOption<T extends string> = { value: T; label: string; detail?: string; preview?: ReactNode };
 
 /** The choices as cards under their legend; `collapsed`, closed until opened, its summary naming
