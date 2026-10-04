@@ -296,7 +296,11 @@ async function scanReview(
     // A decision's report or neutral citation names it before the court file it was made under.
     // A citation written with a recognizer's confusion (an "ocr_twin") or without the chapter it takes
     // from another citation of it (a "titled_chapter") does not represent its authority.
-    const representative = full.find((citation) => citation.key && citation.format !== "docket"
+    // A citation that writes where the authority is found ("…, 1982, c 11") represents it before one
+    // that names it alone ("the Canadian Charter of Rights and Freedoms").
+    const representative = full.find((citation) => citation.key && citation.format && citation.format !== "docket"
+        && !citation.reasons.some((reason) => reason === "ocr_twin" || reason === "titled_chapter")) ??
+      full.find((citation) => citation.key && citation.format !== "docket"
         && !citation.reasons.some((reason) => reason === "ocr_twin" || reason === "titled_chapter")) ??
       full.find((citation) => citation.key && citation.format !== "docket") ??
       full.find((citation) => citation.key) ?? full[0] ??
