@@ -1531,6 +1531,7 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   const tabbed = (settings.citationSuffix ?? "none") !== "none";
   const delivery = settings.tableDelivery === "native-marks" ? "each citation marked for Word’s Table of Authorities"
     : settings.tableDelivery === "linked-append" ? "a linked Table of Authorities on a new last page"
+    : settings.tableDelivery === "ruled-append" ? "a Table of Authorities set out as a ruled table on a new last page"
       : "each citation marked and Word’s Table of Authorities on a new last page";
   const wordParts = [...state.insertIntoDocument || !tabbed ? [delivery] : [], ...tabbed ? ["its tab after each citation"] : []];
   const wordMade = state.insertIntoDocument || tabbed || table;
@@ -1647,7 +1648,8 @@ function TableOptions({ draft, busy, onMade, onAction, pdfBrief = false }: { dra
       {pdfBrief && <SelectField label="Table" value={state.settings.tableDelivery}
         disabled={busy || !!profile.locked?.settings?.tableDelivery}
         onChange={(tableDelivery) => onAction({ type: "set-settings", settings: { tableDelivery } })}
-        options={[{ value: "native-append", label: "Word’s table" }, { value: "linked-append", label: "Linked table" },
+        options={[{ value: "native-append", label: "Word’s table" }, { value: "ruled-append", label: "Ruled table" },
+          { value: "linked-append", label: "Linked table" },
           { value: "native-marks", label: "Marked citations only" }]} />}
       <SelectField label="Cited at" value={state.settings.tableLocation} disabled={busy}
         onChange={(tableLocation) => onAction({ type: "set-settings", settings: { tableLocation } })}

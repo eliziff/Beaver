@@ -25,9 +25,13 @@ export type DocxAuthorityMark = {
   mark?: boolean;
   tabUrl?: string;
   pinpointLink?: { start: number; end: number; url: string };
+  /** The authority cited, for the ruled table's "cited at" column. */
+  authorityId?: string;
 };
-export type DocxTableDelivery = "native-marks" | "native-append" | "linked-append";
-export type DocxLinkedAuthority = { label: string; italic: number; url: string | null };
+export type DocxTableDelivery = "native-marks" | "native-append" | "linked-append" | "ruled-append";
+export type DocxLinkedAuthority = { label: string; italic: number; url: string | null;
+  /** For the ruled table: the authority, its group's heading and its tab in the book. */
+  authorityId?: string; group?: string; tab?: string };
 
 function walk(root: XNode | XNode[], visit: (node: XNode) => boolean | void) {
   const pending = (Array.isArray(root) ? root : [root]).slice().reverse();
@@ -347,6 +351,115 @@ function linkedTable(entries: readonly DocxLinkedAuthority[]) {
   ];
 }
 
+/** The number Word prints before each numbered paragraph of the body, as its REF field's \n switch
+ *  gives it (the level's own text, without trailing periods), and a number typed at a paragraph's
+ *  start ("12.", then a tab). A heading's number is no paragraph number, nor is a subparagraph's
+ *  ("(a)"): the paragraphs are those at the list level most numbered paragraphs are at. */
+function paragraphNumbers(paragraphs: readonly XNode[], styles: XNode[] | null, numbering: XNode[] | null) {
+  const child = (node: XNode | undefined, name: string) => elChildren(node ?? {}).find((item) => elName(item) === name);
+  const value = (node: XNode | undefined) => elAttrs(node ?? {})["@_w:val"];
+  const roots = (tree: XNode[] | null, name: string) => elChildren(tree?.find((node) => elName(node) === name) ?? {});
+  const styleOf = new Map(roots(styles, "w:styles").map((style) => [elAttrs(style)["@_w:styleId"], style]));
+  const numberedBy = (pPr: XNode | undefined, depth = 0): { numId?: string; ilvl?: string; heading: boolean } => {
+    const style = styleOf.get(value(child(pPr, "w:pStyle")) ?? "Normal");
+    const own = child(pPr, "w:numPr"), inherited = depth < 10 && style ? numberedBy(child(style, "w:pPr"), depth + 1) : undefined;
+    const name = value(child(style, "w:name")) ?? "";
+    return { numId: value(child(own, "w:numId")) ?? inherited?.numId, ilvl: value(child(own, "w:ilvl")) ?? inherited?.ilvl,
+      heading: /^(?:heading|title)/iu.test(name) || (value(child(pPr, "w:outlineLvl")) ?? "9") !== "9" || !!inherited?.heading };
+  };
+  const nums = new Map(roots(numbering, "w:numbering").filter((node) => elName(node) === "w:num").map((num) =>
+    [elAttrs(num)["@_w:numId"], num]));
+  const abstracts = new Map(roots(numbering, "w:numbering").filter((node) => elName(node) === "w:abstractNum").map((node) =>
+    [elAttrs(node)["@_w:abstractNumId"], node]));
+  const format = (count: number, kind = "decimal") => {
+    if (/letter/iu.test(kind)) {
+      const letter = String.fromCharCode(65 + (count - 1) % 26).repeat(Math.floor((count - 1) / 26) + 1);
+      return kind.startsWith("lower") ? letter.toLowerCase() : letter;
+    }
+    if (/roman/iu.test(kind)) {
+      let roman = "", rest = count;
+      for (const [size, letters] of [[1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"],
+        [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]] as const)
+        while (rest >= size) { roman += letters; rest -= size; }
+      return kind.startsWith("lower") ? roman.toLowerCase() : roman;
+    }
+    return String(count);
+  };
+  const counts = new Map<string, number[]>(), begun = new Set<string>();
+  const found = new Map<XNode, { text: string; auto: boolean; level: number }>();
+  for (const paragraph of paragraphs) {
+    const { numId, ilvl, heading } = numberedBy(child(paragraph, "w:pPr")), num = numId ? nums.get(numId) : undefined;
+    const abstractId = value(child(num, "w:abstractNumId")), abstract = abstracts.get(abstractId);
+    if (num && abstract && abstractId) {
+      const level = Number(ilvl ?? 0), levels = elChildren(abstract).filter((node) => elName(node) === "w:lvl");
+      const lvl = (at: number) => levels.find((node) => Number(elAttrs(node)["@_w:ilvl"]) === at);
+      const start = (at: number) => Number(value(child(elChildren(num).find((node) => elName(node) === "w:lvlOverride" &&
+        Number(elAttrs(node)["@_w:ilvl"]) === at), "w:startOverride")) ?? value(child(lvl(at), "w:start")) ?? 1);
+      const count = counts.get(abstractId) ?? counts.set(abstractId, []).get(abstractId)!;
+      // A list whose numbering restarts starts again where it is first used.
+      if (!begun.has(numId!)) {
+        begun.add(numId!);
+        elChildren(num).forEach((node) => { if (elName(node) === "w:lvlOverride") delete count[Number(elAttrs(node)["@_w:ilvl"])]; });
+      }
+      count[level] = (count[level] ?? start(level) - 1) + 1;
+      count.length = level + 1;
+      const kind = value(child(lvl(level), "w:numFmt")) ?? "decimal";
+      if (!heading && kind !== "bullet" && kind !== "none") found.set(paragraph, { auto: true, level,
+        text: (value(child(lvl(level), "w:lvlText")) ?? `%${level + 1}.`).replace(/%(\d)/gu, (_, at: string) =>
+          format(count[Number(at) - 1] ?? start(Number(at) - 1), value(child(lvl(Number(at) - 1), "w:numFmt")))).replace(/[.\s]+$/u, "") });
+    } else if (!heading) {
+      const typed = /^\s*(\d{1,4})(?:\.[\t ]+|\t+)\S/u.exec(visibleText(paragraph))?.[1];
+      if (typed) found.set(paragraph, { text: typed, auto: false, level: 0 });
+    }
+  }
+  // A paragraph number is a number; a list's "(a)" is part of the paragraph before it.
+  const numbered = [...found].filter(([, { text }]) => /^\d+$/u.test(text)), levels = new Map<number, number>();
+  for (const [, { level }] of numbered) levels.set(level, (levels.get(level) ?? 0) + 1);
+  const level = [...levels].sort(([, left], [, right]) => right - left)[0]?.[0];
+  return new Map(numbered.filter(([, number]) => number.level === level));
+}
+
+/** The authorities as a ruled table, as court filings set them out: the tab each is behind in the
+ *  book, the authority (its style of cause in italics) and where the brief cites it, under a header
+ *  row Word repeats on each page the table runs onto, each group under a row of its own. */
+function ruledTable(entries: ReadonlyArray<DocxLinkedAuthority & { citedAt: XNode[][] }>, width: number,
+  citedAt: "paragraph" | "page") {
+  const tabs = entries.some(({ tab }) => tab), columns = [...tabs ? [864] : [], width - (tabs ? 864 : 0) - 1872, 1872];
+  const border = (side: string) => makeEl(`w:${side}`, [], { "w:val": "single", "w:sz": "4", "w:space": "0", "w:color": "auto" });
+  const run = (text: string, format: XNode[] = []) => makeEl("w:r", [...format.length ? [makeEl("w:rPr", format)] : [],
+    makeEl("w:t", [makeText(text)], /^\s|\s$/u.test(text) ? { "xml:space": "preserve" } : {})]);
+  // Single-spaced and unindented whatever the brief's own paragraphs are.
+  const paragraph = (runs: XNode[], align = "left", keep = false) => makeEl("w:p", [makeEl("w:pPr", [
+    ...keep ? [makeEl("w:keepNext", [])] : [],
+    makeEl("w:spacing", [], { "w:before": "40", "w:after": "40", "w:line": "240", "w:lineRule": "auto" }),
+    makeEl("w:ind", [], { "w:left": "0", "w:right": "0", "w:firstLine": "0" }), makeEl("w:jc", [], { "w:val": align })]), ...runs]);
+  const cell = (content: XNode[], width: number, extra: XNode[] = []) => makeEl("w:tc", [makeEl("w:tcPr", [
+    makeEl("w:tcW", [], { "w:w": String(width), "w:type": "dxa" }), ...extra]), ...content]);
+  const row = (cells: XNode[], properties: XNode[] = []) => makeEl("w:tr", [makeEl("w:trPr", [makeEl("w:cantSplit", []),
+    ...properties]), ...cells]);
+  const shade = () => makeEl("w:shd", [], { "w:val": "clear", "w:color": "auto", "w:fill": "D9D9D9" });
+  const bold = () => [makeEl("w:b", [])];
+  const header = row([...tabs ? ["Tab"] : [], "Authority", citedAt === "paragraph" ? "Cited at paragraph(s)" : "Cited at page(s)"]
+    .map((text, index) => cell([paragraph([run(text, bold())], tabs && !index ? "center" : "left")], columns[index], [shade()])),
+  [makeEl("w:tblHeader", [])]);
+  const groups = new Set(entries.map(({ group }) => group)).size > 1;
+  const rows = entries.flatMap((entry, index) => [
+    // A group's heading row stays with its first authority.
+    ...groups && entry.group !== entries[index - 1]?.group ? [row([cell([paragraph([run(entry.group ?? "", bold())], "left", true)],
+      width, [makeEl("w:gridSpan", [], { "w:val": String(columns.length) })])])] : [],
+    row([...tabs ? [cell([paragraph(entry.tab ? [run(entry.tab)] : [], "center")], columns[0])] : [],
+      cell([paragraph([entry.label.slice(0, entry.italic), entry.label.slice(entry.italic)]
+        .flatMap((text, part) => text ? [run(text, part ? [] : [makeEl("w:i", [])])] : []))], columns.at(-2)!),
+      cell([paragraph(entry.citedAt.flatMap((place, at) => [...at ? [run(", ")] : [], ...place]))], columns.at(-1)!)]),
+  ]);
+  return makeEl("w:tbl", [makeEl("w:tblPr", [makeEl("w:tblW", [], { "w:w": String(width), "w:type": "dxa" }),
+    makeEl("w:tblBorders", ["top", "left", "bottom", "right", "insideH", "insideV"].map(border)),
+    makeEl("w:tblLayout", [], { "w:type": "fixed" }),
+    makeEl("w:tblCellMar", [makeEl("w:top", [], { "w:w": "29", "w:type": "dxa" }), makeEl("w:left", [], { "w:w": "108", "w:type": "dxa" }),
+      makeEl("w:bottom", [], { "w:w": "29", "w:type": "dxa" }), makeEl("w:right", [], { "w:w": "108", "w:type": "dxa" })])]),
+  makeEl("w:tblGrid", columns.map((column) => makeEl("w:gridCol", [], { "w:w": String(column) }))), header, ...rows]);
+}
+
 /** Where the author's links lie in a unit's text. */
 function linkedRanges(root: XNode) {
   const ranges: Array<[number, number]> = [];
@@ -403,7 +516,7 @@ export async function applyTableOfAuthorities(
   // Each entry is marked in full once, at its first citation, and by its short name after that, as
   // Word's Mark Citation does. A short name two entries share would join them, so those keep their
   // full name as their short name too.
-  const placed = marks.filter((mark) => delivery !== "linked-append" && mark.mark !== false &&
+  const placed = marks.filter((mark) => delivery.startsWith("native-") && mark.mark !== false &&
     !existing.get(mark.unitId)?.some(({ offset }) => offset === mark.offset));
   const shortOwners = new Map<string, Set<string>>();
   for (const { longName, shortName } of placed) {
@@ -416,10 +529,77 @@ export async function applyTableOfAuthorities(
   for (const mark of placed) if (!seenLong.has(entryText(mark.longName))) {
     seenLong.add(entryText(mark.longName)); firsts.add(mark);
   }
+  // A ruled table says where each authority is cited: at the brief's numbered paragraphs where it
+  // numbers the paragraphs that cite them, as court filings do, or else at its pages. Each place is a
+  // field Word updates (REF to a paragraph's number, PAGEREF to a citation's page) to a bookmark.
+  const ruled = delivery === "ruled-append" ? marks.filter(({ authorityId }) => authorityId) : [];
+  const paragraphs = document.paragraphs.map(({ node }) => node);
+  const numbers = ruled.length ? paragraphNumbers(paragraphs, await session.readXml("word/styles.xml"),
+    await session.readXml("word/numbering.xml")) : new Map<XNode, { text: string; auto: boolean; level: number }>();
+  // A note's citation is in the paragraph that calls the note; a citation in an unnumbered paragraph
+  // (a block quote, a list) is in the numbered paragraph before it.
+  const noteAt = new Map<string, number>(), numberedAt: Array<XNode | undefined> = [];
+  paragraphs.forEach((node, index) => {
+    walk(node, (item) => { if (elName(item) === "w:footnoteReference") noteAt.set(`footnote:${elAttrs(item)["@_w:id"]}`, index); });
+    numberedAt[index] = numbers.has(node) ? node : numberedAt[index - 1];
+  });
+  // A citation after the last numbered paragraph (in a schedule, or the brief's own table) is at none.
+  for (let index = paragraphs.length - 1; index >= 0 && !numbers.has(paragraphs[index]); index -= 1) numberedAt[index] = undefined;
+  const paragraphOf = ({ unitId }: DocxAuthorityMark) => unitId.startsWith("body:") ? Number(unitId.slice(5)) : noteAt.get(unitId);
+  const byParagraph = ruled.length > 0 && ruled.filter((mark) => numberedAt[paragraphOf(mark) ?? -1]).length * 2 >= ruled.length;
+  const bookmarks = { id: 0, names: new Set<string>() };
+  for (const root of [document.body, ...targets.values()]) walk(root, (node) => {
+    if (elName(node) !== "w:bookmarkStart") return;
+    bookmarks.id = Math.max(bookmarks.id, Number(elAttrs(node)["@_w:id"]) || 0);
+    bookmarks.names.add(elAttrs(node)["@_w:name"]);
+  });
+  const bookmark = () => {
+    let name: string;
+    do name = `_Toa${(bookmarks.id += 1)}`; while (bookmarks.names.has(name));
+    return { name, start: makeEl("w:bookmarkStart", [], { "w:id": String(bookmarks.id), "w:name": name }),
+      end: makeEl("w:bookmarkEnd", [], { "w:id": String(bookmarks.id) }) };
+  };
+  const field = (code: string, result: string) => [makeEl("w:r", [makeEl("w:fldChar", [], { "w:fldCharType": "begin" })]),
+    makeEl("w:r", [makeEl("w:instrText", [makeText(` ${code} `)], { "xml:space": "preserve" })]),
+    makeEl("w:r", [makeEl("w:fldChar", [], { "w:fldCharType": "separate" })]),
+    makeEl("w:r", [makeEl("w:rPr", [makeEl("w:noProof", [])]), makeEl("w:t", [makeText(result)])]),
+    makeEl("w:r", [makeEl("w:fldChar", [], { "w:fldCharType": "end" })])];
+  const citedAt = new Map<string, XNode[][]>(), pageMarks = new Map<DocxAuthorityMark, ReturnType<typeof bookmark>>();
+  const paragraphMarks = new Map<XNode, ReturnType<typeof bookmark>>();
+  for (const authorityId of new Set(ruled.map((mark) => mark.authorityId!))) {
+    const cited = ruled.filter((mark) => mark.authorityId === authorityId);
+    if (byParagraph) {
+      const at = [...new Set(cited.flatMap((mark): XNode[] => { const node = numberedAt[paragraphOf(mark) ?? -1]; return node ? [node] : []; }))]
+        .sort((left, right) => paragraphs.indexOf(left) - paragraphs.indexOf(right));
+      citedAt.set(authorityId, at.map((node) => {
+        const { text, auto } = numbers.get(node)!;
+        if (!auto) return [makeEl("w:r", [makeEl("w:t", [makeText(text)])])];
+        const target = paragraphMarks.get(node) ?? paragraphMarks.set(node, bookmark()).get(node)!;
+        return field(`REF ${target.name} \\n \\h`, text);
+      }));
+    } else {
+      const pages = new Map<number, DocxAuthorityMark>();
+      for (const mark of cited) {
+        const page = pageAt(mark.unitId, mark.offset);
+        if (!pages.has(page)) pages.set(page, mark);
+      }
+      citedAt.set(authorityId, [...pages].sort(([left], [right]) => left - right).map(([page, mark]) => {
+        const target = pageMarks.set(mark, bookmark()).get(mark)!;
+        return field(`PAGEREF ${target.name} \\h`, String(page));
+      }));
+    }
+  }
+  for (const [node, { start, end }] of paragraphMarks) {
+    const children = elChildren(node), first = elName(children[0]) === "w:pPr" ? 1 : 0;
+    children.splice(first, 0, start);
+    children.push(end);
+  }
   for (const mark of [...marks].sort((left, right) =>
       right.unitId.localeCompare(left.unitId) || right.offset - left.offset)) {
       const target = targets.get(mark.unitId);
       if (!target) throw new Error(`Reviewed Word location is missing: ${mark.unitId}.`);
+      const page = pageMarks.get(mark);
+      if (page) insertAtOffset(target, mark.offset, [page.start, page.end]);
       if (mark.suffix) {
         const run = makeEl("w:r", [makeEl("w:t", [makeText(mark.suffix)], { "xml:space": "preserve" })]);
         insertAtOffset(target, mark.offset, [mark.tabUrl ? makeEl("w:fldSimple", [run], {
@@ -460,7 +640,7 @@ export async function applyTableOfAuthorities(
     pageAt(mark.unitId, mark.offset));
   for (const [unitId, marks] of existing) for (const { category, long, offset } of marks)
     if (long) add(category, entryText(long), 0, pageAt(unitId, offset));
-  const appended = delivery === "native-append" ? [
+  const heading = [
     makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
     // A heading of the brief's own look, without the number its headings may carry ("V.") or the
     // indent that number takes.
@@ -468,8 +648,13 @@ export async function applyTableOfAuthorities(
       makeEl("w:numPr", [makeEl("w:ilvl", [], { "w:val": "0" }), makeEl("w:numId", [], { "w:val": "0" })]),
       makeEl("w:ind", [], { "w:left": "0", "w:right": "0", "w:firstLine": "0" })]),
     makeEl("w:r", [makeEl("w:rPr", [makeEl("w:b", [])]), makeEl("w:t", [makeText("Table of Authorities")])])]),
-    ...tableFields(entries, width),
-  ] : delivery === "linked-append" ? linkedTable(linked) : [];
+  ];
+  const appended = delivery === "native-append" ? [...heading, ...tableFields(entries, width)]
+    : delivery === "linked-append" ? linkedTable(linked)
+      // Word ends the body with a paragraph, never a table.
+      : delivery === "ruled-append" ? [...heading, ruledTable(linked.map((entry) => ({ ...entry,
+        citedAt: citedAt.get(entry.authorityId ?? "") ?? [] })), width, byParagraph ? "paragraph" : "page"), makeEl("w:p", [])]
+        : [];
   children.splice(section < 0 ? children.length : section, 0, ...appended);
   if (delivery === "native-append") {
     const styles = await session.readXml("word/styles.xml");
@@ -482,7 +667,7 @@ export async function applyTableOfAuthorities(
     }
   }
   // The table's page numbers are Word's own layout, so Word is asked to update the table on opening.
-  const settings = delivery === "native-append" ? await session.readXml("word/settings.xml") : undefined;
+  const settings = delivery === "native-append" || ruled.length ? await session.readXml("word/settings.xml") : undefined;
   const root = settings?.find((node) => elName(node) === "w:settings");
   if (settings && root) {
     const settingsChildren = elChildren(root);

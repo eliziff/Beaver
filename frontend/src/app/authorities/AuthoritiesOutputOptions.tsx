@@ -10,7 +10,7 @@ export type AuthoritiesOutputOptionsValue = { insertIntoDocument?: boolean } &
   Partial<Pick<AuthoritiesBuildSettings, "tableDelivery" | "citationSuffix" | "citationSuffixLabel" | "tabPrefix" |
     "finalPdf" | "linkTabs" | "linkPinpoints">>;
 
-type WordMode = "none" | "marks" | "table";
+type WordMode = "none" | "marks" | "table" | "ruled";
 type TabMode = NonNullable<AuthoritiesBuildSettings["citationSuffix"]>;
 const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
 // One choice a row: its drawing, its name and its sentence, each in the same column down the list.
@@ -39,7 +39,8 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
 }) {
   const name = useId(), tabsName = useId(), input = useRef<HTMLInputElement>(null);
   const value = currentTabReference(stored);
-  const selected: WordMode = !value.insertIntoDocument ? "none" : value.tableDelivery === "native-marks" ? "marks" : "table";
+  const selected: WordMode = !value.insertIntoDocument ? "none" : value.tableDelivery === "native-marks" ? "marks"
+    : value.tableDelivery === "ruled-append" && !lockedDelivery ? "ruled" : "table";
   const delivery = lockedDelivery ?? (value.tableDelivery === "linked-append" ? "linked-append" : "native-append");
   // A linked table is a list of links, without Word's citation fields.
   const linked = delivery === "linked-append";
@@ -51,6 +52,8 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
       detail: "A copy with a Table of Authorities on a new last page, each authority linked to its source." }
       : { value: "table", label: "Marked copy and table",
         detail: "The marked copy, with Word’s Table of Authorities on a new last page." },
+    { value: "ruled", label: "Copy with a ruled table",
+      detail: "A copy with a Table of Authorities on a new last page, set out as a table with lines: each authority’s tab, the authority, and the paragraphs or pages that cite it." },
   ];
   const tabMode: TabMode = value.citationSuffix ?? "none";
   // The wording is the user's own, typed here (the box starts empty) and saved when it is left,
@@ -71,9 +74,9 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
       <legend className={LEGEND}>Word copy</legend>
       <div className={ROWS}>
         {modes.map(mode => <OptionCard key={mode.value} row name={name} checked={selected === mode.value}
-          disabled={!!lockedDelivery && mode.value === "marks"}
+          disabled={!!lockedDelivery && (mode.value === "marks" || mode.value === "ruled")}
           onChange={() => onChange({ insertIntoDocument: mode.value !== "none",
-            tableDelivery: mode.value === "marks" ? "native-marks" : delivery })}
+            tableDelivery: mode.value === "marks" ? "native-marks" : mode.value === "ruled" ? "ruled-append" : delivery })}
           label={mode.label} detail={mode.detail} preview={<WordPreview mode={mode.value} linked={linked} />} />)}
       </div>
     </fieldset>
@@ -139,7 +142,15 @@ function WordPreview({ mode, linked }: { mode: WordMode; linked: boolean }) {
   return <span aria-hidden="true" className={cn(PAGE, mode === "none" && "border-dashed")}>
     {mode === "none" ? [8, 17, 26].map((top, index) => <span key={top}
       className={cn(LINE, "bg-gray-300", index === 1 ? "w-9" : "w-7")} style={{ top }} />)
-      : mode === "table" ? <>
+      : mode === "ruled" ? <>
+        {/* The brief's last line, then the table on a new page: a heading over a ruled grid. */}
+        <span className={cn(LINE, "top-[5px] w-6")} />
+        <span className="absolute inset-x-0 top-[11px] border-t border-dashed border-gray-400" />
+        <span className="absolute left-2 top-[15px] h-[3px] w-5 bg-gray-900" />
+        <span className="absolute left-2 right-2 top-[21px] grid h-[11px] grid-cols-[3px_1fr_6px] grid-rows-2 border-l border-t border-gray-500">
+          {[0, 1, 2, 3, 4, 5].map((cell) => <span key={cell} className="border-b border-r border-gray-500" />)}
+        </span>
+      </> : mode === "table" ? <>
         {/* The brief's last line, then the table on a new page: a heading over leader rows. */}
         <span className={cn(LINE, "top-[5px] w-6")} />
         <span className="absolute inset-x-0 top-[11px] border-t border-dashed border-gray-400" />
