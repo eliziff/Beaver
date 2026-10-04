@@ -12,7 +12,7 @@
    of it is always there, so nothing moves on hover or selection. */
 .citation-outline [role=option]{border-radius:0}
 .citation-outline .citation-group{margin-inline:-.375rem;padding:.375rem .375rem .25rem}
-.citation-outline .citation-group+.citation-group{border-top:1px solid var(--color-gray-300)}
+.citation-outline .citation-group+.citation-group{border-top:2px solid var(--color-gray-300)}
 .citation-outline .citation-group [role=option]+[role=option]::before{content:"";position:absolute;top:0;left:.6rem;right:.6rem;border-top:1px solid var(--color-gray-200)}
 .citation-outline .citation-note{margin-bottom:0}
 .citation-outline .citation-note>div{border-inline-start:0;padding-inline-start:0}
