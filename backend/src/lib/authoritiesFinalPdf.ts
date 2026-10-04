@@ -97,6 +97,12 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   const outlines: PdfOutline[] = [{ title: "Brief", pageIndex: 0,
     ...(briefOutline.length ? { children: briefOutline } : {}) }];
   const destinations = new Map<string, { tab: number; pages: Map<number, number> }>();
+  // A book that starts its authorities on right-hand pages starts on one itself: after a brief of an odd
+  // number of pages, a blank page, so the book's right-hand pages stay right-hand when the whole is printed.
+  if ((draft.settings.rightHandStarts ?? true) && sourcePages % 2) {
+    const { width, height } = document.getPage(sourcePages - 1).getSize();
+    document.addPage([width, height]);
+  }
   for (const output of books) {
     input.signal?.throwIfAborted();
     const offset = document.getPageCount(), book = await pdf.PDFDocument.load(output.bytes, { updateMetadata: false });
