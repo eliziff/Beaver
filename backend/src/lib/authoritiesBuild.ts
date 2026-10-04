@@ -6,6 +6,8 @@ import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { Nodes } from "mdast";
 import { nestedOutline, pdfAssembly, sourceOutline, type PdfOutline } from "mike/shared/runtime/pdfAssembly.mjs";
+import { arialFont, type PdfFontSource } from "mike/shared/runtime/arialFont.mjs";
+import { pdfFontkit, systemArial } from "./systemArial";
 import { renderAuthoritiesBook, citationLines, drawRuns, fit, pdfNormalized, pdfText, wrapped,
   type BookRow, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 const { addInternalLink: addLink, applyOutlines, appendPages, readOutlines } = pdfAssembly(pdfLibrary);
@@ -888,10 +890,14 @@ async function loadAuthorityPdf(
  *  is missing), so the PDF can be put in its place later. */
 async function missingSourcePdf(pdf: PdfModule, label: Pick<Entry, "name" | "italic">, federal = false, detail?: string) {
   const document = await pdf.PDFDocument.create();
+  // In Arial outside the Federal Court, as the book's cover and tab pages are.
+  const fontkit = federal ? undefined : await pdfFontkit();
+  if (fontkit) document.registerFontkit(fontkit);
+  const arial = fontkit ? await systemArial() : undefined;
   const [regular, bold, italic] = await Promise.all((federal
     ? [pdf.StandardFonts.TimesRoman, pdf.StandardFonts.TimesRomanBold, pdf.StandardFonts.TimesRomanBoldItalic]
-    : [pdf.StandardFonts.Helvetica, pdf.StandardFonts.HelveticaBold, pdf.StandardFonts.HelveticaBoldOblique])
-    .map((font) => document.embedFont(font)));
+    : [arialFont(pdf, "regular", arial), arialFont(pdf, "bold", arial), arialFont(pdf, "boldItalic", arial)])
+    .map(async (font: PdfFontSource) => typeof font === "function" ? font(document) : document.embedFont(font)));
   const page = document.addPage([612, 792]);
   const margin = federal ? 99.21 : 72, size = federal ? 12 : 14;
   let y = 620;
@@ -941,7 +947,8 @@ export async function authoritiesBookFront(draft: AuthoritiesDraft, title: strin
   const drawn = bookFront(listed, subtitle);
   const [book] = await renderAuthoritiesBook(pdfLibrary, { filename: "front.pdf", ...drawn,
     coverPageCount: 1, customIndexPages: 0, groups, sources: groups.flatMap(({ entries }) => entries).map((row) =>
-      ({ ...row, bytes, pageIndices: [0], databaseReference: null, bookmarks: [], outline: [] })) });
+      ({ ...row, bytes, pageIndices: [0], databaseReference: null, bookmarks: [], outline: [] })),
+    arial: await systemArial() }, undefined, await pdfFontkit());
   const document = await pdfLibrary.PDFDocument.load(book.bytes, { updateMetadata: false });
   // The cover's editable fields drawn into its page, so any viewer shows what they hold.
   document.getForm().flatten();
@@ -1087,7 +1094,8 @@ async function prepareAuthorityBook(
 }
 
 async function bookArtifacts(plan: PreparedAuthoritiesBook, signal?: AbortSignal) {
-  return (await renderAuthoritiesBook(pdfLibrary, plan, signal)).map((item) =>
+  return (await renderAuthoritiesBook(pdfLibrary, { ...plan, arial: plan.arial ?? await systemArial() }, signal,
+    await pdfFontkit())).map((item) =>
     ({ ...artifact(item.role, item.filename, item.mimeType, Buffer.from(item.bytes), item.pageCount),
       bookPlacements: item.placements }));
 }

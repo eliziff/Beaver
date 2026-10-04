@@ -1,4 +1,5 @@
-import type { PDFDict, PDFDocument, PDFFont, PDFObject, PDFPage, PDFRef, SaveOptions, StandardFonts } from "pdf-lib";
+import type { PDFDict, PDFDocument, PDFFont, PDFObject, PDFPage, PDFRef, SaveOptions } from "pdf-lib";
+import type { PdfFontSource } from "./arialFont.mjs";
 
 type PdfOutlineDictionary = { dictionary: Array<[string, PdfOutlineValue]> };
 export type PdfOutlineValue = number | boolean | null | { name: string } | { literal: string } |
@@ -19,7 +20,7 @@ export type PdfAssemblyPart<Font extends string> = {
 };
 export type PdfAssemblyInput<Font extends string> = {
   document?: PDFDocument;
-  fonts: Record<Font, StandardFonts | Uint8Array>;
+  fonts: Record<Font, PdfFontSource>;
   fontkit?: Parameters<PDFDocument["registerFontkit"]>[0];
   parts: PdfAssemblyPart<Font>[];
   before?: (context: PdfAssemblyContext<Font>) => void | Promise<void>;
@@ -551,15 +552,15 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
   }
 
   async function embedFonts<Font extends string>(document: PDFDocument,
-    sources: Record<Font, StandardFonts | Uint8Array>,
+    sources: Record<Font, PdfFontSource>,
     fontkit?: Parameters<PDFDocument["registerFontkit"]>[0], subset = true) {
     if (fontkit) document.registerFontkit(fontkit);
     const fonts = {} as Record<Font, PDFFont>;
-    const embedded = new Map<StandardFonts | Uint8Array, PDFFont>();
+    const embedded = new Map<PdfFontSource, PDFFont>();
     for (const name of Object.keys(sources) as Font[]) {
       const source = sources[name];
-      fonts[name] = embedded.get(source) ?? await document.embedFont(source,
-        typeof source === "string" ? undefined : { subset });
+      fonts[name] = embedded.get(source) ?? (typeof source === "function" ? await source(document)
+        : await document.embedFont(source, typeof source === "string" ? undefined : { subset }));
       embedded.set(source, fonts[name]);
     }
     return fonts;
