@@ -105,11 +105,21 @@ function currentTabReference(settings) {
  *  italic: `italic` is the length of that lead, read from where the brief's citation span begins and its
  *  core citation starts. */
 function authorityCitation(draft, authority) {
-  const [first, ...rest] = draft.units.flatMap((unit) => unit.occurrenceIds.map((id) => draft.occurrences[id]))
+  const cites = draft.units.flatMap((unit) => unit.occurrenceIds.map((id) => draft.occurrences[id]))
     .filter((occurrence) => occurrence?.authorityId === authority.id && occurrence.kind !== "reference");
   // "R. v. Oakes" (a source's title) and "R v Oakes" (the brief) are one name, and "(2016) ABQB 16"
   // and "2016 ABQB 16" one citation.
   const lower = (value) => value.toLocaleLowerCase("en-CA").replace(/[.()]/gu, "").replace(/\s+/gu, " ").trim();
+  // A form that differs from another only by letters and digits a recognizer confuses (G and C, O and 0,
+  // l and 1, S and 5, B and 8) is that form misread, not another citation of it.
+  const unconfused = (value) => lower(value).replace(/g/gu, "c").replace(/[oq]/gu, "0").replace(/[il]/gu, "1")
+    .replace(/s/gu, "5").replace(/b/gu, "8");
+  // An earlier citation a recognizer misread ("c. G-36" for "c C-36") does not lead.
+  const misread = (occurrence) => occurrence.coreSpan.text !== authority.citation
+    && unconfused(occurrence.coreSpan.text) === unconfused(authority.citation);
+  const known = misread(cites[0] ?? { coreSpan: { text: authority.citation } })
+    ? cites.findIndex((occurrence) => !misread(occurrence)) : -1;
+  const [first, ...rest] = known > 0 ? [cites[known], ...cites.filter((_, at) => at !== known)] : cites;
   const line = (value) => value.replace(/\s+/gu, " ").trim();
   const name = line(authority.displayName ?? authority.name ?? "");
   const citation = line(authority.citation);
@@ -155,7 +165,7 @@ function authorityCitation(draft, authority) {
   const cited = text.length;
   for (const form of [...rest.map(({ coreSpan }) => coreSpan.text), citation,
     ...authority.sourceIdentity?.citationForms ?? []].map(line))
-    if (form && !lower(text).includes(lower(form)) && !(lead && lower(form).includes(lower(lead)))) text += `, ${form}`;
+    if (form && !unconfused(text).includes(unconfused(form)) && !(lead && lower(form).includes(lower(lead)))) text += `, ${form}`;
   const led = text.startsWith(lead) ? lead.length : 0;
   // `cited` ends the citation as the brief writes it, before the other citations of it.
   return { text, italic: ["case", "legislation"].includes(authority.kind) ? led : 0, lead: led, cited };
