@@ -27,12 +27,16 @@ export const bilingualEnactmentRequired = (authority, requirements) =>
   federalEnactmentCitation(authority.citation);
 /** Whether a build needs authority PDFs at all: a book reproduces every authority,
  *  and a PDF filing carries the table entries it cannot link to. */
-export const authorityBytesRequired = (draft, requirements) =>
-  draft.outputMode !== "table" || !!draft.settings?.finalPdf || !!(draft.insertIntoDocument &&
+export const authorityBytesRequired = (draft, requirements) => !draft.settings?.sourceText &&
+  (draft.outputMode !== "table" || !!draft.settings?.finalPdf || !!(draft.insertIntoDocument &&
     requirements?.unlinkedPdfTableSources && draft.import.kind === "document" &&
-    draft.import.fileType === "pdf");
-/** Whether the build puts this one authority's own PDF in front of the court. */
-export const authorityPdfRequired = (draft, authority, requirements) =>
+    draft.import.fileType === "pdf"));
+/** Where sources need text, not PDFs: a case or statute no provider gave text for. */
+const textMissing = (authority) => ["case", "legislation"].includes(authority.kind) && !authority.excluded &&
+  authority.source.kind !== "attached" && !authority.sourceIdentity;
+/** Whether the build puts this one authority's own PDF in front of the court; where sources need
+ *  text, whether a PDF is its only text. */
+export const authorityPdfRequired = (draft, authority, requirements) => draft.settings?.sourceText ? textMissing(authority) :
   draft.outputMode !== "table" || !!draft.settings?.finalPdf || !!(requirements?.unlinkedPdfTableSources &&
     draft.import.kind === "document" && draft.import.fileType === "pdf" &&
     !authoritySourceUrl(authority));
@@ -48,6 +52,8 @@ export const authorityTabbed = (draft, authority) => !authority.excluded &&
  *  `requirements` names the obligations the caller enforces; `prepared` says whether
  *  a source decision nobody has acted on yet already counts as missing. */
 export function authoritySourceRequirement(draft, authority, requirements, prepared = true) {
+  if (draft.settings?.sourceText) return textMissing(authority) &&
+    (prepared || !["unresolved", "resolved"].includes(authority.source.kind)) ? "missing" : null;
   const attached = authority.source.kind === "attached";
   if (!prepared && ["unresolved", "resolved"].includes(authority.source.kind)) return null;
   if (authorityTabbed(draft, authority)) {

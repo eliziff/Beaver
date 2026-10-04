@@ -32,6 +32,9 @@ export type AuthoritiesBuildSettings = {
   finalPdf?: boolean;
   linkTabs?: boolean;
   linkPinpoints?: boolean;
+  /** Each case and statute needs its text, not its PDF: a source a provider supplies text for is
+   *  complete, and only one without text goes to CanLII and the watched folder (the ALR app). */
+  sourceText?: boolean;
   /** Within each group, the book's tabs and the table's entries: alphabetical, in the order the
    *  brief first cites them, or as the user arranged them in Sources (`custom`). */
   tableOrder: "first-reference" | "alphabetical" | "custom";
