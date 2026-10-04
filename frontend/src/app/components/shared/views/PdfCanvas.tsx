@@ -114,8 +114,10 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
             controller.abort(); quoteGenerationRef.current++; navigationRef.current++;
             if (layoutRef.current?.viewer === viewer) layoutRef.current = null;
             if (drawPage && drawPage.current === session?.drawPage) drawPage.current = null;
+            // The document closes once the viewer has stopped reading it.
             session?.destroy();
-            void task?.destroy().catch(() => undefined);
+            const closing = task;
+            void (session?.closed ?? Promise.resolve()).then(() => closing?.destroy()).catch(() => undefined);
         };
         const fail = (cause: unknown) => {
             if (signal.aborted) return;
