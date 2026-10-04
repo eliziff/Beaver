@@ -8,7 +8,6 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import { FileInputButton } from "./FileInputButton";
-import { FileCard } from "./OptionCards";
 import { TabFormatModal } from "./TabFormatModal";
 import { authorityName, authorityLabel, authorityCitationLine, requiresBilingualSources,
   requiresPdf, sourceLanguageLabel, relinkable } from "./authorityPresentation";
@@ -435,10 +434,8 @@ function AuthorityName({ value, label, onSave, onCancel }: {
 
 /** Shown once in a browser, the first time Sources settles with authorities still needing a PDF:
  *  what is left to add by hand, CanLII's button, and Auto-fetch from folder, as each one works. */
-export function SourcesExplainer({ open, missing, folderKept, onClose, onChooseFolder }: {
+export function SourcesExplainer({ open, missing, onClose, onChooseFolder }: {
   open: boolean; missing: number;
-  /** Whether the folder Auto-fetch watches is kept for the next visit. */
-  folderKept: boolean;
   onClose: () => void;
   /** The toolbar's Auto-fetch from folder, offered while no folder is watched. */
   onChooseFolder?: () => void;
@@ -446,20 +443,17 @@ export function SourcesExplainer({ open, missing, folderKept, onClose, onChooseF
   // Without folder access (Firefox, Safari) the folder chosen is read once, not watched.
   const watches = typeof window !== "undefined" && "showDirectoryPicker" in window;
   const icon = "size-4 shrink-0";
-  return <Modal open={open} onClose={onClose} size="xl" breadcrumbs={["Sources to add by hand"]} fit
+  return <Modal open={open} onClose={onClose} size="xl" breadcrumbs={["Some sources need adding"]} fit
     secondaryAction={onChooseFolder && { label: <><FolderInput /> Choose folder</>, onClick: onChooseFolder }}
     primaryAction={{ label: "Got it", onClick: onClose }}>
-    <div className="grid gap-2 pb-4">
-      <FileCard icon={<FileX2 aria-hidden="true" className={cn(icon, "text-red-700")} />}
-        label={`${missing === 1 ? "One authority needs" : `${missing} authorities need`} a PDF added by hand`}
-        detail={`${missing === 1 ? "Its PDF" : "Their PDFs"} couldn't be fetched automatically. ${missing === 1
-          ? "It is" : "Each is"} marked in the list with the reason, and Upload on its row adds the PDF.`} />
-      <FileCard icon={<img src={canliiLogo} alt="" className={icon} />} label="CanLII"
-        detail="CanLII doesn't allow automatic downloads. The CanLII button on a decision's row opens the decision's PDF on CanLII in a new tab; download the PDF from there. A downloaded PDF isn't added by itself: add it with Upload on its row, or save it into the folder Auto-fetch from folder watches." />
-      <FileCard icon={<FolderInput aria-hidden="true" className={cn(icon, "text-gray-700")} />} label="Auto-fetch from folder"
-        detail={watches
-          ? `Choose the folder Chrome saves into, such as Downloads\\Authorities; Chrome won't share Downloads itself. While this page is open, the folder is checked every two seconds, and each PDF saved there that is a case still without a PDF is added to that case. Statutes and other authorities are added with Upload.${folderKept ? " The folder is kept for your next visit." : ""}`
-          : "Choose the folder your downloads are saved in. Each PDF there that is a case still without a PDF is added to that case. This browser reads the folder once each time you choose it. Statutes and other authorities are added with Upload."} />
-    </div>
+    <ul className="grid gap-3 pb-4 text-sm text-gray-900">
+      {[[<FileX2 key="x" aria-hidden="true" className={cn(icon, "text-red-700")} />,
+        `${missing === 1 ? "1 source couldn't be fetched, so add it" : `${missing} sources couldn't be fetched, so add them`} yourself.`],
+      [<img key="c" src={canliiLogo} alt="" className={icon} />, "For a case, click CanLII and save its PDF to your Auto-fetch folder."],
+      [<FolderInput key="f" aria-hidden="true" className={cn(icon, "text-gray-700")} />, watches
+        ? "Choose that folder once, and PDFs saved there are added automatically."
+        : "Choose that folder, and the PDFs in it are added."],
+      ].map(([mark, line], index) => <li key={index} className="flex items-start gap-3">{mark}<span>{line}</span></li>)}
+    </ul>
   </Modal>;
 }

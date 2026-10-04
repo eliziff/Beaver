@@ -22,15 +22,13 @@ export function OptionCard({ type = "radio", name, checked, disabled, onChange, 
   </label>;
 }
 
-/** A card that holds a file instead of a choice, laid out as the choices are; an `icon` takes the
- *  place a choice's control takes. */
-export function FileCard({ label, detail, action, icon, disabled, className }: {
-  label: ReactNode; detail: ReactNode; action?: ReactNode; icon?: ReactNode; disabled?: boolean; className?: string;
+/** A card that holds a file instead of a choice, laid out as the choices are. */
+export function FileCard({ label, detail, action, disabled, className }: {
+  label: ReactNode; detail: ReactNode; action?: ReactNode; disabled?: boolean; className?: string;
 }) {
   const id = useId();
   return <div role="group" aria-labelledby={id} aria-describedby={`${id}-detail`} aria-disabled={disabled || undefined}
-    className={cn(CARD, icon ? "grid-cols-[auto_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]", disabled && "opacity-60", className)}>
-    {icon}
+    className={cn(CARD, "grid-cols-[minmax(0,1fr)_auto]", disabled && "opacity-60", className)}>
     <CardText id={id} label={label} detail={detail} />
     {action}
   </div>;
