@@ -52,7 +52,9 @@ export type AuthoritiesBuildSettings = {
   /** For a book printed on both sides: each tab page and each authority's first page on a right-hand
    *  page, a blank page added where needed. By default on for a paper filing; never electronic. */
   rightHandStarts?: boolean;
-  tableDelivery: "native-marks" | "native-append" | "linked-append";
+  /** How the Word copy holds the table: Word's own (its citations marked, or marked with the table
+   *  on a last page), a list of links, or a ruled table of tabs, authorities and where each is cited. */
+  tableDelivery: "native-marks" | "native-append" | "linked-append" | "ruled-append";
   tableLocation: "pages" | "pinpoints" | "combined";
   passageMarking: "none" | "margin" | "paragraph" | "text" | "sidelined";
   scannedPdfPolicy: "page-margin" | "cited-pages" | "full";

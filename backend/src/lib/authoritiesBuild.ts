@@ -285,8 +285,9 @@ function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
  *  the pages it is cited on (a PDF brief's) and its tab. A Court of Appeal table numbers each authority
  *  in the order the brief first cites it, its link printed beneath it for a reader on paper. */
 async function tableArtifact(groups: Group[], filename: string, subtitle: string,
-  linked = false, tabs = false) {
-  const { Document, ExternalHyperlink, LeaderType, Packer, Paragraph, Tab, TabStopType, TextRun } = await import("docx");
+  linked = false, tabs = false, ruled?: { tabPrefix: string; location: AuthoritiesDraft["settings"]["tableLocation"] }) {
+  const { AlignmentType, BorderStyle, Document, ExternalHyperlink, LeaderType, Packer, Paragraph, ShadingType, Tab, Table,
+    TableCell, TableLayoutType, TableRow, TabStopType, TextRun, WidthType } = await import("docx");
   const heading = (text: string) => new Paragraph({ keepNext: true, spacing: { before: 240, after: 120 },
     children: [new TextRun({ text, bold: true })] });
   const citation = ({ name, italic, sourceUrl }: Entry) => {
@@ -301,10 +302,36 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
     ...citedAt ? [{ type: TabStopType.RIGHT, position: tabs ? width - 1100 : width, leader: LeaderType.DOT }] : [],
     ...tabs ? [{ type: TabStopType.RIGHT, position: width, leader: citedAt ? LeaderType.NONE : LeaderType.DOT }] : [],
   ];
-  const children = [heading(linked ? "TABLE OF AUTHORITIES" : "Table of Authorities"),
+  const children: Array<InstanceType<typeof Paragraph> | InstanceType<typeof Table>> = [heading(linked ? "TABLE OF AUTHORITIES" : "Table of Authorities"),
     ...(linked || !subtitle ? [] : [new Paragraph({ children: [new TextRun({ text: subtitle, italics: true })] })])];
   if (!groups.length) children.push(new Paragraph("No authorities."));
-  if (linked) groups.flatMap(({ entries }) => entries).forEach((entry, index) => {
+  // The ruled table, as court filings set it out: the tab, the authority and where it is cited, under
+  // a header row Word repeats on each page, each group under a row of its own.
+  else if (ruled) {
+    const columns = [...tabs ? [864] : [], width - (tabs ? 864 : 0) - (citedAt ? 1872 : 0), ...citedAt ? [1872] : []];
+    const cell = (runs: Array<InstanceType<typeof TextRun> | InstanceType<typeof ExternalHyperlink>>, column: number,
+      { center = false, header = false, span = 1 } = {}) => new TableCell({ width: { size: columns[column], type: WidthType.DXA },
+      columnSpan: span, ...header && { shading: { type: ShadingType.CLEAR, color: "auto", fill: "D9D9D9" } },
+      children: [new Paragraph({ alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT, keepNext: span > 1,
+        spacing: { before: 40, after: 40 }, children: runs })] });
+    const line = { style: BorderStyle.SINGLE, size: 4, color: "auto" };
+    const heads = [...tabs ? ["Tab"] : [], "Authority", ...citedAt ? [{ pages: "Cited at page(s)", pinpoints: "Pinpoint(s)",
+      combined: "Cited at" }[ruled.location]] : []];
+    children.push(new Table({ width: { size: width, type: WidthType.DXA }, columnWidths: columns, layout: TableLayoutType.FIXED,
+      margins: { top: 29, bottom: 29, left: 108, right: 108 },
+      borders: { top: line, bottom: line, left: line, right: line, insideHorizontal: line, insideVertical: line },
+      rows: [new TableRow({ tableHeader: true, cantSplit: true, children: heads.map((text, index) =>
+        cell([new TextRun({ text, bold: true })], index, { center: tabs && !index, header: true })) }),
+      ...groups.flatMap((group) => [
+        ...groups.length > 1 ? [new TableRow({ cantSplit: true, children: [cell([new TextRun({ text: group.label, bold: true })], 0,
+          { span: columns.length })] })] : [],
+        ...group.entries.map((entry) => new TableRow({ cantSplit: true, children: [
+          ...tabs ? [cell([new TextRun(entry.tab.startsWith(ruled.tabPrefix) ? entry.tab.slice(ruled.tabPrefix.length) : entry.tab)], 0,
+            { center: true })] : [],
+          cell(citation(entry), tabs ? 1 : 0),
+          ...citedAt ? [cell([new TextRun(entry.citedAt === "—" ? "" : entry.citedAt)], columns.length - 1)] : []] })),
+      ])] }), new Paragraph(""));
+  } else if (linked) groups.flatMap(({ entries }) => entries).forEach((entry, index) => {
     children.push(new Paragraph({ spacing: { after: 120 }, children: [new TextRun(`${index + 1}. `), ...citation(entry),
       ...entry.sourceUrl ? [new TextRun({ break: 1 }), new ExternalHyperlink({ link: entry.sourceUrl,
         children: [new TextRun({ text: entry.sourceUrl, style: "Hyperlink" })] })] : []] }));
@@ -364,7 +391,7 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
     // A linked tab needs its reference to click, even where none was chosen.
     const suffix = tabReference(draft.settings, tab) ?? (finalLinks && draft.settings.linkTabs ? `[${tab}]` : null);
     return [{ ...nativeMark(draft, authority, unit.id, afterShortForm(unit.text, occurrence.end)),
-      mark: draft.insertIntoDocument,
+      mark: draft.insertIntoDocument, authorityId: authority.id,
       ...(suffix && {
         suffix: ` ${suffix}`,
         ...(finalLinks && draft.settings.linkTabs && { tabUrl: filingLinkUrl("tab", occurrence.id) }),
@@ -376,9 +403,13 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
       }),
     }];
   }));
-  const linked = groups.flatMap(({ entries }) => entries.map(({ name, italic, sourceUrl }) => ({
-    label: name, italic, url: sourceUrl,
-  })));
+  // A ruled table gives each authority's tab when there is a book to find it in.
+  const prefix = draft.settings.tabPrefix ?? "Tab ";
+  const linked = groups.flatMap(({ label: group, entries }) => entries.map(({ authority, name, italic, sourceUrl }) => {
+    const tab = draft.outputMode === "table" ? undefined : tabs.get(authority.id);
+    return { label: name, italic, url: sourceUrl, authorityId: authority.id, group,
+      tab: tab?.startsWith(prefix) ? tab.slice(prefix.length) : tab };
+  }));
   const output = await applyTableOfAuthorities(Buffer.from(bytes), draft.units, marks,
     draft.insertIntoDocument ? finalLinks && draft.settings.tableDelivery === "native-append"
       ? "linked-append" : draft.settings.tableDelivery : "native-marks", linked);
@@ -1376,7 +1407,9 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
   input.progress?.(wanted.includes("book") ? "Preparing the book" : "Building the table");
   const built = (await Promise.all(wanted.map(async (role) => role === "table"
     ? [await tableArtifact(tableGroups, `${base}.table-of-authorities.docx`, subtitle,
-      input.draft.settings.tableDelivery === "linked-append", wanted.includes("book"))]
+      input.draft.settings.tableDelivery === "linked-append", wanted.includes("book"),
+      input.draft.settings.tableDelivery === "ruled-append" ? { tabPrefix: input.draft.settings.tabPrefix ?? "Tab ",
+        location: input.draft.settings.tableLocation } : undefined)]
     : role === "book"
       ? assembleBook(await prepareAuthorityBook(input.draft, bookGroups, `${base}.${bookName}.pdf`, subtitle,
         sources, input.signal, input.progress, input.statuteText).then((plan) => {
@@ -1482,6 +1515,8 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
           : [...!input.draft.insertIntoDocument ? []
             : input.draft.settings.tableDelivery === "linked-append"
               ? ["Appended the linked Table of Authorities to the Word document"]
+            : input.draft.settings.tableDelivery === "ruled-append"
+              ? ["Appended the Table of Authorities to the Word document as a ruled table"]
               : ["Marked citations with native Word TA fields",
                 ...input.draft.settings.tableDelivery === "native-marks" ? []
                   : ["Added a native Word TOA field on a final page"]],

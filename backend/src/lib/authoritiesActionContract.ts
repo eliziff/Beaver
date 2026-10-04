@@ -63,7 +63,7 @@ export const AUTHORITIES_SETTINGS_CHOICES = {
   grouping: ["none", "cases-first", "legislation-first"],
   indexShows: ["tabs", "tabs-and-pages"],
   bookmarks: ["highlights", "headings"],
-  tableDelivery: ["native-marks", "native-append", "linked-append"],
+  tableDelivery: ["native-marks", "native-append", "linked-append", "ruled-append"],
   citationSuffix: ["none", "tab", "custom"],
   tableLocation: ["pages", "pinpoints", "combined"],
   passageMarking: ["none", "margin", "paragraph", "text", "sidelined"],

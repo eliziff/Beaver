@@ -23,7 +23,7 @@ const WORDS: Partial<Record<keyof Settings, [string, (value: never) => string]>>
   missingSourcePolicy: ["Missing sources", (value: Settings["missingSourcePolicy"]) =>
     value === "omit" ? "left out of the book" : "keep their tabs"],
   tableDelivery: ["Table", (value: Settings["tableDelivery"]) => ({ "native-append": "Word's table",
-    "linked-append": "linked table", "native-marks": "marked citations only" })[value]],
+    "linked-append": "linked table", "native-marks": "marked citations only", "ruled-append": "ruled table" })[value]],
   tableLocation: ["Table locations", (value: Settings["tableLocation"]) => ({ pages: "pages",
     pinpoints: "pinpoints", combined: "pages and pinpoints" })[value]],
   filingMedium: ["Filing", (value: Settings["filingMedium"]) => value === "paper" ? "paper" : "electronic"],
