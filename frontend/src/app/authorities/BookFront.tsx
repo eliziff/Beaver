@@ -19,7 +19,7 @@ import { courtChange, courtState } from "./courtChange";
 
 export type Settings = AuthoritiesProduct["state"]["settings"];
 /** The settings the cover and the index are drawn from. */
-export const FRONT_KEYS = ["filingMedium", "bookRole", "indexShows", "tabPages", "rightHandStarts", "grouping",
+export const FRONT_KEYS = ["filingMedium", "bookRole", "indexShows", "bookmarks", "tabPages", "rightHandStarts", "grouping",
   "tableOrder"] as const;
 export const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
 const FIELD = "mt-1 h-9 border-gray-300 text-sm md:text-sm";
@@ -117,9 +117,10 @@ export function CoverFields({ cover, profileId, settings, disabled, court, onCov
       {cover.partyGroups.map(({ role, parties }, index) => <Fragment key={index}>
         <Input aria-label={`Role ${index + 1}`} value={role} disabled={disabled} onChange={(event) => group(index, { role: event.target.value })}
           className="h-8 border-gray-300 text-sm md:text-sm" />
-        <textarea aria-label={`Parties for ${role || `role ${index + 1}`}`} rows={Math.max(1, parties.length)} value={parties.join("\n")}
+        {/* As tall as its parties, a long name's wrapped lines included, so no line is cut off. */}
+        <textarea aria-label={`Parties for ${role || `role ${index + 1}`}`} rows={1} value={parties.join("\n")}
           disabled={disabled} onChange={(event) => group(index, { parties: event.target.value.split(/\r?\n/u) })}
-          className="min-h-8 w-full resize-none rounded-md border border-gray-300 bg-white px-2.5 py-1 text-sm leading-5 text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600" />
+          className="min-h-8 w-full resize-none overflow-hidden rounded-md border border-gray-300 bg-white px-2.5 py-1 text-sm leading-5 text-gray-950 outline-none [field-sizing:content] focus-visible:ring-2 focus-visible:ring-red-600" />
         <button type="button" aria-label={`Remove ${role || `role ${index + 1}`}`} disabled={disabled || cover.partyGroups.length <= 2}
           title="Remove this role" onClick={() => onCover({ ...cover, partyGroups: cover.partyGroups.filter((_, position) => position !== index) })}
           className="grid size-8 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:invisible"><X className="size-4" /></button>
@@ -159,6 +160,10 @@ export function IndexFields({ settings, profileId, disabled, onChange, own = fal
       columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
         { value: "tabs-and-pages", label: "Its tab and pages", detail: "The index also gives the book pages each authority fills." }]}
       onChange={(indexShows) => onChange({ indexShows })} />}
+    <OptionCards legend="Bookmarks under each tab" value={settings.bookmarks ?? "highlights"} columns disabled={disabled}
+      options={[{ value: "highlights", label: "Highlighted passages", detail: "Each tab's bookmarks go to the passages highlighted in it." },
+        { value: "headings", label: "The source's own headings", detail: "Each tab's bookmarks follow the headings of the source itself." }]}
+      onChange={(bookmarks) => onChange({ bookmarks })} />
     <div className="grid gap-2">
       <OptionCard type="checkbox" checked={tabPages} onChange={() => onChange({ tabPages: !tabPages })}
         label="A TAB page before each authority" detail="Where the index's link and the bookmark for each authority land." />

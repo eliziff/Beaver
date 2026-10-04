@@ -1678,6 +1678,7 @@ function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, coverDetail, i
       button: <Button type="button" variant="outline" className={action} aria-label="Change the cover" disabled={busy || !book}
         onClick={() => onFront("Cover")}><SlidersHorizontal />Change</Button> },
     { label: "Index", icon: ListOrdered, value: book ? part("index") : lockedMode, alert: book && !!pdfs.kept?.("index")?.issue,
+      detail: book && <span className="text-gray-500">Bookmarks: {draft.state.settings.bookmarks === "headings" ? "the source's own headings" : "highlighted passages"}</span>,
       button: <Button type="button" variant="outline" className={action} aria-label="Change the index" disabled={busy || !book}
         onClick={() => onFront("Index")}><SlidersHorizontal />Change</Button> },
     { label: "Tabs", icon: missing ? CircleAlert : FileStack, value: `${tabs} ${tabs === 1 ? "authority" : "authorities"}`,
