@@ -12,6 +12,9 @@ import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { justiceLawsLegalSourceProvider, justiceLawsSource } from "./legalSources/justiceLaws";
+import { journalLegalSourceProvider } from "./legalSources/journal";
+import { splitQuoteCitationUnits } from "./quoteCitationSplit";
+import type { LegalSourceReference } from "./legalSources";
 import { mapBounded } from "./mapBounded";
 import { legislationPdfUrl, publisherOpenUrl, publisherPdfCandidate } from "./legalSourcePresentation";
 import { downloadProviderOriginalPdf, PublisherDownloadFailure } from "./providerPdfLibraryBridge";
@@ -55,6 +58,9 @@ export const authoritySourceServices = {
     a2ajLegalSourceProvider.document({ citation,
     docType: kind === "case" ? "cases" : "laws", language, signal, discoverPdf: false }),
   resolveForeign: resolveForeignAuthoritySource,
+  /** The journal article a commentary citation names, by its citation or quoted title. */
+  resolveJournal: async (citation: string, signal?: AbortSignal) =>
+    (await journalLegalSourceProvider.resolve!({ text: citation, kind: "journal", signal }))[0] as LegalSourceReference | undefined ?? null,
   download: downloadProviderOriginalPdf,
   ...authorityCitationServices,
   revision: (document: Parameters<ReturnType<typeof structureNative>["documentRevision"]>[0]) =>
@@ -168,8 +174,10 @@ export async function resolveAuthoritiesSources(
       return { source, revision };
     } catch (error) {
       signal?.throwIfAborted();
+      // Working locally only, a source the local store lacks is a miss: A2AJ is not asked.
+      if (error instanceof A2AJUnavailable && error.reason === "local-only") continue;
       // A failure of our own is a defect named by its own message, never A2AJ's error.
-      failure = error instanceof A2AJUnavailable ? { reason: error.reason,
+      failure = error instanceof A2AJUnavailable && error.reason !== "local-only" ? { reason: error.reason,
         retryAfter: error.retryAt ? new Date(error.retryAt).toISOString() : null }
         : { reason: "defect", retryAfter: null, detail: error instanceof Error ? error.message : String(error) };
       // Another form of the citation would meet the same outage; ask again on retry instead.
@@ -233,7 +241,49 @@ export async function resolveAuthoritiesSources(
         citationForms: [...new Set([...authorityCitationForms(initial, id), found.citation])].slice(0, 50),
         sourceSha256: found.sourceSha256, version: found.date, externalUrl: found.url } });
   }
-  if (!needsPdf) return { draft: editor.result(), attachments };
+  // Commentary the journals database holds: its article, and the article's link. An article is
+  // found by its title, which the whole citation part carries and the authority's citation may not.
+  for (const id of draft.authorityOrder) {
+    const authority = draft.authorities[id];
+    if (authority?.kind !== "commentary" || authority.sourceIdentity || (retrying && !retrying.has(id))) continue;
+    signal?.throwIfAborted();
+    const occurrence = Object.values(draft.occurrences).find((item) => item.authorityId === id);
+    const unit = occurrence && draft.units.find((item) => item.id === occurrence.unitId);
+    const [split] = unit ? await splitQuoteCitationUnits([unit.text], signal) : [];
+    const part = split?.parts.find((item) => occurrence!.start >= item.start && occurrence!.start < item.end);
+    let article: Awaited<ReturnType<SourceServices["resolveJournal"]>> = null;
+    try { article = await sources.resolveJournal(part?.text ?? authority.citation, signal); } catch { signal?.throwIfAborted(); }
+    if (!article?.url) continue;
+    editor.apply({ type: "resolve-authority", authorityId: id, citation: authority.citation, name: authority.name,
+      source: { provider: "journal", stableSourceId: `journal:${article.id}`,
+        sourceSha256: canonicalJsonSha256({ provider: "journal", id: article.id }),
+        version: article.date ?? null, externalUrl: article.url } });
+  }
+  // A case left without a source goes to CanLII: one without bytes, or, where sources need text,
+  // one no provider gave text for.
+  const textOnly = !!draft.settings.sourceText;
+  function canliiHandoffs(attached: ReadonlySet<string>) {
+    // One CanLII handoff rule for every case left without bytes, whichever
+    // provider identified it: the publisher's own page when it has one, else the
+    // page CanLII publishes for the citation. A publisher that did not give its
+    // original says why on its own row instead.
+    for (const id of draft.authorityOrder) {
+      if (retrying && !retrying.has(id)) continue;
+      const authority = draft.authorities[id];
+      if (authority?.kind !== "case" || authority.sourceVerificationUrl || attached.has(id) ||
+          authority.source.kind === "attached" || (textOnly && authority.sourceIdentity)) continue;
+      const source = resolvedSources.get(authority.sourceIdentity?.stableSourceId ?? "");
+      const external = authority.sourceIdentity?.externalUrl ?? authority.sourceUrl;
+      const pageUrl = external && buildCanliiPdfUrl(external) ? external
+        : buildCanliiCaseUrlFromCitation([source?.citation, source?.alternateCitation,
+          ...authorityCitationForms(draft, id)].filter((value) => !!value), source?.language);
+      if (pageUrl) editor.apply({ type: "begin-canlii-handoff", authorityId: id, pageUrl });
+    }
+  }
+  if (!needsPdf) {
+    if (textOnly) canliiHandoffs(new Set());
+    return { draft: editor.result(), attachments };
+  }
   const unique = new Map<string, { authorityId: string; authority: AuthorityIdentity;
     source: ResolvedSource }>();
   for (const id of draft.authorityOrder) {
@@ -361,22 +411,6 @@ export async function resolveAuthoritiesSources(
     editor.apply({ type: "set-source-verification", authorityId, pageUrl: stopped?.url ?? null,
       ...(stopped && stopped.reason !== "blocked" ? { reason: stopped.reason } : {}) });
   }
-  // One CanLII handoff rule for every case left without bytes, whichever
-  // provider identified it: the publisher's own page when it has one, else the
-  // page CanLII publishes for the citation. A publisher that did not give its
-  // original says why on its own row instead.
-  const attached = new Set(attachments.map(({ authorityId }) => authorityId));
-  for (const id of draft.authorityOrder) {
-    if (retrying && !retrying.has(id)) continue;
-    const authority = draft.authorities[id];
-    if (authority?.kind !== "case" || authority.sourceVerificationUrl || attached.has(id) ||
-        authority.source.kind === "attached") continue;
-    const source = resolvedSources.get(authority.sourceIdentity?.stableSourceId ?? "");
-    const external = authority.sourceIdentity?.externalUrl ?? authority.sourceUrl;
-    const pageUrl = external && buildCanliiPdfUrl(external) ? external
-      : buildCanliiCaseUrlFromCitation([source?.citation, source?.alternateCitation,
-        ...authorityCitationForms(draft, id)].filter((value) => !!value), source?.language);
-    if (pageUrl) editor.apply({ type: "begin-canlii-handoff", authorityId: id, pageUrl });
-  }
+  canliiHandoffs(new Set(attachments.map(({ authorityId }) => authorityId)));
   return { draft: editor.result(), attachments };
 }
