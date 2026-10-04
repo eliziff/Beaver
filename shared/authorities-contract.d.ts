@@ -182,6 +182,9 @@ export type AuthorityOccurrence = {
   pinpointPhrase?: AuthorityTextSpan;
   kind: AuthorityKind | "reference";
   citation: string;
+  /** The citation engine's key for the citation as written: two citations of an authority with one
+   *  key are one citation of it written two ways ("RSC 1985, c C-5" and "R.S.C., 1985, c. C-5"). */
+  key?: string;
   authorityId: string | null;
   reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string } | null;
   referenceKind?: "short" | "supra" | "ibid";

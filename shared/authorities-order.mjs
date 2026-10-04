@@ -156,9 +156,14 @@ function authorityCitation(draft, authority) {
   }
   if (!lead && name && !lower(text).includes(lower(name))) { text = `${name}, ${text}`; lead = name; }
   const cited = text.length;
-  for (const form of [...rest.map(({ coreSpan }) => coreSpan.text), citation,
-    ...authority.sourceIdentity?.citationForms ?? []].map(line))
-    if (form && !unconfused(text).includes(unconfused(form)) && !(lead && lower(form).includes(lower(lead)))) text += `, ${form}`;
+  // A form with the key of one already written is that citation written another way, and is not repeated.
+  const keys = new Set(first?.key ? [first.key] : []);
+  for (const { form, key } of [...rest.map(({ coreSpan, key }) => ({ form: coreSpan.text, key })), { form: citation, key: authority.key },
+    ...(authority.sourceIdentity?.citationForms ?? []).map((form) => ({ form, key: undefined }))].map(({ form, key }) => ({ form: line(form), key }))) {
+    if (!form || key && keys.has(key) || unconfused(text).includes(unconfused(form)) || lead && lower(form).includes(lower(lead))) continue;
+    text += `, ${form}`;
+    if (key) keys.add(key);
+  }
   const led = text.startsWith(lead) ? lead.length : 0;
   // `cited` ends the citation as the brief writes it, before the other citations of it.
   return { text, italic: ["case", "legislation"].includes(authority.kind) ? led : 0, lead: led, cited };

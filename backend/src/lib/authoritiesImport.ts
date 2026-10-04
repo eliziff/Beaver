@@ -418,7 +418,8 @@ async function scanReview(
         text: unit.text.slice(full.start, full.end),
         ...occurrenceSpans(unit.text, styled, core, pinpoints.map(({ span }) => local(span)),
           citation.fields.pinCite ? local(citation.fields.pinCite) : undefined),
-        kind: reference ? "reference" : kindOf(citation.authority), citation: citation.span.text, authorityId,
+        kind: reference ? "reference" : kindOf(citation.authority), citation: citation.span.text,
+        ...(citation.key ? { key: citation.key } : {}), authorityId,
         reference: authorityId && (citation.form === "short" || citation.form === "ibid" || citation.form === "supra")
           ? { kind: citation.form, targetAuthorityId: authorityId } : null,
         referenceKind: citation.form === "short" || citation.form === "ibid" || citation.form === "supra"
