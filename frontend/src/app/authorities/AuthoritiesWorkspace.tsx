@@ -1057,8 +1057,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // them at once; never during the review or a build, which would wait behind it.
   useHighlightsAhead(host, draft && (stage === "sources" || stage === "highlights") ? draft : undefined, ocr.tracked);
   const statuteCopies = useStatuteCopies(host, draft, shown, ocr.tracked, stage === "sources" || stage === "highlights");
+  // A step already reached can be looked at while work runs (PDFs attaching, a save): looking at it changes
+  // nothing, and each step holds its own controls while busy.
   const steps = STEPS.filter(({ value }) => value !== "citations" || draft?.state.import.kind !== "manual")
-    .map(step => ({ ...step, disabled: busy || STEPS.findIndex(({ value }) => value === step.value) >
+    .map(step => ({ ...step, disabled: STEPS.findIndex(({ value }) => value === step.value) >
       STEPS.findIndex(({ value }) => value === reached) }));
   // A step's note ("… attached") belongs to that step, so moving on clears it.
   const viewStep = (value: Step) => { setMessage(""); setViewedStep({ key: stepKey, value }); };
