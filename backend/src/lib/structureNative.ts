@@ -86,6 +86,8 @@ export type NativeAuthorityTextUnit = {
   page_numbers: number[];
   text: string;
   footnote_refs: Array<[footnoteId: number, offset: number]>;
+  /** A Word body paragraph's place: the indices of the elements that lead to it from the body. */
+  path?: number[];
 };
 
 type Rect = [number, number, number, number];

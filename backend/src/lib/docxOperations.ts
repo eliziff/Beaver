@@ -1,4 +1,5 @@
 import { openDocxSession } from "./docx/session";
+import { structureNative } from "./structureNative";
 import {
   ATTR_KEY,
   cloneNode,
@@ -33,11 +34,15 @@ export type DocxLinkedAuthority = { label: string; italic: number; url: string |
   /** For the ruled table: the authority, its group's heading and its tab in the book. */
   authorityId?: string; group?: string; tab?: string };
 
+/** A text box's paragraphs are units of their own, read once (not again from the fallback kept for
+ *  older readers): a paragraph's own text never holds them. */
+const ownUnit = (node: XNode) => !["w:txbxContent", "mc:Fallback"].includes(elName(node) ?? "");
+
 function walk(root: XNode | XNode[], visit: (node: XNode) => boolean | void) {
   const pending = (Array.isArray(root) ? root : [root]).slice().reverse();
   while (pending.length) {
     const node = pending.pop()!;
-    if (visit(node) === false) continue;
+    if (!ownUnit(node) || visit(node) === false) continue;
     pending.push(...elChildren(node).slice().reverse());
   }
 }
@@ -68,8 +73,11 @@ async function authorityUnitPackage(bytes: Buffer,
   units: ReadonlyArray<{ id: string; text: string }>) {
   const session = await openDocxSession(bytes);
   const document = await session.document(), footnotes = await session.readXml("word/footnotes.xml");
+  // The body's paragraphs as citation review numbered them, each found by the engine's path to it.
   const targets = new Map<string, XNode>();
-  document.paragraphs.forEach(({ node }, ordinal) => targets.set(`body:${ordinal}`, node));
+  const elements = (node: XNode) => elChildren(node).filter((child) => !(elName(child) ?? "#").startsWith("#"));
+  for (const { key, path } of await structureNative().docxAuthorityTextUnits(bytes))
+    if (path) targets.set(key, path.reduce<XNode>((node, index) => elements(node)[index] ?? {}, document.body));
   if (footnotes) walk(footnotes, (node) => {
     if (elName(node) === "w:footnote") {
       const id = elAttrs(node)["@_w:id"];
@@ -154,7 +162,7 @@ function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
   let after: { node: XNode; parent: XNode } | null = null, link: { node: XNode; parent: XNode } | null = null;
   const descend = (node: XNode, parent: XNode | null, run: XNode | null,
     runParent: XNode | null, hyperlink: { node: XNode; parent: XNode } | null = null): void => {
-    if (after || elName(node) === "w:del") return;
+    if (after || elName(node) === "w:del" || !ownUnit(node)) return;
     const name = elName(node);
     if (name === "w:hyperlink" && parent) hyperlink = { node, parent };
     const nextRun = name === "w:r" ? node : run;
@@ -466,7 +474,7 @@ function linkedRanges(root: XNode) {
   let cursor = 0;
   const visit = (node: XNode): void => {
     const name = elName(node);
-    if (name === "w:del") return;
+    if (name === "w:del" || !ownUnit(node)) return;
     if (name === "w:t") cursor += getTextContent(node).length;
     else if (name === "w:tab" || name === "w:br" || name === "w:cr") cursor += 1;
     const start = cursor;
@@ -545,7 +553,8 @@ export async function applyTableOfAuthorities(
   });
   // A citation after the last numbered paragraph (in a schedule, or the brief's own table) is at none.
   for (let index = paragraphs.length - 1; index >= 0 && !numbers.has(paragraphs[index]); index -= 1) numberedAt[index] = undefined;
-  const paragraphOf = ({ unitId }: DocxAuthorityMark) => unitId.startsWith("body:") ? Number(unitId.slice(5)) : noteAt.get(unitId);
+  const paragraphOf = ({ unitId }: DocxAuthorityMark) => unitId.startsWith("body:")
+    ? paragraphs.indexOf(targets.get(unitId) ?? {}) : noteAt.get(unitId);
   const byParagraph = ruled.length > 0 && ruled.filter((mark) => numberedAt[paragraphOf(mark) ?? -1]).length * 2 >= ruled.length;
   const bookmarks = { id: 0, names: new Set<string>() };
   for (const root of [document.body, ...targets.values()]) walk(root, (node) => {
