@@ -59,7 +59,8 @@ export function createAuthoritiesRuntimeRouter(authenticate: RequestHandler,
   const router = Router(); router.use(authenticate);
   const operations = createAuthoritiesOperations(resolveSources, reviewDiscrepancies);
   router.get("/capabilities", asyncRoute(async (_req, res) => { res.json((await operations.capabilities()).data); }));
-  router.post("/quote-check", asyncRoute(async (req, res) => {
+  // A quote check sends the PDFs attached for its authorities: their quotations are read from them.
+  router.post("/quote-check", multipleFileUpload("files", 500, 16 * 1024 * 1024), asyncRoute(async (req, res) => {
     const abort = new AbortController(); res.once("close", () => abort.abort());
     const streamed = req.accepts("text/event-stream") && req.get("accept") === "text/event-stream";
     if (!streamed) return sendResult(res, "quote-check", await operations["quote-check"](await operationInput(req), { signal: abort.signal }));

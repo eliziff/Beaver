@@ -67,6 +67,9 @@ export interface AuthoritiesHost {
     product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt; notice?: string;
   }>;
   download(documentId: string, versionId: string): Promise<Blob>;
+  /** Checks the draft's quotations against their sources, PDFs attached for its authorities included:
+   *  the quote check's result. */
+  checkQuotes?(product: AuthoritiesProduct, progress?: (message: string) => void, signal?: AbortSignal): Promise<unknown>;
   searchLibrary?(query: string, context?: { projectId?: string | null;
     formats?: Array<"pdf" | "docx"> },
     signal?: AbortSignal): Promise<Document[]>;

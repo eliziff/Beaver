@@ -382,6 +382,22 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return { product: saved, receipt, ...(notice ? { notice } : {}) };
   },
   download: async (documentId, versionId) => {
+  async checkQuotes(selected, progress, signal) {
+    signal?.throwIfAborted();
+    const product = await currentProduct(selected.id, selected.revision);
+    // The PDFs attached for authorities: their quotations are checked against them.
+    const form: AuthoritiesRequest = { draft: product.state }, roles: string[] = [];
+    for (const { source } of authoritiesInputPlan(product.state,
+      authoritiesProfile(product.state.settings.profileId).requirements).authoritySources) {
+      const file = await resolveExact(product.state.bindings[source.bindingRole], true);
+      if (file) { (form.files ??= []).push(file); roles.push(source.bindingRole); }
+    }
+    form["roles"] = roles;
+    return (await authoritiesOperation("quote-check", form, { signal, quoteProgress: (value) => {
+      const { completed, total } = value as { completed: number; total: number };
+      progress?.(`Checking quotations · ${completed} of ${total}`);
+    } })).data;
+  },
     const saved = await readStandaloneOutputByDocument(documentId, versionId);
     return new Blob([saved.bytes.slice().buffer], { type: saved.output.mimeType });
   },
