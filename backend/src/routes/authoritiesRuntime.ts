@@ -1,79 +1,17 @@
-import { decodePdfProfileSelection } from "../lib/documentStore";
-import { authorityCitationForms } from "../lib/authoritiesDomain";
-import { documentProjectionService } from "../lib/documentProjectionService";
-import { docxToPdf, wordToPdfAvailable } from "../lib/convert";
-import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { Router, type Request, type RequestHandler, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
-import { ApplicationError, reject } from "../lib/applicationError";
-import { authoritiesBookFront, authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations,
-  statuteExcerptSummary, type AuthoritiesBuildInput } from "../lib/authoritiesBuild";
-import { sourceReadings } from "../lib/sourceReadings";
-import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
-import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
-  reduceAuthoritiesDraft, type AuthoritiesDraft } from "../lib/authoritiesDomain";
-import { importStandaloneAuthoritiesFile } from "../lib/authoritiesImport";
+import { ApplicationError } from "../lib/applicationError";
+import { createAuthoritiesOperations, assertAuthoritiesBuildUploadSize } from "../lib/authoritiesOperations";
+import { resolveAuthoritiesSources } from "../lib/authoritiesSourceResolution";
 import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
-import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
-  autoFetchedPdf, attachAuthoritiesBookPdf, authoritiesReview, folderPdfAuthority, readPinpoints } from "../lib/authoritiesActions";
-import { validateAuthoritiesPdf } from "../lib/authoritiesPdf";
-import { authorityReferenceText, authorityStatuteText, resolveAuthoritiesSources, retryableAuthoritySource,
-  type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
-import { authoritiesSourceText, createAuthoritiesPreparation, prepareAuthoritiesCorrection } from
-  "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
 import { followedRoute } from "../lib/followedRoute";
-import { sha256 } from "../lib/hash";
-import { multipleFileUpload, requiredFile, singleFileUpload } from "../lib/upload";
-import { checkQuotes, decodeQuoteLinks } from "../lib/quoteCheck";
-import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
-  decodeAuthoritiesUserAction, decodePdfOpening, text } from "../lib/authoritiesActionContract";
-
-const MAX_BUILD_INPUT_BYTES = 512 * 1024 * 1024;
-
-export function assertAuthoritiesBuildUploadSize(
-  files: ReadonlyArray<Pick<Express.Multer.File, "size">>,
-) {
-  if (files.reduce((total, file) => total + file.size, 0) > MAX_BUILD_INPUT_BYTES)
-    reject(413, "Authorities build files are too large together. Maximum total is 512 MB.");
-}
-
-function draft(value: unknown) {
-  return decodeAuthoritiesDraft({ ...(value as object),
-    ledger: (value as { ledger?: unknown })?.ledger ?? null }) ??
-    reject(400, "Authorities draft is invalid");
-}
-
-function json(value: unknown, label: string) {
-  try { return JSON.parse(String(value)); }
-  catch { return reject(400, `${label} must be JSON`); }
-}
-
-function initialSettings(value: unknown) {
-  return value === undefined ? undefined : decodeAuthoritiesInitialSettings(
-    typeof value === "string" ? json(value, "settings") : value,
-  );
-}
-
-function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAuthoritySource[]) {
-  let draft = state;
-  for (const attachment of attachments) {
-    if (sha256(attachment.bytes) !== attachment.sourceSha256) {
-      reject(500, "Prepared authority source hash is invalid");
-    }
-    draft = attachAuthorityPdf(draft, draft.authorities[attachment.authorityId],
-      { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
-        lastSeen: { name: attachment.filename, size: attachment.bytes.length,
-          modified: 0, sha256: attachment.sourceSha256 } },
-      attachment.filename, attachment.sourceSha256, attachment.language, attachment);
-  }
-  return draft;
-}
-
+import { multipleFileUpload, singleFileUpload } from "../lib/upload";
+import type { AuthoritiesOperation, AuthoritiesOperationInput, AuthoritiesRuntimeResult } from "mike/shared/runtime/authoritiesRuntime.mjs";
 function sendMultipart(res: Response, metadata: Record<string, unknown>,
-  files: Iterable<{ role: string; mimeType: string; bytes: Buffer; filename?: string }>) {
+  files: Iterable<{ role: string; mimeType: string; bytes: Uint8Array; filename?: string }>) {
   const boundary = `beaver-${randomUUID()}`;
   res.setHeader("Content-Type", `multipart/form-data; boundary=${boundary}`);
   return pipeline((function* () {
@@ -91,8 +29,8 @@ function sendMultipart(res: Response, metadata: Record<string, unknown>,
   })(), res);
 }
 
-async function sendDraft(res: Response, state: AuthoritiesDraft,
-  attachments: PreparedAuthoritySource[]) {
+async function sendDraft(res: Response, state: unknown,
+  attachments: NonNullable<AuthoritiesRuntimeResult["attachments"]>) {
   if (!attachments.length) return void res.json(state);
   await sendMultipart(res, { draft: state, attachments: attachments.map((item, index) => ({
       part: `file-${index}`, authorityId: item.authorityId, filename: item.filename,
@@ -101,327 +39,52 @@ async function sendDraft(res: Response, state: AuthoritiesDraft,
       filename: "source.pdf", mimeType: "application/pdf", bytes: item.bytes })));
 }
 
-async function standaloneSource(req: Request): Promise<
-  Parameters<typeof importStandaloneAuthoritiesFile>[0]
-> {
-  const file = requiredFile(req);
-  const filename = file.originalname, extension = filename.split(".").at(-1)?.toLowerCase();
-  const fileType = extension === "pdf" || extension === "docx" ? extension
-    : reject(400, "Add a PDF or Word document");
-  const modified = Number(req.body?.modified);
-  if (!Number.isSafeInteger(modified) || modified < 0) reject(400, "modified is invalid");
-  return { filename, fileType, bytes: await readFile(file.path), modified };
-}
 
-export function createAuthoritiesRuntimeRouter(
-  authenticate: RequestHandler,
+async function operationInput(req: Request): Promise<AuthoritiesOperationInput> {
+  const files = Array.isArray(req.files) ? req.files : req.file ? [req.file] : [];
+  assertAuthoritiesBuildUploadSize(files);
+  return { ...req.body, files: await Promise.all(files.map(async file => ({
+    filename: file.originalname, bytes: await readFile(file.path), modified: Number(req.body?.modified),
+  }))) };
+}
+async function sendResult(res: Response, operation: AuthoritiesOperation, result: AuthoritiesRuntimeResult) {
+  if (result.attachments) return sendDraft(res, result.data, result.attachments);
+  if (operation === "book-front") return void res.type("application/pdf").send(Buffer.from(result.files![0].bytes));
+  if (result.files) return sendMultipart(res, result.data as Record<string, unknown>, result.files);
+  res.json(result.data);
+}
+export function createAuthoritiesRuntimeRouter(authenticate: RequestHandler,
   resolveSources: typeof resolveAuthoritiesSources = resolveAuthoritiesSources,
-  reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
-) {
+  reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies) {
   const router = Router(); router.use(authenticate);
-  // A source read for a draft is read once: the read-ahead, the editor's marks and every build
-  // of an unchanged draft share the reading.
-  const readings = sourceReadings();
-  router.get("/capabilities", (_req, res) => void res.json({ wordToPdf: wordToPdfAvailable() }));
+  const operations = createAuthoritiesOperations(resolveSources, reviewDiscrepancies);
+  router.get("/capabilities", asyncRoute(async (_req, res) => { res.json((await operations.capabilities()).data); }));
   router.post("/quote-check", asyncRoute(async (req, res) => {
-    const state = draft(req.body?.draft), links = decodeQuoteLinks(req.body?.links);
-    const abort = new AbortController();
-    res.on("close", () => abort.abort());
-    if (!req.accepts("text/event-stream") || req.get("accept") !== "text/event-stream") {
-      res.json(await checkQuotes(state, links, abort.signal)); return;
-    }
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache"); res.flushHeaders();
+    const abort = new AbortController(); res.once("close", () => abort.abort());
+    const streamed = req.accepts("text/event-stream") && req.get("accept") === "text/event-stream";
+    if (!streamed) return sendResult(res, "quote-check", await operations["quote-check"](await operationInput(req), { signal: abort.signal }));
+    res.setHeader("Content-Type", "text/event-stream"); res.setHeader("Cache-Control", "no-cache"); res.flushHeaders();
     try {
-      const report = await checkQuotes(state, links, abort.signal, (completed, total, quote) =>
-        res.write(`data: ${JSON.stringify({ quote, completed, total })}\n\n`));
-      res.write(`data: ${JSON.stringify({ done: true, counts: report.counts })}\n\n`);
+      const result = await operations["quote-check"](await operationInput(req), { signal: abort.signal,
+        quoteProgress: value => res.write(`data: ${JSON.stringify(value)}\n\n`) });
+      res.write(`data: ${JSON.stringify({ done: true, counts: (result.data as { counts: unknown }).counts })}\n\n`);
     } catch (error) {
-      // A rejected request says why; anything else stopped part-way through.
       if (!abort.signal.aborted) res.write(`data: ${JSON.stringify({ error: error instanceof ApplicationError
         ? error.message : "Checking stopped. Completed receipts are available to download." })}\n\n`);
     } finally { res.end(); }
   }));
-  router.post("/source-text", singleFileUpload("file"), followedRoute(async (req, res, progress) => {
-    const state = draft(json(req.body?.draft, "draft"));
-    const role = String(req.body?.role), bytes = await readFile(requiredFile(req).path);
-    const source = Object.values(state.authorities).flatMap(authority =>
-      attachedAuthoritySources(authority.source)).find(source => source.bindingRole === role);
-    if (!source || sha256(bytes) !== source.sourceSha256)
-      return reject(409, "The PDF no longer matches this authority source");
-    const pages = req.body?.pages === undefined ? undefined : json(req.body.pages, "pages");
-    if (pages !== undefined && (!Array.isArray(pages) || !pages.length || pages.length > 1_000 ||
-        pages.some(page => !Number.isSafeInteger(page) || page < 1))) reject(400, "Invalid PDF pages");
-    const abort = new AbortController(); res.once("close", () => abort.abort());
-    const reference = { documentId: `standalone-authority:${source.sourceSha256}`,
-      versionId: source.sourceSha256, sourceSha256: source.sourceSha256 };
-    if (req.body?.prepareOnly === "true") {
-      // One recognition pass, followed page by page as "recognized/total".
-      const prepared = await documentProjectionService.preparePdf({ ...reference, bytes,
-        ocrProvider: "kraken-lite", pages, signal: abort.signal, ...(progress ? { progress: (value) => {
-          if (value.phase === "recognizing") progress(`${value.recognized}/${value.total}`);
-        } } : {}) });
-      const text = await documentProjectionService.pdfTextLayer(() => bytes, reference,
-        {pdfProfile:prepared,signal:abort.signal});
-      return void res.json({pages:text});
-    }
-    // Reading a text layer never starts recognition: it restores the source-bound preparation.
-    const profile = req.body?.pdfProfile === undefined ? undefined
-      : decodePdfProfileSelection(json(req.body.pdfProfile, "pdfProfile"));
-    if (req.body?.pdfProfile !== undefined && !profile) return reject(400, "Invalid PDF profile");
-    const text = profile ? await documentProjectionService.pdfTextLayer(() => bytes, reference,
-      { pdfProfile: profile, signal: abort.signal, pages }) : [];
-    res.json({ pages: text });
-  }));
-  // What a build reads from one source, read ahead of it: the pages it recognizes (a scan's
-  // opening and cited pages, or all of it where a passage has to be found) are kept, so the
-  // build finds them ready. Reported as "recognized/total" pages.
-  router.post("/source-read", singleFileUpload("file"), followedRoute(async (req, res, progress) => {
-    const state = draft(json(req.body?.draft, "draft"));
-    const role = String(req.body?.role), bytes = await readFile(requiredFile(req).path);
-    const source = Object.values(state.authorities).flatMap(authority =>
-      attachedAuthoritySources(authority.source)).find(source => source.bindingRole === role);
-    if (!source || sha256(bytes) !== source.sourceSha256)
-      return reject(409, "The PDF no longer matches this authority source");
-    const abort = new AbortController(); res.once("close", () => abort.abort());
-    await createAuthoritiesPreparation(state, readings).prepareText(role, { bytes, sourceSha256: source.sourceSha256,
-      signal: abort.signal, ...(progress ? { progress: (done: number, total: number) => progress(`${done}/${total}`) } : {}) });
-    res.json({});
-  }));
-  // What a statute's excerpt holds of one of its PDFs, from the reading its build shares.
-  router.post("/excerpt", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const state = draft(json(req.body?.draft, "draft"));
-    const role = String(req.body?.role), bytes = await readFile(requiredFile(req).path);
-    const authority = Object.values(state.authorities).find(item =>
-      attachedAuthoritySources(item.source).some(source => source.bindingRole === role));
-    const source = authority && attachedAuthoritySources(authority.source).find(item => item.bindingRole === role);
-    if (!authority || !source || sha256(bytes) !== source.sourceSha256)
-      return reject(409, "The PDF no longer matches this authority source");
-    const abort = new AbortController(); res.once("close", () => abort.abort());
-    res.json(statuteExcerptSummary(state, authority, source, await authoritiesSourceText(state, readings)(role,
-      { bytes, sourceSha256: source.sourceSha256, signal: abort.signal })));
-  }));
-  router.post("/pinpoints", asyncRoute(async (req, res) => {
-    const text = String(req.body?.text ?? ""), start = Number(req.body?.start), end = Number(req.body?.end);
-    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > text.length || end <= start)
-      return reject(400, "Select the pinpoint in this citation's paragraph or footnote");
-    res.json(readPinpoints(text, start, end).map(({ kind, start, end }) => ({ kind, start, end })));
-  }));
-  router.post("/page-labels", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const state = draft(json(req.body?.draft, "draft"));
-    const role = String(req.body?.bindingRole);
-    const authority = Object.values(state.authorities).find(item =>
-      attachedAuthoritySources(item.source).some(source => source.bindingRole === role));
-    const source = authority && attachedAuthoritySources(authority.source).find(item => item.bindingRole === role);
-    if (!authority || !source) return reject(400, "The authority PDF is not attached");
-    const bytes = await readFile(requiredFile(req).path);
-    if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before reading page labels.");
-    const information = await documentProjectionService.pdfInformation({
-      documentId: `standalone-authority:${source.sourceSha256}`, versionId: source.sourceSha256,
-      sourceSha256: source.sourceSha256, fileType: "pdf", readBytes: () => bytes,
-      reporterOriginal: source.origin === "original",
-    }, authorityCitationForms(state, authority.id));
-    res.json({ ...information, pages: [], pageLabels: information.pageMap.map(page => page.label) });
-  }));
-  router.post("/annotations", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const state = draft(json(req.body?.draft, "draft"));
-    const authority = state.authorities[String(req.body?.authorityId)];
-    const source = authority && attachedAuthoritySources(authority.source).find(item =>
-      item.bindingRole === req.body?.bindingRole);
-    if (!authority || !source) return reject(400, "The authority PDF is not attached");
-    const file = requiredFile(req);
-    const bytes = await readFile(file.path);
-    if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
-    const abort = new AbortController(); res.on("close", () => abort.abort());
-    const pdf = await import("pdf-lib");
-    const document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
-    if (!document.getPageCount() || document.getPageCount() > 2_000) return reject(400, "Unsupported PDF page count");
-    // Manual editing never depends on a successful automatic match. The source is read as a
-    // build reads it, so a source read ahead or built is not read again.
-    const text = state.settings.passageMarking !== "none" && authorityPassageTargets(state, authority.id).length
-      ? await authoritiesSourceText(state, readings)(source.bindingRole,
-        { bytes, sourceSha256: source.sourceSha256, signal: abort.signal }) : {};
-    res.json(prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true));
-  }));
-  router.post("/create", asyncRoute(async (req, res) => {
-    await sendDraft(res, applyAuthoritiesInitialSettings(
-      createAuthoritiesDraft({ kind: "manual" }), initialSettings(req.body?.settings),
-    ), []);
-  }));
-  router.post("/import", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const settings = initialSettings(req.body?.settings);
-    const imported = await importStandaloneAuthoritiesFile({
-      ...await standaloneSource(req), sourceMode: settings?.sourceMode,
-    });
-    await sendDraft(res, applyAuthoritiesInitialSettings(imported, settings), []);
-  }));
-  router.post("/refresh", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const source = await standaloneSource(req);
-    const current = draft(json(req.body?.draft, "draft"));
-    const imported = current.import.kind === "document" ? current.import
-      : reject(400, "Only an imported document can be refreshed");
-    if (req.body?.replace !== "true" && imported.fileType !== source.fileType)
-      reject(400, "The refreshed source type must match the imported document");
-    const fresh = await importStandaloneAuthoritiesFile({
-      ...source, sourceMode: current.settings.sourceMode,
-    });
-    const currentInput = current.bindings[imported.bindingRole], freshInput = fresh.bindings.source;
-    const currentSource = currentInput?.kind === "local-file" ? currentInput
-      : reject(400, "The imported source binding is invalid");
-    const freshSource = freshInput?.kind === "local-file" ? freshInput
-      : reject(400, "The imported source binding is invalid");
-    fresh.bindings.source = { ...freshSource, handleId: currentSource.handleId };
-    await sendDraft(res, reduceAuthoritiesDraft(current, { type: "refresh", review: authoritiesReview(fresh) }), []);
-  }));
-  router.post("/action", asyncRoute(async (req, res) => {
-    const current = draft(req.body?.draft);
-    const action = decodeAuthoritiesUserAction(req.body?.action);
-    await sendDraft(res, applyAuthoritiesUserAction(current, action), []);
-  }));
-  // The book's cover and first index page with the changes not yet made to the draft.
-  router.post("/book-front", asyncRoute(async (req, res) => {
-    const actions = Array.isArray(req.body?.actions) && req.body.actions.length <= 3 ? req.body.actions as unknown[]
-      : reject(400, "actions are invalid");
-    const state = actions.map(decodeAuthoritiesUserAction).reduce((state, action) => applyAuthoritiesUserAction(state, action),
-      draft(req.body?.draft));
-    res.type("application/pdf").send(await authoritiesBookFront(state, String(req.body?.title ?? "").slice(0, 300)));
-  }));
-  router.post("/sources", followedRoute(async (req, res, progress) => {
-    const preparation = new AbortController(); res.once("close", () => preparation.abort());
-    const current = draft(req.body?.draft);
-    const onlyAuthorityId = req.body?.authorityId === undefined
-      ? undefined : text(req.body.authorityId, 200);
-    if (onlyAuthorityId && !retryableAuthoritySource(current, onlyAuthorityId))
-      reject(409, "This authority has nothing to retry.");
-    const prepared = await resolveSources(current, undefined, preparation.signal, onlyAuthorityId, progress);
-    await sendDraft(res, attachPreparedSources(prepared.draft, prepared.attachments),
-      prepared.attachments);
-  }));
-  router.post("/discrepancies", asyncRoute(async (req, res) => {
-    const review = new AbortController(); res.once("close", () => review.abort());
-    res.json(await reviewDiscrepancies(draft(req.body?.draft), review.signal));
-  }));
-  router.post("/discrepancies/actions", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const review = new AbortController(); res.once("close", () => review.abort());
-    const current = draft(typeof req.body?.draft === "string"
-      ? json(req.body.draft, "draft") : req.body?.draft);
-    const input = decodeAuthoritiesDiscrepancyAction(typeof req.body?.request === "string"
-      ? json(req.body.request, "request") : req.body?.request);
-    const prepared = await prepareAuthoritiesCorrection(current, input, async (imported) => {
-      const source = await standaloneSource(req), binding = current.bindings[imported.bindingRole];
-      if (source.fileType !== "docx" || binding?.kind !== "local-file" ||
-          binding.lastSeen.sha256 !== sha256(source.bytes)) {
-        reject(409, "The imported Word document changed. Refresh first.");
-      }
-      return { ...source, filename: imported.filename };
-    }, reviewDiscrepancies, review.signal);
-    if (prepared.kind === "ignored") return sendDraft(res, prepared.draft, []);
-    const { bytes, draft: decided } = prepared;
-    const filename = prepared.source.filename.replace(/(?: corrected)?\.docx$/iu, " corrected.docx");
-    const fresh = await importStandaloneAuthoritiesFile({ filename, fileType: "docx", bytes,
-      modified: 0, sourceMode: current.settings.sourceMode });
-    const state = reduceAuthoritiesDraft(decided, { type: "refresh", review: authoritiesReview(fresh) });
-    state.stage = current.stage === "citations" ? "citations" : "sources";
-    await sendMultipart(res, { draft: state }, [{ role: "source", filename: "source.docx",
-      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes }]);
-  }));
-  router.post("/pdf", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const current = draft(json(req.body?.draft, "draft"));
-    const { filename, fileType, bytes, modified } = await standaloneSource(req);
-    if (!filename.trim() || filename.length > 500 || /[\u0000-\u001f\u007f]/u.test(filename) ||
-        fileType !== "pdf" || bytes.subarray(0, 5).toString("ascii") !== "%PDF-") reject(400, "Add a valid PDF");
-    const pageCount = await validateAuthoritiesPdf(bytes);
-    const sourceSha256 = sha256(bytes), binding = { kind: "local-file" as const, handleId: "standalone",
-      lastSeen: { name: filename, size: bytes.length, modified, sha256: sourceSha256 } };
-    if (req.body?.authority_id !== undefined) {
-      const id = req.body.authority_id, authority = typeof id === "string" && Object.hasOwn(current.authorities, id)
-        ? current.authorities[id] : reject(400, "This authority no longer exists.");
-      const language = (["en", "fr", "bilingual"] as const).find(value => value === req.body.language)
-        ?? reject(400, "Choose the PDF language.");
-      const checked = req.body.auto_fetched === "true" ? await autoFetchedPdf(current, authority.id, bytes) : current;
-      res.json(attachAuthorityPdf(checked, checked.authorities[authority.id], binding, filename, sourceSha256, language,
-        { pageCount }));
-    } else {
-      const slot = AUTHORITIES_BOOK_SLOTS.find(value => value === req.body?.slot)
-        ?? reject(400, "Book-part slot is invalid");
-      const supplementId = req.body?.supplement_id;
-      if (supplementId !== undefined && (typeof supplementId !== "string" || !supplementId.trim() ||
-          supplementId.length > 500)) reject(400, "Book-part ID is invalid");
-      res.json(attachAuthoritiesBookPdf(current, { slot, supplementId }, binding, filename, sourceSha256));
-    }
-  }));
-  // The authority still without a PDF that a PDF from the watched folder is, if exactly one.
-  router.post("/pdf-authority", asyncRoute(async (req, res) => {
-    const current = draft(req.body?.draft);
-    res.json({ authorityId: await folderPdfAuthority(current, decodePdfOpening(req.body),
-      (authority) => authorityReferenceText(current, authority)) });
-  }));
-  router.post("/build", multipleFileUpload("files", 500, 16 * 1024 * 1024), followedRoute(async (req, res, progress) => {
-    const build = new AbortController();
-    res.once("close", () => build.abort());
-    let raw: unknown, roles: unknown;
-    try { raw = JSON.parse(String(req.body?.draft)); roles = JSON.parse(String(req.body?.roles)); }
-    catch { reject(400, "draft and roles must be JSON"); }
-    const state = draft(raw);
-    const files = Array.isArray(req.files) ? req.files : [];
-    assertAuthoritiesBuildUploadSize(files);
-    if (!Array.isArray(roles) || roles.length !== files.length ||
-        !roles.every((role) => typeof role === "string" && role.length <= 300))
-      reject(400, "Authorities build inputs are invalid");
-    const roleNames = roles as string[];
-    if (new Set(roleNames).size !== roleNames.length) reject(400, "Duplicate source roles are invalid");
-    const id = String(req.body?.id ?? ""), revision = Number(req.body?.revision);
-    const title = String(req.body?.title ?? "").trim();
-    if (!id || !title || title.length > 300 || !Number.isSafeInteger(revision) || revision < 1)
-      reject(400, "Authorities build identity is invalid");
-    let preparation: ReturnType<typeof createAuthoritiesPreparation>;
-    // Saved highlights for a PDF that was since replaced are the user's to review, not a server fault.
-    try { preparation = createAuthoritiesPreparation(state, readings); }
-    catch (error) { return reject(409, error instanceof Error ? error.message : "Authorities could not be built"); }
-    // Every source is read at once: its preparation waits only on the parsers and recognizers that
-    // bound that work (native preparation runs off the event loop), so a scan's pages are queued
-    // for recognition from the start, not after the sources before it. The count is of those finished.
-    let read = 0;
-    progress?.(`Reading sources · 0 of ${files.length}`);
-    const sources: NonNullable<AuthoritiesBuildInput["sources"]> = Object.fromEntries(
-      await Promise.all(files.map(async (file, index) => {
-        const role = roleNames[index], bytes = await readFile(file.path);
-        build.signal.throwIfAborted();
-        const binding = state.bindings[role];
-        const expectedHash = binding?.kind === "local-file" ? binding.lastSeen.sha256
-          : binding?.kind === "document" && binding.version !== "latest" ? binding.version.sha256 : null;
-        const sourceSha256 = expectedHash && sha256(bytes) === expectedHash ? expectedHash
-          : reject(409, "An attached PDF changed. Add the current file before continuing.");
-        // Recognizing a scan's pages is the long part of reading one: it reports page by page.
-        const recognizing = (done: number, total: number) =>
-          progress?.(`Recognizing text in ${file.originalname} · ${done} of ${total} page${total === 1 ? "" : "s"}`);
-        return [role, { bytes, ...await preparation.prepareText(role, { bytes, sourceSha256,
-          signal: build.signal, progress: recognizing })
-          .catch((error) => {
-            if (build.signal.aborted) throw error;
-            return reject(409, error instanceof Error
-              ? `Could not read ${file.originalname}: ${error.message}`
-              : `Could not read ${file.originalname}`);
-          }).finally(() => progress?.(`Reading sources · ${++read} of ${files.length}`)) }] as const;
-      })));
-    let book: PreparedAuthoritiesBook | undefined;
-    const built = await buildAuthorities({ draft: state, title,
-      workProduct: { id, revision }, sources, signal: build.signal, progress,
-      statuteText: (authority, signal) => authorityStatuteText(state, authority, undefined, signal),
-      ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
-    }, state.settings.finalPdf ? undefined : async (prepared) => {
-      book = prepared; return [];
-    }).catch((error) => {
-      if (build.signal.aborted) throw error;
-      return reject(409, error instanceof Error ? error.message : "Authorities could not be built");
-    });
-    const artifacts = Object.values(built.artifacts).filter((artifact) => artifact !== undefined);
-    const bookFiles: Array<{ role: string; mimeType: string; bytes: Buffer }> = [];
-    const prepared = book && await mapAuthorityBookBytes(book, (bytes, role) => {
-      bookFiles.push({ role, mimeType: "application/pdf", bytes: Buffer.from(bytes) }); return role;
-    });
-    await sendMultipart(res, { receipt: built.receipt, ...(prepared ? { book: prepared } : {}) },
-      [...artifacts, ...bookFiles]);
-  }));
+  const uploads = new Set<AuthoritiesOperation>(["source-text", "source-read", "excerpt", "page-labels",
+    "annotations", "import", "refresh", "discrepancies/actions", "pdf"]);
+  const streamed = new Set<AuthoritiesOperation>(["source-text", "source-read", "sources", "build"]);
+  for (const operation of Object.keys(operations) as AuthoritiesOperation[]) {
+    if (operation === "capabilities" || operation === "quote-check") continue;
+    const handle = async (req: Request, res: Response, progress?: (message: string) => void) => {
+      const abort = new AbortController(); res.once("close", () => abort.abort());
+      await sendResult(res, operation, await operations[operation](await operationInput(req), { signal: abort.signal, progress }));
+    };
+    const middleware = operation === "build" ? [multipleFileUpload("files", 500, 16 * 1024 * 1024)]
+      : uploads.has(operation) ? [singleFileUpload("file")] : [];
+    router.post(`/${operation}`, ...middleware, streamed.has(operation) ? followedRoute(handle) : asyncRoute(handle));
+  }
   return router;
 }
