@@ -306,8 +306,9 @@ async function scanReview(
       ...(full.length && full.every(citation => citation.authority === "case" &&
           ["database", "docket"].includes(citation.format ?? ""))
         ? { citationFormat: representative.format as "database" | "docket" } : {}),
-      citation: observedText,
-      name: source ? null : representative.style?.text?.trim() || null,
+      // A citation or name a PDF's line or page break runs through is one line ("RSC ⏎⏎ 1985").
+      citation: oneLine(observedText),
+      name: source ? null : oneLine(representative.style?.text ?? "") || null,
       displayName: null, excluded: false,
       evidenceIds: [], locators: [], sourceIdentity: null,
       source: { kind: "unresolved" }, scanOnly: true,
@@ -558,6 +559,8 @@ export function createAuthoritiesImporter(
     },
   });
 }
+
+const oneLine = (value: string) => value.replace(/\s+/gu, " ").trim();
 
 /** Stateless local-runtime import; the browser remains the draft/file owner. */
 /** A link written without its scheme ("online: <example.org/report>") is the web address it names. */
