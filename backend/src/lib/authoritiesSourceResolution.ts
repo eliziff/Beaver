@@ -316,7 +316,7 @@ export async function resolveAuthoritiesSources(
         name: source.name, citation: source.citation, date: source.date,
         sourceUrl: source.publisherUrl ?? source.url, text: source.searchText,
         provider: (source.provider ?? "a2aj") === "a2aj" ? "A2AJ" : source.provider,
-        retrieved: new Date().toISOString().slice(0, 10) });
+        retrieved: new Date().toISOString().slice(0, 10), federal: !!requirements?.federalFormatting });
     } catch { signal?.throwIfAborted(); }
     // A text rebuild stands in for the original, and the row still says why the original is not there.
     // A statute's length decides how its book copy is made, so it is recorded with it.

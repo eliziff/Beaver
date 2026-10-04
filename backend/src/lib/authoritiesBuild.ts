@@ -393,6 +393,8 @@ export async function renderAuthoritySourcePdf(input: {
   sourceUrl: string | null; text: string;
   /** Who gave the text, and the day it was retrieved (YYYY-MM-DD): a statute says both. */
   provider?: string; retrieved?: string;
+  /** For a Federal Court book, whose pages are in Times; others' running heads are in Arial. */
+  federal?: boolean;
 }) {
   if (!input.text.trim()) throw new Error("Authority source text is empty.");
   const pdf = await import("pdf-lib"), document = await pdf.PDFDocument.create();
@@ -401,7 +403,13 @@ export async function renderAuthoritySourcePdf(input: {
   const italic = await document.embedFont(pdf.StandardFonts.TimesRomanItalic);
   const boldItalic = await document.embedFont(pdf.StandardFonts.TimesRomanBoldItalic);
   const mono = await document.embedFont(pdf.StandardFonts.Courier);
-  const sans = await document.embedFont(pdf.StandardFonts.Helvetica);
+  // The running head and page numbers are in Arial outside the Federal Court, as the book's own
+  // pages are: the machine's Arial embedded where it has one, else Arial named with its widths.
+  const fontkit = input.federal ? undefined : await pdfFontkit();
+  if (fontkit) document.registerFontkit(fontkit);
+  const head: PdfFontSource = input.federal ? pdf.StandardFonts.TimesRoman
+    : arialFont(pdf, "regular", fontkit ? await systemArial() : undefined);
+  const sans = typeof head === "function" ? await head(document) : await document.embedFont(head);
   const width = 612, height = 792, left = 66, right = 66, top = 58, bottom = 54;
   const title = pdfText(input.name?.trim() || input.citation.trim());
   const citation = pdfText(input.citation.trim());
@@ -1029,7 +1037,8 @@ async function prepareAuthorityBook(
         passageGeometry: source.passageGeometry }) : null;
     // What the PDF does not place is rebuilt from the statute's text, after the pages it does.
     const rebuilt = excerpt?.missing.length && source.authority
-      ? await rebuiltProvisions(source.authority, source.name, excerpt.missing, statuteText, signal) : null;
+      ? await rebuiltProvisions(source.authority, source.name, excerpt.missing, statuteText, signal,
+        !!profile.requirements?.federalFormatting) : null;
     let rebuiltBookmarks: PreparedBookPdf["rebuiltBookmarks"];
     if (rebuilt) {
       const offset = source.document.getPageCount();
@@ -1164,7 +1173,7 @@ function statuteExcerptPages(draft: AuthoritiesDraft, authority: AuthorityIdenti
  *  from the text by the structure layer's outline, with everything under it. Null where the text
  *  cannot be had or holds none of them. */
 async function rebuiltProvisions(authority: AuthorityIdentity, name: string,
-  wanted: AuthorityPassageRequest["locators"], statuteText?: StatuteText, signal?: AbortSignal) {
+  wanted: AuthorityPassageRequest["locators"], statuteText?: StatuteText, signal?: AbortSignal, federal = false) {
   const found = await statuteText?.(authority, signal);
   if (!found?.text.trim()) return null;
   const outline = structureNative().statuteOutline(found.text);
@@ -1187,7 +1196,7 @@ async function rebuiltProvisions(authority: AuthorityIdentity, name: string,
   if (!spans.length) return null;
   const text = spans.map(([start, end]) => found.text.slice(start, end).trim()).join("\n\n");
   const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: authority.name ?? name, citation: authority.citation,
-    date: null, sourceUrl: null, text, provider: found.provider, retrieved: new Date().toISOString().slice(0, 10) });
+    date: null, sourceUrl: null, text, provider: found.provider, retrieved: new Date().toISOString().slice(0, 10), federal });
   return pdfLibrary.PDFDocument.load(bytes);
 }
 
