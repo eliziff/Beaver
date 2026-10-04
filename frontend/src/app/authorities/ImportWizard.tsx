@@ -39,25 +39,37 @@ export const ORDER_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["t
   { value: "alphabetical", label: "Alphabetical", detail: "Orders each group alphabetically." },
   { value: "custom", label: "As arranged", detail: "Keeps the order you set by dragging in Sources." },
 ];
-type SourceSettings = Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy" | "grouping" | "tableOrder">;
+export const HISTORY_OPTIONS: ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildSettings["subsequentHistory"]>>> = [
+  { value: "own-tab", label: "Give it its own tab",
+    detail: "A decision cited as subsequent history (aff’d, rev’d) gets a tab of its own." },
+  { value: "with-case", label: "Keep it with the case",
+    detail: "The history is printed in the case’s citation and gets no tab of its own." },
+];
+type SourceSettings = Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy" | "grouping" | "tableOrder" | "subsequentHistory">;
 /** The sources' settings as cards, two columns: the same at import and, opened, at Sources. */
 export function SourceChoices({ settings, profileId, sources = true, recognition = true, disabled, onChange }: {
   settings: SourceSettings; profileId: AuthoritiesProfileId; sources?: boolean; recognition?: boolean; disabled?: boolean;
   onChange: (patch: Partial<SourceSettings>) => void;
 }) {
   const locked = authoritiesProfile(profileId).locked?.settings;
+  // Two columns, each its own stack: Order has two choices, so Subsequent history sits under it in the
+  // room that leaves, and the step fits without scrolling.
   return <div className="grid content-start gap-5 lg:grid-cols-2">
-    {sources && <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={disabled}
-      onChange={(sourceMode) => onChange({ sourceMode })} />}
-    {sources && recognition && <div className="grid content-start gap-2">
-      <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}
-        disabled={disabled} onChange={(scannedPdfPolicy) => onChange({ scannedPdfPolicy })} />
-    </div>}
-    <OptionCards legend="Groups" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
-      options={GROUP_OPTIONS} disabled={disabled || !!locked?.grouping} onChange={(grouping) => onChange({ grouping })} />
-    <OptionCards legend="Order" value={settings.tableOrder} disabled={disabled || !!locked?.tableOrder}
-      options={settings.tableOrder === "custom" ? ORDER_OPTIONS : ORDER_OPTIONS.filter(({ value }) => value !== "custom")}
-      onChange={(tableOrder) => onChange({ tableOrder })} />
+    <div className="grid content-start gap-5">
+      {sources && <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={disabled}
+        onChange={(sourceMode) => onChange({ sourceMode })} />}
+      <OptionCards legend="Groups" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
+        options={GROUP_OPTIONS} disabled={disabled || !!locked?.grouping} onChange={(grouping) => onChange({ grouping })} />
+    </div>
+    <div className="grid content-start gap-5">
+      {sources && recognition && <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}
+        disabled={disabled} onChange={(scannedPdfPolicy) => onChange({ scannedPdfPolicy })} />}
+      <OptionCards legend="Order" value={settings.tableOrder} disabled={disabled || !!locked?.tableOrder}
+        options={settings.tableOrder === "custom" ? ORDER_OPTIONS : ORDER_OPTIONS.filter(({ value }) => value !== "custom")}
+        onChange={(tableOrder) => onChange({ tableOrder })} />
+      <OptionCards legend="Subsequent history" value={settings.subsequentHistory ?? "own-tab"} options={HISTORY_OPTIONS}
+        disabled={disabled} onChange={(subsequentHistory) => onChange({ subsequentHistory })} />
+    </div>
   </div>;
 }
 
@@ -65,7 +77,7 @@ export function SourceChoices({ settings, profileId, sources = true, recognition
 export const SHORT: Record<string, string> = { automatic: "Automatic sources", "manual-originals": "Original PDFs, then my uploads",
   render: "Rebuild all from text", "page-margin": "Keep as images", "cited-pages": "Recognize cited pages", full: "Recognize every page" };
 /** The import's choices: the court, the cover and the index, the sources, and the marking. */
-const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "passageMarking"] as const;
+const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "passageMarking", "subsequentHistory"] as const;
 /** A book's steps; a court that takes only a table skips the cover and the index. */
 const BOOK_STEPS = ["Cover", "Index", "Sources", "Marking"] as const, TABLE_STEPS = ["Sources", "Marking"] as const;
 
