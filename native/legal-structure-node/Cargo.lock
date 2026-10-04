@@ -1024,6 +1024,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "legal-document-query"
+version = "0.1.0"
+dependencies = [
+ "legal-structure-model",
+ "regex",
+ "serde",
+ "serde_json",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "legal-grammar"
 version = "0.1.0"
 dependencies = [
@@ -1159,6 +1170,7 @@ version = "0.1.0"
 dependencies = [
  "aho-corasick",
  "legal-citations",
+ "legal-document-query",
  "legal-structure-model",
  "regex",
  "serde",
