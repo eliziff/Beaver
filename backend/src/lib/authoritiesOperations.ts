@@ -21,6 +21,8 @@ import { authoritiesSourceText, createAuthoritiesPreparation, prepareAuthorities
   "./authoritiesPreparation";
 import { sha256 } from "./hash";
 import { checkQuotes, decodeQuoteLinks } from "./quoteCheck";
+import type { NativeDocument } from "./structureNative";
+import type { LegalSourceReference } from "./legalSources";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
   decodeAuthoritiesUserAction, decodePdfOpening, text } from "./authoritiesActionContract";
 
@@ -87,7 +89,24 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
   return {
     capabilities: async () => value({ wordToPdf: wordToPdfAvailable() }),
     "quote-check": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
-return { data: await checkQuotes(draft(input.draft), decodeQuoteLinks(input.links), context.signal, (completed, total, quote) => context.quoteProgress?.({ completed, total, quote })) };
+      const state = draft(json(input.draft, "draft")), files = input.files ?? [];
+      const roles = json(input.roles ?? "[]", "roles");
+      if (!Array.isArray(roles) || roles.length !== files.length) reject(400, "Each attached PDF needs its source role");
+      // A PDF the user attached for an authority is the text its quotations are checked against.
+      const attached = new Map<string, { document: NativeDocument; source: LegalSourceReference }>();
+      for (const [index, file] of files.entries()) {
+        const bytes = sourceBytes(file), digest = sha256(bytes);
+        const authority = Object.values(state.authorities).find((item) => attachedAuthoritySources(item.source)
+          .some((source) => source.bindingRole === roles[index] && source.sourceSha256 === digest));
+        if (!authority) return reject(409, "An attached PDF changed. Add the current file before continuing.");
+        const pdf = attachedAuthoritySources(authority.source).find((source) => source.bindingRole === roles[index])!;
+        attached.set(authority.id, { document: await documentProjectionService.read({ documentId: `standalone-authority:${digest}`,
+          versionId: digest, sourceSha256: digest, fileType: "pdf", readBytes: () => bytes }, { signal: context.signal }),
+        source: { provider: "attached", id: digest, kind: authority.kind === "legislation" ? "legislation" : "case",
+          citation: authority.citation, title: authority.displayName ?? authority.name, url: pdf.sourceUrl } });
+      }
+      return { data: await checkQuotes(state, decodeQuoteLinks(input.links), context.signal,
+        (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }), undefined, undefined, attached) };
     },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;

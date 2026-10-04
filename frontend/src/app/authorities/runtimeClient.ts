@@ -11,7 +11,7 @@ export async function authoritiesOperation(operation: AuthoritiesOperation, inpu
   options: AuthoritiesOperationOptions = {}): Promise<AuthoritiesRuntimeResult> {
   options.signal?.throwIfAborted();
   if (globalThis.AUTHORITIES_OPERATIONS) {
-    if ((input.files?.length ?? 0) > (operation === "build" ? 500 : 1))
+    if ((input.files?.length ?? 0) > (operation === "build" || operation === "quote-check" ? 500 : 1))
       throw new BeaverApiError({ status: 400, message: "Too many source files." });
     if (input.files?.some(file => file.size > 100 * 1024 * 1024))
       throw new BeaverApiError({ status: 413, message: "File too large. Maximum size is 100 MB." });
@@ -36,7 +36,7 @@ export async function authoritiesOperation(operation: AuthoritiesOperation, inpu
       if (name !== "files" && value !== undefined)
         form.append(name, typeof value === "object" ? JSON.stringify(value) : String(value));
     }
-    for (const file of input.files) form.append(operation === "build" ? "files" : "file", file,
+    for (const file of input.files) form.append(operation === "build" || operation === "quote-check" ? "files" : "file", file,
       file instanceof File ? file.name : "authority.pdf");
     body = form;
   } else if (operation !== "capabilities") {
