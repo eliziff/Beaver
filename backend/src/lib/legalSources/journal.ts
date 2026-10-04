@@ -9,6 +9,8 @@ import { structureNative, type NativeDocument } from "../structureNative";
 import { isUnitedStatesSearch } from ".";
 import type { LegalSourceProvider, LegalSourceSearchRequest, LegalSourceReference } from ".";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
+import { sequenceOpcodes } from "mike/shared/sequence-diff.mjs";
+import { sourceUrl } from "../legalSourceLinks";
 
 type Row = Record<string, unknown>;
 type FinalContractPages = { filename: string; signature: string };
@@ -453,6 +455,38 @@ function journalReference(document: JournalArticleDocument) {
   } satisfies LegalSourceReference;
 }
 
+/** Python difflib's ratio of two titles, by character, after folding case and punctuation. */
+function titleRatio(a: string, b: string) {
+  const fold = (value: string) => [...value.toLowerCase().replace(/[^\p{L}\p{N}_\s]/gu, "").replace(/\s+/gu, " ").trim()];
+  const [x, y] = [fold(a), fold(b)];
+  if (!x.length && !y.length) return 1;
+  const same = sequenceOpcodes(x, y).filter(([tag]) => tag === "equal").reduce((sum, [, a0, a1]) => sum + a1 - a0, 0);
+  return (2 * same) / (x.length + y.length);
+}
+/** The article a citation names by the title it quotes: the closest title the search finds for it,
+ *  when close enough. After ALR-Quote-Verifier journal_search.py search_by_title (difflib ratio of at least
+ *  0.7 between normalized titles), with candidates from this database's own title search. */
+function titledArticle(citation: string) {
+  let best: { score: number; articleId: number } | null = null;
+  const titles = structureNative().citationEngineCall("quotedTitles", JSON.stringify({ text: citation })) as string[];
+  for (const title of titles) for (const hit of findArticles(title, 5)) {
+    const score = titleRatio(title, hit.name);
+    if (!best || score > best.score) best = { score, articleId: hit.articleId };
+  }
+  return best && best.score >= 0.7 ? best.articleId : null;
+}
+
+/** An article's PDF opened at a printed page: the database's page map gives the PDF page, which
+ *  counts cover and front pages the printed numbers skip. Null when the map lacks the page. */
+function pageLink(identity: string, printedPage: string) {
+  const row = articleRow(identity), url = row && trustedUrl(string(row, "galley_url") ?? string(row, "url_en"));
+  if (!row || !url) return null;
+  const page = database().prepare(`SELECT CAST(pdf_page AS INTEGER) AS pdf_page FROM article_pages
+    WHERE article_id = ? AND CAST(page_label AS TEXT) = ? ORDER BY page_order LIMIT 1`)
+    .get(integer(row.article_id)!, printedPage.trim()) as { pdf_page?: number } | undefined;
+  return page?.pdf_page ? sourceUrl(url, `page=${page.pdf_page}`) : null;
+}
+
 function exactJournalIdentity(value: string) {
   return value.trim().normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
@@ -472,8 +506,9 @@ const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
       candidates.some((candidate) =>
         exactJournalIdentity(candidate) === exactJournalIdentity(match.citation) ||
         exactJournalIdentity(candidate) === exactJournalIdentity(match.name)));
-    if (matches.length !== 1) return [];
-    const article = await document(String(matches[0].articleId));
+    const titled = matches.length ? null : titledArticle(candidates[0] ?? request.text);
+    if (matches.length !== 1 && !titled) return [];
+    const article = await document(String(titled ?? matches[0].articleId));
     return article ? [journalReference(article)] : [];
   },
   canSearch: (request) => request.kinds.includes("journal"),
@@ -509,6 +544,7 @@ const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
 export const journalLegalSourceProvider = Object.assign(provider, {
   closeDatabases,
   find: findArticles,
+  pageLink,
   document,
   lookup(article: JournalArticleDocument, kind: "page" | "paragraph" | "section" | "footnote", value: string) {
     const block = structureNative()
