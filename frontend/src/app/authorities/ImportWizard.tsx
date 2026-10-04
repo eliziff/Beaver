@@ -38,7 +38,7 @@ export const SHORT: Record<string, string> = { automatic: "Automatic", "manual-o
 /** The import's choices: the court, the cover and the index, the sources, and the marking. */
 const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "passageMarking"] as const;
 /** A book's steps; a court that takes only a table skips the cover and the index. */
-const BOOK_STEPS = ["Court", "Cover", "Index", "Sources", "Marking"] as const, TABLE_STEPS = ["Court", "Sources", "Marking"] as const;
+const BOOK_STEPS = ["Cover", "Index", "Sources", "Marking"] as const, TABLE_STEPS = ["Sources", "Marking"] as const;
 
 export type Remembered = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
   profileId: AuthoritiesProfileId;
@@ -100,6 +100,11 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
   const frontActions = draft ? importActions(draft.state, profileId, settings, shownCover, FRONT_KEYS) : [];
   const steps: readonly string[] = book ? BOOK_STEPS : TABLE_STEPS, at = Math.min(step, steps.length - 1), name = steps[at];
   const last = at === steps.length - 1;
+  // The court, its own section above the cover (or above the sources, where the court takes no book).
+  const court = <section aria-label="Court" className="grid max-w-md gap-1.5">
+    <AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} onChange={setProfileId} />
+    {!book && <p className="text-sm text-gray-600">This court takes a Table of Authorities, not a book.</p>}
+  </section>;
   return <Modal open onClose={onCancel} size="2xl" breadcrumbs={title ? ["Import", <span key="title" className="font-normal text-gray-600">{title}</span>] : ["Import"]}
     className="h-[min(54rem,calc(100dvh-2rem))] max-w-6xl" bodyClassName="pb-4 lg:overflow-hidden"
     footerStatus={<div className="mr-auto flex min-w-0 items-center gap-3">
@@ -119,12 +124,8 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
           className="-mb-px h-full w-full truncate border-b-2 border-transparent px-2 font-medium text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 aria-[current=step]:border-red-700 aria-[current=step]:text-gray-950">
           {label}</button></li>)}
     </ol>
-    {name === "Court" ? <div className="grid max-w-xl content-start gap-2 p-1">
-      <AuthoritiesCourtField value={profileId} preferredKeys={jurisdictionOrder} disabled={busy} onChange={setProfileId} />
-      <p className="text-sm text-gray-600">{book ? "The court sets the cover, the index, the sources and the marking in the next steps. Each can be changed there."
-        : "This court takes a Table of Authorities, not a book. The court sets the sources and the marking in the next steps."}</p>
-    </div>
-    : name === "Cover" ? <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={frontActions} page={1} label="Cover" />}>
+    {name === "Cover" ? <FrontLayout preview={<FrontPreview host={host} draft={draft} actions={frontActions} page={1} label="Cover" />}>
+      {court}
       <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy}
         onCover={(next) => setCover(next)} onSettings={choose} />
     </FrontLayout>
@@ -132,6 +133,7 @@ export function ImportWizard({ title, host, draft, remembered, jurisdictionOrder
       <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />
     </FrontLayout>
     : name === "Sources" ? <div className="grid content-start gap-5 overflow-y-auto p-1 lg:grid-cols-2">
+      {!book && <div className="lg:col-span-2">{court}</div>}
       <OptionCards legend="Source handling" value={settings.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
         onChange={(sourceMode) => choose({ sourceMode })} />
       {recognitionAvailable && <OptionCards legend="Scanned PDFs" value={settings.scannedPdfPolicy} options={SCANNED_OPTIONS}

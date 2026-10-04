@@ -232,6 +232,8 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
   const recognitions = sources.flatMap(({ bindingRole }) => ocr?.tracked[bindingRole] ?? []);
   const recognition = recognitions.find(({ state }) => state !== "done") ?? recognitions[0];
   const edit = () => setEditing(true);
+  // The citation and what of it goes in the book, beside the name; a row without either gives the name both columns.
+  const subline = recognition ? "" : [name && citationLine, copy?.line].filter(Boolean).join(" · ");
   const save = (value: string) => { setEditing(false);
     if (value.trim() !== name) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: value.trim() || null }); };
@@ -267,15 +269,13 @@ function AuthorityRow({ authority, tab, citationLine, busy, needsPdf, requireLan
     {/* Name and citation side by side where the list is wide, the citation under the name where not. */}
     {editing ? <AuthorityName value={name} label={nameLabel} spans={!recognition} onSave={save} onCancel={() => setEditing(false)} /> : <>
       <div className="min-w-0 @min-[44rem]/sources:grid @min-[44rem]/sources:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[44rem]/sources:items-center @min-[44rem]/sources:gap-4">
-        <div className="flex min-w-0 items-center gap-1">
+        <div className={cn("flex min-w-0 items-center gap-1", !subline && "@min-[44rem]/sources:col-span-2")}>
           <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name || citationLine}</h3>
           <button type="button" disabled={busy} onClick={edit} aria-label={`Edit ${nameLabel.toLocaleLowerCase()} for ${title}`}
             className="shrink-0 rounded p-1 text-gray-500 opacity-0 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-600 group-hover/row:opacity-100">
             <Pencil className="h-3.5 w-3.5" /></button>
         </div>
-        {!recognition && (name || copy?.line) && <p className="truncate text-[0.8125rem] text-gray-500"
-          title={[name && citationLine, copy?.line].filter(Boolean).join(" · ")}>
-          {[name && citationLine, copy?.line].filter(Boolean).join(" · ")}</p>}
+        {subline && <p className="line-clamp-2 text-[0.8125rem] leading-5 text-gray-500" title={subline}>{subline}</p>}
       </div>
     </>}
     {recognition && ocr && <SourceOcrInline status={recognition} ocr={ocr}
