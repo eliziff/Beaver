@@ -172,6 +172,12 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
           annotations: decodeAnnotationSet(entry.annotations) }; } catch { return bad(); }
       }) };
     }
+    case "set-source-page-labels": {
+      if (!Array.isArray(item.pageLabels) || item.pageLabels.length > 100_000) return bad();
+      return { type, authorityId: text(item.authorityId), bindingRole: text(item.bindingRole, 300),
+        sourceSha256: text(item.sourceSha256, 64),
+        pageLabels: item.pageLabels.map((label) => nullableText(label, 100)) };
+    }
     case "set-highlight-exclusion": {
       const locator = object(item.locator);
       return { type, authorityId: text(item.authorityId),

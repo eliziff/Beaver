@@ -84,6 +84,8 @@ export interface AuthoritiesHost {
     target: AuthoritiesLibraryPdfTarget): Promise<AuthoritiesProduct>;
   readSource?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Blob>;
   readSourceText?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal, pages?: number[]): Promise<PdfRecognizedText>;
+  /** Reads, once, the printed page numbers of a source attached before they were kept with it in the
+   *  draft; viewers read them from the draft. */
   readSourcePageLabels?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Array<string | null>>;
   /** The pinpoints a selection of a unit's text holds, with their kinds, as a save would read them. */
   readPinpoints?(text: string, start: number, end: number): Promise<Array<{ kind: string; start: number; end: number }>>;
