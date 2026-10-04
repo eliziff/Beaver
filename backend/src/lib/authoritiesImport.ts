@@ -180,10 +180,14 @@ async function scanReview(
     kind: unit.kind, footnote_id: unit.footnote_id, footnote_refs: unit.footnote_refs,
     item_offsets: [0],
   })))).map(([unit]) => ranges[unit]);
+  // Where each note's marker stands in the text it annotates.
+  const anchors = new Map(ranges.flatMap(({ unit, start }) =>
+    unit.footnote_refs.map(([id, offset]) => [id, start + offset] as const)));
   const notes = orderedUnits.filter(({ unit }) => unit.footnote_id !== null)
     .map(({ unit, start, end }) => ({ number: unit.note_number === null
       ? unknownNote : unit.note_number ?? unit.footnote_id!, start, end,
-    sequence: unit.note_number === null ? unknownNote : unit.restart_sequence ?? 0 }));
+    sequence: unit.note_number === null ? unknownNote : unit.restart_sequence ?? 0,
+    ...(anchors.has(unit.footnote_id!) ? { anchor: anchors.get(unit.footnote_id!) } : {}) }));
   // A Canadian brief is read with McGill's and COAL's forms, without the Bluebook's extended
   // United States forms (a registration or account number reads as one of its codes).
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
@@ -312,7 +316,11 @@ async function scanReview(
         ? { citationFormat: representative.format as "database" | "docket" } : {}),
       // A citation or name a PDF's line or page break runs through is one line ("RSC ⏎⏎ 1985").
       citation: oneLine(observedText),
-      name: source ? null : oneLine(representative.style?.text ?? "") || null,
+      // An untitled Act cited in a note is named as the sentence the note hangs from names it, and
+      // an instrument cited only by where it is enacted (the Charter) by its own name.
+      name: source ? null : oneLine(representative.style?.text ??
+        (representative.fields as { anchorTitle?: { text: string } }).anchorTitle?.text ??
+        (representative.fields as { instrumentTitle?: string }).instrumentTitle ?? "") || null,
       displayName: null, excluded: false,
       evidenceIds: [], locators: [], sourceIdentity: null,
       source: { kind: "unresolved" }, scanOnly: true,

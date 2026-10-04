@@ -1864,7 +1864,7 @@ describe("Authorities output builder", () => {
     const codes = xml.replace(/<\/w:instrText><\/w:r><w:r>(?:<w:rPr>(?:(?!<\/w:rPr>).)*<\/w:rPr>)?<w:instrText[^>]*>/gu, "");
     const entries = [...codes.matchAll(/ TA \\l "((?:\\.|[^"\\])*)"/gu)].map(([, entry]) => entry.replaceAll("\\“", "“")
       .replaceAll("\\”", "”"));
-    expect(entries.sort()).toEqual(["Elm v Fir, 2031 ONCA 7", "Jo Pine, “Moss”, online: <example.test/moss>",
+    expect(entries.sort()).toEqual(["Elm v Fir, 2031 ONCA 7", "Jo Pine, “Moss”, online: example.test/moss",
       "Oak v Gum, 2029 CanLII 5 (SCC)", "R v Ash, 2030 ABKB 1"]);
   });
 
