@@ -158,7 +158,7 @@ export function ActionMenu({
                     data-shortcut-layer
                     data-shortcut-open="true"
                     onKeyDown={handleMenuKeyDown}
-                    className="fixed inset-auto z-[220] m-0 max-h-[min(24rem,calc(100dvh-1rem))] min-w-44 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
+                    className="fixed inset-auto z-[220] m-0 max-h-[min(24rem,calc(100dvh-1rem))] max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
                 >
                     {items.map((item) => (
                         <button
