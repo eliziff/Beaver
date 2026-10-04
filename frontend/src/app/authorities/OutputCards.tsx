@@ -14,6 +14,10 @@ const FILE_LABEL: Record<string, string> = { pdf: "PDF", docx: "Word", xlsx: "Ex
 const ICON: Record<string, ComponentType<{ className?: string }>> = { book: BookOpen, word: TableProperties, final: FileStack };
 /** What has just been built draws in: its check and its downloads, briefly, and not at all where motion is reduced. */
 const ARRIVE: Keyframe[] = [{ opacity: 0, transform: "scale(.6)" }, { opacity: 1, transform: "scale(1)" }];
+/** And its card glows softly in the accent red, then fades: a shadow only, so nothing moves. */
+const GLOW: Keyframe[] = [{ boxShadow: "0 0 0 0 rgb(185 28 28 / 0)" },
+  { boxShadow: "0 0 0 3px rgb(185 28 28 / .22), 0 0 22px 2px rgb(185 28 28 / .28)", offset: 0.3 },
+  { boxShadow: "0 0 0 0 rgb(185 28 28 / 0)" }];
 const listed = (names: string[]) => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 
 /** Build's own action, the Book's and the Outputs' alike: bordered at all times, its word in red. */
@@ -75,8 +79,10 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
     const kept = new Set(before.versions.split(","));
     list.current?.querySelectorAll<HTMLElement>("[data-output]").forEach((row) => {
-      if ((row.dataset.roles ?? "").split(" ").some((role) => outputs[role] && !kept.has(`${role}:${outputs[role].versionId}`)))
+      if ((row.dataset.roles ?? "").split(" ").some((role) => outputs[role] && !kept.has(`${role}:${outputs[role].versionId}`))) {
         row.querySelectorAll<HTMLElement>("[data-arrive]").forEach((item) => item.animate?.(ARRIVE, { duration: 180, easing: "ease-out" }));
+        row.animate?.(GLOW, { duration: 1800, easing: "ease-out" });
+      }
     });
   }, [versions, building, draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const built = rows.filter(({ roles }) => roles.some((role) => outputs[role]));
