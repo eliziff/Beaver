@@ -19,15 +19,15 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
     const printedRef = useRef<HTMLInputElement>(null);
     const known = labels?.map(label => label?.trim()).filter(Boolean) ?? [];
     const hasUnknownLabels = Array.from({ length: count }, (_, i) => !labels?.[i]?.trim()).some(Boolean);
-    // Printed numbers that are the PDF's own (pages without one aside) add nothing, so only the PDF field shows.
-    const samePageNumbers = Array.from({ length: count }, (_, i) => labels?.[i]?.trim())
-        .every((label, i) => !label || label === String(i + 1));
     // Each field shows the current page; what the reader types replaces it until Enter, Escape or leaving the field.
     const [pdfDraft, setPdfDraft] = useState<string | null>(null);
     const [printedDraft, setPrintedDraft] = useState<string | null>(null);
     const pdfInput = pdfDraft ?? String(page);
-    const printedInput = printedDraft ?? (labels?.[page - 1]?.trim() ?? "");
+    const printed = labels?.[page - 1]?.trim() ?? "", printedInput = printedDraft ?? printed;
     const [matches, setMatches] = useState<number[]>([]);
+    // The printed field shows only a printed number that is not the page's PDF number, or one being
+    // typed or chosen: a page with none, or with its PDF number, shows the PDF field alone.
+    const showPrinted = printedDraft !== null || matches.length > 0 || !!printed && printed !== String(page);
     const [error, setError] = useState("");
     // A new page or a new document drops what was being typed or chosen.
     const [previous, setPrevious] = useState({ page, labels });
@@ -70,7 +70,7 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
                     onBlur={() => { if (!error) setPdfDraft(null); }}
                     onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("pdf"); } }} />
             </label>
-            {known.length > 0 && !samePageNumbers && <label className="flex items-center gap-1">Printed
+            {showPrinted && <label className="flex items-center gap-1">Printed
                 <input ref={printedRef} aria-label={`Printed page, ${known[0]} to ${known.at(-1)}`} value={printedInput} placeholder={printedRange} disabled={disabled}
                     aria-describedby={error ? id : undefined} className={inputClass}
                     onChange={event => { setPrintedDraft(event.target.value); setError(""); setMatches([]); }}
