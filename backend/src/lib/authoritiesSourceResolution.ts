@@ -11,6 +11,7 @@ import { canonicalJsonSha256, sha256 } from "./hash";
 import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
+import { justiceLawsLegalSourceProvider, justiceLawsSource } from "./legalSources/justiceLaws";
 import { mapBounded } from "./mapBounded";
 import { legislationPdfUrl, publisherOpenUrl, publisherPdfCandidate } from "./legalSourcePresentation";
 import { downloadProviderOriginalPdf, PublisherDownloadFailure } from "./providerPdfLibraryBridge";
@@ -19,7 +20,8 @@ import { structureNative } from "./structureNative";
 /**
  * Providers for citations the A2AJ corpus does not hold: UK neutral citations
  * through the National Archives, US reporter citations through the local
- * CourtListener bulk index, Quebec legislation through LégisQuébec. Each claims
+ * CourtListener bulk index, and federal annual statutes and the Constitution Acts
+ * through Justice Laws. Each claims
  * only what its own citation grammar matches exactly and returns nothing when
  * the match is ambiguous.
  */
@@ -27,6 +29,7 @@ const foreignProviders = [
   { id: "tna", claims: tnaLegalSourceProvider, source: tnaCaseSource },
   { id: "courtlistener", claims: courtlistenerLegalSourceProvider,
     source: courtlistenerLegalSourceProvider.caseSource },
+  { id: "justice-laws", claims: justiceLawsLegalSourceProvider, source: justiceLawsSource },
 ] as const;
 
 /** Resolves the first citation form a provider matches; never a best guess. */
