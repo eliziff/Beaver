@@ -11,6 +11,8 @@
         "dev:authorities": "npm run build:shared && node AuthoritiesHelper/modern/authorities-dev.mjs",
         "package:authorities": "powershell -NoProfile -ExecutionPolicy Bypass -File AuthoritiesHelper/modern/package-authorities.ps1",
         "build:authorities-html": "npm run build:shared && node --import ./scripts/background-work.mjs AuthoritiesHelper/modern/html/build.mjs",
+        "build:alr-html": "node --import ./scripts/background-work.mjs AuthoritiesHelper/modern/alr/build.mjs",
+        "build:alr": "node --import ./scripts/background-work.mjs AuthoritiesHelper/modern/alr/build.mjs --release --all",
         "test:authorities-stress": "node scripts/test-authorities-stress.mjs",
         "test:court-records:browser": "npm run build --prefix frontend && python scripts/test-court-records-browser.py",
         "test:experiments": "npm run test:experiments --prefix backend",
