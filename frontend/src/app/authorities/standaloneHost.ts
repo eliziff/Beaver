@@ -23,6 +23,7 @@ import { prepareSourceText, readSourceText, recognitionWaiting } from './standal
 import { mapAuthorityBookBytes, type BuiltAuthorityBook, type PreparedAuthoritiesBook } from
   "mike/shared/runtime/authoritiesBook.mjs";
 import BookWorker from "./bookWorker?worker&inline";
+import { localArial } from "./localArial";
 
 /** Assembles the book in a worker: its pages are copied and saved there, not on the page's thread. */
 function renderBook(book: PreparedAuthoritiesBook, signal?: AbortSignal) {
@@ -350,6 +351,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   watchedFolder: standaloneWatchedFolder,
   async build(selected, progress, signal) {
     signal?.throwIfAborted();
+    // Asked at once, while the Build click is still the person's gesture.
+    const arial = localArial();
     const product = await currentProduct(selected.id, selected.revision);
     const form = await buildInputs(product, progress, signal);
     progress?.("Building outputs");
@@ -371,7 +374,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
           return new Uint8Array(await source.arrayBuffer());
         });
       progress?.("Assembling the book");
-      const built = await renderBook(book, signal);
+      const built = await renderBook({ ...book, arial: await arial }, signal);
       for (const item of built) {
         const hash = await crypto.subtle.digest("SHA-256", item.bytes as Uint8Array<ArrayBuffer>);
         const sha256 = [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");

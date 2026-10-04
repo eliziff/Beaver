@@ -2,6 +2,7 @@ import type { PDFFont as PdfFont, PDFPage as PdfPage, Color as PdfColor } from "
 import type { AuthoritiesCover } from "../authorities-contract.d.ts";
 import { mapOutline, pdfAssembly, splitPdfPageRanges, type PdfAssemblyInput,
   type PdfOutline } from "./pdfAssembly.mjs";
+import { arialFont, type ArialFaces } from "./arialFont.mjs";
 
 type PdfModule = typeof import("pdf-lib");
 /** `italic`: how many of the name's first characters are italic, its style of cause or title. */
@@ -36,6 +37,8 @@ export type PreparedAuthoritiesBook<Bytes = Uint8Array> = {
   rightHandStarts?: boolean;
   groups: Array<{ label: string; entries: BookRow[] }>;
   sources: PreparedBookSource<Bytes>[];
+  /** Arial's files from the machine building the book; without them the book names Arial unembedded. */
+  arial?: ArialFaces;
 };
 /** `pageIndex`: an authority's first page; `tabPageIndex`: its tab page, or its first page without one. */
 export type BuiltAuthorityBook = { role: "book" | `book-${number}`; filename: string;
@@ -53,12 +56,14 @@ export async function mapAuthorityBookBytes<From, To>(book: PreparedAuthoritiesB
 }
 
 export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAuthoritiesBook,
-  signal?: AbortSignal): Promise<BuiltAuthorityBook[]> {
+  signal?: AbortSignal, fontkit?: PdfAssemblyInput<string>["fontkit"]): Promise<BuiltAuthorityBook[]> {
   const engine = pdfAssembly(pdf);
   const { federal, electronic, paperCover, coverLine, documentTitle, bookTitle, subtitle,
     customCover, customIndex, coverPageCount, customIndexPages, limits, groups } = input;
   const showPages = input.indexShows === "tabs-and-pages", tabPages = !!input.tabPages;
   const rightHand = !!input.rightHandStarts;
+  // Arial's files are embedded where a font engine can read them; otherwise Arial is named.
+  const arial = fontkit ? input.arial : undefined;
   // Under headings where the authorities are grouped; one list, bookmarked tab by tab, where not.
   const grouped = groups.length > 1 || !!groups.length && groups[0].label !== "Authorities";
   // The index lists each citation in full, wrapped onto as many lines as it takes, and runs onto as
@@ -164,10 +169,13 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
       const indexTitle = federal ? "Table of Contents" : "Index";
       const links: NonNullable<PdfAssemblyInput<string>["links"]> = [];
       return {
-        signal, fonts: { serif: pdf.StandardFonts.TimesRoman, serifItalic: pdf.StandardFonts.TimesRomanItalic,
+        // The Federal Court prescribes Times; other courts' covers, tab pages and page numbers are in
+        // Arial, as the Alberta Rules of Court's own forms are.
+        signal, fontkit: arial ? fontkit : undefined,
+        fonts: { serif: pdf.StandardFonts.TimesRoman, serifItalic: pdf.StandardFonts.TimesRomanItalic,
           serifBold: pdf.StandardFonts.TimesRomanBold,
-          regular: federal ? pdf.StandardFonts.TimesRoman : pdf.StandardFonts.Helvetica,
-          bold: federal ? pdf.StandardFonts.TimesRomanBold : pdf.StandardFonts.HelveticaBold },
+          regular: federal ? pdf.StandardFonts.TimesRoman : arialFont(pdf, "regular", arial),
+          bold: federal ? pdf.StandardFonts.TimesRomanBold : arialFont(pdf, "bold", arial) },
         parts: plan.slices.map(({ source, pageIndices, tabbed, blankBefore, blankAfter }) => ({
           id: source.key, source: source.bytes, pageIndices, ocrFont: "regular",
           ocrTextByPage: source.ocrTextByPage,
