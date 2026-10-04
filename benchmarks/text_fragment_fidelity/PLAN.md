@@ -38,3 +38,40 @@ hammering of publisher sites.
 
 Summaries are committed under `results/`; raw screenshots stay in the
 operator-supplied output directory.
+
+## Link strategies
+
+Evidence for product choices about which link a row carries. Each link
+has a role, and the two roles are judged against different targets:
+
+- **Citation link**: clicked to reach the cited pinpoint (paragraph,
+  section, printed page). A supra/ibid row's target is the origin note's
+  source at the referring note's pinpoint.
+- **Quote link**: highlights the quoted words.
+
+Seeds: `results/link-strategies.seeds.jsonl`. These are real rows from the
+categories in which the Python ALR app's links and the new pipeline's links
+differ. Each row lists the two production URLs verbatim and the alternatives
+for its source type. Alternatives are built with production `sourceUrl()` /
+`buildCanliiLawUrlFromCitation()` and reuse a directive one of the two apps
+emitted. No candidate contradicts a decision already in the link code. Every
+Decisia URL carries `iframe=true&site_preference=mobile`, anchors appear only
+where `legalSourceLocatorAnchor` emits them, and production outputs that break
+such a rule are tested but marked `conflict`.
+
+Tiers:
+
+1. `--tier cache` (`cache-tier.mjs`) serves saved CanLII pages from the
+   Pinpointer corpus (`%LOCALAPPDATA%/OpenLegalData/pinpointer-corpus`) and
+   any `--canlii-cache` store under their original paths, blocks all other
+   traffic, and records:
+   - whether the anchor exists and is in view;
+   - whether `::target-text` painted, measured by screenshot pixels;
+   - the landing paragraph/section, and whether the landing is front matter;
+   - whether scrolling still works after the landing.
+   This tests the directive against the page bytes, not the site's own
+   behaviour.
+2. Live, in the user's own browser and only for site behaviour the cache
+   cannot show: Decisia rendering, PDF viewer `#page`/directives, journal
+   hosts, CanLII redirects and slugs. Pace it like a human; CanLII sees
+   only a handful of pages per run.

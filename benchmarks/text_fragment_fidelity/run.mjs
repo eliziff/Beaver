@@ -6,6 +6,12 @@
 //
 // Usage (from repo root):
 //   npx tsx benchmarks/text_fragment_fidelity/run.mjs [--out dir] [--seeds file]
+//   npx tsx benchmarks/text_fragment_fidelity/run.mjs --tier cache \
+//     --seeds benchmarks/text_fragment_fidelity/results/link-strategies.seeds.jsonl --out <dir>
+//
+// --tier cache replays link-strategy candidates (see PLAN.md "Link
+// strategies") against saved CanLII pages served locally under their own
+// paths; no publisher traffic.
 
 import { chromium } from "playwright-core";
 import fs from "node:fs";
@@ -21,6 +27,12 @@ const root = path.resolve(import.meta.dirname, "..", "..");
 const seedsPath = arg("--seeds", path.join(import.meta.dirname, "seeds.jsonl"));
 const outDir = arg("--out", "text-fragment-shots");
 fs.mkdirSync(outDir, { recursive: true });
+
+if (arg("--tier", "smoke") === "cache") {
+  const { runCacheTier } = await import("./cache-tier.mjs");
+  await runCacheTier({ seedsPath, outDir });
+  process.exit(0);
+}
 
 const { buildLegalSourcePinpointUrl } = await import(
   pathToFileURL(path.join(root, "backend/src/lib/legalSourceLinks.ts")).href
