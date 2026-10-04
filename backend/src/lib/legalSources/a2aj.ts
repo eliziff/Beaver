@@ -1,10 +1,7 @@
 import crypto from "node:crypto";
 import { statSync } from "node:fs";
 import { cachedContent } from "../contentCache";
-import { a2ajLocalBulkPath, fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
-import { directoryA2AJFolder } from "../a2ajCorpus";
-import { a2ajParquetDirectory, nodeA2AJCorpus } from "../a2ajCorpusNode";
-import { A2AJParquetCorpus, browserA2AJIndexes, folderA2AJSource, huggingFaceA2AJSource } from "../a2ajParquet";
+import { a2ajLocalBulkPath, fetchLocalA2AJDocument, searchLocalA2AJ, useA2AJStore } from "../a2ajLocalBulk";
 import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { buildCanliiCaseUrl } from "../canliiUrls";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
@@ -132,68 +129,18 @@ export class A2AJUnavailable extends Error {
   }
 }
 
-// A2AJ's corpus on this computer (a2ajParquet.ts), read before A2AJ is asked. Unless a runtime sets
-// one, it is the folder Beaver's shared legal data keeps it in, when that folder holds one.
-let corpusSetting: { corpus: A2AJParquetCorpus | null } | null = null;
-let defaultCorpus: { folder: string; corpus: A2AJParquetCorpus | null } | null = null;
 let remoteAllowed = true;
-function localCorpus() {
-  if (corpusSetting) return corpusSetting.corpus;
-  const folder = a2ajParquetDirectory();
-  if (defaultCorpus?.folder !== folder) {
-    const installed = ["cases", "laws"].some((kind) =>
-      statSync(`${folder}/${kind}/manifest.json`, { throwIfNoEntry: false }));
-    defaultCorpus = { folder, corpus: installed ? nodeA2AJCorpus(folder) : null };
-  }
-  return defaultCorpus.corpus;
-}
+/** The A2AJ store a run's lookups read: a path to an a2aj.sqlite (a2ajLocalBulk.ts), or nothing for
+ *  the configured one. */
+export type A2AJCorpusInput = string;
 /**
- * Where lookups read A2AJ's sources: `corpus` is the local corpus (null for none, undefined to
- * leave it as it is), and `remote: false` keeps every lookup on this computer, so a source the
- * corpus lacks is reported as unavailable rather than asked of A2AJ.
+ * Points lookups at the store a run was given, and keeps them on this computer when `localOnly`:
+ * a source the store lacks is then reported as unavailable rather than asked of A2AJ.
  */
-export function configureA2AJ(options: { corpus?: A2AJParquetCorpus | null; remote?: boolean }) {
-  if (options.corpus !== undefined && options.corpus !== corpusSetting?.corpus) {
-    corpusSetting = { corpus: options.corpus };
-    documents.clear();
-  }
-  if (options.remote !== undefined && options.remote !== remoteAllowed) {
-    remoteAllowed = options.remote;
-    documents.clear();
-  }
-}
-
-type DirectoryHandle = Parameters<typeof directoryA2AJFolder>[0] & {
-  kind: "directory"; isSameEntry(other: unknown): Promise<boolean> };
-/** A corpus given as a run's input: a folder the user picked in a browser, a folder path on this
- *  computer, A2AJ's files on Hugging Face read as they are needed, or a corpus already open. */
-export type A2AJCorpusInput = A2AJParquetCorpus | DirectoryHandle | string | { huggingFace: true };
-let picked: { handle: DirectoryHandle; corpus: A2AJParquetCorpus } | null = null;
-let huggingFace: A2AJParquetCorpus | null = null;
-/**
- * Points lookups at the corpus a run was given, and keeps them on this computer when `localOnly`.
- * Without a corpus, Node reads the shared folder when it holds one, and a page reads none.
- * The same picked folder, sent again, keeps the corpus already open with its indexes loaded.
- */
-export async function useA2AJCorpus(input: A2AJCorpusInput | null | undefined, options: { localOnly?: boolean } = {}) {
-  let corpus: A2AJParquetCorpus | null | undefined;
-  if (input instanceof A2AJParquetCorpus) corpus = input;
-  else if (typeof input === "string") corpus = input === defaultCorpus?.folder && defaultCorpus.corpus
-    ? defaultCorpus.corpus : nodeA2AJCorpus(input);
-  // Hugging Face is a network source too: working locally only, it is not read.
-  else if (input && "huggingFace" in input) {
-    corpus = options.localOnly ? null : huggingFace ??= new A2AJParquetCorpus(huggingFaceA2AJSource({
-      fetch: (url, init) => globalThis.fetch(url, init), indexes: browserA2AJIndexes() }),
-    (texts) => structureNative().citationLookupKeys(texts));
-  } else if (input?.kind === "directory") {
-    if (!picked || !await picked.handle.isSameEntry(input).catch(() => false))
-      picked = { handle: input, corpus: new A2AJParquetCorpus(folderA2AJSource(directoryA2AJFolder(input)),
-        (texts) => structureNative().citationLookupKeys(texts)) };
-    corpus = picked.corpus;
-  }
-  if (corpus) configureA2AJ({ corpus });
-  else if (corpusSetting) { corpusSetting = null; documents.clear(); }
-  configureA2AJ({ remote: !options.localOnly });
+export function useA2AJCorpus(input: A2AJCorpusInput | null | undefined, options: { localOnly?: boolean } = {}) {
+  useA2AJStore(typeof input === "string" && input ? input : null);
+  if (remoteAllowed === !!options.localOnly) documents.clear();
+  remoteAllowed = !options.localOnly;
 }
 // A limit A2AJ sets (429, or a 503 that names a Retry-After) holds every lookup until it passes.
 // Only a time A2AJ named is reported as when it allows lookups again; a hold of our own
@@ -466,20 +413,22 @@ async function document(args: {
   if (section) {
     const full = await document({ ...args, section: undefined });
     if (!full) return null;
-    const local = await localCorpus()?.byCitation(docType, full.citation, { dataset: full.dataset, language });
-    const payload = local?.length ? { results: local.map((record) => {
-      const sections = sectionMap(record as JsonObject, language);
-      return { ...record, [`unofficial_text_${language}`]: sections?.[section] ?? "" };
-    }) } : await request("/fetch", {
-      citation, doc_type: docType, output_language: language, section,
-    }, args.signal);
-    const candidates = (Array.isArray(payload.results) ? payload.results : [])
-      .map((item) => mapDocument(item, language, docType))
-      .filter((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
-        item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()));
-    const scoped = args.sourceUrl?.trim()
-      ? candidates.find((item) => [item.url, item.publisherUrl].includes(args.sourceUrl!.trim()))
-      : candidates[0];
+    // The store keeps each statute's sections; A2AJ is asked for one only when the store lacks the statute.
+    const local = fetchLocalA2AJDocument({ citation: full.citation, docType, language, dataset: full.dataset,
+      maxChars: Number.MAX_SAFE_INTEGER });
+    let scoped: Pick<A2AJDocument, "text"> | undefined = local ? { text: local.sectionMap?.[section] ?? "" } : undefined;
+    if (!local) {
+      const payload = await request("/fetch", {
+        citation, doc_type: docType, output_language: language, section,
+      }, args.signal);
+      const candidates = (Array.isArray(payload.results) ? payload.results : [])
+        .map((item) => mapDocument(item, language, docType))
+        .filter((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
+          item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()));
+      scoped = args.sourceUrl?.trim()
+        ? candidates.find((item) => [item.url, item.publisherUrl].includes(args.sourceUrl!.trim()))
+        : candidates[0];
+    }
     const result = await scopedDocument(full, section, scoped?.text ?? "");
     documents.set(key, { expires: Date.now() + 60 * 60_000, value: result });
     return result;
@@ -504,13 +453,6 @@ async function document(args: {
   for (const form of forms) {
     source = fetchLocalA2AJDocument({ citation: form, docType, language, dataset: args.dataset,
       sourceUrl: args.sourceUrl ?? undefined, maxChars: Number.MAX_SAFE_INTEGER });
-    if (source) break;
-  }
-  const corpus = localCorpus();
-  if (!source && corpus) for (const form of forms) {
-    args.signal?.throwIfAborted();
-    const accepted = accept(await corpus.byCitation(docType, form, { dataset: args.dataset, language }), form);
-    source = accepted ? mapDocument(accepted, language, docType) : null;
     if (source) break;
   }
   if (!source) for (const form of forms) {

@@ -10,13 +10,39 @@ type Row = Record<string, unknown>;
 type Language = "en" | "fr";
 type DocType = "cases" | "laws";
 
+// Beaver's one local A2AJ store: a2aj.sqlite, installed and updated by a2ajInstall.ts. Node reads it
+// with node:sqlite; a browser runtime reads a store file the user picked through the same API.
+let chosenStore: string | null = null;
+/** Reads the store at this path instead of the configured one; null returns to the configured one. */
+export function useA2AJStore(filename: string | null) { chosenStore = filename; }
+
 export function a2ajLocalBulkPath() {
+  if (chosenStore) return chosenStore;
   const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
   return configured ? path.resolve(configured) : legalProviderDatabase("a2aj", "a2aj.sqlite");
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   return withReadonlySqlite(a2ajLocalBulkPath(), operation);
+}
+
+export type A2AJStoreCourt = { docType: DocType; court: string; documents: number;
+  /** The Parquet file the court was installed from, when the installer recorded it. */
+  sha256: string | null; size: number | null; revision: string | null };
+/** Every court and jurisdiction in the store, with how many documents each has. */
+export function a2ajStoreCourts(filename = a2ajLocalBulkPath()): A2AJStoreCourt[] | null {
+  return withReadonlySqlite(filename, (database) => {
+    const recorded = database.prepare("SELECT 1 FROM sqlite_master WHERE name = 'source_file'").get()
+      ? database.prepare("SELECT doc_type, dataset, sha256, size, revision FROM source_file").all() as Row[] : [];
+    const files = new Map(recorded.map((row) => [`${row.doc_type}/${row.dataset}`, row]));
+    return (database.prepare("SELECT doc_type, dataset, COUNT(*) AS documents FROM document GROUP BY doc_type, dataset")
+      .all() as Row[]).map((row) => {
+      const file = files.get(`${row.doc_type}/${row.dataset}`);
+      return { docType: row.doc_type === "laws" ? "laws" : "cases", court: String(row.dataset), documents: Number(row.documents),
+        sha256: file ? String(file.sha256) : null, size: file ? Number(file.size) : null,
+        revision: file ? String(file.revision) : null };
+    });
+  });
 }
 
 export type CitationAliasGroup = { keys: string[]; forms: string[]; ambiguous: boolean };
