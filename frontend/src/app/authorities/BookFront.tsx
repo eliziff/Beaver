@@ -39,19 +39,32 @@ export function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange
 }) {
   const current = authoritiesProfile(value);
   const [open, setOpen] = useState(false);
-  const available = AUTHORITIES_PROFILES
-    .filter((item) => !bookOnly || item.locked?.outputMode !== "table");
-
   return <div className={className}>
     <ChoiceModalButton icon={<Scale aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-500" />}
       label="Court" value={current.label} disabled={disabled} className="w-full"
       onClick={() => setOpen(true)} />
-    <CourtChoiceModal open={open} title="Choose court" searchLabel="Search courts"
-      value={value} preferredKeys={preferredKeys}
-      options={available.map(({ id, label, court, jurisdiction }) => ({ value: id, label,
-        jurisdictionId: jurisdiction.id, keywords: court.abbreviation }))}
-      onChange={(id) => onChange(id as AuthoritiesProfileId)} onClose={() => setOpen(false)} />
+    <CourtPicker open={open} value={value} preferredKeys={preferredKeys} bookOnly={bookOnly}
+      onChange={onChange} onClose={() => setOpen(false)} />
   </div>;
+}
+
+/** The court chooser itself: jurisdictions, then their courts, in one dialog. */
+export function CourtPicker({ open, value, preferredKeys, bookOnly = false, onChange, onClose }: {
+  open: boolean; value: AuthoritiesProfileId; preferredKeys: string[]; bookOnly?: boolean;
+  onChange: (value: AuthoritiesProfileId) => void; onClose: () => void;
+}) {
+  const available = AUTHORITIES_PROFILES.filter((item) => !bookOnly || item.locked?.outputMode !== "table");
+  return <CourtChoiceModal open={open} title="Choose court" searchLabel="Search courts"
+    value={value} preferredKeys={preferredKeys}
+    options={available.map(({ id, label, court, jurisdiction }) => ({ value: id, label,
+      jurisdictionId: jurisdiction.id, keywords: court.abbreviation }))}
+    onChange={(id) => onChange(id as AuthoritiesProfileId)} onClose={onClose} />;
+}
+/** The changes a new court makes to a draft, as Build's Book dialog saves them. */
+export function courtActions(state: AuthoritiesProduct["state"], profileId: AuthoritiesProfileId): AuthoritiesAction[] {
+  if (profileId === state.settings.profileId) return [];
+  const court = courtState(state, profileId);
+  return [{ type: "set-profile", profileId }, ...frontActions(court, court.cover, {})];
 }
 
 /** The cover the court files a book under: the Federal Court's Form 66, King's Bench's Alberta cover,

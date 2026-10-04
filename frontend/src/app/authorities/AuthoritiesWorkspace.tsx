@@ -30,7 +30,8 @@ import { rowControl, Sources, SourcesExplainer, type BookFiles } from "./Authori
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCard, OptionCards } from "./OptionCards";
 import { buildAction, BuildHeading, IconTile, OutputDock, type OutputRow } from "./OutputCards";
-import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, coverForm, warmFrontPreviews, type OwnPdfs } from "./BookFront";
+import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, courtActions, CourtPicker, coverForm, warmFrontPreviews,
+  type OwnPdfs } from "./BookFront";
 import { ImportWizard, SOURCE_OPTIONS, SourceChoices, type Remembered } from "./ImportWizard";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
@@ -1583,6 +1584,7 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   return <section className="@container/build mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
     <div className="grid items-start gap-6 @min-[46rem]/build:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
       <BookRows draft={draft} busy={busy} book={book} lockedMode={lockedMode} pdfs={pdfs} onFront={setFront}
+        jurisdictionOrder={jurisdictionOrder} onCourt={(profileId) => courtActions(state, profileId).forEach((action) => onAction(action))}
         coverDetail={generatedFederalCover && !(coverDetailsReady && filingRoleReady) ? "Details required"
           : `Generated${state.cover.title ? ` · ${state.cover.title}` : ""}`}
         indexDetail={`Generated · ${indexShows === "tabs-and-pages" ? "tabs and pages" : "tabs"}`}
@@ -1699,12 +1701,15 @@ function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
 
 /** The book, a row each for its court, cover, index and tabs: what each is, in plain words, and the
  *  button that changes it, down one column. A cover or index can be a PDF of the user's own. */
-function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, coverDetail, indexDetail, tabs, missing, onReview }: {
+function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, jurisdictionOrder, onCourt, coverDetail, indexDetail, tabs, missing, onReview }: {
   draft: AuthoritiesProduct; busy: boolean; book: boolean; lockedMode?: string; pdfs: OwnPdfs;
-  onFront: (step: "Cover" | "Index") => void; coverDetail: string; indexDetail: string;
+  onFront: (step: "Cover" | "Index") => void; jurisdictionOrder: string[]; onCourt: (profileId: AuthoritiesProfileId) => void;
+  coverDetail: string; indexDetail: string;
   tabs: number; missing: number; onReview: () => void;
 }) {
   const action = buildAction;
+  // The court is chosen in the court chooser itself, opened by its Change.
+  const [choosingCourt, setChoosingCourt] = useState(false);
   // Generated, or the name of the user's own PDF (and what keeps it from the book).
   const part = (slot: "cover" | "index") => {
     const own = pdfs.kept?.(slot);
@@ -1714,7 +1719,7 @@ function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, coverDetail, i
   const rows: Array<{ label: string; icon: ComponentType<{ className?: string }>; value: ReactNode; detail?: ReactNode;
     button: ReactNode; alert?: boolean }> = [
     { label: "Court", icon: Scale, value: authoritiesProfile(draft.state.settings.profileId).label,
-      button: <Button type="button" variant="outline" className={action} aria-label="Change the court" disabled={busy} onClick={() => onFront("Cover")}><SlidersHorizontal />Change</Button> },
+      button: <Button type="button" variant="outline" className={action} aria-label="Change the court" disabled={busy} onClick={() => setChoosingCourt(true)}><SlidersHorizontal />Change</Button> },
     { label: "Cover", icon: FileText, value: book ? part("cover") : lockedMode,
       alert: book && (coverDetail === "Details required" && !draft.state.bookParts.cover || !!pdfs.kept?.("cover")?.issue),
       button: <Button type="button" variant="outline" className={action} aria-label="Change the cover" disabled={busy || !book}
@@ -1743,6 +1748,8 @@ function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, coverDetail, i
         <dd>{row.button}</dd>
       </div>)}
     </dl>
+    <CourtPicker open={choosingCourt} value={draft.state.settings.profileId} preferredKeys={jurisdictionOrder}
+      bookOnly={draft.state.import.kind === "manual"} onChange={onCourt} onClose={() => setChoosingCourt(false)} />
   </section>;
 }
 
