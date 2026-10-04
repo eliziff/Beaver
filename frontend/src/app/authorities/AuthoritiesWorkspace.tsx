@@ -8,7 +8,7 @@ import { authorityName, authorityLabel, authorityCitationLine, authorityCitation
   requiresBilingualSources, requiresPdf,
   missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, FilePlus2, FolderSearch,
-  History, Loader2, Plus, Scale, Settings2, Upload } from "lucide-react";
+  History, ListChecks, Loader2, Plus, Scale, Settings2, SlidersHorizontal, Upload } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
@@ -29,7 +29,7 @@ import type { WorkProductFocus, WorkProductMetadata,
 import { rowControl, Sources, SourcesExplainer, type BookFiles } from "./AuthoritySources";
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCard, OptionCards } from "./OptionCards";
-import { OutputDock, type OutputRow } from "./OutputCards";
+import { OutputDock, rowButton, type OutputRow } from "./OutputCards";
 import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, coverForm } from "./BookFront";
 import { ImportWizard, SOURCE_OPTIONS, SourceChoices, type Remembered } from "./ImportWizard";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
@@ -1645,7 +1645,7 @@ function BookRows({ draft, busy, book, lockedMode, onAction, sourceIssues, onRel
   tabs: number; missing: number; onReview: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null), [picking, setPicking] = useState<"cover" | "index">("cover");
-  const action = "h-8 w-[4.75rem] shrink-0 border-gray-400 px-2.5 text-xs";
+  const action = rowButton;
   const more = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-red-600";
   const part = (slot: "cover" | "index") => {
     const own = draft.state.bookParts[slot], issue = own ? sourceIssues[own.bindingRole] : undefined, title = slot === "cover" ? "Cover" : "Index";
@@ -1662,23 +1662,23 @@ function BookRows({ draft, busy, book, lockedMode, onAction, sourceIssues, onRel
   const cover = part("cover"), index = part("index");
   const rows: Array<{ label: string; value: ReactNode; title?: string; button: ReactNode; menu?: ReactNode; alert?: boolean }> = [
     { label: "Court", value: authoritiesProfile(draft.state.settings.profileId).label,
-      button: <Button type="button" variant="outline" className={action} aria-label="Change the court" disabled={busy} onClick={() => onFront("Cover")}>Change</Button> },
+      button: <Button type="button" variant="outline" className={action} aria-label="Change the court" disabled={busy} onClick={() => onFront("Cover")}><SlidersHorizontal />Change</Button> },
     { label: "Cover", value: book ? cover.value : lockedMode, alert: book && coverDetail === "Details required" && !draft.state.bookParts.cover,
       button: <Button type="button" variant="outline" className={action} aria-label="Change the cover" disabled={busy || !book || !!draft.state.bookParts.cover}
-        onClick={() => onFront("Cover")}>Change</Button>, menu: book ? cover.menu : undefined },
+        onClick={() => onFront("Cover")}><SlidersHorizontal />Change</Button>, menu: book ? cover.menu : undefined },
     { label: "Index", value: book ? index.value : lockedMode,
       button: <Button type="button" variant="outline" className={action} aria-label="Change the index" disabled={busy || !book || !!draft.state.bookParts.index}
-        onClick={() => onFront("Index")}>Change</Button>, menu: book ? index.menu : undefined },
+        onClick={() => onFront("Index")}><SlidersHorizontal />Change</Button>, menu: book ? index.menu : undefined },
     { label: "Tabs", value: `${tabs} ${tabs === 1 ? "authority" : "authorities"}${missing ? `, ${missing} without a PDF` : ", each with a PDF"}`,
       button: <Button type="button" variant="outline" className={action} aria-label="Review the authorities without a PDF"
-        disabled={busy || !missing} onClick={onReview}>Review</Button> },
+        disabled={busy || !missing} onClick={onReview}><ListChecks />Review</Button> },
   ];
   return <section aria-label="Book" className="min-w-0">
     <h3 className="mb-2 text-base font-semibold text-gray-950">Book</h3>
     <dl className="divide-y divide-gray-300 rounded-lg border border-gray-300 bg-white">
-      {rows.map((row) => <div key={row.label} className="grid min-h-12 grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-x-3 py-2 pl-3 pr-2">
-        <dt className="text-sm font-semibold text-gray-950">{row.label}</dt>
-        <dd className={cn("min-w-0 truncate text-sm", row.alert ? "font-medium text-red-800" : "text-gray-700")}
+      {rows.map((row) => <div key={row.label} className="grid min-h-12 grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-x-3 py-2 pl-3 pr-2">
+        <dt className="text-[0.8125rem] font-medium text-gray-600">{row.label}</dt>
+        <dd className={cn("min-w-0 truncate text-sm", row.alert ? "font-medium text-red-800" : "text-gray-950")}
           title={typeof row.value === "string" ? row.value : undefined}>{row.value}</dd>
         <dd className="flex items-center gap-1">{row.button}{row.menu ?? <span className="w-8 shrink-0" />}</dd>
       </div>)}
