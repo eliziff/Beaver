@@ -176,8 +176,8 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
     : name === "Index" ? <FrontLayout preview={<FrontSourcePreview slot="index" value={own.index} pdfs={pdfs}
       generated={<FrontPreview host={host} draft={front} actions={frontActions} part="index" label="Index" />} />}>
       <FrontSource slot="index" value={own.index} pdfs={pdfs} disabled={busy} onChange={ownFor("index")}
-        own={<IndexFields own settings={settings} profileId={profileId} disabled={busy} onChange={choose} />}>
-        <IndexFields settings={settings} profileId={profileId} disabled={busy} onChange={choose} />
+        own={<IndexFields own settings={settings} disabled={busy} onChange={choose} />}>
+        <IndexFields settings={settings} disabled={busy} onChange={choose} />
       </FrontSource>
     </FrontLayout>
     : name === "Sources" ? <div className="grid content-start gap-5 overflow-y-auto p-1">

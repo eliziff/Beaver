@@ -1534,7 +1534,7 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   const generatedFederalCover = book && coverForm(settings.profileId) === "federal" && !state.bookParts.cover;
   const coverDetailsReady = !generatedFederalCover || completeFederalCover(state.cover);
   const filingRoleReady = !generatedFederalCover || !!settings.bookRole;
-  const indexShows = settings.indexShows ?? (profile.requirements?.federalFormatting ? "tabs-and-pages" : "tabs");
+  const indexShows = settings.indexShows ?? "tabs";
   // Without a converter here, a Word brief reaches the final PDF as a PDF the user saved from Word.
   const briefSlot = wordDocument && convertsWord === false;
   const brief = state.bookParts.brief ?? undefined;
