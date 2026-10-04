@@ -58,8 +58,6 @@ export type AuthoritiesFreshReview = Pick<AuthoritiesDraft,
 
 export type AuthoritiesAction =
   | { type: "set-annotations"; entries: Array<{ authorityId: string; bindingRole: string; annotations: PdfAnnotationSet }> }
-  | { type: "set-source-page-labels"; authorityId: string; bindingRole: string; sourceSha256: string;
-      pageLabels: Array<string | null> }
   | { type: "ingest-ledger"; ledger: AuthorityCitationLedger }
   | { type: "add-seed"; seed: AuthoritySeed }
   | { type: "add-authority"; authority: AuthorityIdentity }
@@ -91,7 +89,7 @@ export type AuthoritiesAction =
   | { type: "attach-source"; authorityId: string; bindingRole: string;
       binding: WorkProductInput; filename: string; sourceSha256: string;
       sourceUrl: string | null; language: AuthoritySourceLanguage;
-      origin?: "manual" | "original" | "reconstructed"; pageCount?: number }
+      origin?: "manual" | "original" | "reconstructed"; pageCount?: number; pageLabels?: Array<string | null> }
   | { type: "clear-authority-source"; authorityId: string }
   | { type: "set-source-verification"; authorityId: string; pageUrl: string | null;
       reason?: NonNullable<AuthorityIdentity["sourceDownloadFailure"]> }
@@ -1039,16 +1037,8 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
         sourceSha256: action.sourceSha256, sourceUrl: action.sourceUrl,
         origin: action.origin ?? "manual", language: action.language,
         ...(action.pageCount && { pageCount: action.pageCount }),
+        ...(action.pageLabels && { pageLabels: action.pageLabels }),
       }, action.binding);
-      break;
-    }
-    case "set-source-page-labels": {
-      const authority = requireRecord(draft.authorities, action.authorityId, "authority");
-      if (authority.source.kind !== "attached") throw new AuthoritiesDomainError("This source is no longer attached.");
-      // Kept only for the PDF they were read from.
-      authority.source = { kind: "attached", sources: authority.source.sources.map((source) =>
-        source.bindingRole === action.bindingRole && source.sourceSha256 === action.sourceSha256
-          ? { ...source, pageLabels: action.pageLabels } : source) };
       break;
     }
     case "clear-authority-source": {

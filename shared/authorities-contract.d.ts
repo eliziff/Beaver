@@ -201,8 +201,6 @@ export type AuthoritiesDiscrepancyAction =
 
 export type AuthoritiesUserAction =
   | { type: "set-annotations"; entries: Array<{ authorityId: string; bindingRole: string; annotations: PdfAnnotationSet }> }
-  | { type: "set-source-page-labels"; authorityId: string; bindingRole: string; sourceSha256: string;
-      pageLabels: Array<string | null> }
   | { type: "add-authority"; kind: AuthorityKind; citation: string; name?: string | null }
   | { type: "move-authority"; authorityId: string; toIndex: number }
   | { type: "set-stage"; stage: "citations" | "sources" | "highlights" | "build" }

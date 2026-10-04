@@ -28,12 +28,10 @@ import {
   updateWorkProduct,
 } from "@/app/lib/api/workProducts";
 import { directoryResource, downloadDocument, getDocument, readDocumentFile, getDocumentPdfTextLayer } from "@/app/lib/api/documents";
-import { getDocumentPdfPageLabels } from "@/app/lib/pdfDocumentSource";
 import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import { getUserProfile, updateUserProfile } from "@/app/lib/api/account";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
-import { authorityCitationForms } from "./authorityPresentation";
 import { decodeAnnotationSet } from "../../../../shared/pdf-annotations.mjs";
 
 const drafts: WorkProductStore = {
@@ -134,16 +132,6 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     // The text endpoint resolves latest + verifies the displayed hash in the same request.
     return getDocumentPdfTextLayer(binding.documentId,
       binding.version === "latest" ? undefined : binding.version.versionId, signal, pages, source.sourceSha256);
-  },
-  async readSourcePageLabels(draft, role, signal) {
-    const resolved = await sourceVersion(draft, role);
-    const authority = Object.values(draft.state.authorities).find(authority => authority.source.kind === "attached" &&
-      authority.source.sources.some(source => source.bindingRole === role));
-    const source = authority?.source.kind === "attached" ? authority.source.sources.find(source => source.bindingRole === role) : undefined;
-    const context = source && authority ? { citations: [...new Set([...authorityCitationForms(authority, Object.values(draft.state.occurrences)),
-      ...(authority.sourceIdentity?.citationForms ?? [])])],
-      reporterOriginal: source.origin === "original", sourceSha256: source.sourceSha256 } : undefined;
-    return (await getDocumentPdfPageLabels(resolved.documentId, resolved.versionId, signal, context)).pageLabels;
   },
   sourceOcr: { progress: pdfProgress,
     start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),

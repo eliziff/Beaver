@@ -182,11 +182,6 @@ async function attachPdf(id: string, revision: number, selected: AuthoritiesFile
       state.bindings[role].lastSeen.sha256 !== binding.lastSeen.sha256)
     throw new Error("The selected PDF changed while it was being added.");
   state.bindings[role] = binding;
-  // An authority's PDF has its printed page numbers read with it, so its viewer shows them with the page.
-  const decision = fields.authority_id ? state.authorities[fields.authority_id]?.source : undefined;
-  const source = decision?.kind === "attached" ? decision.sources.find((item) => item.bindingRole === role) : undefined;
-  const pageLabels = source && await readPageLabels(state, role, selected.file).catch(() => undefined);
-  if (source && pageLabels) source.pageLabels = pageLabels;
   return save(id, revision, state);
 }
 
@@ -199,13 +194,6 @@ async function sourceText(product: AuthoritiesProduct, role: string, signal?: Ab
 
 type RecognitionJob = { controller: AbortController; progress: PdfProgress };
 const recognitionJobs = new Map<string, RecognitionJob>();
-
-/** A source's printed page numbers, as the engine reads its PDF. */
-async function readPageLabels(state: AuthoritiesDraft, role: string, file: File, signal?: AbortSignal) {
-  const form: AuthoritiesRequest = {}; form.files = [file];
-  form["draft"] = state; form["bindingRole"] = role;
-  return ((await runtimeResponse("source-page-labels", form, signal)).data as { pageLabels: Array<string | null> }).pageLabels;
-}
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
   prepareAnnotations: (product, ...args) =>
@@ -401,8 +389,6 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   },
   readSource: async (draft, role) => resolveExact(draft.state.bindings[role]),
   readSourceText: sourceText,
-  readSourcePageLabels: async (draft, role, signal) =>
-    readPageLabels(draft.state, role, await resolveExact(draft.state.bindings[role]), signal),
   readPinpoints: async (text, start, end) =>
     (await runtimeResponse("pinpoints", { text, start, end })).data as Awaited<ReturnType<NonNullable<AuthoritiesHost["readPinpoints"]>>>,
   async inspectDraft(draft) {
