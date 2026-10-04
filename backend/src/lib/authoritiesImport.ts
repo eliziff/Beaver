@@ -645,7 +645,10 @@ native: AuthoritiesNative = structureNative()) {
         profile: prepared.profile, status: prepared.status } });
     };
     const own = await read({ ...reference, bytes: input.bytes, ocrProvider: null });
-    const scanned = native.pdfDocumentSummary?.(own).scannedPages ?? [];
+    // A scanned page whose own text layer reads well needs no recognition: only the pages the engine
+    // still names as needing it are recognized, and with none the brief is read as it is.
+    const summary = native.pdfDocumentSummary?.(own);
+    const scanned = (summary?.scannedPages ?? []).filter((index) => summary?.pagesNeedingOcr.includes(index));
     if (!scanned.length) return own;
     try {
       return await read({ ...reference, bytes: input.bytes, ocrProvider: "kraken-lite",
