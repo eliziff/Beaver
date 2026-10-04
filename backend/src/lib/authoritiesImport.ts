@@ -294,9 +294,10 @@ async function scanReview(
     const origin = group.map(index => byResolution.get(index)?.sourcePart).find(index => index != null);
     const source = !full.length ? originParts.find(({ index }) => index === origin) : undefined;
     // A decision's report or neutral citation names it before the court file it was made under.
-    // A citation written with a recognizer's confusion (an "ocr_twin") does not represent its authority.
+    // A citation written with a recognizer's confusion (an "ocr_twin") or without the chapter it takes
+    // from another citation of it (a "titled_chapter") does not represent its authority.
     const representative = full.find((citation) => citation.key && citation.format !== "docket"
-        && !citation.reasons.includes("ocr_twin")) ??
+        && !citation.reasons.some((reason) => reason === "ocr_twin" || reason === "titled_chapter")) ??
       full.find((citation) => citation.key && citation.format !== "docket") ??
       full.find((citation) => citation.key) ?? full[0] ??
       (source ? group.map((index) => byIndex.get(index)).find(Boolean) : undefined);
