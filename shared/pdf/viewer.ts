@@ -37,6 +37,9 @@ export function createPdfSession(options: {
   };
   const updateAnnotations=(number?: number)=>{
     if(!options.readEditor?.()) { annotations?.destroy();annotations=undefined;return; }
+    // A mark's page is described before its mark is drawn: the mark is placed by the page's size.
+    for(const mark of options.readEditor()!.marks)for(const {pageNumber} of mark.fragments)
+      if(pages[pageNumber-1] && !pages[pageNumber-1].dataset.pdfScale)sync(pageNumber);
     annotations ??= attachPdfAnnotationLayer(container,pages,()=>options.readEditor!()!);
     annotations.update(number);
   };
@@ -55,6 +58,26 @@ export function createPdfSession(options: {
       else { entry.holder.style.transform=view.viewport.scale===entry.scale?'':`scale(${view.viewport.scale/entry.scale})`;
         entry.holder.style.pointerEvents=zooming?'none':''; }
     }
+  };
+  // A long PDF's pages are described in idle time, a hundred at a time, those around the page on
+  // screen and those holding marks first: describing all of a 1,453-page statute at once held the
+  // main thread for a frame the reader saw. A page drawn, prepared or marked is described at once.
+  let unsynced: number[]=[], idle=0;
+  const drain=(deadline?: IdleDeadline)=>{
+    idle=0;if(signal.aborted)return;
+    for(let done=0;unsynced.length && done<100 && (!deadline || deadline.timeRemaining()>1 || deadline.didTimeout);done++)sync(unsynced.shift()!);
+    if(unsynced.length)idle=requestIdleCallback(drain,{timeout:500});
+  };
+  const syncAll=()=>{
+    const count=viewer.pagesCount, at=viewer.currentPageNumber||1, marked=new Set(options.readEditor?.()?.marks
+      .flatMap(mark=>mark.fragments.map(({pageNumber})=>pageNumber)));
+    for(let number=1;number<=count;number++)pages[number-1]=viewer.getPageView(number-1).div;
+    const now=[...new Set([...Array.from({length:5},(_,i)=>at-2+i),...marked])].filter(number=>number>=1 && number<=count);
+    now.forEach(sync);
+    const done=new Set(now);
+    unsynced=Array.from({length:count},(_,i)=>i+1).filter(number=>!done.has(number))
+      .sort((a,b)=>Math.abs(a-at)-Math.abs(b-at));
+    if(!idle && unsynced.length)idle=requestIdleCallback(drain,{timeout:500});
   };
   const ensureText=(number: number)=>{
     if(signal.aborted)return Promise.resolve();
@@ -159,39 +182,48 @@ export function createPdfSession(options: {
     signal.addEventListener('abort',()=>resolve(),{once:true});
     eventBus.on('pagesinit',()=>{
       if(signal.aborted)return;
-      for(let number=1;number<=viewer.pagesCount;number++)sync(number);
+      syncAll();
       resize();updateAnnotations();resolve();
     });
   });
-  eventBus.on('pagesloaded',()=>{
-    if(!signal.aborted)for(let number=1;number<=viewer.pagesCount;number++)sync(number);
-  });
+  eventBus.on('pagesloaded',()=>{if(!signal.aborted)syncAll();});
   eventBus.on('scalechanging',()=>{if(!signal.aborted)for(const number of layers.keys())sync(number);});
   eventBus.on('pagechanging',({pageNumber}: {pageNumber:number})=>{if(!signal.aborted)options.onPage?.(pageNumber);});
   eventBus.on('pagerendered',({pageNumber,error,cssTransform}: {pageNumber:number;error?:unknown;cssTransform?:boolean})=>{
-    if(signal.aborted)return;
+    rendered=true;if(signal.aborted)return;
     // PDF.js may evict another page while rendering this one. Release only detached layers.
     for(const [number,entry] of layers)if(!entry.holder.isConnected)release(number);
     sync(pageNumber);updateAnnotations(pageNumber);
     if(!error && !cssTransform) {if(zooming)pendingText.add(pageNumber);else void ensureText(pageNumber);}
     options.onRendered?.(pageNumber,error);
   });
+  // Once a page is drawn, PDF.js reads every other page of the document; the viewer is taken down
+  // only once it has (or after 15 s), so no read is cut off by the document closing under it.
+  // `closed` is when the document may be closed.
+  let rendered=false, closed=Promise.resolve();
   const destroy=()=>{
-    if(disposed)return;disposed=true;abort.abort();navigation++;observer.disconnect();
+    if(disposed)return;disposed=true;abort.abort();navigation++;observer.disconnect();cancelIdleCallback(idle);
     cancelAnimationFrame(frame);clearTimeout(settle);detachSelection();annotations?.destroy();
     for(const number of layers.keys())release(number);
-    destroyViewer();options.signal.removeEventListener('abort',destroy);
+    options.signal.removeEventListener('abort',destroy);
+    const reading=rendered && viewer.pagesPromise;
+    if(!reading) {destroyViewer();return;}
+    (viewer as unknown as {_cancelRendering(): void})._cancelRendering();
+    closed=Promise.race([reading.catch(()=>{}),new Promise(resolve=>setTimeout(resolve,15_000))]).then(destroyViewer);
   };
   options.signal.addEventListener('abort',destroy,{once:true});
   // Pages are made at the scale they will fit (this runs before PDF.js reads its first page), so
   // opening a long PDF does not lay every page out once more when the first resize fits it.
+  // The document is given to PDF.js only once its first page is read, so a viewer closed before
+  // then leaves PDF.js nothing in flight.
   void pdf.getPage(1).then(first=>{
-    if(!signal.aborted && width)(viewer as unknown as {_currentScale: number})._currentScale=fitOf(first)*zoom;
-  },()=>{});
-  viewer.setDocument(pdf);void viewer.pagesPromise?.catch((error: unknown)=>{if(!signal.aborted)options.onError(error);});
+    if(signal.aborted || options.signal.aborted)return;
+    if(width)(viewer as unknown as {_currentScale: number})._currentScale=fitOf(first)*zoom;
+    viewer.setDocument(pdf);void viewer.pagesPromise?.catch((error: unknown)=>{if(!signal.aborted)options.onError(error);});
+  },(error: unknown)=>{if(!signal.aborted)options.onError(error);});
   if(options.signal.aborted)destroy();
   return {viewer,pages,ready,preparePage,ensureText,drawPage,navigate,setZoom,updateAnnotations,destroy,
-    get zoom(){return requestedZoom;},
+    get zoom(){return requestedZoom;},get closed(){return closed;},
     focusAnnotation(mark: PdfAnnotation){return navigate(mark.fragments[0].pageNumber,mark);},
     refreshText(){for(const [number,entry] of layers)entry.layer.refresh(options.readText?.(number),options.readTextLoader?.());},
   };
