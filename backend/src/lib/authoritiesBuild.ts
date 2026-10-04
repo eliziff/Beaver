@@ -877,7 +877,7 @@ function bookFront(draft: AuthoritiesDraft, subtitle: string) {
   return { subtitle, documentTitle: draft.cover.title || bookTitle, bookTitle, federal,
     alberta: !!profile.requirements?.albertaCover,
     indexShows: draft.settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs"),
-    tabPages: draft.settings.tabPages ?? !federal,
+    tabPages: draft.settings.tabPages ?? true,
     // Blank backs are for paper: an electronic filing never has them.
     rightHandStarts: draft.settings.filingMedium !== "electronic" &&
       (draft.settings.rightHandStarts ?? draft.settings.filingMedium === "paper"),
