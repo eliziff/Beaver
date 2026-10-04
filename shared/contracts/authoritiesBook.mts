@@ -201,7 +201,6 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             else if (input.alberta) coverBottom = drawAlbertaCover(pdf, cover, regular, bold, input.cover,
               input.court, documentTitle);
             else {
-              cover.drawRectangle({ x: 0, y: 0, width: 18, height: 792, color: ink });
               cover.drawLine({ start: { x: margin, y: 626 }, end: { x: 612 - margin, y: 626 },
                 thickness: 2, color: ink });
               // The title wraps rather than losing its end; the subtitle follows its last line.
