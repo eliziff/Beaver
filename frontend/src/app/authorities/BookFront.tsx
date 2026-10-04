@@ -164,9 +164,8 @@ export function IndexFields({ settings, profileId, disabled, onChange, own = fal
   own?: boolean;
 }) {
   const profile = authoritiesProfile(profileId), federal = !!profile.requirements?.federalFormatting;
-  const electronic = settings.filingMedium === "electronic";
   const tabPages = settings.tabPages ?? true;
-  const rightHand = !electronic && (settings.rightHandStarts ?? settings.filingMedium === "paper");
+  const rightHand = settings.rightHandStarts ?? true;
   return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
     <legend className="sr-only">Index</legend>
     {!own && <OptionCards legend="Beside each authority" value={settings.indexShows ?? (federal ? "tabs-and-pages" : "tabs")}
@@ -180,10 +179,8 @@ export function IndexFields({ settings, profileId, disabled, onChange, own = fal
     <div className="grid gap-2">
       <OptionCard type="checkbox" checked={tabPages} onChange={() => onChange({ tabPages: !tabPages })}
         label="A TAB page before each authority" detail="Where the index's link and the bookmark for each authority land." />
-      <OptionCard type="checkbox" checked={rightHand} disabled={electronic} onChange={() => onChange({ rightHandStarts: !rightHand })}
-        label="Start each on a right-hand page"
-        detail={electronic ? "For a book printed on both sides. An electronic filing has no blank pages."
-          : "For a book printed on both sides: a blank page is added where one is needed."} />
+      <OptionCard type="checkbox" checked={rightHand} onChange={() => onChange({ rightHandStarts: !rightHand })}
+        label="Start each on a right-hand page" detail="For a book printed on both sides: a blank page is added where one is needed." />
     </div>
   </fieldset>;
 }
