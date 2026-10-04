@@ -257,6 +257,9 @@ async function scanReview(
     source.references.every(({ form }) => form !== "citation") ? [{ index, ...source, reference: source.references[0] }] : []);
   const sourceGroups = new Map<number, string>();
   const unkeyed = new Map<string, string>();
+  // The link each citation writes ("online: <…>", a URL in its text), by citation.
+  const linkOf = new Map(references.flatMap(({ references: found }) => found.flatMap((reference) =>
+    reference.citation != null && reference.link ? [[reference.citation, reference.link] as const] : [])));
   for (const group of result.authorities) {
     const full = group.map((index) => byIndex.get(index))
       .filter((citation): citation is Citation => citation?.form === "full");
@@ -266,7 +269,7 @@ async function scanReview(
     const referenceUrl = group.map((index) => byResolution.get(index)?.url)
       .find(isObservedSourceUrl);
     const url = sourceUrl ??
-      full.map((citation) => citation.fields.url).find(isObservedSourceUrl) ??
+      full.map((citation) => withScheme(linkOf.get(citation.index) ?? citation.fields.url)).find(isObservedSourceUrl) ??
       (full.length && referenceUrl ? referenceUrl.split("#")[0] : referenceUrl);
     const origin = group.map(index => byResolution.get(index)?.sourcePart).find(index => index != null);
     const source = !full.length ? originParts.find(({ index }) => index === origin) : undefined;
@@ -282,7 +285,7 @@ async function scanReview(
     if (written) unkeyed.set(written, key);
     group.forEach((index) => authorityOf.set(index, key));
     if (authorities[key]) continue;
-    const sourceLink = source?.reference.link ?? url;
+    const sourceLink = withScheme(source?.reference.link ?? url);
     const explicitUrl = isObservedSourceUrl(sourceLink) ? sourceLink : null;
     if (source) sourceGroups.set(source.index, key);
     // A core that does not name its court (a CanLII ID, a reporter) keeps the court written
@@ -538,6 +541,10 @@ export function createAuthoritiesImporter(
 }
 
 /** Stateless local-runtime import; the browser remains the draft/file owner. */
+/** A link written without its scheme ("online: <example.org/report>") is the web address it names. */
+const withScheme = (link: unknown) => typeof link === "string" && /^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#]|$)/iu.test(link)
+  ? `https://${link}` : link;
+
 export async function importStandaloneAuthoritiesFile(input: {
   filename: string; fileType: "docx" | "pdf"; bytes: Buffer; modified: number;
   sourceMode?: AuthoritiesSourceMode;
