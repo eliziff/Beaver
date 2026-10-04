@@ -43,6 +43,9 @@ export type AuthoritiesBuildSettings = {
   indexShows?: "tabs" | "tabs-and-pages";
   /** A "TAB n" page before each authority, where its index link and bookmark land (default true). */
   tabPages?: boolean;
+  /** The bookmarks under each tab: the passages the book marks in it ("highlights", the default:
+   *  "para 45", "s 207"), or the source's own headings from its first section on ("headings"). */
+  bookmarks?: "highlights" | "headings";
   /** For a book printed on both sides: each tab page and each authority's first page on a right-hand
    *  page, a blank page added where needed. By default on for a paper filing; never electronic. */
   rightHandStarts?: boolean;
