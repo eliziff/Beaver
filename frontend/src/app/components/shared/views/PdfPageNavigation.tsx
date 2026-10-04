@@ -1,5 +1,15 @@
 import { useId, useRef, useState } from "react";
 
+function pageRange(start: string, end: string) {
+    if (start === end) return start;
+    if (/^\d+$/.test(start) && /^\d+$/.test(end) && start.length === end.length && Number(end) > Number(start)) {
+        let prefix = 0;
+        while (prefix < end.length - 2 && start[prefix] === end[prefix]) prefix++;
+        end = end.slice(prefix);
+    }
+    return `${start}–${end}`;
+}
+
 /** Labels are indexed by physical PDF page; repeated and missing labels are valid. */
 export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }: {
     page: number; count: number; labels?: readonly (string | null)[];
@@ -9,6 +19,9 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
     const printedRef = useRef<HTMLInputElement>(null);
     const known = labels?.map(label => label?.trim()).filter(Boolean) ?? [];
     const hasUnknownLabels = Array.from({ length: count }, (_, i) => !labels?.[i]?.trim()).some(Boolean);
+    // Printed numbers that are the PDF's own (pages without one aside) add nothing, so only the PDF field shows.
+    const samePageNumbers = Array.from({ length: count }, (_, i) => labels?.[i]?.trim())
+        .every((label, i) => !label || label === String(i + 1));
     // Each field shows the current page; what the reader types replaces it until Enter, Escape or leaving the field.
     const [pdfDraft, setPdfDraft] = useState<string | null>(null);
     const [printedDraft, setPrintedDraft] = useState<string | null>(null);
@@ -40,11 +53,9 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
             else setMatches(found);
         }
     }
-    // An emptied field shows its page range as a faint placeholder; the width fits that range, and a
-    // range up to four digits a side, so the fields keep their size from one PDF to the next.
-    const pdfRange = `1–${count}`, printedRange = `${known[0]}–${known.at(-1)}`;
-    const inputClass = "h-7 rounded border border-gray-200 px-1.5 text-end tabular-nums text-gray-950 placeholder:font-normal placeholder:text-gray-400 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700 disabled:opacity-50";
-    const width = (range: string) => ({ width: `calc(${Math.max(range.length, 6) + 1}ch + 0.75rem)` });
+    // Fixed width fits a four-digit page or an abbreviated range such as 1421–45.
+    const pdfRange = pageRange("1", String(count)), printedRange = pageRange(known[0] ?? "", known.at(-1) ?? "");
+    const inputClass = "h-7 w-[calc(7ch+0.75rem)] rounded border border-gray-200 bg-app-surface px-1.5 text-center tabular-nums text-gray-950 placeholder:font-normal placeholder:text-gray-400 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700 disabled:opacity-50";
     return <div className="relative min-w-0 text-[0.8125rem] font-medium text-gray-700" onKeyDown={event => {
         if (event.key === "Escape") {
             if (matches.length) printedRef.current?.focus();
@@ -54,14 +65,14 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
         <div className="flex flex-wrap items-center gap-x-3 rounded-lg border border-gray-200 bg-white px-2 py-1 shadow-sm">
             <label className="flex items-center gap-1">PDF
                 <input aria-label={`PDF page, 1 to ${count}`} value={pdfInput} placeholder={pdfRange} inputMode="numeric" disabled={disabled}
-                    aria-describedby={error ? id : undefined} className={inputClass} style={width(pdfRange)}
+                    aria-describedby={error ? id : undefined} className={inputClass}
                     onChange={event => { setPdfDraft(event.target.value); setError(""); setMatches([]); }}
                     onBlur={() => { if (!error) setPdfDraft(null); }}
                     onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("pdf"); } }} />
             </label>
-            {known.length > 0 && <label className="flex items-center gap-1">Printed
+            {known.length > 0 && !samePageNumbers && <label className="flex items-center gap-1">Printed
                 <input ref={printedRef} aria-label={`Printed page, ${known[0]} to ${known.at(-1)}`} value={printedInput} placeholder={printedRange} disabled={disabled}
-                    aria-describedby={error ? id : undefined} className={inputClass} style={width(printedRange)}
+                    aria-describedby={error ? id : undefined} className={inputClass}
                     onChange={event => { setPrintedDraft(event.target.value); setError(""); setMatches([]); }}
                     onBlur={() => { if (!error && !matches.length) setPrintedDraft(null); }}
                     onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("printed"); } }} />
