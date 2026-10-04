@@ -10,7 +10,6 @@ import { buildCanliiPdfUrl, isCanliiUrl } from "mike/shared/runtime/canliiPageUr
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
-import { legisQuebecLegalSourceProvider, legisQuebecSource } from "./legalSources/legisQuebec";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { mapBounded } from "./mapBounded";
 import { legislationPdfUrl, publisherOpenUrl, publisherPdfCandidate } from "./legalSourcePresentation";
@@ -28,7 +27,6 @@ const foreignProviders = [
   { id: "tna", claims: tnaLegalSourceProvider, source: tnaCaseSource },
   { id: "courtlistener", claims: courtlistenerLegalSourceProvider,
     source: courtlistenerLegalSourceProvider.caseSource },
-  { id: "legisquebec", claims: legisQuebecLegalSourceProvider, source: legisQuebecSource },
 ] as const;
 
 /** Resolves the first citation form a provider matches; never a best guess. */
@@ -93,6 +91,18 @@ export async function authorityReferenceText(draft: AuthoritiesDraft, authority:
     if (found) return found.searchText;
   } catch { signal?.throwIfAborted(); }
   return "";
+}
+
+/** A statute's text from A2AJ, for the provisions its PDF does not place; null where A2AJ holds
+ *  none. */
+export async function authorityStatuteText(draft: AuthoritiesDraft, authority: AuthorityIdentity,
+  sources: SourceServices = authoritySourceServices, signal?: AbortSignal) {
+  const citations = authorityCitationForms(draft, authority.id);
+  for (const citation of citations) try {
+    const found = await sources.resolve(citation, "legislation", signal, sourceIdentityLanguage(authority));
+    if (found?.searchText.trim()) return { text: found.searchText, provider: "A2AJ" };
+  } catch { signal?.throwIfAborted(); }
+  return null;
 }
 
 /** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. */

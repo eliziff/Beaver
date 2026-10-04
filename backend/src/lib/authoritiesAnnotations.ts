@@ -6,7 +6,9 @@ import { ANNOTATION_SCHEMA, decodeAnnotationSet, validRect,
 export type { AnnotationPreparation } from 'mike/shared/pdf-annotations.mjs';
 
 type Style = 'none' | 'margin' | 'paragraph' | 'text' | 'sidelined';
-const labelFor = (kind: string, value: string) => `${kind === 'paragraph' ? 'para' : kind === 'section' ? 's' : 'p'} ${value}`;
+/** A cited locator as the book writes it: "s 33(1)", "art 49", "r 20.01", "para 12", "p 4". */
+export const locatorLabel = (kind: string, value: string) =>
+  `${({ paragraph: 'para', section: 's', article: 'art', rule: 'r' } as Record<string, string>)[kind] ?? 'p'} ${value}`;
 export const normalizePassageRect = (rect: number[], width: number, height: number): AnnotationRect =>
   [rect[0] / width, rect[1] / height, rect[2] / width, rect[3] / height]
     .map(v => Math.min(1, Math.max(0, v))) as AnnotationRect;
@@ -37,7 +39,7 @@ export function initialAuthorityAnnotations(input: {
   const targets = (input.geometry?.targets ?? []).filter(target =>
     !input.exclusions?.has(`${target.locatorKind.trim()}\0${target.locator.trim()}`));
   if (input.style !== 'none') for (const target of targets) {
-    const label = labelFor(target.locatorKind, target.locator);
+    const label = locatorLabel(target.locatorKind, target.locator);
     const excerpt = target.pages.map(page => page.text ?? '').join(' ').trim().slice(0, 2_000);
     const found = target.status === 'found' &&
       (!input.requirePrintedParagraphLocator || hasPrintedParagraphLocator(target));

@@ -9,7 +9,8 @@ use legal_structure::{
     marked_quote_spans, provider_citations_in_text, provider_text_document_structure,
     quote_repair_suggestion, text_fragment_plan, utf16_prefix_ceil, AuthoritativeTableCell,
     DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure,
-    FollowDirection, JournalPageLabel, NativeMarkupInput, ProviderTextInput, VisibleEvidenceText,
+    FollowDirection, JournalPageLabel, NativeMarkupInput, OutlineEntry, PrintedStatute,
+    ProviderTextInput, VisibleEvidenceText,
 };
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -53,124 +54,7 @@ pub struct NativeDocument {
     pub(crate) product: NativeProduct,
     pub(crate) query: DocumentQuery,
     /// A PDF's body read by the instrument grammar, once, when a section is asked for.
-    instrument: std::sync::OnceLock<Option<InstrumentReading>>,
-}
-
-/// The instrument grammar's reading of a PDF's body text: its paragraphs and headings
-/// without the running heads, folios and notes between them, each at its offset.
-pub(crate) struct InstrumentReading {
-    structure: DocumentStructure,
-    /// Each paragraph read: its (start, end) in the reading's text, the PDF structure node
-    /// it comes from, that node's lines it holds, whether it is a title (a heading or a
-    /// marginal note) that opens what follows, and whether it is a history note that closes
-    /// what precedes. A marginal note and the provision under it can share a node, as can a
-    /// provision and its history note; each is its own paragraph.
-    parts: Vec<(usize, usize, usize, Vec<String>, bool, bool)>,
-}
-
-/// A line opening a provision: "(2) ...", "(a) ...", or a section number before its text
-/// ("12 (1) Every ...", "33(1) The ...", "1‑3(1) For ...", "205 [Repealed ...]"), not a
-/// number in prose ("900 metres ...").
-#[cfg(feature = "legalpdf")]
-fn provision_opening(line: &str) -> bool {
-    if line.starts_with('(') { return line.contains(')'); }
-    let rest = provision_label(line);
-    rest.len() < line.len() && rest.starts_with(char::is_whitespace)
-        && rest.trim_start().starts_with(|c: char| c == '(' || c == '[' || c.is_uppercase())
-}
-
-/// What follows a provision's number at the start of a line: its digits, the points and
-/// hyphens joining them ("4.09", "1‑3"), and the subsections it names ("33(1)", "2(1)(a)").
-#[cfg(feature = "legalpdf")]
-fn provision_label(line: &str) -> &str {
-    if !line.starts_with(|c: char| c.is_ascii_digit()) { return line; }
-    let mut rest = line.trim_start_matches(|c: char| c.is_ascii_digit() || matches!(c, '.' | '-' | '\u{2010}' | '\u{2011}'));
-    while let Some(inner) = rest.strip_prefix('(') {
-        match inner.split_once(')') {
-            Some((label, after)) if (1..=6).contains(&label.len())
-                && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '.') => rest = after,
-            _ => break,
-        }
-    }
-    rest
-}
-
-/// A line of a provision as the reading takes it: the PDF lines printed on it, in order.
-#[cfg(feature = "legalpdf")]
-struct Row {
-    text: String,
-    rect: [f64; 4],
-    ids: Vec<String>,
-    /// The row opens with a number printed apart from its text.
-    labelled: bool,
-}
-
-/// A node's lines as rows of print. A provision's number set apart in the margin, on its own
-/// line beside the text it opens ("33(1)" | "The court shall ..."), is read with that text,
-/// before it even where the PDF writes it after.
-#[cfg(feature = "legalpdf")]
-fn rows<'a>(lines: impl Iterator<Item = (&'a legal_pdf_support::PdfTextLine, u32)>) -> Vec<(Row, u32)> {
-    let mut lines = lines.collect::<Vec<_>>();
-    let same_row = |a: &[f64; 4], b: &[f64; 4]| a[3].min(b[3]) - a[1].max(b[1])
-        >= (a[3] - a[1]).min(b[3] - b[1]) * 0.5;
-    let label = |line: &legal_pdf_support::PdfTextLine| {
-        let text = line.text.trim();
-        !text.is_empty() && provision_label(text).trim_end_matches('.').is_empty()
-    };
-    for at in 1..lines.len() {
-        let ((before, page), (after, next)) = (lines[at - 1], lines[at]);
-        if page == next && label(after) && after.rect[2] <= before.rect[0] && same_row(&after.rect, &before.rect) {
-            lines.swap(at - 1, at);
-        }
-    }
-    let mut rows = Vec::<(Row, u32)>::new();
-    let mut lines = lines.into_iter().peekable();
-    while let Some((line, page)) = lines.next() {
-        let mut row = Row { text: line.text.trim().to_owned(), rect: line.rect, ids: vec![line.id.clone()], labelled: false };
-        if label(line) {
-            if let Some((text, _)) = lines.next_if(|(text, next)| *next == page
-                && text.rect[0] >= line.rect[2] && same_row(&text.rect, &line.rect)) {
-                row.text = format!("{} {}", row.text, text.text.trim());
-                row.rect = [row.rect[0], row.rect[1].min(text.rect[1]), text.rect[2], row.rect[3].max(text.rect[3])];
-                row.ids.push(text.id.clone());
-                row.labelled = true;
-            }
-        }
-        rows.push((row, page));
-    }
-    rows
-}
-
-/// A history note under a provision lists the enactments that made or amended it, each a
-/// year or revision and its chapter: "1991, c. 43, s. 4; 2005, c. 22, s. 20", "R.S., c. C-34,
-/// s. 1", "R.S., 1985, c. 27 (1st Supp.), s. 13", "2009 c50 s7". It is references only, with
-/// no word longer than "suppl."; an amendment's text ("2019, c. 25, s. 5, is replaced by")
-/// is no history note.
-#[cfg(feature = "legalpdf")]
-fn history_note(line: &str) -> bool {
-    if line.split(|c: char| !c.is_alphabetic()).any(|word| word.chars().count() > 5) {
-        return false;
-    }
-    let revised = ["R.S.C.", "R.S.", "L.R.C.", "S.R.", "S.C."].iter()
-        .find_map(|prefix| line.strip_prefix(prefix)).map(|rest| rest.trim_start_matches([',', ' ']));
-    let rest = revised.unwrap_or(line);
-    let year = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_digit()).len();
-    let rest = match year {
-        4 => rest[4..].trim_start_matches([',', ' ']),
-        0 if revised.is_some() => rest,
-        _ => return false,
-    };
-    rest.starts_with("c. ") || rest.starts_with("ch. ")
-        || rest.strip_prefix('c').is_some_and(|number| number.starts_with(|c: char| c.is_ascii_digit()))
-}
-
-impl InstrumentReading {
-    /// The paragraphs a range of the reading covers: their PDF node, lines, and whether
-    /// each is a title and a history note.
-    fn parts(&self, start: usize, end: usize) -> impl Iterator<Item = (usize, &[String], bool, bool)> + '_ {
-        self.parts.iter().filter(move |(from, to, ..)| *from < end && start < *to)
-            .map(|(_, _, node, lines, title, note)| (*node, lines.as_slice(), *title, *note))
-    }
+    instrument: std::sync::OnceLock<Option<PrintedStatute>>,
 }
 
 impl NativeDocument {
@@ -178,95 +62,22 @@ impl NativeDocument {
         Self { product, query: DocumentQuery::new(), instrument: std::sync::OnceLock::new() }
     }
 
-    fn instrument(&self) -> Option<&InstrumentReading> {
+    fn instrument(&self) -> Option<&PrintedStatute> {
         self.instrument.get_or_init(|| self.read_instrument()).as_ref()
     }
 
     #[cfg(feature = "legalpdf")]
-    fn read_instrument(&self) -> Option<InstrumentReading> {
+    fn read_instrument(&self) -> Option<PrintedStatute> {
         let NativeProduct::Pdf(pdf) = &self.product else { return None };
         let pages = pdf.passage_pages();
-        let lines = pages.iter().flat_map(|page| page.lines.iter().map(move |line| (line.id.as_str(), (line, page.page_number))))
+        let lines = pages.iter().flat_map(|page| page.lines.iter().map(move |line| (line.id.as_str(),
+            legal_structure::PrintedLine { id: &line.id, text: &line.text, rect: line.rect, page: page.page_number })))
             .collect::<std::collections::HashMap<_, _>>();
-        let (mut text, mut parts, mut offset) = (String::new(), Vec::new(), 0);
-        // The page of the last paragraph read while its sentence is still open, and whether
-        // that paragraph is a history note.
-        let mut open: Option<u32> = None;
-        let mut open_note = false;
-        // The provisions follow a contents list at the front; what precedes it is front matter.
-        let structure = pdf.structure();
-        // A list opening past the middle of the document (a rule's own contents) is not at its front.
-        let middle = pages.len() / 2;
-        let mut contents = structure.nodes.iter().filter(|node| node.grammar.as_deref() == Some("contents")
-                && node.page_indexes.first().is_some_and(|page| *page < middle))
-            .filter_map(|node| Some((*node.page_indexes.first()?, node.range.end))).collect::<Vec<_>>();
-        contents.sort_unstable();
-        // The list runs page after page from where it opens; a leader row further on is not it.
-        let front = contents.iter().enumerate().take_while(|(at, (page, _))|
-            *at == 0 || *page <= contents[at - 1].0 + 1).map(|(_, (_, end))| *end).max().unwrap_or(0);
-        for (index, node) in structure.nodes.iter().enumerate() {
-            if !matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading)
-                || node.range.start < front { continue; }
-            // A contents list and a parallel translation repeat the body's sections; the body is read.
-            if matches!(node.grammar.as_deref(), Some("contents" | "translation")) { continue; }
-            let (found, found_pages): (Vec<_>, Vec<_>) = rows(node.line_ids.iter().filter_map(|id| lines.get(id.as_str()))
-                .filter(|(line, _)| !line.text.trim().is_empty()).map(|(line, page)| (*line, *page))).into_iter().unzip();
-            let (left, right) = found.iter().fold((f64::MAX, f64::MIN), |(left, right), line|
-                (left.min(line.rect[0]), right.max(line.rect[2])));
-            // A line ends its paragraph when it stops short of the column or closes a clause.
-            let ends = |at: usize| found[at].rect[2] < right - (right - left) * 0.2
-                || found[at].text.trim_end().ends_with(['.', ';', ':']);
-            if found.is_empty() { continue; }
-            let heading = node.kind == legal_structure::NodeKind::Heading;
-            // A sentence a page break cuts ("... made under paragraph" / "672.54(b) that ...")
-            // goes on in the next page's first paragraph, whose reference opens no provision.
-            let first = found[0].text.trim();
-            let carried = !heading && open.is_some_and(|page| page < found_pages[0])
-                && first.starts_with(|c: char| c.is_lowercase() || c.is_ascii_digit()) && !provision_opening(first);
-            if carried { text.push(' '); offset += 1; }
-            else if !text.is_empty() { text.push_str("\n\n"); offset += 2; }
-            // A lone line ending no clause titles the provision below it.
-            let title = |lines: &[String], last: &str| heading
-                || lines.len() == 1 && !last.ends_with(['.', ';', ':', ',', ')', ']']);
-            let mut part = (offset, Vec::new());
-            // Whether the paragraph being read is a history note.
-            let mut noted = history_note(first) || carried && open_note;
-            for (at, line) in found.iter().enumerate() {
-                let line_text = line.text.trim();
-                let note = history_note(line_text);
-                // A provision's number opening a line starts a new paragraph after one that
-                // ended, or after a marginal note: a line standing alone above it. A history
-                // note starts one after the provision it follows ends.
-                // Numbered rows one after another are a contents list's entries, not provisions.
-                let listed = line.labelled && found.get(at + 1).is_some_and(|next| next.labelled);
-                if at > 0 && (provision_opening(line_text) && !listed && (ends(at - 1) || at == 1 || ends(at - 2))
-                    || note && ends(at - 1)) {
-                    let title = title(&part.1, found[at - 1].text.trim());
-                    parts.push((part.0, offset, index, std::mem::take(&mut part.1), title && !noted, noted));
-                    noted = note;
-                    text.push_str("\n\n");
-                    offset += 2;
-                    part.0 = offset;
-                } else if at > 0 {
-                    text.push(' ');
-                    offset += 1;
-                }
-                text.push_str(line_text);
-                offset += line_text.encode_utf16().count();
-                part.1.extend(line.ids.iter().cloned());
-            }
-            let last = found[found.len() - 1].text.trim();
-            let title = title(&part.1, last);
-            open = (!title && !last.ends_with(['.', ';', ':'])).then(|| found_pages[found.len() - 1]);
-            open_note = noted;
-            parts.push((part.0, offset, index, part.1, title && !noted, noted));
-        }
-        let structure = analyze_instrument(text, pdf.structure().document_id.clone(), &[], false).ok()?;
-        Some(InstrumentReading { structure, parts })
+        PrintedStatute::read(pdf.structure(), &lines, pages.len())
     }
 
     #[cfg(not(feature = "legalpdf"))]
-    fn read_instrument(&self) -> Option<InstrumentReading> {
+    fn read_instrument(&self) -> Option<PrintedStatute> {
         None
     }
 
@@ -436,174 +247,18 @@ pub fn legal_source_viewer<'a>(
     ))
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LayoutLine {
-    /// "heading", "list_item" or "paragraph".
-    kind: &'static str,
-    /// Nesting from the enumerator grammar: I. is 0, A. under it 1, 1. under that 2.
-    level: usize,
-    /// The enumerator ("(a)", "II.") when the grammar found one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    marker: Option<String>,
-    /// The line after its enumerator.
-    text: String,
-}
-
-/// An enumerator's style: "(a)" and "a." differ, as do I. and A. A lone I, V or X is
-/// a Roman numeral unless letters of that case came first.
-fn enumerator_style(marker: &str, seen: &[(bool, u8)]) -> Option<(bool, u8)> {
-    let paren = marker.starts_with('(');
-    let body = marker.trim_start_matches('(').trim_end_matches(['.', ')']);
-    let roman = |upper: bool| body.chars().all(|c| if upper { "IVXLCDM".contains(c) } else { "ivxlcdm".contains(c) });
-    let style = if body.chars().all(|c| c.is_ascii_digit() || c == '.') { 0 }
-        else if roman(true) && !(body.len() == 1 && seen.contains(&(paren, 1)) && !seen.contains(&(paren, 3))) { 3 }
-        else if roman(false) && !(body.len() == 1 && seen.contains(&(paren, 2)) && !seen.contains(&(paren, 4))) { 4 }
-        else if body.chars().count() == 1 && body.chars().all(char::is_uppercase) { 1 }
-        else if body.chars().count() == 1 && body.chars().all(char::is_lowercase) { 2 }
-        else { return None };
-    Some((paren, style))
-}
-
-/// Nesting by first appearance: the first enumerator style is level 0, the next new one 1.
-fn style_level(seen: &mut Vec<(bool, u8)>, style: (bool, u8)) -> usize {
-    seen.iter().position(|value| *value == style).unwrap_or_else(|| { seen.push(style); seen.len() - 1 })
-}
-
-/// Lays out plain source text one line at a time. The enumerator grammar finds list
-/// items; a short title-case or capitalised line without a citation is a heading (the
-/// test the PDF parser applies to headings). Levels follow the order enumerator styles
-/// first appear in: headings across the document, list items within each list.
-#[cfg(feature = "legalpdf")]
-pub fn text_layout(text: &str) -> Vec<LayoutLine> {
-    let markers = legal_structure::detect_structure_candidate_runs(text).into_iter()
-        .flat_map(|run| { let grammar = run.grammar;
-            run.markers.into_iter().map(move |marker| (marker.marker_range.start, (grammar, marker))) })
-        .collect::<std::collections::HashMap<_, _>>();
-    let (mut layout, mut offset) = (Vec::new(), 0);
-    let (mut headings, mut items) = (Vec::new(), Vec::new());
-    for line in text.split('\n') {
-        let start = offset + line.chars().take_while(|c| c.is_whitespace()).count();
-        offset += line.chars().count() + 1;
-        let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
-        let found = markers.get(&start);
-        let numeric = matches!(found, Some((legal_structure::CandidateGrammar::Numeric, _)));
-        // The grammar's enumerator, or a heading's own ("II. Analysis").
-        let length = match found {
-            Some((_, marker)) if !numeric => marker.content_start.saturating_sub(start),
-            _ => trimmed.split_whitespace().next()
-                .filter(|word| enumerator_style(word, &headings).is_some() && word.ends_with(['.', ')'])
-                    && trimmed.split_whitespace().nth(1).is_some())
-                .map_or(0, |word| word.chars().count()),
-        };
-        let marker = (length > 0).then(|| trimmed.chars().take(length).collect::<String>().trim().to_owned());
-        let body = trimmed.chars().skip(length).collect::<String>().trim().to_owned();
-        let (kind, level) = if !numeric && legal_pdf_support::heading_text_plausible(&body) {
-            items.clear();
-            ("heading", marker.as_deref().and_then(|value| enumerator_style(value, &headings))
-                .map_or(0, |style| style_level(&mut headings, style)))
-        } else if let Some(style) = marker.as_deref().filter(|_| found.is_some() && !numeric)
-            .and_then(|value| enumerator_style(value, &items)) {
-            ("list_item", style_level(&mut items, style))
-        } else { items.clear(); ("paragraph", 0) };
-        // Paragraph numbers ([12], 12.) stay part of the paragraph's own text.
-        let (marker, text) = if kind == "paragraph" { (None, trimmed.to_owned()) } else { (marker, body) };
-        layout.push(LayoutLine { kind, level, marker, text });
-    }
-    layout
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OutlineEntry {
-    /// "heading" or "section".
-    kind: &'static str,
-    /// Headings nest by their own hierarchy; a section sits under the heading before it.
-    level: usize,
-    title: String,
-    /// The node's start in the document's query text.
-    start: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    page_index: Option<usize>,
-}
-
-/// A section label as a reader cites it: "sec33.1" is "s 33.1", "part2" "Part 2".
-fn section_title(label: &str) -> String {
-    for (prefix, name) in [("sec", "s "), ("part", "Part "), ("sched", "Schedule "),
-        ("art", "Art "), ("ann", "Annex "), ("app", "Appendix ")] {
-        if let Some(rest) = label.strip_prefix(prefix).filter(|rest| !rest.is_empty()) {
-            return format!("{name}{rest}");
-        }
-    }
-    label.to_owned()
-}
-
-fn outline_entries(structure: &DocumentStructure, sections: bool) -> Vec<OutlineEntry> {
-    use legal_structure::NodeKind;
-    let nodes = structure.nodes.iter().map(|node| (node.id.as_str(), node))
-        .collect::<std::collections::HashMap<_, _>>();
-    let depth = |node: &legal_structure::StructureNode, kind: NodeKind| {
-        let (mut level, mut parent) = (0, node.parent_id.as_deref());
-        while let Some(found) = parent.and_then(|id| nodes.get(id)).filter(|_| level < 16) {
-            if found.kind == kind { level += 1; }
-            parent = found.parent_id.as_deref();
-        }
-        level
-    };
-    structure.nodes.iter().filter_map(|node| {
-        let start = node.rendered_range.unwrap_or(node.range).start;
-        let page_index = node.page_indexes.first().copied();
-        let label = node.label.as_deref()?.split_whitespace().collect::<Vec<_>>().join(" ");
-        match node.kind {
-            NodeKind::Heading if !label.is_empty() && label.chars().count() <= 200 =>
-                Some(OutlineEntry { kind: "heading", level: depth(node, NodeKind::Heading),
-                    title: label, start, page_index }),
-            NodeKind::Section if sections && depth(node, NodeKind::Section) == 0 => Some(OutlineEntry {
-                kind: "section", level: 0, title: section_title(&label), start, page_index }),
-            _ => None,
-        }
-    }).collect()
+/// A statute's outline from its text: its parts, headings and provisions with their marginal
+/// notes, each with its span (UTF-16) covering everything under it.
+pub fn statute_outline(text: &str, articles: bool) -> CoreResult<Vec<legal_structure::StatuteOutlineEntry>> {
+    legal_structure::statute_outline(text, articles).map_err(native_error)
 }
 
 /// The document's own outline: its headings and its top-level sections, in order.
-/// A PDF's numbered sections come from the instrument grammar's reading of its body,
-/// and only for legislation whose sections each appear once, in order; a judgment's
-/// numbers are not sections.
+/// A PDF's numbered sections come from the reading of its body as a statute, for legislation.
 pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<OutlineEntry> {
-    let structure = document.structure();
     let pdf = !matches!(document.product, NativeProduct::Structure(_));
-    let mut entries = outline_entries(structure, !pdf);
-    if let Some(instrument) = document.instrument().filter(|_| pdf && legislation) {
-        let sections = outline_entries(&instrument.structure, true).into_iter()
-            .filter(|entry| entry.kind == "section").collect::<Vec<_>>();
-        let number = |title: &str| title.strip_prefix("s ")
-            .and_then(|rest| rest.split('.').next()?.parse::<u32>().ok());
-        let ordered = !sections.is_empty() && sections.windows(2).all(|pair|
-            matches!((number(&pair[0].title), number(&pair[1].title)), (Some(a), Some(b)) if a < b
-                || a == b && pair[0].title < pair[1].title));
-        if ordered {
-            // A section opens where the PDF paragraph it starts in does.
-            entries.extend(sections.into_iter().filter_map(|entry| {
-                let node = &structure.nodes[instrument.parts(entry.start, entry.start + 1).next()?.0];
-                Some(OutlineEntry { start: node.rendered_range.unwrap_or(node.range).start,
-                    page_index: node.page_indexes.first().copied(), ..entry })
-            }));
-        }
-    }
-    // A title printed atop every page is a running head, not a heading of the text.
-    let mut counts = std::collections::HashMap::<String, usize>::new();
-    for entry in entries.iter().filter(|entry| entry.kind == "heading") {
-        *counts.entry(entry.title.to_lowercase()).or_default() += 1;
-    }
-    entries.retain(|entry| entry.kind != "heading" || counts[&entry.title.to_lowercase()] < 3);
-    entries.sort_by_key(|entry| entry.start);
-    let mut heading = None;
-    for entry in &mut entries {
-        if entry.kind == "heading" { heading = Some(entry.level); }
-        else { entry.level = heading.map_or(0, |level| level + 1); }
-    }
-    entries
+    legal_structure::document_outline(document.structure(), pdf,
+        document.instrument().filter(|_| pdf && legislation))
 }
 
 pub fn document_table_cells(document: &NativeDocument) -> impl Serialize + '_ {
@@ -815,6 +470,7 @@ pub use pdf::*;
 #[cfg(feature = "legalpdf")]
 mod pdf {
     use super::*;
+    use legal_pdf_support::{marginal_paragraph_plan, printed_paragraph_plan, printed_paragraph_witnessed};
     use std::collections::HashSet;
 
     fn pdf_of<'a>(document: &'a NativeDocument, message: &str) -> CoreResult<&'a legalpdf::PdfDocument> {
@@ -935,67 +591,17 @@ mod pdf {
         Ok(pdf_of(document, "PDF page text requires a PDF document")?.page_texts())
     }
 
-    /// A section as the instrument grammar reads the PDF's body: its lines and pages. A
-    /// contents list and a parallel translation are not read; a label the body prints twice
-    /// is ambiguous.
+    /// A provision where the reading of the PDF's body as a statute places it.
     fn instrument_section(
         native: &NativeDocument,
+        kind: &str,
         locator: &str,
     ) -> Option<(legalpdf::PdfLookupStatus, Vec<String>, Vec<u32>)> {
         use legalpdf::PdfLookupStatus as Status;
-        let reading = native.instrument()?;
-        let instrument = &reading.structure;
-        let query = DocumentQuery::new();
-        // A provision's span in the reading, or None where it is not read; Err where it is read twice.
-        let span = |locator: &str| {
-            let found = query.structure_block(instrument, locator, 0);
-            let block = found.block.filter(|_| matches!(found.status, legal_structure::DocumentLookupStatus::Found))?;
-            let repeated = format!("{}@", block.block.label);
-            Some(if instrument.nodes.iter().any(|node| node.label.as_deref().is_some_and(|label| label.starts_with(&repeated))) {
-                Err(())
-            } else {
-                Ok((block.block.start, block.block.end))
-            })
-        };
-        // A range ("49-51") runs from its first provision through its last, unless a
-        // provision is itself numbered so ("1-2").
-        let range = || {
-            let (first, last) = locator.split_once(['-', '\u{2013}'])?;
-            let (first, last) = (span(first.trim())?, span(last.trim())?);
-            Some(first.and_then(|first| last.map(|last| (first.0, last))).and_then(|(start, last)|
-                if start <= last.0 { Ok((start, last)) } else { Err(()) }))
-        };
-        let (start, (last, end)) = match span(locator).map(|found| found.map(|(start, end)| (start, (start, end))))
-            .or_else(range)? {
-            Ok(found) => found,
-            Err(()) => return Some((Status::Ambiguous, Vec::new(), Vec::new())),
-        };
-        let mut parts = reading.parts(last, end).collect::<Vec<_>>();
-        // A history note lists a provision's enactments and closes it: neither it nor what
-        // follows it is the provision's text. A heading or marginal note closing the block
-        // opens the next provision.
-        if let Some(note) = parts.iter().skip(1).position(|(.., note)| *note) {
-            parts.truncate(note + 1);
-        }
-        while parts.len() > 1 && parts.last().is_some_and(|(_, _, title, _)| *title) {
-            parts.pop();
-        }
-        let mut seen = HashSet::new();
-        let lines = reading.parts(start, last).chain(parts).flat_map(|(_, lines, ..)| lines.iter().cloned())
-            .filter(|line| seen.insert(line.clone())).collect::<Vec<_>>();
-        let page_of = native_line_pages(native);
-        let mut pages = lines.iter().filter_map(|line| page_of.get(line.as_str()).copied()).collect::<Vec<_>>();
-        pages.sort_unstable();
-        pages.dedup();
-        (!lines.is_empty()).then_some((Status::Found, lines, pages))
-    }
-
-    /// Each native line's page number.
-    fn native_line_pages(native: &NativeDocument) -> std::collections::HashMap<String, u32> {
-        native.structure().nodes.iter().filter(|node| node.kind == legal_structure::NodeKind::Page)
-            .flat_map(|node| node.line_ids.iter().map(move |line| (line.clone(),
-                node.page_indexes.first().map_or(0, |index| *index as u32 + 1))))
-            .collect()
+        Some(match native.instrument()?.provision(native.structure(), kind, locator)? {
+            legal_structure::ProvisionPlacement::Found { lines, pages } => (Status::Found, lines, pages),
+            legal_structure::ProvisionPlacement::Ambiguous => (Status::Ambiguous, Vec::new(), Vec::new()),
+        })
     }
 
     pub fn pdf_authority_text_units(document: &NativeDocument) -> CoreResult<impl Serialize + '_> {
@@ -1019,205 +625,6 @@ mod pdf {
         pages: Vec<u32>,
         lines: Vec<String>,
         paragraph: Option<String>,
-    }
-
-    // Printed paragraph numbers are addresses, not structural ordinal positions.
-    // Split on the actual native lines: a prose node can contain several numbered
-    // paragraphs, and one printed paragraph can contain several prose nodes.
-    // Parallel-language columns print one paragraph number per column. A line
-    // belongs to the column holding its centre, which mirrored margins preserve.
-    fn in_column(column: [f64; 4], line: [f64; 4]) -> bool {
-        let centre = (line[0] + line[2]) / 2.0;
-        centre > column[0] && centre < column[2]
-    }
-
-    fn printed_paragraph_plan<'a>(
-        lines: &[(&'a str, &'a str, u32, [f64; 4])],
-        paragraphs: &[Vec<String>],
-        locator: &str,
-    ) -> Option<(legalpdf::PdfLookupStatus, HashSet<&'a str>)> {
-        use legalpdf::PdfLookupStatus as Status;
-        let labels = lines.iter().enumerate().filter_map(|(index, (_, text, ..))| {
-            let (number, rest) = text.trim_start().strip_prefix('[')?.split_once(']')?;
-            if (!rest.is_empty() && !rest.starts_with(char::is_whitespace)) ||
-                !number.chars().all(|c| c.is_ascii_digit()) { return None; }
-            Some((number.parse::<usize>().ok()?, index))
-        }).collect::<Vec<_>>();
-        if labels.is_empty() { return None; }
-        let range = legal_pdf_support::numeric_range("paragraph", locator)
-            .or_else(|| legal_pdf_support::parse_ordinal("paragraph", locator).map(|n| (n, n)));
-        let Some((from, to)) = range.filter(|(a, b)| a <= b && b - a < 100) else {
-            return Some((Status::Invalid, HashSet::new()));
-        };
-        let mut selected = HashSet::new();
-        for number in from..=to {
-            let hits = labels.iter().filter(|(label, _)| *label == number)
-                .map(|(_, index)| *index).collect::<Vec<_>>();
-            // The same number printed once per column is one address, not two
-            // paragraphs; a repeat in the same column or on another page is not.
-            if hits.is_empty() || hits.iter().any(|&hit| hits.iter().any(|&other| other != hit &&
-                (lines[other].2 != lines[hit].2 || in_column(lines[hit].3, lines[other].3)))) {
-                return Some((if hits.is_empty() { Status::NotFound } else { Status::Ambiguous }, HashSet::new()));
-            }
-            for start in hits {
-                // A detached number and the first line of its text share a row;
-                // the column is both. A parallel translation never shares a row.
-                let mut column = lines[start].3;
-                if let Some(next) = lines.get(start + 1).filter(|next| next.2 == lines[start].2
-                    && next.3[1] < column[3] && column[1] < next.3[3]) {
-                    column = [column[0].min(next.3[0]), column[1], column[2].max(next.3[2]), column[3]];
-                }
-                if let Some((_, end)) = labels.iter()
-                    .find(|(_, index)| *index > start && in_column(column, lines[*index].3)) {
-                    selected.extend(lines[start..*end].iter()
-                        .filter(|line| in_column(column, line.3)).map(|(id, ..)| *id));
-                } else {
-                    // At EOF use the native owner, not unbounded end matter.
-                    let owner = paragraphs.iter().find(|ids| ids.iter().any(|id| id == lines[start].0));
-                    selected.extend(lines[start..].iter().filter(|(id, ..)|
-                        owner.is_some_and(|ids| ids.iter().any(|value| value == id))).map(|(id, ..)| *id));
-                }
-            }
-        }
-        Some((Status::Found, selected))
-    }
-
-    // Detached paragraph labels sit outside the body, unlike reporter page
-    // numbers. Their aligned body rows bound both columns in parallel text.
-    // Use these native witnesses even when the structure profile has no prose
-    // nodes; a structural ordinal is not a substitute for a printed address.
-    fn marginal_paragraph_plan<'a>(
-        pages: &'a [legal_pdf_support::PdfTextPage],
-        locator: &str,
-    ) -> Option<(legalpdf::PdfLookupStatus, HashSet<&'a str>)> {
-        use legalpdf::PdfLookupStatus as Status;
-        let body_bounds = pages.iter().map(|page| {
-            page.lines.iter().filter(|line| line.rect[2] - line.rect[0] > page.width * 0.20
-                && line.text.chars().any(char::is_alphabetic))
-                .map(|line| line.rect).reduce(|a, b| [a[0].min(b[0]), a[1].min(b[1]),
-                    a[2].max(b[2]), a[3].max(b[3])])
-        }).collect::<Vec<_>>();
-        let mut labels = Vec::new();
-        for (page_index, page) in pages.iter().enumerate() {
-            let Some(bounds) = body_bounds[page_index] else { continue };
-            for line in &page.lines {
-                let text = line.text.trim();
-                let text = text.strip_prefix('[').and_then(|s| s.strip_suffix(']')).unwrap_or(text);
-                if text.is_empty() || text.len() > 5 || !text.bytes().all(|b| b.is_ascii_digit()) {
-                    continue;
-                }
-                let height = line.rect[3] - line.rect[1];
-                let gap = (bounds[0] - line.rect[2]).max(line.rect[0] - bounds[2]);
-                if gap < height * 0.5 || gap > height * 8.0 { continue; }
-                let row = page.lines.iter().filter(|peer|
-                    peer.rect[2] - peer.rect[0] > page.width * 0.20
-                    && peer.text.chars().any(char::is_alphabetic)
-                    && (peer.rect[1] - line.rect[1]).abs() <= height * 0.6)
-                    .map(|peer| peer.rect[1]).min_by(f64::total_cmp);
-                if let Some(y) = row {
-                    labels.push((text.parse::<usize>().ok()?, page_index, y));
-                }
-            }
-        }
-        labels.sort_by(|a, b| a.1.cmp(&b.1).then(a.2.total_cmp(&b.2)));
-        // One isolated margin number could be a note. Require a numbering run.
-        if !labels.windows(3).any(|w| w[0].0 + 1 == w[1].0 && w[1].0 + 1 == w[2].0) {
-            return None;
-        }
-        let range = legal_pdf_support::numeric_range("paragraph", locator)
-            .or_else(|| legal_pdf_support::parse_ordinal("paragraph", locator).map(|n| (n, n)));
-        let Some((from, to)) = range.filter(|(a, b)| a <= b && b - a < 100) else {
-            return Some((Status::Invalid, HashSet::new()));
-        };
-        let mut selected = HashSet::new();
-        for number in from..=to {
-            let hits = labels.iter().enumerate().filter(|(_, label)| label.0 == number)
-                .map(|(index, _)| index).collect::<Vec<_>>();
-            if hits.len() != 1 {
-                return Some((if hits.is_empty() { Status::NotFound } else { Status::Ambiguous }, HashSet::new()));
-            }
-            let (_, start_page, start_y) = labels[hits[0]];
-            let Some(&(_, end_page, end_y)) = labels.get(hits[0] + 1).filter(|next| next.0 == number + 1) else {
-                // No witnessed end: do not sweep in end matter or a numbering restart.
-                return Some((Status::Unavailable, HashSet::new()));
-            };
-            for page_index in start_page..=end_page {
-                let Some(bounds) = body_bounds[page_index] else {
-                    return Some((Status::Unavailable, HashSet::new()));
-                };
-                let top = if page_index == start_page { start_y - 0.5 } else { bounds[1] };
-                let bottom = if page_index == end_page { end_y - 0.5 } else { bounds[3] };
-                let lines = pages[page_index].lines.iter().filter(|line|
-                    line.rect[0] >= bounds[0] - 0.5 && line.rect[2] <= bounds[2] + 0.5
-                    && line.rect[1] >= top && line.rect[1] < bottom).collect::<Vec<_>>();
-                // A separated heading immediately before the next numbered
-                // paragraph belongs to that following section, not this passage.
-                let heading_top = (page_index == end_page).then(|| lines.iter().filter(|line| {
-                    let Some((prefix, text)) = line.text.trim().split_once(". ") else { return false };
-                    if legal_pdf_support::enumerator_interpretations(prefix, ".").is_empty()
-                        || !legal_pdf_support::heading_text_plausible(text) { return false; }
-                    let height = line.rect[3] - line.rect[1];
-                    let prior_bottom = lines.iter().filter(|prior| prior.rect[3] < line.rect[1])
-                        .map(|prior| prior.rect[3]).max_by(f64::total_cmp);
-                    prior_bottom.is_some_and(|y| line.rect[1] - y > height * 0.5)
-                        && end_y - line.rect[3] > height * 0.5
-                }).map(|line| line.rect[1]).min_by(f64::total_cmp)).flatten();
-                selected.extend(lines.iter().filter(|line|
-                    heading_top.is_none_or(|y| line.rect[1] < y - 0.5)).map(|line| line.id.as_str()));
-            }
-        }
-        Some((Status::Found, selected))
-    }
-
-    /// "[12]", "(12)", "12." or "12)": a printed paragraph number; a margin
-    /// number may also stand bare.
-    fn printed_label_number(text: &str, bare: bool) -> Option<usize> {
-        let text = text.trim();
-        let digits = text.strip_prefix('[').and_then(|rest| rest.strip_suffix(']'))
-            .or_else(|| text.strip_prefix('(').and_then(|rest| rest.strip_suffix(')')))
-            .or_else(|| text.strip_suffix(['.', ')']))
-            .or(bare.then_some(text))?.trim();
-        (!digits.is_empty() && digits.len() <= 5 && digits.bytes().all(|byte| byte.is_ascii_digit()))
-            .then(|| digits.parse().ok()).flatten()
-    }
-
-    /// Whether the cited paragraph numbers are printed on the passage: each
-    /// endpoint opens one of its lines, or stands in the margin beside one.
-    fn printed_paragraph_witnessed<'a>(
-        pages: impl Iterator<Item = &'a legal_pdf_support::PdfTextPage>,
-        selected: &HashSet<&str>,
-        locator: &str,
-    ) -> bool {
-        let Some((from, to)) = legal_pdf_support::numeric_range("paragraph", locator)
-            .or_else(|| legal_pdf_support::parse_ordinal("paragraph", locator).map(|n| (n, n)))
-        else { return false };
-        let mut missing = HashSet::from([from, to]);
-        for page in pages {
-            let lines = page.lines.iter().filter(|line| selected.contains(line.id.as_str()))
-                .collect::<Vec<_>>();
-            for line in &lines {
-                // A label opens the line: "[12] Text", "12. Text" or "(12) Text".
-                let opening = line.words.first().map(|word| word.text.as_str()).unwrap_or_default();
-                let opening = if opening == "[" || opening == "(" {
-                    line.words.iter().take(3).map(|word| word.text.as_str()).collect::<String>()
-                } else { opening.to_owned() };
-                if let Some(number) = printed_label_number(&opening, false) { missing.remove(&number); }
-            }
-            for word in page.lines.iter().flat_map(|line| &line.words) {
-                let Some(number) = printed_label_number(&word.text, true).filter(|n| missing.contains(n)) else { continue };
-                let [left, top, right, bottom] = word.rect;
-                if top <= page.height * 0.05 || bottom >= page.height * 0.95 { continue; }
-                if lines.iter().any(|line| {
-                    let [text_left, text_top, text_right, text_bottom] = line.rect;
-                    let overlap = bottom.min(text_bottom) - top.max(text_top);
-                    let gap = if right <= text_left { text_left - right }
-                        else if left >= text_right { left - text_right } else { -1.0 };
-                    (0.0..=80.0).contains(&gap)
-                        && overlap >= 0.45 * (bottom - top).min(text_bottom - text_top)
-                }) { missing.remove(&number); }
-            }
-        }
-        missing.is_empty()
     }
 
     /// Passage planning and geometry share the prepared extraction witnesses.
@@ -1258,10 +665,9 @@ mod pdf {
                     .flat_map(|unit| unit.page_numbers.iter().copied())
                     .collect::<Vec<_>>();
                 let mut status = lookup.status;
-                // Statute sections, and a code's articles and rules, are read by the instrument
-                // grammar, which knows them.
-                if matches!(target.locator_kind.as_str(), "section" | "article" | "rule") {
-                    if let Some((found, found_lines, found_pages)) = instrument_section(native, &target.locator) {
+                // A statute's provisions are placed by the reading of its body as a statute.
+                if legal_structure::PrintedStatute::places(&target.locator_kind) {
+                    if let Some((found, found_lines, found_pages)) = instrument_section(native, &target.locator_kind, &target.locator) {
                         (status, lines, pages) = (found, found_lines, found_pages);
                     }
                 }

@@ -47,20 +47,21 @@ const written = (items: Provision[]) => [...new Set(items.map(({ kind }) => kind
 function line(excerpt: boolean | undefined, provisions: Provision[], titles: number, pageCount?: number,
   summaries?: StatuteExcerptSummary[]) {
   const counted = (count?: number) => count ? ` (${pages(count)})` : "";
-  const whole = (why = "") => `${why}${why ? "the" : "The"} whole statute goes in the book${counted(pageCount)}.`;
+  const whole = (why = "") => `${why}Includes the whole statute${counted(pageCount)}.`;
   if (excerpt === undefined) return "";
   if (!excerpt) return whole();
-  if (!provisions.length) return whole("No section is cited, so ");
+  if (!provisions.length) return whole("No section is cited. ");
   const excerpted = (items: Provision[], count?: number) =>
-    `The title page${titles > 1 ? "s" : ""} and ${written(items)} go in the book${counted(count)}.`;
+    `Includes the title page${titles > 1 ? "s" : ""} and ${written(items)}${counted(count)}.`;
   if (!summaries) return excerpted(provisions);
   const placed = new Set(summaries.flatMap(({ placed }) => placed));
   const found = provisions.filter((item) => placed.has(keyOf(item)));
   const missing = provisions.filter((item) => !placed.has(keyOf(item)));
-  const unfound = `${written(missing)} ${missing.length > 1 ? "were" : "was"} not found`;
-  if (!found.length) return whole(`${unfound}, so `);
-  // A PDF in which nothing cited is placed keeps its title page.
-  return excerpted(found, summaries.reduce((sum, { pages: kept }) => sum + (kept ?? 1), 0)) + (missing.length ? ` ${unfound}.` : "");
+  const kept = summaries.reduce((sum, { pages: count }) => sum + (count ?? 1), 0);
+  if (!missing.length) return excerpted(found, kept);
+  // What the PDF does not place goes in rebuilt from the statute's text.
+  const rebuilt = `${written(missing)}, rebuilt from the A2AJ text`;
+  return `Includes the title page${titles > 1 ? "s" : ""}${found.length ? `, ${written(found)}` : ""}${counted(kept)} and ${rebuilt}.`;
 }
 
 async function pageCount(file: Blob) {
