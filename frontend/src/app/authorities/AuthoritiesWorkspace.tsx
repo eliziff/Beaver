@@ -114,6 +114,14 @@ export type AuthoritiesApp = {
   preferences?: ReactNode;
 };
 
+/** What decides a draft's sources: its authorities, as cited and kept, and how sources are made.
+ *  Gathered sources serve the Sources step while these hold, whatever else was saved since. */
+const sourcesInputs = (product: AuthoritiesProduct) => canonicalJson([product.state.settings.sourceMode,
+  product.state.authorityOrder.map((id) => {
+    const { citation, excluded, kind } = product.state.authorities[id];
+    return [id, citation, excluded, kind];
+  })]);
+
 export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initialDraftId,
   onFocusChange, refreshToken, locked = false, LibraryPicker, projectId, jurisdictionOrder = [],
   initialNewDraft = false, onInitialConsumed, app }: {
@@ -147,7 +155,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const draftsLoading = draftsListedFor?.host !== host || draftsListedFor.projectId !== projectId;
   const [restoredScope, setRestoredScope] = useState("");
   const [draft, setDraft] = useState<AuthoritiesProduct>();
-  const [labelTurn, setLabelTurn] = useState(0);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(!!requested), [running, setBusy] = useState(false);
   const [pendingActions, setPendingActions] = useState(0);
@@ -205,7 +212,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const history = useRef<{ done: ReviewStep[]; undone: ReviewStep[] }>({ done: [], undone: [] });
   const replaying = useRef<ReviewStep | null>(null);
   const [preview, setPreview] = useState<AuthoritiesProduct>();
-  const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", revision: -1 });
+  const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", sources: "" });
   // Gathering that an edit interrupted, to run again once editing rests.
   const sourcesRequest = useRef<AbortController | null>(null), sourcesStale = useRef(false);
   // Gathering reports which authority it is on; the step shows it only while someone waits for it,
@@ -400,27 +407,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     }).catch((caught) => active && setError(errorText(caught)));
     return () => { active = false; };
   }, [draftId, sourceKey, sourceAccessVersion, refreshToken, host]);
-  // A source attached before its printed page numbers were kept with it has them read once, one
-  // source at a time and away from any viewer, and kept in the draft.
-  const labelling = useRef<{ draftId: string; keys: Set<string>; busy: boolean }>({ draftId: "", keys: new Set(), busy: false });
-  useEffect(() => {
-    const current = draftRef.current, read = host.readSourcePageLabels;
-    if (!current || current.id !== draftId || !read) return;
-    if (labelling.current.draftId !== current.id) labelling.current = { draftId: current.id, keys: new Set(), busy: false };
-    const state = labelling.current;
-    if (state.busy) return;
-    const next = Object.values(current.state.authorities).flatMap((authority) =>
-      attachedAuthoritySources(authority.source).map((source) => ({ authority, source })))
-      .find(({ source }) => !source.pageLabels && !state.keys.has(`${source.bindingRole}\0${source.sourceSha256}`));
-    if (!next) return;
-    const { authority, source } = next;
-    state.keys.add(`${source.bindingRole}\0${source.sourceSha256}`); state.busy = true;
-    void read(current, source.bindingRole).then((pageLabels) => {
-      if (draftRef.current?.id === current.id) act({ type: "set-source-page-labels", authorityId: authority.id,
-        bindingRole: source.bindingRole, sourceSha256: source.sourceSha256, pageLabels });
-    }).catch(() => { /* Its viewer keeps physical page numbers. */ })
-      .finally(() => { state.busy = false; setLabelTurn((turn) => turn + 1); });
-  }, [draftId, draft?.revision, labelTurn, host]);
   const reviewKey = useMemo(() => discrepancyKey(settled), [settled]);
   useEffect(() => {
     reviewRequest.current?.abort();
@@ -579,7 +565,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     // A review edit is a step Ctrl+Z takes back; one replayed by Ctrl+Z or Ctrl+Y belongs to its step.
     const step = view ? replaying.current ?? reviewStep(shown, view, action) ?? undefined : undefined;
     const edit = view ? { action, step } : undefined;
-    const blocking = !edit && action.type !== "rename-authority" && action.type !== "set-source-page-labels";
+    const blocking = !edit && action.type !== "rename-authority";
     if (blocking) setPendingActions((count) => count + 1);
     if (edit && view) {
       if (step && !replaying.current) {
@@ -1055,7 +1041,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         if (request.signal.aborted || latest?.id !== current.id || latest.state.stage !== "citations") return;
         const next = await host.prepareSources(latest, request.signal, undefined, noteSources)
           .finally(() => { sourcesNote.current = ""; });
-        if (adopt(next)) gathered.current = { id: next.id, revision: next.revision };
+        if (adopt(next)) gathered.current = { id: next.id, sources: sourcesInputs(next) };
       });
     } catch {
       if (request.signal.aborted) { sourcesStale.current = true; return; }
@@ -1074,7 +1060,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       // Each write waits its turn behind every other save, and is made again on a newer draft
       // should one land meanwhile (sources still arriving, a gathering retried).
       const prepared = await queuedSave(id, (current) =>
-        gathered.current.id === current.id && gathered.current.revision === current.revision ? Promise.resolve(current)
+        gathered.current.id === current.id && gathered.current.sources === sourcesInputs(current) ? Promise.resolve(current)
           // A legal-source service that is down or limiting requests leaves the sources to add by
           // hand: the step still opens, and says why nothing was found.
           : host.prepareSources(current, request.signal, undefined, noteSources).catch((caught) => {

@@ -20,6 +20,7 @@ import { authorityReferenceText, authorityStatuteText, resolveAuthoritiesSources
 import { authoritiesSourceText, createAuthoritiesPreparation, prepareAuthoritiesCorrection } from
   "./authoritiesPreparation";
 import { sha256 } from "./hash";
+import { sourcePageLabels } from "./authoritiesPageLabels";
 import { checkQuotes, decodeQuoteLinks } from "./quoteCheck";
 import type { NativeDocument } from "./structureNative";
 import type { LegalSourceReference } from "./legalSources";
@@ -53,17 +54,20 @@ function initialSettings(value: unknown) {
   );
 }
 
-function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAuthoritySource[]) {
+async function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAuthoritySource[]) {
   let draft = state;
   for (const attachment of attachments) {
     if (sha256(attachment.bytes) !== attachment.sourceSha256) {
       reject(500, "Prepared authority source hash is invalid");
     }
+    // A publisher's original prints its own page numbers; a reconstruction's are its PDF pages.
+    const pageLabels = attachment.origin === "original"
+      ? await sourcePageLabels(draft, attachment.authorityId, attachment, attachment.bytes) : undefined;
     draft = attachAuthorityPdf(draft, draft.authorities[attachment.authorityId],
       { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
         lastSeen: { name: attachment.filename, size: attachment.bytes.length,
           modified: 0, sha256: attachment.sourceSha256 } },
-      attachment.filename, attachment.sourceSha256, attachment.language, attachment);
+      attachment.filename, attachment.sourceSha256, attachment.language, { ...attachment, pageLabels });
   }
   return draft;
 }
@@ -254,7 +258,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     if (onlyAuthorityId && !retryableAuthoritySource(current, onlyAuthorityId))
       reject(409, "This authority has nothing to retry.");
     const prepared = await resolveSources(current, undefined, context.signal, onlyAuthorityId, progress);
-    return draftResult( attachPreparedSources(prepared.draft, prepared.attachments),
+    return draftResult(await attachPreparedSources(prepared.draft, prepared.attachments),
       prepared.attachments);
     },
     "discrepancies": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
@@ -297,8 +301,10 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       const language = (["en", "fr", "bilingual"] as const).find(value => value === input.language)
         ?? reject(400, "Choose the PDF language.");
       const checked = input.auto_fetched === "true" ? await autoFetchedPdf(current, authority.id, bytes) : current;
+      // Its printed page numbers are read with it, so its viewer shows them with the page.
+      const pageLabels = await sourcePageLabels(checked, authority.id, { sourceSha256, origin: "manual" }, bytes);
       return value(attachAuthorityPdf(checked, checked.authorities[authority.id], binding, filename, sourceSha256, language,
-        { pageCount }));
+        { pageCount, pageLabels }));
     } else {
       const slot = AUTHORITIES_BOOK_SLOTS.find(value => value === input?.slot)
         ?? reject(400, "Book-part slot is invalid");
