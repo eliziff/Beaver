@@ -185,9 +185,10 @@ async function scanReview(
       ? unknownNote : unit.note_number ?? unit.footnote_id!, start, end,
     sequence: unit.note_number === null ? unknownNote : unit.restart_sequence ?? 0 }));
   // A Canadian brief is read with McGill's and COAL's forms, without the Bluebook's extended
-  // United States forms (a registration or account number reads as one of its codes).
+  // United States forms (a registration or account number reads as one of its codes), and
+  // without its own list of authorities, which lists what it cites elsewhere.
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
-    options: { resolve: false, notes, styles: ["mcgill", "coal"], extendedUs: false },
+    options: { resolve: false, notes, styles: ["mcgill", "coal"], extendedUs: false, skipAuthorityLists: true },
   })) as ExtractResponse;
   // The brief's own court file number (its cover's) is never one of its authorities.
   const fileNumber = (value: unknown) => typeof value === "string" ? value.replace(/\D/gu, "") : "";
