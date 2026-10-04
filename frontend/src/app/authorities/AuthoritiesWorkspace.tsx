@@ -1727,7 +1727,8 @@ function Status({ busy, busyText, status, error, inline = false }: { busy: boole
     {visible && <span className="mr-2 grid size-4 shrink-0 place-items-center" aria-hidden="true">
       {busy && <Loader2 className="size-4 motion-safe:animate-spin" />}
     </span>}
-    {busy ? status || busyText : status}
+    {/* Its own box, so a long message ends in an ellipsis rather than losing its start. */}
+    <span className="min-w-0 truncate">{busy ? status || busyText : status}</span>
   </p>;
 }
 const STEP_PROGRESS = new Set(["Finding source PDFs", "Checking source PDFs"]);
