@@ -1088,7 +1088,9 @@ async function prepareAuthorityBook(
         ...(currency && !kept && { header: pdfText(currency) }),
         bytes: await source.document.save({ useObjectStreams: false }),
         pageIndices: source.pageIndices, databaseReference: source.databaseReference, ocrTextByPage, bookmarks,
-        ...(source.outline?.length ? { outline: source.outline } : {}) };
+        // Under its tab, an authority's marked passages alone, unless its own headings are asked for.
+        ...(draft.settings.bookmarks !== "headings" ? { outline: [] }
+          : source.outline?.length ? { outline: source.outline } : {}) };
     })),
   };
 }

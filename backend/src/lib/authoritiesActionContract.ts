@@ -62,6 +62,7 @@ export const AUTHORITIES_SETTINGS_CHOICES = {
   tableOrder: ["first-reference", "alphabetical", "custom"],
   grouping: ["none", "cases-first", "legislation-first"],
   indexShows: ["tabs", "tabs-and-pages"],
+  bookmarks: ["highlights", "headings"],
   tableDelivery: ["native-marks", "native-append", "linked-append"],
   citationSuffix: ["none", "tab", "custom"],
   tableLocation: ["pages", "pinpoints", "combined"],
