@@ -1,26 +1,26 @@
 .citation-review{display:grid;grid-template:minmax(0,1fr) auto/17rem minmax(0,1fr);height:var(--citation-review-height,32rem);min-height:0;outline:none}
-.citation-outline{grid-row:1/-1;overflow-y:auto;min-height:0;min-width:0;padding:.5rem .375rem;border-inline-end:1px solid #e5e7eb;font-size:.875rem}
-.citation-outline h3{margin:0 .5rem .5rem;font-size:.8125rem;font-weight:650;color:#4b5563}
+.citation-outline{grid-row:1/-1;overflow-y:auto;min-height:0;min-width:0;padding:.5rem .375rem;border-inline-end:1px solid var(--color-gray-200);font-size:.875rem}
+.citation-outline h3{margin:0 .5rem .5rem;font-size:.8125rem;font-weight:650;color:var(--color-gray-600)}
 .citation-outline>[role=group]+[role=group]{margin-top:1.2rem}
 /* Each row is the citation as the article prints it, in two lines at most. A row's height follows
    its text alone, never the selection, so choosing a row moves nothing. */
-.citation-outline button{position:relative;display:block;width:100%;text-align:start;padding:.35rem .6rem;border-radius:4px;color:#374151;line-height:1.4}
+.citation-outline button{position:relative;display:block;width:100%;text-align:start;padding:.35rem .6rem;border-radius:4px;color:var(--color-gray-700);line-height:1.4}
 .citation-outline button>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .citation-outline button+button{margin-top:.125rem}
 /* A hairline between one citation and the next, none above the first. */
 .citation-outline button+button::before{content:"";position:absolute;top:-.0625rem;left:.6rem;right:.6rem;border-top:1px solid var(--color-gray-200)}
 .citation-outline button[aria-selected=true]::before,.citation-outline button[aria-selected=true]+button::before{display:none}
 .citation-finding{position:absolute;top:.6rem;right:.15rem;width:6px;height:6px;border-radius:50%;background:#b91c1c}
-.citation-outline button:hover{background:#f3f4f6}
-.citation-outline button[aria-selected=true]{background:#fff1f0;color:#991b1b;box-shadow:inset 2px 0 #b91c1c}
+.citation-outline button:hover{background:var(--app-surface-hover)}
+.citation-outline button[aria-selected=true]{background:var(--brand-red-soft);color:var(--citation-accent, #991b1b);box-shadow:inset 2px 0 #b91c1c}
 .citation-outline button:focus-visible{outline:2px solid #b91c1c;outline-offset:-2px}
 .citation-note{display:grid;grid-template-columns:1.6rem minmax(0,1fr);align-items:start;margin-bottom:.5rem}
-.citation-note>div{min-width:0;border-inline-start:1px solid #d1d5db;padding-inline-start:.35rem}
-.citation-note-number{padding-top:.35rem;line-height:1.225rem;color:#374151;font-size:.8125rem;font-weight:650;text-align:center}
+.citation-note>div{min-width:0;border-inline-start:1px solid var(--color-gray-300);padding-inline-start:.35rem}
+.citation-note-number{padding-top:.35rem;line-height:1.225rem;color:var(--color-gray-700);font-size:.8125rem;font-weight:650;text-align:center}
 /* With no citations found, a quiet line says so above the brief, and how to add one. */
 .citation-none{margin:.25rem .5rem .75rem;color:var(--color-gray-500);font-size:.8125rem;line-height:1.4}
-.citation-dismissed{margin-top:1.2rem;color:#6b7280}
-.citation-dismissed summary{cursor:pointer;margin:0 .5rem .3rem;font-size:.8125rem;font-weight:650;color:#4b5563}
+.citation-dismissed{margin-top:1.2rem;color:var(--color-gray-500)}
+.citation-dismissed summary{cursor:pointer;margin:0 .5rem .3rem;font-size:.8125rem;font-weight:650;color:var(--color-gray-600)}
 .citation-dismissed>div{display:flex;align-items:center;gap:.4rem;padding:0 .5rem}
 .citation-dismissed s{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .citation-outline .citation-dismissed button{display:inline-flex;width:auto;min-height:0;font-size:.8125rem}
@@ -55,10 +55,10 @@
 .citation-grip:hover,[data-dragging] .citation-grip{opacity:1}
 .citation-grip:hover::after{transform:scale(1.2)}
 [data-dragging] .citation-grip::after{pointer-events:none}
-.citation-source-status{align-self:center;margin:auto;padding:2rem;color:#6b7280;font-size:.875rem}
-.citation-fallback{position:absolute;inset:auto 0 0;max-height:45%;display:flex;flex-direction:column;background:white;border-top:1px solid #e5e7eb;box-shadow:0 -4px 12px rgb(0 0 0 / .04);padding:.6rem .9rem;font-size:.875rem}
+.citation-source-status{align-self:center;margin:auto;padding:2rem;color:var(--color-gray-500);font-size:.875rem}
+.citation-fallback{position:absolute;inset:auto 0 0;max-height:45%;display:flex;flex-direction:column;background:var(--app-surface);border-top:1px solid var(--color-gray-200);box-shadow:0 -4px 12px rgb(0 0 0 / .04);padding:.6rem .9rem;font-size:.875rem}
 .citation-fallback[data-full]{inset:0;max-height:none;border-top:0;box-shadow:none}
-.citation-fallback>p{margin:0;color:#6b7280;font-size:.8125rem}
+.citation-fallback>p{margin:0;color:var(--color-gray-500);font-size:.8125rem}
 .citation-fallback>div{position:relative;isolation:isolate;white-space:pre-wrap;overflow:hidden auto;padding:.5rem 0;line-height:1.8;outline:none}
 
 /* The bar under the document, as wide as the page above, in three columns divided by hairlines:
@@ -119,20 +119,20 @@
 .citation-panel .citation-chip>button:hover:not(:disabled){background:var(--color-amber-200);color:var(--citation-warning, #451a03)}
 .citation-chip>button:disabled{cursor:default}
 /* The authorities open upward over the document, each under the place that cites it. */
-.citation-authority-menu{position:absolute;bottom:calc(100% + .6rem);left:0;min-width:max(100%,30rem);z-index:20;display:flex;flex-direction:column;max-height:min(26rem,60vh);border:1px solid #d1d5db;border-radius:8px;background:#fff;box-shadow:0 10px 30px rgb(0 0 0 / .14)}
+.citation-authority-menu{position:absolute;bottom:calc(100% + .6rem);left:0;min-width:max(100%,30rem);z-index:20;display:flex;flex-direction:column;max-height:min(26rem,60vh);border:1px solid var(--color-gray-300);border-radius:8px;background:var(--app-surface);box-shadow:0 10px 30px rgb(0 0 0 / .14)}
 .citation-authority-menu>[role=listbox]{overflow:hidden auto;padding:.6rem .5rem .4rem}
-.citation-authority-menu h4{margin:0 .5rem .4rem;font-size:.8125rem;font-weight:650;color:#4b5563}
+.citation-authority-menu h4{margin:0 .5rem .4rem;font-size:.8125rem;font-weight:650;color:var(--color-gray-600)}
 .citation-authority-menu [role=listbox]>[role=group]+[role=group]{margin-top:1rem}
 .citation-authority-menu [role=option]{display:block;width:100%;padding:.35rem .6rem;border-radius:4px;text-align:start;line-height:1.4}
 .citation-authority-menu [role=option]+[role=option]{margin-top:.1rem}
-.citation-authority-menu [role=option]>span{display:block;color:#111827;overflow-wrap:anywhere}
-.citation-authority-menu [role=option]>small{display:block;font-size:.8125rem;color:#6b7280;overflow-wrap:anywhere}
-.citation-authority-menu [role=option]:hover,.citation-authority-menu [role=option]:focus-visible{background:#f3f4f6;outline:none}
-.citation-authority-menu [role=option][aria-selected=true]{background:#fff1f0;box-shadow:inset 2px 0 #b91c1c}
-.citation-authority-menu [role=option][aria-selected=true]>span{color:#991b1b}
+.citation-authority-menu [role=option]>span{display:block;color:var(--color-gray-900);overflow-wrap:anywhere}
+.citation-authority-menu [role=option]>small{display:block;font-size:.8125rem;color:var(--color-gray-500);overflow-wrap:anywhere}
+.citation-authority-menu [role=option]:hover,.citation-authority-menu [role=option]:focus-visible{background:var(--app-surface-hover);outline:none}
+.citation-authority-menu [role=option][aria-selected=true]{background:var(--brand-red-soft);box-shadow:inset 2px 0 #b91c1c}
+.citation-authority-menu [role=option][aria-selected=true]>span{color:var(--citation-accent, #991b1b)}
 .citation-authority-menu .citation-authority-none{margin-top:.5rem;border-top:1px solid var(--color-gray-200);border-radius:0;color:var(--color-gray-700)}
-.citation-authority-menu p{margin:0;padding:.6rem .5rem;color:#6b7280}
-.citation-authority-menu>input{flex:none;height:2.25rem;margin:.4rem;padding:0 .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.875rem;outline:none}
+.citation-authority-menu p{margin:0;padding:.6rem .5rem;color:var(--color-gray-500)}
+.citation-authority-menu>input{flex:none;height:2.25rem;margin:.4rem;padding:0 .6rem;border:1px solid var(--color-gray-300);border-radius:6px;font-size:.875rem;outline:none}
 .citation-authority-menu>input:focus-visible{border-color:#b91c1c}
 /* Narrower: the list goes above the document; the bar keeps its columns, the labels give way. */
 @container (max-width:48rem){
@@ -150,3 +150,4 @@
   .citation-chip{max-width:6.25rem}
 }
 
+:root[data-appearance="dark"] .citation-review { --citation-accent: #fca5a5; --citation-warning: #fcd34d; }

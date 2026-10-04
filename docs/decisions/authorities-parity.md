@@ -51,4 +51,4 @@ or iframe mechanics.
   and `backend/src/lib/relationalWorkProductRepository.ts`
 - Local-only host/storage: `frontend/src/app/authorities/standaloneHost.ts` and
   `frontend/src/app/lib/standaloneWorkProducts.ts`
-- Browser production check: `scripts/test-authorities-browser.py`
+- Browser production check: `smoke/authorities-browser.spec.ts` (Node Playwright)

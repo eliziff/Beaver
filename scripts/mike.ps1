@@ -31,7 +31,7 @@ $Services = @(
 )
 $Builds = @(
     [pscustomobject]@{ Name = 'backend'; Path = Join-Path $Backend 'dist\supervisor.js'; Command = 'cd backend; npm run build' },
-    [pscustomobject]@{ Name = 'frontend'; Path = Join-Path $Frontend 'dist\index.html'; Command = 'cd frontend; npm run build' }
+    [pscustomobject]@{ Name = 'frontend'; Path = Join-Path $Frontend 'dist\index.html'; Command = 'cd frontend; npm run build:deploy' }
 )
 
 function Get-ProcessStamp([int]$Id) {
@@ -215,18 +215,12 @@ function Resolve-LegalStructureNative {
         }
         throw "LEGAL_STRUCTURE_NATIVE does not resolve to a library: $configured"
     }
-    $filename = if ($IsWindows -or $env:OS -eq 'Windows_NT') {
-        'legal_structure_node.dll'
-    } elseif ($IsMacOS) {
-        'liblegal_structure_node.dylib'
-    } else {
-        'liblegal_structure_node.so'
-    }
-    $managed = Join-Path $Repo "native\legal-structure-node\target\release\$filename"
-    if (Test-Path -LiteralPath $managed -PathType Leaf) {
-        return (Resolve-Path -LiteralPath $managed).Path
-    }
-    throw 'Legal structure native module is missing. Build native/legal-structure-node once for this platform.'
+    $helper = Join-Path $Repo 'shared\nativeAddonFile.mjs'
+    $nativeRoot = Join-Path $Repo 'native\legal-structure-node'
+    $select = "import(require('node:url').pathToFileURL(process.argv[1]).href).then(m => console.log(m.defaultNativeAddon(process.argv[2])))"
+    $managed = & (Get-Node) -e $select $helper $nativeRoot
+    if ($LASTEXITCODE -ne 0) { throw 'Native engine missing. Run npm run native:build once.' }
+    return $managed
 }
 
 function Get-WordEditingStatus {
@@ -365,9 +359,15 @@ function Start-LoggedProcess(
 ) {
     $logRoot = Join-Path $StateRoot 'logs'
     New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
-    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-    $stdout = Join-Path $logRoot "$stamp-$Name.stdout.log"
-    $stderr = Join-Path $logRoot "$stamp-$Name.stderr.log"
+    $stdout = Join-Path $logRoot "$Name.stdout.log"
+    $stderr = Join-Path $logRoot "$Name.stderr.log"
+    $oldLogPattern = "^\d{8}-\d{6}-$([regex]::Escape($Name))\.(?:stdout|stderr)\.log$"
+    foreach ($oldLog in Get-ChildItem -LiteralPath $logRoot -File) {
+        if ($oldLog.Name -match $oldLogPattern -and
+            -not ($oldLog.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            Remove-Item -LiteralPath $oldLog.FullName -Force -ErrorAction SilentlyContinue
+        }
+    }
     $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
         -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
@@ -625,49 +625,24 @@ function Invoke-Smoke {
             throw "FAIL $($check.Name): $($check.Url) - $($_.Exception.Message)"
         }
     }
-    if ($WithTableOfAuthorities) {
-        $python = Get-Command python -ErrorAction SilentlyContinue
-        if (-not $python) {
-            throw 'Authorities smoke requires Python and ChromeDriver.'
-        }
-        & $python.Source (Join-Path $Repo 'scripts\test-authorities-browser.py') `
-            '--url' "$BaseUrl/table-of-authorities"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Authorities browser smoke failed with exit code $LASTEXITCODE."
-        }
-    }
-    if ($Full -or $WithAssistantDock) {
-        $python = Get-Command python -ErrorAction SilentlyContinue
-        if (-not $python) {
-            throw 'Assistant dock smoke requires Python and ChromeDriver.'
-        }
-        & $python.Source (Join-Path $Repo 'scripts\test-document-row-browser.py') `
-            '--url' "$BaseUrl/library"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Document row browser smoke failed with exit code $LASTEXITCODE."
-        }
-        & $python.Source (Join-Path $Repo 'scripts\test-sources-dock-browser.py') `
-            '--url' "$BaseUrl/"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Assistant dock browser smoke failed with exit code $LASTEXITCODE."
-        }
-    }
-    if ($Full) {
+    if ($Full -or $WithTableOfAuthorities -or $WithAssistantDock) {
         $playwright = Join-Path $Repo 'node_modules\.bin\playwright.cmd'
         if (-not (Test-Path -LiteralPath $playwright -PathType Leaf)) {
-            throw 'Full smoke requires root test dependencies. Run npm ci in the repository root.'
+            throw 'Browser smoke requires root test dependencies. Run npm ci in the repository root.'
+        }
+        $browserArgs = @('test', '--config=playwright.local-smoke.config.ts')
+        if (-not $Full) {
+            if ($WithTableOfAuthorities) { $browserArgs += 'authorities-browser.spec.ts' }
+            if ($WithAssistantDock) { $browserArgs += 'sources-browser.spec.ts' }
         }
         Push-Location $Repo
         try {
-            & $playwright test '--config=playwright.local-smoke.config.ts'
-            if ($LASTEXITCODE -ne 0) {
-                throw "Full local production smoke failed with exit code $LASTEXITCODE."
-            }
+            & $playwright @browserArgs
+            if ($LASTEXITCODE -ne 0) { throw "Production browser smoke failed with exit code $LASTEXITCODE." }
         }
-        finally {
-            Pop-Location
-        }
+        finally { Pop-Location }
     }
+
 }
 
 function Invoke-SelfTest {

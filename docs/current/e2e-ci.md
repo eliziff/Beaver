@@ -1,18 +1,16 @@
 # End-to-end CI
 
-The separate CI dependency audit checks changed manifests/lockfiles (root, backend
-and frontend; the Word surface shares the frontend), plus all three weekly and
-on manual CI runs. Changes to its gate or allowlist also audit all three. It uses npm's bulk advisory
-service with an OSV fallback and fails closed when neither answers. Exceptions
-must identify an advisory and reason in `scripts/audit-allowlist.json`; no
-upstream exceptions are inherited. Its offline regression gate is
-`node --test scripts/audit-gate.test.mjs`.
+The dependency audit uses npm's standard lockfile audit for changed dependencies,
+plus the weekly and manual runs. High and critical advisories block; no custom
+advisory client, retry/canary harness or exception allowlist is maintained.
 
 CI selects jobs from the complete Git diff, including deleted files and both
 sides of moves. Documentation-only changes skip application builds and browser
-tests. Ordinary backend changes skip frontend unit tests and lint; shared inputs and the
-backend helpers imported by frontend tests still validate both. Unknown inputs
-run both surfaces. Shared grammar and export-integrity behavior run once in backend CI. Frontend
+tests. Blanket unit suites are not CI gates. Focused tests name exact files; production
+browser checks exercise the actual application. Backend changes skip frontend lint;
+shared inputs still build both surfaces. Unknown inputs
+run both surfaces. Grammar checks belong to their native owners; export-integrity
+checks run when that contract changes. Frontend
 tooling checks exercise the build/transport helpers. New commits cancel
 superseded CI runs.
 
@@ -31,14 +29,10 @@ Standalone manual e2e/parity runs build their own outputs and addon. Release/sou
 native citation/quotation tests remain independent behavior gates.
 
 Frontend CI installs root shared dependencies and frontend dependencies, without
-installing the backend. Shared TypeScript contracts and PDF helpers live in
-`shared/contracts/`; `npm run build:shared` produces ignored runtime modules and
-declarations in `shared/runtime/`. Production build/dev commands compile that
-owner first. Vitest resolves those modules to their TypeScript sources directly;
-focused tests do not compile shared output or build the application/native addon.
-Packaging and direct compiled-runtime commands need the shared build once.
-Both standalone entries are built together, so the frontend build uses one
-application pass and one standalone pass.
+installing the backend. Frontend builds, development and Vitest read shared
+TypeScript directly; focused tests do not build the application/native addon.
+Backend production emission builds ignored shared runtime modules once. CI stages
+Beaver alone; Word and standalone outputs have explicit build commands.
 
 Cloud SAML sign-in uses GoTrue's configured providers. Set `SSO_ENABLED=true`
 and optionally restrict `SSO_ALLOWED_DOMAINS` to comma-separated DNS domains.
@@ -61,11 +55,12 @@ These settings reuse the existing encrypted token storage and refresh flow.
 `.github/workflows/e2e.yml` is the production-path browser gate. CI calls it for
 application pull requests to `main` and `upstream-main`; it can also be started manually.
 
-UI-only changes run the account-free production application with a disposable
-local store. Sixteen browser checks cover responsive navigation, persisted chat
+UI and ordinary application-operation changes run the account-free production
+application with a disposable local store. Seventeen browser checks cover responsive navigation, persisted chat
 lifecycle/selection, project operations, workflow editing/read-only built-ins
 and tabular review creation/document uploads. No Supabase or MinIO is started.
-Auth, API/persistence, schema, deployment and unknown infrastructure inputs keep
+Auth, persistence adapters, cloud/storage composition, schema, deployment and
+unknown infrastructure inputs keep
 the complete cloud browser and live persistence/RLS/S3 suite. Manual runs retain
 the cloud gate. `scripts/ci-scope.py` owns routing; mixed changes keep the broader gate.
 
@@ -74,13 +69,26 @@ start one production Beaver origin on port 3000, and drive Chromium. Standalone
 manual runs build locally. The cloud mode additionally starts disposable MinIO
 and Supabase and applies `backend/schema.sql` before its persistence checks.
 
+Cloud browser workers each create one account/session and delete their account
+on teardown. Auth lifecycle cases own separate accounts. CI uses two isolated
+cloud workers; local mode keeps one backend owner and one worker. Retries do not
+hide failures, and no shared authentication file is staged on disk.
+
 The ordinary backend suite excludes real Word-runtime tests; the Word workflow
 runs all fifteen suites with pinned Python requirements and LibreOffice.
-Word/Python runtime, dependency and platform changes keep Linux, Windows, macOS
-and the isolated container gate. Shared contracts and application orchestration
-use the Linux native runtime only. Documentation-only legal-structure changes
-skip Cargo; PDF Inspector guidance edits run the merge-guidance proof without
-Windows corpus preflight. Parser/candidate changes keep the source-gold gate.
+Word/Python runtime and platform changes run Linux in the cached container and
+Windows natively. Linux installs no second host Python/LibreOffice runtime and
+runs the fifteen suites once. Dockerfile-only changes run Linux. Word application and
+artifact-reference changes use the Linux runtime; unrelated shared contracts,
+generic chat orchestration and package edits do not replay Word integration.
+Documentation-only legal-structure changes
+skip Cargo. PDF Inspector documentation, CLI and upstream-update tooling changes
+do not run the Windows corpus gate; Inspector library and CMap changes retain
+one real extraction/source-gold gate.
+
+Native CI reuses the exact addon when its build-input cache hits, and restores
+compiled Rust dependencies on a miss. Standalone manual browser gates restore
+those dependencies too; a source edit need not start from an empty Cargo target.
 
 The backend serves both `frontend/dist` and `/api`. There is no frontend
 server, build-time public environment file, CORS path, or alternate API URL.
@@ -109,8 +117,7 @@ jobs.
 
 ## Run locally
 
-Start disposable Supabase and S3-compatible storage, populate `backend/.env`,
-then run:
+Ordinary browser checks use the disposable account-free local store. Run:
 
 ```bash
 npm ci
@@ -121,17 +128,41 @@ npm run test:e2e
 `PLAYWRIGHT_BASE_URL` defaults to `http://localhost:3000`. Browser tests must
 use synthetic or public documents and disposable credentials.
 
+`npm run test:e2e`, headed/UI variants and plain
+`npx playwright test` default to local mode without Docker or Supabase.
+Cloud checks are explicit: `npm run test:e2e:cloud` starts/resets disposable
+Supabase and passes its settings through inherited environment variables,
+without editing `backend/.env` or creating backup files. Configure disposable
+S3-compatible storage for that cloud run. CI selects its mode explicitly.
+The launcher owns `.tmp/playwright-local`, clears it before launch and removes it
+after server shutdown. It refuses to reuse servers on ports 3000/3001. An abruptly
+killed run leaves this one bounded directory for cleanup on the next launch.
+
 To use the existing local production build for the small browser suite, set
 `CI=true`, `BEAVER_E2E_MODE=local` and `PLAYWRIGHT_BASE_URL` to its origin, then run
 `npx playwright test`. Use an isolated `MIKE_LOCAL_DATA_DIR` for the test server.
 
 ## Local resource use
 
-Local Vitest runs use one isolated thread worker; CI uses four. Pure Node tests skip React/JSDOM
-setup. Normal npm builds/tests run below normal priority and limit Rayon/OpenMP
+Source-test edits do not start application CI. Focused source checks remain local;
+there is no unit-test matrix, lint or build-tool test gate in application CI. Grammar
+validation belongs to its engine owner, rather than every backend build. Real
+browser, corpus and Word runtime gates remain; mixed implementation/test edits
+retain application checks. Authorities parity
+follows its specific shared contracts and PDF dependencies, not every contract.
+
+Backend source commands and inherited Node workers reuse TSX transformations in
+ignored `.tmp/node/`; TSX expires old cache entries itself. No command disables
+that cache or creates a separate per-task transformation directory.
+
+Frontend source checks run in Node with one isolated worker, without React or
+DOM setup. Backend source checks use one worker locally and in CI. Normal
+npm builds/tests run below normal priority and limit Rayon/OpenMP
 pools to one thread. Root Cargo configuration limits compilation to one job
-and one codegen unit, including addon builds launched from this checkout.
+including addon builds launched from this checkout.
 Native CI commands explicitly use two jobs on their dedicated runners.
+Local addon builds use the incremental development profile; launchers select
+the newest built artifact. Release optimization is explicit delivery work.
 Avoid running builds and tests concurrently on the workstation; use focused tests
 and reuse built production assets for browser checks. Full Rust builds belong in
 CI unless native source changed and a local integration build is necessary.
@@ -141,7 +172,41 @@ needed. Backend focused tests do the same and use the SQLite worker's existing
 source mode, without generating test-only JavaScript copies. Frontend type checks are incremental. Use
 `npm run check --prefix frontend` to check types, `npm run build:app --prefix
 frontend` or `npm run build:standalone --prefix frontend` for one production
-surface in `frontend/.tmp/`, and the ordinary build for the complete release.
+surface in `frontend/.tmp/`. The ordinary build stages Beaver only. `build:word`
+stages Word separately; `build:deploy` replaces served Beaver and Word output
+together while the service is stopped. CI's browser job installs the staged
+Beaver artifact into its isolated server's `frontend/dist/`.
 
 To run the real Word suite locally after installing its prerequisites, set
-`BEAVER_WORD_INTEGRATION=1` and run `npm test --prefix backend`.
+`BEAVER_WORD_INTEGRATION=1` and run `npx vitest run` from `backend/`.
+
+
+Production browser smoke uses the root Node Playwright installation: `npm run test:browser`
+checks the running launcher-owned app without building it. Focus it with
+`npm run test:browser -- sources-browser.spec.ts`, `authorities-browser.spec.ts`,
+`court-records-browser.spec.ts`, or the explicitly opt-in live `tabular-browser.spec.ts`.
+Tabular model calls require `BEAVER_BROWSER_LIVE=1`; FullSweep enables it only
+inside its already authorized isolated browser step. Ordinary smoke skips them. The Court Records alias
+also consumes the existing running app; it no longer rebuilds standalone output.
+Start an isolated production surface with the launcher before these checks; use
+the local E2E lane for a development stack. The smoke flow owns and deletes the
+records it creates, and Playwright overwrites its output directory on the next run.
+
+The retained browser outcomes are explicit version-bound Sources membership,
+organization review/accept/undo, nested output-folder selection, native Authorities
+DOCX/PDF review and attachment reopening, independently inspected table/book
+downloads, Tabular Run/Regenerate/design/import, and Court Records trusted exhibit
+dragging plus independently inspected outputs for Alberta affidavit/appeal and
+Federal Court/Federal Court of Appeal motion records. Repeated model answer and
+provenance assertions remain in the live-tool integration lane; obsolete hard-coded
+pilot inspection, ChromeDriver provisioning and fake research interop are gone.
+`smoke/work-product-files.py` owns the disposable fixture generators and independent
+PyMuPDF/python-docx output inspection; it starts no browser. The Authorities generator records public citation sources and distinguishes format-only
+identifiers; its prose is invented test text, not judicial quotations.
+
+For the standalone Court Records surface, explicitly build it once with
+`npm run build:standalone --prefix frontend`, serve the existing
+`frontend/.tmp/standalone-dist/` with a static server, and set
+`PLAYWRIGHT_BASE_URL` to that server and `COURT_RECORDS_URL=/court-records.html`
+when running `npm run test:court-records:browser`. This preserves the standalone
+browser/output check without coupling every invocation to a frontend rebuild.

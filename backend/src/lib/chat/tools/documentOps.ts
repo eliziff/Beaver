@@ -1,8 +1,7 @@
 import { workbookSheetsSchema } from "../../spreadsheet";
-import {
-  renderDocxMarkdown,
-  type RenderDocxMarkdownOptions,
-  type DocxCitationAppearance,
+import type {
+  RenderDocxMarkdownOptions,
+  DocxCitationAppearance,
 } from "./docxMarkdown";
 
 export async function renderMarkdownDocx(
@@ -11,6 +10,7 @@ export async function renderMarkdownDocx(
   fields?: unknown,
   options?: Omit<RenderDocxMarkdownOptions, "title" | "values" | "strictFields">,
 ) {
+  const { renderDocxMarkdown } = await import("./docxMarkdown");
   const appearances: DocxCitationAppearance[] = [];
   const bytes = await renderDocxMarkdown(markdown, {
     ...options,

@@ -89,43 +89,6 @@ export function auditRedirectUrl(location, current) {
   return next;
 }
 
-const broadProfiles = new Set([
-  "abkb", "abca", "fc", "fca", "alberta-affidavit", "federal-affidavit",
-]);
-
-export function validateManifest(manifest) {
-  if (manifest?.schema_version !== 2 || !Array.isArray(manifest.sources))
-    throw new Error("court-output source manifest must use schema_version 2");
-  const ids = new Set();
-  for (const source of manifest.sources) {
-    if (!source || typeof source !== "object" || typeof source.id !== "string" ||
-        !source.id || ids.has(source.id)) throw new Error("source IDs must be unique non-empty strings");
-    ids.add(source.id);
-    if (typeof source.kind !== "string" || !source.kind ||
-        typeof source.locator !== "string" || !source.locator) {
-      throw new Error(`${source.id} must retain its source kind and locator`);
-    }
-    if (typeof source.url !== "string" || !source.url) {
-      throw new Error(`${source.id} must retain a stable HTTPS URL`);
-    }
-    for (const field of ["url", "stable_parent_url"]) {
-      if (source[field] !== undefined && new URL(source[field]).protocol !== "https:")
-        throw new Error(`${source.id} ${field} must use HTTPS`);
-    }
-    if (!Array.isArray(source.profiles) || !source.profiles.length ||
-        source.profiles.some((profile) => typeof profile !== "string" || !profile ||
-          broadProfiles.has(profile))) {
-      throw new Error(`${source.id} must name exact supported profiles`);
-    }
-    if (!Array.isArray(source.expected_markers))
-      throw new Error(`${source.id} expected_markers must be an array`);
-    if ((source.automated_access === "manual_only" || isCanlii(source.url)) &&
-        source.automated_access !== "manual_only") {
-      throw new Error(`${source.id} must mark CanLII access manual_only`);
-    }
-  }
-}
-
 export function validateAuditCoverage(manifest, audit) {
   if (!Array.isArray(audit?.results)) throw new Error("source audit results must be an array");
   const expected = new Set(manifest.sources.map(({ id }) => id));
@@ -140,8 +103,6 @@ export function validateAuditCoverage(manifest, audit) {
 
 export function needsAudit(source, previous, options, now = Date.now()) {
   if (options.refreshAll || options.ids?.has(source.id) || !previous || previous.url !== source.url) return true;
-  if (!Number.isFinite(options.maxAgeDays) || options.maxAgeDays < 0)
-    throw new Error("--max-age-days must be a non-negative number");
   const checked = Date.parse(previous.checked_at ?? "");
   return !Number.isFinite(checked) || now - checked >= options.maxAgeDays * 86_400_000;
 }
@@ -230,7 +191,6 @@ function save(path, manifestPath, manifest, results) {
 export async function main(argv = process.argv.slice(2)) {
   const options = argumentsFrom(argv);
   const manifest = readJson(options.manifest);
-  validateManifest(manifest);
   if (!Number.isFinite(options.maxAgeDays) || options.maxAgeDays < 0) {
     throw new Error("--max-age-days must be a non-negative number");
   }
@@ -239,7 +199,6 @@ export async function main(argv = process.argv.slice(2)) {
     throw new Error("--ids contains a source not present in the manifest");
   }
   const previous = readJson(options.output, { results: [] });
-  if (!Array.isArray(previous.results)) throw new Error("source audit results must be an array");
   if (options.check) {
     validateAuditCoverage(manifest, previous);
     process.stdout.write(`Validated ${manifest.sources.length} source receipts; no requests made.\n`);

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import type { Chat } from "@/app/lib/api/chat";
 import { HighlightedText } from "../ui/HighlightedText";
 import { APP_SURFACE_ACTIVE_CLASS, APP_SURFACE_HOVER_CLASS } from "../ui/liquid-surface";
-import { GfmMarkdown, MessageSearchHighlight } from "./message/MarkdownContent";
+import { GfmMarkdown, MessageSearchHighlight } from "../shared/GfmMarkdown";
 import { chatSearchPath } from "./chatSearch";
 import { ChatSkeuoIcon, TabularReviewSkeuoIcon } from "../shared/AppSidebarSkeuoIcons";
 

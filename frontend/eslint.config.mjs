@@ -8,6 +8,7 @@ export default tseslint.config(
         ignores: [
             ".next/**",
             ".qa/**",
+            ".tmp/**",
             ".tmp-*.mjs",
             ".tmp-ui/**",
             "build/**",

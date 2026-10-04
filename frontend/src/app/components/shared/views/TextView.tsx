@@ -1,7 +1,6 @@
 import { createElement, useMemo, type ComponentProps, type ElementType } from "react";
 import { Loader2 } from "lucide-react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { GfmMarkdown, type Components } from "../GfmMarkdown";
 import { useDocumentFile } from "@/app/hooks/useDocumentFile";
 
 interface Props {
@@ -68,8 +67,8 @@ export function TextView({ documentId, versionId, filename }: Props) {
         return (
             <div className={`${frame} font-serif text-base leading-7 text-gray-950`}
                 data-legal-text="1">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}
-                    components={MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
+                <GfmMarkdown documentLinks
+                    components={MARKDOWN_COMPONENTS}>{text}</GfmMarkdown>
             </div>
         );
     }

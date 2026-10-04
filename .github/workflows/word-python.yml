@@ -6,7 +6,7 @@ on:
       - 'backend/src/lib/wordPython.ts'
       - 'backend/src/lib/wordEditApplication.ts'
       - 'backend/src/lib/chat/wordPythonTool.ts'
-      - 'backend/src/lib/chat/chatToolRunner.ts'
+      - 'shared/contracts/resourceReferences.mts'
       - 'backend/src/lib/convert.ts'
       - 'backend/src/lib/subprocessEnv.ts'
       - 'backend/src/lib/docx*'
@@ -15,36 +15,25 @@ on:
       - 'backend/src/lib/__tests__/word*.test.ts'
       - 'backend/src/lib/__tests__/support/docxFixtures.ts'
       - 'backend/vitest.config.mts'
-      - 'backend/package*.json'
-      - 'shared/contracts/**'
-      - 'shared/tsconfig.json'
-      - 'package*.json'
       - 'backend/word-python.Dockerfile'
       - '.github/workflows/word-python.yml'
-      - '.github/workflows/ci.yml'
-      - 'scripts/ci-scope.py'
   push:
     branches: [main]
     paths:
       - 'backend/scripts/word_python/**'
-      - 'backend/src/lib/word*.ts'
+      - 'backend/src/lib/wordPython.ts'
+      - 'backend/src/lib/wordEditApplication.ts'
+      - 'backend/src/lib/chat/wordPythonTool.ts'
+      - 'shared/contracts/resourceReferences.mts'
       - 'backend/src/lib/__tests__/word*.test.ts'
       - 'backend/src/lib/__tests__/support/docxFixtures.ts'
-      - 'backend/src/lib/chat/wordPythonTool.ts'
-      - 'backend/src/lib/chat/chatToolRunner.ts'
       - 'backend/src/lib/convert.ts'
       - 'backend/src/lib/subprocessEnv.ts'
       - 'backend/src/lib/docx*'
       - 'backend/src/lib/docx/**'
-      - 'backend/package*.json'
       - 'backend/vitest.config.mts'
       - 'backend/word-python.Dockerfile'
-      - 'shared/contracts/**'
-      - 'shared/tsconfig.json'
-      - 'package*.json'
       - '.github/workflows/word-python.yml'
-      - '.github/workflows/ci.yml'
-      - 'scripts/ci-scope.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -78,25 +67,38 @@ jobs:
           # Unrelated historical docs contain Windows-invalid angle-bracket paths.
           sparse-checkout: |
             backend
+            frontend
             shared
             packages
             scripts
+            repositories.json
+      - name: Checkout citation source dependency
+        shell: bash
+        run: python3 scripts/bootstrap-repositories.py common-law-cite
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - name: Install LibreOffice (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-writer fonts-liberation
+          cache-dependency-path: package-lock.json
+      - uses: actions/setup-python@v5
+        if: runner.os == 'Windows'
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/scripts/word_python/requirements.txt
+      - name: Reuse Windows LibreOffice installer downloads
+        if: runner.os == 'Windows'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/word-office-installers
+          key: word-office-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('backend/word-python.Dockerfile') }}
+          restore-keys: word-office-${{ runner.os }}-${{ runner.arch }}-
       - name: Install LibreOffice (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: choco install libreoffice-fresh --yes --no-progress
-      - name: Install LibreOffice (macOS)
-        if: runner.os == 'macOS'
-        run: brew install --cask libreoffice
-      - name: Pinned Python requirements (the probe fails when they are missing)
+        run: choco install libreoffice-fresh --yes --no-progress --cache-location "$env:RUNNER_TEMP/word-office-installers"
+      - name: Pinned native Python requirements
+        if: runner.os == 'Windows'
         shell: bash
         run: |
           python3 -m venv "$RUNNER_TEMP/word-python" || python -m venv "$RUNNER_TEMP/word-python"
@@ -104,19 +106,30 @@ jobs:
           "$bin/python" -m pip install -r backend/scripts/word_python/requirements.txt
           "$bin/python" -I backend/scripts/word_python/probe.py
           echo "BEAVER_WORD_PYTHON=$bin/python" >> "$GITHUB_ENV"
-      - run: npm ci --ignore-scripts
-      - run: npm ci --prefix backend --ignore-scripts
-      - run: npm run build:shared
-      - name: Programs, Review mode, publication and sandbox refusals on the real runtime
+      - run: npm ci --workspace backend --include-workspace-root --ignore-scripts
+      - name: Windows native programs, Review mode, publication and sandbox refusals
+        if: runner.os == 'Windows'
         working-directory: backend
         env:
           BEAVER_WORD_INTEGRATION: "1"
         run: npx vitest run
-      - name: The same tests in the network-isolated container
-        if: runner.os == 'Linux' && contains(needs.changes.outputs.os, 'windows-2022')
+      - name: Restore Word container build layers
+        if: runner.os == 'Linux'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/word-build-cache
+          key: word-container-${{ runner.os }}-${{ hashFiles('backend/word-python.Dockerfile', 'backend/scripts/word_python/**') }}
+          restore-keys: word-container-${{ runner.os }}-
+      - name: Linux cloud programs, Review mode, publication and sandbox refusals
+        if: runner.os == 'Linux'
         working-directory: backend
         env:
           BEAVER_WORD_INTEGRATION: "1"
         run: |
-          docker build -f word-python.Dockerfile -t beaver-word-python:test .
-          WORD_PYTHON_CONTAINER_IMAGE=beaver-word-python:test npx vitest run src/lib/__tests__/wordPython.test.ts
+          docker buildx create --use
+          docker buildx build --load -f word-python.Dockerfile -t beaver-word-python:test \
+            --cache-from type=local,src="$RUNNER_TEMP/word-build-cache" \
+            --cache-to type=local,dest="$RUNNER_TEMP/word-build-cache-new",mode=max .
+          rm -rf "$RUNNER_TEMP/word-build-cache"
+          mv "$RUNNER_TEMP/word-build-cache-new" "$RUNNER_TEMP/word-build-cache"
+          WORD_PYTHON_CONTAINER_IMAGE=beaver-word-python:test npx vitest run

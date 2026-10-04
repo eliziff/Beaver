@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import { createReadStream } from "node:fs";
-import { copyFile, link, mkdir, open, readFile, rename, rm, stat,
+import { copyFile, link, lstat, mkdir, open, readFile, readdir, rename, rm, stat,
   writeFile } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { sha256 } from "./hash";
@@ -10,6 +10,8 @@ import { hasPdfEndMarker } from "mike/shared/pdf-integrity.mjs";
 const MAX_PROJECTION_PDF_BYTES = 100 * 1024 * 1024;
 
 const writes = new Map<string, Promise<void>>();
+const activePdfStaging = new Set<string>();
+let stagingSweepAt = 0;
 const dataRoot = () => path.resolve(mikeLocalDataHome());
 const projectionRoot = () => path.join(dataRoot(), "projections", "v1");
 
@@ -218,12 +220,37 @@ async function publishPdfContent(source: string, expectedSha256: string,
   }, signal);
 }
 
+async function cleanupPdfStaging() {
+  const now = Date.now();
+  if (now - stagingSweepAt < 60 * 60_000) return;
+  stagingSweepAt = now;
+  const staging = path.join(projectionRoot(), "staging");
+  try {
+    const directory = await lstat(staging);
+    if (!directory.isDirectory() || directory.isSymbolicLink()) return;
+    for (const entry of await readdir(staging, { withFileTypes: true })) {
+      if (!entry.isFile() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.pdf\.tmp$/u.test(entry.name)) continue;
+      const filename = path.join(staging, entry.name);
+      if (activePdfStaging.has(filename)) continue;
+      const details = await lstat(filename).catch(() => null);
+      if (details?.isFile() && !details.isSymbolicLink() &&
+          now - details.mtimeMs > 24 * 60 * 60_000)
+        await rm(filename, { force: true }).catch(() => undefined);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      console.warn("[document-projection] staging cleanup failed", error);
+  }
+}
+
 export async function publishPdfStream(stream: ReadableStream<Uint8Array>,
   signal?: AbortSignal) {
+  await cleanupPdfStaging();
   const staging = path.join(projectionRoot(), "staging");
   await mkdir(staging, { recursive: true });
   const temporary = path.join(staging, `${crypto.randomUUID()}.pdf.tmp`);
   const output = await open(temporary, "wx+");
+  activePdfStaging.add(temporary);
   const reader = stream.getReader();
   const digest = crypto.createHash("sha256");
   const header = Buffer.alloc(1_024);
@@ -263,6 +290,7 @@ export async function publishPdfStream(stream: ReadableStream<Uint8Array>,
   } finally {
     if (!complete) await reader.cancel().catch(() => undefined);
     await output.close().catch(() => undefined);
+    activePdfStaging.delete(temporary);
     await rm(temporary, { force: true });
   }
 }

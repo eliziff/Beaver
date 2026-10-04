@@ -1,8 +1,5 @@
 import { bufferRemoteResponse } from "./remoteUrlSafety";
 
-const TTL_MS = Number(process.env.MIKE_MODEL_CATALOG_TTL_MS) || 300_000;
-const RETRY_MS = Number(process.env.MIKE_MODEL_CATALOG_RETRY_MS) || 30_000;
-
 export async function fetchCatalogJson<T>(url: string, { label, timeoutMs, headers, maxBytes = 1024 * 1024 }: {
   label: string; timeoutMs: number; headers?: Record<string, string>; maxBytes?: number;
 }): Promise<T> {
@@ -25,12 +22,12 @@ export async function fetchCatalogJson<T>(url: string, { label, timeoutMs, heade
 export function createCatalogCache<T extends { source: "live" | "unavailable" }, I = void>(
   probe: (input: I) => Promise<T>, empty: T, options?: { ttlMs?: number },
 ) {
-  const ttlMs = options?.ttlMs ?? TTL_MS;
+  const ttlMs = options?.ttlMs ?? 300_000;
   let known: T | undefined, checkedAt = 0, checkedLive = false, inflight: Promise<T> | null = null;
   // A probe that fails (or answers `unavailable`) is retried after a short
   // backoff, not trusted for the whole TTL: one slow boot under load must not
   // pin the catalogue to its fallback for hours.
-  const stale = () => Date.now() - checkedAt > (checkedLive ? ttlMs : RETRY_MS);
+  const stale = () => Date.now() - checkedAt > (checkedLive ? ttlMs : 30_000);
   const refresh = (input: I) => {
     checkedAt = Date.now();
     return inflight ??= probe(input)

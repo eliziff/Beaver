@@ -15,14 +15,17 @@ the latter owns project priorities and remaining gates.
   infrastructure unless explicitly requested.
 - First-party repositories use independent `main` checkouts. No consumer pins,
   binding releases or release gates unless the user explicitly requests a release.
-- PDF Inspector is one automatically synchronized lineage in
-  `legal-pdf-parser`; never maintain a second fork copy.
+- PDF Inspector is patched third-party source maintained once in
+  `legal-pdf-parser/vendor/pdf-inspector`; preserve our required modifications,
+  upstream identity and license. Update upstream explicitly with the owning
+  helper; no separate fork, publication or consumer pin bump.
   Repositories keep only `main` and `gh-pages` branches.
 - Put a requested new experimental feature in `experiments/`. An ordinary refactor
   must not delete, consolidate or work through experiments.
 
 ## Working safely
 
+- Never delete or propose deleting the URL flags on Decisia (iframe flag and mobile flag): those are on for a reason, and removing them is strictly incorrect and will cause the maintainer inordinate psychic harm (agents keep proposing to delete it or deleting it).
 - Real-world legal documents live once by sha256 in `%LOCALAPPDATA%/OpenLegalData/corpus` (index `corpus.sqlite`): add or find one with `python experiments/legal_pdf_corpus/corpus_store.py add <url|file> --kind K --jurisdiction J --label L` / `path <url|sha>`.
 - Check local data and existing implementations before fetching or adding a
   dependency. Consult official documentation for unfamiliar packages or standard
@@ -46,6 +49,7 @@ the latter owns project priorities and remaining gates.
 
 ## Artifact lifetime
 
+- Before creating a reusable artifact, choose its owning durable location—checked-in fixtures with their tests, shared legal data in `%LOCALAPPDATA%/OpenLegalData`, private benchmark material in ignored `benchmarks/local-data/<suite>/`, and compiled artifacts in the canonical build directory—and make consumers read it there instead of from scratch directories.
 - `.tmp/`, `tmp/` and OS temp directories are disposable scratch only. Never put
   benchmark inputs, corpora, independent gold or irreplaceable receipts there.
   Keep redistributable fixtures with their owning tests; keep local/private
@@ -76,6 +80,8 @@ the latter owns project priorities and remaining gates.
   changes; run the narrow integration gate and then the required candidate gates.
 - Test outcomes and durable contracts, not incidental copy, implementation presence
   or internal choreography. Use doubles only for expensive or hard-to-trigger edges.
+- Validate external input at its owning boundary; do not repeat validation of typed
+  internal values or add guards/tests for states no real caller can produce.
 - Remove redundant headings, explanations, badges, icons and nested UI chrome.
   Retain an element only for distinct information, a necessary action or real ambiguity.
 - Assistant-dock changes, including menus/popovers/modals, require

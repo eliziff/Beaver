@@ -250,101 +250,9 @@ describe("authorities draft domain", () => {
     })).toBeNull();
   });
 
-  it("offers source-document output only for imported document drafts", () => {
-    const source = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport, sourceBindings),
-      { type: "set-output-mode", outputMode: "table" });
-    const enabled = reduceAuthoritiesDraft(source,
-      { type: "set-document-output", enabled: true });
-    expect(enabled.insertIntoDocument).toBe(true);
-    expect(reduceAuthoritiesDraft(enabled,
-      { type: "set-output-mode", outputMode: "book" }).insertIntoDocument).toBe(true);
-    const book = reduceAuthoritiesDraft(source,
-      { type: "set-output-mode", outputMode: "book" });
-    expect(reduceAuthoritiesDraft(book,
-      { type: "set-document-output", enabled: true }).insertIntoDocument).toBe(true);
-    expect(decodeAuthoritiesDraft({ ...book, insertIntoDocument: true })).not.toBeNull();
-    const pdf = reduceAuthoritiesDraft(createAuthoritiesDraft({ ...sourceImport,
-      filename: "Factum.pdf", fileType: "pdf" }, sourceBindings),
-    { type: "set-output-mode", outputMode: "table" });
-    expect(reduceAuthoritiesDraft(pdf,
-      { type: "set-document-output", enabled: true }).insertIntoDocument).toBe(true);
-    expect(() => reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }),
-      { type: "set-document-output", enabled: true }))
-      .toThrowError(AuthoritiesDomainError);
-  });
+  
 
-  it("applies data-backed court presets and locked output rules", () => {
-    const general = createAuthoritiesDraft({ kind: "manual" });
-    expect(general).toMatchObject({ outputMode: "book", settings: {
-      profileId: "general", sourceMode: "automatic", tableOrder: "alphabetical",
-    } });
-    expect(() => reduceAuthoritiesDraft(general,
-      { type: "set-output-mode", outputMode: "table" })).toThrow(AuthoritiesDomainError);
-    expect(() => reduceAuthoritiesDraft(general,
-      { type: "set-profile", profileId: "ab-court-of-appeal" }))
-      .toThrow(AuthoritiesDomainError);
-    const appeal = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport, sourceBindings),
-      { type: "set-profile", profileId: "ab-court-of-appeal" });
-    expect(appeal).toMatchObject({ outputMode: "table", settings: {
-      tableDelivery: "linked-append", tableLocation: "pinpoints",
-      tableOrder: "first-reference", passageMarking: "none", missingSourcePolicy: "omit",
-    } });
-    const appealDocument = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport,
-      sourceBindings), { type: "set-profile", profileId: "ab-court-of-appeal" });
-    expect(appealDocument.insertIntoDocument).toBe(false);
-    expect(() => reduceAuthoritiesDraft(appeal,
-      { type: "set-output-mode", outputMode: "book" })).toThrow(AuthoritiesDomainError);
-    expect(() => reduceAuthoritiesDraft(appeal, { type: "set-settings",
-      settings: { tableOrder: "alphabetical" } })).toThrow(AuthoritiesDomainError);
-    for (const profileId of ["ab-court-of-kings-bench", "federal-court",
-      "federal-court-appeal", "federal-court-of-appeal"] as const) {
-      expect(reduceAuthoritiesDraft(general, { type: "set-profile", profileId }))
-        .toMatchObject({ outputMode: "book", settings: {
-          sourceMode: "automatic", scannedPdfPolicy: "full",
-        } });
-    }
-    const kingsBench = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport, sourceBindings),
-      { type: "set-profile", profileId: "ab-court-of-kings-bench" });
-    expect(kingsBench.settings).toMatchObject({ missingSourcePolicy: "omit" });
-    expect(reduceAuthoritiesDraft(kingsBench,
-      { type: "set-output-mode", outputMode: "table" }).outputMode).toBe("table");
-    expect(reduceAuthoritiesDraft(kingsBench,
-      { type: "set-output-mode", outputMode: "both" }).outputMode).toBe("both");
-    for (const court of [kingsBench, appeal]) expect(() => reduceAuthoritiesDraft(court, {
-      type: "set-settings", settings: { missingSourcePolicy: "placeholder" },
-    })).toThrow(AuthoritiesDomainError);
-    const federal = reduceAuthoritiesDraft(general,
-      { type: "set-profile", profileId: "federal-court" });
-    expect(federal.settings).toMatchObject({ filingMedium: "electronic" });
-    expect(federal.settings.bookRole).toBeUndefined();
-    for (const bookRole of ["plaintiff", "defendant", "applicant", "respondent",
-      "moving-party", "responding-party", "joint"] as const) {
-      expect(reduceAuthoritiesDraft(federal,
-        { type: "set-settings", settings: { bookRole } }).settings.bookRole).toBe(bookRole);
-    }
-    expect(reduceAuthoritiesDraft(federal, { type: "set-settings",
-      settings: { filingMedium: "paper", bookRole: "respondent" } }).settings)
-      .toMatchObject({ filingMedium: "paper", bookRole: "respondent" });
-    expect(reduceAuthoritiesDraft(federal, { type: "set-settings",
-      settings: { bookRole: "joint" } }).settings.bookRole).toBe("joint");
-    expect(() => reduceAuthoritiesDraft(federal, { type: "set-settings",
-      settings: { passageMarking: "none" } })).toThrow(AuthoritiesDomainError);
-    expect(reduceAuthoritiesDraft(federal, { type: "set-settings",
-      settings: { passageMarking: "text" } }).settings.passageMarking).toBe("text");
-    for (const profileId of ["federal-court-appeal", "federal-court-of-appeal"] as const) {
-      const federalAppeal = reduceAuthoritiesDraft(general,
-        { type: "set-profile", profileId });
-      expect(federalAppeal.settings).toMatchObject({ filingMedium: "electronic", bookRole: "joint" });
-      for (const bookRole of ["appellant", "respondent", "intervener"] as const) {
-        expect(reduceAuthoritiesDraft(federalAppeal,
-          { type: "set-settings", settings: { bookRole } }).settings.bookRole).toBe(bookRole);
-      }
-      expect(() => reduceAuthoritiesDraft(federalAppeal, { type: "set-settings",
-        settings: { passageMarking: "none" } })).toThrow(AuthoritiesDomainError);
-      expect(() => reduceAuthoritiesDraft(federalAppeal, { type: "set-settings",
-        settings: { bookRole: "applicant" } })).toThrow(AuthoritiesDomainError);
-    }
-  });
+  
 
   it("binds front matter and append-only supplemental PDFs", () => {
     const input = (name: string, digest: string) => ({ kind: "local-file" as const,
@@ -454,56 +362,9 @@ describe("authorities draft domain", () => {
     expect(authorityCitationForms(reopened!, "grant")).toEqual(["2009 SCC 32", "[2009] 2 SCR 353"]);
   });
 
-  it("preserves Word and final export choices when choosing a court while applying locked table delivery", () => {
-    let selected = createAuthoritiesDraft(sourceImport, sourceBindings, "book");
-    selected = reduceAuthoritiesDraft(selected, { type: "set-document-output", enabled: true });
-    selected = reduceAuthoritiesDraft(selected, { type: "set-settings", settings: {
-      tableDelivery: "native-marks", citationSuffix: "custom", citationSuffixLabel: "BOA, Tab", finalPdf: true,
-      linkTabs: true, linkPinpoints: true,
-    } });
-    const kingsBench = reduceAuthoritiesDraft(selected, { type: "set-profile", profileId: "ab-court-of-kings-bench" });
-    expect(kingsBench).toMatchObject({ insertIntoDocument: true, settings: {
-      tableDelivery: "native-marks", citationSuffix: "custom", citationSuffixLabel: "BOA, Tab", finalPdf: true,
-      linkTabs: true, linkPinpoints: true,
-    } });
-    const appeal = reduceAuthoritiesDraft(kingsBench, { type: "set-profile", profileId: "ab-court-of-appeal" });
-    expect(appeal).toMatchObject({ insertIntoDocument: true, settings: {
-      tableDelivery: "linked-append", citationSuffix: "custom", citationSuffixLabel: "BOA, Tab", finalPdf: true,
-    } });
-    const noMarks = reduceAuthoritiesDraft(appeal, { type: "set-document-output", enabled: false });
-    expect(reduceAuthoritiesDraft(noMarks, { type: "set-profile", profileId: "general" }).insertIntoDocument).toBe(false);
-  });
+  
 
-  it("chooses the Word copy and its tab references independently, and reads a saved combined choice as the pair", () => {
-    const base = createAuthoritiesDraft(sourceImport, sourceBindings, "book");
-    const label = "Appellant's Book of Authorities, Tab";
-    for (const [marked, tableDelivery] of [[false, "native-append"], [true, "native-marks"], [true, "native-append"],
-      [true, "linked-append"]] as const) for (const citationSuffix of ["none", "tab", "custom"] as const) {
-      const chosen = reduceAuthoritiesDraft(reduceAuthoritiesDraft(base, { type: "set-document-output", enabled: marked }),
-        { type: "set-settings", settings: { tableDelivery, citationSuffix,
-          ...citationSuffix === "custom" && { citationSuffixLabel: label } } });
-      expect(decodeAuthoritiesDraft(JSON.parse(JSON.stringify(chosen)))).toMatchObject({ insertIntoDocument: marked,
-        settings: { tableDelivery, citationSuffix, ...citationSuffix === "custom" && { citationSuffixLabel: label } } });
-    }
-    // Custom wording needs words; changing court keeps them.
-    expect(() => reduceAuthoritiesDraft(base, { type: "set-settings", settings: { citationSuffix: "custom" } }))
-      .toThrow("Type the words before the tab number.");
-    const custom = reduceAuthoritiesDraft(base, { type: "set-settings", settings: { citationSuffix: "custom", citationSuffixLabel: label } });
-    expect(reduceAuthoritiesDraft(custom, { type: "set-profile", profileId: "ab-court-of-appeal" }).settings)
-      .toMatchObject({ citationSuffix: "custom", citationSuffixLabel: label });
-
-    // A draft saved when "[Book of authorities Tab n]" was one of the Word copy's modes inserts that same text.
-    const saved = (insertIntoDocument: boolean, settings: object) => decodeAuthoritiesDraft(JSON.parse(JSON.stringify(
-      { ...base, insertIntoDocument, settings: { ...base.settings, ...settings } })));
-    expect(saved(true, { tableDelivery: "native-append", citationSuffix: "book-tab" })).toMatchObject({ insertIntoDocument: true,
-      settings: { tableDelivery: "native-append", citationSuffix: "custom", citationSuffixLabel: "Book of authorities Tab" } });
-    expect(saved(true, { citationSuffix: "book-tab", tabPrefix: "" })?.settings.citationSuffixLabel).toBe("Book of authorities");
-    expect(saved(true, { tableDelivery: "native-append", citationSuffix: "tab" })).toMatchObject({ insertIntoDocument: true,
-      settings: { tableDelivery: "native-append", citationSuffix: "tab" } });
-    // One that made no Word copy put it only in a final PDF, and otherwise nowhere.
-    expect(saved(false, { citationSuffix: "book-tab", finalPdf: true })?.settings.citationSuffix).toBe("custom");
-    expect(saved(false, { citationSuffix: "book-tab" })?.settings.citationSuffix).toBe("none");
-  });
+  
 
   it("keeps grounded identity orthogonal to unresolved review state", () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {

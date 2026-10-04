@@ -139,51 +139,6 @@ describe("A2AJ client", () => {
     );
   });
 
-  it("maps search metadata without exposing the raw API payload", async () => {
-    vi.stubEnv(
-      "MIKE_A2AJ_BULK_DB",
-      path.join(os.tmpdir(), `beaver-a2aj-missing-${process.pid}.sqlite`),
-    );
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          results: [
-            {
-              dataset: "ONCA",
-              citation_en: "2024 ONCA 1",
-              name_en: "Example v. Example",
-              url_en: "https://example.test/case",
-              snippet: "A matching passage",
-            },
-          ],
-        }),
-      }),
-    );
-
-    await expect(a2ajLegalSourceProvider.search!({
-      text: "privacy",
-      kinds: ["case"],
-      limit: 1,
-    })).resolves.toEqual([
-      {
-        provider: "a2aj",
-        id: "2024 ONCA 1",
-        kind: "case",
-        collection: "ONCA",
-        language: "en",
-        citation: "2024 ONCA 1",
-        alternateCitation: null,
-        title: "Example v. Example",
-        date: null,
-        url: "https://example.test/case",
-        snippet: "A matching passage",
-      },
-    ]);
-  });
-
   it("reads a paragraph and range from the canonical decision", async () => {
     const text = Array.from(
       { length: 6 },

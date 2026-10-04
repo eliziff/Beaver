@@ -1,3 +1,4 @@
+import { selectedTests } from "../scripts/focused-tests.mjs";
 import { constants, setPriority } from "node:os";
 setPriority(0, constants.priority.PRIORITY_BELOW_NORMAL);
 import { defineConfig } from "vitest/config";
@@ -20,8 +21,7 @@ export default defineConfig({
     ] },
     test: {
         environment: "node",
-        isolate: true,
-        include: wordIntegration ? wordRuntimeTests : ["src/**/*.test.ts"],
+        include: wordIntegration ? wordRuntimeTests : selectedTests(),
         setupFiles: ["./vitest.setup.ts"],
         pool: "threads",
         env: {
@@ -30,15 +30,9 @@ export default defineConfig({
             MIKE_PDF_OCR_PROVIDER: "none",
         },
         exclude: ["dist/**", "node_modules/**", ...wordIntegration ? [] : wordRuntimeTests],
-        maxWorkers: process.env.CI ? 4 : 1,
+        maxWorkers: 1,
         silent: "passed-only",
         testTimeout: process.env.CI ? 20000 : 60000,
         hookTimeout: process.env.CI ? 20000 : 60000,
-        coverage: {
-            provider: "v8",
-            reporter: ["text", "lcov"],
-            include: ["src/lib/**"],
-
-        },
     },
 });

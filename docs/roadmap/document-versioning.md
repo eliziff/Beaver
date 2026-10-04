@@ -48,7 +48,7 @@ revision → immutable checkpoint → linear restorable history, local and cloud
 - SQLite/Postgres: stale concurrent writers, injected blob/version/head/cleanup
   failures, restart recovery, hash mismatch/missing objects, restore/deletion
   authorization, queryable receipts and common application behavior.
-- ChromeDriver/screenshots: historical preview, restore/reload, keyboard history
+- Playwright/screenshots: historical preview, restore/reload, keyboard history
   and actual assistant research without version proliferation. Measure storage/
   latency; no reachable blob loss.
 

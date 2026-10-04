@@ -8,7 +8,7 @@ from __future__ import annotations
 import argparse, collections, hashlib, json, pathlib, posixpath, subprocess, sys, xml.etree.ElementTree as ET, zipfile
 from io import BytesIO
 ROOT=pathlib.Path(__file__).resolve().parents[3]
-FROZEN=ROOT/'.tmp/cloud-docx-hillclimb/frozen'
+FROZEN=ROOT/'benchmarks/local-data/docx-preservation/frozen'
 W='http://schemas.openxmlformats.org/wordprocessingml/2006/main';R='http://schemas.openxmlformats.org/officeDocument/2006/relationships';P='http://schemas.openxmlformats.org/package/2006/relationships'
 NS={'w':W,'r':R,'pr':P}; X='{http://www.w3.org/XML/1998/namespace}space'
 def sha(b): return hashlib.sha256(b).hexdigest()

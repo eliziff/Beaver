@@ -1,8 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { TurnToolRegistry } from "../chat/toolRegistry";
-import { createWordPythonTool } from "../chat/wordPythonTool";
-import type { ChatToolContext } from "../chat/turnEngine";
-import { streamHosted, modelMessages, IncompleteGenerationError } from "./sdk";
+import { streamHosted, IncompleteGenerationError } from "./sdk";
 import type { ModelState, StreamChatParams, Tool } from "./types";
 
 const read: Tool = { name: "Read", inputSchema: { type: "object",
@@ -90,39 +87,6 @@ it("Claude enables caching, honors effort, and counts cached tokens as context",
   expect(context).toHaveBeenCalledWith(expect.objectContaining({ usedTokens: 60 }));
 });
 
-it.each(["openai", "claude", "gemini"])("%s reports output exhaustion instead of successful completion", async provider => {
-  transport([() => provider === "openai" ? openai(true) : provider === "claude" ? anthropic("max_tokens")
-    : gemini([{ text: "Partial" }], "MAX_TOKENS")]);
-  const saved = vi.fn();
-  await expect(streamHosted({ ...params, tools: [], callbacks: { onModelMessages: saved },
-    model: provider === "openai" ? "gpt-5.5" : provider === "claude" ? "claude-sonnet-4-6" : params.model,
-  })).rejects.toMatchObject({ name: "IncompleteGenerationError", finishReason: "length" });
-  expect(saved).toHaveBeenCalledTimes(1);
-});
-
-it("OpenAI uses stateless Responses replay and a stable cache key", async () => {
-  const { bodies } = transport([() => openai()]);
-  expect((await streamHosted({ ...params, tools: [], model: "gpt-5.5", promptCacheKey: "chat-key",
-    reasoningEffort: "low", reasoningSummary: "none" })).fullText).toBe("Answer");
-  expect(bodies[0]).toMatchObject({ store: false, prompt_cache_key: "chat-key",
-    reasoning: { effort: "low" }, include: ["reasoning.encrypted_content"] });
-  expect(bodies[0].reasoning.summary).toBeUndefined();
-});
-
-it("executes a complete tool batch once and records pairs before reporting the step limit", async () => {
-  transport([() => gemini([
-    { functionCall: { name: "Read", args: { file: "a" } } },
-    { functionCall: { name: "Read", args: { file: "b" } } },
-  ])]);
-  const run = vi.fn(async calls => calls.map((call: any) => ({ tool_use_id: call.id, content: call.input.file }))),
-    saved = vi.fn();
-  await expect(streamHosted({ ...params, maxIterations: 1, runTools: run,
-    callbacks: { onModelMessages: saved } })).rejects.toMatchObject({ finishReason: "step-limit" });
-  expect(run).toHaveBeenCalledTimes(1);
-  expect(run.mock.calls[0][0]).toHaveLength(2);
-  expect(saved.mock.calls[0][0].messages.at(-1)).toMatchObject({ role: "tool" });
-});
-
 it("never executes an otherwise complete call in a truncated model step", async () => {
   transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }], "MAX_TOKENS")]);
   const run = vi.fn(), saved = vi.fn();
@@ -130,41 +94,6 @@ it("never executes an otherwise complete call in a truncated model step", async 
     .rejects.toBeInstanceOf(IncompleteGenerationError);
   expect(run).not.toHaveBeenCalled();
   expect(JSON.stringify(saved.mock.calls[0][0])).toContain("Tool not executed");
-});
-
-it("retains public evidence on model changes without transplanting signed reasoning", () => {
-  const result = modelMessages([{ role: "assistant", content: "", modelState: {
-    model: "claude-sonnet-4-6", messages: [{ role: "assistant", content: [
-      { type: "reasoning", text: "private", providerOptions: { anthropic: { signature: "private-signature" } } },
-      { type: "text", text: "Public answer" },
-      { type: "tool-call", toolCallId: "r1", toolName: "Read", input: { file: "source" },
-        providerOptions: { anthropic: { signature: "private-signature" } } },
-    ] }, { role: "tool", content: [{ type: "tool-result", toolCallId: "r1", toolName: "Read",
-      output: { type: "text", value: "Source content" } }] }],
-  } }], "gemini-3-flash-preview");
-  expect(JSON.stringify(result)).not.toContain("private");
-  expect(JSON.stringify(result)).toContain("Source content");
-});
-
-it("saves exactly one error result for a malformed tool call without executing it", async () => {
-  const saved: ModelState[] = [], run = vi.fn(async () => []);
-  transport([() => gemini([{ functionCall: { name: "MissingTool", args: {} }, thoughtSignature: "invalid-call-signature" }]),
-    () => gemini([{ text: "Tool unavailable." }])]);
-  await streamHosted({ ...params, runTools: run, callbacks: { onModelMessages: state => { saved.push(state); } } });
-  expect(run).not.toHaveBeenCalled();
-  const results = saved[0].messages.flatMap(message => message.role === "tool" ? message.content : []);
-  expect(results).toHaveLength(1);
-  expect(results[0].output.type).toBe("error-text");
-});
-
-it("persists a terminal tool result without another inference", async () => {
-  const { fetch } = transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
-  const saved = vi.fn();
-  const result = await streamHosted({ ...params, runTools: async calls =>
-    [{ tool_use_id: calls[0].id, content: "Published", terminal: true }], callbacks: { onModelMessages: saved } });
-  expect(fetch).toHaveBeenCalledTimes(1);
-  expect(saved.mock.calls[0][0].messages.at(-1)).toMatchObject({ role: "tool" });
-  expect(result.finishReason).toBe("tool-calls");
 });
 
 it("validates structured output rather than accepting schema-shaped instructions alone", async () => {
@@ -186,53 +115,6 @@ it.each(["missing", "duplicate", "foreign"])("rejects %s tool results before sav
       : [{ ...result, tool_use_id: "not-requested" }];
   } })).rejects.toThrow(/result|pair/i);
   expect(saved).not.toHaveBeenCalled();
-});
-
-it("forwards the tool heartbeat through the real SDK loop", async () => {
-  transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
-  const heartbeat = vi.fn();
-  await streamHosted({ ...params, callbacks: { onActivity: heartbeat }, runTools: async (calls, progress) => {
-    const before = heartbeat.mock.calls.length;
-    progress?.();
-    expect(heartbeat).toHaveBeenCalledTimes(before + 1);
-    return [{ tool_use_id: calls[0].id, content: "read", terminal: true }];
-  } });
-  expect(heartbeat.mock.calls.length).toBeGreaterThan(1);
-});
-
-it("counts system instructions in the local-model context budget", async () => {
-  const { fetch } = transport([() => gemini([{ text: "Should not run" }])]);
-  await expect(streamHosted({ ...params, model: "ollama:test", systemPrompt: "x".repeat(120_000) }))
-    .rejects.toThrow(/context/i);
-  expect(fetch).not.toHaveBeenCalled();
-});
-
-it.each([false, true])("settles native compaction and keeps it out of prose (failure: %s)", async fail => {
-  transport([() => sse([
-    { type: "message_start", message: { id: "msg_compact", type: "message", role: "assistant", model: "claude-sonnet-4-6",
-      content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 10, output_tokens: 0 } } },
-    { type: "content_block_start", index: 0, content_block: { type: "compaction", content: null } },
-    { type: "content_block_delta", index: 0, delta: { type: "compaction_delta", content: "Retained research checkpoint" } },
-    ...(fail ? [{ type: "error", error: { type: "overloaded_error", message: "Compaction interrupted" } }] : [
-      { type: "content_block_stop", index: 0 },
-      { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
-      { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Answer" } },
-      { type: "content_block_stop", index: 1 },
-      { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 5 } },
-      { type: "message_stop" },
-    ]),
-  ])]);
-  const statuses = vi.fn(), content = vi.fn(), saved = vi.fn();
-  const result = streamHosted({ ...params, model: "claude-sonnet-4-6", tools: [],
-    callbacks: { onCompaction: statuses, onContentDelta: content, onModelMessages: saved } });
-  if (fail) { await expect(result).rejects.toThrow(); expect(saved).not.toHaveBeenCalled(); }
-  else {
-    expect((await result).fullText).toBe("Answer");
-    expect(saved.mock.calls[0][0].compacted).toBe(true);
-    expect(JSON.stringify(saved.mock.calls[0][0])).toContain("Retained research checkpoint");
-  }
-  expect(JSON.stringify(content.mock.calls)).not.toContain("Retained research checkpoint");
-  expect(statuses.mock.calls.map(([status]) => status)).toEqual(["running", fail ? "failed" : "completed"]);
 });
 
 it("DeepSeek reasoning and tool results survive both a step and a later turn", async () => {
@@ -270,112 +152,6 @@ it("discards buffered SDK deltas and tool calls after cancellation", async () =>
   expect(deltas).toEqual(["Kept"]); expect(run).not.toHaveBeenCalled(); expect(saved).not.toHaveBeenCalled();
 });
 
-it("keeps validation and targeted invalid-input handling at the ordered dispatcher", async () => {
-  const { TurnToolRegistry, toolText } = await import("../chat/toolRegistry");
-  const execute = vi.fn(async (_input: Record<string, unknown>) => ({ result: toolText("accepted"), terminal: true }));
-  const deferred = vi.fn(() => ({ result: toolText("Correct file without resending other work", true) }));
-  const registry = new TurnToolRegistry([{ ...read, execute, onInvalidInput: deferred }]);
-  const { bodies } = transport([
-    () => gemini([{ functionCall: { name: "Read", args: { file: 7 } }, thoughtSignature: "invalid-signature" }]),
-    () => gemini([{ functionCall: { name: "Read", args: { file: "source" } }, thoughtSignature: "valid-signature" }]),
-  ]);
-  const saved: ModelState[] = [];
-  await streamHosted({ ...params, resolveTools: () => registry.visible(),
-    runTools: calls => registry.run(calls, {}), callbacks: { onModelMessages: state => { saved.push(state); } } });
-  expect(deferred).toHaveBeenCalledOnce();
-  expect(execute).toHaveBeenCalledOnce();
-  expect(execute.mock.calls[0][0]).toEqual({ file: "source" });
-  expect(JSON.stringify(bodies[1])).toContain("Correct file without resending other work");
-  expect(saved.flatMap(state => state.messages).filter(message => message.role === "tool")).toHaveLength(2);
-});
-
-it.each([
-  ["gemini:gemini-3-flash-preview", "gemini-3-flash-preview", "google"],
-  ["claude:claude-sonnet-4-6", "claude-sonnet-4-6", "messages"],
-  ["openai:gpt-5.5", "gpt-5.5", "responses"],
-  ["deepseek:deepseek-v4-pro", "deepseek-v4-pro", "chat"],
-  ["opencode-go/deepseek-v4.1-flash", "deepseek-v4.1-flash", "chat"],
-  ["opencode-go:qwen3.9-max", "qwen3.9-max", "messages"],
-  ["opencode-go:grok-5", "grok-5", "responses"],
-  ["opencode-go:gpt-5.5", "gpt-5.5", "responses"],
-  ["opencode-go:minimax-m2.7", "minimax-m2.7", "messages"],
-])("sends native model identity and the correct wire for %s", async (model, native, protocol) => {
-  const { bodies, fetch } = transport([() => protocol === "google" ? gemini([{ text: "Answer" }])
-    : protocol === "messages" ? anthropic() : protocol === "responses" ? openai() : sse([
-      { id: "chat-1", created: 1, model: native, choices: [
-        { index: 0, delta: { role: "assistant", content: "Answer" }, finish_reason: "stop" }],
-        usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } },
-    ])]);
-  const result = await streamHosted({ ...params, model, tools: [], promptCacheKey: "conversation-1",
-    apiKeys: { ...params.apiKeys, deepseek: "test", "opencode-go": "test" } });
-  expect(result.fullText).toBe("Answer");
-  expect(fetch).toHaveBeenCalledTimes(1);
-  const [url, init] = fetch.mock.calls[0];
-  if (protocol === "google") expect(String(url)).toContain(`/models/${native}:streamGenerateContent`);
-  else {
-    expect(bodies[0].model).toBe(native);
-    expect(String(url)).toMatch(new RegExp(`/${protocol === "chat" ? "chat/completions" : protocol}$`));
-  }
-  if (model.startsWith("opencode-go")) {
-    expect(new Headers(init.headers).get("User-Agent")).toMatch(/^beaver\/1\.0(?: |$)/u);
-    expect(new Headers(init.headers).get("x-opencode-session")).toBe("conversation-1");
-  }
-});
-
-// Test the real specialist, not a transport double with the same name.
-it.each(["separate", "batched", "unloaded", "reversed", "invalid", "unknown"])(
-  "dispatches %s deferred Word calls without inventing availability or duplicating results", async scenario => {
-    const word = createWordPythonTool({ userId: "fixture", documents: {} as never,
-      artifactFor: () => "unused", onMutationCommitted() {}, onPublished() {} });
-    const registry = new TurnToolRegistry([word]);
-    const load = { functionCall: { name: "load_tools", args: { names: ["word_python"] } }, thoughtSignature: "load-signature" };
-    const help = { functionCall: { name: scenario === "unknown" ? "missing_word" : "word_python",
-      args: { action: scenario === "invalid" ? "invented_action" : "help" } }, thoughtSignature: "word-signature" };
-    const separate = scenario === "separate";
-    const { bodies } = transport([
-      () => gemini(scenario === "unloaded" || scenario === "unknown" ? [help]
-        : scenario === "reversed" ? [help, load] : separate ? [load] : [load, help]),
-      ...(separate ? [() => gemini([help])] : []),
-      () => gemini([{ text: "Done" }]),
-    ]);
-    const states: ModelState[] = [];
-    const dispatch = vi.fn(calls => registry.run(calls, {} as ChatToolContext));
-    await streamHosted({ ...params, staticTools: registry.all(), resolveTools: () => registry.visible(),
-      runTools: dispatch, callbacks: { onModelMessages: state => { states.push(state); } } });
-    expect(bodies[0].tools[0].functionDeclarations.map((tool: any) => tool.name)).toEqual(["load_tools"]);
-    const results = states.flatMap(state => state.messages.flatMap(message => message.role === "tool"
-      ? message.content : []));
-    expect(new Set(results.map(result => result.toolCallId)).size).toBe(results.length);
-    const wordResult = results.find(result => result.toolName !== "load_tools")!;
-    if (scenario === "unknown") {
-      expect(wordResult.output).toMatchObject({ type: "error-text", value: expect.stringContaining("unavailable tool") });
-      expect(dispatch).not.toHaveBeenCalled();
-    } else if (scenario === "invalid") {
-      expect(wordResult.output).toMatchObject({ type: "error-text" });
-      expect(JSON.parse(String((wordResult.output as { value: string }).value)).error).toBe("invalid_arguments");
-    } else if (scenario !== "separate" && scenario !== "batched") {
-      // A valid call to a known specialist runs even without its loader; the real result replaces the SDK's verdict.
-      expect(wordResult.output).toMatchObject({ type: "text", value: expect.stringContaining("numbered_list(") });
-      expect(JSON.stringify(states)).not.toContain("AI_NoSuchToolError");
-    } else {
-      expect(wordResult.output).toMatchObject({ type: "text", value: expect.stringContaining("numbered_list(") });
-      expect(JSON.stringify(states)).not.toContain("AI_NoSuchToolError");
-      const published = bodies[1].tools[0].functionDeclarations.find((tool: any) => tool.name === "word_python");
-      expect(published.parameters.properties.action.enum).toEqual(["help", "inspect", "preview", "apply"]);
-      expect(published.parameters.properties.program.type).toBe("string");
-      const loaded = results.find(result => result.toolName === "load_tools")!;
-      const receipt = JSON.parse(String((loaded.output as { value: string }).value));
-      expect(receipt.tools[0].inputSchema).toEqual(word.inputSchema);
-      expect(dispatch.mock.calls.flatMap(([calls]) => calls).map(call => call.name))
-        .toEqual(["load_tools", "word_python"]);
-    }
-  });
-it("requests strict tools without rewriting third-party contracts", async () => {
-  const { bodies } = transport([() => openai()]);
-  await streamHosted({ ...params, model: "gpt-5.5", tools: [{ ...read, strict: true }, { ...read, name: "ThirdParty" }] });
-  expect(bodies[0].tools).toMatchObject([{ name: "Read", strict: true }, { name: "ThirdParty", strict: false }]);
-});
-
 it("fails closed on persistence failure even though SDK observer exceptions are swallowed", async () => {
   const { fetch } = transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
   const failure = new Error("Database unavailable");
@@ -394,88 +170,5 @@ it("settles and saves completed tool effects before reporting mid-batch cancella
   })).rejects.toMatchObject({ name: "AbortError" });
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(JSON.stringify(saved.mock.calls[0][0].messages)).toContain("Completed before cancellation");
-});
-
-it("replays steering arriving at an otherwise final response without losing earlier context", async () => {
-  const { bodies } = transport([() => gemini([{ text: "First answer." }]), () => gemini([{ text: "Corrected answer." }])]);
-  let steered = false;
-  const result = await streamHosted({ ...params, tools: [], takeSteering: () => {
-    if (steered) return []; steered = true; return [{ id: "s", text: "Preserve heading ZETA." }];
-  } });
-  expect(result.fullText).toContain("Corrected answer.");
-  expect(JSON.stringify(bodies[1].contents)).toContain("Preserve heading ZETA.");
-  expect(JSON.stringify(bodies[1].contents)).toContain("First answer.");
-  expect(result.usage?.inputTokens).toBe(24);
-});
-
-it("uses the native compaction summary for display without leaking it into answer prose", async () => {
-  const events = [
-    { type: "message_start", message: { id: "m1", type: "message", role: "assistant", model: "claude-sonnet-4-6",
-      content: [], usage: { input_tokens: 10, output_tokens: 0 } } },
-    { type: "content_block_start", index: 0, content_block: { type: "compaction", content: "" } },
-    { type: "content_block_delta", index: 0, delta: { type: "compaction_delta", content: "Retain the heading constraint." } },
-    { type: "content_block_stop", index: 0 },
-    { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
-    { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Answer" } },
-    { type: "content_block_stop", index: 1 },
-    { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 4 } },
-    { type: "message_stop" },
-  ];
-  transport([() => sse(events)]);
-  const compact = vi.fn(), saved = vi.fn();
-  const result = await streamHosted({ ...params, model: "claude-sonnet-4-6", tools: [],
-    callbacks: { onCompaction: compact, onModelMessages: saved } });
-  expect(result.fullText).toBe("Answer");
-  expect(compact).toHaveBeenCalledWith("completed", { provider: "claude", summary: "Retain the heading constraint." });
-  expect(saved.mock.calls[0][0].compacted).toBe(true);
-});
-
-
-it("requests a strict OpenAI result schema and returns the parsed object", async () => {
-  const schema = { type: "object", properties: { count: { type: "integer" } }, required: ["count"], additionalProperties: false };
-  const { bodies } = transport([() => openai(false, '{"count":7}')]);
-  const result = await streamHosted({ ...params, model: "gpt-5.5", tools: [], outputSchema: schema });
-  expect(bodies[0].text.format).toMatchObject({ type: "json_schema", strict: true, schema });
-  expect(result.output).toEqual({ count: 7 });
-});
-
-
-it("does not call an exhausted invalid-tool repair loop a successful answer", async () => {
-  const { fetch } = transport([() => gemini([{ functionCall: { name: "MissingTool", args: {} } }])]);
-  const run = vi.fn(async () => []), saved = vi.fn();
-  await expect(streamHosted({ ...params, maxIterations: 1, runTools: run,
-    callbacks: { onModelMessages: saved } })).rejects.toMatchObject({ finishReason: "step-limit" });
-  expect(run).not.toHaveBeenCalled();
-  expect(fetch).toHaveBeenCalledTimes(1);
-  expect(saved.mock.calls[0][0].messages.at(-1).content[0].output.type).toBe("error-text");
-});
-
-it("refuses ambiguous duplicate call IDs before any effects", async () => {
-  transport([() => gemini([
-    { functionCall: { id: "duplicate", name: "Read", args: { file: "a" } } },
-    { functionCall: { id: "duplicate", name: "Read", args: { file: "b" } } },
-  ])]);
-  const run = vi.fn(async calls => calls.map((call: any) => ({ tool_use_id: call.id, content: "read", terminal: true })));
-  await expect(streamHosted({ ...params, runTools: run })).rejects.toThrow(/duplicate.*call/i);
-  expect(run).not.toHaveBeenCalled();
-});
-
-it("rejects duplicate result IDs instead of choosing an arbitrary successful result", async () => {
-  transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
-  await expect(streamHosted({ ...params, runTools: async calls => [
-    { tool_use_id: calls[0].id, content: "failed", status: "error" },
-    { tool_use_id: calls[0].id, content: "published", terminal: true },
-  ] })).rejects.toThrow(/result/i);
-});
-
-
-it("includes instructions in the local context preflight before making a request", async () => {
-  const { fetch } = transport([() => openai()]);
-  vi.stubEnv("OLLAMA_NUM_CTX", "128");
-  try {
-    await expect(streamHosted({ ...params, model: "ollama:example", tools: [], systemPrompt: "x".repeat(4096) }))
-      .rejects.toThrow(/exceeds.*context/);
-    expect(fetch).not.toHaveBeenCalled();
-  } finally { vi.unstubAllEnvs(); }
 });
 

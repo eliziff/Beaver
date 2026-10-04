@@ -2,8 +2,10 @@ import { constants, setPriority } from "node:os";
 setPriority(0, constants.priority.PRIORITY_BELOW_NORMAL);
 import { defineConfig, devices } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { localData } from "./e2e/local-data.cjs";
 
 process.env.BEAVER_TEST_RUN_ID ??= `playwright-${randomUUID()}`;
+process.env.BEAVER_E2E_MODE ??= "local";
 const localSmoke = process.env.BEAVER_E2E_MODE === "local";
 
 /**
@@ -12,23 +14,19 @@ const localSmoke = process.env.BEAVER_E2E_MODE === "local";
  */
 export default defineConfig({
     testDir: "./e2e",
-    /* These E2E tests run against a single shared backend and a single shared
-       test user (e2e@mike.local). Running them concurrently causes data races
-       on shared list views (projects/chats/workflows) and on the user's
-       session, producing flaky pass/fail that can't be trusted for regression
-       detection. So we run strictly one test at a time. */
-    fullyParallel: false,
-    workers: 1,
+    ...(localSmoke && !process.env.CI ? { globalTeardown: "./e2e/local-data.cjs" } : {}),
+    // Cloud tests own distinct accounts; local mode has one configured backend owner.
+    fullyParallel: !localSmoke,
+    workers: localSmoke || !process.env.CI ? 1 : 2,
     /* Fail the build on CI if you accidentally left test.only in the source */
     forbidOnly: !!process.env.CI,
-    /* Retry on CI only */
-    retries: process.env.CI ? 2 : 0,
+    retries: 0,
     /* Reporter */
     reporter: process.env.CI ? "github" : "list",
     /* Shared settings for all the projects below */
     use: {
         baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
-        trace: "on-first-retry",
+        trace: "retain-on-failure",
         screenshot: "only-on-failure",
     },
 
@@ -37,43 +35,30 @@ export default defineConfig({
         testMatch: ["assistant-interface.spec.ts", "chat-management.spec.ts", "project-management.spec.ts", "workflows-account.spec.ts", "tabular-reviews.spec.ts"],
         use: { ...devices["Desktop Chrome"] },
     }] : [
-        /* Run the auth setup before all other tests */
-        {
-            name: "setup",
-            testMatch: /auth\.setup\.ts/,
-        },
-
         {
             name: "chromium",
-            use: {
-                ...devices["Desktop Chrome"],
-                storageState: "e2e/.auth/user.json",
-            },
-            dependencies: ["setup"],
+            use: { ...devices["Desktop Chrome"] },
         },
     ],
 
-    /* Start the API and Vite dev server when running locally.
-       The backend command first runs the local-stack setup (Docker check,
-       supabase start, schema + migrations + grants, env wiring) so a plain
-       `npm run test:e2e` works against a ready local Supabase — see
-       scripts/e2e-local-stack.sh. Idempotent: a few seconds when already up. */
+    // The explicit cloud launcher supplies stack configuration through inherited env.
     webServer: process.env.CI
         ? undefined
         : [
               {
                   command:
-                      "bash ../scripts/e2e-local-stack.sh --setup-only && npm run dev",
+                      localSmoke ? "node ../e2e/local-data.cjs prepare && npm run dev" : "npm run dev",
+                  ...(localSmoke ? { env: { AUTH_MODE: "local", MIKE_LOCAL_DATA_DIR: localData, OPEN_LEGAL_DATA_HOME: localData } } : {}),
                   cwd: "backend",
                   url: "http://localhost:3001/api/health",
-                  reuseExistingServer: true,
+                  reuseExistingServer: false,
                   timeout: 120_000,
               },
               {
                   command: "npm run dev",
                   cwd: "frontend",
                   url: "http://localhost:3000",
-                  reuseExistingServer: true,
+                  reuseExistingServer: false,
                   timeout: 120_000,
               },
           ],

@@ -514,10 +514,6 @@ mod pdf {
         Ok(bytes)
     }
 
-    pub fn check_docx_supra_bytes(bytes: &[u8]) -> CoreResult<()> {
-        docx_supra_bytes(bytes).map(|_| ())
-    }
-
     pub fn fix_docx_supra_cross_references(bytes: &[u8]) -> CoreResult<legalpdf::DocxSupraCleanup> {
         legalpdf::fix_docx_supra_cross_references(docx_supra_bytes(bytes)?)
             .map_err(|error| error.to_string())

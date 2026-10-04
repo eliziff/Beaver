@@ -39,7 +39,7 @@ if (!args["skip-build"] && !args.html) {
   console.log("Building Authorities.html");
   execFileSync(process.execPath, [path.join(root, "AuthoritiesHelper/modern/html/build.mjs"), html], { stdio: "inherit" });
 }
-await rm(out, { recursive: true, force: true });
+if (!args.out) await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 const started = Date.now();
 // Each case has a browser of its own, so what a case leaves in memory never slows the next.
@@ -61,16 +61,18 @@ function localFixtures() {
   return { article: existsSync(article.pdf) && existsSync(article.har) ? article : null };
 }
 
+const word = [], records = [];
 const fixtureDir = path.join(out, "fixtures");
+try {
 const fixtures = await (async () => {
   const browser = await launch();
+  try {
   const written = { ...await writeFixtures(browser, fixtureDir), ...await writeStressFixtures(browser, fixtureDir) };
   // Windows checks a newly written file the first time a browser reads it; that first open is not a case's.
   const page = await browser.newPage(); await page.goto(`file:///${html.replace(/\\/gu, "/")}`);
-  await browser.close();
   return written;
+  } finally { await browser.close(); }
 })();
-const word = [], records = [];
 const shared = { html, serve, fixtures, local: localFixtures(), word, args, root };
 
 for (const item of selected) {
@@ -102,6 +104,7 @@ for (const item of selected) {
 if (word.length && !args["no-word"]) {
   console.log(`\n== Word: opening ${word.length} documents ==`);
   const from = Date.now(), browser = await launch(), renderer = await pdfRenderer(browser);
+  try {
   for (const { record } of word) await mkdir(path.join(record.out, "word"), { recursive: true });
   const named = (index) => `${String(index + 1).padStart(2, "0")}-${path.basename(word[index].file, ".docx")}`;
   const before = wordProcesses();
@@ -131,17 +134,9 @@ if (word.length && !args["no-word"]) {
     if (result.insertedPdf && existsSync(result.insertedPdf))
       await renderer.sheet(result.insertedPdf, path.join(record.out, "word", `${named(index)}.inserted-table.jpg`), { last: 2 });
   }
-  await browser.close();
+  } finally { await browser.close(); }
   console.log(`  opened in ${Math.round((Date.now() - from) / 1000)} s`);
 }
-// What was delivered has been read back and rendered; the books and documents themselves go, so a
-// run keeps its report, screenshots and page sheets only (--keep-outputs keeps them all).
-if (!args["keep-outputs"]) for (const { out: dir } of records) {
-  await rm(path.join(dir, "downloads"), { recursive: true, force: true });
-  for (const file of await readdir(path.join(dir, "word")).catch(() => []))
-    if (!file.endsWith(".jpg")) await rm(path.join(dir, "word", file), { force: true });
-}
-
 const seconds = Math.round((Date.now() - started) / 1000);
 const report = { html, seconds, cases: records.map(({ name, seconds, skipped, failures, notes, outputs, judged }) =>
   ({ name, seconds, skipped, passed: !skipped && !failures.length, failures, notes, outputs,
@@ -157,5 +152,17 @@ if (failed.length) {
   for (const { name, failures } of failed) console.error(`- ${name}:\n    ${failures.slice(0, 12).join("\n    ")}`);
   process.exitCode = 1;
 } else console.log("\nAll cases passed.");
+} finally {
+// What was delivered has been read back and rendered; the books and documents themselves go, so a
+// run keeps its report, screenshots and page sheets only (--keep-outputs keeps them all).
+if (!args["keep-outputs"] && !args.out) {
+  await rm(fixtureDir, { recursive: true, force: true });
+  for (const { out: dir } of records) {
+    await rm(path.join(dir, "downloads"), { recursive: true, force: true });
+    for (const file of await readdir(path.join(dir, "word")).catch(() => []))
+      if (!file.endsWith(".jpg")) await rm(path.join(dir, "word", file), { force: true });
+  }
+}
+}
 // A case that stopped early can leave a page's work pending; the run is over either way.
 process.exit();

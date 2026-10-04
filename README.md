@@ -33,11 +33,9 @@ From the Beaver root:
 ```powershell
 if (!(Test-Path backend\.env)) { Copy-Item backend\.env.example backend\.env }
 npm ci
-npm ci --prefix backend
-npm ci --prefix frontend
 cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
 npm run build --prefix backend
-npm run build --prefix frontend
+npm run build:deploy --prefix frontend
 ```
 
 Configure `backend/.env` from [the example](backend/.env.example): use

@@ -8,7 +8,7 @@ logs, credentials, binaries, caches and rejected candidates are not included.
 
 Fresh-workspace setup remains incomplete. The scripts assume the Beaver layout,
 backend dependencies, a configured Python/LibreOffice runtime and ignored
-`.tmp/cloud-docx-hillclimb/` state. Before running them, a separate integration
+`benchmarks/local-data/docx-preservation/` state. Before running them, a separate integration
 step must supply a new 80/20 family split, generate synthetic inputs and expected
 packages, create the oracle self-test receipt and baseline source archive, and
 freeze a new evaluation. The commands below begin after those prerequisites;
@@ -47,7 +47,7 @@ markers and numbering. This was corrected in evaluator v3 using direct rendered
 gold/candidate evidence; all source, gold, task and split bytes stayed unchanged.
 
 Raw sources, gold, outputs, local app data and receipts live only under ignored
-`.tmp/cloud-docx-hillclimb/`. `freeze.json` records all evaluator, input, expectation
+`benchmarks/local-data/docx-preservation/`. `freeze.json` records all evaluator, input, expectation
 and split hashes plus precise scoring/normalization/acceptance rules. Both runner
 and oracle verify frozen hashes. A candidate must strictly improve the integer
 score and preserve every previously passing task. The attempt ledger and exact
@@ -56,11 +56,11 @@ production patches are maintained separately by the hill-climb controller.
 From the repository root, after the one-time generation/self-test/freeze:
 
 ```sh
-BEAVER_WORD_PYTHON="$PWD/.tmp/cloud-docx-hillclimb/runtime/venv/bin/python" \
+BEAVER_WORD_PYTHON="$PWD/benchmarks/local-data/docx-preservation/runtime/venv/bin/python" \
   backend/node_modules/.bin/tsx benchmarks/docx_edit/preservation/runner.ts \
-  --subset development --out "$PWD/.tmp/cloud-docx-hillclimb/runs/baseline"
+  --subset development --out "$PWD/benchmarks/local-data/docx-preservation/runs/baseline"
 python benchmarks/docx_edit/preservation/oracle.py score \
-  --subset development --run .tmp/cloud-docx-hillclimb/runs/baseline
+  --subset development --run benchmarks/local-data/docx-preservation/runs/baseline
 python benchmarks/docx_edit/preservation/oracle.py check-freeze
 ```
 

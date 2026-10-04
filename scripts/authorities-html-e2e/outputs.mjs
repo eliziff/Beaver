@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 
 const frontend = path.resolve(import.meta.dirname, "../../frontend");
 const require = createRequire(path.join(frontend, "package.json"));
-const pdfjs = await import(pathToFileURL(path.join(frontend, "node_modules/pdfjs-dist/legacy/build/pdf.mjs")).href);
+const pdfjs = await import(pathToFileURL(require.resolve("pdfjs-dist/legacy/build/pdf.mjs")).href);
 const JSZip = require("jszip");
 
 /** Every page's text, the outline as a tree of { title, page, children } (pages from 1), the

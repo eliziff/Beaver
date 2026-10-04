@@ -1,3 +1,4 @@
+import { GfmMarkdown } from "../../shared/GfmMarkdown";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { createElement, useState, type ReactNode } from "react";
 import {
@@ -24,7 +25,6 @@ import { citationSourceKey } from "./citationUtils";
 import {
     CitationPill,
     CitationPillMarkdown,
-    GfmMarkdown,
 } from "./MarkdownContent";
 import {
     type AssistantActivity,
@@ -376,7 +376,7 @@ export function DocDownloadBlock({
             type="button"
             disabled={spinning}
             onClick={handleDownload}
-            className="flex shrink-0 cursor-pointer items-center bg-white/25 px-6 text-gray-500 hover:bg-white/55 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white/25"
+            className="flex shrink-0 cursor-pointer items-center bg-app-surface/25 px-6 text-gray-500 hover:bg-app-surface-hover hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-app-surface/25"
             aria-label={`Download ${filename}`}
         >
             {spinning ? (
@@ -394,7 +394,7 @@ export function DocDownloadBlock({
                 <button
                     type="button"
                     onClick={onOpen ?? handleDownload}
-                    className="flex min-w-0 flex-1 cursor-pointer items-stretch text-left hover:bg-white/45"
+                    className="flex min-w-0 flex-1 cursor-pointer items-stretch text-left hover:bg-app-surface-hover"
                 >
                     {body}
                 </button>

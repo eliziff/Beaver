@@ -121,7 +121,8 @@ export function ModelPicker({
     // Aggregator lanes expose several upstream sources; first-party lanes stay flat.
     const families = [...new Set(laneModels
         .map((model) => model.family)
-        .filter((name): name is string => !!name))];
+        .filter((name): name is string => !!name))]
+        .sort((left, right) => Number(right === "GPT") - Number(left === "GPT"));
     const activeFamily = family && families.includes(family) ? family : families[0];
     // Always render the second rail (a single tab when there is nothing to
     // split) so switching companies never shifts the list.

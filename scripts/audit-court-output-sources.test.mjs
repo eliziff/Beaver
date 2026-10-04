@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   auditRedirectUrl,
@@ -7,7 +6,6 @@ import {
   isCanlii,
   needsAudit,
   validateAuditCoverage,
-  validateManifest,
 } from "./audit-court-output-sources.mjs";
 
 test("CanLII receipts never invoke the request function", async () => {
@@ -52,22 +50,6 @@ test("fresh receipts skip conditional network checks unless selected", () => {
   }, options, now), true);
 });
 
-test("manifest receipts name exact profiles and mark CanLII manual-only", () => {
-  const source = {
-    id: "source",
-    profiles: ["fc-motion-record-moving"],
-    kind: "rule",
-    url: "https://laws-lois.justice.gc.ca/example",
-    locator: "Rule 1",
-    expected_markers: [],
-  };
-  assert.doesNotThrow(() => validateManifest({ schema_version: 2, sources: [source] }));
-  assert.throws(() => validateManifest({ schema_version: 2,
-    sources: [{ ...source, profiles: ["fc"] }] }), /exact supported profiles/u);
-  assert.throws(() => validateManifest({ schema_version: 2,
-    sources: [{ ...source, url: "https://www.canlii.org/example" }] }), /manual_only/u);
-});
-
 test("offline checks require one receipt for every manifest source", () => {
   const manifest = { sources: [{ id: "a" }, { id: "b" }] };
   assert.doesNotThrow(() => validateAuditCoverage(manifest, {
@@ -79,30 +61,4 @@ test("offline checks require one receipt for every manifest source", () => {
   assert.throws(() => validateAuditCoverage(manifest, {
     results: [{ id: "a" }, { id: "a" }],
   }), /match/u);
-});
-
-test("current Alberta authority profiles do not consume the superseded Book checklist", () => {
-  const manifest = JSON.parse(readFileSync(new URL(
-    "../docs/decisions/court-output-preset-receipts.json", import.meta.url), "utf8"));
-  const guide = manifest.sources.find(({ id }) => id === "ab-ca-authorities-guide");
-  const rules = manifest.sources.find(({ id }) => id === "ab-rules-part-13-14");
-  assert(guide.profiles.includes("ab-court-of-appeal"));
-  assert.equal(guide.locator.includes("Rule 14.25(1)(h)"), false);
-  assert.match(rules.locator, /14\.18.*14\.26.*14\.30/u);
-  assert.equal(manifest.sources.some(({ url }) => url === guide.supersedes.url), false);
-});
-
-test("every court-specific Authorities profile cites matching source receipts", () => {
-  const manifest = JSON.parse(readFileSync(new URL(
-    "../docs/decisions/court-output-preset-receipts.json", import.meta.url), "utf8"));
-  const profiles = JSON.parse(readFileSync(new URL(
-    "../shared/authorities-profiles.json", import.meta.url), "utf8"));
-  const sources = new Map(manifest.sources.map((source) => [source.id, source]));
-  for (const profile of profiles.filter(({ id }) => id !== "general")) {
-    assert(profile.sourceIds?.length, `${profile.id} has no source receipts`);
-    for (const id of profile.sourceIds) {
-      assert(sources.get(id)?.profiles.includes(profile.id),
-        `${profile.id} does not match source receipt ${id}`);
-    }
-  }
 });

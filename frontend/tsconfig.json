@@ -19,16 +19,14 @@
       "mike/shared/runtime/*.mjs": ["../shared/contracts/*.mts"],
       "mike/shared/*": ["../shared/*"],
       "@/*": ["./src/*"],
-      "docx-preview": ["./vendor/docx-preview/index.ts"],
-      "pdfjs-dist": ["./node_modules/pdfjs-dist"],
-      "pdfjs-dist/*": ["./node_modules/pdfjs-dist/*"]
+      "docx-preview": ["./vendor/docx-preview/index.ts"]
     }
   },
   "include": [
-    "src/vite-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.mts"
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.mts",
+    "vite.config.ts"
   ],
   "exclude": [
     "node_modules",

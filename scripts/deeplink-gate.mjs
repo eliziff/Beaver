@@ -13,21 +13,19 @@
 // - shouldFail: negative control — the gate PASSES only if checks FAIL
 // - blocked: site bot-walls automation; record SKIP, never FAIL
 import { chromium } from "@playwright/test";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const casesPath = process.argv[2] ?? "scripts/deeplink-gate.cases.json";
 const cases = JSON.parse(readFileSync(casesPath, "utf8"));
 
-const outDir = path.join(
-  "benchmarks",
-  "deeplink_gate",
-  new Date().toISOString().slice(0, 19).replace(/[T:]/gu, "-"),
-);
+const outDir = path.join(".tmp", "deeplink-gate", "latest");
+rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch();
 const results = [];
+try {
 for (const testCase of cases) {
   // Fresh context per case: cookies from one case (e.g. Decisia's
   // SITE_PREFERENCE) must never leak into another — it silently turned the
@@ -128,7 +126,9 @@ for (const testCase of cases) {
     console.log(`  ${k}: ${JSON.stringify(v)}`);
   }
 }
-await browser.close();
+} finally {
+  await browser.close();
+}
 
 writeFileSync(path.join(outDir, "results.json"), JSON.stringify(results, null, 2));
 console.log(`\nScreenshots + results in ${outDir}`);

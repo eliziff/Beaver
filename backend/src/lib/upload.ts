@@ -7,7 +7,6 @@ import { documentFileType } from "./documentTypes";
 import { concurrentRequests } from "./requestConcurrency";
 
 const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
-const MAX_FILES_PER_UPLOAD = 500;
 const MAX_UPLOAD_SIZE_MB = Math.round(
   MAX_UPLOAD_SIZE_BYTES / (1024 * 1024),
 );
@@ -22,11 +21,6 @@ export const requiredFile = (req: Request): Express.Multer.File =>
 export const requiredUpload = (req: Request) => uploadedDocument(requiredFile(req));
 
 export function multipleFileUpload(fieldName: string, maxFiles: number, fieldSize = 1024 * 1024): RequestHandler {
-  if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > MAX_FILES_PER_UPLOAD) {
-    throw new Error(`maxFiles must be between 1 and ${MAX_FILES_PER_UPLOAD}`);
-  }
-  if (!Number.isSafeInteger(fieldSize) || fieldSize < 1 || fieldSize > MAX_UPLOAD_SIZE_BYTES)
-    throw new Error("Upload field size is invalid");
   return stagedFiles(stagedUpload(maxFiles, fieldSize).array(fieldName, maxFiles));
 }
 

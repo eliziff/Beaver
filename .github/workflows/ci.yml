@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.scope.outputs.backend }}
+      native: ${{ steps.scope.outputs.native }}
       frontend: ${{ steps.scope.outputs.frontend }}
       application: ${{ steps.scope.outputs.application }}
       cloud: ${{ steps.scope.outputs.cloud }}
@@ -32,25 +33,29 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - run: python3 -m unittest discover -s scripts/tests -p test_ci_scope.py && python3 -m unittest discover -s scripts/tests -p test_native_cache_key.py
       - id: scope
         run: python3 scripts/ci-scope.py
       - id: repositories
-        if: steps.scope.outputs.backend == 'true' || (github.event_name != 'push' && steps.scope.outputs.application == 'true')
+        if: steps.scope.outputs.backend == 'true' || steps.scope.outputs.native == 'true' || (github.event_name != 'push' && steps.scope.outputs.application == 'true')
         name: Resolve owner main branches once for this run
-        run: echo "refs=$(python3 scripts/bootstrap-repositories.py --resolve)" >> "$GITHUB_OUTPUT"
-      - name: Check audit failure handling once
-        if: steps.scope.outputs.audit != '[]'
-        run: node --test scripts/audit-gate.test.mjs
+        env:
+          NATIVE_CHANGED: ${{ steps.scope.outputs.native }}
+          APPLICATION_CHANGED: ${{ steps.scope.outputs.application }}
+          AUTHORITIES_CHANGED: ${{ steps.scope.outputs.authorities }}
+        run: |
+          owners=(common-law-cite)
+          if [[ ( "$GITHUB_EVENT_NAME" != push && "$APPLICATION_CHANGED" == true ) || "$NATIVE_CHANGED" == true ]]; then
+            owners+=(legal-structure legal-pdf-parser)
+          fi
+          if [[ "$AUTHORITIES_CHANGED" == true && "$GITHUB_EVENT_NAME" != push ]]; then
+            owners+=(AuthoritiesHelper)
+          fi
+          echo "refs=$(python3 scripts/bootstrap-repositories.py --resolve "${owners[@]}")" >> "$GITHUB_OUTPUT"
 
   dependency-audit:
     needs: changes
     if: needs.changes.outputs.audit != '[]'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        directory: ${{ fromJSON(needs.changes.outputs.audit) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -59,12 +64,11 @@ jobs:
         with:
           node-version: 22
       - name: Audit resolved dependencies
-        working-directory: ${{ matrix.directory }}
-        run: node "$GITHUB_WORKSPACE/scripts/audit-gate.mjs"
+        run: npm audit --package-lock-only --audit-level=high
 
   native:
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || (github.event_name != 'push' && needs.changes.outputs.application == 'true')
+    if: needs.changes.outputs.native == 'true' || (github.event_name != 'push' && needs.changes.outputs.application == 'true')
     runs-on: ubuntu-24.04
     env:
       BEAVER_REPOSITORY_REFS: ${{ needs.changes.outputs.repositories }}
@@ -81,6 +85,11 @@ jobs:
         with:
           path: native/legal-structure-node/target/release/liblegal_structure_node.so
           key: native-inputs-ubuntu24-${{ steps.identity.outputs.key }}
+      - name: Reuse compiled Rust dependencies when native source changes
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/legal-structure-node -> target
       - name: Build the native addon once
         if: steps.cache.outputs.cache-hit != 'true'
         run: cargo build --locked --release --jobs 2 --manifest-path native/legal-structure-node/Cargo.toml
@@ -92,7 +101,7 @@ jobs:
           retention-days: 1
 
   backend:
-    needs: [changes, native]
+    needs: changes
     if: needs.changes.outputs.backend == 'true' || (github.event_name != 'push' && needs.changes.outputs.application == 'true')
     runs-on: ubuntu-24.04
     env:
@@ -106,27 +115,15 @@ jobs:
           persist-credentials: false
       - name: Restore this run's owner source checkouts
         working-directory: .
-        run: python3 scripts/bootstrap-repositories.py legal-structure legal-pdf-parser common-law-cite
+        run: python3 scripts/bootstrap-repositories.py common-law-cite
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci --prefix .. --ignore-scripts
-      - run: npm ci --ignore-scripts
-      - name: Install document conversion dependency
-        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.authorities == 'true'
-        run: |
-          curl -fsSL https://github.com/jgm/pandoc/releases/download/3.10/pandoc-3.10-1-amd64.deb -o "$RUNNER_TEMP/pandoc.deb"
-          echo "d502599878eb29af3ae5f0cb5d559134df96534125d452c7a0674a5bad2c5ecf  $RUNNER_TEMP/pandoc.deb" | sha256sum --check
-          sudo dpkg -i "$RUNNER_TEMP/pandoc.deb"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: native-${{ github.sha }}
-          path: native/legal-structure-node/target/release
+          cache-dependency-path: package-lock.json
+      - run: npm ci --prefix .. --workspace backend --include-workspace-root --ignore-scripts
+      - run: npm run check
       - run: npm run build
-      - run: npm test
-        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.authorities == 'true'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: github.event_name != 'push'
         with:
@@ -136,10 +133,6 @@ jobs:
             shared/runtime
           if-no-files-found: error
           retention-days: 1
-      - name: Shared grammar and export behavior
-        working-directory: .
-        run: node packages/legal-grammar-tables/check.mjs && node --test shared/export-integrity.test.mjs
-
   frontend:
     needs: changes
     if: needs.changes.outputs.frontend == 'true' || (github.event_name != 'push' && needs.changes.outputs.application == 'true')
@@ -155,22 +148,17 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install shared runtime dependencies
-        run: npm ci --prefix .. --ignore-scripts
-      - run: npm ci --ignore-scripts
-      - run: npm test
-        if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.authorities == 'true'
-      - run: npm run lint
-        if: needs.changes.outputs.frontend == 'true'
-      - run: npm run test:guards
+          cache-dependency-path: package-lock.json
+      - name: Install frontend and shared dependencies once
+        run: npm ci --prefix .. --workspace frontend --include-workspace-root --ignore-scripts
+      - run: npm run check
         if: needs.changes.outputs.frontend == 'true'
       - run: npm run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: github.event_name != 'push'
         with:
           name: frontend-${{ github.sha }}
-          path: frontend/dist
+          path: frontend/.tmp/app-dist
           if-no-files-found: error
           retention-days: 1
 

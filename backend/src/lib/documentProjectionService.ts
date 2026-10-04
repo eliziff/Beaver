@@ -63,15 +63,12 @@ export type PdfPreparationProgress = {
   pages: number[];
 } | { phase: "recognizing"; recognized: number; total: number };
 
-function preparedSummary(result: PdfPreparationSummary, expectedSha256?: string,
-  expectedCacheKey?: string) {
+function preparedSummary(result: PdfPreparationSummary, expectedSha256?: string) {
   if (!/^[a-f0-9]{64}$/u.test(result.sha256) ||
       (expectedSha256 && result.sha256 !== expectedSha256))
     throw new Error("PDF source changed after preparation began");
   if (typeof result.cacheKey !== "string" || !/^[a-f0-9]{64}$/u.test(result.cacheKey))
     throw new Error("Legal PDF preparation returned no cache key");
-  if (expectedCacheKey && result.cacheKey !== expectedCacheKey)
-    throw new Error("Legal PDF preparation profile changed");
   const engineStatus = String(result.status || "degraded");
   if (!["ready", "degraded", "ocr_required"].includes(engineStatus))
     throw new Error("Legal PDF engine returned an invalid preparation status");
@@ -488,6 +485,7 @@ async function pdfDocumentForSource(
     return document;
   }
   const key = pages ? `${baseKey}\0pages:${pages.join(",")}` : baseKey;
+  let reusable = true;
   const pending = projectionFor(key, async () => {
     if (reference.cacheKey) {
       const restored = await structureNative().restorePdfDocument(
@@ -505,8 +503,12 @@ async function pdfDocumentForSource(
       signal: options.signal,
       progress: options.progress,
     });
+    // A rebuilt source can have a new parser identity. Do not retain it under
+    // the old key, which immutable evidence receipts also use.
+    reusable = !reference.cacheKey ||
+      structureNative().pdfDocumentSummary(document).cacheKey === reference.cacheKey;
     return document;
-  });
+  }, () => reusable);
   const document = await pending;
   options.signal?.throwIfAborted();
   return document;
@@ -521,7 +523,6 @@ async function preparedForSource(
   return { document, summary: preparedSummary(
     structureNative().pdfDocumentSummary(document),
     reference.sourceSha256,
-    reference.cacheKey,
   ) };
 }
 
@@ -704,6 +705,10 @@ async function preparedForEvidence(
     if (!document) throw new Error("PDF evidence artifact is no longer available");
     return document;
   });
+  // A simultaneous source read may be rebuilding a stale key. Evidence is
+  // bound to the exact receipt identity even while that read is pending.
+  if (structureNative().pdfDocumentSummary(document).cacheKey !== reference.cacheKey)
+    throw new Error("PDF evidence artifact is no longer available");
   return { document, receipt };
 }
 

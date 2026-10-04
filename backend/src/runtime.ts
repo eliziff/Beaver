@@ -1,10 +1,9 @@
-import { createChatApplication, type ChatApplicationFeatures } from "./lib/chat/chatApplication";
+import type { ChatApplicationFeatures } from "./lib/chat/chatApplication";
 import { legalSourceCoveragePrompt } from "./lib/chat/prompts";
 import { constants, setPriority } from "node:os";
 import type { ChatToolContext } from "./lib/chat/turnEngine";
 import { toolText, type BeaverTool } from "./lib/chat/toolRegistry";
 import { createChatStore, type ChatScope, type ChatStore } from "./lib/chatStore";
-import { generateChatTitle } from "./lib/chatTitle";
 import { createDocumentApplication } from "./lib/documentApplication";
 import { buildProjectExportManifest } from "./lib/userDataExport";
 import type { ApplicationScope } from "./lib/applicationError";
@@ -13,10 +12,8 @@ import { createLibraryStore } from "./lib/libraryStore";
 import { isLocalRuntime } from "./lib/localMode";
 import { jobLaneConcurrency } from "./jobLanes";
 import { createProjectStore } from "./lib/projectStore";
-import { createTabularApplication } from "./lib/tabular/application";
-import { createSourceWorkspaceApplication, type SourceWorkspaceApplication } from "./lib/sourceWorkspaceApplication";
-import { durableTabularAgents, tabularAgentJobHandler,
-  TABULAR_AGENT_JOB } from "./lib/tabular/agents";
+import type { createTabularApplication } from "./lib/tabular/application";
+import type { SourceWorkspaceApplication } from "./lib/sourceWorkspaceApplication";
 import { publicOrigin } from "./lib/publicOrigin";
 import { safeErrorLog } from "./lib/safeError";
 import { structureNative } from "./lib/structureNative";
@@ -59,19 +56,17 @@ const connectors = lazy(async () => {
 });
 const persistence = lazy(async () => {
   const [documentPorts, libraryPorts, projectPorts, tabularPorts, chatPorts,
-    workflowPorts, workProductPorts, shared] = await Promise.all([
+    workflowPorts, workProductPorts] = await Promise.all([
     import("./lib/relationalDocumentRepository"), import("./lib/relationalLibraryRepository"),
     import("./lib/relationalProjectRepository"), import("./lib/relationalTabularRepository"),
     import("./lib/relationalChatRepository"), import("./lib/relationalWorkflowRepository"),
     import("./lib/relationalWorkProductRepository"),
-    import("./lib/providerSessionFeatures"),
   ]);
   const objects = local
     ? (await import("./lib/filesystemObjectStorage")).filesystemDocumentObjects()
     : await import("./lib/storage").then((storage) => storage.scopeObjectStorage(
       storage.createS3ObjectStorage(storage.readS3Configuration()), "documents"));
   return { documents: documentPorts.documentRepository,
-    features: shared.providerSessionFeatures,
     library: libraryPorts.libraryRepository, projects: projectPorts.projectRepository,
     tabular: tabularPorts.tabularRepository, chats: chatPorts.chatRepository,
     workflows: workflowPorts.workflowRepository,
@@ -99,7 +94,7 @@ const chats: Lazy<ChatStore> = lazy(async () => {
     review: async (scope: ChatScope, id: string) => !!await (await persistence()).tabular.detail(scope, id),
   };
   return createChatStore((await persistence()).chats,
-    async (scope, message) => generateChatTitle(
+    async (scope, message) => (await import("./lib/chatTitle")).generateChatTitle(
       await (await user()).modelSettings(scope.userId), message,
     ), contexts, cancelChatTurn);
 });
@@ -152,15 +147,15 @@ const user: Lazy<UserApplication> = lazy(async () => {
   });
 });
 const tabular: Lazy<ReturnType<typeof createTabularApplication>> = lazy(async () =>
-  createTabularApplication(
+  (await import("./lib/tabular/application")).createTabularApplication(
   (await persistence()).tabular, await documents(), await projects(),
-  { agents: durableTabularAgents,
+  { agents: (await import("./lib/tabular/agents")).durableTabularAgents,
     sources,
     audit: (...events) => audit().then((store) => store.record(...events)),
     settings: (userId) => user().then((value) => value.modelSettings(userId)) }));
-const sources: Lazy<SourceWorkspaceApplication> = lazy(async () => createSourceWorkspaceApplication(
+const sources: Lazy<SourceWorkspaceApplication> = lazy(async () => (await import("./lib/sourceWorkspaceApplication")).createSourceWorkspaceApplication(
   await documents(), { chats: await chats(), tables: (await persistence()).tabular, tabular,
-    isTableRunning: (reviewId, ownerId) => durableTabularAgents.active(reviewId, ownerId),
+    isTableRunning: async (reviewId, ownerId) => (await import("./lib/tabular/agents")).durableTabularAgents.active(reviewId, ownerId),
     audit: (...events) => audit().then((store) => store.record(...events)) }));
 const authoritiesWorkspace = lazy(async () =>
   (await import("./lib/authoritiesWorkspaceApplication"))
@@ -209,12 +204,14 @@ const memory = lazy(async () => (await import("./lib/memoryApplication")).create
 async function startWorkers() {
   const [{ recoverLocalJobs }, { startJobLanes }, { pdfJobHandlers },
     { providerPdfJobHandlers }, { chatTurnJobHandler, CHAT_TURN_JOB },
+    { tabularAgentJobHandler, TABULAR_AGENT_JOB },
     documentStore, chatStore, chatApplication, tabularApplication] = await Promise.all([
     import("./lib/jobQueue"),
     import("./lib/jobWorkerLanes"),
     import("./lib/pdfJobs"),
     import("./lib/providerPdfLibraryBridge"),
     import("./lib/chatTurnWorker"),
+    import("./lib/tabular/agents"),
     documents(),
     chats(),
     chat(),
@@ -246,17 +243,18 @@ async function connectorTools(userId: string): Promise<BeaverTool<ChatToolContex
   }));
 }
 const chat = lazy(async () => {
+  const { createChatApplication } = await import("./lib/chat/chatApplication");
   const [chatStore, documentStore, libraryStore, projectStore, tabularStore,
-    workProductApplication, ports, sourceWorkspaces] = await Promise.all([
+    workProductApplication, providerFeatures, sourceWorkspaces] = await Promise.all([
     chats(), documents(), library(), projects(), tabular(), workProducts(),
-    persistence(), sources(),
+    import("./lib/providerSessionFeatures").then(module => module.providerSessionFeatures), sources(),
   ]);
   return createChatApplication({ chats: chatStore, documents: documentStore,
     library: libraryStore, projects: projectStore, workProducts: workProductApplication,
     tabular: tabularStore, sources: sourceWorkspaces,
     audit: (...events) => audit().then((store) => store.record(...events)),
     authorities: chatAuthorities, courtRecords: chatCourtRecords,
-    features: { ...ports.features, memory: {
+    features: { ...providerFeatures, memory: {
       async capture(auth, chatId, projectId, reviewId, workProductId) {
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
@@ -278,7 +276,7 @@ const chat = lazy(async () => {
       "[audit] unavailable");
     }, async load(auth) {
       const loadedFeatures: ReturnType<ChatApplicationFeatures["load"]> =
-        ports.features.load?.(auth) ?? Promise.resolve({ includeResearchTools: true });
+        providerFeatures.load?.(auth) ?? Promise.resolve({ includeResearchTools: true });
       const [loaded, account, custom, extraTools, builtin] = await Promise.all([
         loadedFeatures,
         user().then((value) => value.settings(auth.userId)),

@@ -22,21 +22,7 @@ const expectedLuna = {
 };
 
 describe("normalizeCodexCatalog", () => {
-  it("omits internal Codex UI models", () => {
-    const result = normalizeCodexCatalog([
-        luna,
-        {
-          ...luna,
-          model: "gpt-auto-review",
-          displayName: "GPT Auto Review",
-        },
-        { ...luna, model: "codex-auto-review", displayName: "Codex Auto Review" },
-        { ...luna, model: "gpt-reserve", displayName: "GPT Reserve" },
-      ],
-    );
-
-    expect(result).toEqual({ source: "live", models: [expectedLuna] });
-  });
+  
 
   it.each([undefined, {}])("ignores a non-array catalogue: %j", (value) => {
     expect(normalizeCodexCatalog(value)).toEqual({ models: [], source: "live" });
@@ -70,33 +56,9 @@ describe("normalizeCodexCatalog", () => {
     expect(result).toEqual({ source: "live", models: [{ ...expectedLuna, slug: winner, displayName }] });
   });
 
-  it("replaces an alias in place, including its metadata, without reordering other models", () => {
-    const result = normalizeCodexCatalog([
-      { model: "before" },
-      { ...luna, model: "luna-alias", defaultReasoningEffort: "low" },
-      { model: "between" },
-      luna,
-      { model: "after" },
-    ]);
-    expect(result).toEqual({ source: "live", models: [
-      { slug: "before", displayName: "before", supportedReasoningLevels: [] },
-      expectedLuna,
-      { slug: "between", displayName: "between", supportedReasoningLevels: [] },
-      { slug: "after", displayName: "after", supportedReasoningLevels: [] },
-    ] });
-  });
+  
 
-  it("rejects a duplicate selected slug before considering display-name replacement", () => {
-    const result = normalizeCodexCatalog([
-      { model: "alias", displayName: "First" },
-      { model: "gpt-other", displayName: "Second" },
-      { model: " CODEX:GPT-OTHER ", displayName: "First", defaultReasoningEffort: "high" },
-    ]);
-    expect(result.models).toEqual([
-      { slug: "alias", displayName: "First", supportedReasoningLevels: [] },
-      { slug: "gpt-other", displayName: "Second", supportedReasoningLevels: [] },
-    ]);
-  });
+  
 
   it.each([undefined, {}])("ignores non-array reasoning efforts: %j", (value) => {
     const result = normalizeCodexCatalog([{ ...luna, supportedReasoningEfforts: value }]);

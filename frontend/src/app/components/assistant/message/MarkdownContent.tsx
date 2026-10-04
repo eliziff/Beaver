@@ -1,25 +1,12 @@
+import { GfmMarkdown } from "../../shared/GfmMarkdown";
 import {
     createElement,
-    createContext,
-    Fragment,
-    useContext,
     type ComponentProps,
     type ElementType,
     type RefObject,
     type ReactNode,
 } from "react";
-import type { Components } from "react-markdown";
-import { jsx, jsxs } from "react/jsx-runtime";
-import { unified } from "unified";
-import remarkParse from "remark-parse";
-import remarkRehype from "remark-rehype";
-import { toJsxRuntime } from "hast-util-to-jsx-runtime";
-import { urlAttributes } from "html-url-attributes";
-import { visit } from "unist-util-visit";
-import type { Root, Element, Text } from "hast";
-import { searchHighlightRanges } from "@/app/lib/searchHighlight";
 import remend from "remend";
-import remarkGfm from "remark-gfm";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { getDocumentCitationQuotes, type Citation } from "@/app/lib/citations";
 import { withoutMarkdownNode } from "./messageStyles";
@@ -28,94 +15,8 @@ import {
     citationTooltip,
 } from "./CitationSources";
 import { CITATION_MARKERS, uniqueCitations } from "./citationUtils";
-export const MessageSearchHighlight = createContext("");
-
-function highlightText(query: string) {
-    return () => (tree: Root) => {
-        const nodes: { node: Text; parent: Root | Element; start: number }[] = [];
-        let text = "";
-        function collect(parent: Root | Element) {
-            for (const node of parent.children) {
-                if (node.type === "text") {
-                    nodes.push({ node, parent, start: text.length });
-                    text += node.value;
-                } else if (node.type === "element") collect(node);
-            }
-        }
-        collect(tree);
-        const matches = searchHighlightRanges(text, query);
-        for (const { node, parent, start } of nodes) {
-            const ranges = matches.filter(([from, to]) => from < start + node.value.length && to > start);
-            if (!ranges.length) continue;
-            const replacement: (Text | Element)[] = [];
-            let cursor = 0;
-            for (const [from, to] of ranges) {
-                const left = Math.max(0, from - start), right = Math.min(node.value.length, to - start);
-                if (left > cursor) replacement.push({ type: "text", value: node.value.slice(cursor, left) });
-                replacement.push({ type: "element", tagName: "mark", properties: {
-                    className: ["bg-amber-200", "text-gray-950"], "data-search-match": true,
-                }, children: [{ type: "text", value: node.value.slice(left, right) }] });
-                cursor = right;
-            }
-            if (cursor < node.value.length) replacement.push({ type: "text", value: node.value.slice(cursor) });
-            parent.children.splice(parent.children.indexOf(node), 1, ...replacement);
-        }
-    };
-}
-
-// Markdown is parsed once per text, not on every render or mount: parsing is most of the cost
-// of showing a message, and a chat re-mounts its messages whenever it opens or scrolls back.
-// The cached tree already has safe URLs and raw HTML handled; it is only copied when a search
-// highlight or an element filter has to change it.
-const toHast = unified().use(remarkParse).use(remarkGfm).use(remarkRehype, { allowDangerousHtml: true });
-const parsedTrees = new Map<string, Root>();
-const PARSED_TREE_LIMIT = 500;
-
-function parsedTree(markdown: string, skipHtml: boolean) {
-    const key = `${skipHtml ? 1 : 0}\0${markdown}`;
-    let tree = parsedTrees.get(key);
-    if (tree) parsedTrees.delete(key);
-    else {
-        tree = toHast.runSync(toHast.parse(markdown)) as Root;
-        visit(tree, (node, index, parent) => {
-            delete node.position;
-            if (node.type === "raw" && parent && index !== undefined) {
-                if (skipHtml) parent.children.splice(index, 1);
-                else parent.children[index] = { type: "text", value: node.value };
-                return index;
-            }
-            if (node.type !== "element") return;
-            for (const [name, tags] of Object.entries(urlAttributes)) {
-                if (Object.hasOwn(node.properties, name) && (tags === null || tags.includes(node.tagName)))
-                    node.properties[name] = safeAssistantUrl(String(node.properties[name] ?? "")) ?? "";
-            }
-        });
-        if (parsedTrees.size >= PARSED_TREE_LIMIT) parsedTrees.delete(parsedTrees.keys().next().value!);
-    }
-    parsedTrees.set(key, tree);
-    return tree;
-}
-
-export function GfmMarkdown({ children, components, skipHtml = false, allowedElements, unwrapDisallowed }: {
-    children?: string; components?: Components; skipHtml?: boolean;
-    allowedElements?: string[]; unwrapDisallowed?: boolean;
-}) {
-    const query = useContext(MessageSearchHighlight).trim();
-    let tree = parsedTree(children ?? "", skipHtml);
-    if (query || allowedElements) {
-        tree = structuredClone(tree);
-        if (query) highlightText(query)()(tree);
-        if (allowedElements) visit(tree, "element", (node, index, parent) => {
-            if (allowedElements.includes(node.tagName) || !parent || index === undefined) return;
-            parent.children.splice(index, 1, ...(unwrapDisallowed ? node.children : []));
-            return index;
-        });
-    }
-    return toJsxRuntime(tree, { Fragment, jsx, jsxs, components, ignoreInvalidStyle: true,
-        passKeys: true, passNode: true });
-}
 const LEGAL_CITATION_PILL =
-    "not-prose inline-block min-w-0 max-w-full whitespace-normal break-words rounded-md bg-red-800 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-50 no-underline ring-1 ring-inset ring-red-600/70 [overflow-wrap:anywhere] hover:bg-red-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
+    "not-prose inline-block min-w-0 max-w-full whitespace-normal break-words rounded-md bg-red-800 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-primary-foreground no-underline ring-1 ring-inset ring-red-600/70 [overflow-wrap:anywhere] hover:bg-red-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
 const PLAIN_LINK =
     "text-red-300 underline decoration-red-500/70 underline-offset-2 hover:text-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
 
@@ -252,7 +153,7 @@ export function MarkdownContent({
                     thead: styled("thead", "bg-gray-800"),
                     tbody: styled("tbody", "divide-y divide-gray-700"),
                     th: styled("th", "px-3 py-3.5 text-left text-sm font-semibold text-white"),
-                    td: styled("td", "whitespace-normal px-3 py-4 text-sm text-gray-100"),
+                    td: styled("td", "whitespace-normal px-3 py-4 text-sm text-white/90"),
                     h1: styled("h1", "mt-6 mb-4 text-3xl font-serif font-semibold"),
                     h2: styled("h2", "mt-5 mb-3 text-2xl font-serif font-semibold"),
                     h3: styled("h3", "text-xl font-semibold mt-4 mb-2"),
@@ -302,14 +203,14 @@ export function MarkdownContent({
                         }
                         return (
                             <code
-                                className="rounded bg-gray-800 px-1.5 py-0.5 font-mono text-sm text-gray-100"
+                                className="rounded bg-gray-800 px-1.5 py-0.5 font-mono text-sm text-white/90"
                                 {...codeProps}
                             >
                                 {children}
                             </code>
                         );
                     },
-                    blockquote: styled("blockquote", "my-4 border-l-4 border-gray-600 pl-4 italic text-gray-200"),
+                    blockquote: styled("blockquote", "my-4 border-l-4 border-gray-600 pl-4 italic text-white/80"),
                     a: (props) => {
                         const { href, children, ...anchorProps } =
                             withoutMarkdownNode(props);

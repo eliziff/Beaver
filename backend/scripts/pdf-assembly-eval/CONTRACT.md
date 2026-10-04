@@ -64,15 +64,15 @@ used to derive expected page mappings or read actual navigation assertions.
 Run from the repository root with the existing lockfile-restored runtime:
 
 ```
-node backend/node_modules/tsx/dist/cli.mjs backend/scripts/pdf-assembly-eval/evaluate.ts init
-node backend/node_modules/tsx/dist/cli.mjs backend/scripts/pdf-assembly-eval/evaluate.ts dev baseline-dev
-node backend/node_modules/tsx/dist/cli.mjs backend/scripts/pdf-assembly-eval/evaluate.ts dev candidate-N
-node backend/node_modules/tsx/dist/cli.mjs backend/scripts/pdf-assembly-eval/evaluate.ts hash
-node backend/node_modules/tsx/dist/cli.mjs backend/scripts/pdf-assembly-eval/evaluate.ts sealed final-heldout --final-incumbent=HASH
+npm exec --offline --no -- tsx backend/scripts/pdf-assembly-eval/evaluate.ts init
+npm exec --offline --no -- tsx backend/scripts/pdf-assembly-eval/evaluate.ts dev baseline-dev
+npm exec --offline --no -- tsx backend/scripts/pdf-assembly-eval/evaluate.ts dev candidate-N
+npm exec --offline --no -- tsx backend/scripts/pdf-assembly-eval/evaluate.ts hash
+npm exec --offline --no -- tsx backend/scripts/pdf-assembly-eval/evaluate.ts sealed final-heldout --final-incumbent=HASH
 ```
 
 Raw PDFs, specs, the SHA-256 freeze manifest, per-assertion JSON receipts and append-only
-attempt receipts are ignored under `.tmp/pdf-assembly-eval/v1/`.
+attempt receipts are ignored under `benchmarks/local-data/pdf-assembly/v1/`.
 The freeze manifest binds this contract, harness, fixture bytes and initial production
 source hashes. A harness correction requires a new version, explicit reason and fresh
 baseline; changing a gate after observing production candidates is prohibited. Exact
@@ -99,3 +99,5 @@ the same families does not produce a new unseen holdout. Ordinary failed semanti
 assertions do not necessarily produce a nonzero process exit status, so consumers
 must inspect both the score and constraints. Portability and stricter command-line
 acceptance behavior remain unfinished; no fixes for them are claimed here.
+
+An unnamed development/sealed run replaces its latest output and receipt. Explicit run names, including baseline-dev, preserve exclusive receipts and attempt history.

@@ -11,6 +11,7 @@ target/
 /legal-pdf-parser/
 /common-law-cite/
 /legal-browser-ocr/
+/legal-pinpointer/
 /mike-workflows/
 
 .env

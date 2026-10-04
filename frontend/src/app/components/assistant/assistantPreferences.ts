@@ -59,28 +59,21 @@ export type AssistantPreferences = {
     readSubagents: { enabled: boolean; showDock: boolean;
         model: string; effort: string };
 };
-const PREFERENCE_KEYS = ["activityDetail", "showContextUsage", "showAutoMode", "editMode",
-    "readSubagents", "disabledProviders"] as const;
-const REQUIRED_KEYS = PREFERENCE_KEYS.filter((key) => key !== "disabledProviders");
 const record = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value);
-const exact = (value: Record<string, unknown>, keys: readonly string[]) =>
-    Object.keys(value).length === keys.length && keys.every((key) => key in value);
 function parsePreferences(value: unknown): AssistantPreferences | null {
     if (!record(value) || !record(value.readSubagents) ||
-        Object.keys(value).some((key) => !PREFERENCE_KEYS.includes(key as never)) ||
-        REQUIRED_KEYS.some((key) => !(key in value)) ||
-        !exact(value.readSubagents, ["enabled", "showDock", "model", "effort"]) ||
-        !["auto", "standard", "tools", "trace"].includes(String(value.activityDetail)) ||
-        !["manual", "auto"].includes(String(value.editMode)) ||
+        typeof value.activityDetail !== "string" ||
+        !["auto", "standard", "tools", "trace"].includes(value.activityDetail) ||
+        typeof value.editMode !== "string" || !["manual", "auto"].includes(value.editMode) ||
         typeof value.showContextUsage !== "boolean" || typeof value.showAutoMode !== "boolean" ||
         typeof value.readSubagents.enabled !== "boolean" ||
         typeof value.readSubagents.showDock !== "boolean" ||
-        typeof value.readSubagents.model !== "string" || value.readSubagents.model.length > 200 ||
-        typeof value.readSubagents.effort !== "string" || value.readSubagents.effort.length > 100) return null;
+        typeof value.readSubagents.model !== "string" ||
+        typeof value.readSubagents.effort !== "string") return null;
     const disabledProviders = value.disabledProviders ?? [];
     if (!Array.isArray(disabledProviders) ||
-        !disabledProviders.every((provider) => typeof provider === "string" && provider.length <= 40)) {
+        !disabledProviders.every((provider) => typeof provider === "string")) {
         return null;
     }
     return { ...value, disabledProviders } as AssistantPreferences;
@@ -95,7 +88,6 @@ const UPDATED_EVENT = "beaver:assistant-preferences";
 let cache: { raw: string | null; value: AssistantPreferences } = { raw: null, value: DEFAULTS };
 
 export function readAssistantPreferences(): AssistantPreferences {
-    if (typeof window === "undefined") return DEFAULTS;
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw === cache.raw) return cache.value;
     try {
@@ -107,19 +99,15 @@ export function readAssistantPreferences(): AssistantPreferences {
 export function updateAssistantPreferences(
     update: Partial<AssistantPreferences> | ((current: AssistantPreferences) => AssistantPreferences),
 ) {
-    if (typeof window === "undefined") return;
     const current = readAssistantPreferences();
     const candidate = typeof update === "function" ? update(current) : { ...current, ...update };
-    const parsed = parsePreferences(candidate);
-    if (!parsed) return;
-    const raw = JSON.stringify(parsed);
-    cache = { raw, value: parsed };
+    const raw = JSON.stringify(candidate);
+    cache = { raw, value: candidate };
     window.localStorage.setItem(STORAGE_KEY, raw);
     window.dispatchEvent(new Event(UPDATED_EVENT));
 }
 
 function subscribe(update: () => void) {
-    if (typeof window === "undefined") return () => {};
     window.addEventListener("storage", update);
     window.addEventListener(UPDATED_EVENT, update);
     return () => {

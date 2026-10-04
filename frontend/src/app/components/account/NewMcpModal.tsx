@@ -185,7 +185,7 @@ export function McpToolList({
         );
     }
     return (
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-100 bg-white/60">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-100 bg-app-surface/60">
             <div className="divide-y divide-gray-100">
                 {connector.tools.map((tool) => {
                     const loading = busyKey === `tool:${tool.id}`;

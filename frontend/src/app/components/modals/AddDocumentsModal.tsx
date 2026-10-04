@@ -237,7 +237,7 @@ export function AddDocumentsModal({
           <AlertCircle className="size-3.5 shrink-0 text-red-600" aria-hidden="true" />
           <span className="min-w-0 flex-1">{warning}</span>
           <button type="button" onClick={() => setWarning(null)} aria-label="Dismiss warning"
-            className="shrink-0 rounded p-0.5 text-black hover:bg-gray-100">
+            className="shrink-0 rounded p-0.5 text-gray-900 hover:bg-gray-100">
             <X className="size-3.5" aria-hidden="true" />
           </button>
         </p>

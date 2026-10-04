@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @import "./base.css";
+@source "../";
+@source "../../*.html";
 @source not "../**/*.test.ts";
 @source not "../**/*.test.tsx";

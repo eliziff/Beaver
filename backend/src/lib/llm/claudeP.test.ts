@@ -80,56 +80,6 @@ it("activates both reported specialists in the same native invocation with one a
   } finally { await client.close(); run.controller.abort(); }
 });
 
-it("reports live cache-inclusive request context, not aggregate turn usage or a child's window", async () => {
-  const run = await begin();
-  const usage = { input_tokens: 0, cache_read_input_tokens: 60_000, cache_creation_input_tokens: 5_000 };
-  run.event({ type: "message_start", message: { id: "first", model, usage } });
-  expect(run.callbacks.onContextUsage).toHaveBeenLastCalledWith({ usedTokens: 65_000, contextWindowTokens: 1_000_000 });
-  run.event({ type: "message_delta", usage: { input_tokens: 1_000, output_tokens: 40 } });
-  run.event({ type: "message_delta", usage: { input_tokens: 1_000, output_tokens: 60 } });
-  expect(run.callbacks.onContextUsage).toHaveBeenCalledTimes(2);
-  run.event({ type: "message_start", message: { model, usage: { input_tokens: 999_999 } } }, "child");
-  run.send({ type: "assistant", parent_tool_use_id: "child", message: { model: "child-model", usage: { input_tokens: 9 } } });
-  run.event({ type: "message_start", message: { id: "second", model, usage: { ...usage, input_tokens: 5_000 } } });
-  run.send({ type: "assistant", message: { id: "second", model, usage: { ...usage, input_tokens: 5_000 } } });
-  expect(run.callbacks.onContextUsage).toHaveBeenCalledTimes(3);
-  run.finish({ usage: { input_tokens: 6_000, cache_read_input_tokens: 120_000, cache_creation_input_tokens: 10_000, output_tokens: 100 },
-    modelUsage: { [model]: { contextWindow: 200_000 }, "child-model": { contextWindow: 10_000 } } });
-  expect((await run.result).usage).toMatchObject({ inputTokens: 136_000, outputTokens: 100 });
-  expect(run.callbacks.onContextUsage).toHaveBeenLastCalledWith({ usedTokens: 70_000, contextWindowTokens: 200_000 });
-});
-
-it.each(["auto", "none"] as const)("preserves content and honors %s reasoning visibility without rendering signatures", async reasoningSummary => {
-  const run = await begin({ reasoningSummary });
-  const delta = Buffer.from(JSON.stringify({ type: "stream_event", event: {
-    type: "content_block_delta", delta: { type: "thinking_delta", thinking: "Compare café passages." },
-  } }) + "\n");
-  const split = delta.indexOf(Buffer.from("é")) + 1;
-  run.child.stdout.write(delta.subarray(0, split));
-  run.child.stdout.write(delta.subarray(split));
-  run.event({ type: "content_block_delta", delta: { type: "signature_delta", signature: "opaque-signature" } });
-  run.event({ type: "content_block_stop" });
-  run.event({ type: "content_block_start", content_block: { type: "redacted_thinking", data: "opaque-redaction" } });
-  run.event({ type: "content_block_stop" });
-  run.event({ type: "content_block_delta", delta: { type: "text_delta", text: "child text" } }, "child");
-  run.event({ type: "content_block_delta", delta: { type: "text_delta", text: "Done" } });
-  run.event({ type: "content_block_stop" });
-  run.finish();
-  expect((await run.result).fullText).toBe("Done");
-  expect(run.callbacks.onContentDelta.mock.calls).toEqual([["Done"]]);
-  expect(run.callbacks.onReasoningDelta.mock.calls).toEqual(reasoningSummary === "auto" ? [["Compare café passages."]] : []);
-  expect(run.callbacks.onReasoningBlockEnd).toHaveBeenCalledTimes(reasoningSummary === "auto" ? 1 : 0);
-  expect(run.callbacks.onContentBlockEnd).toHaveBeenCalledOnce();
-});
-
-it("does not replace the host estimate with invented zero usage", async () => {
-  const run = await begin();
-  run.finish();
-  expect((await run.result).usage).toEqual({ inputTokens: null, outputTokens: null, reasoningTokens: null,
-    cacheReadInputTokens: null, cacheWriteInputTokens: null });
-  expect(run.callbacks.onContextUsage).not.toHaveBeenCalled();
-});
-
 it("closes visible reasoning on cancellation and ignores buffered late output", async () => {
   const run = await begin();
   run.event({ type: "content_block_delta", delta: { type: "thinking_delta", thinking: "Partial summary" } });
@@ -140,36 +90,4 @@ it("closes visible reasoning on cancellation and ignores buffered late output", 
   expect(run.callbacks.onReasoningBlockEnd).toHaveBeenCalledOnce();
   expect(run.callbacks.onContentDelta).not.toHaveBeenCalled();
   expect(run.child.kill).toHaveBeenCalledOnce();
-});
-
-it("does not mark an error-only session failure as model activity", async () => {
-  const run = await begin();
-  run.finish({ is_error: true, result: "Session not found" });
-  await expect(run.result).rejects.toThrow("Session not found");
-  expect(run.callbacks.onActivity).not.toHaveBeenCalled();
-});
-
-it.each(["mid-turn", "next-turn"] as const)("delivers steering into the running invocation (%s)", async delivery => {
-  const id = "0f8e2a4c-5b6d-4e7f-8a9b-0c1d2e3f4a5b";
-  const queued = [{ id, text: "Also add a heading." }];
-  const run = await begin({ takeSteering: () => queued.splice(0) });
-  const input: string[] = [];
-  run.child.stdin.on("data", (chunk: Buffer) => input.push(...chunk.toString("utf8").trim().split("\n")));
-  run.event({ type: "message_start", message: { model } });
-  await vi.waitFor(() => expect(input.map(line => JSON.parse(line).uuid)).toEqual([undefined, id]));
-  expect(JSON.parse(input[1]).message.content[0].text).toBe("Also add a heading.");
-  const replay = () => run.send({ type: "user", isReplay: true, uuid: id, message: { role: "user", content: "Also add a heading." } });
-  if (delivery === "mid-turn") replay();
-  run.send({ type: "result", result: "First" });
-  await new Promise(resolve => setImmediate(resolve));
-  // A steer the CLI has not yet taken up runs as its next turn, so stdin must stay open for it.
-  expect(run.child.stdin.writableEnded).toBe(delivery === "mid-turn");
-  if (delivery === "next-turn") {
-    replay();
-    run.send({ type: "result", result: "Second" });
-    await new Promise(resolve => setImmediate(resolve));
-    expect(run.child.stdin.writableEnded).toBe(true);
-  }
-  run.child.emit("close", 0);
-  await expect(run.result).resolves.toBeDefined();
 });

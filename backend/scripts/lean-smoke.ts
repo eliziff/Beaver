@@ -15,7 +15,7 @@
  *                                 [--effort low]
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -87,6 +87,7 @@ async function main() {
   const effort = argument("effort", "low");
   if (!process.env.LEAN_SMOKE_CHILD) {
     const dataHome = mkdtempSync(path.join(os.tmpdir(), "beaver-lean-smoke-"));
+    try {
     const child = spawnSync(
       process.execPath,
       [require.resolve("tsx/cli"), __filename, ...process.argv.slice(2)],
@@ -108,7 +109,11 @@ async function main() {
         timeout: 10 * 60_000,
       },
     );
-    process.exit(child.status ?? 1);
+    process.exitCode = child.status ?? 1;
+    } finally {
+      rmSync(dataHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+    return;
   }
 
   const { api } = await import("../src/api");

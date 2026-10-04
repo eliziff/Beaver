@@ -1,3 +1,6 @@
+import { RESEARCH_MANIFEST_PART, researchManifestBytes, readResearchManifest,
+  parseResearchFile, validResearchIds as validIds } from "./researchArtifact";
+export { researchFileMarkdown, parseResearchFile } from "./researchArtifact";
 import { randomUUID } from "node:crypto";
 import { z } from "mike/shared/runtime/schema.mjs";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
@@ -13,7 +16,7 @@ import { recordResearchOperation,
   type ResearchOperationContext } from "./researchProvenance";
 import { resolveResearchSelection } from "./researchSelection";
 import { RESEARCH_HISTORY_PART, readResearchHistory, researchChangeCounts, researchChangeSummary,
-  researchChangeSummarySchema, researchStateChanges, assertResearchChangeBase,
+  researchStateChanges, assertResearchChangeBase,
   type ResearchChange, type ResearchChangeField } from "./researchHistory";
 export { researchSourceKey } from "mike/shared/runtime/resourceReferences.mjs";
 export { readResearchHistory } from "./researchHistory";
@@ -89,19 +92,6 @@ export const researchQuerySources = (queries: LegalResearchQueryReceipt[]) => [.
 const get = <T>(values: Record<string, T>, id: string, label: string) => {
   const value = values[id]; if (!value) throw new Error(`${label} not found.`); return value;
 };
-const validIds = (value: unknown, prefix = "") => Array.isArray(value) && value.length <= 10_000 &&
-  new Set(value).size === value.length && value.every((id) =>
-    typeof id === "string" && id.startsWith(prefix));
-const validPart = (value: unknown, max: number) => { const item = record(value); return !!item &&
-  Number.isInteger(item.count) && Number(item.count) > 0 && Number(item.count) <= max &&
-  typeof item.sha256 === "string" && /^[a-f0-9]{64}$/u.test(item.sha256); };
-const validPassages = (value: unknown, labels: Record<string, unknown>) => { const item = record(value),
-  counts = record(item?.labelCounts), count = Number(item?.count); return validPart(value, 100_000) &&
-    !!counts && Object.keys(counts).length <= 10_000 && Object.entries(counts).every(([id, value]) =>
-      uuid.safeParse(id).success && record(labels[id])?.scope === "highlight" &&
-      Number.isInteger(value) && Number(value) > 0 && Number(value) <= count) &&
-    Number.isInteger(item?.unlabelledCount) && Number(item?.unlabelledCount) >= 0 &&
-    Number(item?.unlabelledCount) <= count; };
 const checkedLabels = (state: ResearchFileState, values: string[], scope?: ResearchLabel["scope"]) => {
   if (values.some((id) => !state.labels[id] || scope && state.labels[id].scope !== scope))
     throw new Error("Label not found in this scope.");
@@ -127,47 +117,6 @@ const addSource = (state: ResearchFileState, reference: ResearchSourceReference,
 export const createResearchFileState = (): ResearchFileState => ({
   schemaVersion: "beaver.research.v2", labels: {}, sources: {}, queries: null, note: "",
 });
-
-function decodeResearchFileState(value: unknown): ResearchFileState | null {
-  const state = record(value), labels = record(state?.labels), sources = record(state?.sources);
-  if (state?.schemaVersion !== "beaver.research.v2" || !labels || !sources ||
-      !(state.queries === null || validPart(state.queries, 10_000)) ||
-      (state.tables !== undefined && !validIds(state.tables)) ||
-      (state.chats !== undefined && !validIds(state.chats)) ||
-      (state.history !== undefined && !validPart(state.history, 10_000)) ||
-      (state.proposals !== undefined && !researchChangeSummarySchema.array().max(100).safeParse(state.proposals).success) ||
-      typeof state.note !== "string" || state.note.length > 250_000 ||
-      Object.keys(labels).length > 10_000 || Object.keys(sources).length > 10_000) return null;
-  const validLabels = (value: unknown) => validIds(value) &&
-    (value as string[]).every((id) => uuid.safeParse(id).success && labels[id]);
-  if (Object.entries(labels).some(([id, value]) => { const item = record(value); return !item ||
-      item.id !== id || !uuid.safeParse(id).success || typeof item.name !== "string" ||
-      !item.name || item.name.length > 200 || !(item.parentId === null ||
-        typeof item.parentId === "string" && uuid.safeParse(item.parentId).success) ||
-      !(item.color === null || typeof item.color === "string" && /^#[a-f0-9]{6}$/iu.test(item.color)) ||
-      !Number.isInteger(item.order) || Number(item.order) < 0 || Number(item.order) > 1_000_000 ||
-      (item.definition !== undefined && (typeof item.definition !== "string" || item.definition.length > 20_000)) ||
-      (item.scope !== "source" && item.scope !== "highlight"); })) return null;
-  if (Object.values(labels).some((value) => { const parent = record(value)?.parentId;
-    return typeof parent === "string" && (!labels[parent] ||
-      record(labels[parent])?.scope !== record(value)?.scope); })) return null;
-  const visitedLabels = new Set<string>();
-  for (const id of Object.keys(labels)) { const seen = new Set<string>(); let next: string | null = id;
-    while (next && !visitedLabels.has(next)) { if (seen.has(next)) return null; seen.add(next);
-      next = record(labels[next])?.parentId as string | null; }
-    seen.forEach((labelId) => visitedLabels.add(labelId)); }
-  if (Object.entries(sources).some(([id, value]) => { const item = record(value); return !item ||
-      item.id !== id || !uuid.safeParse(id).success || !source.safeParse(item.reference).success ||
-      (item.collected !== undefined && typeof item.collected !== "boolean") ||
-      !validLabels(item.labelIds) || (item.labelIds as string[]).some((labelId) =>
-        record(labels[labelId])?.scope !== "source") || typeof item.note !== "string" ||
-      item.note.length > 50_000 ||
-      !(item.passages === null || validPassages(item.passages, labels));
-    })) return null;
-  if (Object.values(sources).reduce<number>((sum, value) =>
-    sum + Number(record(record(value)?.passages)?.count ?? 0), 0) > 100_000) return null;
-  return state as ResearchFileState;
-}
 
 const validQuery = (id: string, value: unknown) => { const item = record(value),
   receipt = storedLegalResearchQueryReceipt(item),
@@ -233,30 +182,16 @@ const encodeQueriesPart = (queries: Record<string, ResearchQueryReceipt>) =>
 const corrupt = (): never => { throw new ApplicationError(409,
   "Research data changed or is unavailable.", { code: "revision_conflict" }); };
 
-export function researchFileMarkdown(title: string, state: ResearchFileState) {
-  let passages = 0, sources = 0;
-  for (const item of Object.values(state.sources)) { if (item.collected) sources++; passages += researchHighlightCount(item); }
-  const note = state.note.trim();
-  return `# ${title.replace(/[\r\n#]/gu, " ").trim() || "Research"}\n\n` +
-    `${sources} source${sources === 1 ? "" : "s"} · ${passages} passage${passages === 1 ? "" : "s"} · ` +
-    `${state.queries?.count ?? 0} saved search${state.queries?.count === 1 ? "" : "es"}\n\n` +
-    `${note ? `${note}\n\n` : ""}<!-- beaver-research:v2\n${JSON.stringify(state)}\n-->\n`;
-}
-
-export function parseResearchFile(value: Buffer | string) {
-  const text = Buffer.isBuffer(value) ? value.toString("utf8") : value,
-    marker = "<!-- beaver-research:v2\n", start = text.lastIndexOf(marker),
-    end = text.indexOf("\n-->", start + marker.length);
-  if (start < 0 || end <= start) return null;
-  try { return decodeResearchFileState(JSON.parse(text.slice(start + marker.length, end))); }
-  catch { return null; }
-}
-
 export async function readResearchFile(documents: DocumentStore, scope: ApplicationScope,
   documentId: string): Promise<ResearchFile | null> {
   const [document, file] = await Promise.all([
     documents.metadata(scope, documentId), documents.read(scope, documentId, null, false),
-  ]), state = file?.fileType === "md" ? parseResearchFile(file.bytes) : null;
+  ]);
+  const manifest = file?.fileType === "md" && (await documents.readParts(
+    scope, documentId, file.version.id, [RESEARCH_MANIFEST_PART]))?.[0];
+  // Portable documents enter through the same codec; reading never mutates existing versions.
+  const state = file?.fileType === "md" ? manifest
+    ? readResearchManifest(manifest.bytes, file.bytes) : parseResearchFile(file.bytes) : null;
   if (!document || !file || !state || document.current_version_id !== file.version.id ||
       document.current_working_revision !== file.version.working_revision) return null;
   return { document: { ...document, filename: file.version.filename,
@@ -739,17 +674,17 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       passageDelta > 0 && Object.values(current.state.sources).reduce((sum, item) =>
         sum + (item.passages?.count ?? 0), passageDelta) > 100_000)
     throw new ApplicationError(400, "Research file limits exceeded");
-  if (!decodeResearchFileState(state)) throw new ApplicationError(409, "This change conflicts with the current research structure");
-  const filename = current.document.filename, bytes = Buffer.from(researchFileMarkdown(
-    filename.replace(/\.research\.md$/iu, ""), state)), remove = [...new Set(removes)];
+  const filename = current.document.filename, bytes = Buffer.from(state.note), remove = [...new Set(removes)];
   const auditOperation = async (updated: ResearchFile) => {
     if (context) { const observed = allEvidence();
       await recordResearchOperation(context, scope, current, updated, request,
         pending ? [] : changes, (id) => observed[id] ?? originalEvidence[id]); }
   };
-  if (!puts.length && !remove.length && sha256(bytes) === current.document.source_sha256) {
+  if (!puts.length && !remove.length && JSON.stringify(state) === JSON.stringify(current.state)) {
     await auditOperation(current); return current;
   }
+  const manifestBytes = researchManifestBytes(state);
+  puts.push({ name: RESEARCH_MANIFEST_PART, bytes: manifestBytes, expectedSha256: sha256(manifestBytes) });
   const uniquePuts = [...new Map(puts.map((part) => [part.name, part])).values()],
     parts = { put: uniquePuts, remove: remove.filter((name) => !uniquePuts.some((part) => part.name === name)) }, committed = assistant
       ? await documents.commitAssistantVersion(scope, current.document.id, {

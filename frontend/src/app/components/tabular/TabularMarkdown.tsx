@@ -1,7 +1,8 @@
 import type { ColumnConfig } from "@/app/lib/api/tabular";
 import type { Citation } from "@/app/lib/citations";
 import { preprocessCitations } from "../assistant/message/citationUtils";
-import { CitationPill, GfmMarkdown } from "../assistant/message/MarkdownContent";
+import { CitationPill } from "../assistant/message/MarkdownContent";
+import { GfmMarkdown } from "../shared/GfmMarkdown";
 import { getPillClass } from "./pillUtils";
 import type { GroundedAnswer } from "@/app/lib/groundedAnswers";
 

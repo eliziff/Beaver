@@ -6,6 +6,72 @@ Measurements below are recorded evidence, not fresh measurements of every build.
 [Architecture](architecture.md) owns application boundaries and
 [background jobs](background-jobs.md) owns scheduling/durable delivery.
 
+## Local build loop (October 3, 2026)
+
+Ordinary frontend builds stage one app with native Oxc, the Tailwind Vite adapter
+and explicit CSS source scopes. React Compiler and precompression run only for
+explicit delivery; gzip size reporting is disabled. Vite ignores other staged
+output directories. A real local app rebuild took 11.0 seconds after these cuts;
+the preceding PostCSS build took 25.8 seconds. Earlier measurements ranged from
+7.1 to 54.6 seconds, so these individual runs are not a stable latency guarantee.
+
+Backend production emission uses nonbundled esbuild modules, retaining CommonJS
+dynamic imports, worker file locations and catalogue JSON. Shared runtime uses
+TypeScript's per-file transpiler without unused declarations. A staged backend
+and shared emission took 3.75 seconds; the previous backend `tsc --noCheck` alone
+took 32.32 seconds and reported about 686 MB memory. The compiled production-path
+document create/read/owner-isolation/delete check passed in 0.95 seconds using
+isolated SQLite and filesystem storage. Live output was not replaced.
+
+Ordinary backend/shared emission now skips unchanged modules and removes outputs
+whose sources were deleted. Compiler, configuration or emitter changes invalidate
+the output; explicit staging emits a fresh tree. Frontend type checks include
+application sources and Vite configuration, excluding scratch output and unrelated
+test/experimental harnesses. Backend tests use one worker in CI as well as locally
+to avoid multiplying module graphs, heaps and native workers. The focused job-lane
+check passed three cases in 2.08 seconds; memory savings have not been measured.
+
+Shared emission loads TypeScript only when a contract actually needs emission.
+Document and assistant Markdown use one cached GFM renderer; document links retain
+their existing protocols while assistant links keep their stricter policy.
+The independent server-rendering check passed in 9.72 seconds; no browser or
+application rebuild was run for this change.
+
+Native CI retains compiled Rust dependencies as well as the finished addon;
+source changes no longer discard all dependency compilation. Build-input identity
+omits Inspector CLI source and native documentation. Citation adapter smoke checks
+run for their actual engine/adapter inputs; unrelated CLI and documentation edits
+do not rebuild Python or WASM. Python smoke loads a development extension without
+wheel packaging. These CI changes have not been timed on hosted runners.
+
+Local addon builds use the ordinary incremental development profile and one job;
+release optimization is explicit. App and Authorities launchers select the newest
+completed debug/release artifact without silently falling back after a load failure.
+Cloud browser tests use isolated worker accounts instead of one shared user;
+ordinary application changes use the local browser gate with disposable data and
+no live-server reuse. Cloud teardown deletes documents/storage through the actual
+account operation. Linux Word tests run once inside the cached container, without
+a second host Office/Python installation; Windows installer downloads and Python
+wheels are reused. Three non-DOM frontend test
+files ran 13 checks in 1.94 seconds with no DOM environment startup; this is not
+a timing claim for all tests or cold native compilation.
+
+The subsequent frontend test-layer removal deleted 52 DOM/component suites
+(8,759 test lines), removed the DOM setup and 67 dependency entries, and retained
+17 Node data/algorithm/PDF suites (3,478 lines). All 164 remaining checks passed
+in one worker in 38.89 seconds: 4.00 seconds transform, 10.70 seconds imports,
+16.36 seconds test execution and 5 ms environment setup. There is no comparable
+before-run or process-memory measurement for this complete remaining set.
+Existing browser flows now also hold a real saved-chat response across selection
+and verify Escape/Cancel dispatch no deletion. Their discovery passed; the
+modified browser flows have not been executed against a live test server.
+
+`npm run check --prefix backend` checks backend and shared source separately
+without emitting. Development reads TypeScript directly. Provider model catalogues
+refresh when requested instead of running CLI/network discovery at every server
+boot; the first catalogue response can use cached or fallback results while
+refreshing. Live provider calls were not benchmarked.
+
 ## Printed-page navigation measurement (September 27, 2026)
 
 The viewer's printed-label request reuses prepared native structure, including

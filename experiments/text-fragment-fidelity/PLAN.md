@@ -80,6 +80,27 @@ strategy iteration happens in replay.
 Raw outputs stay under `results/` (gitignored). Durable conclusions go to
 `RESULTS.md`.
 
+## Planner equivalence tier (speed changes)
+
+A change meant only to make the native planner faster must leave every plan
+byte-identical. `planner-equivalence.mts` records, for a fixed offline corpus,
+everything the planner and Beaver's link code build, and is run once per
+native build (`LEGAL_STRUCTURE_NATIVE=<addon>`); the two outputs must hash the
+same.
+
+- Corpus: the local A2AJ bulk database only (no network). Evenly spaced
+  documents in every dataset - 16 per case dataset, 4 per legislation or
+  regulation set. In each judgment: paragraphs at 8/35/62/90% of its length, a
+  three-paragraph run (Beaver's grouped citation) and `reasonable` pattern
+  hits; in legislation the opening units and `shall` hits.
+- Recorded per passage: Beaver's production link (`legalEvidenceDocumentLink`),
+  the grouped citation link for runs, the full native plan (directives, word
+  intervals, completeness, painted words) for the whole passage under all eight
+  pdf / annotation / html-block flag sets and for sentence quotes, and the
+  standalone planner.
+- A speed change ships only with identical output hashes and the planner's own
+  tests passing.
+
 ## Promotion criteria
 
 A spelling/projection rule may move into production only when:

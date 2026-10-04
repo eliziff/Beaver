@@ -4,7 +4,7 @@ import { researchFindingReferenceSchema, type ResearchFindingReference } from "m
 import { z } from "mike/shared/runtime/schema.mjs";
 import { textField } from "mike/shared/runtime/textField.mjs";
 import { randomUUID } from "node:crypto";
-import { runChatTurn } from "../chat/turnEngine";
+import type { runChatTurn } from "../chat/turnEngine";
 import { throwIfAborted } from "../llm/abort";
 import type { DocumentStore } from "../documentStore";
 import type { ProjectStore } from "../projectStore";
@@ -189,7 +189,8 @@ export function createTabularApplication(
   projects: ProjectStore,
   dependencies: Dependencies,
 ) {
-  const turn = dependencies.runTurn ?? runChatTurn;
+  const turn: typeof runChatTurn = dependencies.runTurn ?? (async options =>
+    (await import("../chat/turnEngine")).runChatTurn(options));
   const settings = dependencies.settings;
   const prepareColumns = async (scope: TabularScope, columns: TabularColumn[], previous?: TabularSelection["jevRouting"]) => {
     const user = await settings(scope.userId);

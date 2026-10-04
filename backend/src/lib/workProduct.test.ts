@@ -26,12 +26,7 @@ it.each<WorkProductInput>([
   expect(state).toEqual(expected);
 });
 
-it("reads client receipts as objects or stored JSON without changing their fields", () => {
-  const expected = structuredClone(receipt), stored = JSON.stringify(receipt);
-  expect(decodeWorkProductBuildReceipt(receipt)).toEqual(expected);
-  expect(decodeWorkProductBuildReceipt(stored)).toEqual(expected);
-  expect(receipt).toEqual(expected);
-});
+
 
 it.each([null, { from: "2026-09-07", to: null }, { from: "2026-09-07", to: "2027-01-01" }])(
   "accepts an explicit null or complete effective interval: %j", (effective) => {

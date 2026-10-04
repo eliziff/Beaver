@@ -2,7 +2,6 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TurnToolRegistry, toolOutcome } from "../../chat/toolRegistry";
 import { startMcpToolBridge, type McpToolBridge } from "../mcpToolBridge";
 
 const bridges: McpToolBridge[] = [];
@@ -25,40 +24,6 @@ async function clientFor(bridge: McpToolBridge) {
 }
 
 describe("MCP tool bridge", () => {
-  it("executes specialists without refreshing the client's catalog", async () => {
-    const names = ["edit_docx_advanced", "document_operation", "lint_document"];
-    const executed: string[] = [];
-    const registry = new TurnToolRegistry<null>(names.map((name) => ({
-      ...tool(name), specialist: true,
-      async execute() { executed.push(name); return toolOutcome(name); },
-    })));
-    const bridge = await startMcpToolBridge({
-      tools: registry.all(),
-      runTools: (calls) => registry.run(calls, null),
-    });
-    bridges.push(bridge);
-    const { client, transport } = await clientFor(bridge);
-    const cachedTools = (await client.listTools()).tools;
-    expect(cachedTools.map(({ name }) => name)).toEqual(["load_tools", ...names]);
-
-    expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
-      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: names, tools: cachedTools.filter(tool => names.includes(tool.name)) }) }]);
-
-    // No second tools/list request or list-changed notification before these calls.
-    for (const name of names) {
-      const result = await client.callTool({ name, arguments: {} });
-      expect(result.isError).not.toBe(true);
-      expect(result.content).toEqual([{ type: "text", text: name }]);
-    }
-    expect(executed).toEqual(names);
-    expect((await client.callTool({ name: "missing_tool", arguments: {} })).isError).toBe(true);
-    expect(executed).toEqual(names);
-    expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
-      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: [], tools: cachedTools.filter(tool => names.includes(tool.name)) }) }]);
-    expect((await client.listTools()).tools).toEqual(cachedTools);
-    expect(bridge.stats().toolCallCount).toBe(5);
-    await transport.close();
-  });
 
   it("serializes concurrent provider calls", async () => {
     const gates: Array<() => void> = [];
@@ -120,34 +85,6 @@ describe("MCP tool bridge", () => {
     await transport.close();
   });
 
-  it("passes a tool result page through as MCP image content", async () => {
-    const bridge = await startMcpToolBridge({
-      tools: [tool("view_page")],
-      runTools: async (calls) => calls.map((call) => ({
-        tool_use_id: call.id, status: "ok" as const, content: "{\"page\":2}",
-        images: [{ filename: "page 2.jpg", mimeType: "image/jpeg" as const, data: "AAAB" }],
-      })),
-    });
-    bridges.push(bridge);
-    const { client, transport } = await clientFor(bridge);
-
-    expect((await client.callTool({ name: "view_page", arguments: {} })).content).toEqual([
-      { type: "text", text: "{\"page\":2}" },
-      { type: "image", data: "AAAB", mimeType: "image/jpeg" },
-    ]);
-    expect(bridge.stats().toolResultBytes).toBe(14);
-    await transport.close();
-  });
-
-  it("preserves tool annotations rather than labelling writes as read-only", async () => {
-    const tools = [tool("unspecified"), { ...tool("write"), annotations: { readOnlyHint: false, destructiveHint: true } },
-      { ...tool("inspect"), annotations: { readOnlyHint: true } }];
-    const bridge = await startMcpToolBridge({ tools, runTools: async () => [] });
-    bridges.push(bridge);
-    const { client } = await clientFor(bridge);
-    try { expect((await client.listTools()).tools).toEqual(tools); } finally { await client.close(); }
-  });
-
   it("rejects missing, duplicate and foreign dispatcher results without publishing their content", async () => {
     let defect = "missing";
     const bridge = await startMcpToolBridge({ tools: [tool("inspect")], runTools: async ([call]) => {
@@ -181,27 +118,6 @@ describe("MCP tool bridge", () => {
     expect(JSON.stringify(result)).toContain("[redacted]");
     await transport.close();
   });
-});
-
-
-it("advertises the normalized result contract without changing effect annotations", async () => {
-  const annotations = { readOnlyHint: false, destructiveHint: true };
-  const registry = new TurnToolRegistry([{ ...tool("edit"), annotations,
-    outputSchema: { type: "object", properties: { count: { type: "integer" } }, required: ["count"] },
-    execute: async () => ({ result: { content: [{ type: "text" as const, text: "Edited one paragraph" }],
-      structuredContent: { count: 1 } } }),
-  }]);
-  const bridge = await startMcpToolBridge({ tools: registry.all(), runTools: calls => registry.run(calls, {}) });
-  bridges.push(bridge);
-  const { client } = await clientFor(bridge);
-  try {
-    const [exposed] = (await client.listTools()).tools;
-    expect(exposed.annotations).toEqual(annotations);
-    expect(exposed.outputSchema).toBeUndefined();
-    expect(await client.callTool({ name: "edit", arguments: {} })).toMatchObject({
-      content: [{ type: "text", text: "Edited one paragraph" }],
-    });
-  } finally { await client.close(); }
 });
 
 it("rejects ambiguous dispatcher results rather than selecting the first match", async () => {

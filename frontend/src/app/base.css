@@ -87,7 +87,15 @@ html:root[data-appearance="dark"] { color-scheme: dark; }
     --border: #465365;
     --input: #465365;
     --brand-red-soft: #402421;
+    --color-red-50: #402421;
     --accent-50: #402421;
+    --color-red-100: #512b29;
+    --color-red-200: #763e3a;
+    --color-amber-50: #352b1b;
+    --color-amber-100: #44351e;
+    --color-amber-200: #695127;
+    --color-emerald-100: #173a30;
+    --color-green-100: #193825;
     --color-gray-50: #1b2028;
     --color-gray-100: #262e39;
     --color-gray-200: #354050;
@@ -100,13 +108,73 @@ html:root[data-appearance="dark"] { color-scheme: dark; }
     --color-gray-900: #edf0f5;
     --color-gray-950: #f5f7fa;
 }
-@layer utilities {
-    :where(:root[data-appearance="dark"]) .bg-white {
-        background-color: var(--app-surface);
-    }
-    :where(:root[data-appearance="dark"]) :is(.bg-gray-700, .bg-gray-800, .bg-gray-900) {
-        background-color: #111827;
-    }
+/* Background roles stay dark even though the gray text palette is inverted.
+   Register utilities so hover, disabled and other variants follow the same rule. */
+@utility bg-white {
+    :root[data-appearance="dark"] & { background-color: var(--app-surface); }
+}
+@utility bg-gray-700 {
+    :root[data-appearance="dark"] & { background-color: #374151; }
+}
+@utility bg-gray-800 {
+    :root[data-appearance="dark"] & { background-color: #1f2937; }
+}
+@utility bg-gray-900 {
+    :root[data-appearance="dark"] & { background-color: #111827; }
+}
+@utility bg-gray-950 {
+    :root[data-appearance="dark"] & { background-color: #030712; }
+}
+@utility text-red-600 {
+    :root[data-appearance="dark"] & { color: #fca5a5; }
+}
+@utility text-red-700 {
+    :root[data-appearance="dark"] & { color: #fca5a5; }
+}
+@utility text-red-800 {
+    :root[data-appearance="dark"] & { color: #fca5a5; }
+}
+@utility text-red-900 {
+    :root[data-appearance="dark"] & { color: #fca5a5; }
+}
+@utility text-red-950 {
+    :root[data-appearance="dark"] & { color: #fca5a5; }
+}
+@utility text-amber-600 {
+    :root[data-appearance="dark"] & { color: #fcd34d; }
+}
+@utility text-amber-700 {
+    :root[data-appearance="dark"] & { color: #fcd34d; }
+}
+@utility text-amber-800 {
+    :root[data-appearance="dark"] & { color: #fcd34d; }
+}
+@utility text-amber-900 {
+    :root[data-appearance="dark"] & { color: #fcd34d; }
+}
+@utility text-amber-950 {
+    :root[data-appearance="dark"] & { color: #fcd34d; }
+}
+@utility text-green-600 {
+    :root[data-appearance="dark"] & { color: #86efac; }
+}
+@utility text-green-700 {
+    :root[data-appearance="dark"] & { color: #86efac; }
+}
+@utility text-green-800 {
+    :root[data-appearance="dark"] & { color: #86efac; }
+}
+@utility text-emerald-700 {
+    :root[data-appearance="dark"] & { color: #6ee7b7; }
+}
+@utility text-emerald-950 {
+    :root[data-appearance="dark"] & { color: #6ee7b7; }
+}
+@utility text-blue-600 {
+    :root[data-appearance="dark"] & { color: #93c5fd; }
+}
+@utility text-blue-700 {
+    :root[data-appearance="dark"] & { color: #93c5fd; }
 }
 :root[data-appearance="dark"] .file-type-symbol {
     color: var(--foreground);

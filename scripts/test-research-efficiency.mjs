@@ -7,19 +7,20 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { chromium, expect } from '@playwright/test';
 const home = await mkdtemp(path.join(tmpdir(), 'beaver-research-ui-'));
+let listener, browser, page, runtime;
 const output = process.env.RESEARCH_EFFICIENCY_OUTPUT || path.resolve(import.meta.dirname, '../.tmp/research-efficiency');
+try {
 await mkdir(output, { recursive: true });
 Object.assign(process.env, { AUTH_MODE: 'local', NODE_ENV: 'production', MIKE_LOCAL_DATA_DIR: home, OPEN_LEGAL_DATA_HOME: home });
 const require = createRequire(import.meta.url);
-const { runtime } = require('../backend/dist/runtime');
+({ runtime } = require('../backend/dist/runtime'));
 const { server } = require('../backend/dist/server');
 const { readResearchResource } = require('../backend/dist/lib/researchReader');
 const e = require('../backend/dist/lib/chat/legalEvidence');
 const { createLegalEvidenceCitations } = require('../backend/dist/lib/chat/citations');
 const { tabularRepository } = require('../backend/dist/lib/relationalTabularRepository');
 const scope = { userId: '00000000-0000-0000-0000-000000000001' };
-let listener, browser, page;
-try {
+
   const documents = await runtime.documents(), chats = await runtime.chats(), sources = await runtime.sources(), tables = await runtime.tabular();
   const document = await documents.create(scope, { filename: 'Notice provisions.txt', fileType: 'txt', bytes: Buffer.from(
     'Notice must be delivered within thirty days, unless the recipient agrees in writing to an extension.\nUnilateral extensions are not permitted.') });
@@ -99,7 +100,11 @@ try {
   if (page) await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {});
   throw error;
 } finally {
-  await browser?.close();
-  if (listener?.listening) await new Promise(resolve => listener.close(resolve));
-  await runtime.shutdown(); await rm(home, { recursive: true, force: true });
+  try { await browser?.close(); } finally {
+    try {
+      if (listener?.listening) await new Promise(resolve => listener.close(resolve));
+    } finally {
+      try { await runtime?.shutdown(); } finally { await rm(home, { recursive: true, force: true }); }
+    }
+  }
 }

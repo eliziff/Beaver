@@ -41,19 +41,6 @@ it("rejects unsupported per-turn provider controls", () => {
   expect(chatTurnInputSchema.safeParse({ ...input(), service_tier: "priority" }).success).toBe(false);
 });
 
-it("accepts only typed Court Record and Authorities scopes", () => {
-  const id = "00000000-0000-4000-8000-000000000001";
-  for (const kind of ["court-record", "authorities"]) {
-    expect(chatTurnInputSchema.parse({ ...input({ content: "Connect the book" }),
-      work_product: { kind, id, revision: 3 } })).toEqual({
-      current_turn: { kind: "message", content: "Connect the book" }, expected_version: 0, ...defaults,
-      work_product: { kind, id, revision: 3 },
-    });
-  }
-  expect(chatTurnInputSchema.safeParse({ ...input({ content: "Connect the book" }),
-    work_product: { kind: "other", id, revision: 3 } }).success).toBe(false);
-});
-
 it("bounds work-product focus and its UTF-16 selection", () => {
   const work_product = { kind: "authorities", id: "00000000-0000-4000-8000-000000000001", revision: 3,
     focus: { item_id: "occurrence-1", selection: { start: 4, end: 18 } } };

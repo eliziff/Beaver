@@ -1,10 +1,11 @@
 /** Real PDF.js pointer/keyboard interaction -> native geometry -> editable PDF export. */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium, expect } from '@playwright/test';
-import { createServer } from '../frontend/node_modules/vite/dist/node/index.js';
+import { pathToFileURL } from 'node:url';
+const { createServer } = await import(pathToFileURL(createRequire(new URL('../frontend/package.json', import.meta.url)).resolve('vite')).href);
 const root = path.resolve(import.meta.dirname, '..');
 // Match the app build's source-scanning root instead of scanning repository data.
 process.chdir(path.join(root, 'frontend'));
@@ -13,7 +14,9 @@ const express = require('express'), pdf = require('pdf-lib');
 const { structureNative, pdfPassageGeometry } = require('../backend/dist/lib/structureNative');
 const { prepareAuthorityAnnotations, buildAuthorities } = require('../backend/dist/lib/authoritiesBuild');
 const { reduceAuthoritiesDraft } = require('../backend/dist/lib/authoritiesDomain');
-const output = path.resolve(process.env.AUTHORITIES_HIGHLIGHT_OUTPUT || '/tmp/authorities-highlight-results');
+const keepOutputs = process.argv.includes('--keep-outputs') || !!process.env.AUTHORITIES_HIGHLIGHT_OUTPUT;
+const output = path.resolve(process.env.AUTHORITIES_HIGHLIGHT_OUTPUT || path.join(root, '.tmp/authorities-highlight-results'));
+if (!process.env.AUTHORITIES_HIGHLIGHT_OUTPUT) await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 const api = express(); api.use(express.json({ limit: '20mb' }));
 api.post('/prepare', async (req, res, next) => {
@@ -187,4 +190,13 @@ try {
   await page?.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {});
   await writeFile(path.join(output, 'failure.txt'), String(error.stack || error));
   throw error;
-} finally { await browser?.close(); await server.close(); }
+} finally {
+  try { await browser?.close(); } finally {
+    try { await server.close(); } finally {
+      if (!keepOutputs) {
+        await rm(path.join(output, 'vite-cache'), { recursive: true, force: true });
+        await rm(path.join(output, 'highlight-export.pdf'), { force: true });
+      }
+    }
+  }
+}

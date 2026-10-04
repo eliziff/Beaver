@@ -180,6 +180,22 @@ export async function runCacheTier({ seedsPath, outDir }) {
         const shot = path.resolve(outDir, `${seed.id}.png`);
         const png = await page.screenshot({ path: shot });
         const paint = await paintedPixels(helper, png);
+        // The text of the block the landing sits in, for judging what was highlighted.
+        const landedText = await page.evaluate((focus) => {
+          const markers = [...document.querySelectorAll('a[name^="par"], a[name^="sec"], [id^="sec"]')]
+            .filter((element) => /^(par|sec)[\d.]+/u.test(element.getAttribute("name") ?? element.id));
+          const at = markers.findLastIndex((element) => element.getBoundingClientRect().top <= focus);
+          if (at < 0) {
+            const element = document.elementFromPoint(window.innerWidth / 2, Math.min(focus + 4, window.innerHeight - 1));
+            return (element?.closest("p, li, blockquote, div") ?? element)?.textContent?.slice(0, 4000) ?? "";
+          }
+          const range = document.createRange();
+          range.setStartBefore(markers[at]);
+          if (markers[at + 1]) range.setEndBefore(markers[at + 1]);
+          else range.setEndAfter(document.body.lastChild);
+          return range.toString().slice(0, 8000);
+        }, paint.count > 40 ? paint.top : 2);
+        record.landedText = landedText.replace(/\s+/gu, " ").trim();
         await page.mouse.move(640, 450);
         await page.mouse.wheel(0, 700);
         await page.waitForTimeout(500);

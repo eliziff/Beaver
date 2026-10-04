@@ -2,7 +2,10 @@
 
 Authorities uses one TypeScript application and shared Rust citation/PDF operations.
 Beaver supplies authentication, Library and work-product adapters; the standalone
-host supplies local-file and loopback adapters. The Python
+host supplies local files. Loopback HTTP and the self-contained HTML worker call
+the same application operations. The HTML page sends ordinary inputs and transfers
+file bytes directly, with progress and cancellation carried by worker messages.
+The Python
 [AuthoritiesHelper reference](https://github.com/eliziff/AuthoritiesHelper) is not
 Beaver's current runtime. Implementation presence does not certify complete
 reference parity; remaining release gates are in
@@ -178,11 +181,10 @@ try again in about a minute, then asks once and doubles the wait while A2AJ is s
 limiting; only a time A2AJ itself named is shown as A2AJ's.
 
 `publisherPdfCandidate(url)` in `backend/src/lib/legalSourcePresentation.ts` is
-the shared, pure URL primitive; unsupported URLs return null. Lite imports its
-tracked browser distribution, generated with
-`node AuthoritiesHelper/modern/authorities-lite/sync-publisher.mjs`; append
-`--check` to verify it matches the canonical source. Host and representation-control
-rules live in that same source, not build-script patches.
+the shared, pure URL primitive; unsupported URLs return null. Lite and the HTML
+runtime import the owning Beaver source directly. Host and representation-control
+rules live in that same source; no generated browser copy or synchronization step
+is maintained.
 
 In **Use available original PDFs**, legislation acquisition uses retained publisher
 URLs and validated download controls. Narrow Alberta King's Printer HTML-record
@@ -373,22 +375,22 @@ as the application. Install their Python binding with
 Useful product checks from the root are:
 
 ```sh
-npm run test:authorities-package
 npm run test:authorities:highlights
 npx playwright install chromium
 ```
 
-The highlight browser fixture additionally needs Python `playwright`, `pymupdf`
-and Chrome/Chromium. Its separate terminals are:
+The highlight fixture uses the root Node Playwright installation and starts its own
+small API/Vite surface. It consumes the already-built native addon/backend; it
+never provisions Python Playwright or ChromeDriver. Its real editor/viewer checks
+cover native passage geometry, persisted edits and editable exported annotations.
+For independent PyMuPDF read/edit/reopen verification of that browser export:
 
 ```sh
-node backend/node_modules/tsx/dist/cli.mjs backend/scripts/authorities-highlight-browser-runtime.ts
-(cd frontend && BEAVER_API_ORIGIN=http://127.0.0.1:3037 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 3036)
-python3 scripts/test-authorities-highlights-browser.py --output /tmp/authorities-highlight-test
+npm run test:authorities:highlights -- --keep-outputs
+python smoke/work-product-files.py highlights .tmp/authorities-highlight-results .tmp/authorities-highlight-results/highlight-export.pdf
 ```
 
-It exercises the real editor/viewer, persistence and export with controlled native
-passage geometry. PyMuPDF checks reopened editable annotations and unchanged source
-text, including cropped/rotated and manual-only cases. Synthetic geometry does
-not prove native passage fidelity, OCR quality, live-provider resolution, every
-court profile or the Windows portable package. Those remain distinct gates.
+This checks the four editable highlights, deletion/reopen and unchanged source
+text independently of the writer. Native passage fidelity, OCR quality,
+live-provider resolution, every court profile and the Windows portable package
+retain their own gates.

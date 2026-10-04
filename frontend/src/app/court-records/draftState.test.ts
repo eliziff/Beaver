@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
 import type { WorkProduct, WorkProductInput, WorkProductStore } from "@/app/lib/workProducts";

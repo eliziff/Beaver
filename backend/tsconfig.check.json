@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.dev.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "tsBuildInfoFile": "../.tmp/backend-check.tsbuildinfo"
+  },
+  "include": [
+    "src/index.ts", "src/worker.ts", "src/supervisor.ts",
+    "src/authoritiesStandalone.ts", "src/workflowCatalogCli.ts",
+    "../shared/contracts/*.mts"
+  ]
+}

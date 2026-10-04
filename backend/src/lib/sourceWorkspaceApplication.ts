@@ -1,3 +1,4 @@
+import { RESEARCH_MANIFEST_PART, researchManifestBytes } from "./researchArtifact";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { randomUUID } from "node:crypto";
 import type { AuditStore } from "./audit";
@@ -5,7 +6,7 @@ import type { ChatStore } from "./chatStore";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { commitResearchFile, createResearchFileState, pageResearchItems, readResearchFile,
-  researchFileMarkdown, researchQueryReceipt, researchSourceResource, researchReferenceFromEvidence, researchLabelPath,
+  researchQueryReceipt, researchSourceResource, researchReferenceFromEvidence, researchLabelPath,
   visitResearchEvidenceParts,
   type ResearchEvidence, type ResearchFileAction, type ResearchFile,
   type ResearchQueryReceipt, type ResearchSourceReference } from "./researchFile";
@@ -92,7 +93,8 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       folderId: input.folderId ?? null,
       ...(actor?.executor === "assistant" ? { provenance: { schemaVersion: 1 as const, actor: "assistant" as const,
         action: "created" as const, ...(actor.turnId ? { turnId: actor.turnId } : {}) } } : {}),
-      bytes: Buffer.from(researchFileMarkdown(title, createResearchFileState())) });
+      bytes: Buffer.alloc(0), parts: [{ name: RESEARCH_MANIFEST_PART,
+        bytes: researchManifestBytes(createResearchFileState()) }] });
     const { title: _title, projectId: _projectId, folderId: _folderId, ...observations } = input;
     try { return await collect(scope, document.id, observations, actor); }
     catch (error) { await documents.deleteDocument(scope, document.id, true).catch(() => undefined); throw error; }

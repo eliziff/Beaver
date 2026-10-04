@@ -19,7 +19,7 @@ type Receipt = {
   observed_on_failure_output?: string; submission: { origin: "machine_test"; run_id: string; scenario: string };
 };
 const root = path.resolve(__dirname, "../../..");
-const frozen = path.join(root, ".tmp/cloud-docx-hillclimb/frozen");
+const frozen = path.join(root, "benchmarks/local-data/docx-preservation/frozen");
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const option = (name: string) => {
   const index = process.argv.indexOf(`--${name}`);
@@ -82,7 +82,7 @@ async function main() {
   }
   for (const [file, digest] of Object.entries(manifest.files)) {
     const other = subset === "development" ? "heldout" : "development";
-    if (file.startsWith(`.tmp/cloud-docx-hillclimb/frozen/${other}/`)) continue;
+    if (file.startsWith(`benchmarks/local-data/docx-preservation/frozen/${other}/`)) continue;
     if (hash(await readFile(repositoryFile(file))) !== digest) throw new Error(`Frozen file changed: ${file}`);
   }
   const runId = `docx-preservation-${randomUUID()}`;

@@ -9,7 +9,6 @@ const require = createRequire(path.join(root, "backend/package.json"));
 const stage = path.resolve(process.argv[2]);
 mkdirSync(stage, { recursive: true });
 const result = await require("esbuild").build({ absWorkingDir: root,
-  nodePaths: [path.join(root, "backend/node_modules")],
   entryPoints: ["scripts/court-records-package/server.mjs"], outfile: path.join(stage, "server.cjs"),
   bundle: true, platform: "node", format: "cjs", target: "node22", metafile: true,
   minifySyntax: true, minifyWhitespace: true, legalComments: "none", plugins: [localOnly] });

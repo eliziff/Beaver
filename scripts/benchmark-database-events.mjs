@@ -17,10 +17,11 @@ if (process.argv[2] === '--sample') {
   const require = createRequire(path.join(checkout, 'backend/package.json'));
   require('tsx/cjs');
   const directory = await mkdtemp(path.join(os.tmpdir(), 'beaver-db-bench-'));
-  process.env.AUTH_MODE = 'local'; process.env.MIKE_LOCAL_DATA_DIR = directory;
-  const module = require(path.join(checkout, 'backend/src/lib/relationalDatabase.ts'));
-  let database, elapsedMs, firstDurableMs, checksum = 0, sqlPrepares = 0, inserts = 0;
+  let module, database;
   try {
+  process.env.AUTH_MODE = 'local'; process.env.MIKE_LOCAL_DATA_DIR = directory;
+  module = require(path.join(checkout, 'backend/src/lib/relationalDatabase.ts'));
+  let elapsedMs, firstDurableMs, checksum = 0, sqlPrepares = 0, inserts = 0;
     if (scenario === 'indexed-reads') {
       const { DatabaseSync } = require('node:sqlite'), native = new DatabaseSync(':memory:');
       native.exec('CREATE TABLE entries(id INTEGER PRIMARY KEY, owner TEXT, value INTEGER)');
@@ -79,8 +80,9 @@ if (process.argv[2] === '--sample') {
     }
     console.log(JSON.stringify({ scenario, elapsedMs, firstDurableMs, sqlPrepares, inserts, checksum }));
   } finally {
-    if (scenario === 'indexed-reads') await database?.close(); else await module.closeRelationalDatabase();
-    await rm(directory, { recursive: true, force: true });
+    try {
+      if (scenario === 'indexed-reads') await database?.close(); else await module?.closeRelationalDatabase();
+    } finally { await rm(directory, { recursive: true, force: true }); }
   }
 } else {
   const baseline = process.argv[2] ? path.resolve(process.argv[2]) : null;

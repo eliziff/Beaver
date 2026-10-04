@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import { nativeAddonFile } from "mike/shared/nativeAddonFile.mjs";
+import { defaultNativeAddon, nativeAddonFile } from "mike/shared/nativeAddonFile.mjs";
+import { structureEngineAddon, type StructureEngineTransport } from "mike/shared/structure-engine.mjs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { SpreadsheetCellSpan } from "./spreadsheet";
@@ -366,30 +367,21 @@ export type NativeDocumentBlock = {
 
 let addon: StructureAddon | undefined;
 
-function addonFilename() {
-  if (process.platform === "win32") return "legal_structure_node.dll";
-  if (process.platform === "darwin") return "liblegal_structure_node.dylib";
-  return "liblegal_structure_node.so";
-}
-
 export function structureNative() {
   if (addon) return addon;
   const root = structureAddonRoot();
   const filename = process.env.LEGAL_STRUCTURE_NATIVE?.trim() ||
-    path.join(root, "target", "release", addonFilename());
+    defaultNativeAddon(root);
   if (!existsSync(filename)) {
     throw new Error(`Missing legal structure native module: ${filename}`);
   }
   const module = { exports: {} } as NodeModule;
   process.dlopen(module, nativeAddonFile(filename, root));
-  // An engine built before an operation existed says so, rather than failing as `undefined`.
-  addon = new Proxy(module.exports as StructureAddon, { get(engine, name) {
-    const value = Reflect.get(engine, name);
-    if (value === undefined && typeof name === "string" && name !== "then") throw new Error(
-      `The legal structure engine at ${filename} predates ${name}. Rebuild it: ` +
-      "npm run native:build");
-    return value;
-  } });
+  // The native addon is one call; the page's runtime supplies its WebAssembly engine already wrapped.
+  const loaded = module.exports as StructureAddon | StructureEngineTransport;
+  addon = "callAsync" in loaded ? structureEngineAddon(loaded, {
+    toBuffer: (bytes) => Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+  }) as unknown as StructureAddon : loaded as StructureAddon;
   return addon;
 }
 

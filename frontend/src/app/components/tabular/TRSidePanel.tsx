@@ -83,7 +83,7 @@ export function TRSidePanel({
                 onClose();
             }}
             className={cn(
-                "fixed h-[calc(100dvh-5.25rem)] max-h-[calc(100dvh-5.25rem)] min-h-0 bottom-3 left-auto right-3 top-[4.5rem] z-100 m-0 flex w-[360px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden p-0 text-inherit backdrop:bg-gray-950/20",
+                "fixed h-[calc(100dvh-5.25rem)] max-h-[calc(100dvh-5.25rem)] min-h-0 bottom-3 left-auto right-3 top-[4.5rem] z-100 m-0 flex w-[360px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden p-0 text-inherit backdrop:bg-black/20",
                 LIQUID_PANEL_SURFACE_CLASS,
                 "max-md:inset-0 max-md:h-dvh max-md:max-h-none max-md:w-screen max-md:max-w-none max-md:rounded-none max-md:border-0",
             )}

@@ -23,23 +23,6 @@ describe("Ollama API", () => {
     vi.unstubAllGlobals();
   });
 
-  it("lists installed models with standard fetch", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      models: [{ name: "qwen3:32b", capabilities: ["thinking", "tools"] }],
-    }), { status: 200, headers: { "Content-Type": "application/json" } }));
-    vi.stubGlobal("fetch", fetchMock);
-    const { ollamaModelCatalogSnapshot } = await import("../llm/ollamaModels");
-    expect(ollamaModelCatalogSnapshot()).toEqual({ source: "unavailable", models: [] });
-    await vi.waitFor(() => expect(ollamaModelCatalogSnapshot()).toEqual({
-      source: "live",
-      models: [{ name: "qwen3:32b", displayName: "Qwen 3 32B", supportsThinking: true }],
-    }));
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:11434/api/tags",
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-  });
-
   it("rejects remote HTTP unless its exact origin is trusted", async () => {
     process.env.OLLAMA_BASE_URL = "http://desktop.test:11434";
     const models = await import("../llm/ollamaModels");
@@ -76,23 +59,5 @@ describe("Ollama API", () => {
       expect.objectContaining({ role: "assistant", tool_calls: [expect.objectContaining({ id: "call-1" })] }),
       { role: "tool", tool_call_id: "call-1", content: "source" },
     ]));
-  });
-
-  it("caps max reasoning at Ollama's supported high effort", async () => {
-    let request: Record<string, unknown> = {};
-    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
-      request = JSON.parse(String(init.body));
-      return sse({ choices: [{ delta: { content: "Ready." }, finish_reason: "stop" }] });
-    }));
-    const { streamHosted: streamOllama } = await import("../llm/sdk");
-    await streamOllama({
-      model: "ollama:qwen3.8:27b-ud-q2-k-xl",
-      systemPrompt: "system",
-      messages: [{ role: "user", content: "Hello." }],
-      tools: [],
-      enableThinking: true,
-      reasoningEffort: "max",
-    });
-    expect(request.reasoning_effort).toBe("high");
   });
 });

@@ -1,3 +1,5 @@
+import { RESEARCH_MANIFEST_PART, parseResearchFile, readResearchManifest,
+  researchManifestBytes, researchFileMarkdown } from "./researchArtifact";
 import { verifiedDownloadCache } from "./verifiedDownloadCache";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -107,13 +109,19 @@ async function validateArchive(input: DocumentFile) {
   } finally { release(); }
 }
 
-const validateUpload = async (input: DocumentFile) => {
+const hasResearchManifest = (parts?: DocumentPartFile[] | DocumentPartsChange) => {
+  const part = (Array.isArray(parts) ? parts : parts?.put)?.find(({ name }) => name === RESEARCH_MANIFEST_PART);
+  return !!part && !!readResearchManifest(part.bytes, Buffer.alloc(0));
+};
+const validateUpload = async (input: DocumentFile & { parts?: DocumentPartFile[] | DocumentPartsChange }) => {
   const { filename, fileType } = input, inspected = await inspectUpload(input);
   if (input.expectedSha256 && input.expectedSha256 !== inspected.sourceSha256) {
     throw new ApplicationError(409, "The uploaded file does not match its build receipt");
   }
   const name = safeFilename(filename);
-  const validated = validateDocumentFile(name, inspected.head, inspected.sizeBytes);
+  const validated = fileType === "md" && name.toLowerCase().endsWith(".md") &&
+    inspected.sizeBytes === 0 && hasResearchManifest(input.parts)
+    ? { ok: true as const, fileType: "md" } : validateDocumentFile(name, inspected.head, inspected.sizeBytes);
   if (!validated.ok || validated.fileType !== fileType.toLowerCase()) {
     throw new ApplicationError(400,
       validated.ok ? "Filename and document type do not match" : validated.error);
@@ -244,7 +252,7 @@ export function createDocumentApplication(repository: DocumentRepository,
     versionNumber: number; source: string; filename: string;
     ownerUserId: string; projectId: string | null; parentVersionId: string | null;
     provenance?: DocumentProvenance;
-    comment?: string | null; } & DocumentFile) => {
+    comment?: string | null; parts?: DocumentPartFile[] | DocumentPartsChange; } & DocumentFile) => {
     const id = randomUUID();
     const { filename, fileType, sizeBytes, sourceSha256 } = await validateUpload(input);
     const blobKey = documentBlobKey({ userId: input.ownerUserId,
@@ -348,12 +356,40 @@ export function createDocumentApplication(repository: DocumentRepository,
       fileType: usePdf ? "pdf" : version.fileType, filename: editedFilename(version) };
   };
 
+  const normalizeResearchArtifact = async (file: DocumentFile) => {
+    if (file.fileType !== "md" || !("bytes" in file) &&
+        !file.filename.toLowerCase().endsWith(".research.md")) return null;
+    const bytes = "bytes" in file ? file.bytes : await readFile(file.path);
+    const state = parseResearchFile(bytes);
+    if (!state) return null;
+    // Verify the submitted artifact before converting its representation.
+    await validateUpload(file);
+    return { bytes: Buffer.from(state.note), expectedSha256: undefined,
+      part: { name: RESEARCH_MANIFEST_PART, bytes: researchManifestBytes(state) } };
+  };
+  const portableResearchContent = async (scope: DocumentScope,
+    documentId: string, content: Awaited<ReturnType<typeof loadVersion>>) => {
+    if (!content || content.fileType !== "md") return content;
+    const manifest = (await application.readParts(scope, documentId,
+      content.version.id, [RESEARCH_MANIFEST_PART]))?.[0];
+    if (!manifest) return content;
+    const state = readResearchManifest(manifest.bytes, content.bytes);
+    if (!state) throw new ApplicationError(409, "Research data changed or is unavailable.");
+    const bytes = Buffer.from(researchFileMarkdown(
+      content.filename.replace(/\.research\.md$/iu, ""), state));
+    return { ...content, bytes, sha256: sha256(bytes) };
+  };
+
   const add = async (scope: DocumentScope,
     aggregate: Pick<DocumentAggregate, "document" | "versions">,
     file: DocumentFile & { comment?: string | null; parts?: DocumentPartsChange }, input?: {
       source?: string; provenance?: DocumentProvenance; edits?: StoredAssistantEdit[] }) => {
     const current = activeVersion(aggregate);
     if (!current) return null;
+    const normalized = await normalizeResearchArtifact(file);
+    if (normalized) file = { ...file, bytes: normalized.bytes, expectedSha256: undefined,
+      parts: { ...file.parts, put: [...(file.parts?.put ?? []).filter(
+        ({ name }) => name !== RESEARCH_MANIFEST_PART), normalized.part] } };
     const version = await makeVersion({ scope, documentId: aggregate.document.id,
       versionNumber: current.versionNumber + 1,
       ownerUserId: aggregate.document.userId, projectId: aggregate.document.projectId,
@@ -421,6 +457,10 @@ export function createDocumentApplication(repository: DocumentRepository,
       resolveEdits?: { ids: string[]; status: StoredAssistantEdit["status"] };
       parts?: DocumentPartsChange;
     }) => {
+    const normalized = await normalizeResearchArtifact(input);
+    if (normalized) input = { ...input, bytes: normalized.bytes, expectedSha256: undefined,
+      parts: { ...input.parts, put: [...(input.parts?.put ?? []).filter(
+        ({ name }) => name !== RESEARCH_MANIFEST_PART), normalized.part] } };
     const { filename, fileType, sizeBytes, sourceSha256 } = await validateUpload(input);
     const key = documentBlobKey(owner, sourceSha256);
     await writeBlob(key,
@@ -494,6 +534,9 @@ export function createDocumentApplication(repository: DocumentRepository,
     },
 
     async create(scope, input) {
+      const normalized = await normalizeResearchArtifact(input);
+      if (normalized) input = { ...input, bytes: normalized.bytes, expectedSha256: undefined,
+        parts: [...(input.parts ?? []).filter(({ name }) => name !== RESEARCH_MANIFEST_PART), normalized.part] };
       const libraryKind = (input.libraryKind ?? "file") as LibraryKind,
         projectId = input.projectId ?? null, folderId = input.folderId ?? null;
       const authorization = await repository.authorizeCreate(
@@ -601,8 +644,12 @@ export function createDocumentApplication(repository: DocumentRepository,
       if (maxBytes !== undefined && versions.reduce((bytes, version) =>
         bytes + version.sizeBytes, 0) > maxBytes)
         throw new ApplicationError(413, "Selected documents exceed the archive size limit");
-      const loaded = await mapBounded(versions, (version) => loadVersion(version));
-      return loaded.flatMap((value) => value ? [value] : []);
+      const loaded = await mapBounded(versions, async (version) =>
+        portableResearchContent(scope, version.documentId, await loadVersion(version)));
+      const files = loaded.flatMap((value) => value ? [value] : []);
+      if (maxBytes !== undefined && files.reduce((bytes, file) => bytes + file.bytes.length, 0) > maxBytes)
+        throw new ApplicationError(413, "Selected documents exceed the archive size limit");
+      return files;
     },
 
     async read(scope, documentId, versionId, preferPdf) {
@@ -710,7 +757,9 @@ export function createDocumentApplication(repository: DocumentRepository,
           version: responseVersion(current), filename: selected.filename,
           fileType: selected.fileType, hasPdfRendition: !!current.pdfBlobKey } };
       }
-      if (!evidence && objects.signedGet && selected.key === selected.version.blobKey) {
+      const researchManifest = selected.fileType === "md" && (await application.readParts(
+        scope, documentId, selected.version.id, [RESEARCH_MANIFEST_PART]))?.[0];
+      if (!researchManifest && !evidence && objects.signedGet && selected.key === selected.version.blobKey) {
         if (documentBlobDigest(selected.key) !== selected.version.sourceSha256)
           throw new Error("Stored document failed its integrity check");
         const url = await objects.signedGet(selected.key, {
@@ -727,7 +776,8 @@ export function createDocumentApplication(repository: DocumentRepository,
         selected.version, selected.key, selected.fileType, selected.filename);
       if (loaded && evidence) await availableEvidence(() => documentProjectionService.verifyPdfEvidence(
         loaded.bytes, evidence, projectionReference(documentId, selected.version)));
-      return loaded ? { kind: "bytes", content: loaded } : null;
+      const content = await portableResearchContent(scope, documentId, loaded);
+      return content ? { kind: "bytes", content } : null;
     },
 
     async versions(scope, documentId) {

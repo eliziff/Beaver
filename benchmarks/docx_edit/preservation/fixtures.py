@@ -6,7 +6,7 @@ import copy, hashlib, json, pathlib, random, xml.etree.ElementTree as ET, zipfil
 from io import BytesIO
 from xml.sax.saxutils import escape
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-FROZEN = ROOT / '.tmp/cloud-docx-hillclimb/frozen'
+FROZEN = ROOT / 'benchmarks/local-data/docx-preservation/frozen'
 W='http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 R='http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 P='http://schemas.openxmlformats.org/package/2006/relationships'

@@ -1,4 +1,3 @@
-import { legalSourceOperations } from "../legalSourceApplication";
 import crypto from "node:crypto";
 import type { ExtractResponse } from "legal-citations";
 
@@ -633,6 +632,7 @@ export async function restorePriorLegalEvidence(
               : null;
           }
           if (!providerSource) return null;
+          const { legalSourceOperations } = await import("../legalSourceApplication");
           const read = await legalSourceOperations.readPassage({
             source: providerSource,
             signal,

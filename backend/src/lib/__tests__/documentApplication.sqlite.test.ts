@@ -122,6 +122,32 @@ describe("SQLite and filesystem document adapters", () => {
     ]);
   });
 
+  it("stores research state once beside its editable memo and exports the portable artifact", async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = root;
+    process.env.AUTH_MODE = "local";
+    const { documents } = await localStores(), scope = { userId: "local-user" },
+      research = await import("../researchFile"), artifact = await import("../researchArtifact"),
+      state = { ...research.createResearchFileState(), note: "A separately authored public-example memo." };
+    const created = await documents.create(scope, { filename: "Example.research.md", fileType: "md",
+      bytes: Buffer.from(research.researchFileMarkdown("Example", state)) });
+    expect((await documents.read(scope, created.id, null, false))?.bytes.toString()).toBe(state.note);
+    const manifest = (await documents.readParts(scope, created.id, null, [artifact.RESEARCH_MANIFEST_PART]))![0];
+    expect(JSON.parse(manifest.bytes.toString())).not.toHaveProperty("note");
+    const current = (await research.readResearchFile(documents, scope, created.id))!;
+    const updated = (await research.commitResearchFile(documents, scope, current,
+      { type: "note", markdown: "A revised memo.", expectedMarkdown: state.note }))!;
+    expect(updated.state.note).toBe("A revised memo.");
+    const exported = await documents.download(scope, created.id, null,
+      { preferPdf: false, disposition: "attachment" });
+    expect(exported?.kind).toBe("bytes");
+    if (exported?.kind !== "bytes") throw new Error("Expected a portable research artifact");
+    expect(research.parseResearchFile(exported.content.bytes)?.note).toBe(updated.state.note);
+    const [archived] = await documents.files(scope, [created.id]);
+    expect(archived.bytes).toEqual(exported.content.bytes);
+    await expect(documents.files(scope, [created.id], archived.bytes.length - 1)).rejects.toMatchObject({ status: 413 });
+  });
+
   it("versions, moves, validates, and cleans named CAS parts", async () => {
     root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = root;

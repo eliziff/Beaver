@@ -26,12 +26,11 @@ function decodePageCursor(
         !/^[A-Za-z0-9_-]+$/u.test(value)) throw 0;
     const cursor = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
     const scalar = (item: unknown) => item === null ||
-      ["string", "number", "boolean"].includes(typeof item);
-    if (!cursor || Array.isArray(cursor) ||
+      (typeof item === "number" ? Number.isFinite(item) : ["string", "boolean"].includes(typeof item));
+    if (!cursor ||
         Object.keys(cursor).sort().join() !== "after,filters,resource,v" ||
         cursor.v !== 1 || cursor.resource !== resource ||
         !cursor.filters || Array.isArray(cursor.filters) ||
-        Object.values(cursor.filters).some((item) => !scalar(item)) ||
         canonical(cursor.filters) !== canonical(filters) ||
         !Array.isArray(cursor.after) || cursor.after.length !== shape.length ||
         cursor.after.some((item: unknown, index: number) =>

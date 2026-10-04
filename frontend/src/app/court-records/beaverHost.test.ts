@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { WorkProduct } from "@/app/lib/workProducts";
 import { courtRecordOutputReceipts } from "./beaverHost";

@@ -18,21 +18,12 @@ import {
 import {
   type LegalSourceReference,
 } from "../legalSources";
-import { fixDocxSupras } from "../docxDeterministicCleanup";
-import { createDocxAuthorityLedger,
-  docxCitationEntries, resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import {
   DEFAULT_DRAFTING_STYLE,
   resolveDraftingOptions,
   type DraftingStyleSettings,
 } from "../draftingStyle";
-import {
-  applyTrackedEdits,
-  extractDocxBodyText,
-  finalizeTrackedEdits,
-  insertTrackedBlocks,
-  type EditMode,
-} from "../docxTrackedChanges";
+import type { EditMode } from "../docxTrackedChanges";
 import type { LibraryPageItem, LibraryStore } from "../libraryStore";
 import type { ProjectDirectoryItem, ProjectStore } from "../projectStore";
 import type {
@@ -88,10 +79,7 @@ import {
   searchSources,
 } from "./tools/sourceSearchTools";
 import { createLegalSourceSearchCitations } from "./citations";
-import {
-  applyTextOpsToDocx,
-  type TextOpRequest,
-} from "../docxTextOps";
+import type { TextOpRequest } from "../docxTextOps";
 import {
   buildPptxPresentation,
   presentationFromMarkdown,
@@ -106,9 +94,7 @@ import {
 } from "./tools/toolSchemas";
 import { jsonRecord as objectRecord, trimmedText as trimmed } from "../value";
 import { RESOURCE_TOOLS, globPattern as globRegExp } from "./resourceTools";
-import { checkQuotes, decodeQuoteLinks } from "../quoteCheck";
-import { createAuthoritiesImporter } from "../authoritiesImport";
-import { saveQuoteCheckWorkbook } from "../quoteCheckWorkbook";
+import type { checkQuotes } from "../quoteCheck";
 import {
   workProductEvent, workProductResult,
 } from "./localWorkflowRun";
@@ -477,7 +463,7 @@ async function saveDocxEdits(params: {
   const finalized = params.emissionMode === "auto"
     ? { bytes: params.bytes, status: "accepted" as const }
     : params.edits.length
-    ? await finalizeTrackedEdits(
+    ? await (await import("../docxTrackedChanges")).finalizeTrackedEdits(
         params.bytes,
         params.edits.flatMap((edit) =>
           [edit.delWId, edit.insWId].filter((id): id is string => !!id),
@@ -959,7 +945,7 @@ async function runCodingShapeCall(
       documents, scope, documentId: meta.id, source: file, bytes, edits,
       turnEditState, turnId, editMode, emissionMode });
     if (args.replace_all === true) {
-      const applied = await applyTextOpsToDocx(file.bytes, [{
+      const applied = await (await import("../docxTextOps")).applyTextOpsToDocx(file.bytes, [{
         op: "replace_text",
         find: oldString,
         replace: newString,
@@ -971,14 +957,14 @@ async function runCodingShapeCall(
         ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}) });
       return save(applied.bytes, applied.edits, applied.emissionMode);
     }
-    const applied = await applyTrackedEdits(file.bytes, [{
+    const applied = await (await import("../docxTrackedChanges")).applyTrackedEdits(file.bytes, [{
       find: oldString,
       replace: newString,
       context_before: "",
       context_after: "",
     }], { author: editAuthor, mode: editMode });
     if (!applied.changes.length) {
-      const sourceText = await extractDocxBodyText(file.bytes);
+      const sourceText = await (await import("../docxTrackedChanges")).extractDocxBodyText(file.bytes);
       const spans: string[] = [];
       for (let at = 0; at < sourceText.length && spans.length < 40; at += 12_000)
         spans.push(sourceText.slice(at, at + 15_000));
@@ -1455,7 +1441,7 @@ async function runAdvancedDocxEdit(params: {
       });
     }
     const applied = blockInsert
-      ? await insertTrackedBlocks(file.bytes, blockInsert, { author: params.editAuthor }).then(
+      ? await (await import("../docxTrackedChanges")).insertTrackedBlocks(file.bytes, blockInsert, { author: params.editAuthor }).then(
           (inserted) => ({
             bytes: inserted.bytes,
             edits: assistantEdits(inserted.changes),
@@ -1471,7 +1457,7 @@ async function runAdvancedDocxEdit(params: {
             ),
           }),
         )
-      : await applyTextOpsToDocx(file.bytes, resolvedRequests, params.editAuthor, params.editMode);
+      : await (await import("../docxTextOps")).applyTextOpsToDocx(file.bytes, resolvedRequests, params.editAuthor, params.editMode);
     if (!applied.replacementCount || !applied.edits.length) {
       return result({
         ...(!applied.replacementCount ? noChanges(params.documentId, file) : {
@@ -1509,7 +1495,7 @@ async function runDocxWorkflow(
 ): Promise<AssistantOutcome> {
   const file = await activeDocx(documents, scope, documentId, versionId);
   if (action === "fix_supras") {
-    const cleanup = await fixDocxSupras(file.bytes);
+    const cleanup = await (await import("../docxDeterministicCleanup")).fixDocxSupras(file.bytes);
     if (!cleanup.changes.length) return result({ ok: true, action: "no_changes",
       document_id: documentId, version_id: file.version.id,
       ...cleanup, bytes: undefined, changes: undefined });
@@ -1826,6 +1812,8 @@ export function assistantTools<Context extends {
           : await buildPptxPresentation(presentationFromMarkdown(markdown));
         return persistGenerated(filename, bytes);
       }
+      const { docxCitationEntries, resolveDocxEvidenceCitations, createDocxAuthorityLedger } =
+        await import("../docxEvidenceCitations");
       const generatedAt = new Date();
       const drafting = resolveDraftingOptions(
         args,
@@ -2886,6 +2874,9 @@ export function assistantTools<Context extends {
         if (legalEvidenceState) (legalEvidenceState.reviewDocumentIds ??= new Set()).add(document.documentId);
         const source = await documents.projectionSource(scope, document.documentId, document.versionId);
         if (!source) throw new Error("Document version not found.");
+        const [{ createAuthoritiesImporter }, { checkQuotes, decodeQuoteLinks }] = await Promise.all([
+          import("../authoritiesImport"), import("../quoteCheck"),
+        ]);
         const draft = await createAuthoritiesImporter(documents).draft(scope, {
           kind: "document", documentId: document.documentId,
           version: { versionId: document.versionId, sha256: source.sourceSha256 } });
@@ -2900,7 +2891,7 @@ export function assistantTools<Context extends {
               typeof item.text !== "string" || item.text.length > 20000))) throw new Error("Invalid per-quote analysis.");
           const analysis = input.analysis === undefined ? undefined : Object.fromEntries(
             (input.analysis as Array<{ quoteId: string; text: string }>).map(({ quoteId, text }) => [quoteId, text]));
-          const workbook = await saveQuoteCheckWorkbook(documents, scope, document.documentId,
+          const workbook = await (await import("../quoteCheckWorkbook")).saveQuoteCheckWorkbook(documents, scope, document.documentId,
             report, analysis, document.versionId);
           allowedDocumentIds?.add(workbook.id);
           return artifactResult({ type: "document_artifact", action: "created", document_id: workbook.id,

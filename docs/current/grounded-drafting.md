@@ -554,7 +554,7 @@ Replay the public-interest-standing memo request that read paragraphs 48-74:
   metadata, and neither produces a placeholder, duplicated title, or malformed
   punctuation.
 - A real long journal citation in a narrow chat column wraps inside its pill;
-  ChromeDriver verifies that the pill's `scrollWidth` does not exceed its
+  Playwright verifies that the pill's `scrollWidth` does not exceed its
   available width and a screenshot verifies the multi-line shape.
 - A citation pill, DOCX footnote, activity source, and viewer highlight for the
   same receipt carry one authority identity and one passage destination.
