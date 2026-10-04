@@ -7,7 +7,7 @@ import { courtCover } from "../../../../shared/authorities-cover.mjs";
 import { OptionCards, type CardOption } from "./OptionCards";
 import { authoritiesProfile } from "./profiles";
 import { MarkingSample, passageOptions } from "./AuthoritiesHighlightEditor";
-import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, FrontPreview, FrontSource, FrontSourcePreview, IndexFields,
+import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, PREVIEW_KEYS, FrontPreview, FrontSource, FrontSourcePreview, IndexFields,
   Preview, previewActions, previewBook, StepTabs, useFilingContact, type FrontSlot, type OwnFront, type OwnPdfs,
   type Settings } from "./BookFront";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost } from "./host";
@@ -140,7 +140,7 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
     (["cover", "index"] as const).flatMap((slot) => book && own[slot].own && own[slot].chosen ? [[slot, own[slot].chosen!] as const] : []));
   const busy = finishing;
   const front = previewBook(host, draft);
-  const frontActions = front ? importActions(front.state, profileId, settings, shownCover, FRONT_KEYS) : [];
+  const frontActions = front ? importActions(front.state, profileId, settings, shownCover, PREVIEW_KEYS) : [];
   const steps: readonly string[] = book ? BOOK_STEPS : TABLE_STEPS, at = Math.min(step, steps.length - 1), name = steps[at];
   const last = at === steps.length - 1;
   // The court is the cover's first field (above the sources, where the court takes no book).
