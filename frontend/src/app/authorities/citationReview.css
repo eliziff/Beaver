@@ -17,6 +17,8 @@
 .citation-note{display:grid;grid-template-columns:1.6rem minmax(0,1fr);align-items:start;margin-bottom:.5rem}
 .citation-note>div{min-width:0;border-inline-start:1px solid #d1d5db;padding-inline-start:.35rem}
 .citation-note-number{padding-top:.35rem;line-height:1.225rem;color:#374151;font-size:.8125rem;font-weight:650;text-align:center}
+/* With no citations found, a quiet line says so above the brief, and how to add one. */
+.citation-none{margin:.25rem .5rem .75rem;color:var(--color-gray-500);font-size:.8125rem;line-height:1.4}
 .citation-dismissed{margin-top:1.2rem;color:#6b7280}
 .citation-dismissed summary{cursor:pointer;margin:0 .5rem .3rem;font-size:.8125rem;font-weight:650;color:#4b5563}
 .citation-dismissed>div{display:flex;align-items:center;gap:.4rem;padding:0 .5rem}

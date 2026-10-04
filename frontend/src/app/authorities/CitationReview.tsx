@@ -115,12 +115,12 @@ const PINPOINTS = 3;
  * more show as one count. The chips are drawn anew whenever any pinpoint changes, so none ever
  * slides along the row. */
 function PinpointChips({ occurrence, unitText, adding, hint, onSet, onAdd }: {
-  occurrence: AuthorityOccurrence; unitText: string; adding: boolean; hint: string; onSet(pinpoints: PinpointEdit): void; onAdd(): void;
+  occurrence?: AuthorityOccurrence; unitText: string; adding: boolean; hint: string; onSet(pinpoints: PinpointEdit): void; onAdd(): void;
 }) {
-  const pins = placedPins(occurrence), shown = pins.length > PINPOINTS ? pins.slice(0, PINPOINTS - 1) : pins;
+  const pins = occurrence ? placedPins(occurrence) : [], shown = pins.length > PINPOINTS ? pins.slice(0, PINPOINTS - 1) : pins;
   const label = (pin: Pin) => `${KINDS[pin.kind]?.[0] ?? pin.kind} ${unitText.slice(pin.start, pin.end).replace(/\s+/gu, ' ')}`;
   const full = pins.length >= PINPOINTS, list = useRef<HTMLUListElement>(null);
-  const drawn = `${occurrence.id}:${pins.map(({ start, end, kind }) => `${start}-${end}-${kind}`).join()}`;
+  const drawn = `${occurrence?.id}:${pins.map(({ start, end, kind }) => `${start}-${end}-${kind}`).join()}`;
   // A kind stepped from the keyboard keeps the focus on that chip's symbol.
   const refocus = useRef<number | null>(null);
   useLayoutEffect(() => {
@@ -485,8 +485,6 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   });
   const findings = useMemo(() => new Set(discrepancies.map(item => item.occurrenceId)), [discrepancies]);
   const outline = <Outline product={product} occurrences={occurrences} findings={findings} busy={busy} onRestore={restore} />;
-  if (!selected || !unit) return <div className="p-8 text-sm text-gray-500">
-    <p>No citations found.</p>{outline}</div>;
   // An edit shows at once: the drag or nudge it previewed gives way to the citation as edited.
   const submit = (action: AuthoritiesAction, then?: (next: AuthoritiesProduct) => void) => {
     preview.current = {};
@@ -502,6 +500,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   };
   // The reviewer keeps their place: the next citation becomes active where the view already is.
   const remove = () => {
+    if (!selected) return;
     const next = navigation[index + 1] ?? navigation[index - 1];
     submit({ type: 'remove-occurrence', occurrenceId: selected.id }, () => { if (next) choose(next.id, false); });
   };
@@ -512,17 +511,18 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       const item = product.state.occurrences[id];
       return item && item.start < span.end && span.start < item.end;
     }) : [];
-    return !span ? null : touched.includes(selected.id) ? 'active' : touched.length ? 'other' : 'new';
+    return !span ? null : selected && touched.includes(selected.id) ? 'active' : touched.length ? 'other' : 'new';
   };
   const intent = intentOf(selection);
-  const pins = placedPins(selected);
+  const pins = selected ? placedPins(selected) : [];
   /** A selection that can be a pinpoint of the active citation: in its unit, clear of its authority
    * and of its other pinpoints, inside its range or not. */
-  const pinTarget = (span = selection) => span && span.unitId === selected.unitId && span.end > span.start &&
+  const pinTarget = (span = selection) => selected && span && span.unitId === selected.unitId && span.end > span.start &&
     !(span.start < selected.authoritySpan.end && selected.authoritySpan.start < span.end) &&
     !pins.some(pin => pin.start < span.end && span.start < pin.end) && pins.length < PINPOINTS ? span : null;
   /** Why the selection cannot be added as a pinpoint, or how to add one. */
-  const pinHint = (span = selection) => !span ? 'Select the pinpoint in the text, then add it (P)'
+  const pinHint = (span = selection) => !selected ? 'Choose a citation to add its pinpoints'
+    : !span ? 'Select the pinpoint in the text, then add it (P)'
     : span.unitId !== selected.unitId ? 'Select the pinpoint in this citation’s paragraph or footnote'
     : span.start < selected.authoritySpan.end && selected.authoritySpan.start < span.end ? 'Select the pinpoint without the authority'
     : pins.some(pin => pin.start < span.end && span.start < pin.end) ? 'This text is already a pinpoint'
@@ -530,8 +530,9 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   /** The selection becomes a pinpoint with the kind its words give it ("at para" a paragraph): read
    * in a few milliseconds, so the chip shows whole; a read that lags leaves the kind to the save. */
   const addPinpoint = async (span = selection) => {
-    const target = pinTarget(span), occurrenceId = selected.id, kept = edit(pins);
-    if (!target) return;
+    const target = pinTarget(span);
+    if (!target || !selected || !unit) return;
+    const occurrenceId = selected.id, kept = edit(pins);
     const read = host.readPinpoints?.(unit.text, target.start, target.end).catch(() => null);
     const found = read && await Promise.race([read, new Promise<null>(resolve => setTimeout(resolve, 25, null))]);
     submit({ type: 'set-pinpoints', occurrenceId, pinpoints: [...kept, ...found?.length
@@ -550,7 +551,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   /** Moves one edge of the active citation a word; the range commits once the keys rest. */
   const nudgeEdge = (side: 'start' | 'end', direction: 1 | -1) => {
     const found = locate();
-    if (!found) return;
+    if (!found || !selected) return;
     const { text } = found, id = selected.id;
     const now = nudge.current?.id === id ? nudge.current : { from: text.index(selected.start), to: text.index(selected.end) };
     const edge = side === 'start' ? text.next(now.from, 'start', direction, 0, now.to - 1)
@@ -580,13 +581,13 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
    * release commits once and Escape cancels. */
   const grab = (event: ReactPointerEvent) => {
     const grip = (event.target as HTMLElement).closest<HTMLElement>('.citation-grip')?.dataset.grip;
-    const found = grip && locate(), root = documentRef.current;
+    const found = grip && selected && locate(), root = documentRef.current;
     // The overlay holds the pointer while dragging: its few shapes take the drag cursor, not the whole text.
     const holder = (event.target as HTMLElement).closest<HTMLElement>('.citation-overlay');
     if (!grip) return false;
     // A grip never starts a text selection, even while an edit is saving.
     event.preventDefault();
-    if (!found || !root || !holder || busy || event.button !== 0) return true;
+    if (!found || !selected || !root || !holder || busy || event.button !== 0) return true;
     flushNudge();
     const { text } = found, side = grip === 'start' ? 'start' : 'end', pointer = event.pointerId;
     let from = text.index(selected.start), to = text.index(selected.end), point: { x: number; y: number } | undefined, raf = 0;
@@ -644,7 +645,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     const listed = element.getAttribute('role') === 'option';
     if (key === 'ArrowUp' || key === 'ArrowDown') step(key === 'ArrowDown' ? 1 : -1, listed);
     else if (listed && (key === 'Home' || key === 'End')) step(key === 'Home' ? -Infinity : Infinity, true);
-    else if (key === 'Enter' && meaning === 'active' && now && !element.closest('button'))
+    else if (key === 'Enter' && meaning === 'active' && now && selected && !element.closest('button'))
       submit({ type: 'set-citation-range', occurrenceId: selected.id, start: now.start, end: now.end });
     else if ((key === 'Enter' && !element.closest('button') || key === 'n' || key === 'N') && meaning === 'new') addCitation(now);
     else if ((key === 'p' || key === 'P') && pinTarget(now)) addPinpoint(now);
@@ -658,10 +659,10 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   // Only a supra, ibid or short form names its authority by reference, so only it is asked what it
   // refers to; a full citation's authority is read from its own text.
   // A bare name ("Jordan at para 46") is a short form too, though the engine reads it as a reference.
-  const reference = selected.kind === 'reference', referenceKind = selected.reference?.kind ?? selected.referenceKind ?? (reference ? 'short' : undefined);
-  const linked = authorityById.get(selected.reference?.targetAuthorityId ?? selected.authorityId ?? '');
+  const reference = selected?.kind === 'reference', referenceKind = selected?.reference?.kind ?? selected?.referenceKind ?? (reference ? 'short' : undefined);
+  const linked = authorityById.get(selected?.reference?.targetAuthorityId ?? selected?.authorityId ?? '');
   // It can refer only to an authority cited in full before it, in the order the brief is read.
-  const earlier = reference ? readingOrder(units, product.state.occurrences, selected.id) : [];
+  const earlier = reference && selected ? readingOrder(units, product.state.occurrences, selected.id) : [];
   const options = [...new Map(earlier.flatMap(row => {
     const authority = row.kind !== 'reference' && authorityById.get(row.authorityId ?? ''), place = unitById.get(row.unitId);
     if (!authority || !place) return [];
@@ -669,9 +670,9 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     return [[`${note}\0${authority.id}`, { authorityId: authority.id, section: note ? 'Footnotes' : 'In-text', note,
       label: authorityName(authority), description: authorityCitationLine(product.state, authority) } as AuthorityOption]] as const;
   })).values()];
-  const link = (authorityId: string | null) => referenceKind && submit({ type: 'set-reference', occurrenceId: selected.id,
+  const link = (authorityId: string | null) => referenceKind && selected && submit({ type: 'set-reference', occurrenceId: selected.id,
     reference: authorityId ? { kind: referenceKind, targetAuthorityId: authorityId } : null });
-  const finding = discrepancies.find(item => item.occurrenceId === selected.id);
+  const finding = selected && discrepancies.find(item => item.occurrenceId === selected.id);
   return <div ref={reviewRef} className="authorities-review citation-review" tabIndex={-1} onKeyDown={keys}
     onFocus={event => { focused.current = event.target as HTMLElement; }}
     onMouseDown={event => {
@@ -686,6 +687,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       const id = (event.target as Element).closest<HTMLElement>('[role=option]')?.dataset.id;
       if (id) choose(id, true);
     }}>
+      {/* With none found, the brief still shows, so citations can be added from it by hand. */}
+      {!navigation.length && <p className="citation-none">No citations were found. Select one in the brief and choose Add citation.</p>}
       {outline}
     </div>
     <div ref={documentRef} className="citation-document"
@@ -710,7 +713,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
         : <DocxCanvas bytes={source.buffer} maxZoom={1.25} onReady={() => setReady(value => value + 1)}
           onUnavailable={() => setError('The document preview could not be opened.')} />
         : !error && <p className="citation-source-status" role="status">Opening document…</p>}
-      {(error || source && !located && ready > 0) && <div className="citation-fallback" data-full={error ? '' : undefined}>
+      {unit && (error || source && !located && ready > 0) && <div className="citation-fallback" data-full={error ? '' : undefined}>
         <p>{error || 'This passage could not be located in the document.'}</p>
         <div ref={fallbackRef} contentEditable suppressContentEditableWarning role="textbox" aria-readonly="true"
           aria-multiline="true" aria-label={`${unit.kind === 'footnote' ? 'Footnote' : 'In-text citation'} context`}
@@ -725,13 +728,13 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
         <Button variant="ghost" size="icon-sm" aria-label="Previous citation" title="Previous citation (↑)"
           aria-keyshortcuts="ArrowUp" disabled={index < 1} onClick={() => step(-1)}><ChevronLeft /></Button>
         <Button variant="ghost" size="icon-sm" aria-label="Next citation" title="Next citation (↓)" aria-keyshortcuts="ArrowDown"
-          disabled={index === navigation.length - 1} onClick={() => step(1)}><ChevronRight /></Button>
-        <span>{index + 1} of {navigation.length}</span>
+          disabled={index >= navigation.length - 1} onClick={() => step(1)}><ChevronRight /></Button>
+        <span>{navigation.length ? index + 1 : 0} of {navigation.length}</span>
       </div>
       <div role="group" aria-label="Edit citation" className="citation-edit">
         <button type="button" disabled={busy || intent !== 'new'} onClick={() => addCitation()} aria-keyshortcuts="N"
           title={intent === 'other' ? 'The selection overlaps another citation' : 'Add the selected text as a citation (N)'}>Add citation</button>
-        <button type="button" disabled={busy} onClick={remove} aria-keyshortcuts="Delete"
+        <button type="button" disabled={busy || !selected} onClick={remove} aria-keyshortcuts="Delete"
           title="Not a citation (Delete). Ctrl+Z puts it back">Remove</button>
       </div>
       {/* Every citation shows its authority; only a supra, ibid or short form can be pointed at another. */}
@@ -748,8 +751,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
           : finding.kind === 'quote_unlocated' ? 'Quote not found in source: open it' : 'Quote differs from source: open it'}
         onClick={() => finding && onReview(finding.id)}><TextQuote aria-hidden="true" /></button>
       <span className="citation-label" data-row="2" aria-hidden="true">Pinpoints</span>
-      <PinpointChips occurrence={selected} unitText={unit.text} adding={!!pinTarget()} hint={pinHint()}
-        onSet={pinpoints => submit({ type: 'set-pinpoints', occurrenceId: selected.id, pinpoints })} onAdd={() => addPinpoint()} />
+      <PinpointChips occurrence={selected} unitText={unit?.text ?? ''} adding={!!pinTarget()} hint={pinHint()}
+        onSet={pinpoints => selected && submit({ type: 'set-pinpoints', occurrenceId: selected.id, pinpoints })} onAdd={() => addPinpoint()} />
     </div>
   </div>;
 }
