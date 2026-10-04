@@ -465,9 +465,13 @@ export async function renderAuthoritySourcePdf(input: {
       x += run.font.widthOfTextAtSize(run.text, size);
     }
   };
-  // The shared provider grammar reads the source's sections; where each block lands gives
+  const statute = input.kind === "legislation" ? structureNative().statuteOutline(input.text) : [];
+  // A judgment whose paragraphs the structure layer does not number is laid out from its Markdown.
+  const read = input.kind === "case" ? structureNative().caseOutline(input.text) : [];
+  const judgment = read.some((entry) => entry.kind === "paragraph") ? read : [];
+  // Otherwise the shared provider grammar reads the source's sections; where each block lands gives
   // the outline its pages, and a provision's depth its indent.
-  const structured = input.kind === "case" || input.kind === "legislation" ? await structureNative()
+  const structured = !statute.length && !judgment.length && (input.kind === "case" || input.kind === "legislation") ? await structureNative()
     .deriveDocumentStructure({ kind: "provider_text", input: { provider: "a2aj", citation: input.citation,
       source_kind: input.kind === "case" ? "cases" : "laws", text: input.text } }).catch(() => null) : null;
   const sections = structured ? structureNative().documentOutline(structured) : [];
@@ -479,15 +483,19 @@ export async function renderAuthoritySourcePdf(input: {
   // Paragraphs sit about half a line apart, whether the source parts them with a blank
   // line or a single newline; a heading takes a little more above it. A gap never opens a page.
   const gap = (size: number) => size * .6, atTop = () => y >= height - top;
-  const draw = (runs: Run[], indent = 0, size = 10.5, heading = false) => {
+  // `marker` hangs in the margin of the block's first line, `x` from the left margin: a
+  // paragraph's number, a list item's enumerator.
+  const draw = (runs: Run[], indent = 0, size = 10.5, heading = false, marker?: { runs: Run[]; x: number }) => {
     const leading = size + 4, lines = layout(runs, size, width - left - right - indent);
     if (heading && !atTop()) y -= gap(size);
-    const extent = lines.length * leading + lines.filter(line => line.opens).length * gap(size);
+    // A short block keeps together; a longer one runs on from the page it starts on.
+    const extent = Math.min(lines.length, 6) * leading + lines.filter(line => line.opens).length * gap(size);
     if (extent <= height - top - bottom - 18 && y - extent < bottom + 18) { current = page(); y = height - top; }
-    for (const line of lines) {
+    for (const [index, line] of lines.entries()) {
       if (line.opens && !atTop()) y -= gap(size);
       if (y < bottom + leading) { current = page(); y = height - top; }
       if (placing) { placed.push({ ...placing, pageIndex: pages.length - 1 }); placing = null; }
+      if (marker && !index) drawLine(marker.runs, left + marker.x, size);
       drawLine(line, left + indent, size);
       y -= leading;
     }
@@ -544,7 +552,7 @@ export async function renderAuthoritySourcePdf(input: {
   // A statute is laid out from the outline the structure layer reads from its text: its parts and
   // headings, and each provision under its marginal note, indented a step for each level below its
   // section. Anything else is laid out from its Markdown.
-  const statute = input.kind === "legislation" ? structureNative().statuteOutline(input.text) : [];
+
   if (statute.length) {
     const provision = (kind: string) => !["part", "division", "heading", "schedule"].includes(kind);
     // The words before the first heading (the long title, an enacting formula), without the title
@@ -580,10 +588,26 @@ export async function renderAuthoritySourcePdf(input: {
       for (const paragraph of rest) draw([{ text: paragraph, font: serif }], indent);
       carried = [];
     }
+  } else if (judgment.length) {
+    // A judgment is laid out from the outline the structure layer reads from its text: its headings
+    // sized by level, each numbered paragraph with its number hanging in the margin, and the lists
+    // within a paragraph indented a step for each level.
+    for (const entry of judgment) {
+      const title = [entry.label, entry.text].filter(Boolean).join(" ");
+      placing = { start: entry.start, ...(entry.kind === "heading" ? { heading: entry.level + 2, title } : {}) };
+      if (entry.kind === "heading") draw([{ text: title, font: bold }], 0, [13, 12, 11][Math.min(entry.level, 2)], true);
+      else if (entry.kind === "paragraph") draw([{ text: entry.text, font: serif }], 36, 10.5, false,
+        { runs: [{ text: entry.label, font: bold }], x: 0 });
+      else if (entry.kind === "item") draw([{ text: entry.text, font: serif }], 36 + 22 * entry.level, 10.5, false,
+        { runs: [{ text: entry.label, font: serif }], x: 36 + 22 * (entry.level - 1) });
+      else draw([{ text: entry.text, font: serif }], entry.level ? 36 : 0);
+    }
   } else block(fromMarkdown(input.text, { extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()] }));
   // Headings below the title, then each top-level section titled with its marginal note.
   let headingLevel = 0;
-  const outline = statute.length ? nestedOutline(placed.filter((item) => item.heading || item.note === undefined &&
+  const outline = judgment.length ? nestedOutline(placed.filter((item) => item.heading)
+    .map((item) => ({ title: pdfText(item.title!), level: item.heading!, pageIndex: item.pageIndex })))
+    : statute.length ? nestedOutline(placed.filter((item) => item.heading || item.note === undefined &&
     statute.some((entry) => entry.start === item.start && ["section", "article"].includes(entry.kind)))
     .map((item) => {
       const entry = statute.find((candidate) => candidate.start === item.start)!;

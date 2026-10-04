@@ -185,6 +185,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
             d, &call.get::<String>("primaryKind")?, call.get("limit")?).and_then(value))),
         "statuteOutline" => done(engine::statute_outline(&call.get::<String>("text")?,
             call.get::<Option<bool>>("articles")?.unwrap_or(false)).and_then(value)),
+        "caseOutline" => done(engine::case_outline(&call.get::<String>("text")?).and_then(value)),
         "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(
             d, call.get::<Option<bool>>("legislation")?.unwrap_or(false))))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),

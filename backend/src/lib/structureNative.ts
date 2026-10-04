@@ -37,6 +37,11 @@ export type NativeStatuteOutlineEntry = { kind: "part" | "division" | "heading" 
   "article" | "subsection" | "paragraph" | "subparagraph" | "clause"; level: number; label: string;
   title?: string; text: string; start: number; end: number };
 
+/** A judgment's outline entry: `label` as printed ("[12]", "IV.", "(a)", "•"); `level` a heading's
+ *  depth or an item's depth in its list (from 1); `start`/`end` (string indices) span it. */
+export type NativeCaseOutlineEntry = { kind: "heading" | "paragraph" | "item" | "text"; level: number;
+  label: string; text: string; start: number; end: number };
+
 /** `start` is in the document's query text; `pageIndex` is a PDF's zero-based page. */
 export type NativeOutlineEntry = { kind: "heading" | "section"; level: number; title: string;
   start: number; pageIndex?: number };
@@ -272,6 +277,9 @@ type StructureAddon = {
   /** A statute's outline read from its text: parts, headings and provisions in order, each with
    *  its level, printed label, marginal note or heading, own text, and the span of its subtree. */
   statuteOutline(text: string, articles?: boolean): NativeStatuteOutlineEntry[];
+  /** A judgment's outline read from its text: its headings by level, numbered paragraphs, the lists
+   *  within them, and the matter around its reasons, in order. */
+  caseOutline(text: string): NativeCaseOutlineEntry[];
   textFragmentPlan(blockText: string, quotes: string[], pdf: boolean,
     publisherMayAnnotateLegalReference: boolean,
     splitHtmlSourceBlocks: boolean,
