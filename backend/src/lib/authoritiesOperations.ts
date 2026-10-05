@@ -68,7 +68,9 @@ async function attachPreparedSources(state: AuthoritiesDraft, attachments: Prepa
       { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
         lastSeen: { name: attachment.filename, size: attachment.bytes.length,
           modified: 0, sha256: attachment.sourceSha256 } },
-      attachment.filename, attachment.sourceSha256, attachment.language, { ...attachment, pageLabels });
+      // Its length is kept with it as every other attachment's is: a preview of the book counts its pages by it.
+      attachment.filename, attachment.sourceSha256, attachment.language, { ...attachment, pageLabels,
+        pageCount: attachment.pageCount ?? pageLabels?.length ?? await validateAuthoritiesPdf(attachment.bytes) });
   }
   return draft;
 }
