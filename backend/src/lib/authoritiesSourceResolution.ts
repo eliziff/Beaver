@@ -175,7 +175,8 @@ export async function resolveAuthoritiesSources(
   const requirements = authoritiesProfile(draft.settings.profileId).requirements;
   const needsPdf = authorityBytesRequired(draft, requirements);
   // Resolution fetches every source a filing could want, whatever this court
-  // enforces at build time; an attached PDF is final but for a missing language.
+  // enforces at build time; an attached PDF is final but for a missing language, and for a
+  // rebuild from text whose publisher blocked the original, which a retry asks for again.
   const owed = { completeBookSources: true,
     bilingualEnactments: !!requirements?.bilingualEnactments };
   const candidates = draft.authorityOrder.flatMap((id) => {
@@ -184,8 +185,8 @@ export async function resolveAuthoritiesSources(
     if (!onlyAuthorityId && authority?.sourceVerificationUrl) return [];
     const fetchable = !!authority && ["case", "legislation"].includes(authority.kind) &&
       (authority.source.kind !== "attached" || authority.sourceIdentity?.provider === "a2aj");
-    return fetchable && authoritySourceRequirement(draft, authority, owed)
-      ? [{ id, authority }] : [];
+    return fetchable && (authoritySourceRequirement(draft, authority, owed) || onlyAuthorityId === id &&
+      !!authority.sourceVerificationUrl) ? [{ id, authority }] : [];
   });
   // A lookup A2AJ did not answer is recorded on the authority, never taken for a miss; one it
   // asked us to hold off is not asked again before its retry time.

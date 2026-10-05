@@ -331,7 +331,8 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-accent-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
-          ...(publisherUrl && onRetry && authority.sourceDownloadFailure !== "refused"
+          // A PDF built from source text in place of the publisher's original asks for the original again.
+          ...((publisherUrl || fromText && publisher) && onRetry && authority.sourceDownloadFailure !== "refused"
             ? [{ label: "Retry download", disabled: busy, onSelect: onRetry }] : []),
           ...(publisher && !publisherUrl ? [{ label: "Open publisher",
             onSelect: () => window.open(publisher, "_blank", "noopener,noreferrer") }] : []),
