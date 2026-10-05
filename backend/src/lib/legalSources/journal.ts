@@ -5,7 +5,7 @@ import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { legalProviderDatabase } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
 import { sqliteText as string } from "../sqliteSearch";
-import { structureNative, type NativeDocument } from "../structureNative";
+import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
 import { isUnitedStatesSearch } from ".";
 import type { LegalSourceProvider, LegalSourceSearchRequest, LegalSourceReference } from ".";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
@@ -371,7 +371,7 @@ async function document(identifier: string): Promise<JournalArticleDocument | nu
   const registered = finalContractPages(articleId);
   const cacheKey = `${journalDatabasePath()}:${articleId}:${registered?.signature ?? "public"}`;
   const cached = documents.get(cacheKey);
-  if (cached) return cached;
+  if (cached && nativeDocumentLive(cached.native)) return cached;
   const pageRows = database()
     .prepare(
       `SELECT CAST(page_label AS TEXT) AS page_label,
