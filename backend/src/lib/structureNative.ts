@@ -180,6 +180,11 @@ function structureAddonRoot() {
 }
 
 type StructureAddon = {
+  /** Whether a document belongs to the engine now running: a WebAssembly engine started afresh
+   *  (recycle) has lost the documents it made. */
+  documentLive?(document: NativeDocument): boolean;
+  memoryBytes?(): number;
+  recycle?(): void;
   nativeBuildFeatures(): string;
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   deriveDocxDocument(bytes: Buffer, id: string, drafting?: boolean): Promise<NativeDocument>;
@@ -386,6 +391,9 @@ export function structureNative() {
   }) as unknown as StructureAddon : loaded as StructureAddon;
   return addon;
 }
+
+/** Whether a document kept from an earlier call can still be read. */
+export const nativeDocumentLive = (document: NativeDocument) => structureNative().documentLive?.(document) ?? true;
 
 /** Words as PDF quote matching compares them: case, width and apostrophe forms folded. */
 export const normalizedWords = (text: string) =>

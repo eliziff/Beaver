@@ -16,6 +16,7 @@ import { projectionDirectory, textProjectionKey } from "./documentProjection";
 import { spreadsheetToLLMStructure, spreadsheetToLLMText } from "./spreadsheet";
 import {
   pdfPassageGeometry as nativePdfPassageGeometry,
+  nativeDocumentLive,
   structureNative,
   type NativeDocument,
   type NativePdfPassageTarget,
@@ -259,7 +260,8 @@ async function extractedText(source: Awaited<ReturnType<typeof boundedSource>>) 
 
 function existingProjection<T extends ProjectionValue = NativeDocument>(key: string): Promise<T> | undefined {
   const entry = projectionMemory.get(key);
-  const projection = typeof entry === "string" ? entry : entry?.deref();
+  const native = typeof entry === "string" ? undefined : entry?.deref();
+  const projection = typeof entry === "string" ? entry : native && nativeDocumentLive(native) ? native : undefined;
   projectionMemory.delete(key);
   if (projection !== undefined) {
     projectionMemory.set(key, entry!);

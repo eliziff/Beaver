@@ -9,7 +9,7 @@ import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
 import { normalizeWhitespace } from "../text";
-import { structureNative, type NativeDocument } from "../structureNative";
+import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { isUnitedStatesSearch } from ".";
@@ -403,7 +403,8 @@ async function document(args: {
   ]), sourceUrl = args.sourceUrl?.trim() ?? "", key = cacheKey(sourceUrl);
   const hitKey = documents.has(key) || !sourceUrl ? key : cacheKey("");
   const cached = documents.get(hitKey);
-  if (cached && cached.expires > Date.now() && (!sourceUrl || cached.value.url === sourceUrl)) {
+  if (cached && cached.expires > Date.now() && (!sourceUrl || cached.value.url === sourceUrl) &&
+      nativeDocumentLive(cached.value.native) && nativeDocumentLive(cached.value.searchNative)) {
     // Least recently used goes first: a book that cites a case on every page keeps it.
     documents.delete(hitKey); documents.set(hitKey, cached);
     return cached.value;

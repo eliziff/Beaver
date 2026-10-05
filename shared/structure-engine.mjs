@@ -169,7 +169,13 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
       expected_source_sha256: summary.sha256 }]) ?? invokeOff(name, [bytes, final]);
   }
   // The page reads every pass's pages on its own pool of recognizers, so passes need not wait their turn.
-  const addon = { schedulesRecognition: !!recognizePdf };
+  const addon = { schedulesRecognition: !!recognizePdf,
+    /** Whether a document belongs to the engine now running. */
+    documentLive: (document) => document?.generation === generation,
+    /** The engine's memory, where its host can tell: WebAssembly's never shrinks. */
+    memoryBytes: () => transport.memoryBytes?.() ?? 0,
+    /** Starts the engine afresh, giving back the memory it grew to; its documents are lost. */
+    recycle() { generation += 1; transport.restart?.(); } };
   for (const name of Object.keys(SIGNATURES)) addon[name] = ASYNC.has(name)
     ? (...positional) => invokeAsync(name, positional)
     : (...positional) => invoke(name, positional);
