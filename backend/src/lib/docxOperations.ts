@@ -125,18 +125,23 @@ function replaceVisibleSpan(root: XNode, start: number, end: number, replacement
   return true;
 }
 
-/** Applies one server-reviewed Authorities correction to an exact body or footnote unit span. */
+type DocxCorrection = { unitId: string; start: number; end: number; expected: string; replacement: string };
+/** Applies server-reviewed Authorities corrections to exact body or footnote unit spans: one, or each
+ *  place the brief writes a citation it corrects. Later spans of a unit are replaced first, so each
+ *  span is where review read it. */
 export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
-  units: ReadonlyArray<{ id: string; text: string }>, correction: {
-    unitId: string; start: number; end: number; expected: string; replacement: string;
-  }) {
+  units: ReadonlyArray<{ id: string; text: string }>, corrections: DocxCorrection | readonly DocxCorrection[]) {
   const { targets, save } = await authorityUnitPackage(bytes, units);
-  const target = targets.get(correction.unitId);
-  if (!target || correction.start < 0 || correction.end <= correction.start ||
-      visibleText(target).slice(correction.start, correction.end) !== correction.expected ||
-      !correction.replacement || !replaceVisibleSpan(target, correction.start,
-        correction.end, correction.replacement)) {
-    throw new Error("The accepted correction no longer matches the reviewed Word document.");
+  const ordered = [...Array.isArray(corrections) ? corrections : [corrections as DocxCorrection]]
+    .sort((left, right) => left.unitId.localeCompare(right.unitId) || right.start - left.start);
+  for (const correction of ordered) {
+    const target = targets.get(correction.unitId);
+    if (!target || correction.start < 0 || correction.end <= correction.start ||
+        visibleText(target).slice(correction.start, correction.end) !== correction.expected ||
+        !correction.replacement || !replaceVisibleSpan(target, correction.start,
+          correction.end, correction.replacement)) {
+      throw new Error("The accepted correction no longer matches the reviewed Word document.");
+    }
   }
   return save();
 }

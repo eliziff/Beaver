@@ -46,7 +46,7 @@ export const AUTHORITIES_ACTION_CHOICES = {
   pinpoint: ["paragraph", "page", "section", "subsection", "rule", "article", "schedule", "footnote", "clause"],
   outputMode: ["table", "book", "both"], slot: ["cover", "index", "brief"],
   stage: ["citations", "sources", "highlights", "build"],
-  discrepancy: ["ignore", "pinpoint", "quote_exact", "quote_editorial"],
+  discrepancy: ["ignore", "pinpoint", "quote_exact", "quote_editorial", "use_named_case", "keep_cited_case"],
 } as const;
 export const AUTHORITIES_TOOL_ACTIONS = [
     "set-authority-span", "set-pinpoint-span", "clear-pinpoint", "add-occurrence",
@@ -184,6 +184,8 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
       name: nullableText(item.name, 2_000) };
     case "rename-authority": return { type, authorityId: text(item.authorityId),
       displayName: nullableText(item.displayName, 2_000) };
+    case "use-named-case":
+    case "keep-cited-case": return { type, authorityId: text(item.authorityId) };
     case "split-occurrence": return { type, occurrenceId: text(item.occurrenceId),
       cursor: integer(item.cursor, 1) };
     case "merge-occurrence": return { type, occurrenceId: text(item.occurrenceId) };

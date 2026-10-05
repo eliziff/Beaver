@@ -17,6 +17,34 @@ export async function prepareAuthoritiesCorrection<T extends { bytes: Buffer }>(
   signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();
+  // A citation that names a different case than the brief's name for it is decided here too: the
+  // case named (its citation corrected in the Word brief where the brief is Word), the case cited, or
+  // neither. A decision that changes only the draft is returned as one ignored.
+  const cited = Object.values(draft.authorities).find(({ citedCase }) => citedCase?.id === input.id);
+  if (cited && !draft.discrepancyDecisions?.[input.id]) {
+    const allowed = ["ignore", "keep_cited_case", ...cited.citedCase!.named ? ["use_named_case"] : []];
+    if (!allowed.includes(input.action)) reject(400, "That correction is not available for this citation");
+    let decided = updateAuthoritiesDraft(draft, { type: "resolve-discrepancy", id: input.id, action: input.action });
+    if (input.action === "ignore") return { kind: "ignored" as const, draft: decided };
+    const named = cited.citedCase!.named;
+    decided = updateAuthoritiesDraft(decided, { type: input.action === "use_named_case" ? "use-named-case"
+      : "keep-cited-case", authorityId: cited.id });
+    if (input.action !== "use_named_case" || draft.import.kind !== "document" || draft.import.fileType !== "docx")
+      return { kind: "ignored" as const, draft: decided };
+    const source = await readSource(draft.import);
+    signal?.throwIfAborted();
+    // Each place the brief writes the citation in full, as written there, takes the named case's.
+    const corrections = Object.values(draft.occurrences).flatMap((occurrence) =>
+      occurrence.authorityId === cited.id && occurrence.kind !== "reference" && occurrence.coreSpan.text
+        ? [{ unitId: occurrence.unitId, start: occurrence.coreSpan.start, end: occurrence.coreSpan.end,
+          expected: occurrence.coreSpan.text, replacement: named!.citation }] : []);
+    if (!corrections.length) reject(409, "The correction cannot be mapped to the reviewed Word document");
+    const bytes = await applyAuthorityDiscrepancyCorrection(source.bytes, draft.units, corrections)
+      .catch((error) => reject(409, error instanceof Error ? error.message
+        : "The Word correction could not be applied"));
+    signal?.throwIfAborted();
+    return { kind: "corrected" as const, draft: decided, source, bytes };
+  }
   const finding = (await reviewer(draft, signal)).find(({ id }) =>
     id === input.id && !draft.discrepancyDecisions?.[id]) ?? reject(409,
       "This discrepancy is no longer present. Review the document again.");

@@ -114,6 +114,13 @@ export type AuthoritySourceLookupFailure = {
   detail?: string;
 };
 
+export type AuthorityCitedCase = {
+  /** The decision on it is kept under this id (discrepancy decisions), as a finding's is. */
+  id: string;
+  citation: string; name: string;
+  named: { citation: string; name: string } | null;
+};
+
 export type AuthorityIdentity = {
   /** What the reader opens for an original the publisher's download did not bring. */
   sourceVerificationUrl?: string;
@@ -121,6 +128,15 @@ export type AuthorityIdentity = {
    *  address, or the publisher or the service did not answer. */
   sourceDownloadFailure?: "refused" | "failed";
   sourceLookupFailure?: AuthoritySourceLookupFailure;
+  /** The short forms the brief gives a decision ("Parranto", "Main Decision"). */
+  shortNames?: string[];
+  /** The case the sentence a note hangs from names, where the note gives the decision no name
+   *  ("In R v Le, the Court held …"). Evidence of the case meant, not the decision's name. */
+  mentionedAs?: string;
+  /** The case A2AJ holds at the citation the brief gives shares no party's name with the brief's
+   *  names for it: that case, and the one case the brief's name finds near it in the same court,
+   *  when exactly one does. The authority keeps the brief's name and citation until the user decides. */
+  citedCase?: AuthorityCitedCase;
   /** The detected case form, when its citation alone offers no public copy. */
   citationFormat?: "database" | "docket";
   /** Explicit link printed in the imported document; not a verified source identity. */
@@ -201,7 +217,7 @@ export type AuthorityOccurrence = {
 };
 
 export type AuthoritiesDiscrepancyAction =
-  "ignore" | "pinpoint" | "quote_exact" | "quote_editorial";
+  "ignore" | "pinpoint" | "quote_exact" | "quote_editorial" | "use_named_case" | "keep_cited_case";
 
 export type AuthoritiesUserAction =
   | { type: "set-annotations"; entries: Array<{ authorityId: string; bindingRole: string; annotations: PdfAnnotationSet }> }
@@ -214,6 +230,11 @@ export type AuthoritiesUserAction =
   | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;
       citation: string; name: string | null }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }
+  /** The case the brief's name finds is the one meant: the authority takes its citation and keeps
+   *  the brief's name. */
+  | { type: "use-named-case"; authorityId: string }
+  /** The citation is right: the authority takes the name of the case A2AJ holds at it. */
+  | { type: "keep-cited-case"; authorityId: string }
   | { type: "split-occurrence"; occurrenceId: string; cursor: number }
   | { type: "merge-occurrence"; occurrenceId: string }
   | { type: "remove-occurrence"; occurrenceId: string }
