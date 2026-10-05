@@ -8,7 +8,7 @@ import {
   getStandaloneFilingContact, getStandaloneOutputFolder, setStandaloneFilingContact, inspectStandaloneFile, pickRetainedFiles, readSourceAnswer, readSourcePdf,
   readStandaloneOutput, relinkStandaloneFile, rememberSourceAnswer, rememberSourcePdf, requestStandaloneFileAccess,
   resolveStandaloneFile, retainStandaloneFile,
-  saveStandaloneArtifacts, standaloneWatchedFolder,
+  saveStandaloneArtifacts, standaloneKeptFile, standaloneWatchedFolder,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
@@ -437,6 +437,18 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     clear: clearStandaloneOutputFolder,
   },
   filingContact: { get: getStandaloneFilingContact, save: setStandaloneFilingContact },
+};
+
+/** Local legal data for a page whose runtime reads it (built with the localStores option, as the ALR
+ *  Quote Verifier is): the file goes to the runtime Worker as it is, read there in place, never copied.
+ *  Authorities' own page is built without it and has no such port. */
+export const standaloneLocalStores: NonNullable<AuthoritiesHost["localStores"]> = {
+  async mount(store, file, options) {
+    await globalThis.AUTHORITIES_OPERATIONS!("mount-store" as AuthoritiesOperation,
+      { store, file, localOnly: !!options?.localOnly });
+  },
+  kept: { get: (store) => standaloneKeptFile.get(`local-store:${store}`),
+    set: (store, handle) => standaloneKeptFile.set(`local-store:${store}`, handle) },
 };
 
 async function readStandaloneOutputByDocument(documentId: string, versionId: string) {
