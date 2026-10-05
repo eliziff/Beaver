@@ -218,6 +218,12 @@ export type AuthorityOccurrence = {
 
 export type AuthoritiesDiscrepancyAction =
   "ignore" | "pinpoint" | "quote_exact" | "quote_editorial" | "use_named_case" | "keep_cited_case";
+/** A request on a finding: a decision, or "reopen", which undoes the decision made on it. */
+export type AuthoritiesDiscrepancyRequest = AuthoritiesDiscrepancyAction | "reopen";
+export type AuthoritiesDiscrepancyCorrectionRecord = {
+  revisions: number[];
+  authority?: { id: string; citation: string; citedCase: AuthorityCitedCase };
+};
 
 export type AuthoritiesUserAction =
   | { type: "set-annotations"; entries: Array<{ authorityId: string; bindingRole: string; annotations: PdfAnnotationSet }> }
@@ -338,6 +344,9 @@ export type AuthoritiesDraft = WorkProductState & {
   authorityOrder: string[];
   stage?: "citations" | "sources" | "highlights" | "build";
   discrepancyDecisions: Record<string, AuthoritiesDiscrepancyAction>;
+  /** What a decision changed, by its id, so it can be reopened: the tracked revisions it wrote into the
+   *  Word brief, and the authority's citation and cited case before it took the case its name finds. */
+  discrepancyCorrections?: Record<string, AuthoritiesDiscrepancyCorrectionRecord>;
   /** Citations marked "Not a citation", kept so they can be restored; by occurrence id. */
   dismissedOccurrences?: Record<string, AuthoritiesDismissedOccurrence>;
 };

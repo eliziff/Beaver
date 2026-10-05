@@ -107,10 +107,12 @@ async function citedCaseMismatch(authority: AuthorityIdentity, source: { citatio
   const agreement = caseNamesAgree(written, source.name);
   if (agreement.agrees) return null;
   const year = Number((source.date ?? "").slice(0, 4)), words = caseNamesAgree(styled, source.name).written;
-  let hits: Awaited<ReturnType<SourceServices["findCases"]>> | null = [];
-  if (Number.isInteger(year) && year > 0) try {
-    hits = await sources.findCases(words.join(" "), source.dataset, `${year - 1}-01-01`, `${year + 1}-12-31`, signal);
-  } catch { signal?.throwIfAborted(); }
+  // A search that fails is no search that found nothing: the error goes to the caller, which records
+  // the lookup as unanswered, to be asked again. Working locally only, a store that cannot be searched
+  // finds nothing.
+  const hits = Number.isInteger(year) && year > 0
+    ? await sources.findCases(words.join(" "), source.dataset, `${year - 1}-01-01`, `${year + 1}-12-31`, signal)
+      .catch((error) => { if (error instanceof A2AJUnavailable && error.reason === "local-only") return []; throw error; }) : [];
   // A case whose parties are named by exactly the brief's words is the one meant ("R. v. Shah" over
   // "Barta v. Shah"); else the one case that shares any of them.
   const agreeing = [...new Map((hits ?? []).flatMap((hit) => {
@@ -244,7 +246,15 @@ export async function resolveAuthoritiesSources(
     const source = resolved.source;
     // A citation that names a different case keeps the brief's name and citation, and no source,
     // until the user decides.
-    const mismatch = await citedCaseMismatch(draft.authorities[id], source, sources, signal);
+    let mismatch: AuthorityCitedCase | null;
+    try { mismatch = await citedCaseMismatch(draft.authorities[id], source, sources, signal); }
+    catch (error) {
+      signal?.throwIfAborted();
+      editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: error instanceof A2AJUnavailable
+        && error.reason !== "local-only" ? { reason: error.reason, retryAfter: error.retryAt ? new Date(error.retryAt).toISOString() : null }
+        : { reason: "defect", retryAfter: null, detail: error instanceof Error ? error.message : String(error) } });
+      continue;
+    }
     if (mismatch || draft.authorities[id].citedCase)
       editor.apply({ type: "set-cited-case", authorityId: id, citedCase: mismatch });
     if (mismatch) continue;

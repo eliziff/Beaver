@@ -4,7 +4,7 @@ import type {
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
   AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
-  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure, AuthorityCitedCase,
+  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure, AuthorityCitedCase, AuthoritiesDiscrepancyCorrectionRecord,
 } from "mike/shared/authorities-contract.d.ts";
 export type {
   AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
@@ -12,7 +12,7 @@ export type {
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
   AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
-  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure, AuthorityCitedCase,
+  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure, AuthorityCitedCase, AuthoritiesDiscrepancyCorrectionRecord,
 };
 
 import { attachAuthoritySource, attachedAuthoritySources,
@@ -109,7 +109,10 @@ export type AuthoritiesAction =
   | { type: "set-settings"; settings: Partial<AuthoritiesBuildSettings> }
   | { type: "set-output-mode"; outputMode: AuthoritiesOutputMode }
   | { type: "set-document-output"; enabled: boolean }
-  | { type: "resolve-discrepancy"; id: string; action: AuthoritiesDiscrepancyAction }
+  | { type: "resolve-discrepancy"; id: string; action: AuthoritiesDiscrepancyAction;
+      correction?: AuthoritiesDiscrepancyCorrectionRecord }
+  /** Undoes a decision: forgets it and what it changed, and puts back an authority it changed. */
+  | { type: "reopen-discrepancy"; id: string }
   | { type: "refresh"; review: AuthoritiesFreshReview };
 
 export class AuthoritiesDomainError extends Error {}
@@ -295,6 +298,11 @@ const draftShape = closed<AuthoritiesDraft>({
   occurrences: dictionary(occurrence), authorities: dictionary(authority),
   authorityOrder: list(50_000, nonempty(200)),
   discrepancyDecisions: dictionary(oneOf(AUTHORITIES_ACTION_CHOICES.discrepancy), hash),
+  discrepancyCorrections: maybe(dictionary(closed<AuthoritiesDiscrepancyCorrectionRecord>({
+    revisions: list(10_000, integer),
+    authority: maybe(closed<NonNullable<AuthoritiesDiscrepancyCorrectionRecord["authority"]>>({ id: text, citation: text,
+      citedCase: closed<AuthorityCitedCase>({ id: hash, citation: text, name: text,
+        named: nullable(closed<NonNullable<AuthorityCitedCase["named"]>>({ citation: text, name: text })) }) })) }))),
   dismissedOccurrences: maybe(dictionary(closed<AuthoritiesDismissedOccurrence>({
     occurrence, authority: nullable(authority) }))),
 });
@@ -1203,7 +1211,21 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     }
     case "resolve-discrepancy":
       (draft.discrepancyDecisions ??= {})[action.id] = action.action;
+      if (action.correction) (draft.discrepancyCorrections ??= {})[action.id] = structuredClone(action.correction);
       break;
+    case "reopen-discrepancy": {
+      const corrected = draft.discrepancyCorrections?.[action.id];
+      delete draft.discrepancyDecisions[action.id];
+      if (draft.discrepancyCorrections) delete draft.discrepancyCorrections[action.id];
+      const before = corrected?.authority, authority = before && draft.authorities[before.id];
+      if (authority) {
+        authority.citation = before.citation;
+        authority.citedCase = structuredClone(before.citedCase);
+        authority.sourceIdentity = null;
+        if (authority.source.kind !== "attached") replaceSource(draft, authority, { kind: "unresolved" });
+      }
+      break;
+    }
     case "refresh": refresh(draft, action.review); break;
   }
   if (["clear-authority-source", "add-authority", "remove-authority",

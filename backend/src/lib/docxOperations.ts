@@ -95,55 +95,157 @@ async function authorityUnitPackage(bytes: Buffer,
   } };
 }
 
-function replaceVisibleSpan(root: XNode, start: number, end: number, replacement: string) {
-  const texts: Array<{ node: XNode; start: number; end: number; value: string }> = [];
-  let cursor = 0, unsupported = false;
-  walk(root, (node) => {
-    const name = elName(node);
-    if (name === "w:del") return false;
-    if (name === "w:t") {
-      const value = getTextContent(node);
-      texts.push({ node, start: cursor, end: cursor + value.length, value });
-      cursor += value.length;
-    } else if (name === "w:tab" || name === "w:br" || name === "w:cr") {
-      if (start < cursor + 1 && end > cursor) unsupported = true;
-      cursor += 1;
-    }
+type DocxCorrection = { unitId: string; start: number; end: number; expected: string; replacement: string };
+type Revision = { id: number; author: string; date: string };
+
+/** A run with one child besides its properties: each text, tab or break of a run its own run. */
+function singleChildRuns(run: XNode) {
+  const children = elChildren(run), properties = children.filter((child) => elName(child) === "w:rPr");
+  const content = children.filter((child) => elName(child) !== "w:rPr");
+  return content.length <= 1 ? [run] : content.map((child) => {
+    const part = cloneNode(run);
+    setChildren(part, [...properties.map(cloneNode), child]);
+    return part;
   });
-  const first = texts.find((item) => item.start <= start && start <= item.end);
-  const last = texts.find((item) => item.start <= end && end <= item.end);
-  if (unsupported || !first || !last) return false;
-  if (first === last) {
-    setText(first.node, first.value.slice(0, start - first.start) + replacement +
-      first.value.slice(end - first.start));
-    return true;
-  }
-  const from = texts.indexOf(first), to = texts.indexOf(last);
-  setText(first.node, first.value.slice(0, start - first.start) + replacement);
-  for (let index = from + 1; index < to; index += 1) setText(texts[index].node, "");
-  setText(last.node, last.value.slice(end - last.start));
-  return true;
 }
 
-type DocxCorrection = { unitId: string; start: number; end: number; expected: string; replacement: string };
-/** Applies server-reviewed Authorities corrections to exact body or footnote unit spans: one, or each
- *  place the brief writes a citation it corrects. Later spans of a unit are replaced first, so each
- *  span is where review read it. */
+/** Writes a span's replacement as a tracked change, as Word writes one: the runs that print the old
+ *  text deleted (w:del, their text as w:delText) and a run with the new text inserted after them
+ *  (w:ins), each run keeping its formatting. Null where the span crosses a tab, a break or a field. */
+function trackSpanReplacement(root: XNode, start: number, end: number, replacement: string, revision: () => Revision) {
+  // Each run that prints text in the span stands alone, split to the span's ends.
+  type Item = { run: XNode; parent: XNode; start: number; end: number };
+  const collect = () => {
+    const items: Item[] = [];
+    let cursor = 0, unsupported = false;
+    const visit = (node: XNode, parent: XNode | null): void => {
+      const name = elName(node);
+      if (name === "w:del" || !ownUnit(node)) return;
+      if (name === "w:r" && parent) {
+        const runStart = cursor;
+        for (const child of elChildren(node)) {
+          const kind = elName(child);
+          if (kind === "w:t") cursor += getTextContent(child).length;
+          else if (kind === "w:tab" || kind === "w:br" || kind === "w:cr") cursor += 1;
+          if ((kind === "w:tab" || kind === "w:br" || kind === "w:cr" || kind === "w:fldChar" || kind === "w:instrText")
+            && start < cursor && runStart < end) unsupported = true;
+        }
+        if (cursor > runStart) items.push({ run: node, parent, start: runStart, end: cursor });
+        return;
+      }
+      for (const child of elChildren(node)) visit(child, node);
+    };
+    visit(root, null);
+    return unsupported ? null : items;
+  };
+  const before = collect();
+  if (!before) return null;
+  for (const item of before.filter((item) => item.start < end && start < item.end)) {
+    const parts = singleChildRuns(item.run);
+    if (parts.length === 1) continue;
+    const siblings = elChildren(item.parent);
+    siblings.splice(siblings.indexOf(item.run), 1, ...parts);
+  }
+  // A run the span starts or ends inside is cut there into two.
+  for (const at of [end, start]) {
+    const item = collect()?.find((candidate) => candidate.start < at && at < candidate.end);
+    if (!item) continue;
+    const text = elChildren(item.run).find((child) => elName(child) === "w:t");
+    if (!text) return null;
+    const value = getTextContent(text), right = cloneNode(item.run);
+    setText(text, value.slice(0, at - item.start));
+    setText(elChildren(right).find((child) => elName(child) === "w:t")!, value.slice(at - item.start));
+    const siblings = elChildren(item.parent);
+    siblings.splice(siblings.indexOf(item.run) + 1, 0, right);
+  }
+  const inside = (collect() ?? []).filter((item) => start <= item.start && item.end <= end);
+  if (!inside.length || inside[0].start !== start || inside.at(-1)!.end !== end) return null;
+  const ids: number[] = [];
+  const mark = (name: string, children: XNode[]) => {
+    const { id, author, date } = revision();
+    ids.push(id);
+    return makeEl(name, children, { "w:id": String(id), "w:author": author, "w:date": date });
+  };
+  const properties = elChildren(inside[0].run).filter((child) => elName(child) === "w:rPr").map(cloneNode);
+  const text = makeEl("w:t", [makeText(replacement)], /^\s|\s$/u.test(replacement) ? { "xml:space": "preserve" } : {});
+  for (const item of inside) {
+    for (const child of elChildren(item.run)) if (elName(child) === "w:t") {
+      const value = getTextContent(child);
+      child["w:delText"] = child["w:t"]; delete child["w:t"];
+      if (/^\s|\s$/u.test(value)) child[ATTR_KEY] = { ...(child[ATTR_KEY] as object), "@_xml:space": "preserve" };
+    }
+    const siblings = elChildren(item.parent);
+    siblings.splice(siblings.indexOf(item.run), 1, mark("w:del", [item.run]));
+  }
+  const last = inside.at(-1)!, siblings = elChildren(last.parent);
+  const deleted = siblings.findIndex((node) => elName(node) === "w:del" && elChildren(node)[0] === last.run);
+  siblings.splice(deleted + 1, 0, mark("w:ins", [makeEl("w:r", [...properties, text])]));
+  return ids;
+}
+
+/** Rejects tracked revisions by their ids: an insertion goes, a deletion's runs print again. */
+function rejectRevisions(root: XNode, ids: ReadonlySet<number>) {
+  const visit = (node: XNode) => {
+    const children = elChildren(node);
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      const child = children[index], name = elName(child);
+      const id = Number(elAttrs(child)["@_w:id"]);
+      if ((name === "w:ins" || name === "w:del") && ids.has(id)) {
+        const restored = name === "w:ins" ? [] : elChildren(child);
+        for (const run of restored) for (const text of elChildren(run)) if (elName(text) === "w:delText") {
+          text["w:t"] = text["w:delText"]; delete text["w:delText"];
+        }
+        children.splice(index, 1, ...restored);
+      } else visit(child);
+    }
+  };
+  visit(root);
+}
+
+/** The highest revision or bookmark id a part uses, so new revisions take ids of their own. */
+function highestId(root: XNode) {
+  let highest = 0;
+  walk(root, (node) => { highest = Math.max(highest, Number(elAttrs(node)["@_w:id"]) || 0); });
+  return highest;
+}
+
+/** Applies server-reviewed Authorities corrections to exact body or footnote unit spans, as tracked
+ *  changes by "Beaver": one, or each place the brief writes a citation it corrects. Later spans of a
+ *  unit are replaced first, so each span is where review read it. Returns the bytes and the ids of
+ *  the revisions written, which reject the correction again. */
 export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
   units: ReadonlyArray<{ id: string; text: string }>, corrections: DocxCorrection | readonly DocxCorrection[]) {
-  const { targets, save } = await authorityUnitPackage(bytes, units);
+  const { document, targets, save } = await authorityUnitPackage(bytes, units);
   const ordered = [...Array.isArray(corrections) ? corrections : [corrections as DocxCorrection]]
     .sort((left, right) => left.unitId.localeCompare(right.unitId) || right.start - left.start);
+  let next = Math.max(highestId(document.body), ...[...targets.values()].map(highestId)) + 1;
+  const date = new Date().toISOString().replace(/\.\d+Z$/u, "Z");
+  const revisions: number[] = [];
   for (const correction of ordered) {
     const target = targets.get(correction.unitId);
-    if (!target || correction.start < 0 || correction.end <= correction.start ||
-        visibleText(target).slice(correction.start, correction.end) !== correction.expected ||
-        !correction.replacement || !replaceVisibleSpan(target, correction.start,
-          correction.end, correction.replacement)) {
-      throw new Error("The accepted correction no longer matches the reviewed Word document.");
-    }
+    const written = target && correction.start >= 0 && correction.end > correction.start &&
+      visibleText(target).slice(correction.start, correction.end) === correction.expected && correction.replacement
+      ? trackSpanReplacement(target, correction.start, correction.end, correction.replacement,
+        () => ({ id: next++, author: "Beaver", date })) : null;
+    if (!written) throw new Error("The accepted correction no longer matches the reviewed Word document.");
+    revisions.push(...written);
   }
-  return save();
+  return { bytes: await save(), revisions };
+}
+
+/** Rejects the tracked revisions a correction wrote, by their ids: the brief reads as before it, and
+ *  every other revision stands. */
+export async function rejectAuthorityDiscrepancyCorrection(bytes: Buffer, revisions: readonly number[]) {
+  const session = await openDocxSession(bytes);
+  const document = await session.document(), footnotes = await session.readXml("word/footnotes.xml");
+  const ids = new Set(revisions);
+  rejectRevisions(document.body, ids);
+  session.writeDocument(document.tree);
+  if (footnotes) {
+    for (const node of footnotes) rejectRevisions(node, ids);
+    session.write("word/footnotes.xml", ensureXmlDeclaration(createBuilder().build(footnotes)));
+  }
+  return session.save();
 }
 
 /** A TA mark as Word itself writes it: no result, and not hidden text, or Word's table leaves it out.

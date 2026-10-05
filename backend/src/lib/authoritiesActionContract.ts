@@ -1,10 +1,10 @@
 import { decodeAnnotationSet } from "mike/shared/pdf-annotations.mjs";
 import { reject } from "./applicationError";
 import type { AuthorityOccurrence,
-  AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesDiscrepancyAction,
+  AuthoritiesBuildSettings, AuthoritiesCover,
   AuthoritiesProfileId } from "./authoritiesDomain";
 import type { AuthoritiesInitialSettings } from "./authoritiesActions";
-import type { AuthoritiesUserAction } from "../../../shared/authorities-contract.d.ts";
+import type { AuthoritiesDiscrepancyRequest, AuthoritiesUserAction } from "../../../shared/authorities-contract.d.ts";
 import { isJsonRecord } from "./value";
 
 /** The decoders every Authorities request field is read through, route included. */
@@ -233,11 +233,11 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
 }
 
 export function decodeAuthoritiesDiscrepancyAction(value: unknown): {
-  id: string; action: AuthoritiesDiscrepancyAction; revision: number;
+  id: string; action: AuthoritiesDiscrepancyRequest; revision: number;
 } {
   const item = object(value);
   if (Object.keys(item).sort().join(",") !== "action,id,revision") return bad();
   return { id: text(item.id, 64), action: choice(item.action,
-    AUTHORITIES_ACTION_CHOICES.discrepancy), revision: integer(item.revision, 1) };
+    [...AUTHORITIES_ACTION_CHOICES.discrepancy, "reopen"] as const), revision: integer(item.revision, 1) };
 }
 
