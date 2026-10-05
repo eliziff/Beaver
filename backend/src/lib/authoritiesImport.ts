@@ -284,7 +284,13 @@ async function scanReview(
   // The link each citation writes ("online: <…>", a URL in its text), by citation.
   const linkOf = new Map(references.flatMap(({ references: found }) => found.flatMap((reference) =>
     reference.citation != null && reference.link ? [[reference.citation, reference.link] as const] : [])));
-  for (const group of result.authorities) {
+  // Each authority's representative citation, its name, its citation as written and the authority
+  // it is subsequent history of, as the engine reads them.
+  const readings = native.citationEngineCall("authorities", JSON.stringify({ citations: result.citations,
+    authorities: result.authorities })) as Array<{ representative?: number; name?: string; citation?: string; historyOf?: number }>;
+  const groupKeys: string[] = [];
+  for (const [position, group] of result.authorities.entries()) {
+    const reading = readings[position];
     const full = group.map((index) => byIndex.get(index))
       .filter((citation): citation is Citation => citation?.form === "full");
     const sourceUrl = sourceParts.find((part) => part.resolvedUrl &&
@@ -297,17 +303,7 @@ async function scanReview(
       (full.length && referenceUrl ? referenceUrl.split("#")[0] : referenceUrl);
     const origin = group.map(index => byResolution.get(index)?.sourcePart).find(index => index != null);
     const source = !full.length ? originParts.find(({ index }) => index === origin) : undefined;
-    // A decision's report or neutral citation names it before the court file it was made under.
-    // A citation written with a recognizer's confusion (an "ocr_twin") or without the chapter it takes
-    // from another citation of it (a "titled_chapter") does not represent its authority.
-    // A citation that writes where the authority is found ("…, 1982, c 11") represents it before one
-    // that names it alone ("the Canadian Charter of Rights and Freedoms").
-    const representative = full.find((citation) => citation.key && citation.format && citation.format !== "docket"
-        && !citation.reasons.some((reason) => reason === "ocr_twin" || reason === "titled_chapter")) ??
-      full.find((citation) => citation.key && citation.format !== "docket"
-        && !citation.reasons.some((reason) => reason === "ocr_twin" || reason === "titled_chapter")) ??
-      full.find((citation) => citation.key && citation.format !== "docket") ??
-      full.find((citation) => citation.key) ?? full[0] ??
+    const representative = (reading?.representative === undefined ? undefined : byIndex.get(reading.representative)) ??
       (source ? group.map((index) => byIndex.get(index)).find(Boolean) : undefined);
     if (!representative) continue;
     // A document-local review identity keeps unkeyed sources visible without
@@ -325,31 +321,19 @@ async function scanReview(
       `scan:${documentHash}:${source ? `source:${source.index}` : representative.index}`;
     if (written) unkeyed.set(written, key);
     group.forEach((index) => authorityOf.set(index, key));
+    groupKeys[position] = key;
     if (authorities[key]) continue;
     const sourceLink = withScheme(source?.reference.link ?? url);
     const explicitUrl = isObservedSourceUrl(sourceLink) ? sourceLink : null;
     if (source) sourceGroups.set(source.index, key);
-    // A core that does not name its court (a CanLII ID, a reporter) keeps the court written
-    // after it, as McGill cites it: "1961 CanLII 7 (SCC)", even past a pinpoint.
-    const court = representative.format === "neutral" ? undefined
-      : representative.parentheticals?.find(({ kind }) => kind === "court")?.span.text;
-    const observedText = source?.reference.text ??
-      (full.length ? [representative.span.text, court].filter(Boolean).join(" ") : representative.fullSpan.text);
+    const observedText = source?.reference.text ?? (full.length ? reading.citation! : representative.fullSpan.text);
     authorities[key] = { id: key, key, kind: kindOf((source?.reference ?? representative).authority),
       ...(full.length && full.every(citation => citation.authority === "case" &&
           ["database", "docket"].includes(citation.format ?? ""))
         ? { citationFormat: representative.format as "database" | "docket" } : {}),
       // A citation or name a PDF's line or page break runs through is one line ("RSC ⏎⏎ 1985").
       citation: oneLine(observedText),
-      // An untitled Act cited in a note is named as the sentence the note hangs from names it, and
-      // an instrument cited only by where it is enacted (the Charter) by its own name.
-      // A citation written without its title ("R.S.C. 1985, c. C-36" in a heading) takes the title
-      // another citation of the same authority gives, as written ("Companies' Creditors Arangement Act").
-      name: source ? null : oneLine(representative.style?.text ??
-        (representative.fields as { anchorTitle?: { text: string } }).anchorTitle?.text ??
-        (representative.fields as { instrumentTitle?: string }).instrumentTitle ??
-        (representative.authority === "case" ? undefined
-          : full.find((citation) => citation.style?.text.trim())?.style?.text) ?? "") || null,
+      name: source ? null : reading?.name ?? null,
       // A decision's other names in the brief: its short forms, and the case the sentence a note
       // hangs from names. They tell whether the case a source holds at its citation is the one meant.
       ...(() => {
@@ -367,14 +351,13 @@ async function scanReview(
     authorityOrder.push(key);
   }
   // A decision the engine reads as another's subsequent history ("…, 2010 ABQB 242, aff'd 2010
-  // ABCA 191") records which authority it follows.
-  for (const citation of extracted.citations) for (const { span, target } of citation.history ?? []) {
-    const parent = authorityOf.get(citation.index), child = target == null ? undefined : authorityOf.get(target);
-    if (!parent || !child || parent === child || authorities[child].historyOf) continue;
+  // ABCA 191") records which authority it follows, and is known by its case's name unless the brief
+  // gives it one of its own.
+  for (const [position, reading] of readings.entries()) {
+    const child = groupKeys[position], parent = reading.historyOf === undefined ? undefined : groupKeys[reading.historyOf];
+    if (!child || !parent || child === parent || authorities[child].historyOf) continue;
     authorities[child].historyOf = parent;
-    // A later decision in the same matter is known by its case's style of cause unless the brief
-    // gives it one of its own.
-    authorities[child].name ??= authorities[parent].name;
+    authorities[child].name ??= reading.name ?? authorities[parent].name;
   }
   const sourceOccurrences = originParts.flatMap(({ index, reference: { start, end } }) => {
     const authorityId = sourceGroups.get(index);
