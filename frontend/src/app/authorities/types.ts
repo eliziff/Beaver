@@ -2,7 +2,7 @@ import type { AuthoritiesDraft } from "../../../../shared/authorities-contract.d
 export type {
   AuthoritiesUserAction as AuthoritiesAction, AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId,
   AuthoritiesBookRole, AuthoritiesBuildSettings, AuthoritiesCover, AuthorityIdentity,
-  AuthorityTextSpan, AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft,
+  AuthorityTextSpan, AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDiscrepancyRequest, AuthoritiesDraft,
   AuthoritiesDiscrepancy, AuthoritiesBuildReceipt, AuthoritiesOutputRole, AuthoritiesOutputFile,
   AuthoritiesProfile,
 } from "../../../../shared/authorities-contract.d.ts";

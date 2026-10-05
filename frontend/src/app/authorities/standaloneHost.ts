@@ -270,11 +270,12 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   async resolveDiscrepancy(id, input) {
     const product = await currentProduct(id, input.revision);
     let response: Awaited<ReturnType<typeof runtimeResponse>>;
-    if (input.action === "ignore") {
+    const imported = product.state.import, word = imported.kind === "document" && imported.fileType === "docx";
+    // Only a change to the brief's text needs the Word file; a PDF brief's citation changes in the draft alone.
+    if (input.action === "ignore" || input.action === "keep_cited_case" || !word && input.action === "use_named_case") {
       response = await runtimeResponse("discrepancies/actions",
         { draft: product.state, request: input });
     } else {
-      const imported = product.state.import;
       if (imported.kind !== "document" || imported.fileType !== "docx")
         throw new Error("Source corrections require an imported Word document.");
       const file = await resolveExact(product.state.bindings[imported.bindingRole]);
@@ -285,15 +286,15 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     }
     if (!response.files?.length) return save(id, input.revision, response.data as AuthoritiesDraft);
     const state = (response.data as { draft: AuthoritiesDraft }).draft;
-    const source = response.files.find(file => file.role === "source"), imported = state.import;
-    if (!source || imported.kind !== "document" || imported.fileType !== "docx") throw new Error("The corrected Word document was invalid.");
-    const file = new File([source.bytes.slice().buffer as ArrayBuffer], imported.filename, { type: source.mimeType, lastModified: 0 });
-    const binding = await retainStandaloneFile(file), expected = state.bindings[imported.bindingRole];
+    const source = response.files.find(file => file.role === "source"), corrected = state.import;
+    if (!source || corrected.kind !== "document" || corrected.fileType !== "docx") throw new Error("The corrected Word document was invalid.");
+    const file = new File([source.bytes.slice().buffer as ArrayBuffer], corrected.filename, { type: source.mimeType, lastModified: 0 });
+    const binding = await retainStandaloneFile(file), expected = state.bindings[corrected.bindingRole];
     if (expected?.kind !== "local-file" ||
         expected.lastSeen.sha256 !== binding.lastSeen.sha256) {
       throw new Error("The corrected Word document did not match the reviewed source.");
     }
-    state.bindings[imported.bindingRole] = binding;
+    state.bindings[corrected.bindingRole] = binding;
     return save(id, input.revision, state);
   },
   async refresh(id, revision) {

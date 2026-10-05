@@ -1,7 +1,7 @@
 import type { Document } from "@/app/lib/api/documents";
 import type { WorkProductInput, WorkProductStore } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettings,
-  AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesOutputMode, AuthoritiesProduct,
+  AuthoritiesDiscrepancy, AuthoritiesDiscrepancyRequest, AuthoritiesOutputMode, AuthoritiesProduct,
   AuthoritiesProfileId, AuthoritySourceLanguage } from "./types";
 import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
 import type { FilingContact } from "../../../../shared/user-preferences.mjs";
@@ -51,7 +51,7 @@ export interface AuthoritiesHost {
   prepareSources(product: AuthoritiesProduct, signal?: AbortSignal,
     authorityId?: string, progress?: (message: string) => void): Promise<AuthoritiesProduct>;
   review?(id: string, signal?: AbortSignal): Promise<AuthoritiesDiscrepancy[]>;
-  resolveDiscrepancy?(id: string, input: { id: string; action: AuthoritiesDiscrepancyAction;
+  resolveDiscrepancy?(id: string, input: { id: string; action: AuthoritiesDiscrepancyRequest;
     revision: number }): Promise<AuthoritiesProduct>;
   attach(id: string, authorityId: string, revision: number,
     selected: AuthoritiesFile, language?: AuthoritySourceLanguage): Promise<AuthoritiesProduct>;

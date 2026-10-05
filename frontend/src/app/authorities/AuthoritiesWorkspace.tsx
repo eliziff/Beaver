@@ -1,7 +1,7 @@
 import { autoFetchToast } from "../../../../shared/auto-fetch-toast.mjs";
-import { CitationReview } from "./CitationReview";
+import { CitationReview, noteLabels } from "./CitationReview";
 import { holds, previewEdit, reviewStep, savedIds, type ReviewStep } from "./reviewEdits";
-import { QuotationReview } from "./QuotationFinding";
+import { QuotationReview, type Finding } from "./QuotationFinding";
 import { StepProgress } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
 import { authorityName, authorityLabel, authorityCitationLine, authorityCitationText, authorityNameItalic,
@@ -40,7 +40,7 @@ import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
   AuthoritiesSourceIssue } from "./host";
 import { AUTHORITY_PROFILE_BY_ID, authoritiesProfile } from "./profiles";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettings, AuthoritiesProduct,
-  AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesProfileId,
+  AuthoritiesDiscrepancy, AuthoritiesDiscrepancyRequest, AuthoritiesProfileId,
   AuthorityIdentity, AuthorityKind, AuthoritySourceLanguage } from "./types";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
 import { attachedAuthoritySources, authoritiesInputPlan, authorityReproducedInBook } from "../../../../shared/authorities-sources.mjs";
@@ -97,8 +97,8 @@ function libraryTitle(target: LibraryTarget | undefined, sourceLabel: string) {
 }
 type ActionHandler = (action: AuthoritiesAction,
   done?: (next: AuthoritiesProduct) => void | Promise<void>) => void;
-type DiscrepancyHandler = (finding: AuthoritiesDiscrepancy,
-  action: AuthoritiesDiscrepancyAction, done: () => void) => void;
+type DiscrepancyHandler = (finding: Finding,
+  action: AuthoritiesDiscrepancyRequest, done: () => void) => void;
 
 /** Another app made of this workspace (the ALR Quote Verifier): its name, look, the steps it shows,
  *  the settings every document starts with (the import's choices are then not asked), and its own
@@ -215,6 +215,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", sources: "" });
   // Gathering that an edit interrupted, to run again once editing rests.
   const sourcesRequest = useRef<AbortController | null>(null), sourcesStale = useRef(false);
+  // The draft whose sources were last looked for as its citations were read, and whether that failed: until
+  // then, its quotation check waits on them rather than having none to check.
+  const [sourcesFound, setSourcesFound] = useState({ id: "", failed: false });
   // Gathering reports which authority it is on; the step shows it only while someone waits for it,
   // so the citations being reviewed meanwhile are never re-rendered for it.
   const sourcesNote = useRef(""), awaitingSources = useRef(false);
@@ -435,7 +438,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     ? review : undefined;
   const discrepancies = useMemo(() => currentReview?.items ?? [], [currentReview]);
   // The list keeps the last check's findings while the next one runs, so its marks never blink.
-  const findings = useMemo(() => review && review.id === draftId ? review.items : [], [review, draftId]);
+  const quoteFindings = useMemo(() => review && review.id === draftId ? review.items : [], [review, draftId]);
+  // The check's findings and the citations that name a different case, in the brief's reading order.
+  const findings = useMemo(() => allFindings(shown, quoteFindings), [shown, quoteFindings]);
+  const openFindings = useMemo(() => allFindings(shown, discrepancies), [shown, discrepancies]);
   const selected = occurrences.find(({ id }) => id === selectedId) ?? occurrences[0];
   const selectedRef = useRef(selected?.id);
   selectedRef.current = selected?.id;
@@ -653,9 +659,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     void run(() => queuedSave(id, (current) => host.resolveDiscrepancy!(current.id,
       { id: finding.id, action, revision: current.revision })), (next) => {
       adopt(next); done();
-    }, action === "ignore" ? "Quotation difference dismissed"
-      : host.mode === "standalone" ? "Corrected Word copy saved with this draft"
-        : "Source corrected and draft refreshed", "Correcting source");
+    // The card says what was done; the step's line only says it is being saved.
+    }, "", "Saving the decision");
   };
 
   /** The brief is read the moment it is chosen, with the choices remembered from the last import, and
@@ -1043,10 +1048,16 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           .finally(() => { sourcesNote.current = ""; });
         if (adopt(next)) gathered.current = { id: next.id, sources: sourcesInputs(next) };
       });
-    } catch {
+      if (!request.signal.aborted) setSourcesFound({ id: current.id, failed: false });
+    } catch (caught) {
       if (request.signal.aborted) { sourcesStale.current = true; return; }
-      await gatherSources(attempts - 1);
-    } finally { if (sourcesRequest.current === request) sourcesRequest.current = null; }
+      // A failure the second try doesn't mend (an engine without a call this page makes) is said, never waited on.
+      if (attempts > 1) return await gatherSources(attempts - 1);
+      setSourcesFound({ id: current.id, failed: true });
+      setError(`The sources could not be looked up. ${errorText(caught)}`);
+    } finally {
+      if (sourcesRequest.current === request) sourcesRequest.current = null;
+    }
   }
   function findSources() {
     if (!draftRef.current) return;
@@ -1144,12 +1155,25 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onDownload={download} />);
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights key={draft.id} product={draft}
     tabs={authorityTabs} busy={busy} host={host} ocr={ocr} onAction={act} onSaved={adopt} />;
+  // A footnote named on the card by the number the brief prints, as the list names it.
+  const notes = useMemo(() => {
+    const units = shown?.state.units ?? [], labels = noteLabels(units);
+    return new Map(units.flatMap((unit) => unit.footnoteId === null ? [] : [[String(unit.footnoteId), labels.get(unit.id)]]));
+  }, [shown]);
+  // A finding opens on its citation, selected in the list and shown in the brief.
+  const openFinding = (id: string) => {
+    setFindingId(id);
+    const occurrence = [...openFindings, ...findings].find((finding) => finding.id === id)?.occurrenceId;
+    if (occurrence && occurrences.some((item) => item.id === occurrence)) setSelectedId(occurrence);
+  };
   // An open finding stays in place while its quotations are rechecked (items undefined).
-  const quotationReview = draft && findingId && (!currentReview || discrepancies.length > 0) &&
-    <QuotationReview items={currentReview?.items} currentId={findingId}
-      busy={busy || !currentReview} error={error || currentReview?.error} onSelect={setFindingId}
+  const quotationReview = draft && findingId &&
+    <QuotationReview items={currentReview ? openFindings : undefined} checked={currentReview?.key}
+      note={(id) => notes.get(String(id)) ?? String(id)} currentId={findingId}
+      busy={busy || !currentReview} error={error || currentReview?.error} onSelect={openFinding}
       onOpenSource={host.readSource ? openFindingSource : undefined}
       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
+      onUndo={host.resolveDiscrepancy ? (finding, done) => resolveDiscrepancy(finding, "reopen", done) : undefined}
       onDone={() => setFindingId("")} />;
   // The sources' settings chosen at import, closed under one bar naming them, opening to the same
   // cards as the import's Sources step. A new source handling drops only the PDFs found for it and
@@ -1291,9 +1315,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     className={reviewing ? undefined : "h-0 overflow-clip"}><section aria-label="Citations"
                     className="@container overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
                     <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
-                      selected={selected} authorities={authorities} discrepancies={findings} hidden={!reviewing}
+                      selected={selected} authorities={authorities} discrepancies={findings} check={currentReview || reviewError ? "done" : reviewKey || !app && sourcesFound.id !== draft.id ? "running" : sourcesFound.failed ? "failed" : "unavailable"} hidden={!reviewing}
                       busy={busy} onSelect={setSelectedId} onAction={act} onHistory={travel}
-                      onFocusChange={onFocusChange} onReview={setFindingId} />
+                      onFocusChange={onFocusChange} onReview={openFinding} />
                   </section></div>}
                   {reviewing && quotationReview && <div ref={revealFinding}>{quotationReview}</div>}
                   </div>
@@ -1838,6 +1862,24 @@ function orderedOccurrences(draft?: AuthoritiesProduct) {
   if (!draft) return [];
   return draft.state.units.flatMap((unit) => unit.occurrenceIds
     .flatMap((id) => draft.state.occurrences[id] ? [draft.state.occurrences[id]] : []));
+}
+/** The check's findings and each citation that names a different case not yet decided, in reading order. */
+function allFindings(product: AuthoritiesProduct | undefined, quotes: readonly Finding[]): Finding[] {
+  if (!product) return [...quotes];
+  const { state } = product, decided = state.discrepancyDecisions ?? {};
+  const reading = orderedOccurrences(product), order = new Map(reading.map(({ id }, index) => [id, index]));
+  const cases = Object.values(state.authorities).flatMap((authority): Finding[] => {
+    const cited = authority.citedCase;
+    if (!cited || decided[cited.id] || authority.excluded || quotes.some(({ id }) => id === cited.id)) return [];
+    const first = reading.find((occurrence) => occurrence.authorityId === authority.id && occurrence.kind !== "reference");
+    if (!first) return [];
+    const unit = state.units.find(({ id }) => id === first.unitId);
+    return [{ kind: "different_case", id: cited.id, occurrenceId: first.id, authorityId: authority.id,
+      footnoteId: unit?.footnoteId ?? null, citation: first.authoritySpan.text, text: unit?.text ?? "",
+      cited: { citation: cited.citation, name: cited.name }, named: cited.named,
+      actions: cited.named ? ["use_named_case", "keep_cited_case", "ignore"] : ["keep_cited_case", "ignore"] }];
+  });
+  return [...quotes, ...cases].sort((left, right) => (order.get(left.occurrenceId) ?? 0) - (order.get(right.occurrenceId) ?? 0));
 }
 function discrepancyKey(draft?: AuthoritiesProduct) {
   if (!draft || draft.state.import.kind !== "document") return "";
