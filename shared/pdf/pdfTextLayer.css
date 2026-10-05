@@ -1,3 +1,7 @@
+/* PDF.js sets --viewer-container-height on <html> whenever a viewer's height changes (one opening, a window
+   resized). Inherited, that restyles every element of the page beneath the viewer; uninherited, only <html>.
+   Only PDF.js's spread and sidebar rules read it, and neither is used here. */
+@property --viewer-container-height { syntax: "*"; inherits: false; }
 /* PDF.js reports an unrotated text layer and the viewport's main rotation. */
 .pdf-text-layer { transform-origin: 0 0; }
 /* pdf.js's end-of-content rule: while a drag is under way the whole page is selectable, so the
