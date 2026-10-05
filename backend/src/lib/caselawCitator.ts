@@ -386,14 +386,12 @@ function journalCommentaryPath() {
   return path.join(path.dirname(citatorDatabasePath()), "journal_commentary.sqlite");
 }
 
-/** Bibliographic form for an article row without a stored citation: byline, title, year, journal. */
+/** McGill's form for an article row without a stored citation: byline, title, year, journal. */
 function articleCitation(row: Row): string | null {
-  const authors = String(row.authors ?? "").split(/\s*;\s*/u).filter(Boolean);
-  const byline = authors.length > 3 ? `${authors[0]} et al` : authors.join(" & ");
-  const year = String(row.date ?? "").match(/\d{4}/u)?.[0];
-  const parts = [row.name && `“${row.name}”`, year && `(${year})`, row.journal_name]
-    .filter(Boolean).join(" ");
-  return parts ? byline ? `${byline}, ${parts}` : parts : null;
+  if (!row.name && !row.journal_name) return null;
+  return structureNative().citationEngineCall("formatArticle", JSON.stringify({
+    authors: String(row.authors ?? "").split(/\s*;\s*/u).filter(Boolean), title: String(row.name ?? ""),
+    year: String(row.date ?? "") || null, journal: row.journal_name ? String(row.journal_name) : null })) as string;
 }
 
 /**
