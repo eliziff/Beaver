@@ -4,7 +4,7 @@ import type {
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
   AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
-  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure,
+  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure, AuthorityCitedCase,
 } from "mike/shared/authorities-contract.d.ts";
 export type {
   AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
@@ -12,7 +12,7 @@ export type {
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
   AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
-  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure,
+  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure, AuthorityCitedCase,
 };
 
 import { attachAuthoritySource, attachedAuthoritySources,
@@ -70,6 +70,8 @@ export type AuthoritiesAction =
       locator: { kind: string; label: string }; excluded: boolean }
   | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;
       citation: string; name: string | null }
+  | { type: "use-named-case"; authorityId: string }
+  | { type: "keep-cited-case"; authorityId: string }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }
   | { type: "add-occurrence"; occurrence: AuthorityOccurrence }
   | { type: "split-occurrence"; occurrenceId: string;
@@ -94,6 +96,7 @@ export type AuthoritiesAction =
   | { type: "set-source-verification"; authorityId: string; pageUrl: string | null;
       reason?: NonNullable<AuthorityIdentity["sourceDownloadFailure"]> }
   | { type: "set-source-lookup-failure"; authorityId: string; failure: AuthoritySourceLookupFailure | null }
+  | { type: "set-cited-case"; authorityId: string; citedCase: AuthorityCitedCase | null }
   | { type: "begin-canlii-handoff"; authorityId: string; pageUrl: string }
   | { type: "set-book-part"; slot: "cover" | "index" | "brief"; pdf: AuthoritiesBoundPdf;
       binding: WorkProductInput }
@@ -244,6 +247,9 @@ const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: au
     retryAfter: nullable((value) => typeof value === "string" && Number.isFinite(Date.parse(value))),
     detail: maybe(text) })),
   sourceUrl: maybe(isObservedSourceUrl),
+  shortNames: maybe(strings), mentionedAs: maybe(text),
+  citedCase: maybe(closed<AuthorityCitedCase>({ id: hash, citation: text, name: text,
+    named: nullable(closed<NonNullable<AuthorityCitedCase["named"]>>({ citation: text, name: text })) })),
   citationFormat: maybe(oneOf(["database", "docket"])),
   citation: text, name: nullable(text), displayName: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
@@ -549,6 +555,7 @@ function resolveAuthority(
     });
   survivor.sourceIdentity = structuredClone(action.source);
   delete survivor.sourceLookupFailure;
+  delete survivor.citedCase;
   survivor.source = preserved.length
     ? { kind: "attached", sources: structuredClone(preserved) } : { kind: "resolved" };
   if (aliases.some((authority) => !authority.scanOnly)) delete survivor.scanOnly;
@@ -922,6 +929,24 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       authority.displayName = null;
       break;
     }
+    // A citation A2AJ holds another case at: the case the brief names is meant, its citation taken and
+    // its source looked up afresh, or the citation is right and the authority takes that case's name.
+    case "use-named-case":
+    case "keep-cited-case": {
+      const authority = requireRecord(draft.authorities, action.authorityId, "authority");
+      const cited = authority.citedCase;
+      if (!cited) throw new AuthoritiesDomainError("This authority's citation names no other case.");
+      if (action.type === "use-named-case") {
+        const named = cited.named;
+        if (!named) throw new AuthoritiesDomainError("No case was found for the name the brief gives.");
+        authority.citation = named.citation;
+        authority.sourceIdentity = null;
+        if (authority.source.kind !== "attached") replaceSource(draft, authority, { kind: "unresolved" });
+        delete authority.sourceVerificationUrl; delete authority.sourceDownloadFailure;
+      } else authority.name = cited.name;
+      delete authority.sourceLookupFailure; delete authority.citedCase;
+      break;
+    }
     case "rename-authority":
       requireRecord(draft.authorities, action.authorityId, "authority").displayName =
         action.displayName?.trim() || null;
@@ -1053,6 +1078,12 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       else delete authority.sourceVerificationUrl;
       if (action.pageUrl && action.reason) authority.sourceDownloadFailure = action.reason;
       else delete authority.sourceDownloadFailure;
+      break;
+    }
+    case "set-cited-case": {
+      const authority = requireRecord(draft.authorities, action.authorityId, "authority");
+      if (action.citedCase) authority.citedCase = structuredClone(action.citedCase);
+      else delete authority.citedCase;
       break;
     }
     case "set-source-lookup-failure": {
@@ -1191,7 +1222,7 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
   if (!authoritiesCover(draft.cover)) errors.push("Invalid Authorities cover.");
   if (draft.discrepancyDecisions !== undefined && Object.entries(draft.discrepancyDecisions).some(
     ([id, action]) => !/^[a-f0-9]{64}$/u.test(id) ||
-      !["ignore", "pinpoint", "quote_exact", "quote_editorial"].includes(action))) {
+      !(AUTHORITIES_ACTION_CHOICES.discrepancy as readonly string[]).includes(action))) {
     errors.push("Invalid discrepancy decisions.");
   }
   const profile = AUTHORITIES_PROFILES.get(draft.settings?.profileId as AuthoritiesProfileId);

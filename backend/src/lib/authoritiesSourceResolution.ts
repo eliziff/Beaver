@@ -4,7 +4,7 @@ import { renderAuthoritySourcePdf } from "./authoritiesBuild";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
-  type AuthoritiesDraft, type AuthorityIdentity, type AuthoritySourceLookupFailure } from "./authoritiesDomain";
+  type AuthoritiesDraft, type AuthorityCitedCase, type AuthorityIdentity, type AuthoritySourceLookupFailure } from "./authoritiesDomain";
 import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
 import { buildCanliiPdfUrl, isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { canonicalJsonSha256, sha256 } from "./hash";
@@ -58,6 +58,10 @@ export const authoritySourceServices = {
     a2ajLegalSourceProvider.document({ citation,
     docType: kind === "case" ? "cases" : "laws", language, signal, discoverPdf: false }),
   resolveForeign: resolveForeignAuthoritySource,
+  /** Decisions of a court (an A2AJ dataset) between two dates whose names hold the words given. */
+  findCases: async (words: string, dataset: string | null, from: string, to: string, signal?: AbortSignal) =>
+    await a2ajLegalSourceProvider.search!({ text: words, kinds: ["case"], searchType: "name", collection: dataset ?? undefined,
+      dateFrom: from, dateTo: to, limit: 20, signal }),
   /** The journal article a commentary citation names, by its citation or quoted title. */
   resolveJournal: async (citation: string, signal?: AbortSignal) =>
     (await journalLegalSourceProvider.resolve!({ text: citation, kind: "journal", signal }))[0] as LegalSourceReference | undefined ?? null,
@@ -86,6 +90,39 @@ export type PreparedAuthoritySource = {
   language: "en" | "fr" | "bilingual";
   pageCount?: number;
 };
+
+/** Whether names written for a case can name the case another name names: the engine's reading. */
+const caseNamesAgree = (written: string[], other: string) => structureNative().citationEngineCall("caseNamesAgree",
+  JSON.stringify({ written, other })) as { agrees: boolean; written: string[]; other: string[] };
+
+/** The case A2AJ holds at a decision's citation, when it shares no party's name with the names the brief
+ *  gives the decision, and the one case those names find near it in the same court, when exactly one
+ *  does (2021 SCC 4 is R v Murtaza; the brief's Parranto is 2021 SCC 46). Null when the names agree.
+ *  A short form alone ("Main Decision") names no party: it can agree with the case, never set it apart. */
+async function citedCaseMismatch(authority: AuthorityIdentity, source: { citation: string; name: string | null;
+  date: string | null; dataset: string | null }, sources: SourceServices, signal?: AbortSignal): Promise<AuthorityCitedCase | null> {
+  const styled = [authority.name, authority.mentionedAs].filter((name): name is string => !!name?.trim());
+  const written = [...styled, ...authority.shortNames ?? []];
+  if (authority.kind !== "case" || !source.name || !styled.length) return null;
+  const agreement = caseNamesAgree(written, source.name);
+  if (agreement.agrees) return null;
+  const year = Number((source.date ?? "").slice(0, 4)), words = caseNamesAgree(styled, source.name).written;
+  let hits: Awaited<ReturnType<SourceServices["findCases"]>> | null = [];
+  if (Number.isInteger(year) && year > 0) try {
+    hits = await sources.findCases(words.join(" "), source.dataset, `${year - 1}-01-01`, `${year + 1}-12-31`, signal);
+  } catch { signal?.throwIfAborted(); }
+  // A case whose parties are named by exactly the brief's words is the one meant ("R. v. Shah" over
+  // "Barta v. Shah"); else the one case that shares any of them.
+  const agreeing = [...new Map((hits ?? []).flatMap((hit) => {
+    const agreement = hit.citation && hit.title && hit.citation !== source.citation ? caseNamesAgree(written, hit.title) : null;
+    return agreement?.agrees ? [[hit.citation!, { citation: hit.citation!, name: hit.title!,
+      exact: agreement.other.length === words.length && words.every((word) => agreement.other.includes(word)) }] as const] : [];
+  })).values()];
+  const exact = agreeing.filter(({ exact }) => exact), pool = exact.length ? exact : agreeing;
+  return { id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, source.citation, source.name]),
+    citation: source.citation, name: source.name,
+    named: pool.length === 1 ? { citation: pool[0].citation, name: pool[0].name } : null };
+}
 
 /** A single-authority retry asks again for a publisher PDF or for a lookup that went unanswered. */
 export const retryableAuthoritySource = (draft: AuthoritiesDraft, id: string) =>
@@ -205,6 +242,12 @@ export async function resolveAuthoritiesSources(
       type: "set-source-lookup-failure", authorityId: id, failure: resolved.failure ?? null });
     if (!resolved.source) continue;
     const source = resolved.source;
+    // A citation that names a different case keeps the brief's name and citation, and no source,
+    // until the user decides.
+    const mismatch = await citedCaseMismatch(draft.authorities[id], source, sources, signal);
+    if (mismatch || draft.authorities[id].citedCase)
+      editor.apply({ type: "set-cited-case", authorityId: id, citedCase: mismatch });
+    if (mismatch) continue;
     resolvedSources.set(stableA2AJSourceId(source), source);
     editor.apply({ type: "resolve-authority", authorityId: id,
       citation: source.citation, name: source.name,

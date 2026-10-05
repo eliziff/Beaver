@@ -350,6 +350,16 @@ async function scanReview(
         (representative.fields as { instrumentTitle?: string }).instrumentTitle ??
         (representative.authority === "case" ? undefined
           : full.find((citation) => citation.style?.text.trim())?.style?.text) ?? "") || null,
+      // A decision's other names in the brief: its short forms, and the case the sentence a note
+      // hangs from names. They tell whether the case a source holds at its citation is the one meant.
+      ...(() => {
+        if (kindOf(representative.authority) !== "case") return {};
+        const shortNames = [...new Set(full.flatMap((citation) => citation.explicitShortName?.trim()
+          ? [oneLine(citation.explicitShortName)] : []))];
+        const mentionedAs = full.map((citation) =>
+          (citation.fields as { anchorMention?: { text: string } }).anchorMention?.text).find((value) => value?.trim());
+        return { ...shortNames.length && { shortNames }, ...mentionedAs && { mentionedAs: oneLine(mentionedAs) } };
+      })(),
       displayName: null, excluded: false,
       evidenceIds: [], locators: [], sourceIdentity: null,
       source: { kind: "unresolved" }, scanOnly: true,
