@@ -195,6 +195,43 @@ async function sourceText(product: AuthoritiesProduct, role: string, signal?: Ab
 type RecognitionJob = { controller: AbortController; progress: PdfProgress };
 const recognitionJobs = new Map<string, RecognitionJob>();
 
+/** What a statute's excerpt depends on: the statute, its PDFs, where the brief cites it, what is marked in it and
+ *  the settings a build reads it under. Another value is another count; a TAB page or a right-hand start is not. */
+function excerptInputs(product: AuthoritiesProduct) {
+  const { state } = product;
+  const statutes = Object.values(state.authorities).filter((authority) => !authority.excluded && statuteExcerpt(authority));
+  return { statutes, key: JSON.stringify([product.id, state.settings.passageMarking, state.settings.scannedPdfPolicy,
+    state.settings.finalPdf, state.settings.linkPinpoints, statutes.map((authority) => [authority.id, authority.excerpt,
+      attachedAuthoritySources(authority.source).map(({ bindingRole, sourceSha256 }) => [bindingRole, sourceSha256]),
+      Object.values(state.occurrences).filter(({ authorityId }) => authorityId === authority.id)
+        .map(({ id, pinpoints }) => [id, pinpoints]),
+      authority.annotations ?? null, authority.highlightExclusions ?? null])]) };
+}
+/** The last count asked for, by draft: a preview asks again only when what the count depends on changed. */
+const excerptCounts = new Map<string, { key: string; counted: Promise<Record<string, number>> }>();
+/** The pages each statute the book excerpts keeps, by authority, read in the runtime that reads the sources (so
+ *  a build finds them read): each statute's PDFs in turn, the last giving its count. */
+function excerptPages(product: AuthoritiesProduct) {
+  const { statutes, key } = excerptInputs(product), kept = excerptCounts.get(product.id);
+  if (kept?.key === key) return kept.counted;
+  const counted = (async () => {
+    const pages: Record<string, number> = {};
+    for (const authority of statutes) for (const source of attachedAuthoritySources(authority.source)) {
+      const form: AuthoritiesRequest = { draft: product.state, role: source.bindingRole };
+      const file = await resolveExact(product.state.bindings[source.bindingRole], true);
+      if (!file) break;
+      form.files = [file];
+      const counted = (await runtimeResponse("excerpt-pages", form)).data as { authorityId: string; pages: number | null };
+      if (counted.pages) pages[counted.authorityId] = counted.pages;
+    }
+    return pages;
+  })();
+  excerptCounts.set(product.id, { key, counted });
+  // A count that failed is asked for again with the next preview.
+  counted.catch(() => { if (excerptCounts.get(product.id)?.counted === counted) excerptCounts.delete(product.id); });
+  return counted;
+}
+
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
   prepareAnnotations: (product, ...args) =>
     prepareAnnotations({ ...product, state: supportedDraft(product.state) }, ...args),
@@ -317,22 +354,11 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return JSON.stringify(prepared) === JSON.stringify(product.state)
       ? product : save(product.id, product.revision, prepared);
   },
-  bookFront: async (product, actions, signal) => {
-    const front = async () => (await runtimeResponse("book-front", { draft: product.state, actions, title: product.title },
-      signal)).files!.map(file => new Blob([file.bytes.slice().buffer as ArrayBuffer], { type: file.mimeType }))[0];
-    try { return await front(); } catch (error) {
-      // The index's pages wait on a statute the book excerpts whose text is not read yet: each is read as a
-      // build reads it (the build then finds it read), and the front drawn again.
-      if (!(error instanceof BeaverApiError) || error.status !== 409) throw error;
-      for (const source of Object.values(product.state.authorities).flatMap((authority) =>
-        statuteExcerpt(authority) ? attachedAuthoritySources(authority.source) : [])) {
-        const form: AuthoritiesRequest = { draft: product.state, role: source.bindingRole };
-        form.files = [await resolveExact(product.state.bindings[source.bindingRole])];
-        await runtimeResponse("source-read", form, signal);
-      }
-      return front();
-    }
-  },
+  // The cover and index are drawn by the previews' own runtime, with the pages each statute the book excerpts
+  // keeps, counted where the sources are read.
+  bookFront: async (product, actions, signal) => (await runtimeResponse("book-front", { draft: product.state, actions,
+    title: product.title, excerptPages: await excerptPages(product) }, signal))
+    .files!.map(file => new Blob([file.bytes.slice().buffer as ArrayBuffer], { type: file.mimeType }))[0],
   attach: (id, authorityId, revision, selected, language = "en") =>
     attachPdf(id, revision, selected, { authority_id: authorityId, language,
       ...(selected.autoFetched ? { auto_fetched: "true" } : {}) }),

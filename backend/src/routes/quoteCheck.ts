@@ -4,7 +4,7 @@ import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import type { DocumentStore } from "../lib/documentStore";
 import { createAuthoritiesImporter } from "../lib/authoritiesImport";
-import { checkQuotes, quoteCheckCounts, type QuoteResult } from "../lib/quoteCheck";
+import { checkQuotes, type QuoteResult } from "../lib/quoteCheck";
 import { saveQuoteCheckWorkbook } from "../lib/quoteCheckWorkbook";
 
 export function createQuoteCheckRouter(documents: DocumentStore) {
@@ -36,7 +36,8 @@ export function createQuoteCheckRouter(documents: DocumentStore) {
     } catch (error) {
       const workbook = completedQuotes.length ? await saveQuoteCheckWorkbook(documents, scope, id, {
         mode: "mechanical — incomplete", total, quotes: completedQuotes, citationUnits,
-        counts: quoteCheckCounts(completedQuotes),
+        counts: Object.fromEntries([...new Set(completedQuotes.map(({ status }) => status))]
+          .map((status) => [status, completedQuotes.filter((quote) => quote.status === status).length])),
       }, undefined, source.versionId) : null;
       if (!abort.signal.aborted) res.write(`data: ${JSON.stringify({ error: error instanceof Error
         ? error.message : "Quotation checking failed. Completed receipts remain available.", workbook })}\n\n`);

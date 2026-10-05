@@ -6,7 +6,7 @@ import { bad, choice, decodeAuthoritiesDiscrepancyAction,
   text } from "../lib/authoritiesActionContract";
 import { asyncRoute } from "../lib/asyncRoute";
 import { applyAuthoritiesUserAction } from "../lib/authoritiesActions";
-import { authoritiesBookFront } from "../lib/authoritiesBuild";
+import { authoritiesBookFront, statuteExcerptPageCounts } from "../lib/authoritiesBuild";
 import { decodeAuthoritiesDraft } from "../lib/authoritiesDomain";
 import { followedRoute } from "../lib/followedRoute";
 import { wordToPdfAvailable } from "../lib/convert";
@@ -111,7 +111,7 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
       decodeAuthoritiesDraft(product.state) ?? reject(409, "Authorities draft state is invalid"));
     // A statute the book excerpts counts the pages a build keeps of it, read from its stored file.
     res.type("application/pdf").send(await authoritiesBookFront(state, product.title,
-      application.sourceText(applicationScope(res), state)));
+      await statuteExcerptPageCounts(state, application.sourceText(applicationScope(res), state))));
   }));
   router.post("/:id/refresh", asyncRoute(async (req, res) => {
     res.json(await application.refresh(applicationScope(res), text(req.params.id),
