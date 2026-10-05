@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2, FileX2, LockKeyhole,
   ChevronDown, FolderInput, FolderSearch, Loader2, Pencil, Plus, RotateCw, ScrollText, SlidersHorizontal, Square, Upload } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
@@ -77,7 +77,25 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
   ocr, statuteCopies, groups, others, settings }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
-  const shown = authorities.map(({ id }) => id);
+  // A row is drawn again only when what it shows changes. The workspace's own changes (a source opened, a
+  // status line) give the panel new callbacks each time; the rows get stable ones that call the latest.
+  const live = useRef({ onAction, onPick, onLibrary, onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, authorities, ocr });
+  live.current = { onAction, onPick, onLibrary, onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, authorities, ocr };
+  const calls = useMemo(() => ({ action: (action: AuthoritiesAction) => live.current.onAction(action),
+    relink: (role: string) => live.current.onRelink(role), open: (role: string) => live.current.onOpenSource?.(role),
+    rows: new Map<string, RowCalls>() }), []);
+  const callsFor = (id: string) => {
+    let row = calls.rows.get(id);
+    if (!row) calls.rows.set(id, row = { pick: () => live.current.onPick?.(id), library: () => live.current.onLibrary?.(id),
+      attach: (file?: File) => live.current.onAttach(id, file), retry: () => live.current.onRetrySource?.(id),
+      edit: () => { const authority = live.current.authorities.find((item) => item.id === id); if (authority) live.current.onEditIdentity(authority); } });
+    return row;
+  };
+  const recognition = useMemo(() => ocr && { get tracked() { return live.current.ocr?.tracked ?? {}; },
+    begin: (...args: Parameters<SourceOcrPanel["begin"]>) => live.current.ocr!.begin(...args),
+    stop: (...args: Parameters<SourceOcrPanel["stop"]>) => live.current.ocr!.stop(...args) }, [!!ocr]); // eslint-disable-line react-hooks/exhaustive-deps
+  const orderKey = authorities.map(({ id }) => id).join("\0");
+  const shown = useMemo(() => orderKey ? orderKey.split("\0") : [], [orderKey]);
   const headed = authorities.some(({ id }) => groups?.get(id) && groups.get(id) !== "Authorities");
   return <><section className="@container/sources mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
@@ -125,11 +143,12 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           editableIdentity={state.import.kind === "manual" || !!authority.userAdded}
           rebuildsFromText={state.settings.sourceMode !== "manual-originals"}
           removable={!occurrences.some(({ authorityId }) => authorityId === authority.id)}
-          onAction={onAction} onPick={onPick ? () => onPick(authority.id) : undefined}
-          onLibrary={onLibrary ? () => onLibrary(authority.id) : undefined} sourceLabel={sourceLabel}
-          onAttach={(file) => onAttach(authority.id, file)} onRelink={onRelink}
-          onOpen={onOpenSource} onRetry={onRetrySource ? () => onRetrySource(authority.id) : undefined}
-          onEditIdentity={() => onEditIdentity(authority)} ocr={ocr} /></Fragment>)}
+          onAction={calls.action} onPick={onPick ? callsFor(authority.id).pick : undefined}
+          onLibrary={onLibrary ? callsFor(authority.id).library : undefined} sourceLabel={sourceLabel}
+          onAttach={callsFor(authority.id).attach} onRelink={calls.relink}
+          onOpen={onOpenSource ? calls.open : undefined} onRetry={onRetrySource ? callsFor(authority.id).retry : undefined}
+          onEditIdentity={callsFor(authority.id).edit} ocr={recognition}
+          recognizing={recognitionKey(authority, ocr)} /></Fragment>)}
         {headed && !!others?.parts.length && <p className={GROUP}>Documents</p>}
         {others?.parts.map(({ part, tab }) => <OtherPdfRow key={part.id} part={part} tab={tab} busy={busy}
           issue={sourceIssues[part.bindingRole]} files={others} sourceLabel={sourceLabel}
@@ -143,7 +162,12 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
     onSave={(settings) => onAction({ type: "set-settings", settings })} />}</>;
 }
 
-function AuthorityRow({ authority, tab, citationLine, italicName, busy, needsPdf, requireLanguages, sourceIssues,
+type RowCalls = { pick: () => void; library: () => void; attach: (file?: File) => void; retry: () => void; edit: () => void };
+/** What a row's sources are being recognized as, so the row is drawn again as that changes, and only then. */
+const recognitionKey = (authority: AuthorityIdentity, ocr?: SourceOcrPanel) => !ocr || authority.source.kind !== "attached" ? ""
+  : JSON.stringify(authority.source.sources.map(({ bindingRole }) => ocr.tracked[bindingRole] ?? null));
+const AuthorityRow = memo(Row);
+function Row({ authority, tab, citationLine, italicName, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
   onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes }: {
   order: string[]; copy?: StatuteCopy; statutes: boolean;
@@ -157,6 +181,8 @@ function AuthorityRow({ authority, tab, citationLine, italicName, busy, needsPdf
   onOpen?: (role: string) => void; onEditIdentity: () => void;
   onRetry?: () => void;
   ocr?: SourceOcrPanel;
+  /** Changes when the row's recognition does: the row's own `ocr` stays the same object. */
+  recognizing?: string;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const name = authority.displayName || authority.name || "";
