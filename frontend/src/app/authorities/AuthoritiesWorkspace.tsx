@@ -1161,8 +1161,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     return new Map(units.flatMap((unit) => unit.footnoteId === null ? [] : [[String(unit.footnoteId), labels.get(unit.id)]]));
   }, [shown]);
   // A finding opens on its citation, selected in the list and shown in the brief.
+  const [revealed, setRevealed] = useState(0);
   const openFinding = (id: string) => {
-    setFindingId(id);
+    setFindingId(id); setRevealed((count) => count + 1);
     const occurrence = [...openFindings, ...findings].find((finding) => finding.id === id)?.occurrenceId;
     if (occurrence && occurrences.some((item) => item.id === occurrence)) setSelectedId(occurrence);
   };
@@ -1317,7 +1318,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={findings} check={currentReview || reviewError ? "done" : reviewKey || !app && sourcesFound.id !== draft.id ? "running" : sourcesFound.failed ? "failed" : "unavailable"} hidden={!reviewing}
                       busy={busy} onSelect={setSelectedId} onAction={act} onHistory={travel}
-                      onFocusChange={onFocusChange} onReview={openFinding} />
+                      reveal={revealed} onFocusChange={onFocusChange} onReview={openFinding} />
                   </section></div>}
                   {reviewing && quotationReview && <div ref={revealFinding}>{quotationReview}</div>}
                   </div>

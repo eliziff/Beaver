@@ -246,7 +246,7 @@ function AuthorityPicker({ options, current, currentLabel, currentItalic = 0, bu
 /** While unseen it is not drawn again: what changed meanwhile is marked when it is shown. */
 export const CitationReview = memo(Review, (before, after) => !!before.hidden && !!after.hidden);
 function Review({ product, host, sourceVersion, occurrences, selected, authorities, discrepancies, check = 'done',
-  busy, hidden = false, onSelect, onAction, onHistory, onReview, onFocusChange }: {
+  busy, hidden = false, reveal = 0, onSelect, onAction, onHistory, onReview, onFocusChange }: {
   product: AuthoritiesProduct; host: AuthoritiesHost; sourceVersion: number;
   occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence; authorities: AuthorityIdentity[];
   discrepancies: Finding[]; busy: boolean;
@@ -254,7 +254,9 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
    *  A2AJ source to check its quotation against, or the sources could not be looked up. */
   check?: 'running' | 'done' | 'unavailable' | 'failed';
   /** Kept drawn, unseen, while another step shows: it reports no focus and paints nothing. */
-  hidden?: boolean; onSelect(id: string): void;
+  hidden?: boolean;
+  /** Counts the times the selected citation is to be brought into view from outside (a finding opened). */
+  reveal?: number; onSelect(id: string): void;
   onAction(action: AuthoritiesAction, done?: (next: AuthoritiesProduct) => void): void;
   /** Takes the last review edit back (`true`) or makes it again; false when there is none. */
   onHistory(back: boolean): boolean;
@@ -362,7 +364,9 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       !pages.every(page => decorated.current.get(page)?.isConnected));
     const scroller = root.querySelector<HTMLElement>('.docx-view-scroll,.beaver-pdf-scroll');
     if (!scrollPending.current || !scroller) return;
-    const view = scroller.getBoundingClientRect();
+    // The part of the brief on screen: the page itself may be scrolled to show the finding card below it.
+    const box = scroller.getBoundingClientRect(), top = Math.max(box.top, 0), bottom = Math.min(box.bottom, window.innerHeight);
+    const view = { top, bottom, height: Math.max(0, bottom - top) };
     // The document's own marks place the view; the passage shown below it when it is not found never does.
     const placed = marks.find(mark => !mark.closest('.citation-fallback'));
     if (placed) {
@@ -458,6 +462,13 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     for (const id of changed.keys()) marked.current.set(id, marking(current.get(id)!, occurrences));
     activate(); repaint('active');
   }, [units, product.state.occurrences]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A finding opened on its citation shows it in the brief, as a choice from the list does, once the card below
+  // has come into view (the page may scroll for it).
+  useEffect(() => {
+    if (!reveal) return;
+    const frame = requestAnimationFrame(() => { scrollPending.current = true; activate(); });
+    return () => cancelAnimationFrame(frame);
+  }, [reveal]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     // The selection is kept by its own events: reading it here would lay out the page again.
     flushNudge(); activate(); repaint('active');
