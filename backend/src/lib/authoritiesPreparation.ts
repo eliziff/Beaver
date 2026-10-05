@@ -57,11 +57,11 @@ export async function prepareAuthoritiesCorrection<T extends { bytes: Buffer }>(
     const citedCase = cited.citedCase!, named = citedCase.named;
     if (!["ignore", "keep_cited_case", ...named ? ["use_named_case"] : []].includes(action))
       reject(400, "That correction is not available for this citation");
-    const before = { id: cited.id, citation: cited.citation, citedCase: structuredClone(citedCase) };
+    const before = { id: cited.id, citation: cited.citation, name: cited.name, citedCase: structuredClone(citedCase) };
     const take = (value: AuthoritiesDraft) => action === "ignore" ? value : updateAuthoritiesDraft(value,
       { type: action === "use_named_case" ? "use-named-case" : "keep-cited-case", authorityId: cited.id });
     if (action !== "use_named_case" || !word) return { kind: "ignored" as const, draft: take(updateAuthoritiesDraft(draft,
-      { type: "resolve-discrepancy", id: input.id, action, ...action === "use_named_case" ? { correction: { revisions: [], authority: before } } : {} })) };
+      { type: "resolve-discrepancy", id: input.id, action, ...action !== "ignore" ? { correction: { revisions: [], authority: before } } : {} })) };
     // Each place the brief writes the citation in full, as written there, takes the named case's.
     const corrections = Object.values(draft.occurrences).flatMap((occurrence) =>
       occurrence.authorityId === cited.id && occurrence.kind !== "reference" && occurrence.coreSpan.text

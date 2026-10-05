@@ -300,7 +300,7 @@ const draftShape = closed<AuthoritiesDraft>({
   discrepancyDecisions: dictionary(oneOf(AUTHORITIES_ACTION_CHOICES.discrepancy), hash),
   discrepancyCorrections: maybe(dictionary(closed<AuthoritiesDiscrepancyCorrectionRecord>({
     revisions: list(10_000, integer),
-    authority: maybe(closed<NonNullable<AuthoritiesDiscrepancyCorrectionRecord["authority"]>>({ id: text, citation: text,
+    authority: maybe(closed<NonNullable<AuthoritiesDiscrepancyCorrectionRecord["authority"]>>({ id: text, citation: text, name: nullable(text),
       citedCase: closed<AuthorityCitedCase>({ id: hash, citation: text, name: text,
         named: nullable(closed<NonNullable<AuthorityCitedCase["named"]>>({ citation: text, name: text })) }) })) }))),
   dismissedOccurrences: maybe(dictionary(closed<AuthoritiesDismissedOccurrence>({
@@ -1220,6 +1220,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       const before = corrected?.authority, authority = before && draft.authorities[before.id];
       if (authority) {
         authority.citation = before.citation;
+        authority.name = before.name;
         authority.citedCase = structuredClone(before.citedCase);
         authority.sourceIdentity = null;
         if (authority.source.kind !== "attached") replaceSource(draft, authority, { kind: "unresolved" });
