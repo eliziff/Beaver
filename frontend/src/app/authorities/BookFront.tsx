@@ -228,6 +228,33 @@ export function previewActions(state: AuthoritiesProduct["state"], profileId: Au
 /** The front drawings the runtime made, by what they were drawn from, so a step opened again has its
  *  drawing at once. */
 const fronts = new Map<string, Uint8Array>();
+/** Drawings asked for and not back yet, by what they are drawn from: a second ask waits for the first. */
+const drawing = new Map<string, Promise<Uint8Array>>();
+const frontKey = (draft: AuthoritiesProduct, actions: AuthoritiesAction[]) => JSON.stringify([draft.id, draft.revision, actions]);
+function drawFront(host: AuthoritiesHost, draft: AuthoritiesProduct, actions: AuthoritiesAction[], signal?: AbortSignal) {
+  const key = frontKey(draft, actions), kept = fronts.get(key);
+  if (kept) return Promise.resolve(kept);
+  let asked = drawing.get(key);
+  if (!asked) {
+    asked = host.bookFront!(draft, actions, signal).then((blob) => blob.arrayBuffer()).then((buffer) => {
+      const bytes = new Uint8Array(buffer);
+      fronts.delete(key); fronts.set(key, bytes);
+      for (const old of [...fronts.keys()].slice(0, -8)) fronts.delete(old);
+      return bytes;
+    }).finally(() => drawing.delete(key));
+    drawing.set(key, asked);
+  }
+  return asked;
+}
+/** Draws a draft's cover and index as its Book dialog first shows them, while the page is idle, so that
+ *  dialog opens with them drawn. */
+export function prefetchFront(host: AuthoritiesHost, draft: AuthoritiesProduct) {
+  if (!host.bookFront || draft.state.import.kind === "manual" && !draft.state.authorityOrder.length) return () => {};
+  const actions = previewActions(draft.state, draft.state.settings.profileId, draft.state.settings, draft.state.cover, PREVIEW_KEYS);
+  if (fronts.has(frontKey(draft, actions))) return () => {};
+  const idle = window.requestIdleCallback(() => void drawFront(host, draft, actions).catch(() => undefined), { timeout: 2000 });
+  return () => window.cancelIdleCallback(idle);
+}
 let warmed = false;
 /** Draws the preview book's front once while the page is idle, so the runtime that draws previews is
  *  ready before the first one is wanted. */
@@ -244,7 +271,7 @@ export function warmFrontPreviews(host: AuthoritiesHost) {
 export function FrontPreview({ host, draft, actions, part, label, className }: {
   host: AuthoritiesHost; draft?: AuthoritiesProduct; actions: AuthoritiesAction[]; part: FrontSlot; label: string; className?: string;
 }) {
-  const key = draft ? JSON.stringify([draft.id, draft.revision, actions]) : "";
+  const key = draft ? frontKey(draft, actions) : "";
   const [shown, setShown] = useState<{ bytes?: Uint8Array; error?: string }>(() => ({ bytes: fronts.get(key) }));
   const latest = useRef({ key, draft, actions }), [again, setAgain] = useState(0);
   latest.current = { key, draft, actions };
@@ -263,13 +290,7 @@ export function FrontPreview({ host, draft, actions, part, label, className }: {
     state.timer = window.setTimeout(() => {
       const asked = latest.current;
       state.timer = undefined; state.running = true;
-      void host.bookFront!(asked.draft!, asked.actions, state.stop.signal)
-        .then((blob) => blob.arrayBuffer()).then((buffer) => {
-          const bytes = new Uint8Array(buffer);
-          fronts.delete(asked.key); fronts.set(asked.key, bytes);
-          for (const old of [...fronts.keys()].slice(0, -8)) fronts.delete(old);
-          setShown({ bytes });
-        })
+      void drawFront(host, asked.draft!, asked.actions, state.stop.signal).then((bytes) => setShown({ bytes }))
         .catch((error) => { if (!state.stop.signal.aborted) setShown((current) => ({ ...current,
           error: errorMessage(error, "The preview could not be drawn.") })); })
         .finally(() => { state.running = false; state.drawn = asked.key;
