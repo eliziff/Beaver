@@ -64,11 +64,7 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
     const inputClass = "h-7 rounded border bg-app-surface px-1.5 text-center tabular-nums text-gray-950 placeholder:font-normal placeholder:text-gray-400 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700 disabled:opacity-50";
     const edge = (kind: "pdf" | "printed") => error?.kind === kind ? "border-red-700" : "border-gray-200";
     return <div className="relative min-w-0 text-[0.8125rem] font-medium text-gray-700" onKeyDown={event => {
-        // Escape takes back what was typed, and only that: the viewer stays open.
-        if (event.key === "Escape" && (error || pdfDraft !== null || printedDraft !== null)) {
-            event.stopPropagation(); event.preventDefault();
-            setError(null); setPdfDraft(null); setPrintedDraft(null);
-        }
+        if (event.key === "Escape") { setError(null); setPdfDraft(null); setPrintedDraft(null); }
     }}>
         <div className="flex flex-wrap items-center gap-x-3 rounded-lg border border-gray-200 bg-white px-2 py-1 shadow-sm">
             <label className="flex items-center gap-1">PDF
