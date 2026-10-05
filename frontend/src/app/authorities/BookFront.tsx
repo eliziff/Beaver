@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { FolderSearch, Plus, Scale, Upload, X } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
@@ -303,7 +303,9 @@ export function FrontPreview({ host, draft, actions, part, label, className }: {
   </Preview>;
 }
 
-type DrawnPage = { url: string; width: number; height: number };
+// Each page kept as the bitmap it was drawn into: shown as it is, never encoded as an image file.
+type DrawnPage = { bitmap: ImageBitmap; width: number; height: number };
+const sameBytes = (a: Uint8Array, b: Uint8Array) => a === b || a.length === b.length && a.every((byte, index) => byte === b[index]);
 /** The pages each pane drew last, with what they were drawn from, so a pane opened again shows them at
  *  once and draws again only what changed. */
 const drawings = new Map<string, { bytes: Uint8Array; width: number; pages: DrawnPage[] }>();
@@ -330,7 +332,11 @@ export function PagesPreview({ bytes, pages, label, keep }: {
   }, []);
   useEffect(() => {
     const kept = drawings.get(keep);
-    if (!bytes || !width || kept?.bytes === bytes && kept.width === width) return;
+    // The same PDF drawn again (a pane opened anew, a front unchanged) keeps its pages as drawn.
+    if (!bytes || !width || kept && kept.width === width && sameBytes(kept.bytes, bytes)) {
+      if (kept && bytes && kept.bytes !== bytes) kept.bytes = bytes;
+      return;
+    }
     let active = true;
     void (async () => {
       const task = openPdfDocument(await getPdfJs(), { data: bytes.slice() }, PDF_DOCUMENT_OPTIONS);
@@ -345,27 +351,40 @@ export function PagesPreview({ bytes, pages, label, keep }: {
           const canvas = window.document.createElement("canvas");
           canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
           await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
-          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve));
-          if (!active || !blob) return;
-          made.push({ url: URL.createObjectURL(blob), width: base.width, height: base.height });
+          const bitmap = await createImageBitmap(canvas);
+          if (!active) return;
+          made.push({ bitmap, width: base.width, height: base.height });
           // Each page takes its place as it is ready; the rest of the last drawing stays until then.
           setDrawn((current) => [...made, ...(current ?? []).slice(made.length)]);
         }
         const old = drawings.get(keep);
         drawings.set(keep, { bytes, width, pages: made });
         setDrawn(made);
-        if (old) setTimeout(() => old.pages.forEach(({ url }) => { if (!made.some((page) => page.url === url)) URL.revokeObjectURL(url); }), 1000);
+        if (old) setTimeout(() => old.pages.forEach(({ bitmap }) => { if (!made.some((page) => page.bitmap === bitmap)) bitmap.close(); }), 1000);
       } finally { await task.destroy(); }
     })().catch(() => {});
     return () => { active = false; };
   }, [bytes, pages, width, keep]);
   return <div className="min-h-0 flex-1 overflow-y-auto p-3">
     <div ref={sheet} className="grid gap-3">
-      {drawn?.length ? drawn.map((page, index) => <img key={index} src={page.url} alt={drawn.length > 1 ? `${label}, page ${index + 1}` : label}
-        style={{ aspectRatio: `${page.width} / ${page.height}` }} className="block h-auto w-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)]" />)
+      {drawn?.length ? drawn.map((page, index) => <DrawnPageView key={index} page={page}
+        label={drawn.length > 1 ? `${label}, page ${index + 1}` : label} />)
         : <div aria-hidden="true" className="aspect-[8.5/11] w-full animate-pulse bg-white/70" />}
     </div>
   </div>;
+}
+
+/** A drawn page, its bitmap copied onto a canvas of its own (a bitmap is drawn by the GPU, not decoded). */
+function DrawnPageView({ page, label }: { page: DrawnPage; label: string }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  useLayoutEffect(() => {
+    const element = canvas.current;
+    if (!element) return;
+    element.width = page.bitmap.width; element.height = page.bitmap.height;
+    element.getContext("2d")?.drawImage(page.bitmap, 0, 0);
+  }, [page.bitmap]);
+  return <canvas ref={canvas} role="img" aria-label={label} style={{ aspectRatio: `${page.width} / ${page.height}` }}
+    className="block h-auto w-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)]" />;
 }
 
 /** The preview pane beside the options: a framed, full-height area. */
