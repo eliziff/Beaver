@@ -32,9 +32,11 @@ export type AuthoritiesDiscrepancyCorrection = {
 
 type ReviewDraft = Pick<AuthoritiesDraft, "units" | "occurrences">;
 
-const sameLocator = (left: AuthoritiesSourcePassage, right: AuthoritiesSourcePassage) =>
-  left.locator.kind === right.locator.kind && JSON.stringify(sourceLocator({ kind: left.locator.kind, text: left.locator.label })) ===
-    JSON.stringify(sourceLocator({ kind: right.locator.kind, text: right.locator.label }));
+/** Two passages of a source are one where the source labels them alike ("12–14", "12-14"). */
+const sameLocator = (left: AuthoritiesSourcePassage, right: AuthoritiesSourcePassage) => {
+  const label = ({ locator }: AuthoritiesSourcePassage) => locator.label.replace(/\s+/gu, "").replace(/[\u2013\u2014]/gu, "-");
+  return left.locator.kind === right.locator.kind && label(left) === label(right);
+};
 
 /** Only substantive wording is a difference: case, diacritics, quote/dash variants and
  * compatibility width are noise, and the authored quote's edge punctuation is the author's. */
@@ -276,14 +278,9 @@ export function authoritiesDiscrepancyCorrection(
 export function sourceLocator(pinpoint: AuthorityOccurrence["pinpoints"][number]): {
   kind: "paragraph" | "section" | "page"; value: string; endValue?: string;
 } | null {
-  if (pinpoint.kind !== "paragraph" && pinpoint.kind !== "section" && pinpoint.kind !== "page") return null;
-  const prefixes = pinpoint.kind === "paragraph" ? /^(?:at\s+)?(?:paragraphs?|paras?|par|¶+)\.?\s*/iu
-    : pinpoint.kind === "section" ? /^(?:at\s+)?(?:ss?|sections?)\.?\s*/iu
-      : /^(?:at\s+)?(?:pp?|pages?)\.?\s*/iu;
-  const label = pinpoint.text.trim().replace(prefixes, "");
-  const range = label.split(/\s+(?:to|[-–—])\s+|\s*[-–—]\s*/u).filter(Boolean);
-  return range[0] ? { kind: pinpoint.kind, value: range[0],
-    ...(range[1] ? { endValue: range[1] } : {}) } : null;
+  // The engine read the value when it read the pinpoint: its first locator and the last of a range.
+  if ((pinpoint.kind !== "paragraph" && pinpoint.kind !== "section" && pinpoint.kind !== "page") || !pinpoint.first) return null;
+  return { kind: pinpoint.kind, value: pinpoint.first, ...(pinpoint.last ? { endValue: pinpoint.last } : {}) };
 }
 
 /** Loads only exact, version-matched A2AJ passages; failures suppress optional findings. */
