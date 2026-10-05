@@ -1,6 +1,6 @@
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
-import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
+import { attachedAuthoritySources, authoritiesInputPlan, statuteExcerpt } from "../../../../shared/authorities-sources.mjs";
 import { oneAtATime } from "../../../../shared/one-at-a-time.mjs";
 import type { AuthoritiesProduct } from "./types";
 import {
@@ -317,8 +317,22 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return JSON.stringify(prepared) === JSON.stringify(product.state)
       ? product : save(product.id, product.revision, prepared);
   },
-  bookFront: async (product, actions, signal) => (await runtimeResponse("book-front",
-    { draft: product.state, actions, title: product.title }, signal)).files!.map(file => new Blob([file.bytes.slice().buffer as ArrayBuffer], { type: file.mimeType }))[0],
+  bookFront: async (product, actions, signal) => {
+    const front = async () => (await runtimeResponse("book-front", { draft: product.state, actions, title: product.title },
+      signal)).files!.map(file => new Blob([file.bytes.slice().buffer as ArrayBuffer], { type: file.mimeType }))[0];
+    try { return await front(); } catch (error) {
+      // The index's pages wait on a statute the book excerpts whose text is not read yet: each is read as a
+      // build reads it (the build then finds it read), and the front drawn again.
+      if (!(error instanceof BeaverApiError) || error.status !== 409) throw error;
+      for (const source of Object.values(product.state.authorities).flatMap((authority) =>
+        statuteExcerpt(authority) ? attachedAuthoritySources(authority.source) : [])) {
+        const form: AuthoritiesRequest = { draft: product.state, role: source.bindingRole };
+        form.files = [await resolveExact(product.state.bindings[source.bindingRole])];
+        await runtimeResponse("source-read", form, signal);
+      }
+      return front();
+    }
+  },
   attach: (id, authorityId, revision, selected, language = "en") =>
     attachPdf(id, revision, selected, { authority_id: authorityId, language,
       ...(selected.autoFetched ? { auto_fetched: "true" } : {}) }),

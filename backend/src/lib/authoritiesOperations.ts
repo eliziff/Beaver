@@ -248,7 +248,9 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       : reject(400, "actions are invalid");
     const state = actions.map(decodeAuthoritiesUserAction).reduce((state, action) => applyAuthoritiesUserAction(state, action),
       draft(input?.draft));
-    return fileResult(null, [{ role: "output", mimeType: "application/pdf", bytes: await authoritiesBookFront(state, String(input?.title ?? "").slice(0, 300)) }]);
+    return fileResult(null, [{ role: "output", mimeType: "application/pdf", bytes: await authoritiesBookFront(state, String(input?.title ?? "").slice(0, 300),
+      // A statute's text as a build reads it, where it has been read; the host reads what is not, and asks again.
+      (source) => authoritiesSourceText(state, readings)(source.bindingRole, { sourceSha256: source.sourceSha256 } as Parameters<ReturnType<typeof authoritiesSourceText>>[1])) }]);
     },
     "sources": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;
