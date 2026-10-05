@@ -27,8 +27,19 @@ export function systemArial() {
   })();
 }
 
-/** The font engine pdf-lib embeds a font file with, where it is installed. */
-export async function pdfFontkit(): Promise<Parameters<PDFDocument["registerFontkit"]>[0] | undefined> {
-  return import("@pdf-lib/fontkit").then((module) => (module as { default?: unknown }).default ?? module,
-    () => undefined) as Promise<Parameters<PDFDocument["registerFontkit"]>[0] | undefined>;
+type Fontkit = Parameters<PDFDocument["registerFontkit"]>[0];
+let kit: Promise<Fontkit | undefined> | undefined;
+/** The font engine pdf-lib embeds a font file with, where it is installed. A font file is parsed once: every
+ *  document that embeds the same bytes (the machine's Arial, read once) embeds from the same parsed font. */
+export function pdfFontkit(): Promise<Fontkit | undefined> {
+  return kit ??= import("@pdf-lib/fontkit").then((module) => {
+    const fontkit = ((module as { default?: unknown }).default ?? module) as Fontkit;
+    const parsed = new WeakMap<Uint8Array, ReturnType<Fontkit["create"]>>();
+    return { ...fontkit, create(data: Uint8Array, postscriptName?: string) {
+      if (postscriptName) return fontkit.create(data, postscriptName);
+      let font = parsed.get(data);
+      if (!font) parsed.set(data, font = fontkit.create(data));
+      return font;
+    } } as Fontkit;
+  }, () => undefined);
 }

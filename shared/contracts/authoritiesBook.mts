@@ -35,6 +35,9 @@ export type PreparedAuthoritiesBook<Bytes = Uint8Array> = {
   limits?: { maxPages?: number; maxBytes?: number; completeToc?: boolean; coverLabels?: boolean };
   /** For printing on both sides: each tab page and each authority's first page on a right-hand page. */
   rightHandStarts?: boolean;
+  /** Only the cover and the index, for a preview: each source's pages are counted, as the book places them,
+   *  and none is copied into it, so nothing links or bookmarks past the index. */
+  frontOnly?: boolean;
   groups: Array<{ label: string; entries: BookRow[] }>;
   sources: PreparedBookSource<Bytes>[];
   /** Arial's files from the machine building the book; without them the book names Arial unembedded. */
@@ -58,7 +61,7 @@ export async function mapAuthorityBookBytes<From, To>(book: PreparedAuthoritiesB
 export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAuthoritiesBook,
   signal?: AbortSignal, fontkit?: PdfAssemblyInput<string>["fontkit"]): Promise<BuiltAuthorityBook[]> {
   const engine = pdfAssembly(pdf);
-  const { federal, electronic, paperCover, coverLine, documentTitle, bookTitle, subtitle,
+  const { federal, electronic, paperCover, coverLine, documentTitle, bookTitle, subtitle, frontOnly = false,
     customCover, customIndex, coverPageCount, customIndexPages, limits, groups } = input;
   const showPages = input.indexShows === "tabs-and-pages", tabPages = !!input.tabPages;
   const rightHand = !!input.rightHandStarts;
@@ -176,7 +179,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
           serifBold: pdf.StandardFonts.TimesRomanBold,
           regular: federal ? pdf.StandardFonts.TimesRoman : arialFont(pdf, "regular", arial),
           bold: federal ? pdf.StandardFonts.TimesRomanBold : arialFont(pdf, "bold", arial) },
-        parts: plan.slices.map(({ source, pageIndices, tabbed, blankBefore, blankAfter }) => ({
+        parts: frontOnly ? [] : plan.slices.map(({ source, pageIndices, tabbed, blankBefore, blankAfter }) => ({
           id: source.key, source: source.bytes, pageIndices, ocrFont: "regular",
           ocrTextByPage: source.ocrTextByPage,
           draw: tabbed || blankBefore ? ({ document, fonts }) => {
@@ -260,7 +263,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
                   y, size: 12, font: bold });
                 page.drawLine({ start: { x: titleX, y: last - 7 }, end: { x: pageRight, y: last - 7 },
                   thickness: .45, color: pdf.rgb(.82, .82, .82) });
-                if (tabTarget !== undefined) links.push({ page, targetPageIndex: tabTarget,
+                if (tabTarget !== undefined && !frontOnly) links.push({ page, targetPageIndex: tabTarget,
                   rect: [margin, last - 10, sourceUrl ? sourceX - 5 : pageRight, y + 10] });
                 if (sourceUrl) links.push({ page, url: sourceUrl, rect: [sourceX - 5, y - 10, sourceX + sourceWidth + 5, y + 10] });
                 y -= token.height;
@@ -285,7 +288,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
               const dots = Math.floor((leaderEnd - leaderStart) / dot);
               if (dots > 1) page.drawText(" .".repeat(dots), { x: leaderEnd - dots * dot, y: last,
                 size: bodySize, font: serif });
-              if (tabTarget !== undefined) links.push({ page, targetPageIndex: tabTarget,
+              if (tabTarget !== undefined && !frontOnly) links.push({ page, targetPageIndex: tabTarget,
                 rect: [margin - 2, last - 4, pageRight + 2, y + bodySize] });
               y -= token.height;
             }
@@ -296,6 +299,8 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
           });
         },
         after: ({ document, fonts: { bold } }) => {
+          // A preview shows the cover's editable fields drawn into its page, as any viewer would show them.
+          if (frontOnly) { document.getForm().flatten(); return; }
           if (backPageCount) {
             const back = document.addPage([612, 792]);
             if (paperCover) back.drawRectangle({ x: 0, y: 0, width: 612, height: 792,
@@ -328,7 +333,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
         links, openBookmarks: true, pageLabels: !federal && !showPages ? undefined : plan.globalStart + 1,
         pageNumbers: federal && electronic ? { font: "regular", start: plan.globalStart + 1,
           position: "bottom-right", size: 12, inset: 99.21, offset: 54 } : undefined,
-        outlines: () => [
+        outlines: () => frontOnly ? [] : [
           { title: documentTitle, pageIndex: 0,
             ...(coverOutline.length ? { children: coverOutline } : {}) },
           ...!indexPages.length && !customIndex ? [] : [{ title: indexTitle, pageIndex: indexStart,
