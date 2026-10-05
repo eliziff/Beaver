@@ -11,7 +11,7 @@ type ButtonOptions = {
 };
 type ButtonProps = ComponentProps<"button"> & ButtonOptions;
 const variantClasses: Record<ButtonVariant, string> = {
-    default: "bg-gray-950 text-white hover:bg-gray-800 disabled:hover:bg-gray-950",
+    default: "bg-(--primary-action) text-white hover:bg-(--primary-action-hover) disabled:hover:bg-(--primary-action)",
     ghost: "bg-transparent text-gray-700 hover:bg-gray-100",
     outline: "border border-gray-300 bg-white text-gray-800 hover:bg-gray-50",
     danger: "border-red-600 bg-red-600 text-white hover:bg-red-700 disabled:hover:bg-red-600",

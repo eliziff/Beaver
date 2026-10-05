@@ -63,6 +63,9 @@ textarea,
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: var(--brand-red);
+    /* A primary action's fill: near-black unless an app sets its own. */
+    --primary-action: var(--color-gray-950);
+    --primary-action-hover: var(--color-gray-800);
     /* Tailwind's red, which the accent is unless an app sets its own. */
     --accent-50: oklch(97.1% 0.013 17.38);
     --accent-600: oklch(57.7% 0.245 27.325);
@@ -87,6 +90,8 @@ html:root[data-appearance="dark"] { color-scheme: dark; }
     --border: #465365;
     --input: #465365;
     --brand-red-soft: #402421;
+    --primary-action: #030712;
+    --primary-action-hover: #1f2937;
     --color-red-50: #402421;
     --accent-50: #402421;
     --color-red-100: #512b29;
