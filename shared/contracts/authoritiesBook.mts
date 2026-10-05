@@ -300,7 +300,17 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
         },
         after: ({ document, fonts: { bold } }) => {
           // A preview shows the cover's editable fields drawn into its page, as any viewer would show them.
-          if (frontOnly) { document.getForm().flatten(); return; }
+          if (frontOnly) {
+            document.getForm().flatten();
+            // pdf-lib's flatten deletes each field's widget but leaves it in its page's annotations, where it
+            // no longer resolves: it goes from there too.
+            for (const page of document.getPages()) {
+              const annotations = page.node.Annots();
+              for (let index = (annotations?.size() ?? 0) - 1; index >= 0; index -= 1)
+                if (!document.context.lookup(annotations!.get(index))) annotations!.remove(index);
+            }
+            return;
+          }
           if (backPageCount) {
             const back = document.addPage([612, 792]);
             if (paperCover) back.drawRectangle({ x: 0, y: 0, width: 612, height: 792,
