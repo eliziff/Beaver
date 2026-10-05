@@ -14,8 +14,9 @@ import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
 import { authorityPassageTargets, buildAuthorities, citedSourcePages, prepareAuthorityAnnotations,
   type AuthoritiesBuildInput, type AuthoritiesBuildResult } from "./authoritiesBuild";
 import { attachedAuthoritySources, decodeAuthoritiesDraft,
-  type AuthoritiesAction, type AuthoritiesDraft, type AuthoritiesDiscrepancyAction,
+  type AuthoritiesAction, type AuthoritiesDraft,
   type AuthoritySourceLanguage } from "./authoritiesDomain";
+import type { AuthoritiesDiscrepancyRequest } from "mike/shared/authorities-contract.d.ts";
 import { createAuthoritiesImporter, type AuthoritiesImporter, type AuthoritiesImportSource,
   type GroundedReceiptSeed } from "./authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
@@ -334,7 +335,7 @@ export function createAuthoritiesWorkspaceApplication(
       return pendingDiscrepancies((await open(scope, id)).draft, signal);
     },
     async resolveDiscrepancy(scope: ApplicationScope, id: string, input: {
-      revision: number; id: string; action: AuthoritiesDiscrepancyAction;
+      revision: number; id: string; action: AuthoritiesDiscrepancyRequest;
     }, signal?: AbortSignal) {
       const { draft } = await edit(scope, id, input.revision);
       const prepared = await prepareAuthoritiesCorrection(draft, input, async (imported) => {
