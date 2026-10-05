@@ -181,21 +181,11 @@ function finalContractDatabase() {
   return connection ? { connection, filename } : null;
 }
 
-function displayCitation(row: Row) {
-  const authors = (string(row, "authors") ?? "").split(/\s*;\s*/u).filter(Boolean);
-  const byline = authors.length > 3 ? `${authors[0]} et al` : authors.join(" & ");
-  const volume = string(row, "volume");
-  const issue = string(row, "issue");
-  const year = string(row, "document_date_en")?.match(/\d{4}/u)?.[0];
-  return [
-    `${byline}${byline ? "," : ""}`,
-    `“${string(row, "name_en") ?? ""}”`,
-    year ? `(${year})` : "",
-    volume ? `${volume}${issue ? `:${issue}` : ""}` : "",
-    string(row, "journal_abbrev"),
-    string(row, "first_page"),
-  ].filter(Boolean).join(" ");
-}
+/** McGill's form of an article row: byline, title, year, volume and issue, journal, first page. */
+const displayCitation = (row: Row) => structureNative().citationEngineCall("formatArticle", JSON.stringify({
+  authors: (string(row, "authors") ?? "").split(/\s*;\s*/u).filter(Boolean), title: string(row, "name_en") ?? "",
+  year: string(row, "document_date_en"), volume: string(row, "volume"), issue: string(row, "issue"),
+  journal: string(row, "journal_abbrev"), firstPage: string(row, "first_page") })) as string;
 
 function queryTokens(value: string) {
   return value.normalize("NFKC").toLocaleLowerCase()
