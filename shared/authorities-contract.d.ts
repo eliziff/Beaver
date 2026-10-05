@@ -35,6 +35,9 @@ export type AuthoritiesBuildSettings = {
   /** Each case and statute needs its text, not its PDF: a source a provider supplies text for is
    *  complete, and only one without text goes to CanLII and the watched folder (the ALR app). */
   sourceText?: boolean;
+  /** False: US and UK decisions are not looked up (CourtListener, the National Archives, GOV.UK's
+   *  employment tribunal decisions, GovInfo); a draft without it looks them up (the ALR app's switch). */
+  foreignCaseLookup?: boolean;
   /** Within each group, the book's tabs and the table's entries: alphabetical, in the order the
    *  brief first cites them, or as the user arranged them in Sources (`custom`). */
   tableOrder: "first-reference" | "alphabetical" | "custom";

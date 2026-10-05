@@ -155,7 +155,7 @@ const settingsShape = closed<AuthoritiesSettings>({
   tabStart: maybe(integer), tabPrefix: maybe(text), tabLabels: maybe(list(10_000, text)),
   allowIncomplete: maybe(flag), tableOrder: choice("tableOrder"), grouping: maybe(choice("grouping")),
   indexShows: maybe(choice("indexShows")), bookmarks: maybe(choice("bookmarks")), tabPages: maybe(flag), rightHandStarts: maybe(flag),
-  citationSuffix: maybe(choice("citationSuffix")), citationSuffixLabel: maybe(text), finalPdf: maybe(flag), sourceText: maybe(flag),
+  citationSuffix: maybe(choice("citationSuffix")), citationSuffixLabel: maybe(text), finalPdf: maybe(flag), sourceText: maybe(flag), foreignCaseLookup: maybe(flag),
   linkTabs: maybe(flag), linkPinpoints: maybe(flag),
   tableDelivery: choice("tableDelivery"), tableLocation: choice("tableLocation"),
   passageMarking: choice("passageMarking"), scannedPdfPolicy: choice("scannedPdfPolicy"),

@@ -81,7 +81,7 @@ function settings(value: unknown, initial: true): AuthoritiesInitialSettings;
 function settings(value: unknown, initial?: false): Partial<AuthoritiesBuildSettings>;
 function settings(value: unknown, initial = false) {
   const item = object(value), allowed = new Set([
-    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "citationSuffixLabel", "allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", "tabPages", "rightHandStarts", "sourceText", ...(initial
+    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "citationSuffixLabel", "allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", "tabPages", "rightHandStarts", "sourceText", "foreignCaseLookup", ...(initial
       ? ["profileId", "outputMode", "insertIntoDocument"] : []),
   ]);
   if (Object.keys(item).some((key) => !allowed.has(key))) return bad();
@@ -102,7 +102,7 @@ function settings(value: unknown, initial = false) {
     if (!Array.isArray(item.tabLabels) || item.tabLabels.length > 10_000) return bad();
     result.tabLabels = item.tabLabels.map((label) => plain(label, 100));
   }
-  for (const key of ["allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", "tabPages", "rightHandStarts", "sourceText"])
+  for (const key of ["allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", "tabPages", "rightHandStarts", "sourceText", "foreignCaseLookup"])
     if (item[key] !== undefined) result[key] = typeof item[key] === "boolean" ? item[key] : bad();
   if (initial && item.profileId !== undefined) result.profileId = choice(
     item.profileId, authoritiesProfileIds) as AuthoritiesProfileId;

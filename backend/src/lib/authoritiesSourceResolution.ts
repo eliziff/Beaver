@@ -14,7 +14,7 @@ import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { justiceLawsLegalSourceProvider, justiceLawsSource } from "./legalSources/justiceLaws";
 import { journalLegalSourceProvider } from "./legalSources/journal";
 import { splitQuoteCitationUnits } from "./quoteCitationSplit";
-import type { LegalSourceReference } from "./legalSources";
+import { FOREIGN_CASE_PROVIDERS, type LegalSourceReference } from "./legalSources";
 import { mapBounded } from "./mapBounded";
 import { legislationPdfUrl, publisherOpenUrl, publisherPdfCandidate } from "./legalSourcePresentation";
 import { downloadProviderOriginalPdf, PublisherDownloadFailure } from "./providerPdfLibraryBridge";
@@ -35,12 +35,14 @@ const foreignProviders = [
   { id: "justice-laws", claims: justiceLawsLegalSourceProvider, source: justiceLawsSource },
 ] as const;
 
-/** Resolves the first citation form a provider matches; never a best guess. */
+/** Resolves the first citation form a provider matches; never a best guess. Without `foreignCases`,
+ *  US and UK decisions are not looked up. */
 async function resolveForeignAuthoritySource(citations: readonly string[], signal?: AbortSignal,
-  kind: "case" | "legislation" = "case") {
+  kind: "case" | "legislation" = "case", foreignCases = true) {
   for (const citation of citations.map((value) => value.trim()).filter(Boolean)) {
     signal?.throwIfAborted();
     for (const { id, claims, source } of foreignProviders) {
+      if (!foreignCases && FOREIGN_CASE_PROVIDERS.has(id)) continue;
       if (!claims.canResolve?.({ text: citation, kind })) continue;
       let found: Awaited<ReturnType<typeof source>> = null;
       try { found = await source(citation, signal); } catch { signal?.throwIfAborted(); }
@@ -274,7 +276,7 @@ export async function resolveAuthoritiesSources(
       ["unresolved", "resolved"].includes(draft.authorities[id]?.source.kind) ? [id] : []), async (id) => {
     signal?.throwIfAborted();
     try { return [id, await sources.resolveForeign(authorityCitationForms(draft, id), signal,
-      draft.authorities[id].kind as "case" | "legislation")] as const; }
+      draft.authorities[id].kind as "case" | "legislation", draft.settings.foreignCaseLookup !== false)] as const; }
     catch { signal?.throwIfAborted(); return [id, null] as const; }
   });
   for (const [id, found] of foreign) {
