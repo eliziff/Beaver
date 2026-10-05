@@ -103,16 +103,8 @@ function unusedRole(draft: AuthoritiesDraft, role: string) {
  *  "Citation: Pell v Marlow Holdings, 2030 ABKB 12" gives "Pell v Marlow Holdings". `keys` name
  *  the decision. A caption that is not a plain "Name, citation" (a label such as "Neutral
  *  citation:" or a heading's bracket read into the name) names nothing. */
-function captionStyleOfCause(text: string, keys: readonly string[]) {
-  const native = structureNative();
-  const balanced = (style: string, open: string, close: string) =>
-    style.split(open).length === style.split(close).length;
-  const own = native.citationOccurrencesInText(text).find(({ kind, styledCitation, coreCitation }) =>
-    kind === "case" && styledCitation.start < coreCitation.start &&
-    keys.includes(native.citationLookupKey(coreCitation.text)));
-  const style = own && text.slice(own.styledCitation.start, own.coreCitation.start).replace(/[\s,]+$/u, "");
-  return style && !style.endsWith(":") && balanced(style, "(", ")") && balanced(style, "[", "]") ? style : null;
-}
+const captionStyleOfCause = (text: string, keys: readonly string[]) =>
+  structureNative().citationEngineCall("captionStyleOfCause", JSON.stringify({ text, keys })) as string | null;
 
 /** The case still without a PDF that a PDF found in the watched folder is, when exactly one: by
  *  the citation its opening (`pages`, its first pages' native text) prints, else by exact agreement
