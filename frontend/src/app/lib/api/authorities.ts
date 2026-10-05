@@ -1,4 +1,4 @@
-import type { AuthoritiesBuildSettings, AuthoritiesProfileId, AuthoritiesOutputMode, AuthoritiesProduct, AuthoritiesAction, AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritySourceLanguage, AuthoritiesBuildReceipt } from "@/app/authorities/types";
+import type { AuthoritiesBuildSettings, AuthoritiesProfileId, AuthoritiesOutputMode, AuthoritiesProduct, AuthoritiesAction, AuthoritiesDiscrepancy, AuthoritiesDiscrepancyRequest, AuthoritySourceLanguage, AuthoritiesBuildReceipt } from "@/app/authorities/types";
 import { post, multipartRequest, segment, apiRequest, apiResponse, mutationInit, followedRequest } from "@/app/lib/api/client";
 import type { Document } from "@/app/lib/api/documents";
 import type { AuthoritiesBookSlot } from "../../../../../shared/authorities-sources.mjs";
@@ -32,7 +32,7 @@ export const reviewAuthorities = (id: string, signal?: AbortSignal) =>
   apiRequest<AuthoritiesDiscrepancy[]>(
     `/authorities/${segment(id)}/discrepancies`, { ...mutationInit("POST", {}), signal });
 export const resolveAuthoritiesDiscrepancy = (id: string, input: {
-  id: string; action: AuthoritiesDiscrepancyAction; revision: number;
+  id: string; action: AuthoritiesDiscrepancyRequest; revision: number;
 }) => post<AuthoritiesProduct>(`/authorities/${segment(id)}/discrepancies/actions`, input);
 export const attachAuthorityPdf = (
   id: string, authorityId: string, revision: number, file: File,

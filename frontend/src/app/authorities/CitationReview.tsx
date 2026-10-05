@@ -8,7 +8,8 @@ import { errorMessage } from '@/app/lib/utils';
 import { authorityCitationLine, authorityCitationText, authorityItalic, authorityName } from './authorityPresentation';
 import { CitationText } from './CitationText';
 import type { AuthoritiesHost } from './host';
-import type { AuthoritiesAction, AuthoritiesProduct, AuthorityOccurrence, AuthorityIdentity, AuthoritiesDiscrepancy } from './types';
+import type { AuthoritiesAction, AuthoritiesProduct, AuthorityOccurrence, AuthorityIdentity } from './types';
+import type { Finding } from './QuotationFinding';
 import { caretAt, citationMarksChanged, citationSelection, clearCitationMarks, locateCitationUnits, markCitations, marksOf, paintCitations,
   selectedUnit, unitText, wholeUnit, type CitationPaint, type CitationSelection, type LocatedUnit, type PaintMode,
   type UnitText } from './citationDocument';
@@ -20,7 +21,7 @@ const SCROLLERS = '.beaver-pdf-scroll,.docx-view-scroll,.citation-fallback>div';
 /** Each footnote's number as the document prints it. A note with the author's own mark (a "*") shows
  * that mark and takes no number. A draft imported before the printed number was kept counts the
  * marks its notes' text shows. */
-function noteLabels(units: Unit[]) {
+export function noteLabels(units: Unit[]) {
   const labels = new Map<string, string>();
   let marked = 0;
   for (const unit of units) if (unit.kind === 'footnote') {
@@ -244,11 +245,14 @@ function AuthorityPicker({ options, current, currentLabel, currentItalic = 0, bu
 
 /** While unseen it is not drawn again: what changed meanwhile is marked when it is shown. */
 export const CitationReview = memo(Review, (before, after) => !!before.hidden && !!after.hidden);
-function Review({ product, host, sourceVersion, occurrences, selected, authorities, discrepancies,
+function Review({ product, host, sourceVersion, occurrences, selected, authorities, discrepancies, check = 'done',
   busy, hidden = false, onSelect, onAction, onHistory, onReview, onFocusChange }: {
   product: AuthoritiesProduct; host: AuthoritiesHost; sourceVersion: number;
   occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence; authorities: AuthorityIdentity[];
-  discrepancies: AuthoritiesDiscrepancy[]; busy: boolean;
+  discrepancies: Finding[]; busy: boolean;
+  /** Whether the quotation and citation check is running, done, or could not run: no footnote case has an
+   *  A2AJ source to check its quotation against, or the sources could not be looked up. */
+  check?: 'running' | 'done' | 'unavailable' | 'failed';
   /** Kept drawn, unseen, while another step shows: it reports no focus and paints nothing. */
   hidden?: boolean; onSelect(id: string): void;
   onAction(action: AuthoritiesAction, done?: (next: AuthoritiesProduct) => void): void;
@@ -271,6 +275,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   const [restore] = useState(() => (id: string) => live.current.onAction({ type: 'restore-occurrence', occurrenceId: id },
     () => live.current.onSelect(id)));
   const [source, setSource] = useState<{ buffer: ArrayBuffer; pdf: Uint8Array }>();
+  // The draft whose brief is shown, so a new version of it is told from another draft's brief.
+  const shownFor = useRef('');
   const [error, setError] = useState(''), [ready, setReady] = useState(0);
   // The selected text, in whichever unit it lies.
   const [selection, setSelection] = useState<CitationSelection & { unitId: string } | null>(null);
@@ -389,16 +395,33 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     if (page) setReady(value => value || 1);
   };
 
+  // A new version of the same brief (a correction saved to it) opens where the reader was: the old
+  // version stays shown until the new one is read, and the view keeps its place.
+  const keptScroll = useRef<{ draft: string; top: number } | null>(null);
   useEffect(() => {
-    let live = true; setSource(undefined); setError(''); setLocated(true); setReady(0);
-    locations.current = []; decorated.current.clear(); marked.current.clear();
+    let live = true;
+    const scroller = documentRef.current?.querySelector<HTMLElement>('.docx-view-scroll,.beaver-pdf-scroll');
+    const same = shownFor.current === product.id && !!scroller;
+    keptScroll.current = same ? { draft: product.id, top: scroller!.scrollTop } : null;
+    if (!same) setSource(undefined);
+    setError(''); setLocated(true);
+    if (!same) setReady(0);
     void (async () => {
       if (!host.readSource || imported.kind !== 'document') throw new Error('The source document is unavailable.');
       const blob = await host.readSource(product, imported.bindingRole), buffer = await blob.arrayBuffer();
-      if (live) setSource({ buffer, pdf: new Uint8Array(buffer) });
+      if (!live) return;
+      locations.current = []; decorated.current.clear(); marked.current.clear();
+      if (keptScroll.current) scrollPending.current = false;
+      shownFor.current = product.id; setSource({ buffer, pdf: new Uint8Array(buffer) });
     })().catch(cause => { if (live) setError(errorMessage(cause)); });
     return () => { live = false; };
   }, [host, sourceKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Once the new version is drawn, the view goes back to where it was. */
+  const restoreScroll = () => {
+    const kept = keptScroll.current, scroller = documentRef.current?.querySelector<HTMLElement>('.docx-view-scroll,.beaver-pdf-scroll');
+    if (!kept || !scroller || kept.draft !== live.current.product.id) return;
+    keptScroll.current = null; scroller.scrollTop = kept.top;
+  };
   useEffect(() => {
     preview.current = {};
     if (imported.kind !== 'document' || !source) return;
@@ -713,6 +736,15 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       const id = (event.target as Element).closest<HTMLElement>('[role=option]')?.dataset.id;
       if (id) choose(id, true);
     }}>
+      {/* What the quotation and citation check found, on a line always there, so the list never moves. */}
+      <div className="citation-findings" role="status">
+        {check === 'running' ? <span>Checking quotations and citations…</span> : discrepancies.length
+          ? <><span>{discrepancies.length} to review</span>
+            <button type="button" onClick={event => { event.stopPropagation(); onReview(discrepancies[0].id); }}>Review</button></>
+          : <span>{check === 'failed' ? 'Quotations not checked: the sources could not be looked up'
+            : check === 'unavailable' ? 'Quotations not checked: no footnote case was found in A2AJ'
+            : 'No quotation or citation to review'}</span>}
+      </div>
       {/* With none found, the brief still shows, so citations can be added from it by hand. */}
       {!navigation.length && <p className="citation-none">No citations were found. Select one in the brief and choose Add citation.</p>}
       {outline}
@@ -736,7 +768,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       {source ? pdf ? <PdfCanvas bytes={source.pdf} rounded={false} ariaLabel="Source document" drawPage={drawPage}
         onUnavailable={() => setError('The document preview could not be opened.')}
         onTextReady={(page, element) => decorate(element.querySelector<HTMLElement>('.pdf-text-layer') ?? element, page)} />
-        : <DocxCanvas bytes={source.buffer} maxZoom={1.25} onReady={() => setReady(value => value + 1)}
+        : <DocxCanvas bytes={source.buffer} maxZoom={1.25} onReady={() => { restoreScroll(); setReady(value => value + 1); }}
           onUnavailable={() => setError('The document preview could not be opened.')} />
         : !error && <p className="citation-source-status" role="status">Opening document…</p>}
       {unit && (error || source && !located && ready > 0) && <div className="citation-fallback" data-full={error ? '' : undefined}>
@@ -773,9 +805,11 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
           words beside the source's. */}
       <button type="button" className="citation-quote" disabled={!finding}
         aria-label={!finding ? 'No quote issue' : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong'
-          : finding.kind === 'quote_unlocated' ? 'Quote not found in source' : 'Quote differs from source'}
+          : finding.kind === 'quote_unlocated' ? 'Quote not found in source' : finding.kind === 'different_case'
+            ? 'Citation names a different case' : 'Quote differs from source'}
         title={!finding ? 'No quote issue' : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong: open it'
-          : finding.kind === 'quote_unlocated' ? 'Quote not found in source: open it' : 'Quote differs from source: open it'}
+          : finding.kind === 'quote_unlocated' ? 'Quote not found in source: open it' : finding.kind === 'different_case'
+            ? 'Citation names a different case: open it' : 'Quote differs from source: open it'}
         onClick={() => finding && onReview(finding.id)}><TextQuote aria-hidden="true" /></button>
       <span className="citation-label" data-row="2" aria-hidden="true">Pinpoints</span>
       <PinpointChips occurrence={selected} unitText={unit?.text ?? ''} adding={!!pinTarget()} hint={pinHint()}
