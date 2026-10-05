@@ -159,7 +159,10 @@ function authorityCitation(draft, authority) {
   // A form with the key of one already written is that citation written another way, and is not repeated.
   const keys = new Set(first?.key ? [first.key] : []);
   for (const { form, key } of [...rest.map(({ coreSpan, key }) => ({ form: coreSpan.text, key })), { form: citation, key: authority.key },
-    ...(authority.sourceIdentity?.citationForms ?? []).map((form) => ({ form, key: undefined }))].map(({ form, key }) => ({ form: line(form), key }))) {
+    // A source's form that is the authority's own citation carries its key ("RSA 2000, c P-40" where the
+    // brief wrote "RSA 2000, Ch P-40").
+    ...(authority.sourceIdentity?.citationForms ?? []).map((form) => ({ form, key: line(form) === citation ? authority.key : undefined }))]
+    .map(({ form, key }) => ({ form: line(form), key }))) {
     if (!form || key && keys.has(key) || unconfused(text).includes(unconfused(form)) || lead && lower(form).includes(lower(lead))) continue;
     text += `, ${form}`;
     if (key) keys.add(key);
