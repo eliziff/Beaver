@@ -26,7 +26,7 @@ export type AuthoritiesOcrPort = {
   cancel(id: string, roles: string[]): Promise<unknown>;
   progress(documentIds: string[]): Promise<PdfProgress[]>;
 };
-export type AuthoritiesLocalStore = "a2aj" | "journals";
+export type AuthoritiesLocalStore = "a2aj" | "journals" | "journals-search";
 export type AuthoritiesDraftInspection = {
   sourceIssues: Record<string, AuthoritiesSourceIssue>;
 };
@@ -61,7 +61,8 @@ export interface AuthoritiesHost {
   /** The folder Auto-fetch watches, kept for the next visit. */
   watchedFolder?: { get(): Promise<FileSystemDirectoryHandle | null>;
     set(handle: FileSystemDirectoryHandle | null): Promise<void> };
-  /** Local legal data the runtime reads, on a page built for it (an A2AJ store, the journals database). */
+  /** Local legal data the runtime reads, on a page built for it (an A2AJ store, the journals database and
+   *  its search index). */
   localStores?: {
     /** Reads `file` as the store, or stops reading it (null); `localOnly` keeps A2AJ lookups on this computer. */
     mount(store: AuthoritiesLocalStore, file: File | null, options?: { localOnly?: boolean }): Promise<void>;
