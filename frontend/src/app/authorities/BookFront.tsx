@@ -309,6 +309,17 @@ const sameBytes = (a: Uint8Array, b: Uint8Array) => a === b || a.length === b.le
 /** The pages each pane drew last, with what they were drawn from, so a pane opened again shows them at
  *  once and draws again only what changed. */
 const drawings = new Map<string, { bytes: Uint8Array; width: number; pages: DrawnPage[] }>();
+let fontFrame: HTMLIFrameElement | undefined;
+/** The document the previews' PDFs are drawn in: a hidden frame's, so each font PDF.js adds for a drawing
+ *  (and removes after it) lays out that frame alone, not every element of the page beneath. */
+function drawingDocument() {
+  if (!fontFrame?.isConnected) {
+    fontFrame = document.createElement("iframe");
+    fontFrame.hidden = true; fontFrame.tabIndex = -1; fontFrame.setAttribute("aria-hidden", "true");
+    document.body.append(fontFrame);
+  }
+  return fontFrame.contentDocument!;
+}
 /** A PDF's pages as wide as the pane, crisp at the screen's own resolution, one under another in a box
  *  that scrolls inside itself. The last drawing stays until each new page is ready, page by page, so
  *  nothing blinks and nothing outside the box moves. */
@@ -339,7 +350,8 @@ export function PagesPreview({ bytes, pages, label, keep }: {
     }
     let active = true;
     void (async () => {
-      const task = openPdfDocument(await getPdfJs(), { data: bytes.slice() }, PDF_DOCUMENT_OPTIONS);
+      const ownerDocument = drawingDocument();
+      const task = openPdfDocument(await getPdfJs(), { data: bytes.slice(), ownerDocument }, PDF_DOCUMENT_OPTIONS);
       const made: DrawnPage[] = [];
       try {
         const document = await task.promise;
@@ -348,7 +360,7 @@ export function PagesPreview({ bytes, pages, label, keep }: {
         for (const number of numbers) {
           const page = await document.getPage(number), base = page.getViewport({ scale: 1 });
           const viewport = page.getViewport({ scale: width * window.devicePixelRatio / base.width });
-          const canvas = window.document.createElement("canvas");
+          const canvas = ownerDocument.createElement("canvas");
           canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
           await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
           const bitmap = await createImageBitmap(canvas);
