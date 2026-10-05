@@ -79,7 +79,7 @@ export function pinpointValues<Kind extends string>(pinpoints: ReadonlyArray<{ k
   start: number; end: number; first?: string; last?: string | null }>, offset = 0) {
   return pinpoints.map(({ kind, text, start, end, first, last }) => ({ kind,
     text: last ? text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : first ?? text,
-    start: offset + start, end: offset + end }));
+    ...first ? { first } : {}, ...last ? { last } : {}, start: offset + start, end: offset + end }));
 }
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, match.pinpointPhrase, offset);

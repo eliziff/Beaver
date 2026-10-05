@@ -207,7 +207,9 @@ export type AuthorityOccurrence = {
   /** Each pinpoint's locator kind and value ("82-91"), and where its unit writes it: anywhere in
    * the unit, inside the citation's range or not. Drafts saved before pinpoints kept their place
    * have no start and end. */
-  pinpoints: Array<{ kind: string; text: string; start?: number; end?: number }>;
+  pinpoints: Array<{ kind: string; text: string; start?: number; end?: number;
+    /** The engine's reading of the value: its first locator, and the last of a range. */
+    first?: string; last?: string }>;
   /** The reviewer or the assistant set the pinpoints by hand: a range edit keeps them. */
   pinpointManual?: true;
   evidenceIds: string[];
