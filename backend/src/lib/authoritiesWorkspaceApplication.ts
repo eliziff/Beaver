@@ -12,7 +12,7 @@ import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   autoFetchedPdf, folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction, type PdfOpening } from "./authoritiesActions";
 import { authorityPassageTargets, buildAuthorities, citedSourcePages, prepareAuthorityAnnotations,
-  type AuthoritiesBuildInput, type AuthoritiesBuildResult } from "./authoritiesBuild";
+  type AuthoritiesBuildInput, type AuthoritiesBuildResult, type BuildSourceText } from "./authoritiesBuild";
 import { attachedAuthoritySources, decodeAuthoritiesDraft,
   type AuthoritiesAction, type AuthoritiesDraft,
   type AuthoritySourceLanguage } from "./authoritiesDomain";
@@ -330,6 +330,19 @@ export function createAuthoritiesWorkspaceApplication(
       workProducts.list(scope, { kind: "authorities", ...options }),
     async get(scope: ApplicationScope, id: string) {
       return (await open(scope, id)).product;
+    },
+    /** A draft's attached PDFs' text as a build reads it, for the index preview: read from the stored file, a
+     *  changed or missing file read as nothing. */
+    sourceText(scope: ApplicationScope, draft: AuthoritiesDraft, signal?: AbortSignal): BuildSourceText {
+      const plan = createAuthoritiesPreparation(draft);
+      return async (source) => {
+        const binding = libraryBinding(draft, source.bindingRole);
+        const file = await documents.read(scope, binding.documentId,
+          binding.version === "latest" ? null : binding.version.versionId, false);
+        if (!file || file.version.source_sha256 !== source.sourceSha256) return null;
+        return plan.prepareText(source.bindingRole, { bytes: file.bytes, documentId: binding.documentId,
+          versionId: file.version.id, sourceSha256: source.sourceSha256, pdfProfile: file.pdfProfile, signal });
+      };
     },
     async discrepancies(scope: ApplicationScope, id: string, signal?: AbortSignal) {
       return pendingDiscrepancies((await open(scope, id)).draft, signal);

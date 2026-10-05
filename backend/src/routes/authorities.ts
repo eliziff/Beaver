@@ -109,7 +109,9 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
     const product = await application.get(applicationScope(res), text(req.params.id));
     const state = actions.map(decodeAuthoritiesUserAction).reduce((state, action) => applyAuthoritiesUserAction(state, action),
       decodeAuthoritiesDraft(product.state) ?? reject(409, "Authorities draft state is invalid"));
-    res.type("application/pdf").send(await authoritiesBookFront(state, product.title));
+    // A statute the book excerpts counts the pages a build keeps of it, read from its stored file.
+    res.type("application/pdf").send(await authoritiesBookFront(state, product.title,
+      application.sourceText(applicationScope(res), state)));
   }));
   router.post("/:id/refresh", asyncRoute(async (req, res) => {
     res.json(await application.refresh(applicationScope(res), text(req.params.id),
