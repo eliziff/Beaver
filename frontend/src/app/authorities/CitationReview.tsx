@@ -508,6 +508,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   }, [selected?.id, selection, onFocusChange, hidden]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onFocusChange?.(), [onFocusChange]);
   // The review fills what its scroll frame shows below it, so nothing under it is cut off.
+  const fitted = useRef('');
   useLayoutEffect(() => {
     const review = reviewRef.current;
     // Unseen, it reads nothing; shown again, it is drawn as it was left, with anything that moved meanwhile.
@@ -520,8 +521,12 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
         (scroller ? scroller.getBoundingClientRect().top : 0);
       review.style.setProperty('--citation-review-height', `${Math.max(336, frame.clientHeight - top - 16)}px`);
     };
-    fit(); repaint('layout'); addEventListener('resize', fit);
-    return () => removeEventListener('resize', fit);
+    // Shown again in a window of the same size, it fits as it did: nothing is read, so the step lays out once.
+    const size = `${innerWidth}x${innerHeight}:${!!(selected && unit)}`;
+    const refit = () => { fitted.current = `${innerWidth}x${innerHeight}:${!!(live.current.selected)}`; fit(); };
+    if (fitted.current !== size) { fitted.current = size; fit(); }
+    repaint('layout'); addEventListener('resize', refit);
+    return () => removeEventListener('resize', refit);
   }, [!!(selected && unit), hidden]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A control an edit removed or disabled while it had the focus hands the focus to the review, so
