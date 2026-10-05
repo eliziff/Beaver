@@ -152,15 +152,16 @@ export function modelQuoteCheckReport(report: Awaited<ReturnType<typeof checkQuo
         parts: parts.map(({ start, end, text, fields }) => ({ start, end, text,
           fields: Object.fromEntries(Object.entries(fields).filter(([, value]) =>
             Array.isArray(value) ? value.length : value !== "")) })) })),
+    // Each cited source's own check of the quotation.
     quotes: report.quotes.map((quote) => ({ ...quote,
-      context: quote.context.slice(0, 4000), receipt: quote.receipt && {
-        resource: researchSourceResource(quote.receipt.source),
-        citation: quote.receipt.source.citation, title: quote.receipt.source.title,
-        alternateCitation: quote.receipt.source.alternateCitation, date: quote.receipt.source.date,
-        locator: quote.receipt.locator, text: quote.receipt.text.slice(0, 8000),
-        ...(quote.receipt.text.length > 8000 ? { text_truncated: true } : {}),
-        errors: quote.receipt.errors, comparison: quote.receipt.comparison,
-      } })) };
+      context: quote.context.slice(0, 4000), checks: quote.checks.map((check) => ({ ...check, receipt: check.receipt && {
+        resource: researchSourceResource(check.receipt.source),
+        citation: check.receipt.source.citation, title: check.receipt.source.title,
+        alternateCitation: check.receipt.source.alternateCitation, date: check.receipt.source.date,
+        locator: check.receipt.locator, text: check.receipt.text.slice(0, 8000),
+        ...(check.receipt.text.length > 8000 ? { text_truncated: true } : {}),
+        errors: check.receipt.errors, comparison: check.receipt.comparison,
+      } })) })) };
 }
 const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
   name: "document_operation",

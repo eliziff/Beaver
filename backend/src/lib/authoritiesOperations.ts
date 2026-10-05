@@ -110,7 +110,10 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
           citation: authority.citation, title: authority.displayName ?? authority.name, url: pdf.sourceUrl } });
       }
       return { data: await checkQuotes(state, decodeQuoteLinks(input.links), context.signal,
-        (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }), undefined, undefined, attached) };
+        (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }), undefined, undefined, attached,
+        // Authorities checks a quotation against its note's first citation only, or the one linked to it;
+        // allCitations checks it against every source the note cites.
+        { firstCitationOnly: input.allCitations !== true }) };
     },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;
