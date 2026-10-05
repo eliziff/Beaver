@@ -30,7 +30,7 @@ import { rowControl, Sources, SourcesExplainer, type BookFiles } from "./Authori
 import { AuthoritiesOutputOptions, briefPdfAdvice, FinalPdfOptions } from "./AuthoritiesOutputOptions";
 import { FileCard, OptionCard, OptionCards } from "./OptionCards";
 import { buildAction, BuildHeading, IconTile, OutputDock, type OutputRow } from "./OutputCards";
-import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, courtActions, CourtPicker, coverForm, warmFrontPreviews,
+import { AuthoritiesCourtField, BookFrontModal, completeFederalCover, courtActions, CourtPicker, coverForm, prefetchFront, warmFrontPreviews,
   type OwnPdfs } from "./BookFront";
 import { ImportWizard, SOURCE_OPTIONS, SourceChoices, type Remembered } from "./ImportWizard";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
@@ -1512,6 +1512,8 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   tabs: number; missing: number; onReview: () => void;
 }) {
   const [front, setFront] = useState<"Cover" | "Index">();
+  // The Book dialog's cover and index, drawn while Build is idle, so Change opens with them drawn.
+  useEffect(() => busy ? undefined : prefetchFront(host, draft), [host, draft, busy]);
   const [output, setOutput] = useState<"word" | "final">();
   const { state } = draft, settings = state.settings;
   const profile = authoritiesProfile(settings.profileId);
