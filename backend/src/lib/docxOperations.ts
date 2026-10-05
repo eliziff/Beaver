@@ -1,4 +1,5 @@
 import { openDocxSession } from "./docx/session";
+import { sequenceOpcodes } from "mike/shared/sequence-diff.mjs";
 import { structureNative } from "./structureNative";
 import {
   ATTR_KEY,
@@ -138,9 +139,9 @@ function trackSpanReplacement(root: XNode, start: number, end: number, replaceme
     visit(root, null);
     return unsupported ? null : items;
   };
-  const before = collect();
-  if (!before) return null;
-  for (const item of before.filter((item) => item.start < end && start < item.end)) {
+  const initial = collect();
+  if (!initial) return null;
+  for (const item of initial.filter((item) => item.start < end && start < item.end)) {
     const parts = singleChildRuns(item.run);
     if (parts.length === 1) continue;
     const siblings = elChildren(item.parent);
@@ -158,15 +159,19 @@ function trackSpanReplacement(root: XNode, start: number, end: number, replaceme
     const siblings = elChildren(item.parent);
     siblings.splice(siblings.indexOf(item.run) + 1, 0, right);
   }
-  const inside = (collect() ?? []).filter((item) => start <= item.start && item.end <= end);
-  if (!inside.length || inside[0].start !== start || inside.at(-1)!.end !== end) return null;
+  const items = collect() ?? [], inside = items.filter((item) => start <= item.start && item.end <= end);
+  if (start < end && (!inside.length || inside[0].start !== start || inside.at(-1)!.end !== end)) return null;
+  // An insertion alone goes after the run that ends where it begins, or before the one that starts there.
+  const before = items.find((item) => item.end === start), after = items.find((item) => item.start === start);
+  const anchor = inside[0] ?? before ?? after;
+  if (!anchor) return null;
   const ids: number[] = [];
   const mark = (name: string, children: XNode[]) => {
     const { id, author, date } = revision();
     ids.push(id);
     return makeEl(name, children, { "w:id": String(id), "w:author": author, "w:date": date });
   };
-  const properties = elChildren(inside[0].run).filter((child) => elName(child) === "w:rPr").map(cloneNode);
+  const properties = elChildren(anchor.run).filter((child) => elName(child) === "w:rPr").map(cloneNode);
   const text = makeEl("w:t", [makeText(replacement)], /^\s|\s$/u.test(replacement) ? { "xml:space": "preserve" } : {});
   for (const item of inside) {
     for (const child of elChildren(item.run)) if (elName(child) === "w:t") {
@@ -177,9 +182,16 @@ function trackSpanReplacement(root: XNode, start: number, end: number, replaceme
     const siblings = elChildren(item.parent);
     siblings.splice(siblings.indexOf(item.run), 1, mark("w:del", [item.run]));
   }
-  const last = inside.at(-1)!, siblings = elChildren(last.parent);
-  const deleted = siblings.findIndex((node) => elName(node) === "w:del" && elChildren(node)[0] === last.run);
-  siblings.splice(deleted + 1, 0, mark("w:ins", [makeEl("w:r", [...properties, text])]));
+  if (!replacement) return ids;
+  const inserted = mark("w:ins", [makeEl("w:r", [...properties, text])]);
+  if (inside.length) {
+    const last = inside.at(-1)!, siblings = elChildren(last.parent);
+    const deleted = siblings.findIndex((node) => elName(node) === "w:del" && elChildren(node)[0] === last.run);
+    siblings.splice(deleted + 1, 0, inserted);
+  } else {
+    const siblings = elChildren(anchor.parent);
+    siblings.splice(siblings.indexOf(anchor.run) + (anchor === before ? 1 : 0), 0, inserted);
+  }
   return ids;
 }
 
@@ -209,8 +221,19 @@ function highestId(root: XNode) {
   return highest;
 }
 
+/** The words a correction changes: each run of words that differs between the old text and the new,
+ *  with its place in the old text, as a reader marks it ("danger" for "dangers", not the quotation). */
+function changedWords(before: string, after: string) {
+  const tokens = (value: string) => value.match(/[\p{L}\p{N}]+|\s+|[^\p{L}\p{N}\s]/gu) ?? [];
+  const left = tokens(before), right = tokens(after), offsets = [0];
+  for (const token of left) offsets.push(offsets.at(-1)! + token.length);
+  return sequenceOpcodes(left, right).filter(([tag]) => tag !== "equal").map(([, a0, a1, b0, b1]) =>
+    ({ start: offsets[a0], end: offsets[a1], replacement: right.slice(b0, b1).join("") }));
+}
+
 /** Applies server-reviewed Authorities corrections to exact body or footnote unit spans, as tracked
- *  changes by "Beaver": one, or each place the brief writes a citation it corrects. Later spans of a
+ *  changes by "Beaver", each word the correction changes its own revision: one, or each place the
+ *  brief writes a citation it corrects. Later spans of a
  *  unit are replaced first, so each span is where review read it. Returns the bytes and the ids of
  *  the revisions written, which reject the correction again. */
 export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
@@ -223,12 +246,15 @@ export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
   const revisions: number[] = [];
   for (const correction of ordered) {
     const target = targets.get(correction.unitId);
-    const written = target && correction.start >= 0 && correction.end > correction.start &&
-      visibleText(target).slice(correction.start, correction.end) === correction.expected && correction.replacement
-      ? trackSpanReplacement(target, correction.start, correction.end, correction.replacement,
-        () => ({ id: next++, author: "Beaver", date })) : null;
-    if (!written) throw new Error("The accepted correction no longer matches the reviewed Word document.");
-    revisions.push(...written);
+    if (!target || correction.start < 0 || correction.end <= correction.start || !correction.replacement ||
+        visibleText(target).slice(correction.start, correction.end) !== correction.expected)
+      throw new Error("The accepted correction no longer matches the reviewed Word document.");
+    for (const change of changedWords(correction.expected, correction.replacement).reverse()) {
+      const written = trackSpanReplacement(target, correction.start + change.start, correction.start + change.end,
+        change.replacement, () => ({ id: next++, author: "Beaver", date }));
+      if (!written) throw new Error("The accepted correction no longer matches the reviewed Word document.");
+      revisions.push(...written);
+    }
   }
   return { bytes: await save(), revisions };
 }

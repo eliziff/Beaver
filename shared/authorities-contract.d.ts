@@ -222,7 +222,7 @@ export type AuthoritiesDiscrepancyAction =
 export type AuthoritiesDiscrepancyRequest = AuthoritiesDiscrepancyAction | "reopen";
 export type AuthoritiesDiscrepancyCorrectionRecord = {
   revisions: number[];
-  authority?: { id: string; citation: string; citedCase: AuthorityCitedCase };
+  authority?: { id: string; citation: string; name: string | null; citedCase: AuthorityCitedCase };
 };
 
 export type AuthoritiesUserAction =
