@@ -10,8 +10,8 @@ import { readSseData } from "@/app/lib/sse";
 import type { WorkflowDocument } from "./ContextualWorkflowPicker";
 
 type Report = { counts: Record<string, number>; quotes: Array<{
-  id: string; quote: string; status: string; detail: string; context: string;
-  candidates: Array<{ id: string; citation: string }>; receipt: null | { text: string };
+  id: string; quote: string; context: string; candidates: Array<{ id: string; citation: string }>;
+  checks: Array<{ candidateId: string | null; status: string; detail: string; receipt: null | { text: string } }>;
 }> };
 type Workbook = Pick<Document, "id" | "filename" | "current_version_id">;
 const eligible = (document: WorkflowDocument) => document.library_kind !== "template" && /\.(docx|pdf)$/iu.test(document.filename);
@@ -48,7 +48,7 @@ export default function QuoteCheckWorkflow({ documents = EMPTY }: { documents?: 
         }
         if (event.quote) {
           partial.quotes.push(event.quote);
-          partial.counts[event.quote.status] = (partial.counts[event.quote.status] ?? 0) + 1;
+          for (const { status } of event.quote.checks) partial.counts[status] = (partial.counts[status] ?? 0) + 1;
           setProgress(`Checked ${event.completed} of ${event.total} quotations`);
         }
         if (event.done) {
@@ -103,12 +103,16 @@ export default function QuoteCheckWorkflow({ documents = EMPTY }: { documents?: 
     </div>}
     {report && <p className="text-sm">{report.quotes.length} quotations · {Object.entries(report.counts).map(([status, count]) => `${count} ${status.replaceAll("_", " ")}`).join(" · ")}</p>}
     {report?.quotes.map((row) => <article key={row.id} className="space-y-2 border-t border-gray-200 py-3 text-sm">
-      <p className="font-medium capitalize">{row.status.replaceAll("_", " ")}</p>
       <blockquote className="whitespace-pre-wrap border-l-2 pl-3">{row.quote}</blockquote>
-      <p className="text-gray-600">{row.detail}</p>
-      {row.candidates.length > 0 && <p>{row.candidates.map((item) => item.citation).join("; ")}</p>}
       <details><summary className="cursor-pointer">Document context</summary><p className="mt-2 whitespace-pre-wrap">{row.context}</p></details>
-      {row.receipt && <details><summary className="cursor-pointer">Source passage</summary><p className="mt-2 whitespace-pre-wrap">{row.receipt.text}</p></details>}
+      {/* What each cited source says about the quotation. */}
+      {row.checks.map((check, index) => <div key={check.candidateId ?? index} className="space-y-1">
+        {row.candidates.find(({ id }) => id === check.candidateId) &&
+          <p>{row.candidates.find(({ id }) => id === check.candidateId)!.citation}</p>}
+        <p className="font-medium capitalize">{check.status.replaceAll("_", " ")}</p>
+        <p className="text-gray-600">{check.detail}</p>
+        {check.receipt && <details><summary className="cursor-pointer">Source passage</summary><p className="mt-2 whitespace-pre-wrap">{check.receipt.text}</p></details>}
+      </div>)}
     </article>)}
     {report && !report.quotes.length && !busy && !error && <p className="text-sm">No marked quotations were detected.</p>}
     <Modal open={picker} onClose={() => setPicker(false)} size="2xl" breadcrumbs={["Choose document"]}

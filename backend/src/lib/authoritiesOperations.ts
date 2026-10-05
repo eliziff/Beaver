@@ -5,7 +5,7 @@ import { docxToPdf, wordToPdfAvailable } from "./convert";
 import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
 import { authoritiesBookFront, authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations,
-  statuteExcerptSummary, type AuthoritiesBuildInput } from "./authoritiesBuild";
+  statuteExcerptPageCounts, statuteExcerptSummary, type AuthoritiesBuildInput } from "./authoritiesBuild";
 import { sourceReadings } from "./sourceReadings";
 import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
@@ -110,7 +110,10 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
           citation: authority.citation, title: authority.displayName ?? authority.name, url: pdf.sourceUrl } });
       }
       return { data: await checkQuotes(state, decodeQuoteLinks(input.links), context.signal,
-        (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }), undefined, undefined, attached) };
+        (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }), undefined, undefined, attached,
+        // Authorities checks a quotation against its note's first citation only, or the one linked to it;
+        // allCitations checks it against every source the note cites.
+        { firstCitationOnly: input.allCitations !== true }) };
     },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;
@@ -248,9 +251,29 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       : reject(400, "actions are invalid");
     const state = actions.map(decodeAuthoritiesUserAction).reduce((state, action) => applyAuthoritiesUserAction(state, action),
       draft(input?.draft));
-    return fileResult(null, [{ role: "output", mimeType: "application/pdf", bytes: await authoritiesBookFront(state, String(input?.title ?? "").slice(0, 300),
-      // A statute's text as a build reads it, where it has been read; the host reads what is not, and asks again.
-      (source) => authoritiesSourceText(state, readings)(source.bindingRole, { sourceSha256: source.sourceSha256 } as Parameters<ReturnType<typeof authoritiesSourceText>>[1])) }]);
+    // The pages each excerpted statute keeps, as "excerpt-pages" counted them in the runtime that reads sources.
+    const counted = input?.excerptPages === undefined ? {} : typeof input.excerptPages === "string"
+      ? json(input.excerptPages, "excerptPages") : input.excerptPages;
+    const excerptPages = counted && typeof counted === "object" && Object.values(counted).every((pages) =>
+      Number.isSafeInteger(pages) && (pages as number) > 0) ? counted as Record<string, number> : reject(400, "excerptPages is invalid");
+    return fileResult(null, [{ role: "output", mimeType: "application/pdf",
+      bytes: await authoritiesBookFront(state, String(input?.title ?? "").slice(0, 300), excerptPages) }]);
+    },
+    // A statute's excerpt's pages for the index preview, one PDF at a time: the PDF given is read as a build reads
+    // it (a build then finds it read), and its authority's pages counted once all its PDFs are read.
+    "excerpt-pages": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
+    const state = draft(json(input?.draft, "draft"));
+    const role = String(input?.role), bytes = sourceBytes(requiredSource(input));
+    const authority = Object.values(state.authorities).find(item =>
+      attachedAuthoritySources(item.source).some(source => source.bindingRole === role));
+    const source = authority && attachedAuthoritySources(authority.source).find(item => item.bindingRole === role);
+    if (!authority || !source || sha256(bytes) !== source.sourceSha256)
+      return reject(409, "The PDF no longer matches this authority source");
+    const read = authoritiesSourceText(state, readings);
+    const own = await read(role, { bytes, sourceSha256: source.sourceSha256, signal: context.signal });
+    const counts = await statuteExcerptPageCounts(state, async (item) => item.bindingRole === role ? own : read(item.bindingRole,
+      { sourceSha256: item.sourceSha256, signal: context.signal } as Parameters<typeof read>[1]).catch(() => null), authority.id);
+    return value({ authorityId: authority.id, pages: counts[authority.id] ?? null });
     },
     "sources": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;
