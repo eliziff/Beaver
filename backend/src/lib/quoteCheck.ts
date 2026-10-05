@@ -36,11 +36,6 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
   }
   anchors.sort((a, b) => a[1] - b[1]);
   const rows = draft.units.flatMap((unit) => structureNative().markedQuoteSpans(unit.text)
-    // A cited work's quoted title ("Name, “Title” (2024) 16:1 J 61") is part of its citation, not a quotation.
-    .filter((quote) => !unit.occurrenceIds.some((key) => {
-      const span = draft.occurrences[key]?.authoritySpan;
-      return span && span.start <= quote.start && quote.end <= span.end;
-    }))
     .map((quote) => {
       const id = canonicalJsonSha256([unit.id, quote.start, quote.end, quote.text]);
       const bodyOffset = bodyOffsets.get(unit.id);
@@ -88,26 +83,22 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
 
 /** Where a quotation is in the source read for it (see locateQuote). */
 export type QuoteLocation = ReturnType<typeof locateQuote>;
-/** One cited source's check of a quotation: whether it holds the quotation as written ("verified") or with
- *  differences ("mismatch"), where, and what differs; or why it could not be read. */
-export type QuoteCheck = { candidateId: string | null; status: "verified" | "mismatch" | "unavailable" | "unresolved";
-  detail: string;
+export type QuoteResult = ReturnType<typeof splitQuoteChecks>[number] & { status: string; detail: string;
   receipt: null | { source: LegalSourceReference; sourceSha256: string; passageSha256: string;
     locator: LegalSourceLocator | null; text: string; errors: string[];
-    comparison: ReturnType<typeof quoteTextComparison>; match: QuoteLocation; link: string | null } };
-/** A quotation and the checks of the sources its note cites, each on its own. */
-export type QuoteResult = ReturnType<typeof splitQuoteChecks>[number] & { checks: QuoteCheck[] };
+    comparison: ReturnType<typeof quoteTextComparison>;
+    /** The citation the quotation was checked against, and where in its source it was found. */
+    candidateId: string; match: QuoteLocation; link: string | null } };
 /** PDFs the user attached, read, by authority. */
 export type AttachedQuoteSources = ReadonlyMap<string, { document: NativeDocument; source: LegalSourceReference }>;
-const STATUSES = ["verified", "mismatch", "unresolved", "unavailable"] as const;
+type Checked = Pick<QuoteResult, "status" | "detail" | "receipt">;
+const RANK: Record<string, number> = { verified: 4, mismatch: 3, ambiguous: 2, unavailable: 1, unresolved: 0 };
 
 export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = [],
   signal?: AbortSignal, progress?: (completed: number, total: number, row: QuoteResult,
     citationUnits: Array<QuoteCitationUnit & { unitId: string }>) => void,
   sources = legalSourceOperations, window?: { offset: number; limit: number },
-  attached: AttachedQuoteSources = new Map(),
-  /** firstCitationOnly: check a quotation only against the citation linked to it, else its note's first. */
-  options: { firstCitationOnly?: boolean } = {}) {
+  attached: AttachedQuoteSources = new Map()) {
   const citationUnits = await splitQuoteCitationUnits(draft.units.map(({ text }) => text), signal);
   const unitReceipts = citationUnits.map((split, index) => ({ unitId: draft.units[index].id, ...split }));
   const all = splitQuoteChecks(draft, links, citationUnits);
@@ -125,24 +116,24 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     const pdf = authorityId ? attached.get(authorityId) : undefined;
     if (pdf) return { ...pdf, judgment: true };
     const kind = authority.kind === "commentary" ? "journal" : authority.kind;
-    if (kind !== "case" && kind !== "legislation" && kind !== "journal") return { missing: "unresolved" as const };
+    if (kind !== "case" && kind !== "legislation" && kind !== "journal") return { missing: "unresolved" };
     // An article is found by the title its citation part carries.
     const text = kind === "journal" && part ? part : authority.citation;
     const resolved = await memo(resolutions, JSON.stringify([kind, text]), () => sources.resolve({ text, kind, signal }));
-    if (resolved.status !== "found") return { missing: "unavailable" as const };
+    if (resolved.status !== "found") return { missing: resolved.status === "ambiguous" ? "ambiguous" : "unavailable" };
     const read = await memo(documents, JSON.stringify(resolved.value), () => sources.readPassage({ source: resolved.value, signal }));
     const document = read.status === "found" ? read.values[0]?.documentArtifact : undefined;
-    return document ? { source: resolved.value, document, judgment: false } : { missing: "unavailable" as const };
+    return document ? { source: resolved.value, document, judgment: false } : { missing: "unavailable" };
   }
-  async function check(row: ReturnType<typeof splitQuoteChecks>[number], candidateId: string): Promise<QuoteCheck> {
+  async function check(row: ReturnType<typeof splitQuoteChecks>[number], candidateId: string): Promise<Checked> {
     const occurrence = draft.occurrences[candidateId];
     const candidate = row.candidates.find(({ id }) => id === candidateId);
     const authority = occurrence?.authorityId ? draft.authorities[occurrence.authorityId] : candidate;
-    if (!authority) return { candidateId, status: "unresolved", detail: "The citation names no source to read.", receipt: null };
+    if (!authority) return { status: "unresolved", detail: "Select the citation that supplies this quotation.", receipt: null };
     try {
       const found = await sourceFor(occurrence?.authorityId ?? null, authority, candidate?.text ?? "");
-      if (found.missing) return { candidateId, status: found.missing, receipt: null,
-        detail: "The citation did not resolve to one available source." };
+      if ("missing" in found) return { status: found.missing ?? "unavailable", receipt: null,
+        detail: "The citation did not resolve to a unique available source." };
       const pinpoints = occurrence?.pinpoints ?? candidate?.pinpoints ?? [];
       const document = structureNative().documentText(found.document);
       const match = locateQuote(memo(blocks, found.document, () => quoteBlocks(found.document, found.judgment)),
@@ -155,44 +146,41 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
         kind === "par" ? "paragraph" : kind === "sec" ? "section" : "page", value, value, 0)?.selected[0] : undefined;
       const link = found.source.url && match.text ? buildLegalSourcePinpoint({ url: found.source.url, anchor: block?.anchor,
         blockText: match.text, documentText: found.document }, [match.fragment || row.quote])?.target ?? null : null;
-      return { candidateId, status: match.perfect ? "verified" : "mismatch",
+      return { status: match.perfect ? "verified" : "mismatch",
         detail: match.location === "unmatched" ? "The quotation was not found in the source text."
           : match.location.startsWith("alternate") ? `Found at ${match.pinpoint || "another place in the source"}, not at the cited pinpoint.`
             : cited ? "Compared with the cited passage." : "Compared with the available source text; no unique pinpoint supplied.",
         receipt: { source: found.source, sourceSha256: structureNative().documentRevision(found.document),
           passageSha256: canonicalJsonSha256(text), locator: cited, text,
           errors: structureNative().groundedProseErrors(`“${row.quote}”`, [row.id], [{ evidenceId: row.id, text, labels: [] }]),
-          comparison: quoteTextComparison(row.quote, match.region || text), match, link } };
+          comparison: quoteTextComparison(row.quote, match.region || text), candidateId, match, link } };
     } catch {
       signal?.throwIfAborted();
-      return { candidateId, status: "unavailable", detail: "Source retrieval failed; this quotation has not been verified.", receipt: null };
+      return { status: "unavailable", detail: "Source retrieval failed; this quotation has not been verified.", receipt: null };
     }
   }
   let completed = 0;
   const quotes = await mapBounded(rows, async (row): Promise<QuoteResult> => {
     signal?.throwIfAborted();
-    // Each source the quotation's note cites is checked on its own, as the ALR Quote Verifier checks each
-    // citation part of a note; a citation the user linked is the one checked, and with firstCitationOnly
-    // the note's first citation is.
-    const tried = row.linkMethod === "explicit" && row.occurrenceId ? [row.occurrenceId]
-      : row.candidates.slice(0, options.firstCitationOnly ? 1 : undefined).map(({ id }) => id);
-    const checks: QuoteCheck[] = [];
-    for (const id of tried) checks.push(await check(row, id));
-    if (!checks.length) checks.push({ candidateId: null, status: "unresolved", receipt: null,
-      detail: "No citation follows this quotation." });
-    const quote: QuoteResult = { ...row, checks };
+    // A quotation whose note cites several sources is checked against each; it is ambiguous only
+    // when two different sources hold it.
+    const tried = row.occurrenceId ? [row.occurrenceId] : row.candidates.map(({ id }) => id);
+    const results: Checked[] = [];
+    for (const id of tried) results.push(await check(row, id));
+    const best = results.reduce<Checked | null>((top, item) => !top || RANK[item.status] > RANK[top.status] ||
+      (item.status === top.status && (item.receipt?.match.score ?? 0) > (top.receipt?.match.score ?? 0)) ? item : top, null);
+    const verified = new Set(results.filter(({ status }) => status === "verified").map(({ receipt }) =>
+      JSON.stringify([receipt?.source.provider, receipt?.source.id])));
+    const outcome: Checked = !best ? { status: "unresolved", detail: "Select the citation that supplies this quotation.", receipt: null }
+      : verified.size > 1 ? { ...best, status: "ambiguous", detail: "More than one cited source holds this quotation." } : best;
+    const quote = { ...row, ...outcome } as QuoteResult;
     progress?.(++completed, rows.length, quote, unitReceipts);
     return quote;
   });
   return { mode: links.length ? "assisted" : "mechanical", quotes, total: all.length,
     citationUnits: unitReceipts,
-    counts: quoteCheckCounts(quotes) };
-}
-
-/** How many source checks found each outcome. */
-export function quoteCheckCounts(quotes: QuoteResult[]) {
-  return Object.fromEntries(STATUSES.map((status) => [status,
-    quotes.reduce((sum, quote) => sum + quote.checks.filter((item) => item.status === status).length, 0)]));
+    counts: Object.fromEntries(["verified", "mismatch", "ambiguous", "unresolved", "unavailable"]
+      .map((status) => [status, quotes.filter((row) => row.status === status).length])) };
 }
 
 // Quotation scoring against source text: how much of an authored quotation a source passage

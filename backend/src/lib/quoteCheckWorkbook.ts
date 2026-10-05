@@ -104,26 +104,24 @@ export async function quoteCheckWorkbook(filename: string, result: Result, analy
   if (analysis && Object.entries(analysis).some(([id, text]) => !known.has(id) || typeof text !== "string"))
     reject(400, "Explanations must refer to quotation IDs in this check.");
   const statuses: Record<string, string> = { verified: "Text verified", mismatch: "Text differs",
-    unresolved: "Citation needed", unavailable: "Source unavailable" };
-  // One entry per cited source a quotation was checked against, each with that source's own result.
-  const display = result.quotes.flatMap((quote, index) => quote.checks.flatMap((check) => {
-    const { source, locator, comparison } = check.receipt ?? {};
-    const candidate = quote.candidates.find(({ id }) => id === check.candidateId);
+    ambiguous: "Citation ambiguous", unresolved: "Citation needed", unavailable: "Source unavailable" };
+  const display = result.quotes.flatMap((quote, index) => {
+    const { source, locator, comparison } = quote.receipt ?? {};
     const location = locator ? `${locator.kind[0].toUpperCase()}${locator.kind.slice(1)} ${locator.value}${locator.endValue ? `–${locator.endValue}` : ""}` : "";
     const citation = [...new Set([source?.title, source?.citation,
-      !source ? candidate?.citation ?? "" : "", location].filter(Boolean))].join("\n");
+      !source ? quote.candidates.map(({ citation }) => citation).join("\n") : "", location].filter(Boolean))].join("\n");
     const context = quote.context.includes(quote.quote) ? quote.context : `${quote.context}\n\n${quote.quote}`;
     const changes = comparison?.changes.map(({ kind, authored, source }) =>
       `${kind === "insert" ? "Source includes" : kind === "delete" ? "Draft adds" : "Changed"}: ${authored ? `“${authored}”` : ""}${authored && source ? " → " : ""}${source ? `“${source}”` : ""}`).join("\n") ?? "";
     const sourceText = comparison?.candidate ? `${comparison.candidateOnly ? "Closest candidate — not a verified match\n\n" : ""}${comparison.candidate}${changes ? `\n\n${changes}` : ""}`
       : "No source comparison available.";
     const values = [quote.pageNumbers.length ? `Page ${quote.pageNumbers.join(", ")}` : "—", context,
-      citation || "No linked citation", `${statuses[check.status] ?? check.status}\n\n${check.detail}`,
+      citation || "No linked citation", `${statuses[quote.status] ?? quote.status}\n\n${quote.detail}`,
       sourceText, ...(analysis ? [analysis[quote.id] ?? ""] : [])].map((value) => chunks(value, 1200));
     return Array.from({ length: Math.max(...values.map((value) => value.length)) }, (_, part) => ({
-      quote, check, part, values: [String(index + 1), ...values.map((value) => value[part] ?? "")],
+      quote, part, values: [String(index + 1), ...values.map((value) => value[part] ?? "")],
     }));
-  }));
+  });
   const receiptRows = result.quotes.flatMap((quote, quoteIndex) => chunks(json(quote)).map((text, index) =>
     [String(quoteIndex + 1), quote.id, String(index + 1), text]));
   const tables = [{ name: "Quote check", columns: ["Quote", "Draft location", "Quotation and context", "Citation",
@@ -140,7 +138,7 @@ export async function quoteCheckWorkbook(filename: string, result: Result, analy
     { name: "Citation units", columns: ["Unit ID", "Part", "Exact splitter JSON"], widths: [30, 8, 100],
       rows: result.citationUnits.flatMap((unit) => chunks(json(unit)).map((text, index) =>
         [unit.unitId, String(index + 1), text])) }];
-  const statusStyles: Record<string, number> = { verified: 6, mismatch: 7, unresolved: 8, unavailable: 9 };
+  const statusStyles: Record<string, number> = { verified: 6, mismatch: 7, ambiguous: 8, unresolved: 8, unavailable: 9 };
   const colors = ["FFFFFF", "F6F7F8", "17212B", "E7F3EA", "FCEAEC", "FFF3D6", "EEF0F3"];
   const font = (color: string, extra = "") => `<font><sz val="11"/><color rgb="FF${color}"/><name val="Arial"/>${extra}</font>`;
   const xf = (fontId: number, fillId: number, center = false) =>
@@ -175,17 +173,17 @@ export async function quoteCheckWorkbook(filename: string, result: Result, analy
       return values.map((value, column): XlsxCell => {
         const cell: XlsxCell = { value, style: alternate ? 1 : 0 };
         if (!entry) return cell;
-        const { quote, check, part } = entry, url = check.receipt?.source.url;
+        const { quote, part } = entry, url = quote.receipt?.source.url;
         if (column === 0) cell.style = 3;
         if (column === 3 && url) { cell.style = alternate ? 5 : 4; if (!part && /^https?:\/\//iu.test(url)) cell.link = url; }
-        if (column === 4) cell.style = statusStyles[check.status] ?? 0;
+        if (column === 4) cell.style = statusStyles[quote.status] ?? 0;
         if (column === 2) {
           const at = value.indexOf(quote.quote);
           if (at >= 0 && quote.quote) cell.runs = runs(value, [{ start: at, end: at + quote.quote.length, color: "A34E13" }]);
         }
         if (column === 5) {
           const spans: Span[] = [];
-          for (const change of check.receipt?.comparison.changes ?? []) {
+          for (const change of quote.receipt?.comparison.changes ?? []) {
             for (const [text, color, strike] of [[change.authored, "9B2432", true], [change.source, "1F603D", false]] as const) {
               const start = value.lastIndexOf(`“${text}”`);
               if (text && start >= 0) spans.push({ start, end: start + text.length + 2, color, strike });

@@ -8,7 +8,6 @@ import type { Nodes } from "mdast";
 import { nestedOutline, pdfAssembly, sourceOutline, type PdfOutline } from "mike/shared/runtime/pdfAssembly.mjs";
 import { arialFont, type PdfFontSource } from "mike/shared/runtime/arialFont.mjs";
 import { pdfFontkit, systemArial } from "./systemArial";
-import { ApplicationError } from "./applicationError";
 import { renderAuthoritiesBook, citationLines, drawRuns, fit, pdfNormalized, pdfText, wrapped,
   type BookRow, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 const { addInternalLink: addLink, applyOutlines, appendPages, readOutlines } = pdfAssembly(pdfLibrary);
@@ -975,37 +974,19 @@ function bookFront(draft: AuthoritiesDraft, subtitle: string) {
   } satisfies Partial<PreparedAuthoritiesBook>;
 }
 
-/** The book's cover and its whole index, drawn as a build draws them from the draft as it is, though
- *  every listed authority stands in a blank page: nothing is read, so it is quick. */
 /** A source's text, pages and passages as a build reads them; null where it has not been read. */
 export type BuildSourceText = (source: AttachedAuthoritySource) => Promise<NonNullable<AuthoritiesBuildInput["sources"]>[string] | null>;
-/** Thrown where a statute's text, which its excerpt's pages depend on, is not read yet: read it, then ask again. */
-export class StatuteUnread extends ApplicationError {
-  constructor(readonly roles: string[]) { super(409, "A statute's text is not read yet, so its excerpt's pages are unknown."); }
-}
-
-export async function authoritiesBookFront(draft: AuthoritiesDraft, title: string, readText?: BuildSourceText) {
-  // A build names a manual book's cover after its title, an imported brief's after nothing else.
-  const subtitle = draft.import.kind === "document" ? "" : title;
-  const listed: AuthoritiesDraft = { ...draft, settings: { ...draft.settings, missingSourcePolicy: "placeholder" } };
-  const groups = groupedEntries(listed, "book").map(({ label, entries }) => ({ label,
-    entries: entries.filter(({ authority }) => !authority.excluded).map(({ authority, name, italic, tab, sourceUrl }) =>
-      ({ key: authority.id, name, italic, tab, sourceUrl })) })).filter(({ entries }) => entries.length);
-  const drawn = bookFront(listed, subtitle), bytes = new Uint8Array(), profile = authoritiesProfile(draft.settings.profileId);
-  // Each authority takes the pages its attached PDFs had when they were attached, and a missing language's
-  // page where the book adds one; one without a PDF yet stands in a page, as a build's placeholder does.
-  // A statute in the book as an excerpt keeps the pages a build keeps of it: read from its text, as the build
-  // reads it, with the passages marked in it.
-  const excerpts = new Map<string, number>(), unread = new Set<string>();
-  await Promise.all(groups.flatMap(({ entries }) => entries).map(async ({ key }) => {
-    const authority = draft.authorities[key], sources = attachedAuthoritySources(authority.source);
+/** The pages a build keeps of each statute the book excerpts, by authority: read from each PDF's text as a
+ *  build reads it, with the passages marked in it (`only`: that statute alone). A statute whose PDFs are not all
+ *  read is left out, as is one that goes in whole. */
+export async function statuteExcerptPageCounts(draft: AuthoritiesDraft, readText: BuildSourceText, only?: string) {
+  const excerpts: Record<string, number> = {};
+  await Promise.all(Object.values(draft.authorities).filter(({ id }) => !only || id === only).map(async (authority) => {
+    const key = authority.id, sources = attachedAuthoritySources(authority.source);
+    if (authority.excluded || !authorityReproducedInBook(draft, authority)) return;
     const parts = sources.map(({ pageCount }) => pageCount);
     if (!sources.length || parts.some((count) => !count) || !statuteExcerpt(authority, parts)) return;
-    const texts = await Promise.all(sources.map(async (source) => {
-      const text = await readText?.(source).catch(() => null) ?? null;
-      if (!text) unread.add(source.bindingRole);
-      return text;
-    }));
+    const texts = await Promise.all(sources.map((source) => readText(source).catch(() => null)));
     if (texts.some((text) => !text)) return;
     let offset = 0;
     const marked: number[] = [];
@@ -1026,13 +1007,28 @@ export async function authoritiesBookFront(draft: AuthoritiesDraft, title: strin
       texts.map((text, index) => ({ count: parts[index]!, text: text! })));
     const excerpt = statuteExcerptPages(draft, authority, { pageCount: offset, parts: parts as number[], marked,
       pageTextByPage: combined.pageTextByPage, pageBindings: combined.pageBindings, passageGeometry: combined.passageGeometry });
-    if (excerpt.pages) excerpts.set(key, excerpt.pages.length);
+    if (excerpt.pages) excerpts[key] = excerpt.pages.length;
   }));
-  if (unread.size) throw new StatuteUnread([...unread]);
+  return excerpts;
+}
+
+/** The cover and the index as a build of the draft draws them. `excerptPages`: the pages each statute the book
+ *  excerpts keeps (statuteExcerptPageCounts), read in the runtime that reads the sources. */
+export async function authoritiesBookFront(draft: AuthoritiesDraft, title: string, excerptPages: Record<string, number> = {}) {
+  // A build names a manual book's cover after its title, an imported brief's after nothing else.
+  const subtitle = draft.import.kind === "document" ? "" : title;
+  const listed: AuthoritiesDraft = { ...draft, settings: { ...draft.settings, missingSourcePolicy: "placeholder" } };
+  const groups = groupedEntries(listed, "book").map(({ label, entries }) => ({ label,
+    entries: entries.filter(({ authority }) => !authority.excluded).map(({ authority, name, italic, tab, sourceUrl }) =>
+      ({ key: authority.id, name, italic, tab, sourceUrl })) })).filter(({ entries }) => entries.length);
+  const drawn = bookFront(listed, subtitle), bytes = new Uint8Array(), profile = authoritiesProfile(draft.settings.profileId);
+  // Each authority takes the pages its attached PDFs had when they were attached, and a missing language's
+  // page where the book adds one; one without a PDF yet stands in a page, as a build's placeholder does.
+  // A statute in the book as an excerpt keeps the pages a build keeps of it.
   const pagesOf = (authority: AuthorityIdentity) => {
     const sources = attachedAuthoritySources(authority.source);
     if (!sources.length) return 1;
-    const own = excerpts.get(authority.id) ?? sources.reduce((sum, { pageCount }) => sum + (pageCount && pageCount > 0 ? pageCount : 1), 0);
+    const own = excerptPages[authority.id] ?? sources.reduce((sum, { pageCount }) => sum + (pageCount && pageCount > 0 ? pageCount : 1), 0);
     return own + (draft.settings.allowIncomplete &&
       authoritySourceRequirement(draft, authority, profile.requirements) === "incomplete-enactment" ? 1 : 0);
   };
