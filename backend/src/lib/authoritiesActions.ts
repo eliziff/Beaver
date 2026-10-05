@@ -335,7 +335,7 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
     const owner = (match ? [match] : occurrence.kind === "reference" ? sources.references(stretch) : [])
       .find((item) => item.pinpoints.some(chosen));
     const pinpoints = owner ? pinpointValues(owner.pinpoints.filter(chosen), from)
-      : pinpointsAt(selected.unit.text, selected.start, selected.end, sources, true);
+      : pinpointsAt(selected.unit.text, selected.start, selected.end, true);
     if (!pinpoints.length) throw new ApplicationError(400, "Select a complete pinpoint for this authority");
     return placePinpoints(draft, occurrence, selected.unit, pinpoints);
   }
@@ -397,26 +397,13 @@ type Pinpoint = AuthorityOccurrence["pinpoints"][number] & { start: number; end:
 /** The pinpoints written in [start, end) of a unit's text, each with its kind and place. The engine
  *  reads them as it reads an ibid's: the locator words before them ("at para", "s", "pp"), up to
  *  three words back, give their kind. Unless `strict`, a value with no such words is a page. */
-function pinpointsAt(text: string, start: number, end: number, sources: CitationServices, strict = false): Pinpoint[] {
-  while (start < end && /\s/u.test(text[start])) start += 1;
-  while (end > start && /\s/u.test(text[end - 1])) end -= 1;
-  if (start >= end) return [];
-  for (let from = start, words = 0; words <= 3; words += 1) {
-    for (const lead of ["Ibid ", "Ibid, "]) {
-      const found = sources.references(lead + text.slice(from, end)).flatMap(({ pinpoints }) => pinpoints)
-        .filter((pin) => from + pin.end - lead.length > start);
-      if (found.length) return pinpointValues(found, from - lead.length);
-    }
-    if (from === 0) break;
-    from = text.lastIndexOf(" ", from - 2) + 1;
-  }
-  return strict ? [] : [{ kind: "page", text: text.slice(start, end).replace(/\s*[-–—]\s*/gu, "-"), start, end }];
-}
+const pinpointsAt = (text: string, start: number, end: number, strict = false) =>
+  structureNative().citationEngineCall("pinpointsAt", JSON.stringify({ text, start, end, strict })) as Pinpoint[];
 
 /** The pinpoints a selection of a unit's text holds, read as a save reads them: the review shows
  *  an added pinpoint whole, its kind included, without waiting for the save. */
 export const readPinpoints = (text: string, start: number, end: number) =>
-  pinpointsAt(text, start, end, authorityCitationServices);
+  pinpointsAt(text, start, end);
 
 /** The citation's pinpoints as given, its range untouched: they may lie anywhere in its unit. */
 function placePinpoints(draft: AuthoritiesDraft, current: AuthorityOccurrence,
@@ -439,8 +426,7 @@ function placePinpoints(draft: AuthoritiesDraft, current: AuthorityOccurrence,
 /** The reviewer's pinpoints, at most three, each a place in the citation's unit: one already the
  *  citation's keeps its value, and a new one takes the value and kind written there. A kind given
  *  replaces the one found. */
-function setPinpoints(draft: AuthoritiesDraft, action: Extract<AuthoritiesUserAction, { type: "set-pinpoints" }>,
-  sources: CitationServices) {
+function setPinpoints(draft: AuthoritiesDraft, action: Extract<AuthoritiesUserAction, { type: "set-pinpoints" }>) {
   const current = draft.occurrences[action.occurrenceId];
   const unit = current && draft.units.find(({ id }) => id === current.unitId);
   if (!current || !unit) throw new ApplicationError(400, "Citation review item not found");
@@ -448,7 +434,7 @@ function setPinpoints(draft: AuthoritiesDraft, action: Extract<AuthoritiesUserAc
     if (start < 0 || end > unit.text.length || end <= start)
       throw new ApplicationError(400, "Select the pinpoint in this citation's paragraph or footnote");
     const known = current.pinpoints.filter(placed).find((pin) => pin.start === start && pin.end === end);
-    const found = known ? [known] : pinpointsAt(unit.text, start, end, sources);
+    const found = known ? [known] : pinpointsAt(unit.text, start, end);
     return found.map((pin) => ({ ...pin, ...(kind && { kind }) }));
   });
   if (pinpoints.length > Math.max(3, current.pinpoints.length))
@@ -624,7 +610,7 @@ export function applyAuthoritiesUserAction(
   }
   if (action.type === "set-citation-range") return setCitationRange(draft, action, sources);
   if (action.type === "clear-pinpoint") return clearPinpoint(draft, action.occurrenceId);
-  if (action.type === "set-pinpoints") return setPinpoints(draft, action, sources);
+  if (action.type === "set-pinpoints") return setPinpoints(draft, action);
   if (action.type === "add-occurrence") return addOccurrence(draft, action, sources);
   if (action.type === "remove-occurrence") {
     const occurrence = draft.occurrences[action.occurrenceId];
