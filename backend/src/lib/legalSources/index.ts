@@ -51,8 +51,13 @@ export type LegalSourceResolveRequest = {
   alternateTexts?: readonly string[];
   collection?: string;
   language?: "en" | "fr";
+  /** Only these providers answer, when given. */
+  providers?: readonly string[];
   signal?: AbortSignal;
 };
+
+/** The providers of US and UK decisions, which a draft can leave out (its foreignCaseLookup setting). */
+export const FOREIGN_CASE_PROVIDERS: ReadonlySet<string> = new Set(["courtlistener", "tna", "govuk-et", "govinfo"]);
 
 export type LegalSourcePassageRequest = {
   source: LegalSourceReference;
@@ -129,6 +134,7 @@ export function createLegalSourceRegistry<Native = unknown>(
   }
 
   return {
+    providerIds: providers.map(({ id }) => id),
     async search(request: LegalSourceSearchRequest) {
       request.signal?.throwIfAborted();
       const selected = providers.filter(
@@ -179,7 +185,8 @@ export function createLegalSourceRegistry<Native = unknown>(
       request.signal?.throwIfAborted();
       const selected = providers.filter(
         (provider) =>
-          provider.resolve && (provider.canResolve?.(request) ?? true),
+          provider.resolve && (provider.canResolve?.(request) ?? true) &&
+          (!request.providers || request.providers.includes(provider.id)),
       );
       if (!selected.length) return { status: "unsupported", providers: [] };
       const matches = (
