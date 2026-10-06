@@ -354,6 +354,12 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return JSON.stringify(prepared) === JSON.stringify(product.state)
       ? product : save(product.id, product.revision, prepared);
   },
+  async keptOriginals(selected) {
+    const product = await currentProduct(selected.id, selected.revision);
+    const prepared = await runtimeDraft("sources", { draft: product.state, keptOnly: true });
+    return JSON.stringify(prepared) === JSON.stringify(product.state)
+      ? product : save(product.id, product.revision, prepared);
+  },
   // The cover and index are drawn by the previews' own runtime, with the pages each statute the book excerpts
   // keeps, counted where the sources are read.
   bookFront: async (product, actions, signal) => (await runtimeResponse("book-front", { draft: product.state, actions,

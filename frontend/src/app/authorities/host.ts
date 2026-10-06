@@ -51,6 +51,9 @@ export interface AuthoritiesHost {
   /** `progress` hears which authority is being looked up or fetched, as it happens. */
   prepareSources(product: AuthoritiesProduct, signal?: AbortSignal,
     authorityId?: string, progress?: (message: string) => void): Promise<AuthoritiesProduct>;
+  /** A reopened draft with each decision rebuilt from text, because its publisher blocked the original,
+   *  given the original this browser has kept since; only the browser's store is read. */
+  keptOriginals?(product: AuthoritiesProduct): Promise<AuthoritiesProduct>;
   review?(id: string, signal?: AbortSignal): Promise<AuthoritiesDiscrepancy[]>;
   resolveDiscrepancy?(id: string, input: { id: string; action: AuthoritiesDiscrepancyRequest;
     revision: number }): Promise<AuthoritiesProduct>;
