@@ -17,7 +17,7 @@ import { splitQuoteCitationUnits } from "./quoteCitationSplit";
 import { FOREIGN_CASE_PROVIDERS, type LegalSourceReference } from "./legalSources";
 import { mapBounded } from "./mapBounded";
 import { legislationPdfUrl, publisherOpenUrl, publisherPdfCandidate } from "./legalSourcePresentation";
-import { downloadProviderOriginalPdf, PublisherDownloadFailure } from "./providerPdfLibraryBridge";
+import { downloadProviderOriginalPdf, publisherOriginalUrls, PublisherDownloadFailure } from "./providerPdfLibraryBridge";
 import { structureNative } from "./structureNative";
 
 /**
@@ -68,6 +68,8 @@ export const authoritySourceServices = {
   resolveJournal: async (citation: string, signal?: AbortSignal) =>
     (await journalLegalSourceProvider.resolve!({ text: citation, kind: "journal", signal }))[0] as LegalSourceReference | undefined ?? null,
   download: downloadProviderOriginalPdf,
+  /** A publisher's original the host has kept, by the address it was fetched at; never fetched here. */
+  stored: undefined as ((url: string) => Promise<Uint8Array | null>) | undefined,
   ...authorityCitationServices,
   revision: (document: Parameters<ReturnType<typeof structureNative>["documentRevision"]>[0]) =>
     structureNative().documentRevision(document),
@@ -155,13 +157,41 @@ export async function authorityStatuteText(draft: AuthoritiesDraft, authority: A
   return null;
 }
 
+/** A reopened draft's decisions rebuilt from text because their publisher blocked the original, each
+ *  given the original the host has kept since: the host's store is read, nothing is fetched. */
+async function keptOriginals(initial: AuthoritiesDraft, sources: SourceServices) {
+  const editor = editAuthoritiesDraft(initial), attachments: PreparedAuthoritySource[] = [];
+  for (const id of initial.authorityOrder) {
+    const authority = initial.authorities[id], rebuilt = attachedAuthoritySources(authority.source);
+    if (!sources.stored || !authority.sourceVerificationUrl || !rebuilt.length ||
+        rebuilt.some(({ origin }) => origin !== "reconstructed")) continue;
+    let found = false;
+    for (const source of rebuilt) {
+      for (const url of publisherOriginalUrls(source.sourceUrl ?? authority.sourceIdentity?.externalUrl,
+        authority.sourceVerificationUrl)) {
+        const kept = await sources.stored(url).catch(() => null);
+        if (!kept) continue;
+        const bytes = Buffer.from(kept);
+        attachments.push({ authorityId: id, filename: source.filename, bytes, sourceSha256: sha256(bytes),
+          sourceUrl: url, origin: "original", language: source.language });
+        found = true;
+        break;
+      }
+    }
+    if (found) editor.apply({ type: "set-source-verification", authorityId: id, pageUrl: null });
+  }
+  return { draft: editor.result(), attachments };
+}
+
 /** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. */
 export async function resolveAuthoritiesSources(
   initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
   signal?: AbortSignal,
   onlyAuthorityId?: string,
   progress?: (message: string) => void,
+  keptOnly = false,
 ) {
+  if (keptOnly) return keptOriginals(initial, sources);
   if (onlyAuthorityId && !retryableAuthoritySource(initial, onlyAuthorityId))
     throw new ApplicationError(409, "This authority has nothing to retry.");
   // Retrying an unanswered lookup retries every unanswered lookup: one request, not one per row.
@@ -416,6 +446,18 @@ export async function resolveAuthoritiesSources(
         if (publisher && error.reason !== "failed") blockedPublishers.set(publisher, error.reason);
       }
     }
+    // A publisher that blocked the download, now or earlier in this run, still yields the original the
+    // host kept from an earlier fetch of it; the host's store is read, the publisher never asked.
+    if (stopped && !original && sources.stored) try {
+      for (const url of publisherOriginalUrls(sourceUrl, pdfUrl)) {
+        const kept = await sources.stored(url);
+        if (!kept) continue;
+        const bytes = Buffer.from(kept);
+        original = { bytes, sourceSha256: sha256(bytes), url };
+        stopped = undefined;
+        break;
+      }
+    } catch { signal?.throwIfAborted(); }
     let reconstructed: Awaited<ReturnType<typeof renderAuthoritySourcePdf>> | null = null;
     if (reconstruct && !original && source.searchText.trim()) try {
       reconstructed = await renderAuthoritySourcePdf({ kind: authority.kind,

@@ -290,7 +290,8 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       ? undefined : text(input.authorityId, 200);
     if (onlyAuthorityId && !retryableAuthoritySource(current, onlyAuthorityId))
       reject(409, "This authority has nothing to retry.");
-    const prepared = await resolveSources(current, undefined, context.signal, onlyAuthorityId, progress);
+    const prepared = await resolveSources(current, undefined, context.signal, onlyAuthorityId, progress,
+      input?.keptOnly === true);
     return draftResult(await attachPreparedSources(prepared.draft, prepared.attachments),
       prepared.attachments);
     },

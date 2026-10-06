@@ -412,6 +412,16 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     }).catch((caught) => active && setError(errorText(caught)));
     return () => { active = false; };
   }, [draftId, sourceKey, sourceAccessVersion, refreshToken, host]);
+  // A draft opened with a decision rebuilt from text, because its publisher blocked the original, takes the
+  // original this browser has kept since, once per opening; only the browser's store is read.
+  useEffect(() => {
+    const current = draftRef.current;
+    if (!host.keptOriginals || !current || current.id !== draftId || !Object.values(current.state.authorities)
+      .some(({ source, sourceVerificationUrl }) => sourceVerificationUrl && source.kind === "attached" &&
+        source.sources.every(({ origin }) => origin === "reconstructed"))) return;
+    void queuedSave(current.id, (latest) => host.keptOriginals!(latest)).then((next) => next && adoptSourceWrite(next))
+      .catch((caught) => setError(errorText(caught)));
+  }, [draftId, host]); // eslint-disable-line react-hooks/exhaustive-deps
   const reviewKey = useMemo(() => discrepancyKey(settled), [settled]);
   useEffect(() => {
     reviewRequest.current?.abort();

@@ -271,6 +271,13 @@ async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal
   });
 }
 
+/** The addresses a publisher's original is asked for at, in turn: the PDF a source names, the route
+ *  the publisher prints its PDFs at, and the decision's own page. */
+export function publisherOriginalUrls(sourceUrl?: string | null, pdfUrl?: string | null) {
+  const candidate = sourceUrl && publisherPdfCandidate(sourceUrl);
+  return [...new Set([pdfUrl, candidate, sourceUrl].filter((value): value is string => Boolean(value)))];
+}
+
 /** Finds and validates an A2AJ publisher's original PDF without ever requesting CanLII. */
 export async function downloadProviderOriginalPdf(
   input: ProviderOriginalPdfRequest,
@@ -280,8 +287,7 @@ export async function downloadProviderOriginalPdf(
   let canonicalUrl: string | null = null;
   try { canonicalUrl = rawSource ? sourceUrl(rawSource).toString() : null; } catch { /* blocked */ }
   const candidate = rawSource && publisherPdfCandidate(rawSource);
-  const queue = [pdfUrl, candidate, rawSource]
-    .filter((value): value is string => Boolean(value));
+  const queue = publisherOriginalUrls(rawSource, pdfUrl);
   const seen = new Set<string>();
   let candidateChallenge: PublisherDownloadFailure | null = null;
   let candidateAdvertised = false, failed = false;
