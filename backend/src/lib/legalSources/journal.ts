@@ -33,6 +33,8 @@ export type JournalArticleDocument = {
 };
 
 const documents = new Map<string, JournalArticleDocument>();
+/** The articles each identifier names or cites exactly, per database snapshot: Sources and the quote check ask alike. */
+const namedArticles = new Map<string, number[]>();
 const MAX_DOCUMENT_CACHE = 16;
 
 /** Each database family retains its own snapshot key and invalidation policy. */
@@ -76,6 +78,7 @@ const finalContractDatabases = databaseCache(() => documents.clear());
 function closeDatabases() {
   for (const cache of [databases, searchDatabases, finalContractDatabases]) cache.close();
   documents.clear();
+  namedArticles.clear();
 }
 
 function snapshotSignature(filename: string, source = statSync(filename)) {
@@ -345,13 +348,34 @@ function finalContractPages(articleId: number): FinalContractPages | null {
   return filename ? { filename, signature: snapshotSignature(filename) } : null;
 }
 
+// Whole words of an identifier that the search index reads as whole tokens too: ASCII letters and digits set off
+// by spaces or punctuation (an index token can run on into a neighbouring non-ASCII letter or symbol).
+const INDEX_WORD = /(?<=^|[\s!"#%&'()*,\-./:;?@[\\\]_{}])[A-Za-z0-9]+(?=$|[\s!"#%&'()*,\-./:;?@[\\\]_{}])/gu;
+
+/** False when no article with text is named or cited exactly as `identifier`, from the search index: every such
+ *  article's name and citation are indexed, so one that matched would hold all of its whole words. */
+function mayName(identifier: string) {
+  const search = searchDatabase();
+  const words = [...new Set(identifier.match(INDEX_WORD) ?? [])];
+  if (!search || !words.length) return true;
+  const ids = (search.prepare("SELECT rowid AS article_id FROM article_search WHERE article_search MATCH ?")
+    .all(words.map((word) => `metadata : "${word}"`).join(" AND ")) as Row[]).map((row) => Number(row.article_id));
+  if (ids.length > 30000) return true;
+  return ids.length > 0 && !!database().prepare(`SELECT 1 FROM articles WHERE article_id IN (${ids.map(() => "?").join(",")})
+     AND (LOWER(citation_en) = LOWER(?) OR LOWER(name_en) = LOWER(?)) LIMIT 1`).get(...ids, identifier, identifier);
+}
+
 function articleRow(identifier: string) {
   const articleId = identifier.match(/^(?:journal:)?(\d+)$/iu)?.[1];
-  // Matching never reads article text (the database's bulk); only the few hits are checked for it.
-  const ids = articleId ? [Number(articleId)] : (database()
+  // Only articles with text are returned, so an identifier the index shows no such article answers to finds
+  // nothing without scanning every article; one that some article answers to is matched exactly below.
+  if (!articleId && !mayName(identifier)) return null;
+  const key = `${snapshotSignature(journalDatabasePath())}\n${identifier}`;
+  const ids = articleId ? [Number(articleId)] : namedArticles.get(key) ?? (database()
     .prepare(`SELECT article_id FROM articles
        WHERE (LOWER(citation_en) = LOWER(?) OR LOWER(name_en) = LOWER(?)) ORDER BY article_id LIMIT 8`)
     .all(identifier, identifier) as Row[]).map((row) => Number(row.article_id));
+  if (!articleId) namedArticles.set(key, ids);
   const withText = database().prepare(
     "SELECT * FROM articles WHERE article_id = ? AND text IS NOT NULL AND length(text) > 0");
   const rows = ids.map((id) => withText.get(id) as Row | undefined).filter((row): row is Row => !!row).slice(0, 2);
