@@ -91,6 +91,16 @@
 .citation-label{color:var(--color-gray-500);white-space:nowrap}
 .citation-label[data-row="1"]{grid-area:l1}
 .citation-label[data-row="2"]{grid-area:l2}
+/* An app's row for the citation's own link (CitationLink.tsx). */
+.citation-panel[data-links]{grid-template:"nav l1 refers refers edit" 2rem "nav l2 pins quote edit" 2rem "nav l3 link link edit" 2rem/auto auto minmax(0,1fr) auto 7.5rem}
+.citation-label[data-row="3"]{grid-area:l3}
+.citation-link{grid-area:link;gap:.375rem}
+.citation-link>input{flex:1;min-width:0;height:2rem;padding:0 .5rem;border:1px solid var(--color-gray-300);border-radius:6px;background:var(--app-surface);color:var(--color-gray-900);outline:none}
+.citation-link>input:focus-visible{border-color:var(--citation-mark,#b91c1c)}
+.citation-link>input[aria-invalid]{border-color:var(--citation-mark,#b91c1c)}
+.citation-link>button{display:inline-flex;align-items:center;height:2rem;padding:0 .75rem;border:1px solid var(--color-gray-300);border-radius:6px;background:var(--app-surface);color:var(--color-gray-800);font-weight:500;white-space:nowrap}
+.citation-panel .citation-link>button:hover:not(:disabled){background:var(--app-surface-hover);color:var(--color-gray-950)}
+.citation-link>button:disabled{border-color:var(--color-gray-200);color:var(--color-gray-400);cursor:default}
 /* The edits, stacked, set off as where you are is. */
 .citation-edit{grid-area:edit;align-self:stretch;flex-direction:column;justify-content:center;align-items:stretch!important;gap:.5rem;padding-inline-start:1rem;border-inline-start:1px solid var(--color-gray-200)}
 .citation-panel button{font-size:.8125rem}
@@ -152,6 +162,7 @@
   .citation-review{grid-template:7.5rem minmax(0,1fr) auto/minmax(0,1fr)}
   .citation-outline{grid-row:1;border-inline-end:0;border-bottom:1px solid var(--color-gray-200)}
   .citation-panel{grid-column:1;grid-template:"nav refers quote edit" 2rem "nav pins pins edit" 2rem/auto minmax(0,1fr) auto 6.5rem;padding-inline:.75rem}
+  .citation-panel[data-links]{grid-template:"nav refers quote edit" 2rem "nav pins pins edit" 2rem "nav link link edit" 2rem/auto minmax(0,1fr) auto 6.5rem}
   .citation-label{display:none}
   .citation-document{grid-column:1}
   .citation-note{margin-bottom:.3rem}

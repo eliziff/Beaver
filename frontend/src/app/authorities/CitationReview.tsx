@@ -6,6 +6,7 @@ import { PdfCanvas } from '@/app/components/shared/views/PdfCanvas';
 import type { WorkProductFocus } from '@/app/lib/workProducts';
 import { errorMessage } from '@/app/lib/utils';
 import { authorityCitationLine, authorityCitationText, authorityItalic, authorityName } from './authorityPresentation';
+import { CitationLink } from './CitationLink';
 import { CitationText } from './CitationText';
 import type { AuthoritiesHost } from './host';
 import type { AuthoritiesAction, AuthoritiesProduct, AuthorityOccurrence, AuthorityIdentity } from './types';
@@ -246,7 +247,7 @@ function AuthorityPicker({ options, current, currentLabel, currentItalic = 0, bu
 /** While unseen it is not drawn again: what changed meanwhile is marked when it is shown. */
 export const CitationReview = memo(Review, (before, after) => !!before.hidden && !!after.hidden);
 function Review({ product, host, sourceVersion, occurrences, selected, authorities, discrepancies, check = 'done',
-  busy, hidden = false, reveal = 0, onSelect, onAction, onHistory, onReview, onFocusChange }: {
+  busy, hidden = false, reveal = 0, links = false, onSelect, onAction, onHistory, onReview, onFocusChange }: {
   product: AuthoritiesProduct; host: AuthoritiesHost; sourceVersion: number;
   occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence; authorities: AuthorityIdentity[];
   discrepancies: Finding[]; busy: boolean;
@@ -256,7 +257,9 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   /** Kept drawn, unseen, while another step shows: it reports no focus and paints nothing. */
   hidden?: boolean;
   /** Counts the times the selected citation is to be brought into view from outside (a finding opened). */
-  reveal?: number; onSelect(id: string): void;
+  reveal?: number;
+  /** Whether the bar has a row for the citation's own link (AuthoritiesApp.citationLinks). */
+  links?: boolean; onSelect(id: string): void;
   onAction(action: AuthoritiesAction, done?: (next: AuthoritiesProduct) => void): void;
   /** Takes the last review edit back (`true`) or makes it again; false when there is none. */
   onHistory(back: boolean): boolean;
@@ -797,7 +800,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     {/* Under the page and as wide as it, in three columns: where you are; the citation's authority
         and its quotation over its pinpoints; the edits. Every control is always there, greyed where a
         citation has no use for it, so nothing moves from one citation to the next. */}
-    <div className="citation-panel">
+    <div className="citation-panel" data-links={links || undefined}>
       <div role="group" aria-label="Citations" className="citation-nav">
         <Button variant="ghost" size="icon-sm" aria-label="Previous citation" title="Previous citation (↑)"
           aria-keyshortcuts="ArrowUp" disabled={index < 1} onClick={() => step(-1)}><ChevronLeft /></Button>
@@ -830,6 +833,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       <span className="citation-label" data-row="2" aria-hidden="true">Pinpoints</span>
       <PinpointChips occurrence={selected} unitText={unit?.text ?? ''} adding={!!pinTarget()} hint={pinHint()}
         onSet={pinpoints => selected && submit({ type: 'set-pinpoints', occurrenceId: selected.id, pinpoints })} onAdd={() => addPinpoint()} />
+      {links && <><span className="citation-label" data-row="3" aria-hidden="true">Link</span>
+        <CitationLink product={product} occurrence={selected} busy={busy} onAction={onAction} /></>}
     </div>
   </div>;
 }
