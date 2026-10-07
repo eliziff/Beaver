@@ -3,7 +3,7 @@ import { quadBounds, rectToPdfQuad, validRect } from "mike/shared/pdf-annotation
 import { attachedAuthoritySources, authoritiesBriefPdf } from "mike/shared/authorities-sources.mjs";
 import type { AuthoritiesBuildReceipt, AuthoritiesDraft, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
 import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
-import { nestedOutline, pdfAssembly, type PdfOutline } from "mike/shared/runtime/pdfAssembly.mjs";
+import { nestedOutline, pdfAssembly, removeActiveContent, type PdfOutline } from "mike/shared/runtime/pdfAssembly.mjs";
 import { dropUnreachable } from "mike/shared/runtime/authoritiesBook.mjs";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabReference } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
@@ -86,6 +86,8 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   let document: pdf.PDFDocument;
   try { document = await pdf.PDFDocument.load(sourceBytes, { updateMetadata: false }); }
   catch { throw new Error("The brief PDF could not be opened for final export."); }
+  // The brief's own code stays out of the final PDF, as each source's does (appendPages).
+  removeActiveContent(pdf, document);
   const sourcePages = document.getPageCount();
   if (!sourcePages) throw new Error("The brief PDF is empty.");
   const filingRole = draft.import.kind !== "document" ? undefined : draft.import.fileType === "pdf"

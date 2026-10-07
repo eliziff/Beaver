@@ -1,4 +1,4 @@
-import type { PDFDict, PDFDocument, PDFFont, PDFObject, PDFPage, PDFRef, SaveOptions } from "pdf-lib";
+import type { PDFArray, PDFDict, PDFDocument, PDFFont, PDFObject, PDFPage, PDFRef, SaveOptions } from "pdf-lib";
 import type { PdfFontSource } from "./arialFont.mjs";
 
 type PdfOutlineDictionary = { dictionary: Array<[string, PdfOutlineValue]> };
@@ -107,6 +107,60 @@ export function mapOutline(outline: PdfOutline[], page: (pageIndex: number) => n
     const at = page(entry.pageIndex);
     return at === undefined ? mapped : [{ ...entry, pageIndex: at, ...(mapped.length ? { children: mapped } : {}) }];
   });
+}
+
+/** Whether an action only moves the reader: to a place in the document, or to a web or mail address. */
+function inertAction(pdf: typeof import("pdf-lib"), action: PDFDict) {
+  const kind = String(action.lookup(pdf.PDFName.of("S")));
+  const uri = action.lookupMaybe(pdf.PDFName.of("URI"), pdf.PDFString, pdf.PDFHexString)?.decodeText();
+  return kind === "/GoTo" || kind === "/URI" && !!uri && /^(?:https?|mailto):/iu.test(uri.trim());
+}
+
+/** What a PDF would run, launch, submit or fetch as it is opened, read or clicked is taken out of it (ISO 32000
+ *  12.6): its open action, the document's, pages', annotations' and form fields' triggers, its JavaScript and XFA
+ *  forms, and every action that does more than move the reader, with whatever was chained after one. Links and
+ *  bookmarks within the document or to web addresses stay. A PDF built from others' PDFs carries none of their code. */
+export function removeActiveContent(pdf: typeof import("pdf-lib"), document: PDFDocument) {
+  const { PDFArray, PDFDict, PDFName } = pdf;
+  const A = PDFName.of("A"), AA = PDFName.of("AA"), Next = PDFName.of("Next");
+  const seen = new Set<PDFDict>();
+  const disarm = (holder: PDFDict | undefined, key = A) => {
+    if (!holder) return;
+    holder.delete(AA);
+    const action = holder.lookup(key);
+    if (action instanceof PDFDict && inertAction(pdf, action)) action.delete(Next);
+    else if (!(action instanceof PDFArray)) holder.delete(key);
+  };
+  const { catalog } = document;
+  disarm(catalog, PDFName.of("OpenAction"));
+  catalog.lookupMaybe(PDFName.of("Names"), PDFDict)?.delete(PDFName.of("JavaScript"));
+  const form = catalog.lookupMaybe(PDFName.of("AcroForm"), PDFDict);
+  form?.delete(PDFName.of("XFA"));
+  const fields = (list: PDFArray | undefined) => {
+    for (let index = 0; index < (list?.size() ?? 0); index++) {
+      const field = list!.lookupMaybe(index, PDFDict);
+      if (!field || seen.has(field)) continue;
+      seen.add(field); disarm(field); fields(field.lookupMaybe(PDFName.of("Kids"), PDFArray));
+    }
+  };
+  fields(form?.lookupMaybe(PDFName.of("Fields"), PDFArray));
+  for (const page of document.getPages()) {
+    page.node.delete(AA);
+    const annotations = page.node.lookupMaybe(PDFName.of("Annots"), PDFArray);
+    for (let index = 0; index < (annotations?.size() ?? 0); index++) {
+      // A widget's field and the fields above it carry triggers of their own.
+      for (let node = annotations!.lookupMaybe(index, PDFDict); node && !seen.has(node);
+        node = node.lookupMaybe(PDFName.of("Parent"), PDFDict)) { seen.add(node); disarm(node); }
+    }
+  }
+  for (let item = catalog.lookupMaybe(PDFName.of("Outlines"), PDFDict)?.lookupMaybe(PDFName.of("First"), PDFDict),
+    stack: PDFDict[] = []; item || stack.length; item = item ?? stack.pop()) {
+    if (!item || seen.has(item)) { item = undefined; continue; }
+    seen.add(item); disarm(item);
+    const next = item.lookupMaybe(Next, PDFDict);
+    if (next) stack.push(next);
+    item = item.lookupMaybe(PDFName.of("First"), PDFDict);
+  }
 }
 
 type HeaderFooterSet = { kind: "Header" | "Footer"; slot: "Center" | "Right"; font: string; size: number;
@@ -384,10 +438,11 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
             ...(children.length ? { children } : {}) });
         } else {
           const action = node.lookup(PDFName.of("A"));
-          const copied = action instanceof pdf.PDFDict && String(action.lookup(PDFName.of("S"))) !== "/GoTo"
-            ? readOutlineValue(document, action) : undefined;
+          const copied = action instanceof pdf.PDFDict && String(action.lookup(PDFName.of("S"))) !== "/GoTo" &&
+            inertAction(pdf, action) ? readOutlineValue(document, action) : undefined;
           if (title && copied && typeof copied === "object" && "dictionary" in copied)
-            result.push({ title: title.decodeText(), action: copied, ...(children.length ? { children } : {}) });
+            result.push({ title: title.decodeText(), action: { dictionary: copied.dictionary.filter(([key]) => key !== "Next") },
+              ...(children.length ? { children } : {}) });
           else result.push(...children);
         }
       }
@@ -570,6 +625,7 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     pageIndices?: number[], each?: (page: PDFPage, sourceIndex: number) => void) {
     const loaded = source instanceof Uint8Array
       ? await pdf.PDFDocument.load(source, { updateMetadata: false }) : source;
+    removeActiveContent(pdf, loaded);
     const indices = pageIndices ?? loaded.getPageIndices();
     if (!indices.length) return [];
     const originalLabels = pageLabelReader(document), sourceLabels = pageLabelReader(loaded);
@@ -637,6 +693,7 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
       applyOutlines(document, outlines, !!input.openBookmarks);
     }
     input.signal?.throwIfAborted();
+    removeActiveContent(pdf, document);
     const bytes = await document.save(input.saveOptions);
     input.signal?.throwIfAborted();
     return { bytes, pageCount: document.getPageCount() };
