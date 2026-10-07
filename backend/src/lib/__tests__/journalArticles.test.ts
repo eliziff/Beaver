@@ -123,13 +123,18 @@ function fixtureSearchDatabase(source: string) {
       'A Fixture Article (2026) 1 Fixture LJ 100 Ada Example',
       'The second footnote supports the analysis.'
     );
+    CREATE VIRTUAL TABLE article_metadata USING fts5(metadata, content='');
+    INSERT INTO article_metadata(rowid, metadata) VALUES (
+      7,
+      'A Fixture Article (2026) 1 Fixture LJ 100 Ada Example'
+    );
   `);
   const sourceStat = statSync(source);
   const metadata = search.prepare(
     "INSERT INTO meta(key, value) VALUES (?, ?)",
   );
   for (const [key, value] of [
-    ["schema_version", "2"],
+    ["schema_version", "3"],
     ["source_size", String(sourceStat.size)],
     ["source_mtime_ms", String(Math.trunc(sourceStat.mtimeMs))],
     ["source_path", path.resolve(source)],

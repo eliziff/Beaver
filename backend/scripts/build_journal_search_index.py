@@ -59,32 +59,41 @@ def build(source: Path, output: Path) -> dict[str, object]:
                         body,
                         content=''
                     );
+                    CREATE VIRTUAL TABLE article_metadata USING fts5(
+                        metadata,
+                        content=''
+                    );
                     """
                 )
                 rows = origin.execute(
                     """
                     SELECT article_id, name_en, citation_en, authors,
-                           journal_name, journal_abbrev, text
+                           journal_name, journal_abbrev, text,
+                           document_date_en, volume, issue, first_page
                     FROM articles
                     WHERE text IS NOT NULL AND length(text) > 0
                     """
                 )
 
+                # article_metadata holds what a citation names an article by: without the
+                # text, a lookup by name reads a few megabytes rather than the whole index.
+                names = []
+
                 def values():
                     nonlocal count
                     for row in rows:
                         count += 1
-                        yield (
-                            int(row[0]),
-                            " ".join(str(value or "") for value in row[1:6]),
-                            row[6],
-                        )
+                        metadata = " ".join(str(value or "") for value in row[1:6])
+                        names.append((int(row[0]), " ".join([metadata, *(str(value or "") for value in row[7:11])])))
+                        yield (int(row[0]), metadata, row[6])
 
                 target.executemany(
                     "INSERT INTO article_search(rowid, metadata, body) VALUES (?, ?, ?)",
                     values(),
                 )
+                target.executemany("INSERT INTO article_metadata(rowid, metadata) VALUES (?, ?)", names)
                 target.execute("INSERT INTO article_search(article_search) VALUES ('optimize')")
+                target.execute("INSERT INTO article_metadata(article_metadata) VALUES ('optimize')")
                 stat = source.stat()
                 source_metadata = dict(
                     origin.execute(
@@ -94,7 +103,7 @@ def build(source: Path, output: Path) -> dict[str, object]:
                 target.executemany(
                     "INSERT INTO meta(key, value) VALUES (?, ?)",
                     [
-                        ("schema_version", "2"),
+                        ("schema_version", "3"),
                         ("source_size", str(stat.st_size)),
                         ("source_mtime_ms", str(stat.st_mtime_ns // 1_000_000)),
                         ("source_path", str(source)),
