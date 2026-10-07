@@ -42,8 +42,24 @@ export type XlsxSheet = {
 /** Fonts and cell formats as SpreadsheetML; fills as RGB colours (fill ids from 2 in this order). */
 export type XlsxStyles = { fonts: string[]; fills: string[]; cellXfs: string[] };
 
+// What XML cannot hold is left out (control characters, U+FFFE, U+FFFF, half a surrogate pair): one makes the
+// whole workbook unreadable.
+const xmlChars = (value: string) => value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF\uD800-\uDFFF]/gu, "");
 const cellText = (value: string) => `<t${/^\s|\s$/u.test(value) ? ' xml:space="preserve"' : ""}>${
-  escapeXmlText(value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/gu, ""))}</t>`;
+  escapeXmlText(xmlChars(value))}</t>`;
+// Excel opens no workbook with a cell over 32,767 characters: a longer value is cut there, and says so.
+const CELL_LIMIT = 32_767, CUT = " […] (cut here: an Excel cell holds 32,767 characters)";
+function withinCell(runs: XlsxRun[]): XlsxRun[] {
+  if (runs.reduce((sum, { text }) => sum + xmlChars(text).length, 0) <= CELL_LIMIT) return runs;
+  let room = CELL_LIMIT - CUT.length;
+  const kept = runs.flatMap((run) => {
+    const text = xmlChars(run.text).slice(0, Math.max(0, room));
+    room -= text.length;
+    return text ? [{ ...run, text }] : [];
+  });
+  kept[kept.length - 1] = { ...kept[kept.length - 1], text: kept[kept.length - 1].text + CUT };
+  return kept;
+}
 export function columnLetter(index: number) {
   let name = "";
   for (let n = index; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
@@ -68,8 +84,8 @@ export async function styledXlsx(title: string, sheets: XlsxSheet[], styles: Xls
         const ref = `${columnLetter(column + 1)}${row}`, style = cell.style ? ` s="${cell.style}"` : "";
         if (cell.link && /^https?:\/\//iu.test(cell.link)) links.push({ ref, url: cell.link });
         if (typeof cell.value === "number") return `<c r="${ref}"${style}><v>${cell.value}</v></c>`;
-        const inline = cell.runs?.length ? cell.runs.map((run) => `<r>${run.font ? `<rPr>${run.font}</rPr>` : ""}${cellText(run.text)}</r>`).join("")
-          : cell.value ? cellText(cell.value) : "";
+        const inline = cell.runs?.length ? withinCell(cell.runs).map((run) => `<r>${run.font ? `<rPr>${run.font}</rPr>` : ""}${cellText(run.text)}</r>`).join("")
+          : cell.value ? cellText(withinCell([{ text: cell.value, font: "" }])[0].text) : "";
         return `<c r="${ref}"${style} t="inlineStr">${inline ? `<is>${inline}</is>` : ""}</c>`;
       }).join("")}</row>`;
     }).join("");
@@ -78,7 +94,7 @@ export async function styledXlsx(title: string, sheets: XlsxSheet[], styles: Xls
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><dimension ref="A1:${last}"/><sheetViews><sheetView workbookViewId="0"${sheet.view ?? ""}>${sheet.frozenHeader ? '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/>' : ""}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>${columns ? `<cols>${columns}</cols>` : ""}<sheetData>${data}</sheetData>${sheet.autoFilter ? `<autoFilter ref="A1:${last}"/>` : ""}${links.length ? `<hyperlinks>${links.map(({ ref }, i) => `<hyperlink ref="${ref}" r:id="link${i}"/>`).join("")}</hyperlinks>` : ""}<pageMargins left="0.75" right="0.75" top="1" bottom="1" header="0.5" footer="0.5"/></worksheet>`);
     const rels = `xl/worksheets/_rels/sheet${index + 1}.xml.rels`;
     if (links.length) zip.file(rels, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${links.map(({ url }, i) => `<Relationship Id="link${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${escapeXmlText(url).replace(/"/gu, "&quot;")}" TargetMode="External"/>`).join("")}</Relationships>`);
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${links.map(({ url }, i) => `<Relationship Id="link${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${escapeXmlText(xmlChars(url)).replace(/"/gu, "&quot;")}" TargetMode="External"/>`).join("")}</Relationships>`);
     else zip.remove(rels);
   }
   const hidden = new Set(sheets.filter((sheet) => sheet.hidden).map((sheet) => sheet.name));
@@ -90,7 +106,7 @@ export async function styledXlsx(title: string, sheets: XlsxSheet[], styles: Xls
   if (identifier) {
     const core = await zip.file("docProps/core.xml")?.async("string");
     if (core) zip.file("docProps/core.xml", core.replace(/<\/cp:coreProperties>/u,
-      `<dc:identifier>${escapeXmlText(identifier)}</dc:identifier></cp:coreProperties>`));
+      `<dc:identifier>${escapeXmlText(xmlChars(identifier))}</dc:identifier></cp:coreProperties>`));
   }
   return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
 }
