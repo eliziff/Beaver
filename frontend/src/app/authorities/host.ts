@@ -27,6 +27,8 @@ export type AuthoritiesOcrPort = {
   progress(documentIds: string[]): Promise<PdfProgress[]>;
 };
 export type AuthoritiesLocalStore = "a2aj" | "journals" | "journals-search";
+/** A store's file served by the program that serves the page, read in place by ranged requests. */
+export type AuthoritiesServedFile = { url: string; size: number; lastModified: number };
 export type AuthoritiesDraftInspection = {
   sourceIssues: Record<string, AuthoritiesSourceIssue>;
 };
@@ -68,7 +70,7 @@ export interface AuthoritiesHost {
    *  its search index). */
   localStores?: {
     /** Reads `file` as the store, or stops reading it (null); `localOnly` keeps A2AJ lookups on this computer. */
-    mount(store: AuthoritiesLocalStore, file: File | null, options?: { localOnly?: boolean }): Promise<void>;
+    mount(store: AuthoritiesLocalStore, file: File | AuthoritiesServedFile | null, options?: { localOnly?: boolean }): Promise<void>;
     /** The file chosen for each store, kept for the next visit; its permission is asked for apart. */
     kept: { get(store: AuthoritiesLocalStore): Promise<FileSystemFileHandle | null>;
       set(store: AuthoritiesLocalStore, handle: FileSystemFileHandle | null): Promise<void> };
