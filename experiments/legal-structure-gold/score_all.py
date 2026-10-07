@@ -66,31 +66,41 @@ def main():
             return {'run': str(job.relative_to(args.out)), 'error': str(error)[-600:]}
 
     with ThreadPoolExecutor(args.workers) as pool: results = list(pool.map(score, runs))
-    totals = {}
-    for result in results:
-        for name, metric in result.get('metrics', {}).items():
-            total = totals.setdefault(name, {'expected': 0, 'predicted': 0, 'correct': 0})
-            for key in total: total[key] += metric[key]
-    for total in totals.values():
-        p = total['correct'] / total['predicted'] if total['predicted'] else 1.0
-        r = total['correct'] / total['expected'] if total['expected'] else 1.0
-        total.update(precision=p, recall=r, f1=2 * p * r / (p + r) if p + r else 0.0)
+    def aggregate(rows):
+        totals = {}
+        for row in rows:
+            for name, metric in row['metrics'].items():
+                total = totals.setdefault(name, {'expected': 0, 'predicted': 0, 'correct': 0})
+                for key in total: total[key] += metric[key]
+        for total in totals.values():
+            p = total['correct'] / total['predicted'] if total['predicted'] else 1.0
+            r = total['correct'] / total['expected'] if total['expected'] else 1.0
+            total.update(precision=p, recall=r, f1=2 * p * r / (p + r) if p + r else 0.0)
+        return totals
+    scored = [r for r in results if 'metrics' in r]
+    totals = aggregate(scored)
     summary = {'source': 'saved' if args.saved else 'addon', 'runs': len(results),
                'pages': sum(r.get('pages') or 0 for r in results),
                'errors': [r for r in results if 'error' in r], 'totals': totals,
-               'per_run': [{'run': r['run'], 'f1': {k: v['f1'] for k, v in r['metrics'].items()}}
-                           for r in results if 'metrics' in r]}
+               'per_run': [{'run': r['run'], 'metrics': {k: {c: v[c] for c in ('expected', 'predicted', 'correct', 'f1')}
+                                                          for k, v in r['metrics'].items()}} for r in scored]}
     destination = args.out / 'score' / ('saved.json' if args.saved else 'latest.json')
     worker.write_json(destination, summary)
-    before = worker.read_json(args.against)['totals'] if args.against else {}
+    # Compare only the runs both summaries scored, so new gold does not move the deltas.
+    before = {}
+    if args.against:
+        earlier = {row['run']: row for row in worker.read_json(args.against)['per_run'] if 'metrics' in row}
+        common = [row for row in scored if row['run'] in earlier]
+        before, now = aggregate([earlier[row['run']] for row in common]), aggregate(common)
+        print(f"{len(common)} runs in common with {args.against.name}")
     print(f"{summary['runs']} runs, {summary['pages']} pages, {len(summary['errors'])} errors -> {destination}")
     print(f"{'layer':22} {'exp':>6} {'pred':>6} {'P':>6} {'R':>6} {'F1':>6}" + ('   dF1' if before else ''))
     for name, t in sorted(totals.items()):
-        delta = f"{t['f1'] - before[name]['f1']:+6.3f}" if name in before else ''
+        delta = f"{now[name]['f1'] - before[name]['f1']:+6.3f}" if name in before else ''
         print(f"{name:22} {t['expected']:6} {t['predicted']:6} {t['precision']:6.3f} {t['recall']:6.3f} {t['f1']:6.3f} {delta}")
     if args.show:
         for row in summary['per_run']:
-            print(row['run'], ' '.join(f"{k}={v:.2f}" for k, v in sorted(row['f1'].items())))
+            print(row['run'], ' '.join(f"{k}={v['f1']:.2f}" for k, v in sorted(row['metrics'].items())))
     for error in summary['errors']: print('ERROR', error['run'], error['error'], file=sys.stderr)
 
 
