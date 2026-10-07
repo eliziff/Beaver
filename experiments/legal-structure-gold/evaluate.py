@@ -57,12 +57,24 @@ def state_of(value):
         return structure, {'lines':list(lines.values()), 'groups':value['blocks'],
             'reading_order':value['reading_order'], 'annotations':unproject(structure['annotations']),
             'joins':value['joins'],'continuations':value['continuations'],'resumes':value['resumes']}
+    extraction = value.get('extraction', {}).get('pages', [])
     value = value.get('document', value.get('baseline', value))
     structure = value.get('structure_graph', value.get('structure', value))
     lines = composer.source_lines(structure)
     pages = [{'atoms':[{'id':i, 'bbox':[0,0,0,0]} for i,l in lines.items() if l['page'] == n]}
              for n in sorted({l['page'] for l in lines.values()})]
     state = gold.initial(structure, pages)
+    # The structure leaves running heads, folios and print margins out of every node, and
+    # names each page's folio line; such a line in the page's outer bands is furniture.
+    folios = {n.get('anchor') for n in structure['nodes'] if n['kind'] == 'page'}
+    bands = {l['id']: (l['bbox'][1] + l['bbox'][3]) / 2 / p['height'] for p in extraction for l in p['lines']}
+    for group in state['groups']:
+        if group['kind'] != 'prose' or 'native_id' in group['attributes']: continue
+        if any(i in folios for i in group['line_ids']): group['kind'] = 'page_label'
+        elif group['line_ids'] and all(i in bands for i in group['line_ids']):
+            middle = sum(bands[i] for i in group['line_ids']) / len(group['line_ids'])
+            if middle < 0.15: group['kind'] = 'header'
+            elif middle > 0.85: group['kind'] = 'footer'
     # Native products can carry the composer's source-anchored annotations too.
     if structure.get('annotations'):
         def refs(item):
