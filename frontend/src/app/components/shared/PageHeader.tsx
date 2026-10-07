@@ -84,8 +84,10 @@ export function PageHeader({
                 children
             )}
             {!!items?.length && (
+                // In a pane narrower than 22rem (a Word task pane), no wider than the header: actions that do not fit
+                // wrap instead of running off it.
                 <div className={cn(
-                    "flex min-w-0 items-center justify-end gap-2 md:shrink-0",
+                    "flex min-w-0 items-center justify-end gap-2 max-[22rem]:max-w-full md:shrink-0",
                     wideMobileActions ? "w-full md:w-auto" : "shrink-0",
                     stackActions && "w-full flex-wrap sm:w-auto sm:flex-nowrap",
                 )}>
@@ -127,7 +129,7 @@ function Action({
         return (
             <span
                 className={cn(
-                    "inline-flex h-9 items-center",
+                    "inline-flex h-9 items-center max-[22rem]:h-auto max-[22rem]:min-h-9 max-[22rem]:max-w-full",
                     disabled && "pointer-events-none opacity-40",
                 )}
             >
