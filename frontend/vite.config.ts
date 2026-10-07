@@ -1,5 +1,5 @@
 import { fileURLToPath, URL } from "node:url";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -172,7 +172,8 @@ export default defineConfig(async ({ mode, command }) => {
         server: {
             watch: { ignored: ["**/.tmp/**", "**/dist/**"] },
             fs: { allow: [searchForWorkspaceRoot(process.cwd()),
-                realpathSync(new URL("./node_modules", import.meta.url))] },
+                // A workspace install may leave this app no node_modules of its own.
+                ...[new URL("./node_modules", import.meta.url)].filter(existsSync).map((url) => realpathSync(url))] },
             proxy: {
                 "/api": {
                     target: apiOrigin,
