@@ -105,7 +105,8 @@ type DiscrepancyHandler = (finding: Finding,
  *  last step and settings in place of the book's. */
 export type AuthoritiesApp = {
   title: string; className: string;
-  start: { title: string; detail: string; accept: string };
+  /** `action`: the start button's label, where the app reads its file from elsewhere (the open Word document). */
+  start: { title: string; detail: string; accept: string; action?: string };
   settings: NonNullable<Parameters<AuthoritiesHost["create"]>[0]["settings"]>;
   steps: Partial<Record<Step, string>>;
   build: (props: { draft: AuthoritiesProduct; busy: boolean;
@@ -1470,7 +1471,7 @@ function AutomaticStart({ busy, onFile, onPick, onLibrary, sourceLabel = "Librar
         <p className="text-sm text-gray-600">{copy?.detail ?? "Add a factum, brief, or other PDF or Word document."}</p></div></div>
     <div className="mt-5 flex flex-wrap gap-2">
       {onPick ? <Button type="button" disabled={busy} onClick={onPick}>
-        <FilePlus2 /> Add file</Button> : <FileInputButton multiple={false} disabled={busy}
+        <FilePlus2 /> {copy?.action ?? "Add file"}</Button> : <FileInputButton multiple={false} disabled={busy}
           label="Add file" accept={copy?.accept ?? ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
           onFiles={(files) => onFile(files[0])} />}
       {onLibrary && <Button type="button" variant="outline" className="border-gray-400"

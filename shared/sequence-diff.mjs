@@ -68,3 +68,45 @@ export function minimalEditPlan(t, s, base = 0, spanLength = t.length) {
   if (gapT >= 0) plan.push([base + gapT, a - gapT, s.slice(gapS)]);
   return plan;
 }
+
+/** A plan's edits in the order the ALR macro writes them: later starts first, so earlier offsets stay valid,
+ *  and edits that share a start in plan order. Ported from ALR_Rules.bas SortPlanDesc (a stable insertion sort);
+ *  Array.prototype.sort is stable. */
+export const descendingPlan = (plan) => [...plan].sort((a, b) => b[0] - a[0]);
+
+/** The characters that differ between `t` and `s`, as [start, length, replacement] edits: the macro's plan, and
+ *  where that plan replaces a long text whole (its 200-character cutoff), the character alignment of sequenceOpcodes,
+ *  so a highlight still shows which letters differ. */
+export function characterPlan(t, s) {
+  const plan = minimalEditPlan(t, s);
+  if (!(plan.length === 1 && plan[0][0] === 0 && plan[0][1] === t.length && t.length && s.length)) return plan;
+  return sequenceOpcodes([...t], [...s]).filter(([kind]) => kind !== "equal")
+    .map(([, a0, a1, b0, b1]) => [offset(t, a0), offset(t, a1) - offset(t, a0), [...s].slice(b0, b1).join("")]);
+}
+/** The UTF-16 offset of code point `index` in `text`. */
+const offset = (text, index) => [...text].slice(0, index).join("").length;
+
+/** The text `t` (at `base`) as runs [start, end, edited], marking what `plan` changes: the characters an edit
+ *  removes or replaces; the characters an edit brackets (an editorial target writes an authored word the source does
+ *  not have as "[word]"); and for any other edit that only inserts, the space at that point (a missing word), else
+ *  the character after it, or the last character at the text's end. Runs cover `t` in order. */
+export function highlightRuns(t, plan, base = 0) {
+  const edited = new Uint8Array(t.length), space = /\s/u;
+  const edits = [...plan].sort((a, b) => a[0] - b[0]);
+  edits.forEach(([start, length, replacement], index) => {
+    const at = start - base;
+    if (length) { edited.fill(1, at, at + length); return; }
+    const close = replacement.endsWith("[") && edits.slice(index + 1).find(([, , text]) => text.startsWith("]"));
+    if (close) { edited.fill(1, at, close[0] - base); return; }
+    if (replacement.startsWith("]") && edits.slice(0, index).some(([, , text]) => text.endsWith("["))) return;
+    if (t.length) edited[at > 0 && space.test(t[at - 1]) ? at - 1 : at < t.length ? at : t.length - 1] = 1;
+  });
+  const runs = [];
+  for (let i = 0; i < t.length;) {
+    let j = i + 1;
+    while (j < t.length && edited[j] === edited[i]) j += 1;
+    runs.push([base + i, base + j, edited[i] === 1]);
+    i = j;
+  }
+  return runs;
+}

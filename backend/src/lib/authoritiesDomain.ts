@@ -86,6 +86,7 @@ export type AuthoritiesAction =
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;
       reference: AuthorityOccurrence["reference"] }
+  | { type: "set-occurrence-links"; links: Array<{ occurrenceId: string; url: string | null }> }
   | { type: "resolve-authority"; authorityId: string; citation: string;
       name: string | null; source: AuthoritySourceIdentity }
   | { type: "attach-source"; authorityId: string; bindingRole: string;
@@ -278,7 +279,7 @@ const occurrence = closed<AuthorityOccurrence>({ id: text, unitId: text, ...span
   key: maybe(text), authorityId: nullable(text), reference: nullable(reference),
   referenceKind: maybe(oneOf(AUTHORITIES_ACTION_CHOICES.reference)),
   pinpoints: list(50_000, pinpoint), pinpointManual: maybe(literal(true)), evidenceIds: strings,
-  sourceTextSha256: text, localOrdinal: integer, reviewed: flag });
+  sourceTextSha256: text, localOrdinal: integer, reviewed: flag, link: maybe(isObservedSourceUrl) });
 const ledgerOccurrence = closed<AuthoritiesLedgerOccurrence>({ id: text, markerId: text,
   targetId: text, authorityKey: text,
   unit: closed<AuthoritiesLedgerOccurrence["unit"]>({ ...unitFields, sourceTextSha256: text }),
@@ -1038,6 +1039,18 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     case "set-reviewed":
       requireRecord(draft.occurrences, action.occurrenceId, "occurrence").reviewed = action.reviewed;
       break;
+    case "set-occurrence-links": {
+      // All or nothing: every citation must exist and every link be a web address.
+      const targets = action.links.map(({ occurrenceId, url }) => {
+        if (url !== null && !isObservedSourceUrl(url)) throw new AuthoritiesDomainError("A citation link must be a web address.");
+        return { occurrence: requireRecord(draft.occurrences, occurrenceId, "occurrence"), url };
+      });
+      for (const { occurrence, url } of targets) {
+        if (url === null) delete occurrence.link;
+        else occurrence.link = url;
+      }
+      break;
+    }
     case "set-reference": {
       const occurrence = requireRecord(draft.occurrences, action.occurrenceId, "occurrence");
       if (action.reference && occurrence.referenceKind &&

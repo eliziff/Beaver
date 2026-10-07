@@ -210,6 +210,13 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
       authorityId: item.authorityId === null ? null : text(item.authorityId) };
     case "set-reviewed": return { type, occurrenceId: text(item.occurrenceId),
       reviewed: typeof item.reviewed === "boolean" ? item.reviewed : bad() };
+    case "set-occurrence-links": {
+      if (!Array.isArray(item.links) || !item.links.length || item.links.length > 5_000) return bad();
+      return { type, links: item.links.map((value) => {
+        const link = object(value);
+        return { occurrenceId: text(link.occurrenceId), url: link.url === null ? null : text(link.url, 8192) };
+      }) };
+    }
     case "set-reference": return { type, occurrenceId: text(item.occurrenceId),
       reference: reference(item.reference) };
     case "begin-canlii-handoff": {
