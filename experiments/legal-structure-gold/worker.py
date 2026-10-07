@@ -261,6 +261,7 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=_invok
         receipt["attempts"].append(attempt)
         write_json(receipt_path,receipt)
         started = time.perf_counter()
+        response = None
         try:
             response = dispatch(prompt=actual_prompt, schema_path=schema_path, image_paths=images,
                        model=args.model, effort=args.effort, work_dir=work.resolve(),
@@ -272,8 +273,13 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=_invok
             receipt["response_sha256"] = digest(response_path)
             attempt["status"] = "complete"
             return product
-        except (ValueError, TypeError, KeyError, ValidationError) as exc:
-            error = (f"{exc.json_path}: {exc.message}" if isinstance(exc,ValidationError) else str(exc))[:1500]
+        except Exception as exc:
+            # A reply that fails any check is a contract failure the next attempt corrects;
+            # failing to get a reply at all is the provider's and stops the run.
+            if response is None and not isinstance(exc, ValueError):
+                attempt.update(status="failed", error=str(exc) or type(exc).__name__)
+                raise
+            error = (f"{exc.json_path}: {exc.message}" if isinstance(exc,ValidationError) else str(exc) or type(exc).__name__)[:1500]
             attempt.update(status="failed", error=error)
         except BaseException as exc:
             attempt.update(status="failed", error=str(exc))
