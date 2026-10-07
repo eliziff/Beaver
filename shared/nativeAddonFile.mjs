@@ -33,7 +33,7 @@ export function nativeAddonFile(filename, root) {
     if (previous !== name && /^legal_structure_node\.[a-f0-9]{64}\.dll$/.test(previous)) {
       try { unlinkSync(path.join(directory, previous)); }
       catch (error) {
-        if (!["EPERM", "EACCES", "EBUSY"].includes(error.code ?? "")) throw error;
+        if (!["EPERM", "EACCES", "EBUSY", "ENOENT"].includes(error.code ?? "")) throw error;
       }
     }
   }
