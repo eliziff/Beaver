@@ -113,16 +113,21 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
         source: { provider: "attached", id: digest, kind: authority.kind === "legislation" ? "legislation" : "case",
           citation: authority.citation, title: authority.displayName ?? authority.name, url: pdf.sourceUrl } });
       }
-      // A draft that leaves out US and UK decisions has its quotations checked without them too.
-      const providers = state.settings.foreignCaseLookup === false
-        ? legalSourceOperations.providerIds.filter((id) => !FOREIGN_CASE_PROVIDERS.has(id)) : undefined;
+      // A draft that leaves out US and UK decisions has its quotations checked without them too, and a check may
+      // leave out other providers (`excludedProviders`, such as "a2aj").
+      const asked = json(input.excludedProviders ?? "[]", "excludedProviders");
+      if (!Array.isArray(asked)) reject(400, "excludedProviders must be a list");
+      const excluded = new Set([...state.settings.foreignCaseLookup === false ? FOREIGN_CASE_PROVIDERS : [],
+        ...(asked as unknown[]).map(String)]);
+      const providers = excluded.size ? legalSourceOperations.providerIds.filter((id) => !excluded.has(id)) : undefined;
       const sources = providers && { ...legalSourceOperations,
         resolve: (request: LegalSourceResolveRequest) => legalSourceOperations.resolve({ ...request, providers }) };
       return { data: await checkQuotes(state, decodeQuoteLinks(input.links), context.signal,
         (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }), sources, undefined, attached,
         // Authorities checks a quotation against its note's first citation only, or the one linked to it;
         // allCitations checks it against every source the note cites.
-        { firstCitationOnly: input.allCitations !== true }) };
+        // quoteContext "sentence" checks only the quotations in the sentence a note's marker ends or stands in.
+        { firstCitationOnly: input.allCitations !== true, quoteContext: input.quoteContext === "sentence" ? "sentence" : "passage" }) };
     },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;

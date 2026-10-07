@@ -11,7 +11,8 @@ import type { PdfOpening } from "@/app/lib/inspectPdf";
 
 /** `autoFetched`: found by auto-fetch rather than chosen, so its citation is checked before it is attached. */
 export type AuthoritiesFile = { file: File; input?: WorkProductInput; autoFetched?: boolean };
-export type AuthoritiesFilePick = { multiple: boolean; accept: "source" | "pdf" };
+/** What the picker offers: a PDF or Word document ("source"), a PDF, or a Word document. */
+export type AuthoritiesFilePick = { multiple: boolean; accept: "source" | "pdf" | "docx" };
 export type { AuthoritiesBookSlot } from "../../../../shared/authorities-sources.mjs";
 import type { AuthoritiesBookSlot } from "../../../../shared/authorities-sources.mjs";
 export type AuthoritiesLibraryPdfTarget =
@@ -83,8 +84,10 @@ export interface AuthoritiesHost {
   }>;
   download(documentId: string, versionId: string): Promise<Blob>;
   /** Checks the draft's quotations against their sources, PDFs attached for its authorities included:
-   *  the quote check's result. */
-  checkQuotes?(product: AuthoritiesProduct, progress?: (message: string) => void, signal?: AbortSignal): Promise<unknown>;
+   *  the quote check's result. `options` go to the runtime's "quote-check" with the draft (an app's own choices,
+   *  such as allCitations, quoteContext or excludedProviders). */
+  checkQuotes?(product: AuthoritiesProduct, progress?: (message: string) => void, signal?: AbortSignal,
+    options?: Record<string, unknown>): Promise<unknown>;
   searchLibrary?(query: string, context?: { projectId?: string | null;
     formats?: Array<"pdf" | "docx"> },
     signal?: AbortSignal): Promise<Document[]>;

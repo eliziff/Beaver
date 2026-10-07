@@ -415,7 +415,7 @@ export async function writeStandaloneArtifactsToOutputFolder(artifacts: Standalo
   } catch { return OUTPUT_FOLDER_UNUSABLE; }
 }
 
-export async function pickRetainedFiles(multiple: boolean, accept: "source" | "pdf" = "source") {
+export async function pickRetainedFiles(multiple: boolean, accept: "source" | "pdf" | "docx" = "source") {
   const picker = typeof window === "undefined" ? undefined
     : (window as PickerWindow).showOpenFilePicker;
   if (!picker) return Promise.all((await pickInputFiles(multiple, accept)).map(async (file) => ({
@@ -425,8 +425,8 @@ export async function pickRetainedFiles(multiple: boolean, accept: "source" | "p
   const handles = await picker({
     multiple, ...(accept === "pdf" ? { startIn: "downloads" as const } : {}),
     types: [{
-      description: accept === "pdf" ? "PDF" : "PDF or Word document",
-      accept: { "application/pdf": [".pdf"], ...(accept === "source" ? {
+      description: accept === "pdf" ? "PDF" : accept === "docx" ? "Word document" : "PDF or Word document",
+      accept: { ...(accept !== "docx" ? { "application/pdf": [".pdf"] } : {}), ...(accept !== "pdf" ? {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
       } : {}) },
     }],
@@ -450,12 +450,12 @@ export async function pickRetainedFiles(multiple: boolean, accept: "source" | "p
   });
 }
 
-function pickInputFiles(multiple: boolean, accept: "source" | "pdf") {
+function pickInputFiles(multiple: boolean, accept: "source" | "pdf" | "docx") {
   if (typeof document === "undefined") return Promise.resolve<File[]>([]);
   return new Promise<File[]>((resolve) => {
     const input = document.createElement("input");
     input.type = "file"; input.multiple = multiple;
-    input.accept = accept === "pdf" ? ".pdf" : ".pdf,.docx";
+    input.accept = accept === "pdf" ? ".pdf" : accept === "docx" ? ".docx" : ".pdf,.docx";
     input.addEventListener("change", () => resolve([...(input.files ?? [])]), { once: true });
     input.addEventListener("cancel", () => resolve([]), { once: true });
     input.click();
