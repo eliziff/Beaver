@@ -57,9 +57,12 @@ class EngineError extends Error {}
 /** An opaque engine document, released when JavaScript no longer references it. */
 class NativeDocumentHandle { constructor(handle, generation) { this.handle = handle; this.generation = generation; } }
 
-/** Readies an engine before its first real call: the citation engine builds its grammars on first use. */
-export const warmStructureAddon = (addon) => addon.citationEngineCall("extract",
-  JSON.stringify({ text: "R v Oakes, [1986] 1 SCR 103", offsetUnit: "utf16", options: { resolve: false } }));
+/** Readies an engine before its first real call: the citation engine builds its grammars and tables on first use.
+ *  `partly` builds only those one short citation reaches, for an engine that seldom reads citations. */
+export const warmStructureAddon = (addon, { partly = false } = {}) => partly
+  ? addon.citationEngineCall("extract", JSON.stringify({ text: "R v Oakes, [1986] 1 SCR 103", offsetUnit: "utf16",
+    options: { resolve: false } }))
+  : addon.citationEngineCall("warm", "{}");
 
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 /** `[u32 json length][json {op, args}][bytes]` */
