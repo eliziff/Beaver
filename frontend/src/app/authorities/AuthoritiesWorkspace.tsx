@@ -116,6 +116,8 @@ export type AuthoritiesApp = {
   preferences?: ReactNode;
   /** The Drafts tab's panel, in place of the saved drafts list; `onOpen` opens a draft. */
   drafts?: (props: { busy: boolean; onOpen: (id: string) => void }) => ReactNode;
+  /** Whether the citation review has a row for a citation's own link, offered to the authority's other citations. */
+  citationLinks?: boolean;
 };
 
 /** What decides a draft's sources: its authorities, as cited and kept, and how sources are made.
@@ -1332,7 +1334,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={findings} check={currentReview || reviewError ? "done" : reviewKey || !app && sourcesFound.id !== draft.id ? "running" : sourcesFound.failed ? "failed" : "unavailable"} hidden={!reviewing}
                       busy={busy} onSelect={setSelectedId} onAction={act} onHistory={travel}
-                      reveal={revealed} onFocusChange={onFocusChange} onReview={openFinding} />
+                      reveal={revealed} links={!!app?.citationLinks} onFocusChange={onFocusChange} onReview={openFinding} />
                   </section></div>}
                   {reviewing && quotationReview && <div ref={revealFinding}>{quotationReview}</div>}
                   </div>
