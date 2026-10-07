@@ -163,7 +163,7 @@ function searchDatabase() {
       const matchesSource = process.platform === "win32"
         ? expectedSource.toLocaleLowerCase() === sourcePath.toLocaleLowerCase()
         : expectedSource === sourcePath;
-      return indexed.schema_version === "2" &&
+      return indexed.schema_version === "3" &&
         indexed.source_size === String(source.size) &&
         indexed.source_mtime_ms === String(Math.trunc(source.mtimeMs)) && matchesSource &&
         indexed.source_schema_version === (sourceMetadata.schema_version ?? "") &&
@@ -223,10 +223,13 @@ const SEARCH_COLUMNS = `article_id, dataset, citation_en, name_en, authors,
   document_date_en, volume, issue, first_page, journal_name,
   journal_abbrev, galley_url, url_en, abstract`;
 
+/** `names` searches only what a citation names an article by (its name, authors, journal, year, volume, issue
+ *  and first page), in the index's small table of those, not the articles' text. */
 function findArticles(
   query: string,
   size = 10,
-  options: Pick<LegalSourceSearchRequest, "syntax" | "author" | "journal" | "dateFrom" | "dateTo" | "sort"> = {},
+  options: Pick<LegalSourceSearchRequest, "syntax" | "author" | "journal" | "dateFrom" | "dateTo" | "sort">
+    & { names?: boolean } = {},
 ): JournalArticleSearchResult[] {
   query = query.trim();
   if (!query) throw new Error("query is required");
@@ -266,8 +269,9 @@ function findArticles(
       options.author || options.journal || options.dateFrom || options.dateTo
         ? Math.min(250, wanted * 10)
         : wanted;
-    const ids = (search.prepare(
-      `SELECT rowid AS article_id
+    const ids = (search.prepare(options.names
+      ? "SELECT rowid AS article_id FROM article_metadata WHERE article_metadata MATCH ? ORDER BY bm25(article_metadata) LIMIT ?"
+      : `SELECT rowid AS article_id
        FROM article_search
        WHERE article_search MATCH ?
        ORDER BY bm25(article_search, 4.0, 1.0)
@@ -353,13 +357,13 @@ function finalContractPages(articleId: number): FinalContractPages | null {
 const INDEX_WORD = /(?<=^|[\s!"#%&'()*,\-./:;?@[\\\]_{}])[A-Za-z0-9]+(?=$|[\s!"#%&'()*,\-./:;?@[\\\]_{}])/gu;
 
 /** False when no article with text is named or cited exactly as `identifier`, from the search index: every such
- *  article's name and citation are indexed, so one that matched would hold all of its whole words. */
+ *  article's name and citation are in its metadata table, so one that matched would hold all of its whole words. */
 function mayName(identifier: string) {
   const search = searchDatabase();
   const words = [...new Set(identifier.match(INDEX_WORD) ?? [])];
   if (!search || !words.length) return true;
-  const ids = (search.prepare("SELECT rowid AS article_id FROM article_search WHERE article_search MATCH ?")
-    .all(words.map((word) => `metadata : "${word}"`).join(" AND ")) as Row[]).map((row) => Number(row.article_id));
+  const ids = (search.prepare("SELECT rowid AS article_id FROM article_metadata WHERE article_metadata MATCH ?")
+    .all(words.map((word) => `"${word}"`).join(" AND ")) as Row[]).map((row) => Number(row.article_id));
   if (ids.length > 30000) return true;
   return ids.length > 0 && !!database().prepare(`SELECT 1 FROM articles WHERE article_id IN (${ids.map(() => "?").join(",")})
      AND (LOWER(citation_en) = LOWER(?) OR LOWER(name_en) = LOWER(?)) LIMIT 1`).get(...ids, identifier, identifier);
@@ -479,13 +483,28 @@ function titleRatio(a: string, b: string) {
 }
 /** The article a citation names by the title it quotes: the closest title the search finds for it,
  *  when close enough. After ALR-Quote-Verifier journal_search.py search_by_title (difflib ratio of at least
- *  0.7 between normalized titles), with candidates from this database's own title search. */
+ *  0.7 between normalized titles, among articles of the cited year or the years beside it), with candidates
+ *  from this database's index of names: of those years, the names sharing the most of the title's words, the
+ *  cited journal, volume and first page, so a word spelled or inflected otherwise does not lose the article.
+ *  A citation without a year takes only names holding every word of the title. */
 function titledArticle(citation: string) {
   let best: { score: number; articleId: number } | null = null;
-  const titles = structureNative().citationEngineCall("quotedTitles", JSON.stringify({ text: citation })) as string[];
-  for (const title of titles) for (const hit of findArticles(title, 5)) {
-    const score = titleRatio(title, hit.name);
-    if (!best || score > best.score) best = { score, articleId: hit.articleId };
+  const native = structureNative();
+  const { citations } = native.citationEngineCall("extract", JSON.stringify({ text: citation, offsetUnit: "utf16" })) as
+    { citations: Array<{ authority: string; fields?: { yearNumber?: number; volume?: string; reporter?: string; page?: string } }> };
+  const cited = citations.filter(({ authority, fields }) => authority === "journal" && fields?.yearNumber);
+  const quote = (words: string[]) => words.map((word) => `"${word}"`);
+  const years = quote([...new Set(cited.flatMap(({ fields }) => [-1, 0, 1].map((offset) => String(fields!.yearNumber! + offset))))]);
+  const published = cited.flatMap(({ fields }) => queryTokens(`${fields!.reporter ?? ""} ${fields!.volume ?? ""} ${fields!.page ?? ""}`));
+  const titles = native.citationEngineCall("quotedTitles", JSON.stringify({ text: citation })) as string[];
+  for (const title of titles) {
+    const words = quote(queryTokens(title));
+    if (!words.length) continue;
+    const query = years.length ? `(${[...words, ...quote(published)].join(" OR ")}) AND (${years.join(" OR ")})` : words.join(" AND ");
+    for (const hit of findArticles(query, 5, { names: true, syntax: "fts5" })) {
+      const score = titleRatio(title, hit.name);
+      if (!best || score > best.score) best = { score, articleId: hit.articleId };
+    }
   }
   return best && best.score >= 0.7 ? best.articleId : null;
 }
@@ -516,7 +535,7 @@ const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
       const article = await document(candidate);
       if (article) return [journalReference(article)];
     }
-    const matches = findArticles(candidates[0] ?? request.text, 10).filter((match) =>
+    const matches = findArticles(candidates[0] ?? request.text, 10, { names: true }).filter((match) =>
       candidates.some((candidate) =>
         exactJournalIdentity(candidate) === exactJournalIdentity(match.citation) ||
         exactJournalIdentity(candidate) === exactJournalIdentity(match.name)));
