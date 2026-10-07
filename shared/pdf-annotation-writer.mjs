@@ -13,7 +13,9 @@ export function writeAuthorityAnnotations(pdf, document, set, namespace) {
     for (const [part, group] of groups.entries()) {
       const [x0, y0, x1, y1] = quadBounds(group), width = x1 - x0, height = y1 - y0;
       const shapes = group.map(q => {
-        const point = (offset) => `${q[offset] - x0} ${q[offset + 1] - y0}`;
+        // PDF numbers have no exponent: round away float noise such as 1.4e-14.
+        const number = (value) => String(Number(value.toFixed(4)));
+        const point = (offset) => `${number(q[offset] - x0)} ${number(q[offset + 1] - y0)}`;
         return `${point(0)} m ${point(2)} l ${point(6)} l ${point(4)} l h f`;
       }).join('\n');
       const appearance = document.context.flateStream(
