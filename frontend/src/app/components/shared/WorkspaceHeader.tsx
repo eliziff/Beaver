@@ -40,7 +40,7 @@ export function WorkspaceHeader(props: (Active | Static) & { busy?: boolean;
       { label: "Delete", disabled: busy, onSelect: () => setConfirmDelete(true) },
     ]} /> : null;
   const actions = props.headerActions ? [{ type: "custom" as const,
-    render: <div className="flex min-h-9 items-center gap-2">{props.headerActions}</div> }] : undefined;
+    render: <div className="flex min-h-9 items-center gap-2 max-[22rem]:flex-wrap max-[22rem]:justify-end">{props.headerActions}</div> }] : undefined;
   return <header data-workspace-header className="shrink-0">
     <PageHeader shrink className={props.className} actions={actions}>
       {current && "onBack" in props ? <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-0 sm:flex-1">
