@@ -219,6 +219,9 @@ export type AuthorityOccurrence = {
   sourceTextSha256: string;
   localOrdinal: number;
   reviewed: boolean;
+  /** A link given to this citation itself (by an editor, or carried over from another citation of the same
+   *  authority); it comes before its authority's link. */
+  link?: string;
 };
 
 export type AuthoritiesDiscrepancyAction =
@@ -263,6 +266,9 @@ export type AuthoritiesUserAction =
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;
       reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string } | null }
+  /** Each citation's own link (null removes it), as an editor adds one and lets it carry to the other
+   *  citations of the same authority. */
+  | { type: "set-occurrence-links"; links: Array<{ occurrenceId: string; url: string | null }> }
   | { type: "begin-canlii-handoff"; authorityId: string }
   | { type: "clear-authority-source"; authorityId: string }
   | { type: "clear-book-part"; slot: "cover" | "index" | "brief" }

@@ -87,7 +87,8 @@ function quoteTarget(units: ReviewDraft["units"], footnoteId: number, quote: str
   return targets.length === 1 ? targets[0] : null;
 }
 
-function pinpointText(authored: string, label: string) {
+/** The authored pinpoint with its number replaced by the label's ("at para 12" with "par14": "at para 14"). */
+export function pinpointText(authored: string, label: string) {
   const value = label.match(/\d+(?:\.\d+)*(?:\([\p{L}\p{N}]+\))*/u)?.[0] ?? label.trim();
   const match = /\d+(?:\.\d+)*(?:\([\p{L}\p{N}]+\))*/u.exec(authored);
   return value && match ? authored.slice(0, match.index) + value + authored.slice(match.index + match[0].length)
