@@ -199,9 +199,11 @@ def initial(structure, pages):
             add(kind,ids,attrs,ident=node["id"])
         elif kind == "table":
             row_nodes=[n for n in nodes.values() if n["kind"]=="row" and n.get("parent_id")==node["id"]]
-            rows=[[] for _ in row_nodes]; merges=[]
+            rows=[[] for _ in row_nodes]; merges=[]; headers=[]
             for r,row in enumerate(row_nodes):
                 cells=[n for n in nodes.values() if n["kind"]=="cell" and n.get("parent_id")==row["id"]]
+                # A parser marks a header row's cells as HTML does, "th".
+                if cells and all(cell.get("markup_tag")=="th" for cell in cells): headers.append(r)
                 col=0
                 for cell in cells:
                     while col<len(rows[r]) and rows[r][col] is None: col+=1
@@ -216,7 +218,7 @@ def initial(structure, pages):
                 width=max(map(len,rows))
                 for row in rows: row.extend([] for _ in range(width-len(row)))
                 members=list(dict.fromkeys(s["line_id"] for row in rows for cell in row if cell for s in cell))
-                add("table",members,{"rows":rows,"header_rows":node.get("header_rows",[]),"merges":merges},
+                add("table",members,{"rows":rows,"header_rows":node.get("header_rows") or headers,"merges":merges},
                     spans=[s for row in rows for cell in row if cell for s in cell],ident=node["id"])
     if lines and not any(a["kind"]=="document" for a in annotations):
         ident=next(iter(lines))
