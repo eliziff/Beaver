@@ -458,64 +458,48 @@ export function planWrites(expected: string, target: string) {
                 : { from: expected.length - 1, to: expected.length, write: "After" as const, text: replacement });
 }
 
-/** Rewrites each span to its `target` as tracked changes, with the fewest inserted and deleted characters, all
- *  in one batch. A span the macro would not write to is skipped, and says why. */
-export function applyPlan(units: WordUnit[], spans: Array<WordSpan & { target: string }>) {
+/** Writes a pane's results into the document in one batch: first each link (a span with a link of its own keeps
+ *  it), then each span rewritten to its `target`, as tracked changes with the fewest inserted and deleted characters
+ *  ("tracked"), or highlighted, characters that match bright green, characters that differ red, and for a word it
+ *  lacks the space where it goes ("highlight", with tracking off). Every span is found and checked before anything
+ *  is written, so a link written here never stops a repair here. A span the macro would not write to is skipped,
+ *  and says why. Without spans, links are written as the document's tracking stands. */
+export function writeToDocument(units: WordUnit[], { links = [], spans = [], mode = "tracked" }: {
+    links?: Array<WordSpan & { url: string }>; spans?: Array<WordSpan & { target: string }>; mode?: "tracked" | "highlight" }) {
     return run(async (context) => {
-        const located = await locate(context, units, spans), refused = await refusals(context, located);
-        return withTracking(context, "trackAll", async () => {
-            const outcomes = located.map((item, index): WordOutcome => {
+        const located = await locate(context, units, [...links, ...spans]), refused = await refusals(context, located);
+        const write = async () => {
+            const linked = links.map((link, index): WordOutcome => {
+                const item = located[index], refusal = refused[index];
                 if (!isFound(item)) return { status: "skipped", reason: item.error };
-                if (refused[index]) return { status: "skipped", reason: refused[index]! };
-                const writes = planWrites(item.span.expected, spans[index].target);
+                if (refusal === LOCKED) return { status: "skipped", reason: LOCKED };
+                if (item.whole.hyperlink) return { status: "skipped", reason: "It has a link already." };
+                item.whole.hyperlink = link.url;
+                return { status: "applied" };
+            });
+            const edited = spans.map((span, at): WordOutcome => {
+                const item = located[links.length + at], refusal = refused[links.length + at];
+                if (!isFound(item)) return { status: "skipped", reason: item.error };
+                if (mode === "highlight") {
+                    if (refusal === LOCKED) return { status: "skipped", reason: LOCKED };
+                    for (const [from, to, changed] of highlightRuns(span.expected, characterPlan(span.expected, span.target)))
+                        rangeOf(item, from, to).font.highlightColor = changed ? "#FF0000" : "#00FF00";
+                    return { status: "applied" };
+                }
+                if (refusal) return { status: "skipped", reason: refusal };
+                const writes = planWrites(span.expected, span.target);
                 if (!writes.length) return { status: "unchanged" };
-                for (const { from, to, write, text } of writes) {
+                for (const { from, to, write: kind, text } of writes) {
                     const range = rangeOf(item, from, to);
-                    if (write === "Delete") range.delete();
-                    else range.insertText(text, write);
+                    if (kind === "Delete") range.delete();
+                    else range.insertText(text, kind);
                 }
                 return { status: "applied" };
             });
             await context.sync();
-            return outcomes;
-        });
-    });
-}
-
-/** Highlights each span by its `target`: characters that match bright green, characters that differ red, and for
- *  a word it lacks, the space where it goes. Tracking is off while it highlights. */
-export function highlightPlan(units: WordUnit[], spans: Array<WordSpan & { target: string }>) {
-    return run(async (context) => {
-        const located = await locate(context, units, spans), refused = await refusals(context, located);
-        return withTracking(context, "off", async () => {
-            const outcomes = located.map((item, index): WordOutcome => {
-                if (!isFound(item)) return { status: "skipped", reason: item.error };
-                if (refused[index] === LOCKED) return { status: "skipped", reason: LOCKED };
-                const expected = item.span.expected;
-                for (const [start, end, edited] of highlightRuns(expected, characterPlan(expected, spans[index].target)))
-                    rangeOf(item, start, end).font.highlightColor = edited ? "#FF0000" : "#00FF00";
-                return { status: "applied" };
-            });
-            await context.sync();
-            return outcomes;
-        });
-    });
-}
-
-/** Links each span to its `url`, as the document's tracking stands. A span with a link of its own keeps it. */
-export function setLinks(units: WordUnit[], spans: Array<WordSpan & { url: string }>) {
-    return run(async (context) => {
-        const located = await locate(context, units, spans);
-        for (const item of located) if (isFound(item)) item.whole.load("hyperlink");
-        await context.sync();
-        const outcomes = located.map((item, index): WordOutcome => {
-            if (!isFound(item)) return { status: "skipped", reason: item.error };
-            if (item.whole.hyperlink) return { status: "skipped", reason: "It has a link already." };
-            item.whole.hyperlink = spans[index].url;
-            return { status: "applied" };
-        });
-        await context.sync();
-        return outcomes;
+            return { links: linked, spans: edited };
+        };
+        return spans.length ? withTracking(context, mode === "tracked" ? "trackAll" : "off", write) : write();
     });
 }
 
