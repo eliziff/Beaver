@@ -241,12 +241,71 @@ The following is the starting inventory, not a completed adoption decision:
    Remaining work:
    - The segmenter can merge a heading into the preceding title block. In
      `673fbfe35970`, "JUDGMENT of …" and "Introduction" are one block.
-   - Numbered paragraphs and list items need graph parentage under their heading.
-     Gold counts them below the enclosing heading. That needs sections or containers
-     spanning each heading's extent, which is a graph-semantics change to agree
-     before implementing.
    - `legal-structure` still parents parentless top-level headings to an enclosing
-     statute or part section.
+     statute or part section in statutes, which get no heading sections.
+
+### Heading sections: paragraphs under their heading (2026-10-07)
+
+Gold places numbered paragraphs and list items one level below the enclosing heading.
+The native graph had no node spanning a heading's extent, so they sat under their
+page. `legal-pdf-structure/src/structure/heading_sections.rs` now emits one
+`Section` per leveled heading. Each section runs from its heading to just before the
+next heading at its level or above. A nested section's parent is the enclosing
+heading's section.
+
+How the section is read:
+- Its grammar is `heading_section`. It has no label, aliases, marker or locator
+  kind.
+- `validate_pdf_components` exempts it from the provision rule.
+- PDF section lookup (`legal-pdf-support` `section_nodes`) skips it.
+- Headings keep their heading parents, so outline depth is unchanged.
+- A top-level heading that opens a section is parented to its page. Otherwise the
+  engine would read its own section as its container.
+
+`legal-structure` `resolve_structure_graph` now lets a source-supplied container hold
+a generated node in preference to its page. A smaller generated container still
+wins, and nothing changes where no source container exists.
+
+Consumer audit before the change:
+- `document_query` drops unlabeled sections from projected blocks, anchors,
+  viewer, lookups, `read_range` and `graph_scope`, so there is no panic. A numbered
+  pinpoint (`sec5`, `sec3(2)`, `art. 9` → `sec9`) cannot match one.
+- The only query-visible change is `parentLabel`, which `pageN` no longer
+  supplies for paragraphs under a heading section. It is typed in the frontend but
+  rendered nowhere.
+- `outline.rs` skips unlabeled sections and counts heading ancestors. Headings keep
+  their heading parents, so PDF bookmark levels are unchanged.
+- `native_markup`, `derive`, `inference`, instrument and statute outlines,
+  `provider_text` and `tables` never see PDF sections.
+- TypeScript reads only blocks from the query layer.
+- The PDF section lookup would have pulled unlabeled units in as context. The
+  `section_nodes` filter prevents that.
+- A label of any kind, including a title, would have made the section addressable.
+  The sections are therefore left unlabeled.
+
+Guards:
+- A text whose running text carries three or more provisions the engine reads as
+  sections gets no heading sections. A provision here is a rooted, consecutive
+  statute-grammar number or name that opens prose or a heading, and is not a
+  footnote, a lettered item or a numbered paragraph's number. Statutes therefore
+  keep their provisions, generated ids and parentage unchanged.
+- An extent stops at a page that opens a new filing's caption, where party labels
+  appear.
+- A new heading indented under the body margin and off the page centre is quoted
+  material and is not promoted.
+
+Measured with one pinned addon, feature off and on (126 gold runs):
+- Hierarchy F1 rises from 0.209 to 0.371 and every other layer is unchanged.
+- No run regresses. Examples: Singapore Court of Appeal `4105dfa1a568` 0.16 → 0.45
+  (0.50 after extents were extended to the next heading), IE `673fbfe35970`
+  0.09 → 0.84, IE `714c7a517451` 0.44 → 0.80, `bcba03d8162d` 0.09 → 0.40.
+- `score_all.py --against` the feature-off summary, run on the committed build after
+  extents were extended to the next heading, gives hierarchy 0.400 (+0.190). Groups,
+  joins, order, coverage and roles move by 0.001–0.004 from concurrent work.
+- Pinpoint check, feature off versus on: every provision label's lookup, typed
+  `section N` / `part III` queries and the document outline are identical for the
+  Manitoba statutes `4de2c3c5bb1c` (92 provisions) and `c47351732b12` (215), and for
+  the judgments `4105dfa1a568` and `714c7a517451`.
 
 Existing code to trace alongside that inventory:
 
