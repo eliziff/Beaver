@@ -45,6 +45,8 @@ export const DOCX_RENDER_OPTIONS = {
     renderFootnotes: true,
     renderEndnotes: true,
     renderChanges: true,
+    // An altChunk is arbitrary HTML from the document; it is not shown.
+    renderAltChunks: false,
     experimental: false,
     trimXmlDeclaration: false,
 } satisfies Partial<DocxPreviewOptions>;
