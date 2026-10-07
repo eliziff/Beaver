@@ -761,7 +761,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
           ? <><span>{discrepancies.length} to review</span>
             <button type="button" onClick={event => { event.stopPropagation(); onReview(discrepancies[0].id); }}>Review</button></>
           : <span>{check === 'failed' ? 'Quotations not checked: the sources could not be looked up'
-            : check === 'unavailable' ? 'Quotations not checked: no footnote case was found in A2AJ'
+            // Without a cited decision whose text it reads, the review checks the citations alone.
+            : check === 'unavailable' ? 'No citation to review'
             : 'No quotation or citation to review'}</span>}
       </div>
       {/* With none found, the brief still shows, so citations can be added from it by hand. */}
