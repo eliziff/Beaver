@@ -1029,6 +1029,8 @@ section.${c}>footer { z-index: 1; }
 			return null;
 
 		var result = this.createElement("iframe");
+		// The chunk is the document's own HTML: never let it run script or share the page's origin.
+		result.setAttribute("sandbox", "");
 
 		this.tasks.push(this.document.loadAltChunk(elem.id, this.currentPart).then(x => {
 			result.srcdoc = x;
@@ -1115,7 +1117,9 @@ section.${c}>footer { z-index: 1; }
 	renderSymbol(elem: WmlSymbol) {
 		var span = this.createElement("span");
 		span.style.fontFamily = elem.font;
-		span.innerHTML = `&#x${elem.char};`
+		// w:char is a hex code point; anything else is not a symbol and is not rendered.
+		const code = /^[0-9A-Fa-f]{1,6}$/.test(elem.char ?? "") ? parseInt(elem.char, 16) : NaN;
+		if (code <= 0x10FFFF) span.textContent = String.fromCodePoint(code);
 		return span;
 	}
 
