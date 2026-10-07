@@ -1,7 +1,7 @@
 # PageIndex detection reuse and tree indexing
 
-Status: embedded bookmarks ported (audit record below); other candidates are
-planned. Project priorities remain in the
+Status: embedded bookmarks and unnumbered-heading detection/depth ported (audit
+records below); other candidates are planned. Project priorities remain in the
 [master plan](master-plan.md), and the [shared structure plan](document-structure.md)
 owns semantic contracts and corpus gates.
 
@@ -172,44 +172,81 @@ The following is the starting inventory, not a completed adoption decision:
      appointment or election`, which merges two marginal notes, are not found.
    - Exhibit stamps on scanned pages carry no text without OCR.
 
-### Audit record: unnumbered heading hierarchy (not ported yet)
+### Audit record: unnumbered headings and heading depth (ported 2026-10-07)
 
-Upstream route: `assemble_outline` → `build_doc_heading_candidates`
-(`scan_page_headings`, `detect_font_heading`, `detect_heading_with_body`) →
-`find_keyword_clique` / `detect_body_headings`, which extend recurring non-body style
-signatures to isolated blocks → `extract_sub_headings` / `find_parent_heading` with
-`compare_heading_depth`. That comparison ranks special types, numbering depth,
-`heading_score`, caps-heavy, centered, upright before italic, then bold. The
-dependency closure includes the block model, page and document statistics, neighbor
-maps, the tokenizer and keyword tries. A partial port cannot reproduce the result
-honestly.
+1. **Upstream.** Flash route `assemble_outline` → `build_doc_heading_candidates`
+   (`scan_page_headings` → `detect_font_heading`) → `detect_body_headings` →
+   `find_parent_heading` with `compare_heading_depth`. The closure is the span, line
+   and block aggregates (weighted bold, italic and size, the half-up style key, the
+   dominant style and size, `heading_score`, `alignment_code`, `is_caps_heavy`,
+   `is_sentence_like`, character categories and the tokenizer), page and document
+   statistics, `is_body_paragraph`, `PageNeighborMap`, `passes_neighbor_check`,
+   `has_substantive_content`, the clique tree and the font-distance rule of
+   `should_reject_heading`.
+2. **Local gap.** Native headings came from capitals, a 1.18× size jump or numbered
+   ladders, and only ladders supplied levels. Bold or italic sentence-case headings
+   were missed, and every unnumbered heading sat at level 1.
+3. **Decision: port to Rust.** The code is in
+   `legal-pdf-structure/src/structure/flash/{model,stats,detect,outline,mod}.rs` and
+   runs after page classification, before bookmark reconciliation. It reads native
+   regions as Flash's blocks. Decision order, thresholds and tie handling are as
+   upstream. The MIT notice is in `mod.rs`.
+   Not ported:
+   - Flash's numbered, labeled, chapter and caption detectors. The native ladder
+     supplies numbered headings and their depth.
+   - The section, abstract and keyword tables, which index academic and medical
+     papers. Only the 31 introduction names are kept.
+   - Cover-page and title detection, outline validity, and the numbering-state rules
+     of `should_reject_heading`.
+   Deliberate adaptations:
+   - Native line boxes rise to the font's ascent, so span tops are lowered by a
+     quarter of the size to approximate Flash's glyph boxes.
+   - Headings the native rules already accepted are kept. Only new candidates face
+     the font-distance rejection.
+   - A new heading must be in the page's own type size or larger and open with a
+     capital or number. It must not be a quotation, a citation (the citation grammar
+     and cues), a lead-in ending `,` `;` or `:`, or set beside running text.
+   - Lines down to a page's last party label (`APPLICANT`, `… Respondent`) are the
+     caption and never headings.
+   - A heading of a few stray characters holds no section.
+   - A capitalized title wrapped onto a second line is one heading.
+   - Numbered and unnumbered headings compare by type. Upstream ranks every
+     unnumbered heading above numbered ones, but legal numbering marks parts and
+     sections at every depth.
+   Not adopted: a court's name holding no section. The gold disagrees with itself on
+   this (Yukon and Indian notices nest titles under the court).
+4. **Measured.** Machine gold, 80 runs, one pinned addon, port off versus on:
 
-Measured gap: the Singapore Court of Appeal judgment `4105dfa1a568` has no
-bookmarks. Upstream Flash, run as a reference at `6d23caf`, produces the expected
-outline:
+   | Layer | Before | After |
+   | --- | --- | --- |
+   | hierarchy F1 | 0.143 | 0.201 |
+   | roles F1 | 0.825 | 0.839 |
+   | groups F1 | 0.779 | 0.784 |
+   | continuations F1 | 0.638 | 0.645 |
+   | joins F1 | 0.901 | 0.903 |
 
-- `JUDGMENT`
-  - `Introduction`
-  - `Background facts`
-    - `Procedural history`
-  - `The parties' submissions`
-  - `Issues to be determined`
-  - `Issue 1: …`
-    - `SUM 5 and SUM 9`
-    - `The applicable law …`
-  - `Issue 2: …`
-    - `SUM 7`
-  - `Conclusion`
+   No layer falls. Per run:
 
-Bold sets level 2 and bold italic sets level 3. The native parser finds none of the
-subheadings, so its gold hierarchy F1 on this document is 0.02. The Irish judgment
-`53aee8d9082e` has the same detection gap without its bookmarks: it has 9 headings,
-none of them the 34 bold sentence-case section headings.
+   | Document | Hierarchy F1 | Notes |
+   | --- | --- | --- |
+   | SG Court of Appeal `4105dfa1a568` | 0.02 → 0.16 | All 11 subheadings found and nested as gold except gold's two content-based level-4 calls. The remaining gap is numbered paragraphs, below. |
+   | IE `9bd420720f49` | 0.81 → 0.96 | Party caption lines are prose again. |
+   | IE `714c7a517451` | 0.32 → 0.44 | All three bold headings found. |
+   | IE `673fbfe35970` | 0.00 → 0.08 | |
+   | Court guide and form `095b9629eddb`, UK practice-direction annex `12488545dfdb`, CA application `7674f6e06c90` | 0.19/0.14/0.21 → 0.61/0.71/0.75 | |
 
-Recommended next slice: port `detect_body_headings` and `compare_heading_depth`
-over the native paragraph blocks once the block segmenter lands. Run upstream Flash
-as the differential oracle on the gold runs and on bookmarked PDFs with the outline
-stripped. The bookmark trees are independent hierarchy evidence for that comparison.
+   The Irish judgment `53aee8d9082e` without its bookmarks now has 33 headings, up from
+   9. The remaining per-run losses are gold conventions the corpus disagrees on: a
+   court line as heading, and a title as parent versus a flat sibling.
+   Remaining work:
+   - The segmenter can merge a heading into the preceding title block. In
+     `673fbfe35970`, "JUDGMENT of …" and "Introduction" are one block.
+   - Numbered paragraphs and list items need graph parentage under their heading.
+     Gold counts them below the enclosing heading. That needs sections or containers
+     spanning each heading's extent, which is a graph-semantics change to agree
+     before implementing.
+   - `legal-structure` still parents parentless top-level headings to an enclosing
+     statute or part section.
 
 Existing code to trace alongside that inventory:
 
