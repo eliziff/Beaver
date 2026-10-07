@@ -7,6 +7,7 @@ import { canonicalJsonSha256 } from "./hash";
 import { structureNative } from "./structureNative";
 import { reject } from "./applicationError";
 import { splitQuoteCitationUnits, type QuoteCitationUnit } from "./quoteCitationSplit";
+import { footnotePropositions, type QuoteContext } from "./authoritiesQuotations";
 import type { LegalSourceReference, LegalSourceLocator } from "./legalSources";
 import type { NativeDocument } from "./structureNative";
 import { buildLegalSourcePinpoint, legalSourceLocatorAnchor } from "./legalSourceLinks";
@@ -23,9 +24,11 @@ export function decodeQuoteLinks(value: unknown): QuoteLink[] {
   return links;
 }
 
-/** Uses the same native quotation and authority scans as document ingestion. */
+/** Uses the same native quotation and authority scans as document ingestion. With `context` "sentence", a quotation
+ *  in the text belongs to the next note only where it is in the sentence that note's marker ends or stands in. */
 export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
-  splitUnits: QuoteCitationUnit[]) {
+  splitUnits: QuoteCitationUnit[], context: QuoteContext = "passage") {
+  const sentences = context === "sentence" ? footnotePropositions(draft.units, "sentence") : null;
   const bodyOffsets = new Map<string, number>();
   const anchors: Array<[number, number]> = [];
   let position = 0;
@@ -41,12 +44,14 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
       const span = draft.occurrences[key]?.authoritySpan;
       return span && span.start <= quote.start && quote.end <= span.end;
     }))
-    .map((quote) => {
+    .flatMap((quote) => {
       const id = canonicalJsonSha256([unit.id, quote.start, quote.end, quote.text]);
       const bodyOffset = bodyOffsets.get(unit.id);
       const globalEnd = (bodyOffset ?? 0) + quote.end;
       // A quotation belongs to the note that ends the passage it is in: the next note after it.
       const anchor = bodyOffset === undefined ? undefined : anchors.find(([, at]) => at >= globalEnd);
+      const sentence = anchor && sentences?.get(anchor[0]);
+      if (sentence && (globalEnd - quote.end + quote.start < sentence.start || globalEnd > sentence.end)) return [];
       const nextNote = anchor ? [anchor[0], anchor[1] - (bodyOffset ?? 0)] : undefined;
       const noteUnits = nextNote ? draft.units.filter((item) =>
         item.kind === "footnote" && item.footnoteId === nextNote[0]) : [];
@@ -75,11 +80,11 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
       const explicit = links.find((link) => link.quoteId === id);
       if (explicit && !draft.occurrences[explicit.occurrenceId] && !candidates.some(({ id }) => id === explicit.occurrenceId))
         reject(400, "A quote link names an unknown citation occurrence.");
-      return { id, unitId: unit.id, start: quote.start, end: quote.end, quote: quote.text,
+      return [{ id, unitId: unit.id, start: quote.start, end: quote.end, quote: quote.text,
         context: unit.text, pageNumbers: unit.pageNumbers,
         candidates,
         occurrenceId: explicit?.occurrenceId ?? (candidates.length === 1 ? candidates[0].id : null),
-        linkMethod: explicit ? "explicit" as const : "mechanical" as const };
+        linkMethod: explicit ? "explicit" as const : "mechanical" as const }];
     }));
   if (links.some((link) => !rows.some(({ id }) => id === link.quoteId)))
     reject(400, "A quote link names an unknown quotation.");
@@ -130,11 +135,12 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     citationUnits: Array<QuoteCitationUnit & { unitId: string }>) => void,
   sources = legalSourceOperations, window?: { offset: number; limit: number },
   attached: AttachedQuoteSources = new Map(),
-  /** firstCitationOnly: check a quotation only against the citation linked to it, else its note's first. */
-  options: { firstCitationOnly?: boolean } = {}) {
+  /** firstCitationOnly: check a quotation only against the citation linked to it, else its note's first.
+   *  quoteContext: "sentence" checks only the quotations in the sentence a note's marker ends or stands in. */
+  options: { firstCitationOnly?: boolean; quoteContext?: QuoteContext } = {}) {
   const citationUnits = await splitQuoteCitationUnits(draft.units.map(({ text }) => text), signal);
   const unitReceipts = citationUnits.map((split, index) => ({ unitId: draft.units[index].id, ...split }));
-  const all = splitQuoteChecks(draft, links, citationUnits);
+  const all = splitQuoteChecks(draft, links, citationUnits, options.quoteContext);
   const rows = window ? all.slice(window.offset, window.offset + window.limit) : all;
   // Quotations from one authority share its resolution, and each source is read once.
   const read = citedSourceReader(sources, signal);

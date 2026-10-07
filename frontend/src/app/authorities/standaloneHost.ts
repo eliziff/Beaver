@@ -414,11 +414,11 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     catch { notice = "Built files are ready to download; the output folder could not be used."; }
     return { product: saved, receipt, ...(notice ? { notice } : {}) };
   },
-  async checkQuotes(selected, progress, signal) {
+  async checkQuotes(selected, progress, signal, options) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
     // The PDFs attached for authorities: their quotations are checked against them.
-    const form: AuthoritiesRequest = { draft: product.state }, roles: string[] = [];
+    const form: AuthoritiesRequest = { ...options, draft: product.state }, roles: string[] = [];
     for (const { source } of authoritiesInputPlan(product.state,
       authoritiesProfile(product.state.settings.profileId).requirements).authoritySources) {
       const file = await resolveExact(product.state.bindings[source.bindingRole], true);
