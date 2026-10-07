@@ -103,6 +103,8 @@ export interface AuthoritiesHost {
   readPinpoints?(text: string, start: number, end: number): Promise<Array<{ kind: string; start: number; end: number }>>;
   sourceOcr?: AuthoritiesOcrPort;
   outputFolder?: OutputFolderPort;
+  /** Deletes all the page keeps in this browser (clearStandaloneData). */
+  clearData?(): Promise<void>;
   /** The filing contact kept for the user: a cover without one starts from it, and a cover's is kept. */
   filingContact?: { get(): Promise<FilingContact>; save(contact: FilingContact): Promise<void> };
 }
