@@ -62,6 +62,14 @@ create table if not exists pages(sha256 text, page integer, text text, primary k
 create virtual table if not exists pages_fts using fts5(text, content='pages', tokenize='porter unicode61');
 create trigger if not exists pages_ai after insert on pages begin
   insert into pages_fts(rowid, text) values (new.rowid, new.text); end;
+create table if not exists gold_records(dataset text, sha256 text references files(sha256), mode text,
+  pages integer, status text not null default 'pending', run_id text,
+  primary key(dataset, sha256));
+create table if not exists gold_runs(run_id text primary key, dataset text, sha256 text references files(sha256),
+  status text, receipt_path text, receipt_sha256 text, started_at real, finished_at real);
+create index if not exists gold_runs_source on gold_runs(dataset, sha256);
+create table if not exists gold_artifacts(run_id text references gold_runs(run_id), role text, path text,
+  sha256 text, primary key(run_id, role));
 """
 _last_hit: dict[str, float] = {}
 
@@ -76,6 +84,66 @@ def connect() -> sqlite3.Connection:
     db.execute("pragma journal_mode=wal")
     db.executescript(SCHEMA)
     return db
+
+
+def register_gold_sources(dataset: str, rows: list[dict]) -> None:
+    """Register a selected gold corpus against the existing source-file index."""
+    with connect() as db:
+        for row in rows:
+            source = db.execute("select pages from files where sha256=?", (row["sha256"],)).fetchone()
+            if source is None:
+                raise ValueError("Gold input is not in the shared corpus: " + row["sha256"])
+            db.execute("insert into gold_records(dataset,sha256,mode,pages) values (?,?,?,?)"
+                       " on conflict(dataset,sha256) do nothing",
+                       (dataset, row["sha256"], row.get("mode"), source[0]))
+
+
+def register_gold_run(job: Path, dataset: str) -> None:
+    """Index a runner receipt and its completed products without copying them."""
+    receipt_path = job / "receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    source, run_id, status = receipt["source_sha256"], receipt["run_id"], receipt["status"]
+    with connect() as db:
+        if db.execute("select 1 from gold_records where dataset=? and sha256=?", (dataset, source)).fetchone() is None:
+            raise ValueError("Gold source has not been registered")
+        db.execute("insert into gold_runs values (?,?,?,?,?,?,?,?) on conflict(run_id) do update set"
+                   " status=excluded.status,receipt_path=excluded.receipt_path,receipt_sha256=excluded.receipt_sha256,"
+                   " started_at=excluded.started_at,finished_at=excluded.finished_at",
+                   (run_id, dataset, source, status, str(receipt_path.resolve()),
+                    hashlib.sha256(receipt_path.read_bytes()).hexdigest(), receipt["started_at"], receipt.get("finished_at")))
+        products = {"receipt": receipt_path}
+        if status == "complete":
+            products.update(gold=job / "gold.json.gz", manuscript=job / "manuscript.txt",
+                            baseline=job / "baseline.json.gz", evidence=job / "evidence/manifest.json")
+        for role, artifact in products.items():
+            with artifact.open("rb") as stream:
+                sha = hashlib.file_digest(stream, "sha256").hexdigest()
+            if role in {"gold", "manuscript"} and sha != receipt[role + "_sha256"]:
+                raise ValueError("Gold product does not match its receipt: " + role)
+            db.execute("insert into gold_artifacts values (?,?,?,?) on conflict(run_id,role) do update set"
+                       " path=excluded.path,sha256=excluded.sha256", (run_id, role, str(artifact.resolve()), sha))
+        db.execute("update gold_records set status=?,run_id=?,mode=?,pages=coalesce(?,pages) where dataset=? and sha256=?",
+                   (status, run_id, receipt["configuration"]["mode"], receipt.get("pages"), dataset, source))
+
+
+def completed_gold(dataset: str, source: str) -> Path | None:
+    """Reuse a completed record after verifying its registered artifacts."""
+    with connect() as db:
+        artifacts = db.execute("select a.role,a.path,a.sha256 from gold_records r"
+            " join gold_artifacts a on a.run_id=r.run_id"
+            " where r.dataset=? and r.sha256=? and r.status='complete'", (dataset, source)).fetchall()
+    if not artifacts:
+        return None
+    if {role for role, _, _ in artifacts} != {"receipt", "gold", "manuscript", "baseline", "evidence"}:
+        raise ValueError("Completed gold record has missing artifacts: " + source)
+    for role, locator, expected in artifacts:
+        path = Path(locator)
+        with path.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != expected:
+                raise ValueError("Registered gold artifact changed: " + role)
+        if role == "receipt":
+            job = path.parent
+    return job
 
 
 def get(url: str, extra: dict | None = None) -> tuple[int, str, str, bytes, dict]:

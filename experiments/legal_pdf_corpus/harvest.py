@@ -3558,7 +3558,7 @@ def discover_all(args: argparse.Namespace) -> None:
         discover_singapore_judgments(args.singapore_pages)
 
 
-def pdf_features(path: Path) -> dict:
+def pdf_features(path: Path, *, allow_repaired: bool = False) -> dict:
     try:
         import fitz  # type: ignore
     except ImportError as exc:
@@ -3567,7 +3567,7 @@ def pdf_features(path: Path) -> dict:
         page_count = len(document)
         if page_count < 1:
             raise ValueError("PDF has no pages")
-        if getattr(document, "is_repaired", False):
+        if not allow_repaired and getattr(document, "is_repaired", False):
             raise ValueError("PDF requires MuPDF structural repair")
         text_lengths: list[int] = []
         image_pages = 0

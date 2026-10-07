@@ -103,3 +103,11 @@ its filing rules live (direct URLs, or a landing page plus a link pattern so a
 reissued practice direction is found on the next run) and real filed books of
 authorities with the brief filed alongside each. Adding a court means adding a
 registry entry. Documents, their text and the index stay out of Git.
+
+The same `corpus.sqlite` owns the structure-gold catalog: `gold_records` links
+dataset/source hashes to current status, `gold_runs` indexes run receipts, and
+`gold_artifacts` indexes completed product paths and hashes. The
+[gold runner](../legal-structure-gold/PLAN.md) registers the saved corpus before
+generation and verifies completed products before reusing them. PDFs remain in
+this shared corpus; generated gold and receipts live in the private benchmark
+suite.
