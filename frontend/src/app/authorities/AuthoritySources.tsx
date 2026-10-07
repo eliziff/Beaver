@@ -198,9 +198,10 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
   // A court that files both languages takes another PDF until it has them; then a PDF replaces.
   const replacement = sources.length && !missingLanguage ? "Replace" : "Upload";
   // The original the publisher's download did not bring: its row opens the publisher while the PDF
-  // is missing, and its options do beside a PDF built from source text.
+  // is missing, and its options do beside a PDF built from source text. A source's own address opens only as a web page.
+  const external = authority.sourceIdentity?.externalUrl;
   const publisher = needsPdf ? /\/robocop\/captcha\//iu.test(authority.sourceVerificationUrl ?? "")
-    ? authority.sourceIdentity?.externalUrl ?? authority.sourceUrl : authority.sourceVerificationUrl : undefined;
+    ? (external && /^https?:\/\//iu.test(external) ? external : authority.sourceUrl) : authority.sourceVerificationUrl : undefined;
   const publisherUrl = !sources.length || missingLanguage ? publisher : undefined;
   const fromText = sources.length ? sources.every(({ origin }) => origin === "reconstructed")
     : rebuildsFromText && authority.source.kind === "resolved";
