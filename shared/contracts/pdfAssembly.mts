@@ -109,11 +109,14 @@ export function mapOutline(outline: PdfOutline[], page: (pageIndex: number) => n
   });
 }
 
-/** Whether an action only moves the reader: to a place in the document, or to a web or mail address. */
+/** Whether an action only moves the reader: to a place in the document, to a web or mail address, or to a PDF
+ *  named relatively beside it (not on a drive, a share or at an address). */
 function inertAction(pdf: typeof import("pdf-lib"), action: PDFDict) {
   const kind = String(action.lookup(pdf.PDFName.of("S")));
-  const uri = action.lookupMaybe(pdf.PDFName.of("URI"), pdf.PDFString, pdf.PDFHexString)?.decodeText();
-  return kind === "/GoTo" || kind === "/URI" && !!uri && /^(?:https?|mailto):/iu.test(uri.trim());
+  const text = (key: string) => action.lookupMaybe(pdf.PDFName.of(key), pdf.PDFString, pdf.PDFHexString)?.decodeText().trim();
+  const uri = text("URI"), file = text("F");
+  return kind === "/GoTo" || kind === "/URI" && !!uri && /^(?:https?|mailto):/iu.test(uri) ||
+    kind === "/GoToR" && !!file && !/^[\\/]|:/u.test(file);
 }
 
 /** What a PDF would run, launch, submit or fetch as it is opened, read or clicked is taken out of it (ISO 32000
