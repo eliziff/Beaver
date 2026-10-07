@@ -9,7 +9,7 @@ import { reject } from "./applicationError";
 import { splitQuoteCitationUnits, type QuoteCitationUnit } from "./quoteCitationSplit";
 import type { LegalSourceReference, LegalSourceLocator } from "./legalSources";
 import type { NativeDocument } from "./structureNative";
-import { buildLegalSourcePinpoint } from "./legalSourceLinks";
+import { buildLegalSourcePinpoint, legalSourceLocatorAnchor } from "./legalSourceLinks";
 
 export type QuoteLink = { quoteId: string; occurrenceId: string };
 export function decodeQuoteLinks(value: unknown): QuoteLink[] {
@@ -100,6 +100,30 @@ export type QuoteResult = ReturnType<typeof splitQuoteChecks>[number] & { checks
 /** PDFs the user attached, read, by authority. */
 export type AttachedQuoteSources = ReadonlyMap<string, { document: NativeDocument; source: LegalSourceReference }>;
 const STATUSES = ["verified", "mismatch", "unresolved", "unavailable"] as const;
+const memo = <T, K>(cache: Map<K, T>, key: K, load: () => T) => {
+  if (!cache.has(key)) cache.set(key, load());
+  return cache.get(key)!;
+};
+
+export type CitedSource = { missing: "unresolved" | "unavailable" }
+  | { missing?: undefined; source: LegalSourceReference; document: NativeDocument };
+/** The whole source a citation names, as its provider has it (A2AJ for a Canadian decision or statute, the
+ *  journals database for an article), each resolved and read once. An article is found by the title its
+ *  citation part carries. */
+export function citedSourceReader(sources = legalSourceOperations, signal?: AbortSignal) {
+  const resolutions = new Map<string, ReturnType<typeof sources.resolve>>();
+  const documents = new Map<string, ReturnType<typeof sources.readPassage>>();
+  return async (authority: { kind: string; citation: string }, part = ""): Promise<CitedSource> => {
+    const kind = authority.kind === "commentary" ? "journal" : authority.kind;
+    if (kind !== "case" && kind !== "legislation" && kind !== "journal") return { missing: "unresolved" as const };
+    const text = kind === "journal" && part ? part : authority.citation;
+    const resolved = await memo(resolutions, JSON.stringify([kind, text]), () => sources.resolve({ text, kind, signal }));
+    if (resolved.status !== "found") return { missing: "unavailable" as const };
+    const read = await memo(documents, JSON.stringify(resolved.value), () => sources.readPassage({ source: resolved.value, signal }));
+    const document = read.status === "found" ? read.values[0]?.documentArtifact : undefined;
+    return document ? { source: resolved.value, document } : { missing: "unavailable" as const };
+  };
+}
 
 export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = [],
   signal?: AbortSignal, progress?: (completed: number, total: number, row: QuoteResult,
@@ -113,26 +137,13 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   const all = splitQuoteChecks(draft, links, citationUnits);
   const rows = window ? all.slice(window.offset, window.offset + window.limit) : all;
   // Quotations from one authority share its resolution, and each source is read once.
-  const resolutions = new Map<string, ReturnType<typeof sources.resolve>>();
-  const documents = new Map<string, ReturnType<typeof sources.readPassage>>();
+  const read = citedSourceReader(sources, signal);
   const blocks = new Map<NativeDocument, ReturnType<typeof quoteBlocks>>();
-  const memo = <T, K>(cache: Map<K, T>, key: K, load: () => T) => {
-    if (!cache.has(key)) cache.set(key, load());
-    return cache.get(key)!;
-  };
   /** The whole source a citation names: a PDF the user attached for it, else its provider's text. */
-  async function sourceFor(authorityId: string | null, authority: { kind: string; citation: string }, part: string) {
+  async function sourceFor(authorityId: string | null, authority: { kind: string; citation: string },
+    part: string): Promise<CitedSource & { judgment?: boolean }> {
     const pdf = authorityId ? attached.get(authorityId) : undefined;
-    if (pdf) return { ...pdf, judgment: true };
-    const kind = authority.kind === "commentary" ? "journal" : authority.kind;
-    if (kind !== "case" && kind !== "legislation" && kind !== "journal") return { missing: "unresolved" as const };
-    // An article is found by the title its citation part carries.
-    const text = kind === "journal" && part ? part : authority.citation;
-    const resolved = await memo(resolutions, JSON.stringify([kind, text]), () => sources.resolve({ text, kind, signal }));
-    if (resolved.status !== "found") return { missing: "unavailable" as const };
-    const read = await memo(documents, JSON.stringify(resolved.value), () => sources.readPassage({ source: resolved.value, signal }));
-    const document = read.status === "found" ? read.values[0]?.documentArtifact : undefined;
-    return document ? { source: resolved.value, document, judgment: false } : { missing: "unavailable" as const };
+    return pdf ? { ...pdf, judgment: true } : read(authority, part);
   }
   async function check(row: ReturnType<typeof splitQuoteChecks>[number], candidateId: string): Promise<QuoteCheck> {
     const occurrence = draft.occurrences[candidateId];
@@ -149,12 +160,16 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
         document, row.quote, quoteScopes(pinpoints));
       const text = match.text || document;
       const cited = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
-      // A link that opens the source at the quoted words, in the block that holds them.
+      // A link that opens the source at the quoted words, in the block that holds them, with the block's own
+      // anchor beside the fragment where the source's page has one (CanLII's #par12 or #sec4, Decisia's #par12).
       const [, kind, value] = /^(par|page |sec)(.+)$/u.exec(match.labels[0] ?? "") ?? [];
-      const block = kind ? structureNative().readDocumentRange(found.document,
-        kind === "par" ? "paragraph" : kind === "sec" ? "section" : "page", value, value, 0)?.selected[0] : undefined;
-      const link = found.source.url && match.text ? buildLegalSourcePinpoint({ url: found.source.url, anchor: block?.anchor,
-        blockText: match.text, documentText: found.document }, [match.fragment || row.quote])?.target ?? null : null;
+      const blockKind = kind === "par" ? "paragraph" : kind === "sec" ? "section" : "page";
+      const block = kind ? structureNative().readDocumentRange(found.document, blockKind, value, value, 0)?.selected[0] : undefined;
+      const anchor = blockKind !== "page" && found.source.url
+        ? legalSourceLocatorAnchor(found.source.url, blockKind, match.labels[0]) : undefined;
+      const link = found.source.url && match.text ? buildLegalSourcePinpoint({ url: found.source.url,
+        anchor: anchor ?? block?.anchor, blockText: match.text, documentText: found.document },
+        [match.fragment || row.quote])?.target ?? null : null;
       return { candidateId, status: match.perfect ? "verified" : "mismatch",
         detail: match.location === "unmatched" ? "The quotation was not found in the source text."
           : match.location.startsWith("alternate") ? `Found at ${match.pinpoint || "another place in the source"}, not at the cited pinpoint.`
@@ -613,7 +628,9 @@ export function pinpointSummary(pinpoints: string[], limit = 2) {
   return values.slice(0, limit).join(", ") + (values.length > limit ? ` [+${values.length - limit} more instances]` : "");
 }
 
-function resolveQuote(blocks: QuoteBlock[], text: string, quote: string, scopes: QuoteScopes) {
+type Resolution = { location: string; score: number; labels: string[]; text: string;
+  cited?: { score: number; labels: string[]; text: string } | null };
+function resolveQuote(blocks: QuoteBlock[], text: string, quote: string, scopes: QuoteScopes): Resolution {
   const selection = hasScopes(scopes) ? citedSelection(blocks, scopes) : new Map<QuoteBlock, boolean>();
   const scoped = [...selection.keys()], combined = rangeBlocks(blocks, scopes);
   const scopedMatches = scored(quote, [...scoped, ...combined]);
@@ -648,7 +665,10 @@ function resolveQuote(blocks: QuoteBlock[], text: string, quote: string, scopes:
       if (wordCount(quote, text) === 1 && exact.length) { matches = exact; labels = specificLabels(matches); }
     } else labels = specificLabels(matches);
     const location = scoped.length || targetKindAvailable ? "alternate" : hasScopes(scopes) ? "scope_unavailable" : "uncited";
-    return { location, score: matches[0][0], labels, text: matches[0][1].text };
+    // Where the cited passage holds the quotation in part, that partial match is kept beside the one found elsewhere.
+    const cited = location === "alternate" && scopedMatches.length ? { score: scopedMatches[0][0],
+      labels: specificLabels(scopedMatches.slice(0, 1)), text: scopedMatches[0][1].text } : null;
+    return { location, score: matches[0][0], labels, text: matches[0][1].text, cited };
   }
   const score = documentScore(quote, text);
   if (score >= MIN_MATCH) return { location: scoped.length || targetKindAvailable ? "alternate_document"
@@ -672,26 +692,35 @@ function pagePinpoint(blocks: QuoteBlock[], quote: string) {
  *  of block, or "unmatched"), its score, the blocks that hold it, the source's own words for it and the
  *  quotation corrected to them. `perfect`: found word for word where the citation sends a reader. */
 export function locateQuote(blocks: QuoteBlock[], text: string, quote: string, scopes: QuoteScopes) {
-  let resolution = blocks.length ? resolveQuote(blocks, text, quote, scopes)
+  let resolution: Resolution = blocks.length ? resolveQuote(blocks, text, quote, scopes)
     : { location: "uncited_document", score: documentScore(quote, text), labels: [] as string[], text };
   if (quoteWords(quote).length < 3 && resolution.location.startsWith("alternate") && !resolution.labels.length)
     resolution = { location: "unmatched", score: 0, labels: [], text: "" };
   const unmatched = { location: "unmatched", score: resolution.score, labels: [] as string[], pinpoint: "", text: "",
-    region: "", fragment: "", corrected: "", perfect: false,
+    region: "", fragment: "", corrected: "", perfect: false, cited: null,
     /** A short quotation in a long source is only ever searched for word for word. */
     shortInLong: quoteWords(quote).length < 3 && text.length > LONG_SOURCE_CHARS };
   if (resolution.score < MIN_MATCH) return unmatched;
-  const matchText = resolution.text || text, region = quoteRegion(quote, matchText, 400);
+  const matchText = resolution.text || text, { region, fragment, corrected } = correction(quote, matchText);
   if (resolution.score < STRONG_MATCH && !plausibleContentOverlap(quote, region || matchText)) return unmatched;
-  let correctionSource = region || (matchText.length > LONG_SOURCE_CHARS ? quote : matchText);
-  const fragment = region ? sourceSideQuoteFragment(region, quote) : "";
-  if (fragment && quoteMatchScore(quote, fragment) >= MIN_MATCH) correctionSource = fragment;
-  const corrected = correctedQuote(quote, correctionSource);
   if (isOnlyBracketedQuote(corrected)) return unmatched;
   const labeled = resolution.labels.length > 0 && !resolution.location.startsWith("scope_unavailable");
   const limited = resolution.location.startsWith("scope_unavailable") || resolution.location === "cited_parent";
+  /** Found elsewhere, the quotation's partial match in the cited passage. */
+  const partial = resolution.cited;
+  const cited = partial ? { score: partial.score, labels: partial.labels, pinpoint: pinpointSummary(partial.labels),
+    ...correction(quote, partial.text) } : null;
   return { location: resolution.location, score: resolution.score, labels: labeled ? resolution.labels : [],
     pinpoint: labeled ? pinpointSummary(resolution.labels) : pagePinpoint(blocks, quote),
-    text: resolution.text, region, fragment, corrected, shortInLong: false,
+    text: resolution.text, region, fragment, corrected, shortInLong: false, cited,
     perfect: resolution.score >= STRONG_MATCH && quoteExactKey(corrected) === quoteExactKey(quote) && !limited };
+}
+
+/** The source's own words for a quotation, in the text it was found in, and the quotation corrected to them. */
+function correction(quote: string, matchText: string) {
+  const region = quoteRegion(quote, matchText, 400);
+  let source = region || (matchText.length > LONG_SOURCE_CHARS ? quote : matchText);
+  const fragment = region ? sourceSideQuoteFragment(region, quote) : "";
+  if (fragment && quoteMatchScore(quote, fragment) >= MIN_MATCH) source = fragment;
+  return { region, fragment, corrected: correctedQuote(quote, source) };
 }
