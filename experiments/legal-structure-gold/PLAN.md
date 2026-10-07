@@ -118,7 +118,19 @@ Comparison measures text, coverage, order, grouping, joins, roles, hierarchy,
 each annotation layer, table cells, note references, document facets/ownership
 and continuations. It reports counts, precision, recall and F1. Source-trace
 alignment accounts for edits and splits. Candidates must use the same extraction;
-independently segmented text needs an alignment adapter.
+independently segmented text needs an alignment adapter. A native product's
+furniture is scored as furniture: lines no node owns in a page's outer bands, and
+the page's folio line.
+
+```powershell
+python experiments/legal-structure-gold/score_all.py
+python experiments/legal-structure-gold/score_all.py --against <earlier-summary.json>
+```
+
+`score_all.py` parses every completed gold PDF again with the most recently built
+addon and the request its gold was made from, then micro-averages each layer into
+`score/latest.json`. Copy that summary aside before a parser change; `--against`
+reports the change over the runs both summaries scored.
 
 Offline public-corpus checks cover exact r=1 dispatch, differential manuscript
 and structural results, partial fields, blank/merged cells, splits and geometry,
