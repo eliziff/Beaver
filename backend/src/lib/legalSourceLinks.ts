@@ -494,6 +494,53 @@ export function buildLegalSourcePinpointUrl(evidence: LegalSourceEvidence, quote
   return buildLegalSourcePinpoint(evidence, quotes)?.target ?? null;
 }
 
+/**
+ * A CanLII decision or statute link at a citation's first pinpoint when that is a paragraph of the decision or a
+ * section of the statute ("par12", "sec4", as the citation engine's fields name them), as the ALR Quote Verifier
+ * anchors a citation's link. Another link, a PDF, or a link that already has an anchor stays as it is.
+ */
+export function canliiPinpointLink(rawUrl: string, pinpoints: readonly string[]) {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return rawUrl;
+  }
+  const first = pinpoints[0] ?? "";
+  if (!/(^|\.)canlii\.org$/iu.test(url.hostname) || url.hash || url.pathname.toLowerCase().endsWith(".pdf") ||
+    !/^(?:par|sec)/u.test(first)) return rawUrl;
+  const anchor = legalSourceLocatorAnchor(rawUrl, first.startsWith("par") ? "paragraph" : "section", first);
+  return anchor ? sourceUrl(rawUrl, anchor) ?? rawUrl : rawUrl;
+}
+
+/**
+ * A link to the paragraph or provision a URL's anchor names (CanLII's #par12 or #sec4, Decisia's #par12), with a
+ * text fragment for that passage beside the anchor: from its first words to its last, each unique in the source's
+ * text. An anchor is never the only thing that finds the passage (a browser goes to the anchor where the fragment
+ * finds nothing): where `document` lacks the passage, or no text is at hand, the link is the page without the
+ * anchor. A page anchor or a link without an anchor stays as it is.
+ */
+export function citedPassageLink(rawUrl: string, document: NativeDocument | null | undefined) {
+  const url = sourceUrl(rawUrl);
+  if (!url) return null;
+  const anchor = new URL(url, "http://mike.local").hash.slice(1);
+  const paragraph = /^par(\d+)$/u.exec(anchor)?.[1];
+  const [, number, subsection] = /^sec([\w.-]+?)(?:subsec(\w+))?$/u.exec(anchor) ?? [];
+  if (!paragraph && !number) return url;
+  const engine = structureNative();
+  let directive = "";
+  if (document && paragraph) directive = engine.documentParagraphRangeDirective(document, paragraph, paragraph) ?? "";
+  if (document && number) {
+    const label = `${number}${subsection ? `(${subsection})` : ""}`;
+    // A provision's text opens with its first subsection: the fragment marks where it starts.
+    const block = engine.readDocumentRange(document, "section", label, label, 0)?.selected[0];
+    const plan = block?.text.trim() ? engine.textFragmentPlan(block.text, [block.text], false,
+      publisherMayAnnotateLegalReference(url), false, document) : null;
+    if (plan?.sourceSafeComplete && plan.directives.length === 1) directive = plan.directives[0];
+  }
+  return directive ? appendDirectives(url, [directive]) : sourceUrl(rawUrl, "");
+}
+
 function normalizedIdentity(value: string | null | undefined) {
   return value?.trim().replace(/\s+/gu, " ").toLowerCase() ?? "";
 }
