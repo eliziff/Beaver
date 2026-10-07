@@ -15,6 +15,7 @@ import { Modal } from "@/app/components/modals/Modal";
 import { pdfOpening } from "@/app/lib/inspectPdf";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
+import { ClearDataSetting } from "@/app/components/shared/ClearDataSetting";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import type { Document, PdfRecognizedText } from "@/app/lib/api/documents";
@@ -1346,7 +1347,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         onSelect={chooseLibrary} onClose={() => setLibraryTarget(undefined)} />}
       {host.outputFolder && <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} size="xl"
         breadcrumbs={["Settings"]} fit primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
-        <div className="grid gap-5 pb-4">{app?.preferences}<OutputFolderSetting port={host.outputFolder} busy={busy} /></div>
+        <div className="grid gap-5 pb-4">{app?.preferences}<OutputFolderSetting port={host.outputFolder} busy={busy} />
+          {host.clearData && <ClearDataSetting clear={host.clearData} busy={busy} />}</div>
       </Modal>}
       {pendingImport && <ImportWizard key={importRequest.current} file={pendingImport.file} host={host}
         draft={draft} remembered={preferences} jurisdictionOrder={jurisdictionOrder}

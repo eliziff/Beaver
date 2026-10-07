@@ -682,9 +682,28 @@ function openDatabase() {
         });
       }
     };
-    opening.onsuccess = () => resolve(opening.result);
+    opening.onsuccess = () => {
+      // Let go when the data is cleared (here or in another tab), so it can be deleted; opened afresh after.
+      opening.result.onversionchange = () => { opening.result.close(); database = undefined; };
+      resolve(opening.result);
+    };
     opening.onerror = () => reject(opening.error);
   });
+}
+
+/** Deletes everything Beaver's pages keep in this browser: drafts, their files and folders, outputs, kept
+ *  lookups, the parse and recognition caches and settings. The files and folders on the computer stay. */
+export async function clearStandaloneData() {
+  for (const key of Object.keys(localStorage)) if (/^(?:beaver|alr)\./u.test(key)) localStorage.removeItem(key);
+  const names = (await indexedDB.databases()).map(({ name }) => name ?? "")
+    .filter((name) => /^(?:beaver|authorities|alr)-/u.test(name));
+  await Promise.all(names.map((name) => new Promise<void>((resolve, reject) => {
+    const deleting = indexedDB.deleteDatabase(name);
+    deleting.onsuccess = () => resolve();
+    deleting.onerror = () => reject(deleting.error);
+    // A Worker still reading one lets go of it as the page reloads; the deletion finishes then.
+    deleting.onblocked = () => resolve();
+  })));
 }
 
 function draftMetadata({ state, ...metadata }: WorkProduct): DraftRow {

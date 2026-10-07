@@ -4,7 +4,7 @@ import { attachedAuthoritySources, authoritiesInputPlan, statuteExcerpt } from "
 import { oneAtATime } from "../../../../shared/one-at-a-time.mjs";
 import type { AuthoritiesProduct } from "./types";
 import {
-  bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
+  bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneData, clearStandaloneOutputFolder,
   getStandaloneFilingContact, getStandaloneOutputFolder, setStandaloneFilingContact, inspectStandaloneFile, pickRetainedFiles, readSourceAnswer, readSourcePdf,
   readStandaloneOutput, relinkStandaloneFile, rememberSourceAnswer, rememberSourcePdf, requestStandaloneFileAccess,
   resolveStandaloneFile, retainStandaloneFile,
@@ -482,6 +482,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     choose: chooseStandaloneOutputFolder,
     clear: clearStandaloneOutputFolder,
   },
+  clearData: clearStandaloneData,
   filingContact: { get: getStandaloneFilingContact, save: setStandaloneFilingContact },
 };
 
