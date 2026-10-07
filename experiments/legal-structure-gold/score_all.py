@@ -30,6 +30,9 @@ def completed(out):
 
 def candidate(pdf, mode, cache, request):
     # Parse with the request the gold was made from, so source lines stay comparable.
+    # Its Tesseract timeout only bounds the wait, so a loaded machine may wait longer.
+    if request.get('ocr', {}).get('provider') == 'tesseract':
+        request = {**request, 'ocr': {**request['ocr'], 'settings': {**request['ocr'].get('settings', {}), 'timeout_seconds': 1200}}}
     cache.mkdir(parents=True, exist_ok=True)
     saved = cache / f'request-{worker.fingerprint(request)[:16]}.json'
     saved.write_text(json.dumps(request), encoding='utf-8')
@@ -49,6 +52,7 @@ def main():
     parser.add_argument('--show', action='store_true', help='Print per-run F1 for each layer')
     args = parser.parse_args()
     runs = list(completed(args.out))
+    earlier = {row['run']: row for row in worker.read_json(args.against)['per_run'] if 'metrics' in row} if args.against else {}
     cache = args.out / 'score' / 'candidates'
 
     def score(item):
@@ -89,7 +93,6 @@ def main():
     # Compare only the runs both summaries scored, so new gold does not move the deltas.
     before = {}
     if args.against:
-        earlier = {row['run']: row for row in worker.read_json(args.against)['per_run'] if 'metrics' in row}
         common = [row for row in scored if row['run'] in earlier]
         before, now = aggregate([earlier[row['run']] for row in common]), aggregate(common)
         print(f"{len(common)} runs in common with {args.against.name}")
