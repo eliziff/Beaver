@@ -102,6 +102,17 @@ def compare(expected, candidate):
     require(expected.get('schema_version') == gold.VERSION, 'Expected a generated structure gold artifact')
     gs, reference = state_of(expected); ps, predicted = state_of(candidate)
     require(gs['source_sha256'] == ps['source_sha256'], 'Candidate belongs to another PDF')
+    # A line the gold had to insert (text the extraction missed, such as a pasted picture of
+    # text) is the candidate's own new line on that page reading the same.
+    known = {l['source_id'] for l in reference['lines'] if l['source_id']}
+    extra = [l for l in predicted['lines'] if (l['source_id'] or l['id']) not in known]
+    for inserted in (l for l in reference['lines'] if not l['source_id']):
+        ratio = lambda l: difflib.SequenceMatcher(None, inserted['text'], l['text'], autojunk=False).ratio()
+        match = max((l for l in extra if l['page'] == inserted['page']), key=ratio, default=None)
+        if match is not None and ratio(match) >= 0.8:
+            extra.remove(match)
+            match['source_id'] = inserted['id']
+            match['source_range'] = None
     cuts = defaultdict(set)
     for state in (reference, predicted):
         for line in state['lines']:
