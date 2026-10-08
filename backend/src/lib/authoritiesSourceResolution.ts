@@ -184,9 +184,6 @@ async function keptOriginals(initial: AuthoritiesDraft, sources: SourceServices)
 }
 
 /** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. */
-/** A draft's sources, found. Finding them is no step the user takes: the draft stays at the step it was on, though
- *  a case handed to CanLII on the way would send a draft past Citations back to Sources. Sources gathered in the
- *  background land on whatever step the user has reached meanwhile, and leave them there. */
 export async function resolveAuthoritiesSources(
   initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
   signal?: AbortSignal,
@@ -194,13 +191,6 @@ export async function resolveAuthoritiesSources(
   progress?: (message: string) => void,
   keptOnly = false,
 ) {
-  const found = await findAuthoritiesSources(initial, sources, signal, onlyAuthorityId, progress, keptOnly);
-  if (found.draft.stage !== initial.stage) found.draft.stage = initial.stage;
-  return found;
-}
-
-async function findAuthoritiesSources(initial: AuthoritiesDraft, sources: SourceServices, signal: AbortSignal | undefined,
-  onlyAuthorityId: string | undefined, progress: ((message: string) => void) | undefined, keptOnly: boolean) {
   if (keptOnly) return keptOriginals(initial, sources);
   if (onlyAuthorityId && !retryableAuthoritySource(initial, onlyAuthorityId))
     throw new ApplicationError(409, "This authority has nothing to retry.");
