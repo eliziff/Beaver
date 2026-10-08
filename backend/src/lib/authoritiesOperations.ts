@@ -126,8 +126,10 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
         (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }), sources, undefined, attached,
         // Authorities checks a quotation against its note's first citation only, or the one linked to it;
         // allCitations checks it against every source the note cites.
-        // quoteContext "sentence" checks only the quotations in the sentence a note's marker ends or stands in.
-        { firstCitationOnly: input.allCitations !== true, quoteContext: input.quoteContext === "sentence" ? "sentence" : "passage" }) };
+        // quoteContext "sentence" checks only the quotations in the sentence a note's marker ends or stands in;
+        // quotations "text" checks only the text's quotations, none a note holds.
+        { firstCitationOnly: input.allCitations !== true, quoteContext: input.quoteContext === "sentence" ? "sentence" : "passage",
+          textOnly: input.quotations === "text" }) };
     },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;

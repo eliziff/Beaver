@@ -9,7 +9,6 @@ import { reject } from "./applicationError";
 import { splitQuoteCitationUnits, type QuoteCitationUnit } from "./quoteCitationSplit";
 import { footnotePropositions, type QuoteContext } from "./authoritiesQuotations";
 import type { LegalSourceReference, LegalSourceLocator } from "./legalSources";
-import type { ExtractResponse } from "legal-citations";
 import type { NativeDocument } from "./structureNative";
 import { buildLegalSourcePinpoint, legalSourceLocatorAnchor } from "./legalSourceLinks";
 
@@ -27,9 +26,9 @@ export function decodeQuoteLinks(value: unknown): QuoteLink[] {
 
 /** Uses the same native quotation and authority scans as document ingestion. A quotation in the text belongs to the
  *  next note only where it is in that note's passage: with `context` "sentence", the sentence its marker ends or
- *  stands in. */
+ *  stands in. With `textOnly`, the quotations are the text's alone, none a note holds. */
 export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
-  splitUnits: QuoteCitationUnit[], context: QuoteContext = "passage") {
+  splitUnits: QuoteCitationUnit[], context: QuoteContext = "passage", textOnly = false) {
   const passages = footnotePropositions(draft.units, context);
   const bodyOffsets = new Map<string, number>();
   const anchors: Array<[number, number]> = [];
@@ -40,16 +39,12 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
     position += unit.text.length + 1;
   }
   anchors.sort((a, b) => a[1] - b[1]);
-  const rows = draft.units.flatMap((unit) => {
-    const quotes = structureNative().markedQuoteSpans(unit.text);
-    const citations = quotes.length ? citationSpans(unit.text) : [];
-    // A cited work's quoted title or short form ("Name, “Title” (2024) 16:1 J 61 [Name, “Short”]", "Name,
-    // “Short,” supra note 3") is part of its citation, as the engine reads it, not a quotation.
-    return quotes.filter((quote) => !citations.some((span) => span.start < quote.end && quote.start < span.end) &&
-      !unit.occurrenceIds.some((key) => {
-        const span = draft.occurrences[key]?.authoritySpan;
-        return span && span.start <= quote.start && quote.end <= span.end;
-      }))
+  const rows = draft.units.filter(({ kind }) => !textOnly || kind === "body").flatMap((unit) => structureNative().markedQuoteSpans(unit.text)
+    // A cited work's quoted title ("Name, “Title” (2024) 16:1 J 61") is part of its citation, not a quotation.
+    .filter((quote) => !unit.occurrenceIds.some((key) => {
+      const span = draft.occurrences[key]?.authoritySpan;
+      return span && span.start <= quote.start && quote.end <= span.end;
+    }))
     .flatMap((quote) => {
       const id = canonicalJsonSha256([unit.id, quote.start, quote.end, quote.text]);
       const bodyOffset = bodyOffsets.get(unit.id);
@@ -91,18 +86,10 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
         candidates,
         occurrenceId: explicit?.occurrenceId ?? (candidates.length === 1 ? candidates[0].id : null),
         linkMethod: explicit ? "explicit" as const : "mechanical" as const }];
-    });
-  });
+    }));
   if (links.some((link) => !rows.some(({ id }) => id === link.quoteId)))
     reject(400, "A quote link names an unknown quotation.");
   return rows;
-}
-
-/** The spans of the citations the engine reads in a text, each with its title and short form. */
-function citationSpans(text: string) {
-  const extracted = structureNative().citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
-    options: { resolve: false, styles: ["mcgill", "coal"], extendedUs: false } })) as ExtractResponse;
-  return extracted.citations.filter(({ form }) => form !== "unknown").map(({ fullSpan }) => fullSpan);
 }
 
 /** Where a quotation is in the source read for it (see locateQuote). */
@@ -150,11 +137,12 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   sources = legalSourceOperations, window?: { offset: number; limit: number },
   attached: AttachedQuoteSources = new Map(),
   /** firstCitationOnly: check a quotation only against the citation linked to it, else its note's first.
-   *  quoteContext: "sentence" checks only the quotations in the sentence a note's marker ends or stands in. */
-  options: { firstCitationOnly?: boolean; quoteContext?: QuoteContext } = {}) {
+   *  quoteContext: "sentence" checks only the quotations in the sentence a note's marker ends or stands in.
+   *  textOnly: checks the text's quotations alone, none a note holds. */
+  options: { firstCitationOnly?: boolean; quoteContext?: QuoteContext; textOnly?: boolean } = {}) {
   const citationUnits = await splitQuoteCitationUnits(draft.units.map(({ text }) => text), signal);
   const unitReceipts = citationUnits.map((split, index) => ({ unitId: draft.units[index].id, ...split }));
-  const all = splitQuoteChecks(draft, links, citationUnits, options.quoteContext);
+  const all = splitQuoteChecks(draft, links, citationUnits, options.quoteContext, options.textOnly);
   const rows = window ? all.slice(window.offset, window.offset + window.limit) : all;
   // Quotations from one authority share its resolution, and each source is read once.
   const read = citedSourceReader(sources, signal);
