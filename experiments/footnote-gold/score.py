@@ -6,7 +6,7 @@ parsed by the current native addon with the app's own PDF profile
 compared with the gold pairs:
 
   notes       printed label on the label's page (body-start agreement is reported)
-  references  reference marker value on its page
+  references  a reference to the note value on its page
   positions   references whose preceding word matches the gold line
   pairs       reference page + label page + note value
 
@@ -14,7 +14,7 @@ Totals are micro-averaged. The summary goes to <out>/score/latest.json, and with
 --save NAME also to <out>/score/NAME.json; --against prints the change from an
 earlier summary over the documents both scored.
 
-  python experiments/footnote-gold/score.py [--addon DLL] [--limit N] [--save NAME] [--against FILE] [--show]
+  python experiments/footnote-gold/score.py [--addon DLL] [--limit N] [--stride N] [--save NAME] [--against FILE] [--show]
 """
 import argparse
 from collections import Counter
@@ -50,11 +50,12 @@ def words(text: str) -> list[str]:
     return re.findall(r"[^\W\d_]{2,}", unicodedata.normalize("NFKC", text).lower())
 
 
-def gold_records(limit: int):
+def gold_records(limit: int, stride: int):
     with corpus_store.connect() as db:
         rows = db.execute("select r.sha256, f.path, a.path from gold_records r join files f on f.sha256=r.sha256"
                           " join gold_artifacts a on a.run_id=r.run_id and a.role='gold'"
                           " where r.dataset=? and r.status='complete' order by f.pages, r.sha256", (DATASET,)).fetchall()
+    rows = rows[::stride]
     return rows[:limit] if limit else rows
 
 
@@ -101,7 +102,8 @@ def predicted(candidate: dict):
         notes.append({"page": page, "label": label, "kind": note.get("kind"), "body": body[:160]})
         for ref in note.get("references", []):
             start, end = ref["range"]["start"], ref["range"]["end"]
-            refs.append({"page": (ref.get("page_indexes") or [0])[0] + 1, "label": label_key(text[start:end]),
+            # A reference counts for the note it belongs to: recognition can misread its glyphs.
+            refs.append({"page": (ref.get("page_indexes") or [0])[0] + 1, "label": label,
                          "note_page": page, "note_label": label, "before": words(text[max(0, start - 60):start])[-2:]})
     return notes, refs
 
@@ -181,6 +183,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, default=ROOT / "benchmarks/local-data/olj-footnote-gold")
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--stride", type=int, default=1, help="Score every Nth document, for a quick subset")
     parser.add_argument("--save")
     parser.add_argument("--addon", type=Path, help="Built addon to load instead of the most recent build")
     parser.add_argument("--against", type=Path)
@@ -189,7 +192,7 @@ def main():
     if args.addon:
         os.environ["LEGAL_STRUCTURE_ADDON"] = str(args.addon.resolve())
     results, binary = [], addon_sha256()
-    for sha, rel, gold_path in gold_records(args.limit):
+    for sha, rel, gold_path in gold_records(args.limit, args.stride):
         gold = json.loads(Path(gold_path).read_text(encoding="utf-8"))
         name = f"{gold['dataset']}:{gold['article_id']}"
         try:
