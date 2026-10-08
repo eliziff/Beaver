@@ -118,6 +118,9 @@ export type AuthoritiesApp = {
   drafts?: (props: { busy: boolean; onOpen: (id: string) => void }) => ReactNode;
   /** Whether the citation review has a row for a citation's own link, offered to the authority's other citations. */
   citationLinks?: boolean;
+  /** For an app that opens one draft at a time from its own list (`initialDraftId`): the workspace shows only that
+   *  draft's steps, with no sections, New or Settings (the app has its own), and Back calls this. */
+  close?: () => void;
 };
 
 /** What decides a draft's sources: its authorities, as cited and kept, and how sources are made.
@@ -1253,8 +1256,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     host.mode === "standalone" ? "h-dvh overflow-y-auto" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
     {draft ? <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
-        onBack={() => newDraft(false)} onRename={rename} onDuplicate={duplicate}
-        onDelete={removeDraft} headerActions={<>{sections}{newAction}{headerActions}{settingsAction}</>} />
+        onBack={app?.close ?? (() => newDraft(false))} onRename={rename} onDuplicate={duplicate}
+        onDelete={removeDraft} headerActions={app?.close ? headerActions
+          : <>{sections}{newAction}{headerActions}{settingsAction}</>} />
         : <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} title={app?.title ?? "Authorities"}
           headerActions={<>{sections}{newAction}{headerActions}{settingsAction}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
