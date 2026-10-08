@@ -21,6 +21,7 @@ import { authoritiesSourceText, createAuthoritiesPreparation, prepareAuthorities
   "./authoritiesPreparation";
 import { sha256 } from "./hash";
 import { sourcePageLabels } from "./authoritiesPageLabels";
+import { mapBounded } from "./mapBounded";
 import { checkQuotes, decodeQuoteLinks } from "./quoteCheck";
 import { linkPropagationTargets } from "./authoritiesLinkPropagation";
 import type { NativeDocument } from "./structureNative";
@@ -56,15 +57,24 @@ function initialSettings(value: unknown) {
   );
 }
 
-async function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAuthoritySource[]) {
+async function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAuthoritySource[],
+  progress?: (message: string) => void) {
   let draft = state;
+  for (const attachment of attachments) if (sha256(attachment.bytes) !== attachment.sourceSha256) {
+    reject(500, "Prepared authority source hash is invalid");
+  }
+  // A publisher's original prints its own page numbers; a reconstruction's are its PDF pages. Reading them reads the
+  // whole PDF, so a few are read at once, and the step says which it is reading.
+  const originals = attachments.filter(({ origin }) => origin === "original");
+  const labels = new Map<PreparedAuthoritySource, string[]>();
+  let read = 0;
+  await mapBounded(originals, async (attachment) => {
+    progress?.(`Reading the page numbers of ${attachment.filename.replace(/\.pdf$/iu, "")} · ${read + 1} of ${originals.length}`);
+    labels.set(attachment, await sourcePageLabels(state, attachment.authorityId, attachment, attachment.bytes));
+    read += 1;
+  }, 3);
   for (const attachment of attachments) {
-    if (sha256(attachment.bytes) !== attachment.sourceSha256) {
-      reject(500, "Prepared authority source hash is invalid");
-    }
-    // A publisher's original prints its own page numbers; a reconstruction's are its PDF pages.
-    const pageLabels = attachment.origin === "original"
-      ? await sourcePageLabels(draft, attachment.authorityId, attachment, attachment.bytes) : undefined;
+    const pageLabels = labels.get(attachment);
     draft = attachAuthorityPdf(draft, draft.authorities[attachment.authorityId],
       { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
         lastSeen: { name: attachment.filename, size: attachment.bytes.length,
@@ -300,7 +310,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       reject(409, "This authority has nothing to retry.");
     const prepared = await resolveSources(current, undefined, context.signal, onlyAuthorityId, progress,
       input?.keptOnly === true);
-    return draftResult(await attachPreparedSources(prepared.draft, prepared.attachments),
+    return draftResult(await attachPreparedSources(prepared.draft, prepared.attachments, progress),
       prepared.attachments);
     },
     // The other citations of a citation's authority that a link given to it would carry to (authoritiesLinkPropagation.ts).
