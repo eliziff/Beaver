@@ -224,6 +224,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", sources: "" });
   // Gathering that an edit interrupted, to run again once editing rests.
   const sourcesRequest = useRef<AbortController | null>(null), sourcesStale = useRef(false);
+  // The draft whose sources are being gathered in the background: Sources opens meanwhile, its rows still looking.
+  const [gatheringFor, setGatheringFor] = useState("");
   // The draft whose sources were last looked for as its citations were read, and whether that failed: until
   // then, its quotation check waits on them rather than having none to check.
   const [sourcesFound, setSourcesFound] = useState({ id: "", failed: false });
@@ -1059,14 +1061,24 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (!attempts || !current || current.state.stage !== "citations") return;
     // An edit stops this request rather than wait for it; gathering resumes once editing rests.
     const request = new AbortController(); sourcesRequest.current = request;
+    setGatheringFor(current.id);
     try {
-      await serialized(async () => {
+      // Gathered beside the queue of the user's changes, never in it, and on past Citations: nothing the user does or
+      // opens waits on a download. A change that lands meanwhile makes this gathering's save too late; it is made
+      // again on the newer draft, reading what it already fetched.
+      const gather = (latest: AuthoritiesProduct) => host.prepareSources(latest, request.signal, undefined, noteSources);
+      let next: AuthoritiesProduct | undefined;
+      for (let attempt = 1; !next; attempt += 1) {
         const latest = draftRef.current;
-        if (request.signal.aborted || latest?.id !== current.id || latest.state.stage !== "citations") return;
-        const next = await host.prepareSources(latest, request.signal, undefined, noteSources)
-          .finally(() => { sourcesNote.current = ""; });
-        if (adopt(next)) gathered.current = { id: next.id, sources: sourcesInputs(next) };
-      });
+        if (request.signal.aborted || latest?.id !== current.id) return;
+        try { next = await gather(latest); }
+        catch (caught) {
+          if ((caught as { status?: number })?.status !== 409) throw caught;
+          if (attempt === 3) next = await queuedSave(current.id, gather);
+        }
+      }
+      sourcesNote.current = "";
+      if (adopt(next)) gathered.current = { id: next.id, sources: sourcesInputs(next) };
       if (!request.signal.aborted) setSourcesFound({ id: current.id, failed: false });
     } catch (caught) {
       if (request.signal.aborted) { sourcesStale.current = true; return; }
@@ -1075,11 +1087,20 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       setSourcesFound({ id: current.id, failed: true });
       setError(`The sources could not be looked up. ${errorText(caught)}`);
     } finally {
+      sourcesNote.current = "";
       if (sourcesRequest.current === request) sourcesRequest.current = null;
+      setGatheringFor((id) => id === current.id ? "" : id);
     }
   }
   function findSources() {
     if (!draftRef.current) return;
+    // Sources still being gathered in the background: Sources opens now, and they arrive in it.
+    if (sourcesRequest.current && gatheringFor === draftRef.current.id && !edits.current.length) {
+      const id = draftRef.current.id;
+      void run(() => queuedSave(id, (current) => host.act(current.id, current.revision, { type: "set-stage", stage: "sources" })),
+        adopt, "", "Opening Sources");
+      return;
+    }
     const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
     let unavailable = "";
     awaitingSources.current = true; setSourcesProgress(sourcesNote.current);
@@ -1127,7 +1148,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // Once in a browser: the first time Sources settles, nothing fetching, with authorities still
   // needing a PDF, what to do about them. Storage that can't be read means no explainer.
   const [explaining, setExplaining] = useState(false);
-  const explainable = !!draft && stage === "sources" && !busy && missingPdfs.length > 0 && !missingOpen && !pendingImport;
+  const explainable = !!draft && stage === "sources" && !busy && gatheringFor !== draft.id && missingPdfs.length > 0 && !missingOpen && !pendingImport;
   useEffect(() => {
     if (!explainable || sourcesExplained()) return;
     const settled = window.setTimeout(() => setExplaining(true), 800);
@@ -1316,7 +1337,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     primaryAction={{ label: "Change", disabled: busy, onClick: () => changeSources(sourceChange) }}>
                     <p className="pb-4 text-sm text-gray-700">Changing source handling removes the PDFs the app found and finds them
                       again for the new choice. PDFs you uploaded stay.</p></Modal>}
-                  {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences}
+                  {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences} finding={gatheringFor === draft.id}
                     ocr={ocr} others={others} settings={sourceSettings}
                     {...authorityPanelProps}
                     {...(draft.state.import.kind === "manual" ? {

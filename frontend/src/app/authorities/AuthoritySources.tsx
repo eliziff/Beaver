@@ -62,6 +62,8 @@ type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
   ocr?: SourceOcrPanel;
+  /** Sources still being gathered in the background: a row without its PDF yet says it is being looked for. */
+  finding?: boolean;
   /** Any other PDF in the book, each under a tab of its own after the authorities: listed with them,
    *  and added here where the authorities come from a brief. */
   others?: BookFiles & { parts: Array<{ part: AuthoritiesBookSupplement; tab: string }> };
@@ -75,7 +77,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
-  ocr, statuteCopies, groups, others, settings }: PanelProps) {
+  ocr, statuteCopies, groups, others, settings, finding = false }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
   // A row is drawn again only when what it shows changes. The workspace's own changes (a source opened, a
   // status line) give the panel new callbacks each time; the rows get stable ones that call the latest.
@@ -134,7 +136,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           {/* Each group under its heading, as the book and the table set them out. */}
           {headed && groups?.get(authority.id) !== groups?.get(authorities[index - 1]?.id) &&
             <p className={GROUP}>{groups?.get(authority.id)}</p>}
-          <AuthorityRow authority={authority} busy={busy}
+          <AuthorityRow authority={authority} busy={busy} finding={finding && !authority.excluded}
           order={shown} copy={statuteCopies?.get(authority.id)} statutes={!!statuteCopies?.size}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
           citationLine={authorityCitationLine(state, authority)} italicName={authorityNameItalic(state, authority)}
@@ -169,8 +171,8 @@ const recognitionKey = (authority: AuthorityIdentity, ocr?: SourceOcrPanel) => !
 const AuthorityRow = memo(Row);
 function Row({ authority, tab, citationLine, italicName, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes }: {
-  order: string[]; copy?: StatuteCopy; statutes: boolean;
+  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes, finding = false }: {
+  order: string[]; copy?: StatuteCopy; statutes: boolean; finding?: boolean;
   authority: AuthorityIdentity; tab?: string; citationLine: string; busy: boolean; needsPdf: boolean;
   /** The name is a style of cause or title, set in italics. */
   italicName: boolean;
@@ -226,7 +228,10 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
     : sources.length ? "This PDF is unavailable. Upload it again."
     : uploadHint ? uploadHint
     : "No PDF attached. Upload a PDF for this authority.";
-  const mark = missing ? { Icon: issue ? LockKeyhole
+  // Still being gathered: its PDF may yet arrive, so it is not called missing.
+  const looking = finding && missing && !issue && !lookup && !publisherUrl && authority.source.kind !== "pending-canlii";
+  const mark = looking ? { Icon: Loader2, tone: "animate-spin text-gray-500 motion-reduce:animate-none", label: "Looking for a PDF" }
+    : missing ? { Icon: issue ? LockKeyhole
       : lookup || publisherUrl || authority.source.kind === "pending-canlii" ? CircleAlert : FileX2,
       tone: lookup ? "text-amber-700" : "text-red-700", label: missingLabel }
     : fromText ? { Icon: FileType2, tone: "text-indigo-700",
