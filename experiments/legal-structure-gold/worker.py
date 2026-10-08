@@ -455,6 +455,7 @@ def main():
         completed += 1
         print(json.dumps({"completed_records":completed,"selected_records":len(rows),
                           "status":"complete" if args.run else "prepared"}),flush=True)
+    print(json.dumps({"completed_records":completed,"selected_records":len(rows),"failed_records":len(failed),"status":"batch_done"}),flush=True)
     if failed: raise SystemExit(1)
 
 
