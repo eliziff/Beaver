@@ -438,18 +438,17 @@ def main():
                          "model": args.model, "effort": args.effort, "workers": 1}), flush=True)
         try:
             run(pdf, row, args)
-        except (ValueError, KeyError, TypeError, IndexError) as exc:
-            # A PDF whose parse or replies fail the contract keeps its failed receipt and is
-            # retried on the next run; provider failures (RuntimeError) still stop the batch.
-            print(str(exc), file=sys.stderr, flush=True)
-            if len(rows) == 1: raise SystemExit(1) from exc
+        except Exception as exc:
+            # Only the provider failing (codex_exec's RuntimeErrors) stops the batch. Any other
+            # failure is the PDF's: it keeps its failed receipt, is retried on the next run, and
+            # the batch goes on.
+            print(f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            if len(rows) == 1 or (isinstance(exc, RuntimeError) and str(exc).startswith("codex")):
+                raise SystemExit(1) from exc
             failed.append(row)
             print(json.dumps({"completed_records":completed,"selected_records":len(rows),"status":"failed",
-                              "error":str(exc)[:300]}),flush=True)
+                              "error":f"{type(exc).__name__}: {exc}"[:300]}),flush=True)
             continue
-        except Exception as exc:
-            print(str(exc), file=sys.stderr, flush=True)
-            raise SystemExit(1) from exc
         completed += 1
         print(json.dumps({"completed_records":completed,"selected_records":len(rows),
                           "status":"complete" if args.run else "prepared"}),flush=True)
