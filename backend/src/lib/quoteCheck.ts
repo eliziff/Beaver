@@ -260,7 +260,21 @@ export function quoteTokens(text: string): QuoteToken[] {
   }
   return merged;
 }
-const tokens = (text: string) => quoteTokens(text).map(({ text }) => text);
+/** A pure reading of a text, kept for the texts read most recently: a check compares every block of a source with
+ *  each quotation its notes make, and the same quotation with each block. Its value is shared, never changed. */
+function remembered<T>(read: (text: string) => T, kept = 4096) {
+  const values = new Map<string, T>();
+  return (text: string) => {
+    let value = values.get(text);
+    if (value === undefined) {
+      value = read(text);
+      if (values.size >= kept) values.delete(values.keys().next().value!);
+      values.set(text, value);
+    }
+    return value;
+  };
+}
+const tokens = remembered((text: string) => quoteTokens(text).map(({ text }) => text));
 
 /** Lower-cased words, as the plausibility and region checks count them. */
 export function quoteWords(text: string) {
@@ -284,7 +298,8 @@ export function normalizeQuoteForCompare(text: string) {
   if (value.length >= 2 && QUOTES.has(value[0]) && QUOTES.has(value.at(-1)!)) value = value.slice(1, -1).trim();
   return value.replace(/(?<=[A-Za-z0-9])"\s*(?=[.,;:!?…])/gu, "").replace(/[.,;:!?…]+$/u, "").trim();
 }
-export const quoteExactKey = (text: string) => collapseInitialCase(normalizeQuoteForCompare(text));
+export const quoteExactKey = remembered((text: string) => collapseInitialCase(normalizeQuoteForCompare(text)));
+const exactKey = remembered((text: string) => quoteExactKey(text).toLowerCase());
 /** Two authored quotations with this key are the same quotation. */
 export const quoteDedupeKey = (text: string) => quoteExactKey(text).toLowerCase();
 
@@ -329,9 +344,11 @@ function alignmentToken(token: string, aliases: Map<string, string>) {
   const lowered = value.toLowerCase();
   return aliases.get(lowered) ?? lowered;
 }
+const quoteAliases = remembered((quote: string) => alignmentAliases(stripTrailingPunctuation(tokens(quote))));
 function bracketSuffixExact(quote: string, source: string) {
-  const quoted = stripTrailingPunctuation(tokens(quote)), aliases = alignmentAliases(quoted);
+  const aliases = quoteAliases(quote);
   if (!aliases.size) return false;
+  const quoted = stripTrailingPunctuation(tokens(quote));
   const needle = quoted.filter(wordlike).map((token) => alignmentToken(token, aliases));
   const words = tokens(source).filter(wordlike).map((token) => alignmentToken(token, aliases));
   if (!needle.length || needle.length > words.length) return false;
@@ -342,6 +359,18 @@ function bracketSuffixExact(quote: string, source: string) {
 
 const matchedSize = (left: string[], right: string[]) => sequenceOpcodes(left, right)
   .filter(([tag]) => tag === "equal").reduce((sum, [, a0, a1]) => sum + a1 - a0, 0);
+const tokenCounts = remembered((text: string) => {
+  const counts = new Map<string, number>();
+  for (const token of tokens(text)) counts.set(token, (counts.get(token) ?? 0) + 1);
+  return counts;
+});
+/** How many of `quoted` occur in the source, each as often as both hold it: no alignment matches more. */
+function sharedTokens(quoted: string[], source: string) {
+  const left = new Map(tokenCounts(source));
+  let shared = 0;
+  for (const token of quoted) { const count = left.get(token) ?? 0; if (count) { shared++; left.set(token, count - 1); } }
+  return shared;
+}
 
 function anchorPhrases(words: string[]) {
   const phrases: string[][] = [], seen = new Set<string>();
@@ -382,25 +411,26 @@ function longSourceScore(quoted: string[], source: string) {
   return best || Math.min(overlap, 0.59);
 }
 
-/** Fraction of the quotation's tokens the source contains in order; 1 when it contains it exactly. */
-export function quoteMatchScore(quote: string, source: string) {
+/** Fraction of the quotation's tokens the source contains in order; 1 when it contains it exactly. Given `floor`, a
+ *  score that cannot reach it is reported as 0 without aligning. */
+export function quoteMatchScore(quote: string, source: string, floor = 0) {
   const q = (quote ?? "").trim(), s = (source ?? "").trim();
   if (!q || !s) return 0;
   const quoted = stripTrailingPunctuation(tokens(q));
   if (!quoted.length) return 0;
-  const key = quoteExactKey(q).toLowerCase();
-  if (key && exactInSource(key, quoteExactKey(s).toLowerCase())) return 1;
+  const key = exactKey(q);
+  if (key && exactInSource(key, exactKey(s))) return 1;
   if (bracketSuffixExact(q, s)) return 1;
   if (s.length > LONG_SOURCE_CHARS) return longSourceScore(quoted, s);
   const sourceTokens = tokens(s);
   if (!sourceTokens.length) return 0;
   if (sourceTokens.length > LONG_SOURCE_TOKENS) return longSourceScore(quoted, s);
+  if (floor > 0 && sharedTokens(quoted, s) / quoted.length < floor) return 0;
   return matchedSize(sourceTokens, quoted) / quoted.length;
 }
 
-function contentWords(text: string) {
-  return quoteWords(text).filter((word) => !NON_CONTENT.has(word) && !(word.length === 1 && /\p{L}/u.test(word)));
-}
+const contentWords = remembered((text: string) =>
+  quoteWords(text).filter((word) => !NON_CONTENT.has(word) && !(word.length === 1 && /\p{L}/u.test(word))));
 /** A partial match is plausible only when enough of the quotation's content words occur in the source. */
 export function plausibleContentOverlap(quote: string, source: string) {
   const needle = [...new Set(contentWords(quote))];
@@ -609,7 +639,7 @@ function specificLabels(matches: Array<[number, QuoteBlock]>) {
 }
 const plausibleIn = (quote: string, text: string) => plausibleContentOverlap(quote, quoteRegion(quote, text, 400) || text);
 function scored(quote: string, blocks: QuoteBlock[]) {
-  return blocks.map((block): [number, QuoteBlock] => [quoteMatchScore(quote, block.text), block])
+  return blocks.map((block): [number, QuoteBlock] => [quoteMatchScore(quote, block.text, MIN_MATCH), block])
     .filter(([score, block]) => score >= MIN_MATCH && plausibleIn(quote, block.text))
     .sort((a, b) => b[0] - a[0] || a[1].start - b[1].start);
 }
