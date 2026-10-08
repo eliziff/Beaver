@@ -85,7 +85,18 @@ def state_of(value):
             return item
         state['annotations'] = refs(structure['annotations'])
     elif not any(n['kind'] == 'document' for n in structure['nodes']):
+        # A PDF parser's constituents are sections under the package's own document.
+        parts = [n for n in structure['nodes'] if n['kind'] == 'section' and (n.get('grammar') or '').startswith('constituent_') and n.get('line_ids')]
+        roots = [a for a in state['annotations'] if a['kind'] == 'document']
         state['annotations'] = [a for a in state['annotations'] if a['kind'] != 'document']
+        if parts and roots:
+            first = roots[0]['line_ids'][0]
+            state['annotations'].append(roots[0])
+            relationships = {'exhibit': 'exhibit', 'schedule': 'schedule', 'annex': 'attachment'}
+            for n in parts:
+                kind = n['grammar'][len('constituent_'):]
+                state['annotations'].append({'id': n['id'], 'kind': 'document', 'line_ids': n['line_ids'], 'attributes': {
+                    'kind': kind, 'parent': first, 'relationship': relationships.get(kind, 'component'), 'title': [], 'facets': {}}})
     return structure, state
 
 
