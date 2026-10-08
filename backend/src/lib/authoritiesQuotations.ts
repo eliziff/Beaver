@@ -60,9 +60,12 @@ export function footnotePropositions(units: Units, context: QuoteContext = "pass
     .sort((a, b) => a.ordinal - b.ordinal || a.id.localeCompare(b.id));
   const anchors: Array<{ id: number; position: number }> = [];
   const parts: Array<{ unit: Units[number]; start: number }> = [];
-  let text = "";
+  let text = "", introduction = 0;
   for (const unit of body) {
     parts.push({ unit, start: text.length });
+    // The first note's passage starts after the article's Introduction heading, past its title and authors.
+    if (!anchors.length && !introduction && /^\s*(?:[IVX\d]{1,4}|[A-Z])?[.)]?\s*introduction\s*$/iu.test(unit.text))
+      introduction = text.length + unit.text.length + 1;
     for (const [id, offset] of unit.footnoteRefs) if (Number.isSafeInteger(id) && id > 0 &&
       Number.isSafeInteger(offset) && offset >= 0 && offset <= unit.text.length)
       anchors.push({ id, position: text.length + offset });
@@ -76,7 +79,7 @@ export function footnotePropositions(units: Units, context: QuoteContext = "pass
   // Anchors and parts are both in text order, so one pass pairs each passage with its parts.
   let previous = 0, first = 0, after = 0;
   for (const { id, position } of anchors) {
-    const passage = previous; previous = position;
+    const passage = Math.max(previous, previous ? 0 : Math.min(introduction, position)); previous = position;
     while (first < parts.length && parts[first].start + parts[first].unit.text.length <= passage) first += 1;
     if (counts.get(id) !== 1 || position <= passage) continue;
     const [start, end] = context === "sentence" ? markerSentence(text, position, after) : [passage, position];

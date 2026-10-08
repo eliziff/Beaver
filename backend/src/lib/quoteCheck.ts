@@ -9,6 +9,7 @@ import { reject } from "./applicationError";
 import { splitQuoteCitationUnits, type QuoteCitationUnit } from "./quoteCitationSplit";
 import { footnotePropositions, type QuoteContext } from "./authoritiesQuotations";
 import type { LegalSourceReference, LegalSourceLocator } from "./legalSources";
+import type { ExtractResponse } from "legal-citations";
 import type { NativeDocument } from "./structureNative";
 import { buildLegalSourcePinpoint, legalSourceLocatorAnchor } from "./legalSourceLinks";
 
@@ -24,11 +25,12 @@ export function decodeQuoteLinks(value: unknown): QuoteLink[] {
   return links;
 }
 
-/** Uses the same native quotation and authority scans as document ingestion. With `context` "sentence", a quotation
- *  in the text belongs to the next note only where it is in the sentence that note's marker ends or stands in. */
+/** Uses the same native quotation and authority scans as document ingestion. A quotation in the text belongs to the
+ *  next note only where it is in that note's passage: with `context` "sentence", the sentence its marker ends or
+ *  stands in. */
 export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
   splitUnits: QuoteCitationUnit[], context: QuoteContext = "passage") {
-  const sentences = context === "sentence" ? footnotePropositions(draft.units, "sentence") : null;
+  const passages = footnotePropositions(draft.units, context);
   const bodyOffsets = new Map<string, number>();
   const anchors: Array<[number, number]> = [];
   let position = 0;
@@ -38,20 +40,24 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
     position += unit.text.length + 1;
   }
   anchors.sort((a, b) => a[1] - b[1]);
-  const rows = draft.units.flatMap((unit) => structureNative().markedQuoteSpans(unit.text)
-    // A cited work's quoted title ("Name, “Title” (2024) 16:1 J 61") is part of its citation, not a quotation.
-    .filter((quote) => !unit.occurrenceIds.some((key) => {
-      const span = draft.occurrences[key]?.authoritySpan;
-      return span && span.start <= quote.start && quote.end <= span.end;
-    }))
+  const rows = draft.units.flatMap((unit) => {
+    const quotes = structureNative().markedQuoteSpans(unit.text);
+    const citations = quotes.length ? citationSpans(unit.text) : [];
+    // A cited work's quoted title or short form ("Name, “Title” (2024) 16:1 J 61 [Name, “Short”]", "Name,
+    // “Short,” supra note 3") is part of its citation, as the engine reads it, not a quotation.
+    return quotes.filter((quote) => !citations.some((span) => span.start < quote.end && quote.start < span.end) &&
+      !unit.occurrenceIds.some((key) => {
+        const span = draft.occurrences[key]?.authoritySpan;
+        return span && span.start <= quote.start && quote.end <= span.end;
+      }))
     .flatMap((quote) => {
       const id = canonicalJsonSha256([unit.id, quote.start, quote.end, quote.text]);
       const bodyOffset = bodyOffsets.get(unit.id);
       const globalEnd = (bodyOffset ?? 0) + quote.end;
       // A quotation belongs to the note that ends the passage it is in: the next note after it.
       const anchor = bodyOffset === undefined ? undefined : anchors.find(([, at]) => at >= globalEnd);
-      const sentence = anchor && sentences?.get(anchor[0]);
-      if (sentence && (globalEnd - quote.end + quote.start < sentence.start || globalEnd > sentence.end)) return [];
+      const passage = anchor && passages.get(anchor[0]);
+      if (passage && (globalEnd - quote.end + quote.start < passage.start || globalEnd > passage.end)) return [];
       const nextNote = anchor ? [anchor[0], anchor[1] - (bodyOffset ?? 0)] : undefined;
       const noteUnits = nextNote ? draft.units.filter((item) =>
         item.kind === "footnote" && item.footnoteId === nextNote[0]) : [];
@@ -85,10 +91,18 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
         candidates,
         occurrenceId: explicit?.occurrenceId ?? (candidates.length === 1 ? candidates[0].id : null),
         linkMethod: explicit ? "explicit" as const : "mechanical" as const }];
-    }));
+    });
+  });
   if (links.some((link) => !rows.some(({ id }) => id === link.quoteId)))
     reject(400, "A quote link names an unknown quotation.");
   return rows;
+}
+
+/** The spans of the citations the engine reads in a text, each with its title and short form. */
+function citationSpans(text: string) {
+  const extracted = structureNative().citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
+    options: { resolve: false, styles: ["mcgill", "coal"], extendedUs: false } })) as ExtractResponse;
+  return extracted.citations.filter(({ form }) => form !== "unknown").map(({ fullSpan }) => fullSpan);
 }
 
 /** Where a quotation is in the source read for it (see locateQuote). */
