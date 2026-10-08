@@ -385,6 +385,7 @@ def parse_args(argv=None):
     parser.add_argument("--root", type=Path)
     parser.add_argument("--out", type=Path, default=ROOT / "benchmarks/local-data/legal-structure-gold")
     parser.add_argument("--limit", type=int, default=1, help="0 selects every manifest row")
+    parser.add_argument("--shard", default="0/1", help="k/n: this worker takes every n-th selected row from the k-th")
     parser.add_argument("--model", default="gpt-6.1-sol")
     parser.add_argument("--effort", default="medium", choices=("none", "low", "medium", "high", "xhigh", "max", "ultra"))
     parser.add_argument("--timeout", type=int, default=600)
@@ -414,6 +415,8 @@ def main():
             if not row.get("sha256"): row["sha256"]=digest((root / row["path"]).resolve())
     if args.run and args.manifest: corpus_store.register_gold_sources(gold.VERSION,rows)
     rows = rows[:args.limit] if args.limit else rows
+    shard, shards = (int(v) for v in args.shard.split("/"))
+    rows = rows[shard::shards]
     require(bool(rows) and (not args.extraction or len(rows) == 1), "Shared extraction requires one PDF")
     default_mode, default_extraction, default_structure, default_request = args.mode, args.extraction, args.structure, args.parser_request
     completed, failed = 0, []
