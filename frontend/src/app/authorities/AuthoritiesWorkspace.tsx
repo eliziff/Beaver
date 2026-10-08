@@ -1184,7 +1184,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       tab: tabLabel(reproduced + index + 1, draft.state.settings.tabStyle, draft.state.settings) })) } : undefined;
   const buildPanel = draft && stage === "build" && (app ? app.build({ draft: shown!, busy, onDownload: download,
       onBuilt: (next) => adopt(next), onError: setError }) : <BuildPanel host={host} draft={shown!} busy={busy} building={building}
-    tabs={reproduced} missing={missingPdfs.length} onReview={() => setMissingOpen("review")}
+    tabs={reproduced} missing={missingPdfs.length} finding={gatheringFor === draft.id} onReview={() => setMissingOpen("review")}
     progress={building ? message : ""} convertsWord={convertsWord}
     jurisdictionOrder={jurisdictionOrder}
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
@@ -1567,7 +1567,7 @@ export function DraftsPanel({ drafts, loading, busy, onOpen, title = "Saved draf
 }
 
 function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, onAction, sourceIssues,
-  convertsWord, linkWarnings, onRelink, files, sourceLabel, onBuild, onCancel, onDownload, tabs, missing, onReview }: {
+  convertsWord, linkWarnings, onRelink, files, sourceLabel, onBuild, onCancel, onDownload, tabs, missing, finding = false, onReview }: {
   host: AuthoritiesHost; draft: AuthoritiesProduct; busy: boolean; building: boolean;
   /** What the build is doing now. */
   progress: string;
@@ -1580,7 +1580,7 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   sourceLabel?: string;
   onDownload: (documentId: string, versionId: string, filename: string) => void;
   /** The authorities the book gives a tab, and how many of them have no PDF. */
-  tabs: number; missing: number; onReview: () => void;
+  tabs: number; missing: number; finding?: boolean; onReview: () => void;
 }) {
   const [front, setFront] = useState<"Cover" | "Index">();
   // The Book dialog's cover and index, drawn while Build is idle, so Change opens with them drawn.
@@ -1649,7 +1649,7 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
         coverDetail={generatedFederalCover && !(coverDetailsReady && filingRoleReady) ? "Details required"
           : `Generated${state.cover.title ? ` · ${state.cover.title}` : ""}`}
         indexDetail={`Generated · ${indexShows === "tabs-and-pages" ? "tabs and pages" : "tabs"}`}
-        tabs={tabs} missing={missing} onReview={onReview} />
+        tabs={tabs} missing={missing} finding={finding} onReview={onReview} />
       <OutputDock draft={draft} rows={rows} busy={busy} building={building} progress={progress} note={note}
         linkWarnings={linkWarnings} onBuild={note ? () => setFront("Cover") : onBuild} onCancel={onCancel} onDownload={onDownload} />
     </div>
@@ -1763,11 +1763,11 @@ function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
 
 /** The book, a row each for its court, cover, index and tabs: what each is, in plain words, and the
  *  button that changes it, down one column. A cover or index can be a PDF of the user's own. */
-function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, jurisdictionOrder, onCourt, coverDetail, indexDetail, tabs, missing, onReview }: {
+function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, jurisdictionOrder, onCourt, coverDetail, indexDetail, tabs, missing, finding = false, onReview }: {
   draft: AuthoritiesProduct; busy: boolean; book: boolean; lockedMode?: string; pdfs: OwnPdfs;
   onFront: (step: "Cover" | "Index") => void; jurisdictionOrder: string[]; onCourt: (profileId: AuthoritiesProfileId) => void;
   coverDetail: string; indexDetail: string;
-  tabs: number; missing: number; onReview: () => void;
+  tabs: number; missing: number; finding?: boolean; onReview: () => void;
 }) {
   const action = buildAction;
   // The court is chosen in the court chooser itself, opened by its Change.
@@ -1790,8 +1790,10 @@ function BookRows({ draft, busy, book, lockedMode, pdfs, onFront, jurisdictionOr
       detail: book && <span className="text-gray-500">Bookmarks: {draft.state.settings.bookmarks === "headings" ? "the source's own headings" : "highlighted passages"}</span>,
       button: <Button type="button" variant="outline" className={action} aria-label="Change the index" disabled={busy || !book}
         onClick={() => onFront("Index")}><SlidersHorizontal />Change</Button> },
-    { label: "Tabs", icon: missing ? CircleAlert : FileStack, value: `${tabs} ${tabs === 1 ? "authority" : "authorities"}`,
-      detail: <span className={missing ? "font-medium text-red-800" : "text-gray-500"}>{missing ? `${missing} without a PDF` : "Each with a PDF"}</span>,
+    { label: "Tabs", icon: missing && !finding ? CircleAlert : FileStack, value: `${tabs} ${tabs === 1 ? "authority" : "authorities"}`,
+      // While sources are still being gathered, an authority without a PDF may yet get one.
+      detail: <span className={missing && !finding ? "font-medium text-red-800" : "text-gray-500"}>
+        {!missing ? "Each with a PDF" : finding ? `Looking for PDFs for ${missing}` : `${missing} without a PDF`}</span>,
       button: <Button type="button" variant="outline" className={action} aria-label="Review the authorities without a PDF"
         disabled={busy || !missing} onClick={onReview}><ListChecks />Review</Button> },
   ];
