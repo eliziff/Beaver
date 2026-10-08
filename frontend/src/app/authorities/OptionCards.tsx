@@ -3,7 +3,8 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
 /** The card every Authorities choice is drawn as: a control, a name and one sentence about it.
- *  The whole card is the control's label; a chosen card turns red, an unavailable one fades. Its
+ *  The whole card is the control's label; a chosen card turns red, edged two pixels deep so its edge reads whole at
+ *  any display scaling (one pixel falls between device pixels at 125%), and an unavailable one fades. Its
  *  focus ring is its own control's: a text box inside it shows its own focus alone. */
 export function OptionCard({ type = "radio", name, checked, disabled, onChange, label, detail, preview,
   row = false, className }: {
@@ -14,7 +15,7 @@ export function OptionCard({ type = "radio", name, checked, disabled, onChange, 
   row?: boolean;
 }) {
   const id = useId();
-  return <label className={cn(CARD, row && "min-h-0 py-2", "cursor-pointer has-[:checked]:border-accent-600 has-[:checked]:bg-accent-50 [&:has(>input:focus-visible)]:ring-2 [&:has(>input:focus-visible)]:ring-accent-600 has-[:disabled]:cursor-default has-[:disabled]:opacity-60", className)}>
+  return <label className={cn(CARD, row && "min-h-0 py-2", "cursor-pointer has-[:checked]:border-accent-600 has-[:checked]:shadow-[inset_0_0_0_1px_var(--color-accent-600)] has-[:checked]:bg-accent-50 [&:has(>input:focus-visible)]:ring-2 [&:has(>input:focus-visible)]:ring-accent-600 has-[:disabled]:cursor-default has-[:disabled]:opacity-60", className)}>
     <input type={type} name={name} checked={checked} disabled={disabled} onChange={onChange}
       aria-labelledby={id} aria-describedby={detail ? `${id}-detail` : undefined} className="h-4 w-4 accent-accent-700" />
     {preview}

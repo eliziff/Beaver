@@ -26,7 +26,7 @@ export const SCANNED_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings[
   { value: "full", label: "Recognize every page",
     detail: "Recognizes the text of every scanned page." },
   { value: "cited-pages", label: "Recognize cited pages",
-    detail: "Recognizes the text of the scanned pages your brief cites, so their passages can be marked." },
+    detail: "Recognizes the scanned pages your brief cites, to mark their passages." },
   { value: "page-margin", label: "Keep scans as images",
     detail: "Keeps scanned pages as images. Their cited passages are marked in the margin." },
 ];
@@ -41,8 +41,10 @@ export const ORDER_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["t
   { value: "custom", label: "As arranged", detail: "Keeps the order you set by dragging in Sources." },
 ];
 export const HISTORY_OPTIONS: ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildSettings["subsequentHistory"]>>> = [
-  { value: "include", label: "Include subsequent history in book" },
-  { value: "omit", label: "Do not include subsequent history in book" },
+  { value: "include", label: "Include subsequent history in book",
+    detail: "Gives each decision in a case’s later history its own tab." },
+  { value: "omit", label: "Do not include subsequent history in book",
+    detail: "Keeps a case’s later history in its citation only." },
 ];
 type SourceSettings = Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy" | "grouping" | "tableOrder" | "subsequentHistory">;
 /** The sources' settings as cards, two columns: the same at import and, opened, at Sources. */
