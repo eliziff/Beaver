@@ -6,6 +6,9 @@ scores each run's saved baseline instead. The latest summary is written to
 <out>/score/latest.json; `--against` prints the change from an earlier summary.
 """
 import argparse
+import hashlib
+import os
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
@@ -28,12 +31,27 @@ def completed(out):
             yield mode, receipt.parent, value
 
 
+def addon_sha256():
+    # The addon extract.mjs will load: a pinned one, or the most recently built.
+    pinned = os.environ.get('LEGAL_STRUCTURE_ADDON')
+    built = [ROOT / 'native/legal-structure-node/target' / p / 'legal_structure_node.dll' for p in ('debug', 'release')]
+    chosen = Path(pinned) if pinned else max((p for p in built if p.exists()), key=lambda p: p.stat().st_mtime)
+    return hashlib.sha256(chosen.read_bytes()).hexdigest()
+
+
 def candidate(pdf, mode, cache, request):
     # Parse with the request the gold was made from, so source lines stay comparable.
     # Its Tesseract timeout only bounds the wait, so a loaded machine may wait longer.
     if request.get('ocr', {}).get('provider') == 'tesseract':
         request = {**request, 'ocr': {**request['ocr'], 'settings': {**request['ocr'].get('settings', {}), 'timeout_seconds': 1200}}}
     cache.mkdir(parents=True, exist_ok=True)
+    # Copy an earlier build's recognition forward (its cache key names the OCR code), so a
+    # new build reruns extraction and structure but not OCR.
+    sha, binary = worker.digest(pdf), addon_sha256()
+    for previous in sorted((cache / sha).glob('*/*/parse-v1/recognition'), key=lambda p: p.stat().st_mtime, reverse=True):
+        target = cache / sha / binary / previous.parents[1].name / 'parse-v1' / 'recognition'
+        if previous.parents[2].name != binary and not target.exists():
+            shutil.copytree(previous, target)
     saved = cache / f'request-{worker.fingerprint(request)[:16]}.json'
     saved.write_text(json.dumps(request), encoding='utf-8')
     process = subprocess.run(['node', str(HERE / 'extract.mjs'), str(pdf), str(cache), mode, str(saved)],
@@ -50,8 +68,9 @@ def main():
     parser.add_argument('--against', type=Path, help='Earlier summary to compare with')
     parser.add_argument('--workers', type=int, default=2)
     parser.add_argument('--show', action='store_true', help='Print per-run F1 for each layer')
+    parser.add_argument('--runs', nargs='*', default=[], help='Score only runs whose source SHA256 starts with one of these')
     args = parser.parse_args()
-    runs = list(completed(args.out))
+    runs = [r for r in completed(args.out) if not args.runs or any(r[1].parent.name.startswith(p) for p in args.runs)]
     earlier = {row['run']: row for row in worker.read_json(args.against)['per_run'] if 'metrics' in row} if args.against else {}
     cache = args.out / 'score' / 'candidates'
 
@@ -88,7 +107,7 @@ def main():
                'errors': [r for r in results if 'error' in r], 'totals': totals,
                'per_run': [{'run': r['run'], 'metrics': {k: {c: v[c] for c in ('expected', 'predicted', 'correct', 'f1')}
                                                           for k, v in r['metrics'].items()}} for r in scored]}
-    destination = args.out / 'score' / ('saved.json' if args.saved else 'latest.json')
+    destination = args.out / 'score' / ('saved.json' if args.saved else 'subset.json' if args.runs else 'latest.json')
     worker.write_json(destination, summary)
     # Compare only the runs both summaries scored, so new gold does not move the deltas.
     before = {}
