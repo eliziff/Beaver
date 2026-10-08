@@ -612,7 +612,7 @@ function withinTwoEdits(left: string, right: string) {
 
 /** Stateless local-runtime import; the browser remains the draft/file owner. */
 /** A link written without its scheme ("online: <example.org/report>") is the web address it names. */
-const withScheme = (link: unknown) => typeof link === "string" && /^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#]|$)/iu.test(link)
+export const withScheme = (link: unknown) => typeof link === "string" && /^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#]|$)/iu.test(link)
   ? `https://${link}` : link;
 
 export async function importStandaloneAuthoritiesFile(input: {
