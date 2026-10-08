@@ -226,7 +226,7 @@ def initial(structure, pages):
             "relationship":None,"title":[],"facets":{}})
     state={"lines":list(lines.values()),"groups":groups,"annotations":annotations,
            "reading_order":list(lines),"joins":{},"continuations":{},"resumes":{},"operations":[],"removed_nodes":[],
-           "native_nodes":[deepcopy(n) for n in nodes.values() if n["kind"] not in {"page","paragraph","prose","heading","list_item","footnote","endnote","table","row","cell"}]}
+           "native_nodes":[{**deepcopy(n),"line_ids":n.get("line_ids",[])} for n in nodes.values() if n["kind"] not in {"page","paragraph","prose","heading","list_item","footnote","endnote","table","row","cell"}]}
     # Preserve native cross-page grouping as editable baseline continuation.
     by_native={}
     for g in groups:
