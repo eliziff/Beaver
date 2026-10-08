@@ -11,7 +11,8 @@ if (!pdf || !output || !['digitalborn', 'ocr'].includes(mode))
   throw new Error('Usage: node extract.mjs PDF OUTPUT_DIRECTORY digitalborn|ocr');
 const root = path.resolve(import.meta.dirname, '../..');
 const addonRoot = path.join(root, 'native/legal-structure-node');
-const binary = defaultNativeAddon(addonRoot);
+// LEGAL_STRUCTURE_ADDON pins one built addon while other builds replace the newest.
+const binary = process.env.LEGAL_STRUCTURE_ADDON || defaultNativeAddon(addonRoot);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const bytes = readFileSync(pdf), sha256 = hash(bytes), binarySha256 = hash(readFileSync(binary));
 // Parse as the app does: its configured profile, which routes pages to OCR itself.
