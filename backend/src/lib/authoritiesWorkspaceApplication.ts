@@ -133,6 +133,8 @@ export function createAuthoritiesWorkspaceApplication(
             version: { versionId: saved.current_version_id, sha256: saved.source_sha256 } },
           saved.filename, saved.source_sha256, attachment.language, attachment);
       }
+      // Finding sources is no step the user takes: the draft stays at the step it was on (authoritiesOperations.ts).
+      if (draft.stage !== initial.stage) draft = { ...draft, stage: initial.stage };
       return { draft, created };
     }, "Authority sources could not be saved or rolled back");
   }

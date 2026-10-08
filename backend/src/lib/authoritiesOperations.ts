@@ -310,8 +310,12 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       reject(409, "This authority has nothing to retry.");
     const prepared = await resolveSources(current, undefined, context.signal, onlyAuthorityId, progress,
       input?.keptOnly === true);
-    return draftResult(await attachPreparedSources(prepared.draft, prepared.attachments, progress),
-      prepared.attachments);
+    const state = await attachPreparedSources(prepared.draft, prepared.attachments, progress);
+    // Finding sources is no step the user takes. A PDF found, or a case handed to CanLII, would send a draft past
+    // Citations back to Sources as one the user attaches does; sources gathered in the background land on whatever
+    // step the user has reached meanwhile, and leave them there.
+    if (state.stage !== current.stage) state.stage = current.stage;
+    return draftResult(state, prepared.attachments);
     },
     // The other citations of a citation's authority that a link given to it would carry to (authoritiesLinkPropagation.ts).
     "link-propagation": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> =>
