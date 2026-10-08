@@ -1065,7 +1065,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     try {
       // Gathered beside the queue of the user's changes, never in it, and on past Citations: nothing the user does or
       // opens waits on a download. A change that lands meanwhile makes this gathering's save too late; it is made
-      // again on the newer draft, reading what it already fetched.
+      // again on the newer draft, reading what it already fetched, once the changes queued meanwhile have saved.
       const gather = (latest: AuthoritiesProduct) => host.prepareSources(latest, request.signal, undefined, noteSources);
       let next: AuthoritiesProduct | undefined;
       for (let attempt = 1; !next; attempt += 1) {
@@ -1073,8 +1073,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         if (request.signal.aborted || latest?.id !== current.id) return;
         try { next = await gather(latest); }
         catch (caught) {
-          if ((caught as { status?: number })?.status !== 409) throw caught;
-          if (attempt === 3) next = await queuedSave(current.id, gather);
+          if ((caught as { status?: number })?.status !== 409 || attempt === 6) throw caught;
+          await actionQueue.current;
         }
       }
       sourcesNote.current = "";
