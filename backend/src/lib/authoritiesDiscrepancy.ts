@@ -233,8 +233,9 @@ export function editorialQuote(authoredQuote: string, sourceQuote: string) {
           ? `[${written[0]}]${written.slice(1)}` : item;
     }));
     else if (tag === "delete") {
-      if (source.slice(i1, i2).some((item) => word.test(item)) && output.length && j1 < authored.length) {
-        if (output.at(-1) !== "...") output.push("...");
+      // Source words left out inside the quotation are an ellipsis; those before or after it are not quoted.
+      if (source.slice(i1, i2).some((item) => word.test(item))) {
+        if (output.length && j1 < authored.length && output.at(-1) !== "...") output.push("...");
       } else output.push(...source.slice(i1, i2));
     } else output.push(...formatAuthored(authored.slice(j1, j2),
       tag === "replace" ? source.slice(i1, i2) : undefined));
