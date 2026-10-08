@@ -267,11 +267,14 @@ const run = <T>(work: (context: PaneContext) => Promise<T>) => {
 /** Whether the page runs in a Word that has what the pane needs: "ready", or why not ("no-word": not in an
  *  Office add-in, or Office.js did not load; "other-host"; "old-word": no WordApi `version`). */
 export async function wordPaneStatus(version = "1.6") {
-    const { office, word } = pane();
-    if (!office || !word) return { status: "no-word" as const };
+    // Office.js defines Word's API only once it has loaded the host's own script, after office.js itself: ask Word for
+    // nothing before onReady.
+    const { office } = pane();
+    if (!office) return { status: "no-word" as const };
     const ready = await office.onReady();
     if (!ready.host) return { status: "no-word" as const };
     if (ready.host !== office.HostType.Word) return { status: "other-host" as const };
+    if (!pane().word) return { status: "no-word" as const };
     if (!office.context.requirements.isSetSupported("WordApi", version)) return { status: "old-word" as const };
     return { status: "ready" as const, name: (await wordDocumentContext()).document_name };
 }
