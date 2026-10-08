@@ -85,7 +85,7 @@ export interface AuthoritiesHost {
   download(documentId: string, versionId: string): Promise<Blob>;
   /** Checks the draft's quotations against their sources, PDFs attached for its authorities included:
    *  the quote check's result. `options` go to the runtime's "quote-check" with the draft (an app's own choices,
-   *  such as allCitations, quoteContext or excludedProviders). */
+   *  such as allCitations, quoteContext, quotations or excludedProviders). */
   checkQuotes?(product: AuthoritiesProduct, progress?: (message: string) => void, signal?: AbortSignal,
     options?: Record<string, unknown>): Promise<unknown>;
   searchLibrary?(query: string, context?: { projectId?: string | null;

@@ -82,7 +82,9 @@ export function footnotePropositions(units: Units, context: QuoteContext = "pass
     const passage = Math.max(previous, previous ? 0 : Math.min(introduction, position)); previous = position;
     while (first < parts.length && parts[first].start + parts[first].unit.text.length <= passage) first += 1;
     if (counts.get(id) !== 1 || position <= passage) continue;
-    const [start, end] = context === "sentence" ? markerSentence(text, position, after) : [passage, position];
+    const [sentence, end] = context === "sentence" ? markerSentence(text, position, after) : [passage, position];
+    // The first note's sentence, too, starts after the Introduction heading.
+    const start = context === "sentence" && passage > 0 && passage === introduction ? Math.max(sentence, passage) : sentence;
     if (context === "sentence") after = end;
     if (start >= end) continue;
     const covered: Array<{ unit: Units[number]; start: number; end: number }> = [];
