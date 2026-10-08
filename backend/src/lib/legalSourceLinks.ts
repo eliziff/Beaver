@@ -440,6 +440,22 @@ export function buildA2AJDocumentPinpointUrl(
   return buildA2AJWebPinpointUrl(source, plan) ?? usablePublisher?.target ?? null;
 }
 
+/** The engine's text fragment plan, a pure reading of a block, its quotations and its document (by revision), kept
+ *  for the passages planned most recently: a quote check plans a link and the workbook it feeds plans it again. */
+const PLANS_KEPT = 512;
+const plans = new Map<string, ReturnType<ReturnType<typeof structureNative>["textFragmentPlan"]>>();
+function plannedFragments(blockText: string, quotes: string[], pdf: boolean, annotated: boolean, split: boolean,
+  document: NativeDocument) {
+  const engine = structureNative();
+  const key = JSON.stringify([engine.documentRevision(document), blockText, quotes, pdf, annotated, split]);
+  let plan = plans.get(key);
+  if (plan) plans.delete(key);
+  else plan = engine.textFragmentPlan(blockText, quotes, pdf, annotated, split, document);
+  plans.set(key, plan);
+  if (plans.size > PLANS_KEPT) plans.delete(plans.keys().next().value!);
+  return plan;
+}
+
 export function buildLegalSourcePinpoint(
   evidence: LegalSourceEvidence,
   quotes: string[],
@@ -450,7 +466,7 @@ export function buildLegalSourcePinpoint(
   if (!evidence.blockText) return { target: baseUrl, plan: null };
   const plan = (url: string, pdf: boolean) => {
     const fragmentPlan = (splitHtmlSourceBlocks: boolean) =>
-      structureNative().textFragmentPlan(evidence.blockText, quotes, pdf,
+      plannedFragments(evidence.blockText, quotes, pdf,
         publisherMayAnnotateLegalReference(url), splitHtmlSourceBlocks,
         evidence.documentText);
     const base = fragmentPlan(false);
