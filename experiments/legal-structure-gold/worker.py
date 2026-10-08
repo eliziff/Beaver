@@ -438,7 +438,7 @@ def main():
                          "model": args.model, "effort": args.effort, "workers": 1}), flush=True)
         try:
             run(pdf, row, args)
-        except ValueError as exc:
+        except (ValueError, KeyError, TypeError, IndexError) as exc:
             # A PDF whose parse or replies fail the contract keeps its failed receipt and is
             # retried on the next run; provider failures (RuntimeError) still stop the batch.
             print(str(exc), file=sys.stderr, flush=True)
