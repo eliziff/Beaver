@@ -52,7 +52,7 @@ change the binary mid-run. Recognition is cached per OCR code and carried to the
 next binary. Layers, micro-averaged:
 
 - `notes`: note label value on the label's page;
-- `references`: reference marker value on its page;
+- `references`: a reference to the note value on its page (the note it belongs to, so a misread marker glyph still counts);
 - `positions`: references whose one of two preceding words matches the gold line;
 - `pairs`: reference page and value with the label page and value.
 
