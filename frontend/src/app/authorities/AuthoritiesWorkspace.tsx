@@ -105,19 +105,11 @@ type DiscrepancyHandler = (finding: Finding,
  *  the settings every document starts with (the import's choices are then not asked), and its own
  *  last step and settings in place of the book's. */
 export type AuthoritiesApp = {
-  title: string; className: string;
-  /** `action`: the start button's label, where the app reads its file from elsewhere (the open Word document). */
-  start: { title: string; detail: string; accept: string; action?: string };
-  settings: NonNullable<Parameters<AuthoritiesHost["create"]>[0]["settings"]>;
+  className: string;
   steps: Partial<Record<Step, string>>;
   build: (props: { draft: AuthoritiesProduct; busy: boolean;
     onDownload: (documentId: string, versionId: string, filename: string) => void;
     onBuilt: (next: AuthoritiesProduct) => void; onError: (message: string) => void }) => ReactNode;
-  preferences?: ReactNode;
-  /** The Drafts tab's panel, in place of the saved drafts list; `onOpen` opens a draft. */
-  drafts?: (props: { busy: boolean; onOpen: (id: string) => void }) => ReactNode;
-  /** Whether the citation review has a row for a citation's own link, offered to the authority's other citations. */
-  citationLinks?: boolean;
   /** For an app that opens one draft at a time from its own list (`initialDraftId`): the workspace shows only that
    *  draft's steps, with no sections, New or Settings (the app has its own), and Back calls this. */
   close?: () => void;
@@ -701,7 +693,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const request = ++importRequest.current, title = name.replace(/\.[^.]+$/u, "") || "Authorities";
     // An app's documents start with its settings, and go straight on to their sources.
     if (!app) setPendingImport({ file: name, finishing: false, error: "" });
-    staged.current = host.create({ source, title, projectId, settings: app?.settings ?? preferences }).then((next) => {
+    staged.current = host.create({ source, title, projectId, settings: preferences }).then((next) => {
       if (request !== importRequest.current) { void host.drafts.remove(next.id).catch(() => undefined); return undefined; }
       adopt(next, true);
       if (app) findSources();
@@ -1303,7 +1295,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         onBack={app?.close ?? (() => newDraft(false))} onRename={rename} onDuplicate={duplicate}
         onDelete={removeDraft} headerActions={app?.close ? headerActions
           : <>{sections}{newAction}{headerActions}{settingsAction}</>} />
-        : <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} title={app?.title ?? "Authorities"}
+        : <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} title="Authorities"
           headerActions={<>{sections}{newAction}{headerActions}{settingsAction}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
           <main className={cn(FRAME, "min-h-80", stepping ? "pt-1" : "pt-4", reviewing ? "pb-0" : "pb-4")}>
@@ -1313,10 +1305,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         {loading || (!requested &&
           !!localStorage.getItem(lastDraftKey(projectId, host.mode)) &&
           restoredScope !== (projectId ?? "local")) ? <Loading /> : tab === "drafts"
-          ? (app?.drafts ?? ((props) => <DraftsPanel drafts={drafts} loading={draftsLoading} {...props} />))({ busy,
-              onOpen: (id) => void run(() => host.drafts.get<AuthoritiesProduct["state"]>(id), (next) => {
+          ? <DraftsPanel drafts={drafts} loading={draftsLoading} busy={busy}
+              onOpen={(id) => void run(() => host.drafts.get<AuthoritiesProduct["state"]>(id), (next) => {
                 adopt(next, true);
-              }, "", "Opening draft") })
+              }, "", "Opening draft")} />
             : !draft
               ? tab === "manual"
                 ? <ManualStart title={manualTitle} busy={busy} onTitle={setManualTitle}
@@ -1326,7 +1318,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     onLibrary={attachLibraryAvailable ? () => openLibrary({ kind: "manual" }) : undefined}
                     sourceLabel={sourceLabel}
                     onFiles={(files) => appendManual(files.map((file) => ({ file })))} />
-                : <AutomaticStart busy={busy} copy={app?.start}
+                : <AutomaticStart busy={busy}
                     onPick={host.pickFiles ? () => void pickFiles(false, "source",
                       (files) => queueFile(files[0])) : undefined}
                     onFile={(file) => queueFile(file && { file })}
@@ -1374,7 +1366,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={findings} check={currentReview || reviewError ? "done" : reviewKey || !app && sourcesFound.id !== draft.id ? "running" : sourcesFound.failed ? "failed" : "unavailable"} hidden={!reviewing}
                       busy={busy} onSelect={setSelectedId} onAction={act} onHistory={travel}
-                      reveal={revealed} links={!!app?.citationLinks} review={app?.review !== false} onFocusChange={onFocusChange} onReview={openFinding} />
+                      reveal={revealed} review={app?.review !== false} onFocusChange={onFocusChange} onReview={openFinding} />
                   </section></div>}
                   {reviewing && quotationReview && <div ref={revealFinding}>{quotationReview}</div>}
                   </div>
@@ -1389,7 +1381,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         onSelect={chooseLibrary} onClose={() => setLibraryTarget(undefined)} />}
       {host.outputFolder && <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} size="xl"
         breadcrumbs={["Settings"]} fit primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
-        <div className="grid gap-5 pb-4">{app?.preferences}<OutputFolderSetting port={host.outputFolder} busy={busy} />
+        <div className="grid gap-5 pb-4"><OutputFolderSetting port={host.outputFolder} busy={busy} />
           {host.clearData && <ClearDataSetting clear={host.clearData} busy={busy} />}</div>
       </Modal>}
       {pendingImport && <ImportWizard key={importRequest.current} file={pendingImport.file} host={host}
@@ -1505,18 +1497,18 @@ function Loading() {
   </div>;
 }
 
-function AutomaticStart({ busy, onFile, onPick, onLibrary, sourceLabel = "Library", copy }: {
-  busy: boolean; onFile: (file?: File) => void; copy?: AuthoritiesApp["start"];
+function AutomaticStart({ busy, onFile, onPick, onLibrary, sourceLabel = "Library" }: {
+  busy: boolean; onFile: (file?: File) => void;
   onPick?: () => void; onLibrary?: () => void; sourceLabel?: string;
 }) {
   return <section className="max-w-xl rounded-xl border border-gray-300 bg-white p-4 shadow-sm sm:p-5">
     <div className="flex items-center gap-3"><Scale className="h-6 w-6 shrink-0 text-accent-700" aria-hidden="true" />
-      <div className="min-w-0"><h2 className="font-semibold text-gray-950">{copy?.title ?? "Import and review"}</h2>
-        <p className="text-sm text-gray-600">{copy?.detail ?? "Add a factum, brief, or other PDF or Word document."}</p></div></div>
+      <div className="min-w-0"><h2 className="font-semibold text-gray-950">Import and review</h2>
+        <p className="text-sm text-gray-600">Add a factum, brief, or other PDF or Word document.</p></div></div>
     <div className="mt-5 flex flex-wrap gap-2">
       {onPick ? <Button type="button" disabled={busy} onClick={onPick}>
-        <FilePlus2 /> {copy?.action ?? "Add file"}</Button> : <FileInputButton multiple={false} disabled={busy}
-          label="Add file" accept={copy?.accept ?? ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+        <FilePlus2 /> Add file</Button> : <FileInputButton multiple={false} disabled={busy}
+          label="Add file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onFiles={(files) => onFile(files[0])} />}
       {onLibrary && <Button type="button" variant="outline" className="border-gray-400"
         disabled={busy} onClick={onLibrary}><FolderSearch /> {sourceLabel}</Button>}
