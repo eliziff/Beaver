@@ -251,21 +251,18 @@ async function decisiaPdf(rawUrl: string | null, signal?: AbortSignal) {
  *  colons and the like as query syntax, and refuses "[2016] OJ No 1" as a query it cannot parse. */
 const literalQuery = (text: string) => text.replace(/[+\-=&|<>!(){}[\]^"~*?:\\/]/gu, "\\$&");
 
-// A2AJ limits clients that ask in bursts: its requests go one after another, never at once, and
-// each starts at least this long after the one before it.
-const REQUEST_SPACING_MS = 250;
-let line: Promise<unknown> = Promise.resolve();
-let lastSent = 0;
-function inTurn<T>(work: () => Promise<T>) {
-  const paced = async () => {
-    const wait = lastSent + REQUEST_SPACING_MS - Date.now();
-    if (wait > 0 && wait <= REQUEST_SPACING_MS) await new Promise((resolve) => setTimeout(resolve, wait));
-    lastSent = Date.now();
-    return work();
-  };
-  const turn = line.then(paced, paced);
-  line = turn.catch(() => undefined);
-  return turn;
+// A2AJ's limits, as its API documents them (api.a2aj.ca/openapi.json): 1,000 requests an hour and 5,000 a day for an IP
+// address. A request that would pass either waits as A2AJ's own limit would hold it, so A2AJ is never asked past them.
+const LIMITS = [{ requests: 1000, ms: 60 * 60_000 }, { requests: 5000, ms: 24 * 60 * 60_000 }];
+const sent: number[] = [];
+function withinLimits() {
+  const now = Date.now();
+  while (sent.length && sent[0] <= now - LIMITS[1].ms) sent.shift();
+  for (const { requests, ms } of LIMITS) {
+    const recent = sent.filter((time) => time > now - ms);
+    if (recent.length >= requests) throw pause("rate-limited", null, recent[0] + ms - now);
+  }
+  sent.push(now);
 }
 
 async function request(
@@ -283,15 +280,15 @@ async function request(
   const value = await cachedContent({
     scope: "shared", kind: "legal-source-a2aj", key: url, version: 1,
     ...(immutable ? {} : { ttlMs: 24 * 60 * 60_000 }),
-    // One request at a time, a limit applying to every one still waiting its turn.
-    produce: () => inTurn(async () => {
+    produce: async () => {
       signal?.throwIfAborted();
       if (Date.now() < paused.until) throw held(paused.reason, paused.named ? paused.until : null, paused.until);
+      withinLimits();
       const response = await send(url, signal);
       const body = await response.json().catch(() => null);
       if (!response.ok) throw apiError(response.status, body);
       return object(body) ?? {};
-    }),
+    },
   });
   signal?.throwIfAborted();
   return value;
@@ -698,5 +695,5 @@ export const a2ajLegalSourceProvider = Object.assign(provider, {
   document,
   viewer,
   coverage,
-  clearCache: () => { documents.clear(); paused = { until: 0, reason: "rate-limited", named: false }; lastSent = 0; },
+  clearCache: () => { documents.clear(); paused = { until: 0, reason: "rate-limited", named: false }; sent.length = 0; },
 });
