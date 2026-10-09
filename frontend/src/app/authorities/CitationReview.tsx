@@ -247,7 +247,7 @@ function AuthorityPicker({ options, current, currentLabel, currentItalic = 0, bu
 /** While unseen it is not drawn again: what changed meanwhile is marked when it is shown. */
 export const CitationReview = memo(Review, (before, after) => !!before.hidden && !!after.hidden);
 function Review({ product, host, sourceVersion, occurrences, selected, authorities, discrepancies, check = 'done',
-  busy, hidden = false, reveal = 0, links = false, onSelect, onAction, onHistory, onReview, onFocusChange }: {
+  busy, hidden = false, reveal = 0, links = false, review = true, onSelect, onAction, onHistory, onReview, onFocusChange }: {
   product: AuthoritiesProduct; host: AuthoritiesHost; sourceVersion: number;
   occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence; authorities: AuthorityIdentity[];
   discrepancies: Finding[]; busy: boolean;
@@ -259,7 +259,9 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   /** Counts the times the selected citation is to be brought into view from outside (a finding opened). */
   reveal?: number;
   /** Whether the bar has a row for the citation's own link (AuthoritiesApp.citationLinks). */
-  links?: boolean; onSelect(id: string): void;
+  links?: boolean;
+  /** Whether the quotation and citation check shows: its line atop the list and its button in the bar (AuthoritiesApp.review). */
+  review?: boolean; onSelect(id: string): void;
   onAction(action: AuthoritiesAction, done?: (next: AuthoritiesProduct) => void): void;
   /** Takes the last review edit back (`true`) or makes it again; false when there is none. */
   onHistory(back: boolean): boolean;
@@ -756,7 +758,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       if (id) choose(id, true);
     }}>
       {/* What the quotation and citation check found, on a line always there, so the list never moves. */}
-      <div className="citation-findings" role="status">
+      {review && <div className="citation-findings" role="status">
         {check === 'running' ? <span>Checking quotations and citations…</span> : discrepancies.length
           ? <><span>{discrepancies.length} to review</span>
             <button type="button" onClick={event => { event.stopPropagation(); onReview(discrepancies[0].id); }}>Review</button></>
@@ -764,7 +766,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
             // Without a cited decision whose text it reads, the review checks the citations alone.
             : check === 'unavailable' ? 'No citation to review'
             : 'No quotation or citation to review'}</span>}
-      </div>
+      </div>}
       {/* With none found, the brief still shows, so citations can be added from it by hand. */}
       {!navigation.length && <p className="citation-none">No citations were found. Select one in the brief and choose Add citation.</p>}
       {outline}
@@ -823,14 +825,14 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
         busy={busy || !reference || !options.length && !linked} onPick={link} />
       {/* What the quote check found for this citation: lit when there is something, opening the brief's
           words beside the source's. */}
-      <button type="button" className="citation-quote" disabled={!finding}
+      {review && <button type="button" className="citation-quote" disabled={!finding}
         aria-label={!finding ? 'No quote issue' : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong'
           : finding.kind === 'quote_unlocated' ? 'Quote not found in source' : finding.kind === 'different_case'
             ? 'Citation names a different case' : 'Quote differs from source'}
         title={!finding ? 'No quote issue' : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong: open it'
           : finding.kind === 'quote_unlocated' ? 'Quote not found in source: open it' : finding.kind === 'different_case'
             ? 'Citation names a different case: open it' : 'Quote differs from source: open it'}
-        onClick={() => finding && onReview(finding.id)}><TextQuote aria-hidden="true" /></button>
+        onClick={() => finding && onReview(finding.id)}><TextQuote aria-hidden="true" /></button>}
       <span className="citation-label" data-row="2" aria-hidden="true">Pinpoints</span>
       <PinpointChips occurrence={selected} unitText={unit?.text ?? ''} adding={!!pinTarget()} hint={pinHint()}
         onSet={pinpoints => selected && submit({ type: 'set-pinpoints', occurrenceId: selected.id, pinpoints })} onAdd={() => addPinpoint()} />
