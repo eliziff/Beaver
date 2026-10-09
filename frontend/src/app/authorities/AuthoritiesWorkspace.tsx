@@ -126,6 +126,9 @@ export type AuthoritiesApp = {
   embedded?: { stage: Step; onNext?: () => void;
     /** The app is looking up the draft's sources itself: a row without its PDF yet says it is being looked for. */
     finding?: boolean };
+  /** False for an app that checks quotations later, in a step of its own: Citations runs no quotation and citation
+   *  check, and shows no findings. */
+  review?: false;
   /** The documents citing each authority, where the draft gathers several documents' authorities. */
   citedIn?: ReadonlyMap<string, string>;
 };
@@ -442,7 +445,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   useEffect(() => {
     reviewRequest.current?.abort();
     // currentReview ignores a stored review for another draft or key, so none is cleared here.
-    if (!draftId || !host.review || !reviewKey) return;
+    if (!draftId || !host.review || !reviewKey || app?.review === false) return;
     const request = new AbortController(); reviewRequest.current = request;
     const id = draftId, key = reviewKey;
     void host.review(id, request.signal).then((items) => {
@@ -468,7 +471,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // The list keeps the last check's findings while the next one runs, so its marks never blink.
   const quoteFindings = useMemo(() => review && review.id === draftId ? review.items : [], [review, draftId]);
   // The check's findings and the citations that name a different case, in the brief's reading order.
-  const findings = useMemo(() => allFindings(shown, quoteFindings), [shown, quoteFindings]);
+  const findings = useMemo(() => app?.review === false ? [] : allFindings(shown, quoteFindings), [shown, quoteFindings, app?.review]);
   const openFindings = useMemo(() => allFindings(shown, discrepancies), [shown, discrepancies]);
   const selected = occurrences.find(({ id }) => id === selectedId) ?? occurrences[0];
   const selectedRef = useRef(selected?.id);
@@ -1371,7 +1374,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={findings} check={currentReview || reviewError ? "done" : reviewKey || !app && sourcesFound.id !== draft.id ? "running" : sourcesFound.failed ? "failed" : "unavailable"} hidden={!reviewing}
                       busy={busy} onSelect={setSelectedId} onAction={act} onHistory={travel}
-                      reveal={revealed} links={!!app?.citationLinks} onFocusChange={onFocusChange} onReview={openFinding} />
+                      reveal={revealed} links={!!app?.citationLinks} review={app?.review !== false} onFocusChange={onFocusChange} onReview={openFinding} />
                   </section></div>}
                   {reviewing && quotationReview && <div ref={revealFinding}>{quotationReview}</div>}
                   </div>
