@@ -121,6 +121,13 @@ export type AuthoritiesApp = {
   /** For an app that opens one draft at a time from its own list (`initialDraftId`): the workspace shows only that
    *  draft's steps, with no sections, New or Settings (the app has its own), and Back calls this. */
   close?: () => void;
+  /** For an app that lays several drafts' steps out itself: the workspace shows the draft at this step alone, under
+   *  the app's own header and steps, with no header or steps of its own; its Next calls `onNext`. */
+  embedded?: { stage: Step; onNext?: () => void;
+    /** The app is looking up the draft's sources itself: a row without its PDF yet says it is being looked for. */
+    finding?: boolean };
+  /** The documents citing each authority, where the draft gathers several documents' authorities. */
+  citedIn?: ReadonlyMap<string, string>;
 };
 
 /** What decides a draft's sources: its authorities, as cited and kept, and how sources are made.
@@ -1140,10 +1147,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // back (an edit) or on (Next), it lapses, and never comes back when the draft returns there.
   const [viewedFor, setViewedFor] = useState(stepKey);
   if (viewedFor !== stepKey) { setViewedFor(stepKey); if (viewedStep) setViewedStep(undefined); }
-  const stage = viewedStep?.key === stepKey ? viewedStep.value : reached;
+  const stage = app?.embedded?.stage ?? (viewedStep?.key === stepKey ? viewedStep.value : reached);
   // Each source's marks are prepared while Sources or Highlights is on screen, so Highlights opens
   // them at once; never during the review or a build, which would wait behind it.
-  useHighlightsAhead(host, draft && (stage === "sources" || stage === "highlights") ? draft : undefined, ocr.tracked);
+  useHighlightsAhead(host, draft && (!app || "highlights" in app.steps) && (stage === "sources" || stage === "highlights")
+    ? draft : undefined, ocr.tracked);
   const statuteCopies = useStatuteCopies(host, draft, shown, stage === "sources" || stage === "highlights");
   // Once in a browser: the first time Sources settles, nothing fetching, with authorities still
   // needing a PDF, what to do about them. Storage that can't be read means no explainer.
@@ -1261,7 +1269,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   if (reviewing && reviewed !== draft.id) setReviewed(draft.id);
   // An edit still saving takes the draft back to Citations when it lands, so Next waits for it
   // and finds the sources again, as it does once the edit has landed.
-  const stepNext = reviewing ? () => reached === "citations" || edits.current.length ? findSources() : viewStep("sources")
+  const stepNext = app?.embedded ? app.embedded.onNext : reviewing ? () => reached === "citations" || edits.current.length ? findSources() : viewStep("sources")
     // Next goes straight on: scans are read in the background as the draft's scanned-PDF choice
     // says, each row showing how far, and nothing waits on them.
     : stage === "sources" ? () => advance(app ? "build" : "highlights")
@@ -1273,9 +1281,21 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     className="min-h-0 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:justify-between max-[22rem]:[&_.tab-list]:gap-0 max-[22rem]:[&_[role=tab]]:px-1" />;
   const statusLine = <Status busy={busy} inline={!!draft && tab !== "drafts"}
     busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />;
+  const stepActions = <>{statusLine}
+    {/* The brief itself, unreadable on any step: allowed again, or found where it was moved. */}
+    {importedRole && host.relinkSource && (relinkable(importedIssue) || briefMoved) && <Button type="button"
+      variant="outline" className="h-9 border-gray-400" disabled={busy}
+      onClick={() => relinkSource(importedRole)}><FilePlus2 />
+      {briefMoved ? "Reconnect" : "Allow file access"}</Button>}
+    <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
+      error={stepError} className="min-w-0" />
+    {/* Every step's Next sits here; the last step keeps its room. */}
+    <Button className={cn("h-9", !stepNext && "invisible")} aria-hidden={!stepNext || undefined}
+      tabIndex={stepNext ? undefined : -1} disabled={busy || !stepNext}
+      onClick={stepNext}>Next<ChevronRight /></Button></>;
   return <div className={cn("authorities-workspace @container/workspace relative bg-app-background [scrollbar-gutter:stable]", app?.className,
-    host.mode === "standalone" ? "h-dvh overflow-y-auto" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
-    {draft ? <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} current={draft}
+    app?.embedded ? "" : host.mode === "standalone" ? "h-dvh overflow-y-auto" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
+    {app?.embedded ? null : draft ? <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
         onBack={app?.close ?? (() => newDraft(false))} onRename={rename} onDuplicate={duplicate}
         onDelete={removeDraft} headerActions={app?.close ? headerActions
@@ -1310,34 +1330,26 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     onLibrary={libraryAvailable ? () => openLibrary({ kind: "import" }) : undefined}
                     sourceLabel={sourceLabel} />
               : <>
-                  <TabList value={stage} onValueChange={viewStep} options={steps}
+                  {app?.embedded ? <div className="flex min-h-9 items-center justify-end gap-3">{stepActions}</div>
+                  : <TabList value={stage} onValueChange={viewStep} options={steps}
                     ariaLabel="Book steps" variant="subtab" panelId="authorities-step"
                     // The steps keep a fixed share of the row, and the actions the height of Next, so no
                     // status or action moves them or the step below.
                     className="gap-3 [&_[role=tab]]:text-sm [&_.tab-list]:w-[min(40rem,60%)] [&_.tab-list]:flex-none [&>[data-tabs-actions]]:min-h-9 [&>[data-tabs-actions]]:min-w-0 [&>[data-tabs-actions]]:flex-1 [&>[data-tabs-actions]]:justify-end"
-                    actions={<>{statusLine}
-                      {/* The brief itself, unreadable on any step: allowed again, or found where it was moved. */}
-                      {importedRole && host.relinkSource && (relinkable(importedIssue) || briefMoved) && <Button type="button"
-                        variant="outline" className="h-9 border-gray-400" disabled={busy}
-                        onClick={() => relinkSource(importedRole)}><FilePlus2 />
-                        {briefMoved ? "Reconnect" : "Allow file access"}</Button>}
-                      <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
-                        error={stepError} className="min-w-0" />
-                      {/* Every step's Next sits here; the last step keeps its room. */}
-                      <Button className={cn("h-9", !stepNext && "invisible")} aria-hidden={!stepNext || undefined}
-                        tabIndex={stepNext ? undefined : -1} disabled={busy || !stepNext}
-                        onClick={stepNext}>Next<ChevronRight /></Button></>} />
+                    actions={stepActions} />}
                   {/* Every step starts the same distance below the steps, so switching moves nothing. */}
                   {/* The header and the steps keep one width; Sources, Highlights and Build take a narrower
                       column under them than the review, which needs the document's width. */}
-                  <div id="authorities-step" role="tabpanel" className={cn("flow-root [&>*:first-child]:mt-2", !reviewing && "mx-auto max-w-[56rem]")}
-                    aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
+                  <div id="authorities-step" role={app?.embedded ? "region" : "tabpanel"} className={cn("flow-root [&>*:first-child]:mt-2", !reviewing && "mx-auto max-w-[56rem]")}
+                    {...app?.embedded ? { "aria-label": app.steps[stage] ?? stage }
+                      : { "aria-labelledby": `authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}` }}>
                   {sourceChange && <Modal open fit onClose={() => setSourceChange(undefined)} breadcrumbs={["Change source handling"]} size="md"
                     secondaryAction={{ label: "Cancel", onClick: () => setSourceChange(undefined) }}
                     primaryAction={{ label: "Change", disabled: busy, onClick: () => changeSources(sourceChange) }}>
                     <p className="pb-4 text-sm text-gray-700">Changing source handling removes the PDFs the app found and finds them
                       again for the new choice. PDFs you uploaded stay.</p></Modal>}
-                  {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences} finding={gatheringFor === draft.id}
+                  {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences} finding={gatheringFor === draft.id || !!app?.embedded?.finding}
+                    citedIn={app?.citedIn}
                     ocr={ocr} others={others} settings={sourceSettings}
                     {...authorityPanelProps}
                     {...(draft.state.import.kind === "manual" ? {

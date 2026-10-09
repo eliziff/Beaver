@@ -69,6 +69,8 @@ type PanelProps = AuthorityPanelProps & {
   others?: BookFiles & { parts: Array<{ part: AuthoritiesBookSupplement; tab: string }> };
   /** The import's choices about sources, shown above the list. */
   settings?: ReactNode;
+  /** Where the list gathers several documents' authorities: the documents citing each, by authority. */
+  citedIn?: ReadonlyMap<string, string>;
 };
 export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft: AuthoritiesProduct }) {
   return <SourcePanel {...props} state={draft.state} />;
@@ -77,7 +79,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
-  ocr, statuteCopies, groups, others, settings, finding = false }: PanelProps) {
+  ocr, statuteCopies, groups, others, settings, finding = false, citedIn }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
   // A row is drawn again only when what it shows changes. The workspace's own changes (a source opened, a
   // status line) give the panel new callbacks each time; the rows get stable ones that call the latest.
@@ -138,7 +140,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
             <p className={GROUP}>{groups?.get(authority.id)}</p>}
           <AuthorityRow authority={authority} busy={busy} finding={finding && !authority.excluded}
           order={shown} copy={statuteCopies?.get(authority.id)} statutes={!!statuteCopies?.size}
-          tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
+          tab={authority.excluded ? "Excluded" : tabs.get(authority.id)} citedIn={citedIn?.get(authority.id)}
           citationLine={authorityCitationLine(state, authority)} italicName={authorityNameItalic(state, authority)}
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
           requireLanguages={requiresBilingualSources(state, authority)} sourceIssues={sourceIssues}
@@ -171,8 +173,8 @@ const recognitionKey = (authority: AuthorityIdentity, ocr?: SourceOcrPanel) => !
 const AuthorityRow = memo(Row);
 function Row({ authority, tab, citationLine, italicName, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes, finding = false }: {
-  order: string[]; copy?: StatuteCopy; statutes: boolean; finding?: boolean;
+  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes, finding = false, citedIn }: {
+  order: string[]; copy?: StatuteCopy; statutes: boolean; finding?: boolean; citedIn?: string;
   authority: AuthorityIdentity; tab?: string; citationLine: string; busy: boolean; needsPdf: boolean;
   /** The name is a style of cause or title, set in italics. */
   italicName: boolean;
@@ -246,7 +248,7 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
   const recognition = recognitions.find(({ state }) => state !== "done");
   const edit = () => setEditing(true);
   // The citation beside the name; a row without one gives the name both columns.
-  const subline = recognition ? "" : name ? citationLine : "";
+  const subline = recognition ? "" : [name ? citationLine : "", citedIn && `Cited in ${citedIn}`].filter(Boolean).join(" · ");
   const save = (value: string) => { setEditing(false);
     if (value.trim() !== name) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: value.trim() || null }); };
