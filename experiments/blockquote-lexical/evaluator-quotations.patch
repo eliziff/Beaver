@@ -1,0 +1,17 @@
+diff --git a/experiments/legal-structure-gold/evaluate.py b/experiments/legal-structure-gold/evaluate.py
+index 65726e8444..12ebd57a02 100644
+--- a/experiments/legal-structure-gold/evaluate.py
++++ b/experiments/legal-structure-gold/evaluate.py
+@@ -97,6 +97,12 @@ def state_of(value):
+                 kind = n['grammar'][len('constituent_'):]
+                 state['annotations'].append({'id': n['id'], 'kind': 'document', 'line_ids': n['line_ids'], 'attributes': {
+                     'kind': kind, 'parent': first, 'relationship': relationships.get(kind, 'component'), 'title': [], 'facets': {}}})
++    # A PDF parser's display quotations are sections of their own grammar.
++    if not structure.get('annotations'):
++        for n in structure['nodes']:
++            if n['kind'] == 'section' and n.get('grammar') == 'quotation' and n.get('line_ids'):
++                state['annotations'].append({'id': n['id'], 'kind': 'quotation', 'line_ids': n['line_ids'],
++                                             'attributes': {'layout': 'display', 'attribution': []}})
+     return structure, state
+ 
+ 
