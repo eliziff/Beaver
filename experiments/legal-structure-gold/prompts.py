@@ -17,6 +17,8 @@ Headings and numbered prose/list items name an earlier enclosing parent by its
 first source ID. Levels increase below parents. marker covers only printed
 numbering. Keep reproduced numbering within its quotation's scope. Distinguish
 headings from captions, running titles and table labels using the image and text.
+A statute's marginal notes and a reported case's headnotes are not headings: give them the
+marginal_note and headnote roles.
 
 Text edit offsets refer to the supplied unit before edits. Apply splits first,
 then edits; annotation offsets refer to corrected text. separator="newline" means a line break. Split a unit crossing a
