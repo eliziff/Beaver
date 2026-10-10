@@ -8,7 +8,7 @@ import {
   getStandaloneFilingContact, getStandaloneOutputFolder, setStandaloneFilingContact, inspectStandaloneFile, pickRetainedFiles, readSourceAnswer, readSourcePdf,
   readStandaloneOutputFile, relinkStandaloneFile, rememberSourceAnswer, rememberSourcePdf, requestStandaloneFileAccess,
   resolveStandaloneFile, retainStandaloneFile,
-  saveStandaloneArtifacts, standaloneKeptFile, standaloneWatchedFolder,
+  saveStandaloneArtifacts, standaloneWatchedFolder,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
@@ -498,6 +498,4 @@ export const standaloneLocalStores: NonNullable<AuthoritiesHost["localStores"]> 
     await globalThis.AUTHORITIES_OPERATIONS!("mount-store" as AuthoritiesOperation,
       { store, file, localOnly: !!options?.localOnly });
   },
-  kept: { get: (store) => standaloneKeptFile.get(`local-store:${store}`),
-    set: (store, handle) => standaloneKeptFile.set(`local-store:${store}`, handle) },
 };

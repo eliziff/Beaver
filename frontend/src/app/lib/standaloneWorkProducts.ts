@@ -371,14 +371,6 @@ async function keepFolder(id: string, handle: StoredHandle["handle"] | null) {
 }
 export const standaloneWatchedFolder = { get: () => keptFolder(WATCHED_FOLDER),
   set: (handle: FileSystemDirectoryHandle | null) => keepFolder(WATCHED_FOLDER, handle) };
-/** A file kept by its preference id (local legal data a page reads); its permission is asked for apart. */
-export const standaloneKeptFile = {
-  get: async (id: string) => {
-    const saved = await read<StoredHandle>(HANDLES, `preference:${id}`);
-    return saved?.handle.kind === "file" ? saved.handle : null;
-  },
-  set: (id: string, handle: FileSystemFileHandle | null) => keepFolder(`preference:${id}`, handle),
-};
 
 export async function getStandaloneFilingContact(): Promise<StandaloneFilingContact> {
   const saved = await read<Partial<StandaloneFilingContact>>(METADATA, FILING_CONTACT);
