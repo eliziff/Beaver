@@ -64,6 +64,18 @@ def state_of(value):
     pages = [{'atoms':[{'id':i, 'bbox':[0,0,0,0]} for i,l in lines.items() if l['page'] == n]}
              for n in sorted({l['page'] for l in lines.values()})]
     state = gold.initial(structure, pages)
+    # A unit's level is its depth under the units it is projected beneath, as the gold's is (its
+    # parent's plus one), not the parser's own count within a list or a type size's rank.
+    by_line = {i: g for g in state['groups'] for i in g['line_ids']}
+    depths = {}
+    def depth(group, seen=()):
+        key = id(group)
+        if key not in depths:
+            parent = by_line.get(group['attributes'].get('parent'))
+            depths[key] = 1 if parent is None or parent is group or id(parent) in seen else depth(parent, seen + (key,)) + 1
+        return depths[key]
+    for group in state['groups']:
+        if 'level' in group['attributes']: group['attributes']['level'] = depth(group)
     # The structure leaves running heads, folios and print margins out of every node, and
     # names each page's folio line; such a line in the page's outer bands is furniture.
     folios = {n.get('anchor') for n in structure['nodes'] if n['kind'] == 'page'}
@@ -207,6 +219,7 @@ def compare(expected, candidate):
             return [(key,x,y) for x,y in zip(boundaries,boundaries[1:])]
         sequence=[p for i in state['reading_order'] for p in pieces(i)]
         result={'coverage':sequence, 'order':list(zip(sequence,sequence[1:])), 'roles':[], 'groups':[], 'joins':[], 'hierarchy':[],
+                'hierarchy_units':[], 'hierarchy_level':[], 'hierarchy_parent':[], 'hierarchy_marker':[],
                 **{k:[] for k in ('table','field','note','quotation','document','table_cells','note_references','continuations','document_facets','document_ownership','document_resumes')}}
         groups={g['line_ids'][0]:g for g in state['groups']}
         text_links=gold.text_links(state)
@@ -232,6 +245,12 @@ def compare(expected, candidate):
             attrs=g['attributes']
             if g['kind']=='heading' or attrs.get('marker'):
                 result['hierarchy'].append((anchor(first),g['kind'],attrs.get('locator_kind'),attrs.get('level',1),anchor(attrs.get('parent')),spans(attrs.get('marker',[]))))
+                # The same units scored field by field, so a unit found with its role but another level
+                # or parent still counts for what it gets right.
+                result['hierarchy_units'].append((anchor(first),g['kind']))
+                result['hierarchy_level'].append((anchor(first),attrs.get('level',1)))
+                result['hierarchy_parent'].append((anchor(first),anchor(attrs.get('parent'))))
+                result['hierarchy_marker'].append((anchor(first),spans(attrs.get('marker',[]))))
         for a in gold.logical_annotations(state):
             kind=a['kind']; attrs=a['attributes']; extent=spans(a.get('spans',gold.whole(a['line_ids'],lines)))
             if kind not in result: continue
