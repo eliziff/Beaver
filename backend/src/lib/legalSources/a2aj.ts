@@ -456,7 +456,7 @@ async function document(args: {
   // A2AJ is asked as the Python app asks it (a2aj_client.py, alr_quote_verifier.py): by citation alone, never with a
   // case's name before it, which only makes another request of each way it is written; for a court it holds; and
   // searched once, for the first form.
-  const named = new Set([citation, english].filter((form) => !core.includes(form)));
+  const named = new Set(core.length ? [citation, english].filter((form) => !core.includes(form)) : []);
   const asked = source ? [] : await coveredForms(forms.filter((form) => !named.has(form)), docType, args.signal);
   if (!source) for (const form of asked) {
     args.signal?.throwIfAborted();

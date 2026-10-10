@@ -177,7 +177,9 @@ async function attachPdf(id: string, revision: number, selected: AuthoritiesFile
   const role = Object.keys(state.bindings).find((role) => {
     const input = state.bindings[role]; return input.kind === "local-file" && input.handleId === "standalone";
   });
-  const binding = await bindStandaloneFile(selected.file, selected.input);
+  // A PDF is kept as a copy, not by the file it was picked from: a copy is read on every later visit, where a picked
+  // file must be allowed again first and is otherwise skipped.
+  const binding = await retainStandaloneFile(selected.file);
   if (!role || state.bindings[role].kind !== "local-file" ||
       state.bindings[role].lastSeen.sha256 !== binding.lastSeen.sha256)
     throw new Error("The selected PDF changed while it was being added.");
