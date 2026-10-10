@@ -36,6 +36,7 @@ import corpus_store
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 REPLAY = ROOT / 'native/legal-structure-node/target/release/examples/replay.exe'
+TIMINGS = {}
 
 
 def completed(out):
@@ -65,14 +66,16 @@ def gold_request(job):
     return request
 
 
-def carry(cache, sha, binary):
+def carry(cache, sha, binary, request):
     # An earlier build's recognition and extraction, hard-linked forward: their cache keys name
     # the OCR and extraction code, so a structure-only build reuses them and any other misses
     # them. Each request keeps its own; a layout parse reuses its plain request's.
     root = cache / sha
-    if not root.is_dir():
-        return
     layout = '-layout' if os.environ.get('LAYOUT_PACK') else ''
+    # Carried already: nothing to walk.
+    own = root / binary / (request + layout) / 'parse-v1'
+    if not root.is_dir() or all((own / stage).exists() for stage in ('recognition', 'extractions')):
+        return
     for stage in ('recognition', 'extractions'):
         newest = {}
         for source in root.glob(f'*/*/parse-v1/{stage}'):
@@ -92,7 +95,7 @@ def extract_all(items, out, workers):
     """Parse every run's PDF with the addon loaded once per shard: shards in parallel, long PDFs
     first. Returns {run: (candidate file, engine dump or None)} and {run: error}."""
     cache, binary = out / 'score' / 'candidates', addon_sha256()
-    jobs, runs = [], {}
+    jobs, runs, keys = [], {}, {}
     requests = {}
     for mode, job, receipt in items:
         request = gold_request(job)
@@ -101,10 +104,12 @@ def extract_all(items, out, workers):
             saved.parent.mkdir(parents=True, exist_ok=True)
             saved.write_text(json.dumps(request), encoding='utf-8'); requests[saved] = True
         pdf = pdf_path(receipt['source_sha256'])
+        # The parse's cache directory is named for the request as extract.mjs serializes it.
+        keys[receipt['source_sha256']] = hashlib.sha256(json.dumps(request, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()[:16]
         jobs.append({'pdf': str(pdf), 'output': str(cache), 'mode': mode, 'requestFile': str(saved)})
         runs[(str(pdf), mode)] = str(job.relative_to(out))
     with ThreadPoolExecutor(16) as pool:
-        list(pool.map(lambda item: carry(cache, item[2]['source_sha256'], binary), items))
+        list(pool.map(lambda item: carry(cache, item[2]['source_sha256'], binary, keys[item[2]['source_sha256']]), items))
     jobs.sort(key=lambda j: -Path(j['pdf']).stat().st_size)
     shards = [jobs[i::workers] for i in range(workers)]
     produced, errors = {}, {}
@@ -123,7 +128,9 @@ def extract_all(items, out, workers):
                 except ValueError: continue
                 run = runs.get((row['pdf'], row['mode']))
                 if run is None: continue
-                if 'file' in row: produced[run] = (row['file'], row.get('dump'))
+                if 'file' in row:
+                    produced[run] = (row['file'], row.get('dump'), row.get('witnesses'))
+                    TIMINGS[run] = row.get('parseMs', 0)
                 else: errors[run] = row['error']
     return produced, errors
 
@@ -222,8 +229,8 @@ def main():
                    for _, job, receipt in items}
     else:
         produced, errors = extract_all(items, args.out, args.workers)
-        sources = {run: (file, None) for run, (file, _) in produced.items()}
-        dumps = {run: dump for run, (_, dump) in produced.items() if dump and Path(dump).is_file()}
+        sources = {run: (file, None) for run, (file, _, _) in produced.items()}
+        dumps = {run: (dump, witnesses) for run, (_, dump, witnesses) in produced.items() if dump and Path(dump).is_file()}
     parsed = time.time()
     with ProcessPoolExecutor(args.workers) as pool:
         results = list(pool.map(score_one, [(run, str(args.out), c, s) for run, (c, s) in sources.items()], chunksize=4))
@@ -238,9 +245,13 @@ def main():
     worker.write_json(destination, summary)
     if dumps:
         worker.write_json(destination.with_suffix('.manifest.json'),
-                          [{'run': run, 'candidate': sources[run][0], 'dump': dump} for run, dump in dumps.items()])
+                          [{'run': run, 'candidate': sources[run][0], 'dump': dump, 'witnesses': witnesses}
+                           for run, (dump, witnesses) in dumps.items()])
     print(f"{summary['runs']} runs, {len(summary['errors'])} errors -> {destination} "
           f"(parse {parsed - started:.0f}s, score {time.time() - parsed:.0f}s)")
+    if TIMINGS:
+        slowest = sorted(TIMINGS.items(), key=lambda item: -item[1])[:8]
+        print(f"structure stage {sum(TIMINGS.values()) / 1000:.0f}s in all; slowest: " + ", ".join(f"{run.split(os.sep)[1][:12]} {ms / 1000:.1f}s" for run, ms in slowest))
     if args.against:
         compare(worker.read_json(args.against), summary, set(args.layers.split(',')) if args.layers else None)
     else:

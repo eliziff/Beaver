@@ -7,7 +7,7 @@
 // ppdoc layout provider, cached beside the plain request. RESOLVER_DUMP=1 has the parser write
 // each document's structure-engine inputs beside its result, for engine replay.
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync, statSync } from 'node:fs';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { defaultNativeAddon, nativeAddonFile } from '../../shared/nativeAddonFile.mjs';
@@ -37,19 +37,27 @@ async function extract(pdf, output, mode, requestFile) {
   mkdirSync(destination, { recursive: true });
   const dump = process.env.RESOLVER_DUMP ? path.join(destination, `resolver-${mode}.json`) : null;
   // The engine's inputs are written as the structure stage runs: a cached document skips it.
+  const witnesses = dump ? path.join(destination, `witnesses-${mode}.jsonl`) : null;
   if (dump) {
     process.env.LEGALPDF_RESOLVER_DUMP = dump;
+    process.env.LEGALPDF_WITNESS_DUMP = witnesses;
+    rmSync(witnesses, { force: true });
     rmSync(path.join(destination, 'parse-v1/documents'), { recursive: true, force: true });
   }
+  const parseStart = performance.now();
   const summary = await parser.preparePdfDocument(bytes, {
     ...request, cache_dir: destination, expected_source_sha256: sha256,
   });
+  const parseMs = performance.now() - parseStart;
   const document = readGzip(path.join(destination, 'parse-v1/documents', `${summary.cacheKey}.json.gz`));
   const extractionRoot = path.join(destination, 'parse-v1/extractions');
-  const cached = readdirSync(extractionRoot).filter(n => n.endsWith('.json.gz'))
-    .map(n => readGzip(path.join(extractionRoot, n))).filter(v => v.source_sha256 === sha256);
-  if (cached.length !== 1) throw new Error('Expected one matching native extraction cache');
-  const pages = cached[0].extraction.pages;
+  // The extraction this parse used: an earlier build's, carried forward, may lie beside it under
+  // another code's key; the parser touches the one it reads or writes.
+  const newest = readdirSync(extractionRoot).filter(n => n.endsWith('.json.gz'))
+    .map(n => ({ n, at: statSync(path.join(extractionRoot, n)).mtimeMs })).sort((a, b) => b.at - a.at)
+    .map(({ n }) => readGzip(path.join(extractionRoot, n))).find(v => v.source_sha256 === sha256);
+  if (!newest) throw new Error('Expected a matching native extraction cache');
+  const pages = newest.extraction.pages;
   // Recognized geometry is retained in the final document, native typography in
   // the extraction cache. Its source IDs are the same IDs used by the structure.
   for (const recognized of document.recognized_pages ?? []) {
@@ -58,7 +66,7 @@ async function extract(pdf, output, mode, requestFile) {
     page.source = recognized.source;
     page.lines = recognized.lines.map(line => ({
       id: line.id, text: line.text || line.words.map(w => w.text).join(' '), bbox: line.rect,
-      spans: [], words: line.words.map(w => ({ text: w.text, bbox: w.rect })),
+      spans: [], words: line.words.map(w => ({ text: w.text, bbox: w.rect, ...(w.underlined ? { underlined: true } : {}) })),
     }));
   }
   const result = {
@@ -68,15 +76,15 @@ async function extract(pdf, output, mode, requestFile) {
   const filename = path.join(destination, `${mode}.json.gz`), temporary = `${filename}.${process.pid}.tmp`;
   try { writeFileSync(temporary, gzipSync(JSON.stringify(result))); renameSync(temporary, filename); }
   finally { rmSync(temporary, { force: true }); }
-  return { file: filename, dump };
+  return { file: filename, dump, witnesses, parseMs: Math.round(parseMs) };
 }
 
 if (process.argv[2] === '--batch') {
   for (const { pdf, output, mode, requestFile } of JSON.parse(readFileSync(process.argv[3], 'utf8'))) {
     const began = performance.now();
     try {
-      const { file, dump } = await extract(pdf, output, mode, requestFile);
-      console.log(JSON.stringify({ pdf, mode, file, dump, ms: Math.round(performance.now() - began) }));
+      const { file, dump, witnesses, parseMs } = await extract(pdf, output, mode, requestFile);
+      console.log(JSON.stringify({ pdf, mode, file, dump, witnesses, parseMs, ms: Math.round(performance.now() - began) }));
     } catch (error) {
       console.log(JSON.stringify({ pdf, mode, error: String(error?.message ?? error).slice(-600) }));
     }
