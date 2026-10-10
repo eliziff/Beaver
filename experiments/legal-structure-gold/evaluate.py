@@ -109,10 +109,59 @@ def prf(expected, actual):
             'f1':2*correct/(total+predicted) if total+predicted else 1.0}
 
 
+def source_names(reference, predicted):
+    """A candidate whose extraction gained or lost a line on a page numbers the lines after it
+    otherwise than the gold's extraction did. On such a page each candidate line takes the name
+    of the gold's source line it reads as, in order; one that reads as none takes a name of its
+    own, as a line the gold's extraction never had."""
+    originals = defaultdict(dict)
+    for line in reference['lines']:
+        if line['source_id']: originals[line['page']].setdefault(line['source_id'], line['original_text'])
+    pages = defaultdict(dict)
+    for line in predicted['lines']: pages[line['page']][line['id']] = line['text']
+    names = {}
+    for page, own in pages.items():
+        known = originals.get(page, {})
+        if set(own) <= set(known) and len(own) == len(known): continue
+        a, b = sorted(known), sorted(own)
+        texts_a, texts_b = [known[i] for i in a], [own[i] for i in b]
+        pairs = []
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, texts_a, texts_b, autojunk=False).get_opcodes():
+            if tag == 'equal': pairs.extend(zip(range(i1, i2), range(j1, j2)))
+            elif tag == 'replace':
+                # The best monotone pairing of lines that read alike.
+                n, m = i2 - i1, j2 - j1
+                if n * m > 2500: continue
+                ratio = lambda i, j: difflib.SequenceMatcher(None, texts_a[i], texts_b[j], autojunk=False).ratio()
+                score = [[0.0] * (m + 1) for _ in range(n + 1)]
+                for x in range(n):
+                    for y in range(m):
+                        r = ratio(i1 + x, j1 + y)
+                        score[x + 1][y + 1] = max(score[x][y + 1], score[x + 1][y], score[x][y] + r if r >= 0.6 else 0)
+                x, y = n, m
+                while x and y:
+                    if score[x][y] == score[x - 1][y]: x -= 1
+                    elif score[x][y] == score[x][y - 1]: y -= 1
+                    else: pairs.append((i1 + x - 1, j1 + y - 1)); x -= 1; y -= 1
+        paired = {b[j]: a[i] for i, j in pairs}
+        for ident in b:
+            names[ident] = paired.get(ident, f'{ident}~new')
+    return {k: v for k, v in names.items() if k != v}
+
+
+def renamed(value, names):
+    if isinstance(value, dict): return {names.get(k, k) if isinstance(k, str) else k: renamed(v, names) for k, v in value.items()}
+    if isinstance(value, list): return [renamed(v, names) for v in value]
+    if isinstance(value, str): return names.get(value, value)
+    return value
+
+
 def compare(expected, candidate):
     require(expected.get('schema_version') == gold.VERSION, 'Expected a generated structure gold artifact')
     gs, reference = state_of(expected); ps, predicted = state_of(candidate)
     require(gs['source_sha256'] == ps['source_sha256'], 'Candidate belongs to another PDF')
+    names = source_names(reference, predicted)
+    if names: predicted = renamed(predicted, names)
     # A line the gold had to insert (text the extraction missed, such as a pasted picture of
     # text) is the candidate's own new line on that page reading the same.
     known = {l['source_id'] for l in reference['lines'] if l['source_id']}
