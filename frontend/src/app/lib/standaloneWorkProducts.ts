@@ -326,10 +326,13 @@ async function cleanupHandles(store: IDBObjectStore, drafts: DraftRow[],
   });
 }
 
+/** Files retained in this visit: one picked with others waits its turn to become a draft's, so none is cleaned up
+ *  before the page closes. */
+const retainedNow = new Set<string>();
 async function cleanupStoredFiles(store: IDBObjectStore, drafts: DraftRow[]) {
   const used = new Set(drafts.flatMap((draft) => [...handleIds(draft.inputs)]));
   for (const id of await request<IDBValidKey[]>(store.getAllKeys())) {
-    if (typeof id === "string" && !used.has(id)) store.delete(id);
+    if (typeof id === "string" && !used.has(id) && !retainedNow.has(id)) store.delete(id);
   }
 }
 
@@ -528,6 +531,7 @@ export async function readSourceAnswer(url: string) {
 export async function retainStandaloneFile(file: File) {
   const sha256 = await digestBytes(new Uint8Array(await file.arrayBuffer()));
   const id = storedFileId(sha256), database = await openDatabase();
+  retainedNow.add(id);
   const transaction = database.transaction(FILES, "readwrite");
   transaction.objectStore(FILES).put({ id, mimeType: file.type, blob: file } satisfies StoredFile);
   await completed(transaction);

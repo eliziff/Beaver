@@ -88,7 +88,7 @@ async function authorityUnitPackage(bytes: Buffer,
   for (const unit of units) if (visibleText(targets.get(unit.id) ?? {}) !== unit.text) {
     throw new Error(`Reviewed text no longer matches ${unit.id}.`);
   }
-  return { session, document, targets, save: () => {
+  return { session, document, footnotes, targets, save: () => {
     session.writeDocument(document.tree);
     if (footnotes) session.write("word/footnotes.xml",
       ensureXmlDeclaration(createBuilder().build(footnotes)));
@@ -110,14 +110,12 @@ function singleChildRuns(run: XNode) {
   });
 }
 
-/** Writes a span's replacement as a tracked change, as Word writes one: the runs that print the old
- *  text deleted (w:del, their text as w:delText) and a run with the new text inserted after them
- *  (w:ins), each run keeping its formatting. Null where the span crosses a tab, a break or a field. */
-function trackSpanReplacement(root: XNode, start: number, end: number, replacement: string, revision: () => Revision) {
-  // Each run that prints text in the span stands alone, split to the span's ends.
-  type Item = { run: XNode; parent: XNode; start: number; end: number };
+type RunItem = { run: XNode; parent: XNode; start: number; end: number };
+/** The runs that print a span of a unit's text, each standing alone and cut at the span's ends (`inside`), among all the
+ *  unit's runs as they then are (`items`). Null where the span crosses a tab, a break or a field. */
+function spanRuns(root: XNode, start: number, end: number) {
   const collect = () => {
-    const items: Item[] = [];
+    const items: RunItem[] = [];
     let cursor = 0, unsupported = false;
     const visit = (node: XNode, parent: XNode | null): void => {
       const name = elName(node);
@@ -161,6 +159,16 @@ function trackSpanReplacement(root: XNode, start: number, end: number, replaceme
   }
   const items = collect() ?? [], inside = items.filter((item) => start <= item.start && item.end <= end);
   if (start < end && (!inside.length || inside[0].start !== start || inside.at(-1)!.end !== end)) return null;
+  return { items, inside };
+}
+
+/** Writes a span's replacement as a tracked change, as Word writes one: the runs that print the old
+ *  text deleted (w:del, their text as w:delText) and a run with the new text inserted after them
+ *  (w:ins), each run keeping its formatting. Null where the span crosses a tab, a break or a field. */
+function trackSpanReplacement(root: XNode, start: number, end: number, replacement: string, revision: () => Revision) {
+  const runs = spanRuns(root, start, end);
+  if (!runs) return null;
+  const { items, inside } = runs;
   // An insertion alone goes after the run that ends where it begins, or before the one that starts there.
   const before = items.find((item) => item.end === start), after = items.find((item) => item.start === start);
   const anchor = inside[0] ?? before ?? after;
@@ -257,6 +265,87 @@ export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
     }
   }
   return { bytes: await save(), revisions };
+}
+
+/** A run property's place among a run's properties (CT_RPr's order), which Word holds a document to. */
+const RUN_PROPERTIES = ["w:rStyle", "w:rFonts", "w:b", "w:bCs", "w:i", "w:iCs", "w:caps", "w:smallCaps", "w:strike",
+  "w:dstrike", "w:outline", "w:shadow", "w:emboss", "w:imprint", "w:noProof", "w:snapToGrid", "w:vanish", "w:webHidden",
+  "w:color", "w:spacing", "w:w", "w:kern", "w:position", "w:sz", "w:szCs", "w:highlight", "w:u", "w:effect", "w:bdr",
+  "w:shd", "w:fitText", "w:vertAlign", "w:rtl", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:specVanish", "w:oMath"];
+/** Sets a run's property (one of RUN_PROPERTIES), in its place among the run's others. */
+function setRunProperty(run: XNode, name: string, attributes: Record<string, string>) {
+  const children = elChildren(run);
+  let properties = children.find((child) => elName(child) === "w:rPr");
+  if (!properties) { properties = makeEl("w:rPr", []); children.unshift(properties); }
+  const rank = RUN_PROPERTIES.indexOf(name);
+  const kept = elChildren(properties).filter((child) => elName(child) !== name);
+  const at = kept.findIndex((child) => { const other = RUN_PROPERTIES.indexOf(elName(child) ?? ""); return other < 0 || other > rank; });
+  kept.splice(at < 0 ? kept.length : at, 0, makeEl(name, [], attributes));
+  setChildren(properties, kept);
+}
+
+/** A write into a span of a body paragraph or footnote, as `units` read it: its text replaced as a tracked change, its
+ *  letters highlighted, or the span linked. */
+export type DocxSpanWrite = { unitId: string; start: number; end: number; expected: string } & (
+  { kind: "replace"; replacement: string } | { kind: "highlight"; color: "green" | "red" } | { kind: "link"; url: string });
+
+/** Writes results into a Word document's body paragraphs and footnotes as review read them: replacements as tracked
+ *  changes by `author`, highlights, and links (in the document's Hyperlink style where it has one). A unit's writes go
+ *  last first, so each span is where it was read. A write is left out, and said to be, where its span crosses a tab, a
+ *  break or a field, a link would go inside a link, or its text is no longer what was read. */
+export async function writeDocxSpans(bytes: Buffer, units: ReadonlyArray<{ id: string; text: string }>,
+  writes: readonly DocxSpanWrite[], author: string) {
+  const { session, document, footnotes, targets, save } = await authorityUnitPackage(bytes, units);
+  let next = Math.max(highestId(document.body), ...[...targets.values()].map(highestId)) + 1;
+  const date = new Date().toISOString().replace(/\.\d+Z$/u, "Z");
+  const styled = /w:styleId="Hyperlink"/u.test(await session.readText("word/styles.xml") ?? "");
+  // Each part's links, as relationships of its own.
+  const relationships = new Map<string, { path: string; xml: string }>();
+  const relate = async (unitId: string, url: string) => {
+    const path = unitId.startsWith("footnote:") ? "word/_rels/footnotes.xml.rels" : "word/_rels/document.xml.rels";
+    const part = relationships.get(path) ?? { path, xml: await session.readText(path) ??
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>' };
+    relationships.set(path, part);
+    const id = `rId${Math.max(0, ...[...part.xml.matchAll(/Id="rId(\d+)"/gu)].map(([, value]) => Number(value))) + 1}`;
+    const target = url.replace(/&/gu, "&amp;").replace(/"/gu, "&quot;").replace(/</gu, "&lt;");
+    part.xml = part.xml.replace("</Relationships>", `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${target}" TargetMode="External"/></Relationships>`);
+    return id;
+  };
+  const order = writes.map((write, index) => ({ write, index }))
+    .sort((a, b) => a.write.unitId.localeCompare(b.write.unitId) || b.write.start - a.write.start || b.write.end - a.write.end);
+  const written = writes.map(() => false);
+  for (const { write, index } of order) {
+    const target = targets.get(write.unitId);
+    if (!target || write.end < write.start || visibleText(target).slice(write.start, write.end) !== write.expected) continue;
+    if (write.kind === "replace") {
+      written[index] = !!trackSpanReplacement(target, write.start, write.end, write.replacement,
+        () => ({ id: next++, author, date }));
+      continue;
+    }
+    const runs = spanRuns(target, write.start, write.end);
+    if (!runs?.inside.length) continue;
+    if (write.kind === "highlight") {
+      for (const { run } of runs.inside) setRunProperty(run, "w:highlight", { "w:val": write.color });
+      written[index] = true;
+      continue;
+    }
+    // A link wraps runs side by side in one paragraph, none of them in a link already.
+    const parent = runs.inside[0].parent, siblings = elChildren(parent);
+    const first = siblings.indexOf(runs.inside[0].run);
+    if (elName(parent) !== "w:p" || runs.inside.some(({ run, parent: other }, at) => other !== parent || siblings[first + at] !== run)) continue;
+    for (const { run } of runs.inside) {
+      if (styled) setRunProperty(run, "w:rStyle", { "w:val": "Hyperlink" });
+      else { setRunProperty(run, "w:color", { "w:val": "0563C1" }); setRunProperty(run, "w:u", { "w:val": "single" }); }
+    }
+    siblings.splice(first, runs.inside.length, makeEl("w:hyperlink", runs.inside.map(({ run }) => run),
+      { "r:id": await relate(write.unitId, write.url), "w:history": "1" }));
+    written[index] = true;
+  }
+  for (const { path, xml } of relationships.values()) session.write(path, xml);
+  // A part with links declares the namespace of their relationship ids, as Word's own parts do.
+  if (relationships.size) for (const node of [...document.tree, ...footnotes ?? []]) if (/^w:(?:document|footnotes)$/u.test(elName(node) ?? ""))
+    node[ATTR_KEY] = { "@_xmlns:r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships", ...node[ATTR_KEY] as object };
+  return { bytes: await save(), written };
 }
 
 /** Rejects the tracked revisions a correction wrote, by their ids: the brief reads as before it, and
