@@ -182,13 +182,16 @@ async function keptOriginals(initial: AuthoritiesDraft, sources: SourceServices)
   return { draft: editor.result(), attachments };
 }
 
-/** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. */
+/** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. With `citedCases`
+ *  off, a source naming another case than the citation's words is kept rather than searched against (an app that
+ *  checks quotations against the source a citation names, as ALR's does). */
 export async function resolveAuthoritiesSources(
   initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
   signal?: AbortSignal,
   onlyAuthorityId?: string,
   progress?: (message: string) => void,
   keptOnly = false,
+  citedCases = true,
 ) {
   if (keptOnly) return keptOriginals(initial, sources);
   if (onlyAuthorityId && !retryableAuthoritySource(initial, onlyAuthorityId))
@@ -279,7 +282,7 @@ export async function resolveAuthoritiesSources(
     // A citation that names a different case keeps the brief's name and citation, and no source,
     // until the user decides.
     let mismatch: AuthorityCitedCase | null;
-    try { mismatch = await citedCaseMismatch(draft.authorities[id], source, sources, signal); }
+    try { mismatch = citedCases ? await citedCaseMismatch(draft.authorities[id], source, sources, signal) : null; }
     catch (error) {
       signal?.throwIfAborted();
       editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: error instanceof A2AJUnavailable
