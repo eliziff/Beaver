@@ -132,12 +132,15 @@ def source_names(reference, predicted):
             elif tag == 'replace':
                 # The best monotone pairing of lines that read alike.
                 n, m = i2 - i1, j2 - j1
-                if n * m > 2500: continue
-                ratio = lambda i, j: difflib.SequenceMatcher(None, texts_a[i], texts_b[j], autojunk=False).ratio()
+                def ratio(i, j):
+                    matcher = difflib.SequenceMatcher(None, texts_a[i], texts_b[j], autojunk=False)
+                    return 0 if matcher.real_quick_ratio() < 0.6 or matcher.quick_ratio() < 0.6 else matcher.ratio()
+                # Lines read again pair near where they stood: a long run compares within a band.
+                band = max(n, m) if n * m <= 2500 else 25 + abs(n - m)
                 score = [[0.0] * (m + 1) for _ in range(n + 1)]
                 for x in range(n):
                     for y in range(m):
-                        r = ratio(i1 + x, j1 + y)
+                        r = ratio(i1 + x, j1 + y) if abs(x * m / n - y) <= band else 0
                         score[x + 1][y + 1] = max(score[x][y + 1], score[x + 1][y], score[x][y] + r if r >= 0.6 else 0)
                 x, y = n, m
                 while x and y:
