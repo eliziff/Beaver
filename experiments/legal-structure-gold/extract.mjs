@@ -4,10 +4,10 @@
 //     {pdf, output, mode, requestFile}; prints one JSON line per job, {pdf, mode, file, ms} or
 //     {pdf, mode, error}.
 // LEGAL_STRUCTURE_ADDON pins one built addon. LAYOUT_PACK (with LAYOUT_RUNTIME) parses with the
-// ppdoc layout provider, cached beside the plain request. RESOLVER_DUMP=1 has the parser write
-// each document's structure-engine inputs beside its result, for engine replay.
+// ppdoc layout provider, cached beside the plain request. Each document's structure-engine inputs
+// and witnesses are filed with its cached document, for engine replay and the composition search.
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync, statSync, existsSync } from 'node:fs';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { defaultNativeAddon, nativeAddonFile } from '../../shared/nativeAddonFile.mjs';
@@ -35,21 +35,25 @@ async function extract(pdf, output, mode, requestFile) {
     hash(JSON.stringify(request)).slice(0, 16) + (layout ? '-layout' : ''));
   if (layout) request.layout = { provider: 'ppdoc', settings: { model_pack: layout, runtime: process.env.LAYOUT_RUNTIME, backend: 'cpu', threads: 2 } };
   mkdirSync(destination, { recursive: true });
-  const dump = process.env.RESOLVER_DUMP ? path.join(destination, `resolver-${mode}.json`) : null;
-  // The engine's inputs are written as the structure stage runs: a cached document skips it.
-  const witnesses = dump ? path.join(destination, `witnesses-${mode}.jsonl`) : null;
-  if (dump) {
-    process.env.LEGALPDF_RESOLVER_DUMP = dump;
-    process.env.LEGALPDF_WITNESS_DUMP = witnesses;
-    rmSync(witnesses, { force: true });
-    rmSync(path.join(destination, 'parse-v1/documents'), { recursive: true, force: true });
-  }
+  // The parse's engine inputs and witnesses, written as the structure stage runs and filed with
+  // the document it derives, so a cached document keeps them.
+  const fresh = { dump: path.join(destination, `resolver-${mode}.json`), witnesses: path.join(destination, `witnesses-${mode}.jsonl`) };
+  rmSync(fresh.dump, { force: true });
+  rmSync(fresh.witnesses, { force: true });
+  process.env.LEGALPDF_RESOLVER_DUMP = fresh.dump;
+  process.env.LEGALPDF_WITNESS_DUMP = fresh.witnesses;
   const parseStart = performance.now();
   const summary = await parser.preparePdfDocument(bytes, {
     ...request, cache_dir: destination, expected_source_sha256: sha256,
   });
   const parseMs = performance.now() - parseStart;
-  const document = readGzip(path.join(destination, 'parse-v1/documents', `${summary.cacheKey}.json.gz`));
+  const documents = path.join(destination, 'parse-v1/documents');
+  const filed = { dump: path.join(documents, `${summary.cacheKey}.resolver.json`), witnesses: path.join(documents, `${summary.cacheKey}.witnesses.jsonl`) };
+  for (const key of ['dump', 'witnesses']) {
+    try { renameSync(fresh[key], filed[key]); } catch { /* a cached document: its dumps are filed already */ }
+  }
+  const dump = existsSync(filed.dump) ? filed.dump : null, witnesses = existsSync(filed.witnesses) ? filed.witnesses : null;
+  const document = readGzip(path.join(documents, `${summary.cacheKey}.json.gz`));
   const extractionRoot = path.join(destination, 'parse-v1/extractions');
   // The extraction this parse used: an earlier build's, carried forward, may lie beside it under
   // another code's key; the parser touches the one it reads or writes.

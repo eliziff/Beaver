@@ -7,14 +7,14 @@ forward. Runs are then scored in parallel against their gold with its document-l
 Totals are micro-averaged over all runs. `--saved` scores each run's saved baseline instead.
 
   --mode / --runs     score a subset (written to subset.json unless --tag)
-  --tag NAME          write score/runs/NAME.json; with RESOLVER_DUMP=1 also NAME.manifest.json
+  --tag NAME          write score/runs/NAME.json and NAME.manifest.json (each run's candidate,
+                      engine inputs and witnesses, filed with its cached document)
   --replay MANIFEST   re-resolve the dumped structure-engine inputs with the engine's replay
                       example instead of parsing: an engine change measured in seconds
   --against SUMMARY   per mode, the change in each layer's pooled F1 and, per document, how many
                       got better or worse with the mean and median change
 
-Parser switches (LEVER_*), LAYOUT_PACK/LAYOUT_RUNTIME (layout mode) and RESOLVER_DUMP pass through
-the environment.
+LEGALPDF_COMPOSITIONS and LAYOUT_PACK/LAYOUT_RUNTIME (layout mode) pass through the environment.
 """
 import argparse
 import hashlib
@@ -91,7 +91,7 @@ def carry(cache, sha, binary, request):
                 except OSError: shutil.copytree(previous, target, dirs_exist_ok=True)
 
 
-def extract_all(items, out, workers):
+def extract_all(items, out, workers, env=None):
     """Parse every run's PDF with the addon loaded once per shard: shards in parallel, long PDFs
     first. Returns {run: (candidate file, engine dump or None)} and {run: error}."""
     cache, binary = out / 'score' / 'candidates', addon_sha256()
@@ -111,7 +111,7 @@ def extract_all(items, out, workers):
     with ThreadPoolExecutor(16) as pool:
         list(pool.map(lambda item: carry(cache, item[2]['source_sha256'], binary, keys[item[2]['source_sha256']]), items))
     jobs.sort(key=lambda j: -Path(j['pdf']).stat().st_size)
-    shards = [jobs[i::workers] for i in range(workers)]
+    shards = [shard for shard in (jobs[i::workers] for i in range(workers)) if shard]
     produced, errors = {}, {}
     with tempfile.TemporaryDirectory() as temp:
         processes = []
@@ -119,7 +119,7 @@ def extract_all(items, out, workers):
             listing, log = Path(temp) / f'jobs-{n}.json', Path(temp) / f'out-{n}.jsonl'
             listing.write_text(json.dumps(shard), encoding='utf-8')
             handle = log.open('w', encoding='utf-8')
-            processes.append((subprocess.Popen(['node', str(HERE / 'extract.mjs'), '--batch', str(listing)], stdout=handle,
+            processes.append((subprocess.Popen(['node', str(HERE / 'extract.mjs'), '--batch', str(listing)], stdout=handle, env=env,
                 creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS if sys.platform == 'win32' else 0), handle, log))
         for process, handle, log in processes:
             process.wait(); handle.close()
@@ -217,12 +217,15 @@ def main():
     parser.add_argument('--tag', help='Write the summary to score/runs/TAG.json (and its replay manifest beside it)')
     parser.add_argument('--replay', type=Path, help="Re-resolve a tagged run's dumped engine inputs (TAG.manifest.json) with the replay example; no parsing")
     parser.add_argument('--layers', help='Comma-separated layers to show in --against')
+    parser.add_argument('--rescore', help="Score a tagged run's candidates again, parsing nothing (a scorer change)")
     args = parser.parse_args()
     items = [r for r in completed(args.out) if (not args.runs or any(r[1].parent.name.startswith(p) for p in args.runs))
              and (not args.mode or r[0] == args.mode)]
     started = time.time()
     errors, dumps = {}, {}
-    if args.replay:
+    if args.rescore:
+        sources = {row['run']: (row['candidate'], None) for row in worker.read_json(args.out / 'score' / 'runs' / f'{args.rescore}.manifest.json')}
+    elif args.replay:
         sources = {run: files for run, files in replay_all(args.replay, args.out).items()}
     elif args.saved:
         sources = {str(job.relative_to(args.out)): (str(job / receipt.get('artifact_paths', {}).get('baseline', 'baseline.json.gz')), None)
@@ -236,7 +239,7 @@ def main():
         results = list(pool.map(score_one, [(run, str(args.out), c, s) for run, (c, s) in sources.items()], chunksize=4))
     results += [{'run': run, 'error': error} for run, error in errors.items()]
     scored = [r for r in results if 'metrics' in r]
-    summary = {'source': 'replay' if args.replay else 'saved' if args.saved else 'addon', 'runs': len(results),
+    summary = {'source': 'rescore' if args.rescore else 'replay' if args.replay else 'saved' if args.saved else 'addon', 'runs': len(results),
                'errors': [r for r in results if 'error' in r], 'totals': aggregate(scored),
                'per_run': [{'run': r['run'], 'metrics': {k: {c: v[c] for c in ('expected', 'predicted', 'correct', 'f1')}
                                                           for k, v in r['metrics'].items()}} for r in scored]}
