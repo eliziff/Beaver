@@ -6,7 +6,7 @@ import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneData, clearStandaloneOutputFolder,
   getStandaloneFilingContact, getStandaloneOutputFolder, setStandaloneFilingContact, inspectStandaloneFile, pickRetainedFiles, readSourceAnswer, readSourcePdf,
-  readStandaloneOutput, relinkStandaloneFile, rememberSourceAnswer, rememberSourcePdf, requestStandaloneFileAccess,
+  readStandaloneOutputFile, relinkStandaloneFile, rememberSourceAnswer, rememberSourcePdf, requestStandaloneFileAccess,
   resolveStandaloneFile, retainStandaloneFile,
   saveStandaloneArtifacts, standaloneKeptFile, standaloneWatchedFolder,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
@@ -430,10 +430,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       progress?.(`Checking quotations · ${completed} of ${total}`);
     } })).data;
   },
-  download: async (documentId, versionId) => {
-    const saved = await readStandaloneOutputByDocument(documentId, versionId);
-    return new Blob([saved.bytes.slice().buffer], { type: saved.output.mimeType });
-  },
+  download: readStandaloneOutputFile,
   readSource: async (draft, role) => resolveExact(draft.state.bindings[role]),
   readSourceText: sourceText,
   readPinpoints: async (text, start, end) =>
@@ -497,12 +494,3 @@ export const standaloneLocalStores: NonNullable<AuthoritiesHost["localStores"]> 
   kept: { get: (store) => standaloneKeptFile.get(`local-store:${store}`),
     set: (store, handle) => standaloneKeptFile.set(`local-store:${store}`, handle) },
 };
-
-async function readStandaloneOutputByDocument(documentId: string, versionId: string) {
-  const products = await standaloneWorkProducts.list<AuthoritiesDraft>("authorities");
-  for (const product of products) for (const [role, output] of Object.entries(product.outputs)) {
-    if (output.documentId === documentId && output.versionId === versionId)
-      return readStandaloneOutput(product.id, role, versionId);
-  }
-  throw new Error("This built file is unavailable. Build it again.");
-}
