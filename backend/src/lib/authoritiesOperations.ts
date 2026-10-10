@@ -23,7 +23,7 @@ import { sha256 } from "./hash";
 import { sourcePageLabels } from "./authoritiesPageLabels";
 import { mapBounded } from "./mapBounded";
 import { checkQuotes, decodeQuoteLinks } from "./quoteCheck";
-import { linkPropagationTargets } from "./authoritiesLinkPropagation";
+import { carriedLinks, linkPropagationTargets } from "./authoritiesLinkPropagation";
 import type { NativeDocument } from "./structureNative";
 import { FOREIGN_CASE_PROVIDERS, type LegalSourceReference, type LegalSourceResolveRequest } from "./legalSources";
 import { legalSourceOperations } from "./legalSourceApplication";
@@ -66,7 +66,7 @@ async function attachPreparedSources(state: AuthoritiesDraft, attachments: Prepa
   // A publisher's original prints its own page numbers; a reconstruction's are its PDF pages. Reading them reads the
   // whole PDF, so a few are read at once, and the step says which it is reading.
   const originals = attachments.filter(({ origin }) => origin === "original");
-  const labels = new Map<PreparedAuthoritySource, string[]>();
+  const labels = new Map<PreparedAuthoritySource, Array<string | null>>();
   let read = 0;
   await mapBounded(originals, async (attachment) => {
     progress?.(`Reading the page numbers of ${attachment.filename.replace(/\.pdf$/iu, "")} · ${read + 1} of ${originals.length}`);
@@ -249,7 +249,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     });
     return draftResult( applyAuthoritiesInitialSettings(imported, settings), []);
     },
-    "refresh": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
+    "refresh": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const source = await standaloneSource(input);
     const current = draft(json(input?.draft, "draft"));
     const imported = current.import.kind === "document" ? current.import
@@ -265,7 +265,8 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     const freshSource = freshInput?.kind === "local-file" ? freshInput
       : reject(400, "The imported source binding is invalid");
     fresh.bindings.source = { ...freshSource, handleId: currentSource.handleId };
-    return draftResult( reduceAuthoritiesDraft(current, { type: "refresh", review: authoritiesReview(fresh) }), []);
+    return draftResult(await carriedLinks(current, reduceAuthoritiesDraft(current, { type: "refresh", review: authoritiesReview(fresh) }),
+      context.signal), []);
     },
     "action": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const current = draft(input?.draft);

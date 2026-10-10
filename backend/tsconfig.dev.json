@@ -5,7 +5,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "mike/shared/runtime/*.mjs": ["../shared/contracts/*.mts"],
-      "mike/shared/*": ["../shared/*"]
+      "mike/shared/*": ["../shared/*"],
+      "legal-citations/source-canlii-routes.json": ["../node_modules/legal-citations/registry/source-canlii-routes.json"]
     }
   }
 }

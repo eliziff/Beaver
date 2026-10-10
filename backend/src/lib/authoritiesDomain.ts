@@ -148,6 +148,8 @@ const sourceHash: Check = (value) => typeof value === "string" && exactSourceHas
 const strings = list(50_000, text);
 const pair: Check = (value) => Array.isArray(value) && value.length === 2 &&
   Array.from(value).every(integer);
+const linkSpan: Check = (value) => Array.isArray(value) && value.length === 3 && integer(value[0]) && integer(value[1]) &&
+  text(value[2]);
 const choice = (key: keyof typeof AUTHORITIES_SETTINGS_CHOICES): Check =>
   oneOf(AUTHORITIES_SETTINGS_CHOICES[key]);
 
@@ -267,7 +269,8 @@ const authority: Check = (value) =>
 const spanFields = { start: integer, end: integer, text } satisfies FieldTable<AuthorityTextSpan>;
 const authoritySpan = closed<AuthorityTextSpan>(spanFields);
 const unitFields = { id: text, kind: oneOf(["body", "footnote"]), ordinal: integer,
-  footnoteId: nullable(integer), noteNumber: maybe(nullable(integer)), footnoteRefs: list(50_000, pair),
+  footnoteId: nullable(integer), noteNumber: maybe(nullable(integer)), noteMark: maybe(text),
+  authorLinks: maybe(list(50_000, linkSpan)), footnoteRefs: list(50_000, pair),
   pageNumbers: list(50_000, integer), text,
 } satisfies FieldTable<Omit<AuthoritiesReviewUnit, "occurrenceIds">>;
 const reviewUnit = closed<AuthoritiesReviewUnit>({ ...unitFields, occurrenceIds: strings });
@@ -728,6 +731,8 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
       });
       if (old.source.kind !== "unresolved") {
         authority.name ??= old.name;
+        // The citation its source was found by goes with the source: the source is read by it.
+        authority.citation = old.citation;
         authority.source = structuredClone(old.source);
         authority.sourceIdentity = structuredClone(old.sourceIdentity);
       }

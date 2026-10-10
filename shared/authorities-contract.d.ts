@@ -175,6 +175,10 @@ export type AuthoritiesReviewUnit = {
   /** The number the brief prints for this footnote, or null where it prints the author's own mark
    * (a "*") instead. */
   noteNumber?: number | null;
+  /** That mark, as the brief prints it, where it prints one. */
+  noteMark?: string;
+  /** A note's hyperlinks, as its author gave them: where each lies in `text`, and its address. */
+  authorLinks?: Array<[number, number, string]>;
   footnoteRefs: Array<[number, number]>;
   pageNumbers: number[];
   text: string;

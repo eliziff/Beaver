@@ -466,9 +466,10 @@ export function planWrites(expected: string, target: string) {
  *  ("tracked"), or highlighted, characters that match bright green, characters that differ red, and for a word it
  *  lacks the space where it goes ("highlight", with tracking off). Every span is found and checked before anything
  *  is written, so a link written here never stops a repair here. A span the macro would not write to is skipped,
- *  and says why. Without spans, links are written as the document's tracking stands. */
+ *  and says why; so is a link where one is already, unless it `replace`s it. Without spans, links are written as the
+ *  document's tracking stands. */
 export function writeToDocument(units: WordUnit[], { links = [], spans = [], mode = "tracked" }: {
-    links?: Array<WordSpan & { url: string }>; spans?: Array<WordSpan & { target: string }>; mode?: "tracked" | "highlight" }) {
+    links?: Array<WordSpan & { url: string; replace?: boolean }>; spans?: Array<WordSpan & { target: string }>; mode?: "tracked" | "highlight" }) {
     return run(async (context) => {
         const located = await locate(context, units, [...links, ...spans]), refused = await refusals(context, located);
         const write = async () => {
@@ -476,7 +477,7 @@ export function writeToDocument(units: WordUnit[], { links = [], spans = [], mod
                 const item = located[index], refusal = refused[index];
                 if (!isFound(item)) return { status: "skipped", reason: item.error };
                 if (refusal === LOCKED) return { status: "skipped", reason: LOCKED };
-                if (item.whole.hyperlink) return { status: "skipped", reason: "It has a link already." };
+                if (item.whole.hyperlink && !link.replace) return { status: "skipped", reason: "It has a link already." };
                 item.whole.hyperlink = link.url;
                 return { status: "applied" };
             });

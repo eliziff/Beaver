@@ -50,7 +50,9 @@ export interface AuthoritiesHost {
   drafts: WorkProductStore;
   create(input: AuthoritiesCreate): Promise<AuthoritiesProduct>;
   act(id: string, revision: number, action: AuthoritiesAction): Promise<AuthoritiesProduct>;
-  refresh(id: string, revision: number): Promise<AuthoritiesProduct>;
+  /** Reads the draft's document again, keeping what was decided on it; `selected`, where given, is the document as it
+   *  is now (Word's open document), in place of the file the draft is bound to. */
+  refresh(id: string, revision: number, selected?: AuthoritiesFile): Promise<AuthoritiesProduct>;
   /** `progress` hears which authority is being looked up or fetched, as it happens. */
   prepareSources(product: AuthoritiesProduct, signal?: AbortSignal,
     authorityId?: string, progress?: (message: string) => void): Promise<AuthoritiesProduct>;
