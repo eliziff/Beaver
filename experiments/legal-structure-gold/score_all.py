@@ -15,6 +15,7 @@ from pathlib import Path
 import subprocess
 import sys
 import worker
+import hierarchy_pass
 import evaluate
 import corpus_store
 
@@ -79,6 +80,8 @@ def main():
         try:
             path = job / 'baseline.json.gz'
             expected = worker.read_json(job / 'gold.json.gz')
+            # The document's hierarchy, decided over the whole document, where its layer exists.
+            expected = hierarchy_pass.apply(job, expected)
             if not args.saved:
                 path = candidate(pdf_path(receipt['source_sha256']), mode, cache,
                                  # The earliest golds predate recording it; they read native text only.
