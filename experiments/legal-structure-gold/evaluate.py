@@ -223,9 +223,27 @@ def compare(expected, candidate):
             return [(key,x,y) for x,y in zip(boundaries,boundaries[1:])]
         sequence=[p for i in state['reading_order'] for p in pieces(i)]
         result={'coverage':sequence, 'order':list(zip(sequence,sequence[1:])), 'roles':[], 'groups':[], 'joins':[], 'hierarchy':[],
-                'hierarchy_units':[], 'hierarchy_level':[], 'hierarchy_parent':[], 'hierarchy_marker':[],
+                'hierarchy_units':[], 'hierarchy_relation':[], 'hierarchy_parent':[], 'hierarchy_marker':[], 'hierarchy_depth':[],
                 **{k:[] for k in ('table','field','note','quotation','document','table_cells','note_references','continuations','document_facets','document_ownership','document_resumes')}}
         groups={g['line_ids'][0]:g for g in state['groups']}
+        # A unit's structure is scored relative to the unit before it in reading order (its child,
+        # its sibling, a sibling of its k-th ancestor), never by absolute depth: one wrong parent
+        # higher up costs that unit, not every unit under it.
+        position={i:n for n,i in enumerate(state['reading_order'])}
+        units=sorted((first for first,g in groups.items() if g['kind']=='heading' or g['attributes'].get('marker')),
+                     key=lambda first: position.get(first, len(position)))
+        parent_of={first: groups[first]['attributes'].get('parent') for first in units}
+        relation={}
+        for n,first in enumerate(units):
+            if n == 0:
+                relation[first]='first'; continue
+            previous, parent = units[n-1], parent_of[first]
+            if parent == previous:
+                relation[first]='child'; continue
+            chain, at, seen = [], previous, set()
+            while at is not None and at not in seen:
+                seen.add(at); chain.append(at); at = parent_of.get(at)
+            relation[first] = next((('sibling' if k == 0 else f'up {k}') for k, a in enumerate(chain) if parent_of.get(a) == parent), 'other')
         text_links=gold.text_links(state)
         incoming={l['next'] for l in text_links.values()}
         for first,g in groups.items():
@@ -248,11 +266,13 @@ def compare(expected, candidate):
                     previous=i
             attrs=g['attributes']
             if g['kind']=='heading' or attrs.get('marker'):
-                result['hierarchy'].append((anchor(first),g['kind'],attrs.get('locator_kind'),attrs.get('level',1),anchor(attrs.get('parent')),spans(attrs.get('marker',[]))))
-                # The same units scored field by field, so a unit found with its role but another level
-                # or parent still counts for what it gets right.
+                result['hierarchy'].append((anchor(first),g['kind'],attrs.get('locator_kind'),relation.get(first),anchor(attrs.get('parent')),spans(attrs.get('marker',[]))))
+                # The same units scored field by field, so a unit found with its role but another
+                # relation or parent still counts for what it gets right. Depth is reported, not scored
+                # in the unit's tuple.
                 result['hierarchy_units'].append((anchor(first),g['kind']))
-                result['hierarchy_level'].append((anchor(first),attrs.get('level',1)))
+                result['hierarchy_relation'].append((anchor(first),relation.get(first)))
+                result['hierarchy_depth'].append((anchor(first),attrs.get('level',1)))
                 result['hierarchy_parent'].append((anchor(first),anchor(attrs.get('parent'))))
                 result['hierarchy_marker'].append((anchor(first),spans(attrs.get('marker',[]))))
         for a in gold.logical_annotations(state):
