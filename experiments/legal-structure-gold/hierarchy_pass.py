@@ -4,7 +4,9 @@ The structure gold is annotated page window by page window, so a document's outl
 page break: one count's paragraphs ("23.", "24.", ...) take different parents on different pages.
 This second pass reads every heading, numbered paragraph and list item of one document at once (its
 page, role, printed marker, opening words, indent, and the parent the first pass gave it) and decides
-each unit's parent; its level follows, the parent's plus one. The page-level gold is never changed:
+each unit's parent; its level follows, the parent's plus one. It also rules out the heading blocks
+that are no part of the outline, a statute's marginal notes and a reported case's headnotes, which
+the page annotator was never told apart from headings. The page-level gold is never changed:
 the decision is a separate layer, `hierarchy.json.gz` beside the run's gold, which the scorer applies
 where it exists.
 
@@ -23,13 +25,15 @@ from codex_exec import _atomic_json, _invoke  # noqa: E402
 ROOT = HERE.parents[1]
 OUT = ROOT / "benchmarks/local-data/legal-structure-gold"
 LAYER = "hierarchy.json.gz"
-VERSION = "legal-structure-gold.hierarchy.v1"
+VERSION = "legal-structure-gold.hierarchy.v2"
+OUTSIDE = ("marginal_note", "headnote")
 SCHEMA = {
     "type": "object",
     "properties": {"parents": {"type": "array", "items": {
         "type": "object",
-        "properties": {"id": {"type": "string"}, "parent": {"type": ["string", "null"]}},
-        "required": ["id", "parent"], "additionalProperties": False}}},
+        "properties": {"id": {"type": "string"}, "parent": {"type": ["string", "null"]},
+                       "role": {"type": "string", "enum": ["unit", *OUTSIDE]}},
+        "required": ["id", "parent", "role"], "additionalProperties": False}}},
     "required": ["parents"], "additionalProperties": False,
 }
 PROMPT = """Below is every heading, numbered paragraph and list item of one legal document, in reading
@@ -46,16 +50,68 @@ parent over the whole document, as the document's own outline has it:
   scheme (its numbering, wording and indent), the same scheme on every page.
 - Numbering inside a quotation (a statute or judgment quoted at length) is the quoted text's own:
   a unit quoted in a quotation takes as parent only a unit quoted in the same quotation, or null.
+- A "heading" that is a statute's marginal note (a short gloss set in the margin beside a
+  provision; "beside" names the provision line level with it) or a reported case's headnote (its
+  catchwords or summary of the points decided, printed between the case's title and its syllabus
+  or opinion) is no part of the outline: give it role marginal_note or headnote and parent null,
+  and no unit takes it as parent. Every other unit has role unit.
 - Keep the annotator's parent wherever it agrees with the whole document.
 
-Return every id exactly once with its parent's id or null; a parent always comes earlier.
+Return every id exactly once with its role and its parent's id or null; a parent always comes
+earlier.
 
 Units:
 """
 
 
+PROVISION = re.compile(r"^\s*(\(?\d{1,4}[A-Za-z]?(\.\d+)*[.)]?|\(\d{1,3}\)|[Ss](ec)?\.?\s*\d+)\s")
+CASE_TITLE = re.compile(r"\bv\.?\s+[A-Z]|\bvs?\.\s")
+
+
+def beside_provisions(state):
+    """The heading blocks set in a side margin, each with the provision line level with its first
+    line: narrow, most of its lines beside body text, opening level with a numbered provision."""
+    lines = {l["id"]: l for l in state["lines"] if l.get("box")}
+    kinds = {i: g["kind"] for g in state["groups"] for i in g["line_ids"]}
+    body = lambda i: kinds.get(i) in ("prose", "list_item")
+    pages = {}
+    for i, line in lines.items():
+        pages.setdefault(line["page"], []).append(i)
+    measure = {}
+    for page, ids in pages.items():
+        boxes = [lines[i]["box"] for i in ids if body(i)]
+        if boxes:
+            lefts = sorted(b[0] for b in boxes); rights = sorted(b[2] for b in boxes)
+            measure[page] = rights[-1 - len(rights) // 10] - lefts[len(lefts) // 10]
+
+    def level_with(i, provision):
+        x0, y0, x1, y1 = lines[i]["box"]
+        for j in pages[lines[i]["page"]]:
+            a0, b0, a1, b1 = lines[j]["box"]
+            if not body(j) or not (a0 >= x1 - 1 or a1 <= x0 + 1):
+                continue
+            if provision and abs(b0 - y0) <= 1.2 * (y1 - y0) and PROVISION.match(lines[j]["text"]):
+                return lines[j]["text"][:90]
+            if not provision and min(y1, b1) - max(y0, b0) > 0.3 * (y1 - y0):
+                return lines[j]["text"]
+        return None
+
+    found = {}
+    for group in state["groups"]:
+        ids = [i for i in group["line_ids"] if i in lines]
+        if group["kind"] != "heading" or not ids or lines[ids[0]]["page"] not in measure:
+            continue
+        width = max(lines[i]["box"][2] for i in ids) - min(lines[i]["box"][0] for i in ids)
+        if width <= 0.35 * measure[lines[ids[0]]["page"]] and sum(level_with(i, False) is not None for i in ids) * 2 > len(ids):
+            provision = level_with(ids[0], True)
+            if provision:
+                found[group["line_ids"][0]] = provision
+    return found
+
+
 def units_of(state):
     lines = {l["id"]: l for l in state["lines"]}
+    beside = beside_provisions(state)
     pos = {i: n for n, i in enumerate(state["reading_order"])}
     quotes = gold.quotations(state)
     units = []
@@ -70,6 +126,7 @@ def units_of(state):
         units.append({"id": first, "page": line["page"], "role": group["kind"], "marker": marker.strip(),
                       "words": words, "indent": round(line["box"][0]) if line.get("box") else None,
                       "quotation": gold.quotation_scope(group, quotes, lines),
+                      **({"beside": beside[first]} if first in beside else {}),
                       "annotated_parent": attrs.get("parent")})
     units.sort(key=lambda unit: pos.get(unit["id"], 10**9))
     return units
@@ -77,21 +134,21 @@ def units_of(state):
 
 def validated(units, response):
     order = {unit["id"]: n for n, unit in enumerate(units)}
-    parents = {}
+    parents, roles = {}, {row["id"]: row["role"] for row in response["parents"]}
     for row in response["parents"]:
         worker.require(row["id"] in order and row["id"] not in parents, f"Unknown or repeated id {row['id']}")
         parent = row["parent"]
+        worker.require(row["role"] == "unit" or units[order[row["id"]]]["role"] == "heading",
+                       f"Only a heading can be ruled a {row['role']}: {row['id']}")
+        worker.require(roles.get(parent, "unit") == "unit", f"Parent {parent} of {row['id']} is ruled out of the outline")
+        worker.require(row["role"] == "unit" or parent is None, f"{row['id']} is ruled out of the outline and takes no parent")
         worker.require(parent is None or (parent in order and order[parent] < order[row["id"]]),
                        f"Parent {parent} of {row['id']} is not an earlier unit")
         worker.require(parent is None or units[order[parent]]["quotation"] == units[order[row["id"]]]["quotation"],
                        f"Parent {parent} of {row['id']} stands outside its quotation")
         parents[row["id"]] = parent
     worker.require(len(parents) == len(units), "Every unit needs a parent decision")
-    levels = {}
-    for unit in units:
-        parent = parents[unit["id"]]
-        levels[unit["id"]] = 1 if parent is None else levels[parent] + 1
-    return {ident: {"parent": parents[ident], "level": levels[ident]} for ident in parents}
+    return levels_of(units, parents, roles)
 
 
 ROMAN = re.compile(r"^(?=[ivxlc]+$)c{0,3}(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$", re.I)
@@ -171,12 +228,13 @@ def repaired(units):
     return parents, doubt
 
 
-def levels_of(units, parents):
+def levels_of(units, parents, roles=None):
+    roles = roles or {}
     levels = {}
     for unit in units:
         parent = parents[unit["id"]]
         levels[unit["id"]] = 1 if parent is None else levels[parent] + 1
-    return {ident: {"parent": parents[ident], "level": levels[ident]} for ident in parents}
+    return {ident: {"parent": parents[ident], "level": levels[ident], "role": roles.get(ident, "unit")} for ident in parents}
 
 
 def write_layer(job, gold_path, units, items, source, attempts=0):
@@ -197,6 +255,9 @@ def decide(job, args):
     if len(units) < 2:
         return "skipped"
     parents, doubt = repaired(units)
+    # A heading set beside a provision, or headings in a reported case, may be no heading at all.
+    doubt = doubt or any("beside" in unit for unit in units) or any(
+        unit["role"] == "heading" and CASE_TITLE.search(unit["words"]) for unit in units)
     items = levels_of(units, parents)
     if not doubt or not args.run:
         if not args.write:
@@ -242,7 +303,11 @@ def apply(job, value):
     items = layer["items"]
     for block in value.get("blocks", []):
         decided = items.get(block["line_ids"][0]) if block.get("line_ids") else None
-        if decided and ("level" in block["attributes"] or "parent" in block["attributes"]):
+        if decided and decided.get("role", "unit") != "unit":
+            block["kind"] = decided["role"]
+            block["attributes"].pop("parent", None)
+            block["attributes"].pop("level", None)
+        elif decided and ("level" in block["attributes"] or "parent" in block["attributes"]):
             block["attributes"]["parent"] = decided["parent"]
             block["attributes"]["level"] = decided["level"]
     return value
