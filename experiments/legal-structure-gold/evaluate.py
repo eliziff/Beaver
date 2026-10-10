@@ -89,7 +89,8 @@ def state_of(value):
         parts = [n for n in structure['nodes'] if n['kind'] == 'section' and (n.get('grammar') or '').startswith('constituent_') and n.get('line_ids')]
         roots = [a for a in state['annotations'] if a['kind'] == 'document']
         state['annotations'] = [a for a in state['annotations'] if a['kind'] != 'document']
-        if parts and roots:
+        # A PDF the parser does not part is one document: its own.
+        if roots:
             first = roots[0]['line_ids'][0]
             state['annotations'].append(roots[0])
             relationships = {'exhibit': 'exhibit', 'schedule': 'schedule', 'annex': 'attachment'}
@@ -194,6 +195,9 @@ def compare(expected, candidate):
         def anchor(i):
             if i is None: return None
             line=lines[i]; return (line['source_id'] or i, (line['source_range'] or [0])[0])
+        # The package's own document is the root, whichever line it opens on.
+        roots={a['line_ids'][0] for a in state['annotations'] if a['kind']=='document' and a['attributes'].get('parent') is None}
+        def document(i): return ('root',) if i in roots else anchor(i)
         def pieces(i):
             line=lines[i]; key=line['source_id'] or i; a,b=line['source_range'] or (0,len(line['text']))
             boundaries=sorted(c for c in cuts[key] if a <= c <= b)
@@ -237,16 +241,17 @@ def compare(expected, candidate):
                 result['note_references'].extend((extent,span(s)) for s in attrs.get('references',[]))
             elif kind=='quotation': result[kind].append((extent,attrs['layout'],spans(attrs.get('attribution',[]))))
             elif kind=='document':
-                start=anchor(a['line_ids'][0]); result[kind].append((start,attrs['kind'],anchor(attrs.get('parent')),attrs.get('relationship')))
+                start=document(a['line_ids'][0]); result[kind].append((start,attrs['kind'],document(attrs.get('parent')),attrs.get('relationship')))
                 result['document_facets'].append((start,'title',spans(attrs.get('title',[]))))
                 result['document_facets'].extend((start,k,spans(v)) for k,v in attrs.get('facets',{}).items())
         if any(a['kind']=='document' for a in state['annotations']):
             try:
-                owners,docs=gold.ownership(state); starts={a['id']:anchor(a['line_ids'][0]) for a in docs}
+                owners,docs=gold.ownership(state); starts={a['id']:document(a['line_ids'][0]) for a in docs}
                 result['document_ownership']=[(p,starts[owners[i]]) for i in state['reading_order'] for p in pieces(i)]
-            except ValueError:
+            except (ValueError, KeyError):
+                # A candidate whose headings name a parent no group opens is an invalid hierarchy too.
                 result['document_ownership']=[(p,'invalid_hierarchy') for i in state['reading_order'] for p in pieces(i)]
-        result['document_resumes']=[(anchor(i),anchor(v['document'])) for i,v in state.get('resumes',{}).items()]
+        result['document_resumes']=[(anchor(i),document(v['document'])) for i,v in state.get('resumes',{}).items()]
         result['continuations']=[(anchor(i),anchor(l['next']),l['kind'],l['separator']) for i,l in gold.continuations(state)]
         texts=defaultdict(str)
         for line in sorted(lines.values(),key=lambda l:((l['source_id'] or l['id']), (l['source_range'] or [0])[0])):
