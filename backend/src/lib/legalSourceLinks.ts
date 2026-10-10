@@ -2,7 +2,6 @@ import { type A2AJCompiledDocument, type A2AJLocatorKind } from "./legalSources/
 import { structureNative, type NativeDocument,
   type NativeTextFragmentPlan } from "./structureNative";
 import type { VerifiedPdfEvidence } from "./legalSourcePresentation";
-import { hasCanliiCourtRoute } from "./canliiUrls";
 import { buildA2AJWebPinpointUrl } from "./a2ajWebLinks";
 
 /**
@@ -575,7 +574,7 @@ function hasCanadianCaseCitation(value: string) {
     const dataset = court?.toUpperCase() ?? "";
     return family === "neutral" &&
       (year?.startsWith("19") || year?.startsWith("20")) &&
-      hasCanliiCourtRoute(dataset);
+      structureNative().canliiCourtRoute(dataset);
   });
 }
 

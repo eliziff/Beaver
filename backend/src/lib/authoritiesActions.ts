@@ -6,7 +6,6 @@ import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForm
   type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage,
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
 import { nativeOccurrenceSpans, nativeReferenceSpans, pinpointValues } from "./authoritiesImport";
-import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
 import { authorityPdfText } from "./authorityPdfText";
 import { citationAliasKeysBatch } from "./caselawCitator";
 import { sha256 } from "./hash";
@@ -599,8 +598,7 @@ export function applyAuthoritiesUserAction(
   }
   if (action.type === "begin-canlii-handoff") {
     const authority = draft.authorities[action.authorityId];
-    const pageUrl = authority && buildCanliiCaseUrlFromCitation(
-      authorityCitationForms(draft, authority.id));
+    const pageUrl = authority && structureNative().canliiCaseUrl(authorityCitationForms(draft, authority.id), "en", null);
     if (!authority || !pageUrl) throw new ApplicationError(409,
       "A canonical CanLII link is not available for this authority");
     return updateAuthoritiesDraft(draft, { ...action, pageUrl });

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
+import { structureNative } from "./structureNative";
+
+const buildCanliiCaseUrlFromCitation = (citations: string[]) => structureNative().canliiCaseUrl(citations, "en", null);
 import { buildCanliiPdfUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 
 describe("CanLII citation handoff", () => {

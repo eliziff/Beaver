@@ -252,6 +252,13 @@ type StructureAddon = {
     year?: string; court?: string; number?: string;
     volume?: string; reporter?: string; page?: string;
   }>;
+  /** The CanLII page of the first decision the citations name by a neutral or CanLII citation with its court written,
+   *  of `court` where given and routed; null where none. */
+  canliiCaseUrl(citations: readonly string[], language: "en" | "fr", court: string | null): string | null;
+  /** The CanLII page of the first statute or regulation the text cites; null where none. */
+  canliiLawUrl(text: string): string | null;
+  /** Whether the engine's registry routes a court code to CanLII. */
+  canliiCourtRoute(court: string): boolean;
   citationOccurrencesInText(text: string): NativeCitationOccurrence[];
   authorityReferencesInText(text: string): NativeAuthorityReferenceOccurrence[];
   caselawCitationLookupKey(text: string): string;
