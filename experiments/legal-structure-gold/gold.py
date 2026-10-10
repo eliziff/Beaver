@@ -144,6 +144,13 @@ def initial(structure, pages):
     for node in sorted(leaves, key=lambda n:(priority[n["kind"]],n["range"]["end"]-n["range"]["start"])):
         for ident in node["line_ids"]:
             if ident in lines: owners.setdefault(ident,node)
+    # A numbered section owns no line of its own: its number opens the block of text it starts,
+    # which carries that number, as a numbered paragraph's block carries its own.
+    opened = {}
+    for node in nodes.values():
+        if node["kind"] == "section" and node.get("marker_range") and node.get("line_ids") and node.get("grammar") not in {"heading_section"}:
+            marker_lines = [s["line_id"] for s in range_refs(node["marker_range"],lines,structure)]
+            if marker_lines: opened.setdefault(marker_lines[0], node)
     buckets={}
     for ident,line in lines.items():
         native=owners.get(ident)
@@ -156,6 +163,11 @@ def initial(structure, pages):
         consumed.update(ids)
         role = native["kind"] if native and native["kind"] in composer.KINDS else "prose"
         attrs = {}
+        section = opened.get(ids[0])
+        if section and native and native["kind"] in {"prose","paragraph"} and not native.get("marker_range") \
+                and native.get("content_start",native["range"]["start"]) <= native["range"]["start"]:
+            native = {**section, "kind": native["kind"], "id": native["id"], "label": native.get("label"),
+                      "locator_kind": section.get("locator_kind") or "section"}
         if native:
             parent = nodes.get(native.get("parent_id"))
             seen=set()
@@ -169,6 +181,9 @@ def initial(structure, pages):
                 attrs.update(level=native.get("level") or depth(native), parent=parent["line_ids"][0] if parent and parent.get("line_ids") else None)
             if marker:
                 fragments=[s for s in range_refs(marker,lines,structure) if s["line_id"] in ids]
+                # A marker is its token, not the space a section's number keeps after it.
+                for s in fragments:
+                    while s["end"] > s["start"] and lines[s["line_id"]]["text"][s["end"]-1].isspace(): s["end"] -= 1
                 if fragments: attrs.update(locator_kind=native.get("locator_kind") or ("paragraph" if native["kind"]=="prose" else native["kind"]), marker=fragments)
                 elif native["kind"]!="heading":
                     attrs.pop("parent",None); attrs.pop("level",None)
