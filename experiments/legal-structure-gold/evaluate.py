@@ -68,12 +68,16 @@ def state_of(value):
     # parent's plus one), not the parser's own count within a list or a type size's rank.
     by_line = {i: g for g in state['groups'] for i in g['line_ids']}
     depths = {}
-    def depth(group, seen=()):
-        key = id(group)
-        if key not in depths:
-            parent = by_line.get(group['attributes'].get('parent'))
-            depths[key] = 1 if parent is None or parent is group or id(parent) in seen else depth(parent, seen + (key,)) + 1
-        return depths[key]
+    def depth(group):
+        # Up the parents until a known depth, a root or a cycle; then back down.
+        chain, seen = [], set()
+        while group is not None and id(group) not in depths and id(group) not in seen:
+            seen.add(id(group)); chain.append(group)
+            group = by_line.get(group['attributes'].get('parent'))
+        base = depths.get(id(group), 0) if group is not None else 0
+        for offset, member in enumerate(reversed(chain), 1):
+            depths[id(member)] = base + offset
+        return depths[id(chain[0])] if chain else base
     for group in state['groups']:
         if 'level' in group['attributes']: group['attributes']['level'] = depth(group)
     # The structure leaves running heads, folios and print margins out of every node, and
