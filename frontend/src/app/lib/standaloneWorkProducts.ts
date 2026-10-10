@@ -9,8 +9,9 @@ import {
 } from "./workProducts";
 import { BeaverApiError } from "./api/client";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
+import { PAGE_STORE } from "./pageStore";
 
-const DATABASE = "beaver-work-products";
+const DATABASE = `${PAGE_STORE}-work-products`;
 const DRAFTS = "drafts";
 const METADATA = "metadata";
 const HANDLES = "fileHandles";
@@ -210,7 +211,7 @@ export async function saveStandaloneArtifacts<State>(
   const current = await request<WorkProduct<State> | undefined>(drafts.get(product.id));
   if (!current) throw new Error("This draft no longer exists.");
   if (current.revision !== product.revision) {
-    throw new Error("This draft changed elsewhere. Reopen it and build again.");
+    throw new BeaverApiError({ status: 409, message: "This draft changed elsewhere. Reopen it and build again." });
   }
   const now = new Date().toISOString();
   deleteOutputs(outputs, current);
@@ -267,6 +268,13 @@ export async function readStandaloneOutput(workProductId: string, role: string,
   return { product, role, output: storedOutput(saved), bytes: new Uint8Array(saved.bytes.slice(0)),
     receipt: structuredClone(saved.receipt),
     stale: saved.stateSha256 !== await digestState(product.state) };
+}
+
+/** A built file, by its document and version: read alone, without its draft. */
+export async function readStandaloneOutputFile(documentId: string, versionId: string) {
+  const saved = await read<StoredOutput>(OUTPUTS, versionId);
+  if (saved?.documentId !== documentId) throw new Error("This built file is unavailable. Build it again.");
+  return new Blob([saved.bytes], { type: saved.mimeType });
 }
 
 function draftTitle(value: string) {
@@ -687,16 +695,17 @@ function openDatabase() {
       opening.result.onversionchange = () => { opening.result.close(); database = undefined; };
       resolve(opening.result);
     };
-    opening.onerror = () => reject(opening.error);
+    // A failed open is tried again by the next request, not held for the rest of the visit.
+    opening.onerror = () => { database = undefined; reject(opening.error); };
   });
 }
 
-/** Deletes everything Beaver's pages keep in this browser: drafts, their files and folders, outputs, kept
- *  lookups, the parse and recognition caches and settings. The files and folders on the computer stay. */
+/** Deletes everything this page keeps in this browser: drafts, their files and folders, outputs, kept lookups and
+ *  settings, and the parse and recognition caches every page shares. The files and folders on the computer stay. */
 export async function clearStandaloneData() {
-  for (const key of Object.keys(localStorage)) if (/^(?:beaver|alr)\./u.test(key)) localStorage.removeItem(key);
+  for (const key of Object.keys(localStorage)) if (key.startsWith(`${PAGE_STORE}.`)) localStorage.removeItem(key);
   const names = (await indexedDB.databases()).map(({ name }) => name ?? "")
-    .filter((name) => /^(?:beaver|authorities|alr)-/u.test(name));
+    .filter((name) => name.startsWith(`${PAGE_STORE}-`) || name === "authorities-parse-cache" || name === "authorities-browser-ocr");
   await Promise.all(names.map((name) => new Promise<void>((resolve, reject) => {
     const deleting = indexedDB.deleteDatabase(name);
     deleting.onsuccess = () => resolve();

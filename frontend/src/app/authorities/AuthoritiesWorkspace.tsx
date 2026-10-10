@@ -16,6 +16,7 @@ import { pdfOpening } from "@/app/lib/inspectPdf";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { ClearDataSetting } from "@/app/components/shared/ClearDataSetting";
+import { PAGE_STORE } from "@/app/lib/pageStore";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import type { Document, PdfRecognizedText } from "@/app/lib/api/documents";
@@ -352,7 +353,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   useEffect(() => {
     onDraftChange?.(draft, !!draft && !busy && !preview);
   }, [draft, busy, preview, onDraftChange]);
-  useEffect(() => localStorage.setItem("beaver.authorities.preferences", JSON.stringify(preferences)),
+  useEffect(() => localStorage.setItem(PREFERENCES, JSON.stringify(preferences)),
     [preferences]);
   useEffect(() => () => {
     buildRequest.current?.abort(); scanRequest.current?.abort();
@@ -1902,7 +1903,7 @@ const courtChosen = (value: StartPreferences, profileId: AuthoritiesProfileId): 
 const NO_SOURCE_ISSUES: Record<string, AuthoritiesSourceIssue> = {};
 /** An app without a book gives its sources no tabs. */
 const NO_TABS: ReadonlyMap<string, string> = new Map();
-const pendingKey = (id: string) => `beaver.authorities.pending.${id}`;
+const pendingKey = (id: string) => `${PAGE_STORE}.authorities.pending.${id}`;
 const afterPaint = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
 function missingSources(draft: AuthoritiesProduct,
   sourceIssues: Record<string, AuthoritiesSourceIssue> = {}, plan = planAuthorities(draft)) {
@@ -1971,14 +1972,15 @@ function planAuthorities({ state }: AuthoritiesProduct) {
 }
 const errorText = (error: unknown) => errorMessage(error, "Authorities could not be updated.");
 const lastDraftKey = (projectId: string | undefined, mode: AuthoritiesHost["mode"]) =>
-  `beaver.authorities.${mode === "standalone" ? "standalone." : ""}last.${projectId ?? "library"}`;
-const SOURCES_EXPLAINED = "beaver.authorities.sourcesExplained";
+  `${PAGE_STORE}.authorities.${mode === "standalone" ? "standalone." : ""}last.${projectId ?? "library"}`;
+const SOURCES_EXPLAINED = `${PAGE_STORE}.authorities.sourcesExplained`;
+const PREFERENCES = `${PAGE_STORE}.authorities.preferences`;
 function sourcesExplained() {
   try { return !!localStorage.getItem(SOURCES_EXPLAINED); } catch { return true; }
 }
 function loadPreferences(): StartPreferences {
   try {
-    const value = JSON.parse(localStorage.getItem("beaver.authorities.preferences") ?? "null") as
+    const value = JSON.parse(localStorage.getItem(PREFERENCES) ?? "null") as
       Partial<StartPreferences> | null;
     return value && AUTHORITY_PROFILE_BY_ID.has(value.profileId ?? "") &&
       SOURCE_OPTIONS.some(({ value: id }) => id === value.sourceMode) &&
