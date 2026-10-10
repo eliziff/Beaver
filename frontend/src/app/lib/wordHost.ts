@@ -1,4 +1,4 @@
-import { characterPlan, descendingPlan, highlightRuns, minimalEditPlan } from "../../../../shared/sequence-diff.mjs";
+import { characterPlan, descendingPlan, highlightRuns } from "../../../../shared/sequence-diff.mjs";
 
 export type ClientToolCall = {
     type: "client_tool_call";
@@ -455,7 +455,7 @@ const rangeOf = (item: Found, from: number, to: number) => item.at[from] === ite
  *  characters replaced, or deleted, or for an insertion, text put before the character at its start (after the
  *  last character at the span's end). Offsets are the span's. */
 export function planWrites(expected: string, target: string) {
-    return descendingPlan(minimalEditPlan(expected, target)).map(([start, length, replacement]) =>
+    return descendingPlan(characterPlan(expected, target)).map(([start, length, replacement]) =>
         length ? { from: start, to: start + length, write: replacement ? "Replace" as const : "Delete" as const, text: replacement }
             : start < expected.length ? { from: start, to: start + 1, write: "Before" as const, text: replacement }
                 : { from: expected.length - 1, to: expected.length, write: "After" as const, text: replacement });
