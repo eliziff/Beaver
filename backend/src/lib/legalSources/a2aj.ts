@@ -453,14 +453,19 @@ async function document(args: {
       sourceUrl: args.sourceUrl ?? undefined, maxChars: Number.MAX_SAFE_INTEGER });
     if (source) break;
   }
-  if (!source) for (const form of forms) {
+  // A2AJ is asked as the Python app asks it (a2aj_client.py, alr_quote_verifier.py): by citation alone, never with a
+  // case's name before it, which only makes another request of each way it is written; for a court it holds; and
+  // searched once, for the first form.
+  const named = new Set([citation, english].filter((form) => !core.includes(form)));
+  const asked = source ? [] : await coveredForms(forms.filter((form) => !named.has(form)), docType, args.signal);
+  if (!source) for (const form of asked) {
     args.signal?.throwIfAborted();
     const payload = await request("/fetch", { citation: form, doc_type: docType, output_language: language }, args.signal);
     const accepted = accept(payload.results, form);
     source = accepted ? mapDocument(accepted, language, docType) : null;
     if (source) break;
   }
-  if (!source) for (const form of forms) {
+  if (!source) for (const form of asked.slice(0, 1)) {
     const searched = await request("/search", { query: literalQuery(form), doc_type: docType,
       search_type: "full_text", search_language: language, size: 10, dataset: args.dataset?.trim() }, args.signal);
     const accepted = accept(searched.results, form);
@@ -540,6 +545,22 @@ function jurisdiction(dataset: string, docType: DocType): keyof typeof JURISDICT
   if (prefix === "YK") return "YT";
   return prefix in JURISDICTIONS && prefix !== "FE"
     ? prefix as keyof typeof JURISDICTIONS : "FED";
+}
+
+/** The forms A2AJ is asked for, as the Python app asks it (alr_quote_verifier.py _a2aj_identity_citation and its
+ *  coverage check): a neutral citation of a court A2AJ holds, or a Supreme Court Reports citation; a CanLII number, a
+ *  US or other reporter is asked for only by such a form among its aliases. Where A2AJ's coverage cannot be read,
+ *  every neutral and SCR form. */
+async function coveredForms(forms: string[], docType: DocType, signal?: AbortSignal) {
+  if (docType !== "cases" || !forms.length) return forms;
+  const held = await coverage(docType).then((rows) => new Set(rows.map(({ dataset }) => dataset)), () => new Set<string>());
+  signal?.throwIfAborted();
+  const dataset = (form: string) => {
+    const cite = structureNative().providerCitationsInText(form)[0];
+    const court = cite?.court?.replace(/[\s.]+/gu, "").toUpperCase();
+    return cite?.family === "neutral" ? court : cite?.family === "reporter" && court === "SCR" ? "SCC" : undefined;
+  };
+  return forms.filter((form) => { const code = dataset(form); return !!code && (!held.size || held.has(code)); });
 }
 
 async function coverage(docType: DocType) {
