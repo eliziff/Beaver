@@ -549,12 +549,22 @@ function jurisdiction(dataset: string, docType: DocType): keyof typeof JURISDICT
 
 /** The forms A2AJ is asked for, as the Python app asks it (alr_quote_verifier.py _a2aj_identity_citation and its
  *  coverage check): a neutral citation of a court A2AJ holds, or a Supreme Court Reports citation; a CanLII number, a
- *  US or other reporter is asked for only by such a form among its aliases. Where A2AJ's coverage cannot be read,
- *  every neutral and SCR form. */
+ *  US or other reporter is asked for only by such a form among its aliases. Legislation is asked for only where the
+ *  citation names a Canadian jurisdiction whose legislation A2AJ holds: a US register or a bill is not. Where A2AJ's
+ *  coverage cannot be read, every form of those kinds. */
 async function coveredForms(forms: string[], docType: DocType, signal?: AbortSignal) {
-  if (docType !== "cases" || !forms.length) return forms;
-  const held = await coverage(docType).then((rows) => new Set(rows.map(({ dataset }) => dataset)), () => new Set<string>());
+  if (!forms.length) return forms;
+  const rows = await coverage(docType).catch(() => []);
   signal?.throwIfAborted();
+  if (docType === "laws") {
+    const held = new Set(rows.map(({ jurisdictionCode }) => jurisdictionCode));
+    const code = (form: string) => {
+      const place = structureNative().providerCitationsInText(form).find(({ family }) => family === "statute")?.jurisdiction;
+      return place === "ca" ? "FED" : place?.startsWith("ca-") ? place.slice(3).toUpperCase().replace(/^YK$/u, "YT") : undefined;
+    };
+    return forms.filter((form) => { const at = code(form); return !!at && (!held.size || held.has(at as keyof typeof JURISDICTIONS)); });
+  }
+  const held = new Set(rows.map(({ dataset }) => dataset));
   const dataset = (form: string) => {
     const cite = structureNative().providerCitationsInText(form)[0];
     const court = cite?.court?.replace(/[\s.]+/gu, "").toUpperCase();

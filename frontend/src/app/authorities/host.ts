@@ -74,9 +74,6 @@ export interface AuthoritiesHost {
   localStores?: {
     /** Reads `file` as the store, or stops reading it (null); `localOnly` keeps A2AJ lookups on this computer. */
     mount(store: AuthoritiesLocalStore, file: File | AuthoritiesServedFile | null, options?: { localOnly?: boolean }): Promise<void>;
-    /** The file chosen for each store, kept for the next visit; its permission is asked for apart. */
-    kept: { get(store: AuthoritiesLocalStore): Promise<FileSystemFileHandle | null>;
-      set(store: AuthoritiesLocalStore, handle: FileSystemFileHandle | null): Promise<void> };
   };
   /** The book's cover and first index page, as a PDF, with `actions` applied to the draft first. */
   bookFront?(product: AuthoritiesProduct, actions: AuthoritiesAction[], signal?: AbortSignal): Promise<Blob>;
