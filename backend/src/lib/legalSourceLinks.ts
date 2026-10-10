@@ -531,10 +531,10 @@ export function canliiPinpointLink(rawUrl: string, pinpoints: readonly string[])
 
 /**
  * A link to the paragraph or provision a URL's anchor names (CanLII's #par12 or #sec4, Decisia's #par12), with a
- * text fragment for that passage beside the anchor: from its first words to its last, each unique in the source's
- * text. An anchor is never the only thing that finds the passage (a browser goes to the anchor where the fragment
- * finds nothing): where `document` lacks the passage, or no text is at hand, the link is the page without the
- * anchor. A page anchor or a link without an anchor stays as it is.
+ * text fragment for that passage beside the anchor where `document` holds it: from its first words to its last, each
+ * unique in the source's text. The anchor always stays, as the ALR Python app keeps it (alr_quote_verifier.py
+ * appends #par to every pinpointed CanLII link): the fragment is added beside it, never in its place. A page anchor
+ * or a link without an anchor stays as it is.
  */
 export function citedPassageLink(rawUrl: string, document: NativeDocument | null | undefined) {
   const url = sourceUrl(rawUrl);
@@ -554,7 +554,7 @@ export function citedPassageLink(rawUrl: string, document: NativeDocument | null
       publisherMayAnnotateLegalReference(url), false, document) : null;
     if (plan?.sourceSafeComplete && plan.directives.length === 1) directive = plan.directives[0];
   }
-  return directive ? appendDirectives(url, [directive]) : sourceUrl(rawUrl, "");
+  return directive ? appendDirectives(url, [directive]) : url;
 }
 
 function normalizedIdentity(value: string | null | undefined) {

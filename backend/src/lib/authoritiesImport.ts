@@ -423,6 +423,7 @@ async function scanReview(
     }
     return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,
       footnoteId: unit.footnote_id, ...(unit.note_number !== undefined && { noteNumber: unit.note_number }),
+      ...(unit.note_mark && { noteMark: unit.note_mark }), ...(unit.links?.length && { authorLinks: unit.links }),
       pageNumbers: unit.page_numbers, text: unit.text, footnoteRefs: unit.footnote_refs, occurrenceIds };
   });
   // The parser can return overlapping full spans even when their citation cores

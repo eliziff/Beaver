@@ -202,8 +202,7 @@ async function preparePdf(input: PdfOpenInput) {
         throw new Error("PDF source changed after preparation began");
       const cached = await structureNative().restorePdfDocument(pdfCacheRequest({ ...input, sourceSha256 }, input.pdfProfile.cacheKey));
       // A reading no longer kept is made again below, as it was first made.
-      if (cached) return { summary: preparedSummary(structureNative().pdfDocumentSummary(cached),
-        sourceSha256, input.pdfProfile.cacheKey), profile };
+      if (cached) return { summary: preparedSummary(structureNative().pdfDocumentSummary(cached), sourceSha256), profile };
     }
     const prepare = () => pdfLifecyclePhase("prepare.native", input.documentId, () =>
       structureNative().preparePdfDocument(input.bytes, request, input.signal, input.progress &&

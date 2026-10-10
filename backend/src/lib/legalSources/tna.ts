@@ -33,8 +33,10 @@ const parseXml = (xml: string) => {
   return parser.parse(xml);
 };
 
+// The National Archives finds a judgment by its UK neutral citation ("[2020] UKSC 1") only: a UK court's decision cited
+// another way (a CanLII citation of a Privy Council appeal, "1929 CanLII 438 (JCPC)") is not asked for.
 const citationFrom = (value: string) => structureNative().providerCitationsInText(value)
-  .find(({ jurisdiction }) => jurisdiction === "uk");
+  .find(({ jurisdiction, family }) => jurisdiction === "uk" && family === "neutral");
 
 const normalized = (value: string) =>
   value.replace(/\s+/gu, " ").trim().toLowerCase();

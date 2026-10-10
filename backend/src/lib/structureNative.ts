@@ -82,6 +82,10 @@ export type NativeAuthorityTextUnit = {
   ordinal: number;
   footnote_id: number | null;
   note_number?: number | null;
+  /** The mark a Word footnote prints in place of a number (customMarkFollows), as written. */
+  note_mark?: string | null;
+  /** A Word footnote's hyperlinks (a hyperlink's relationship target or a HYPERLINK field's): offsets and address. */
+  links?: Array<[start: number, end: number, url: string]>;
   restart_sequence?: number;
   page_numbers: number[];
   text: string;

@@ -334,10 +334,15 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     state.bindings[corrected.bindingRole] = binding;
     return save(id, input.revision, state);
   },
-  async refresh(id, revision) {
+  async refresh(id, revision, selected) {
     const product = await currentProduct(id, revision);
     if (product.state.import.kind !== "document") return product;
     const role = product.state.import.bindingRole;
+    if (selected) {
+      const state = structuredClone(product.state);
+      state.bindings[role] = await bindStandaloneFile(selected.file, selected.input);
+      return save(id, revision, await refreshImported(state, selected.file));
+    }
     const resolved = await resolveStandaloneFile(product.state.bindings[role]);
     if (resolved.status === "missing") throw new Error(
       "The connected source could not be found. Relink it, then try again.",
