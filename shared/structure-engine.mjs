@@ -38,6 +38,7 @@ export const SIGNATURES = {
   groundedProseErrors: ["text", "citedEvidenceIds", "visibleEvidence"],
   quoteRepairSuggestion: ["claim", "spans"], markedQuoteSpans: ["text"],
   readDocumentRange: ["document", "kind", "from", "to", "contextBlocks"],
+  canliiCaseUrl: ["citations", "language", "court"], canliiLawUrl: ["text"], canliiCourtRoute: ["court"],
   smallestContainingDocumentBlock: ["document", "start", "end"],
   textFragmentPlan: ["blockText", "quotes", "pdf", "publisherMayAnnotateLegalReference",
     "splitHtmlSourceBlocks", "document"],

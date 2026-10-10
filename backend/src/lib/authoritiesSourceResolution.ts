@@ -5,7 +5,6 @@ import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
   type AuthoritiesDraft, type AuthorityCitedCase, type AuthorityIdentity, type AuthoritySourceLookupFailure } from "./authoritiesDomain";
-import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
 import { buildCanliiPdfUrl, isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
@@ -361,8 +360,8 @@ export async function resolveAuthoritiesSources(
       const source = resolvedSources.get(authority.sourceIdentity?.stableSourceId ?? "");
       const external = authority.sourceIdentity?.externalUrl ?? authority.sourceUrl;
       const pageUrl = external && buildCanliiPdfUrl(external) ? external
-        : buildCanliiCaseUrlFromCitation([source?.citation, source?.alternateCitation,
-          ...authorityCitationForms(draft, id)].filter((value) => !!value), source?.language);
+        : structureNative().canliiCaseUrl([source?.citation, source?.alternateCitation,
+          ...authorityCitationForms(draft, id)].filter((value): value is string => !!value), source?.language === "fr" ? "fr" : "en", null);
       if (pageUrl) editor.apply({ type: "begin-canlii-handoff", authorityId: id, pageUrl });
     }
   }

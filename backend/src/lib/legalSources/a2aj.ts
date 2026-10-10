@@ -3,7 +3,6 @@ import { statSync } from "node:fs";
 import { cachedContent } from "../contentCache";
 import { a2ajLocalBulkPath, fetchLocalA2AJDocument, searchLocalA2AJ, useA2AJStore } from "../a2ajLocalBulk";
 import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
-import { buildCanliiCaseUrl } from "../canliiUrls";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
@@ -113,8 +112,8 @@ function publisherUrl(record: JsonObject, language: Language) {
 function sourceUrl(record: JsonObject, language: Language) {
   const dataset = string(record.dataset) ?? "";
   return buildCanliiLawUrl({ dataset, citation: languageText(record, "citation", language), language }) ??
-    publisherUrl(record, language) ?? buildCanliiCaseUrl({ dataset, language,
-      citations: [languageText(record, "citation", language), languageText(record, "citation2", language)] });
+    publisherUrl(record, language) ?? structureNative().canliiCaseUrl([languageText(record, "citation", language),
+      languageText(record, "citation2", language)].filter((value): value is string => !!value), language, dataset);
 }
 
 export type A2AJFailureReason = "rate-limited" | "error" | "timeout" | "unreachable" | "local-only";
