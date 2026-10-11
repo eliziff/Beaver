@@ -1,0 +1,11 @@
+{
+    "repository":  "https://github.com/AlbertaLawReview/ALR-Quote-Verifier",
+    "revision":  "89c513ab0de759dcc39e3799e38f2dd97efd87c5",
+    "path":  "canlii_ext/canlii_browser.py",
+    "sha256":  "50bc132131bbde22e33a93bda9312ca60731979f3fb0c21bd028db608fd1c0df",
+    "license":  "Apache-2.0",
+    "adaptations":  [
+                        "CourtListener host, homepage URL and environment names",
+                        "standalone runtime helper imports and copied no-op resolver contract"
+                    ]
+}

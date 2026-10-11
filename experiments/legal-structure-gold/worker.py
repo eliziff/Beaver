@@ -880,7 +880,7 @@ def parse_args(argv=None):
     parser.add_argument("--limit", type=int, default=1, help="0 selects every manifest row")
     parser.add_argument("--shard", default="0/1", help="k/n: this worker takes every n-th selected row from the k-th")
     parser.add_argument("--model", default="gpt-6.1-sol")
-    parser.add_argument("--effort", default="medium", choices=("none", "low", "medium", "high", "xhigh", "max", "ultra"))
+    parser.add_argument("--effort", default="low", choices=("none", "low", "medium", "high", "xhigh", "max", "ultra"))
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--attempts", type=int, choices=range(1, 7), default=3)
     parser.add_argument("--max-calls", type=int, help="Maximum new model calls per PDF, including retries")

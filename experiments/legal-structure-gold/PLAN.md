@@ -19,7 +19,7 @@ python experiments/legal-structure-gold/worker.py --record-run <current-run> --r
 
 The default prepares compressed line evidence, prompts and `schema.json` without
 calling a model. `--run` invokes Codex exec with Structured Outputs. Defaults are
-gpt-6.1-sol/medium,
+gpt-6.1-sol/low,
 144 dpi, three bounded attempts and a 600-second timeout. `--max-calls` limits
 new calls per PDF, including retries; cached responses consume no calls.
 Execution is serial at Below Normal priority with one native/OCR worker.
@@ -494,23 +494,44 @@ recognizer wrapper for the Arrow transform initialization/normalization and
 Safetensors RNN-storage issues. The retained Safetensors model loaded through
 the installed loader after those fixes.
 
-The maintained staging and PPDoc conversion commands accepted both current export
-routes: 217 direct-Kraken recognition crops and 236 Kraken-plus-PPDoc crops;
-their COCO outputs contain 56 and 96 regions respectively, with no skipped types
-or order-validation failures. Source-qualified filenames, fixed partition groups
-and copied images/targets prevent collisions and later export changes from
-altering a staged input. The final full Kraken dataset-loader verification did
-not complete because the desktop WSL environment stalled, including on basic
-commands. An Ubuntu-only restart succeeded, but the final loader launch produced
-no completion receipt before work was wrapped up. Its results are not counted as
-verified compatibility. The final stager changes for copied targets and explicit
-geometry eligibility were syntax-checked but not rerun after the WSL failure;
-independent COCO polygon/order comparisons also remain unfinished. The final
-launch failed before inspection with `Wsl/Service/CreateInstance/CreateVm/ERROR_TIMEOUT`.
-Task-owned launches were stopped and transport archives/helpers removed; the
-existing Windows jobs were preserved. No training or new accuracy measurements were run for
-this port. Current evidence and recovery notes are in
-`ocr-investigation/consumer-port/`.
+The maintained stager was rerun against both current export routes: 217 direct-Kraken
+recognition crops and 236 Kraken-plus-PPDoc crops. Their COCO outputs contain 56
+and 96 regions respectively. Independent comparisons verified every polygon,
+box, area, type, relative order, page dimension and copied image hash, with no
+skipped types or order-validation failures. Source-qualified filenames, fixed
+partition groups and copied images/targets prevent collisions and later export
+changes from altering a staged input.
+
+Native Windows GPU recognition training completed one epoch on all 217 direct
+crops, took 55 optimizer steps, saved a checkpoint with optimizer state and
+Safetensors weights, and reloaded the weights successfully. The isolated runtime
+uses Kraken 7.0.2, PyTorch 2.10.0 with CUDA 12.6 and Lightning 2.6.1 on the desktop's
+RTX 3080 Ti. The maintained entrypoints share native local/SSH execution and
+record guarded runtime repairs. This establishes that training can run natively.
+Eight training crops were reused for validation solely for this execution proof;
+the partition manifest and Gold stayed unchanged, and no accuracy benchmark was
+performed.
+
+PP-DocLayoutV3 also completed one native Windows GPU epoch on seven pages with
+96 typed regions from the Kraken-plus-PPDoc route. All seven optimizer iterations
+completed, and the model checkpoint and inference export were saved. A fresh
+process restored the model, optimizer and EMA state at epoch 1; the existing
+trained-inference consumer then loaded the export and processed one page. The
+same installed runtime worked after the resource-holding ten-worker extraction
+batch was stopped with explicit user authorization. No dependency changes or
+additional training epochs were needed. Original Gold and its partition manifest
+remain unchanged; validation reuses training pages solely for execution proof.
+Receipts live in `ocr-investigation/consumer-port/`.
+
+The remaining Kraken native training families also passed one-epoch execution
+checks on current Kraken-plus-PPDoc Gold. Combined baseline/typed-region
+segmentation trained on four eligible pages, completed four optimizer steps,
+saved its checkpoint and weights, and reloaded them. Line reading-order training
+used seven pages, completed one optimizer step, saved its checkpoint and ROMLP
+weights, and reloaded them. Both runs used the maintained local entrypoints over
+SSH, copied artifacts back successfully and removed their remote staging bundles.
+Gold and the partition manifest stayed unchanged. These are execution checks;
+training pages were reused for validation and no accuracy benchmark was run.
 
 ### Two annotation producer paths
 

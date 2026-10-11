@@ -1,0 +1,11 @@
+diff --git a/backend/src/lib/legalSources/courtlistener.ts b/backend/src/lib/legalSources/courtlistener.ts
+--- a/backend/src/lib/legalSources/courtlistener.ts
++++ b/backend/src/lib/legalSources/courtlistener.ts
+@@ -541,6 +541,7 @@
+ export const courtlistenerLegalSourceProvider = Object.assign(provider(), {
++  compileOpinion: compactOpinion,
+   configured: provider,
+   caseOpinions,
+   caseSource,
+   hasNativeOpinionStructure,
+ });

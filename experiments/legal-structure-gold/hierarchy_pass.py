@@ -450,7 +450,7 @@ def main():
     parser.add_argument("--runs", nargs="*", default=[])
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--model", default="gpt-6.1-sol")
-    parser.add_argument("--effort", default="medium")
+    parser.add_argument("--effort", default="low")
     parser.add_argument("--attempts", type=int, default=2)
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--parallel", type=int, default=2)
