@@ -281,6 +281,24 @@ pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<Out
         document.instrument().filter(|_| pdf && legislation))
 }
 
+/// Complete source elements and their original parent relationships and provenance.
+pub fn source_markup(document: &NativeDocument) -> legal_structure::SourceMarkup<'_> {
+    document.query.source_markup(document.structure())
+}
+
+pub fn source_paragraph_markers(document: &NativeDocument) -> legal_structure::SourceParagraphMarkers<'_> {
+    document.query.source_paragraph_markers(document.structure())
+}
+
+pub fn source_paragraph_marker(document: &NativeDocument, markup_start: usize) -> Option<legal_structure::SourceParagraphMarker<'_>> {
+    document.query.source_paragraph_marker(document.structure(), markup_start)
+}
+
+/// Actual source opinion components and author declarations, without inferred boundaries.
+pub fn source_opinion_components(document: &NativeDocument) -> legal_structure::SourceOpinionComponents<'_> {
+    document.query.source_opinion_components(document.structure())
+}
+
 pub fn document_table_cells(document: &NativeDocument) -> impl Serialize + '_ {
     document.query.table_cells(document.structure())
 }
@@ -298,6 +316,30 @@ pub fn document_reading_order(request: &str) -> Result<Vec<(usize, usize)>, Stri
 pub fn citation_engine_call(method: &str, request: &str) -> Result<serde_json::Value, String> {
     let request = serde_json::from_str(request).map_err(|error| error.to_string())?;
     legal_structure::citations::api::call_value(method, request).map_err(|error| error.to_string())
+}
+
+/// Each quotation located in a document's text and, with `compare`, compared with it, with what grounded_prose_errors
+/// says of the quotation against the passage it was found in (the whole text where it was not), the evidence named by
+/// its id.
+pub fn quote_locate_document(
+    document: &NativeDocument,
+    blocks: &[legal_structure::QuoteBlockInput],
+    quotes: &[legal_structure::QuoteToLocate],
+    compare: bool,
+) -> Vec<serde_json::Value> {
+    let text = document_text(document, None);
+    legal_structure::locate_quotes_in(text, blocks, quotes, compare).into_iter().zip(quotes).map(|(located, item)| {
+        if !compare {
+            return serde_json::to_value(&located).expect("a located quotation serializes");
+        }
+        let id = item.id.clone().unwrap_or_default();
+        let evidence = if located.found.text.is_empty() { text } else { located.found.text.as_str() };
+        let errors = grounded_prose_errors(&format!("\u{201c}{}\u{201d}", item.quote), std::slice::from_ref(&id),
+            &[VisibleEvidenceText { evidence_id: id.clone(), text: evidence.to_owned(), labels: Vec::new() }]);
+        let mut value = serde_json::to_value(&located).expect("a located quotation serializes");
+        value["errors"] = serde_json::json!(errors);
+        value
+    }).collect()
 }
 
 pub fn citation_lookup_keys(texts: &[String]) -> Vec<String> {

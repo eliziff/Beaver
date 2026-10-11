@@ -100,7 +100,7 @@ export type QuoteCheck = { candidateId: string | null; status: "verified" | "mis
   detail: string;
   receipt: null | { source: LegalSourceReference; sourceSha256: string; passageSha256: string;
     locator: LegalSourceLocator | null; text: string; errors: string[];
-    comparison: NativeQuoteComparison; match: QuoteLocation; link: string | null } };
+    comparison: NativeQuoteComparison | null; match: QuoteLocation; link: string | null } };
 /** A quotation and the checks of the sources its note cites, each on its own. */
 export type QuoteResult = ReturnType<typeof splitQuoteChecks>[number] & { checks: QuoteCheck[] };
 /** PDFs the user attached, read, by authority. */
@@ -138,8 +138,9 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   attached: AttachedQuoteSources = new Map(),
   /** firstCitationOnly: check a quotation only against the citation linked to it, else its note's first.
    *  quoteContext: "sentence" checks only the quotations in the sentence a note's marker ends or stands in.
-   *  textOnly: checks the text's quotations alone, none a note holds. */
-  options: { firstCitationOnly?: boolean; quoteContext?: QuoteContext; textOnly?: boolean } = {}) {
+   *  textOnly: checks the text's quotations alone, none a note holds.
+   *  compare: false leaves out each receipt's comparison and errors, for a caller that reads only where the quotation is. */
+  options: { firstCitationOnly?: boolean; quoteContext?: QuoteContext; textOnly?: boolean; compare?: boolean } = {}) {
   const citationUnits = await splitQuoteCitationUnits(draft.units.map(({ text }) => text), signal);
   const unitReceipts = citationUnits.map((split, index) => ({ unitId: draft.units[index].id, ...split }));
   const all = splitQuoteChecks(draft, links, citationUnits, options.quoteContext, options.textOnly);
@@ -211,11 +212,12 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     try {
       const text = engine.documentText(document), revision = engine.documentRevision(document);
       const located = engine.quoteLocateDocument(document, quoteBlocks(document, items[0].judgment),
-        items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints) })));
+        items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints), id: row.id })),
+        options.compare !== false);
       const hashes = new Map<string, string>();
       items.forEach((item, index) => {
         try {
-          item.check = checked(item, located[index].match, located[index].comparison, text, revision, hashes);
+          item.check = checked(item, located[index], text, revision, hashes);
         } catch {
           signal?.throwIfAborted();
           item.check = unavailable(item.candidateId);
@@ -228,8 +230,9 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     emit();
   }
   /** A located quotation's check: its receipt, with a link that opens the source at the quoted words. */
-  function checked({ row, candidateId, pinpoints, source, document }: Pending, match: QuoteLocation,
-    comparison: NativeQuoteComparison, documentText: string, revision: string, hashes: Map<string, string>): QuoteCheck {
+  function checked({ row, candidateId, pinpoints, source, document }: Pending,
+    { match, comparison, errors }: ReturnType<typeof engine.quoteLocateDocument>[number],
+    documentText: string, revision: string, hashes: Map<string, string>): QuoteCheck {
     const text = match.text || documentText;
     const cited = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
     // The link opens the block that holds the quoted words, with the block's own anchor beside the fragment where the
@@ -247,7 +250,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
           : cited ? "Compared with the cited passage." : "Compared with the available source text; no unique pinpoint supplied.",
       receipt: { source, sourceSha256: revision,
         passageSha256: memo(hashes, text, () => canonicalJsonSha256(text)), locator: cited, text,
-        errors: engine.groundedProseErrors(`“${row.quote}”`, [row.id], [{ evidenceId: row.id, text, labels: [] }]),
+        errors: errors ?? [],
         comparison, match, link } };
   }
   return { mode: links.length ? "assisted" : "mechanical", quotes: quotes as QuoteResult[], total: all.length,

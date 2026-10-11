@@ -1140,6 +1140,7 @@ dependencies = [
  "legal-pdf-ocr",
  "legal-pdf-structure",
  "legal-pdf-support",
+ "legal-pdf-witnesses",
  "legal-structure-model",
  "serde",
  "serde_json",
@@ -1155,8 +1156,10 @@ dependencies = [
  "legal-pdf-pairing",
  "legal-pdf-support",
  "legal-pdf-tables",
+ "legal-pdf-witnesses",
  "legal-structure-model",
  "regex",
+ "serde",
  "serde_json",
 ]
 
@@ -1183,6 +1186,19 @@ version = "0.1.0"
 dependencies = [
  "legal-pdf-core",
  "regex",
+ "serde",
+]
+
+[[package]]
+name = "legal-pdf-witnesses"
+version = "0.1.0"
+dependencies = [
+ "legal-pdf-core",
+ "legal-structure-model",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]

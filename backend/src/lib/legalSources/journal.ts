@@ -2,14 +2,13 @@ import crypto from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { legalDataHome, legalProviderDatabase } from "../legalDataPath";
+import { inSqliteRun, legalDataHome, legalProviderDatabase } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
 import { sqliteText as string } from "../sqliteSearch";
 import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
 import { isUnitedStatesSearch } from ".";
 import type { LegalSourceProvider, LegalSourceSearchRequest, LegalSourceReference } from ".";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
-import { sequenceOpcodes } from "mike/shared/sequence-diff.mjs";
 import { sourceUrl } from "../legalSourceLinks";
 
 type Row = Record<string, unknown>;
@@ -484,39 +483,28 @@ function journalReference(document: JournalArticleDocument) {
 }
 
 /** Python difflib's ratio of two titles, by character, after folding case and punctuation. */
-function titleRatio(a: string, b: string) {
-  const fold = (value: string) => [...value.toLowerCase().replace(/[^\p{L}\p{N}_\s]/gu, "").replace(/\s+/gu, " ").trim()];
-  const [x, y] = [fold(a), fold(b)];
-  if (!x.length && !y.length) return 1;
-  const same = sequenceOpcodes(x, y).filter(([tag]) => tag === "equal").reduce((sum, [, a0, a1]) => sum + a1 - a0, 0);
-  return (2 * same) / (x.length + y.length);
-}
 /** The article a citation names by the title it quotes: the closest title the search finds for it,
  *  when close enough. After ALR-Quote-Verifier journal_search.py search_by_title (difflib ratio of at least
  *  0.7 between normalized titles, among articles of the cited year or the years beside it), with candidates
  *  from this database's index of names: of those years, the names sharing the most of the title's words, the
  *  cited journal, volume and first page, so a word spelled or inflected otherwise does not lose the article.
  *  A citation without a year takes only names holding every word of the title. */
+// The articles an operation's journal citations name, kept while it runs: finding sources and checking quotations
+// read the same citations.
+const titled = new Map<string, number | null>();
 function titledArticle(citation: string) {
-  let best: { score: number; articleId: number } | null = null;
-  const native = structureNative();
-  const { citations } = native.citationEngineCall("extract", JSON.stringify({ text: citation, offsetUnit: "utf16" })) as
-    { citations: Array<{ authority: string; fields?: { yearNumber?: number; volume?: string; reporter?: string; page?: string } }> };
-  const cited = citations.filter(({ authority, fields }) => authority === "journal" && fields?.yearNumber);
-  const quote = (words: string[]) => words.map((word) => `"${word}"`);
-  const years = quote([...new Set(cited.flatMap(({ fields }) => [-1, 0, 1].map((offset) => String(fields!.yearNumber! + offset))))]);
-  const published = cited.flatMap(({ fields }) => queryTokens(`${fields!.reporter ?? ""} ${fields!.volume ?? ""} ${fields!.page ?? ""}`));
-  const titles = native.citationEngineCall("quotedTitles", JSON.stringify({ text: citation })) as string[];
-  for (const title of titles) {
-    const words = quote(queryTokens(title));
-    if (!words.length) continue;
-    const query = years.length ? `(${[...words, ...quote(published)].join(" OR ")}) AND (${years.join(" OR ")})` : words.join(" AND ");
-    for (const hit of findArticles(query, 5, { names: true, syntax: "fts5" })) {
-      const score = titleRatio(title, hit.name);
-      if (!best || score > best.score) best = { score, articleId: hit.articleId };
-    }
-  }
-  return best && best.score >= 0.7 ? best.articleId : null;
+  if (!inSqliteRun()) titled.clear();
+  if (titled.has(citation)) return titled.get(citation)!;
+  const found = findTitledArticle(citation);
+  if (inSqliteRun()) titled.set(citation, found);
+  return found;
+}
+
+function findTitledArticle(citation: string) {
+  // The engine says what to search for and which found name is the title's; the index is searched here.
+  const engine = structureNative();
+  return engine.journalTitleChoice(engine.journalTitleSearches(citation).flatMap(({ title, query }) =>
+    findArticles(query, 5, { names: true, syntax: "fts5" }).map(({ name, articleId }) => ({ title, name, articleId }))));
 }
 
 /** An article's PDF opened at a printed page: the database's page map gives the PDF page, which

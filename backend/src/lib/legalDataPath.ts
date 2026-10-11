@@ -60,6 +60,9 @@ export async function withSqliteRun<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Whether an operation is running (withSqliteRun): what it reads is kept until it ends. */
+export const inSqliteRun = () => runs > 0;
+
 function readonlyHandle(filename: string, search: boolean) {
   const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
   const open = (database: DatabaseSync) => {

@@ -201,7 +201,7 @@ export async function quoteCheckWorkbook(filename: string, result: Result, analy
         }
         if (column === 5) {
           const spans: Span[] = [];
-          for (const change of check.receipt?.comparison.changes ?? []) {
+          for (const change of check.receipt?.comparison?.changes ?? []) {
             for (const [text, color, strike] of [[change.authored, "9B2432", true], [change.source, "1F603D", false]] as const) {
               const start = value.lastIndexOf(`“${text}”`);
               if (text && start >= 0) spans.push({ start, end: start + text.length + 2, color, strike });
