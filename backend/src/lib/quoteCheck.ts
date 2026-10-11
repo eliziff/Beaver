@@ -207,11 +207,13 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     }
   };
   emit();
-  for (const [document, items] of bySource) {
+  // The sources are located in at once, each on one of the engine's threads; each one's receipts are made here as it
+  // is done.
+  await Promise.all([...bySource].map(async ([document, items]) => {
     signal?.throwIfAborted();
     try {
       const text = engine.documentText(document), revision = engine.documentRevision(document);
-      const located = engine.quoteLocateDocument(document, quoteBlocks(document, items[0].judgment),
+      const located = await engine.quoteLocateDocument(document, quoteBlocks(document, items[0].judgment),
         items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints), id: row.id })),
         options.compare !== false);
       const hashes = new Map<string, string>();
@@ -228,10 +230,10 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
       for (const item of items) item.check ??= unavailable(item.candidateId);
     }
     emit();
-  }
+  }));
   /** A located quotation's check: its receipt, with a link that opens the source at the quoted words. */
   function checked({ row, candidateId, pinpoints, source, document }: Pending,
-    { match, comparison, errors }: ReturnType<typeof engine.quoteLocateDocument>[number],
+    { match, comparison, errors }: Awaited<ReturnType<typeof engine.quoteLocateDocument>>[number],
     documentText: string, revision: string, hashes: Map<string, string>): QuoteCheck {
     const text = match.text || documentText;
     const cited = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
