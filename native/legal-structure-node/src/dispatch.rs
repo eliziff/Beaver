@@ -151,6 +151,10 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "statuteOutline" => done(engine::statute_outline(&call.get::<String>("text")?,
             call.get::<Option<bool>>("articles")?.unwrap_or(false)).and_then(value)),
         "caseOutline" => done(engine::case_outline(&call.get::<String>("text")?).and_then(value)),
+        "documentCaseOutline" => done(with_document(doc()?, |d|
+            engine::case_outline(engine::document_text(d, None)).and_then(value))),
+        "documentTextStatistics" => done(with_document(doc()?, |d| value(d.query.text_statistics(
+            d.structure(), &call.get::<Vec<String>>("texts")?)))),
         "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(
             d, call.get::<Option<bool>>("legislation")?.unwrap_or(false))))),
         "sourceMarkup" => done(with_document(doc()?, |d| value(engine::source_markup(d)))),

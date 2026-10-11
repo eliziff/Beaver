@@ -340,6 +340,8 @@ type StructureAddon = {
   /** A judgment's outline read from its text: its headings by level, numbered paragraphs, the lists
    *  within them, and the matter around its reasons, in order. */
   caseOutline(text: string): NativeCaseOutlineEntry[];
+  documentCaseOutline(document: NativeDocument): NativeCaseOutlineEntry[];
+  documentTextStatistics(document: NativeDocument, texts: string[]): Array<{ occurrences: number; words: number }>;
   textFragmentPlan(blockText: string, quotes: string[], pdf: boolean,
     publisherMayAnnotateLegalReference: boolean,
     splitHtmlSourceBlocks: boolean,
