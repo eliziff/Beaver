@@ -40,8 +40,15 @@ async function extract(pdf, output, mode, requestFile) {
   const fresh = { dump: path.join(destination, `resolver-${mode}.json`), witnesses: path.join(destination, `witnesses-${mode}.jsonl`) };
   rmSync(fresh.dump, { force: true });
   rmSync(fresh.witnesses, { force: true });
-  process.env.LEGALPDF_RESOLVER_DUMP = fresh.dump;
-  process.env.LEGALPDF_WITNESS_DUMP = fresh.witnesses;
+  // Dumps are written where asked (DUMP=1, the run a search starts from): every structure stage
+  // pays for them otherwise.
+  if (process.env.DUMP === '1') {
+    process.env.LEGALPDF_RESOLVER_DUMP = fresh.dump;
+    process.env.LEGALPDF_WITNESS_DUMP = fresh.witnesses;
+  } else {
+    delete process.env.LEGALPDF_RESOLVER_DUMP;
+    delete process.env.LEGALPDF_WITNESS_DUMP;
+  }
   const parseStart = performance.now();
   const summary = await parser.preparePdfDocument(bytes, {
     ...request, cache_dir: destination, expected_source_sha256: sha256,

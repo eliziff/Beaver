@@ -26,14 +26,16 @@ ROOT = HERE.parents[1]
 OUT = ROOT / "benchmarks/local-data/legal-structure-gold"
 LAYER = "hierarchy.json.gz"
 VERSION = "legal-structure-gold.hierarchy.v2"
-OUTSIDE = ("marginal_note", "headnote")
+OUTSIDE = ("marginal_note", "headnote", "caption", "text")
+KINDS = ("heading", "list_item", "numbered_paragraph")
 SCHEMA = {
     "type": "object",
     "properties": {"parents": {"type": "array", "items": {
         "type": "object",
         "properties": {"id": {"type": "string"}, "parent": {"type": ["string", "null"]},
-                       "role": {"type": "string", "enum": ["unit", *OUTSIDE]}},
-        "required": ["id", "parent", "role"], "additionalProperties": False}}},
+                       "role": {"type": "string", "enum": ["unit", *OUTSIDE]},
+                       "kind": {"type": "string", "enum": list(KINDS)}},
+        "required": ["id", "parent", "role", "kind"], "additionalProperties": False}}},
     "required": ["parents"], "additionalProperties": False,
 }
 PROMPT = """Below is every heading, numbered paragraph and list item of one legal document, in reading
@@ -55,10 +57,33 @@ parent over the whole document, as the document's own outline has it:
   catchwords or summary of the points decided, printed between the case's title and its syllabus
   or opinion) is no part of the outline: give it role marginal_note or headnote and parent null,
   and no unit takes it as parent. Every other unit has role unit.
+- A "heading" that is a line of the document's caption or a form's furniture is no part of the
+  outline: the court's or tribunal's name over the parties ("IN THE SUPREME COURT OF INDIA",
+  "UNITED STATES DISTRICT COURT"), a file or case number, a form's number or identifier standing
+  alone ("Form 59.16C", "FORM 5", "NO. 28"), a party's label ("Applicant", "BETWEEN:"), a date or
+  place line. Give it role caption and parent null. These stay units, never caption: a heading
+  naming a section of the document's own text ("ORDER OF THE COURT", "Reasons for Judgment"); the
+  document's own title, a form's title included ("FORM 10b (Judgment Allowing Appeal ...)" is the
+  form's title; "FORM 10b" alone is caption); a part of the document ("SCHEDULE 4", "PART II",
+  "APPENDIX A", "EXHIBIT A" heading an exhibit's own text); a reported case's title in a law
+  report ("Oswald, administrator, v. State of New York."), which heads that case. When unsure,
+  keep the annotator's role. A unit shown with role caption may be restored: give it role unit and
+  its kind where it is in fact a heading.
+- A unit that is no heading, numbered paragraph or list item at all (ordinary running text set
+  apart, a label or a line of a form's field, a stray number or a signature line) is demoted to
+  the document's text: give it role text and parent null.
+- Each unit's kind, the same for every unit of one count throughout the document:
+  heading, a title over a section of text, numbered or not ("4. Status Reports", a short title
+  followed by its section's text, is a heading); numbered_paragraph, a paragraph of the document's
+  body numbered in sequence (an affidavit's, a judgment's, an agreement's or a statute's own
+  numbered paragraphs and provisions, "1.", "2.", "(1)", standing as paragraphs); list_item, an
+  item of a list, enumerated after a lead-in or within a paragraph ("(a)", "(i)", bullets), or a
+  short item of a numbered list that is no paragraph of the body. Its current kind is shown; keep
+  it unless it is clearly wrong.
 - Keep the annotator's parent wherever it agrees with the whole document.
 
-Return every id exactly once with its role and its parent's id or null; a parent always comes
-earlier.
+Return every id exactly once with its role, its kind and its parent's id or null; a parent always
+comes earlier.
 
 Units:
 """
@@ -117,13 +142,14 @@ def units_of(state):
     units = []
     for group in state["groups"]:
         attrs = group["attributes"]
-        if group["kind"] != "heading" and not attrs.get("marker"):
+        if group["kind"] not in ("heading", "caption") and not attrs.get("marker"):
             continue
         first = group["line_ids"][0]
         line = lines[first]
         marker = "".join(lines[s["line_id"]]["text"][s["start"]:s["end"]] for s in attrs.get("marker", []))
         words = " ".join(lines[i]["text"] for i in group["line_ids"])[:90]
-        units.append({"id": first, "page": line["page"], "role": group["kind"], "marker": marker.strip(),
+        units.append({"id": first, "page": line["page"], "role": group["kind"],
+                      "kind": group["kind"] if group["kind"] in KINDS else "numbered_paragraph", "marker": marker.strip(),
                       "words": words, "indent": round(line["box"][0]) if line.get("box") else None,
                       "quotation": gold.quotation_scope(group, quotes, lines),
                       **({"beside": beside[first]} if first in beside else {}),
@@ -138,7 +164,7 @@ def validated(units, response):
     for row in response["parents"]:
         worker.require(row["id"] in order and row["id"] not in parents, f"Unknown or repeated id {row['id']}")
         parent = row["parent"]
-        worker.require(row["role"] == "unit" or units[order[row["id"]]]["role"] == "heading",
+        worker.require(row["role"] in ("unit", "text") or units[order[row["id"]]]["role"] in ("heading", "caption"),
                        f"Only a heading can be ruled a {row['role']}: {row['id']}")
         worker.require(roles.get(parent, "unit") == "unit", f"Parent {parent} of {row['id']} is ruled out of the outline")
         worker.require(row["role"] == "unit" or parent is None, f"{row['id']} is ruled out of the outline and takes no parent")
@@ -148,7 +174,10 @@ def validated(units, response):
                        f"Parent {parent} of {row['id']} stands outside its quotation")
         parents[row["id"]] = parent
     worker.require(len(parents) == len(units), "Every unit needs a parent decision")
-    return levels_of(units, parents, roles)
+    items = levels_of(units, parents, roles)
+    for row in response["parents"]:
+        items[row["id"]]["kind"] = row.get("kind", units[order[row["id"]]]["kind"])
+    return items
 
 
 ROMAN = re.compile(r"^(?=[ivxlc]+$)c{0,3}(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$", re.I)
@@ -257,7 +286,7 @@ def decide(job, args):
     parents, doubt = repaired(units)
     # A heading set beside a provision, or headings in a reported case, may be no heading at all.
     doubt = doubt or any("beside" in unit for unit in units) or any(
-        unit["role"] == "heading" and CASE_TITLE.search(unit["words"]) for unit in units)
+        unit["role"] == "heading" and CASE_TITLE.search(unit["words"]) for unit in units) or args.conventions
     items = levels_of(units, parents)
     if not doubt or not args.run:
         if not args.write:
@@ -304,10 +333,19 @@ def apply(job, value):
     for block in value.get("blocks", []):
         decided = items.get(block["line_ids"][0]) if block.get("line_ids") else None
         if decided and decided.get("role", "unit") != "unit":
-            block["kind"] = decided["role"]
-            block["attributes"].pop("parent", None)
-            block["attributes"].pop("level", None)
-        elif decided and ("level" in block["attributes"] or "parent" in block["attributes"]):
+            # Demoted to text: the document's running text, no unit and no marker of one.
+            block["kind"] = "prose" if decided["role"] == "text" else decided["role"]
+            for attribute in ("parent", "level") + (("marker",) if decided["role"] == "text" else ()):
+                block["attributes"].pop(attribute, None)
+            continue
+        # The unit's kind, where the pass decided one: a numbered paragraph is body prose with its marker.
+        kind = decided.get("kind") if decided else None
+        if kind == "numbered_paragraph" and block["attributes"].get("marker"):
+            block["kind"] = "prose"
+        elif kind in ("heading", "list_item"):
+            block["kind"] = kind
+        if decided and ("level" in block["attributes"] or "parent" in block["attributes"]):
+
             block["attributes"]["parent"] = decided["parent"]
             block["attributes"]["level"] = decided["level"]
     return value
@@ -324,6 +362,8 @@ def main():
     parser.add_argument("--parallel", type=int, default=2)
     parser.add_argument("--redo", action="store_true", help="Decide again where a layer exists")
     parser.add_argument("--write", action="store_true", help="Write the layers the numbering settles")
+    parser.add_argument("--conventions", action="store_true",
+                        help="Review every document's units against the conventions (role, kind, parent), not only those the numbering leaves in doubt")
     parser.add_argument("--run", action="store_true", help="Call the model for documents left in doubt (implies --write)")
     args = parser.parse_args()
     import score_all
