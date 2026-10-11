@@ -124,7 +124,8 @@ def arm(args) -> None:
     for folder in (out, raw):
         shutil.rmtree(folder, ignore_errors=True)
         folder.mkdir(parents=True)
-    env = {**os.environ, "ALR_EVAL_LABEL": name}
+    # The engine's threads, which locate a document's sources at once: one for each core, as the app sets them.
+    env = {**os.environ, "ALR_EVAL_LABEL": name, "UV_THREADPOOL_SIZE": str(os.cpu_count() or 4)}
     # The composed app: the runtime operations the page calls, and the ALR repository's workbook.
     command = [*TSX, "--tsconfig", str(HERE / "tsconfig.json"), str(HERE / "compose.ts"),
                *(["--no-quotes"] if args.no_quotes else [])]

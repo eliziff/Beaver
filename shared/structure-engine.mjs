@@ -5,7 +5,7 @@
 const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
   "fixDocxSupraCrossReferences", "hasDocxSupraReferences", "deriveDocxDocument", "docxText",
   "docxAuthorityTextUnits", "derivePdfDocument", "preparePdfDocument", "restorePdfDocument",
-  "pdfPassageGeometryPages"]);
+  "pdfPassageGeometryPages", "quoteLocateDocument"]);
 // Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes;
 // "document" is a handle.
 export const SIGNATURES = {

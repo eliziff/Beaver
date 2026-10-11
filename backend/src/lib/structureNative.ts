@@ -277,7 +277,7 @@ type StructureAddon = {
     blocks: Array<{ kind: "paragraph" | "page" | "section"; label: string; start: number; end: number }>,
     quotes: Array<{ quote: string; scopes: { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
       id?: string }>, compare?: boolean):
-    Array<{ match: NativeQuoteLocation; comparison: NativeQuoteComparison | null; errors?: string[] }>;
+    Promise<Array<{ match: NativeQuoteLocation; comparison: NativeQuoteComparison | null; errors?: string[] }>>;
   /** Where a quotation's words are in a source passage, the passage it is compared with, and what differs. */
   quoteComparison(authored: string, source: string): NativeQuoteComparison;
   /** The source's words as the author quoted them: the author's changes bracketed, omissions an ellipsis. */
