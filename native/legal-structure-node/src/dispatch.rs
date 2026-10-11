@@ -135,6 +135,10 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "caseOutline" => done(engine::case_outline(&call.get::<String>("text")?).and_then(value)),
         "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(
             d, call.get::<Option<bool>>("legislation")?.unwrap_or(false))))),
+        "sourceMarkup" => done(with_document(doc()?, |d| value(engine::source_markup(d)))),
+        "sourceParagraphMarkers" => done(with_document(doc()?, |d| value(engine::source_paragraph_markers(d)))),
+        "sourceParagraphMarker" => done(with_document(doc()?, |d| value(engine::source_paragraph_marker(d, call.get("markupStart")?)))),
+        "sourceOpinionComponents" => done(with_document(doc()?, |d| value(engine::source_opinion_components(d)))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),
         "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),
         "citationEngineCall" => done(engine::citation_engine_call(&call.get::<String>("method")?, &call.get::<String>("request")?)),
@@ -157,15 +161,18 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "quoteRepairSuggestion" => done(value(engine::quote_repair(
             &call.get::<String>("claim")?, &call.get::<Vec<String>>("spans")?))),
         "markedQuoteSpans" => done(value(engine::quote_spans(&call.get::<String>("text")?))),
+        "journalTitleSearches" => done(value(legal_structure::journal_title_searches(&call.get::<String>("citation")?))),
+        "journalTitleChoice" => done(value(legal_structure::journal_title_choice(
+            &call.get::<Vec<legal_structure::JournalTitleHit>>("hits")?))),
         "quoteComparison" => done(value(legal_structure::quote_text_comparison(
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
         "editorialQuote" => done(value(legal_structure::editorial_quote(
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
         "verbatimRepair" => done(value(legal_structure::verbatim_repair(
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
-        "quoteLocateDocument" => done(with_document(doc()?, |d| value(legal_structure::locate_quotes_in(
-            engine::document_text(d, None), &call.get::<Vec<legal_structure::QuoteBlockInput>>("blocks")?,
-            &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?)))),
+        "quoteLocateDocument" => done(with_document(doc()?, |d| value(engine::quote_locate_document(
+            d, &call.get::<Vec<legal_structure::QuoteBlockInput>>("blocks")?,
+            &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true))))),
         "readDocumentRange" => done(with_document(doc()?, |d| engine::read_document_range(
             d, &call.get::<String>("kind")?, &call.get::<String>("from")?, &call.get::<String>("to")?,
             call.get("contextBlocks")?).and_then(value))),

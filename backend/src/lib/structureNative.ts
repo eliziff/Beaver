@@ -270,15 +270,22 @@ type StructureAddon = {
   quoteRepairSuggestion(claim: string, spans: string[]): string | null;
   markedQuoteSpans(text: string): Array<{ text: string; start: number; end: number }>;
   /** Each quotation located in a source the engine holds (its blocks by their UTF-16 offsets, each quotation with
-   *  the paragraphs, pages and provisions its citation names) and compared with the source's words there. */
+   *  the paragraphs, pages and provisions its citation names) and compared with the source's words there, with
+   *  groundedProseErrors of it against the passage it was found in (the whole text where not), named by its id;
+   *  with compare false, located only. */
   quoteLocateDocument(document: NativeDocument,
     blocks: Array<{ kind: "paragraph" | "page" | "section"; label: string; start: number; end: number }>,
-    quotes: Array<{ quote: string; scopes: { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] } }>):
-    Array<{ match: NativeQuoteLocation; comparison: NativeQuoteComparison }>;
+    quotes: Array<{ quote: string; scopes: { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
+      id?: string }>, compare?: boolean):
+    Array<{ match: NativeQuoteLocation; comparison: NativeQuoteComparison | null; errors?: string[] }>;
   /** Where a quotation's words are in a source passage, the passage it is compared with, and what differs. */
   quoteComparison(authored: string, source: string): NativeQuoteComparison;
   /** The source's words as the author quoted them: the author's changes bracketed, omissions an ellipsis. */
   editorialQuote(authored: string, source: string): string;
+  /** The searches of a journal index's names for the articles a citation quotes the titles of (FTS5 queries). */
+  journalTitleSearches(citation: string): Array<{ title: string; query: string }>;
+  /** The article whose found name is closest to the title searched for it, when close enough. */
+  journalTitleChoice(hits: Array<{ title: string; name: string; articleId: number }>): number | null;
   /** The source passage an authored quotation's words closely align with, where it occurs once. */
   verbatimRepair(authored: string, source: string): string | null;
   readDocumentRange(document: NativeDocument, kind: NativeDocumentBlock["kind"], from: string,

@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
 import { structureNative } from "./structureNative";
 import { boundedSize, searchTokens, sqliteText as string } from "./sqliteSearch";
-import { legalProviderDatabase, withSearchReadonlySqlite,
+import { inSqliteRun, legalProviderDatabase, withSearchReadonlySqlite,
   withReadonlySqlite } from "./legalDataPath";
 
 type Row = Record<string, unknown>;
@@ -170,6 +170,8 @@ function addDatasetFilter(filters: string[], values: Array<string | number>,
   values.push(...datasets);
 }
 
+// The documents an operation fetches, kept while it runs: its stages fetch the same decisions.
+const fetched = new Map<string, A2AJDocument | null>();
 export function fetchLocalA2AJDocument(args: {
   citation: string; docType?: DocType; language?: Language;
   dataset?: string; sourceUrl?: string; maxChars?: number;
@@ -178,7 +180,10 @@ export function fetchLocalA2AJDocument(args: {
   if (!citation) throw new Error("citation is required");
   const key = structureNative().citationLookupKey(citation);
   if (!key) return null;
-  return withDatabase((database) => {
+  if (!inSqliteRun()) fetched.clear();
+  const memo = JSON.stringify([a2ajLocalBulkPath(), key, args.docType, args.language, args.dataset, args.sourceUrl, args.maxChars]);
+  if (fetched.has(memo)) return fetched.get(memo)!;
+  const found = withDatabase((database) => {
     const filters = ["document.id IN (SELECT document_id FROM citation_lookup WHERE citation_key = ?)", "document.doc_type = ?"];
     const values: Array<string | number> = [key, args.docType ?? "cases"];
     addDatasetFilter(filters, values, args.dataset);
@@ -196,6 +201,8 @@ export function fetchLocalA2AJDocument(args: {
     return row ? a2ajDocumentFromRow(row, args.language === "fr" ? "fr" : "en",
       boundedSize(args.maxChars, 50_000, Number.MAX_SAFE_INTEGER)) : null;
   });
+  if (inSqliteRun()) fetched.set(memo, found);
+  return found;
 }
 
 function ftsQuery(tokens: string[], searchType: "full_text" | "name") {

@@ -7,6 +7,7 @@ import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCi
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
+import { inSqliteRun } from "../legalDataPath";
 import { normalizeWhitespace } from "../text";
 import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
@@ -64,6 +65,26 @@ async function deriveA2AJDocument(
   },
   scope: { kind: "complete" | "excerpt"; excerptOf?: string } = { kind: "complete" },
 ) {
+  // The stages of an operation read the same decisions, each asking for them in its own form: a text's structure is
+  // derived once, kept while an operation runs and the latest 32 otherwise.
+  const { text, ...rest } = input;
+  const key = JSON.stringify([rest, scope, crypto.createHash("sha256").update(text).digest("base64")]);
+  const kept = derived.get(key);
+  if (kept) {
+    derived.delete(key); derived.set(key, kept);
+    const found = await kept.catch(() => null);
+    if (found && nativeDocumentLive(found)) return found;
+    derived.delete(key);
+  }
+  const deriving = deriveUncached(input, scope);
+  derived.set(key, deriving);
+  deriving.catch(() => derived.delete(key));
+  if (!inSqliteRun()) for (const old of [...derived.keys()].slice(0, Math.max(0, derived.size - 32))) derived.delete(old);
+  return deriving;
+}
+const derived = new Map<string, Promise<NativeDocument>>();
+
+function deriveUncached(input: Parameters<typeof deriveA2AJDocument>[0], scope: Parameters<typeof deriveA2AJDocument>[1] & object) {
   return structureNative().deriveDocumentStructure({
     kind: "provider_text",
     input: {
@@ -572,7 +593,19 @@ async function coveredForms(forms: string[], docType: DocType, signal?: AbortSig
   return forms.filter((form) => { const code = dataset(form); return !!code && (!held.size || held.has(code)); });
 }
 
-async function coverage(docType: DocType) {
+// A2AJ's courts and jurisdictions change rarely: a list is kept a day, a failed or empty one five minutes.
+const covered = new Map<DocType, { expires: number; value: ReturnType<typeof readCoverage> }>();
+function coverage(docType: DocType) {
+  const kept = covered.get(docType);
+  if (kept && kept.expires > Date.now()) return kept.value;
+  const value = readCoverage(docType);
+  covered.set(docType, { expires: Date.now() + 5 * 60_000, value });
+  value.then((rows) => { if (rows.length) covered.set(docType, { expires: Date.now() + 24 * 60 * 60_000, value }); },
+    () => undefined);
+  return value;
+}
+
+async function readCoverage(docType: DocType) {
   const payload = await request("/coverage", { doc_type: docType });
   return (Array.isArray(payload.results) ? payload.results : []).flatMap((value) => {
     const record = object(value);

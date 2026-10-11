@@ -145,7 +145,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
         // quoteContext "sentence" checks only the quotations in the sentence a note's marker ends or stands in;
         // quotations "text" checks only the text's quotations, none a note holds.
         { firstCitationOnly: input.allCitations !== true, quoteContext: input.quoteContext === "sentence" ? "sentence" : "passage",
-          textOnly: input.quotations === "text" }) };
+          textOnly: input.quotations === "text", compare: input.compare !== false }) };
     },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;

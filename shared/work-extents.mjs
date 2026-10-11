@@ -34,13 +34,12 @@ function extents() {
   return read;
 }
 
-/** The extents the pack knows for citations' works, as the engine's `extents` option takes them. */
-export function workExtents(citations) {
+const registered = new WeakSet();
+/** Registers the pack's extents with an engine, once: its extractions read a work's extent by the citation's key. */
+export function registerWorkExtents(engine) {
+  if (registered.has(engine)) return;
+  registered.add(engine);
   const known = extents();
-  const found = new Map();
-  for (const { key } of citations) {
-    const extent = key && known.get(key);
-    if (extent && !found.has(key)) found.set(key, { key, ...extent });
-  }
-  return [...found.values()];
+  if (known.size) engine.citationEngineCall("registerExtents",
+    JSON.stringify({ extents: [...known].map(([key, extent]) => ({ key, ...extent })) }));
 }
