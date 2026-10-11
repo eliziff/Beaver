@@ -157,6 +157,15 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "quoteRepairSuggestion" => done(value(engine::quote_repair(
             &call.get::<String>("claim")?, &call.get::<Vec<String>>("spans")?))),
         "markedQuoteSpans" => done(value(engine::quote_spans(&call.get::<String>("text")?))),
+        "quoteComparison" => done(value(legal_structure::quote_text_comparison(
+            &call.get::<String>("authored")?, &call.get::<String>("source")?))),
+        "editorialQuote" => done(value(legal_structure::editorial_quote(
+            &call.get::<String>("authored")?, &call.get::<String>("source")?))),
+        "verbatimRepair" => done(value(legal_structure::verbatim_repair(
+            &call.get::<String>("authored")?, &call.get::<String>("source")?))),
+        "quoteLocateDocument" => done(with_document(doc()?, |d| value(legal_structure::locate_quotes_in(
+            engine::document_text(d, None), &call.get::<Vec<legal_structure::QuoteBlockInput>>("blocks")?,
+            &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?)))),
         "readDocumentRange" => done(with_document(doc()?, |d| engine::read_document_range(
             d, &call.get::<String>("kind")?, &call.get::<String>("from")?, &call.get::<String>("to")?,
             call.get("contextBlocks")?).and_then(value))),

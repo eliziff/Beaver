@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { legalProviderDatabase } from "../legalDataPath";
+import { legalDataHome, legalProviderDatabase } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
 import { sqliteText as string } from "../sqliteSearch";
 import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
@@ -104,7 +104,17 @@ function trustedUrl(value: string | null) {
   }
 }
 
+// The journals database's path, found once while it stays where it was found and its settings stand: finding it opens
+// the search index to read where it was built from.
+let foundPath: { settings: string; path: string } | null = null;
 function journalDatabasePath() {
+  const settings = `${process.env.MIKE_PUBLIC_ENDPOINT_DB ?? ""}\n${process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB ?? ""}\n${legalDataHome()}`;
+  if (foundPath?.settings === settings && existsSync(foundPath.path)) return foundPath.path;
+  foundPath = { settings, path: locateJournalDatabase() };
+  return foundPath.path;
+}
+
+function locateJournalDatabase() {
   const configured = process.env.MIKE_PUBLIC_ENDPOINT_DB?.trim();
   if (configured) return path.resolve(configured);
   const shared = legalProviderDatabase("journals", "public_endpoint.db");

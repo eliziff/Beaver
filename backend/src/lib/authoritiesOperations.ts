@@ -27,6 +27,7 @@ import { carriedLinks, linkPropagationTargets } from "./authoritiesLinkPropagati
 import type { NativeDocument } from "./structureNative";
 import { FOREIGN_CASE_PROVIDERS, type LegalSourceReference, type LegalSourceResolveRequest } from "./legalSources";
 import { legalSourceOperations } from "./legalSourceApplication";
+import { withSqliteRun } from "./legalDataPath";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
   decodeAuthoritiesUserAction, decodePdfOpening, text } from "./authoritiesActionContract";
 
@@ -100,11 +101,16 @@ async function standaloneSource(input: AuthoritiesOperationInput): Promise<Param
   if (!Number.isSafeInteger(modified) || modified < 0) reject(400, "modified is invalid");
   return { filename, fileType, bytes: sourceBytes(file), modified };
 }
+/** Each operation reads the local stores through handles it keeps until it ends (legalDataPath.ts withSqliteRun). */
+function inRuns<T extends Record<string, (...args: any[]) => Promise<unknown>>>(operations: T): T {
+  return Object.fromEntries(Object.entries(operations).map(([name, operation]) =>
+    [name, (...args: unknown[]) => withSqliteRun(() => operation(...args))])) as T;
+}
 type OperationContext = { signal: AbortSignal; progress?: (message: string) => void; quoteProgress?: (value: unknown) => void };
 export function createAuthoritiesOperations(resolveSources: typeof resolveAuthoritiesSources = resolveAuthoritiesSources,
   reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies) {
   const readings = sourceReadings();
-  return {
+  return inRuns({
     capabilities: async () => value({ wordToPdf: wordToPdfAvailable() }),
     "quote-check": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const state = draft(json(input.draft, "draft")), files = input.files ?? [];
@@ -445,5 +451,5 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     return fileResult( { receipt: built.receipt, ...(prepared ? { book: prepared } : {}) },
       [...artifacts, ...bookFiles]);
     },
-  };
+  });
 }

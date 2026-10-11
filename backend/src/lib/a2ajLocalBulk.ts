@@ -179,17 +179,16 @@ export function fetchLocalA2AJDocument(args: {
   const key = structureNative().citationLookupKey(citation);
   if (!key) return null;
   return withDatabase((database) => {
-    const filters = ["lookup.citation_key = ?", "document.doc_type = ?"];
+    const filters = ["document.id IN (SELECT document_id FROM citation_lookup WHERE citation_key = ?)", "document.doc_type = ?"];
     const values: Array<string | number> = [key, args.docType ?? "cases"];
     addDatasetFilter(filters, values, args.dataset);
     if (args.sourceUrl?.trim()) {
       filters.push("(document.url_en = ? OR document.url_fr = ?)");
       values.push(args.sourceUrl.trim(), args.sourceUrl.trim());
     }
+    // The documents are chosen by id before their rows are read: a DISTINCT over whole rows copies their texts.
     const rows = database.prepare(
-      `SELECT DISTINCT document.*
-         FROM citation_lookup AS lookup
-         JOIN document ON document.id = lookup.document_id
+      `SELECT document.* FROM document
          WHERE ${filters.join(" AND ")}
          ORDER BY document.id
          LIMIT 2`).all(...values) as Row[];
@@ -209,12 +208,35 @@ function hasFts(database: DatabaseSync) {
     "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'document_search'").get();
 }
 
+/** A name as the full-text index's tokenizer (unicode61, diacritics removed) reads its words. */
+const nameWords = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^\p{L}\p{N}]+/u)
+  .filter(Boolean);
+const SEARCH_COLUMNS = `document.id, document.doc_type, document.dataset,
+                document.citation_en, document.citation_fr,
+                document.citation2_en, document.citation2_fr,
+                document.name_en, document.name_fr,
+                document.document_date_en, document.document_date_fr,
+                document.url_en, document.url_fr`;
+const storeDatasets = new Map<string, string[]>();
+/** The store's collections, read down their index one name at a time. */
+function datasets(database: DatabaseSync) {
+  const filename = a2ajLocalBulkPath();
+  let names = storeDatasets.get(filename);
+  if (!names) storeDatasets.set(filename, names = (database.prepare(`WITH RECURSIVE next(name) AS (
+      SELECT MIN(dataset) FROM document UNION ALL
+      SELECT (SELECT MIN(dataset) FROM document WHERE dataset > name) FROM next WHERE name IS NOT NULL)
+    SELECT name FROM next WHERE name IS NOT NULL`).all() as Row[]).map((row) => String(row.name)));
+  return names;
+}
+
 export function searchLocalA2AJ(args: {
   query: string; docType?: DocType; searchType?: "full_text" | "name";
   language?: Language; size?: number; dataset?: string;
   startDate?: string; endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
   querySyntax?: "terms" | "fts5";
+  /** False: the results are wanted in any order. */
+  ordered?: boolean;
 }): A2AJSearchResult[] | null {
   const query = args.query.trim();
   if (!query) throw new Error("query is required");
@@ -238,6 +260,25 @@ export function searchLocalA2AJ(args: {
       filters.push(`${date} <= ?`);
       values.push(args.endDate.trim());
     }
+    // A name search in named collections, wanted in any order, reads those collections' names: the index's lists for
+    // a common word ("of", "and") run through every document's text. Where more names match than are wanted, the
+    // index chooses which.
+    const words = tokens.map(nameWords);
+    if (args.ordered === false && args.searchType === "name" && args.querySyntax !== "fts5" && args.dataset?.trim()
+      && words.every((word) => word.length === 1)) {
+      const asked = new Set(args.dataset.split(",").map((name) => name.trim().toLowerCase()).filter(Boolean));
+      const names = datasets(database).filter((name) => asked.has(name.toLowerCase()));
+      const rows = names.length ? (database.prepare(`SELECT ${SEARCH_COLUMNS} FROM document
+        WHERE document.dataset IN (${names.map(() => "?").join(", ")}) AND ${filters.join(" AND ")}`)
+        .all(...names, ...values) as Row[]).filter((row) => {
+        const held = new Set([...nameWords(string(row, "name_en") ?? ""), ...nameWords(string(row, "name_fr") ?? "")]);
+        return words.every(([word]) => held.has(word));
+      }) : [];
+      if (rows.length <= wanted) return rows.flatMap((row) => {
+        const metadata = documentMetadata(row, language);
+        return metadata ? [{ ...metadata, snippet: null }] : [];
+      });
+    }
     filters.unshift("document_search MATCH ?");
     values.unshift(args.querySyntax === "fts5"
       ? query : ftsQuery(tokens, args.searchType ?? "full_text"));
@@ -246,12 +287,7 @@ export function searchLocalA2AJ(args: {
     values.push(wanted);
     return database
       .prepare(
-        `SELECT document.id, document.doc_type, document.dataset,
-                document.citation_en, document.citation_fr,
-                document.citation2_en, document.citation2_fr,
-                document.name_en, document.name_fr,
-                document.document_date_en, document.document_date_fr,
-                document.url_en, document.url_fr
+        `SELECT ${SEARCH_COLUMNS}
          FROM document_search JOIN document ON document.id = document_search.rowid
          WHERE ${filters.join(" AND ")}
          ORDER BY ${order}

@@ -1,7 +1,6 @@
 import { mapBounded } from "./mapBounded";
 import type { AuthoritiesDraft, AuthorityOccurrence } from "./authoritiesDomain";
-import { editorialQuote, quoteTextComparison, sourceLocator } from "./authoritiesDiscrepancy";
-import { sequenceOpcodes } from "mike/shared/sequence-diff.mjs";
+import { sourceLocator } from "./authoritiesDiscrepancy";
 import { legalSourceOperations } from "./legalSourceApplication";
 import { canonicalJsonSha256 } from "./hash";
 import { structureNative } from "./structureNative";
@@ -9,7 +8,7 @@ import { reject } from "./applicationError";
 import { splitQuoteCitationUnits, type QuoteCitationUnit } from "./quoteCitationSplit";
 import { footnotePropositions, type QuoteContext } from "./authoritiesQuotations";
 import type { LegalSourceReference, LegalSourceLocator } from "./legalSources";
-import type { NativeDocument } from "./structureNative";
+import type { NativeDocument, NativeQuoteComparison, NativeQuoteLocation } from "./structureNative";
 import { buildLegalSourcePinpoint, legalSourceLocatorAnchor } from "./legalSourceLinks";
 
 export type QuoteLink = { quoteId: string; occurrenceId: string };
@@ -92,15 +91,16 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
   return rows;
 }
 
-/** Where a quotation is in the source read for it (see locateQuote). */
-export type QuoteLocation = ReturnType<typeof locateQuote>;
+/** Where a quotation is in the source read for it: the cited paragraph, page or provision first, then anywhere else,
+ *  then the document as a whole (the engine's locate_quotes_in, ported from the ALR Quote Verifier). */
+export type QuoteLocation = NativeQuoteLocation;
 /** One cited source's check of a quotation: whether it holds the quotation as written ("verified") or with
  *  differences ("mismatch"), where, and what differs; or why it could not be read. */
 export type QuoteCheck = { candidateId: string | null; status: "verified" | "mismatch" | "unavailable" | "unresolved";
   detail: string;
   receipt: null | { source: LegalSourceReference; sourceSha256: string; passageSha256: string;
     locator: LegalSourceLocator | null; text: string; errors: string[];
-    comparison: ReturnType<typeof quoteTextComparison>; match: QuoteLocation; link: string | null } };
+    comparison: NativeQuoteComparison; match: QuoteLocation; link: string | null } };
 /** A quotation and the checks of the sources its note cites, each on its own. */
 export type QuoteResult = ReturnType<typeof splitQuoteChecks>[number] & { checks: QuoteCheck[] };
 /** PDFs the user attached, read, by authority. */
@@ -146,14 +146,20 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   const rows = window ? all.slice(window.offset, window.offset + window.limit) : all;
   // Quotations from one authority share its resolution, and each source is read once.
   const read = citedSourceReader(sources, signal);
-  const blocks = new Map<NativeDocument, ReturnType<typeof quoteBlocks>>();
+  const engine = structureNative();
   /** The whole source a citation names: a PDF the user attached for it, else its provider's text. */
   async function sourceFor(authorityId: string | null, authority: { kind: string; citation: string },
     part: string): Promise<CitedSource & { judgment?: boolean }> {
     const pdf = authorityId ? attached.get(authorityId) : undefined;
     return pdf ? { ...pdf, judgment: true } : read(authority, part);
   }
-  async function check(row: ReturnType<typeof splitQuoteChecks>[number], candidateId: string): Promise<QuoteCheck> {
+  type Row = ReturnType<typeof splitQuoteChecks>[number];
+  /** A quotation's source, read, waiting to be located in it. */
+  type Pending = { row: Row; candidateId: string; pinpoints: AuthorityOccurrence["pinpoints"];
+    source: LegalSourceReference; document: NativeDocument; judgment: boolean; check?: QuoteCheck };
+  const unavailable = (candidateId: string): QuoteCheck => ({ candidateId, status: "unavailable",
+    detail: "Source retrieval failed; this quotation has not been verified.", receipt: null });
+  async function readFor(row: Row, candidateId: string): Promise<Pending | QuoteCheck> {
     const occurrence = draft.occurrences[candidateId];
     const candidate = row.candidates.find(({ id }) => id === candidateId);
     const authority = occurrence?.authorityId ? draft.authorities[occurrence.authorityId] : candidate;
@@ -162,54 +168,91 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
       const found = await sourceFor(occurrence?.authorityId ?? null, authority, candidate?.text ?? "");
       if (found.missing) return { candidateId, status: found.missing, receipt: null,
         detail: "The citation did not resolve to one available source." };
-      const pinpoints = occurrence?.pinpoints ?? candidate?.pinpoints ?? [];
-      const document = structureNative().documentText(found.document);
-      const match = locateQuote(memo(blocks, found.document, () => quoteBlocks(found.document, found.judgment)),
-        document, row.quote, quoteScopes(pinpoints));
-      const text = match.text || document;
-      const cited = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
-      // A link that opens the source at the quoted words, in the block that holds them, with the block's own
-      // anchor beside the fragment where the source's page has one (CanLII's #par12 or #sec4, Decisia's #par12).
-      const [, kind, value] = /^(par|page |sec)(.+)$/u.exec(match.labels[0] ?? "") ?? [];
-      const blockKind = kind === "par" ? "paragraph" : kind === "sec" ? "section" : "page";
-      const block = kind ? structureNative().readDocumentRange(found.document, blockKind, value, value, 0)?.selected[0] : undefined;
-      const anchor = blockKind !== "page" && found.source.url
-        ? legalSourceLocatorAnchor(found.source.url, blockKind, match.labels[0]) : undefined;
-      const link = found.source.url && match.text ? buildLegalSourcePinpoint({ url: found.source.url,
-        anchor: anchor ?? block?.anchor, blockText: match.text, documentText: found.document },
-        [match.fragment || row.quote])?.target ?? null : null;
-      return { candidateId, status: match.perfect ? "verified" : "mismatch",
-        detail: match.location === "unmatched" ? "The quotation was not found in the source text."
-          : match.location.startsWith("alternate") ? `Found at ${match.pinpoint || "another place in the source"}, not at the cited pinpoint.`
-            : cited ? "Compared with the cited passage." : "Compared with the available source text; no unique pinpoint supplied.",
-        receipt: { source: found.source, sourceSha256: structureNative().documentRevision(found.document),
-          passageSha256: canonicalJsonSha256(text), locator: cited, text,
-          errors: structureNative().groundedProseErrors(`“${row.quote}”`, [row.id], [{ evidenceId: row.id, text, labels: [] }]),
-          comparison: quoteTextComparison(row.quote, match.region || text), match, link } };
+      return { row, candidateId, pinpoints: occurrence?.pinpoints ?? candidate?.pinpoints ?? [], source: found.source,
+        document: found.document, judgment: !!found.judgment };
     } catch {
       signal?.throwIfAborted();
-      return { candidateId, status: "unavailable", detail: "Source retrieval failed; this quotation has not been verified.", receipt: null };
+      return unavailable(candidateId);
     }
   }
-  let completed = 0;
-  const quotes = await mapBounded(rows, async (row): Promise<QuoteResult> => {
+  // Each source the quotation's note cites is checked on its own, as the ALR Quote Verifier checks each citation part
+  // of a note; a citation the user linked is the one checked, and with firstCitationOnly the note's first citation is.
+  // Every source is read first; then each source's quotations are located in it in one engine call.
+  const prepared = await mapBounded(rows, async (row) => {
     signal?.throwIfAborted();
-    // Each source the quotation's note cites is checked on its own, as the ALR Quote Verifier checks each
-    // citation part of a note; a citation the user linked is the one checked, and with firstCitationOnly
-    // the note's first citation is.
     const tried = row.linkMethod === "explicit" && row.occurrenceId ? [row.occurrenceId]
       : row.candidates.slice(0, options.firstCitationOnly ? 1 : undefined).map(({ id }) => id);
-    const checks: QuoteCheck[] = [];
-    for (const id of tried) checks.push(await check(row, id));
-    if (!checks.length) checks.push({ candidateId: null, status: "unresolved", receipt: null,
-      detail: "No citation follows this quotation." });
-    const quote: QuoteResult = { ...row, checks };
-    progress?.(++completed, rows.length, quote, unitReceipts);
-    return quote;
+    const reads: Array<Pending | QuoteCheck> = [];
+    for (const id of tried) reads.push(await readFor(row, id));
+    return reads;
   });
-  return { mode: links.length ? "assisted" : "mechanical", quotes, total: all.length,
+  const bySource = new Map<NativeDocument, Pending[]>();
+  for (const reads of prepared) for (const item of reads) if ("document" in item) {
+    const list = bySource.get(item.document);
+    if (list) list.push(item); else bySource.set(item.document, [item]);
+  }
+  let completed = 0;
+  const quotes: Array<QuoteResult | undefined> = rows.map(() => undefined);
+  /** Each quotation whose sources are all checked, in order, as soon as they are. */
+  const emit = () => {
+    for (let index = completed; index < rows.length; index = completed) {
+      const checks = prepared[index].map((item) => "document" in item ? item.check : item);
+      if (checks.some((check) => !check)) return;
+      if (!checks.length) checks.push({ candidateId: null, status: "unresolved", receipt: null,
+        detail: "No citation follows this quotation." });
+      const quote: QuoteResult = { ...rows[index], checks: checks as QuoteCheck[] };
+      quotes[index] = quote;
+      progress?.(++completed, rows.length, quote, unitReceipts);
+    }
+  };
+  emit();
+  for (const [document, items] of bySource) {
+    signal?.throwIfAborted();
+    try {
+      const text = engine.documentText(document), revision = engine.documentRevision(document);
+      const located = engine.quoteLocateDocument(document, quoteBlocks(document, items[0].judgment),
+        items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints) })));
+      const hashes = new Map<string, string>();
+      items.forEach((item, index) => {
+        try {
+          item.check = checked(item, located[index].match, located[index].comparison, text, revision, hashes);
+        } catch {
+          signal?.throwIfAborted();
+          item.check = unavailable(item.candidateId);
+        }
+      });
+    } catch {
+      signal?.throwIfAborted();
+      for (const item of items) item.check ??= unavailable(item.candidateId);
+    }
+    emit();
+  }
+  /** A located quotation's check: its receipt, with a link that opens the source at the quoted words. */
+  function checked({ row, candidateId, pinpoints, source, document }: Pending, match: QuoteLocation,
+    comparison: NativeQuoteComparison, documentText: string, revision: string, hashes: Map<string, string>): QuoteCheck {
+    const text = match.text || documentText;
+    const cited = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
+    // The link opens the block that holds the quoted words, with the block's own anchor beside the fragment where the
+    // source's page has one (CanLII's #par12 or #sec4, Decisia's #par12).
+    const [, kind, value] = /^(par|page |sec)(.+)$/u.exec(match.labels[0] ?? "") ?? [];
+    const blockKind = kind === "par" ? "paragraph" : kind === "sec" ? "section" : "page";
+    const anchor = blockKind !== "page" && source.url
+      ? legalSourceLocatorAnchor(source.url, blockKind, match.labels[0]) : undefined;
+    const link = source.url && match.text ? buildLegalSourcePinpoint({ url: source.url,
+      anchor: anchor ?? (kind ? engine.readDocumentRange(document, blockKind, value, value, 0)?.selected[0]?.anchor : undefined),
+      blockText: match.text, documentText: document }, [match.fragment || row.quote])?.target ?? null : null;
+    return { candidateId, status: match.perfect ? "verified" : "mismatch",
+      detail: match.location === "unmatched" ? "The quotation was not found in the source text."
+        : match.location.startsWith("alternate") ? `Found at ${match.pinpoint || "another place in the source"}, not at the cited pinpoint.`
+          : cited ? "Compared with the cited passage." : "Compared with the available source text; no unique pinpoint supplied.",
+      receipt: { source, sourceSha256: revision,
+        passageSha256: memo(hashes, text, () => canonicalJsonSha256(text)), locator: cited, text,
+        errors: engine.groundedProseErrors(`“${row.quote}”`, [row.id], [{ evidenceId: row.id, text, labels: [] }]),
+        comparison, match, link } };
+  }
+  return { mode: links.length ? "assisted" : "mechanical", quotes: quotes as QuoteResult[], total: all.length,
     citationUnits: unitReceipts,
-    counts: quoteCheckCounts(quotes) };
+    counts: quoteCheckCounts(quotes as QuoteResult[]) };
 }
 
 /** How many source checks found each outcome. */
@@ -218,313 +261,7 @@ export function quoteCheckCounts(quotes: QuoteResult[]) {
     quotes.reduce((sum, quote) => sum + quote.checks.filter((item) => item.status === status).length, 0)]));
 }
 
-// Quotation scoring against source text: how much of an authored quotation a source passage
-// contains, where it sits, and the source-side words it corresponds to. Ported from
-// ALR-Quote-Verifier alr_quote_verifier.py (_quote_match_score, _trim_to_text_region,
-// _source_side_quote_fragment_text, _has_plausible_partial_content_overlap and their helpers).
-const WORD = String.raw`[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*`;
-// An editorial bracket is short and on one line; a stray "[" in extracted source text must not
-// swallow the pages up to the next "]".
-const TOKEN = new RegExp(String.raw`\.\.\.|\[[^\][\n]{1,80}\]|${WORD}|["“”‘’]|[^\p{L}\p{N}_\s]`, "gu");
-const WORD_TOKEN = new RegExp(WORD, "gu");
-const SINGLE_WORD = new RegExp(`^${WORD}$`, "u");
-const DOUBLE_QUOTES = new Set(['"', "“", "”", "«", "»", "„"]);
-const SINGLE_QUOTES = new Set(["'", "‘", "’", "‚"]);
-const QUOTES = new Set([...DOUBLE_QUOTES, ...SINGLE_QUOTES]);
-const TRAILING = new Set([".", ",", ";", ":", "!", "?", "…", "..."]);
-const DASHES = /[-­‐-―−]/gu;
-const DASH = /^[-­‐-―−]$/u;
-/** Sources longer than this are scored by anchored word windows, not a whole-text alignment. */
-export const LONG_SOURCE_CHARS = 80_000;
-const LONG_SOURCE_TOKENS = 8_000;
-const NON_CONTENT = new Set(("a an and are as at be been being by for from in is it its of on or that " +
-  "the their to was were with").split(" "));
-
-export type QuoteToken = { text: string; start: number; end: number };
-
-const mergeable = (token: string) => /[\p{L}\p{N}]/u.test(token) || /^\[.*\]$/su.test(token);
-const wordlike = (token: string) => /[\p{L}\p{N}]/u.test(token);
-
-/** Words, bracketed insertions, ellipses, quotation marks and punctuation; adjoining words merge. */
-export function quoteTokens(text: string): QuoteToken[] {
-  const raw = [...(text ?? "").matchAll(TOKEN)].map((match) => ({ text: match[0], start: match.index,
-    end: match.index + match[0].length }));
-  const merged: QuoteToken[] = [];
-  for (let i = 0; i < raw.length;) {
-    let { text: value, start, end } = raw[i], next = i + 1;
-    while (next < raw.length && raw[next - 1].end === raw[next].start &&
-        mergeable(raw[next - 1].text) && mergeable(raw[next].text)) {
-      value += raw[next].text; end = raw[next].end; next++;
-    }
-    merged.push({ text: value, start, end }); i = next;
-  }
-  return merged;
-}
-/** A pure reading of a text, kept for the texts read most recently: a check compares every block of a source with
- *  each quotation its notes make, and the same quotation with each block. Its value is shared, never changed. */
-function remembered<T>(read: (text: string) => T, kept = 4096) {
-  const values = new Map<string, T>();
-  return (text: string) => {
-    let value = values.get(text);
-    if (value === undefined) {
-      value = read(text);
-      if (values.size >= kept) values.delete(values.keys().next().value!);
-      values.set(text, value);
-    }
-    return value;
-  };
-}
-const tokens = remembered((text: string) => quoteTokens(text).map(({ text }) => text));
-
-/** Lower-cased words, as the plausibility and region checks count them. */
-export function quoteWords(text: string) {
-  return [...(text ?? "").matchAll(WORD_TOKEN)].map((match) => match[0].toLowerCase());
-}
-
-function stripTrailingPunctuation(values: string[]) {
-  let end = values.length;
-  while (end > 0 && TRAILING.has(values[end - 1])) end--;
-  return values.slice(0, end);
-}
-
-const collapseInitialCase = (text: string) => (text ?? "").replace(/^\[([A-Za-z])\](?=[A-Za-z])/u, "$1");
-
-/** Smart quotes, dashes, joined words, outer quotation marks and trailing punctuation are not wording. */
-export function normalizeQuoteForCompare(text: string) {
-  let value = (text ?? "").trim();
-  if (!value) return "";
-  value = value.replace(/[“”]/gu, '"').replace(/[’‘]/gu, "'").replace(DASHES, "-")
-    .replace(/(?<=[\p{L}\p{N}])\s*-\s*(?=[\p{L}\p{N}])/gu, " ").replace(/\s+/gu, " ").trim();
-  if (value.length >= 2 && QUOTES.has(value[0]) && QUOTES.has(value.at(-1)!)) value = value.slice(1, -1).trim();
-  return value.replace(/(?<=[A-Za-z0-9])"\s*(?=[.,;:!?…])/gu, "").replace(/[.,;:!?…]+$/u, "").trim();
-}
-export const quoteExactKey = remembered((text: string) => collapseInitialCase(normalizeQuoteForCompare(text)));
-const exactKey = remembered((text: string) => quoteExactKey(text).toLowerCase());
-/** Two authored quotations with this key are the same quotation. */
-export const quoteDedupeKey = (text: string) => quoteExactKey(text).toLowerCase();
-
-const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-function findExact(needle: string, haystack: string) {
-  needle = (needle ?? "").trim();
-  if (!needle || !haystack) return -1;
-  if (SINGLE_WORD.test(needle)) {
-    const match = new RegExp(`(?<![\\p{L}\\p{N}])${escapePattern(needle)}(?![\\p{L}\\p{N}])`, "iu").exec(haystack);
-    return match ? match.index : -1;
-  }
-  return haystack.toLowerCase().indexOf(needle.toLowerCase());
-}
-function exactInSource(quote: string, source: string) {
-  if (findExact(quote, source) >= 0) return true;
-  const [q, s] = [collapseInitialCase(quote), collapseInitialCase(source)];
-  return (q !== quote || s !== source) && findExact(q, s) >= 0;
-}
-
-function equivalentToken(token: string) {
-  if (DOUBLE_QUOTES.has(token)) return '"';
-  if (SINGLE_QUOTES.has(token)) return "'";
-  if (DASH.test(token)) return "-";
-  let value = token.replace(/[’‘]/gu, "'").replace(DASHES, "-");
-  const initial = /^\[([A-Za-z])\]([A-Za-z]+)$/u.exec(value);
-  if (initial) value = initial[1] + initial[2];
-  return /^[\p{L}\p{N}]+(?:'[\p{L}\p{N}]+)*$/u.test(value) ? value.toLowerCase() : value;
-}
-function alignmentAliases(values: string[]) {
-  const aliases = new Map<string, string>();
-  for (const token of values) {
-    const match = /^([A-Za-z]+)((?:\[[A-Za-z]+\])+)$/u.exec(equivalentToken(token));
-    if (!match) continue;
-    const base = match[1].toLowerCase(), expanded = base + match[2].replace(/[[\]]/gu, "").toLowerCase();
-    aliases.set(base, `${base}|${expanded}`); aliases.set(expanded, `${base}|${expanded}`);
-  }
-  return aliases;
-}
-function alignmentToken(token: string, aliases: Map<string, string>) {
-  let value = equivalentToken(token);
-  if (/^[A-Za-z]+(?:\[[A-Za-z]+\])+$/u.test(value)) value = value.replace(/\[([A-Za-z]+)\]/gu, "");
-  const lowered = value.toLowerCase();
-  return aliases.get(lowered) ?? lowered;
-}
-const quoteAliases = remembered((quote: string) => alignmentAliases(stripTrailingPunctuation(tokens(quote))));
-function bracketSuffixExact(quote: string, source: string) {
-  const aliases = quoteAliases(quote);
-  if (!aliases.size) return false;
-  const quoted = stripTrailingPunctuation(tokens(quote));
-  const needle = quoted.filter(wordlike).map((token) => alignmentToken(token, aliases));
-  const words = tokens(source).filter(wordlike).map((token) => alignmentToken(token, aliases));
-  if (!needle.length || needle.length > words.length) return false;
-  for (let at = 0; at + needle.length <= words.length; at++)
-    if (needle.every((word, index) => words[at + index] === word)) return true;
-  return false;
-}
-
-const matchedSize = (left: string[], right: string[]) => sequenceOpcodes(left, right)
-  .filter(([tag]) => tag === "equal").reduce((sum, [, a0, a1]) => sum + a1 - a0, 0);
-const tokenCounts = remembered((text: string) => {
-  const counts = new Map<string, number>();
-  for (const token of tokens(text)) counts.set(token, (counts.get(token) ?? 0) + 1);
-  return counts;
-});
-/** How many of `quoted` occur in the source, each as often as both hold it: no alignment matches more. */
-function sharedTokens(quoted: string[], source: string) {
-  const left = new Map(tokenCounts(source));
-  let shared = 0;
-  for (const token of quoted) { const count = left.get(token) ?? 0; if (count) { shared++; left.set(token, count - 1); } }
-  return shared;
-}
-
-function anchorPhrases(words: string[]) {
-  const phrases: string[][] = [], seen = new Set<string>();
-  for (const size of [8, 6, 5, 4, 3]) {
-    if (words.length < size) continue;
-    for (let start of [0, Math.floor(words.length / 4), Math.floor(words.length / 2), Math.max(0, words.length - size)]) {
-      start = Math.max(0, Math.min(start, words.length - size));
-      const phrase = words.slice(start, start + size), key = phrase.join("\u0000");
-      if (phrase.length && !seen.has(key)) { seen.add(key); phrases.push(phrase); }
-    }
-  }
-  return phrases;
-}
-function findPhrase(words: string[], phrase: string[]) {
-  for (let at = words.indexOf(phrase[0]); at >= 0 && at + phrase.length <= words.length;
-    at = words.indexOf(phrase[0], at + 1)) if (phrase.every((word, index) => words[at + index] === word)) return at;
-  return -1;
-}
-function longSourceScore(quoted: string[], source: string) {
-  const needle = quoted.filter(wordlike).map((token) => token.toLowerCase());
-  if (!needle.length) return 0;
-  const words = quoteWords(source);
-  if (!words.length) return 0;
-  const present = new Set(words);
-  const overlap = needle.filter((word) => present.has(word)).length / needle.length;
-  if (overlap < 0.6) return overlap;
-  let best = 0;
-  const seen = new Set<string>();
-  for (const phrase of anchorPhrases(needle)) {
-    const at = findPhrase(words, phrase);
-    if (at < 0) continue;
-    const start = Math.max(0, at - needle.length), end = Math.min(words.length, at + phrase.length + needle.length * 3);
-    if (seen.has(`${start}:${end}`)) continue;
-    seen.add(`${start}:${end}`);
-    best = Math.max(best, matchedSize(words.slice(start, end), needle) / needle.length);
-    if (best >= 0.98) break;
-  }
-  return best || Math.min(overlap, 0.59);
-}
-
-/** Fraction of the quotation's tokens the source contains in order; 1 when it contains it exactly. Given `floor`, a
- *  score that cannot reach it is reported as 0 without aligning. */
-export function quoteMatchScore(quote: string, source: string, floor = 0) {
-  const q = (quote ?? "").trim(), s = (source ?? "").trim();
-  if (!q || !s) return 0;
-  const quoted = stripTrailingPunctuation(tokens(q));
-  if (!quoted.length) return 0;
-  const key = exactKey(q);
-  if (key && exactInSource(key, exactKey(s))) return 1;
-  if (bracketSuffixExact(q, s)) return 1;
-  if (s.length > LONG_SOURCE_CHARS) return longSourceScore(quoted, s);
-  const sourceTokens = tokens(s);
-  if (!sourceTokens.length) return 0;
-  if (sourceTokens.length > LONG_SOURCE_TOKENS) return longSourceScore(quoted, s);
-  if (floor > 0 && sharedTokens(quoted, s) / quoted.length < floor) return 0;
-  return matchedSize(sourceTokens, quoted) / quoted.length;
-}
-
-const contentWords = remembered((text: string) =>
-  quoteWords(text).filter((word) => !NON_CONTENT.has(word) && !(word.length === 1 && /\p{L}/u.test(word))));
-/** A partial match is plausible only when enough of the quotation's content words occur in the source. */
-export function plausibleContentOverlap(quote: string, source: string) {
-  const needle = [...new Set(contentWords(quote))];
-  if (!needle.length) return true;
-  const present = new Set(contentWords(source));
-  if (!present.size) return false;
-  const overlap = needle.filter((word) => present.has(word)).length;
-  if (overlap <= 0) return false;
-  if (needle.length <= 2) return true;
-  if (needle.length <= 4) return overlap >= 2;
-  return overlap / needle.length >= 0.35;
-}
-
-function longSourceRegion(quote: string, text: string, window: number) {
-  const words = quoteWords(quote);
-  for (const phrase of anchorPhrases(words)) {
-    const match = new RegExp(`(?<![\\p{L}\\p{N}_])${phrase.map(escapePattern).join("[^\\p{L}\\p{N}_]+")}(?![\\p{L}\\p{N}_])`, "iu").exec(text);
-    if (match) return text.slice(Math.max(0, match.index - window), Math.min(text.length, match.index + match[0].length + quote.length + window));
-  }
-  return "";
-}
-
-/** The window of the source where the quotation best matches, so alignment never spans distant text. */
-export function quoteRegion(quote: string, fullText: string, window = 300) {
-  const q = (quote ?? "").trim(), text = (fullText ?? "").trim();
-  if (!q || !text) return fullText;
-  const at = findExact(q.slice(0, 40), text);
-  if (at >= 0) return text.slice(Math.max(0, at - Math.floor(window / 2)), Math.min(text.length, at + q.length + Math.floor(window / 2)));
-  if (text.length > LONG_SOURCE_CHARS) return longSourceRegion(q, text, window);
-  const quoted = tokens(q);
-  if (!quoted.length) return text;
-  const step = Math.max(1, Math.floor(quoted.length / 2)), source = tokens(text), lower = text.toLowerCase();
-  const positions: number[] = [];
-  let from = 0;
-  for (const token of source) {
-    let at = lower.indexOf(token.toLowerCase(), from);
-    if (at < 0) at = from;
-    positions.push(at); from = at + Math.max(1, token.length);
-  }
-  let best = 0, bestAt = 0;
-  for (let i = 0; i <= source.length - quoted.length; i += step) {
-    const score = quoteMatchScore(q, source.slice(i, i + quoted.length * 2).join(" "));
-    if (score > best) { best = score; bestAt = i; }
-  }
-  const first = Math.max(0, bestAt - quoted.length), last = Math.min(source.length - 1, bestAt + quoted.length * 3);
-  if (last < 0) return text;
-  return text.slice(positions[first], positions[last] + source[last].length);
-}
-
-function onlyBracketed(text: string) {
-  const meaningful = stripTrailingPunctuation(tokens(text)).filter((token) =>
-    !QUOTES.has(token) && !TRAILING.has(token) && token.trim());
-  return meaningful.length === 1 && /^\[[^\]]+\]$/u.test(meaningful[0]);
-}
-export const isOnlyBracketedQuote = onlyBracketed;
-
-/** The source's own words that correspond to the quotation, for links and display. */
-export function sourceSideQuoteFragment(sourceRegion: string, quote: string, maxChars = 900) {
-  const spans = quoteTokens(sourceRegion ?? ""), quoted = tokens(quote ?? "");
-  if (!spans.length || !quoted.length) return "";
-  const source = spans.map(({ text }) => text), aliases = alignmentAliases(quoted);
-  const ranges: Array<[number, number]> = [];
-  for (const [tag, i1, i2, j1, j2] of sequenceOpcodes(source.map((token) => alignmentToken(token, aliases)),
-    quoted.map((token) => alignmentToken(token, aliases)))) {
-    if ((tag !== "equal" && tag !== "replace") || i2 <= i1 || j2 <= j1) continue;
-    const sourceWords = source.slice(i1, i2).filter(wordlike).length, quoteWordCount = quoted.slice(j1, j2).filter(wordlike).length;
-    if (tag === "replace" && (sourceWords > quoteWordCount + 2 || quoteWordCount > sourceWords + 2)) continue;
-    if (!sourceWords || !quoteWordCount) continue;
-    ranges.push([i1, i2]);
-  }
-  if (!ranges.length) return "";
-  const clusters: Array<Array<[number, number]>> = [];
-  for (const range of ranges) {
-    if (!clusters.length || range[0] - clusters.at(-1)!.at(-1)![1] > 8) clusters.push([range]);
-    else clusters.at(-1)!.push(range);
-  }
-  const score = (cluster: Array<[number, number]>) => {
-    const start = cluster[0][0], end = cluster.at(-1)![1];
-    return [source.slice(start, end).filter(wordlike).length, -(end - start)];
-  };
-  let best = clusters[0];
-  for (const cluster of clusters.slice(1)) {
-    const [a, b] = score(cluster), [c, d] = score(best);
-    if (a > c || (a === c && b > d)) best = cluster;
-  }
-  const start = best[0][0], end = best.at(-1)![1];
-  if (end <= start) return "";
-  let fragment = sourceRegion.slice(spans[start].start, spans[end - 1].end).replace(/\s+/gu, " ").trim();
-  const firstWord = quoteWords(quote)[0];
-  if (!(firstWord && /^\d+$/u.test(firstWord)))
-    fragment = fragment.replace(/^(?:\[\s*\d{1,4}\s*\]|\d{1,4}\s*\(\d{1,4}\)|\d{1,4})\s+/u, "").trim() || fragment;
-  if (!fragment || onlyBracketed(fragment) || fragment.length > maxChars) return "";
-  return fragment;
-}
+const QUOTES = new Set(['"', "“", "”", "«", "»", "„", "'", "‘", "’", "‚"]);
 
 /** The quotation marks an authored quotation used, or the ones its delimiter style implies. */
 export function outerQuoteMarks(raw: string, style?: string | null): [string, string] {
@@ -541,37 +278,17 @@ export function withOuterQuotes(text: string, open: string, close: string) {
   return hasOpen && hasClose ? value : hasOpen ? value + close : hasClose ? open + value : `${open}${value}${close}`;
 }
 
-/** The quotation rewritten to the source's wording: changes in brackets, omissions as ellipses. */
-export function correctedQuote(quote: string, excerpt: string) {
-  const authored = (quote ?? "").trim();
-  let source = (excerpt ?? "").trim();
-  if (!authored) return source;
-  if (!source) return authored;
-  // A source's own quotation marks around the passage are not part of the authored quotation.
-  const quoted = tokens(authored), core = stripTrailingPunctuation(quoted);
-  if (!DOUBLE_QUOTES.has(quoted[0])) source = source.replace(/^["“”«»„\s]+/u, "");
-  if (!(core.length && DOUBLE_QUOTES.has(core.at(-1)!))) source = source.replace(/["“”«»„\s]+$/u, "")
-    .replace(/["“”«»„](?=(?:\s*(?:\.\.\.|[.,;:!?…]))+\s*$)/u, "");
-  return editorialQuote(authored, source);
-}
-
-// Where a quotation is in its source: the cited paragraph, page or provision first, then anywhere
-// else, then the document as a whole. Ported from ALR-Quote-Verifier alr_quote_verifier.py
-// (_apply_quote_checks, _page_pinpoint) and verifier_core/a2aj_pinpoint_scope.py (cited_scopes,
-// resolve_quote).
-const MIN_MATCH = 0.6, STRONG_MATCH = 0.98;
-type QuoteBlock = { kind: "paragraph" | "page" | "section"; label: string; start: number; end: number; text: string };
+type QuoteBlock = { kind: "paragraph" | "page" | "section"; label: string; start: number; end: number };
 type QuoteScopes = { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
 
 /** A source's paragraphs, pages and provisions, named "par12", "page 333" and "sec4"; a judgment's
  *  PDF by the paragraph numbers it prints. */
 export function quoteBlocks(native: NativeDocument, judgment = false): QuoteBlock[] {
-  const engine = structureNative(), text = engine.documentText(native);
+  const engine = structureNative();
   if (judgment) {
-    const paragraphs = engine.caseOutline(text).filter((entry) => entry.kind === "paragraph").flatMap((entry): QuoteBlock[] => {
+    const paragraphs = engine.caseOutline(engine.documentText(native)).filter((entry) => entry.kind === "paragraph").flatMap((entry): QuoteBlock[] => {
       const number = /^\[?(\d{1,4})\]?\.?$/u.exec(entry.label.trim())?.[1];
-      return number ? [{ kind: "paragraph", label: `par${number}`, start: entry.start, end: entry.end,
-        text: text.slice(entry.start, entry.end) }] : [];
+      return number ? [{ kind: "paragraph", label: `par${number}`, start: entry.start, end: entry.end }] : [];
     });
     if (paragraphs.length) return paragraphs;
   }
@@ -582,7 +299,7 @@ export function quoteBlocks(native: NativeDocument, judgment = false): QuoteBloc
       section: /^(?:sections?|ss?\.|sec)\s*(?=\d)/iu }[anchor.kind];
     const value = anchor.label.trim().replace(prefix, "").replace(/^\[(.*)\]$/u, "$1");
     const label = anchor.kind === "paragraph" ? `par${value}` : anchor.kind === "page" ? `page ${value}` : `sec${value}`;
-    return [{ kind: anchor.kind, label, start: anchor.start, end: anchor.end, text: text.slice(anchor.start, anchor.end) }];
+    return [{ kind: anchor.kind, label, start: anchor.start, end: anchor.end }];
   });
 }
 
@@ -600,165 +317,8 @@ export function quoteScopes(pinpoints: AuthorityOccurrence["pinpoints"]): QuoteS
   return scopes;
 }
 
-const inRanges = (value: number, ranges: Array<[number, number]>) => ranges.some(([a, b]) => a <= value && value <= b);
-const hasScopes = (scopes: QuoteScopes) => !!(scopes.paragraphs.length || scopes.pages.length || scopes.sections.length);
-const blockNumber = (block: QuoteBlock) => Number(block.kind === "paragraph" ? block.label.slice(3) : block.label.split(" ").at(-1));
-function sectionAncestors(label: string) {
-  const out = [label];
-  for (let current = label; /\([^)]+\)$/u.test(current);) { current = current.replace(/\([^)]+\)$/u, ""); out.push(current); }
-  return out;
-}
-function citedSelection(blocks: QuoteBlock[], scopes: QuoteScopes) {
-  const selected = new Map<QuoteBlock, boolean>();
-  for (const block of blocks) {
-    if (block.kind === "paragraph" && inRanges(blockNumber(block), scopes.paragraphs)) selected.set(block, true);
-    if (block.kind === "page" && inRanges(blockNumber(block), scopes.pages)) selected.set(block, true);
-  }
-  const sections = new Map(blocks.filter((block) => block.kind === "section").map((block) => [block.label.toLowerCase(), block]));
-  for (const section of scopes.sections) for (const candidate of sectionAncestors(section)) {
-    const block = sections.get(candidate.toLowerCase());
-    if (block) { selected.set(block, (selected.get(block) ?? false) || candidate.toLowerCase() === section.toLowerCase()); break; }
-  }
-  return selected;
-}
-const wordCount = (quote: string, text: string) => {
-  const needle = quoteWords(quote), words = quoteWords(text);
-  let count = 0;
-  for (let i = 0; needle.length && i + needle.length <= words.length; i++) if (needle.every((word, j) => words[i + j] === word)) count++;
-  return count;
-};
-function specificLabels(matches: Array<[number, QuoteBlock]>) {
-  const labels: string[] = [];
-  for (const [score, block] of matches) {
-    if (labels.includes(block.label)) continue;
-    if (block.kind === "section" && matches.some(([other, candidate]) => candidate.kind === "section" && other >= score &&
-      candidate.label.toLowerCase().startsWith(`${block.label.toLowerCase()}(`))) continue;
-    labels.push(block.label);
-  }
-  return labels;
-}
-const plausibleIn = (quote: string, text: string) => plausibleContentOverlap(quote, quoteRegion(quote, text, 400) || text);
-function scored(quote: string, blocks: QuoteBlock[]) {
-  return blocks.map((block): [number, QuoteBlock] => [quoteMatchScore(quote, block.text, MIN_MATCH), block])
-    .filter(([score, block]) => score >= MIN_MATCH && plausibleIn(quote, block.text))
-    .sort((a, b) => b[0] - a[0] || a[1].start - b[1].start);
-}
-function rangeBlocks(blocks: QuoteBlock[], scopes: QuoteScopes) {
-  const combined: QuoteBlock[] = [];
-  for (const [kind, ranges] of [["paragraph", scopes.paragraphs], ["page", scopes.pages]] as const) for (const [start, end] of ranges) {
-    if (end <= start) continue;
-    const members = blocks.filter((block) => block.kind === kind && start <= blockNumber(block) && blockNumber(block) <= end)
-      .sort((a, b) => blockNumber(a) - blockNumber(b));
-    if (members.map(blockNumber).join() !== Array.from({ length: end - start + 1 }, (_, i) => start + i).join()) continue;
-    combined.push({ kind, label: kind === "paragraph" ? `par${start}–${end}` : `pages ${start}–${end}`, start: members[0].start,
-      end: members.at(-1)!.end, text: members.map((block) => block.text).join("\n") });
-  }
-  return combined;
-}
-/** A whole-document alignment can anchor on words far from the passage; the best region scores it too. */
-const documentScore = (quote: string, text: string) => {
-  const whole = quoteMatchScore(quote, text);
-  return whole >= STRONG_MATCH ? whole : Math.max(whole, quoteMatchScore(quote, quoteRegion(quote, text, 400) || ""));
-};
 /** Up to `limit` locations, then how many more. */
 export function pinpointSummary(pinpoints: string[], limit = 2) {
   const values = pinpoints.map((value) => value.trim()).filter(Boolean);
   return values.slice(0, limit).join(", ") + (values.length > limit ? ` [+${values.length - limit} more instances]` : "");
-}
-
-type Resolution = { location: string; score: number; labels: string[]; text: string;
-  cited?: { score: number; labels: string[]; text: string } | null };
-function resolveQuote(blocks: QuoteBlock[], text: string, quote: string, scopes: QuoteScopes): Resolution {
-  const selection = hasScopes(scopes) ? citedSelection(blocks, scopes) : new Map<QuoteBlock, boolean>();
-  const scoped = [...selection.keys()], combined = rangeBlocks(blocks, scopes);
-  const scopedMatches = scored(quote, [...scoped, ...combined]);
-  let strong = scopedMatches.filter(([score]) => score >= STRONG_MATCH);
-  const located = (matches: Array<[number, QuoteBlock]>) => {
-    const best = matches[0][1];
-    return { location: combined.includes(best) || selection.get(best) ? "cited" : "cited_parent", score: matches[0][0],
-      labels: specificLabels(matches), text: best.text };
-  };
-  if (strong.length) {
-    const ranges = strong.filter(([, block]) => combined.includes(block)), specific = strong.filter(([, block]) => !combined.includes(block));
-    if (ranges.length && specific.length) strong = specific.some(([, block]) => wordCount(quote, block.text)) ||
-      specific[0][0] >= ranges[0][0] ? specific : ranges;
-    return located(strong);
-  }
-  const scopedSet = new Set(scoped);
-  const alternates = scored(quote, blocks).filter(([, block]) => !scopedSet.has(block));
-  let matches = alternates.filter(([score]) => score >= STRONG_MATCH);
-  if (!matches.length && scopedMatches.length) return located(scopedMatches.slice(0, 1));
-  const targetKindAvailable = (scopes.paragraphs.length && blocks.some((block) => block.kind === "paragraph")) ||
-    (scopes.pages.length && blocks.some((block) => block.kind === "page")) ||
-    (scopes.sections.length && blocks.some((block) => block.kind === "section"));
-  if (!matches.length) {
-    const collapsed = alternates.filter(([score, block]) => block.kind !== "section" || !alternates.some(([other, candidate]) =>
-      other >= score && candidate.label.toLowerCase().startsWith(`${block.label.toLowerCase()}(`)));
-    if (collapsed.length && (collapsed.length === 1 || collapsed[0][0] - collapsed[1][0] >= 0.1)) matches = collapsed.slice(0, 1);
-  }
-  if (matches.length) {
-    let labels: string[] = [];
-    if (quoteWords(quote).length < 3) {
-      const exact = matches.filter(([, block]) => wordCount(quote, block.text));
-      if (wordCount(quote, text) === 1 && exact.length) { matches = exact; labels = specificLabels(matches); }
-    } else labels = specificLabels(matches);
-    const location = scoped.length || targetKindAvailable ? "alternate" : hasScopes(scopes) ? "scope_unavailable" : "uncited";
-    // Where the cited passage holds the quotation in part, that partial match is kept beside the one found elsewhere.
-    const cited = location === "alternate" && scopedMatches.length ? { score: scopedMatches[0][0],
-      labels: specificLabels(scopedMatches.slice(0, 1)), text: scopedMatches[0][1].text } : null;
-    return { location, score: matches[0][0], labels, text: matches[0][1].text, cited };
-  }
-  const score = documentScore(quote, text);
-  if (score >= MIN_MATCH) return { location: scoped.length || targetKindAvailable ? "alternate_document"
-    : hasScopes(scopes) ? "scope_unavailable_document" : "uncited_document", score, labels: [] as string[], text };
-  return { location: "unmatched", score, labels: [] as string[], text: "" };
-}
-
-/** Page labels where the quotation's words run, over a page break too. */
-function pagePinpoint(blocks: QuoteBlock[], quote: string) {
-  const pages = blocks.filter((block) => block.kind === "page");
-  const hits = pages.filter((block) => quoteMatchScore(quote, block.text) >= STRONG_MATCH).map((block) => block.label);
-  if (hits.length) return pinpointSummary(hits);
-  for (let i = 0; i + 1 < pages.length; i++)
-    if (quoteWords(quote).length && quoteMatchScore(quote, `${pages[i].text} ${pages[i + 1].text}`) >= STRONG_MATCH)
-      return `pages ${pages[i].label.split(" ").at(-1)}–${pages[i + 1].label.split(" ").at(-1)}`;
-  return "";
-}
-
-/** Where a quotation is in a source: `location` ("cited", "cited_parent", "alternate", "uncited", their
- *  "_document" forms where no block holds it, "scope_unavailable" where the source lacks the cited kind
- *  of block, or "unmatched"), its score, the blocks that hold it, the source's own words for it and the
- *  quotation corrected to them. `perfect`: found word for word where the citation sends a reader. */
-export function locateQuote(blocks: QuoteBlock[], text: string, quote: string, scopes: QuoteScopes) {
-  let resolution: Resolution = blocks.length ? resolveQuote(blocks, text, quote, scopes)
-    : { location: "uncited_document", score: documentScore(quote, text), labels: [] as string[], text };
-  if (quoteWords(quote).length < 3 && resolution.location.startsWith("alternate") && !resolution.labels.length)
-    resolution = { location: "unmatched", score: 0, labels: [], text: "" };
-  const unmatched = { location: "unmatched", score: resolution.score, labels: [] as string[], pinpoint: "", text: "",
-    region: "", fragment: "", corrected: "", perfect: false, cited: null,
-    /** A short quotation in a long source is only ever searched for word for word. */
-    shortInLong: quoteWords(quote).length < 3 && text.length > LONG_SOURCE_CHARS };
-  if (resolution.score < MIN_MATCH) return unmatched;
-  const matchText = resolution.text || text, { region, fragment, corrected } = correction(quote, matchText);
-  if (resolution.score < STRONG_MATCH && !plausibleContentOverlap(quote, region || matchText)) return unmatched;
-  if (isOnlyBracketedQuote(corrected)) return unmatched;
-  const labeled = resolution.labels.length > 0 && !resolution.location.startsWith("scope_unavailable");
-  const limited = resolution.location.startsWith("scope_unavailable") || resolution.location === "cited_parent";
-  /** Found elsewhere, the quotation's partial match in the cited passage. */
-  const partial = resolution.cited;
-  const cited = partial ? { score: partial.score, labels: partial.labels, pinpoint: pinpointSummary(partial.labels),
-    ...correction(quote, partial.text) } : null;
-  return { location: resolution.location, score: resolution.score, labels: labeled ? resolution.labels : [],
-    pinpoint: labeled ? pinpointSummary(resolution.labels) : pagePinpoint(blocks, quote),
-    text: resolution.text, region, fragment, corrected, shortInLong: false, cited,
-    perfect: resolution.score >= STRONG_MATCH && quoteExactKey(corrected) === quoteExactKey(quote) && !limited };
-}
-
-/** The source's own words for a quotation, in the text it was found in, and the quotation corrected to them. */
-function correction(quote: string, matchText: string) {
-  const region = quoteRegion(quote, matchText, 400);
-  let source = region || (matchText.length > LONG_SOURCE_CHARS ? quote : matchText);
-  const fragment = region ? sourceSideQuoteFragment(region, quote) : "";
-  if (fragment && quoteMatchScore(quote, fragment) >= MIN_MATCH) source = fragment;
-  return { region, fragment, corrected: correctedQuote(quote, source) };
 }

@@ -42,31 +42,57 @@ export function legalProviderDatabase(provider: string, filename: string) {
   return path.join(legalDataHome(), "providers", provider, filename);
 }
 
-export function withReadonlySqlite<T>(
-  filename: string,
-  operation: (database: DatabaseSync) => T,
-): T | null {
-  if (!existsSync(filename)) return null;
-  const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
-  const database = new DatabaseSync(filename, { readOnly: true });
+// Read-only handles an operation keeps for its length (`withSqliteRun`), closed when its last run ends; outside a run
+// each query opens and closes its own, so a validated snapshot can replace the live file between operations.
+let runs = 0;
+const held = new Map<string, { database: DatabaseSync; search: boolean }>();
+
+/** Runs `work` with every read-only database it reads held open until it ends. */
+export async function withSqliteRun<T>(work: () => Promise<T>): Promise<T> {
+  runs++;
   try {
-    return operation(database);
+    return await work();
   } finally {
-    database.close();
+    if (--runs === 0) {
+      for (const { database } of held.values()) database.close();
+      held.clear();
+    }
   }
 }
 
-/** Close each query's handle so a validated snapshot can replace the live file. */
+function readonlyHandle(filename: string, search: boolean) {
+  const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+  const open = (database: DatabaseSync) => {
+    if (search) database.exec("PRAGMA query_only=ON; PRAGMA mmap_size=2147418112; PRAGMA cache_size=-131072");
+    return database;
+  };
+  if (!runs) return { database: open(new DatabaseSync(filename, { readOnly: true })), close: true };
+  let kept = held.get(filename);
+  if (!kept) held.set(filename, kept = { database: new DatabaseSync(filename, { readOnly: true }), search: false });
+  if (search && !kept.search) { open(kept.database); kept.search = true; }
+  return { database: kept.database, close: false };
+}
+
+export function withReadonlySqlite<T>(
+  filename: string,
+  operation: (database: DatabaseSync) => T,
+  search = false,
+): T | null {
+  if (!existsSync(filename)) return null;
+  const { database, close } = readonlyHandle(filename, search);
+  try {
+    return operation(database);
+  } finally {
+    if (close) database.close();
+  }
+}
+
+/** A search's handle, with the read settings searches take. */
 export function withSearchReadonlySqlite<T>(
   filename: string,
   operation: (database: DatabaseSync) => T,
 ): T | null {
-  return withReadonlySqlite(filename, (database) => {
-    database.exec(
-      "PRAGMA query_only=ON; PRAGMA mmap_size=2147418112; PRAGMA cache_size=-131072",
-    );
-    return operation(database);
-  });
+  return withReadonlySqlite(filename, operation, true);
 }
 
 export function mikeLocalDataHome(options?: {

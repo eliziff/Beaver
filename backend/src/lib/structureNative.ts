@@ -269,6 +269,18 @@ type StructureAddon = {
     visibleEvidence: unknown): string[];
   quoteRepairSuggestion(claim: string, spans: string[]): string | null;
   markedQuoteSpans(text: string): Array<{ text: string; start: number; end: number }>;
+  /** Each quotation located in a source the engine holds (its blocks by their UTF-16 offsets, each quotation with
+   *  the paragraphs, pages and provisions its citation names) and compared with the source's words there. */
+  quoteLocateDocument(document: NativeDocument,
+    blocks: Array<{ kind: "paragraph" | "page" | "section"; label: string; start: number; end: number }>,
+    quotes: Array<{ quote: string; scopes: { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] } }>):
+    Array<{ match: NativeQuoteLocation; comparison: NativeQuoteComparison }>;
+  /** Where a quotation's words are in a source passage, the passage it is compared with, and what differs. */
+  quoteComparison(authored: string, source: string): NativeQuoteComparison;
+  /** The source's words as the author quoted them: the author's changes bracketed, omissions an ellipsis. */
+  editorialQuote(authored: string, source: string): string;
+  /** The source passage an authored quotation's words closely align with, where it occurs once. */
+  verbatimRepair(authored: string, source: string): string | null;
   readDocumentRange(document: NativeDocument, kind: NativeDocumentBlock["kind"], from: string,
     to: string, contextBlocks: number): {
       selected: NativeDocumentBlock[];
@@ -382,6 +394,15 @@ export type NativeDocumentBlock = {
   rowSpan?: number;
   columnSpan?: number;
 };
+
+/** The engine's reading of where a quotation is in its source (legal-structure quote_location.rs). */
+export type NativeQuoteCorrection = { region: string; fragment: string; corrected: string };
+export type NativeQuoteLocation = NativeQuoteCorrection & { location: string; score: number; labels: string[]; pinpoint: string;
+  text: string; perfect: boolean; shortInLong: boolean;
+  cited: (NativeQuoteCorrection & { score: number; labels: string[]; pinpoint: string }) | null };
+export type NativeQuoteComparison = { matches: Array<{ start: number; end: number; text: string }>; candidate: string | null;
+  candidateOnly: boolean; editorial: string | null;
+  changes: Array<{ kind: "replace" | "delete" | "insert"; authored: string; source: string }> };
 
 let addon: StructureAddon | undefined;
 
