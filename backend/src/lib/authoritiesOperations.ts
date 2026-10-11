@@ -25,7 +25,8 @@ import { mapBounded } from "./mapBounded";
 import { checkQuotes, decodeQuoteLinks } from "./quoteCheck";
 import { carriedLinks, linkPropagationTargets } from "./authoritiesLinkPropagation";
 import type { NativeDocument } from "./structureNative";
-import { FOREIGN_CASE_PROVIDERS, type LegalSourceReference, type LegalSourceResolveRequest } from "./legalSources";
+import { FOREIGN_CASE_PROVIDERS, type LegalSourcePassageRequest, type LegalSourceReference,
+  type LegalSourceResolveRequest } from "./legalSources";
 import { legalSourceOperations } from "./legalSourceApplication";
 import { withSqliteRun } from "./legalDataPath";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
@@ -136,8 +137,12 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       const excluded = new Set([...state.settings.foreignCaseLookup === false ? FOREIGN_CASE_PROVIDERS : [],
         ...(asked as unknown[]).map(String)]);
       const providers = excluded.size ? legalSourceOperations.providerIds.filter((id) => !excluded.has(id)) : undefined;
-      const sources = providers && { ...legalSourceOperations,
-        resolve: (request: LegalSourceResolveRequest) => legalSourceOperations.resolve({ ...request, providers }) };
+      // discoverPdfs false: no publisher's PDF is looked for (a caller that links to the providers' pages).
+      const discoverPdf = input.discoverPdfs === false ? false : undefined;
+      const sources = (providers || discoverPdf === false) ? { ...legalSourceOperations,
+        resolve: (request: LegalSourceResolveRequest) => legalSourceOperations.resolve({ ...request, providers, discoverPdf }),
+        readPassage: (request: LegalSourcePassageRequest) => legalSourceOperations.readPassage({ ...request, discoverPdf }) }
+        : undefined;
       return { data: await checkQuotes(state, decodeQuoteLinks(input.links), context.signal,
         (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }), sources, undefined, attached,
         // Authorities checks a quotation against its note's first citation only, or the one linked to it;

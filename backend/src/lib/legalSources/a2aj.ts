@@ -708,7 +708,7 @@ const provider: LegalSourceProvider<A2AJCompiledDocument> = {
     const kind = request.kind === "legislation" ? "legislation" : "case";
     const found = await document({ citation: request.text,
       docType: kind === "legislation" ? "laws" : "cases",
-      language: request.language, dataset: request.collection, signal: request.signal });
+      language: request.language, dataset: request.collection, signal: request.signal, discoverPdf: request.discoverPdf });
     return found ? [reference(found, kind)] : [];
   },
   async readPassage(request) {
@@ -720,7 +720,7 @@ const provider: LegalSourceProvider<A2AJCompiledDocument> = {
         language: request.source.language,
         dataset: request.source.collection ?? undefined, section,
         sourceUrl: request.source.url,
-        signal: request.signal });
+        signal: request.signal, discoverPdf: request.discoverPdf });
       if (!found) return [];
       return nativeDocumentPassages({ request,
         reference: reference(found, request.source.kind as "case" | "legislation"),

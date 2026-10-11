@@ -55,6 +55,8 @@ export type LegalSourceResolveRequest = {
   language?: "en" | "fr";
   /** Only these providers answer, when given. */
   providers?: readonly string[];
+  /** False: no provider looks for a publisher's PDF of the source. */
+  discoverPdf?: boolean;
   signal?: AbortSignal;
 };
 
@@ -65,6 +67,8 @@ export type LegalSourcePassageRequest = {
   source: LegalSourceReference;
   locator?: LegalSourceLocator;
   contextBlocks?: number;
+  /** False: no provider looks for a publisher's PDF of the source. */
+  discoverPdf?: boolean;
   signal?: AbortSignal;
 };
 
