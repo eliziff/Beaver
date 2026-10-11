@@ -52,6 +52,9 @@ except ModuleNotFoundError:  # package import for small offline probes
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools"))
+from codex_runner.transport import execute
+
 DEFAULT_NUM_CTX = 32768
 DEFAULT_PACKET_CHARS = 72000
 DEFAULT_NUM_PREDICT = 4096
@@ -1943,13 +1946,12 @@ class CodexClient:
         schema = ROOT / "experiments" / "legal_compaction_qwen" / "codex_turn_schema.json"
         started = time.perf_counter()
         try:
-            result = subprocess.run(
+            result = execute(
                 [os.environ.get('CODEX_COMMAND') or shutil.which('codex.exe') or shutil.which('codex') or 'codex', "exec", "--ephemeral",
                  "-m", self.model, "-c", f'model_reasoning_effort="{self.effort}"',
                  "-s", "read-only", "--output-schema", str(schema),
                  "-o", str(output_path), "-"],
-                input=prompt, text=True, encoding="utf-8", errors="replace",
-                capture_output=True, timeout=900,
+                prompt=prompt, timeout_seconds=900,
             )
             if result.returncode:
                 raise OllamaError(f"Codex exec failed ({result.returncode}): {result.stderr[-2000:]}")

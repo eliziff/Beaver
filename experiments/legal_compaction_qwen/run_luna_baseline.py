@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
-import subprocess
+import sys
 from pathlib import Path
 import os
 import shutil
 
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT.parents[1] / "tools"))
+from codex_runner.transport import execute
+
 QWEN = ROOT / "runs" / "span-selector-qwen35-9b-callow-25-100k.json"
 OUT = ROOT / "runs" / "luna-none-bhasin-wastech-callow.json"
 
@@ -33,15 +36,11 @@ RETAINED CHECKPOINT:
 VERIFIED MATERIAL FROM THE COMPARISON ARM (available as a cross-arm evidence ledger):
 {run.get('final_answer','')}
 """
-    result = subprocess.run(
+    result = execute(
         [os.environ.get('CODEX_COMMAND') or shutil.which('codex.exe') or shutil.which('codex') or 'codex', "exec", "-m", "gpt-5.6-luna", "-c", 'model_reasoning_effort="none"',
          "-s", "read-only", "-o", str(OUT), "-"],
-        input=prompt,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        timeout=900,
+        prompt=prompt,
+        timeout_seconds=900,
     )
     receipt = {
         "experiment": "legal_compaction_qwen_luna_comparison",

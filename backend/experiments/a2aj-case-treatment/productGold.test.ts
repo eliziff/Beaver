@@ -122,6 +122,25 @@ describe("product gold", () => {
     expect(reference.treatments[0]?.treating_opinion).toBe("Alpha J.A. and Beta J.A.");
   });
 
+  it("preserves unstated authorship when projecting and compiling source gold", () => {
+    const text = "[1] The harbour operator seeks permission to move a navigation beacon.\n[2] The application is dismissed because notice was not served.";
+    const boundary = {
+      start_line: 1, end_line: 2,
+      start_quote: "[1] The harbour operator seeks permission to move a navigation beacon.",
+      end_quote: "[2] The application is dismissed because notice was not served.",
+    };
+    const source = record();
+    source.annotation.structure.opinions[0]!.boundary = boundary;
+    source.annotation.structure.participants = [];
+    const value = projectProductGold(source);
+    const material = { ...jointMaterial, text, source_lines: modelSourceLines(text) };
+    expect(productGoldErrors(value)).toEqual([]);
+    expect(value.structure.opinions[0]).toMatchObject({ writer: null, collective_author: null });
+    const compiled = compileProductDecisionStructure(value, material);
+    expect(compiled.errors).toEqual([]);
+    expect(compiled.compiled?.opinions[0]).toMatchObject({ writers: [], collective_author: null });
+  });
+
   it("compiles mechanical product structure without author evidence inside the opinion", () => {
     const result = compileProductDecisionStructure(jointRecord(), jointMaterial);
     expect(jointBoundary.start_quote).not.toContain("Alpha J.A.");

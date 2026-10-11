@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from typing import Any
@@ -31,6 +32,9 @@ import urllib.request
 
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT.parents[1] / "tools"))
+from codex_runner.transport import execute
+
 RESULTS_DIR = ROOT / "results"
 TAIL_TURNS = 8
 
@@ -632,15 +636,10 @@ def run_codex_one(
                 str(output_path),
                 "-",
             ]
-            completed = subprocess.run(
+            completed = execute(
                 command,
-                input=prompt,
-                text=True,
-                capture_output=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=timeout,
-                check=False,
+                prompt=prompt,
+                timeout_seconds=timeout,
             )
             record["exit_code"] = completed.returncode
             record["event_lines"] = len(completed.stdout.splitlines())

@@ -327,3 +327,154 @@ also weak in both arms. The prompts now state expressly that an affirmance or
 reversal remains in scope when embedded in chronological prose. Scoring now
 uses gold items for the headline and reports extra-claim precision separately;
 an accurate extra can no longer offset a missed gold proposition.
+
+## 2026-10-06 corpus-scale opinion boundaries
+
+The current product gold contains 1,000 decisions, 1,343 opinions, and 192
+multi-opinion decisions. The 930 fresh additions were authored with Sol 6.1 low
+and received two primary-source audits each; earlier records retain their
+historical provenance. The latest source and full product validations passed.
+These remain model annotations, rather than human-reviewed reference judgments.
+
+The installed A2AJ store contains 225,187 case records. The 14 court datasets
+covered by this gold account for 171,473 records; 15 other datasets account for
+53,714 and have no records in this gold. SCC supplies 174 of the gold's 192
+multi-opinion cases, but only 10,891 of the court corpus records (6.35%). Its
+34.1% share of the gold is useful for difficult boundary evaluation and must not
+be used as a corpus workload estimate.
+
+The product-validation report asserts source coverage for 307 of the 1,000
+cases: 44/49 BCSC, 46/52 FCA, 55/341 SCC, and 0/51 ONCA, among other courts.
+This is not a measurement of boundary accuracy. `caseMaterial.ts` enables that
+check only when the existing text detector declares the complete structure
+ready and supplies substantive spans. The detector's readiness also requires
+resolved authors, alignments, and judge result sides. Therefore a usable body
+partition can remain unresolved because another structure field is unknown.
+
+The proposed approach is a measured cascade:
+
+1. Freeze a stratified holdout from the independently sourced 930 additions
+   before tuning. Benchmark the current detector's opinion counts and substantive
+   boundaries separately from authors, joinders, and votes. Report silent
+   merges, splits, omitted reasons, excluded conclusion paragraphs, and included
+   publisher/counsel matter by court, era, language, and source format. Mean
+   overlap alone can conceal an omitted short opinion or disposition.
+2. Give boundary acceptance its own evidence and measured error criteria.
+   Extend the existing native source and paragraph primitives for tested formats;
+   retain unknown authors and votes when the source does not settle them. Genuine
+   source opinion markup can supply components directly, but the current A2AJ
+   authoring route uses provider text or section maps. The native
+   `source_opinion_components` query exposes actual markup roles and does not
+   infer opinions from a byline. It is not a substitute for text-boundary
+   detection on inputs without that markup.
+3. Send uncertain partitions to one whole-case structure-only model call with
+   exact-source compilation and targeted corrections. Benchmark model choices
+   on the holdout before selecting the corpus route. Try a second independent
+   reading on disagreements or difficult partitions; the old two-case ensemble
+   canary is insufficient evidence for a corpus-wide consensus policy.
+4. Retain distinct outcomes for published reasons found, reported disposition
+   without published reasons, and unresolved source structure. Brief oral reasons
+   and bare joinders need separate evaluation. The latest gold admission rejected
+   three reported-only sources; forcing them through a minimum-one-opinion schema
+   cannot create a supported body of reasons.
+5. Process the existing store in bounded, resumable batches. Persist accepted
+   exact spans through the existing projection/persistence primitives, bound to
+   the canonical source hash and extractor/contract identity, including compiler
+   fingerprints for durable native projections. Sample accepted records by format
+   cohort, and retain uncertain cases for further work. Add targeted gold for the
+   other 15 datasets before extending acceptance to the whole installed corpus.
+
+The next experiment is a boundary-specific deterministic baseline and calibrated
+model fallback against the frozen gold. No new corpus-wide model run or native
+grammar change was made for this assessment. Aggregate store counts and coverage
+observations are retained in the private expansion run's
+`boundary-corpus-analysis.json`.
+
+## 2026-10-06 runner token review before corpus scale
+
+The first boundary-only format was paused after the 186-case frozen holdout and
+63 completed corpus records. Its receipts remain in the ignored
+`benchmarks/local-data/a2aj-opinion-boundaries/50k-sol61-low/boundaries.sqlite`;
+seven in-flight call receipts have no completion/usage and are not counted as
+completed calls. The runner process exited and its isolated authentication copy
+was removed. This is not a completed 50,000-record run.
+
+The 325 completed calls recorded 4,052,786 input tokens, 31,683 output tokens,
+1,579 reasoning tokens, and 578,560 cached input tokens. Output was about 0.78%
+of input plus output tokens. Removing copied edge text can reduce output, but
+repeated complete-source input is the larger opportunity. The 69 cases with
+multiple completed readings retained the same opinion count and source status;
+their secondary calls used 1,004,651 input tokens, including 156,160 cached tokens.
+That does not establish that the rereads added no boundary value. The original
+holdout recovered 183/186 opinion counts and 162/186 acceptable boundary sets.
+Its gold oversamples difficult SCC opinions, so these token totals are not a
+production workload estimate.
+
+The revised v2 format uses constrained source-unit IDs and optional exact quotes
+only when an edge falls inside a unit. It also records source-supported panel
+and nonparticipant names, opinion writers, and full/partial joins in the same
+call. A shared label dictionary and packed integer references avoid repeated
+name strings in storage. Attribution failure preserves valid boundary spans.
+Ordinary multiple opinions or a mismatch with the uncalibrated detector no longer
+trigger a second full-source reading; reported-only classifications and explicit
+range contradictions still do. Rereads/corrections append after the stable source
+prefix. `evaluate` can run the holdout without starting the corpus. The v2
+focused tests pass, including name/evidence round trips and precise partial-unit
+edges. The subsequent live comparison is recorded below.
+
+## 2026-10-06 Luna Max routing evaluation
+
+Both models used the revised v2 prompt and output schema on the same frozen
+186 cases, without reference answers in their prompts. The account catalogue
+and a subscription canary verified `gpt-6-luna` with `max` effort. No API key
+or alternate provider was used. The completed receipts are retained privately in
+`sol61-low-v2-eval/boundaries.sqlite` and `luna-max-eval/boundaries.sqlite` under
+`benchmarks/local-data/a2aj-opinion-boundaries/`.
+
+| Measure | Sol 6.1 low | GPT-6 Luna Max |
+| --- | ---: | ---: |
+| Exact opinion counts | 185/186 | 180/186 |
+| Acceptable boundaries under the existing comparator | 139/186 | 136/186 |
+| Exact writers | 180/186 | 164/186 |
+| Exact full joins | 170/186 | 154/186 |
+| Exact partial joins | 181/186 | 168/186 |
+| Exact participating panel | 179/186 | 169/186 |
+| Completed calls | 227 | 225 |
+| Input tokens | 2,751,931 | 2,709,277 |
+| Output tokens, including reasoning | 39,868 | 313,533 |
+| Reasoning tokens | 4,404 | 278,327 |
+| Cached input tokens | 323,968 | 358,912 |
+| Mean completed-call seconds | 8.46 | 21.34 |
+| Median completed-call seconds | 6.89 | 14.86 |
+
+The protocol was frozen before inspecting comparison results: try Luna only on
+modern, monotonically numbered, non-SCC sources without detected separate
+opinions. A Luna output also needed one source-valid opinion with a writer;
+otherwise the simulated route used Sol. The 107 candidate cases were hash-split
+into 53 selection and 54 validation cases. Every measured boundary/name category
+had to equal or exceed Sol in both splits, with at least 20 cases per split.
+The route failed writer accuracy in selection (48/53 versus 51/53) and validation
+(52/54 versus 53/54); full joins also fell in validation (50/54 versus 51/54).
+Its small boundary-score gains did not satisfy the separate attribution gates.
+The corpus route therefore remains Sol 6.1 low.
+
+Luna is technically usable and its published Standard credit rates are lower.
+Applying those rates to the recorded completed-call usage gives approximately
+9.88 credits for Luna versus 132.18 for Sol; this is a rate-card illustration,
+not a measure of included subscription usage or this account's bill.
+[Official credit rates](https://learn.chatgpt.com/docs/pricing#token-rates).
+Max substantially increased reasoning and latency on this task. These cases
+oversample difficult SCC material and do not estimate corpus-wide prevalence.
+
+Boundary scoring retains the existing comparator. Source review found some
+failed edge comparisons differing only in overview headings, bylines, or quoted
+signatures; those were not retroactively relabelled to select a route. Names and
+joins are scored against the independent gold rather than merely counting
+source-compilable attribution. The v2 score cannot be treated as a passing
+corpus accuracy gate or as human-verified gold.
+
+The 50,000-record v2 corpus run has started in
+`50k-sol61-low/boundaries-v2.sqlite`. It reuses the completed Sol holdout, records
+the original evaluation submission and database hash, and samples exactly
+50,000 additional records outside all 1,000 gold decisions. Completion, error
+counts, and final storage size will be recorded after the run finishes.

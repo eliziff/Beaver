@@ -204,6 +204,7 @@ async function runCodexTurn(params: StreamChatParams,
   let threadId = "";
   let turnId = "";
   let fullText = "";
+  let structuredText: string | undefined;
   let usage: NormalizedLlmUsage | undefined;
   let failure = "";
   let compactionRunning = false;
@@ -276,6 +277,8 @@ async function runCodexTurn(params: StreamChatParams,
       case "item/completed": {
         const item = record(event.params.item);
         if (!item) return;
+        if (params.outputSchema && item.type === "agentMessage" &&
+            item.phase !== "commentary" && typeof item.text === "string") structuredText = item.text;
         if (item.type === "reasoning") callbacks.onReasoningBlockEnd();
         if (item.type === "contextCompaction") {
           compactionRunning = false;
@@ -388,10 +391,11 @@ async function runCodexTurn(params: StreamChatParams,
     await completion;
     throwIfAborted(params.abortSignal);
     endReasoning();
-    if (!fullText.trim() && !bridge?.hasTerminalResult()) {
+    const responseText = structuredText ?? fullText;
+    if (!responseText.trim() && !bridge?.hasTerminalResult()) {
       throw new Error(failure || "Codex app-server returned no response.");
     }
-    return { fullText, ...(usage ? { usage } : {}),
+    return { fullText: responseText, ...(usage ? { usage } : {}),
       ...(params.providerSession?.persist ? { continuationId: threadId } : {}) };
   } finally {
     if (compactionRunning) params.callbacks?.onCompaction?.("failed");

@@ -1,11 +1,14 @@
 # A2AJ case-treatment experiment
 
-The product-aligned ten-case benchmark is
-`gold/gold-product-10-v1.jsonl`. It keeps only scored opinion structure,
-direct-review outcomes, reported appellate history, and proposition-level
-treatments. `gold/gold-fresh-10-v2.jsonl` remains the unchanged exhaustive
-source annotation used to build and audit that pared projection. See
-`GOLD.md` for the inclusion rule.
+The current product-aligned corpus is `gold/gold-product-scale-current.jsonl`,
+selected by `gold/selection-scaled-current.json`. It keeps only scored opinion
+structure, direct-review outcomes, reported appellate history, and
+proposition-level treatments in `a2aj-product-treatment-gold-v1` format.
+The Sol 6.1 low expansions add 930 fresh decisions to the existing 70, covering
+all 14 court datasets with additional Supreme Court decisions. The active
+corpus contains 1,000 decisions, 1,343 opinions, and 15,528 treatments. See `GOLD.md`
+for provenance, admission, and the inclusion rule. The ten-case files remain
+available for focused comparisons.
 
 This experiment asks one practical question: given a complete court decision,
 can a model recover the judicial opinions and accurately describe what each
@@ -140,15 +143,11 @@ agreements.
 
 ## Gold authoring
 
-Fresh gold is authored through Beaver's Codex app-server transport, not through
-the benchmark CLI. From `backend`:
+Fresh gold is authored through Beaver's Codex app-server transport. From the
+repository root, reproduce or resume the latest 630-case Sol 6.1 low expansion:
 
 ```powershell
-node_modules\.bin\tsx.cmd experiments\a2aj-case-treatment\author-gold.ts `
-  --case-file experiments\a2aj-case-treatment\gold\selection-smoke-10.json `
-  --run-dir experiments\a2aj-case-treatment\runs\fresh-gold-10-v2 `
-  --gold experiments\a2aj-case-treatment\gold\gold-fresh-10-v2.jsonl `
-  --model gpt-5.6-sol --effort max --workers 10 --audits 2
+.\backend\experiments\a2aj-case-treatment\gold\author-sol61-low.ps1 -Batch 630
 ```
 
 Each case uses a distinct author thread. Compiler feedback is returned as
@@ -158,6 +157,12 @@ Each record then receives two complete primary-source audits in its persisted
 case thread. Draft and admitted partial files remain in the run directory, but
 the requested gold file is written only after every selected case has completed
 both audits.
+The expansion's source annotations, receipts, and isolated provider history
+live in ignored `benchmarks/local-data/a2aj-case-treatment/sol61-low-expansion-630/`.
+The wrapper temporarily supplies subscription authentication to that isolated
+history and removes the authentication copy on exit. Calls declare
+`machine_test` with run ID `sol61-low-expansion-630`. Use `-Batch 300` to reproduce
+or resume the earlier expansion in its separate owning run directory.
 `--audits 0` or `--audits 1` may be used to stop at a resumable draft stage;
 neither can publish benchmark gold. `--dry-run` checks source availability,
 prompts, and schemas without making model calls.
@@ -243,8 +248,9 @@ flat treatment and procedural-relationship records while retaining exact cited-c
 text, conservative opinion-support bounds, reproduced passages, and evidence
 hashes.
 
-Generated packets and run output are ignored. The selected case list, authored
-gold, contract, tests, and durable findings are tracked.
+Generated packets, local gold JSONL, and raw run output are ignored. Selection
+metadata, authoring scripts, contracts, tests, and durable findings belong in
+the repository.
 
 For mechanically graded opinion structure, `run-structure-consensus.ps1`
 runs independent structure-only members and reports single-member and prefix
@@ -254,3 +260,86 @@ Luna low/medium/high effort with direct, boundary-first, and vote-first reading;
 the conservative structure cues are alternated across those combinations. If
 the outputs do not differ, the receipt shows that consensus supplied no extra
 signal.
+
+## Corpus opinion-boundary runner
+
+`run-opinion-boundaries.ps1` processes a reproducible sample of 50,000 installed
+court records outside the gold. It first benchmarks the existing text detector
+and a numbered-paragraph candidate against the 1,000-case product gold. A
+186-case holdout is frozen from the independently authored additions, stratified
+by court and single/multiple opinions. A deterministic cohort needs at least 20
+training candidates with no substantive boundary errors; its selected route must
+also pass at least five frozen holdout candidates without an error. The holdout
+can veto that route but cannot select another route. The initial baseline admitted
+no deterministic cohort. The revised 186-case model comparison also rejected
+the preregistered Luna Max route: writer accuracy fell in both selection and
+validation, and full-join accuracy fell in validation. This run therefore uses
+Sol 6.1 low for every corpus record. `-Model` and `-Effort` select an explicit
+subscription model and reasoning effort; the runner verifies account availability.
+
+```powershell
+.\backend\experiments\a2aj-case-treatment\run-opinion-boundaries.ps1 -Mode evaluate -Count 50000 -Workers 32
+.\backend\experiments\a2aj-case-treatment\run-opinion-boundaries.ps1 -Count 50000 -Workers 32
+$env:TSX_TSCONFIG_PATH = 'backend/tsconfig.dev.json'
+node --import tsx backend/experiments/a2aj-case-treatment/opinion-boundaries.ts report --db benchmarks/local-data/a2aj-opinion-boundaries/50k-sol61-low/boundaries-v2.sqlite
+```
+
+The model sees the complete source and returns constrained source-unit IDs,
+explicit panel/nonparticipant names, opinion writers, and full/partial joins.
+Names are listed once and relationships refer to their indices. Opinion edges
+normally use the entire first/last unit; an exact quote is requested only for an
+edge inside a unit. The existing compiler resolves source offsets, rejects
+overlaps, and canonicalizes trailing signatures. Unsupported attribution stays
+unresolved while a valid partition is retained; writers and votes are not a
+boundary acceptance prerequisite. Calls receive one bounded source correction.
+Reported-only classifications and contradictions with explicit published opinion
+ranges receive an independent reading. Ordinary multiple opinions and mismatches
+with the uncalibrated detector do not automatically repeat the whole source.
+Rereads/corrections keep the source prefix stable. `-Mode evaluate` runs only the
+frozen holdout; `run` reuses its checkpoints before processing corpus records.
+These are model extractions, not additional gold or human-verified opinions.
+The current corpus checkpoint reuses the completed Sol holdout, retaining its
+original submission identity and database hash in the manifest. Its 50,000
+corpus records remain separate from those 186 evaluation records.
+
+The durable output is the ignored private benchmark database
+`benchmarks/local-data/a2aj-opinion-boundaries/50k-sol61-low/boundaries-v2.sqlite`.
+SQLite WAL checkpoints each record; rerun the same command to resume unfinished
+records. Source revisions, native binary, extractor source, gold, model, and
+sampling identities are bound to the checkpoint. Changed identities require a
+different `-Database` path. The source store is opened read-only and judgment text
+is not copied into the output. The wrapper isolates subscription history and
+removes its authentication copy in `finally`. Provider threads are ephemeral.
+
+The storage contract is `a2aj-opinion-boundaries-v2`:
+
+| Table/field | Meaning |
+| --- | --- |
+| `r.id` | A2AJ document ID; the only result key |
+| `r.h` | 32-byte SHA-256 of canonical native query text; null for unavailable/failed derivation |
+| `r.s` | 0 pending, 1 calibrated deterministic, 2 model reasons, 3 reported-only, 4 unresolved, 5 error |
+| `r.b` | Unsigned LEB128 pairs: gap from previous end, then length; source-ordered half-open UTF-16 intervals |
+| `r.c` | 1 corpus record, 0 frozen holdout |
+| `r.n` | Optional zlib-compressed note/evidence offsets; also holdout comparison results |
+| `r.j` | Unsigned LEB128 name dictionary references, role/evidence offsets, panel/nonparticipant indices, opinion writer and full/partial join references; null for unresolved attribution |
+| `j` | Interned source name labels, stored once; matching labels do not imply the same person across cases |
+| `q` | Per-call prompt hash, compressed response/error and usage, duration, completion state; no copied prompts or sources |
+| `m` | Compressed run manifest, frozen calibration, and selection digest, stored once |
+
+`r.j` decodes with `unpackUnsigned` and `judicialNamesFromValues`: name count,
+then each dictionary ID/kind/evidence start/length; panel count and local name
+indices; nonparticipant count and indices; opinion count, then writer count and
+(local name index/evidence start/length) triples, followed by join count and
+(local name index/partial flag/evidence start/length) quadruples.
+
+All tables use `WITHOUT ROWID`; result hashes are binary and spans have no JSON
+keys, opinion IDs, repeated citations, or copied quotes. `unpackSpans` in
+`opinion-boundaries.ts` reads their offsets. Call receipts are retained separately
+within the same database for reproducibility. Completion runs `VACUUM` and removes
+the WAL contents. Empty spans mean no accepted reasons only when the outcome
+code says so; unresolved spans are candidates and must not be treated as accepted.
+
+The first format's pilot is paused in `boundaries.sqlite`, with its original
+extractor source snapshot and receipts retained. It completed the 186-case
+holdout and 63 corpus records before the token/format review. Both revised
+186-case model evaluations are complete; the v2 50,000-record run is in progress.

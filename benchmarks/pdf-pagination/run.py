@@ -1,11 +1,14 @@
 """Public-corpus visual checks. No private PDFs, detector predictions, or gold reach Codex."""
-import argparse, concurrent.futures, hashlib, json, os, random, shutil, subprocess, threading, time
+import argparse, concurrent.futures, hashlib, json, os, random, shutil, sys, threading, time
 from collections import defaultdict
 from pathlib import Path
 import fitz
 from sampling import sample_pages
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tools'))
+from codex_runner.transport import execute
+
 HERE = Path(__file__).resolve().parent
 OUT = ROOT / 'tmp/pdf-pagination'
 render_lock = threading.Lock()
@@ -77,7 +80,7 @@ def check(batch):
     start=time.monotonic()
     for attempt in range(2):
         try:
-            done=subprocess.run(cmd,input=prompt,text=True,encoding='utf-8',capture_output=True,timeout=300)
+            done=execute(cmd,prompt=prompt,timeout_seconds=300,encoding_errors='strict')
             (folder/'events.jsonl').write_text(done.stdout,encoding='utf-8')
             if done.returncode==0 and result.exists():
                 response=json.loads(result.read_text(encoding='utf-8'))

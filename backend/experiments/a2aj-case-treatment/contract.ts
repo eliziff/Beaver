@@ -1122,7 +1122,7 @@ function collectBlockQuotation(
   return span;
 }
 
-function evidenceNamesPerson(name: string, evidenceText: string) {
+export function evidenceNamesPerson(name: string, evidenceText: string) {
   const ignored = new Set([
     "a", "c", "chief", "cj", "cjc", "cja", "dr", "honorable", "honourable", "j", "ja",
     "judge", "justice", "madam", "mr", "mrs", "ms", "the",
@@ -1134,12 +1134,17 @@ function evidenceNamesPerson(name: string, evidenceText: string) {
   const evidence = new Set(tokens(evidenceText));
   // Court reasons identify judges by surname alone ("Matthews J."), so any
   // distinguishing name token in the evidence grounds the person.
-  return identifying.length > 0 && identifying.some((token) => evidence.has(token));
+  if (identifying.some((token) => evidence.has(token))) return true;
+  // The source may identify its Chief Justice only by office, or switch from
+  // a named C.J. in the panel to that office in a joinder.
+  const chiefJustice = /^(?:the )?chief justice$|(?:^| )(?:c j|cj)$/u.test(tokens(name).join(" "));
+  return chiefJustice && /\bchief justice\b/u.test(tokens(evidenceText).join(" "));
 }
 
 const BOUNDARY_HEADING = /^(?:(?:summary of )?(?:orders?|dispositions?)|decision|introduction|background|analysis|reasons?(?: for (?:judgment|decision|order)| of (?:the )?court)?|conclusion)\s*:?[.]?$/iu;
 const SIGNED_JUDGMENT_TAIL = /^(?:signed|dated)\s+at\s+.+,\s+(?:this\s+)?\d{1,2}(?:st|nd|rd|th)?\s+day\s+of\b/iu;
 const OPINION_BYLINE = /(?:\((?:concurring|dissenting|separate)\s+reasons?\)|^(?:concurring|dissenting|separate)\s+reasons?\b|^the following (?:are|is) the reasons (?:delivered|given) by\s*:?$)/iu;
+const DELIVERED_REASONS_BYLINE = /^the (?:judgment|reasons?) of .{1,180} (?:was|were) delivered by\s*:?$/iu;
 const JUDICIAL_SIGNATURE_LINE = /^(?:[“"][\p{L}\p{M}.'’ -]{2,80}[”"]|(?:c\.?\s*j|j)(?:\.?\s*a)?\.?)$/iu;
 const JUDICIAL_SIGNATURE_SEPARATOR = /^[_\p{Pd}]{3,}$/u;
 
@@ -1170,7 +1175,7 @@ export function paragraphCoverageEnd(text: string) {
     if (line.index && (BOUNDARY_HEADING.test(line[0].trim()) || SIGNED_JUDGMENT_TAIL.test(line[0].trim()))) {
       end = Math.min(end, line.index);
     }
-    if (line.index && OPINION_BYLINE.test(line[0].trim())) {
+    if (line.index && (OPINION_BYLINE.test(line[0].trim()) || DELIVERED_REASONS_BYLINE.test(line[0].trim()))) {
       let tailStart = line.index;
       for (let prior = index - 1; prior >= 0 && JUDICIAL_SIGNATURE_LINE.test(lines[prior][0].trim()); prior -= 1) {
         tailStart = lines[prior].index!;
@@ -2920,7 +2925,7 @@ function sameJudicialName(left: string, right: string) {
     (rightTokens.length === 1 && leftTokens.includes(rightTokens[0]));
 }
 
-function sameJudicialNames(left: string[], right: string[]) {
+export function sameJudicialNames(left: string[], right: string[]) {
   if (left.length !== right.length) return false;
   const remaining = [...right];
   return left.every((name) => {
@@ -2976,7 +2981,7 @@ function boundaryDecorationLine(text: string) {
     .trim();
   return BOUNDARY_HEADING.test(unwrapped) || OPINION_BYLINE.test(unwrapped) ||
     /^(?:[a-z]|\d+)[.)]\s*(?:introduction|background|analysis|reasons?|order|conclusion|disposition)\b/iu.test(unwrapped) ||
-    /^the (?:judgment|reasons?) of .{1,180} (?:was|were) delivered by\s*:?$/iu.test(unwrapped) ||
+    DELIVERED_REASONS_BYLINE.test(unwrapped) ||
     /^(?:(?:\[\d+\]|\d+)\s+)?[\p{L}\p{M}.,'\u2019 -]{2,80}\s+(?:c\.?\s*j\.?|j{1,2}\.?\s*a?\.?|prothonotary|master|registrar)(?:\s*\((?:concurring|dissenting|separate)(?:\s+reasons?)?\))?\s*(?::|--?|\p{Pd})?$/iu.test(unwrapped);
 }
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 import os
@@ -12,6 +12,8 @@ import shutil
 
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT.parents[1] / "tools"))
+from codex_runner.transport import execute
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,7 +44,7 @@ def main() -> int:
         + checkpoint
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(
+    result = execute(
         [
             os.environ.get('CODEX_COMMAND') or shutil.which('codex.exe') or shutil.which('codex') or 'codex',
             "exec",
@@ -56,12 +58,8 @@ def main() -> int:
             str(args.out),
             "-",
         ],
-        input=prompt,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        timeout=1800,
+        prompt=prompt,
+        timeout_seconds=1800,
     )
     answer = args.out.read_text(encoding="utf-8") if args.out.exists() else result.stdout
     receipt_out = args.out.with_suffix(".receipt.json")

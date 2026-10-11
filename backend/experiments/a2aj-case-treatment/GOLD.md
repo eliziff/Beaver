@@ -8,16 +8,22 @@ output, or a citator summary. A conservative compiler may point to an exact
 source citation that appears omitted; the author must verify it in the primary
 decision and determine its proper role.
 
-The current fresh benchmark is `gold/gold-fresh-10-v2.jsonl`. Earlier gold
-files are historical experiment artifacts only. They must never be copied,
-converted, patched, or consulted while authoring the fresh benchmark.
+The current fresh expansion is selected by `gold/selection-sol61-low-630.json`.
+Its 630 decisions are authored with `gpt-6.1-sol` at `low` reasoning effort,
+with two complete primary-source audits per case in the persisted author thread.
+Exhaustive source annotations and receipts live in ignored
+`benchmarks/local-data/a2aj-case-treatment/sol61-low-expansion-630/`.
+Earlier gold and candidate outputs must never be consulted while authoring
+fresh records. Projection and assembly happen only after admission.
 
 ## Product-aligned pared gold
 
-`gold/gold-product-10-v1.jsonl` is a separate, deliberately smaller projection
-of the same ten decisions. The exhaustive source gold remains unchanged. This
-projection is the benchmark for the actual citator task and contains only
-fields that are scored:
+`gold/gold-product-scale-current.jsonl` is the current projection for the
+citator task, in `a2aj-product-treatment-gold-v1` format. Its matching selection
+is `gold/selection-scaled-current.json`: the existing 70 decisions followed by
+the 300-case and 630-case fresh expansions. The exhaustive source annotations
+remain separate.
+The product projection contains only fields that are scored:
 
 - opinion boundaries, writers, participation, joinders, and result positions;
 - what the present decision did to a decision directly under review;
@@ -25,6 +31,13 @@ fields that are scored:
   quashed, remitted, or received a material leave disposition; and
 - proposition-level substantive treatment, its treating opinion, machine
   signal, and concise legal explanation.
+
+| Corpus | Decisions | Opinions | Treatments | Direct outcomes | Reported history | Multi-opinion decisions |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Original records | 70 | 91 | 1,020 | 50 | 74 | 12 |
+| Sol 6.1 low, first expansion | 300 | 401 | 4,572 | 242 | 373 | 55 |
+| Sol 6.1 low, latest expansion | 630 | 851 | 9,936 | 535 | 786 | 125 |
+| Current corpus | 1,000 | 1,343 | 15,528 | 827 | 1,233 | 192 |
 
 Reported procedural history is not mere chronology. A statement that a cited
 trial decision was reversed on appeal is retained even when it is not a
@@ -58,6 +71,12 @@ participant's result position, full joinders, and the exact passage expressing
 a qualified agreement. Represent a named writer through the participant's
 `wrote` link; reserve `collective_author` for genuinely collective reasons with
 no named writer. Panel membership does not prove authorship or joinder.
+When the source does not identify a writer or expressly establish collective
+authorship, retain both fields as null; do not manufacture an author from the
+panel list.
+Retain an expressly identified Chief Justice's office label when the source
+does not give a personal name. A named C.J. may be identified by that office in
+the relationship passage; panel membership alone still does not prove joinder.
 If every judge supports the same disposition, that is a supported disposition,
 not an unknown one. A qualified-agreement passage records only what the source
 expressly says; do not invent its legal scope.
@@ -214,3 +233,82 @@ remain resumable drafts and cannot be assembled as benchmark gold. Raw output,
 source hashes, continuation IDs, usage, every patch, and per-case state remain
 in the run directory. Restarting the command skips completed stages and never
 uses old gold or candidate output as authoring context.
+
+## Sol 6.1 low expansions
+
+Both expansions cover all 14 court datasets. The first 300 comprise 225
+dataset-balanced decisions and 75 additional Supreme Court decisions, excluding
+569 previously selected IDs. The latest 630 comprise 420 dataset-balanced
+decisions and 210 additional Supreme Court decisions, excluding 870 previously
+selected or rejected IDs. This gives the latest batch 30 decisions from each
+non-SCC dataset and 240 SCC decisions; its sampling seeds are `20261009` and
+`20261010`.
+Sampling seeds, document IDs, public source URLs, provider-text SHA256 hashes,
+and upstream license metadata are retained in `gold/selection-sol61-low-300.json`
+and `gold/selection-sol61-low-630.json`. Sources come from the existing
+local [A2AJ Canadian case-law dataset](https://huggingface.co/datasets/a2aj/canadian-case-law)
+store; no second corpus copy is needed. The recorded upstream case revision is
+`54bfeaec1ab9250ef4490e1f11df623d4fd4fad4`.
+The first expansion replaced one disposition-only source using seed
+`20261008`. The latest expansion replaced three sources without judicial
+reasons using seeds `20261011`, `20261012`, and `20261013`; one of their author
+calls was interrupted after streaming whitespace. The failed or interrupted
+drafts, admission receipts, and original run manifests remain private. Each
+expansion and the combined selection record the admission replacements and
+every admitted addition's immutable annotation-source hash, separately from
+its provider-text hash.
+
+The submission origin is `machine_test`, with run IDs
+`sol61-low-expansion-300` and `sol61-low-expansion-630`.
+This identifies the automated submission; the decision text is public-source
+material, not invented test data. Existing records keep their historical
+provenance, and missing historical origin remains unknown. Assembly preserves
+the previous 370 product records byte for byte. The additions are model-authored and
+model-audited annotations; mechanical acceptance does not establish semantic
+accuracy or human review.
+
+From the repository root, the authoring command resumes retained stages. The
+remaining commands project the admitted source records and assemble the active
+corpus in selection order:
+
+```powershell
+.\backend\experiments\a2aj-case-treatment\gold\author-sol61-low.ps1 -Batch 630
+
+.\node_modules\.bin\tsx.cmd backend/experiments/a2aj-case-treatment/gold/build-product-gold.ts `
+  --source benchmarks/local-data/a2aj-case-treatment/sol61-low-expansion-630/gold.jsonl `
+  --out backend/experiments/a2aj-case-treatment/gold/gold-product-scale-additions-sol61-low-630.jsonl
+
+.\node_modules\.bin\tsx.cmd backend/experiments/a2aj-case-treatment/gold/assemble-product-scale-gold.ts
+
+.\node_modules\.bin\tsx.cmd backend/experiments/a2aj-case-treatment/cli.ts validate-gold `
+  --gold benchmarks/local-data/a2aj-case-treatment/sol61-low-expansion-630/gold.jsonl --workers 1 `
+  --out benchmarks/local-data/a2aj-case-treatment/sol61-low-expansion-630/source-validation.json
+
+.\node_modules\.bin\tsx.cmd backend/experiments/a2aj-case-treatment/cli.ts validate-product-gold `
+  --gold backend/experiments/a2aj-case-treatment/gold/gold-product-scale-current.jsonl --workers 1 `
+  --out benchmarks/local-data/a2aj-case-treatment/sol61-low-expansion-630/product-validation.json
+```
+
+Use `-Batch 300` and the matching `300` paths to regenerate the earlier batch.
+Rich source gold, raw calls, receipts, and provider history stay in the owning
+ignored run directory. Product JSONL stays in the ignored owning gold directory;
+selection metadata and reproduction commands live beside the authoring scripts
+in the repository.
+
+Validation on 2026-10-06 accepted all 630 latest source records and all 1,000
+active product records. Assembly preserves the previous 370 records byte for
+byte and matches the complete
+1,000-case selection order. The latest source report retains 206
+`shared_treatment_wording` review flags across 107 decisions; grouped authorities
+can legitimately share wording, and these flags do not fail mechanical
+validation. Counts, artifact hashes, and validation receipts are retained in
+the run's `summary.json`.
+
+The compiler's paragraph coverage check excludes the next opinion's delivery
+byline when it is attached to the preceding substantive paragraph. An independently
+invented regression verifies that the preceding conclusion is still required.
+The focused contract, product-gold, and Codex adapter suites passed 53 tests;
+the authoring self-test also passed. The broader backend typecheck failed in
+unchanged files: a missing `legal-citations/source-canlii-routes.json` import,
+an argument-count mismatch in `documentProjectionService.ts`, and four
+`S3Client.send` type errors in `storage.ts`.

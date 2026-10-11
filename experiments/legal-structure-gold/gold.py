@@ -6,6 +6,7 @@ import hashlib
 import re
 import unicodedata
 import composer
+import ocr
 
 VERSION = "legal-structure-gold.v3"
 EXTRA = {"text", "split", "insert", "drop", "join", "continue", "resume"}
@@ -92,7 +93,7 @@ def logical_annotations(state):
             current=anchors[(a["kind"],target)]; parts.append(current); consumed.add(current["id"])
         merged={**deepcopy(a),"line_ids":list(dict.fromkeys(i for part in parts for i in part["line_ids"])),
                 "spans":[s for part in parts for s in part.get("spans",whole(part["line_ids"],lines))],
-                "fragment_ids":[part["id"] for part in parts]}
+                "fragment_ids":[ident for part in parts for ident in part.get("fragment_ids", [part["id"]])]}
         attrs=merged["attributes"]
         if a["kind"]=="note": attrs["references"]=[s for part in parts for s in part["attributes"].get("references",[])]
         elif a["kind"]=="quotation": attrs["attribution"]=[s for part in parts for s in part["attributes"].get("attribution",[])]
@@ -242,6 +243,9 @@ def initial(structure, pages):
     state={"lines":list(lines.values()),"groups":groups,"annotations":annotations,
            "reading_order":list(lines),"joins":{},"continuations":{},"resumes":{},"operations":[],"removed_nodes":[],
            "native_nodes":[{**deepcopy(n),"line_ids":n.get("line_ids",[])} for n in nodes.values() if n["kind"] not in {"page","paragraph","prose","heading","list_item","footnote","endnote","table","row","cell"}]}
+    if any("ocr" in page for page in pages):
+        require(all("ocr" in page for page in pages), "OCR page evidence incomplete")
+        state["ocr"] = {**deepcopy(pages[0]["ocr_metadata"]), "pages": [deepcopy(p["ocr"]) for p in pages]}
     # Preserve native cross-page grouping as editable baseline continuation.
     by_native={}
     for g in groups:
@@ -298,6 +302,10 @@ def request(structure,pages,targets,state):
                              if a["id"] not in state["removed_nodes"] and any(i in visible for i in a.get("line_ids",[]))}
     r["metadata_refs"]=metadata_refs
     r["native_nodes"]=[n for n in state["native_nodes"] if n["id"] not in state["removed_nodes"]]
+    if "ocr" in state:
+        r["ocr"] = {"ontology": state["ocr"]["ontology"], "producer": state["ocr"]["producer"],
+            "pages": [deepcopy(p) for p in state["ocr"]["pages"] if p["page"] in {v["page"] for v in pages}],
+            "proposals": {str(p["page"]): p.get("ocr_proposals", []) for p in pages}}
     return structure,r
 
 
@@ -498,6 +506,8 @@ def apply(structure,req,response,state,mode):
         message=str(exc)
         for alias,source in req["aliases"].items(): message=message.replace(source,alias)
         raise ValueError(message) from None
+    if "ocr" in result:
+        ocr.apply(result["ocr"], req, response, aliases, expansion, units)
     result["operations"].append({"request":{"targets":list(req["targets"]),
                                              "aliases_sha256":composer.fingerprint(req["aliases"]),
                                              "annotation_aliases_sha256":composer.fingerprint(req["annotation_aliases"]),
@@ -536,7 +546,8 @@ def complete(state,through=None):
             if kind=="heading": require(all(groups[i]["kind"]=="heading" for i in anchors),"Heading continuation requires heading fragments")
             else: require(all(groups[i]["kind"] not in FURNITURE|{"heading"} for i in anchors),"Continuation requires paragraph fragments")
         else:
-            parts=[[a for a in annotations if a["kind"]==kind and a["line_ids"][0]==i] for i in anchors]
+            parts=[[a for a in annotations if a["kind"]==kind and
+                    (a["line_ids"][0]==i or len(a.get("fragment_ids", []))>1 and i in a["line_ids"])] for i in anchors]
             require(all(len(p)==1 for p in parts),"Continuation requires one object at each anchor; split shared anchors first")
             if kind=="table" and len(parts)==2: require(len(parts[0][0]["attributes"]["rows"][0])==len(parts[1][0]["attributes"]["rows"][0]),"Continued table column counts differ")
     for ident,join in state["joins"].items():
@@ -764,4 +775,5 @@ def materialize(structure,state,provenance):
     return document["rendered_text"],{"schema_version":VERSION,"source_sha256":structure["source_sha256"],
         "offset_unit":"utf16","source_character_unit":"unicode_scalar","coordinates":"visible-page-top-left-1000","structure":document,
         "source_trace":trace,"reading_order":state["reading_order"],"blocks":state["groups"],
-        "joins":state["joins"],"continuations":state["continuations"],"resumes":state["resumes"],"operations":state["operations"],"provenance":provenance}
+        "joins":state["joins"],"continuations":state["continuations"],"resumes":state["resumes"],"operations":state["operations"],"provenance":provenance,
+        **({"ocr": ocr.compact(state["ocr"], units)} if "ocr" in state else {})}
