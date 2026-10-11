@@ -5,10 +5,12 @@
 //! A request is `[u32 json length][json {op, args}][bytes]`; the reply is
 //! `[u8 ok][u32 json length][json][bytes]`, the json being the result or the error.
 
+use crate::a2aj;
 use crate::engine::{self, CoreResult, NativeDocument};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 /// Reports OCR progress, `(recognized, total)` pages.
@@ -23,16 +25,32 @@ fn documents() -> std::sync::MutexGuard<'static, (u32, BTreeMap<u32, Arc<NativeD
 }
 
 fn store(document: NativeDocument) -> Value {
+    share(Arc::new(document))
+}
+
+/// A handle of its own to a document the engine keeps elsewhere too.
+fn share(document: Arc<NativeDocument>) -> Value {
     let mut documents = documents();
     documents.0 += 1;
     let handle = documents.0;
-    documents.1.insert(handle, Arc::new(document));
+    documents.1.insert(handle, document);
     json!({ "handle": handle })
 }
 
 fn with_document<T>(handle: u32, operation: impl FnOnce(&NativeDocument) -> CoreResult<T>) -> CoreResult<T> {
     let document = documents().1.get(&handle).cloned().ok_or("document handle was released")?;
     operation(&document)
+}
+
+/// One of a document's text fragment plans, as `textFragmentPlan` takes it.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanRequest {
+    block_text: String,
+    quotes: Vec<String>,
+    pdf: bool,
+    publisher_may_annotate_legal_reference: bool,
+    split_html_source_blocks: bool,
 }
 
 struct Call {
@@ -141,7 +159,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "sourceOpinionComponents" => done(with_document(doc()?, |d| value(engine::source_opinion_components(d)))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),
         "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),
-        "citationEngineCall" => done(engine::citation_engine_call(&call.get::<String>("method")?, &call.get::<String>("request")?)),
+        // The same call, which JavaScript runs off its thread.
+        "citationEngineCall" | "citationEngineCallAsync" => done(engine::citation_engine_call(
+            &call.get::<String>("method")?, &call.get::<String>("request")?)),
         "documentReadingOrder" => done(engine::document_reading_order(&call.get::<String>("request")?).and_then(value)),
         "citationLookupKeys" => done(value(engine::citation_lookup_keys(&call.get::<Vec<String>>("texts")?))),
         "providerCitationsInText" => done(value(engine::provider_citations(&call.get::<String>("text")?))),
@@ -173,6 +193,14 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "quoteLocateDocument" => done(with_document(doc()?, |d| value(engine::quote_locate_document(
             d, &call.get::<Vec<legal_structure::QuoteBlockInput>>("blocks")?,
             &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true))))),
+        "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?)
+            .map(|found| found.map_or(Value::Null, |found| json!({ "metadata": found.metadata,
+                "native": share(found.native), "searchNative": found.search.map(share) })))),
+        "a2ajSection" => done(a2aj::section(&call.get::<PathBuf>("store")?, &call.get("lookup")?,
+            &call.get::<String>("section")?, call.get("excerpt")?)
+            .map(|found| found.map_or(Value::Null, |native| json!({ "native": native.map(share) })))),
+        "a2ajAliasGroups" => done(a2aj::alias_groups(&call.get::<PathBuf>("store")?,
+            &call.get::<Vec<String>>("citations")?).and_then(value)),
         "readDocumentRange" => done(with_document(doc()?, |d| engine::read_document_range(
             d, &call.get::<String>("kind")?, &call.get::<String>("from")?, &call.get::<String>("to")?,
             call.get("contextBlocks")?).and_then(value))),
@@ -181,6 +209,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "textFragmentPlan" => done(with_document(doc()?, |d| value(engine::document_text_fragment_plan(
             d, &call.get::<String>("blockText")?, &call.get::<Vec<String>>("quotes")?, call.get("pdf")?,
             call.get("publisherMayAnnotateLegalReference")?, call.get("splitHtmlSourceBlocks")?)))),
+        "textFragmentPlans" => done(with_document(doc()?, |d| value(call.get::<Vec<PlanRequest>>("requests")?.iter()
+            .map(|plan| engine::document_text_fragment_plan(d, &plan.block_text, &plan.quotes, plan.pdf,
+                plan.publisher_may_annotate_legal_reference, plan.split_html_source_blocks)).collect::<Vec<_>>()))),
         "textFragmentPlanStandalone" => done(value(engine::text_fragment_plan_standalone(
             &call.get::<String>("blockText")?, &call.get::<Vec<String>>("quotes")?, call.get("pdf")?,
             call.get("publisherMayAnnotateLegalReference")?, call.get("splitHtmlSourceBlocks")?))),

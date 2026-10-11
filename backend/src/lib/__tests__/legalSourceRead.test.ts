@@ -46,7 +46,7 @@ it("starts captured numbered reasons at the first native paragraph and preserves
   const passage: LegalSourcePassage = { source, role: "document", locator: { requested: null, label: "document" },
     text: native.documentText(artifact), documentArtifact: artifact, native: {
       citation: fixture.citation, name: fixture.name, dataset: fixture.dataset, language: "en",
-      url: fixture.url, native: artifact, searchNative: artifact, searchText: fixture.text,
+      url: fixture.url, native: artifact, searchNative: artifact, searchText: () => fixture.text,
     } };
   const first = native.documentAnchors(artifact).find(({ kind }) => kind === "paragraph")!;
   const { read } = reader([passage]), initial = await read({ file_path: researchSourceResource(source), limit: 3 });

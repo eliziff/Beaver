@@ -7,3 +7,6 @@ logs/
 .tmp-*
 .mike-local/
 .DS_Store
+
+# The ALR benchmark's bundle of its runtime (benchmarks/alr-verifier/bundle.mjs)
+.alr-bundle/

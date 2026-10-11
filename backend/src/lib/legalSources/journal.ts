@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { inSqliteRun, legalDataHome, legalProviderDatabase } from "../legalDataPath";
+import { inSqliteRun, legalDataHome, legalProviderDatabase, onSqliteRunEnd } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
 import { sqliteText as string } from "../sqliteSearch";
 import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
@@ -49,6 +49,8 @@ function databaseCache(invalidate?: (filename: string) => void) {
         invalidate?.(filename);
       }
       const connection = new DatabaseSync(filename, { readOnly: true });
+      // Searches read many pages: they come from a mapping of the file, not a call each.
+      connection.exec("PRAGMA mmap_size=2147418112");
       let retained = false;
       try {
         if (!validate(connection)) return null;
@@ -76,6 +78,7 @@ const finalContractDatabases = databaseCache(() => documents.clear());
 
 function closeDatabases() {
   for (const cache of [databases, searchDatabases, finalContractDatabases]) cache.close();
+  validated = {};
   documents.clear();
   namedArticles.clear();
 }
@@ -139,7 +142,16 @@ function journalSearchDatabasePath() {
     : legalProviderDatabase("journals", "public_endpoint-search.sqlite");
 }
 
+// The connections an operation validated, used as they are while it runs: its lookups ask for them hundreds of times.
+let validated: { database?: DatabaseSync; search?: DatabaseSync | null } = {};
+onSqliteRunEnd(() => { validated = {}; });
+
 function database() {
+  if (inSqliteRun()) return validated.database ??= openDatabase();
+  return openDatabase();
+}
+
+function openDatabase() {
   const filename = journalDatabasePath();
   if (!existsSync(filename)) {
     throw new Error(
@@ -155,6 +167,12 @@ function database() {
 }
 
 function searchDatabase() {
+  if (!inSqliteRun()) return openSearchDatabase();
+  if (!("search" in validated)) validated.search = openSearchDatabase();
+  return validated.search!;
+}
+
+function openSearchDatabase() {
   const filename = journalSearchDatabasePath();
   if (!existsSync(filename)) return null;
   const sourcePath = path.resolve(journalDatabasePath());

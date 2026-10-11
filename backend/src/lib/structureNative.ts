@@ -26,6 +26,13 @@ type CitatorExcerptClassification = {
   functionWords: number; proseWindow: string | null; rule: string;
 };
 
+export type A2AJStoreLookup = { citation: string; docType?: "cases" | "laws"; language?: "en" | "fr";
+  dataset?: string; sourceUrl?: string };
+export type A2AJStoreDocument = { docType: "cases" | "laws"; dataset: string; citation: string;
+  alternateCitation: string | null; name: string | null; date: string | null; url: string | null;
+  publisherUrl: string | null; language: "en" | "fr"; upstreamLicense: string | null;
+  native: NativeDocument; searchNative: NativeDocument };
+
 export type NativeCitationTextSpan = { text: string; start: number; end: number };
 /** The citation engine's `noteReferences`: each split part that cites, with what it cites. */
 export type NativeReferencePart = { part: import("legal-citations").SourcePart;
@@ -242,6 +249,8 @@ type StructureAddon = {
   };
   citationLookupKey(text: string): string;
   citationEngineCall(method: string, request: string): unknown;
+  /** citationEngineCall, run off the JavaScript thread. */
+  citationEngineCallAsync(method: string, request: string): Promise<unknown>;
   documentReadingOrder(request: string): Array<[number, number]>;
   citationLookupKeys(texts: string[]): string[];
   providerCitationsInText(text: string): Array<{
@@ -288,6 +297,17 @@ type StructureAddon = {
   journalTitleChoice(hits: Array<{ title: string; name: string; articleId: number }>): number | null;
   /** The source passage an authored quotation's words closely align with, where it occurs once. */
   verbatimRepair(authored: string, source: string): string | null;
+  /** The one document the local A2AJ store at `store` holds under a citation's key, with its provisions' document and
+   *  its full text's; null where the store, or the document, is missing. */
+  a2ajDocument(store: string, lookup: A2AJStoreLookup): Promise<A2AJStoreDocument | null>;
+  /** One provision of a statute the store holds, as an excerpt of the document `excerpt` describes: null where the
+   *  store lacks the statute, `native` null where it lacks the provision. */
+  a2ajSection(store: string, lookup: A2AJStoreLookup, section: string, excerpt: { citation: string;
+    url: string | null; alternateCitation: string | null; dataset: string; name: string | null }):
+    Promise<{ native: NativeDocument | null } | null>;
+  /** Each citation's exact aliases and authored forms in the store's inventory; null where there is no store. */
+  a2ajAliasGroups(store: string, citations: string[]):
+    Array<{ keys: string[]; forms: string[]; ambiguous: boolean }> | null;
   readDocumentRange(document: NativeDocument, kind: NativeDocumentBlock["kind"], from: string,
     to: string, contextBlocks: number): {
       selected: NativeDocumentBlock[];
@@ -324,6 +344,9 @@ type StructureAddon = {
     publisherMayAnnotateLegalReference: boolean,
     splitHtmlSourceBlocks: boolean,
     document: NativeDocument): NativeTextFragmentPlan;
+  /** textFragmentPlan for each of several passages of a document, run off the JavaScript thread. */
+  textFragmentPlans(document: NativeDocument, requests: Array<{ blockText: string; quotes: string[]; pdf: boolean;
+    publisherMayAnnotateLegalReference: boolean; splitHtmlSourceBlocks: boolean }>): Promise<NativeTextFragmentPlan[]>;
   textFragmentPlanStandalone(blockText: string, quotes: string[], pdf: boolean,
     publisherMayAnnotateLegalReference: boolean,
     splitHtmlSourceBlocks: boolean): NativeTextFragmentPlan;

@@ -211,7 +211,7 @@ describe("Authorities citation boundary actions", () => {
     // Bhasin's own citation finds nothing; only Jordan's would find a source, which is Jordan's.
     const resolve = vi.fn(async (citation: string) => citation === "2016 SCC 27" ? {
       citation, alternateCitation: null, name: "R v Jordan", date: "2016-07-08", url: "https://example.test/jordan",
-      publisherUrl: null, dataset: "SCC", language: "en" as const, searchText: "", verifiedPdf: null, native: {},
+      publisherUrl: null, dataset: "SCC", language: "en" as const, searchText: () => "", verifiedPdf: null, native: {},
     } : null);
     const { draft: resolved } = await resolveAuthoritiesSources(relinked, { ...authoritySourceServices,
       resolve, resolveForeign: async () => null, revision: () => "a".repeat(64) } as unknown as SourceServices);
@@ -226,7 +226,7 @@ describe("Authorities citation boundary actions", () => {
     const [jordan, bhasin] = draft.units[0].occurrenceIds.map(id => draft.occurrences[id].authorityId!);
     const found = (citation: string) => ({ citation, alternateCitation: null, name: "R v Jordan",
       date: "2016-07-08", url: "https://example.test/jordan", publisherUrl: null, dataset: "SCC",
-      language: "en" as const, searchText: "", verifiedPdf: null, native: {} });
+      language: "en" as const, searchText: () => "", verifiedPdf: null, native: {} });
     for (const [thrown, failure] of [
       [new A2AJUnavailable("timeout"), { reason: "timeout", retryAfter: null }],
       [new TypeError("Cannot read properties of undefined (reading 'dataset')"), { reason: "defect",
@@ -254,7 +254,7 @@ describe("Authorities citation boundary actions", () => {
       const resolve = vi.fn(async (citation: string) => {
         if (citation === "2016 SCC 27") return { citation, alternateCitation: null, name: "R v Jordan",
           date: "2016-07-08", url: "https://example.test/jordan", publisherUrl: null, dataset: "SCC",
-          language: "en" as const, searchText: "", verifiedPdf: null, native: {} };
+          language: "en" as const, searchText: () => "", verifiedPdf: null, native: {} };
         if (limit) throw new A2AJUnavailable("rate-limited", until);
         return null;
       });

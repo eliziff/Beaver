@@ -1,15 +1,16 @@
 import crypto from "node:crypto";
 import { statSync } from "node:fs";
 import { cachedContent } from "../contentCache";
-import { a2ajLocalBulkPath, fetchLocalA2AJDocument, searchLocalA2AJ, useA2AJStore } from "../a2ajLocalBulk";
+import { a2ajLocalBulkPath, searchLocalA2AJ, useA2AJStore } from "../a2ajLocalBulk";
 import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
-import { inSqliteRun } from "../legalDataPath";
+import { inSqliteRun, onSqliteRunEnd } from "../legalDataPath";
 import { normalizeWhitespace } from "../text";
-import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
+import { nativeDocumentLive, structureNative, type A2AJStoreDocument, type A2AJStoreLookup,
+  type NativeDocument } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { isUnitedStatesSearch } from ".";
@@ -30,8 +31,8 @@ export type A2AJDocument = {
 };
 
 export type A2AJCompiledDocument = Omit<A2AJDocument, "text" | "sectionMap"> & {
-  /** Original A2AJ text, retained because Law Web searches its markdown tokens. */
-  searchText: string;
+  /** Original A2AJ text, which Law Web searches for its markdown tokens: searchNative's text, read when wanted. */
+  searchText(): string;
   /** Full-text coordinates used exclusively for URL fragment planning. */
   searchNative: NativeDocument;
   /** Provider section-map coordinates used for structured reads. */
@@ -389,7 +390,31 @@ async function compileDocument(document: A2AJDocument): Promise<A2AJCompiledDocu
     ? await deriveA2AJDocument({ ...shared, text: document.text })
     : native;
   const { text: _text, sectionMap: _sectionMap, ...metadata } = document;
-  return { ...metadata, searchText: document.text, searchNative, native };
+  return compiled(metadata, native, searchNative);
+}
+
+const compiled = (metadata: Omit<A2AJCompiledDocument, "native" | "searchNative" | "searchText">,
+  native: NativeDocument, searchNative: NativeDocument): A2AJCompiledDocument =>
+  ({ ...metadata, searchText: () => structureNative().documentText(searchNative), searchNative, native });
+
+// The store's documents an operation reads, held while it runs: the engine keeps a document only while it is held.
+const running = new Set<A2AJCompiledDocument>();
+// Its lookups too: each authority's forms ask the store for the same citations.
+const lookups = new Map<string, Promise<A2AJStoreDocument | null>>();
+onSqliteRunEnd(() => { running.clear(); lookups.clear(); });
+async function storeDocument(lookup: A2AJStoreLookup) {
+  if (!inSqliteRun()) return structureNative().a2ajDocument(a2ajLocalBulkPath(), lookup);
+  const key = JSON.stringify([a2ajLocalBulkPath(), lookup]);
+  const ask = () => {
+    const asked = structureNative().a2ajDocument(a2ajLocalBulkPath(), lookup);
+    lookups.set(key, asked);
+    return asked;
+  };
+  const kept = lookups.get(key);
+  if (!kept) return ask();
+  const found = await kept;
+  // A document is lost with the engine that held it.
+  return !found || nativeDocumentLive(found.native) ? found : ask();
 }
 
 async function scopedDocument(document: A2AJCompiledDocument, requested: string, text: string) {
@@ -406,7 +431,7 @@ async function document(args: {
   citation: string; docType?: DocType; language?: Language; dataset?: string;
   section?: string; sourceUrl?: string | null; signal?: AbortSignal;
   discoverPdf?: boolean;
-}) {
+}): Promise<A2AJCompiledDocument | null> {
   const citation = args.citation.trim();
   if (!citation) throw new Error("citation is required");
   args.signal?.throwIfAborted();
@@ -432,9 +457,10 @@ async function document(args: {
     const full = await document({ ...args, section: undefined });
     if (!full) return null;
     // The store keeps each statute's sections; A2AJ is asked for one only when the store lacks the statute.
-    const local = fetchLocalA2AJDocument({ citation: full.citation, docType, language, dataset: full.dataset,
-      maxChars: Number.MAX_SAFE_INTEGER });
-    let scoped: Pick<A2AJDocument, "text"> | undefined = local ? { text: local.sectionMap?.[section] ?? "" } : undefined;
+    const local = await structureNative().a2ajSection(a2ajLocalBulkPath(),
+      { citation: full.citation, docType, language, dataset: full.dataset }, section, { citation: full.citation,
+        url: full.url, alternateCitation: full.alternateCitation, dataset: full.dataset, name: full.name });
+    let scoped: Pick<A2AJDocument, "text"> | undefined;
     if (!local) {
       const payload = await request("/fetch", {
         citation, doc_type: docType, output_language: language, section,
@@ -447,7 +473,9 @@ async function document(args: {
         ? candidates.find((item) => [item.url, item.publisherUrl].includes(args.sourceUrl!.trim()))
         : candidates[0];
     }
-    const result = await scopedDocument(full, section, scoped?.text ?? "");
+    const result = local ? local.native ? { ...full, native: local.native } : full
+      : await scopedDocument(full, section, scoped?.text ?? "");
+    if (inSqliteRun()) running.add(result);
     documents.set(key, { expires: Date.now() + 60 * 60_000, value: result });
     return result;
   }
@@ -467,17 +495,17 @@ async function document(args: {
     // Distinct provider records with the same citation require an explicit URL.
     return matches.length === 1 ? matches[0] : null;
   };
-  let source: A2AJDocument | null = null;
+  let local: A2AJStoreDocument | null = null, source: A2AJDocument | null = null;
   for (const form of forms) {
-    source = fetchLocalA2AJDocument({ citation: form, docType, language, dataset: args.dataset,
-      sourceUrl: args.sourceUrl ?? undefined, maxChars: Number.MAX_SAFE_INTEGER });
-    if (source) break;
+    local = await storeDocument({ citation: form, docType, language, dataset: args.dataset,
+      sourceUrl: args.sourceUrl ?? undefined });
+    if (local) break;
   }
   // A2AJ is asked as the Python app asks it (a2aj_client.py, alr_quote_verifier.py): by citation alone, never with a
   // case's name before it, which only makes another request of each way it is written; for a court it holds; and
   // searched once, for the first form.
   const named = new Set(core.length ? [citation, english].filter((form) => !core.includes(form)) : []);
-  const asked = source ? [] : await coveredForms(forms.filter((form) => !named.has(form)), docType, args.signal);
+  const asked = local ? [] : await coveredForms(forms.filter((form) => !named.has(form)), docType, args.signal);
   if (!source) for (const form of asked) {
     args.signal?.throwIfAborted();
     const payload = await request("/fetch", { citation: form, doc_type: docType, output_language: language }, args.signal);
@@ -502,10 +530,15 @@ async function document(args: {
     }
     if (source) break;
   }
-  if (!source) return null;
-  source = { ...source, verifiedPdf: args.discoverPdf === false || !remoteAllowed ? null
-    : await decisiaPdf(source.url, args.signal) };
-  const result = await compileDocument(source);
+  const found = local ?? source;
+  if (!found) return null;
+  const verifiedPdf = args.discoverPdf === false || !remoteAllowed ? null : await decisiaPdf(found.url, args.signal);
+  let result: A2AJCompiledDocument;
+  if (local) {
+    const { native: provisions, searchNative, ...metadata } = local;
+    result = compiled({ ...metadata, verifiedPdf }, provisions, searchNative);
+  } else result = await compileDocument({ ...source!, verifiedPdf });
+  if (inSqliteRun()) running.add(result);
   documents.set(key, {
     expires: Date.now() + (docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000),
     value: result,

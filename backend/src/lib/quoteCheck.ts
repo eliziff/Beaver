@@ -9,7 +9,7 @@ import { splitQuoteCitationUnits, type QuoteCitationUnit } from "./quoteCitation
 import { footnotePropositions, type QuoteContext } from "./authoritiesQuotations";
 import type { LegalSourceReference, LegalSourceLocator } from "./legalSources";
 import type { NativeDocument, NativeQuoteComparison, NativeQuoteLocation } from "./structureNative";
-import { buildLegalSourcePinpoint, legalSourceLocatorAnchor } from "./legalSourceLinks";
+import { buildLegalSourcePinpoint, legalSourceLocatorAnchor, planLegalSourcePinpoints } from "./legalSourceLinks";
 
 export type QuoteLink = { quoteId: string; occurrenceId: string };
 export function decodeQuoteLinks(value: unknown): QuoteLink[] {
@@ -212,14 +212,24 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   await Promise.all([...bySource].map(async ([document, items]) => {
     signal?.throwIfAborted();
     try {
-      const text = engine.documentText(document), revision = engine.documentRevision(document);
+      // The source's text, read where a quotation was not found in a passage of it.
+      let documentText: string | undefined;
+      const text = () => documentText ??= engine.documentText(document), revision = engine.documentRevision(document);
       const located = await engine.quoteLocateDocument(document, quoteBlocks(document, items[0].judgment),
         items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints), id: row.id })),
         options.compare !== false);
+      // Each found quotation's link, its text fragments planned off this thread.
+      const passages = items.map((item, index) => {
+        try { return linkedPassage(item, located[index].match); } catch (error) { return error as Error; }
+      });
+      await planLegalSourcePinpoints(document, passages.flatMap((passage) => passage && !(passage instanceof Error)
+        ? [passage] : [])).catch(() => signal?.throwIfAborted());
       const hashes = new Map<string, string>();
       items.forEach((item, index) => {
         try {
-          item.check = checked(item, located[index], text, revision, hashes);
+          const passage = passages[index];
+          if (passage instanceof Error) throw passage;
+          item.check = checked(item, located[index], passage, text, revision, hashes);
         } catch {
           signal?.throwIfAborted();
           item.check = unavailable(item.candidateId);
@@ -231,21 +241,25 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     }
     emit();
   }));
-  /** A located quotation's check: its receipt, with a link that opens the source at the quoted words. */
-  function checked({ row, candidateId, pinpoints, source, document }: Pending,
-    { match, comparison, errors }: Awaited<ReturnType<typeof engine.quoteLocateDocument>>[number],
-    documentText: string, revision: string, hashes: Map<string, string>): QuoteCheck {
-    const text = match.text || documentText;
-    const cited = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
-    // The link opens the block that holds the quoted words, with the block's own anchor beside the fragment where the
-    // source's page has one (CanLII's #par12 or #sec4, Decisia's #par12).
+  /** The passage a found quotation's link opens: the block that holds the quoted words, with the block's own anchor
+   *  beside the fragment where the source's page has one (CanLII's #par12 or #sec4, Decisia's #par12). */
+  function linkedPassage({ row, source, document }: Pending, match: NativeQuoteLocation) {
+    if (!source.url || !match.text) return null;
     const [, kind, value] = /^(par|page |sec)(.+)$/u.exec(match.labels[0] ?? "") ?? [];
     const blockKind = kind === "par" ? "paragraph" : kind === "sec" ? "section" : "page";
-    const anchor = blockKind !== "page" && source.url
-      ? legalSourceLocatorAnchor(source.url, blockKind, match.labels[0]) : undefined;
-    const link = source.url && match.text ? buildLegalSourcePinpoint({ url: source.url,
-      anchor: anchor ?? (kind ? engine.readDocumentRange(document, blockKind, value, value, 0)?.selected[0]?.anchor : undefined),
-      blockText: match.text, documentText: document }, [match.fragment || row.quote])?.target ?? null : null;
+    const anchor = blockKind !== "page" ? legalSourceLocatorAnchor(source.url, blockKind, match.labels[0]) : undefined;
+    return { url: source.url, blockText: match.text, quotes: [match.fragment || row.quote],
+      anchor: anchor ?? (kind ? engine.readDocumentRange(document, blockKind, value, value, 0)?.selected[0]?.anchor : undefined) };
+  }
+  /** A located quotation's check: its receipt, with a link that opens the source at the quoted words. */
+  function checked({ candidateId, pinpoints, source, document }: Pending,
+    { match, comparison, errors }: Awaited<ReturnType<typeof engine.quoteLocateDocument>>[number],
+    passage: ReturnType<typeof linkedPassage>, documentText: () => string, revision: string,
+    hashes: Map<string, string>): QuoteCheck {
+    const text = match.text || documentText();
+    const cited = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
+    const link = passage ? buildLegalSourcePinpoint({ url: passage.url, anchor: passage.anchor,
+      blockText: passage.blockText, documentText: document }, passage.quotes)?.target ?? null : null;
     return { candidateId, status: match.perfect ? "verified" : "mismatch",
       detail: match.location === "unmatched" ? "The quotation was not found in the source text."
         : match.location.startsWith("alternate") ? `Found at ${match.pinpoint || "another place in the source"}, not at the cited pinpoint.`

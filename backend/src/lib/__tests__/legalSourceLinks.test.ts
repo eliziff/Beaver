@@ -36,7 +36,7 @@ async function nativeDocument(
     verifiedPdf: null,
     language: "en",
     upstreamLicense: null,
-    searchText: text,
+    searchText: () => text,
     searchNative: native,
     native,
   };

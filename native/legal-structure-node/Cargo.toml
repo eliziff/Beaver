@@ -18,6 +18,8 @@ legal-structure = { path = "../../legal-structure", features = ["provider-text",
 legal-pdf-support = { path = "../../legal-pdf-parser/legal-pdf-support", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
+# The local A2AJ store, read by the engine itself; the browser build compiles SQLite with wasi-sdk (WASI_SDK_PATH).
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 
 # The Node addon links native OCR and layout runtimes.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

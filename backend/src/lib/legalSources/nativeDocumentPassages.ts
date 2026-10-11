@@ -12,11 +12,13 @@ export function nativeDocumentPassages<Native extends object = never>(options: {
 }): LegalSourcePassage<Native>[] {
   const { document, native, reference, request } = options;
   if (!request.locator) {
-    const text = structureNative().documentText(document);
-    return [{ source: reference, locator: { requested: null, label: "document" },
-      role: "document", text,
-      documentArtifact: document,
-      ...(native ? { native } : {}) }];
+    // The whole text, read from the engine when it is wanted: most readers locate in the document itself.
+    let text: string | undefined;
+    const passage = { source: reference, locator: { requested: null, label: "document" },
+      role: "document", documentArtifact: document, ...(native ? { native } : {}) } as LegalSourcePassage<Native>;
+    Object.defineProperty(passage, "text", { enumerable: true, configurable: true,
+      get: () => text ??= structureNative().documentText(document) });
+    return [passage];
   }
   const { locator } = request;
   const context = request.contextBlocks ?? 0;

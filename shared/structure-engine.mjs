@@ -5,7 +5,8 @@
 const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
   "fixDocxSupraCrossReferences", "hasDocxSupraReferences", "deriveDocxDocument", "docxText",
   "docxAuthorityTextUnits", "derivePdfDocument", "preparePdfDocument", "restorePdfDocument",
-  "pdfPassageGeometryPages", "quoteLocateDocument"]);
+  "pdfPassageGeometryPages", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "textFragmentPlans",
+  "citationEngineCallAsync"]);
 // Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes;
 // "document" is a handle.
 export const SIGNATURES = {
@@ -32,7 +33,7 @@ export const SIGNATURES = {
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   statuteOutline: ["text", "articles"], caseOutline: ["text"],
   citationLookupKey: ["text"], citationLookupKeys: ["texts"], providerCitationsInText: ["text"],
-  citationEngineCall: ["method", "request"],
+  citationEngineCall: ["method", "request"], citationEngineCallAsync: ["method", "request"],
   documentReadingOrder: ["request"],
   citationOccurrencesInText: ["text"], authorityReferencesInText: ["text"],
   caselawCitationLookupKey: ["text"], hasCitationInText: ["text"],
@@ -46,6 +47,7 @@ export const SIGNATURES = {
   smallestContainingDocumentBlock: ["document", "start", "end"],
   textFragmentPlan: ["blockText", "quotes", "pdf", "publisherMayAnnotateLegalReference",
     "splitHtmlSourceBlocks", "document"],
+  textFragmentPlans: ["document", "requests"],
   textFragmentPlanStandalone: ["blockText", "quotes", "pdf", "publisherMayAnnotateLegalReference",
     "splitHtmlSourceBlocks"],
   documentParagraphRangeDirective: ["document", "start", "end"],
@@ -53,7 +55,15 @@ export const SIGNATURES = {
   resolveDocumentAddressSpans: ["document", "spec", "follow", "depth"],
   graphScope: ["document", "seedLabel", "follow", "depth", "includeDescendants", "includeUnits"],
   documentHasOrigin: ["document", "origin"],
+  // The local A2AJ store at `store`, read by the engine.
+  a2ajDocument: ["store", "lookup"], a2ajSection: ["store", "lookup", "section", "excerpt"],
+  a2ajAliasGroups: ["store", "citations"],
 };
+// Readings of text alone, which an operation's stages repeat: a request asked before is answered with the reply it
+// had, read afresh, from the latest this many.
+const PURE = new Set(["providerCitationsInText", "citationOccurrencesInText", "citationLookupKey", "citationLookupKeys",
+  "caselawCitationLookupKey", "canliiCaseUrl", "canliiLawUrl"]);
+const PURE_KEPT = 4096;
 const DOCUMENT_RESULTS = new Set(["deriveDocumentStructure", "deriveDocxDocument",
   "derivePdfDocument", "restorePdfDocument"]);
 
@@ -127,20 +137,37 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     });
     return engineRequest(name, args, bytes);
   }
+  function handle(value) {
+    if (!value) return null;
+    const document = new NativeDocumentHandle(value.handle, generation);
+    released.register(document, { handle: value.handle, generation });
+    return document;
+  }
   function result(name, { value, bytes }) {
-    if (DOCUMENT_RESULTS.has(name)) {
-      if (!value) return null;
-      const document = new NativeDocumentHandle(value.handle, generation);
-      released.register(document, { handle: value.handle, generation });
-      return document;
+    if (DOCUMENT_RESULTS.has(name)) return handle(value);
+    // A store's document: its full text's document is its provisions' where the engine names none.
+    if (name === "a2ajDocument" && value) {
+      const native = handle(value.native);
+      return { ...value.metadata, native, searchNative: handle(value.searchNative) ?? native };
     }
+    if (name === "a2ajSection" && value) return { native: handle(value.native) };
     if (name === "fixDocxSupraCrossReferences") return { ...value, bytes: toBuffer(bytes.slice()) };
     return value;
   }
+  const replies = new Map();
   function invoke(name, positional) {
+    const key = PURE.has(name) ? `${name}${JSON.stringify(positional)}` : null;
+    const kept = key && replies.get(key);
+    if (kept) { replies.delete(key); replies.set(key, kept); return result(name, engineReply(kept)); }
     const framed = request(name, positional);
-    try { return result(name, engineReply(transport.call(framed))); }
+    let reply, read;
+    try { reply = transport.call(framed); read = engineReply(reply); }
     catch (error) { throw trapped(error, name); }
+    if (key) {
+      replies.set(key, reply);
+      if (replies.size > PURE_KEPT) replies.delete(replies.keys().next().value);
+    }
+    return result(name, read);
   }
   async function invokeOff(name, positional, progress) {
     if (!transport.callAsync) return invoke(name, positional);

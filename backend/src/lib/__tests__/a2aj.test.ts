@@ -241,10 +241,9 @@ describe("A2AJ client", () => {
       docType: "laws",
     });
     expect(structureNative().documentText(document!.native)).toBe(mappedText);
-    expect(document!.searchText).toBe(
+    expect(document!.searchText()).toBe(
       "Stale flattened text that the provider section map supersedes.",
     );
-    expect(structureNative().documentText(document!.searchNative)).toBe(document!.searchText);
     expect(passages).toHaveLength(1);
     expect(passages[0]?.locator.label).toBe("sec34(1)(a)");
     expect(passages[0]?.text).toContain(
@@ -303,10 +302,8 @@ describe("A2AJ client", () => {
       citation: "2099 SCC 9",
       dataset: "SCC",
       sourceUrl: "https://example.test/second",
-    })).resolves.toMatchObject({
-      url: "https://example.test/second",
-      searchText: "Correct record.",
-    });
+    }).then((document) => document && { url: document.url, searchText: document.searchText() }))
+      .resolves.toEqual({ url: "https://example.test/second", searchText: "Correct record." });
   });
 
   it("keeps full search coordinates when the scoped law endpoint supplies a missing locator", async () => {
@@ -332,7 +329,7 @@ describe("A2AJ client", () => {
       section: "99",
     });
 
-    expect(document?.searchText).toBe(
+    expect(document?.searchText()).toBe(
       "The complete flattened statute remains the URL-planning source.",
     );
     expect(structureNative().documentText(document!.native)).toContain(

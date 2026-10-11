@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { courtLevel } from "./courtLevels";
-import { withReadonlySqlite } from "./legalDataPath";
+import { inSqliteRun, onSqliteRunEnd, withReadonlySqlite } from "./legalDataPath";
 import { structureNative } from "./structureNative";
 import { a2ajCitationAliasGroups, type CitationAliasGroup } from "./a2ajLocalBulk";
 
@@ -128,6 +128,19 @@ function keysForQuery(database: DatabaseSync, key: string): string[] {
  * the same exact decision identity before falling back to the literal key.
  */
 export function citationAliasGroups(citations: string[]): CitationAliasGroup[] {
+  if (!inSqliteRun()) return aliasGroupsOf(citations);
+  const missing = [...new Set(citations.filter((citation) => !runGroups.has(citation)))];
+  if (missing.length) aliasGroupsOf(missing).forEach((group, index) => runGroups.set(missing[index], group));
+  return citations.map((citation) => {
+    const group = runGroups.get(citation)!;
+    return { ...group, keys: [...group.keys], forms: [...group.forms] };
+  });
+}
+// The groups an operation reads, kept while it runs: its stages ask for the same citations' aliases.
+const runGroups = new Map<string, CitationAliasGroup>();
+onSqliteRunEnd(() => runGroups.clear());
+
+function aliasGroupsOf(citations: string[]): CitationAliasGroup[] {
   const keys = structureNative().citationLookupKeys(citations);
   if (!keys.some(Boolean)) return keys.map(() => ({ keys: [], forms: [], ambiguous: false }));
   const own = withDatabase((database) => {
