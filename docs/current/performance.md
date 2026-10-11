@@ -86,12 +86,22 @@ repeatedly scanning all occupied ranges. The US name tokenizer also indexes its
 omitted spans, retaining the original first span at each endpoint. Parser options,
 ordering, offsets, resolution and output fields are unchanged.
 
+Legislation title matching indexes normalized titles, series and years once per
+extraction, retaining abstention when chapters conflict. Reference locator checks
+reuse authority membership and source-part kinds within their resolver. Quote
+region searches use the cached word regex directly, retaining its search automata.
+
 The alias build embeds gzip-compressed runtime evidence and restores it once when
 the alias table is first used. All targets, observed spellings, blocked forms and
 provenance records remain available. Source registry data, grammar fingerprints,
 licenses and the native/browser feature profiles are unchanged. Model, query,
 detection and PDF mechanics keep their existing Rust owners; fragment text
 statistics belong to the query crate's source-text module.
+
+The citation grammar owner also embeds compressed corpus and US extractor JSON.
+Runtime readers restore the exact original bytes once; public source constants,
+corpus vectors and fingerprints remain available unchanged. These reductions use
+the existing owners and preserve shared native document/store handles.
 
 An October 11 Windows/Node 22.20.0 comparison used the same 16 private DOCX inputs,
 local stores and V8 profiling settings in one process: 33.43 seconds before and
@@ -113,6 +123,23 @@ Iteration used affected-crate checks, then one native release build and one WASI
 release build for the complete batch, reusing the canonical target and incremental
 caches. Superseded debug DLL/PDB output and an obsolete immutable DLL copy were
 removed after checking their paths and identities.
+
+The next batch replayed 1,221 real extraction requests three times per candidate.
+The two warm runs averaged 2.90 seconds before and 2.77 seconds after (about 4.6%
+faster); cold replay stayed at 3.85 seconds. Complete extraction responses also
+matched in the real composed workflow. All 2,142 quote-location outputs, 469
+citation conformance responses, 224 workbook archive payloads and independent gold
+score objects were unchanged. The 16-document profiled run took 29.01 seconds
+against the preceding 26.45-second run, with most extra time in local-store
+queries: this batch establishes a warm parser replay gain, not an end-to-end gain.
+Two browser-worker workbooks again retained all 28 archive payloads without errors
+or external requests. Existing gold mismatches remain.
+
+The subsequent native DLL is 44,967,936 bytes and WASI is 31,257,131 bytes; WASI
+gzip is 9,493,415 bytes. The assembled ALR page is 25,778,452 bytes. The ignored
+`benchmarks/local-data/alr-verifier/parser-speed-2/receipt.json` retains this batch's
+hashes, profiles and comparisons. One native and one WASI release build followed
+the complete source batch; narrow checks reused the ordinary incremental target.
 
 ## Printed-page navigation measurement (September 27, 2026)
 
