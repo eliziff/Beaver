@@ -521,7 +521,7 @@ async function search(input: LegalSourceSearchRequest, docType: DocType) {
     : input.sort === "oldest" ? "oldest_first" as const : "default" as const;
   const local = searchLocalA2AJ({ query, docType, language, size, sortResults,
     searchType: input.searchType, dataset: input.collection,
-    startDate: input.dateFrom, endDate: input.dateTo, querySyntax: input.syntax });
+    startDate: input.dateFrom, endDate: input.dateTo, querySyntax: input.syntax, ordered: input.ordered });
   if (local !== null) return local;
   const payload = await request("/search", {
     query, doc_type: docType, search_type: input.searchType ?? "full_text",

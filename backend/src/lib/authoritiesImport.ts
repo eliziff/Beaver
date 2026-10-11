@@ -130,7 +130,7 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
       return [
         `${dataset}:${language}:${sourceName(name)}`,
         await a2ajLegalSourceProvider.search!({ text: name, kinds: ["legislation"],
-          searchType: "name", collection: dataset, language, limit: 50 }),
+          searchType: "name", collection: dataset, language, limit: 50, ordered: false }),
       ] as const;
     } catch { return [`${dataset}:${language}:${sourceName(name)}`, []] as const; }
   })).map(([key, results]) => [key, results]));

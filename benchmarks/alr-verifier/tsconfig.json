@@ -1,0 +1,11 @@
+{
+  "extends": "../../backend/tsconfig.dev.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["../../backend/src/*"],
+      "mike/shared/runtime/*.mjs": ["../../shared/contracts/*.mts"],
+      "mike/shared/*": ["../../shared/*"],
+      "beaver/*": ["../../*"]
+    }
+  }
+}

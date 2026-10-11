@@ -2,9 +2,9 @@
 """Run ALR verifier arms on the private benchmark inputs.
 
     python run.py baseline                 # current Python app, Free mode (no model calls)
-    python run.py arm free                 # new pipeline, free mode
-    python run.py arm sol-low --mode high_accuracy
-    python run.py arm luna-max --mode ultra_economy
+    python run.py arm free                 # the composed app (Beaver's runtime operations), free mode
+    python run.py arm free --no-quotes     # links, splits and references only
+    python run.py arm sol-low --mode high_accuracy   # an AI run mode, its model through codex exec
 
 Each arm writes one latest folder, benchmarks/local-data/alr-verifier/arms/<arm>/,
 holding one payload per document in the Python live-benchmark shape that
@@ -30,7 +30,10 @@ PYTHON = SUITE / ".venv" / "Scripts" / "python.exe"
 TSX = [shutil.which("node") or "node", str(REPO / "node_modules" / "tsx" / "dist" / "cli.mjs")]
 
 
-def inputs() -> list[Path]:
+def inputs(folder: str | None = None) -> list[Path]:
+    """The suite's documents, or with `folder` (--inputs) every DOCX in it."""
+    if folder:
+        return sorted(Path(folder).glob("*.docx"))
     docs = json.loads((SUITE / "inputs" / "manifest.json").read_text(encoding="utf-8"))["documents"]
     paths = sorted({REPO / d["input"] for d in docs if d.get("input")})
     return paths + [SUITE / "inputs" / "split-gold" / "split-gold-footnotes.docx"]
@@ -39,12 +42,12 @@ def inputs() -> list[Path]:
 def baseline(args) -> None:
     """Python app, Free mode. Lean = splitting/links only (the Python benchmark's own
     default); --app = the whole app in local-only mode (quote checks, local A2AJ)."""
-    out = ARMS / ("python-free-app" if args.app else "python-free")
+    out = ARMS / (args.name or ("python-free-app" if args.app else "python-free"))
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     cache = SUITE / "python-cache"
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
-    for path in inputs():
+    for path in inputs(args.inputs):
         target = out / f"{path.stem}.json"
         started = time.time()
         runner = [str(HERE / "python_app_local.py")] if args.app else ["dev/benchtools/benchmark_live_hybrid_docx.py"]
@@ -54,9 +57,9 @@ def baseline(args) -> None:
              "--mode", "free", "--supra-linking", "safe", "--cache-dir", str(cache),
              "--output", str(target), *extra],
             cwd=ALR, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if proc.returncode:
-            print(proc.stdout[-3000:], proc.stderr[-3000:], file=sys.stderr)
-            raise SystemExit(f"python baseline failed on {path.name}")
+        if proc.returncode or not target.exists():
+            print(f"python baseline failed on {path.name}: {proc.stderr[-800:]}", flush=True)
+            continue
         payload = json.loads(target.read_text(encoding="utf-8"))
         payload["metrics"]["process_s"] = round(time.time() - started, 3)
         target.write_text(json.dumps(payload, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -115,23 +118,25 @@ def to_payload(run: dict, workbook: Path, source: Path) -> dict:
 
 
 def arm(args) -> None:
-    name = args.arm if args.arm == "free" else f"{args.arm}-{args.mode}"
+    name = args.name or (args.arm if args.arm == "free" else f"{args.arm}-{args.mode}")
     out = ARMS / name
     raw = SUITE / "raw" / name
     for folder in (out, raw):
         shutil.rmtree(folder, ignore_errors=True)
         folder.mkdir(parents=True)
     env = {**os.environ, "ALR_EVAL_LABEL": name}
-    command = [*TSX, "--tsconfig", "tsconfig.dev.json", "scripts/alr-verify.ts",
-               "--mode", "free" if args.arm == "free" else args.mode]
+    # The composed app: the runtime operations the page calls, and the ALR repository's workbook.
+    command = [*TSX, "--tsconfig", str(HERE / "tsconfig.json"), str(HERE / "compose.ts"),
+               *(["--no-quotes"] if args.no_quotes else [])]
     llm_dir = SUITE / "llm" / args.arm
     if args.arm != "free":
+        # The run mode's model is codex exec (codexArm.ts), with its answers recorded and replayed.
         env.update({"ALR_EVAL_ARM": args.arm, "ALR_EVAL_LLM_DIR": str(llm_dir),
                     "ALR_EVAL_CONCURRENCY": str(args.concurrency)})
-        command += ["--llm", str(HERE / "codexArm.ts")]
+        command += ["--llm", str(HERE / "codexArm.ts"), "--setting", f"run_mode={args.mode}"]
     for setting in args.setting or []:
         command += ["--setting", setting]
-    docs = [p for p in inputs() if not args.only or any(o.casefold() in p.name.casefold() for o in args.only)]
+    docs = [p for p in inputs(args.inputs) if not args.only or any(o.casefold() in p.name.casefold() for o in args.only)]
     usage_log = llm_dir / "process-usage.jsonl"
 
     def one(path: Path) -> None:
@@ -169,8 +174,38 @@ def arm(args) -> None:
               f"calls={payload['metrics'].get('live_calls', 0)} replayed={payload['metrics'].get('replayed_calls', 0)}", flush=True)
 
     from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=args.parallel) as pool:
-        list(pool.map(one, docs))
+    if args.arm != "free":
+        # A model arm's usage is labelled by process, one document each.
+        with ThreadPoolExecutor(max_workers=args.parallel) as pool:
+            list(pool.map(one, docs))
+        return
+    # The free arm reads its documents in one process each of --parallel, as the page reads them once loaded: a
+    # process per document spends most of its time loading the runtime.
+    chunks = [docs[i::args.parallel] for i in range(args.parallel) if docs[i::args.parallel]]
+
+    def batch(chunk: list[Path]) -> None:
+        log = raw / f"batch-{docs.index(chunk[0])}"
+        proc = subprocess.run(command + [arg for path in chunk for arg in ("--input", str(path))]
+                              + ["--out", str(raw / chunk[0].stem if len(chunk) == 1 else raw)], cwd=REPO / "backend",
+                              env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        log.with_suffix(".stdout.log").write_text(proc.stdout, encoding="utf-8")
+        log.with_suffix(".stderr.log").write_text(proc.stderr, encoding="utf-8")
+        for path in chunk:
+            doc_out = raw / path.stem
+            runs, books = sorted(doc_out.glob("*.run.json")), sorted(doc_out.glob("*.xlsx"))
+            if not runs or not books:
+                print(f"{name} {path.name}: FAILED (see {log.name}.stderr.log)", flush=True)
+                continue
+            run = json.loads(runs[0].read_text(encoding="utf-8"))
+            payload = to_payload(run, books[0], path)
+            payload["metrics"]["process_s"] = round(float(run.get("seconds") or 0), 3)
+            (out / f"{path.stem}.json").write_text(json.dumps(payload, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+            print(f"{name} {path.name}: {payload['metrics']['parts']} parts, {payload['metrics']['elapsed_s']}s", flush=True)
+
+    started = time.time()
+    with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
+        list(pool.map(batch, chunks))
+    print(f"{name}: {len(docs)} documents in {time.time() - started:.0f}s", flush=True)
 
 
 def main() -> int:
@@ -178,6 +213,8 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     b = sub.add_parser("baseline")
     b.add_argument("--app", action="store_true", help="whole app, local-only (quote checks)")
+    b.add_argument("--inputs", help="a folder whose DOCX are run in place of the suite's")
+    b.add_argument("--name", help="the baseline's folder name (default: python-free, or python-free-app)")
     b.set_defaults(func=baseline)
     a = sub.add_parser("arm")
     a.add_argument("arm", choices=("free", "luna-max", "sol-low"))
@@ -185,7 +222,10 @@ def main() -> int:
     a.add_argument("--only", nargs="*", help="substrings of input names to run")
     a.add_argument("--parallel", type=int, default=1, help="documents run at once")
     a.add_argument("--concurrency", type=int, default=6, help="codex turns at once per document process")
-    a.add_argument("--setting", action="append", help="key=value passed to alr-verify --setting")
+    a.add_argument("--setting", action="append", help="key=value passed to compose.ts --setting")
+    a.add_argument("--no-quotes", action="store_true", help="skip the quote check (links, splits and references only)")
+    a.add_argument("--name", help="the arm's folder name (default: arm, or arm-mode)")
+    a.add_argument("--inputs", help="a folder whose DOCX are run in place of the suite's")
     a.set_defaults(func=arm)
     args = parser.parse_args()
     args.func(args)
