@@ -139,7 +139,7 @@ export async function authorityReferenceText(draft: AuthoritiesDraft, authority:
   if (authority.sourceIdentity?.provider !== "a2aj") return "";
   for (const citation of authorityCitationForms(draft, authority.id)) try {
     const found = await sources.resolve(citation, "case", signal, sourceIdentityLanguage(authority));
-    if (found) return found.searchText;
+    if (found) return found.searchText();
   } catch { signal?.throwIfAborted(); }
   return "";
 }
@@ -151,7 +151,8 @@ export async function authorityStatuteText(draft: AuthoritiesDraft, authority: A
   const citations = authorityCitationForms(draft, authority.id);
   for (const citation of citations) try {
     const found = await sources.resolve(citation, "legislation", signal, sourceIdentityLanguage(authority));
-    if (found?.searchText.trim()) return { text: found.searchText, provider: "A2AJ" };
+    const text = found?.searchText() ?? "";
+    if (text.trim()) return { text, provider: "A2AJ" };
   } catch { signal?.throwIfAborted(); }
   return null;
 }
@@ -320,7 +321,7 @@ export async function resolveAuthoritiesSources(
       `The legal source for ${draft.authorities[id].citation} changed. Add the current PDF before trying again.`);
     resolvedSources.set(found.stableSourceId, { ...found, identity: found.stableSourceId,
       alternateCitation: null, dataset: found.provider, language: "en",
-      searchText: found.text, verifiedPdf: found.pdfUrl
+      searchText: () => found.text, verifiedPdf: found.pdfUrl
         ? { url: found.pdfUrl, pdfOnly: true } : null });
     editor.apply({ type: "resolve-authority", authorityId: id,
       citation: found.citation, name: "titleIfUnnamed" in found && found.titleIfUnnamed
@@ -461,10 +462,11 @@ export async function resolveAuthoritiesSources(
       }
     } catch { signal?.throwIfAborted(); }
     let reconstructed: Awaited<ReturnType<typeof renderAuthoritySourcePdf>> | null = null;
-    if (reconstruct && !original && source.searchText.trim()) try {
+    const text = reconstruct && !original ? source.searchText() : "";
+    if (text.trim()) try {
       reconstructed = await renderAuthoritySourcePdf({ kind: authority.kind,
         name: source.name, citation: source.citation, date: source.date,
-        sourceUrl: source.publisherUrl ?? source.url, text: source.searchText,
+        sourceUrl: source.publisherUrl ?? source.url, text,
         provider: (source.provider ?? "a2aj") === "a2aj" ? "A2AJ" : source.provider,
         retrieved: new Date().toISOString().slice(0, 10), federal: !!requirements?.federalFormatting });
     } catch { signal?.throwIfAborted(); }

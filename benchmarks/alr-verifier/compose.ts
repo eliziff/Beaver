@@ -51,8 +51,9 @@ undici.fetch = (async (resource: Parameters<typeof fetch>[0], init?: Parameters<
 void (async () => {
   const inputs = args.flatMap((value, index) => value === "--input" ? [args[index + 1]] : []), out = option("--out");
   if (!inputs.length || !out) throw new Error("Use --input <docx> [--input <docx> …] --out <dir>");
-  const { createAuthoritiesOperations } = await import(pathToFileURL(
-    path.join(config.alr_quote_verifier, "beaver_app/runtime/operations.ts")).href);
+  // The runtime, as run.py bundles it once (ALR_RUNTIME_BUNDLE), else its TypeScript, compiled as it is read.
+  const runtime = process.env.ALR_RUNTIME_BUNDLE || path.join(config.alr_quote_verifier, "beaver_app/runtime/operations.ts");
+  const { createAuthoritiesOperations } = await import(pathToFileURL(runtime).href);
   const ops = createAuthoritiesOperations();
   for (const input of inputs) {
     try {

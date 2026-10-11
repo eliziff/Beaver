@@ -431,7 +431,7 @@ export function buildA2AJDocumentPinpointUrl(
   const usablePublisher = publisher && (!requireComplete || publisher.plan?.sourceSafeComplete)
     ? publisher : null;
   if (usablePublisher && !shouldUseA2AJWebFallback(
-    source.docType, usablePublisher.target, usablePublisher.plan, source.searchText, blockText,
+    source.docType, usablePublisher.target, usablePublisher.plan, source.searchText(), blockText,
   )) return usablePublisher.target;
   const plan = structureNative()
     .textFragmentPlan(blockText, quotes, false, false, true, document);
@@ -442,17 +442,39 @@ export function buildA2AJDocumentPinpointUrl(
 /** The engine's text fragment plan, a pure reading of a block, its quotations and its document (by revision), kept
  *  for the passages planned most recently: a quote check plans a link and the workbook it feeds plans it again. */
 const PLANS_KEPT = 512;
-const plans = new Map<string, ReturnType<ReturnType<typeof structureNative>["textFragmentPlan"]>>();
-function plannedFragments(blockText: string, quotes: string[], pdf: boolean, annotated: boolean, split: boolean,
-  document: NativeDocument) {
-  const engine = structureNative();
-  const key = JSON.stringify([engine.documentRevision(document), blockText, quotes, pdf, annotated, split]);
-  let plan = plans.get(key);
-  if (plan) plans.delete(key);
-  else plan = engine.textFragmentPlan(blockText, quotes, pdf, annotated, split, document);
+const plans = new Map<string, NativeTextFragmentPlan>();
+const planKey = (blockText: string, quotes: string[], pdf: boolean, annotated: boolean, split: boolean,
+  document: NativeDocument) => JSON.stringify([structureNative().documentRevision(document), blockText, quotes, pdf,
+  annotated, split]);
+function keepPlan(key: string, plan: NativeTextFragmentPlan) {
+  plans.delete(key);
   plans.set(key, plan);
   if (plans.size > PLANS_KEPT) plans.delete(plans.keys().next().value!);
+}
+function plannedFragments(blockText: string, quotes: string[], pdf: boolean, annotated: boolean, split: boolean,
+  document: NativeDocument) {
+  const key = planKey(blockText, quotes, pdf, annotated, split, document);
+  const plan = plans.get(key) ?? structureNative().textFragmentPlan(blockText, quotes, pdf, annotated, split, document);
+  keepPlan(key, plan);
   return plan;
+}
+
+/** Plans ahead, off this thread and all in one call, the text fragments that buildLegalSourcePinpoint first asks for
+ *  each of a document's passages (each at its own address): a quote check links each quotation it finds. */
+export async function planLegalSourcePinpoints(document: NativeDocument,
+  passages: Array<{ url: string; anchor?: string; blockText: string; quotes: string[] }>) {
+  const requests = passages.flatMap(({ url, anchor, blockText, quotes }) => {
+    const baseUrl = sourceUrl(url, anchor);
+    if (!baseUrl || !blockText) return [];
+    const request = { blockText, quotes, pdf: isPdfSourceUrl(baseUrl),
+      publisherMayAnnotateLegalReference: publisherMayAnnotateLegalReference(baseUrl), splitHtmlSourceBlocks: false };
+    return plans.has(planKey(blockText, quotes, request.pdf, request.publisherMayAnnotateLegalReference, false, document))
+      ? [] : [request];
+  });
+  if (!requests.length) return;
+  const planned = await structureNative().textFragmentPlans(document, requests);
+  requests.forEach((request, index) => keepPlan(planKey(request.blockText, request.quotes, request.pdf,
+    request.publisherMayAnnotateLegalReference, false, document), planned[index]));
 }
 
 export function buildLegalSourcePinpoint(

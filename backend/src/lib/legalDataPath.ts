@@ -46,6 +46,9 @@ export function legalProviderDatabase(provider: string, filename: string) {
 // each query opens and closes its own, so a validated snapshot can replace the live file between operations.
 let runs = 0;
 const held = new Map<string, { database: DatabaseSync; search: boolean }>();
+const runEnds = new Set<() => void>();
+/** Calls `end` whenever the last run ends: a reader that keeps its own handles closes them. */
+export const onSqliteRunEnd = (end: () => void) => { runEnds.add(end); };
 
 /** Runs `work` with every read-only database it reads held open until it ends. */
 export async function withSqliteRun<T>(work: () => Promise<T>): Promise<T> {
@@ -56,6 +59,7 @@ export async function withSqliteRun<T>(work: () => Promise<T>): Promise<T> {
     if (--runs === 0) {
       for (const { database } of held.values()) database.close();
       held.clear();
+      for (const end of runEnds) end();
     }
   }
 }
@@ -71,7 +75,12 @@ function readonlyHandle(filename: string, search: boolean) {
   };
   if (!runs) return { database: open(new DatabaseSync(filename, { readOnly: true })), close: true };
   let kept = held.get(filename);
-  if (!kept) held.set(filename, kept = { database: new DatabaseSync(filename, { readOnly: true }), search: false });
+  if (!kept) {
+    const database = new DatabaseSync(filename, { readOnly: true });
+    // An operation reads many pages: they come from a mapping of the file, not a call each.
+    database.exec("PRAGMA mmap_size=2147418112");
+    held.set(filename, kept = { database, search: false });
+  }
   if (search && !kept.search) { open(kept.database); kept.search = true; }
   return { database: kept.database, close: false };
 }
@@ -81,7 +90,8 @@ export function withReadonlySqlite<T>(
   operation: (database: DatabaseSync) => T,
   search = false,
 ): T | null {
-  if (!existsSync(filename)) return null;
+  // A database an operation holds is there.
+  if (!held.has(filename) && !existsSync(filename)) return null;
   const { database, close } = readonlyHandle(filename, search);
   try {
     return operation(database);

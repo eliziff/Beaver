@@ -27,7 +27,7 @@ from suite import ALR, HERE, REPO, SUITE
 
 ARMS = SUITE / "arms"
 PYTHON = SUITE / ".venv" / "Scripts" / "python.exe"
-TSX = [shutil.which("node") or "node", str(REPO / "node_modules" / "tsx" / "dist" / "cli.mjs")]
+NODE = shutil.which("node") or "node"
 
 
 def inputs(folder: str | None = None) -> list[Path]:
@@ -126,15 +126,19 @@ def arm(args) -> None:
         folder.mkdir(parents=True)
     # The engine's threads, which locate a document's sources at once: one for each core, as the app sets them.
     env = {**os.environ, "ALR_EVAL_LABEL": name, "UV_THREADPOOL_SIZE": str(os.cpu_count() or 4)}
-    # The composed app: the runtime operations the page calls, and the ALR repository's workbook.
-    command = [*TSX, "--tsconfig", str(HERE / "tsconfig.json"), str(HERE / "compose.ts"),
+    # The composed app: the runtime operations the page calls, and the ALR repository's workbook, bundled once with the
+    # model arms' codexArm.ts (bundle.mjs), so each process starts without compiling TypeScript.
+    bundles = REPO / "backend" / ".alr-bundle"
+    subprocess.run([NODE, str(HERE / "bundle.mjs"), str(ALR), str(bundles)], cwd=REPO, check=True)
+    env["ALR_RUNTIME_BUNDLE"] = str(bundles / "operations.mjs")
+    command = [NODE, "--experimental-strip-types", "--no-warnings", str(HERE / "compose.ts"),
                *(["--no-quotes"] if args.no_quotes else [])]
     llm_dir = SUITE / "llm" / args.arm
     if args.arm != "free":
         # The run mode's model is codex exec (codexArm.ts), with its answers recorded and replayed.
         env.update({"ALR_EVAL_ARM": args.arm, "ALR_EVAL_LLM_DIR": str(llm_dir),
                     "ALR_EVAL_CONCURRENCY": str(args.concurrency)})
-        command += ["--llm", str(HERE / "codexArm.ts"), "--setting", f"run_mode={args.mode}"]
+        command += ["--llm", str(bundles / "codexArm.mjs"), "--setting", f"run_mode={args.mode}"]
     for setting in args.setting or []:
         command += ["--setting", setting]
     docs = [p for p in inputs(args.inputs) if not args.only or any(o.casefold() in p.name.casefold() for o in args.only)]

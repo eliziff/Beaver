@@ -3,15 +3,16 @@ import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
 import { structureNative } from "./structureNative";
 import { boundedSize, searchTokens, sqliteText as string } from "./sqliteSearch";
-import { inSqliteRun, legalProviderDatabase, withSearchReadonlySqlite,
+import { legalProviderDatabase, withSearchReadonlySqlite,
   withReadonlySqlite } from "./legalDataPath";
 
 type Row = Record<string, unknown>;
 type Language = "en" | "fr";
 type DocType = "cases" | "laws";
 
-// Beaver's one local A2AJ store: a2aj.sqlite, installed and updated by a2ajInstall.ts. Node reads it
-// with node:sqlite; a browser runtime reads a store file the user picked through the same API.
+// Beaver's one local A2AJ store: a2aj.sqlite, installed and updated by a2ajInstall.ts. The engine finds and reads its
+// documents and citation aliases (structureNative's a2ajDocument); searches and the installer's inventory read it here
+// with node:sqlite, and a browser runtime reads a store file the user picked through the same API.
 let chosenStore: string | null = null;
 /** Reads the store at this path instead of the configured one; null returns to the configured one. */
 export function useA2AJStore(filename: string | null) { chosenStore = filename; }
@@ -49,21 +50,7 @@ export type CitationAliasGroup = { keys: string[]; forms: string[]; ambiguous: b
 
 /** Exact aliases and their authored forms from the installed provider inventory. */
 export function a2ajCitationAliasGroups(citations: string[]): CitationAliasGroup[] | null {
-  const keys = structureNative().citationLookupKeys(citations);
-  return withDatabase((database) => {
-    const targets = database.prepare("SELECT DISTINCT document_id FROM citation_lookup WHERE citation_key = ?");
-    const aliases = database.prepare("SELECT citation_key FROM citation_lookup WHERE document_id = ?");
-    const document = database.prepare("SELECT citation_en, citation2_en, citation_fr, citation2_fr FROM document WHERE id = ?");
-    return keys.map((key) => {
-      if (!key) return { keys: [], forms: [], ambiguous: false };
-      const rows = targets.all(key) as Row[];
-      if (rows.length !== 1) return { keys: [key], forms: [], ambiguous: rows.length > 1 };
-      const id = Number(rows[0].document_id), row = document.get(id) as Row | undefined;
-      return { keys: [...new Set([key, ...(aliases.all(id) as Row[]).map((row) => String(row.citation_key))])].sort(),
-        forms: row ? Object.values(row).filter((value): value is string => typeof value === "string" && !!value.trim()) : [],
-        ambiguous: false };
-    });
-  });
+  return structureNative().a2ajAliasGroups(a2ajLocalBulkPath(), citations);
 }
 
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
@@ -168,41 +155,6 @@ function addDatasetFilter(filters: string[], values: Array<string | number>,
   if (!datasets.length) return;
   filters.push(`LOWER(document.dataset) IN (${datasets.map(() => "LOWER(?)").join(", ")})`);
   values.push(...datasets);
-}
-
-// The documents an operation fetches, kept while it runs: its stages fetch the same decisions.
-const fetched = new Map<string, A2AJDocument | null>();
-export function fetchLocalA2AJDocument(args: {
-  citation: string; docType?: DocType; language?: Language;
-  dataset?: string; sourceUrl?: string; maxChars?: number;
-}): A2AJDocument | null {
-  const citation = args.citation.trim();
-  if (!citation) throw new Error("citation is required");
-  const key = structureNative().citationLookupKey(citation);
-  if (!key) return null;
-  if (!inSqliteRun()) fetched.clear();
-  const memo = JSON.stringify([a2ajLocalBulkPath(), key, args.docType, args.language, args.dataset, args.sourceUrl, args.maxChars]);
-  if (fetched.has(memo)) return fetched.get(memo)!;
-  const found = withDatabase((database) => {
-    const filters = ["document.id IN (SELECT document_id FROM citation_lookup WHERE citation_key = ?)", "document.doc_type = ?"];
-    const values: Array<string | number> = [key, args.docType ?? "cases"];
-    addDatasetFilter(filters, values, args.dataset);
-    if (args.sourceUrl?.trim()) {
-      filters.push("(document.url_en = ? OR document.url_fr = ?)");
-      values.push(args.sourceUrl.trim(), args.sourceUrl.trim());
-    }
-    // The documents are chosen by id before their rows are read: a DISTINCT over whole rows copies their texts.
-    const rows = database.prepare(
-      `SELECT document.* FROM document
-         WHERE ${filters.join(" AND ")}
-         ORDER BY document.id
-         LIMIT 2`).all(...values) as Row[];
-    const row = rows.length === 1 ? rows[0] : undefined;
-    return row ? a2ajDocumentFromRow(row, args.language === "fr" ? "fr" : "en",
-      boundedSize(args.maxChars, 50_000, Number.MAX_SAFE_INTEGER)) : null;
-  });
-  if (inSqliteRun()) fetched.set(memo, found);
-  return found;
 }
 
 function ftsQuery(tokens: string[], searchType: "full_text" | "name") {
