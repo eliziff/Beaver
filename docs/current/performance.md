@@ -124,14 +124,12 @@ release build for the complete batch, reusing the canonical target and increment
 caches. Superseded debug DLL/PDB output and an obsolete immutable DLL copy were
 removed after checking their paths and identities.
 
-The next batch replayed 1,221 real extraction requests three times per candidate.
-The two warm runs averaged 2.90 seconds before and 2.77 seconds after (about 4.6%
-faster); cold replay stayed at 3.85 seconds. Complete extraction responses also
-matched in the real composed workflow. All 2,142 quote-location outputs, 469
+The next batch preserved all 1,221 complete extraction responses in the composed
+workflow. All 2,142 quote-location outputs, 469
 citation conformance responses, 224 workbook archive payloads and independent gold
 score objects were unchanged. The 16-document profiled run took 29.01 seconds
 against the preceding 26.45-second run, with most extra time in local-store
-queries: this batch establishes a warm parser replay gain, not an end-to-end gain.
+queries; it did not establish an end-to-end speed improvement.
 Two browser-worker workbooks again retained all 28 archive payloads without errors
 or external requests. Existing gold mismatches remain.
 
@@ -140,6 +138,22 @@ gzip is 9,493,415 bytes. The assembled ALR page is 25,778,452 bytes. The ignored
 `benchmarks/local-data/alr-verifier/parser-speed-2/receipt.json` retains this batch's
 hashes, profiles and comparisons. One native and one WASI release build followed
 the complete source batch; narrow checks reused the ordinary incremental target.
+
+Further speed changes are accepted on the complete 16-document composition
+benchmark, with repeated interleaved fresh-process comparisons against the latest
+committed candidate. Profiling identifies expensive work; timing comparisons omit
+profiling and retain slow runs as well as fast ones. Output must remain identical
+against the existing independent gold stores.
+
+The third pass discarded all three experimental batches because complete-workflow
+gains did not repeat. In its final four pairs, the baseline median was 28.66
+seconds and the candidate median was 29.34 seconds; the candidate won twice and
+lost twice. All 224 workbook archive payloads matched the independent gold in
+every completed run. The ignored
+`benchmarks/local-data/alr-verifier/parser-speed-3/receipt.json` preserves every
+completed timing, rejected source diffs and comparison conditions. The committed
+engine and previously validated private standalone ALR build remain the accepted
+versions. No further engine split or feature removal was justified by this pass.
 
 ## Printed-page navigation measurement (September 27, 2026)
 
