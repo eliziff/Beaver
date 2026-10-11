@@ -72,6 +72,48 @@ refresh when requested instead of running CLI/network discovery at every server
 boot; the first catalogue response can use cached or fallback results while
 refreshing. Live provider calls were not benchmarked.
 
+## Native parsing and source analysis
+
+Fragment analysis and judgment outlining stay on native document handles. `documentCaseOutline` reads the
+judgment outline directly; `documentTextStatistics` returns phrase occurrences and
+word counts without exporting the source. The query owner lazily retains its NFKD,
+lowercase letter/number representation for repeated fragment checks. JavaScript
+composes URLs and applies publisher policy to these small results. Text requested
+for review receipts or reconstructed source PDFs remains an output capability.
+
+Citation name and short-form scans index citation starts and ends instead of
+repeatedly scanning all occupied ranges. The US name tokenizer also indexes its
+omitted spans, retaining the original first span at each endpoint. Parser options,
+ordering, offsets, resolution and output fields are unchanged.
+
+The alias build embeds gzip-compressed runtime evidence and restores it once when
+the alias table is first used. All targets, observed spellings, blocked forms and
+provenance records remain available. Source registry data, grammar fingerprints,
+licenses and the native/browser feature profiles are unchanged. Model, query,
+detection and PDF mechanics keep their existing Rust owners; fragment text
+statistics belong to the query crate's source-text module.
+
+An October 11 Windows/Node 22.20.0 comparison used the same 16 private DOCX inputs,
+local stores and V8 profiling settings in one process: 33.43 seconds before and
+26.45 seconds after the batch. All 224 XLSX archive payloads and 469 complete
+citation API responses were byte-identical; XLSX container differences were
+confined to ZIP timestamps. Independent split, field, supra/ibid and quote gold
+scores were unchanged. Two browser-worker workbooks retained all 28 archive
+payloads, without browser errors or external requests. These checks preserve the
+baseline's existing gold mismatches; they do not establish universal correctness.
+
+The full-feature native DLL shrank from 54,093,312 to 49,030,656 bytes; WASI shrank
+from 40,394,090 to 35,327,018 bytes. WASI gzip size was essentially unchanged
+(9,592,120 to 9,604,235 bytes). These are a single local timing pair and measured
+artifact sizes, not a general speed or compressed-transfer guarantee.
+
+The ignored `benchmarks/local-data/alr-verifier/parser-speed/receipt.json` retains
+input/artifact hashes, profiles, gold comparisons and reproduction commands.
+Iteration used affected-crate checks, then one native release build and one WASI
+release build for the complete batch, reusing the canonical target and incremental
+caches. Superseded debug DLL/PDB output and an obsolete immutable DLL copy were
+removed after checking their paths and identities.
+
 ## Printed-page navigation measurement (September 27, 2026)
 
 The viewer's printed-label request reuses prepared native structure, including

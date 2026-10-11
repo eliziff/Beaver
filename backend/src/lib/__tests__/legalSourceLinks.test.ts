@@ -542,7 +542,7 @@ describe("verified legal-source links", () => {
     )).toContain("https://www.bccourts.ca/");
   });
 
-  it("routes only proved no-oracle provider-plan signatures", () => {
+  it("routes only proved no-oracle provider-plan signatures", async () => {
     const plan = (overrides: Partial<NativeTextFragmentPlan> = {}): NativeTextFragmentPlan => ({
       directives: ["text=one%20two%20three%20four%20five%20six%20seven%20eight%20nine"],
       sourceWordIntervals: [{
@@ -563,14 +563,14 @@ describe("verified legal-source links", () => {
       "laws",
       "https://www.ontario.ca/laws/statute/example",
       plan(),
-      phrase,
+      await nativeSource(phrase),
       block(200),
     )).toBe(true);
     expect(shouldUseA2AJWebFallback(
       "laws",
       "https://www.ontario.ca/laws/statute/example",
       plan(),
-      `${phrase}. ${phrase}.`,
+      await nativeSource(`${phrase}. ${phrase}.`),
       block(200),
     )).toBe(false);
     expect(shouldUseA2AJWebFallback(
@@ -579,7 +579,7 @@ describe("verified legal-source links", () => {
       plan({ sourceWordIntervals: [{
         quoteIndex: 0, start: 200_010, end: 200_030, firstWord: 0, lastWord: 1,
       }] }),
-      phrase,
+      await nativeSource(phrase),
       block(200),
     )).toBe(false);
     expect(shouldUseA2AJWebFallback(
@@ -588,7 +588,7 @@ describe("verified legal-source links", () => {
       plan({ sourceWordIntervals: [{
         quoteIndex: 0, start: 1_010, end: 1_030, firstWord: 0, lastWord: 1,
       }] }),
-      phrase,
+      await nativeSource(phrase),
       block(63),
     )).toBe(false);
     const islands = [
@@ -615,12 +615,12 @@ describe("verified legal-source links", () => {
         paintQuotes: islands,
         paintedWords: 20,
       }),
-      islands.join(" "),
+      await nativeSource(islands.join(" ")),
       islandBlock,
     )).toBe(false);
   });
 
-  it("puts the proved longest PDF island first", () => {
+  it("puts the proved longest PDF island first", async () => {
     const short = "alpha bravo charlie delta echo foxtrot golf";
     const long = "hotel india juliet kilo lima mike november oscar papa";
     const block = [short, long,
@@ -640,7 +640,7 @@ describe("verified legal-source links", () => {
       `https://www.princeedwardisland.ca/sites/default/files/legislation/example.pdf` +
         `#:~:${plan.directives.join("&")}`,
       plan,
-      `${short} ${long}`,
+      await nativeSource(`${short} ${long}`),
       block,
     )!;
 

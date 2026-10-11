@@ -1041,6 +1041,7 @@ dependencies = [
  "chrono",
  "diff-match-patch-rs",
  "fancy-regex",
+ "flate2",
  "legal-grammar",
  "num-bigint",
  "regex",

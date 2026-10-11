@@ -171,27 +171,6 @@ function publisherMayAnnotateLegalReference(rawUrl: string) {
   }
 }
 
-function normalizedFragmentText(value: string) {
-  return value.normalize("NFKD").toLocaleLowerCase("en")
-    .match(/[\p{L}\p{N}]+/gu)?.join(" ") ?? "";
-}
-
-function fragmentWordCount(value: string) {
-  const normalized = normalizedFragmentText(value);
-  return normalized ? normalized.split(" ").length : 0;
-}
-
-function fragmentOccurrences(documentText: string, value: string) {
-  const needle = normalizedFragmentText(value);
-  if (!needle) return 0;
-  const haystack = ` ${documentText} `;
-  const target = ` ${needle} `;
-  let count = 0;
-  for (let at = haystack.indexOf(target); at >= 0;
-    at = haystack.indexOf(target, at + 1)) count += 1;
-  return count;
-}
-
 const PUBLISHER_PDF_LONGEST_FIRST_SIGNATURES = new Set([
   "law|laws.yukon.ca|principal|1/2/2/1|4|4|safe|body|1/1/M/1|1/1M/MM/1|11|3/12/1/8|90",
   "law|www.justice.gov.nt.ca|act|1/2/1|3|3|safe|body|M/1/1|M/M1/1|7|5/8/3|76",
@@ -312,8 +291,7 @@ const LAW_WEB_FALLBACK_SIGNATURES = new Set([
   "law|www.princeedwardisland.ca|legislation|2/2/3|3|3|safe|body|M/M/M|MM/M1/MM1|9|3/6/6|58",
 ]);
 
-function occurrenceClass(documentText: string, value: string) {
-  const count = fragmentOccurrences(documentText, value);
+function occurrenceClass(count: number) {
   return count === 0 ? "0" : count === 1 ? "1" : "M";
 }
 
@@ -343,10 +321,9 @@ function fallbackUrlFamily(url: URL) {
 
 function fallbackSignature(
   docType: A2AJCompiledDocument["docType"], publisherUrl: string,
-  plan: NativeTextFragmentPlan, documentText: string, blockText: string,
+  plan: NativeTextFragmentPlan, document: NativeDocument, blockText: string,
 ) {
   const url = new URL(publisherUrl);
-  const fullText = normalizedFragmentText(documentText);
   const targetEnd = Math.max(0, ...plan.sourceWordIntervals.map(({ end }) => end));
   const directiveParts = plan.directives.map((directive) =>
     directive.slice("text=".length).split(","));
@@ -361,7 +338,12 @@ function fallbackSignature(
       return value;
     }
   };
-  return [
+  const parts = directiveParts.map((parts) => parts.filter(Boolean).map(decode));
+  const statistics = structureNative().documentTextStatistics(document,
+    [...plan.paintQuotes, ...parts.flat(), blockText]);
+  const paintStatistics = statistics.slice(0, plan.paintQuotes.length);
+  let partIndex = plan.paintQuotes.length;
+  return { paintOccurrences: paintStatistics.map(({ occurrences }) => occurrences), signature: [
     docType === "laws" ? "law" : "case",
     url.hostname.toLocaleLowerCase("en"),
     fallbackUrlFamily(url),
@@ -370,30 +352,31 @@ function fallbackSignature(
     [...intervalsPerQuote.values()].join("/"),
     plan.sourceSafeComplete ? "safe" : "partial",
     targetEnd <= 100 ? "opening" : targetEnd <= 1_000 ? "early" : "body",
-    plan.paintQuotes.map((quote) => occurrenceClass(fullText, quote)).join("/"),
-    directiveParts.map((parts) => parts.filter(Boolean)
-      .map((part) => occurrenceClass(fullText, decode(part))).join("")).join("/"),
+    paintStatistics.map(({ occurrences }) => occurrenceClass(occurrences)).join("/"),
+    parts.map((parts) => parts.map(() => occurrenceClass(statistics[partIndex++].occurrences))
+      .join("")).join("/"),
     plan.paintedWords,
-    plan.paintQuotes.map(fragmentWordCount).join("/"),
-    fragmentWordCount(blockText),
-  ].join("|");
+    paintStatistics.map(({ words }) => words).join("/"),
+    statistics.at(-1)!.words,
+  ].join("|") };
 }
 
 export function preferredPublisherPdfTarget(
   docType: A2AJCompiledDocument["docType"], target: string,
-  plan: NativeTextFragmentPlan, documentText: string, blockText: string,
+  plan: NativeTextFragmentPlan, document: NativeDocument, blockText: string,
 ) {
   if (!isPdfSourceUrl(target) || plan.directives.length < 2) return null;
-  const signature = fallbackSignature(docType, target, plan, documentText, blockText);
+  const { signature, paintOccurrences } = fallbackSignature(docType, target, plan, document, blockText);
   const longest = PUBLISHER_PDF_LONGEST_FIRST_SIGNATURES.has(signature);
   const rarity = PUBLISHER_PDF_RARITY_FIRST_SIGNATURES.has(signature);
   if (!longest && !rarity) return null;
-  const fullText = normalizedFragmentText(documentText);
   const ordered = plan.directives.map((directive, index) => ({
     directive,
     quote: plan.paintQuotes[index] ?? decodeURIComponent(directive.slice(5)),
+    occurrences: rarity ? paintOccurrences[index] ?? structureNative().documentTextStatistics(document,
+      [decodeURIComponent(directive.slice(5))])[0].occurrences : 0,
   })).sort((left, right) => rarity
-    ? fragmentOccurrences(fullText, left.quote) - fragmentOccurrences(fullText, right.quote) ||
+    ? left.occurrences - right.occurrences ||
       right.quote.length - left.quote.length
     : decodeURIComponent(right.directive).length - decodeURIComponent(left.directive).length
   ).map(({ directive }) => directive);
@@ -402,14 +385,14 @@ export function preferredPublisherPdfTarget(
 
 export function shouldUseA2AJWebFallback(
   docType: A2AJCompiledDocument["docType"], publisherUrl: string,
-  publisherPlan: NativeTextFragmentPlan | null, documentText: string, blockText: string,
+  publisherPlan: NativeTextFragmentPlan | null, document: NativeDocument, blockText: string,
 ) {
   if (!publisherPlan?.directives.length) return false;
   const targetEnd = Math.max(0, ...publisherPlan.sourceWordIntervals.map(({ end }) => end));
   if (targetEnd > 200_001) return false;
   try {
     return LAW_WEB_FALLBACK_SIGNATURES.has(fallbackSignature(
-      docType, publisherUrl, publisherPlan, documentText, blockText));
+      docType, publisherUrl, publisherPlan, document, blockText).signature);
   } catch {
     return false;
   }
@@ -431,7 +414,7 @@ export function buildA2AJDocumentPinpointUrl(
   const usablePublisher = publisher && (!requireComplete || publisher.plan?.sourceSafeComplete)
     ? publisher : null;
   if (usablePublisher && !shouldUseA2AJWebFallback(
-    source.docType, usablePublisher.target, usablePublisher.plan, source.searchText(), blockText,
+    source.docType, usablePublisher.target, usablePublisher.plan, document, blockText,
   )) return usablePublisher.target;
   const plan = structureNative()
     .textFragmentPlan(blockText, quotes, false, false, true, document);
@@ -497,10 +480,9 @@ export function buildLegalSourcePinpoint(
       !value.includes("-,") && !value.includes(",-");
     if (!preferIndependentHtmlBlocks || pdf || !simpleRange) return base;
     const blocks = fragmentPlan(true);
-    const fullText = normalizedFragmentText(structureNative().documentText(evidence.documentText));
     return blocks.sourceSafeComplete && blocks.directives.length >= 2 &&
-      blocks.paintedWords === base.paintedWords && blocks.paintQuotes.every((quote) =>
-        occurrenceClass(fullText, quote) === "1")
+      blocks.paintedWords === base.paintedWords && structureNative()
+        .documentTextStatistics(evidence.documentText, blocks.paintQuotes).every(({ occurrences }) => occurrences === 1)
       ? blocks : base;
   };
   const verifiedPdfUrl = evidence.verifiedPdf
@@ -522,7 +504,7 @@ export function buildLegalSourcePinpoint(
   const target = appendDirectives(targetUrl, selected.directives);
   const preferred = evidence.docType
     ? preferredPublisherPdfTarget(evidence.docType, target, selected,
-        structureNative().documentText(evidence.documentText), evidence.blockText)
+        evidence.documentText, evidence.blockText)
     : null;
   return { target: preferred ?? target, plan: selected };
 }

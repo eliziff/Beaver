@@ -305,7 +305,7 @@ type QuoteScopes = { paragraphs: Array<[number, number]>; pages: Array<[number, 
 export function quoteBlocks(native: NativeDocument, judgment = false): QuoteBlock[] {
   const engine = structureNative();
   if (judgment) {
-    const paragraphs = engine.caseOutline(engine.documentText(native)).filter((entry) => entry.kind === "paragraph").flatMap((entry): QuoteBlock[] => {
+    const paragraphs = engine.documentCaseOutline(native).filter((entry) => entry.kind === "paragraph").flatMap((entry): QuoteBlock[] => {
       const number = /^\[?(\d{1,4})\]?\.?$/u.exec(entry.label.trim())?.[1];
       return number ? [{ kind: "paragraph", label: `par${number}`, start: entry.start, end: entry.end }] : [];
     });

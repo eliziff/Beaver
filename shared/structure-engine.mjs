@@ -32,6 +32,7 @@ export const SIGNATURES = {
   sourceParagraphMarkers: ["document"], sourceParagraphMarker: ["document", "markupStart"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   statuteOutline: ["text", "articles"], caseOutline: ["text"],
+  documentCaseOutline: ["document"], documentTextStatistics: ["document", "texts"],
   citationLookupKey: ["text"], citationLookupKeys: ["texts"], providerCitationsInText: ["text"],
   citationEngineCall: ["method", "request"], citationEngineCallAsync: ["method", "request"],
   documentReadingOrder: ["request"],
