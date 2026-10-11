@@ -16,7 +16,7 @@ from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results"
+RESULTS = Path(os.environ.get("TEXT_FRAGMENT_RESULTS_DIR", HERE / "results"))
 GATE = HERE / "webdriver-exact-gate.py"
 MARKER_GATE = HERE / "webdriver-marker-gate.py"
 LIFECYCLE_SPEC = importlib.util.spec_from_file_location("fragment_lifecycle_gate", GATE)

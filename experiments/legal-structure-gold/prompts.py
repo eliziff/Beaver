@@ -5,6 +5,10 @@ TASK = """Check the TARGET page in full against its image, extraction and existi
 structure. Neighbouring pages are context. Return sparse corrections using the
 supplied schema; omit correct decisions. Corrections affect TARGET.
 
+Transcribe what is printed, including spelling mistakes, punctuation, case,
+hyphens, dates and contact details. Keep blackouts unreadable. Text edits repair
+extraction errors; logical joins describe reading continuity separately.
+
 Use source IDs, not copied prose. References identify the affected block or printed extent. Use l1 for a whole line or l1@start-end for a half-open character span;
 offsets count Unicode characters. Use precise spans only for partial-line
 objects. Basic blocks use whole units. Replace every unit of an affected block
@@ -71,6 +75,27 @@ the image establishes genuinely missing printed text."""
 OCR = """MODE: ocr. Check all TARGET text against the image. Reuse correct text
 through its IDs; replace wrong spans or whole lines and recover missing lines."""
 
+PHYSICAL = """Check the physical OCR annotations on TARGET against the original image.
+OCR lines are printed rows; legal fields and paragraphs may occupy part of a row.
+Preserve correct baselines and polygons. In ocr.lines and ocr.regions return only
+objects needing replacement, using their physical IDs. New IDs are o_new1,...
+and r_new1,... . members reference corrected text through lIDs, split lIDs or nIDs;
+keep physical IDs in region line_ids. Text is shared with the legal annotations.
+Recover missing lines with legal insert corrections and OCR geometry together.
+Use page coordinates 0..1000, top-left origin. Follow curved/skewed printed rows;
+never manufacture a baseline from a bounding box. Region polygons cover actual
+visual regions, including nontext regions without lines. Use the exact supplied
+ontology labels. PPDoc proposals are evidence to correct. Drop absent/duplicate
+physical objects explicitly. List every retained physical object once when
+changing line_order or region_order; [] preserves the existing order.
+Set recognition, segmentation, regions and reading_order coverage independently:
+complete means the whole page was checked and all targets are present; partial
+means only some targets are annotated; unannotated means no gold for that task.
+Empty complete pages are explicit negative examples. Do not mark uncertain or
+missing geometry complete. Printed rules and blank placeholders are not repeated
+underscore characters unless separate underscore glyphs are visible. Preserve
+visible checkbox glyphs and meaningful dates, addresses and contact details."""
+
 
 def prompt(request, mode):
     aliases = {ident: alias for alias, ident in request["aliases"].items()}
@@ -124,4 +149,13 @@ def prompt(request, mode):
     data = {"images": [{"slot": i, "page": p["page"], "target": p["page"] in request["targets"]} for i, p in enumerate(request["pages"], 1)],
             "styles": styles, "lines": lines, "groups": groups, "annotations": annotations,
             "inherited_structure": encode({k:v for k,v in request["context"].items() if v})}
-    return TASK + "\n\n" + (DIGITAL if mode == "digitalborn" else OCR) + "\nLines: [ID,page,box_0_to_1000,style_index,text]. Styles: [font_ID,size,flags]; flag bits are 1=superscript, 2=italic, 4=serif, 8=monospaced, 16=bold. Groups: [role,IDs,optional_metadata]. Annotation extents default to whole line_ids.\nINPUT:\n" + json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    if "ocr" in request:
+        data["ocr"] = json.loads(json.dumps(request["ocr"]))
+        for page in data["ocr"]["pages"]:
+            page.pop("provenance", None)
+            for line in page["lines"]:
+                line["members"] = [aliases[i] for i in line.get("members", [line["id"]])]
+        instructions = "\n\n" + PHYSICAL
+    else:
+        instructions = ""
+    return TASK + "\n\n" + (DIGITAL if mode == "digitalborn" else OCR) + instructions + "\nLines: [ID,page,box_0_to_1000,style_index,text]. Styles: [font_ID,size,flags]; flag bits are 1=superscript, 2=italic, 4=serif, 8=monospaced, 16=bold. Groups: [role,IDs,optional_metadata]. Annotation extents default to whole line_ids.\nINPUT:\n" + json.dumps(data, ensure_ascii=False, separators=(",", ":"))

@@ -35,7 +35,7 @@ function coverage(
   return { status: spans.length ? "asserted" : "not_asserted", spans };
 }
 
-async function sourceFor(document: A2AJDocument) {
+export async function deriveCaseSource(document: A2AJDocument) {
   return structureNative().deriveDocumentStructure({
     kind: "provider_text",
     input: {
@@ -98,7 +98,6 @@ function materialFromSource(documentId: number, document: A2AJDocument, source: 
       text,
       document.citation,
       paragraphs.at(-1)?.end ?? text.length,
-      { extendedUsFallback: false },
     ),
     deterministic_structure: deterministicStructure,
     coverage: coverage(source, deterministicStructure),
@@ -106,12 +105,12 @@ function materialFromSource(documentId: number, document: A2AJDocument, source: 
 }
 
 export async function materialFor(documentId: number, document: A2AJDocument) {
-  return materialFromSource(documentId, document, await sourceFor(document));
+  return materialFromSource(documentId, document, await deriveCaseSource(document));
 }
 
 export async function materialsFor(ids: readonly number[], documents: Map<number, A2AJDocument>) {
   const selected = ids.map((id) => documents.get(id)!);
-  const sources = await Promise.all(selected.map(sourceFor));
+  const sources = await Promise.all(selected.map(deriveCaseSource));
   return new Map(ids.map((id, index) => [id, materialFromSource(id, selected[index], sources[index])]));
 }
 

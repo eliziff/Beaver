@@ -8,6 +8,7 @@ import {
   analysisPrompt,
   CASE_TREATMENT_CONTRACT_VERSION,
   compareStructureMechanics,
+  compileStructure,
   compileReferenceSubmission,
   compileSubmission,
   deterministicQuoteCandidates,
@@ -435,6 +436,43 @@ describe("proposition-first case treatment contract", () => {
     )).toBe(true);
   });
 
+  it("excludes the next opinion's byline from coverage while retaining the preceding conclusion", () => {
+    const text = [
+      "[1] The harbour permit remains valid because the navigation beacon was inspected before renewal.",
+      "[2] The application is dismissed and each party will bear its own costs.",
+      "The reasons of Vale J. and Sorrel J. were delivered by",
+      "Sorrel J. (dissenting) —",
+      "[3] I would grant the application because the inspection did not examine the beacon's backup power.",
+    ].join("\n");
+    const lines = modelSourceLines(text);
+    const span = (start: number, end = start): AnchoredSpan => ({
+      start_line: start, end_line: end,
+      start_quote: text.slice(lines[start - 1]!.start, lines[start - 1]!.end),
+      end_quote: text.slice(lines[end - 1]!.start, lines[end - 1]!.end),
+    });
+    const source: CaseMaterial = {
+      ...material, text, source_lines: lines,
+      citation_inventory: { authorities: [], occurrences: [] },
+      coverage: { status: "asserted", spans: [
+        { start: 0, end: lines[3]!.end, label: "[1-2]" },
+        { start: lines[4]!.start, end: lines[4]!.end, label: "[3]" },
+      ] },
+    };
+    const draft = {
+      disposition_spans: [span(2)],
+      opinions: [
+        { opinion_id: "o1", boundary: span(1, 2), collective_author: null, result_position: "supports_disposition", result_evidence: span(2) },
+        { opinion_id: "o2", boundary: span(5), collective_author: null, result_position: "opposes_disposition", result_evidence: span(5) },
+      ],
+      participants: [], nonparticipants: [],
+    };
+    expect(compileStructure(draft, source).errors).toEqual([]);
+    draft.opinions[0]!.boundary = span(1);
+    expect(compileStructure(draft, source).errors).toContain(
+      "structure coverage: substantive [1-2] (lines 1-2-3-4) is inside 0 opinion boundaries",
+    );
+  });
+
   it("requires a treatment's reproduced passage to occur in its opinion", () => {
     const wrongSpeaker = submission();
     wrongSpeaker.analysis.treatments[0].quoted_passages = [
@@ -624,6 +662,35 @@ describe("proposition-first case treatment contract", () => {
       text: typoText,
       source_lines: typoLines,
     }).ok).toBe(true);
+  });
+
+  it("grounds a Chief Justice's office label without inventing a personal name", () => {
+    const lines = [
+      "Panel: Ellery C.J., Rowan J.",
+      "[1] Rowan J.: The festival venue received no notice before its permit was withdrawn.",
+      "[2] The permit holder must have an opportunity to respond to the proposed restriction.",
+      "[3] The appeal is allowed and the permit is restored.",
+      "The Chief Justice joins Rowan J.'s reasons.",
+    ];
+    const text = lines.join("\n");
+    const span = (line: number) => ({ start_line: line, end_line: line, start_quote: lines[line - 1]!, end_quote: lines[line - 1]! });
+    const source = { ...material, text, source_lines: modelSourceLines(text), coverage: { status: "not_asserted" as const, spans: [] } };
+    const draft: CaseTreatmentSubmission["structure"] = {
+      disposition_spans: [span(4)],
+      opinions: [{ opinion_id: "o1", boundary: { ...span(2), end_line: 4, end_quote: lines[3]! }, collective_author: null, result_position: "supports_disposition", result_evidence: span(4) }],
+      participants: [
+        { name: "Rowan J.", panel_evidence: span(1), result_position: "supports_disposition", result_evidence: span(4), opinion_links: [{ opinion_id: "o1", relation: "wrote", evidence: span(2) }] },
+        { name: "Ellery C.J.", panel_evidence: span(1), result_position: "supports_disposition", result_evidence: span(5), opinion_links: [{ opinion_id: "o1", relation: "joined", evidence: span(5) }] },
+      ],
+      nonparticipants: [],
+    };
+    expect(compileStructure(draft, source).errors).toEqual([]);
+    draft.participants[1]!.name = "The Chief Justice";
+    draft.participants[1]!.panel_evidence = span(5);
+    expect(compileStructure(draft, source).errors).toEqual([]);
+    draft.participants[1]!.name = "Ellery J.";
+    draft.participants[1]!.panel_evidence = span(1);
+    expect(compileStructure(draft, source).errors).toContain("structure.participants[1].opinion_links[0].evidence: evidence does not identify Ellery J.");
   });
 
   it("scores opinion structure mechanically without treating judicial title formatting as a different writer", () => {

@@ -106,8 +106,72 @@ registry entry. Documents, their text and the index stay out of Git.
 
 The same `corpus.sqlite` owns the structure-gold catalog: `gold_records` links
 dataset/source hashes to current status, `gold_runs` indexes run receipts, and
-`gold_artifacts` indexes completed product paths and hashes. The
+`gold_artifacts` indexes completed product paths and hashes. `gold_memberships`
+locates each current record owner and its companion sources; it stores no answers.
+Completed products can contain record layers alone when text, structure and OCR
+have not been annotated. Receipt artifact mappings list only products that exist.
+The
 [gold runner](../legal-structure-gold/PLAN.md) registers the saved corpus before
 generation and verifies completed products before reusing them. PDFs remain in
 this shared corpus; generated gold and receipts live in the private benchmark
 suite.
+
+Multipurpose packages reuse those gold tables and PDF hashes. Their receipt-relative
+artifact locators reference existing evidence/baselines without copying them.
+One canonical line table supports parser and OCR exports; independently owned
+classification, extraction, chronology and association annotations stay distinct.
+Gold retains the fixed source-anchored answers and is scored directly against
+candidate facts. Materialized graphs and repeated offsets are omitted. New records
+save the gold itself, without a separate historical representation. Consumer views
+derive from that file; replay reuses the existing accepted-response records.
+Older originals and pilot history artifacts stay indexed while the format is
+validated, but are not dependencies of new gold or its exports.
+Packages reference the dated form-observation keys and metadata hashes in this
+index rather than creating another authority catalogue. See the gold runner's
+[package and export contract](../legal-structure-gold/PLAN.md#multipurpose-gold).
+The annotation workflow is automated and has no human review queue.
+The current package dataset selects one gold per source for scoring. Failed or
+unfinished enrichment retains its last completed selection. Structure and OCR
+can be authored together or measured in separate passes; the same gold keeps
+their distinct annotations. Classification, standard fields and newly observed
+form kinds still need their own annotation coverage. Packaging references the
+existing form catalogue and cannot establish missing answers or authority links.
+
+## Canadian proceeding forms
+
+The same index now collates form kinds in `legal_forms` and their source
+observations in `legal_form_observations`. An observation points to an existing
+source SHA-256 and page/section locator; it does not duplicate the PDF, harvest
+ledger or source catalogue. `documents` continues to own source URLs and
+acquisition dates. Blank templates and completed examples can belong to the
+same form kind, while different courts or rule families using the same form
+number have separate identities.
+
+```powershell
+python experiments/legal_pdf_corpus/corpus_store.py forms "affidavit" --jurisdiction yt
+python experiments/legal_pdf_corpus/corpus_store.py forms "87/88" --jurisdiction mb
+python experiments/legal_pdf_corpus/corpus_store.py forms --limit 1000
+```
+
+Results include canonical file paths, source provenance, observed headings,
+page selections, available PDF field inventories, and authority links with
+their supporting source hashes and locators. Printed template version dates,
+document execution dates, authority consolidation dates and acquisition dates
+are recorded separately. An undated template stays undated; a filename or
+download date is not evidence of its version. Index/body numbering conflicts
+and printed aliases are retained in observation metadata.
+
+Add reviewed observations through `register_legal_forms(rows)` after adding or
+locating their sources with `corpus_store.py`. The initial review reuses the
+Canadian court-form lanes of the existing 3,000-PDF harvest. Its private review
+inventory lives in `legal-pdf/state/canadian-forms-review.json`; accepted harvest
+quotas and ledger history remain intact. Affidavit-association work adds form
+observations from its canonical original filings to this same index.
+
+Reviewed affidavit gold can also carry `document_segments` with document-type
+labels, exact source/output page spans and source-located `standard_information`
+values. Observations link to those segments through `related_gold_record` and
+`gold_pointer`, so extraction values remain owned by the gold. Embedded
+components, completed forms, blank templates and narrative-only references keep
+distinct roles. A form's printed execution date, template edition, later
+admission into another proceeding and acquisition date remain separate.

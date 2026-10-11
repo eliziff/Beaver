@@ -12,11 +12,11 @@ const readJsonl = async <T>(file: string) => (await readFile(file, "utf8"))
   .split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line) as T);
 
 async function main() {
-  const selectionFile = argument("--selection", path.join(here, "selection-scaled-100.json"));
+  const selectionFile = argument("--selection", path.join(here, "selection-scaled-current.json"));
   const auditedFile = argument("--audited", path.join(here, "gold-product-30-v1.jsonl"));
   const additionsFiles = process.argv.includes("--additions")
     ? [argument("--additions", path.join(here, "gold-product-scale-additions-v1.jsonl"))]
-    : ["v1", "v2"].map((version) => path.join(here, `gold-product-scale-additions-${version}.jsonl`));
+    : ["v1", "v2", "sol61-low-300", "sol61-low-630"].map((version) => path.join(here, `gold-product-scale-additions-${version}.jsonl`));
   const destination = argument("--out", path.join(here, "gold-product-scale-current.jsonl"));
   if ([auditedFile, ...additionsFiles].includes(destination) || path.basename(destination).toLocaleLowerCase() === "gold-product-30-v1.jsonl") {
     throw new Error("refusing to overwrite an assembler input");
@@ -25,15 +25,15 @@ async function main() {
   const selection = JSON.parse(await readFile(selectionFile, "utf8")) as Selection;
   const audited = await readJsonl<ProductGoldRecord>(auditedFile);
   const additions = (await Promise.all(additionsFiles.map((file) => readJsonl<ProductGoldRecord>(file)))).flat();
-  if (selection.document_ids.length !== 100 || new Set(selection.document_ids).size !== 100) throw new Error("selection must contain 100 unique cases");
-  if (audited.length !== 30 || audited.map(({ document_id }) => document_id).join(",") !== selection.document_ids.slice(0, 30).join(",")) {
-    throw new Error("audited product gold must match the first 30 selected cases in order");
+  if (!selection.document_ids.length || new Set(selection.document_ids).size !== selection.document_ids.length) throw new Error("selection must contain unique cases");
+  if (!audited.length || audited.map(({ document_id }) => document_id).join(",") !== selection.document_ids.slice(0, audited.length).join(",")) {
+    throw new Error("audited product gold must match the selection prefix in order");
   }
 
   const recordsById = new Map<number, ProductGoldRecord>();
   for (const record of [...audited, ...additions]) {
     if (recordsById.has(record.document_id)) throw new Error(`duplicate assembled document ${record.document_id}`);
-    if (!selection.document_ids.includes(record.document_id)) throw new Error(`document ${record.document_id} is outside the 100-case selection`);
+    if (!selection.document_ids.includes(record.document_id)) throw new Error(`document ${record.document_id} is outside the selection`);
     const errors = productGoldErrors(record);
     if (errors.length) throw new Error(`${record.document_id}: ${errors.join("; ")}`);
     recordsById.set(record.document_id, record);

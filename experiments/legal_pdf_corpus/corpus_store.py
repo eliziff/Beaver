@@ -13,6 +13,7 @@ OpenLegalData/benchmarks; never moved). A stored URL is not downloaded again unl
   add <url|file> [--kind K] [--jurisdiction J] [--label L] [--collection C] [--url ORIGIN] [--refresh]
   path [<url|sha prefix>] [--collection C] [--kind K] [--jurisdiction J]
   search "<fts query>" [--collection C] [--kind K] [--court COURT]
+  forms [<title|number|authority>] [--jurisdiction J]
   sync [--court COURT ...]      fetch court_practice.json
   index [--no-text]             (re)index legal-pdf and court-record-exhibits in place
 """
@@ -20,6 +21,7 @@ OpenLegalData/benchmarks; never moved). A stored URL is not downloaded again unl
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import hashlib
 import html
 import json
@@ -58,6 +60,12 @@ create table if not exists fetches(id integer primary key, url text, fetched_at 
   final_url text, bytes integer, sha256 text, error text);
 create table if not exists court_documents(court text, doc_id text, role text, title text, url text, source text,
   brief_for text, primary key(court, doc_id));
+create table if not exists legal_forms(form_id text primary key, jurisdiction text, court text,
+  title text, form_number text, family text, recorded_at text);
+create table if not exists legal_form_observations(form_id text references legal_forms(form_id),
+  sha256 text references files(sha256), locator text, metadata text, observed_at text,
+  primary key(form_id, sha256, locator));
+create index if not exists legal_form_observations_source on legal_form_observations(sha256);
 create table if not exists pages(sha256 text, page integer, text text, primary key(sha256, page));
 create virtual table if not exists pages_fts using fts5(text, content='pages', tokenize='porter unicode61');
 create trigger if not exists pages_ai after insert on pages begin
@@ -70,6 +78,9 @@ create table if not exists gold_runs(run_id text primary key, dataset text, sha2
 create index if not exists gold_runs_source on gold_runs(dataset, sha256);
 create table if not exists gold_artifacts(run_id text references gold_runs(run_id), role text, path text,
   sha256 text, primary key(run_id, role));
+create table if not exists gold_memberships(dataset text, record_id text, sha256 text references files(sha256),
+  owner_sha256 text references files(sha256), primary key(dataset, record_id, sha256));
+create index if not exists gold_memberships_source on gold_memberships(dataset, sha256);
 """
 _last_hit: dict[str, float] = {}
 
@@ -86,9 +97,59 @@ def connect() -> sqlite3.Connection:
     return db
 
 
+def register_legal_forms(rows: list[dict]) -> None:
+    """Collate form kinds and dated observations against existing corpus sources.
+
+    Observation metadata holds the authority links, version/document dates and
+    their evidence, language, page selection, headings and any field inventory.
+    Source URLs and acquisition dates remain owned by documents, not copied here.
+    """
+    with connect() as db:
+        for row in rows:
+            sha = row["source_sha256"]
+            if db.execute("select 1 from files where sha256=?", (sha,)).fetchone() is None:
+                raise ValueError("Form source is not in the shared corpus: " + sha)
+            db.execute("insert into legal_forms values (?,?,?,?,?,?,?) on conflict(form_id) do update set"
+                       " jurisdiction=excluded.jurisdiction,court=excluded.court,title=excluded.title,"
+                       " form_number=excluded.form_number,family=excluded.family,recorded_at=excluded.recorded_at",
+                       (row["form_id"], jurisdiction(row), row["court"], row["title"],
+                        row.get("form_number"), row.get("family"), now()))
+            metadata = {k: v for k, v in row.items() if k not in
+                        {"form_id", "jurisdiction", "court", "title", "form_number", "family", "source_sha256", "locator", "observed_at"}}
+            db.execute("insert into legal_form_observations values (?,?,?,?,?)"
+                       " on conflict(form_id,sha256,locator) do update set metadata=excluded.metadata,observed_at=excluded.observed_at",
+                       (row["form_id"], sha, row.get("locator", ""),
+                        json.dumps(metadata, ensure_ascii=False), row.get("observed_at") or now()))
+
+
+def forms(args) -> None:
+    """Read the form catalogue with its canonical files and source provenance."""
+    with connect() as db:
+        query, values = "select * from legal_forms where 1=1", []
+        if args.jurisdiction:
+            query += " and jurisdiction=?"
+            values.append(jurisdiction({"jurisdiction": args.jurisdiction}))
+        if args.query:
+            query += " and (title like ? or form_number like ? or family like ? or exists"
+            query += " (select 1 from legal_form_observations o where o.form_id=legal_forms.form_id and o.metadata like ?))"
+            values += ["%" + args.query + "%"] * 4
+        query += " order by jurisdiction,court,form_number,title limit ?"
+        for row in db.execute(query, [*values, args.limit]).fetchall():
+            result = dict(zip(("form_id", "jurisdiction", "court", "title", "form_number", "family", "recorded_at"), row))
+            result["observations"] = []
+            for sha, locator, metadata, observed_at, path in db.execute(
+                    "select o.sha256,o.locator,o.metadata,o.observed_at,f.path from legal_form_observations o"
+                    " join files f on f.sha256=o.sha256 where o.form_id=? order by o.observed_at,o.locator", (row[0],)):
+                sources = [dict(zip(("url", "final_url", "fetched_at", "last_seen_at", "provenance"), source))
+                           for source in db.execute("select url,final_url,fetched_at,last_seen_at,provenance from documents where sha256=?", (sha,))]
+                result["observations"].append({**json.loads(metadata), "source_sha256": sha,
+                    "corpus_path": path, "locator": locator, "observed_at": observed_at, "sources": sources})
+            print(json.dumps(result, ensure_ascii=False))
+
+
 def register_gold_sources(dataset: str, rows: list[dict]) -> None:
     """Register a selected gold corpus against the existing source-file index."""
-    with connect() as db:
+    with closing(connect()) as db, db:
         for row in rows:
             source = db.execute("select pages from files where sha256=?", (row["sha256"],)).fetchone()
             if source is None:
@@ -98,12 +159,37 @@ def register_gold_sources(dataset: str, rows: list[dict]) -> None:
                        (dataset, row["sha256"], row.get("mode"), source[0]))
 
 
-def register_gold_run(job: Path, dataset: str) -> None:
+def gold_artifact_paths(receipt: dict) -> dict:
+    paths = receipt.get("artifact_paths", {"gold": "gold.json.gz", "manuscript": "manuscript.txt",
+        "baseline": "baseline.json.gz", "evidence": "evidence/manifest.json"})
+    if "gold" not in paths or set(paths) - {"gold", "manuscript", "baseline", "evidence", "history"} or any(
+            not isinstance(path, str) or Path(path).is_absolute() for path in paths.values()):
+        raise ValueError("Gold artifact paths must be relative locators for known roles")
+    return paths
+
+
+def record_owner(dataset: str, record_id: str) -> str | None:
+    with closing(connect()) as db:
+        owners = {row[0] for row in db.execute(
+            "select owner_sha256 from gold_memberships where dataset=? and record_id=?", (dataset, record_id))}
+    if len(owners) > 1:
+        raise ValueError("Gold record has conflicting source owners: " + record_id)
+    return next(iter(owners), None)
+
+
+def register_gold_run(job: Path, dataset: str, *, select: bool = True, expected_current=None) -> None:
     """Index a runner receipt and its completed products without copying them."""
     receipt_path = job / "receipt.json"
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     source, run_id, status = receipt["source_sha256"], receipt["run_id"], receipt["status"]
-    with connect() as db:
+    with closing(connect()) as db, db:
+        if expected_current is not None:
+            db.execute("begin immediate")
+            current = db.execute("select r.run_id,a.sha256 from gold_records r left join gold_artifacts a"
+                " on a.run_id=r.run_id and a.role='gold' where r.dataset=? and r.sha256=?",
+                (dataset, source)).fetchone()
+            if tuple(current or (None, None)) != tuple(expected_current):
+                raise ValueError("Current gold changed during annotation publication")
         if db.execute("select 1 from gold_records where dataset=? and sha256=?", (dataset, source)).fetchone() is None:
             raise ValueError("Gold source has not been registered")
         db.execute("insert into gold_runs values (?,?,?,?,?,?,?,?) on conflict(run_id) do update set"
@@ -113,28 +199,49 @@ def register_gold_run(job: Path, dataset: str) -> None:
                     hashlib.sha256(receipt_path.read_bytes()).hexdigest(), receipt["started_at"], receipt.get("finished_at")))
         products = {"receipt": receipt_path}
         if status == "complete":
-            products.update(gold=job / "gold.json.gz", manuscript=job / "manuscript.txt",
-                            baseline=job / "baseline.json.gz", evidence=job / "evidence/manifest.json")
+            products.update({role: job / path for role, path in gold_artifact_paths(receipt).items()})
+        db.execute("delete from gold_artifacts where run_id=? and role not in (" +
+                   ",".join("?" for _ in products) + ")", (run_id, *products))
         for role, artifact in products.items():
             with artifact.open("rb") as stream:
                 sha = hashlib.file_digest(stream, "sha256").hexdigest()
-            if role in {"gold", "manuscript"} and sha != receipt[role + "_sha256"]:
+            if role in {"gold", "manuscript", "history"} and sha != receipt[role + "_sha256"]:
                 raise ValueError("Gold product does not match its receipt: " + role)
             db.execute("insert into gold_artifacts values (?,?,?,?) on conflict(run_id,role) do update set"
                        " path=excluded.path,sha256=excluded.sha256", (run_id, role, str(artifact.resolve()), sha))
-        db.execute("update gold_records set status=?,run_id=?,mode=?,pages=coalesce(?,pages) where dataset=? and sha256=?",
-                   (status, run_id, receipt["configuration"]["mode"], receipt.get("pages"), dataset, source))
+        db.execute("update gold_records set status=?,run_id=?,mode=?,pages=coalesce(?,pages) where dataset=? and sha256=?"
+                   " and (status<>'complete' or (?='complete' and ?))",
+                   (status, run_id, receipt["configuration"]["mode"], receipt.get("pages"), dataset, source, status, select))
+        if status == "complete" and db.execute("select run_id from gold_records where dataset=? and sha256=?",
+                                               (dataset, source)).fetchone() == (run_id,):
+            import gzip
+            artifact = products["gold"]
+            value = json.loads(gzip.decompress(artifact.read_bytes()) if artifact.suffix == ".gz" else artifact.read_bytes())
+            db.execute("delete from gold_memberships where dataset=? and owner_sha256=?", (dataset, source))
+            for rid, record in value.get("records", {}).items():
+                owner = record.get("owner_source_sha256", source)
+                if owner != source:
+                    continue
+                mapping = value.get("views", {}).get(rid, {}).get("source", {})
+                if mapping.get("source_sha256") != source:
+                    raise ValueError("Gold record lacks its owning source mapping: " + rid)
+                members = {source, *(row.get("sha256") for row in mapping.get("sources", []))}
+                if any(not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{64}", sha) for sha in members):
+                    raise ValueError("Gold record source membership is invalid: " + rid)
+                for sha in members:
+                    db.execute("insert into gold_memberships values (?,?,?,?)", (dataset, rid, sha, owner))
 
 
 def completed_gold(dataset: str, source: str) -> Path | None:
     """Reuse a completed record after verifying its registered artifacts."""
-    with connect() as db:
+    with closing(connect()) as db:
         artifacts = db.execute("select a.role,a.path,a.sha256 from gold_records r"
             " join gold_artifacts a on a.run_id=r.run_id"
             " where r.dataset=? and r.sha256=? and r.status='complete'", (dataset, source)).fetchall()
     if not artifacts:
         return None
-    if {role for role, _, _ in artifacts} != {"receipt", "gold", "manuscript", "baseline", "evidence"}:
+    roles = {role for role, _, _ in artifacts}
+    if not {"receipt", "gold"} <= roles <= {"receipt", "gold", "manuscript", "baseline", "evidence", "history"}:
         raise ValueError("Completed gold record has missing artifacts: " + source)
     for role, locator, expected in artifacts:
         path = Path(locator)
@@ -143,6 +250,9 @@ def completed_gold(dataset: str, source: str) -> Path | None:
                 raise ValueError("Registered gold artifact changed: " + role)
         if role == "receipt":
             job = path.parent
+    receipt = json.loads((job / "receipt.json").read_text(encoding="utf-8"))
+    if roles != {"receipt"} | set(gold_artifact_paths(receipt)):
+        raise ValueError("Completed gold record has missing artifacts: " + source)
     return job
 
 
@@ -414,13 +524,17 @@ def main() -> None:
     for flag in ("--collection", "--kind", "--court"):
         s.add_argument(flag)
     s.add_argument("--limit", type=int, default=20)
+    f = sub.add_parser("forms", help="Canadian legal form kinds, authorities and source observations")
+    f.add_argument("query", nargs="?")
+    f.add_argument("--jurisdiction")
+    f.add_argument("--limit", type=int, default=50)
     y = sub.add_parser("sync", help="fetch every court in court_practice.json")
     y.add_argument("--court", nargs="*")
     i = sub.add_parser("index", help="index legal-pdf and court-record-exhibits in place")
     i.add_argument("--no-text", action="store_true")
     sub.add_parser("summary", help="files and GB per collection")
     args = parser.parse_args()
-    {"add": add, "path": path, "search": search, "sync": sync, "index": index, "summary": lambda _: summary()}[args.command](args)
+    {"add": add, "path": path, "search": search, "forms": forms, "sync": sync, "index": index, "summary": lambda _: summary()}[args.command](args)
 
 
 if __name__ == "__main__":

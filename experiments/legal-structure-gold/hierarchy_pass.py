@@ -6,25 +6,26 @@ This second pass reads every heading, numbered paragraph and list item of one do
 page, role, printed marker, opening words, indent, and the parent the first pass gave it) and decides
 each unit's parent; its level follows, the parent's plus one. It also rules out the heading blocks
 that are no part of the outline, a statute's marginal notes and a reported case's headnotes, which
-the page annotator was never told apart from headings. The page-level gold is never changed:
-the decision is a separate layer, `hierarchy.json.gz` beside the run's gold, which the scorer applies
-where it exists.
+the page annotator was never told apart from headings. Canonical gold receives these decisions
+in its existing structural annotations; older authoring originals retain their sidecar format.
 
   python experiments/legal-structure-gold/hierarchy_pass.py [--runs SHA_PREFIX...] [--limit N] --run
 """
-import argparse, gzip, hashlib, json, re, sys, tempfile
+import argparse, gzip, json, re, sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import evaluate, gold, worker  # noqa: E402
-from codex_exec import _atomic_json, _invoke  # noqa: E402
+from codex_runner.calls import AttemptsExhausted, CallPolicy, call, call_key, usage_totals  # noqa: E402
 
 ROOT = HERE.parents[1]
 OUT = ROOT / "benchmarks/local-data/legal-structure-gold"
 LAYER = "hierarchy.json.gz"
+CORRECTION = "hierarchy-correction.json"
 VERSION = "legal-structure-gold.hierarchy.v2"
 OUTSIDE = ("marginal_note", "headnote", "caption", "text")
 KINDS = ("heading", "list_item", "numbered_paragraph")
@@ -266,71 +267,9 @@ def levels_of(units, parents, roles=None):
     return {ident: {"parent": parents[ident], "level": levels[ident], "role": roles.get(ident, "unit")} for ident in parents}
 
 
-def write_layer(job, gold_path, units, items, source, attempts=0):
-    changed = sum(1 for unit in units if items[unit["id"]]["parent"] != unit["annotated_parent"])
-    layer = {"schema_version": VERSION, "gold_sha256": worker.digest(gold_path), "source": source,
-             "attempts": attempts, "changed": changed, "items": items}
-    (job / LAYER).write_bytes(gzip.compress(json.dumps(layer, ensure_ascii=False).encode(), mtime=0))
-    return f"{source}: {changed}/{len(units)} parents changed"
-
-
-def decide(job, args):
-    gold_path = job / "gold.json.gz"
-    try:
-        _, state = evaluate.state_of(worker.read_json(gold_path))
-    except Exception as exc:
-        return f"unreadable: {str(exc)[-80:]}"
-    units = units_of(state)
-    if len(units) < 2:
-        return "skipped"
-    parents, doubt = repaired(units)
-    # A heading set beside a provision, or headings in a reported case, may be no heading at all.
-    doubt = doubt or any("beside" in unit for unit in units) or any(
-        unit["role"] == "heading" and CASE_TITLE.search(unit["words"]) for unit in units) or args.conventions
-    items = levels_of(units, parents)
-    if not doubt or not args.run:
-        if not args.write:
-            return "in doubt" if doubt else "settled"
-        return write_layer(job, gold_path, units, items, "deterministic")
-    # What the numbering leaves in doubt goes to the model, the settled parents its starting point.
-    for unit in units:
-        unit["annotated_parent"] = parents[unit["id"]]
-    prompt = PROMPT + "\n".join(json.dumps(unit, ensure_ascii=False) for unit in units)
-    error, attempts = "", []
-    with tempfile.TemporaryDirectory() as temp:
-        schema = Path(temp) / "schema.json"
-        schema.write_text(json.dumps(SCHEMA), encoding="utf-8")
-        instructions = Path(temp) / "instructions.md"
-        instructions.write_text(worker.INSTRUCTIONS, encoding="utf-8")
-        extra = ["--ignore-rules", "-c", "model_instructions_file=" + json.dumps(instructions.resolve().as_posix())]
-        for name, value in worker.CONFIG.items():
-            extra.extend(["-c", name + "=" + json.dumps(value)])
-        for attempt in range(args.attempts):
-            work = Path(temp) / f"attempt-{attempt + 1}"
-            work.mkdir()
-            try:
-                response = _invoke(prompt=prompt + ("\n\nCorrect the previous failure: " + error if error else ""),
-                                   schema_path=schema, image_paths=[], model=args.model, effort=args.effort,
-                                   work_dir=work, timeout_seconds=args.timeout, extra_args=extra)
-                decided = validated(units, response)
-            except Exception as exc:  # A contract failure is retried with its reason.
-                error = str(exc)[-400:]
-                attempts.append({"error": error})
-                continue
-            return write_layer(job, gold_path, units, decided, "model:" + args.model, len(attempts) + 1)
-    return "model failed: " + error
-
-
-def apply(job, value):
-    """The run's gold with its document hierarchy layer applied, where one exists for this gold."""
-    path = Path(job) / LAYER
-    if not path.is_file():
-        return value
-    layer = json.loads(gzip.decompress(path.read_bytes()))
-    if layer.get("gold_sha256") != worker.digest(Path(job) / "gold.json.gz"):
-        return value
-    items = layer["items"]
-    for block in value.get("blocks", []):
+def apply_items(value, items):
+    blocks = value["layers"]["legal_structure"]["blocks"] if value.get("schema_version") == worker.package.VERSION else value.get("blocks", [])
+    for block in blocks:
         decided = items.get(block["line_ids"][0]) if block.get("line_ids") else None
         if decided and decided.get("role", "unit") != "unit":
             # Demoted to text: the document's running text, no unit and no marker of one.
@@ -345,10 +284,165 @@ def apply(job, value):
         elif kind in ("heading", "list_item"):
             block["kind"] = kind
         if decided and ("level" in block["attributes"] or "parent" in block["attributes"]):
-
             block["attributes"]["parent"] = decided["parent"]
             block["attributes"]["level"] = decided["level"]
     return value
+
+
+def write_layer(job, gold_path, units, items, source, attempts=0, *, original, input_sha256, call_receipt=None):
+    changed = sum(1 for unit in units if items[unit["id"]]["parent"] != unit["annotated_parent"])
+    if original.get("schema_version") == worker.package.VERSION:
+        owned = [["layers", "legal_structure", "blocks"]]
+        text_sha = worker.package.text_identity(original)
+        candidate = worker.package.annotation_update(original, apply_items(deepcopy(original), items), owned_paths=owned,
+            expected_source_sha256=original["source_sha256"], expected_text_sha256=text_sha)
+        receipt = {"schema_version": VERSION, "owned_paths": owned, "input_gold_sha256": input_sha256,
+                   "source_sha256": original["source_sha256"], "input_text_sha256": text_sha,
+                   "source": source, "attempts": attempts, "changed": changed, "units": len(units),
+                   "code_sha256": worker.digest(Path(__file__)), **(call_receipt or {"calls": []})}
+        worker.publish_update(job, input_sha256, candidate, stage="hierarchy", receipt=receipt)
+        return f"{source}: {changed}/{len(units)} parents changed"
+    worker.require(worker.digest(gold_path) == input_sha256, "Hierarchy input gold changed")
+    layer = {"schema_version": VERSION, "gold_sha256": input_sha256, "source": source,
+             "attempts": attempts, "changed": changed, "items": items}
+    (job / LAYER).write_bytes(gzip.compress(json.dumps(layer, ensure_ascii=False).encode(), mtime=0))
+    return f"{source}: {changed}/{len(units)} parents changed"
+
+
+def retry_prompt(prompt, error, previous):
+    return prompt + ("\n\nCorrect the previous failure: " + error if error else "")
+
+
+def retry_error(exc, response):
+    return str(exc)[-400:]
+
+
+CALL_POLICY = CallPolicy(worker.INSTRUCTIONS, worker.CONFIG, retry_prompt, retry_error,
+                         "model failed: ", validate_schema=False)
+
+
+def decide(job, args):
+    gold_path = job / "gold.json.gz"
+    try:
+        input_sha = worker.digest(gold_path)
+        original = worker.read_json(gold_path)
+        worker.require(worker.digest(gold_path) == input_sha, "Hierarchy input gold changed")
+        _, state = evaluate.state_of(original)
+    except Exception as exc:
+        return f"unreadable: {str(exc)[-80:]}"
+    units = units_of(state)
+    if len(units) < 2:
+        return "skipped"
+    parents, doubt = repaired(units)
+    # A heading set beside a provision, or headings in a reported case, may be no heading at all.
+    doubt = doubt or any("beside" in unit for unit in units) or any(
+        unit["role"] == "heading" and CASE_TITLE.search(unit["words"]) for unit in units) or args.conventions
+    items = levels_of(units, parents)
+    if not doubt or not args.run:
+        if not args.write:
+            return "in doubt" if doubt else "settled"
+        return write_layer(job, gold_path, units, items, "deterministic", original=original, input_sha256=input_sha)
+    # What the numbering leaves in doubt goes to the model, the settled parents its starting point.
+    for unit in units:
+        unit["annotated_parent"] = parents[unit["id"]]
+    prompt = PROMPT + "\n".join(json.dumps(unit, ensure_ascii=False) for unit in units)
+    task = job / "hierarchy"
+    task.mkdir(exist_ok=True)
+    schema = task / "schema.json"
+    schema.write_text(json.dumps(SCHEMA), encoding="utf-8")
+    previous_attempts = usage_totals(task)["attempts"]
+    def validate_response(response):
+        decided = validated(units, response)
+        if original.get("schema_version") == worker.package.VERSION:
+            worker.package.validate(apply_items(deepcopy(original), decided))
+        return decided
+    try:
+        decided = call(prompt, schema, [], task / "calls" / "document", args,
+                       validate_response, policy=CALL_POLICY, reuse=not args.redo)
+    except AttemptsExhausted as exc:
+        return "model failed: " + exc.error
+    key = call_key(prompt, SCHEMA, [], args, CALL_POLICY)
+    directory = task / "calls" / "document" / key[:16]
+    receipt = worker.read_json(directory / "receipt.json")
+    worker.require(receipt["key"] == key, "Hierarchy call identity changed")
+    accepted = [(number, attempt) for number, attempt in enumerate(receipt["attempts"], 1) if attempt["status"] == "complete"]
+    worker.require(bool(accepted), "Hierarchy call has no accepted attempt")
+    number, attempt = accepted[-1]
+    work = directory / f"attempt-{number}"
+    worker.require(validated(units, worker.read_json(work / "last-message.json")) == decided,
+                   "Hierarchy accepted response differs")
+    # Attempt files are immutable; a later failed --redo changes only the aggregate
+    # call receipt and cannot invalidate the currently published hierarchy's evidence.
+    paths = [work / "last-message.json", work / "prompt.txt.gz"]
+    if (work / "events.jsonl.gz").is_file(): paths.append(work / "events.jsonl.gz")
+    call_receipt = {"model": attempt["model"], "effort": attempt["effort"],
+        "calls": [{"path": path.relative_to(job).as_posix(), "sha256": worker.digest(path)} for path in paths]}
+    return write_layer(job, gold_path, units, decided, "model:" + args.model,
+                       usage_totals(task)["attempts"] - previous_attempts, original=original, input_sha256=input_sha,
+                       call_receipt=call_receipt)
+
+
+
+
+def read_layer(job):
+    """Resolve a saved hierarchy and any source-reviewed corrections bound to its originals."""
+    job = Path(job)
+    path = job / LAYER
+    if not path.is_file():
+        worker.require(not (job / CORRECTION).exists(), "Hierarchy correction has no original layer")
+        return None
+    layer = worker.read_json(path)
+    correction_path = job / CORRECTION
+    if not correction_path.is_file():
+        return path, layer
+    correction = worker.read_json(correction_path)
+    worker.require(correction.get("schema_version") == "legal-structure-gold.hierarchy-correction.v1",
+                   "Unknown hierarchy correction format")
+    worker.require(correction["original_hierarchy_sha256"] == worker.digest(path),
+                   "Reviewed hierarchy original changed; review the correction again")
+    worker.require(correction["gold_sha256"] == layer["gold_sha256"] == worker.digest(job / "gold.json.gz"),
+                   "Reviewed hierarchy gold changed; review the correction again")
+    original = worker.read_json(job / "gold.json.gz")
+    worker.require(correction["source_sha256"] == original["source_sha256"], "Hierarchy correction source differs")
+    worker.require(correction["items"] and set(correction["items"]) <= set(layer["items"]),
+                   "Hierarchy correction names unknown units")
+    items = {**layer["items"], **correction["items"]}
+    return correction_path, {**layer, "items": items, "source": "source_review",
+                             "changed": correction["changed"]}
+
+
+def apply(job, value):
+    """The run's gold with its document hierarchy layer applied, where one exists for this gold."""
+    pending = (Path(job) / "publication.json").is_file()
+    worker.recover_update(Path(job))
+    if pending:
+        value = worker.read_json(Path(job) / "gold.json.gz")
+    if "hierarchy" in value.get("provenance", {}).get("annotation_stages", {}):
+        return value
+    saved = read_layer(job)
+    if saved is None:
+        return value
+    _, layer = saved
+    if layer.get("gold_sha256") != worker.digest(Path(job) / "gold.json.gz"):
+        return value
+    return apply_items(value, layer["items"])
+
+
+def state_identity(value):
+    return worker.fingerprint({"text_sha256": worker.package.text_identity(value),
+                               "blocks": value["layers"]["legal_structure"]["blocks"]})
+
+
+def completed(job):
+    worker.recover_update(job)
+    value = worker.read_json(job / "gold.json.gz")
+    if value.get("schema_version") == worker.package.VERSION:
+        if "hierarchy" in value["provenance"].get("annotation_stages", {}):
+            return worker.stage_current(job, value, "hierarchy")
+        imported = value["provenance"].get("imported_hierarchy", {})
+        return imported.get("state_sha256") == state_identity(value)
+    saved = read_layer(job)
+    return saved is not None and saved[1].get("gold_sha256") == worker.digest(job / "gold.json.gz")
 
 
 def main():
@@ -367,9 +461,9 @@ def main():
     parser.add_argument("--run", action="store_true", help="Call the model for documents left in doubt (implies --write)")
     args = parser.parse_args()
     import score_all
-    jobs = [job for _, job, _ in score_all.completed(OUT)
-            if (not args.runs or any(job.parent.name.startswith(p) for p in args.runs))
-            and (args.redo or not (job / LAYER).is_file())]
+    jobs = [job for _, job, receipt in score_all.completed(OUT)
+            if (not args.runs or any(receipt["source_sha256"].startswith(p) for p in args.runs))
+            and (args.redo or not completed(job))]
     if args.limit:
         jobs = jobs[:args.limit]
     args.write = args.write or args.run

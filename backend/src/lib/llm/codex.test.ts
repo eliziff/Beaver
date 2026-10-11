@@ -111,6 +111,31 @@ describe("Codex app-server adapter", () => {
     await expect(running).rejects.toMatchObject({ name: "AbortError" });
     expect(transport.request).toHaveBeenCalledWith("turn/interrupt", { threadId, turnId });
   });
+
+  it("uses the completed structured answer after a stream restarts", async () => {
+    const answer = '{"count":17}';
+    transport.request.mockImplementation(async (method: string) => {
+      if (method === "thread/start") return { thread: { id: threadId } };
+      if (method === "turn/start") {
+        setTimeout(() => {
+          transport.emit("item/agentMessage/delta", { threadId, turnId, itemId: "answer", delta: '{"count":' });
+          transport.emit("item/agentMessage/delta", { threadId, turnId, itemId: "answer", delta: answer });
+          transport.emit("item/completed", {
+            threadId, turnId,
+            item: { id: "answer", type: "agentMessage", phase: "final_answer", text: answer },
+          });
+          transport.emit("turn/completed", { threadId, turn: { id: turnId, status: "completed" } });
+        }, 0);
+        return { turn: { id: turnId } };
+      }
+      return {};
+    });
+    const result = await streamCodex({
+      model: "codex:gpt-6.1-sol", systemPrompt: "", messages: [],
+      outputSchema: { type: "object", properties: { count: { type: "number" } }, required: ["count"] },
+    });
+    expect(JSON.parse(result.fullText)).toEqual({ count: 17 });
+  });
   it("accepts early turn events and ignores stale events from the same thread", async () => {
     transport.request.mockImplementation(async (method: string) => {
       if (method === "thread/start") return { thread: { id: threadId } };

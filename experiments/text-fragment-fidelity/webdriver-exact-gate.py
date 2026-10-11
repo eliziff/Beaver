@@ -40,7 +40,7 @@ from selenium.webdriver.chrome.service import Service
 import websocket
 
 HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results"
+RESULTS = Path(os.environ.get("TEXT_FRAGMENT_RESULTS_DIR", HERE / "results"))
 CACHE = RESULTS / "page-html"
 LIVE_RENDERED_CACHE = RESULTS / "live-rendered-html"
 PDF_TEXT_CACHE = RESULTS / "pdf-text"
@@ -52,7 +52,7 @@ DOCTEXT = RESULTS / "doctext.jsonl"
 MANIFEST = RESULTS / "page-html-manifest.jsonl"
 DEFAULT_OUT = RESULTS / "webdriver-exact.jsonl"
 SHOTS = RESULTS / "exact-shots"
-DRIVER = Path.home() / ".cache/selenium/chromedriver/win64/151.0.7922.138/chromedriver.exe"
+DRIVER = Path(os.environ.get("TEXT_FRAGMENT_CHROMEDRIVER", Path.home() / ".cache/selenium/chromedriver/win64/151.0.7922.138/chromedriver.exe"))
 PDF_RE = re.compile(r"(?i)(\.pdf(?:$|[?#])|/document\.do(?:$|[?#]))")
 PDF_PAINT_CONTRACT = "pdf-natural-directive-geometry-v13-source-identity"
 HTML_PAINT_CONTRACT = "html-exact-island-geometry-v15-source-identity"
@@ -4334,7 +4334,7 @@ def run():
     for row in read_jsonl(MANIFEST):
         if not row.get("url") or not row.get("file") or row.get("challenged"):
             continue
-        file = CACHE / row["file"]
+        file = Path(row["path"]) if row.get("path") else CACHE / row["file"]
         if file.exists() and file.stat().st_size >= 500:
             manifest[url_key(row["url"])] = row
             files[row["file"]] = file
@@ -4348,6 +4348,8 @@ def run():
             files[name] = file
 
     def cached_file(row):
+        if row.get("path"):
+            return Path(row["path"])
         root = LIVE_RENDERED_CACHE if row.get("liveRendered") else CACHE
         return root / row["file"]
     if args.only != "all":

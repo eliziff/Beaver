@@ -561,8 +561,8 @@ export function productGoldErrors(record: ProductGoldRecord) {
         boundary.start_line < 1 || boundary.end_line < boundary.start_line ||
         !boundary.start_quote.trim() || !boundary.end_quote.trim()) errors.push(`invalid boundary for ${opinion.opinion_id}`);
     if (!RESULT_POSITIONS.includes(opinion.result_position)) errors.push(`invalid result for ${opinion.opinion_id}`);
-    if (Boolean(opinion.writer) === Boolean(opinion.collective_author)) {
-      errors.push(`${opinion.opinion_id} must have exactly one writer or collective_author`);
+    if (opinion.writer && opinion.collective_author) {
+      errors.push(`${opinion.opinion_id} cannot have both a writer and collective_author`);
     }
     const linkedWriters = record.structure.participants.filter(({ opinion_links }) =>
       opinion_links.some(({ opinion_id, relation }) => opinion_id === opinion.opinion_id && relation === "wrote"));

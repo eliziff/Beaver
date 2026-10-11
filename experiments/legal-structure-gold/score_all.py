@@ -28,10 +28,13 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import sqlite3
+from contextlib import closing
 import worker
 import hierarchy_pass
 import evaluate
 import corpus_store
+import package
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -39,13 +42,67 @@ REPLAY = ROOT / 'native/legal-structure-node/target/release/examples/replay.exe'
 TIMINGS = {}
 
 
-def completed(out):
+def reference_metadata(row, out=ROOT / 'benchmarks/local-data/legal-structure-gold'):
+    """Resolve an explicit saved reference without deriving identity from its path."""
+    result = {key: row[key] for key in ('source_sha256', 'mode') if key in row}
+    if len(result) < 2:
+        receipt = worker.read_json(Path(out) / row['run'] / 'receipt.json')
+        saved = {'source_sha256': receipt['source_sha256'], 'mode': receipt['configuration']['mode']}
+        worker.require(all(saved[key] == value for key, value in result.items()), 'Saved source metadata differs')
+        result = saved
+    return result
+
+
+def completed(out, unavailable=None):
+    for pending in out.glob('current/*/publication.json'):
+        worker.recover_update(pending.parent)
+    selected = {}
+    indexed = set()
+    omitted = {}
+    if corpus_store.DB.exists():
+        with closing(sqlite3.connect(corpus_store.DB.as_uri()+'?mode=ro',uri=True)) as db:
+            current = db.execute("select r.sha256,a.path,a.sha256,g.path,g.sha256 from gold_records r"
+                " join gold_artifacts a on a.run_id=r.run_id and a.role='receipt'"
+                " join gold_artifacts g on g.run_id=r.run_id and g.role='gold'"
+                " where r.dataset=? and r.status='complete'", (package.VERSION,)).fetchall()
+        for sha,receipt_path,receipt_sha,gold_path,gold_sha in current:
+            receipt = Path(receipt_path)
+            job = receipt.parent
+            if not job.resolve().is_relative_to(out.resolve()): continue
+            worker.require(worker.digest(receipt) == receipt_sha, 'Selected gold receipt changed')
+            value = worker.read_json(receipt)
+            worker.require(value['status'] == 'complete' and value['source_sha256'] == sha and
+                worker.digest(Path(gold_path)) == gold_sha == value['gold_sha256'], 'Selected gold changed')
+            compact = worker.read_json(Path(gold_path))
+            if 'legal_structure' not in compact.get('layers', {}):
+                omitted[sha] = {'run': str(job.relative_to(out)), 'source_sha256': sha,
+                    'mode': value['configuration']['mode'], 'reason': 'legal_structure_not_annotated'}
+                continue
+            selected[sha] = (None, (value['configuration']['mode'], job, value))
+            indexed.add(sha)
     for receipt in sorted(out.glob('*/*/*/receipt.json')):
         mode = receipt.parents[2].name
-        if mode not in ('digitalborn', 'ocr'): continue
+        if mode not in ('digitalborn', 'ocr', 'packages'): continue
+        if receipt.parents[1].name in indexed: continue
         value = worker.read_json(receipt)
-        if value.get('status') == 'complete' and (receipt.parent / 'gold.json.gz').exists():
-            yield mode, receipt.parent, value
+        if value.get('status') != 'complete' or not (receipt.parent / 'gold.json.gz').exists(): continue
+        sha = value['source_sha256']
+        if sha in indexed: continue
+        expected = worker.read_json(receipt.parent / 'gold.json.gz')
+        if not ('legal_structure' in expected.get('layers', {}) if expected.get('schema_version') == package.VERSION else 'structure' in expected):
+            omitted.setdefault(sha, {'run': str(receipt.parent.relative_to(out)), 'source_sha256': sha,
+                'mode': value['configuration']['mode'], 'reason': 'legal_structure_not_annotated'})
+            continue
+        source = worker.read_json(receipt.parent / value['parent_run'] / 'receipt.json') if value.get('parent_run') else value
+        priority = (source.get('finished_at',0), mode == 'packages', value.get('finished_at',0))
+        if sha not in selected or priority > selected[sha][0]:
+            selected[sha] = (priority, (value['configuration']['mode'], receipt.parent, value))
+    missing = [row for sha, row in sorted(omitted.items()) if sha not in selected]
+    if unavailable is not None:
+        unavailable.extend(missing)
+    elif missing:
+        print(f'Skipping {len(missing)} sources without legal-structure annotations', file=sys.stderr)
+    for sha in sorted(selected): yield selected[sha][1]
 
 
 def addon_sha256():
@@ -153,14 +210,22 @@ def score_one(item):
     run, out, candidate, structure = item
     job = Path(out) / run
     try:
+        worker.recover_update(job)
+        gold_sha = worker.digest(job / 'gold.json.gz')
         expected = worker.read_json(job / 'gold.json.gz')
+        if expected.get('schema_version') == package.VERSION and 'legal_structure' not in expected['layers']:
+            return {'run': run, **reference_metadata({'run': run}, out),
+                    'status': 'unavailable', 'reason': 'legal_structure_not_annotated'}
         # The document's hierarchy, decided over the whole document, where its layer exists.
         expected = hierarchy_pass.apply(job, expected)
+        reference_sha = worker.fingerprint(evaluate.state_of(expected)[1])
         value = worker.read_json(Path(candidate))
         if structure:
             value['structure'] = json.loads(Path(structure).read_text(encoding='utf-8'))
         result = evaluate.compare(expected, value)
-        return {'run': run, **result}
+        worker.require(worker.digest(job / 'gold.json.gz') == gold_sha, 'Gold changed during scoring')
+        return {'run': run, **reference_metadata({'run': run}, out),
+                'gold_sha256': gold_sha, 'gold_state_sha256': reference_sha, **result}
     except Exception as error:
         return {'run': run, 'error': str(error)[-600:]}
 
@@ -178,21 +243,38 @@ def aggregate(rows):
     return totals
 
 
-def compare(before, after, layers=None):
+def compare(before, after, layers=None, out=ROOT / 'benchmarks/local-data/legal-structure-gold'):
     """The change from one summary to another over the runs both scored, per mode: per layer, the
     pooled F1 of each, and per document how many got better or worse and the mean and median
     change, so neither a few large documents nor many tiny ones decide alone."""
-    earlier = {row['run']: row for row in before['per_run']}
-    later = {row['run']: row for row in after['per_run']}
+    def indexed(summary):
+        result = {}
+        for row in summary['per_run']:
+            row = {**row, **reference_metadata(row, out)}
+            key = (row['source_sha256'], row['mode'])
+            worker.require(key not in result, 'Repeated source/mode in score summary')
+            result[key] = row
+        return result
+    earlier, later = indexed(before), indexed(after)
     common = [run for run in later if run in earlier]
     def f1(m):
         p = m['correct'] / m['predicted'] if m['predicted'] else (1.0 if not m['expected'] else 0.0)
         r = m['correct'] / m['expected'] if m['expected'] else (1.0 if not m['predicted'] else 0.0)
         return 2 * p * r / (p + r) if p + r else 0.0
-    for mode in sorted({run.split(os.sep)[0].split('/')[0] for run in common}):
-        runs = [run for run in common if run.replace('\\', '/').split('/')[0] == mode]
+    for mode in sorted({key[1] for key in common}):
+        runs = [key for key in common if key[1] == mode]
         pooled_before = aggregate([earlier[run] for run in runs]); pooled_after = aggregate([later[run] for run in runs])
         print(f"\n{mode}: {len(runs)} runs in common")
+        changed, unknown = [], []
+        for key in runs:
+            left, right = earlier[key], later[key]
+            identity = 'gold_state_sha256' if left.get('gold_state_sha256') and right.get('gold_state_sha256') else 'gold_sha256'
+            if not left.get(identity) or not right.get(identity): unknown.append(key[0])
+            elif left[identity] != right[identity]: changed.append(key[0])
+        if changed:
+            print('Reference identities differ; deltas also reflect changed Gold references: ' + ', '.join(changed))
+        if unknown:
+            print(f'{len(unknown)} saved references lack a comparable identity; reference equality is unverified')
         print(f"{'layer':20} {'F1 before':>9} {'after':>7} {'delta':>7}   {'better':>6} {'worse':>6} {'mean':>8} {'median':>8}")
         for name in sorted(pooled_after):
             if layers and name not in layers: continue
@@ -219,8 +301,11 @@ def main():
     parser.add_argument('--layers', help='Comma-separated layers to show in --against')
     parser.add_argument('--rescore', help="Score a tagged run's candidates again, parsing nothing (a scorer change)")
     args = parser.parse_args()
-    items = [r for r in completed(args.out) if (not args.runs or any(r[1].parent.name.startswith(p) for p in args.runs))
+    unavailable = []
+    items = [r for r in completed(args.out, unavailable) if (not args.runs or any(r[2]['source_sha256'].startswith(p) for p in args.runs))
              and (not args.mode or r[0] == args.mode)]
+    unavailable = [r for r in unavailable if (not args.runs or any(r['source_sha256'].startswith(p) for p in args.runs))
+                   and (not args.mode or r['mode'] == args.mode)]
     started = time.time()
     errors, dumps = {}, {}
     if args.rescore:
@@ -231,7 +316,7 @@ def main():
         sources = {str(job.relative_to(args.out)): (str(job / receipt.get('artifact_paths', {}).get('baseline', 'baseline.json.gz')), None)
                    for _, job, receipt in items}
     else:
-        produced, errors = extract_all(items, args.out, args.workers)
+        produced, errors = extract_all(items, args.out, args.workers) if items else ({}, {})
         sources = {run: (file, None) for run, (file, _, _) in produced.items()}
         dumps = {run: (dump, witnesses) for run, (_, dump, witnesses) in produced.items() if dump and Path(dump).is_file()}
     parsed = time.time()
@@ -241,22 +326,27 @@ def main():
     scored = [r for r in results if 'metrics' in r]
     summary = {'source': 'rescore' if args.rescore else 'replay' if args.replay else 'saved' if args.saved else 'addon', 'runs': len(results),
                'errors': [r for r in results if 'error' in r], 'totals': aggregate(scored),
-               'per_run': [{'run': r['run'], 'metrics': {k: {c: v[c] for c in ('expected', 'predicted', 'correct', 'f1')}
+               'unavailable': unavailable + [r for r in results if r.get('status') == 'unavailable'],
+               'per_run': [{'run': r['run'], **{key:r[key] for key in ('source_sha256','mode','gold_sha256','gold_state_sha256','alignment','text')},
+                            'metrics': {k: {c: v[c] for c in ('expected', 'predicted', 'correct', 'f1')}
                                                           for k, v in r['metrics'].items()}} for r in scored]}
     destination = (args.out / 'score' / 'runs' / f'{args.tag}.json' if args.tag else
                    args.out / 'score' / ('saved.json' if args.saved else 'subset.json' if (args.runs or args.mode) else 'latest.json'))
     worker.write_json(destination, summary)
     if dumps:
+        references = {row['run']: row for row in scored}
         worker.write_json(destination.with_suffix('.manifest.json'),
-                          [{'run': run, 'candidate': sources[run][0], 'dump': dump, 'witnesses': witnesses}
+                          [{'run': run, **reference_metadata({'run': run}, args.out),
+                            **{key: references[run][key] for key in ('gold_sha256','gold_state_sha256') if run in references},
+                            'candidate': sources[run][0], 'dump': dump, 'witnesses': witnesses}
                            for run, (dump, witnesses) in dumps.items()])
-    print(f"{summary['runs']} runs, {len(summary['errors'])} errors -> {destination} "
+    print(f"{summary['runs']} runs, {len(summary['errors'])} errors, {len(summary['unavailable'])} unannotated sources -> {destination} "
           f"(parse {parsed - started:.0f}s, score {time.time() - parsed:.0f}s)")
     if TIMINGS:
         slowest = sorted(TIMINGS.items(), key=lambda item: -item[1])[:8]
         print(f"structure stage {sum(TIMINGS.values()) / 1000:.0f}s in all; slowest: " + ", ".join(f"{run.split(os.sep)[1][:12]} {ms / 1000:.1f}s" for run, ms in slowest))
     if args.against:
-        compare(worker.read_json(args.against), summary, set(args.layers.split(',')) if args.layers else None)
+        compare(worker.read_json(args.against), summary, set(args.layers.split(',')) if args.layers else None, args.out)
     else:
         print(f"{'layer':22} {'exp':>6} {'pred':>6} {'P':>6} {'R':>6} {'F1':>6}")
         for name, t in sorted(summary['totals'].items()):
