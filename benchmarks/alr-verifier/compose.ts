@@ -93,8 +93,11 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
   let workbook: { filename: string; bytes: Uint8Array }, modelCalls: unknown = null;
   if (option("--llm") && settings.run_mode && settings.run_mode !== "free") {
     const llm = (await import(pathToFileURL(path.resolve(option("--llm")!)).href)).default;
-    const { alrModel } = await import(pathToFileURL(path.join(config.alr_quote_verifier, "beaver_app/runtime/ai.ts")).href);
-    const { alrCheckedWorkbook } = await import(pathToFileURL(path.join(config.alr_quote_verifier, "beaver_app/runtime/checkedWorkbook.ts")).href);
+    const module = (name: string) => pathToFileURL(process.env.ALR_RUNTIME_BUNDLE
+      ? path.join(path.dirname(process.env.ALR_RUNTIME_BUNDLE), `${name}.mjs`)
+      : path.join(config.alr_quote_verifier, `beaver_app/runtime/${name}.ts`)).href;
+    const { alrModel } = await import(module("ai"));
+    const { alrCheckedWorkbook } = await import(module("checkedWorkbook"));
     const run = alrModel(llm.default ?? llm, settings.run_mode, (message: string) => console.error(message));
     const made = await alrCheckedWorkbook(draft.import.filename, draft, check, options, run.model, signal);
     workbook = { filename: made.name, bytes: made.workbook };

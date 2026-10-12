@@ -8,6 +8,7 @@ import path from "node:path";
 const [alr, outdir] = process.argv.slice(2);
 buildSync({
   entryPoints: { operations: path.join(alr, "beaver_app/runtime/operations.ts"),
+    ai: path.join(alr, "beaver_app/runtime/ai.ts"), checkedWorkbook: path.join(alr, "beaver_app/runtime/checkedWorkbook.ts"),
     codexArm: path.join(import.meta.dirname, "codexArm.ts") },
   bundle: true, platform: "node", format: "esm", packages: "external", logLevel: "warning", outExtension: { ".js": ".mjs" },
   tsconfig: path.join(import.meta.dirname, "tsconfig.json"), outdir,
