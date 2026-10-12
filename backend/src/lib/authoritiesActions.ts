@@ -270,6 +270,28 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
     ? match.shortForm?.trim() || null : null };
 }
 
+type ResolvedCitation = { form: string; span: { start: number; end: number }; antecedent?: number; key?: string };
+/** The authority a reference added by hand names, as the engine resolves it reading the brief up to it, its notes
+ *  numbered as the brief numbers them. */
+function referenceTarget(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units"][number],
+  occurrence: AuthorityOccurrence, sources: CitationServices) {
+  let text = "", at = 0;
+  const notes: Array<{ number: number; start: number; end: number }> = [];
+  for (const item of draft.units) {
+    const start = text.length;
+    text += item.text;
+    if (item.kind === "footnote" && typeof item.noteNumber === "number") notes.push({ number: item.noteNumber, start, end: text.length });
+    if (item.id === unit.id) { at = start; break; }
+    text += "\n\n";
+  }
+  const { citations } = structureNative().citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
+    options: { resolve: true, notes } })) as { citations: ResolvedCitation[] };
+  const { start, end } = occurrence.coreSpan;
+  let target = citations.find(({ form, span }) => form !== "full" && span.start < at + end && at + start < span.end);
+  while (target && target.form !== "full") target = target.antecedent === undefined ? undefined : citations[target.antecedent];
+  return target?.key ? knownAuthority(draft, target.key, sources) : null;
+}
+
 function trimmedRange(unit: AuthoritiesDraft["units"][number], start: number, end: number) {
   if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
       start < 0 || end <= start || end > unit.text.length) {
@@ -524,6 +546,11 @@ function addOccurrence(draft: AuthoritiesDraft,
   const { occurrence, discovered } = manualOccurrence(draft, unit, range.start, range.end,
     [], sources);
   if (!occurrence.pinpoints.length) Object.assign(occurrence, followingPinpoints(draft, unit, occurrence, sources));
+  if (occurrence.referenceKind && !occurrence.reference) {
+    const target = referenceTarget(draft, unit, occurrence, sources);
+    if (target) Object.assign(occurrence, { authorityId: target.id,
+      reference: { kind: occurrence.referenceKind, targetAuthorityId: target.id } });
+  }
   // Text the engine reads no citation in names its own authority, keyed as an added authority is,
   // so it is listed, tabbed and tabled like any other.
   const named = discovered ?? (occurrence.authorityId || sources.occurrences(occurrence.text).length ||
