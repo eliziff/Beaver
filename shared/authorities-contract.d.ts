@@ -248,6 +248,7 @@ export type AuthoritiesUserAction =
   | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;
       citation: string; name: string | null }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }
+  | { type: "set-authority-link"; authorityId: string; url: string | null }
   /** The case the brief's name finds is the one meant: the authority takes its citation and keeps
    *  the brief's name. */
   | { type: "use-named-case"; authorityId: string }

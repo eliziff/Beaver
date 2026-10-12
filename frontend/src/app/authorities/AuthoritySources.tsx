@@ -193,7 +193,7 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
   const fileInput = useRef<HTMLInputElement>(null);
   const name = authority.displayName || authority.name || "";
   const nameLabel = authority.kind === "case" ? "Style of cause" : "Title";
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(false), [linking, setLinking] = useState(false);
   const sources = authority.source.kind === "attached" ? authority.source.sources : [];
   const title = authorityName(authority);
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
@@ -254,6 +254,10 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
   const save = (value: string) => { setEditing(false);
     if (value.trim() !== name) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: value.trim() || null }); };
+  // A link the sources found none for, or a better one; written without its scheme, it is a web address.
+  const saveLink = (value: string) => { setLinking(false);
+    const url = value.trim() && (/^https?:\/\//iu.test(value.trim()) ? value.trim() : `https://${value.trim()}`);
+    if ((url || null) !== (authority.sourceUrl ?? null)) onAction({ type: "set-authority-link", authorityId: authority.id, url: url || null }); };
   // A statute in the book as an excerpt or whole, chosen among the row's actions.
   const choose = (excerpt: boolean) => onAction({ type: "set-authority-excerpt", authorityId: authority.id, excerpt });
   const choice = <ActionMenu label={`${title} in the book`} triggerClassName={rowControl}
@@ -288,7 +292,8 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
         row never changes size or moves its actions. */}
     <div className="min-w-0 @min-[44rem]/sources:grid @min-[44rem]/sources:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @min-[44rem]/sources:items-center @min-[44rem]/sources:gap-4">
       <div className={cn("flex min-h-8 min-w-0 items-center gap-1", !subline && !recognition && "@min-[44rem]/sources:col-span-2")}>
-        {editing ? <AuthorityName value={name} label={nameLabel} onSave={save} onCancel={() => setEditing(false)} /> : <>
+        {editing ? <AuthorityName value={name} label={nameLabel} onSave={save} onCancel={() => setEditing(false)} />
+          : linking ? <AuthorityName value={authority.sourceUrl ?? ""} label="Link" onSave={saveLink} onCancel={() => setLinking(false)} /> : <>
           <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name ? italicName ? <i>{name}</i> : name : citationLine}</h3>
           <button type="button" disabled={busy} onClick={edit} aria-label={`Edit ${nameLabel.toLocaleLowerCase()} for ${title}`}
             className="shrink-0 rounded p-1 text-gray-500 opacity-0 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent-600 group-hover/row:opacity-100">
@@ -341,6 +346,7 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-accent-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
+          { label: authority.sourceUrl ? "Change link" : "Add link", disabled: busy, onSelect: () => setLinking(true) },
           // A PDF built from source text in place of the publisher's original asks for the original again.
           ...((publisherUrl || fromText && publisher) && onRetry && authority.sourceDownloadFailure !== "refused"
             ? [{ label: "Retry download", disabled: busy, onSelect: onRetry }] : []),
