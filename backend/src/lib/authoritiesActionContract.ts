@@ -186,6 +186,8 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
       name: nullableText(item.name, 2_000) };
     case "rename-authority": return { type, authorityId: text(item.authorityId),
       displayName: nullableText(item.displayName, 2_000) };
+    case "set-authority-link": return { type, authorityId: text(item.authorityId),
+      url: item.url === null ? null : text(item.url, 8192) };
     case "use-named-case":
     case "keep-cited-case": return { type, authorityId: text(item.authorityId) };
     case "split-occurrence": return { type, occurrenceId: text(item.occurrenceId),

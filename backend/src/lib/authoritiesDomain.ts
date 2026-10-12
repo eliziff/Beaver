@@ -73,6 +73,7 @@ export type AuthoritiesAction =
   | { type: "use-named-case"; authorityId: string }
   | { type: "keep-cited-case"; authorityId: string }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }
+  | { type: "set-authority-link"; authorityId: string; url: string | null }
   | { type: "add-occurrence"; occurrence: AuthorityOccurrence }
   | { type: "split-occurrence"; occurrenceId: string;
       replacements: [AuthorityOccurrence, AuthorityOccurrence] }
@@ -965,6 +966,13 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       requireRecord(draft.authorities, action.authorityId, "authority").displayName =
         action.displayName?.trim() || null;
       break;
+    case "set-authority-link": {
+      const authority = requireRecord(draft.authorities, action.authorityId, "authority"), url = action.url?.trim() || null;
+      if (url !== null && !isObservedSourceUrl(url)) throw new AuthoritiesDomainError("A source link must be a web address.");
+      if (url === null) delete authority.sourceUrl;
+      else authority.sourceUrl = url;
+      break;
+    }
     case "add-occurrence": {
       const item = structuredClone(action.occurrence);
       const unit = draft.units.find(({ id }) => id === item.unitId);
