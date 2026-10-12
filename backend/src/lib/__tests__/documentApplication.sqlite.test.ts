@@ -56,7 +56,8 @@ describe("SQLite and filesystem document adapters", () => {
     process.env.MIKE_LOCAL_DATA_DIR = root;
     process.env.AUTH_MODE = "local";
     const { documents, library, projects } = await localStores();
-    const { saveQuoteCheckWorkbook } = await import("../quoteCheckWorkbook");
+    const [{ saveQuoteCheckWorkbook }, { createAuthoritiesDraft }] = await Promise.all([
+      import("../quoteCheckWorkbook"), import("../authoritiesDomain")]);
     const scope = { userId: "quote-owner" };
     const folder = (await library.createFolder({ ...scope, kind: "file" }, "Research", null))!;
     const project = await projects.create(scope, { name: "Matter", cmNumber: null,
@@ -65,7 +66,8 @@ describe("SQLite and filesystem document adapters", () => {
     for (const placement of [{ folderId: folder.id }, { projectId: project.id }]) {
       const input = await documents.create(scope, { filename: "Draft.txt", fileType: "txt",
         bytes: Buffer.from("No quotations"), ...placement });
-      const report = await saveQuoteCheckWorkbook(documents, scope, input.id, result, undefined, input.current_version_id);
+      const draft = createAuthoritiesDraft({ kind: "manual" });
+      const report = await saveQuoteCheckWorkbook(documents, scope, input.id, draft, result, undefined, input.current_version_id);
       expect(report).toMatchObject({ file_type: "xlsx", project_id: input.project_id, folder_id: input.folder_id });
       expect((await documents.read(scope, report.id, null, false))?.bytes.subarray(0, 2).toString()).toBe("PK");
       const parts = await documents.readParts(scope, report.id, null, ["quote-check-receipt.json"]);

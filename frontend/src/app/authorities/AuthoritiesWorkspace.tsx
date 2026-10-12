@@ -237,6 +237,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // Gathering reports which authority it is on; the step shows it only while someone waits for it,
   // so the citations being reviewed meanwhile are never re-rendered for it.
   const sourcesNote = useRef(""), awaitingSources = useRef(false);
+  // The step Next is moving the draft to while its sources are found: a step looked at meanwhile belongs to it.
+  const movingTo = useRef<Step>(undefined);
   const [sourcesProgress, setSourcesProgress] = useState("");
   const noteSources = useCallback((note: string) => {
     sourcesNote.current = note;
@@ -1100,10 +1102,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   function findSources() {
     if (!draftRef.current) return;
     // Sources still being gathered in the background: Sources opens now, and they arrive in it.
+    movingTo.current = "sources";
     if (sourcesRequest.current && gatheringFor === draftRef.current.id && !edits.current.length) {
       const id = draftRef.current.id;
       void run(() => queuedSave(id, (current) => host.act(current.id, current.revision, { type: "set-stage", stage: "sources" })),
-        adopt, "", "Opening Sources");
+        adopt, "", "Opening Sources").finally(() => { movingTo.current = undefined; });
       return;
     }
     const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
@@ -1127,7 +1130,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       if (prepared !== draftRef.current) adopt(prepared);
       return queuedSave(id, (current) => host.act(current.id, current.revision, { type: "set-stage", stage: "sources" }));
     }, (next) => { adopt(next); if (unavailable) setMessage(unavailable); }, "", "Finding source PDFs").finally(() => {
-      awaitingSources.current = false; setSourcesProgress("");
+      awaitingSources.current = false; setSourcesProgress(""); movingTo.current = undefined;
       if (scanRequest.current === request) scanRequest.current = null;
     });
   }
@@ -1144,7 +1147,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // An earlier step viewed belongs to the step the draft had reached then: once the draft moves,
   // back (an edit) or on (Next), it lapses, and never comes back when the draft returns there.
   const [viewedFor, setViewedFor] = useState(stepKey);
-  if (viewedFor !== stepKey) { setViewedFor(stepKey); if (viewedStep) setViewedStep(undefined); }
+  if (viewedFor !== stepKey) { setViewedFor(stepKey); if (viewedStep && viewedStep.key !== stepKey) setViewedStep(undefined); }
   const stage = app?.embedded?.stage ?? (viewedStep?.key === stepKey ? viewedStep.value : reached);
   // Each source's marks are prepared while Sources or Highlights is on screen, so Highlights opens
   // them at once; never during the review or a build, which would wait behind it.
@@ -1171,7 +1174,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     .map(step => ({ ...step, label: app?.steps[step.value] ?? step.label, disabled: STEPS.findIndex(({ value }) => value === step.value) >
       STEPS.findIndex(({ value }) => value === reached) }));
   // A step's note ("… attached") belongs to that step, so moving on clears it.
-  const viewStep = (value: Step) => { setMessage(""); setViewedStep({ key: stepKey, value }); };
+  const viewStep = (value: Step) => {
+    setMessage(""); setViewedStep({ key: movingTo.current ? `${draft?.id}:${movingTo.current}` : stepKey, value });
+  };
   const advance = (next: Step) => {
     if (STEPS.findIndex(({ value }) => value === next) <= STEPS.findIndex(({ value }) => value === reached)) viewStep(next);
     else { setMessage(""); act({ type: "set-stage", stage: next }); }

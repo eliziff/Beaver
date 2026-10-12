@@ -25,9 +25,9 @@ export function ChatFindingActions({ chatId, messageId, onUseAnswer }: {
     try { await onUseAnswer?.(); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
-  return <div className="my-2 flex flex-wrap items-center gap-2 text-sm">
-    <ResearchReuseActions prepare={prepare} disabled={busy} />
-    {onUseAnswer && <Button variant="outline" size="compact" disabled={busy} onClick={() => void applyAnswer()}>Use as answer</Button>}
-    {error && <p role="alert">{error}</p>}
+  return <div className="flex flex-wrap items-center gap-1 text-sm">
+    <ResearchReuseActions prepare={prepare} disabled={busy} compose={false} variant="ghost" />
+    {onUseAnswer && <Button variant="ghost" size="compact" disabled={busy} onClick={() => void applyAnswer()}>Use as answer</Button>}
+    {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
   </div>;
 }

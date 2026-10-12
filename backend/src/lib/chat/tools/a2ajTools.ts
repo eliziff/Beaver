@@ -1,4 +1,4 @@
-import { readPatterns } from "../resourceTools";
+import { MAX_READ_PATTERNS, readPatterns } from "../resourceTools";
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { collapseProvisionLabels } from "../../provisionLabels";
@@ -24,9 +24,11 @@ const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu;
 function activityLocatorLabel(label: string, kind?: string) {
   const value = label
     .replace(/^\[\s*[a-z]+(?:\s+|=)([^\]]+)\s*\]$/iu, "$1")
-    .replace(/^[a-z]+=/iu, "").trim();
+    .replace(/^[a-z]+=/iu, "").trim()
+    // A receipt's section label is "sec" and the label the source prints: "sec11(1)", "secSchedule 1".
+    .replace(/^sec(?=\p{Lu})/u, "");
   const prefix = kind === "paragraph" ? /^(?:paragraphs?|paras?|par)\.?\s*/iu
-    : kind === "section" ? /^(?:sections?|secs?|ss?|s)\.?\s*/iu
+    : kind === "section" ? /^(?:sections?|secs?|ss?|s)(?![a-z])\.?\s*/iu
       : kind === "page" ? /^(?:pages?|pp?)\.?[\s._=-]*/iu
         : kind === "footnote" ? /^(?:footnotes?|notes?|nn?|fn)\.?[\s._=-]*/iu
           : null;
@@ -42,16 +44,29 @@ function activityLocatorNoun(kind: string, plural: boolean) {
   return plural ? `${kind}s` : kind;
 }
 
+/** A place named as the reader would: "s 11(1)", "paras 4–6", but "Schedule 1", which names its own kind. */
+function locatorPhrase(kind: string, scope: string, plural: boolean) {
+  return /^\p{Lu}\p{Ll}{2,}/u.test(scope) ? scope : `${activityLocatorNoun(kind, plural)} ${scope}`;
+}
+
+/** A structural handle ("sec96", "par12", "page3") as the place it names. */
+function handlePhrase(handle: string) {
+  const match = /^(?:(sec)(?=[\d\p{Lu}])|(par|page)(?=\d))/u.exec(handle), kind = match?.[1] ?? match?.[2];
+  const named = kind === "sec" ? "section" : kind === "par" ? "paragraph" : kind;
+  return named ? locatorPhrase(named, activityLocatorLabel(handle, named), false) : `section ${handle}`;
+}
+
 /** Source identity and requested operations are stable before metadata arrives. */
 export function assistantReadActivity(args: Record<string, unknown>) {
   const resource = trimmedText(args.file_path), reference = parseResourceReference(resource);
   if (resource.length > 8_192 || reference?.kind !== "source" && reference?.kind !== "document") return undefined;
-  const queries = readPatterns(args).slice(0, 8).map(query => query.slice(0, 256));
+  const queries = readPatterns(args).slice(0, MAX_READ_PATTERNS).map(query => query.slice(0, 256));
   if (queries.length) return { resource, queries };
   const kind = trimmedText(args.locator_kind), first = activityLocatorLabel(trimmedText(args.locator), kind),
     last = activityLocatorLabel(trimmedText(args.end_locator), kind);
-  const range = first ? `${activityLocatorNoun(kind, !!last && last !== first)} ${first}${last && last !== first ? `–${last}` : ""}`
-    : args.page ? `page ${args.page}` : args.section ? `section ${activityText(args.section, 100)}`
+  const section = activityText(args.section, 100);
+  const range = first ? locatorPhrase(kind, `${first}${last && last !== first ? `–${last}` : ""}`, !!last && last !== first)
+    : args.page ? `page ${args.page}` : section ? handlePhrase(section)
     : args.offset ? `from line ${args.offset}` : args.start_char != null ? `from character ${args.start_char}` : "";
   return { resource, ...(range && { ranges: [range] }) };
 }
@@ -85,10 +100,25 @@ export function assistantToolActivityLabel(
     // A bare number is an index the model mistook for a file, not a document:
     // "Reading lines 1-5 of 11" names nothing the reader can recognise.
     if (!file || file.startsWith(".mike/") || /^\d+$/u.test(file)) return null;
+    // A reader's ID ends in the slot the Agents panel names it by ("Agent 2").
+    const agent = (value: unknown) => {
+      const slot = typeof value === "string" ? /:(\d+)$/u.exec(value)?.[1] : undefined;
+      return slot ? `Agent ${slot}` : undefined;
+    };
+    const later = Number.isInteger(args.offset) && Number(args.offset) > 1 ? ` from item ${args.offset}` : "";
+    if (file === "readers") {
+      const reader = agent(args.section);
+      return reader ? `Reading ${reader}’s findings` : `Listing reading agents${later}`;
+    }
+    const query = activityText(args.pattern, 80);
+    if (file === "findings") return query ? `Searching saved findings for “${query}”` : `Reading saved findings${later}`;
     const inventory = file === "evidence" ? "saved evidence" : file === "queries"
-      ? "previous searches" : file === "selection" ? "research selection" : null;
-    if (inventory) return `Listing ${inventory} from item ${
-      Number.isInteger(args.offset) && Number(args.offset) > 0 ? args.offset : 1}`;
+      ? "previous searches" : file === "selection" ? "the research selection" : null;
+    if (inventory) {
+      const owner = file === "queries" ? agent(args.section) : undefined;
+      return query ? `Searching ${inventory}${owner ? ` of ${owner}` : ""} for “${query}”`
+        : `Listing ${inventory}${owner ? ` of ${owner}` : ""}${later}`;
+    }
     if (/^e_/u.test(file)) return "Reusing saved evidence";
     if (/^q_/u.test(file)) return "Reading a saved search";
     const resource = parseResourceReference(file);
@@ -120,13 +150,13 @@ export function assistantToolActivityLabel(
       const scope = collapseProvisionLabels([range], kind) ?? [range];
       const plural = scope.length > 1 || /[–—-]/u.test(scope[0]) &&
         !(kind === "section" && /[–—-]\(/u.test(scope[0]));
-      return `Reading ${activityLocatorNoun(kind, plural)} ${scope.join(", ")} of ${title}`;
+      return `Reading ${locatorPhrase(kind, scope.join(", "), plural)} of ${title}`;
     }
     const page = Number.isInteger(args.page) && Number(args.page) > 0
       ? Number(args.page) : 0;
     if (page) return `Reading page ${page} of ${title}`;
     const section = activityText(args.section, 100);
-    if (section) return `Reading section ${section} of ${title}`;
+    if (section) return `Reading ${handlePhrase(section)} of ${title}`;
     const handle = activityText(args.handle, 80);
     if (handle) return `Reading a saved passage of ${title}`;
     const offset = Number.isInteger(args.offset) && Number(args.offset) > 0
@@ -209,7 +239,7 @@ export function assistantReadEvidenceActivityLabel(
   const lastLabel = activityText(labels.at(-1), 80);
   if (!firstLabel || !lastLabel) return `${verb} ${title}`;
   if (first.locator.kind !== last.locator.kind) {
-    return `${verb} ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}`;
+    return `${verb} ${locatorPhrase(first.locator.kind, firstLabel, false)} through ${locatorPhrase(last.locator.kind, lastLabel, false)} of ${title}`;
   }
   const groups = collapseProvisionLabels(labels, first.locator.kind);
   const requested = first.locator.kind === "section" && args.locator_kind === "section" &&
@@ -220,5 +250,5 @@ export function assistantReadEvidenceActivityLabel(
     ? [requested] : groups ?? labels;
   const plural = scope.length > 1 || /[–—-]/u.test(scope[0]) &&
     !(first.locator.kind === "section" && /[–—-]\(/u.test(scope[0]));
-  return `${verb} ${activityLocatorNoun(first.locator.kind, plural)} ${scope.join(", ")} of ${title}`;
+  return `${verb} ${locatorPhrase(first.locator.kind, scope.join(", "), plural)} of ${title}`;
 }

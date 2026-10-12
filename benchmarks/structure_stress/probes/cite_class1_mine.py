@@ -31,10 +31,6 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 CORPUS = Path.home() / "AppData" / "Local" / "ALR Quote Verifier" / "a2aj_corpus"
-CANLII_DB = (
-    Path.home() / "AppData" / "Local" / "ALR Quote Verifier" / "data"
-    / "canlii-186d92f8c0a4.db"
-)
 
 # Deliberately permissive miner.  A "token" starts with a letter (ASCII or
 # Latin-1/Latin-Extended-A accented) and may carry digits, periods, hyphens
@@ -145,7 +141,7 @@ def mine_canlii(db: Path) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", type=Path, default=CORPUS)
-    ap.add_argument("--canlii", type=Path, default=CANLII_DB)
+    ap.add_argument("--canlii", type=Path, help="A CanLII case metadata database (cases: databaseId, caseId, title).")
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--skip-canlii", action="store_true")
     args = ap.parse_args()
@@ -170,7 +166,7 @@ def main() -> int:
 
     out: dict = {"parquet_stats": stats, "buckets": {k: v for k, v in buckets.items()}}
 
-    if not args.skip_canlii and args.canlii.is_file():
+    if not args.skip_canlii and args.canlii and args.canlii.is_file():
         cl = mine_canlii(args.canlii)
         print(f"canlii caseIds={cl['total']} unparsed={cl['unparsed']} "
               f"distinct_slug_codes={len(cl['codes'])}", file=sys.stderr)

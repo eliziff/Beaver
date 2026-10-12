@@ -59,6 +59,15 @@
           "result": "A new Word draft based on the selected precedent, with known facts filled and unresolved fields left open",
           "execution": "assistant",
           "source": "draft-from-template"
+        },
+        {
+          "id": "builtin-add-citation-links",
+          "label": "Add citation links",
+          "result": "A new version of the Word document with each citation linked to its source",
+          "execution": "assistant",
+          "skill_md": "# Add citation links\n\nLink the citations in the selected Word document with document_operation action link_citations. Report how many links were added; the document's text is otherwise unchanged.",
+          "columns_config": null,
+          "description": "Links each citation in a Word document to its source, at the cited paragraph or section where the source has one, as a new version of the document."
         }
       ]
     }

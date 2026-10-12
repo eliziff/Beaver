@@ -22,6 +22,10 @@ const tool = (
 });
 
 const resource = "A version-pinned document resource or current-turn draft handle.";
+/** Not a cost limit: max_results and the result's character budget bound what a search returns, and each phrase is one
+ *  scan of text already held. Each phrase is kept as its own search in the turn's history, so a list stays bounded. */
+export const MAX_READ_PATTERNS = 50;
+const READ_WORKSPACE_GUIDE = " List selected inputs with file_path selection, or saved chat and table results with findings (pattern filters their questions and answers). Batch selected findings with finding_refs to read their text and shared exact support once.";
 
 export const RESOURCE_TOOLS = [
   tool(
@@ -70,7 +74,7 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    "Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To search a legal source you already hold, batch independent phrases in patterns (one source fetch); use pattern for a single phrase, not another corpus search. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. Read reader findings with file_path readers and section=reader_id. Search prior work on demand with file_path queries, pattern=term and optionally section=source_resource or reader_id; zero matches describe only that search, not semantic absence. List prior evidence with file_path evidence, selected inputs with selection, or saved chat and table results with findings (pattern filters their questions and answers). Batch selected findings with finding_refs to read their text and shared exact support once. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
+    `Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To search a legal source you already hold, batch independent phrases in patterns (one source fetch); use pattern for a single phrase, not another corpus search. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. Read reader findings with file_path readers and section=reader_id. Search prior work on demand with file_path queries, pattern=term and optionally section=source_resource or reader_id; zero matches describe only that search, not semantic absence. List prior evidence with file_path evidence.${READ_WORKSPACE_GUIDE} Use drafting for semantic DOCX Markdown or redline for editorial markup.`,
     {
       file_path: {
         type: "string",
@@ -112,11 +116,12 @@ export const RESOURCE_TOOLS = [
         maxLength: 256,
         description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. Or an exact support ID from findings; with queries, filter saved query text; with findings and no section, filter saved questions and answers.",
       },
-      patterns: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true,
+      patterns: { type: "array", minItems: 1, maxItems: MAX_READ_PATTERNS, uniqueItems: true,
         items: { type: "string", minLength: 1, maxLength: 256 },
-        description: "Literal phrases to search together in one public legal source. Use instead of pattern; max_results bounds all returned hits together. Each query retains its own counts and truncation flag." },
+        description: `Up to ${MAX_READ_PATTERNS} literal phrases to search together in one public legal source. Use instead of pattern; max_results bounds all returned hits together. Each query retains its own counts and truncation flag.` },
       max_results: { type: "integer", minimum: 1, maximum: 50 },
-      context_chars: { type: "integer", minimum: 40, maximum: 2000 },
+      context_chars: { type: "integer", minimum: 0, maximum: 100_000,
+        description: "Characters of source text around each pattern hit; read as 40 to 2000." },
     },
     ["file_path"],
   ),
@@ -137,6 +142,21 @@ export const RESOURCE_TOOLS = [
     false,
   ),
 ] satisfies Tool[];
+
+/** Read as a turn offers it: selection and findings exist only in a research workspace, so a turn without one is not
+ *  told to read them. */
+export function readToolFor(workspace: boolean): Tool {
+  const read = RESOURCE_TOOLS.find(({ name }) => name === "Read")!;
+  if (workspace) return read;
+  const { finding_refs: _findingRefs, ...properties } = read.inputSchema.properties as Record<string, object>;
+  return { ...read,
+    description: read.description!.replace(READ_WORKSPACE_GUIDE, ""),
+    inputSchema: { ...read.inputSchema, properties: { ...properties,
+      file_path: { ...properties.file_path, description: "Resource from Glob or search_sources, a saved evidence_id or query_id, or readers/queries." },
+      section: { type: "string", description: "Exact structural handle or a reader ID. With queries, filter by reader ID or source resource." },
+      pattern: { ...properties.pattern, description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. With queries, filter saved query text." },
+    } } };
+}
 
 export function readPatterns(args: Record<string, unknown>): string[] {
   return [...new Map((Array.isArray(args.patterns) ? args.patterns : [args.pattern])

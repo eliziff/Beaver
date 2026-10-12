@@ -209,12 +209,11 @@ export function frontActions(state: AuthoritiesProduct["state"], cover: Authorit
 }
 
 /** The book the cover and index previews are drawn from: seven made-up authorities in three groups,
- *  so the index shows every kind of entry whatever the brief cites, and nothing waits for the brief. The
- *  Beaver server draws only a saved draft's front, so there the preview is the draft's own. */
+ *  so the index shows every kind of entry whatever the brief cites, and nothing waits for the brief.
+ *  It is never saved (revision 0). */
 const PREVIEW_BOOK: AuthoritiesProduct = { id: "preview", kind: "authorities", title: "Book of Authorities",
   projectId: null, revision: 0, state: previewState as unknown as AuthoritiesDraft, outputs: {}, createdAt: "", updatedAt: "" };
-export const previewBook = (host: AuthoritiesHost, draft?: AuthoritiesProduct) =>
-  host.mode === "standalone" ? PREVIEW_BOOK : draft;
+export const previewBook = () => PREVIEW_BOOK;
 /** The changes that make the preview book's front the one chosen: the court, the settings named, the cover. */
 export function previewActions(state: AuthoritiesProduct["state"], profileId: AuthoritiesProfileId, settings: Settings,
   cover: AuthoritiesCover, keys: readonly (keyof Settings)[]): AuthoritiesAction[] {
@@ -259,7 +258,7 @@ let warmed = false;
 /** Draws the preview book's front once while the page is idle, so the runtime that draws previews is
  *  ready before the first one is wanted. */
 export function warmFrontPreviews(host: AuthoritiesHost) {
-  if (warmed || host.mode !== "standalone" || !host.bookFront) return;
+  if (warmed || !host.bookFront) return;
   warmed = true;
   const draw = () => void host.bookFront!(PREVIEW_BOOK, []).catch(() => undefined);
   if ("requestIdleCallback" in window) window.requestIdleCallback(draw, { timeout: 3000 }); else setTimeout(draw, 1000);

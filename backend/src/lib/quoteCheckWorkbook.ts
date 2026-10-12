@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import type { checkQuotes } from "./quoteCheck";
+import type { AuthoritiesDraft } from "./authoritiesDomain";
 import type { DocumentScope, DocumentStore } from "./documentStore";
 import { escapeXmlText } from "./text";
 import { reject } from "./applicationError";
@@ -9,17 +10,6 @@ type Result = Awaited<ReturnType<typeof checkQuotes>>;
 export type QuoteAnalysis = Record<string, string>;
 const json = (value: unknown) => JSON.stringify(value ?? null);
 const isIncompleteCheck = (result: Result) => result.quotes.length < result.total || result.mode.includes("incomplete");
-// Excel limits a cell to 32,767 characters. Continuation rows retain the complete value.
-function chunks(value: string, limit = 30_000): string[] {
-  const result: string[] = [];
-  for (let offset = 0; offset < value.length;) {
-    let end = Math.min(offset + limit, value.length);
-    if (end < value.length && /[\uDC00-\uDFFF]/u.test(value[end])) end--;
-    result.push(value.slice(offset, end)); offset = end;
-  }
-  return result.length ? result : [""];
-}
-
 /** A run of differently formatted text in one cell; `font` is the run's rPr content. */
 export type XlsxRun = { text: string; font: string };
 export type XlsxCell = { value: string | number; style?: number; link?: string; runs?: XlsxRun[] };
@@ -111,121 +101,16 @@ export async function styledXlsx(title: string, sheets: XlsxSheet[], styles: Xls
   return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
 }
 
-/** ALR's display order: draft context and citation beside the checked source; diagnostics remain secondary. */
-export async function quoteCheckWorkbook(filename: string, result: Result, analysis?: QuoteAnalysis) {
-  const incomplete = isIncompleteCheck(result);
-  const mode = result.mode.startsWith("mechanical") ? "Mechanical quotation check"
-    : result.mode.startsWith("assisted") ? "Quotation check with explicit citation links" : result.mode;
-  const known = new Set(result.quotes.map(({ id }) => id));
-  if (analysis && Object.entries(analysis).some(([id, text]) => !known.has(id) || typeof text !== "string"))
-    reject(400, "Explanations must refer to quotation IDs in this check.");
-  const statuses: Record<string, string> = { verified: "Text verified", mismatch: "Text differs",
-    unresolved: "Citation needed", unavailable: "Source unavailable" };
-  // One entry per cited source a quotation was checked against, each with that source's own result.
-  const display = result.quotes.flatMap((quote, index) => quote.checks.flatMap((check) => {
-    const { source, locator, comparison } = check.receipt ?? {};
-    const candidate = quote.candidates.find(({ id }) => id === check.candidateId);
-    const location = locator ? `${locator.kind[0].toUpperCase()}${locator.kind.slice(1)} ${locator.value}${locator.endValue ? `–${locator.endValue}` : ""}` : "";
-    const citation = [...new Set([source?.title, source?.citation,
-      !source ? candidate?.citation ?? "" : "", location].filter(Boolean))].join("\n");
-    const context = quote.context.includes(quote.quote) ? quote.context : `${quote.context}\n\n${quote.quote}`;
-    const changes = comparison?.changes.map(({ kind, authored, source }) =>
-      `${kind === "insert" ? "Source includes" : kind === "delete" ? "Draft adds" : "Changed"}: ${authored ? `“${authored}”` : ""}${authored && source ? " → " : ""}${source ? `“${source}”` : ""}`).join("\n") ?? "";
-    const sourceText = comparison?.candidate ? `${comparison.candidateOnly ? "Closest candidate — not a verified match\n\n" : ""}${comparison.candidate}${changes ? `\n\n${changes}` : ""}`
-      : "No source comparison available.";
-    const values = [quote.pageNumbers.length ? `Page ${quote.pageNumbers.join(", ")}` : "—", context,
-      citation || "No linked citation", `${statuses[check.status] ?? check.status}\n\n${check.detail}`,
-      sourceText, ...(analysis ? [analysis[quote.id] ?? ""] : [])].map((value) => chunks(value, 1200));
-    return Array.from({ length: Math.max(...values.map((value) => value.length)) }, (_, part) => ({
-      quote, check, part, values: [String(index + 1), ...values.map((value) => value[part] ?? "")],
-    }));
-  }));
-  const receiptRows = result.quotes.flatMap((quote, quoteIndex) => chunks(json(quote)).map((text, index) =>
-    [String(quoteIndex + 1), quote.id, String(index + 1), text]));
-  const tables = [{ name: "Quote check", columns: ["Quote", "Draft location", "Quotation and context", "Citation",
-    incomplete ? "Mechanical result — incomplete" : "Mechanical result", "Source comparison", ...(analysis ? ["AI analysis"] : [])],
-    widths: [8, 13, 64, 38, 27, 64, ...(analysis ? [54] : [])], rows: display.map(({ values }) => values) },
-    { name: "Summary", columns: ["Quote check", filename], widths: [27, 85], rows: [
-      ["Mode", `${mode}${incomplete ? " — incomplete" : ""}`],
-      ["Total quotations", String(result.total)], ["Checked quotations", String(result.quotes.length)],
-      ...Object.entries(result.counts).map(([status, count]) => [statuses[status] ?? status, String(count)]),
-      ["Reading the report", "Read the draft context and linked citation beside the source comparison. Red and green text identifies changed draft and source words. Repeated quote numbers continue a long entry."],
-      ["Scope", "Text comparison does not establish whether a proposition or argument is supported. AI analysis, when present, is separate from the mechanical findings."],
-      ["Complete evidence", "Unhide Evidence and Citation units for complete receipts and citation-splitter data. Join Part rows in order for long JSON records."]] },
-    { name: "Evidence", columns: ["Quote", "Quote ID", "Part", "Exact receipt JSON"], widths: [8, 30, 8, 100], rows: receiptRows },
-    { name: "Citation units", columns: ["Unit ID", "Part", "Exact splitter JSON"], widths: [30, 8, 100],
-      rows: result.citationUnits.flatMap((unit) => chunks(json(unit)).map((text, index) =>
-        [unit.unitId, String(index + 1), text])) }];
-  const statusStyles: Record<string, number> = { verified: 6, mismatch: 7, unresolved: 8, unavailable: 9 };
-  const colors = ["FFFFFF", "F6F7F8", "17212B", "E7F3EA", "FCEAEC", "FFF3D6", "EEF0F3"];
-  const font = (color: string, extra = "") => `<font><sz val="11"/><color rgb="FF${color}"/><name val="Arial"/>${extra}</font>`;
-  const xf = (fontId: number, fillId: number, center = false) =>
-    `<xf numFmtId="0" fontId="${fontId}" fillId="${fillId}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="${center ? "center" : "top"}"${center ? ' horizontal="center"' : ""} wrapText="1"/></xf>`;
-  // Styles: body, alternate, heading, identifier, link, alternate link, verified, differs, unresolved, unavailable.
-  const styles: XlsxStyles = { fills: colors, fonts: [font("263341"), font("FFFFFF", "<b/>"), font("263341", "<b/>"),
-    font("245785", '<u val="single"/>'), font("1F603D", "<b/>"), font("9B2432", "<b/>"), font("795A13", "<b/>")],
-    cellXfs: [xf(0, 2), xf(0, 3), xf(1, 4, true), xf(2, 3, true), xf(3, 2), xf(3, 3), xf(4, 5), xf(5, 6), xf(6, 7), xf(0, 8)] };
-  type Span = { start: number; end: number; color: string; strike?: boolean };
-  const runs = (text: string, spans: Span[]) => {
-    if (!spans.length) return undefined;
-    const out: XlsxRun[] = [];
-    let cursor = 0;
-    for (const span of spans.sort((a, b) => a.start - b.start)) {
-      if (span.start < cursor) continue;
-      out.push({ text: text.slice(cursor, span.start), font: "" },
-        { text: text.slice(span.start, span.end), font: `<b/><color rgb="FF${span.color}"/>${span.strike ? "<strike/>" : ""}` });
-      cursor = span.end;
-    }
-    out.push({ text: text.slice(cursor), font: "" });
-    return out;
-  };
-  const sheets = tables.map((table, index): XlsxSheet => {
-    const height = (values?: string[]) => {
-      const lines = values ? Math.max(...values.map((value, col) => value.split("\n").reduce((sum, line) =>
-        sum + Math.max(1, Math.ceil(line.length / (table.widths[col] - 3))), 0))) : 1;
-      return Math.min(409, Math.max(index === 0 ? 86 : 30, lines * 14 + 14));
-    };
-    const rows = table.rows.map((values, rowIndex): XlsxCell[] => {
-      const entry = index === 0 ? display[rowIndex] : undefined;
-      const alternate = entry ? Number(entry.values[0]) % 2 === 0 : (rowIndex + 2) % 2 === 0;
-      return values.map((value, column): XlsxCell => {
-        const cell: XlsxCell = { value, style: alternate ? 1 : 0 };
-        if (!entry) return cell;
-        const { quote, check, part } = entry, url = check.receipt?.source.url;
-        if (column === 0) cell.style = 3;
-        if (column === 3 && url) { cell.style = alternate ? 5 : 4; if (!part && /^https?:\/\//iu.test(url)) cell.link = url; }
-        if (column === 4) cell.style = statusStyles[check.status] ?? 0;
-        if (column === 2) {
-          const at = value.indexOf(quote.quote);
-          if (at >= 0 && quote.quote) cell.runs = runs(value, [{ start: at, end: at + quote.quote.length, color: "A34E13" }]);
-        }
-        if (column === 5) {
-          const spans: Span[] = [];
-          for (const change of check.receipt?.comparison?.changes ?? []) {
-            for (const [text, color, strike] of [[change.authored, "9B2432", true], [change.source, "1F603D", false]] as const) {
-              const start = value.lastIndexOf(`“${text}”`);
-              if (text && start >= 0) spans.push({ start, end: start + text.length + 2, color, strike });
-            }
-          }
-          cell.runs = runs(value, spans);
-        }
-        return cell;
-      });
-    });
-    return { name: table.name, rows: [table.columns.map((value) => ({ value, style: 2 })), ...rows], widths: table.widths,
-      frozenHeader: index !== 1, view: ' showGridLines="0" zoomScale="85"',
-      heights: [34, ...table.rows.map((values) => height(values))], autoFilter: index === 0, hidden: index >= 2 };
-  });
-  return Buffer.from(await styledXlsx(`${filename} — Quote check`, sheets, styles));
-}
-
+/** A quote check's "[CHECKED]" workbook (the verifier's: quoteVerification/checkedWorkbook.ts), saved beside its input
+ *  with the check's receipt. */
 export async function saveQuoteCheckWorkbook(documents: Pick<DocumentStore, "metadata" | "create">,
-  scope: DocumentScope, inputDocumentId: string, result: Result, analysis?: QuoteAnalysis, inputVersionId?: string) {
+  scope: DocumentScope, inputDocumentId: string, draft: AuthoritiesDraft, result: Result, analysis?: QuoteAnalysis,
+  inputVersionId?: string, signal?: AbortSignal) {
   const input = await documents.metadata(scope, inputDocumentId) ?? reject(404, "The input document is no longer available.");
-  const filename = `${input.filename.replace(/\.[^.]+$/u, "")} — Quote check${isIncompleteCheck(result) ? " (incomplete)" : ""}.xlsx`;
-  return documents.create(scope, { filename, fileType: "xlsx",
-    projectId: input.project_id, folderId: input.folder_id,
-    bytes: await quoteCheckWorkbook(input.filename, result, analysis),
+  const { verificationResults } = await import("./quoteVerification/verifier");
+  const written = await verificationResults(input.filename, draft, result, { options: analysis ? { analysis } : {}, signal });
+  return documents.create(scope, { filename: isIncompleteCheck(result) ? written.name.replace(/\.xlsx$/u, " (incomplete).xlsx") : written.name,
+    fileType: "xlsx", projectId: input.project_id, folderId: input.folder_id, bytes: Buffer.from(written.workbook),
     parts: [{ name: "quote-check-receipt.json", bytes: Buffer.from(json({ inputDocumentId,
       inputVersionId, result, ...(analysis ? { analysis } : {}) })) }],
   });

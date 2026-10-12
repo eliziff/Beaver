@@ -92,8 +92,7 @@ is absent. Keeping party order costs 3 of 133 ALR items, for example "R v Rabey"
   gold-corrected citation) and `fast_split_gold_all.jsonl` (accepted parts). These are Alberta Law
   Review footnotes, read in place (`ALR_QUOTE_VERIFIER_ROOT`) and not copied, as in
   `benchmarks/authorities-split`.
-- **CanLII case metadata**: `%LOCALAPPDATA%\ALR Quote Verifier\data\canlii-186d92f8c0a4.db`
-  (`CANLII_CASES_DB`), 3,538,714 rows of databaseId, caseId and title. It gives CanLII's style of
+- **CanLII case metadata**: a local database named by `CANLII_CASES_DB`, with rows of databaseId, caseId and title. It gives CanLII's style of
   cause for every neutral-cited decision and for the pre-neutral CanLII-id population.
 - **Live A2AJ**: 6 requests in total, made one at a time by hand, recorded verbatim. They concern
   citations from a private document, so they stay local in the ignored `results/recordings/`

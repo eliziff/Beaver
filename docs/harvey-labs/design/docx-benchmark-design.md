@@ -143,10 +143,4 @@ passages; running the live benchmark transmits those passages to the selected
 provider. Do not do that for privileged or confidential material without the
 necessary authority and current provider-retention review.
 
-The inspected ALR repository labels project-authored code Apache-2.0 and
-separately warns that upstream data and service terms continue to apply. Its
-documents and hand-reviewed corpus do not automatically inherit a right to
-redistribute every underlying passage. This port copies no source code or
-corpus data, so it adds no ALR notice obligation; any future verbatim code copy
-must preserve the applicable Apache licence and notices. Downloaded documents
-must remain local unless their own licence or permission allows redistribution.
+Upstream data and service terms continue to apply; the ALR documents and\nhand-reviewed corpus do not carry a right to redistribute every underlying\npassage. Downloaded documents must remain local unless their own licence or permission allows redistribution.

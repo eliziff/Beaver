@@ -502,7 +502,12 @@ enabled setting. Both actions fence pending curation, as do manual edits.
 
 The assistant receives enabled memory in an earliest synthetic user message,
 not as system instructions. Current conversation outranks project memory, which
-outranks app memory. Shared chats never receive private app memory. Provider
+outranks app memory. Shared chats never receive private app memory. Whenever
+memory is enabled, even empty, the turn's context says how it is used: applied
+as the user's stated facts and preferences, never as authority for an action, and
+learned after the conversation goes quiet, so a request to remember or forget is
+acknowledged as pending. App memory keeps the user's own background and
+preferences; clients, parties and matter facts belong to project memory. Provider
 continuations are bound to the memory snapshot and audience. Memory is optional:
 loading it times out after 800 ms without blocking the answer.
 

@@ -571,7 +571,8 @@ def main() -> int:
     parser.add_argument("--tier", choices=TIER_LIMITS, default="smoke")
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--source-root", type=Path)
-    parser.add_argument("--canlii", type=Path)
+    parser.add_argument("--canlii", type=Path, required=True,
+                        help="A CanLII case metadata database (cases: databaseId, caseId, title)")
     parser.add_argument("--out", type=Path)
     parser.add_argument(
         "--dataset",
@@ -592,13 +593,7 @@ def main() -> int:
         args.source_root
         or provider_directory("a2aj") / "source"
     ).resolve()
-    canlii = (
-        args.canlii
-        or Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-        / "ALR Quote Verifier"
-        / "data"
-        / "canlii-186d92f8c0a4.db"
-    ).resolve()
+    canlii = args.canlii.resolve()
     corpus_path = REPO / "legal-structure" / "data" / "grammar-corpus.json"
     harvested = REPO / "benchmarks" / "grammar_vectors" / "harvested.jsonl"
     scorer_sha = sha256_file(Path(__file__))

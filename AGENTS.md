@@ -41,6 +41,9 @@ the latter owns project priorities and remaining gates.
   origin stays `unknown`. `machine_test` identifies the submission, not whether
   its contents are synthetic or permitted for publication.
   Keep live-test app data and provider history separate from ordinary user data.
+- Agents are not allowed to write license files unless explicitly requested to do
+  so; and even then it should only be for true third party software, not
+  cross-attribution of the maintainer's own repositories.
 - Use repository-relative paths or runtime configuration and GitHub noreply
   attribution. Raw requests, histories, documents and receipts stay in ignored
   `.tmp/` or private storage. Preserve third-party licenses and public-source credit.

@@ -4,7 +4,8 @@ import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import type { DocumentStore } from "../lib/documentStore";
 import { createAuthoritiesImporter } from "../lib/authoritiesImport";
-import { checkQuotes, quoteCheckCounts, type QuoteResult } from "../lib/quoteCheck";
+import { quoteCheckCounts, type QuoteResult } from "../lib/quoteCheck";
+import { verifyQuotations, type QuoteVerification } from "../lib/quoteVerification/verifier";
 import { saveQuoteCheckWorkbook } from "../lib/quoteCheckWorkbook";
 
 export function createQuoteCheckRouter(documents: DocumentStore) {
@@ -23,18 +24,18 @@ export function createQuoteCheckRouter(documents: DocumentStore) {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache"); res.flushHeaders();
     const completedQuotes: QuoteResult[] = [];
-    let citationUnits: Awaited<ReturnType<typeof checkQuotes>>["citationUnits"] = [];
+    let citationUnits: QuoteVerification["citationUnits"] = [];
     let total = 0;
     try {
-      const report = await checkQuotes(draft, [], abort.signal, (completed, count, quote, units) => {
+      const report = await verifyQuotations(draft, { signal: abort.signal, progress: (completed, count, quote, units) => {
         citationUnits = units ?? [];
         completedQuotes.push(quote); total = count;
         res.write(`data: ${JSON.stringify({ quote, completed, total })}\n\n`);
-      });
-      const workbook = await saveQuoteCheckWorkbook(documents, scope, id, report, undefined, source.versionId);
+      } });
+      const workbook = await saveQuoteCheckWorkbook(documents, scope, id, draft, report, undefined, source.versionId);
       res.write(`data: ${JSON.stringify({ done: true, counts: report.counts, total: report.total, workbook })}\n\n`);
     } catch (error) {
-      const workbook = completedQuotes.length ? await saveQuoteCheckWorkbook(documents, scope, id, {
+      const workbook = completedQuotes.length ? await saveQuoteCheckWorkbook(documents, scope, id, draft, {
         mode: "mechanical — incomplete", total, quotes: completedQuotes, citationUnits,
         counts: quoteCheckCounts(completedQuotes),
       }, undefined, source.versionId) : null;

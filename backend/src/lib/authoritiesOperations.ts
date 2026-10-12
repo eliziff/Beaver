@@ -4,30 +4,28 @@ import { documentProjectionService } from "./documentProjectionService";
 import { docxToPdf, wordToPdfAvailable } from "./convert";
 import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
-import { authoritiesBookFront, authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations,
-  statuteExcerptPageCounts, statuteExcerptSummary, type AuthoritiesBuildInput } from "./authoritiesBuild";
+import { statuteExcerptPageCounts, statuteExcerptSummary } from "./authoritiesBuild";
 import { sourceReadings } from "./sourceReadings";
-import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
+import { mapAuthorityBookBytes } from "mike/shared/runtime/authoritiesBook.mjs";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
-  reduceAuthoritiesDraft, type AuthoritiesDraft } from "./authoritiesDomain";
+  type AuthoritiesDraft } from "./authoritiesDomain";
 import { importStandaloneAuthoritiesFile } from "./authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
-import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
-  authorityPdfCaption, attachAuthoritiesBookPdf, authoritiesReview, folderPdfAuthority, readPinpoints } from "./authoritiesActions";
-import { validateAuthoritiesPdf } from "./authoritiesPdf";
-import { authorityReferenceText, authorityStatuteText, resolveAuthoritiesSources, retryableAuthoritySource,
+import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, folderPdfAuthority,
+  readPinpoints } from "./authoritiesActions";
+import { authorityReferenceText, authorityStatuteText, resolveAuthoritiesSources,
   type PreparedAuthoritySource } from "./authoritiesSourceResolution";
 import { authoritiesSourceText, createAuthoritiesPreparation, prepareAuthoritiesCorrection } from
   "./authoritiesPreparation";
+import { attachAuthorityFile, attachBookFile, authoritiesBookFrontPdf, authorityAnnotations, buildAuthoritiesDraft,
+  correctedAuthoritiesDraft, gatherAuthoritySources, refreshedAuthoritiesDraft, type KeptPdf } from "./authoritiesCore";
 import { sha256 } from "./hash";
-import { sourcePageLabels } from "./authoritiesPageLabels";
-import { mapBounded } from "./mapBounded";
-import { checkQuotes, decodeQuoteLinks } from "./quoteCheck";
-import { carriedLinks, linkPropagationTargets } from "./authoritiesLinkPropagation";
-import type { NativeDocument } from "./structureNative";
-import { FOREIGN_CASE_PROVIDERS, type LegalSourcePassageRequest, type LegalSourceReference,
-  type LegalSourceResolveRequest } from "./legalSources";
-import { legalSourceOperations } from "./legalSourceApplication";
+import { decodeQuoteLinks } from "./quoteCheck";
+import { attachedSourceDocuments, verificationResults, verifyQuotations, writeVerifiedWordCopy,
+  type QuoteVerification } from "./quoteVerification/verifier";
+import type { AlrModel, AlrWorkbookOptions } from "./quoteVerification/checkedWorkbook";
+import type { WordCitation, WordCopy, WordResult } from "./quoteVerification/wordResult";
+import { linkPropagationTargets } from "./authoritiesLinkPropagation";
 import { withSqliteRun } from "./legalDataPath";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
   decodeAuthoritiesUserAction, decodePdfOpening, text } from "./authoritiesActionContract";
@@ -59,34 +57,9 @@ function initialSettings(value: unknown) {
   );
 }
 
-async function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAuthoritySource[],
-  progress?: (message: string) => void) {
-  let draft = state;
-  for (const attachment of attachments) if (sha256(attachment.bytes) !== attachment.sourceSha256) {
-    reject(500, "Prepared authority source hash is invalid");
-  }
-  // A publisher's original prints its own page numbers; a reconstruction's are its PDF pages. Reading them reads the
-  // whole PDF, so a few are read at once, and the step says which it is reading.
-  const originals = attachments.filter(({ origin }) => origin === "original");
-  const labels = new Map<PreparedAuthoritySource, Array<string | null>>();
-  let read = 0;
-  await mapBounded(originals, async (attachment) => {
-    progress?.(`Reading the page numbers of ${attachment.filename.replace(/\.pdf$/iu, "")} · ${read + 1} of ${originals.length}`);
-    labels.set(attachment, await sourcePageLabels(state, attachment.authorityId, attachment, attachment.bytes));
-    read += 1;
-  }, 3);
-  for (const attachment of attachments) {
-    const pageLabels = labels.get(attachment);
-    draft = attachAuthorityPdf(draft, draft.authorities[attachment.authorityId],
-      { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
-        lastSeen: { name: attachment.filename, size: attachment.bytes.length,
-          modified: 0, sha256: attachment.sourceSha256 } },
-      // Its length is kept with it as every other attachment's is: a preview of the book counts its pages by it.
-      attachment.filename, attachment.sourceSha256, attachment.language, { ...attachment, pageLabels,
-        pageCount: attachment.pageCount ?? pageLabels?.length ?? await validateAuthoritiesPdf(attachment.bytes) });
-  }
-  return draft;
-}
+/** The page keeps every PDF it is handed; here a PDF is known by its hash until the page binds its kept copy. */
+const keptByPage = (filename: string, bytes: Uint8Array, sourceSha256: string, handleId: string): KeptPdf => ({
+  binding: { kind: "local-file", handleId, lastSeen: { name: filename, size: bytes.length, modified: 0, sha256: sourceSha256 } } });
 
 
 import type { AuthoritiesOperationInput, AuthoritiesRuntimeFile, AuthoritiesRuntimeResult } from "mike/shared/runtime/authoritiesRuntime.mjs";
@@ -108,8 +81,14 @@ function inRuns<T extends Record<string, (...args: any[]) => Promise<unknown>>>(
     [name, (...args: unknown[]) => withSqliteRun(() => operation(...args))])) as T;
 }
 type OperationContext = { signal: AbortSignal; progress?: (message: string) => void; quoteProgress?: (value: unknown) => void };
+/** An app's AI run mode for the verifier, from the request it was sent (an app that connects models supplies one). */
+export type VerifierModel = (request: unknown, progress: (message: string) => void) =>
+  { model: AlrModel; stats: unknown } | null;
+const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export function createAuthoritiesOperations(resolveSources: typeof resolveAuthoritiesSources = resolveAuthoritiesSources,
-  reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies) {
+  reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
+  verifierModel: VerifierModel = () => null) {
   const readings = sourceReadings();
   return inRuns({
     capabilities: async () => value({ wordToPdf: wordToPdfAvailable() }),
@@ -117,40 +96,47 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       const state = draft(json(input.draft, "draft")), files = input.files ?? [];
       const roles = json(input.roles ?? "[]", "roles");
       if (!Array.isArray(roles) || roles.length !== files.length) reject(400, "Each attached PDF needs its source role");
-      // A PDF the user attached for an authority is the text its quotations are checked against.
-      const attached = new Map<string, { document: NativeDocument; source: LegalSourceReference }>();
-      for (const [index, file] of files.entries()) {
-        const bytes = sourceBytes(file), digest = sha256(bytes);
-        const authority = Object.values(state.authorities).find((item) => attachedAuthoritySources(item.source)
-          .some((source) => source.bindingRole === roles[index] && source.sourceSha256 === digest));
-        if (!authority) return reject(409, "An attached PDF changed. Add the current file before continuing.");
-        const pdf = attachedAuthoritySources(authority.source).find((source) => source.bindingRole === roles[index])!;
-        attached.set(authority.id, { document: await documentProjectionService.read({ documentId: `standalone-authority:${digest}`,
-          versionId: digest, sourceSha256: digest, fileType: "pdf", readBytes: () => bytes }, { signal: context.signal }),
-        source: { provider: "attached", id: digest, kind: authority.kind === "legislation" ? "legislation" : "case",
-          citation: authority.citation, title: authority.displayName ?? authority.name, url: pdf.sourceUrl } });
-      }
-      // A draft that leaves out US and UK decisions has its quotations checked without them too, and a check may
-      // leave out other providers (`excludedProviders`, such as "a2aj").
       const asked = json(input.excludedProviders ?? "[]", "excludedProviders");
       if (!Array.isArray(asked)) reject(400, "excludedProviders must be a list");
-      const excluded = new Set([...state.settings.foreignCaseLookup === false ? FOREIGN_CASE_PROVIDERS : [],
-        ...(asked as unknown[]).map(String)]);
-      const providers = excluded.size ? legalSourceOperations.providerIds.filter((id) => !excluded.has(id)) : undefined;
-      // discoverPdfs false: no publisher's PDF is looked for (a caller that links to the providers' pages).
-      const discoverPdf = input.discoverPdfs === false ? false : undefined;
-      const sources = (providers || discoverPdf === false) ? { ...legalSourceOperations,
-        resolve: (request: LegalSourceResolveRequest) => legalSourceOperations.resolve({ ...request, providers, discoverPdf }),
-        readPassage: (request: LegalSourcePassageRequest) => legalSourceOperations.readPassage({ ...request, discoverPdf }) }
-        : undefined;
-      return { data: await checkQuotes(state, decodeQuoteLinks(input.links), context.signal,
-        (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }), sources, undefined, attached,
-        // Authorities checks a quotation against its note's first citation only, or the one linked to it;
-        // allCitations checks it against every source the note cites.
-        // quoteContext "sentence" checks only the quotations in the sentence a note's marker ends or stands in;
-        // quotations "text" checks only the text's quotations, none a note holds.
-        { firstCitationOnly: input.allCitations !== true, quoteContext: input.quoteContext === "sentence" ? "sentence" : "passage",
-          textOnly: input.quotations === "text", compare: input.compare !== false }) };
+      // The verifier's check: each option a caller leaves out is the verifier's own (quoteVerification/verifier.ts).
+      return { data: await verifyQuotations(state, { links: decodeQuoteLinks(input.links), signal: context.signal,
+        attached: await attachedSourceDocuments(state, files.map((file, index) => ({ role: String(roles[index]), bytes: file.bytes })),
+          context.signal, true),
+        excludedProviders: (asked as unknown[]).map(String),
+        ...(input.discoverPdfs === true ? { discoverPdfs: true } : {}),
+        ...(input.allCitations === false ? { allCitations: false } : {}),
+        quoteContext: input.quoteContext === "sentence" ? "sentence" : "passage",
+        ...(input.quotations === "text" ? { quotations: "text" as const } : {}),
+        compare: input.compare !== false,
+        progress: (completed, total, quote) => context.quoteProgress?.({ completed, total, quote }) }) };
+    },
+    // A check's "[CHECKED]" workbook, in free mode or the app's AI run mode, and its results on the document's text.
+    // The PDFs attached for authorities (`sources`, each with its role; one that no longer matches is left out) give a
+    // decision's pinpointed link its passage.
+    "verify-workbook": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
+      const state = draft(input.draft);
+      if (state.import.kind !== "document") reject(400, "The draft has no imported document.");
+      const citation = input.wordCitation ?? "first";
+      if (citation !== "first" && citation !== "best") reject(400, "Invalid Word citation choice.");
+      const run = verifierModel(input.model, (message) => context.progress?.(message));
+      const written = await verificationResults(state.import.kind === "document" ? state.import.filename : "document",
+        state, input.check as QuoteVerification, { options: (input.options ?? {}) as AlrWorkbookOptions, model: run?.model,
+          attached: await attachedSourceDocuments(state, (input.sources ?? []) as Array<{ role: string; bytes: Uint8Array }>,
+            context.signal),
+          wordCitation: citation as WordCitation, signal: context.signal, progress: (message) => context.progress?.(message) });
+      return { data: { references: written.references, ...run ? { model: run.stats } : {} }, files: [
+        { role: "workbook", filename: written.name, mimeType: XLSX, bytes: written.workbook },
+        { role: "word", filename: "word.json", mimeType: "application/json", bytes: new TextEncoder().encode(JSON.stringify(written.word)) },
+        ...written.sidecar ? [{ role: "sidecar", filename: written.sidecar.name, mimeType: "application/json",
+          bytes: new TextEncoder().encode(JSON.stringify(written.sidecar.value, null, 2)) }] : []] };
+    },
+    // The draft's Word document (unchanged since its import) with a check's results written into it as `copy` says.
+    "verify-docx": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
+      const state = draft(input.draft), file = requiredSource(input);
+      const written = await writeVerifiedWordCopy(state, sourceBytes(file), input.word as WordResult, input.copy as WordCopy,
+        typeof input.author === "string" && input.author.trim() ? input.author.trim().slice(0, 100) : "Beaver");
+      return fileResult({ writes: written.writes, written: written.written }, [{ role: "docx",
+        filename: state.import.kind === "document" ? state.import.filename : file.filename, mimeType: DOCX, bytes: written.bytes }]);
     },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;
@@ -206,12 +192,8 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     return value(statuteExcerptSummary(state, authority, source, await authoritiesSourceText(state, readings)(role,
       { bytes, sourceSha256: source.sourceSha256, signal: context.signal })));
     },
-    "pinpoints": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
-    const text = String(input?.text ?? ""), start = Number(input?.start), end = Number(input?.end);
-    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > text.length || end <= start)
-      return reject(400, "Select the pinpoint in this citation's paragraph or footnote");
-    return value(readPinpoints(text, start, end).map(({ kind, start, end }) => ({ kind, start, end })));
-    },
+    "pinpoints": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> =>
+      value(readPinpoints(input?.text, input?.start, input?.end)),
     "page-labels": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const state = draft(json(input?.draft, "draft"));
     const role = String(input?.bindingRole);
@@ -228,25 +210,12 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     }, authorityCitationForms(state, authority.id));
     return value({ ...information, pages: [], pageLabels: information.pageMap.map(page => page.label) });
     },
-    "annotations": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
-    const state = draft(json(input?.draft, "draft"));
-    const authority = state.authorities[String(input?.authorityId)];
-    const source = authority && attachedAuthoritySources(authority.source).find(item =>
-      item.bindingRole === input?.bindingRole);
-    if (!authority || !source) return reject(400, "The authority PDF is not attached");
-    const file = requiredSource(input);
-    const bytes = sourceBytes(file);
-    if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
-    const pdf = await import("pdf-lib");
-    const document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
-    if (!document.getPageCount() || document.getPageCount() > 2_000) return reject(400, "Unsupported PDF page count");
-    // Manual editing never depends on a successful automatic match. The source is read as a
-    // build reads it, so a source read ahead or built is not read again.
-    const text = state.settings.passageMarking !== "none" && authorityPassageTargets(state, authority.id).length
-      ? await authoritiesSourceText(state, readings)(source.bindingRole,
-        { bytes, sourceSha256: source.sourceSha256, signal: context.signal }) : {};
-    return value(prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true));
-    },
+    // The source is read as a build reads it, so a source read ahead or built is not read again; the page has no
+    // recognition queue of its own, so reading it recognizes what the draft's scan setting asks for.
+    "annotations": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> =>
+      value(await authorityAnnotations(draft(json(input?.draft, "draft")), { authorityId: String(input?.authorityId),
+        bindingRole: String(input?.bindingRole), bytes: sourceBytes(requiredSource(input)), recognize: true, readings,
+        signal: context.signal })),
     "create": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     return draftResult( applyAuthoritiesInitialSettings(
       createAuthoritiesDraft({ kind: "manual" }), initialSettings(input?.settings),
@@ -276,8 +245,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     const freshSource = freshInput?.kind === "local-file" ? freshInput
       : reject(400, "The imported source binding is invalid");
     fresh.bindings.source = { ...freshSource, handleId: currentSource.handleId };
-    return draftResult(await carriedLinks(current, reduceAuthoritiesDraft(current, { type: "refresh", review: authoritiesReview(fresh) }),
-      context.signal), []);
+    return draftResult(await refreshedAuthoritiesDraft(current, fresh, context.signal), []);
     },
     "action": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const current = draft(input?.draft);
@@ -287,15 +255,14 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     "book-front": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const actions = Array.isArray(input?.actions) && input.actions.length <= 3 ? input.actions as unknown[]
       : reject(400, "actions are invalid");
-    const state = actions.map(decodeAuthoritiesUserAction).reduce((state, action) => applyAuthoritiesUserAction(state, action),
-      draft(input?.draft));
     // The pages each excerpted statute keeps, as "excerpt-pages" counted them in the runtime that reads sources.
     const counted = input?.excerptPages === undefined ? {} : typeof input.excerptPages === "string"
       ? json(input.excerptPages, "excerptPages") : input.excerptPages;
     const excerptPages = counted && typeof counted === "object" && Object.values(counted).every((pages) =>
       Number.isSafeInteger(pages) && (pages as number) > 0) ? counted as Record<string, number> : reject(400, "excerptPages is invalid");
     return fileResult(null, [{ role: "output", mimeType: "application/pdf",
-      bytes: await authoritiesBookFront(state, String(input?.title ?? "").slice(0, 300), excerptPages) }]);
+      bytes: await authoritiesBookFrontPdf(draft(input?.draft), actions.map(decodeAuthoritiesUserAction),
+        String(input?.title ?? ""), excerptPages) }]);
     },
     // A statute's excerpt's pages for the index preview, one PDF at a time: the PDF given is read as a build reads
     // it (a build then finds it read), and its authority's pages counted once all its PDFs are read.
@@ -318,16 +285,11 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     const current = draft(input?.draft);
     const onlyAuthorityId = input?.authorityId === undefined
       ? undefined : text(input.authorityId, 200);
-    if (onlyAuthorityId && !retryableAuthoritySource(current, onlyAuthorityId))
-      reject(409, "This authority has nothing to retry.");
-    const prepared = await resolveSources(current, undefined, context.signal, onlyAuthorityId, progress,
-      input?.keptOnly === true);
-    const state = await attachPreparedSources(prepared.draft, prepared.attachments, progress);
-    // Finding sources is no step the user takes. A PDF found, or a case handed to CanLII, would send a draft past
-    // Citations back to Sources as one the user attaches does; sources gathered in the background land on whatever
-    // step the user has reached meanwhile, and leave them there.
-    if (state.stage !== current.stage) state.stage = current.stage;
-    return draftResult(state, prepared.attachments);
+    const gathered = await gatherAuthoritySources(current, { progress, signal: context.signal,
+      resolve: (state) => resolveSources(state, undefined, context.signal, onlyAuthorityId, progress, input?.keptOnly === true),
+      keep: async (attachments) => attachments.map(({ filename, bytes, sourceSha256 }) =>
+        keptByPage(filename, bytes, sourceSha256, `stored:${sourceSha256}`)) });
+    return draftResult(gathered.draft, gathered.attachments);
     },
     // The other citations of a citation's authority that a link given to it would carry to (authoritiesLinkPropagation.ts).
     "link-propagation": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> =>
@@ -353,8 +315,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     const filename = prepared.source.filename.replace(/(?: corrected)?\.docx$/iu, " corrected.docx");
     const fresh = await importStandaloneAuthoritiesFile({ filename, fileType: "docx", bytes,
       modified: 0, sourceMode: current.settings.sourceMode });
-    const state = reduceAuthoritiesDraft(decided, { type: "refresh", review: authoritiesReview(fresh) });
-    state.stage = current.stage === "citations" ? "citations" : "sources";
+    const state = correctedAuthoritiesDraft(decided, fresh, current.stage);
     return fileResult( { draft: state }, [{ role: "source", filename: "source.docx",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes }]);
     },
@@ -363,27 +324,23 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     const { filename, fileType, bytes, modified } = await standaloneSource(input);
     if (!filename.trim() || filename.length > 500 || /[\u0000-\u001f\u007f]/u.test(filename) ||
         fileType !== "pdf" || bytes.subarray(0, 5).toString("ascii") !== "%PDF-") reject(400, "Add a valid PDF");
-    const pageCount = await validateAuthoritiesPdf(bytes);
-    const sourceSha256 = sha256(bytes), binding = { kind: "local-file" as const, handleId: "standalone",
-      lastSeen: { name: filename, size: bytes.length, modified, sha256: sourceSha256 } };
+    const keep = async () => ({ binding: { kind: "local-file" as const, handleId: "standalone",
+      lastSeen: { name: filename, size: bytes.length, modified, sha256: sha256(bytes) } } });
     if (input?.authority_id !== undefined) {
-      const id = input.authority_id, authority = typeof id === "string" && Object.hasOwn(current.authorities, id)
-        ? current.authorities[id] : reject(400, "This authority no longer exists.");
+      const authorityId = typeof input.authority_id === "string" ? input.authority_id
+        : reject(400, "This authority no longer exists.");
       const language = (["en", "fr", "bilingual"] as const).find(value => value === input.language)
         ?? reject(400, "Choose the PDF language.");
-      const checked = await authorityPdfCaption(current, authority.id, bytes, input.auto_fetched === "true");
-      // Its printed page numbers are read with it, so its viewer shows them with the page.
-      const pageLabels = await sourcePageLabels(checked, authority.id, { sourceSha256, origin: "manual" }, bytes);
-      return value(attachAuthorityPdf(checked, checked.authorities[authority.id], binding, filename, sourceSha256, language,
-        { pageCount, pageLabels }));
-    } else {
-      const slot = AUTHORITIES_BOOK_SLOTS.find(value => value === input?.slot)
-        ?? reject(400, "Book-part slot is invalid");
-      const supplementId = input?.supplement_id;
-      if (supplementId !== undefined && (typeof supplementId !== "string" || !supplementId.trim() ||
-          supplementId.length > 500)) reject(400, "Book-part ID is invalid");
-      return value(attachAuthoritiesBookPdf(current, { slot, supplementId: supplementId as string | undefined }, binding, filename, sourceSha256));
+      return value(await attachAuthorityFile(current, { authorityId, language, autoFetched: input.auto_fetched === "true",
+        filename, bytes, keep }));
     }
+    const slot = AUTHORITIES_BOOK_SLOTS.find(value => value === input?.slot)
+      ?? reject(400, "Book-part slot is invalid");
+    const supplementId = input?.supplement_id;
+    if (supplementId !== undefined && (typeof supplementId !== "string" || !supplementId.trim() ||
+        supplementId.length > 500)) reject(400, "Book-part ID is invalid");
+    return value(await attachBookFile(current, { slot, supplementId: supplementId as string | undefined,
+      filename, bytes, keep }));
     },
     "pdf-authority": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const current = draft(input?.draft);
@@ -407,47 +364,19 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     const title = String(input?.title ?? "").trim();
     if (!id || !title || title.length > 300 || !Number.isSafeInteger(revision) || revision < 1)
       reject(400, "Authorities build identity is invalid");
-    let preparation: ReturnType<typeof createAuthoritiesPreparation>;
-    // Saved highlights for a PDF that was since replaced are the user's to review, not a server fault.
-    try { preparation = createAuthoritiesPreparation(state, readings); }
-    catch (error) { return reject(409, error instanceof Error ? error.message : "Authorities could not be built"); }
-    // Every source is read at once: its preparation waits only on the parsers and recognizers that
-    // bound that work (native preparation runs off the event loop), so a scan's pages are queued
-    // for recognition from the start, not after the sources before it. The count is of those finished.
-    let read = 0;
-    progress?.(`Reading sources · 0 of ${files.length}`);
-    const sources: NonNullable<AuthoritiesBuildInput["sources"]> = Object.fromEntries(
-      await Promise.all(files.map(async (file, index) => {
-        const role = roleNames[index], bytes = sourceBytes(file);
-        context.signal.throwIfAborted();
-        const binding = state.bindings[role];
-        const expectedHash = binding?.kind === "local-file" ? binding.lastSeen.sha256
-          : binding?.kind === "document" && binding.version !== "latest" ? binding.version.sha256 : null;
-        const sourceSha256 = expectedHash && sha256(bytes) === expectedHash ? expectedHash
-          : reject(409, "An attached PDF changed. Add the current file before continuing.");
-        // Recognizing a scan's pages is the long part of reading one: it reports page by page.
-        const recognizing = (done: number, total: number) =>
-          progress?.(`Recognizing text in ${file.filename} · ${done} of ${total} page${total === 1 ? "" : "s"}`);
-        return [role, { bytes, ...await preparation.prepareText(role, { bytes, sourceSha256,
-          signal: context.signal, progress: recognizing })
-          .catch((error) => {
-            if (context.signal.aborted) throw error;
-            return reject(409, error instanceof Error
-              ? `Could not read ${file.filename}: ${error.message}`
-              : `Could not read ${file.filename}`);
-          }).finally(() => progress?.(`Reading sources · ${++read} of ${files.length}`)) }] as const;
-      })));
-    let book: PreparedAuthoritiesBook | undefined;
-    const built = await buildAuthorities({ draft: state, title,
-      workProduct: { id, revision }, sources, signal: context.signal, progress,
-      statuteText: (authority, signal) => authorityStatuteText(state, authority, undefined, signal),
-      ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
-    }, state.settings.finalPdf ? undefined : async (prepared) => {
-      book = prepared; return [];
-    }).catch((error) => {
-      if (context.signal.aborted) throw error;
-      return reject(409, error instanceof Error ? error.message : "Authorities could not be built");
+    const buildFiles = files.map((file, index) => {
+      const role = roleNames[index], bytes = sourceBytes(file), binding = state.bindings[role];
+      const expectedHash = binding?.kind === "local-file" ? binding.lastSeen.sha256
+        : binding?.kind === "document" && binding.version !== "latest" ? binding.version.sha256 : null;
+      const sourceSha256 = expectedHash && sha256(bytes) === expectedHash ? expectedHash
+        : reject(409, "An attached PDF changed. Add the current file before continuing.");
+      return { role, filename: file.filename, bytes, sourceSha256 };
     });
+    // A page assembles the book in its own worker; only a final PDF is assembled here.
+    const { built, book } = await buildAuthoritiesDraft(state, { title, workProduct: { id, revision }, files: buildFiles,
+      readings, prepareBook: true, signal: context.signal, progress,
+      statuteText: (authority, signal) => authorityStatuteText(state, authority, undefined, signal),
+      ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}) });
     const artifacts = Object.values(built.artifacts).filter((artifact) => artifact !== undefined);
     const bookFiles: Array<{ role: string; mimeType: string; bytes: Buffer }> = [];
     const prepared = book && await mapAuthorityBookBytes(book, (bytes, role) => {

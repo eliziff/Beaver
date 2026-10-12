@@ -6,14 +6,19 @@ import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import type { LegalSourceProvider, LegalSourceReference } from ".";
 
 const HOSTS = ["www.canlii.org", "canlii.org", "www.canlii.ca", "canlii.ca"];
-let indexedUrl: ((text: string) => string | null) | null = null;
-export const useCanliiIndex = (resolve: ((text: string) => string | null) | null) => { indexedUrl = resolve; };
+type IndexedUrl = (text: string, firstPinpoint?: string | null) => string | null;
+let indexedUrl: IndexedUrl | null = null;
+/** A host's own lookup of a decision's CanLII page, for a citation the engine builds no page for. */
+export const useCanliiIndex = (resolve: IndexedUrl | null) => { indexedUrl = resolve; };
+/** The CanLII page of the decision `text` cites, from the host's lookup; null without one, or where it finds none.
+ *  At its first paragraph pinpoint (`firstPinpoint`, "par12"). */
+export const indexedCaseUrl: IndexedUrl = (text, firstPinpoint) => indexedUrl?.(text, firstPinpoint) ?? null;
 const sourceUrl = (text: string) => {
   const value = structureNative().canliiCaseUrl([text], "en", null)
-    ?? structureNative().canliiLawUrl(text) ?? indexedUrl?.(text);
+    ?? structureNative().canliiLawUrl(text) ?? indexedCaseUrl(text);
   if (!value) return null;
   const url = new URL(value);
-  // The private index keeps reporter-page PDF links; source acquisition reads their HTML sibling.
+  // A looked-up page may be a reporter-page PDF; source acquisition reads its HTML sibling.
   if (/\/doc\//u.test(url.pathname)) url.pathname = url.pathname.replace(/\.pdf$/iu, ".html");
   url.hash = "";
   return url.href;

@@ -428,7 +428,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     if (!kept || !scroller || kept.draft !== live.current.product.id) return;
     keptScroll.current = null; scroller.scrollTop = kept.top;
   };
-  useEffect(() => {
+  // Marked and placed before the frame that shows the document, so it never shows first at its top.
+  useLayoutEffect(() => {
     preview.current = {};
     if (imported.kind !== 'document' || !source) return;
     if (imported.fileType === 'docx') {

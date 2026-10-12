@@ -442,8 +442,12 @@ const pinpointsAt = (text: string, start: number, end: number, strict = false) =
 
 /** The pinpoints a selection of a unit's text holds, read as a save reads them: the review shows
  *  an added pinpoint whole, its kind included, without waiting for the save. */
-export const readPinpoints = (text: string, start: number, end: number) =>
-  pinpointsAt(text, start, end);
+export function readPinpoints(text: unknown, start: unknown, end: unknown) {
+  const unit = typeof text === "string" ? text : "", from = Number(start), to = Number(end);
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to > unit.length || to <= from)
+    throw new ApplicationError(400, "Select the pinpoint in this citation's paragraph or footnote");
+  return pinpointsAt(unit, from, to).map(({ kind, start, end }) => ({ kind, start, end }));
+}
 
 /** The citation's pinpoints as given, its range untouched: they may lie anywhere in its unit. */
 function placePinpoints(draft: AuthoritiesDraft, current: AuthorityOccurrence,

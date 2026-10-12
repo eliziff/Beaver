@@ -1,4 +1,4 @@
-﻿# CourtListener rendition comparison
+# CourtListener rendition comparison
 
 The objective is to recover and preserve legal document structure across arbitrary
 CourtListener records with the independent Rust legal structure parser. Beaver
@@ -30,8 +30,8 @@ ETag, window positions and SHA-256 digests. `budget.py` owns the shared cap.
 
 Private inputs and outputs live in `benchmarks/local-data/courtlistener-renditions/`.
 Raw browser HTML lives once by SHA-256 in `%LOCALAPPDATA%/OpenLegalData/corpus`.
-The [copied UCD collector](../courtlistener-ucd/README.md) keeps private acquisition
-manifests and independent browser DOM evidence in the owning browser corpus.
+Private browser acquisition manifests and independent DOM evidence stay in
+`benchmarks/local-data/courtlistener-ucd/`.
 Scratch profiles and recoverable source blocks are disposable; the collector
 cleans only the exact paths it creates.
 
@@ -167,7 +167,7 @@ full pending receipts are preflighted before publication. A header-only coverage
 priority refresh also takes the lock and reserves 16 MiB for its atomic output.
 The five owned CourtListener collection locations are counted; the unrelated
 shared `corpus.sqlite` is outside that scope. The browser collector's delays and
-copied UCD path are unchanged.
+acquisition path are unchanged.
 
 ## Corpus runs
 

@@ -11,8 +11,10 @@ export type SelectedResearch = { file: ResearchFile; title: string;
   references: ResearchFindingReference[]; selection: ResearchSelection };
 
 /** Explicit copy and composition actions share the current workspace; neither reruns research. */
-export function ResearchReuseActions({ prepare, disabled = false }: {
+export function ResearchReuseActions({ prepare, disabled = false, compose = true, variant = "outline" }: {
   prepare(): Promise<SelectedResearch>; disabled?: boolean;
+  /** Offer writing a new chat from the selection; a chat's own answer is followed up in that chat. */
+  compose?: boolean; variant?: "outline" | "ghost";
 }) {
   const workspace = useSourcesWorkspace(), navigate = useNavigate(), busyRef = useRef(false),
     currentWorkspace = useRef(workspace);
@@ -42,8 +44,8 @@ export function ResearchReuseActions({ prepare, disabled = false }: {
     finally { busyRef.current = false; setBusy(false); }
   }
   return <div className="flex flex-wrap items-center gap-2 text-sm">
-    <Button variant="outline" size="compact" disabled={disabled || busy} onClick={() => void run("copy")}>Add to memo</Button>
-    <Button variant="outline" size="compact" disabled={disabled || busy} onClick={() => void run("write")}>Write from selection</Button>
+    <Button variant={variant} size="compact" disabled={disabled || busy} onClick={() => void run("copy")}>Add to memo</Button>
+    {compose && <Button variant={variant} size="compact" disabled={disabled || busy} onClick={() => void run("write")}>Write from selection</Button>}
     {status && <span role="status" className="text-xs text-gray-600">{status}</span>}
     {error && <span role="alert" className="text-xs text-red-700">{error}</span>}
   </div>;

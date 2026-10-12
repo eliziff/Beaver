@@ -61,6 +61,7 @@ import {
   legalEvidenceSourceReference,
   legalEvidenceResourceReference,
   legalEvidenceProseIntegrityErrors,
+  draftQuotationText,
   legalSourceEvidence,
   modelEvidencePassage,
   modelEvidencePreview,
@@ -93,7 +94,7 @@ import {
   WRITE_TOOL,
 } from "./tools/toolSchemas";
 import { jsonRecord as objectRecord, trimmedText as trimmed } from "../value";
-import { RESOURCE_TOOLS, globPattern as globRegExp } from "./resourceTools";
+import { RESOURCE_TOOLS, globPattern as globRegExp, readToolFor } from "./resourceTools";
 import type { checkQuotes } from "../quoteCheck";
 import {
   workProductEvent, workProductResult,
@@ -170,17 +171,20 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
   activity: (input) => ({
     metadata: "Updating Library metadata",
     fix_supras: "Fixing supra references",
+    link_citations: "Linking citations to their sources",
     research: "Updating saved research",
   } as Record<string, string>)[String(input.action)] ?? "Updating document",
   description: "Specialist operation on one version-pinned Library document. " +
     `Actions: metadata saves user-requested classification or notes; ${research
       ? "research creates or updates an ordinary .research.md Library file; " : ""}fix_supras ` +
-    "creates native Word supra cross-references. Do not pre-compute filesystem paths.",
+    "creates native Word supra cross-references; link_citations links each citation in a Word document to its source " +
+    "at its pinpoint, as a new version. Do not pre-compute filesystem paths.",
   annotations: { readOnlyHint: false },
   inputSchema: objectSchema({
     action: {
       type: "string",
-      enum: research ? ["metadata", "research", "fix_supras"] : ["metadata", "fix_supras"],
+      enum: research ? ["metadata", "research", "fix_supras", "link_citations"]
+        : ["metadata", "fix_supras", "link_citations"],
     },
     document_id: DOCUMENT_ID_PROPERTY,
     kind: { type: "string", enum: ["file", "template"] },
@@ -1488,7 +1492,7 @@ async function runAdvancedDocxEdit(params: {
 }
 
 async function runDocxWorkflow(
-  action: "fix_supras" | "lint_structure",
+  action: "fix_supras" | "link_citations" | "lint_structure",
   documentId: string,
   versionId: string | undefined,
   { documents, scope, turnEditState, turnId, editMode }:
@@ -1502,6 +1506,18 @@ async function runDocxWorkflow(
       ...cleanup, bytes: undefined, changes: undefined });
     return saveDocxEdits({ documents, scope, documentId, source: file,
       bytes: cleanup.bytes, edits: assistantEdits(cleanup.changes),
+      turnEditState, turnId, editMode });
+  }
+  if (action === "link_citations") {
+    // The quote verifier links each citation to its source at its pinpoint (quoteVerification/verifier.ts).
+    const [{ createAuthoritiesImporter }, { linkWordCitations }] = await Promise.all([
+      import("../authoritiesImport"), import("../quoteVerification/verifier")]);
+    const draft = await createAuthoritiesImporter(documents).draft(scope, { kind: "document", documentId,
+      version: { versionId: file.version.id, sha256: file.version.source_sha256 } });
+    const linked = await linkWordCitations(draft, file.bytes, "Beaver");
+    if (!linked.written) return result({ ok: true, action: "no_changes", document_id: documentId,
+      version_id: file.version.id, links: 0 });
+    return saveDocxEdits({ documents, scope, documentId, source: file, bytes: linked.bytes, edits: [],
       turnEditState, turnId, editMode });
   }
   const document = await documentProjectionService.read(
@@ -1823,7 +1839,7 @@ export function assistantTools<Context extends {
       const cited = docxCitationEntries(legalEvidenceState, args.citations);
       if (legalEvidenceState) {
         const integrityErrors = legalEvidenceProseIntegrityErrors(
-          markdown,
+          draftQuotationText(markdown),
           cited.flatMap(({ input }) => input.evidenceIds),
           legalEvidenceState,
         );
@@ -1905,14 +1921,14 @@ export function assistantTools<Context extends {
 
   const runWorkflow = documentTool(
     async (_call, args, documentId) => {
-      const action = args.action as "fix_supras" | "lint_structure";
+      const action = args.action as "fix_supras" | "link_citations" | "lint_structure";
       try {
         return await runDocxWorkflow(action, documentId,
           trimmed(args.version_id) || undefined,
           { documents, scope, turnEditState, turnId, editMode });
       } catch (error) {
-        return fail(safeErrorMessage(error, action === "fix_supras"
-          ? "DOCX supra cleanup failed" : "DOCX structural lint failed"));
+        return fail(safeErrorMessage(error, action === "fix_supras" ? "DOCX supra cleanup failed"
+          : action === "link_citations" ? "Linking the citations failed" : "DOCX structural lint failed"));
       }
     },
   );
@@ -2239,6 +2255,7 @@ export function assistantTools<Context extends {
           return Promise.resolve(fail("metadata requires kind"));
         return updateMetadata(call, input, signal);
       case "fix_supras":
+      case "link_citations":
         return runWorkflow(call, input, signal);
       case "research":
         if (!includeResearchTools) return Promise.resolve(fail("Research is unavailable in this chat"));
@@ -2856,7 +2873,8 @@ export function assistantTools<Context extends {
     },
   });
 
-  const [glob, grep, read, edit] = RESOURCE_TOOLS;
+  const [glob, grep, , edit] = RESOURCE_TOOLS;
+  const read = readToolFor(!!researchContext?.subjects || !!researchContext?.workspace);
 
   const tools: BeaverTool<Context>[] = [
     definition({ name: "quote_check", specialist: true, sequential: true, description: "Mechanically compare document quotations with cited sources. Returns quote IDs, citation candidates and source passages; follow next_offset. Resolve ambiguous attribution with links. Read surrounding sources to assess proposition support and misconstruction. For a requested workbook, set export_workbook; optional per-quote analysis appears in a separate AI column. The complete workbook is saved beside the input.",
@@ -2875,17 +2893,17 @@ export function assistantTools<Context extends {
         if (legalEvidenceState) (legalEvidenceState.reviewDocumentIds ??= new Set()).add(document.documentId);
         const source = await documents.projectionSource(scope, document.documentId, document.versionId);
         if (!source) throw new Error("Document version not found.");
-        const [{ createAuthoritiesImporter }, { checkQuotes, decodeQuoteLinks }] = await Promise.all([
-          import("../authoritiesImport"), import("../quoteCheck"),
+        const [{ createAuthoritiesImporter }, { decodeQuoteLinks }, { verifyQuotations }] = await Promise.all([
+          import("../authoritiesImport"), import("../quoteCheck"), import("../quoteVerification/verifier"),
         ]);
         const draft = await createAuthoritiesImporter(documents).draft(scope, {
           kind: "document", documentId: document.documentId,
           version: { versionId: document.versionId, sha256: source.sourceSha256 } });
         const offset = Number(input.offset ?? 0);
         if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("offset must be a non-negative integer");
-        const report = await checkQuotes(draft, decodeQuoteLinks(input.links), signal,
-          (done, total) => progress?.(`Checking quotation ${done} of ${total}`), undefined,
-          input.export_workbook === true ? undefined : { offset, limit: 10 });
+        const report = await verifyQuotations(draft, { links: decodeQuoteLinks(input.links), signal,
+          progress: (done, total) => progress?.(`Checking quotation ${done} of ${total}`),
+          ...(input.export_workbook === true ? {} : { window: { offset, limit: 10 } }) });
         if (input.export_workbook === true) {
           if (input.analysis !== undefined && (!Array.isArray(input.analysis) || input.analysis.length > 500 ||
             input.analysis.some((item) => !item || typeof item.quoteId !== "string" ||
@@ -2893,7 +2911,7 @@ export function assistantTools<Context extends {
           const analysis = input.analysis === undefined ? undefined : Object.fromEntries(
             (input.analysis as Array<{ quoteId: string; text: string }>).map(({ quoteId, text }) => [quoteId, text]));
           const workbook = await (await import("../quoteCheckWorkbook")).saveQuoteCheckWorkbook(documents, scope, document.documentId,
-            report, analysis, document.versionId);
+            draft, report, analysis, document.versionId, signal);
           allowedDocumentIds?.add(workbook.id);
           return artifactResult({ type: "document_artifact", action: "created", document_id: workbook.id,
             version_id: workbook.current_version_id, version_number: workbook.active_version_number,
