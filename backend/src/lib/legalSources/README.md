@@ -17,15 +17,12 @@ The corpus adapters remain preferred. Authorities source acquisition also routes
 National Archives, GOV.UK Employment Tribunal, CourtListener and GovInfo citations
 through their existing adapters, then tries an ordinary bounded CanLII document
 read. CanLII passage reads use the same native document parser and verified citation
-identity as acquisition. An optional supplied private index identifies document
-URLs; the application does not download an index. A challenge or redirect requires
+identity as acquisition. A challenge or redirect requires
 a manual browser visit and PDF attachment, never automated verification bypass.
 
 Browser transports preserve each edition's network restrictions. APIs and documents
 that lack usable CORS use the narrowly constrained `POST /source` bridge in
 AuthoritiesHelper. Raw standalone HTML requires deployment of that Worker endpoint;
-building the HTML does not deploy it. ALR's existing local program server provides
-the same bridge after its normal package rebuild, independently of the remote
-deployment. Optional CourtListener and GovInfo keys pass through the selected bridge
+building the HTML does not deploy it. Optional CourtListener and GovInfo keys pass through the selected bridge
 and are forwarded only to their owning API; local-only operation makes no remote
 requests.

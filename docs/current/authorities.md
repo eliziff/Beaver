@@ -5,7 +5,17 @@ Beaver supplies authentication, Library and work-product adapters; the standalon
 host supplies local files. Loopback HTTP and the self-contained HTML worker call
 the same application operations. The HTML page sends ordinary inputs and transfers
 file bytes directly, with progress and cancellation carried by worker messages.
-The Python
+`authoritiesCore.ts` is the one orchestration of a draft: importing a brief
+(`importAuthoritiesDocument`), gathering and attaching sources with their page
+counts and printed page labels, refreshing with carried links, discrepancy
+corrections, highlight preparation, the book front and the build. The runtime
+operations (`authoritiesOperations.ts`, also wrapped by apps built from the page)
+and Beaver's Library workspace (`authoritiesWorkspaceApplication.ts`) are adapters
+that decode requests and say where drafts and PDFs are kept. Beaver's adapter also
+verifies Library versions, leaves recognition to its durable queue (its highlight
+reads never recognize) and saves outputs as Library documents; a page assembles
+its book in a worker. Both UIs keep the Auto-fetch folder in the browser and draw
+the import's preview book. The Python
 [AuthoritiesHelper reference](https://github.com/eliziff/AuthoritiesHelper) is not
 Beaver's current runtime. Implementation presence does not certify complete
 reference parity; remaining release gates are in
@@ -127,11 +137,9 @@ shared engine checks reciprocal agreement and contradictory identities before
 grouping sources.
 
 Full Authorities and ALR try an ordinary, bounded CanLII document read after the
-corpus providers miss. Native parsing owns its text, citation identity and passages;
-an optional supplied private CanLII index can identify an otherwise unknown document
-URL. No index is downloaded or manufactured. A challenge, redirect or unreadable
-source leaves the case for a browser visit and PDF attachment; acquisition never
-tries to evade verification. Authorities-lite keeps its manual CanLII handoff.
+corpus providers miss. Native parsing owns its text, citation identity and passages.
+A challenge, redirect or unreadable source leaves the case for a browser visit and
+PDF attachment; acquisition never tries to evade verification. Authorities-lite keeps its manual CanLII handoff.
 The row opens the document page in a new tab; **Upload** opens the file chooser in
 Downloads, and dropping a downloaded PDF onto that row uses the same attachment
 operation. CanLII and View share one aligned column.

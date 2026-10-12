@@ -1,4 +1,3 @@
-import { structureNative, type NativePdfPassageGeometry } from "./structureNative";
 import type { Progress } from "./followedRoute";
 import { mapBounded } from "./mapBounded";
 import { authorityCitationForms } from "./authoritiesDomain";
@@ -8,11 +7,12 @@ import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
-  attachAuthorityPdf as attachSource, attachAuthoritiesBookPdf as attachBookSource,
-  authorityPdfCaption, folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
+  folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction, type PdfOpening } from "./authoritiesActions";
-import { authorityPassageTargets, buildAuthorities, citedSourcePages, prepareAuthorityAnnotations,
-  type AuthoritiesBuildInput, type AuthoritiesBuildResult, type BuildSourceText } from "./authoritiesBuild";
+import { authorityPassageTargets, buildAuthorities, citedSourcePages,
+  type AuthoritiesBuildResult, type BuildSourceText } from "./authoritiesBuild";
+import { attachAuthorityFile, attachBookFile, authorityAnnotations, buildAuthoritiesDraft, correctedAuthoritiesDraft,
+  gatherAuthoritySources, refreshedAuthoritiesDraft, type AuthoritiesBuildFile, type KeptPdf } from "./authoritiesCore";
 import { attachedAuthoritySources, decodeAuthoritiesDraft,
   type AuthoritiesAction, type AuthoritiesDraft,
   type AuthoritySourceLanguage } from "./authoritiesDomain";
@@ -22,14 +22,13 @@ import { createAuthoritiesImporter, type AuthoritiesImporter, type AuthoritiesIm
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
 import { authorityReferenceText, authorityStatuteText, authoritySourceServices, resolveAuthoritiesSources,
-  retryableAuthoritySource, type SourceServices } from "./authoritiesSourceResolution";
+  type SourceServices } from "./authoritiesSourceResolution";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
 import { documentProjectionService } from "./documentProjectionService";
-import { validateAuthoritiesPdf } from "./authoritiesPdf";
-import type { WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
+import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
 
@@ -114,36 +113,38 @@ export function createAuthoritiesWorkspaceApplication(
     catch (error) { return rollbackDocuments(documents, scope, rollback, error, message); }
   }
 
+  /** Library keeps each PDF the core hands it as a document of its own, removed again if the change is not saved. */
+  async function keepInLibrary(scope: ApplicationScope, created: DocumentRollback[], file: DocumentFile,
+    projectId: string | null | undefined, sourceSha256: string): Promise<KeptPdf> {
+    const saved = await files.create(scope, "authorities", file, { projectId, pdfOcrProvider: null });
+    created.push(createdDocumentRollback(saved));
+    if (saved.source_sha256 !== sourceSha256) throw new Error("Saved authority PDF hash does not match its source");
+    return { binding: { kind: "document", documentId: saved.id,
+      version: { versionId: saved.current_version_id, sha256: saved.source_sha256 } },
+    reference: { documentId: saved.id, versionId: saved.current_version_id }, filename: saved.filename };
+  }
+
   async function resolveSources(scope: ApplicationScope, initial: AuthoritiesDraft,
     projectId?: string | null, signal?: AbortSignal, onlyAuthorityId?: string, progress?: Progress) {
-    let { draft, attachments } = await resolveAuthoritiesSources(initial, sources, signal, onlyAuthorityId, progress);
     const created: DocumentRollback[] = [];
-    return withRollback(scope, created, async () => {
-      for (const attachment of attachments) {
-        signal?.throwIfAborted();
-        const saved = await files.create(scope, "authorities",
-          { filename: attachment.filename, fileType: "pdf", bytes: attachment.bytes },
-          { projectId, pdfOcrProvider: null });
-        created.push(createdDocumentRollback(saved));
-        if (saved.source_sha256 !== attachment.sourceSha256) {
-          throw new Error("Saved authority PDF hash does not match its prepared source");
+    return withRollback(scope, created, async () => ({ created, ...await gatherAuthoritySources(initial, {
+      progress, signal,
+      resolve: (draft) => resolveAuthoritiesSources(draft, sources, signal, onlyAuthorityId, progress),
+      keep: async (attachments) => {
+        const kept: KeptPdf[] = [];
+        for (const { filename, bytes, sourceSha256 } of attachments) {
+          signal?.throwIfAborted();
+          kept.push(await keepInLibrary(scope, created, { filename, fileType: "pdf", bytes }, projectId, sourceSha256));
         }
-        draft = attachSource(draft, draft.authorities[attachment.authorityId],
-          { kind: "document", documentId: saved.id,
-            version: { versionId: saved.current_version_id, sha256: saved.source_sha256 } },
-          saved.filename, saved.source_sha256, attachment.language, attachment);
-      }
-      // Finding sources is no step the user takes: the draft stays at the step it was on (authoritiesOperations.ts).
-      if (draft.stage !== initial.stage) draft = { ...draft, stage: initial.stage };
-      return { draft, created };
-    }, "Authority sources could not be saved or rolled back");
+        return kept;
+      },
+    }) }), "Authority sources could not be saved or rolled back");
   }
 
   async function saveRefresh(scope: ApplicationScope, product: AuthoritiesProduct,
     draft: AuthoritiesDraft, revision: number, source: AuthoritiesImportSource) {
-    const fresh = await importer.draft(scope, source);
-    return workProducts.save(scope, product.id, { revision,
-      state: update(draft, { type: "refresh", review: review(fresh) }) });
+    const fresh = await importer.draft(scope, source, { sourceMode: draft.settings.sourceMode });
+    return workProducts.save(scope, product.id, { revision, state: await refreshedAuthoritiesDraft(draft, fresh) });
   }
 
   async function currentLibraryVersion(scope: ApplicationScope, binding: LibraryBinding,
@@ -180,8 +181,8 @@ export function createAuthoritiesWorkspaceApplication(
             snapshot.versionId !== version.id || snapshot.sha256 !== version.source_sha256 ||
             draft.import.filename !== version.filename) {
           signal?.throwIfAborted();
-          const fresh = await importer.draft(scope, binding);
-          draft = update(draft, { type: "refresh", review: review(fresh) });
+          const fresh = await importer.draft(scope, binding, { sourceMode: draft.settings.sourceMode });
+          draft = await refreshedAuthoritiesDraft(draft, fresh, signal);
         }
       }
     }
@@ -207,9 +208,9 @@ export function createAuthoritiesWorkspaceApplication(
       .filter(({ id }) => !draft.discrepancyDecisions?.[id]);
   }
 
-  async function buildSources(scope: ApplicationScope, draft: AuthoritiesDraft,
-    signal?: AbortSignal) {
-    const result: NonNullable<AuthoritiesBuildInput["sources"]> = {};
+  /** The sources a build reads, from Library: each the exact version the draft is bound to, a book's PDFs prepared. */
+  async function buildFiles(scope: ApplicationScope, draft: AuthoritiesDraft, signal?: AbortSignal) {
+    const files: AuthoritiesBuildFile[] = [], unread: Record<string, ResolvedWorkProductInput> = {};
     const plan = createAuthoritiesPreparation(draft);
     if (draft.import.kind === "document" && draft.import.snapshot) {
       const { bindingRole, snapshot, filename } = draft.import;
@@ -227,23 +228,18 @@ export function createAuthoritiesWorkspaceApplication(
           source.sourceSha256 !== snapshot.sha256 || typeof resolvedFilename !== "string") {
         throw new ApplicationError(409, "The imported document changed. Refresh before building.");
       }
-      result[bindingRole] = { resolved: { kind: "document",
-        documentId: source.documentId, versionId: source.versionId,
-        filename: resolvedFilename, sha256: source.sourceSha256 } };
-      if (draft.insertIntoDocument || draft.settings.finalPdf ||
-          (draft.settings.citationSuffix ?? "none") !== "none") {
+      const resolved = { kind: "document" as const, documentId: source.documentId, versionId: source.versionId,
+        filename: resolvedFilename, sha256: source.sourceSha256 };
+      if (plan.byteRoles.has(bindingRole)) {
         const file = await documents.read(scope, binding.documentId, source.versionId, false);
         if (!file || file.fileType.toLowerCase() !== draft.import.fileType ||
             file.version.source_sha256 !== snapshot.sha256 ||
             sha256(file.bytes) !== snapshot.sha256) {
           throw new ApplicationError(409, "The imported document changed. Refresh before building.");
         }
-        result[bindingRole].bytes = file.bytes;
-        Object.assign(result[bindingRole], await plan.prepareText(bindingRole, {
-          bytes: file.bytes, documentId: binding.documentId, versionId: source.versionId,
-          sourceSha256: source.sourceSha256, pdfProfile: file.pdfProfile, signal,
-        }));
-      }
+        files.push({ role: bindingRole, filename: resolvedFilename, bytes: file.bytes, sourceSha256: snapshot.sha256,
+          reference: { documentId: binding.documentId, versionId: source.versionId }, pdfProfile: file.pdfProfile, resolved });
+      } else unread[bindingRole] = resolved;
     }
     const preparedRoles = new Set([...plan.bookRoles, ...plan.textRoles]);
     const preparation = new Map(preparedRoles.size
@@ -251,27 +247,17 @@ export function createAuthoritiesWorkspaceApplication(
         libraryBinding(draft, role).documentId))).map((state) => [state.id, state.parse_state])
       : []);
     const readPdf = async (source: BoundPdf, label: string, allowMissing = false) => {
+      signal?.throwIfAborted();
       const binding = libraryBinding(draft, source.bindingRole);
       const file = await documents.read(scope, binding.documentId,
         binding.version === "latest" ? null : binding.version.versionId, false);
-      if (!file && allowMissing) return null;
+      if (!file && allowMissing) return;
       if (!file || file.fileType.toLowerCase() !== "pdf" ||
           file.version.source_sha256 !== source.sourceSha256 ||
           sha256(file.bytes) !== source.sourceSha256) throw new ApplicationError(409,
         `${label} changed: ${source.filename}`);
-      return { binding, file, resolved: { kind: "document" as const,
-        documentId: binding.documentId, versionId: file.version.id,
-        filename: file.filename, sha256: file.version.source_sha256 } };
-    };
-    // A book can hold hundreds of PDFs: read and prepare a few at a time, not all at once.
-    await mapBounded(plan.authoritySources, async ({ source, authority }) => {
-      signal?.throwIfAborted();
-      const input = await readPdf(source, "Attached PDF", !!draft.settings.allowIncomplete &&
-        !plan.bookPdfs.some(({ bindingRole }) => bindingRole === source.bindingRole));
-      if (!input) return;
-      const { binding, file, resolved } = input;
-      const forBook = plan.bookRoles.has(source.bindingRole);
-      if (forBook && !file.pdfProfile) {
+      // A book's sources are recognized by Library's own queue before a build reads them.
+      if (plan.bookRoles.has(source.bindingRole) && !file.pdfProfile) {
         const state = preparation.get(binding.documentId);
         const pending = state?.status === "queued" || state?.status === "parsing";
         throw new ApplicationError(409, pending
@@ -284,49 +270,30 @@ export function createAuthoritiesWorkspaceApplication(
           pdf_phase: state?.phase,
           pdf_pages: state?.pages?.join(",") });
       }
-      const text = await plan.prepareText(source.bindingRole, { bytes: file.bytes,
-        documentId: binding.documentId, versionId: file.version.id,
-        sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile, signal });
-      const pageBindings = text.pageBindings ?? (forBook ? await documentProjectionService.pdfPagination({
-        documentId: binding.documentId, versionId: file.version.id,
-        sourceSha256: file.version.source_sha256, fileType: "pdf", readBytes: () => file.bytes,
-        pdfProfile: file.pdfProfile, reporterOriginal: source.origin === "original",
-      }, authorityCitationForms(draft, authority.id)) : undefined);
-      result[source.bindingRole] = { ...(plan.byteRoles.has(source.bindingRole) ? { bytes: file.bytes } : {}),
-        ...text, pageBindings, pageLabels: pageBindings?.map(page => page.label), resolved };
-    });
-    await mapBounded(plan.bookPdfs, async (source) => {
-      signal?.throwIfAborted();
-      const { file, resolved } = (await readPdf(source, "Book PDF"))!;
-      result[source.bindingRole] = { bytes: file.bytes, resolved };
-    });
-    if (plan.briefPdf) {
-      const { binding, file, resolved } = (await readPdf(plan.briefPdf, "Brief PDF"))!;
-      result[plan.briefPdf.bindingRole] = { bytes: file.bytes, resolved, ...await plan.prepareText(
-        plan.briefPdf.bindingRole, { bytes: file.bytes, documentId: binding.documentId,
-          versionId: file.version.id, sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile, signal }) };
-    }
-    return result;
+      files.push({ role: source.bindingRole, filename: source.filename, bytes: file.bytes,
+        sourceSha256: source.sourceSha256, reference: { documentId: binding.documentId, versionId: file.version.id },
+        pdfProfile: file.pdfProfile, resolved: { kind: "document", documentId: binding.documentId,
+          versionId: file.version.id, filename: file.filename, sha256: file.version.source_sha256 } });
+    };
+    // Every attached source is verified against the version it is bound to, even where the build needs no bytes.
+    await mapBounded(plan.authoritySources, ({ source }) => readPdf(source, "Attached PDF",
+      !!draft.settings.allowIncomplete && !plan.bookPdfs.some(({ bindingRole }) => bindingRole === source.bindingRole)));
+    await mapBounded(plan.bookPdfs, (source) => readPdf(source, "Book PDF"));
+    if (plan.briefPdf) await readPdf(plan.briefPdf, "Brief PDF");
+    return { files, unread };
   }
 
-  async function uploadPdf(scope: ApplicationScope, id: string,
-    input: { revision: number; file: DocumentFile; authorityId?: string; autoFetched?: boolean },
-    attach: (draft: AuthoritiesDraft, binding: WorkProductInput, filename: string, hash: string,
-      pageCount: number) => AuthoritiesDraft) {
+  /** A PDF the user uploads, kept in Library only once the core has checked it. */
+  async function attachUpload(scope: ApplicationScope, id: string, input: { revision: number; file: DocumentFile },
+    attach: (draft: AuthoritiesDraft, bytes: Buffer, keep: () => Promise<KeptPdf>) => Promise<AuthoritiesDraft>) {
     if (input.file.fileType.toLowerCase() !== "pdf") throw new ApplicationError(400, "Attach a PDF file");
-    const { product, draft: opened } = await edit(scope, id, input.revision);
+    const { product, draft } = await edit(scope, id, input.revision);
     const bytes = "bytes" in input.file ? input.file.bytes : await readFile(input.file.path);
-    const pageCount = await validateAuthoritiesPdf(bytes);
-    const draft = input.authorityId !== undefined
-      ? await authorityPdfCaption(opened, input.authorityId, bytes, input.autoFetched) : opened;
-    const created = await files.create(scope, "authorities", input.file,
-      { projectId: product.projectId, pdfOcrProvider: null });
-    return withRollback(scope, [createdDocumentRollback(created)], () => workProducts.save(scope, id,
-      { revision: input.revision, state: attach(draft, { kind: "document", documentId: created.id,
-        version: { versionId: created.current_version_id, sha256: created.source_sha256 } },
-      created.filename, created.source_sha256, pageCount) }), "Attaching the PDF could not be completed");
+    const created: DocumentRollback[] = [];
+    return withRollback(scope, created, async () => workProducts.save(scope, id, { revision: input.revision,
+      state: await attach(draft, bytes, () => keepInLibrary(scope, created, input.file, product.projectId, sha256(bytes))) }),
+    "Attaching the PDF could not be completed");
   }
-
   return Object.freeze({
     list: (scope: ApplicationScope, options: { projectId?: string; limit?: number } = {}) =>
       workProducts.list(scope, { kind: "authorities", ...options }),
@@ -385,10 +352,10 @@ export function createAuthoritiesWorkspaceApplication(
         signal?.throwIfAborted();
         const fresh = await importer.draft(scope, { kind: "document",
           documentId: binding.documentId,
-          version: { versionId: version.id, sha256: version.source_sha256 } });
-        const state = update(decided, { type: "refresh", review: review(fresh) });
-        state.stage = draft.stage === "citations" ? "citations" : "sources";
-        return workProducts.save(scope, id, { revision: input.revision, state });
+          version: { versionId: version.id, sha256: version.source_sha256 } },
+        { sourceMode: draft.settings.sourceMode });
+        return workProducts.save(scope, id, { revision: input.revision,
+          state: correctedAuthoritiesDraft(decided, fresh, draft.stage) });
       }, "The accepted Authorities correction could not be saved");
     },
     async saveFile(scope: ApplicationScope, file: DocumentFile, projectId?: string | null) {
@@ -402,7 +369,7 @@ export function createAuthoritiesWorkspaceApplication(
       settings?: AuthoritiesInitialSettings;
     }) {
       const initial = applyAuthoritiesInitialSettings(
-        await importer.draft(scope, input.source), input.settings);
+        await importer.draft(scope, input.source, { sourceMode: input.settings?.sourceMode }), input.settings);
       const title = input.title ?? (initial.import.kind === "document"
         ? initial.import.filename.replace(/\.[^.]+$/u, "") || "Authorities"
         : "Authorities");
@@ -432,8 +399,6 @@ export function createAuthoritiesWorkspaceApplication(
     async prepareSources(scope: ApplicationScope, id: string, revision: number,
       signal?: AbortSignal, onlyAuthorityId?: string, progress?: Progress) {
       const { product, draft } = await edit(scope, id, revision);
-      if (onlyAuthorityId && !retryableAuthoritySource(draft, onlyAuthorityId))
-        throw new ApplicationError(409, "This authority has nothing to retry.");
       const resolved = await resolveSources(scope,
         onlyAuthorityId ? draft : await followLatestBindings(scope, draft, signal),
         product.projectId, signal, onlyAuthorityId, progress);
@@ -477,13 +442,13 @@ export function createAuthoritiesWorkspaceApplication(
     attachPdf: (scope: ApplicationScope, id: string, input: {
       revision: number; authorityId: string; file: DocumentFile; language: AuthoritySourceLanguage;
       autoFetched?: boolean;
-    }) => uploadPdf(scope, id, input, (draft, binding, filename, hash, pageCount) =>
-      attachSource(draft, attachableAuthority(draft, input.authorityId), binding, filename, hash, input.language,
-        { pageCount })),
+    }) => attachUpload(scope, id, input, (draft, bytes, keep) => attachAuthorityFile(draft, {
+      authorityId: input.authorityId, language: input.language, autoFetched: input.autoFetched,
+      filename: input.file.filename, bytes, keep })),
     attachBookPdf: (scope: ApplicationScope, id: string, input: {
       revision: number; slot: AuthoritiesBookSlot; file: DocumentFile; supplementId?: string;
-    }) => uploadPdf(scope, id, input, (draft, binding, filename, hash) =>
-      attachBookSource(draft, input, binding, filename, hash)),
+    }) => attachUpload(scope, id, input, (draft, bytes, keep) => attachBookFile(draft, {
+      slot: input.slot, supplementId: input.supplementId, filename: input.file.filename, bytes, keep })),
     async attachLibraryPdf(scope: ApplicationScope, id: string, input: {
       revision: number; documentId: string; versionId: string;
       target: { kind: "authority"; authorityId: string; language: AuthoritySourceLanguage } |
@@ -497,15 +462,15 @@ export function createAuthoritiesWorkspaceApplication(
       }
       const file = await documents.read(scope, input.documentId, input.versionId, false);
       if (!file) throw new ApplicationError(409, "The PDF is no longer available.");
-      const pageCount = await validateAuthoritiesPdf(file.bytes);
-      const binding = { kind: "document" as const, documentId: input.documentId,
-        version: "latest" as const };
+      // A Library PDF is already kept: the draft follows its latest version.
+      const keep = async (): Promise<KeptPdf> => ({
+        binding: { kind: "document", documentId: input.documentId, version: "latest" },
+        reference: { documentId: input.documentId, versionId: input.versionId }, filename: version.filename });
       return workProducts.save(scope, id, { revision: input.revision,
         state: input.target.kind === "authority"
-          ? attachSource(draft, attachableAuthority(draft, input.target.authorityId), binding,
-            version.filename, version.source_sha256, input.target.language, { pageCount })
-          : attachBookSource(draft, input.target, binding, version.filename,
-            version.source_sha256) });
+          ? await attachAuthorityFile(draft, { authorityId: input.target.authorityId, language: input.target.language,
+            filename: version.filename, bytes: file.bytes, keep })
+          : await attachBookFile(draft, { ...input.target, filename: version.filename, bytes: file.bytes, keep }) });
     },
     async annotations(scope: ApplicationScope, id: string, input: {
       authorityId: string; bindingRole: string; sourceSha256: string;
@@ -514,8 +479,8 @@ export function createAuthoritiesWorkspaceApplication(
     }, signal?: AbortSignal) {
       const opened = (await open(scope, id)).draft;
       const draft = input.passageMarking ? { ...opened, settings: { ...opened.settings, passageMarking: input.passageMarking } } : opened;
-      const authority = attachableAuthority(draft, input.authorityId);
-      const attached = attachedAuthoritySources(authority.source).find(source => source.bindingRole === input.bindingRole);
+      const attached = attachedAuthoritySources(attachableAuthority(draft, input.authorityId).source)
+        .find(source => source.bindingRole === input.bindingRole);
       const binding = libraryBinding(draft, input.bindingRole);
       const source = await documents.projectionSource(scope, binding.documentId,
         binding.version === "latest" ? null : binding.version.versionId);
@@ -523,36 +488,11 @@ export function createAuthoritiesWorkspaceApplication(
           attached.sourceSha256 !== input.sourceSha256 || source.sourceSha256 !== input.sourceSha256)
         throw new ApplicationError(409, "This PDF changed. Relink it before editing highlights.");
       signal?.throwIfAborted();
-      const bytes = await source.readBytes(), readBytes = () => bytes;
-      const reference = { documentId: source.documentId, versionId: source.versionId, sourceSha256: source.sourceSha256 };
-      const pdf = await import("pdf-lib"), document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
-      if (!document.getPageCount() || document.getPageCount() > 2_000)
-        throw new ApplicationError(400, "Unsupported PDF page count");
-      const targets = authorityPassageTargets(draft, authority.id), pageTextByPage: string[] = [];
-      let passageGeometry: NativePdfPassageGeometry | undefined;
-      if (draft.settings.passageMarking !== "none" && targets.length) {
-        // Annotation review is a reader, not a second OCR job. Reuse native structure
-        // and overlay only the recognition already retained by the version's worker.
-        const prepared = source.pdfProfile && !source.pdfProfile.profile.ocr ? source.pdfProfile
-          : await documentProjectionService.preparePdf({ ...reference, bytes, ocrProvider: null, layout: false, signal });
-        const pdfProfile = { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status };
-        const projection = await documentProjectionService.read({ ...source, readBytes, pdfProfile }, { signal });
-        const native = structureNative(), text = native.documentText(projection);
-        for (const anchor of native.documentAnchors(projection, text.length)) {
-          if (anchor.kind === "page") pageTextByPage[Number(anchor.label.replace(/^page/iu, "")) - 1] = text.slice(anchor.start, anchor.end);
-        }
-        for (const page of await documentProjectionService.pdfTextLayer(readBytes, reference,
-          { pdfProfile: source.pdfProfile, signal }))
-          pageTextByPage[page.pageNumber - 1] = page.lines.map(line => line.text || line.words.map(word => word.text).join(" ")).join("\n");
-        for (let start = 0; start < targets.length; start += 100) {
-          signal?.throwIfAborted();
-          const next = await documentProjectionService.pdfPassageGeometry(readBytes, targets.slice(start, start + 100),
-            reference, { pdfProfile, signal });
-          passageGeometry = passageGeometry ? { ...next, targets: [...passageGeometry.targets, ...next.targets] } : next;
-        }
-      }
-      signal?.throwIfAborted();
-      return prepareAuthorityAnnotations(pdf, document, draft, authority, attached, { pageTextByPage, passageGeometry }, true);
+      // Annotation review is a reader, not a second OCR job: Library's queue recognizes scans, and the source is read
+      // with the recognition that queue kept.
+      return authorityAnnotations(draft, { authorityId: input.authorityId, bindingRole: input.bindingRole,
+        bytes: await source.readBytes(), reference: { documentId: source.documentId, versionId: source.versionId },
+        pdfProfile: source.pdfProfile, recognize: false, signal });
     },
     /** Recognition runs in the durable queue so the workspace can watch, pause, and stop it. */
     async sourceOcr(scope: ApplicationScope, id: string, roles: string[], cancel: boolean, pages?: number[]) {
@@ -590,7 +530,8 @@ export function createAuthoritiesWorkspaceApplication(
           for (let start = 0; start < targets.length; start += 100) {
             const geometry = await documentProjectionService.pdfPassageGeometry(resolved.readBytes,
               targets.slice(start, start + 100), { ...reference, cacheKey: prepared.cacheKey },
-              { citations, pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
+              { citations, reporterOriginal: source.origin === "original",
+                pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
             citedPages.push(...geometry.targets.flatMap(target => target.status === "found"
               ? target.pages.map(page => page.pageNumber) : []));
           }
@@ -604,11 +545,12 @@ export function createAuthoritiesWorkspaceApplication(
       const draft = await followLatestBindings(scope, storedDraft, signal);
       let built: AuthoritiesBuildResult;
       try {
-        built = await builder({ draft, title: product.title,
-          workProduct: { id, revision }, sources: await buildSources(scope, draft, signal), signal, progress,
+        const { files, unread } = await buildFiles(scope, draft, signal);
+        ({ built } = await buildAuthoritiesDraft(draft, { title: product.title, workProduct: { id, revision },
+          files, unread, builder, signal: signal ?? new AbortController().signal, progress,
           statuteText: (authority, abort) => authorityStatuteText(draft, authority, sources, abort),
           ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
-        });
+        }));
       } catch (error) {
         if (error instanceof ApplicationError) throw error;
         throw new ApplicationError(409,

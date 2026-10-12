@@ -46,7 +46,7 @@ interface Props {
     initialDraft?: import("@/app/lib/api/chat").ChatDraft | null;
     initialModel?: string | null; initialReasoningEffort?: string | null;
     editModeLabels?: { manual: string; auto: string };
-    readOnly?: boolean; onAccess?: () => void;
+    readOnly?: boolean;
     sendDisabled?: boolean;
     searchMessageId?: string | null;
     /** Fetches the page of messages before the first one loaded. */
@@ -73,7 +73,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         isDocReloading, isEditReloading, resolvedEditStatuses,
         layout = "page", gutterVisible = false, dock, showContextTools = true,
         onOpenWorkflows, onOrganize, projectName, projectCmNumber, initialDraft, initialModel, initialReasoningEffort,
-        editModeLabels, readOnly = false, onAccess, sendDisabled, searchMessageId, messageActions, afterMessages, onLoadEarlier,
+        editModeLabels, readOnly = false, sendDisabled, searchMessageId, messageActions, afterMessages, onLoadEarlier,
     }, ref) {
     const { messages, rejectedTurn } = session;
     const messagesContainerRef = useRef<HTMLDivElement>(null),
@@ -302,7 +302,6 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                             }}>Retry</Button>}
                             <Button variant="ghost" size="compact" onClick={() => onRejectedTurnRestored?.()}>Dismiss</Button>
                         </div>}
-                        {onAccess && <div className="mb-1 flex justify-end"><Button variant="ghost" size="compact" onClick={onAccess}>Access</Button></div>}
                         {readOnly ? <p role="status" className="rounded-lg border border-gray-200 bg-app-surface px-3 py-2 text-sm text-gray-600">You have viewer access to this chat.</p> : <ChatInput
                             key={chatId} draftChatId={chatId} initialDraft={initialDraft}
                             ref={chatInputRef} onSubmit={onSubmit}

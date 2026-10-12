@@ -78,7 +78,7 @@ Reader model/effort changes use the existing durable steering command. They appl
 to the next dispatch, not a running child's frozen request. A native continuation
 is reused only on its original model; scoped evidence remains portable.
 
-`Read` accepts `patterns` (one to eight literal phrases) instead of `pattern` for
+`Read` accepts `patterns` (up to 50 literal phrases) instead of `pattern` for
 one public legal source. The source is acquired once; local searches share the
 result/character budget and retain per-query counts, truncation and evidence.
 This is not parallel inference or a guarantee that a model will choose batching.
@@ -262,6 +262,14 @@ answer, and share compact evidence passages by ID. Full receipts remain
 available to verification and citation rendering. Quote-check reads likewise
 retain attribution candidates, comparisons, source passages and errors while
 keeping parser internals and hashes in the full report and workbook.
+Every quote check (the `quote_check` tool, the Review quotations route, the
+runtime's `quote-check`, and the ALR Quote Verifier built from the Authorities
+page) runs `quoteVerification/verifier.ts`: each quotation against every source
+its note cites, linked to the providers' pages. Its "[CHECKED]" workbook, Word
+results (`verify-workbook`) and Word copy (`verify-docx`) are the same for every
+host; the chat's per-quote analysis is an optional column. `document_operation`
+`link_citations` (the Drafting workflow's **Add citation links**) uses the same
+links to hyperlink a Word document's citations as a new version.
 Both note-up decision lanes return canonical source resources with the graph's
 language, so their passages can be followed with `Read`.
 
@@ -634,13 +642,15 @@ appropriate support. Unknown handles, invalid fields, damaged evidence, quotatio
 mismatches, pinpoint checks and bounded answer sizes remain enforced. A sentence
 counter is not a semantic-support check.
 
-Chat answers, selected table rows and individual completed cells expose **Add to
-memo** and **Write from selection**. Copy uses the existing version-checked memo
+Chat answers expose **Add to memo** beside their copy action; selected table rows
+and individual completed cells also expose **Write from selection** (a chat answer
+is followed up in its own chat). Copy uses the existing version-checked memo
 operation without a model call. Chat copying selects the parent answer, not every
 intermediate reader finding. Write opens a fresh chat with the original selected
 finding references and an editable composition draft; it does not send a model turn
 until the user submits. Table copying uses refreshed completed-cell references.
-No new persistence layer or agent framework is introduced.
+No new persistence layer or agent framework is introduced. `Read` describes
+selection and findings only in a turn with a research workspace, where they exist.
 
 Validation: the focused backend/frontend tests exercise replay, retries, compaction,
 scopes, batching and UI dispatch. `node scripts/test-research-efficiency.mjs` checks

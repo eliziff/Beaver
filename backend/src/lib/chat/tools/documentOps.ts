@@ -23,8 +23,9 @@ export async function renderMarkdownDocx(
 
 const filenameGraphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 export function safeGeneratedFilename(title: string, extension: string) {
-  const allowed = title.replace(/\.(?:docx|xlsx|pptx)$/iu, "").normalize("NFC")
-    .replace(/[^\p{L}\p{M}\p{N} -]/gu, "").normalize("NFC").trim();
+  // A word separator the name may not keep ("Memo_Lease_Review") still separates its words.
+  const allowed = title.replace(/\.(?:docx|xlsx|pptx)$/iu, "").normalize("NFC").replace(/[_\s]+/gu, " ")
+    .replace(/[^\p{L}\p{M}\p{N} -]/gu, "").replace(/ {2,}/gu, " ").normalize("NFC").trim();
   let stem = "";
   for (const { segment } of filenameGraphemes.segment(allowed)) {
     if (stem.length + segment.length > 64) break;

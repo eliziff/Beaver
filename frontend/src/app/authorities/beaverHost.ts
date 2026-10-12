@@ -9,6 +9,7 @@ import {
   refreshAuthorities,
   prepareAuthoritiesSources,
   prepareAuthoritiesAnnotations,
+  readAuthoritiesPinpoints,
   authoritiesSourceOcr,
   authoritiesWordToPdf,
   authoritiesBookFront,
@@ -30,6 +31,7 @@ import {
 import { directoryResource, downloadDocument, getDocument, readDocumentFile, getDocumentPdfTextLayer } from "@/app/lib/api/documents";
 import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
+import { watchedFolder } from "@/app/lib/standaloneWorkProducts";
 import { getUserProfile, updateUserProfile } from "@/app/lib/api/account";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { decodeAnnotationSet } from "../../../../shared/pdf-annotations.mjs";
@@ -111,6 +113,8 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   attachBookPdf: (id, revision, slot, selected, supplementId) =>
     attachAuthoritiesBookPdf(id, revision, slot, selected.file, supplementId),
   pdfAuthority: async (product, opening) => (await authoritiesPdfAuthority(product.id, opening)).authorityId,
+  watchedFolder,
+  readPinpoints: readAuthoritiesPinpoints,
   attachLibraryPdf(id, revision, document, target) {
     if (!document.current_version_id) throw new Error("The selected Library file is unavailable.");
     return attachAuthoritiesLibraryPdf(id, revision, document.id,
@@ -136,7 +140,7 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   sourceOcr: { progress: pdfProgress,
     start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),
     cancel: (id, roles) => authoritiesSourceOcr(id, roles, true) },
-  bookFront: (draft, actions, signal) => authoritiesBookFront(draft.id, actions, signal),
+  bookFront: authoritiesBookFront,
   async build(draft, progress, signal) {
     await prepareSourcePdfs(draft, progress, signal);
     progress?.("Building outputs");

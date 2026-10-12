@@ -698,7 +698,6 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         initialReasoningEffort={initialReasoningEffort}
         editModeLabels={editModeLabels}
         readOnly={readOnly}
-        onAccess={chatId ? () => setAccessOpen(true) : undefined}
         sendDisabled={sendDisabled}
         searchMessageId={searchMessageId}
         onLoadEarlier={onLoadEarlier}
@@ -711,6 +710,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
             onAddToProject={onProjectChange
                 ? () => { setOrganizeOpen(false); setProjectPickerOpen(true); }
                 : undefined}
+            onPeople={chatId ? () => { setOrganizeOpen(false); setAccessOpen(true); } : undefined}
             openAs={organizeOptions} />
         {onProjectChange && <SelectAssistantProjectModal open={projectPickerOpen}
             onClose={() => setProjectPickerOpen(false)} chatTitle={chatTitle}

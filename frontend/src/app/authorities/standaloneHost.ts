@@ -8,7 +8,7 @@ import {
   getStandaloneFilingContact, getStandaloneOutputFolder, setStandaloneFilingContact, inspectStandaloneFile, pickRetainedFiles, readSourceAnswer, readSourcePdf,
   readStandaloneOutputFile, relinkStandaloneFile, rememberSourceAnswer, rememberSourcePdf, requestStandaloneFileAccess,
   resolveStandaloneFile, retainStandaloneFile,
-  saveStandaloneArtifacts, standaloneWatchedFolder,
+  saveStandaloneArtifacts, watchedFolder,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
@@ -379,7 +379,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     attachPdf(id, revision, selected, { slot, ...(supplementId ? { supplement_id: supplementId } : {}) }),
   pdfAuthority: async (product, opening) => ((await runtimeResponse("pdf-authority",
     { draft: product.state, ...opening })).data as { authorityId: string | null }).authorityId,
-  watchedFolder: standaloneWatchedFolder,
+  watchedFolder,
   async build(selected, progress, signal) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);

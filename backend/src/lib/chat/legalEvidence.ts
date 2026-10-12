@@ -767,7 +767,7 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
     claims.push({ text, evidence_ids: uniqueIds });
   });
   if (!errors.length) for (const [index, claim] of claims.entries())
-    errors.push(...legalEvidenceProseIntegrityErrors(claim.text, claim.evidence_ids, state)
+    errors.push(...legalEvidenceProseIntegrityErrors(draftQuotationText(claim.text), claim.evidence_ids, state)
       // The native API returns diagnostics as text. Only this editorial finding is optional;
       // explicit quotation mismatches and every evidence-integrity failure remain errors.
       .filter(error => !options.allowUnquotedCopies || !error.startsWith("unmarked copied passage "))
@@ -776,7 +776,23 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
 }
 
 const INTERNAL_HANDLE =
-  /\b(?:body|node|unit|block|chars):\s*\d{1,6}\b|\bpar\d{1,5}\b|\be_[0-9a-f]{8,}\b/iu;
+  /\b(?:body|node|unit|block|chars):\s*\d{1,6}\b|\bpar\d{1,5}\b|\be_[0-9a-f]{8,}\b|\be_[\w-]{18}(?![\w-])/iu;
+
+/** The names of the statutes, regulations and rules a passage itself names ("The Freedom of Information and Protection
+ *  of Privacy Act is repealed."): writing such a name is naming the instrument, not copying the passage. */
+const INSTRUMENT_NAME = /\b(?!(?:The|This|That|An?)\b)\p{Lu}[\p{L}’'-]*(?:\s+(?:\p{Lu}[\p{L}’'-]*|of|and|the|for|on|to|in|respecting|relating|concerning|de|du|des|la|le|et|sur))*?\s+(?:Act|Code|Regulations?|Rules|Charter|Ordinance)\b/gu;
+const namedInstruments = (passage: string) => [...new Set(passage.match(INSTRUMENT_NAME) ?? [])];
+
+/** A drafted document's text as its quotations read: a block quotation's citation at its end cites the block, a block
+ *  that is itself a quotation in marks keeps its citation after the closing mark, and a block of wording to be filled
+ *  in ({{placeholders}}) is proposed text, not a source's words. */
+export function draftQuotationText(markdown: string) {
+  return markdown.replace(/^([ \t]*>+[ \t]?)(.*)$/gmu, (line, marker: string, body: string) => {
+    if (/^\s*["“‘«]/u.test(body) || /\{\{[^{}\n]+\}\}/u.test(body)) return body;
+    const cited = /^(.*?)((?:\s*\[@[^\]\r\n]+\])+)\s*$/u.exec(body);
+    return cited ? `${marker}${cited[1]}\n${cited[2].trim()}` : line;
+  });
+}
 
 export function legalEvidenceProseIntegrityErrors(text: string,
   citedEvidenceIds: readonly string[], state: LegalEvidenceTurnState) {
@@ -787,7 +803,8 @@ export function legalEvidenceProseIntegrityErrors(text: string,
       const passage = state.presentedEvidenceIds.has(evidenceId) || citedEvidenceIds.includes(evidenceId)
         ? receipt?.span_text : state.priorEvidencePreviews.get(evidenceId);
       return receipt && passage ? [{ evidenceId, text: passage,
-        labels: [receipt.name, receipt.citation].filter((value): value is string => Boolean(value)) }] : [];
+        labels: [receipt.name, receipt.citation, ...namedInstruments(passage)]
+          .filter((value): value is string => Boolean(value)) }] : [];
     });
   const named = new Map<string, Set<string>>();
   // One scan for the whole draft: rescanning per citation made the check quadratic.
@@ -822,7 +839,7 @@ export function legalEvidenceProseIntegrityErrors(text: string,
     return [...labels].every((label) => actual.includes(label)) && actual.every((label) => labels.has(label))
       ? [] : [`${key} paragraphs ${[...labels].join(", ")} require their exact passage evidence_ids; Read those paragraphs and correct the claim's evidence_ids or split the claim`];
   });
-  const handle = INTERNAL_HANDLE.exec(text)?.[0];
+  const handle = INTERNAL_HANDLE.exec(text.replace(/\[@[^\]\r\n]+\]/gu, ""))?.[0];
   return [
     ...(handle ? [`must not name the internal handle "${handle}"; cite the passage through its evidence instead`] : []),
     ...pinpoints, ...native.groundedProseErrors(text, citedEvidenceIds, visible),

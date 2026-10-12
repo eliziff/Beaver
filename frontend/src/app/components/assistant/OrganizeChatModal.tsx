@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BookOpenText, FileSpreadsheet } from "lucide-react";
+import { BookOpenText, FileSpreadsheet, Users } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { Modal } from "../modals/Modal";
 
@@ -19,44 +19,51 @@ function OptionCard({ option }: { option: OrganizeOption }) {
 }
 
 /** Intermediate chooser between the chat and its destinations. */
-export function OrganizeChatModal({ open, onClose, projectName, onAddToProject, openAs }: {
+export function OrganizeChatModal({ open, onClose, projectName, onAddToProject, onPeople, openAs }: {
     open: boolean;
     onClose: () => void;
     projectName?: string | null;
     onAddToProject?: () => void;
+    onPeople?: () => void;
     openAs: OrganizeOption[];
 }) {
     return <Modal open={open} onClose={onClose} size="lg" fit breadcrumbs={["Organize"]} bodyClassName="pb-5">
         <div className="my-auto grid gap-6">
             <div className="grid gap-6 sm:grid-cols-2">
-                <section>
-                    <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Project
-                    </h3>
-                    <button type="button" onClick={onAddToProject} disabled={!onAddToProject}
-                        className="group flex w-full items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-60">
-                        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-gray-100 text-gray-600 group-hover:bg-white group-hover:text-gray-900">
-                            <FolderSvgIcon className="size-4" />
-                        </span>
-                        <span className="min-w-0">
-                            <span className="block truncate text-sm font-medium text-gray-900">
-                                {projectName ?? "Add to project"}
+                <div className="grid content-start gap-6">
+                    <section>
+                        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Project
+                        </h3>
+                        <button type="button" onClick={onAddToProject} disabled={!onAddToProject}
+                            className="group flex w-full items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-60">
+                            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-gray-100 text-gray-600 group-hover:bg-white group-hover:text-gray-900">
+                                <FolderSvgIcon className="size-4" />
                             </span>
-                            <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                                {projectName
-                                    ? "Move this chat to another project."
-                                    : "Add this chat to a project for the matter."}
+                            <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium text-gray-900">
+                                    {projectName ?? "Add to project"}
+                                </span>
+                                <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+                                    {projectName
+                                        ? "Move this chat to another project."
+                                        : "Add this chat to a project for the matter."}
+                                </span>
                             </span>
-                        </span>
-                    </button>
-                </section>
+                        </button>
+                    </section>
+                    {onPeople && <section>
+                        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            People
+                        </h3>
+                        <OptionCard option={{ label: "Share", description: "Choose who can view or edit this chat.",
+                            icon: <Users className="size-4" aria-hidden="true" />, onSelect: onPeople }} />
+                    </section>}
+                </div>
                 {openAs.length > 0 && <section>
                     <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
                         Open as
                     </h3>
-                    <p className="mb-2 text-xs leading-5 text-gray-500">
-                        Use this chat's research in a workspace or table.
-                    </p>
                     <div className="grid gap-2">
                         {openAs.map((option) => <OptionCard key={option.label} option={option} />)}
                     </div>

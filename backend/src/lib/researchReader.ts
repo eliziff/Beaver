@@ -1,4 +1,4 @@
-import { readPatterns } from "./chat/resourceTools";
+import { MAX_READ_PATTERNS, readPatterns } from "./chat/resourceTools";
 import { previousEmptyScan, type QueryHistorySource } from "./chat/queryHistory";
 import { readDocumentProjection } from "./documentApplication";
 import { z } from "mike/shared/runtime/schema.mjs";
@@ -514,9 +514,9 @@ async function readLegalSource(
   const resource = parseResourceReference(trimmed(args.file_path));
   if (resource?.kind !== "source" || resource.provider === "pdf") return null;
   if (args.patterns !== undefined && (args.pattern !== undefined || !Array.isArray(args.patterns) ||
-      !args.patterns.length || args.patterns.length > 8 || args.patterns.some(pattern =>
+      !args.patterns.length || args.patterns.length > MAX_READ_PATTERNS || args.patterns.some(pattern =>
         typeof pattern !== "string" || !pattern.trim() || pattern.length > 256)))
-    return fail("Use pattern or one to eight non-empty patterns, not both.");
+    return fail(`Use pattern or one to ${MAX_READ_PATTERNS} non-empty patterns, not both.`);
   const patterns = readPatterns(args);
   const locator = trimmed(args.locator);
   const locatorKind = trimmed(args.locator_kind);

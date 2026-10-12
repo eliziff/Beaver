@@ -68,7 +68,7 @@ export function parseAssistantCitations(value: unknown): AssistantCitation[] {
 }
 const citations = z.array(z.unknown()).transform(parseAssistantCitations);
 export const activity = z.object({ id, tool: id, label: id, status,
-  read: z.object({ resource: text.min(1), queries: z.array(short.min(1)).max(8).optional(),
+  read: z.object({ resource: text.min(1), queries: z.array(short.min(1)).max(50).optional(),
     ranges: z.array(short.min(1)).max(8).optional() }).strict().optional(),
   citations: citations.optional() }).strict();
 const choice = z.object({ id, kind: z.literal("choice"), question: text,

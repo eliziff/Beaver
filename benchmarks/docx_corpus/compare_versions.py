@@ -185,7 +185,7 @@ def worker(args):
     app.USE_DB_SEARCH = False
     app.USE_A2AJ = False
     app.SEARCH_ALT_PINPOINTS = False
-    app.LINK_RESOLVER = app.NoopHtmlResolver()
+    app.LINK_RESOLVER = OfflineResolver()
     app.LLM_CACHE_ENABLED = False
     app.SUPRA_LINKING_AGGRESSIVENESS = args.mode
     def forbidden(*a, **kw):
@@ -334,6 +334,24 @@ def report(out):
     print(json.dumps(dict(counts), indent=2), flush=True)
 
 
+class OfflineResolver:
+    """Resolves no link: an address stays as written, and no page is fetched."""
+    def resolve_url(self, url):
+        return (url or '').strip()
+
+    def get_cached_html(self, url):
+        return None
+
+    def close(self):
+        pass
+
+
+def point_link_databases(link_truth, database):
+    """Every link database the reference truth module reads, at the one supplied."""
+    for name in [name for name in vars(link_truth) if name.endswith('_DB_PATH')]:
+        setattr(link_truth, name, database)
+
+
 def score_saved(args):
     """Re-score immutable component outputs with ALR's original truth/scoring helpers."""
     manifest = read(args.manifest)
@@ -347,7 +365,7 @@ def score_saved(args):
     gold = args.manifest.parent / 'gold'
     link_truth._LIVE_MAP_PATH = gold / 'gold_link_verification.json'
     link_truth._REPAIRS_PATH = gold / 'link_repairs.json'
-    link_truth._CANLII_DB_PATH = args.link_db
+    point_link_databases(link_truth, args.link_db)
     cases = {r['id']: r for r in iter_rows(args.run / 'cases.jsonl')}
     adjudications = read(args.adjudications) if args.adjudications else {}
     results = {}

@@ -369,7 +369,8 @@ async function keepFolder(id: string, handle: StoredHandle["handle"] | null) {
   else transaction.objectStore(HANDLES).delete(id);
   await completed(transaction);
 }
-export const standaloneWatchedFolder = { get: () => keptFolder(WATCHED_FOLDER),
+/** The folder Auto-fetch watches, kept in this browser for every host of Authorities. */
+export const watchedFolder = { get: () => keptFolder(WATCHED_FOLDER),
   set: (handle: FileSystemDirectoryHandle | null) => keepFolder(WATCHED_FOLDER, handle) };
 
 export async function getStandaloneFilingContact(): Promise<StandaloneFilingContact> {

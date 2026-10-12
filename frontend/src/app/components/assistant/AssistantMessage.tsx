@@ -323,7 +323,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                         {message.artifacts.map(downloadBlock)}
                     </div>
                 )}
-                <div className="flex items-center justify-start gap-2 py-2 font-sans">
+                <div className="flex flex-wrap items-center justify-start gap-1 py-2 font-sans">
                     {!isStreaming && (
                         <button
                             type="button"
@@ -335,8 +335,8 @@ export const AssistantMessage = memo(function AssistantMessage({
                             {isCopied ? <Check aria-hidden="true" className="h-3.5 w-3.5 text-green-600" /> : <Copy aria-hidden="true" className="h-3.5 w-3.5" />}
                         </button>
                     )}
+                    {actions}
                 </div>
-                {actions}
             </div>
         </div>
     );

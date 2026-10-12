@@ -27,8 +27,7 @@ and native/runtime certification remain separate gates.
 
 The current [Authorities contract](../current/authorities.md) replaces the old
 Python integration/hosted-pilot assumptions. Full Authorities and ALR may try
-ordinary bounded CanLII document reads after corpus providers miss, using an
-optional supplied private index. Challenges and redirects require manual browser
+ordinary bounded CanLII document reads after corpus providers miss. Challenges and redirects require manual browser
 navigation and attachment; Authorities-lite keeps its manual CanLII handoff.
 The [performance guide](../current/performance.md) records implemented mechanisms
 and their limits, not another optimization backlog or a blanket speed guarantee.

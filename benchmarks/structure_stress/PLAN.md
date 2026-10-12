@@ -12,7 +12,6 @@ raw per-doc results stay local.
 | A2AJ cases | `%LOCALAPPDATA%/ALR Quote Verifier/a2aj_corpus/cases/*/train.parquet` | 4.1 GB, 29 courts | 225,017 (EN+FR text) | `citation_en` (self-cite), `cases_cited_en[]` (curated cited list), bracketed-paragraph ladder |
 | A2AJ laws | `.../a2aj_corpus/laws/*/train.parquet` | 701 MB, 12+12 sets | 23,531 (EN+FR) | `num_sections_*` + `unofficial_sections_*` (JSON label→text — section ground truth) |
 | Journals | `.../data/public_endpoint-*.db` (`articles.text`) | 180 MB | 2,496 articles | `article_pages` (51,125 rows with page_label) + `page_map_json` |
-| CanLII index | `.../data/canlii-*.db` | 316 MB | 3,538,714 case titles + 91,669 legislation titles | membership check for extracted cites; style-of-cause grammar vectors |
 | docx_corpus | `benchmarks/docx_corpus/private_results` | — | 1,860 unique real footnote texts | behavior captures (predictions.*.jsonl) |
 | CourtListener | `%LOCALAPPDATA%/OpenLegalProducts/LegalData/providers/courtlistener/courtlistener.sqlite` | local SQLite | 55,504 opinion bodies | native/hybrid/flat SourceDoc rows in the installed-provider freeze |
 

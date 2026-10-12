@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import sys
 
-from compare_versions import read, rows, iter_rows, write, sha, below_normal
+from compare_versions import read, rows, iter_rows, write, sha, below_normal, point_link_databases
 
 
 def normalized(text):
@@ -243,7 +243,7 @@ def score(args):
     link_truth._LIVE_MAP_PATH = args.manifest.parent / 'gold/gold_link_verification.json'
     link_truth._REPAIRS_PATH = args.manifest.parent / 'gold/link_repairs.json'
     if args.link_db:
-        link_truth._CANLII_DB_PATH = args.link_db
+        point_link_databases(link_truth, args.link_db)
     outputs = []
     for path in sorted(args.run.glob('*-*.jsonl')):
         if not path.name.startswith(('baseline-', 'candidate-')):

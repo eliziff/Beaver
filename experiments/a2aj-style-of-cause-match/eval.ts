@@ -1,6 +1,6 @@
 // Offline evaluation of the style-of-cause fallback. Reads only local data:
 //   A2AJ bulk sqlite (Beaver's provider store), the ALR footnote gold (read in place),
-//   CanLII case metadata (ALR Quote Verifier's canlii db), results/measure.json and results/recordings/.
+//   CanLII case metadata (CANLII_CASES_DB), results/measure.json and results/recordings/.
 // Writes results/summary.json, results/wrong-matches.json and results/canlii-absent-accepts.json.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -9,11 +9,10 @@ import { buildNameIndex, buildTokenIndex, type Citation, courtResolver, extract,
   nearNameGuard, normaliseName, type Outcome, proceedingGuard, type Query, RULES, YEAR_RULES, type YearKind, yearKind } from "./lib";
 
 const HERE = __dirname;
-const LOCAL = process.env.LOCALAPPDATA ?? "";
 const ALR_ROOT = process.env.ALR_QUOTE_VERIFIER_ROOT?.trim() ||
-  path.join(process.env.USERPROFILE ?? "", "Desktop", "Martys Qote Verifier", "ALR-Quote-Verifier");
-const CANLII_DB = process.env.CANLII_CASES_DB?.trim() ||
-  path.join(LOCAL, "ALR Quote Verifier", "data", "canlii-186d92f8c0a4.db");
+  (() => { throw new Error("Set ALR_QUOTE_VERIFIER_ROOT to the ALR Quote Verifier checkout."); })();
+const CANLII_CASES_PATH = process.env.CANLII_CASES_DB?.trim() ||
+  (() => { throw new Error("Set CANLII_CASES_DB to a CanLII case metadata database (cases: databaseId, caseId, title)."); })();
 const readJsonl = (file: string) => readFileSync(file, "utf8").split(/\r?\n/u).filter(Boolean).map((l) => JSON.parse(l));
 
 type Trial = { style: string; cite: string; format: string; yearKind: YearKind; year: number; dataset: string; truth: number | null };
@@ -93,10 +92,10 @@ const SELECTED = ["exact/strict/none", "exact/aware/none", "exact/aware2/none", 
   const alrCorrected = textTrials([...corrected].filter((t) => !published.has(t)));
 
   // ------------------------------------------------------------ CanLII metadata: title + neutral case id
-  const canliiDb = new DatabaseSync(CANLII_DB, { readOnly: true });
-  const canliiRows = canliiDb.prepare("SELECT databaseId, caseId, title FROM cases").all() as
+  const canliiCases = new DatabaseSync(CANLII_CASES_PATH, { readOnly: true });
+  const canliiRows = canliiCases.prepare("SELECT databaseId, caseId, title FROM cases").all() as
     { databaseId: string; caseId: string; title: string }[];
-  canliiDb.close();
+  canliiCases.close();
   const idPattern = /^(\d{4})([a-z]+)(\d+)$/u; // CanLII case-id layout: 2005scc72, 1954canlii3
   const coverage = new Map<string, [number, number]>();
   for (const c of cases.values()) if (c.year) {

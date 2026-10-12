@@ -139,8 +139,8 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
     { profileId, sourceMode: settings.sourceMode, passageMarking: settings.passageMarking },
     (["cover", "index"] as const).flatMap((slot) => book && own[slot].own && own[slot].chosen ? [[slot, own[slot].chosen!] as const] : []));
   const busy = finishing;
-  const front = previewBook(host, draft);
-  const frontActions = front ? importActions(front.state, profileId, settings, shownCover, PREVIEW_KEYS) : [];
+  const front = previewBook();
+  const frontActions = importActions(front.state, profileId, settings, shownCover, PREVIEW_KEYS);
   const steps: readonly string[] = book ? BOOK_STEPS : TABLE_STEPS, at = Math.min(step, steps.length - 1), name = steps[at];
   const last = at === steps.length - 1;
   // The court is the cover's first field (above the sources, where the court takes no book).

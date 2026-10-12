@@ -41,6 +41,8 @@ export const attachAuthorityPdf = (
   `/authorities/${segment(id)}/attachments/${segment(authorityId)}`, file,
   { fields: { revision: String(revision), language, ...(autoFetched ? { auto_fetched: "true" } : {}) } },
 );
+export const readAuthoritiesPinpoints = (text: string, start: number, end: number) =>
+  post<Array<{ kind: string; start: number; end: number }>>("/authorities/pinpoints", { text, start, end });
 export const authoritiesPdfAuthority = (id: string, opening: { filename: string; pages: string[] }) =>
   post<{ authorityId: string | null }>(`/authorities/${segment(id)}/pdf-authority`, opening);
 export const attachAuthoritiesLibraryPdf = (id: string, revision: number,
@@ -70,6 +72,9 @@ export const prepareAuthoritiesAnnotations = (id: string, authorityId: string, b
   apiRequest<import("@/app/authorities/annotationPreparation").AnnotationPreparation>(
     `/authorities/${segment(id)}/annotations`,
     { ...mutationInit("POST", { authorityId, bindingRole, sourceSha256, passageMarking }), signal });
-/** The book's cover and first index page, drawn with `actions` applied to the saved draft. */
-export const authoritiesBookFront = async (id: string, actions: AuthoritiesAction[], signal?: AbortSignal) =>
-  (await apiResponse(`/authorities/${segment(id)}/book-front`, { ...mutationInit("POST", { actions }), signal })).blob();
+/** The book's cover and first index page, drawn with `actions` applied to the saved draft, or to a draft never saved
+ *  (revision 0: the import's preview book) as it is given. */
+export const authoritiesBookFront = async (product: AuthoritiesProduct, actions: AuthoritiesAction[], signal?: AbortSignal) =>
+  (await apiResponse(product.revision ? `/authorities/${segment(product.id)}/book-front` : "/authorities/book-front",
+    { ...mutationInit("POST", product.revision ? { actions }
+      : { draft: product.state, title: product.title, actions }), signal })).blob();

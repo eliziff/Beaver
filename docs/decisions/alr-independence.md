@@ -92,8 +92,7 @@ A fork is not a runtime architecture. Use one only to prepare upstream
 contributions, retain a pinned provenance reference, or intentionally maintain
 a separate ALR edition. Beaver must not depend on such a fork.
 
-Record source revisions beside a port when they help track compatibility; no
-separate copyright attribution is required for project-authored ALR behavior.
+Record source revisions beside a port when they help track compatibility.
 
 ## Compatibility with existing ALR downloads
 

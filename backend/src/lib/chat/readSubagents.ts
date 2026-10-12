@@ -334,7 +334,7 @@ export function readSubagentActivityLabel(input: Record<string, unknown>) {
 }
 
 export const readSubagentInstruction = (assignment: ReadSubagentAssignment) => [
-  "Read only what the assignment requests. Preserve legally material qualifications and contrary text. Do not broaden the task or recommend next steps.",
+  "Read only what the assignment requests. Preserve legally material qualifications and contrary text. Do not broaden the task or recommend next steps. Each finding carries its passages in evidence_ids; the user reads its text, so never write evidence ids in it.",
   `Jurisdiction boundary: ${assignment.jurisdiction}.`,
   assignment.collections?.length
     ? `Collection boundary: ${assignment.collections.join(", ")}.` : "",

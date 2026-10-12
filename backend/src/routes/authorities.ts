@@ -5,8 +5,9 @@ import { bad, choice, decodeAuthoritiesDiscrepancyAction,
   decodeAuthoritiesInitialSettings, decodeAuthoritiesUserAction, decodePdfOpening, integer, object,
   text } from "../lib/authoritiesActionContract";
 import { asyncRoute } from "../lib/asyncRoute";
-import { applyAuthoritiesUserAction } from "../lib/authoritiesActions";
-import { authoritiesBookFront, statuteExcerptPageCounts } from "../lib/authoritiesBuild";
+import { applyAuthoritiesUserAction, readPinpoints } from "../lib/authoritiesActions";
+import { statuteExcerptPageCounts } from "../lib/authoritiesBuild";
+import { authoritiesBookFrontPdf } from "../lib/authoritiesCore";
 import { decodeAuthoritiesDraft } from "../lib/authoritiesDomain";
 import { followedRoute } from "../lib/followedRoute";
 import { wordToPdfAvailable } from "../lib/convert";
@@ -20,6 +21,11 @@ function digest(value: unknown) {
 }
 function revision(value: unknown, multipart = false) {
   return integer(multipart && typeof value === "string" ? Number(value) : value, 1);
+}
+
+function frontActions(value: unknown) {
+  const actions = object(value).actions;
+  return (Array.isArray(actions) && actions.length <= 3 ? actions : bad()).map(decodeAuthoritiesUserAction);
 }
 
 function documentImport(value: unknown): Parameters<
@@ -68,6 +74,17 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
   const router = Router();
   router.use(requireAuth);
   router.get("/capabilities", (_req, res) => void res.json({ wordToPdf: wordToPdfAvailable() }));
+  // A front drawn from a draft never saved (the import's preview book): no source of it is stored to read.
+  router.post("/book-front", asyncRoute(async (req, res) => {
+    const body = object(req.body);
+    res.type("application/pdf").send(await authoritiesBookFrontPdf(
+      decodeAuthoritiesDraft({ ...object(body.draft), ledger: object(body.draft).ledger ?? null }) ?? bad(),
+      frontActions(body), text(body.title, 300)));
+  }));
+  router.post("/pinpoints", asyncRoute(async (req, res) => {
+    const body = object(req.body);
+    res.json(readPinpoints(body.text, body.start, body.end));
+  }));
   router.get("/", asyncRoute(async (req, res) => {
     const limit = req.query.limit === undefined ? undefined : integer(Number(req.query.limit), 1);
     if (limit !== undefined && limit > 100) return bad();
@@ -104,13 +121,12 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
   }));
   // The book's cover and first index page with the changes not yet made to the draft.
   router.post("/:id/book-front", asyncRoute(async (req, res) => {
-    const body = object(req.body), actions = Array.isArray(body.actions) && body.actions.length <= 3
-      ? body.actions as unknown[] : bad();
+    const actions = frontActions(req.body);
     const product = await application.get(applicationScope(res), text(req.params.id));
-    const state = actions.map(decodeAuthoritiesUserAction).reduce((state, action) => applyAuthoritiesUserAction(state, action),
-      decodeAuthoritiesDraft(product.state) ?? reject(409, "Authorities draft state is invalid"));
+    const saved = decodeAuthoritiesDraft(product.state) ?? reject(409, "Authorities draft state is invalid");
+    const state = actions.reduce((state, action) => applyAuthoritiesUserAction(state, action), saved);
     // A statute the book excerpts counts the pages a build keeps of it, read from its stored file.
-    res.type("application/pdf").send(await authoritiesBookFront(state, product.title,
+    res.type("application/pdf").send(await authoritiesBookFrontPdf(saved, actions, product.title,
       await statuteExcerptPageCounts(state, application.sourceText(applicationScope(res), state))));
   }));
   router.post("/:id/refresh", asyncRoute(async (req, res) => {

@@ -6,7 +6,9 @@ import {
   reduceAuthoritiesDraft,
   type AuthoritiesFreshReview,
   type AuthoritiesCover,
+  type AuthoritiesDocumentSnapshot,
   type AuthoritiesImport,
+  type AuthorityCitationLedger,
   type AuthoritiesSourceMode,
   type AuthorityIdentity,
   type AuthorityKind,
@@ -511,12 +513,70 @@ function importedCover(units: NativeAuthorityTextUnit[]): AuthoritiesCover {
     ...(Object.values(contact).some(Boolean) && { contact }) };
 }
 
+/** How a brief is imported, as every host imports one: the host supplies its bytes, where it keeps them (`binding`,
+ *  and `reference`, the stored document a host's projection reads), and the snapshot it is bound to. */
+export type AuthoritiesDocumentImport = {
+  filename: string; fileType: "docx" | "pdf"; bytes: Buffer; binding: WorkProductInput;
+  reference: { documentId: string; versionId: string };
+  snapshot: AuthoritiesDocumentSnapshot | null;
+  sourceMode?: AuthoritiesSourceMode; supraLinking?: "named" | "aggressive";
+  /** The citations Beaver wrote into a brief it drafted, read in place of a scan where they still fit. */
+  ledger?: Omit<AuthorityCitationLedger, "document">;
+};
+
+/** A brief's draft: its citations read from its text. A brief's own text is what it says, however it reads. Only its
+ *  scanned pages (a picture of a page, its text layer invisible or absent) are recognized, where the runtime has a
+ *  recognizer, and a scan's layer that reads better than its recognition stands. */
+export async function importAuthoritiesDocument(input: AuthoritiesDocumentImport,
+  projection: ProjectionReader = documentProjectionService, native: AuthoritiesNative = structureNative()) {
+  const sourceSha256 = sha256(input.bytes);
+  const imported: AuthoritiesImport = { kind: "document", bindingRole: "source",
+    filename: input.filename, fileType: input.fileType, snapshot: input.snapshot };
+  const bindings = { source: input.binding };
+  let initial = createAuthoritiesDraft(imported, bindings);
+  if (input.sourceMode) initial = reduceAuthoritiesDraft(initial, { type: "set-settings",
+    settings: { sourceMode: input.sourceMode } });
+  if (input.ledger && input.snapshot) {
+    try {
+      return reduceAuthoritiesDraft(initial, { type: "ingest-ledger", ledger: { ...input.ledger, document: input.snapshot } });
+    } catch { /* Untrusted or stale provenance falls back to the Rust scan. */ }
+  }
+  const reference = { ...input.reference, sourceSha256, fileType: input.fileType, readBytes: () => input.bytes };
+  const readPdf = async () => {
+    const prepare = projection.preparePdf;
+    if (!prepare) return projection.read(reference);
+    const read = async (options: Parameters<typeof prepare>[0]) => {
+      const prepared = await prepare(options);
+      return projection.read({ ...reference, pdfProfile: { cacheKey: prepared.cacheKey,
+        profile: prepared.profile, status: prepared.status } });
+    };
+    const own = await read({ ...reference, bytes: input.bytes, ocrProvider: null });
+    // A scanned page whose own text layer reads well needs no recognition: only the pages the engine
+    // still names as needing it are recognized, and with none the brief is read as it is.
+    const summary = native.pdfDocumentSummary?.(own);
+    const scanned = (summary?.scannedPages ?? []).filter((index) => summary?.pagesNeedingOcr.includes(index));
+    if (!scanned.length) return own;
+    try {
+      return await read({ ...reference, bytes: input.bytes, ocrProvider: "kraken-lite",
+        pages: scanned.map((index) => index + 1) });
+    } catch { return own; }
+  };
+  const units = await readImportUnits(input.fileType, async () => {
+    if (input.fileType === "docx") return native.docxAuthorityTextUnits(input.bytes);
+    return native.pdfAuthorityTextUnits(await readPdf());
+  }, () => input.bytes);
+  return reduceAuthoritiesDraft(initial, {
+    type: "refresh", review: await scanReview(imported, bindings, units, input.supraLinking),
+  });
+}
+
 async function documentDraft(
   scope: ApplicationScope,
   binding: DocumentInput,
   documents: DocumentStore,
   projection: ProjectionReader,
   native: AuthoritiesNative,
+  options: Pick<AuthoritiesDocumentImport, "sourceMode" | "supraLinking"> = {},
 ) {
   const latest = binding.version === "latest";
   const requestedVersion = binding.version === "latest" ? null : binding.version.versionId;
@@ -538,31 +598,14 @@ async function documentDraft(
   if (fileType !== "docx" && fileType !== "pdf") {
     throw new ApplicationError(409, "Authorities sources must be PDF or Word documents");
   }
-  const imported: AuthoritiesImport = { kind: "document", bindingRole: "source",
-    filename, fileType, snapshot: { documentId: source.documentId,
-      versionId: source.versionId, sha256: source.sourceSha256 } };
-  const bindings = { source: binding };
-  const storedLedger = source.provenance?.actor === "assistant"
-    ? source.provenance.generation?.authorityLedger : undefined;
-  if (storedLedger) {
-    try {
-      return reduceAuthoritiesDraft(createAuthoritiesDraft(imported, bindings), {
-        type: "ingest-ledger", ledger: { ...storedLedger, document: imported.snapshot! },
-      });
-    } catch { /* Untrusted or stale provenance falls back to the Rust scan. */ }
-  }
-  const units = await readImportUnits(fileType, async () => {
-    if (fileType === "docx") {
-      const bytes = await source.readBytes();
-      if (sha256(bytes) !== source.sourceSha256)
-        throw new ApplicationError(409, "Document bytes do not match their version");
-      return native.docxAuthorityTextUnits(bytes);
-    }
-    return native.pdfAuthorityTextUnits(await projection.read(source));
-  }, () => source.readBytes());
-  return reduceAuthoritiesDraft(createAuthoritiesDraft(imported, bindings), {
-    type: "refresh", review: await scanReview(imported, bindings, units),
-  });
+  const bytes = await source.readBytes();
+  if (sha256(bytes) !== source.sourceSha256)
+    throw new ApplicationError(409, "Document bytes do not match their version");
+  return importAuthoritiesDocument({ ...options, filename, fileType, bytes, binding,
+    reference: { documentId: source.documentId, versionId: source.versionId },
+    snapshot: { documentId: source.documentId, versionId: source.versionId, sha256: source.sourceSha256 },
+    ledger: source.provenance?.actor === "assistant" ? source.provenance.generation?.authorityLedger : undefined,
+  }, projection, native);
 }
 
 function receiptDraft(seeds: readonly GroundedReceiptSeed[]) {
@@ -585,11 +628,12 @@ export function createAuthoritiesImporter(
   native?: AuthoritiesNative,
 ) {
   return Object.freeze({
-    async draft(scope: ApplicationScope, source: AuthoritiesImportSource) {
+    async draft(scope: ApplicationScope, source: AuthoritiesImportSource,
+      options: Pick<AuthoritiesDocumentImport, "sourceMode" | "supraLinking"> = {}) {
       return source.kind === "manual" ? createAuthoritiesDraft(source)
         : source.kind === "document"
         ? documentDraft(scope, source, documents, projection,
-          native ?? structureNative())
+          native ?? structureNative(), options)
         : receiptDraft(source.seeds);
     },
   });
@@ -616,52 +660,18 @@ function withinTwoEdits(left: string, right: string) {
 export const withScheme = (link: unknown) => typeof link === "string" && /^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#]|$)/iu.test(link)
   ? `https://${link}` : link;
 
+/** A brief the standalone runtime is handed: the page keeps the file, known here by its hash. */
 export async function importStandaloneAuthoritiesFile(input: {
   filename: string; fileType: "docx" | "pdf"; bytes: Buffer; modified: number;
   sourceMode?: AuthoritiesSourceMode; supraLinking?: "named" | "aggressive";
 }, projection: ProjectionReader = documentProjectionService,
 native: AuthoritiesNative = structureNative()) {
   const sourceSha256 = sha256(input.bytes);
-  const binding: WorkProductInput = { kind: "local-file", handleId: "standalone",
-    lastSeen: { name: input.filename, size: input.bytes.length,
-      modified: input.modified, sha256: sourceSha256 } };
-  const reference = { documentId: `standalone-${sourceSha256}`, versionId: sourceSha256, sourceSha256,
-    fileType: input.fileType, readBytes: () => input.bytes };
-  // A brief's own text is what it says, however it reads. Only its scanned pages (a picture of a page,
-  // its text layer invisible or absent) are recognized, where the runtime has a recognizer, and a scan's
-  // layer that reads better than its recognition stands.
-  const readPdf = async () => {
-    const prepare = projection.preparePdf;
-    if (!prepare) return projection.read(reference);
-    const read = async (options: Parameters<typeof prepare>[0]) => {
-      const prepared = await prepare(options);
-      return projection.read({ ...reference, pdfProfile: { cacheKey: prepared.cacheKey,
-        profile: prepared.profile, status: prepared.status } });
-    };
-    const own = await read({ ...reference, bytes: input.bytes, ocrProvider: null });
-    // A scanned page whose own text layer reads well needs no recognition: only the pages the engine
-    // still names as needing it are recognized, and with none the brief is read as it is.
-    const summary = native.pdfDocumentSummary?.(own);
-    const scanned = (summary?.scannedPages ?? []).filter((index) => summary?.pagesNeedingOcr.includes(index));
-    if (!scanned.length) return own;
-    try {
-      return await read({ ...reference, bytes: input.bytes, ocrProvider: "kraken-lite",
-        pages: scanned.map((index) => index + 1) });
-    } catch { return own; }
-  };
-  const units = await readImportUnits(input.fileType, async () => {
-    if (input.fileType === "docx") return native.docxAuthorityTextUnits(input.bytes);
-    return native.pdfAuthorityTextUnits(await readPdf());
-  }, () => input.bytes);
-  const imported: AuthoritiesImport = { kind: "document", bindingRole: "source",
-    filename: input.filename, fileType: input.fileType, snapshot: null };
-  const bindings = { source: binding };
-  let initial = createAuthoritiesDraft(imported, bindings);
-  if (input.sourceMode) initial = reduceAuthoritiesDraft(initial, { type: "set-settings",
-    settings: { sourceMode: input.sourceMode } });
-  return reduceAuthoritiesDraft(initial, {
-    type: "refresh", review: await scanReview(imported, bindings, units, input.supraLinking),
-  });
+  return importAuthoritiesDocument({ filename: input.filename, fileType: input.fileType, bytes: input.bytes,
+    binding: { kind: "local-file", handleId: "standalone",
+      lastSeen: { name: input.filename, size: input.bytes.length, modified: input.modified, sha256: sourceSha256 } },
+    reference: { documentId: `standalone-${sourceSha256}`, versionId: sourceSha256 }, snapshot: null,
+    sourceMode: input.sourceMode, supraLinking: input.supraLinking }, projection, native);
 }
 
 export type AuthoritiesImporter = ReturnType<typeof createAuthoritiesImporter>;

@@ -125,8 +125,7 @@ inspected as design evidence without importing private modules:
 - one complete legal citation becomes one link/pill; partial citation links are
   forbidden.
 
-Beaver already ports only the small neutral CanLII mapping and URL behaviour,
-with attribution, and keeps ALR independent.
+Beaver already ports only the small neutral CanLII mapping and URL behaviour\nand keeps ALR independent.
 
 ## Precursor smoke — not an experiment result
 
