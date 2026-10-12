@@ -97,8 +97,8 @@ describe("Authorities citation boundary actions", () => {
     const draft = applyAuthoritiesUserAction({ ...bodyDraft(), units: [{ ...bodyDraft().units[0], text }] },
       { type: "add-occurrence", unitId: "body:7", ...span(cite) });
     const [id] = draft.units[0].occurrenceIds, parsed = draft.occurrences[id];
-    expect(parsed.pinpoints).toEqual([{ kind: "paragraph", text: "82", ...span("82") },
-      { kind: "paragraph", text: "91", ...span("91") }]);
+    expect(parsed.pinpoints).toEqual([{ kind: "paragraph", text: "82", first: "82", ...span("82") },
+      { kind: "paragraph", text: "91", first: "91", ...span("91") }]);
     const act = (from: AuthoritiesDraft, action: object) => applyAuthoritiesUserAction(from,
       decodeAuthoritiesUserAction({ occurrenceId: id, ...action }));
     const set = (from: AuthoritiesDraft, pinpoints: object[]) => act(from, { type: "set-pinpoints", pinpoints });
@@ -112,7 +112,7 @@ describe("Authorities citation boundary actions", () => {
     const edited = { ...draft, occurrences: { ...draft.occurrences, [id]: added } };
     expect(authorityPassageTargets(edited, parsed.authorityId!).map(({ locatorKind, locator }) => `${locatorKind} ${locator}`))
       .toEqual(["page 82", "paragraph 91", "paragraph 120"]);
-    expect(set(draft, [span("14")]).occurrences[id].pinpoints).toEqual([{ kind: "section", text: "14", ...span("14") }]);
+    expect(set(draft, [span("14")]).occurrences[id].pinpoints).toEqual([{ kind: "section", text: "14", first: "14", ...span("14") }]);
     // At most three, never over the authority, and none overlapping.
     expect(() => set(edited, [span("82"), span("91"), span("120"), span("14")])).toThrow(/at most three/u);
     expect(() => set(draft, [span("2019")])).toThrow(/without the authority/u);
@@ -149,6 +149,23 @@ describe("Authorities citation boundary actions", () => {
     const pinned = applyAuthoritiesUserAction(draft, { type: "set-pinpoint-span", occurrenceId: id, ...span("48") });
     expect(pinned.occurrences[id]).toMatchObject({ text: ibid, pinpointManual: true, pinpointSpan: { text: "48" },
       pinpoints: [{ kind: "paragraph", text: "48" }] });
+  });
+
+  it("links a supra or ibid added by hand to the authority it names", () => {
+    const notes = ["Alder v Birch, 2031 SCC 4 [Alder].", "See Fen v Tern, 2032 ONCA 9.", "Ibid at para 3.",
+      "Alder, supra note 1 at para 6."];
+    const units = notes.map((text, index) => ({ id: `footnote:${index + 1}`, kind: "footnote" as const, ordinal: index,
+      footnoteId: index + 1, noteNumber: index + 1, footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: [] }));
+    const added = (draft: AuthoritiesDraft, note: number, needle: string) => applyAuthoritiesUserAction(draft,
+      { type: "add-occurrence", unitId: `footnote:${note}`, start: notes[note - 1].indexOf(needle),
+        end: notes[note - 1].indexOf(needle) + needle.length });
+    const cited = added(added({ ...bodyDraft(), units }, 1, "Alder v Birch, 2031 SCC 4"), 2, "Fen v Tern, 2032 ONCA 9");
+    const authority = (note: number) => cited.occurrences[cited.units[note - 1].occurrenceIds[0]].authorityId;
+    const supra = added(cited, 4, "Alder, supra note 1 at para 6"), ibid = added(cited, 3, "Ibid at para 3");
+    expect(supra.occurrences[supra.units[3].occurrenceIds[0]]).toMatchObject({ kind: "reference",
+      authorityId: authority(1), reference: { kind: "supra", targetAuthorityId: authority(1) } });
+    expect(ibid.occurrences[ibid.units[2].occurrenceIds[0]]).toMatchObject({
+      authorityId: authority(2), reference: { kind: "ibid", targetAuthorityId: authority(2) } });
   });
 
   it("keeps the citation's range when a pinpoint is set, and records no dismissal for range edits", () => {
