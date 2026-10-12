@@ -139,6 +139,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           {headed && groups?.get(authority.id) !== groups?.get(authorities[index - 1]?.id) &&
             <p className={GROUP}>{groups?.get(authority.id)}</p>}
           <AuthorityRow authority={authority} busy={busy} finding={finding && !authority.excluded}
+          caseWarning={!authority.excluded && authority.citedCase && !state.discrepancyDecisions?.[authority.citedCase.id] ? authority.citedCase : undefined}
           order={shown} copy={statuteCopies?.get(authority.id)} statutes={!!statuteCopies?.size}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)} citedIn={citedIn?.get(authority.id)}
           citationLine={authorityCitationLine(state, authority)} italicName={authorityNameItalic(state, authority)}
@@ -173,8 +174,9 @@ const recognitionKey = (authority: AuthorityIdentity, ocr?: SourceOcrPanel) => !
 const AuthorityRow = memo(Row);
 function Row({ authority, tab, citationLine, italicName, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes, finding = false, citedIn }: {
+  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes, finding = false, citedIn, caseWarning }: {
   order: string[]; copy?: StatuteCopy; statutes: boolean; finding?: boolean; citedIn?: string;
+  caseWarning?: AuthorityIdentity["citedCase"];
   authority: AuthorityIdentity; tab?: string; citationLine: string; busy: boolean; needsPdf: boolean;
   /** The name is a style of cause or title, set in italics. */
   italicName: boolean;
@@ -355,6 +357,9 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
           { label: "Delete entry", disabled: busy || !removable,
             onSelect: () => onAction({ type: "remove-authority", authorityId: authority.id }) }]} />
     </div>
+    {caseWarning && <p role="status" className="col-span-full text-sm text-amber-800">
+      Citation names a different case: <i>{caseWarning.name}</i> ({caseWarning.citation}). Check the manuscript citation.
+    </p>}
     <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
       disabled={busy} aria-label={`Upload PDF for ${title}`} onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = "";

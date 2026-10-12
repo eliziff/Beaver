@@ -1,24 +1,44 @@
 // Which authority a PDF a reader downloaded is, for Authorities and Authorities-lite alike: the
 // matcher Authorities-lite v0.3.3 validated (103 of 105 judgments right, none wrong, no OCR).
 // `call(method, request)` is the legal-structure citation engine; `pages` are the PDF's opening
-// pages as native text lines ({ lines: [{ text }] }), never recognized text.
+// pages as native text lines ({ lines: [{ text }], marginText }), never recognized text.
 
 // CanLII names its PDFs by neutral citation (2019abqb666.pdf); browsers append " (1)" to repeats.
-export const CANLII_PDF_NAME = /^(\d{4})([a-z]{2,10})(\d{1,5})(?: ?\(\d+\))?\.pdf$/iu;
+export const CANLII_PDF_NAME = /^(\d{4})([a-z]{2,10})(\d+)(?: ?\(\d+\))?\.pdf$/iu;
 const REPORTER_PDF_NAME = /^(\d{4})(scr|rcs)(\d*)_(\d+)(?: ?\(\d+\))?\.pdf$/iu;
 const key = (call, text) => call('keyForText', { text: String(text || '') }).key;
 const extract = (call, text) => call('extract', { text, offsetUnit: 'utf16', options: { resolve: false, parallel: false } }).citations;
+
+/** The citation a CanLII filename names; CanLII IDs and neutral court codes have different keys. */
+export function canliiFileCitation(name) {
+  const match = CANLII_PDF_NAME.exec(name);
+  return match ? `${match[1]} ${match[2].toLowerCase() === 'canlii' ? 'CanLII' : match[2].toUpperCase()} ${match[3]}` : null;
+}
 
 /** The newest top-level CanLII-named PDF per citation, e.g. { citation: "2019 ABQB 666", file }. */
 export function canliiFiles(files) {
   const best = new Map();
   for (const file of files) {
-    const match = CANLII_PDF_NAME.exec(file.name);
-    if (!match || (file.webkitRelativePath || '').split('/').length > 2) continue;
-    const citation = `${match[1]} ${match[2].toUpperCase()} ${match[3]}`;
+    const citation = canliiFileCitation(file.name);
+    if (!citation || (file.webkitRelativePath || '').split('/').length > 2) continue;
     if (!(best.get(citation)?.lastModified >= file.lastModified)) best.set(citation, file);
   }
   return [...best].map(([citation, file]) => ({ citation, file }));
+}
+
+/** Native text written vertically at a page's side margin, before any citation parsing. */
+export function rotatedMarginText(items, viewport, Util) {
+  const reading = viewport.rotation ? viewport.clone({ rotation: 0 }) : viewport;
+  let text = '';
+  for (const item of items) {
+    if (!('str' in item)) continue;
+    const transform = Util.transform(reading.transform, item.transform), x = transform[4];
+    if (!(Math.abs(transform[1]) > Math.abs(transform[0]) * 4) || !(x >= 0 && x <= reading.width) ||
+        x > reading.width * .12 && x < reading.width * .88) continue;
+    text += `${item.str}${item.hasEOL ? '\n' : ' '}`;
+    if (text.length >= 5000) return text.slice(0, 5000).trim();
+  }
+  return text.trim();
 }
 
 /** The first page before its first numbered paragraph. */
@@ -33,8 +53,19 @@ export function headerText(pages) {
 }
 export function headerIdentities(pages, call) {
   const text = headerText(pages);
-  return !text ? [] : extract(call, text).filter(c => c.form === 'full' && ['neutral', 'can_lii', 'reporter'].includes(c.format))
-    .map(c => ({ ...c.span, key: c.key, family: c.format }));
+  const citations = text ? extract(call, text).filter(c => c.form === 'full' && ['neutral', 'can_lii', 'reporter'].includes(c.format)) : [];
+  // CanLII's rotated margin stamp can follow the body in PDF reading order.
+  if (!citations.some(c => ['neutral', 'can_lii'].includes(c.format)) && pages.length > 1) {
+    const repeated = new Set((pages[1].marginText || '').split('\n').map(text => text.trim()));
+    for (const line of new Set((pages[0].marginText || '').split('\n').map(text => text.trim()).filter(text => text && repeated.has(text)))) {
+      const found = extract(call, line);
+      if (found.length !== 1) continue;
+      const citation = found[0], tail = line.slice(citation.span.end).trim();
+      if (citation.form === 'full' && citation.format === 'can_lii' && citation.span.start === 0 &&
+          (!tail || citation.parentheticals.some(part => part.kind === 'court' && part.span.text === tail))) citations.push(citation);
+    }
+  }
+  return citations.map(c => ({ ...c.span, key: c.key, family: c.format }));
 }
 // Supreme Court publisher PDFs are the bilingual S.C.R./R.C.S. print: page one opens with a running head such as
 // "[2019] 4 R.C.S. / CANADA c. VAVILOV / 653", which carries no neutral citation. Accept it only when the volume
@@ -64,10 +95,9 @@ const normalized = new WeakMap();
  *  there is any, must agree on its own: a unique opening citation, else exact agreement with a
  *  record's reference text, which `reference(record)` gives only when it is needed. */
 export async function matchFolderPdf(filename, pages, records, call, reference = record => record.referenceText) {
-  const named = CANLII_PDF_NAME.exec(filename), reporter = REPORTER_PDF_NAME.exec(filename);
+  const named = canliiFileCitation(filename), reporter = REPORTER_PDF_NAME.exec(filename);
   // The engine reads court codes in capitals only: 2019abqb666.pdf is 2019 ABQB 666.
-  const nameKey = key(call, named ? `${named[1]} ${named[2].toUpperCase()} ${named[3]}`
-    : reporter ? `[${reporter[1]}] ${reporter[3]} ${reporter[2].toUpperCase()} ${reporter[4]}` : filename.replace(/\.pdf$/iu, ''));
+  const nameKey = key(call, named ?? (reporter ? `[${reporter[1]}] ${reporter[3]} ${reporter[2].toUpperCase()} ${reporter[4]}` : filename.replace(/\.pdf$/iu, '')));
   const namedRecords = nameKey ? records.filter(r => r.aliases.some(a => key(call, a) === nameKey)) : [];
   const tokens = words(pages.map(p => p.lines.map(l => l.text).join('\n')).join('\n'));
   if (tokens.length < 12) return namedRecords.length === 1 ? { record: namedRecords[0], method: 'filename' } : null;

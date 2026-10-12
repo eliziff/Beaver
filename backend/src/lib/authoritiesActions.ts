@@ -3,19 +3,19 @@ import { ApplicationError } from "./applicationError";
 import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForms, reduceAuthoritiesDraft, authoritiesDraftEditor,
   authoritiesProfile, unusedScanOnlyAuthority, type AuthoritiesAction, type AuthoritiesBuildSettings,
   type AuthoritiesDraft, type AuthoritiesFreshReview, type AuthorityIdentity,
-  type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage,
+  type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage, type AuthorityCitedCase,
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
 import { nativeOccurrenceSpans, nativeReferenceSpans, pinpointValues } from "./authoritiesImport";
 import { authorityPdfText } from "./authorityPdfText";
 import { citationAliasKeysBatch } from "./caselawCitator";
-import { sha256 } from "./hash";
+import { canonicalJsonSha256, sha256 } from "./hash";
 import { structureNative, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
 import { authorityPdfRequired, type AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { matchFolderPdf } from "mike/shared/folder-pdf-match.mjs";
 
 /** A PDF's name and its first pages' native text, line by line, as the page read it. */
-export type PdfOpening = { filename: string; pages: string[] };
+export type PdfOpening = { filename: string; pages: string[]; marginText?: string[] };
 
 export const authorityCitationServices = {
   key: (value: string) => structureNative().citationLookupKey(value),
@@ -105,33 +105,51 @@ function unusedRole(draft: AuthoritiesDraft, role: string) {
 const captionStyleOfCause = (text: string, keys: readonly string[]) =>
   structureNative().citationEngineCall("captionStyleOfCause", JSON.stringify({ text, keys })) as string | null;
 
+/** A source whose parties share no distinctive name with the manuscript's case. */
+export function caseNameMismatch(authority: AuthorityIdentity,
+  source: { citation: string; name: string | null }): AuthorityCitedCase | null {
+  const styled = authority.mentionedAs || authority.name;
+  if (authority.kind !== "case" || !source.name || !styled?.trim()) return null;
+  const agreement = structureNative().citationEngineCall("caseNamesAgree",
+    JSON.stringify({ written: [styled, ...authority.shortNames ?? []], other: source.name })) as { agrees: boolean };
+  return agreement.agrees ? null : {
+    id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, source.citation, source.name]),
+    citation: source.citation, name: source.name, named: null,
+  };
+}
+
 /** The case still without a PDF that a PDF found in the watched folder is, when exactly one: by
  *  the citation its opening (`pages`, its first pages' native text) prints, else by exact agreement
  *  with A2AJ's text of the decision (`reference`); a scan by its file name alone. */
-export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, pages }: PdfOpening,
+export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, pages, marginText }: PdfOpening,
   reference: (authority: AuthorityIdentity) => Promise<string>) {
   const requirements = authoritiesProfile(draft.settings.profileId).requirements;
   const records = Object.values(draft.authorities).filter((authority) => authority.kind === "case" &&
     !authority.excluded && authority.source.kind !== "attached" && authorityPdfRequired(draft, authority, requirements))
     .map((authority) => ({ authority, citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }));
   if (!records.length) return null;
-  const native = structureNative(), opening = pages.map((page) => ({ lines: page.split("\n").map((text) => ({ text })) }));
+  const native = structureNative(), opening = pages.map((page, index) => ({ lines: page.split("\n").map((text) => ({ text })),
+    marginText: marginText?.[index] }));
   const match = await matchFolderPdf(filename, opening, records, (method, request) =>
     native.citationEngineCall(method, JSON.stringify(request)), ({ authority }) => reference(authority));
   return match?.record.authority.id ?? null;
 }
 
-/** A PDF auto-fetch found for an authority only fills one still without a PDF, and an authority
- *  with no style of cause takes the one the PDF's first page prints before its own citation. A
- *  PDF the user uploads is never checked. Returns the draft, named when it was nameless. */
-export async function autoFetchedPdf(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer) {
+/** A PDF's caption flags a different case, or fills a missing style of cause. Auto-fetch only fills
+ *  authorities still without PDFs; manual uploads may replace them. */
+export async function authorityPdfCaption(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer, autoFetched = false) {
   const authority = draft.authorities[authorityId];
-  if (authority?.source.kind === "attached")
+  if (autoFetched && authority?.source.kind === "attached")
     throw new ApplicationError(400, `${authority.citation} already has a PDF; it was not replaced.`);
-  if (!authority || authority.name || authority.displayName) return draft;
+  if (!authority || authority.kind !== "case") return draft;
   const text = (await authorityPdfText({ bytes, maxPages: 1 })).pageTextByPage[0] ?? "";
   const name = captionStyleOfCause(text, citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat());
-  return name ? updateAuthoritiesDraft(draft, { type: "rename-authority", authorityId, displayName: name }) : draft;
+  if (!name) return draft;
+  const mismatch = caseNameMismatch(authority, { citation: authority.citation, name });
+  const checked = mismatch || authority.citedCase
+    ? updateAuthoritiesDraft(draft, { type: "set-cited-case", authorityId, citedCase: mismatch }) : draft;
+  return !authority.name && !authority.displayName
+    ? updateAuthoritiesDraft(checked, { type: "rename-authority", authorityId, displayName: name }) : checked;
 }
 
 export function attachAuthoritiesBookPdf(draft: AuthoritiesDraft, input: {
@@ -248,7 +266,8 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
   };
   const discovered = match && key && !authority ? parsedAuthority(match, key) : null;
   if (discovered) occurrence.authorityId = discovered.id;
-  return { occurrence, discovered };
+  return { occurrence, discovered, parsedName: match?.reasons.includes("same_text_style")
+    ? match.shortForm?.trim() || null : null };
 }
 
 function trimmedRange(unit: AuthoritiesDraft["units"][number], start: number, end: number) {
@@ -406,15 +425,15 @@ export const readPinpoints = (text: string, start: number, end: number) =>
 
 /** The citation's pinpoints as given, its range untouched: they may lie anywhere in its unit. */
 function placePinpoints(draft: AuthoritiesDraft, current: AuthorityOccurrence,
-  unit: AuthoritiesDraft["units"][number], pinpoints: Pinpoint[]) {
+  unit: AuthoritiesDraft["units"][number], pinpoints: Pinpoint[], manual = true) {
   const ordered = [...pinpoints].sort((left, right) => left.start - right.start);
   if (ordered.some((pin, index) => index && pin.start < ordered[index - 1].end))
     throw new ApplicationError(400, "Pinpoints cannot overlap");
   if (ordered.some((pin) => intersects(pin.start, pin.end, current.authoritySpan)))
     throw new ApplicationError(400, "Select the pinpoint without the authority");
   const span = ordered.length ? { start: ordered[0].start, end: ordered.at(-1)!.end } : null;
-  const { pinpointPhrase, ...rest } = structuredClone(current);
-  const occurrence: AuthorityOccurrence = { ...rest, pinpoints: ordered, pinpointManual: true, reviewed: true,
+  const { pinpointPhrase, pinpointManual: _manual, ...rest } = structuredClone(current);
+  const occurrence: AuthorityOccurrence = { ...rest, pinpoints: ordered, ...manual && { pinpointManual: true as const }, reviewed: true,
     pinpointSpan: span && { ...span, text: unit.text.slice(span.start, span.end) },
     // The phrase as written stays while it still holds every pinpoint ("at paras 82, 91").
     ...(span && pinpointPhrase && pinpointPhrase.start <= span.start && pinpointPhrase.end >= span.end && { pinpointPhrase }) };
@@ -436,9 +455,9 @@ function setPinpoints(draft: AuthoritiesDraft, action: Extract<AuthoritiesUserAc
     const found = known ? [known] : pinpointsAt(unit.text, start, end);
     return found.map((pin) => ({ ...pin, ...(kind && { kind }) }));
   });
-  if (pinpoints.length > Math.max(3, current.pinpoints.length))
+  if (action.manual !== false && pinpoints.length > Math.max(3, current.pinpoints.length))
     throw new ApplicationError(400, "A citation takes at most three pinpoints");
-  return placePinpoints(draft, current, unit, pinpoints);
+  return placePinpoints(draft, current, unit, pinpoints, action.manual ?? true);
 }
 
 /** A whole citation selection owns its range; partially overlapped neighbours keep
@@ -475,7 +494,15 @@ function setCitationRange(draft: AuthoritiesDraft,
   }
   changed = updateAuthoritiesDraft(changed, { type: "replace-occurrences",
     occurrenceIds: donors.map(({ id }) => id), replacements: replacements.map(({ occurrence }) => occurrence) });
-  return removeUnusedDetections(changed, donors, replacement.occurrence.authorityId);
+  const editor = editAuthoritiesDraft(changed);
+  for (const { occurrence, parsedName } of replacements) {
+    const authority = occurrence.authorityId && editor.draft.authorities[occurrence.authorityId];
+    if (!authority || !parsedName) continue;
+    // An expanded manuscript name must not replace a publisher's name or the reviewer's label.
+    authority.mentionedAs = parsedName;
+    if (!authority.sourceIdentity && !authority.userAdded) authority.name = parsedName;
+  }
+  return removeUnusedDetections(editor.result(), donors, replacement.occurrence.authorityId);
 }
 
 /** The counterpart of set-pinpoint-span: a pinpoint that belongs to another citation. The

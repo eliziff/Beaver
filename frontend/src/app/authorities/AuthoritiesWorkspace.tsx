@@ -122,6 +122,8 @@ export type AuthoritiesApp = {
   /** False for an app that checks quotations later, in a step of its own: Citations runs no quotation and citation
    *  check, and shows no findings. */
   review?: false;
+  /** Fixed source handling for an app whose workflow needs every page's text. */
+  sourceSettings?: Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy">;
   /** The documents citing each authority, where the draft gathers several documents' authorities. */
   citedIn?: ReadonlyMap<string, string>;
 };
@@ -464,7 +466,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // The list keeps the last check's findings while the next one runs, so its marks never blink.
   const quoteFindings = useMemo(() => review && review.id === draftId ? review.items : [], [review, draftId]);
   // The check's findings and the citations that name a different case, in the brief's reading order.
-  const findings = useMemo(() => app?.review === false ? [] : allFindings(shown, quoteFindings), [shown, quoteFindings, app?.review]);
+  const findings = useMemo(() => allFindings(shown, app?.review === false ? [] : quoteFindings), [shown, quoteFindings, app?.review]);
   const openFindings = useMemo(() => allFindings(shown, discrepancies), [shown, discrepancies]);
   const selected = occurrences.find(({ id }) => id === selectedId) ?? occurrences[0];
   const selectedRef = useRef(selected?.id);
@@ -1224,9 +1226,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // cards as the import's Sources step. A new source handling drops only the PDFs found for it and
   // finds them again; uploaded PDFs stay.
   const sourced = !!draft && draft.state.import.kind === "document", recognition = host.recognitionAvailable !== false;
-  const sourceSettings = draft && <SourceChoices settings={draft.state.settings} profileId={draft.state.settings.profileId}
+  const sourceSettings = draft && !app?.sourceSettings && <SourceChoices settings={draft.state.settings} profileId={draft.state.settings.profileId}
     sources={sourced} recognition={recognition} disabled={busy} onChange={({ sourceMode, ...patch }) => sourceMode
       ? setSourceChange(sourceMode) : act({ type: "set-settings", settings: patch })} />;
+  useEffect(() => {
+    const fixed = app?.sourceSettings;
+    if (draft && fixed && !busy && (draft.state.settings.sourceMode !== fixed.sourceMode ||
+        draft.state.settings.scannedPdfPolicy !== fixed.scannedPdfPolicy)) act({ type: "set-settings", settings: fixed });
+  }, [draft?.id, draft?.state.settings.sourceMode, draft?.state.settings.scannedPdfPolicy, busy, app?.sourceSettings]); // eslint-disable-line react-hooks/exhaustive-deps
   // A new source handling throws away the PDFs the app found, so it asks first.
   const changeSources = (sourceMode: AuthoritiesBuildSettings["sourceMode"]) => {
     setSourceChange(undefined);

@@ -82,9 +82,9 @@ function view(finding: Finding, note: (footnoteId: number | string) => string) {
       what: "Citation names a different case", where: finding.footnoteId ? `footnote ${note(finding.footnoteId)}` : "",
       yours: written(finding.named ? <Struck>{finding.cited.citation}</Struck> : finding.cited.citation),
       yoursNow: (action: Action) => written(action === "use_named_case" && finding.named ? finding.named.citation : finding.cited.citation),
-      sourceLabel: "A2AJ",
+      sourceLabel: "Source",
       source: <>{finding.cited.citation} is <i>{finding.cited.name}</i>.{finding.named
-        ? <><br /><i>{finding.named.name}</i> is <Added>{finding.named.citation}</Added>.</> : <><br />No other case by that name was found.</>}</>,
+        ? <><br /><i>{finding.named.name}</i> is <Added>{finding.named.citation}</Added>.</> : null}</>,
       options: (action: Action) => action === "use_named_case" && finding.named
         ? { label: `Use ${finding.named.citation}`, detail: `Changes the citation in your Word copy to ${finding.named.citation}, everywhere it is cited.` }
         : action === "keep_cited_case" ? { label: `Keep ${finding.cited.citation}`,

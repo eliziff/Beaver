@@ -264,7 +264,9 @@ export type AuthoritiesUserAction =
   /** The citation's pinpoints as the reviewer marks them in its unit, at most three: a pinpoint
    * without a kind takes the one the words around it give. */
   | { type: "set-pinpoints"; occurrenceId: string;
-      pinpoints: Array<{ start: number; end: number; kind?: AuthorityPinpointKind }> }
+      pinpoints: Array<{ start: number; end: number; kind?: AuthorityPinpointKind }>;
+      /** Undo restores whether these were parsed automatically or chosen by the reviewer. */
+      manual?: boolean }
   | { type: "add-occurrence"; unitId: string; start: number; end: number }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }

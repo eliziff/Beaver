@@ -13,7 +13,7 @@ import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraf
 import { importStandaloneAuthoritiesFile } from "./authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
-  autoFetchedPdf, attachAuthoritiesBookPdf, authoritiesReview, folderPdfAuthority, readPinpoints } from "./authoritiesActions";
+  authorityPdfCaption, attachAuthoritiesBookPdf, authoritiesReview, folderPdfAuthority, readPinpoints } from "./authoritiesActions";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { authorityReferenceText, authorityStatuteText, resolveAuthoritiesSources, retryableAuthoritySource,
   type PreparedAuthoritySource } from "./authoritiesSourceResolution";
@@ -371,7 +371,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
         ? current.authorities[id] : reject(400, "This authority no longer exists.");
       const language = (["en", "fr", "bilingual"] as const).find(value => value === input.language)
         ?? reject(400, "Choose the PDF language.");
-      const checked = input.auto_fetched === "true" ? await autoFetchedPdf(current, authority.id, bytes) : current;
+      const checked = await authorityPdfCaption(current, authority.id, bytes, input.auto_fetched === "true");
       // Its printed page numbers are read with it, so its viewer shows them with the page.
       const pageLabels = await sourcePageLabels(checked, authority.id, { sourceSha256, origin: "manual" }, bytes);
       return value(attachAuthorityPdf(checked, checked.authorities[authority.id], binding, filename, sourceSha256, language,

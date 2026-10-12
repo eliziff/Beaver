@@ -12,6 +12,7 @@ import { hansardLegalSourceProvider } from "./a2ajHansard";
 import { govUkEmploymentTribunalLegalSourceProvider } from "./legalSources/govUkEmploymentTribunal";
 import { govInfoLegalSourceProvider } from "./legalSources/govInfo";
 import { tnaLegalSourceProvider } from "./legalSources/tna";
+import { canliiLegalSourceProvider } from "./legalSources/canlii";
 import type { LegalSourceReference } from "./legalSources";
 import {
   type LegalSourcePdfRendition,
@@ -106,7 +107,7 @@ async function courtlistenerPdfRendition(value: object, reference: LegalSourceRe
 const providers = createLegalSourceRegistry<unknown>([
   a2ajLegalSourceProvider, courtlistenerLegalSourceProvider, tnaLegalSourceProvider,
   govUkEmploymentTribunalLegalSourceProvider, govInfoLegalSourceProvider,
-  journalLegalSourceProvider, hansardLegalSourceProvider,
+  journalLegalSourceProvider, hansardLegalSourceProvider, canliiLegalSourceProvider,
 ]);
 
 

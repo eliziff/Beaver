@@ -755,7 +755,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
       if (id) choose(id, true);
     }}>
       {/* What the quotation and citation check found, on a line always there, so the list never moves. */}
-      {review && <div className="citation-findings" role="status">
+      {(review || discrepancies.length > 0) && <div className="citation-findings" role="status">
         {check === 'running' ? <span>Checking quotations and citations…</span> : discrepancies.length
           ? <><span>{discrepancies.length} to review</span>
             <button type="button" onClick={event => { event.stopPropagation(); onReview(discrepancies[0].id); }}>Review</button></>
@@ -822,7 +822,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
         busy={busy || !reference || !options.length && !linked} onPick={link} />
       {/* What the quote check found for this citation: lit when there is something, opening the brief's
           words beside the source's. */}
-      {review && <button type="button" className="citation-quote" disabled={!finding}
+      {(review || finding) && <button type="button" className="citation-quote" disabled={!finding}
         aria-label={!finding ? 'No quote issue' : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong'
           : finding.kind === 'quote_unlocated' ? 'Quote not found in source' : finding.kind === 'different_case'
             ? 'Citation names a different case' : 'Quote differs from source'}

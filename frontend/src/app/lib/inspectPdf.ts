@@ -1,4 +1,5 @@
 import { getPdfJs, PDF_DOCUMENT_OPTIONS, openPdfDocument } from "@/app/lib/pdfJs";
+import { rotatedMarginText } from "mike/shared/folder-pdf-match.mjs";
 export interface PdfSourceBookmark { title: string; pageIndex: number; children: PdfSourceBookmark[] }
 
 export interface PdfInspection {
@@ -10,6 +11,7 @@ export interface PdfInspection {
   sourceBookmarks: PdfSourceBookmark[];
   pageLabels: string[] | null;
   pageTexts: string[];
+  marginText: string[];
 }
 
 interface PdfOutlineItem {
@@ -34,11 +36,13 @@ export async function inspectPdf(
     let textlessPageCount = 0;
     const textlessPages: number[] = [];
     const pageTexts: string[] = [];
+    const marginText: string[] = [];
     let textCharacters = 0;
     for (let pageNumber = 1; pageNumber <= Math.min(document.numPages, pageLimit); pageNumber += 1) {
       signal?.throwIfAborted();
       const page = await document.getPage(pageNumber);
       const text = await page.getTextContent();
+      if (pageNumber <= 2) marginText.push(rotatedMarginText(text.items, page.getViewport({ scale: 1 }), pdfjs.Util));
       pageTexts.push(text.items.map((item) => "str" in item
         ? `${item.str}${item.hasEOL ? "\n" : " "}` : "").join("").trim());
       const characters = text.items.reduce((sum, item) =>
@@ -65,6 +69,7 @@ export async function inspectPdf(
       sourceBookmarks,
       pageLabels,
       pageTexts,
+      marginText,
     };
     await loading.destroy();
     return result;
@@ -81,6 +86,7 @@ export async function inspectPdf(
         sourceBookmarks: [],
         pageLabels: null,
         pageTexts: [],
+        marginText: [],
       };
     }
     throw cause;
@@ -88,9 +94,11 @@ export async function inspectPdf(
 }
 
 /** A PDF's name and its first two pages' own text, line by line; nothing is recognized. */
-export type PdfOpening = { filename: string; pages: string[] };
-export const pdfOpening = async (file: File): Promise<PdfOpening> =>
-  ({ filename: file.name, pages: (await inspectPdf(file, undefined, undefined, 2)).pageTexts });
+export type PdfOpening = { filename: string; pages: string[]; marginText?: string[] };
+export const pdfOpening = async (file: File): Promise<PdfOpening> => {
+  const { pageTexts, marginText } = await inspectPdf(file, undefined, undefined, 2);
+  return { filename: file.name, pages: pageTexts, marginText };
+};
 
 async function resolveOutline(
   document: import("pdfjs-dist").PDFDocumentProxy,

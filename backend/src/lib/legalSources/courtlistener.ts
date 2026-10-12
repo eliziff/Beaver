@@ -23,10 +23,9 @@ async function courtlistenerFetch<T>(
   const method = init?.method ?? "GET";
   const perform = async () => {
     const token = apiToken?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim();
-    if (!token) throw new Error("COURTLISTENER_API_TOKEN must be set to use CourtListener tools.");
     const response = await guardedRemoteFetch(
       url,
-      { ...init, headers: { Accept: "application/json", Authorization: `Token ${token}`,
+      { ...init, headers: { Accept: "application/json", ...token ? { Authorization: `Token ${token}` } : {},
         ...(init?.headers ?? {}) } },
       { label: "CourtListener request",
         allowedHosts: ["www.courtlistener.com", "storage.courtlistener.com"],

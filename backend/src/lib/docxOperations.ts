@@ -308,11 +308,14 @@ export async function writeDocxSpans(bytes: Buffer, units: ReadonlyArray<{ id: s
     relationships.set(path, part);
     const id = `rId${Math.max(0, ...[...part.xml.matchAll(/Id="rId(\d+)"/gu)].map(([, value]) => Number(value))) + 1}`;
     const target = url.replace(/&/gu, "&amp;").replace(/"/gu, "&quot;").replace(/</gu, "&lt;");
+    part.xml = part.xml.replace(/<Relationships([^>]*)\/>/u, "<Relationships$1></Relationships>");
     part.xml = part.xml.replace("</Relationships>", `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${target}" TargetMode="External"/></Relationships>`);
     return id;
   };
+  // Highlights use the original offsets and are kept by subsequent tracked replacements.
   const order = writes.map((write, index) => ({ write, index }))
-    .sort((a, b) => a.write.unitId.localeCompare(b.write.unitId) || b.write.start - a.write.start || b.write.end - a.write.end);
+    .sort((a, b) => Number(b.write.kind === "highlight") - Number(a.write.kind === "highlight")
+      || a.write.unitId.localeCompare(b.write.unitId) || b.write.start - a.write.start || b.write.end - a.write.end);
   const written = writes.map(() => false);
   for (const { write, index } of order) {
     const target = targets.get(write.unitId);
