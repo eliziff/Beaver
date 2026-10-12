@@ -57,3 +57,62 @@ change only pays for prompts that changed.
   in `quotes/review.json` (some candidates excluded as not quotations of that source).
 - Recorded Python numbers without a re-runnable artifact (High Accuracy, the Luna
   experiment) are listed in `report.json` under `recorded_python_baselines`.
+
+## Wide quotation correction gold
+
+The wide gold corrects saved source-backed quotation checks, separately for each
+quotation/source pair. It records the exact or closest wording and its correct
+pinpoint from the app's source evidence. Sources without printed locators use
+their exact source offsets; this runner does not acquire additional publisher data.
+This is textual comparison, not semantic similarity.
+Judicial quotations are located in the correct opinion's reasons, rather than a
+headnote or editorial summary, unless the manuscript expressly quotes that material.
+Acquisition failures are outside this gold. Existing manuscript records link to
+`quotes/wide/<id>.json`; the older 27-item gold remains separate and unchanged.
+
+Prepare the manuscript inventory once, then correct the saved checks through the
+existing subscription-backed `codex exec` adapter:
+
+    python benchmarks/alr-verifier/build_quote_gold.py --wide-manifest benchmarks/local-data/alr-verifier/quote-corrections/wide-manifest.json
+    node --experimental-strip-types --no-warnings benchmarks/alr-verifier/quoteGoldReview.ts --concurrency 0 --remote <ssh-alias> --remote-codex-home <desktop-codex-home> --remote-concurrency 24
+
+This task sends private quotation contexts, their original reference chains and
+requested canonical-source excerpts to OpenAI through the existing Codex login.
+Use it only with authorization for that payload. `--only article-000 --limit 1`
+narrows a pilot. The default `sol-low` arm uses `gpt-6.1-sol` at low reasoning
+effort; select an account-supported arm with `--arm`. Inherited API-key environment
+variables are excluded from Codex worker processes. SSH uses the configured host
+alias and an already trusted host key; `--remote-codex-home` selects an existing
+desktop login. Both machines need a current Codex CLI that supports the selected model.
+The coordinator reads canonical A2AJ/journal sources and transfers a scoped source
+sidecar to the trusted desktop. In one Codex session per batch, the reviewer sees
+the saved answers and initial excerpts, and can selectively search or read only the
+source attached to each check. Tool reads return bounded excerpts with absolute
+UTF16 offsets; complete source documents are not inserted into the model prompt.
+Remote turn files are removed in `finally`. All inputs, answers, read receipts and
+gold stay in ignored private benchmark storage. Local workers default to zero;
+omit `--remote` and set `--concurrency` explicitly for a local run.
+Completed gold jobs are skipped; turns replay from the content-addressed
+cache, including source and reader hashes. `--fresh` reapplies selected jobs from
+their saved outputs. It does not invalidate identical cached model answers.
+
+Structured output requires every check ID and only a verdict plus source offsets,
+or an absent/nonquotation verdict. The model does not copy quotations, write
+pinpoints or render corrections. Selected offsets must be boundaries actually
+provided to that check. Local code extracts the original source text and derives
+printed paragraph/section anchors through the existing Rust structure engine;
+journals use their canonical page markers. Complete literal verdicts require
+whole-word evidence. Each source retains its own outcome and pinpoint. Incomplete
+answers fail the job before any gold is accepted. A usage limit stops new dispatches.
+
+`compose.ts` saves individual checks in `.quotes.json` beside the delivered workbook,
+including manuscript/runtime/native hashes. Compare a saved run immediately:
+
+    python benchmarks/alr-verifier/score.py --quote-gold benchmarks/local-data/alr-verifier/quotes/wide/manifest.json --quote-run benchmarks/local-data/alr-verifier/quotes/wide/run
+
+The diff reads JSON only, without extraction, a build, native matching or model calls.
+It overwrites `quotes/wide/latest-diff.json`, reporting differences and pending
+reviews separately. Exit 1 means a discrepancy or missing document output; exit 2
+means incomplete gold; exit 0 requires complete reviewed coverage without differences.
+Ambiguous occurrence bindings are reported, rather than choosing the most favorable
+quotation or pooling answers from different sources.
