@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   attachAuthorityPdf as attachSource, attachAuthoritiesBookPdf as attachBookSource,
-  autoFetchedPdf, folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
+  authorityPdfCaption, folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction, type PdfOpening } from "./authoritiesActions";
 import { authorityPassageTargets, buildAuthorities, citedSourcePages, prepareAuthorityAnnotations,
   type AuthoritiesBuildInput, type AuthoritiesBuildResult, type BuildSourceText } from "./authoritiesBuild";
@@ -317,8 +317,8 @@ export function createAuthoritiesWorkspaceApplication(
     const { product, draft: opened } = await edit(scope, id, input.revision);
     const bytes = "bytes" in input.file ? input.file.bytes : await readFile(input.file.path);
     const pageCount = await validateAuthoritiesPdf(bytes);
-    const draft = input.autoFetched && input.authorityId !== undefined
-      ? await autoFetchedPdf(opened, input.authorityId, bytes) : opened;
+    const draft = input.authorityId !== undefined
+      ? await authorityPdfCaption(opened, input.authorityId, bytes, input.autoFetched) : opened;
     const created = await files.create(scope, "authorities", input.file,
       { projectId: product.projectId, pdfOcrProvider: null });
     return withRollback(scope, [createdDocumentRollback(created)], () => workProducts.save(scope, id,

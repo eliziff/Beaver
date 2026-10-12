@@ -260,7 +260,10 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     const cited = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
     const link = passage ? buildLegalSourcePinpoint({ url: passage.url, anchor: passage.anchor,
       blockText: passage.blockText, documentText: document }, passage.quotes)?.target ?? null : null;
-    return { candidateId, status: match.perfect ? "verified" : "mismatch",
+    // Locator-only callers keep their exact-match outcome; a comparison accepts only computed, supported wording.
+    const verified = options.compare === false ? match.perfect
+      : comparison !== null && errors !== undefined && errors.length === 0;
+    return { candidateId, status: match.location !== "unmatched" && verified ? "verified" : "mismatch",
       detail: match.location === "unmatched" ? "The quotation was not found in the source text."
         : match.location.startsWith("alternate") ? `Found at ${match.pinpoint || "another place in the source"}, not at the cited pinpoint.`
           : cited ? "Compared with the cited passage." : "Compared with the available source text; no unique pinpoint supplied.",
@@ -316,7 +319,9 @@ export function quoteBlocks(native: NativeDocument, judgment = false): QuoteBloc
     // Native labels may carry their kind ("page333", "para 12", "s. 4").
     const prefix = { paragraph: /^(?:paras?\.?|par|¶)\s*(?=\d)/iu, page: /^(?:pages?|pp?\.?)\s*(?=\d)/iu,
       section: /^(?:sections?|ss?\.|sec)\s*(?=\d)/iu }[anchor.kind];
-    const value = anchor.label.trim().replace(prefix, "").replace(/^\[(.*)\]$/u, "$1");
+    let value = anchor.label.trim().replace(prefix, "").replace(/^\[(.*)\]$/u, "$1");
+    // A named provision has no number: "secSchedule".
+    if (anchor.kind === "section") value = value.replace(/^sec(?=[A-Z])/u, "");
     const label = anchor.kind === "paragraph" ? `par${value}` : anchor.kind === "page" ? `page ${value}` : `sec${value}`;
     return [{ kind: anchor.kind, label, start: anchor.start, end: anchor.end }];
   });

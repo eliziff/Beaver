@@ -150,3 +150,15 @@ export const govUkEmploymentTribunalLegalSourceProvider = remoteCaseProvider({
       }
     : null,
 });
+
+/** The exact tribunal case, with its original PDF when the page names only one. */
+export async function govUkEmploymentTribunalCaseSource(citation: string, signal?: AbortSignal) {
+  const result = await searchEmploymentTribunalCase(citation, signal);
+  if (!result) return null;
+  const document = await fetchEmploymentTribunalCase(result, signal);
+  const pdfs = [...new Set(document.attachments.filter((attachment) =>
+    attachment.contentType === "application/pdf" || /\.pdf(?:$|[?#])/iu.test(attachment.url)).map(({ url }) => url))];
+  return { id: document.identity, citation: result.caseNumber, date: null,
+    url: document.url, title: document.title, pdfUrl: pdfs.length === 1 ? pdfs[0] : null,
+    text: structureNative().documentText(document.native) };
+}

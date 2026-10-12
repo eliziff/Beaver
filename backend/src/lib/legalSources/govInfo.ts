@@ -144,3 +144,13 @@ export const govInfoLegalSourceProvider = remoteCaseProvider({
     url: `${WEB_ORIGIN}/app/details/${source.id}`,
   }),
 });
+
+/** The exact federal docket's package and its publisher's original PDF. */
+export async function govInfoCaseSource(citation: string, signal?: AbortSignal) {
+  const result = await searchGovInfoCase(citation, signal);
+  if (!result) return null;
+  const document = await fetchGovInfoCase(result, signal);
+  return { id: document.identity, citation: result.docket, date: null,
+    url: document.url, title: document.title, pdfUrl: document.attachments[0]?.url ?? null,
+    text: structureNative().documentText(document.native) };
+}

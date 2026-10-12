@@ -84,7 +84,8 @@ export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesActi
         return pin ? { ...pin, kind: kind ?? pin.kind } : { kind: kind ?? '', text: unit.text.slice(start, end), start, end };
       }).sort((left, right) => left.start! - right.start!);
       const span = known.length ? { start: known[0].start!, end: known.at(-1)!.end! } : null;
-      occurrences[item!.id] = { ...item!, pinpoints: known, pinpointManual: true,
+      const { pinpointManual: _manual, ...base } = item!;
+      occurrences[item!.id] = { ...base, pinpoints: known, ...(action.manual !== false && { pinpointManual: true as const }),
         pinpointSpan: span && { ...span, text: unit.text.slice(span.start, span.end) } };
       break;
     }
@@ -131,7 +132,8 @@ export function reviewStep(before: AuthoritiesProduct, after: AuthoritiesProduct
       const id = after.state.units.find(({ id }) => id === action.unitId)?.occurrenceIds.find(id => !before.state.occurrences[id]);
       return id ? { undo: [{ type: 'remove-occurrence', occurrenceId: id }], redo: [{ type: 'restore-occurrence', occurrenceId: id }], target: id } : null;
     }
-    case 'set-pinpoints': return was ? step([{ type: 'set-pinpoints', occurrenceId, pinpoints: pinpointEdit(placedPins(was)) }]) : null;
+    case 'set-pinpoints': return was ? step([{ type: 'set-pinpoints', occurrenceId,
+      pinpoints: pinpointEdit(placedPins(was)), manual: !!was.pinpointManual }]) : null;
     case 'set-reference': return was ? step([{ type: 'set-reference', occurrenceId, reference: was.reference }]) : null;
     case 'set-citation-range': {
       const unit = was && before.state.units.find(({ id }) => id === was.unitId);
@@ -146,7 +148,7 @@ export function reviewStep(before: AuthoritiesProduct, after: AuthoritiesProduct
           return [piece ? { type: 'set-citation-range', occurrenceId: piece.id, start: other.start, end: other.end }
             : { type: 'add-occurrence', unitId: unit.id, start: other.start, end: other.end }];
         }),
-        { type: 'set-pinpoints', occurrenceId, pinpoints: pinpointEdit(placedPins(was)) }]);
+        { type: 'set-pinpoints', occurrenceId, pinpoints: pinpointEdit(placedPins(was)), manual: !!was.pinpointManual }]);
     }
     default: return null;
   }

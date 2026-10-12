@@ -27,7 +27,7 @@ export type AuthoritiesOcrPort = {
   cancel(id: string, roles: string[]): Promise<unknown>;
   progress(documentIds: string[]): Promise<PdfProgress[]>;
 };
-export type AuthoritiesLocalStore = "a2aj" | "journals" | "journals-search";
+export type AuthoritiesLocalStore = "a2aj" | "journals" | "journals-search" | "canlii";
 /** A store's file served by the program that serves the page, read in place by ranged requests. */
 export type AuthoritiesServedFile = { url: string; size: number; lastModified: number };
 export type AuthoritiesDraftInspection = {

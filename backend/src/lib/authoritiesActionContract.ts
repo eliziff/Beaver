@@ -29,9 +29,11 @@ export function integer(value: unknown, min = 0) {
   return Number(value);
 }
 export function decodePdfOpening(value: unknown) {
-  const { filename, pages } = object(value);
+  const { filename, pages, marginText } = object(value);
   return Array.isArray(pages) && pages.length <= 2 && pages.every((page) => typeof page === "string" && page.length <= 200_000)
-    ? { filename: text(filename), pages: pages as string[] } : bad();
+    && (marginText === undefined || Array.isArray(marginText) && marginText.length === pages.length &&
+      marginText.every((page) => typeof page === "string" && page.length <= 5000))
+    ? { filename: text(filename), pages: pages as string[], ...marginText !== undefined && { marginText: marginText as string[] } } : bad();
 }
 export function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   return typeof value === "string" && choices.includes(value as T) ? value as T : bad();
@@ -198,7 +200,9 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "clear-pinpoint": return { type, occurrenceId: text(item.occurrenceId) };
     case "set-pinpoints": {
       if (!Array.isArray(item.pinpoints) || item.pinpoints.length > 50) return bad();
-      return { type, occurrenceId: text(item.occurrenceId), pinpoints: item.pinpoints.map((value) => {
+      return { type, occurrenceId: text(item.occurrenceId),
+        ...(item.manual !== undefined && { manual: typeof item.manual === "boolean" ? item.manual : bad() }),
+        pinpoints: item.pinpoints.map((value) => {
         const pinpoint = object(value);
         return { start: integer(pinpoint.start), end: integer(pinpoint.end, 1),
           ...(pinpoint.kind !== undefined && { kind: choice(pinpoint.kind, AUTHORITIES_ACTION_CHOICES.pinpoint) }) };

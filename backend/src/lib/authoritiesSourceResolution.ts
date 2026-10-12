@@ -1,5 +1,5 @@
 import { ApplicationError } from "./applicationError";
-import { authorityCitationServices, editAuthoritiesDraft } from "./authoritiesActions";
+import { authorityCitationServices, caseNameMismatch, editAuthoritiesDraft } from "./authoritiesActions";
 import { renderAuthoritySourcePdf } from "./authoritiesBuild";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
@@ -11,6 +11,9 @@ import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { justiceLawsLegalSourceProvider, justiceLawsSource } from "./legalSources/justiceLaws";
+import { govUkEmploymentTribunalLegalSourceProvider, govUkEmploymentTribunalCaseSource } from "./legalSources/govUkEmploymentTribunal";
+import { govInfoLegalSourceProvider, govInfoCaseSource } from "./legalSources/govInfo";
+import { canliiLegalSourceProvider, canliiSource } from "./legalSources/canlii";
 import { journalLegalSourceProvider } from "./legalSources/journal";
 import { splitQuoteCitationUnits } from "./quoteCitationSplit";
 import { FOREIGN_CASE_PROVIDERS, type LegalSourceReference } from "./legalSources";
@@ -32,6 +35,9 @@ const foreignProviders = [
   { id: "courtlistener", claims: courtlistenerLegalSourceProvider,
     source: courtlistenerLegalSourceProvider.caseSource },
   { id: "justice-laws", claims: justiceLawsLegalSourceProvider, source: justiceLawsSource },
+  { id: "govuk-et", claims: govUkEmploymentTribunalLegalSourceProvider, source: govUkEmploymentTribunalCaseSource },
+  { id: "govinfo", claims: govInfoLegalSourceProvider, source: govInfoCaseSource },
+  { id: "canlii", claims: canliiLegalSourceProvider, source: canliiSource },
 ] as const;
 
 /** Resolves the first citation form a provider matches; never a best guess. Without `foreignCases`,
@@ -103,13 +109,13 @@ const caseNamesAgree = (written: string[], other: string) => structureNative().c
  *  does (2021 SCC 4 is R v Murtaza; the brief's Parranto is 2021 SCC 46). Null when the names agree.
  *  A short form alone ("Main Decision") names no party: it can agree with the case, never set it apart. */
 async function citedCaseMismatch(authority: AuthorityIdentity, source: { citation: string; name: string | null;
-  date: string | null; dataset: string | null }, sources: SourceServices, signal?: AbortSignal): Promise<AuthorityCitedCase | null> {
+  date: string | null; dataset: string | null }, sources: SourceServices, signal?: AbortSignal,
+  mode: "resolve" | "warn" = "resolve"): Promise<AuthorityCitedCase | null> {
+  const mismatch = caseNameMismatch(authority, source);
+  if (!mismatch || mode === "warn") return mismatch;
   const styled = [authority.name, authority.mentionedAs].filter((name): name is string => !!name?.trim());
   const written = [...styled, ...authority.shortNames ?? []];
-  if (authority.kind !== "case" || !source.name || !styled.length) return null;
-  const agreement = caseNamesAgree(written, source.name);
-  if (agreement.agrees) return null;
-  const year = Number((source.date ?? "").slice(0, 4)), words = caseNamesAgree(styled, source.name).written;
+  const year = Number((source.date ?? "").slice(0, 4)), words = caseNamesAgree(styled, mismatch.name).written;
   // A search that fails is no search that found nothing: the error goes to the caller, which records
   // the lookup as unanswered, to be asked again. Working locally only, a store that cannot be searched
   // finds nothing.
@@ -124,8 +130,7 @@ async function citedCaseMismatch(authority: AuthorityIdentity, source: { citatio
       exact: agreement.other.length === words.length && words.every((word) => agreement.other.includes(word)) }] as const] : [];
   })).values()];
   const exact = agreeing.filter(({ exact }) => exact), pool = exact.length ? exact : agreeing;
-  return { id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, source.citation, source.name]),
-    citation: source.citation, name: source.name,
+  return { ...mismatch,
     named: pool.length === 1 ? { citation: pool[0].citation, name: pool[0].name } : null };
 }
 
@@ -183,16 +188,15 @@ async function keptOriginals(initial: AuthoritiesDraft, sources: SourceServices)
   return { draft: editor.result(), attachments };
 }
 
-/** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. With `citedCases`
- *  off, a source naming another case than the citation's words is kept rather than searched against (an app that
- *  checks quotations against the source a citation names, as ALR's does). */
+/** Resolves canonical identities and prepares source bytes. `warn` flags a different case while retaining
+ *  the cited source for quotation checks; `resolve` waits for the user's choice and looks for the named case. */
 export async function resolveAuthoritiesSources(
   initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
   signal?: AbortSignal,
   onlyAuthorityId?: string,
   progress?: (message: string) => void,
   keptOnly = false,
-  citedCases = true,
+  citedCases: "resolve" | "warn" = "resolve",
 ) {
   if (keptOnly) return keptOriginals(initial, sources);
   if (onlyAuthorityId && !retryableAuthoritySource(initial, onlyAuthorityId))
@@ -283,7 +287,7 @@ export async function resolveAuthoritiesSources(
     // A citation that names a different case keeps the brief's name and citation, and no source,
     // until the user decides.
     let mismatch: AuthorityCitedCase | null;
-    try { mismatch = citedCases ? await citedCaseMismatch(draft.authorities[id], source, sources, signal) : null; }
+    try { mismatch = await citedCaseMismatch(draft.authorities[id], source, sources, signal, citedCases); }
     catch (error) {
       signal?.throwIfAborted();
       editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: error instanceof A2AJUnavailable
@@ -293,14 +297,24 @@ export async function resolveAuthoritiesSources(
     }
     if (mismatch || draft.authorities[id].citedCase)
       editor.apply({ type: "set-cited-case", authorityId: id, citedCase: mismatch });
-    if (mismatch) continue;
+    if (mismatch && citedCases === "resolve") continue;
+    const prior = citedCases === "warn" ? Object.values(draft.authorities).find(authority => authority.id !== id &&
+      authority.sourceIdentity?.stableSourceId === stableA2AJSourceId(source) && authority.citedCase) : undefined;
+    const warning = mismatch ?? prior?.citedCase;
+    const warned = mismatch ? authority : prior;
+    const writtenName = warned?.mentionedAs || warned?.name;
     resolvedSources.set(stableA2AJSourceId(source), source);
     editor.apply({ type: "resolve-authority", authorityId: id,
-      citation: source.citation, name: source.name,
+      citation: source.citation, name: warning ? warned?.name ?? null : source.name,
       source: { provider: "a2aj", stableSourceId: stableA2AJSourceId(source),
         citationForms: [...new Set([...authorityCitationForms(initial, id), source.citation,
           source.alternateCitation].filter((value): value is string => !!value?.trim()))].slice(0, 50),
         sourceSha256: resolved.revision, version: source.date, externalUrl: source.url } });
+    if (warning) {
+      const target = draft.authorityOrder.find(id => draft.authorities[id].sourceIdentity?.stableSourceId === stableA2AJSourceId(source))!;
+      if (writtenName) draft.authorities[target].mentionedAs = writtenName;
+      editor.apply({ type: "set-cited-case", authorityId: target, citedCase: warning });
+    }
   }
   // Authorities A2AJ does not hold: US reporter and UK neutral citations, and Quebec
   // legislation, resolve through their own providers into the same source pipeline.
@@ -315,20 +329,35 @@ export async function resolveAuthoritiesSources(
   });
   for (const [id, found] of foreign) {
     if (!found || !draft.authorities[id]) continue;
+    const mismatch = caseNameMismatch(draft.authorities[id], found);
     const previous = draft.authorities[id].sourceIdentity;
     if (previous && (previous.stableSourceId !== found.stableSourceId ||
         previous.sourceSha256 !== found.sourceSha256)) throw new ApplicationError(409,
       `The legal source for ${draft.authorities[id].citation} changed. Add the current PDF before trying again.`);
+    if (mismatch && citedCases === "resolve") {
+      editor.apply({ type: "set-cited-case", authorityId: id, citedCase: mismatch });
+      continue;
+    }
+    const prior = citedCases === "warn" ? Object.values(draft.authorities).find(authority => authority.id !== id &&
+      authority.sourceIdentity?.stableSourceId === found.stableSourceId && authority.citedCase) : undefined;
+    const warning = mismatch ?? prior?.citedCase;
+    const warned = mismatch ? draft.authorities[id] : prior;
+    const writtenName = warned?.mentionedAs || warned?.name;
     resolvedSources.set(found.stableSourceId, { ...found, identity: found.stableSourceId,
       alternateCitation: null, dataset: found.provider, language: "en",
       searchText: () => found.text, verifiedPdf: found.pdfUrl
         ? { url: found.pdfUrl, pdfOnly: true } : null });
     editor.apply({ type: "resolve-authority", authorityId: id,
-      citation: found.citation, name: "titleIfUnnamed" in found && found.titleIfUnnamed
-        ? draft.authorities[id].name || found.name : found.name,
+      citation: found.citation, name: warning ? warned?.name ?? null
+        : "titleIfUnnamed" in found && found.titleIfUnnamed ? draft.authorities[id].name || found.name : found.name,
       source: { provider: found.provider, stableSourceId: found.stableSourceId,
         citationForms: [...new Set([...authorityCitationForms(initial, id), found.citation])].slice(0, 50),
         sourceSha256: found.sourceSha256, version: found.date, externalUrl: found.url } });
+    if (warning) {
+      const target = draft.authorityOrder.find(id => draft.authorities[id].sourceIdentity?.stableSourceId === found.stableSourceId)!;
+      if (writtenName) draft.authorities[target].mentionedAs = writtenName;
+      editor.apply({ type: "set-cited-case", authorityId: target, citedCase: warning });
+    }
   }
   // Commentary the journals database holds: its article, and the article's link. An article is
   // found by its title, which the whole citation part carries and the authority's citation may not.
