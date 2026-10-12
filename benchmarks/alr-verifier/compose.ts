@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { defaultNativeAddon } from "../../shared/nativeAddonFile.mjs";
 
 const REPO = path.resolve(import.meta.dirname, "../..");
 const SUITE = path.join(REPO, "benchmarks/local-data/alr-verifier");
@@ -55,9 +56,12 @@ void (async () => {
   const runtime = process.env.ALR_RUNTIME_BUNDLE || path.join(config.alr_quote_verifier, "beaver_app/runtime/operations.ts");
   const { createAuthoritiesOperations } = await import(pathToFileURL(runtime).href);
   const ops = createAuthoritiesOperations();
+  const native = process.env.LEGAL_STRUCTURE_NATIVE ?? defaultNativeAddon(path.join(REPO, "native/legal-structure-node"));
+  const runIdentity = { runtime_sha256: createHash("sha256").update(readFileSync(runtime)).digest("hex"),
+    native_sha256: createHash("sha256").update(readFileSync(native)).digest("hex") };
   for (const input of inputs) {
     try {
-      await composeOne(ops, input, inputs.length > 1 ? path.join(out, path.parse(input).name) : out);
+      await composeOne(ops, input, inputs.length > 1 ? path.join(out, path.parse(input).name) : out, runIdentity);
     } catch (error) {
       console.error(`${path.basename(input)}: ${error instanceof Error ? error.stack : error}`);
       process.exitCode = 1;
@@ -65,7 +69,7 @@ void (async () => {
   }
 })().catch((error) => { console.error(error); process.exitCode = 1; });
 
-async function composeOne(ops: any, input: string, out: string) {
+async function composeOne(ops: any, input: string, out: string, runIdentity: { runtime_sha256: string; native_sha256: string }) {
   const signal = new AbortController().signal, started = performance.now();
   // Seconds each step took, in the run record.
   const steps: Record<string, number> = {};
@@ -102,6 +106,36 @@ async function composeOne(ops: any, input: string, out: string) {
   step("workbook");
   mkdirSync(out, { recursive: true });
   writeFileSync(path.join(out, workbook.filename), workbook.bytes);
+  // Save individual checks: workbook row statuses combine several quotations and cannot grade each one.
+  const usedUnits = new Set(check.quotes.flatMap((quote: any) =>
+    [quote.unitId, ...quote.candidates.map((candidate: any) => candidate.unitId)]));
+  const digest = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
+  const quoteOutput = {
+    schema_version: 1, run_id: process.env.ALR_EVAL_LABEL ?? "alr-quote-run", submission_origin: "machine_test",
+    historical_input_origin: "unknown", engine: runIdentity,
+    document: { filename: file.filename, sha256: digest(file.bytes) },
+    units: draft.units.filter((unit: any) => usedUnits.has(unit.id)).map((unit: any) => ({
+      id: unit.id, kind: unit.kind, ordinal: unit.ordinal, footnoteId: unit.footnoteId,
+      noteNumber: unit.noteNumber, footnoteRefs: unit.footnoteRefs, text: unit.text,
+    })),
+    quotes: check.quotes.map((quote: any) => ({
+      id: quote.id, unitId: quote.unitId, start: quote.start, end: quote.end, quote: quote.quote,
+      occurrenceId: quote.occurrenceId, candidates: quote.candidates,
+      checks: quote.checks.map((item: any) => ({
+        candidateId: item.candidateId, status: item.status, detail: item.detail,
+        receipt: item.receipt ? {
+          source: item.receipt.source, sourceSha256: item.receipt.sourceSha256,
+          passageSha256: item.receipt.passageSha256, locator: item.receipt.locator, link: item.receipt.link,
+          errors: item.receipt.errors.map((error: string) => error.split(" source window:")[0]),
+          match: (({ text, region, cited, ...match }: any) => ({ ...match,
+            region_utf16_length: region.length,
+            cited: cited ? (({ region, ...partial }: any) => partial)(cited) : null,
+          }))(item.receipt.match),
+        } : null,
+      })),
+    })),
+  };
+  writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".quotes.json")), JSON.stringify(quoteOutput));
   writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".run.json")), JSON.stringify({
     document: file.filename, settings, seconds: (performance.now() - started) / 1000, steps, summary: check.counts, modelCalls }, null, 2));
   console.log(JSON.stringify({ document: file.filename, seconds: Math.round((performance.now() - started) / 100) / 10, counts: check.counts }));

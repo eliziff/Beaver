@@ -21,7 +21,9 @@ import io
 import json
 import os
 import re
+import unicodedata
 import sys
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -379,6 +381,169 @@ def quote_lane(payloads: dict[str, dict]) -> dict:
     return out
 
 
+def quote_gold_diff(gold_manifest: Path, run_folder: Path) -> dict:
+    """Compare saved individual checks with independently reviewed OOXML occurrences."""
+    started = time.perf_counter()
+    manifest = json.loads(gold_manifest.read_text(encoding="utf-8"))
+    observed: dict[str, dict] = {}
+    for path in run_folder.rglob("*.quotes.json"):
+        run = json.loads(path.read_text(encoding="utf-8"))
+        digest = run["document"]["sha256"]
+        if digest in observed:
+            raise ValueError(f"Multiple run outputs for manuscript {digest}; choose one run folder")
+        observed[digest] = run
+    counts: Counter = Counter()
+    differences = []
+    missing_documents = []
+    pending_reviews = []
+
+    def text_key(value: str) -> str:
+        # Binding only: preserve spelling, case, punctuation and complete quotation tails.
+        return re.sub(r"\s+", " ", value).strip()
+
+    def source_key(source: dict) -> tuple[str, str]:
+        return str(source.get("provider") or ""), text_key(str(source.get("id") or ""))
+
+    def pinpoint_key(value: dict) -> tuple[str, str]:
+        kind, label = str(value.get("kind") or ""), str(value.get("label") or "")
+        for prefix, inferred in (("par", "paragraph"), ("page ", "page"), ("sec", "section")):
+            if label.startswith(prefix):
+                kind, label = inferred, label[len(prefix):]
+                break
+        return kind, re.sub(r"\s+", "", label).replace("\u2013", "-").replace("\u2014", "-")
+
+    for entry in manifest["documents"]:
+        gold_path = gold_manifest.parent / entry["gold"]
+        gold = json.loads(gold_path.read_text(encoding="utf-8"))
+        manuscript = gold["manuscript"]
+        run = observed.get(manuscript["sha"])
+        units = {unit["id"]: unit for unit in run["units"]} if run else {}
+        quotes_by_text: dict[str, list[dict]] = {}
+        for quote in run["quotes"] if run else []:
+            quotes_by_text.setdefault(text_key(quote["quote"]), []).append(quote)
+        counts["documents"] += 1
+        counts["documents_with_output"] += run is not None
+        if run is None:
+            missing_documents.append(manuscript["id"])
+        for record in gold["records"]:
+            counts["inventory"] += 1
+            expected, authored = record["expected"], record["authored"]
+            outcome = expected["outcome"]
+            if record["review"].get("status") == "covered_by_parent":
+                counts["covered_by_parent"] += 1
+                continue
+            if outcome == "pending":
+                counts["pending"] += 1
+                pending_reviews.append({"document": manuscript["id"], "gold_id": record["id"],
+                                        "review": record["review"]})
+                continue
+            counts["scored"] += 1
+            failures = []
+            related = {int(note["word_note_id"]) for note in authored.get("related_notes", [])}
+            word_note = authored.get("word_note_id")
+
+            def belongs(quote: dict) -> bool:
+                if text_key(quote["quote"]) != text_key(authored["quote"]):
+                    return False
+                unit = units[quote["unitId"]]
+                if word_note is not None:
+                    if unit.get("footnoteId") != word_note:
+                        return False
+                elif unit["kind"] != "body":
+                    return False
+                if word_note is None and related:
+                    linked = {int(ref[0]) for ref in unit.get("footnoteRefs", [])}
+                    for candidate in quote.get("candidates", []):
+                        candidate_unit = units.get(candidate.get("unitId"), {})
+                        if candidate_unit.get("footnoteId") is not None:
+                            linked.add(int(candidate_unit["footnoteId"]))
+                    if not related.intersection(linked):
+                        return False
+                context = authored.get("context")
+                if context == unit["text"]:
+                    return quote["start"] == authored["inner_span"]["start"] - authored["context_span"]["start"]
+                return not context or text_key(unit["text"]) in text_key(context) or text_key(context) in text_key(unit["text"])
+
+            hits = [quote for quote in quotes_by_text.get(text_key(authored["quote"]), []) if belongs(quote)]
+            if outcome == "not_source_quotation":
+                if any(check["status"] in ("verified", "mismatch") for hit in hits for check in hit["checks"]):
+                    failures.append("checked_nonquotation")
+            elif not hits:
+                failures.append("missing_quotation" if run else "missing_document_output")
+            elif len(hits) != 1:
+                failures.append("ambiguous_occurrence_binding")
+            else:
+                witnesses = expected.get("source_witnesses", [])
+                if not witnesses:
+                    failures.append("gold_missing_source_identity")
+                for witness in witnesses:
+                    source_outcome = witness.get("outcome", outcome)
+                    if source_outcome == "pending":
+                        counts["pending_source_checks"] += 1
+                        pending_reviews.append({"document": manuscript["id"], "gold_id": record["id"],
+                                                "source": witness.get("source", witness), "review": witness.get("review")})
+                        continue
+                    wanted_source = source_key(witness.get("source", witness))
+                    checks = [check for check in hits[0]["checks"] if check.get("receipt") and
+                              source_key(check["receipt"]["source"]) == wanted_source and
+                              (not witness.get("candidate_id") or check["candidateId"] == witness["candidate_id"])]
+                    if not checks:
+                        failures.append("expected_source_not_checked")
+                        continue
+                    if len(checks) != 1:
+                        failures.append("ambiguous_source_check")
+                        continue
+                    counts["scored_source_checks"] += 1
+                    check, receipt = checks[0], checks[0]["receipt"]
+                    match = receipt["match"]
+                    supported = source_outcome in ("literal", "supported_explicit_edits")
+                    if source_outcome not in ("literal", "supported_explicit_edits", "wording_mismatch", "absent"):
+                        raise ValueError(f"Unknown gold outcome {source_outcome} in {record['id']}")
+                    if check["status"] != ("verified" if supported else "mismatch"):
+                        failures.append("wording_verdict")
+                    if (source_outcome == "absent") != (match["location"] == "unmatched"):
+                        failures.append("source_match_presence")
+                    expected_pinpoints = witness.get("pinpoints", expected.get("correct_pinpoints", []) if len(witnesses) == 1 else [])
+                    pinpoint_review = witness.get("pinpoint_review", {})
+                    if pinpoint_review.get("status") == "pending":
+                        counts["pending_pinpoints"] += 1
+                        pending_reviews.append({"document": manuscript["id"], "gold_id": record["id"],
+                                                "source": witness.get("source", witness), "pinpoint_review": pinpoint_review})
+                    elif supported and not expected_pinpoints and witness.get("pinpoint_basis") != "source_offsets":
+                        failures.append("gold_missing_correct_pinpoint")
+                    if expected_pinpoints and pinpoint_review.get("status") != "pending":
+                        first = (match.get("labels") or [match.get("pinpoint") or ""])[0]
+                        if pinpoint_key({"label": first}) not in {pinpoint_key(p) for p in expected_pinpoints}:
+                            failures.append("correct_pinpoint")
+                    corrections = witness.get("corrected_quotes", expected.get("corrected_quotes"))
+                    if corrections and match.get("corrected") not in corrections:
+                        failures.append("corrected_quotation")
+                    fragments = witness.get("source_fragments", expected.get("source_fragments"))
+                    if fragments and match.get("fragment") not in fragments:
+                        failures.append("source_fragment")
+                    passages = witness.get("source_passages")
+                    if passages and match["location"] != "unmatched":
+                        def fragment_key(value: str) -> str:
+                            value = unicodedata.normalize("NFKC", value).translate(str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'}))
+                            return re.sub(r"\s+", " ", value).strip().casefold()
+                        fragment = fragment_key(match.get("fragment") or "")
+                        if not fragment or not any(fragment in fragment_key(passage) for passage in passages):
+                            failures.append("source_fragment")
+            if failures:
+                failures = list(dict.fromkeys(failures))
+                counts["failed"] += 1
+                counts.update(f"failure_{failure}" for failure in failures)
+                differences.append({"document": manuscript["id"], "gold_id": record["id"],
+                                    "authored": authored, "expected": expected, "failures": failures,
+                                    "observed": hits})
+            else:
+                counts["passed"] += 1
+    return {"run_id": "quote-gold-diff", "submission_origin": "machine_test", "historical_input_origin": "unknown",
+            "gold_manifest": str(gold_manifest), "run_folder": str(run_folder), "counts": dict(counts),
+            "seconds": round(time.perf_counter() - started, 4), "missing_documents": missing_documents,
+            "pending_reviews": pending_reviews, "differences": differences}
+
+
 def live_document_table(results: dict[str, dict]) -> str:
     """The live one-document comparison of dev/DETERMINISTIC_SPLITTER_RESULTS.md, recorded and re-run."""
     entry = next((d for d in manifest() if d.get("sha256") == LIVE_DOC_SHA256), None)
@@ -544,7 +709,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--arms", nargs="*", help="arm folder names (default: all under arms/)")
     parser.add_argument("--baseline", default="python-free")
+    parser.add_argument("--quote-gold", type=Path, help="independent wide quotation gold manifest")
+    parser.add_argument("--quote-run", type=Path, help="saved compose output folder; no extraction or native calls")
+    parser.add_argument("--quote-diff-out", type=Path, help="latest private JSON diff (defaults beside gold)")
     args = parser.parse_args()
+    if args.quote_gold or args.quote_run:
+        if not args.quote_gold or not args.quote_run:
+            parser.error("--quote-gold and --quote-run must be supplied together")
+        report = quote_gold_diff(args.quote_gold, args.quote_run)
+        target = args.quote_diff_out or args.quote_gold.parent / "latest-diff.json"
+        target.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(json.dumps({key: report[key] for key in ("counts", "seconds")}, ensure_ascii=False))
+        print(f"Diff: {target}")
+        counts = report["counts"]
+        return 1 if counts.get("failed") or report["missing_documents"] else 2 if any(counts.get(key) for key in ("pending", "pending_source_checks", "pending_pinpoints")) or not counts.get("scored") else 0
     modules = oracle()
     names = args.arms or sorted(p.name for p in ARMS.iterdir() if p.is_dir())
     reference = load_arm(args.baseline)
