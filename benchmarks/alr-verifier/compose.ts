@@ -95,7 +95,7 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
     const llm = (await import(pathToFileURL(path.resolve(option("--llm")!)).href)).default;
     const module = (name: string) => pathToFileURL(process.env.ALR_RUNTIME_BUNDLE
       ? path.join(path.dirname(process.env.ALR_RUNTIME_BUNDLE), `${name}.mjs`)
-      : path.join(config.alr_quote_verifier, `beaver_app/runtime/${name}.ts`)).href;
+      : path.join(REPO, `backend/src/lib/quoteVerification/${name === "ai" ? "runModel" : name}.ts`)).href;
     const { alrModel } = await import(module("ai"));
     const { alrCheckedWorkbook } = await import(module("checkedWorkbook"));
     const run = alrModel(llm.default ?? llm, settings.run_mode, (message: string) => console.error(message));
@@ -103,12 +103,17 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
     workbook = { filename: made.name, bytes: made.workbook };
     modelCalls = run.stats;
   } else {
-    const written = await ops["alr-workbook"]({ draft, check, options }, { signal });
+    const written = await ops["verify-workbook"]({ draft, check, options }, { signal });
     workbook = written.files.find((item: { role: string }) => item.role === "workbook");
   }
   step("workbook");
   mkdirSync(out, { recursive: true });
   writeFileSync(path.join(out, workbook.filename), workbook.bytes);
+  // Product state for consumer equivalence; execution identities stay in the
+  // separate receipt. Retain all citation/source fields, not only summary counts.
+  writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".citations.json")), JSON.stringify({
+    units: draft.units, authorities: draft.authorities, occurrences: draft.occurrences,
+  }));
   // Save individual checks: workbook row statuses combine several quotations and cannot grade each one.
   const usedUnits = new Set(check.quotes.flatMap((quote: any) =>
     [quote.unitId, ...quote.candidates.map((candidate: any) => candidate.unitId)]));
@@ -139,6 +144,9 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
     })),
   };
   writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".quotes.json")), JSON.stringify(quoteOutput));
+  writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".quotation-results.json")), JSON.stringify({
+    units: quoteOutput.units, quotes: quoteOutput.quotes,
+  }));
   writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".run.json")), JSON.stringify({
     document: file.filename, settings, seconds: (performance.now() - started) / 1000, steps, summary: check.counts, modelCalls }, null, 2));
   console.log(JSON.stringify({ document: file.filename, seconds: Math.round((performance.now() - started) / 100) / 10, counts: check.counts }));
