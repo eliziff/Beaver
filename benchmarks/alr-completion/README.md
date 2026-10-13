@@ -154,10 +154,24 @@ The separate PDF engine work is in progress and is outside this task. Public HTM
 publication and complete Authorities export proof remain gated on resolving this
 failure; a successful build alone is insufficient.
 
-Public/internal executable packaging also awaits explicit approval to distribute
-Microsoft's unchanged WebView2 license and notice files. No packaged-executable
-or publication success is claimed before those gates pass.
-The program entry point bundles successfully with only Node built-in external
-imports. The existing private journal database and search index pass the package's
-schema, size, modification-time and export-identity preflight checks. Neither
-check proves that the final executable starts or that its embedded stores work.
+Public/internal executable packages now include unchanged WebView2 notices and
+have actual local artifact QA. The public single-executable and portable-folder
+layouts share the same program; the internal executable keeps its journal,
+search and CanLII data in a range-readable overlay. Native responses use binary
+frames, Word assets load on demand, and DOCX sessions no longer retain a spare
+PDF worker. No grammar or PDF parser semantics were changed for these improvements.
+
+ALR's `beaver_app/program/package-smoke.mjs --edition public --pdf` (and
+`--edition internal`, or `--edition public --format folder`) runs the packaged
+artifact with an isolated profile. It verifies DOCX import, a fresh invented PDF
+quotation, workbook and batch ZIP contents, 100 citations and repeat runs, saved
+state, visible/minimized/restored windows, optional Word assets, store integrity,
+and zero ordinary TCP listeners. Results and screenshots are in its canonical
+`beaver_app/out/package-smoke/` directory, bound to the executable SHA-256.
+
+The small PDF quote fixture passes; it does not close the earlier complex-PDF
+attachment, layout-shift or wider source-test failures above. Live GovInfo retrieval
+passed on the preceding UI-count candidate; a later request received HTTP 429.
+Repeated QA is offline by default (`--online` opts into that bounded provider
+check). There were no additional model calls or publication actions in package QA.
+See ALR's `beaver_app/program/README.md` for measurements and untested capabilities.
