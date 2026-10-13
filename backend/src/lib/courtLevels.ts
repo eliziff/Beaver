@@ -35,9 +35,9 @@ export function courtLevel(code: string | null | undefined): CourtLevel | null {
   const surface = code.trim().toUpperCase();
   if (levels.has(surface)) return levels.get(surface)!;
   const courts = structureNative().citationEngineCall("registry",
-    JSON.stringify({ table: "courts", surface })) as Array<{ level: CourtLevel["kind"] }>;
+    JSON.stringify({ table: "courts", surface })) as Array<{ hierarchy: CourtLevel["kind"] }>;
   const court = courts[0];
-  const result = court ? { level: RANK[court.level], kind: court.level } : null;
+  const result = court ? { level: RANK[court.hierarchy], kind: court.hierarchy } : null;
   levels.set(surface, result);
   return result;
 }
