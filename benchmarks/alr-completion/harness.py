@@ -44,7 +44,40 @@ def peak_memory(process: subprocess.Popen) -> int:
     return int(next(line.split()[1] for line in status.splitlines() if line.startswith("VmHWM:"))) * 1024
 
 
-def sample(binary: Path, calls: list[dict], repeats: int, log: Path) -> tuple[dict, list[str]]:
+def schema4_request(request: dict) -> dict:
+    """Translate this frozen suite's schema-3 split request, without changing text or policy."""
+    if request["method"] != "splitSources":
+        return request
+    body = dict(request["request"])
+    if body.pop("extendedUs", None) is not False:
+        raise ValueError("The frozen split baseline must explicitly use extendedUs=false")
+    body["jurisdictionPriority"] = ["ca"]
+    return {**request, "request": body}
+
+
+def schema4_response(raw: bytes) -> bytes:
+    """Compare payload bytes under the old envelope; reject any unplanned profile change."""
+    decoded = json.loads(raw)
+    result = decoded.get("result")
+    if isinstance(result, dict):
+        if "schemaVersion" in result:
+            if result["schemaVersion"] != 4:
+                raise ValueError("Expected schema 4 response")
+            result["schemaVersion"] = 3
+        for name in ("sourceParts", "parts"):
+            for part in result.get(name, []):
+                if "jurisdictionPriority" not in part:
+                    continue
+                if part["jurisdictionPriority"] != ["ca"]:
+                    raise ValueError("The candidate changed a frozen source-part jurisdiction profile")
+                restored = {("extendedUs" if key == "jurisdictionPriority" else key):
+                            (False if key == "jurisdictionPriority" else value) for key, value in part.items()}
+                part.clear()
+                part.update(restored)
+    return (json.dumps(decoded, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def sample(binary: Path, calls: list[dict], repeats: int, log: Path, schema4: bool = False) -> tuple[dict, list[str], list[str]]:
     started = time.perf_counter()
     with log.open("ab") as errors, subprocess.Popen(
         [str(binary), "batch"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors
@@ -54,7 +87,8 @@ def sample(binary: Path, calls: list[dict], repeats: int, log: Path) -> tuple[di
         deadline.start()
         try:
             def call(request: dict) -> bytes:
-                process.stdin.write(json.dumps(request, ensure_ascii=False).encode("utf-8") + b"\n")
+                wire = schema4_request(request) if schema4 else request
+                process.stdin.write(json.dumps(wire, ensure_ascii=False).encode("utf-8") + b"\n")
                 process.stdin.flush()
                 result = process.stdout.readline()
                 if not result:
@@ -68,13 +102,15 @@ def sample(binary: Path, calls: list[dict], repeats: int, log: Path) -> tuple[di
             call(next(request for request in calls if request["method"] == "extract"))
             cold = time.perf_counter() - started
             # Warm every path before measuring steady-state throughput.
-            expected = [digest(call(request)) for request in calls]
+            outputs = [call(request) for request in calls]
+            wire_expected = [digest(output) for output in outputs]
+            expected = [digest(schema4_response(output) if schema4 else output) for output in outputs]
             durations = []
             for _ in range(repeats):
                 started = time.perf_counter()
                 actual = [digest(call(request)) for request in calls]
                 durations.append(time.perf_counter() - started)
-                if actual != expected:
+                if actual != wire_expected:
                     raise RuntimeError("Repeated identical requests produced different output bytes")
             memory = peak_memory(process)
             process.stdin.close()
@@ -82,7 +118,7 @@ def sample(binary: Path, calls: list[dict], repeats: int, log: Path) -> tuple[di
             if process.returncode:
                 raise RuntimeError(f"Engine exited {process.returncode}; see {log}")
             return {"cold_s": cold, "warm_s": statistics.median(durations), "peak_bytes": memory,
-                    "warm_samples_s": durations}, expected
+                    "warm_samples_s": durations}, expected, wire_expected
         finally:
             deadline.cancel()
             if process.poll() is None:
@@ -115,18 +151,23 @@ def engine(args) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     log = args.out.with_suffix(".stderr.log")
     log.write_bytes(b"")
-    measurements, hashes = [], None
+    measurements, hashes, wire_hashes = [], None, None
     for index in range(args.samples):
-        measured, outputs = sample(args.cli.resolve(), calls, args.repeats, log)
+        measured, outputs, wire_outputs = sample(args.cli.resolve(), calls, args.repeats, log, args.schema4)
         if hashes is not None and hashes != outputs:
             raise RuntimeError("Fresh processes produced different response bytes")
+        if wire_hashes is not None and wire_hashes != wire_outputs:
+            raise RuntimeError("Fresh processes produced different raw response bytes")
         hashes = outputs
+        wire_hashes = wire_outputs
         measurements.append(measured)
         print(f"sample {index + 1}/{args.samples}: cold={measured['cold_s']:.3f}s "
               f"warm={measured['warm_s']:.3f}s peak={measured['peak_bytes'] / 2**20:.1f}MiB", flush=True)
     result = {"format": 1, "platform": platform.platform(), "input_sha256": digest(raw),
               "cli_sha256": digest(args.cli.read_bytes()), "request_count": len(calls),
               "samples": args.samples, "repeats": args.repeats, "responses": hashes,
+              "response_envelope": "schema-4-to-frozen-3" if args.schema4 else "original",
+              "wire_responses": wire_outputs,
               "measurements": measurements,
               **{key: statistics.median(m[key] for m in measurements) for key in ("cold_s", "warm_s", "peak_bytes")},
               "wasm_bytes": args.wasm.stat().st_size if args.wasm else None,
@@ -183,6 +224,8 @@ def main() -> int:
     bench.add_argument("--wasm", type=Path)
     bench.add_argument("--samples", type=int, default=5)
     bench.add_argument("--repeats", type=int, default=3)
+    bench.add_argument("--schema4", action="store_true",
+                       help="translate only the frozen split flag and schema/profile envelope; retain all wire hashes")
     bench.set_defaults(run=engine)
     files = commands.add_parser("artifacts")
     files.add_argument("--root", type=Path, required=True)

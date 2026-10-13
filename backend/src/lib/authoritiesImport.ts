@@ -199,7 +199,7 @@ async function scanReview(
   // A Canadian brief is read with McGill's and COAL's forms, without the Bluebook's extended
   // United States forms (a registration or account number reads as one of its codes).
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
-    options: { resolve: false, notes, styles: ["mcgill", "coal"], extendedUs: false, earlyReferences: true },
+    options: { resolve: false, notes, styles: ["mcgill", "coal"], earlyReferences: true },
   })) as ExtractResponse;
   // The brief's own court file number (its cover's) is never one of its authorities, though an
   // order made under it that the brief names ("Re Ash Ltd, Order of Madam Justice Fen dated …,
