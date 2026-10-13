@@ -157,3 +157,7 @@ failure; a successful build alone is insufficient.
 Public/internal executable packaging also awaits explicit approval to distribute
 Microsoft's unchanged WebView2 license and notice files. No packaged-executable
 or publication success is claimed before those gates pass.
+The program entry point bundles successfully with only Node built-in external
+imports. The existing private journal database and search index pass the package's
+schema, size, modification-time and export-identity preflight checks. Neither
+check proves that the final executable starts or that its embedded stores work.
