@@ -158,14 +158,17 @@ Public/internal executable packages now include unchanged WebView2 notices and
 have actual local artifact QA. The public single-executable and portable-folder
 layouts share the same program; the internal executable keeps its journal,
 search and CanLII data in a range-readable overlay. Native responses use binary
-frames, Word assets load on demand, and DOCX sessions no longer retain a spare
-PDF worker. No grammar or PDF parser semantics were changed for these improvements.
+frames. Desktop engine/OCR/font assets load on demand instead of remaining in
+inline HTML; idle document workers retire and restore successful store/key
+configuration before their next operation. The verifier skips unused book-cover
+prewarming. No grammar or PDF parser semantics changed for these improvements.
 
 ALR's `beaver_app/program/package-smoke.mjs --edition public --pdf` (and
 `--edition internal`, or `--edition public --format folder`) runs the packaged
 artifact with an isolated profile. It verifies DOCX import, a fresh invented PDF
-quotation, workbook and batch ZIP contents, 100 citations and repeat runs, saved
-state, visible/minimized/restored windows, optional Word assets, store integrity,
+quotation, workbook and batch ZIP contents, 100 citations and repeat runs, settings and verification after idle worker
+retirement, saved state, visible/minimized/restored windows, optional Word assets,
+actual store mounting and integrity,
 and zero ordinary TCP listeners. Results and screenshots are in its canonical
 `beaver_app/out/package-smoke/` directory, bound to the executable SHA-256.
 
@@ -174,4 +177,8 @@ attachment, layout-shift or wider source-test failures above. Live GovInfo retri
 passed on the preceding UI-count candidate; a later request received HTTP 429.
 Repeated QA is offline by default (`--online` opts into that bounded provider
 check). There were no additional model calls or publication actions in package QA.
-See ALR's `beaver_app/program/README.md` for measurements and untested capabilities.
+The matched memory comparison retains an unchanged older portable executable's
+receipt and runs the same workload against the new builds. Process accounting
+checks creation times as well as IDs, excluding stale parent IDs reused by
+Windows. See ALR's `beaver_app/program/README.md` for measurements, the remaining
+one-third memory target, and untested capabilities.

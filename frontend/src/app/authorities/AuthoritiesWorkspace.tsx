@@ -474,8 +474,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const selectedRef = useRef(selected?.id);
   selectedRef.current = selected?.id;
   useEffect(() => { if (!selected) onFocusChange?.(); }, [selected, onFocusChange]);
-  // The cover and index previews are drawn by the runtime; it is readied while nothing else is asked of it.
-  useEffect(() => warmFrontPreviews(host), [host]);
+  // Only the book workspace needs cover/index previews; embedded verifiers supply their own output step.
+  useEffect(() => app ? undefined : warmFrontPreviews(host), [host, app]);
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
   const authorities = useMemo(() => shown ? authorityPlan.map(({ id }) => shown.state.authorities[id]) : [],
     [shown, authorityPlan]);
