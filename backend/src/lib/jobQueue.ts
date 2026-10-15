@@ -477,7 +477,7 @@ export function startJobWorker(
       while (!controlStop.signal.aborted && !controller.signal.aborted) {
         const version = controls.version;
         const held = await leaseHeld(next.id, workerId);
-        if (held === "lost") { leaseLost("claimed by another worker"); return; }
+        if (held === "lost") { leaseLost("claimed by another worker or removed"); return; }
         if (held === "stopped") { controller.abort(); return; }
         await controls.wait(version, controlStop.signal);
       }
@@ -492,7 +492,7 @@ export function startJobWorker(
         if (settled) return;
         if (result.state === "renewed") leaseUntil = result.until;
         else if (result.state === "stopped") controller.abort();
-        else if (result.state === "lost") leaseLost("claimed by another worker");
+        else if (result.state === "lost") leaseLost("claimed by another worker or removed");
         else if (Date.now() >= leaseUntil) leaseLost("renewal unavailable");
         else console.warn("[job] lease renewal failed", {
           job: next.id, kind: next.kind, msRemaining: leaseUntil - Date.now(),
@@ -528,7 +528,8 @@ export function startJobWorker(
       };
       const result = await handler(next, {
         signal: controller.signal,
-        progress: (value) => checkpoint({ progress: value }),
+        // A report, often not awaited: a lost, cancelled or deleted job stops through its signal instead.
+        progress: (value) => checkpoint({ progress: value }).catch(() => undefined),
         checkpoint,
       });
       stopRenewal();
