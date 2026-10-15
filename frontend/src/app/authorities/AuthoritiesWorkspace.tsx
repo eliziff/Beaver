@@ -193,14 +193,17 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
     quote?: string; bytes?: Uint8Array; error?: string; recognizedText?: PdfRecognizedText }>();
   const ocr = useSourceOcr(host, draft?.id), resetOcr = ocr.reset;
-  // Asked once per host; a Word brief's final PDF then needs the brief saved as PDF only where it is false.
+  // Asked once per host, once a Word brief is open: its final PDF then needs the brief saved as PDF only where it
+  // is false. Asking starts the page's engine, which nothing else needs before a brief is read.
   const [wordToPdf, setWordToPdf] = useState<{ host: AuthoritiesHost; value: boolean }>();
+  const wordBrief = draft?.state.import.kind === "document" && draft.state.import.fileType === "docx";
   useEffect(() => {
+    if (!wordBrief) return;
     let active = true;
     void host.wordToPdf?.().then((value) => active && setWordToPdf({ host, value }))
       .catch(() => { /* Unknown: the build reports what it needs. */ });
     return () => { active = false; };
-  }, [host]);
+  }, [host, wordBrief]);
   const convertsWord = wordToPdf?.host === host ? wordToPdf.value : undefined;
   // The authorities without a PDF: reviewed from Build's Tabs row, or shown before a build goes ahead without them.
   const [missingOpen, setMissingOpen] = useState<"review" | "build">();
@@ -474,8 +477,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const selectedRef = useRef(selected?.id);
   selectedRef.current = selected?.id;
   useEffect(() => { if (!selected) onFocusChange?.(); }, [selected, onFocusChange]);
-  // The cover and index previews are drawn by the runtime; it is readied while nothing else is asked of it.
-  useEffect(() => warmFrontPreviews(host), [host]);
+  // The cover and index previews are drawn by a runtime of their own. It is readied, while nothing else is asked
+  // of it, once a brief is being imported or a draft is open: the import's Cover step is the first to draw one.
+  const previewsWanted = !!draft || !!pendingImport;
+  useEffect(() => { if (previewsWanted) warmFrontPreviews(host); }, [host, previewsWanted]);
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
   const authorities = useMemo(() => shown ? authorityPlan.map(({ id }) => shown.state.authorities[id]) : [],
     [shown, authorityPlan]);
