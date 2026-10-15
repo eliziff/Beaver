@@ -344,7 +344,6 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
       label: reader.status === "running" ? `Waiting for reading agent: ${task}` : reader.status === "error" ? "Reading agent failed" : reader.status === "interrupted" ? `Reading agent interrupted: ${task}` : `Reading agent completed: ${task}`,
       status: reader.status,
       ...(reader.output && { markdown: reader.output, citations: reader.citations }),
-      ...(reader.citations.length && { detail: `${reader.citations.length} verified source${reader.citations.length === 1 ? "" : "s"}` }),
       action: { type: "reader", readerId: reader.id },
     };
     const next = updateAssistant(state, (message) => ({ ...message, activities: upsertById(message.activities, activity, ASSISTANT_LIMITS.activities) }));
