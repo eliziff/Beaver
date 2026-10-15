@@ -208,10 +208,6 @@ create table if not exists object_cleanup (
 create index if not exists object_cleanup_created_at_idx on object_cleanup(created_at);
 create index if not exists object_cleanup_claim_idx on object_cleanup(claim_id)
   where claim_id is not null;
-create table if not exists library_legal_sources (
-  user_id uuid not null, id text not null, pointer_json text not null,
-  primary key(user_id,id)
-);
 
 create table if not exists tabular_reviews (
   id text primary key, user_id uuid not null, project_id text references projects(id) on delete cascade,
@@ -446,7 +442,6 @@ alter table project_subfolders add constraint project_subfolders_auth_user forei
 alter table library_folders add constraint library_folders_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table documents add constraint documents_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table document_versions add constraint document_versions_auth_user foreign key(created_by) references auth.users(id) on delete set null;
-alter table library_legal_sources add constraint library_sources_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table tabular_reviews add constraint tabular_reviews_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table chats add constraint chats_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table provider_sessions add constraint provider_sessions_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
@@ -514,7 +509,7 @@ revoke execute on function public.sync_shared_members() from public,anon,authent
 -- Core application data is reachable only through Beaver's scoped HTTP API.
 -- The service role remains available to account/audit/export administration.
 revoke all on table projects,project_members,project_subfolders,library_folders,documents,
-  document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
+  document_versions,document_version_parts,document_edits,object_cleanup,tabular_reviews,
   tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
   application_job_events,application_job_commands,workflows,workflow_catalog,work_products,
@@ -524,7 +519,7 @@ revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oau
   user_mcp_oauth_states,user_mcp_connector_tools,user_mcp_tool_audit_logs
   from public,anon,authenticated;
 grant all on table projects,project_members,project_subfolders,library_folders,documents,
-  document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
+  document_versions,document_version_parts,document_edits,object_cleanup,tabular_reviews,
   tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
   application_job_events,application_job_commands,workflows,workflow_catalog,work_products,
@@ -550,7 +545,6 @@ alter table document_versions enable row level security;
 alter table document_version_parts enable row level security;
 alter table document_edits enable row level security;
 alter table object_cleanup enable row level security;
-alter table library_legal_sources enable row level security;
 alter table tabular_reviews enable row level security;
 alter table tabular_review_members enable row level security;
 alter table tabular_cells enable row level security;

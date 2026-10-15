@@ -172,12 +172,8 @@ const chatAuthorities = delegate(authoritiesWorkspace, ["importDraft", "act", "r
   "refreshInput", "prepareSources", "discrepancies", "build", "addReceipts",
   "attachLibraryPdf"] as const);
 const chatCourtRecords = delegate(courtRecords, ["bindOutput", "updateDraft"] as const);
-const legalSources = lazy(async () => {
-  const [{ createLegalSourceApplication }, { createLegalSourceStore }, { relationalDatabase }] =
-    await Promise.all([import("./lib/legalSourceApplication"), import("./lib/legalSourceStore"),
-      import("./lib/relationalDatabase")]);
-  return createLegalSourceApplication(createLegalSourceStore(await relationalDatabase()));
-});
+const legalSources = lazy(async () => (await import("./lib/legalSourceApplication"))
+  .createLegalSourceApplication());
 const audit = lazy(async () => (await import("./lib/audit"))
   .createAuditStore(await (await import("./lib/relationalDatabase")).relationalDatabase()));
 const organizations = lazy(async () => (await import("./lib/organizationApplication"))

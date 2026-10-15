@@ -1,4 +1,4 @@
-import { apiRequest, pagePath, segment } from "@/app/lib/api/client";
+import { apiRequest, pagePath } from "@/app/lib/api/client";
 
 export type LegalDocumentType = "cases" | "laws" | "articles";
 export type LegalSearchDocumentType = LegalDocumentType | "hansard";
@@ -116,8 +116,6 @@ async function cachedLegalSourceDocument(path: string) {
   }).catch(() => undefined);
   return request;
 }
-export const getLegalSourceDocument = (referenceId: string) =>
-  cachedLegalSourceDocument(`/sources/${segment(referenceId)}/document`);
 export const getDirectLegalSourceDocument = (args: {
   provider: "a2aj" | "journal";
   citation: string;

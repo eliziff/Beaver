@@ -110,8 +110,7 @@ for (const path of ["/user/account", "/user/chats", "/user/projects",
   "/user/tabular-reviews"]) api.delete(path, dataDeleteLimiter);
 api.get("/user/lookup", lookupLimiter);
 for (const path of ["/user/mcp-connectors/:connectorId/oauth/start",
-  "/user/mcp-connectors/:connectorId/refresh-tools", "/sources",
-  "/work-products/:id/research-query",
+  "/user/mcp-connectors/:connectorId/refresh-tools",
   "/library/:kind/documents/:documentId/actions/retry-pdf-parse",
   "/authorities", "/authorities/:id/actions",
   "/authorities-runtime/annotations", "/authorities-runtime/import", "/authorities-runtime/refresh",
@@ -119,7 +118,7 @@ for (const path of ["/user/mcp-connectors/:connectorId/oauth/start",
   "/authorities/:id/refresh", "/authorities/:id/build"])
   api.post(path, lookupLimiter, workSlot);
 for (const path of ["/sources/coverage", "/sources/search", "/sources/document",
-  "/sources/:referenceId/document", "/court-records/documents/:documentId/preparation"])
+  "/court-records/documents/:documentId/preparation"])
   api.get(path, lookupLimiter, workSlot);
 
 if (runtime.mode === "local") api.use("/authorities-runtime/action",

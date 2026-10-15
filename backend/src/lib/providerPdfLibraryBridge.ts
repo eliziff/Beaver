@@ -116,8 +116,6 @@ function safeRequest(input: ProviderPdfAttachment): SafeRequest {
   return { ...request, requestReference, requestKey };
 }
 
-export const providerPdfRequestReference = (input: ProviderPdfAttachment) =>
-  safeRequest(input).requestReference;
 const sourceReference = (request: SafeRequest, digest: string) =>
   `${request.requestReference}:${digest}`;
 const recordPath = (key: string) => path.join(
@@ -388,13 +386,6 @@ async function stateFor(request: SafeRequest, expected: string | null, userId: s
     return queued ?? state(request, record);
   }
   return state(request, record);
-}
-
-export async function readProviderPdfAttachmentState(
-  input: ProviderPdfAttachment,
-  userId: string,
-) {
-  return stateFor(safeRequest(input), null, userId);
 }
 
 async function requestForReference(reference: string) {

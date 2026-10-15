@@ -1,59 +1,13 @@
-export type BeaverAppTarget =
-  | { kind: "project"; id: string }
-  | {
-      kind: "library-document";
-      libraryKind?: "file" | "template";
-      projectId?: string | null;
-    }
-  | { kind: "legal-source"; id: string }
-  | {
-      kind: "authorities";
-      draftId?: string | null;
-    }
-  | { kind: "tabular-review"; id: string; projectId?: string | null }
-  | { kind: "workflow"; id: string }
-  | { kind: "chat"; id: string; projectId?: string | null };
+export type BeaverAppTarget = { kind: "tabular-review"; id: string; projectId?: string | null };
 
-function identifier(value: string) {
+const segment = (value: string) => {
   const id = value.trim();
   if (!id) throw new Error("A Beaver app route requires an id");
-  return id;
-}
-
-function segment(value: string) {
-  const id = identifier(value);
   return encodeURIComponent(id);
-}
+};
 
-/** Builds only routes backed by real Beaver pages. */
+/** The Beaver page that shows a table, inside its project when it has one. */
 export function appUrl(target: BeaverAppTarget): string {
-  if (target.kind === "project") return `/projects/${segment(target.id)}`;
-  if (target.kind === "library-document") {
-    return target.projectId
-      ? appUrl({ kind: "project", id: target.projectId })
-      : target.libraryKind === "template"
-        ? "/library/templates"
-        : "/library";
-  }
-  if (target.kind === "legal-source") {
-    return `/sources/${segment(target.id)}`;
-  }
-  if (target.kind === "authorities") {
-    const query = new URLSearchParams();
-    if (target.draftId) query.set("draft", identifier(target.draftId));
-    const suffix = query.toString();
-    return suffix ? `/table-of-authorities?${suffix}` : "/table-of-authorities";
-  }
-  if (target.kind === "tabular-review") {
-    const review = `tabular-reviews/${segment(target.id)}`;
-    return target.projectId
-      ? `/projects/${segment(target.projectId)}/${review}`
-      : `/${review}`;
-  }
-  if (target.kind === "workflow") {
-    return `/workflows/${segment(target.id)}`;
-  }
-  return target.projectId
-    ? `/projects/${segment(target.projectId)}/assistant/chat/${segment(target.id)}`
-    : `/assistant/chat/${segment(target.id)}`;
+  const review = `tabular-reviews/${segment(target.id)}`;
+  return target.projectId ? `/projects/${segment(target.projectId)}/${review}` : `/${review}`;
 }

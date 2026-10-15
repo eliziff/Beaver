@@ -15,14 +15,8 @@ import { tnaLegalSourceProvider } from "./legalSources/tna";
 import { canliiLegalSourceProvider } from "./legalSources/canlii";
 import type { LegalSourceReference } from "./legalSources";
 import {
-  type LegalSourcePdfRendition,
-  type LegalSourceStore,
-} from "./legalSourceStore";
-import {
-  providerPdfRequestReference,
   queueProviderPdfAttachment,
   queueProviderPdfRenditions,
-  readProviderPdfAttachmentState,
   type ProviderPdfAttachment,
 } from "./providerPdfLibraryBridge";
 import { structureNative, type NativeDocument } from "./structureNative";
@@ -72,7 +66,7 @@ function a2ajPdfRenditionRequest(
 type ViewerPointer = {
   citation: string; provider?: "a2aj" | "journal";
   docType: "cases" | "laws" | "articles" | "auto"; language: "en" | "fr";
-  dataset?: string | null; sourceId?: string | null; pdfRendition?: LegalSourcePdfRendition;
+  dataset?: string | null; sourceId?: string | null;
 };
 
 async function courtlistenerPdfRendition(value: object, reference: LegalSourceReference, userId?: string) {
@@ -137,7 +131,7 @@ export const legalSourceOperations = {
   },
 };
 
-export function createLegalSourceApplication(store: LegalSourceStore) {
+export function createLegalSourceApplication() {
   async function viewer(userId: string, pointer: ViewerPointer) {
     const request = pointer.provider === "journal" || pointer.docType === "articles"
       ? journalLegalSourceProvider.viewer(pointer.sourceId ?? pointer.citation)
@@ -149,11 +143,8 @@ export function createLegalSourceApplication(store: LegalSourceStore) {
         });
     const resolved = await providerCall("Legal source provider unavailable", () => request);
     if (!resolved) return reject(404, "Legal source not found");
-    const pdfRenditionRequest = pointer.pdfRendition
-      ? pointer.pdfRendition
-      : resolved.payload.provider === "a2aj"
-        ? a2ajPdfRenditionRequest(resolved.payload, resolved.native)
-        : null;
+    const pdfRenditionRequest = resolved.payload.provider === "a2aj"
+      ? a2ajPdfRenditionRequest(resolved.payload, resolved.native) : null;
     if (pdfRenditionRequest) {
       void queueProviderPdfAttachment(pdfRenditionRequest, userId).catch(() => undefined);
     }
@@ -161,7 +152,6 @@ export function createLegalSourceApplication(store: LegalSourceStore) {
   }
   return {
     ...legalSourceOperations,
-    list: store.list,
     async coverage() {
       const results = await Promise.allSettled([
         a2ajLegalSourceProvider.coverage("cases"), a2ajLegalSourceProvider.coverage("laws"),
@@ -184,82 +174,6 @@ export function createLegalSourceApplication(store: LegalSourceStore) {
       return { results, status: unavailable.length ? "not_installed" as const : "available" as const };
     },
     viewer,
-    async savedViewer(userId: string, id: string) {
-      const pointer = await store.get(userId, id);
-      if (!pointer) return reject(404, "Library reference not found");
-      return viewer(userId, pointer);
-    },
-    async pdfStatus(userId: string, id: string) {
-      const pointer = await store.get(userId, id);
-      const rendition = pointer?.pdfRendition;
-      if (!rendition) return reject(404, "Provider PDF rendition not found");
-      return providerCall("Provider PDF status unavailable", () => readProviderPdfAttachmentState(rendition, userId));
-    },
-    async delete(userId: string, id: string) {
-      if (!await store.delete(userId, id)) return reject(404, "Library reference not found");
-    },
-    async save(userId: string, input: { docType: "cases" | "laws" | "articles";
-      citation: string; language: "en" | "fr"; dataset?: string }) {
-      const requestedDocType = input.docType;
-      const type = librarySourceTypes[requestedDocType];
-      const resolveInput = { text: input.citation, kind: type.kind,
-        language: input.language, collection: input.dataset };
-      const matched = await providerCall("Legal source provider unavailable", () =>
-        legalSourceOperations.resolve(resolveInput));
-      if (matched.status !== "found" || matched.value.provider !== type.provider) {
-        return reject(404, "Legal source not found");
-      }
-      const source = matched.value;
-      if (requestedDocType === "articles") {
-        return store.save({
-          userId,
-          provider: "journal",
-          docType: "articles",
-          citation: source.citation ?? source.id,
-          language: source.language ?? "en",
-          dataset: source.collection ?? null,
-          sourceId: source.id,
-        });
-      }
-      const resolved = await providerCall("Legal source provider unavailable", () =>
-        a2ajLegalSourceProvider.viewer({
-          citation: source.citation ?? source.id,
-          docType: requestedDocType,
-          language: source.language ?? "en",
-          dataset: source.collection ?? undefined,
-        }));
-      if (!resolved) {
-        return reject(404, "Legal source not found");
-      }
-      const reference = resolved.payload.reference;
-      const pdfRenditionRequest = a2ajPdfRenditionRequest(resolved.payload, resolved.native);
-      let pdfRenditionPointer: LegalSourcePdfRendition | undefined;
-      if (pdfRenditionRequest) {
-        try {
-          pdfRenditionPointer = {
-            ...pdfRenditionRequest,
-            provider: "a2aj",
-            canonicalUrl: pdfRenditionRequest.canonicalUrl!,
-            requestReference: providerPdfRequestReference(pdfRenditionRequest),
-          };
-        } catch {
-          // A bad optional attachment must not prevent saving valid provider text.
-        }
-      }
-      const saved = await store.save({
-        userId,
-        provider: "a2aj",
-        docType: reference.docType,
-        citation: reference.citation,
-        language: reference.language,
-        dataset: reference.dataset,
-        pdfRendition: pdfRenditionPointer,
-      });
-      if (pdfRenditionPointer) {
-        void queueProviderPdfAttachment(pdfRenditionPointer, userId).catch(() => undefined);
-      }
-      return saved;
-    },
   };
 }
 export type LegalSourceApplication = ReturnType<typeof createLegalSourceApplication>;
