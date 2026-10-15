@@ -209,16 +209,9 @@ function readerError(call: NormalizedToolCall, error: string): NormalizedToolRes
 }
 
 function prepareReadSubagentRound(
-  calls: NormalizedToolCall[],
+  parent: NormalizedToolCall,
   admit: ReturnType<typeof createReadSubagentAdmission>,
 ) {
-  if (calls.length !== 1) return {
-    parent: null,
-    assignments: [] as NormalizedToolCall[],
-    rejected: calls.map((call) => readerError(call,
-      "Call delegate_read once per round with two to four assignments.")),
-  };
-  const parent = calls[0];
   const inputs = Array.isArray(parent.input.assignments) ? parent.input.assignments : [];
   const assignments = inputs.flatMap((input, index) => record(input) ? [{
     id: `${parent.id}:${index + 1}`,
@@ -266,7 +259,7 @@ export async function runReadSubagentRound(options: {
   resumable?: ReadonlyMap<string, ReadSubagentCheckpoint>;
 }) {
   if (options.call.name === READ_SUBAGENT_TOOL_NAME) {
-    const round = prepareReadSubagentRound([options.call], options.admit);
+    const round = prepareReadSubagentRound(options.call, options.admit);
     return round.parent
       ? combineReadSubagentResults(round.parent, await Promise.all(
           round.assignments.map((call) => options.runReader(call))))

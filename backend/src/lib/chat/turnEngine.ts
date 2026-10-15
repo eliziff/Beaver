@@ -199,8 +199,7 @@ export async function runChatTurn(options: {
   let researchPersistence = Promise.resolve();
   const observe: ResearchObserver = (event, operation) => researchPersistence = researchPersistence.then(
     () => options.onResearchObserved?.(event, operation));
-  const internalNames = new Set(["ask_inputs", LEGAL_EVIDENCE_TOOL_NAME,
-    READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME]);
+  const internalNames = new Set(["ask_inputs", LEGAL_EVIDENCE_TOOL_NAME]);
   const mainTools = options.createTools(evidence, options.readerAssignment ?? "main", context)
     .filter((tool) => !internalNames.has(tool.name) && (!options.readerAssignment ||
       tool.reader?.includes(options.readerAssignment.jurisdiction)))
@@ -266,6 +265,7 @@ export async function runChatTurn(options: {
       ...(terminal ? { terminal: true } : {}),
     };
   };
+  const capabilities = new Map<string, ReturnType<typeof getReadSubagentCapability>>();
   const runReader = async (call: NormalizedToolCall,
     resume?: ReadSubagentCheckpoint): Promise<NormalizedToolResult> => {
     const refuse = (error: string | undefined): NormalizedToolResult => ({
@@ -276,10 +276,11 @@ export async function runChatTurn(options: {
     if (!selection.enabled) return refuse("Reading agents are disabled. Continue in the main turn.");
     const assignment = resume?.assignment ?? readSubagentAssignment(call);
     if (!assignment) return refuse("task and scope are required.");
-    const capability = await getReadSubagentCapability(undefined, {
-      model: selection.model ?? resume?.model,
-      effort: selection.effort ?? resume?.effort,
-    });
+    const wanted = { model: selection.model ?? resume?.model, effort: selection.effort ?? resume?.effort },
+      key = `${wanted.model}\n${wanted.effort}`;
+    // Readers sharing one lookup resume in request order, so they announce themselves 1..N.
+    const capability = await (capabilities.get(key) ??
+      capabilities.set(key, getReadSubagentCapability(undefined, wanted)).get(key)!);
     throwIfAborted(providerSignal);
     if (!capability.available) return refuse(capability.reason);
     const childEvidence = createLegalEvidenceTurnState("citation_structure");
@@ -370,7 +371,6 @@ export async function runChatTurn(options: {
         reasoningEffort: capability.effort,
         signal: providerSignal,
         promptCacheKey: `${options.promptCacheKey ?? "reader"}:${id}`,
-        subagents: false,
         activityDetail: "tools",
         providerSession: { persist: true, ...(continuationId ? { continuationId } : {}) },
         onProviderContinuation(id) {
@@ -446,7 +446,8 @@ export async function runChatTurn(options: {
     ...(!options.outputSchema ? [askTool,
       ...(submissionTool === LEGAL_EVIDENCE_TOOL_NAME ? [evidenceTool(evidence)] : [])] : []),
     ...mainTools,
-    ...readerTools,
+    // A reader never delegates: native providers publish the whole registry, not just resolveTools().
+    ...(options.readerAssignment ? [] : readerTools),
   ], nativeSession ? [] : previouslyVisibleTools(options.messages));
   const turnContext = [options.turnContext, researchReadContextPrompt(context.research)].filter(Boolean).join("\n\n");
   const systemPrompt = [options.systemPrompt, nativeSession ? turnContext : ""].filter(Boolean).join("\n\n");
@@ -553,11 +554,7 @@ export async function runChatTurn(options: {
           call.name === LEGAL_EVIDENCE_TOOL_NAME ||
           ([READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME].includes(call.name) &&
             activityDetail === "standard")) return;
-      const defaultLabel = call.name === READ_SUBAGENT_TOOL_NAME
-        ? readSubagentActivityLabel(call.input)
-        : call.name === RESUME_SUBAGENT_TOOL_NAME
-          ? "Resuming reading agents"
-        : registry.activity(call);
+      const defaultLabel = registry.activity(call);
       if (defaultLabel === null && activityDetail !== "tools" &&
           activityDetail !== "trace") return;
       const read = call.name === "Read" ? assistantReadActivity(call.input) : undefined;
