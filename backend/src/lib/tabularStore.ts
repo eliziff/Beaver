@@ -54,7 +54,7 @@ export type TabularOperation = { executor: "human" | "assistant"; model?: string
 
 export type ReviewInput = { title?: string | null; projectId?: string | null;
   columns?: TabularColumn[]; documentIds?: string[]; workflowId?: string | null;
-  sharedWith?: string[]; scopeConfig?: TabularSelection; operation?: TabularOperation;
+  scopeConfig?: TabularSelection; operation?: TabularOperation;
   seedCells?: Pick<TabularCell, "document_id" | "column_index" | "content" | "status">[] };
 
 export type TabularRepository = {
@@ -67,7 +67,6 @@ export type TabularRepository = {
     Promise<WriteResult<TabularReview>>;
   detail(scope: TabularScope, reviewId: string): Promise<{ review: TabularReview;
     cells: TabularCell[] } | null>;
-  missingRecipient(scope: TabularScope, emails: string[]): Promise<string | null>;
   update(scope: TabularScope, reviewId: string, expectedVersion: string,
     input: ReviewInput): Promise<WriteResult<TabularReview>>;
   delete(scope: TabularScope, reviewId: string, expectedVersion: string):

@@ -103,7 +103,6 @@ export const updateTabularReview = (
     document_ids?: string[];
     workflow_id?: string | null;
     project_id?: string | null;
-    shared_with?: string[];
     research_file_id?: string;
     research_selection?: TabularResearchScope["selection"];
     expected_version?: string;
