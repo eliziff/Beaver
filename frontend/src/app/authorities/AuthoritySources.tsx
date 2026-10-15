@@ -35,6 +35,8 @@ const publisherReason = ({ sourceDownloadFailure }: AuthorityIdentity) => source
     ? "Couldn't download the PDF from the publisher." : "The publisher blocked the automatic download.";
 const clock = (time: number) => new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const MINUTE = 60_000;
+/** Rows drawn in one frame: about half a screen of them. */
+const SLICE = 12;
 export type AuthorityPanelProps = {
   authorities: AuthorityIdentity[]; tabs: ReadonlyMap<string, string>; busy: boolean;
   sourceIssues: Record<string, AuthoritiesSourceIssue>;
@@ -85,12 +87,17 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
   // status line) give the panel new callbacks each time; the rows get stable ones that call the latest.
   const live = useRef({ onAction, onPick, onLibrary, onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, authorities, ocr });
   live.current = { onAction, onPick, onLibrary, onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, authorities, ocr };
+  // One file input serves the whole list; a row that asks for it says where its file goes.
+  const picker = useRef<HTMLInputElement>(null), picked = useRef<(file: File) => void>(undefined);
   const calls = useMemo(() => ({ action: (action: AuthoritiesAction) => live.current.onAction(action),
     relink: (role: string) => live.current.onRelink(role), open: (role: string) => live.current.onOpenSource?.(role),
+    choose: (to: (file: File) => void) => { picked.current = to; picker.current?.click(); },
     rows: new Map<string, RowCalls>() }), []);
   const callsFor = (id: string) => {
     let row = calls.rows.get(id);
-    if (!row) calls.rows.set(id, row = { pick: () => live.current.onPick?.(id), library: () => live.current.onLibrary?.(id),
+    if (!row) calls.rows.set(id, row = {
+      pick: () => { if (live.current.onPick) live.current.onPick(id); else calls.choose((file) => live.current.onAttach(id, file)); },
+      library: () => live.current.onLibrary?.(id),
       attach: (file?: File) => live.current.onAttach(id, file), retry: () => live.current.onRetrySource?.(id),
       edit: () => { const authority = live.current.authorities.find((item) => item.id === id); if (authority) live.current.onEditIdentity(authority); } });
     return row;
@@ -101,6 +108,13 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
   const orderKey = authorities.map(({ id }) => id).join("\0");
   const shown = useMemo(() => orderKey ? orderKey.split("\0") : [], [orderKey]);
   const headed = authorities.some(({ id }) => groups?.get(id) && groups.get(id) !== "Authorities");
+  // A long list opens a screen of rows at a time, one slice a frame, so drawing it never holds the page.
+  const [drawn, setDrawn] = useState(SLICE);
+  useEffect(() => {
+    if (drawn >= authorities.length) return;
+    const frame = requestAnimationFrame(() => setDrawn((count) => count + SLICE));
+    return () => cancelAnimationFrame(frame);
+  }, [drawn, authorities.length]);
   return <><section className="@container/sources mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
       onDragOver={(event) => { if (!busy && onFiles && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
@@ -134,7 +148,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       {/* A list with statutes keeps room for their Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
         className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 overflow-hidden rounded-lg border border-gray-300 bg-white @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_auto]">
-        {authorities.map((authority, index) => <Fragment key={authority.id}>
+        {authorities.slice(0, drawn).map((authority, index) => <Fragment key={authority.id}>
           {/* Each group under its heading, as the book and the table set them out. */}
           {headed && groups?.get(authority.id) !== groups?.get(authorities[index - 1]?.id) &&
             <p className={GROUP}>{groups?.get(authority.id)}</p>}
@@ -148,19 +162,24 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           editableIdentity={state.import.kind === "manual" || !!authority.userAdded}
           rebuildsFromText={state.settings.sourceMode !== "manual-originals"}
           removable={!occurrences.some(({ authorityId }) => authorityId === authority.id)}
-          onAction={calls.action} onPick={onPick ? callsFor(authority.id).pick : undefined}
+          onAction={calls.action} onPick={callsFor(authority.id).pick}
           onLibrary={onLibrary ? callsFor(authority.id).library : undefined} sourceLabel={sourceLabel}
           onAttach={callsFor(authority.id).attach} onRelink={calls.relink}
           onOpen={onOpenSource ? calls.open : undefined} onRetry={onRetrySource ? callsFor(authority.id).retry : undefined}
           onEditIdentity={callsFor(authority.id).edit} ocr={recognition}
           recognizing={recognitionKey(authority, ocr)} /></Fragment>)}
-        {headed && !!others?.parts.length && <p className={GROUP}>Documents</p>}
+        {drawn >= authorities.length && <>{headed && !!others?.parts.length && <p className={GROUP}>Documents</p>}
         {others?.parts.map(({ part, tab }) => <OtherPdfRow key={part.id} part={part} tab={tab} busy={busy}
-          issue={sourceIssues[part.bindingRole]} files={others} sourceLabel={sourceLabel}
-          onAction={onAction} onRelink={onRelink} onOpen={onOpenSource} />)}
+          issue={sourceIssues[part.bindingRole]} files={others} sourceLabel={sourceLabel} choose={calls.choose}
+          onAction={onAction} onRelink={onRelink} onOpen={onOpenSource} />)}</>}
         {!authorities.length && !others?.parts.length && <p className="col-span-full px-4 py-8 text-center text-sm text-gray-500">Add sources to begin.</p>}
       </div>
       <Button type="button" variant="outline" className={cn(control, "mt-3")} disabled={busy} onClick={onAdd}><Plus /> Add source</Button>
+      <input ref={picker} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
+        disabled={busy} aria-label="Upload a PDF" onChange={(event) => {
+          const file = event.target.files?.[0]; event.target.value = "";
+          if (file) picked.current?.(file);
+        }} />
     </div>
   </section>
   {tabSettings && <TabFormatModal settings={state.settings} busy={busy} onClose={() => setTabSettings(false)}
@@ -182,7 +201,7 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
   italicName: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
   editableIdentity: boolean; rebuildsFromText: boolean; removable: boolean; sourceLabel: string;
-  onAction: (action: AuthoritiesAction) => void; onPick?: () => void; onLibrary?: () => void;
+  onAction: (action: AuthoritiesAction) => void; onPick: () => void; onLibrary?: () => void;
   onAttach: (file?: File) => void; onRelink: (role: string) => void;
   onOpen?: (role: string) => void; onEditIdentity: () => void;
   onRetry?: () => void;
@@ -190,13 +209,11 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
   /** Changes when the row's recognition does: the row's own `ocr` stays the same object. */
   recognizing?: string;
 }) {
-  const fileInput = useRef<HTMLInputElement>(null);
   const name = authority.displayName || authority.name || "";
   const nameLabel = authority.kind === "case" ? "Style of cause" : "Title";
   const [editing, setEditing] = useState(false), [linking, setLinking] = useState(false);
   const sources = authority.source.kind === "attached" ? authority.source.sources : [];
   const title = authorityName(authority);
-  const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
   const missingLanguage = requireLanguages && !sources.some(source => source.language === "bilingual") &&
@@ -336,10 +353,10 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
         : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
       {needsPdf && (authority.source.kind === "pending-canlii"
         ? <Button type="button" variant="ghost" className={rowControl} disabled={busy}
-            aria-label={`Upload PDF for ${title}`} title="Upload" onClick={pick}><Upload /><span className={rowLabel}>Upload</span></Button>
+            aria-label={`Upload PDF for ${title}`} title="Upload" onClick={onPick}><Upload /><span className={rowLabel}>Upload</span></Button>
         : <ActionMenu label={`${replacement} for ${title}`}
         triggerClassName={rowControl}
-        items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
+        items={[{ label: "Upload from computer", disabled: busy, onSelect: onPick },
           ...(onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: onLibrary }] : [])]}>
         <Upload className="h-3.5 w-3.5" /><span className={rowLabel}>{replacement}</span></ActionMenu>)}
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-accent-600"
@@ -365,24 +382,18 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
     {caseWarning && <p role="status" className="col-span-full text-sm text-amber-800">
       Citation names a different case: <i>{caseWarning.name}</i> ({caseWarning.citation}). Check the manuscript citation.
     </p>}
-    <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
-      disabled={busy} aria-label={`Upload PDF for ${title}`} onChange={(event) => {
-        const file = event.target.files?.[0]; event.target.value = "";
-        if (file) onAttach(file);
-      }} />
   </article>;
 }
 
 /** Another PDF in the book, laid out as an authority's row: its tab, its file, View, Replace and Remove.
  *  Its name is the one the book's index gives it. */
-function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, onAction, onRelink, onOpen }: {
+function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, choose, onAction, onRelink, onOpen }: {
   part: AuthoritiesBookSupplement; tab: string; busy: boolean; issue?: AuthoritiesSourceIssue;
-  files: BookFiles; sourceLabel: string; onAction: (action: AuthoritiesAction) => void;
+  files: BookFiles; sourceLabel: string; choose: (to: (file: File) => void) => void; onAction: (action: AuthoritiesAction) => void;
   onRelink: (role: string) => void; onOpen?: (role: string) => void;
 }) {
-  const fileInput = useRef<HTMLInputElement>(null);
   const name = part.filename.replace(/\.pdf$/iu, "").trim() || part.filename;
-  const pick = () => { if (files.onPick) files.onPick("supplemental", false, part.id); else fileInput.current?.click(); };
+  const pick = () => { if (files.onPick) files.onPick("supplemental", false, part.id); else choose((file) => files.onFiles("supplemental", [file], part.id)); };
   const mark = relinkable(issue) ? { Icon: LockKeyhole, tone: "text-red-700", label: "File access was denied. Allow access to this PDF to use it." }
     : issue ? { Icon: FileX2, tone: "text-red-700", label: "This PDF is unavailable. Upload it again." }
     : { Icon: FileCheck2, tone: "text-green-700", label: part.filename };
@@ -408,11 +419,6 @@ function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, onAction, onR
       <MoreActionsMenu label={`${part.filename} options`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-accent-600"
         items={[{ label: "Remove from book", disabled: busy, onSelect: () => onAction({ type: "remove-book-supplement", id: part.id }) }]} />
     </div>
-    <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
-      disabled={busy} aria-label={`Replace ${part.filename} with a PDF`} onChange={(event) => {
-        const file = event.target.files?.[0]; event.target.value = "";
-        if (file) files.onFiles("supplemental", [file], part.id);
-      }} />
   </article>;
 }
 
