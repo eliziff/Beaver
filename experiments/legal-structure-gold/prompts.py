@@ -31,7 +31,9 @@ quoted: the block, such as a list item or paragraph, belongs to the block quotat
 
 SCHEMA = {"type": "object", "additionalProperties": False, "required": ["pages"], "properties": {
     "pages": {"type": "array", "items": {"type": "array", "items": {"type": "array", "minItems": 2, "maxItems": 3, "prefixItems": [
-        {"type": "string", "enum": list(REGIONS)}, {"type": "string"}, {"type": "array", "items": {"type": "string", "enum": list(FLAGS)}}]}}}}}
+        {"type": "string", "enum": list(REGIONS)}, {"type": "string"}, {"type": "array", "items": {"type": "string", "enum": list(FLAGS)}}],
+        # Strict schemas over HTTPS require items beside prefixItems.
+        "items": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string", "enum": list(FLAGS)}}]}}}}}}
 
 
 def prompt(lines, targets, context=None):
