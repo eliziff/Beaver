@@ -446,8 +446,9 @@ export async function runChatTurn(options: {
     ...(!options.outputSchema ? [askTool,
       ...(submissionTool === LEGAL_EVIDENCE_TOOL_NAME ? [evidenceTool(evidence)] : [])] : []),
     ...mainTools,
-    // A reader never delegates: native providers publish the whole registry, not just resolveTools().
-    ...(options.readerAssignment ? [] : readerTools),
+    // Native providers publish the whole registry once, not resolveTools(): a reader never delegates,
+    // and a native turn begun with reading agents off is not offered them.
+    ...(options.readerAssignment || nativeSession && !subagents ? [] : readerTools),
   ], nativeSession ? [] : previouslyVisibleTools(options.messages));
   const turnContext = [options.turnContext, researchReadContextPrompt(context.research)].filter(Boolean).join("\n\n");
   const systemPrompt = [options.systemPrompt, nativeSession ? turnContext : ""].filter(Boolean).join("\n\n");
