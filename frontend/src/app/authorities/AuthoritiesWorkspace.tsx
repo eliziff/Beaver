@@ -98,7 +98,7 @@ function libraryTitle(target: LibraryTarget | undefined, sourceLabel: string) {
   return `Choose authority PDF from ${sourceLabel}`;
 }
 type ActionHandler = (action: AuthoritiesAction,
-  done?: (next: AuthoritiesProduct) => void | Promise<void>) => void;
+  done?: (next: AuthoritiesProduct) => void | Promise<void>, failed?: () => void) => void;
 type DiscrepancyHandler = (finding: Finding,
   action: AuthoritiesDiscrepancyRequest, done: () => void) => void;
 
@@ -591,7 +591,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   /** The draft as the review shows it: the saved draft with the edits still saving. */
   const editedView = () => edits.current.reduce<AuthoritiesProduct>((view, { action }) =>
     previewEdit(view, action) ?? view, draftRef.current!);
-  const act: ActionHandler = (action, done) => {
+  const act: ActionHandler = (action, done, failed) => {
     const targetId = draftRef.current?.id;
     if (!targetId) return;
     // A review edit shows at once and saves behind the view; anything else holds the workspace.
@@ -643,7 +643,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           history.current = { done: done.filter(kept), undone: undone.filter(kept) };
           keepPending(targetId); adopt(draftRef.current);
         }
-        setError(errorText(caught));
+        setError(errorText(caught)); failed?.();
       }
       finally { if (blocking) setPendingActions((count) => Math.max(0, count - 1)); }
     });
@@ -1179,7 +1179,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   };
   const advance = (next: Step) => {
     if (STEPS.findIndex(({ value }) => value === next) <= STEPS.findIndex(({ value }) => value === reached)) viewStep(next);
-    else { setMessage(""); act({ type: "set-stage", stage: next }); }
+    // The next step shows at once while the draft saves that it reached it, so the step left is never
+    // drawn again as held; a save that fails goes back to it.
+    else { setMessage(""); setViewedStep({ key: stepKey, value: next });
+      act({ type: "set-stage", stage: next }, undefined, () => setViewedStep(undefined)); }
   };
   // The book's own PDFs: the cover and index at Build, any other PDF under a tab of its own at Sources.
   const bookFiles: BookFiles = {
