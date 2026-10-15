@@ -522,7 +522,7 @@ export async function renderAuthoritySourcePdf(input: {
   const sections = structured ? structureNative().documentOutline(structured) : [];
   const depths = new Map((structured ? structureNative().documentAnchors(structured, input.text.length) : [])
     .filter(anchor => anchor.kind === "section").reverse()
-    .map(anchor => [anchor.start, anchor.label.split("(").length - 1]));
+    .map(anchor => [anchor.start, Math.max(0, anchor.level - 1)]));
   const placed: Array<{ start: number; pageIndex: number; note?: string; heading?: number; title?: string }> = [];
   let placing: Omit<(typeof placed)[number], "pageIndex"> | null = null;
   // Paragraphs sit about half a line apart, whether the source parts them with a blank
@@ -1207,15 +1207,6 @@ function citedLocatorPages(draft: AuthoritiesDraft, authorityId: string, pages: 
   for (const { kind, label } of locators) {
     if (kind === "page") {
       if (pageBindings?.length === pageCount) resolvePrintedPages(label, pageBindings).forEach(index => add(kind, label, index));
-    }
-    // A paragraph the geometry could not place still has a page: the one whose
-    // text prints its number. That page carries the mark instead of nothing.
-    if (kind === "paragraph" && !geometry?.targets.some((target) => found(target) &&
-        target.locatorKind === kind && target.locator.trim() === label.trim())) {
-      const number = /\d+/u.exec(label)?.[0];
-      const index = number ? pages.findIndex((text) =>
-        new RegExp(String.raw`(?:^|\s)\[\s*${number}\s*\]`, "u").test(text)) : -1;
-      if (index >= 0) add(kind, label, index);
     }
   }
   geometry?.targets.filter(found).forEach(target => target.pages.forEach(({ pageNumber }) => {

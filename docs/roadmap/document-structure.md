@@ -152,6 +152,27 @@ and materially improved replaced paths; tracked source/test LoC stable or lower.
 Batch edits with warm affected-crate checks, then full candidate corpus/release
 gates. Standalone Rust/Python use direct bindings; keep one Node addon.
 
+PDF paragraph lookup and geometry now read declared paragraph graph nodes, including
+layout candidates resolved by the parser. The rebuilt-PDF range and detached-label
+fixtures pass; all 30 arbitrary addresses in the range fixture are checked. Lookup
+evidence retains graph IDs. The application no longer fills missing ranges from
+neighbouring paragraphs or page/column guesses. This focused proof does not replace
+the full corpus gates above.
+
+### Consumer reconstruction audit (October 2026)
+
+| Consumer | Reconstructed information | Owning-layer improvement and acceptance proof |
+| --- | --- | --- |
+| ALR `verifier_core/pdf_adapter.py::mark_numbered_paragraphs` | Joins layout units, redetects a monotone paragraph spine, then rebuilds paragraph spans and proposition caps. | Consume declared paragraph IDs, exact spans and note-to-proposition bounds from the maintained parser. Prove quoted/restarted numbering, unnumbered briefs and appended exhibits without a second spine detector. |
+| Beaver `backend/src/lib/authoritiesImport.ts::scanReview` | Merges PDF body units after citation extraction reveals a citation crossing their boundaries; adjusts note-reference offsets. | Parser body units should preserve semantic continuation across line/page breaks and expose stable ranges. Compare citation membership and note anchors before removing the merge. Citation resolution remains the citation engine's job. |
+| Shared `shared/pdf-page-binding.mjs::reporterMarginLabels` and `resolvePdfPagination`, called by `documentProjectionService.ts::paginationFor` | Rechecks page edges, repairs spaced OCR folios, reconciles embedded labels and interpolates reporter pagination. | Parser should expose observed folio candidates and uncertainty from native/OCR geometry. The citation engine can supply reporter-start evidence to a shared resolution operation. Prove covers, roman labels, duplicate folios and metadata conflicts before deleting the host heuristics. |
+
+Authorities' `documentReadingOrder` calls already delegate ordering to the shared
+engine; constructing citation offsets for that call is adapter work, not a second
+ordering detector. Likewise, `renderAuthoritySourcePdf` lays out provider text
+into a new PDF, so its text-outline calls are not reconstruction of an existing PDF.
+
+
 ## Release and retained follow-on requirements
 
 - Maintain first-party owners directly on main; record the source combination

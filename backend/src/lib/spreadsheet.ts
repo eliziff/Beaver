@@ -17,6 +17,7 @@ export interface SpreadsheetCellSpan {
   value?: XLSX.CellObject["v"];
   formula?: string;
   numberFormat?: XLSX.CellObject["z"];
+  ranges: Array<{ start: number; end: number }>;
   start: number;
   end: number;
   columnSpan?: number;
@@ -134,6 +135,7 @@ function renderSheet({ utils }: XlsxModule, table: number, sheetName: string,
             ...(merge && merge.e.r > merge.s.r ? { rowSpan: merge.e.r - merge.s.r + 1 } : {}),
             start,
             end: cursor + line.length,
+            ranges: [{ start, end: cursor + line.length }],
           });
         }
       }
@@ -183,7 +185,8 @@ async function spreadsheetProjection(buffer: Buffer, fileType: string,
     const shift = text.length + separator.length;
     text += separator + sheet.text;
     tableCells.push(...sheet.tableCells.map((cell) =>
-      ({ ...cell, start: cell.start + shift, end: cell.end + shift })));
+      ({ ...cell, start: cell.start + shift, end: cell.end + shift,
+        ranges: cell.ranges.map((range) => ({ start: range.start + shift, end: range.end + shift })) })));
   }
   if (Buffer.byteLength(text) > MAX_OUTPUT_BYTES)
     throw new Error("Spreadsheet projection output exceeds the read limit");

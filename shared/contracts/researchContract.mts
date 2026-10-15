@@ -92,7 +92,7 @@ export const researchMutationSchema = z.discriminatedUnion("type", [
     sourceId: uuid.optional(), labelIds: ids.optional(),
     note: z.string().max(50_000).optional() }).strict(),
   z.object({ type: z.literal("passage"), sourceId: uuid, revision: textField(200),
-    start: offset, end: offset,
+    ranges: z.array(z.object({ start: offset, end: offset }).strict()).min(1).max(10_000),
     labelIds: ids.optional() }).strict(),
   z.object({ type: z.literal("label-selection"), findingRefs: z.array(researchFindingReferenceSchema).max(500).optional(), target: z.enum(["sources", "passages"]),
     sourceIds: ids.optional(), evidenceIds: z.array(textField(200)).max(100_000).optional(),

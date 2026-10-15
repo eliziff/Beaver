@@ -73,7 +73,7 @@ function Toolbar({ editor }: { editor: Editor }) {
 export default function ResearchMemoEditor({ file, value, onChange, onOpenCitation, readOnly = false, onResolveReference, onCitationError }: {
   file: ResearchFile; value: string; onChange?: (markdown: string) => void; onOpenCitation: (href: string) => void;
   readOnly?: boolean;
-  onResolveReference?: (reference: MemoSourceReference) => Promise<string | null>;
+  onResolveReference?: (reference: MemoSourceReference) => Promise<string[] | null>;
   onCitationError?: (message: string) => void;
 }) {
   const openCitation = useRef(onOpenCitation);
@@ -89,12 +89,15 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
           RESEARCH_SOURCE_REFERENCE_DRAG, RESEARCH_PASSAGE_REFERENCE_DRAG].includes(type))) return false;
         event.preventDefault(); event.stopPropagation();
         const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
-        const insert = (href: string) => {
+        const insert = (hrefs: string[]) => {
           if (view.isDestroyed) return;
-          const source = memoCitation(href); if (!source) return;
-          const parts = citationPillParts(source), node = view.state.schema.nodes.memoCitation.create({
-            href, label: `${parts.styleOfCause ?? ""}${parts.rest}` });
-          view.dispatch(view.state.tr.insert(Math.min(position ?? view.state.selection.from, view.state.doc.content.size), node));
+          const nodes = hrefs.flatMap((href) => {
+            const source = memoCitation(href); if (!source) return [];
+            const parts = citationPillParts(source);
+            return [view.state.schema.nodes.memoCitation.create({
+              href, label: `${parts.styleOfCause ?? ""}${parts.rest}` })];
+          });
+          view.dispatch(view.state.tr.insert(Math.min(position ?? view.state.selection.from, view.state.doc.content.size), nodes));
           view.focus();
         };
         if (transfer.types.includes(RESEARCH_SOURCE_REFERENCE_DRAG) || transfer.types.includes(RESEARCH_PASSAGE_REFERENCE_DRAG)) {
@@ -102,7 +105,7 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
             const raw = transfer.getData(RESEARCH_PASSAGE_REFERENCE_DRAG), reference: MemoSourceReference = raw ? JSON.parse(raw)
               : { reference: JSON.parse(transfer.getData(RESEARCH_SOURCE_REFERENCE_DRAG)) };
             if (!reference?.reference || typeof reference.reference.id !== "string") return true;
-            if (onResolveReference) void onResolveReference(reference).then((href) => { if (href) insert(href); });
+            if (onResolveReference) void onResolveReference(reference).then((hrefs) => { if (hrefs) insert(hrefs); });
           } catch { /* Ignore an unrelated or malformed drag. */ }
           return true;
         }
@@ -111,7 +114,7 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
         const source = file.state.sources[passage?.sourceId ?? transfer.getData(RESEARCH_SOURCE_DRAG)];
         if (!source || passage && (!passage.receipt?.evidence_id || !passage.receipt.locator)) return true;
         void getResearchCitation(file.document.id, source.id, passage?.receipt.evidence_id)
-          .then(({ href }) => insert(href)).catch(() => onCitationError?.("Could not add this citation. Try again.")); return true;
+          .then(({ href }) => insert([href])).catch(() => onCitationError?.("Could not add this citation. Try again.")); return true;
       } },
     onUpdate: ({ editor: current }) => onChange?.(current.getMarkdown()),
   });
