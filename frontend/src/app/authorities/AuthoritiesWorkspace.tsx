@@ -1348,7 +1348,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                   {/* Every step starts the same distance below the steps, so switching moves nothing. */}
                   {/* The header and the steps keep one width; Sources, Highlights and Build take a narrower
                       column under them than the review, which needs the document's width. */}
-                  <div id="authorities-step" role={app?.embedded ? "region" : "tabpanel"} className={cn("flow-root [&>*:first-child]:mt-2", !reviewing && "mx-auto max-w-[56rem]")}
+                  <div id="authorities-step" role={app?.embedded ? "region" : "tabpanel"} className="flow-root [&>*:first-child]:mt-2"
                     {...app?.embedded ? { "aria-label": app.steps[stage] ?? stage }
                       : { "aria-labelledby": `authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}` }}>
                   {sourceChange && <Modal open fit onClose={() => setSourceChange(undefined)} breadcrumbs={["Change source handling"]} size="md"
@@ -1356,6 +1356,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     primaryAction={{ label: "Change", disabled: busy, onClick: () => changeSources(sourceChange) }}>
                     <p className="pb-4 text-sm text-gray-700">Changing source handling removes the PDFs the app found and finds them
                       again for the new choice. PDFs you uploaded stay.</p></Modal>}
+                  {/* The narrower column is a box of its own: the step's frame keeps its place, so moving from the review
+                      to another step shifts nothing on screen. */}
+                  {!reviewing && <div className="mx-auto max-w-[56rem] [&>*:first-child]:mt-2">
                   {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences} finding={gatheringFor === draft.id || !!app?.embedded?.finding}
                     citedIn={app?.citedIn}
                     ocr={ocr} others={others} settings={sourceSettings}
@@ -1369,6 +1372,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                       <p className="mt-3 text-sm text-gray-700">Text recognition isn’t available here, so scanned pages stay as images.</p>}</>}
                   {highlightPanel}
                   {buildPanel}
+                  </div>}
                   {/* The review stays drawn, held still, while Next finds the sources; Sources replaces it. It comes
                       last, so on another step that step's own panel is the first below the steps. */}
                   {reviewable && reviewed === draft.id && <div inert={!reviewing} aria-hidden={!reviewing || undefined}
