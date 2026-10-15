@@ -108,7 +108,7 @@ export function TabList<T extends string>({ value, onValueChange, options,
                     }}
                     className={cn(tabClass[variant],
                         option.onClose && "pe-7",
-                        fit && "w-full min-w-0 max-w-none",
+                        fit && "w-full min-w-0 max-w-none", fit && variant === "segmented" && "sm:px-1",
                         "truncate text-center disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900",
                         index === active ? selectedClass[variant] : idleClass[variant])}
                 >{option.label}</button>{option.onClose && <button type="button"

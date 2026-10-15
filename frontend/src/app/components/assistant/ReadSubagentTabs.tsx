@@ -32,7 +32,7 @@ export function ReadSubagentTabs({
     if (!active) return <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Reading-agent runs will appear here.</div>;
     return <Tabs value={active.id} onValueChange={onActivate}
         options={groups.map((group) => ({ value: group.id, label:
-            <span className="flex min-w-0 items-center justify-center gap-2">
+            <span className="flex min-w-0 items-center justify-center gap-0.5">
                 <span className="truncate"><span className="sr-only">Agent </span>{group.label}</span>
                 <AgentStatus panels={group.panels} />
             </span> }))}
