@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { currentTabReference, tabReference } from "../../../../shared/authorities-order.mjs";
+import { tabReference } from "../../../../shared/authorities-order.mjs";
 import type { AuthoritiesBuildSettings } from "./types";
 import { OptionCard } from "./OptionCards";
 import { cn } from "@/app/lib/utils";
@@ -21,14 +21,14 @@ const whole = (text: string) => <span className="whitespace-nowrap">{text}</span
 /** How a Word brief that this app cannot convert reaches the final PDF: saved as PDF in Word, from
  *  the Word copy Build makes when there is one, so the PDF shows its tab references or table. */
 export function briefPdfAdvice(filename: string, value: AuthoritiesOutputOptionsValue) {
-  return value.insertIntoDocument || (currentTabReference(value).citationSuffix ?? "none") !== "none"
+  return value.insertIntoDocument || (value.citationSuffix ?? "none") !== "none"
     ? "Build, open the Word copy in Word, choose File › Save As › PDF, then add it here."
     : `Open ${filename} in Word, choose File › Save As › PDF, then add it here.`;
 }
 
 /** A Word brief's two choices, drawn as the import options are: what its Word copy holds, and the
  *  tab reference after each citation. */
-export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = false, lockedDelivery,
+export function AuthoritiesOutputOptions({ value, onChange, disabled = false, lockedDelivery,
   firstTab = "Tab 1" }: {
   value: AuthoritiesOutputOptionsValue;
   onChange: (patch: AuthoritiesOutputOptionsValue) => void;
@@ -38,7 +38,6 @@ export function AuthoritiesOutputOptions({ value: stored, onChange, disabled = f
   firstTab?: string;
 }) {
   const name = useId(), tabsName = useId(), input = useRef<HTMLInputElement>(null);
-  const value = currentTabReference(stored);
   const selected: WordMode = !value.insertIntoDocument ? "none" : value.tableDelivery === "native-marks" ? "marks"
     : value.tableDelivery === "ruled-append" && !lockedDelivery ? "ruled" : "table";
   const delivery = lockedDelivery ?? (value.tableDelivery === "linked-append" ? "linked-append" : "native-append");

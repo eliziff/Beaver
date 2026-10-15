@@ -74,7 +74,6 @@ export type TabReferenceSettings = Pick<AuthorityTabFormat, "tabPrefix"> & {
   citationSuffixLabel?: string;
 };
 export function tabReference(settings: TabReferenceSettings, tab: string): string | null;
-export function currentTabReference<T extends object>(settings: T): T;
 
 /** An authority as every output and the interface cite it: as the brief first cites it in full, led
  *  by its style of cause or title, then each other citation of it. `lead` is that lead's length, and

@@ -36,7 +36,7 @@ import { closed, dictionary, flag, hash, integer, isJsonRecord, jsonRecord, list
   type Check, type FieldTable } from "./value";
 import profileValues from "mike/shared/authorities-profiles.json";
 import { courtCover } from "mike/shared/authorities-cover.mjs";
-import { authorityProcedureInput, currentTabReference, deriveAuthorityProcedure } from "mike/shared/authorities-order.mjs";
+import { authorityProcedureInput, deriveAuthorityProcedure } from "mike/shared/authorities-order.mjs";
 
 import { AUTHORITIES_ACTION_CHOICES, AUTHORITIES_SETTINGS_CHOICES, authorityKinds,
   decodeAuthoritiesInitialSettings } from "./authoritiesActionContract";
@@ -321,19 +321,8 @@ const draftShape = closed<AuthoritiesDraft>({
 /** Rejects malformed generic JSON before it can enter the typed Authorities reducer. */
 export function decodeAuthoritiesDraft(stored: unknown): AuthoritiesDraft | null {
   try {
-    const value = currentDraft(stored);
-    return draftShape(value) && !validateAuthoritiesDraft(value).length ? value : null;
+    return draftShape(stored) && !validateAuthoritiesDraft(stored).length ? stored : null;
   } catch { return null; }
-}
-
-/** A draft saved when "[Book of authorities Tab n]" came only with a Word copy: it reads as those
- *  words, and one that made no Word copy or final PDF keeps inserting none. */
-function currentDraft(value: unknown) {
-  const draft = value as { insertIntoDocument?: boolean; settings?: { citationSuffix?: string; finalPdf?: boolean } } | null;
-  const settings = draft?.settings;
-  if (settings?.citationSuffix !== "book-tab") return value;
-  return { ...draft, settings: draft!.insertIntoDocument || settings.finalPdf
-    ? currentTabReference(settings) : { ...settings, citationSuffix: "none" } };
 }
 
 /** Projects already-grounded receipts using the Rust-owned authority key supplied by the caller. */
