@@ -224,7 +224,6 @@ pub fn read_document_text_range(
     end: u32,
     offset: Option<u32>,
     limit: u32,
-    start_char: Option<u32>,
 ) -> impl Serialize + '_ {
     document.query.text_range_window(
         document.structure(),
@@ -232,7 +231,6 @@ pub fn read_document_text_range(
         end as usize,
         offset.map(|value| value as usize),
         limit as usize,
-        start_char.map(|value| value as usize),
     )
 }
 
@@ -328,15 +326,9 @@ pub fn quote_locate_document(
     blocks: &[legal_structure::QuoteBlockInput],
     quotes: &[legal_structure::QuoteToLocate],
     compare: bool,
-) -> CoreResult<Vec<serde_json::Value>> {
+) -> Vec<serde_json::Value> {
     let text = document_text(document, None);
-    let coordinates = legal_structure::ScalarText::new(text);
-    if blocks.iter().any(|block| block.ranges.is_empty()
-        || block.ranges.iter().any(|range| range.start >= range.end
-            || coordinates.slice_utf16(range.start..range.end).is_none())) {
-        return Err("Quotation source blocks require valid exact UTF-16 ranges".to_owned());
-    }
-    Ok(legal_structure::locate_quotes_in(text, blocks, quotes, compare).into_iter().zip(quotes).map(|(located, item)| {
+    legal_structure::locate_quotes_in(text, blocks, quotes, compare).into_iter().zip(quotes).map(|(located, item)| {
         if !compare {
             return serde_json::to_value(&located).expect("a located quotation serializes");
         }
@@ -347,7 +339,7 @@ pub fn quote_locate_document(
         let mut value = serde_json::to_value(&located).expect("a located quotation serializes");
         value["errors"] = serde_json::json!(errors);
         value
-    }).collect())
+    }).collect()
 }
 
 pub fn citation_lookup_keys(texts: &[String]) -> Vec<String> {
@@ -547,6 +539,7 @@ pub fn install_structure_analysis() {
 #[cfg(feature = "legalpdf")]
 mod pdf {
     use super::*;
+    use legal_pdf_support::{marginal_paragraph_plan, printed_paragraph_plan, printed_paragraph_witnessed};
     use std::collections::HashSet;
 
     fn pdf_of<'a>(document: &'a NativeDocument, message: &str) -> CoreResult<&'a legalpdf::PdfDocument> {
@@ -709,6 +702,8 @@ mod pdf {
         summary: legalpdf::PdfSummary,
         pages: std::sync::Arc<Vec<legal_pdf_support::PdfTextPage>>,
         plans: Vec<PassagePlan>,
+        paragraphs: Vec<Vec<String>>,
+        headings: HashSet<String>,
     }
 
     pub fn pdf_passage_pages_job(
@@ -743,10 +738,6 @@ mod pdf {
                     .flat_map(|unit| unit.page_numbers.iter().copied())
                     .collect::<Vec<_>>();
                 let mut status = lookup.status;
-                if target.locator_kind == "paragraph" {
-                    (status, lines) = document.paragraph_lines(&target.locator);
-                    pages.clear();
-                }
                 // A statute's provisions are placed by the reading of its body as a statute.
                 if legal_structure::PrintedStatute::places(&target.locator_kind) {
                     let within = target.instrument.as_ref().and_then(|instrument| readings.entry(instrument.clone())
@@ -778,6 +769,12 @@ mod pdf {
             summary: document.summary().clone(),
             pages: document.passage_pages(),
             plans,
+            paragraphs: document.structure().nodes.iter().filter(|node|
+                matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading))
+                .map(|node| node.line_ids.clone()).collect(),
+            // A printed paragraph ends where the next heading of the outline begins.
+            headings: document.structure().nodes.iter().filter(|node| node.kind == legal_structure::NodeKind::Heading)
+                .flat_map(|node| node.line_ids.iter().cloned()).collect(),
         })
     }
 
@@ -788,12 +785,21 @@ mod pdf {
                 .chain(self.summary.ocr_routed_pages.iter().copied())
                 .filter(|index| self.pages.get(*index).is_none_or(|page| page.source == "native"))
                 .collect::<HashSet<_>>();
+            let prose_ids = self.paragraphs.iter().flatten().map(String::as_str).collect::<HashSet<_>>();
+            let prose_lines = self.pages.iter().flat_map(|page| page.lines.iter()
+                .filter(|line| prose_ids.contains(line.id.as_str()))
+                .map(|line| (line.id.as_str(), line.text.as_str(), page.page_number, line.rect)))
+                .collect::<Vec<_>>();
             let targets = self
                 .plans
                 .into_iter()
                 .map(|plan| {
-                    let status = plan.status;
-                    let selected = plan.lines.iter().map(String::as_str).collect::<HashSet<_>>();
+                    let printed = plan.paragraph.as_ref().and_then(|locator|
+                        marginal_paragraph_plan(&self.pages, &self.headings, locator).or_else(||
+                            printed_paragraph_plan(&prose_lines, &self.paragraphs, &self.headings, locator)));
+                    let structural = printed.is_none();
+                    let (status, selected) = printed.unwrap_or_else(|| (plan.status,
+                        plan.lines.iter().map(String::as_str).collect::<HashSet<_>>()));
                     let selected_pages = self
                         .pages
                         .iter()
@@ -808,7 +814,7 @@ mod pdf {
                         .pages
                         .iter()
                         .filter(|page| {
-                            plan.pages.contains(&page.page_number)
+                            (structural && plan.pages.contains(&page.page_number))
                                 || selected_pages.contains(&page.page_number)
                         })
                         .map(|page| {
@@ -838,9 +844,11 @@ mod pdf {
                         })
                         .collect::<Vec<_>>();
                     let mut target = serde_json::json!({ "id": plan.id, "status": status, "pages": pages });
-                    if plan.paragraph.is_some() {
-                        target["printed"] = (status == legalpdf::PdfLookupStatus::Found && !selected_pages.is_empty() &&
-                            selected_pages.iter().all(|page| !unavailable.contains(&((*page - 1) as usize)))).into();
+                    if let Some(locator) = &plan.paragraph {
+                        let pages = self.pages.iter().filter(|page| !unavailable.contains(&((page.page_number - 1) as usize))
+                            && (structural && plan.pages.contains(&page.page_number)
+                                || selected_pages.contains(&page.page_number)));
+                        target["printed"] = printed_paragraph_witnessed(pages, &selected, locator).into();
                     }
                     target
                 })
@@ -860,11 +868,11 @@ mod pdf {
     pub(crate) fn pdf_lookup_unit_spans_of(
         structure: &DocumentStructure,
         ids: &[String],
-    ) -> std::collections::BTreeMap<String, Vec<legal_structure::ScalarRange>> {
+    ) -> std::collections::BTreeMap<String, legal_structure::ScalarRange> {
         let nodes: std::collections::HashMap<_, _> = structure
             .nodes
             .iter()
-            .map(|node| (node.id.as_str(), structure.query_ranges(node).into_owned()))
+            .filter_map(|node| node.rendered_range.map(|span| (node.id.as_str(), span)))
             .collect();
         let notes: std::collections::HashMap<_, _> = structure
             .notes
@@ -876,7 +884,7 @@ mod pdf {
                 nodes
                     .get(id.as_str())
                     .or_else(|| notes.get(id.as_str()).and_then(|node| nodes.get(node)))
-                    .map(|spans| (id.clone(), spans.clone()))
+                    .map(|span| (id.clone(), *span))
             })
             .collect()
     }
@@ -884,15 +892,9 @@ mod pdf {
     pub fn pdf_lookup_unit_spans(
         document: &NativeDocument,
         ids: &[String],
-    ) -> CoreResult<std::collections::BTreeMap<String, Vec<legal_structure::ScalarRange>>> {
+    ) -> CoreResult<std::collections::BTreeMap<String, legal_structure::ScalarRange>> {
         let pdf = pdf_of(document, "PDF query requires a PDF document")?;
         Ok(pdf_lookup_unit_spans_of(pdf.structure(), ids))
-    }
-
-    /// The paragraphs a PDF numbers in print, each with its span of the document text (UTF-16);
-    /// none where it numbers none.
-    pub fn pdf_printed_paragraphs(document: &NativeDocument) -> CoreResult<&[legal_pdf_support::PrintedParagraph]> {
-        Ok(pdf_of(document, "Printed paragraphs require a PDF document")?.printed_paragraphs())
     }
 
     #[allow(clippy::too_many_arguments)]

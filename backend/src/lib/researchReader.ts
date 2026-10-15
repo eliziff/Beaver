@@ -317,12 +317,10 @@ export function readLibraryResearchWindow(input: LibraryWindowInput): ResearchRe
       break;
     }
     const block = native.smallestContainingDocumentBlock(input.document, row.span[0], row.span[1]),
-      selected = cells.flatMap((cell) => cell.ranges.flatMap((range) => {
-        const start = Math.max(range.start, row.span[0]), end = Math.min(range.end, row.span[1]);
-        return start < end ? [{ start, end, locator: { kind: "cell" as const,
-          label: `${cell.tableName}!${cell.address}`, sheet: cell.tableName, cells: cell.address } }] : [];
-      }));
-    for (const span of selected.length ? selected
+      selected = cells.filter((cell) => cell.start < row.span[1] && cell.end > row.span[0]);
+    for (const span of selected.length ? selected.map((cell) => ({ start: Math.max(cell.start, row.span[0]),
+      end: Math.min(cell.end, row.span[1]), locator: { kind: "cell" as const,
+        label: `${cell.tableName}!${cell.address}`, sheet: cell.tableName, cells: cell.address } }))
       : [{ start: row.span[0], end: row.span[1], ...(() => {
         const locator = provenBlockLocator(input.document, block, { start: row.span[0], end: row.span[1] });
         return { locator: locator ?? { kind: "document" as const, label: block?.kind === "paragraph"
@@ -442,12 +440,14 @@ function cleanSearchEvidenceSpan(
   if (passage.role === "document" || !passage.blockArtifact) {
     const block = structureNative()
       .smallestContainingDocumentBlock(source, hit.at, matchEnd);
-    const range = block?.ranges.find((range) => range.start <= hit.at && range.end >= matchEnd);
-    if (block && range) return {
-      text: structureNative().documentText(source).slice(range.start, range.end),
-      ...range,
-      blockId: block.nodeId ?? [block.kind, block.label, range.start, range.end].join(":"),
-      locator: provenBlockLocator(source, block, range),
+    if (block) return {
+      text: block.text,
+      start: block.start,
+      end: block.end,
+      blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
+      ...(["paragraph", "page", "section", "footnote"].includes(block.kind)
+        ? { locator: { kind: block.kind as "paragraph" | "page" | "section" | "footnote", label: block.label } }
+        : {}),
     };
   }
 
@@ -746,7 +746,6 @@ async function readLegalSource(
         const sections: Array<{ label: string; evidence_ids: string[] }> = [];
         const omitted: string[] = [];
         const sourceSha256 = structureNative().documentRevision(artifact);
-        const sourceText = structureNative().documentText(artifact);
         let chars = 0;
         for (const [index, related] of candidates.entries()) {
           if (sections.length === 50 || chars + related.text.length > 32_000) {
@@ -759,20 +758,20 @@ async function readLegalSource(
           } =>
             unit.kind === "paragraph" || unit.kind === "page" ||
             unit.kind === "section" || unit.kind === "footnote"
-          ).flatMap((unit) => unit.ranges.map((range) => createA2AJPassageEvidence({
+          ).map((unit) => createA2AJPassageEvidence({
             citation: metadata.citation as string,
             name: typeof metadata.name === "string" ? metadata.name : null,
             dataset: metadata.dataset as string,
             language: metadata.language as "en" | "fr",
             sourceSha256,
-            spanText: sourceText.slice(range.start, range.end),
-            start: range.start,
-            end: range.end,
+            spanText: unit.text,
+            start: unit.start,
+            end: unit.end,
             externalUrl: typeof metadata.url === "string" ? metadata.url : null,
             sourceClass: "legislation",
             blockId: `${unit.kind}:${unit.label}:${unit.start}:${unit.end}`,
             locator: { kind: unit.kind, label: unit.label },
-          })));
+          }));
           relatedEvidence.push(...receipts);
           receipts.forEach((receipt) => evidenceSources.set(receipt.evidence_id, {
             document: metadata as unknown as A2AJCompiledDocument,
@@ -828,7 +827,7 @@ async function readLegalSource(
   }
 }
 type TextRange = { start: number; end: number };
-type LibraryReadLine = { rendered: string; lineNumber?: number; startChar?: number; span?: [number, number];
+type LibraryReadLine = { rendered: string; lineNumber?: number; span?: [number, number];
   locator?: Parameters<typeof createLibraryEvidence>[0]["locator"] };
 function addCoveredRange(covered: TextRange[], added: TextRange) {
   const ordered = [...covered, added]
@@ -880,18 +879,16 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
   const refuse = (message: string): ResearchRead => ({ ...fail(message),
     coverage: { complete: false, next: [] } });
   let nextOffset: number | null = null;
-  let nextStartChar = 0;
   const nativeDocument = input.document, sectionArg = input.section!,
     references = input.references ?? "none", limit = input.limit ?? 2_000,
     requested = resourceReference.document(input.documentId, input.versionId);
   const windowLines = (
     rows: ReturnType<ReturnType<typeof structureNative>["readDocumentTextWindow"]>["rows"],
-    block: NativeDocumentBlock,
+    label: string,
   ): LibraryReadLine[] => rows.map((row) => ({
     rendered: `${String(row.lineNumber).padStart(6, " ")}\t` +
       `${row.truncatedStart ? "…" : ""}${row.text}${row.truncatedEnd ? "…" : ""}`,
-    lineNumber: row.lineNumber, startChar: row.startChar, span: row.span,
-    locator: provenBlockLocator(nativeDocument, block, { start: row.span[0], end: row.span[1] }),
+    lineNumber: row.lineNumber, span: row.span, locator: { label, kind: "section" },
   }));
   const finish = (candidates: LibraryReadLine[],
     suffix?: (kept: LibraryReadLine[], truncated: boolean) => string) => {
@@ -905,7 +902,7 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
     const truncated = kept.length < candidates.length;
     const continuation = suffix?.(kept, truncated) ?? "";
     return renderLibraryRead(input, kept, continuation, { complete: !truncated && nextOffset === null,
-      next: nextOffset === null ? [] : [{ resource: requested, offset: nextOffset, start_char: nextStartChar, section: sectionArg }] });
+      next: nextOffset === null ? [] : [{ resource: requested, offset: nextOffset, section: sectionArg }] });
   };
   const lookup = structureNative().lookupStructureBlock(
     nativeDocument, sectionArg, 0);
@@ -936,7 +933,10 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
     const covered: TextRange[] = [];
     const candidates: LibraryReadLine[] = [];
     for (const [index, node] of [scope.seed, ...scope.nodes].entries()) {
-      const open = node.ranges.flatMap((range) => uncoveredRanges(range, covered));
+      const open = uncoveredRanges(
+        { start: node.start, end: node.end },
+        covered,
+      );
       for (const range of open) {
         const window = structureNative().readDocumentTextRange(
           nativeDocument, range.start, range.end, undefined, 0xffff_ffff);
@@ -947,9 +947,9 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
           rendered: `=== ${input.filename} :: Read section="${node.label}" :: ${
             index === 0 ? "target" : "direct reference"
           } ===`,
-        }, ...windowLines(window.rows, node));
+        }, ...windowLines(window.rows, node.label));
       }
-      for (const range of node.ranges) addCoveredRange(covered, range);
+      addCoveredRange(covered, { start: node.start, end: node.end });
     }
     return finish(
       candidates,
@@ -959,42 +959,28 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
     );
   }
   const offset = input.offset;
-  const rows: ReturnType<ReturnType<typeof structureNative>["readDocumentTextWindow"]>["rows"] = [];
-  let startLine = 0, endLine = 0;
-  let continuationOffset: number | null = null;
-  let continuationStartChar = 0;
-  for (const range of block.ranges) {
-    let window = structureNative().readDocumentTextRange(
-      nativeDocument, range.start, range.end, offset, limit + 1, input.start_char);
-    startLine ||= window.rangeStartLine ?? 0;
-    endLine = window.rangeEndLine ?? endLine;
-    if (window.status === "invalid_line" && offset !== undefined) {
-      if (offset > (window.rangeEndLine ?? 0)) continue;
-      window = structureNative().readDocumentTextRange(
-        nativeDocument, range.start, range.end, undefined, limit + 1);
-    }
-    if (window.status !== "ready")
-      return refuse(`Section '${block.label}' has an invalid text range.`);
-    rows.push(...window.rows);
-    if (rows.length > limit || window.nextOffset !== null) {
-      continuationOffset = rows[limit]?.lineNumber ?? window.nextOffset;
-      continuationStartChar = rows[limit]?.startChar ?? window.nextStartChar ?? 0;
-      break;
-    }
+  const window = structureNative().readDocumentTextRange(
+    nativeDocument, block.start, block.end, offset, limit);
+  const startLine = window.rangeStartLine ?? 0;
+  const endLine = window.rangeEndLine ?? 0;
+  if (window.status === "invalid_line") {
+    return refuse(
+      `(offset ${offset} is outside section ${block.label}; ` +
+        `the section spans lines ${startLine}-${endLine})`,
+    );
   }
-  if (!rows.length && offset !== undefined)
-    return refuse(`Offset ${offset} is outside section ${block.label}.`);
-  const candidates = windowLines(rows.slice(0, limit), block);
+  if (window.status !== "ready") {
+    return refuse(`Section '${block.label}' has an invalid text range.`);
+  }
+  const candidates = windowLines(window.rows, block.label);
   return finish(
     candidates,
     (kept, truncated) => {
       const firstShown = candidates[0]?.lineNumber ?? startLine;
       const lastShown = kept.at(-1)?.lineNumber ?? firstShown;
-      const omitted = truncated ? candidates[kept.length] : undefined;
-      nextOffset = omitted?.lineNumber ?? continuationOffset;
-      nextStartChar = omitted?.startChar ?? continuationStartChar;
+      nextOffset = truncated ? lastShown + 1 : window.nextOffset;
       return (nextOffset !== null
-        ? `\n\n[TRUNCATED: returned section lines ${firstShown}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${nextOffset}, start_char=${nextStartChar}).${truncated ? " Tool-result limit reached." : ""}]`
+        ? `\n\n[TRUNCATED: returned section lines ${firstShown}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${nextOffset}).${truncated ? " Tool-result limit reached." : ""}]`
         : "") + inferredSection;
     },
   );
