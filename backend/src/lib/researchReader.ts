@@ -492,7 +492,8 @@ function readerBoundary(source: LegalSourceReference, reader: ReadSubagentAssign
   const region = source.provider === "courtlistener" || source.provider === "govinfo"
     ? "US" : source.provider === "tna" || source.provider === "govuk-et" ? "UK" : "CA";
   if (reader && region !== reader.jurisdiction) return `This source is outside the reader's ${reader.jurisdiction} boundary.`;
-  if (reader?.collections?.length && source.collection && !reader.collections.some((value) =>
+  // Collections are court and dataset codes; a journal's collection is its title, bounded by source_types.
+  if (reader?.collections?.length && source.collection && source.kind !== "journal" && !reader.collections.some((value) =>
     value.toLowerCase() === source.collection!.toLowerCase())) return "This source is outside the reader's collection boundary.";
   if (reader?.source_types?.length && !reader.source_types.includes(source.kind)) return "This source is outside the reader's source-type boundary.";
 }
@@ -566,11 +567,9 @@ async function readLegalSource(
       signal: options.signal,
     }, options.userId);
     if (read.status !== "found" || !read.values.length) {
-      return fail(
-        read.status === "unsupported"
-          ? "Legal source provider is unavailable."
-          : "The requested legal source passage was not found.",
-      );
+      return fail(read.status === "unsupported" ? "Legal source provider is unavailable."
+        : locator ? `This source has no ${locatorKind} ${locator}${endLocator ? `–${endLocator}` : ""}; read it without a locator to see its units.`
+        : "No installed source matches this resource; read a resource returned by search_sources.");
     }
     const sources = read.values.map(({ source }) => {
       const known = options.knownSources.get(researchSourceResource(source));
@@ -597,7 +596,8 @@ async function readLegalSource(
         ? native.readDocumentTextRange(artifact, firstParagraph.start, passage.text.length,
             undefined, Math.max(1, remaining))
         : native.readDocumentTextWindow(artifact, offset, startChar, Math.max(1, remaining));
-      if (window.status !== "ready") throw new Error(`Invalid legal-source text window: ${window.status}`);
+      if (window.status !== "ready") throw new Error(window.status === "invalid_line" ? `offset ${offset} is past the last line.`
+        : `start_char ${startChar} is outside line ${offset}; continue from a returned next read.`);
       const selected: Array<{ passage: LegalSourcePassage; receipt: LegalEvidenceReceipt | undefined;
         source: EvidenceSource }> = [];
       for (const originalRow of window.rows) {

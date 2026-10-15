@@ -89,7 +89,7 @@ export const RESOURCE_TOOLS = [
       mode: { type: "string", enum: ["text", "drafting", "redline"] },
       offset: { type: "integer", minimum: 1, maximum: 100_000_000, description: "Starting line or item." },
       limit: { type: "integer", minimum: 1, maximum: 2000 },
-      start_char: { type: "integer", minimum: 0, maximum: 100_000_000 },
+      start_char: { type: "integer", minimum: 0, maximum: 100_000_000, description: "Character within the offset line." },
       section: { ...READ_SECTION_SCHEMA, description: "Exact structural handle, a returned {nodeId} for a version-pinned document, a findings section, or a reader ID. With queries, filter by reader ID or source resource." },
       reference_offset: { type: "integer", minimum: 0, description: "Continue a returned internal-reference traversal at this index; retain its section, references, offset and start_char." },
       references: {
