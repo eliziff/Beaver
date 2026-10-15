@@ -559,7 +559,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         });
     }
     const agentGroups: ReadSubagentGroup[] = [...groupedAgents.entries()].map(
-        ([slot, panels]) => ({ id: slot, label: `Agent ${slot}`, panels }),
+        ([slot, panels]) => ({ id: slot, label: slot, panels }),
     );
     const dockPanel = (tab: "library" | "workflows" | "sources") =>
         <InitialDockPanel tab={tab} libraryKind={libraryKind}
