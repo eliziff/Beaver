@@ -788,7 +788,8 @@ def parser_input(pdf, args):
     if structure is None or pages is None:
         command=["node", str(HERE / "extract.mjs"), str(pdf), str(args.out / "parsed"), args.mode]
         if args.parser_request: command.append(str(args.parser_request))
-        process = subprocess.Popen(command,
+        # Node's module-type warning would otherwise head the parser's real error.
+        process = subprocess.Popen(command, env={**os.environ, "NODE_NO_WARNINGS": "1"},
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
             creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == "nt" else 0, start_new_session=os.name != "nt")
         try: stdout,stderr=process.communicate(timeout=args.timeout)
@@ -805,6 +806,34 @@ def parser_input(pdf, args):
             pages = geometry
     require(pages is not None, "Parser did not export line evidence")
     return structure, pages
+
+
+def fingerprint_text(text):
+    import hashlib
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def extraction_baseline(structure, extraction):
+    """The parser's physical lines with their extracted text, in its reading order.
+
+    The parser's own interpretations, such as note labels it restores into line text, are not
+    printed source; the typed authoring corrects what the extraction got wrong."""
+    native = gold.source_lines(structure)
+    extracted = {line["id"]: line.get("text", "".join(s["text"] for s in line.get("spans", [])))
+                 for page in extraction for line in page["lines"]}
+    nodes, texts, cursor = [], [], 0
+    for index in sorted(n["page_indexes"][0] for n in structure["nodes"] if n["kind"] == "page"):
+        ids = [ident for ident, line in native.items() if line["page"] == index + 1]
+        text = "\n".join(extracted[ident] for ident in ids)
+        size = len(text.encode("utf-16-le")) // 2
+        nodes.append({"id": f"page-{index+1}", "kind": "page", "page_indexes": [index], "origin_id": "extraction",
+                      "source": "model", "line_ids": ids, "range": {"start": cursor, "end": cursor + size}})
+        texts.append(text); cursor += size + 1
+    text = "\n".join(texts)
+    return {"schema_version": "legalpdf.document-structure.v1", "document_id": structure["source_sha256"],
+            "provider": "extraction", "profile": deepcopy(structure.get("profile")), "scope": {"kind": "complete"},
+            "origins": [{"id": "extraction"}], "diagnostics": [], "source_sha256": structure["source_sha256"],
+            "offset_unit": "utf16", "text": text, "text_sha256": fingerprint_text(text), "nodes": nodes}
 
 
 def prepare(pdf, evidence, expected, mode, structure, extraction, dpi=144):
@@ -992,6 +1021,7 @@ def run(pdf, expected, args, dispatch=_invoke):
         require(not args.extraction, "Choose an extraction manifest or producer configuration")
         args.extraction = producer.prepare(pdf, args.out / "producer-inputs", args.producer)
     structure,extraction=parser_input(pdf,args)
+    structure=extraction_baseline(structure,extraction)
     configuration={"mode":args.mode,"model":args.model,"effort":args.effort,"dpi":args.dpi,
         "authoring":"typed-blocks","chunk_pages":CHUNK_PAGES,
         "structure_sha256":digest(args.structure) if args.structure else fingerprint(structure),"extraction_sha256":digest(args.extraction) if args.extraction else None,
