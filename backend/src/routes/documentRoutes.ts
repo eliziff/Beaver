@@ -113,8 +113,9 @@ export function createDocumentsRouter(
         ? native.documentAnchors(document, text.length).filter(({ kind }) => kind === "page") : [];
     res.setHeader("Cache-Control", "private, no-store");
     res.json({ revision: native.documentRevision(document), slices: (pages.length ? pages
-      : [{ start: 0, end: text.length, label: "1" }]).map(({ start, end, label }) =>
-        ({ start, end, text: text.slice(start, end), page: Number(label.replace(/^page/iu, "")) })) });
+      : [{ ranges: [{ start: 0, end: text.length }], label: "1" }]).flatMap(({ ranges, label }) =>
+        ranges.map(({ start, end }) => ({ start, end, text: text.slice(start, end),
+          page: Number(label.replace(/^page/iu, "")) }))) });
   }));
 
   router.get("/:documentId/pdf-text-layer", asyncRoute(async (req, res) => {

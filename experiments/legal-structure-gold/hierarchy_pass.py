@@ -1,15 +1,7 @@
-"""The document hierarchy of completed structure gold runs, decided over the whole document.
+"""Read historical hierarchy authoring artifacts.
 
-The structure gold is annotated page window by page window, so a document's outline can drift at a
-page break: one count's paragraphs ("23.", "24.", ...) take different parents on different pages.
-This second pass reads every heading, numbered paragraph and list item of one document at once (its
-page, role, printed marker, opening words, indent, and the parent the first pass gave it) and decides
-each unit's parent; its level follows, the parent's plus one. It also rules out the heading blocks
-that are no part of the outline, a statute's marginal notes and a reported case's headnotes, which
-the page annotator was never told apart from headings. Canonical gold receives these decisions
-in its existing structural annotations; older authoring originals retain their sidecar format.
-
-  python experiments/legal-structure-gold/hierarchy_pass.py [--runs SHA_PREFIX...] [--limit N] --run
+New structure authoring belongs to worker.py and receives every source block.
+Saved hierarchy layers remain readable when importing historical packages.
 """
 import argparse, gzip, json, re, sys
 from collections import Counter
@@ -139,7 +131,7 @@ def units_of(state):
     lines = {l["id"]: l for l in state["lines"]}
     beside = beside_provisions(state)
     pos = {i: n for n, i in enumerate(state["reading_order"])}
-    quotes = gold.quotations(state)
+    resolved = gold.annotation_view(state)
     units = []
     for group in state["groups"]:
         attrs = group["attributes"]
@@ -152,7 +144,7 @@ def units_of(state):
         units.append({"id": first, "page": line["page"], "role": group["kind"],
                       "kind": group["kind"] if group["kind"] in KINDS else "numbered_paragraph", "marker": marker.strip(),
                       "words": words, "indent": round(line["box"][0]) if line.get("box") else None,
-                      "quotation": gold.quotation_scope(group, quotes, lines),
+                      "quotation": resolved["quotation_scopes"][gold.block_id(group)],
                       **({"beside": beside[first]} if first in beside else {}),
                       "annotated_parent": attrs.get("parent")})
     units.sort(key=lambda unit: pos.get(unit["id"], 10**9))
@@ -283,7 +275,7 @@ def apply_items(value, items):
             block["kind"] = "prose"
         elif kind in ("heading", "list_item"):
             block["kind"] = kind
-        if decided and ("level" in block["attributes"] or "parent" in block["attributes"]):
+        if decided:
             block["attributes"]["parent"] = decided["parent"]
             block["attributes"]["level"] = decided["level"]
     return value
@@ -322,66 +314,7 @@ CALL_POLICY = CallPolicy(worker.INSTRUCTIONS, worker.CONFIG, retry_prompt, retry
 
 
 def decide(job, args):
-    gold_path = job / "gold.json.gz"
-    try:
-        input_sha = worker.digest(gold_path)
-        original = worker.read_json(gold_path)
-        worker.require(worker.digest(gold_path) == input_sha, "Hierarchy input gold changed")
-        _, state = evaluate.state_of(original)
-    except Exception as exc:
-        return f"unreadable: {str(exc)[-80:]}"
-    units = units_of(state)
-    if len(units) < 2:
-        return "skipped"
-    parents, doubt = repaired(units)
-    # A heading set beside a provision, or headings in a reported case, may be no heading at all.
-    doubt = doubt or any("beside" in unit for unit in units) or any(
-        unit["role"] == "heading" and CASE_TITLE.search(unit["words"]) for unit in units) or args.conventions
-    items = levels_of(units, parents)
-    if not doubt or not args.run:
-        if not args.write:
-            return "in doubt" if doubt else "settled"
-        return write_layer(job, gold_path, units, items, "deterministic", original=original, input_sha256=input_sha)
-    # What the numbering leaves in doubt goes to the model, the settled parents its starting point.
-    for unit in units:
-        unit["annotated_parent"] = parents[unit["id"]]
-    prompt = PROMPT + "\n".join(json.dumps(unit, ensure_ascii=False) for unit in units)
-    task = job / "hierarchy"
-    task.mkdir(exist_ok=True)
-    schema = task / "schema.json"
-    schema.write_text(json.dumps(SCHEMA), encoding="utf-8")
-    previous_attempts = usage_totals(task)["attempts"]
-    def validate_response(response):
-        decided = validated(units, response)
-        if original.get("schema_version") == worker.package.VERSION:
-            worker.package.validate(apply_items(deepcopy(original), decided))
-        return decided
-    try:
-        decided = call(prompt, schema, [], task / "calls" / "document", args,
-                       validate_response, policy=CALL_POLICY, reuse=not args.redo)
-    except AttemptsExhausted as exc:
-        return "model failed: " + exc.error
-    key = call_key(prompt, SCHEMA, [], args, CALL_POLICY)
-    directory = task / "calls" / "document" / key[:16]
-    receipt = worker.read_json(directory / "receipt.json")
-    worker.require(receipt["key"] == key, "Hierarchy call identity changed")
-    accepted = [(number, attempt) for number, attempt in enumerate(receipt["attempts"], 1) if attempt["status"] == "complete"]
-    worker.require(bool(accepted), "Hierarchy call has no accepted attempt")
-    number, attempt = accepted[-1]
-    work = directory / f"attempt-{number}"
-    worker.require(validated(units, worker.read_json(work / "last-message.json")) == decided,
-                   "Hierarchy accepted response differs")
-    # Attempt files are immutable; a later failed --redo changes only the aggregate
-    # call receipt and cannot invalidate the currently published hierarchy's evidence.
-    paths = [work / "last-message.json", work / "prompt.txt.gz"]
-    if (work / "events.jsonl.gz").is_file(): paths.append(work / "events.jsonl.gz")
-    call_receipt = {"model": attempt["model"], "effort": attempt["effort"],
-        "calls": [{"path": path.relative_to(job).as_posix(), "sha256": worker.digest(path)} for path in paths]}
-    return write_layer(job, gold_path, units, decided, "model:" + args.model,
-                       usage_totals(task)["attempts"] - previous_attempts, original=original, input_sha256=input_sha,
-                       call_receipt=call_receipt)
-
-
+    raise ValueError("Separate hierarchy authoring is retired; use the complete-block structural author in worker.py")
 
 
 def read_layer(job):
@@ -446,34 +379,7 @@ def completed(job):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--runs", nargs="*", default=[])
-    parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--model", default="gpt-6.1-sol")
-    parser.add_argument("--effort", default="low")
-    parser.add_argument("--attempts", type=int, default=2)
-    parser.add_argument("--timeout", type=int, default=900)
-    parser.add_argument("--parallel", type=int, default=2)
-    parser.add_argument("--redo", action="store_true", help="Decide again where a layer exists")
-    parser.add_argument("--write", action="store_true", help="Write the layers the numbering settles")
-    parser.add_argument("--conventions", action="store_true",
-                        help="Review every document's units against the conventions (role, kind, parent), not only those the numbering leaves in doubt")
-    parser.add_argument("--run", action="store_true", help="Call the model for documents left in doubt (implies --write)")
-    args = parser.parse_args()
-    import score_all
-    jobs = [job for _, job, receipt in score_all.completed(OUT)
-            if (not args.runs or any(receipt["source_sha256"].startswith(p) for p in args.runs))
-            and (args.redo or not completed(job))]
-    if args.limit:
-        jobs = jobs[:args.limit]
-    args.write = args.write or args.run
-    outcomes = Counter()
-    with ThreadPoolExecutor(args.parallel if args.run else 1) as pool:
-        for job, outcome in zip(jobs, pool.map(lambda job: decide(job, args), jobs)):
-            outcomes[outcome.split(":")[0]] += 1
-            if args.run:
-                print(job.relative_to(OUT), outcome, flush=True)
-    print(dict(outcomes))
+    raise SystemExit("Separate hierarchy authoring is retired; use worker.py for source correction and complete-block structural authoring. Historical hierarchy readers remain available.")
 
 
 if __name__ == "__main__":

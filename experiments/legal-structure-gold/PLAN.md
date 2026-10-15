@@ -14,10 +14,12 @@ python experiments/legal-structure-gold/worker.py --pdf <pdf> --mode digitalborn
 python experiments/legal-structure-gold/worker.py --pdf <pdf> --mode ocr --run --max-calls 12
 python experiments/legal-structure-gold/worker.py --pdf <pdf> --mode ocr --producer <runtime-config.json> --run
 python experiments/legal-structure-gold/worker.py --corpus --limit 2000 --run
+python experiments/legal-structure-gold/worker.py --manifest <selected-manifest.json> --root <corpus-home> --limit 2000 --reauthor-existing --run
+python experiments/legal-structure-gold/worker.py --structure-run <current-run> --run
 python experiments/legal-structure-gold/worker.py --record-run <current-run> --record-selection <selection.json> --run
 ```
 
-The default prepares compressed line evidence, prompts and `schema.json` without
+The default prepares compressed line evidence, prompts and phase-specific schemas without
 calling a model. `--run` invokes Codex exec with Structured Outputs. Defaults are
 gpt-6.1-sol/low,
 144 dpi, three bounded attempts and a 600-second timeout. `--max-calls` limits
@@ -26,17 +28,12 @@ Execution is serial at Below Normal priority with one native/OCR worker.
 Interruption terminates the process tree.
 
 [Shared runner components](../../tools/codex_runner/README.md) own CLI transport,
-accepted-response caching, attempts, usage and retained call receipts. The page
-and hierarchy tasks supply their existing prompts, schemas, validators and
-distinct retry policies. Pagination and compaction callers use the same process
-transport with their existing options. Prompt text, schema bytes, image ordering,
-model defaults and cache identities remain unchanged by this consolidation.
-Hierarchy calls now retain evidence under the source run's `hierarchy/` directory;
-`--redo` bypasses accepted-response reuse while keeping prior attempt receipts.
+accepted-response caching, attempts, usage and retained call receipts. Source
+correction and complete-block structural authoring use this lifecycle. The old
+filtered hierarchy author is retired; its retained runs remain historical evidence.
 
-`record_pass.py` adds document classification and selected standard information
-through the same worker and call lifecycle. This is a new task prompt; the page,
-OCR and hierarchy prompts remain unchanged. Its selection binds existing corpus
+`record_pass.py` separately adds document classification and selected standard
+information through the same worker and call lifecycle. Its selection binds existing corpus
 PDFs, record page mappings and source/proceeding/family/template separation from
 the frozen holdout. Each derivative document is annotated within its explicit
 page scope. Classification coverage is recorded separately from partial field
@@ -72,43 +69,89 @@ selects all rows; the default selects one.
 page count then SHA256, with zero-page entries last. Existing harvest modes are
 reused; other PDFs use the corpus classifier. The first 2,000 selected PDFs have
 11,751 indexed pages. Completed records are verified and reused on restart.
+For regeneration, use a fixed, unique-source manifest and `--reauthor-existing`.
+The limit applies to the selected document set before sharding, including cached
+records; reuse that same manifest and limit on restart to preserve the cumulative
+authorization cap. Existing corrected source gets complete structural reauthoring;
+new source gets source correction followed by structural authoring. Only a verified
+complete-block proof bound to current authoring code and exact source/structure
+facts skips regeneration. Prior canonical gold and publication receipts are retained
+under its source owner in `superseded/<gold-sha256>/` before replacement. Other
+annotation layers stay with their owners.
+
 A PDF that fails its parse or the reply contract keeps its failed receipt and is
 retried on the next run; the batch continues. A provider failure stops the batch.
 
 ## Contract
 
-`prompts.py` owns reading instructions; the shared `composer.py` owns the typed
-correction schema and structural validation. Replies contain a `corrections`
+Implementation direction is owned by [PDF structure gold and Rust redesign](../../docs/roadmap/pdf-structure-gold.md).
+Canonical and authoring transcription corrections call the shared Rust
+`correct_source_text` operation. Rust owns exact Unicode-scalar edits, overlap
+checks and dependent-anchor remapping. Python retains publication metadata and
+original extraction witnesses. Physical source splitting, insertion and deletion call `apply_source_operations`.
+Rust preserves original witnesses and carries only declared, proven correspondence
+to corrected spans. A split inside replaced OCR text retains its original witness
+and image geometry with explicitly unresolved correspondence.
+
+`structure_composition_blocks` prepares native proposals using exact membership and
+shared continuation facts, preserving distinct units on one physical line.
+`apply_structure_composition` owns exact-span block replacement, independent
+annotation edits, coverage, ownership, relationships and manuscript span order.
+Blocks are identified by their first source span (`line_id@start`), so multiple
+blocks can start on one physical line. Parent edges are authored; levels and
+structural extents are derived by the shared relationship assembler. The native
+addon must expose these operations; Python does not substitute mutation rules.
+
+`prompts.py` owns reading instructions; the shared `composer.py` owns the response
+schema and adapts replies to the shared Rust applicator. Replies contain a `corrections`
 array. Each record names one operation and contains its typed payload.
 Operation variants constrain fields, enums and nullability. Schema shapes
 follow the [supported Structured Outputs subset](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas).
 Omitted decisions survive.
 
-Each call edits one physical page with its immediate neighbours: r=1, at most
-three images. The current authoring bundle checks structural layers together;
-this is a baseline to measure, not a requirement that every annotation use one pass. Compact
-parent IDs and levels carry enclosing document/quotation scope without remote
-text. Model input contains text, geometry, typography, blocks, annotations and
-relationships. Font identities are compact IDs; empty metadata and redundant
-whole-line extents are omitted. Provenance, filenames, point dimensions, native
-proofs and parser diagnostics stay outside the prompt.
+Source correction uses one physical page with its immediate neighbours.
+Structural authoring follows corrected source: documents of up to five pages
+are presented whole; longer documents use contiguous five-page chunks with
+adjacent-page evidence. Every block participates, including ordinary paragraphs.
+Enclosing parents, document and quotation scopes remain addressable outside the
+chunk. Each complete block explicitly declares its source-anchored reading stream
+or null; one stream may resume across quotation boundaries in the same document.
+Inherited continuation endpoints and the latest earlier objects per active or
+enclosing scope carry exact source spans and text. They remain addressable beyond
+the adjacent image window; using them still requires source-supported continuity.
+Existing gold stream identities normalize before the first structural request.
+Model input contains source text, geometry, typography, exact block spans,
+annotations and relationships. Source corrections and structural jobs have
+separate response schemas. `--structure-run` reauthors structure on selected
+corrected source and preserves unrelated annotation layers; source defects
+require the source-correction owner.
 
 Digitalborn edits contain only incorrect characters; grouping, order and
-annotations reuse source IDs. OCR can replace wrong whole lines. Both modes
+annotations reuse source IDs. OCR can replace wrong whole lines. Source-stage `remove` explicitly invalidates a parser annotation before text
+correction; `group` resets block metadata after splitting and before text edits.
+Only initial parser proposals permit these resets. The immutable baseline and
+operation receipts retain the original evidence. Subsequent structural coverage
+examines every corrected block and all annotation kinds; reset blocks remain
+unknown until structurally authored. Accepted gold anchors remain strict.
+Both modes
 recover genuinely missing printed lines with an insertion anchor and image box.
 Splits retain adjacency and source geometry; explicit joins repair broken words.
 Offsets in corrections count Unicode scalars; exported ranges use UTF-16.
-Coordinates have a top-left origin with each page axis scaled to 0?1000.
+Coordinates have a top-left origin with each page axis scaled to 0–1000.
 
 | Layer | Gold records |
 | --- | --- |
-| Blocks | Paragraph membership, role, headings and numbering with levels, parents and markers |
+| Blocks | Exact span membership, primary role, parent edges and printed locators |
 | Tables | Complete grids, blanks, merged cells and header rows |
 | Fields | Type, label, value, placeholder and checkbox state |
 | Notes | Kind, printed label, body and referring markers |
 | Quotations | Extent, layout, attribution and numbering scope |
 | Documents | Printed type, start, parent, relationship, title and source facets |
 | Continuity | Line joins, object continuations and document resumptions |
+
+Primary block roles are text, heading, caption, instruction, headnote, marginal_note,
+furniture and page_label. Lists use text blocks with locator attributes. Notes,
+tables and quotations remain independent annotation families.
 
 Layers overlap independently. Continued objects use page fragments and unique
 anchors. Incoming links can be repaired at the target boundary without changing
@@ -119,6 +162,12 @@ Contract failures receive bounded retries with the rejected response and error.
 The complete document is validated before export.
 
 ## Products and checks
+
+The 2026-10-12 candidate has not been reauthored, trained or evaluated. The current
+no-tests instruction excludes writing or running tests and acceptance work. The
+evaluator still needs its line-keyed unit/parent extraction changed to exact span
+identities before candidate scores can substantiate the new contract. Historical
+results below describe their recorded earlier implementations.
 
 Completed runs contain `manuscript.txt`, `gold.json.gz`, `baseline.json.gz`,
 compressed line evidence, the schema and call receipts. New `gold.json.gz` products
@@ -132,7 +181,7 @@ replay reads those responses directly without duplicating them in the gold.
 Provenance records source/evidence hashes, parser/runner identities, run ID,
 `machine_test`, model/effort and usage including failed attempts.
 
-Page images exist only during the current r=1 call and are deleted in `finally`.
+Page images exist only during the current call window and are deleted in `finally`.
 They can be rendered again from the canonical PDF, recorded renderer and DPI.
 JSON is compact; bulk evidence, exact attempted prompts and provider logs are
 gzip-compressed. Live runs retain one prompt copy per attempt.
@@ -218,7 +267,7 @@ tokens, retries and elapsed time. Also check whether later passes damage earlier
 annotations. Hold model/effort, images, inputs and call budgets constant where
 possible; report differences rather than assume a joint or staged strategy wins.
 Use the shared execution components and existing evaluators for this experiment.
-The hierarchy pass and explicit record/form enrichment use the same scoped
+Structural reauthoring and explicit record/form enrichment use the same scoped
 annotation publisher. A pass starts from selected gold, declares the paths it
 owns, preserves other layers and binds its receipt to the input source, text and
 gold hash. Publication rejects stale input and recovers interrupted writes.
@@ -250,7 +299,14 @@ the physical text and manuscript exactly, including UTF-16 ranges, different phy
 and logical order, printed hyphens and sparse logical edits. Parser documents and
 their fields/tables remain separate from classification, extracted information,
 chronology and exhibit association. Blank, absent, redacted and unresolved values
-retain their existing representation. A missing annotation layer stays unannotated.
+retain their existing representation. The `legal_structure.native` payload preserves
+retained producer nodes, page facts and structure metadata using source identities
+and scalar anchors. The shared Rust owner captures, remaps and hydrates this payload;
+Python stores and forwards it. Explicit removals prune its active node inventory.
+Unprovable coordinates and unknown producer leaves remain immutable evidence,
+separate from current factual coordinates and authored answers. Canonical reopening,
+transcription and structural reauthoring all carry this payload.
+A missing annotation layer stays unannotated.
 All annotation runs are automated; there is no human review queue or approval gate.
 
 Gold records hold the fixed answers. A changed parser produces a candidate graph;
@@ -261,8 +317,8 @@ schemas need adapters that preserve annotation meanings, not regenerated gold.
 Changing an independently recorded answer creates a gold revision.
 
 Parser gold exports adapt those answers to the current consumer contract using
-only the gold file. Unannotated native heuristics and old parser metadata are not
-carried forward as answers. These exports are disposable views, not another gold
+only the gold file. Retained producer evidence does not become an independently
+authored answer merely because it survives export. These exports are disposable views, not another gold
 representation to archive. Their receipts record source/gold hashes, exporter code
 hashes, date and output hash. Completed packages are reused without rewriting their
 annotations. Candidate outputs are measured against the fixed gold directly.
@@ -656,7 +712,7 @@ consumed such a page's 26 lines and 650 order pairs; segmentation and region-ord
 training remained disabled for that page. Final training exports resolve the
 selected current Gold, one export directory per source.
 
-The existing focused hierarchy pass changed none of the three joint outputs
+The historical focused hierarchy pass changed none of the three joint outputs
 (37 units altogether). It required no additional model calls; this small result
 does not establish whether fully separate annotation passes outperform joint
 authoring. A separate live hierarchy call on a longer document exercised scoped
@@ -825,7 +881,7 @@ addon and the request its gold was made from, then micro-averages each layer int
 `score/latest.json`. Copy that summary aside before a parser change; `--against`
 reports the change over the runs both summaries scored.
 
-Offline public-corpus checks cover exact r=1 dispatch, differential manuscript
+Historical offline public-corpus checks covered exact r=1 dispatch, differential manuscript
 and structural results, partial fields, blank/merged cells, splits and geometry,
 digital/OCR edits, scoped references, retry/cache behavior and identical replay.
 Provider doubles exercise these contracts. Live image-reading accuracy and

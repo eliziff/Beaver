@@ -109,16 +109,20 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
   const document = passage.documentArtifact, text = native.documentText(document);
   if (action.revision !== native.documentRevision(document))
     throw new ApplicationError(409, "This source changed while you were reading it; open it again to highlight");
-  const { start, end } = action;
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end > text.length || end <= start)
-    throw new ApplicationError(400, "Invalid selection span", { code: "invalid_span" });
-  const span = { start, end };
-  const block = native.smallestContainingDocumentBlock(document, span.start, span.end);
-  const receipt = passage.evidence({ ...span, text: text.slice(span.start, span.end),
-    ...((locator) => locator ? { blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,
-      locator } : {})(provenBlockLocator(document, block, span)) });
-  if (!receipt) throw new ApplicationError(404, "This source could not be opened for reading");
-  return { type: "merge", evidence: [receipt], labels: { [receipt.evidence_id]: action.labelIds ?? [] } };
+  const ranges = [...action.ranges].sort((left, right) => left.start - right.start);
+  if (ranges.some(({ start, end }, index) => !Number.isSafeInteger(start) || !Number.isSafeInteger(end)
+    || start < 0 || end > text.length || end <= start || index > 0 && start < ranges[index - 1].end))
+    throw new ApplicationError(400, "Invalid selection ranges", { code: "invalid_span" });
+  const evidence = ranges.map((span) => {
+    const block = native.smallestContainingDocumentBlock(document, span.start, span.end);
+    const receipt = passage.evidence({ ...span, text: text.slice(span.start, span.end),
+      ...((locator) => locator ? { blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,
+        locator } : {})(provenBlockLocator(document, block, span)) });
+    if (!receipt) throw new ApplicationError(404, "This source could not be opened for reading");
+    return receipt;
+  });
+  return { type: "merge", evidence,
+    labels: Object.fromEntries(evidence.map((receipt) => [receipt.evidence_id, action.labelIds ?? []])) };
 }
 
 type Capture = { start: number; end: number; slot: string; order: number; assign: boolean };
@@ -340,9 +344,16 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         const { text } = passage;
         const slices = adapter.legalSourceViewer(passage.documentArtifact,
           source.reference.kind === "legislation" ? "section" : "paragraph", text.length).slices;
-        const blocks = slices.length ? slices.map(({ primary, start, end }) => primary ??
-          { kind: "document" as const, label: `line ${start + 1}-${end}`, start, end })
+        const units = slices.length ? slices.map(({ primary, start, end }) => primary ??
+          { kind: "document" as const, label: `line ${start + 1}-${end}`, start, end,
+            ranges: [{ start, end }], printedLabel: false })
           : adapter.documentAnchors(passage.documentArtifact);
+        // Receipts address contiguous source text; intersect exact membership with selected evidence.
+        const blocks = units.flatMap((block) => block.ranges.flatMap((member) =>
+          passage.ranges.flatMap((selected) => {
+            const start = Math.max(member.start, selected.start), end = Math.min(member.end, selected.end);
+            return start < end ? [{ ...block, start, end }] : [];
+          })));
         if (rules.length) {
           const captures: Capture[] = [], captureKeys = new Set<string>();
           captureRules: for (const [order, { rule, source: phrase, test }] of compiled.entries())
@@ -399,8 +410,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
               const receipt = passage.evidence({ text: span, start: block.start, end: block.end,
                 ...(block.kind === "document" ? {} : {
                   blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
-                  locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"],
-                    label: block.label } }) });
+                  locator: provenBlockLocator(passage.documentArtifact, block, block) }) });
               if (receipt && afterCursor(source.id, receipt)) {
                 if (span.length > MAX_CAPTURE_CHARS) { sizeLimited = true; continue; }
                 if (foundChars + span.length > MAX_CAPTURE_CHARS)

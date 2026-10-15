@@ -84,6 +84,7 @@ export type NativeAuthorityReferenceOccurrence = NativeCitationTextSpan & {
 
 /** Footnote offsets use JavaScript UTF-16 code units. */
 export type NativeAuthorityTextUnit = {
+  source?: import("mike/shared/authorities-contract.d.ts").AuthorityUnitSource;
   key: string;
   kind: "body" | "footnote";
   ordinal: number;
@@ -243,7 +244,7 @@ type StructureAddon = {
   readDocumentTextWindow(document: NativeDocument, offset: number,
     startChar: number, limit: number): NativeDocumentTextWindow;
   readDocumentTextRange(document: NativeDocument, start: number, end: number,
-    offset: number | undefined, limit: number): NativeDocumentTextWindow;
+    offset: number | undefined, limit: number, startChar?: number): NativeDocumentTextWindow;
   documentFingerprint(document: NativeDocument): {
     resultSha256: string; components: Record<string, string>;
   };
@@ -278,12 +279,12 @@ type StructureAddon = {
     visibleEvidence: unknown): string[];
   quoteRepairSuggestion(claim: string, spans: string[]): string | null;
   markedQuoteSpans(text: string): Array<{ text: string; start: number; end: number }>;
-  /** Each quotation located in a source the engine holds (its blocks by their UTF-16 offsets, each quotation with
+  /** Each quotation located through the source structure the engine holds (each quotation with
    *  the paragraphs, pages and provisions its citation names) and compared with the source's words there, with
    *  groundedProseErrors of it against the passage it was found in (the whole text where not), named by its id;
    *  with compare false, located only. */
   quoteLocateDocument(document: NativeDocument,
-    blocks: Array<{ kind: "paragraph" | "page" | "section"; label: string; start: number; end: number }>,
+    judgment: boolean,
     quotes: Array<{ quote: string; scopes: { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
       id?: string }>, compare?: boolean):
     Promise<Array<{ match: NativeQuoteLocation; comparison: NativeQuoteComparison | null; errors?: string[] }>>;
@@ -317,16 +318,17 @@ type StructureAddon = {
   smallestContainingDocumentBlock(document: NativeDocument, start: number,
     end: number): NativeDocumentBlock | null;
   documentHasOrigin(document: NativeDocument, origin: NativeDocumentBlock["origin"]): boolean;
-  documentAnchors(document: NativeDocument, end?: number): Array<Pick<NativeDocumentBlock,
-    "kind" | "label" | "start" | "end" | "parentLabel" | "rowSpan" | "columnSpan">>;
+  /** Reflected levels are one-based; source roots have level 1. */
+  documentAnchors(document: NativeDocument, end?: number): Array<{ level: number } & Pick<NativeDocumentBlock,
+    "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel" | "rowSpan" | "columnSpan">>;
   legalSourceViewer(document: NativeDocument, primaryKind: "paragraph" | "section",
     limit?: number): {
       slices: Array<{
         start: number; end: number; text: string; depth: number;
         anchors: Array<Pick<NativeDocumentBlock,
-          "kind" | "label" | "start" | "end" | "parentLabel">>;
+          "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel">>;
         primary: Pick<NativeDocumentBlock,
-          "kind" | "label" | "start" | "end" | "parentLabel"> | null;
+          "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel"> | null;
       }>;
       truncated: boolean;
       documentRevision: string;
@@ -352,9 +354,10 @@ type StructureAddon = {
   textFragmentPlanStandalone(blockText: string, quotes: string[], pdf: boolean,
     publisherMayAnnotateLegalReference: boolean,
     splitHtmlSourceBlocks: boolean): NativeTextFragmentPlan;
-  documentParagraphRangeDirective(document: NativeDocument, start: string,
-    end: string): string | null;
-  lookupStructureBlock(document: NativeDocument, locator: string,
+  documentRangeFragmentPlan(document: NativeDocument, kind: NativeDocumentBlock["kind"],
+    start: string, end: string, pdf: boolean, publisherMayAnnotateLegalReference: boolean,
+    firstBlockOnly: boolean): NativeTextFragmentPlan | null;
+  lookupStructureBlock(document: NativeDocument, locator: string | { nodeId: string },
     contextBlocks: number): {
       status: "found" | "not_found" | "unavailable" | "ambiguous";
       requestedLabel: string; matches: string[]; block: NativeDocumentBlock | null;
@@ -365,16 +368,17 @@ type StructureAddon = {
     | { status: "found"; spans: Array<{ start: number; end: number }> }
     | { status: "invalid" | "no_pages" | "not_found" | "unavailable" |
         "ambiguous" | "not_addressable" };
-  graphScope(document: NativeDocument, seed: string, follow: "none" | "out" | "in" | "both",
+  graphScope(document: NativeDocument, seed: { locator: string; nodeId?: never } | { nodeId: string; locator?: never }, follow: "none" | "out" | "in" | "both",
     depth: number, includeDescendants: boolean, includeUnits: boolean): {
       seed: NativeDocumentBlock;
       nodes: Array<NativeDocumentBlock & { units?: NativeDocumentBlock[] }>;
       depth: number;
+      omissions: NativeGraphScopeOmission[];
     } | null;
   queryPdfDocument(document: NativeDocument, locatorKind: string, locator: string,
     endLocator?: string, contextBlocks?: number, page?: number,
     occurrence?: number): PdfStructureLookup;
-  pdfLookupUnitSpans(document: NativeDocument, ids: string[]): Record<string, { start: number; end: number }>;
+  pdfLookupUnitSpans(document: NativeDocument, ids: string[]): Record<string, Array<{ start: number; end: number }>>;
 };
 
 declare const nativeDocument: unique symbol;
@@ -385,6 +389,8 @@ type NativeDocumentTextWindow = {
     "invalid_range";
   rows: Array<{
     lineNumber: number;
+    startChar: number;
+    endChar: number;
     text: string;
     span: [number, number];
     truncatedStart: boolean;
@@ -413,7 +419,25 @@ export type PdfPreparationSummary = {
   scannedPages?: number[];
 };
 
+export type NativeGraphScopeOmission = {
+  edgeIndex: number;
+  edge: {
+    sourceStart: number; sourceEnd: number; sourceLabel: string | null;
+    raw: string; rawLabel: string; normalizedLocator: string;
+    targetLabel: string | null; targetStart: number | null; targetEnd: number | null;
+    status: "resolved" | "external" | "unresolved" | "abstained";
+    selfLoop: boolean;
+    reason?: "external_instrument" | "document_abstained" | "no_containing_section" |
+      "ambiguous_label" | "depth_not_numbered" | "no_such_provision";
+  };
+  sourceNodeId?: string; targetNodeId?: string;
+  missingEndpoints: Array<"source" | "target">;
+};
+
 export type NativeDocumentBlock = {
+  nodeId?: string;
+  printedLabel: boolean;
+  ranges: Array<{ start: number; end: number }>;
   kind: "paragraph" | "page" | "section" | "footnote" | "table" | "row" | "cell";
   label: string;
   start: number;
@@ -546,46 +570,6 @@ export async function pdfPassageGeometry(
     locatorKind === "paragraph" ? paragraphRange(locator) : undefined);
   const raw = await pages(targets.map((target, index) =>
     ranges[index] ? { ...target, locator: ranges[index].join("-") } : target));
-  // Where the engine cannot place a whole range (a number in it printed twice, or not read), its
-  // paragraphs and the two beside it are placed as if each were cited alone. The passage opens at
-  // its first paragraph, or just after the one before, and closes with its last, or just before
-  // the one after, taking every line between in their column but the pages' furniture.
-  const members = ranges.flatMap((range, index) => range &&
-    ["not_found", "ambiguous"].includes(raw.targets[index].status)
-    ? Array.from({ length: range[1] - range[0] + 3 }, (_, offset) => range[0] - 1 + offset)
-      .filter((number) => number > 0).map((number) => ({ index, number })) : []);
-  const placed: NativePdfPassagePages["targets"] = [];
-  for (let start = 0; start < members.length; start += 100)
-    placed.push(...(await pages(members.slice(start, start + 100).map(({ index, number }) =>
-      ({ id: `${index}:${number}`, locatorKind: "paragraph" as const, locator: String(number) })))).targets);
-  for (const index of new Set(members.map(({ index }) => index))) {
-    const [first, last] = ranges[index]!;
-    const own = new Map(members.flatMap(({ index: owner, number }, at) => owner === index &&
-      placed[at].status === "found" ? [[number, { printed: placed[at].printed === true, lines: placed[at].pages
-        .flatMap((page) => page.lines.map((line) => ({ page: page.pageNumber, id: line.id, rect: line.rect })))
-      }] as const] : []).filter(([, { lines }]) => lines.length));
-    const inside = [...own].filter(([number]) => number >= first && number <= last).map(([, value]) => value);
-    const before = own.has(first) ? undefined : own.get(first - 1), after = own.has(last) ? undefined : own.get(last + 1);
-    const opening = own.get(first) ?? before ?? inside[0], closing = own.get(last) ?? after ?? inside.at(-1);
-    if (!opening || !closing) continue;
-    // A line of the passage's own, or the line beside its neighbour's.
-    const opens = opening === before ? { ...before.lines.at(-1)!, step: 1 } : { ...opening.lines[0], step: 0 };
-    const closes = closing === after ? { ...after.lines[0], step: -1 } : { ...closing.lines.at(-1)!, step: 0 };
-    const used = [...new Set([...inside, opening, closing])], kept = new Set(inside.flatMap(({ lines }) => lines.map(({ id }) => id)));
-    const left = Math.min(...used.flatMap(({ lines }) => lines.map(({ rect }) => rect[0])));
-    const right = Math.max(...used.flatMap(({ lines }) => lines.map(({ rect }) => rect[2])));
-    const spanned = opens.page > closes.page ? [] : (await pages(Array.from({ length: closes.page - opens.page + 1 },
-      (_, offset) => ({ id: `span:${opens.page + offset}`, locatorKind: "page" as const, locator: String(opens.page + offset),
-        physicalPages: [opens.page + offset] })))).targets.flatMap((target) => target.pages).map((page) => {
-      const at = ({ id, step }: typeof opens) => page.lines.findIndex((line) => line.id === id) + step;
-      const from = page.pageNumber === opens.page ? at(opens) : 0, to = page.pageNumber === closes.page ? at(closes) : Infinity;
-      return { ...page, lines: page.lines.filter(({ id, rect }, line) => line >= from && line <= to && (kept.has(id) ||
-        (rect[0] + rect[2]) / 2 > left && (rect[0] + rect[2]) / 2 < right &&
-        rect[1] > page.height * 0.05 && rect[3] < page.height * 0.95)) };
-    }).filter((page) => page.lines.length);
-    if (spanned.length) raw.targets[index] = { id: raw.targets[index].id, status: "found",
-      printed: used.every(({ printed }) => printed), pages: spanned };
-  }
   return { ...raw, schemaVersion: "legalpdf.passage-geometry.v1",
     targets: raw.targets.map((target, index) => {
       const request = targets[index];
@@ -599,7 +583,7 @@ export async function pdfPassageGeometry(
         pageNumber: page.pageNumber, width: page.width, height: page.height, source: page.source,
         text: page.lines.flatMap(line => line.words.map(word => word.text)).join(" ").slice(0, 2_000),
         passageRects: request.locatorKind === "page" || !page.lines.length
-          ? [] : [unionRects(page.lines.map((line) => line.rect))],
+          ? [] : page.lines.map((line) => line.rect),
         })),
         quotes: [...(request.exactQuotes ?? []), ...(request.quoteSelections ?? [])]
           .map((quote) => exactQuote(resolved, quote)),

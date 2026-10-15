@@ -53,9 +53,10 @@ export function initialAuthorityAnnotations(input: {
     if (input.style === 'margin' || input.style === 'sidelined') {
       add('margin', label, excerpt, fragments.map(fragment => {
         const width = input.pages[fragment.pageNumber - 1].width;
-        const x = Math.max(0, Math.min(...fragment.rects.map(r => r[0])) - 7 / width);
-        return { ...fragment, rects: [[x, Math.min(...fragment.rects.map(r => r[1])),
-          x + 2 / width, Math.max(...fragment.rects.map(r => r[3]))]] };
+        return { ...fragment, rects: fragment.rects.map(rect => {
+          const x = Math.max(0, rect[0] - 7 / width);
+          return [x, rect[1], x + 2 / width, rect[3]] as AnnotationRect;
+        }) };
       }));
     }
     if (input.style === 'text' || input.style === 'margin') for (const quote of target.quotes) {

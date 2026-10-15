@@ -532,13 +532,7 @@ export function canliiPinpointLink(rawUrl: string, pinpoints: readonly string[])
   return anchor ? sourceUrl(rawUrl, anchor) ?? rawUrl : rawUrl;
 }
 
-/**
- * A link to the paragraph or provision a URL's anchor names (CanLII's #par12 or #sec4, Decisia's #par12), with a
- * text fragment for that passage beside the anchor where `document` holds it: from its first words to its last, each
- * unique in the source's text. The anchor always stays, as the ALR Python app keeps it (alr_quote_verifier.py
- * appends #par to every pinpointed CanLII link): the fragment is added beside it, never in its place. A page anchor
- * or a link without an anchor stays as it is.
- */
+/** Add complete source-anchored text fragments beside the existing paragraph or provision anchor. */
 export function citedPassageLink(rawUrl: string, document: NativeDocument | null | undefined) {
   const url = sourceUrl(rawUrl);
   if (!url) return null;
@@ -547,17 +541,13 @@ export function citedPassageLink(rawUrl: string, document: NativeDocument | null
   const [, number, subsection] = /^sec([\w.-]+?)(?:subsec(\w+))?$/u.exec(anchor) ?? [];
   if (!paragraph && !number) return url;
   const engine = structureNative();
-  let directive = "";
-  if (document && paragraph) directive = engine.documentParagraphRangeDirective(document, paragraph, paragraph) ?? "";
-  if (document && number) {
-    const label = `${number}${subsection ? `(${subsection})` : ""}`;
-    // A provision's text opens with its first subsection: the fragment marks where it starts.
-    const block = engine.readDocumentRange(document, "section", label, label, 0)?.selected[0];
-    const plan = block?.text.trim() ? engine.textFragmentPlan(block.text, [block.text], false,
-      publisherMayAnnotateLegalReference(url), false, document) : null;
-    if (plan?.sourceSafeComplete && plan.directives.length === 1) directive = plan.directives[0];
-  }
-  return directive ? appendDirectives(url, [directive]) : url;
+  if (!document) return url;
+  const label = paragraph ?? `${number}${subsection ? `(${subsection})` : ""}`;
+  // Provision links retain their opening-block target; paragraph links include
+  // every exact member of the resolved paragraph.
+  const plan = engine.documentRangeFragmentPlan(document, paragraph ? "paragraph" : "section",
+    label, label, isPdfSourceUrl(url), publisherMayAnnotateLegalReference(url), !paragraph);
+  return plan?.sourceSafeComplete && plan.directives.length ? appendDirectives(url, plan.directives) : url;
 }
 
 function normalizedIdentity(value: string | null | undefined) {
@@ -619,8 +609,9 @@ export function buildA2AJParagraphRangeUrl(
 ) {
   if (!document?.url || (citation && ![document.citation, document.alternateCitation]
     .map(normalizedIdentity).includes(normalizedIdentity(citation)))) return null;
-  const directive = structureNative().documentParagraphRangeDirective(document.native, start, end);
-  if (!directive) return null;
+  const plan = structureNative().documentRangeFragmentPlan(document.native, "paragraph", start, end,
+    isPdfSourceUrl(document.url), publisherMayAnnotateLegalReference(document.url), false);
+  if (!plan?.sourceSafeComplete || !plan.directives.length) return null;
   const baseUrl = sourceUrl(document.url, `par${Number(start)}`);
-  return baseUrl ? appendDirectives(baseUrl, [directive]) : null;
+  return baseUrl ? appendDirectives(baseUrl, plan.directives) : null;
 }

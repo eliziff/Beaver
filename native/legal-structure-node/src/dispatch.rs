@@ -76,6 +76,32 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
     let doc = || call.document();
     match op {
         "nativeBuildFeatures" => done(value(engine::native_build_features())),
+        "structureCompositionBlocks" => done(legal_structure::structure_composition_blocks(call.get("request")?).and_then(value)),
+        "applyStructureComposition" => done(legal_structure::apply_structure_composition(call.get("request")?).and_then(value)),
+        "projectStructureComposition" => done(legal_structure::project_structure_composition(call.get("request")?).and_then(value)),
+        "resolveCompositionAnnotations" => done(legal_structure::resolve_composition_annotations(call.get("request")?).and_then(value)),
+        "captureCompositionNativeFacts" => done(legal_structure::capture_composition_native_facts(call.get("request")?).and_then(value)),
+        "hydrateCompositionNativeFacts" => done(legal_structure::hydrate_composition_native_facts(call.get("request")?).and_then(value)),
+        "remapCompositionNativeFacts" => done(legal_structure::remap_composition_native_facts(call.get("request")?).and_then(value)),
+        #[cfg(feature = "legalpdf")]
+        "pdfOutlineTrainingRows" | "pdfScopeTrainingRows" | "pdfScopeOpeningTrainingRows" | "pdfSpanTrainingRows" | "pdfMembershipTrainingRows" => {
+            let pages = call.get::<Vec<legalpdf::Page>>("pages")?;
+            let separators = call.get::<Option<Vec<Option<f64>>>>("separators")?.unwrap_or_else(|| vec![None; pages.len()]);
+            let outline = call.get::<Option<Vec<legalpdf::PdfOutlineEntry>>>("sourceOutline")?.unwrap_or_default();
+            let prepared = legalpdf::training_source_evidence(&pages, &separators, &outline).map_err(|error| error.to_string());
+            done(prepared.and_then(|(pages, table, navigation)| match op {
+                "pdfOutlineTrainingRows" => legalpdf::outline_training_rows(call.get("structure")?, &table, &navigation).and_then(value),
+                "pdfScopeTrainingRows" => legalpdf::scope_training_rows(call.get("structure")?, &table).and_then(value),
+                "pdfScopeOpeningTrainingRows" => legalpdf::scope_opening_training_rows(call.get("structure")?, &table).and_then(value),
+                "pdfMembershipTrainingRows" => legalpdf::membership_training_rows(call.get("structure")?, &table).and_then(value),
+                _ => legalpdf::span_training_rows(call.get("structure")?, &pages, &table).and_then(value),
+            }))
+        }
+        "applySourceOperations" => done(legal_structure::apply_source_operations(call.get("request")?).and_then(value)),
+        "moveSourceUnits" => done(legal_structure::move_source_units(call.get("request")?).and_then(value)),
+        "correctSourceText" => done(legal_structure::correct_source_text(call.get("request")?).and_then(value)),
+        "applyStructureAnnotations" => done(legal_structure::apply_structure_annotations(call.get("request")?).and_then(value)),
+        "assembleStructureAnnotations" => done(legal_structure::assemble_structure_annotations(call.get("structure")?).and_then(value)),
         "releaseDocument" => {
             let handle = doc()?;
             documents().1.remove(&handle);
@@ -143,7 +169,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "readDocumentTextWindow" => done(with_document(doc()?, |d| value(engine::read_document_text_window(
             d, call.get("offset")?, call.get("startChar")?, call.get("limit")?)))),
         "readDocumentTextRange" => done(with_document(doc()?, |d| value(engine::read_document_text_range(
-            d, call.get("start")?, call.get("end")?, call.get("offset")?, call.get("limit")?)))),
+            d, call.get("start")?, call.get("end")?, call.get("offset")?, call.get("limit")?, call.get("startChar")?)))),
         "documentFingerprint" => done(with_document(doc()?, |d| value(engine::document_fingerprint_of(d)))),
         "documentAnchors" => done(with_document(doc()?, |d| value(engine::document_anchors(d, call.get("end")?)))),
         "legalSourceViewer" => done(with_document(doc()?, |d| engine::legal_source_viewer(
@@ -194,9 +220,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
         "verbatimRepair" => done(value(legal_structure::verbatim_repair(
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
-        "quoteLocateDocument" => done(with_document(doc()?, |d| value(engine::quote_locate_document(
-            d, &call.get::<Vec<legal_structure::QuoteBlockInput>>("blocks")?,
-            &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true))))),
+        "quoteLocateDocument" => done(with_document(doc()?, |d| engine::quote_locate_document(
+            d, call.get::<bool>("judgment")?,
+            &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true)).and_then(value))),
         "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?)
             .map(|found| found.map_or(Value::Null, |found| json!({ "metadata": found.metadata,
                 "native": share(found.native), "searchNative": found.search.map(share) })))),
@@ -219,14 +245,15 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "textFragmentPlanStandalone" => done(value(engine::text_fragment_plan_standalone(
             &call.get::<String>("blockText")?, &call.get::<Vec<String>>("quotes")?, call.get("pdf")?,
             call.get("publisherMayAnnotateLegalReference")?, call.get("splitHtmlSourceBlocks")?))),
-        "documentParagraphRangeDirective" => done(with_document(doc()?, |d| value(
-            engine::document_paragraph_range_directive(d, &call.get::<String>("start")?, &call.get::<String>("end")?)))),
-        "lookupStructureBlock" => done(with_document(doc()?, |d| value(engine::lookup_structure_block(
-            d, &call.get::<String>("locator")?, call.get("contextBlocks")?)))),
+        "documentRangeFragmentPlan" => done(with_document(doc()?, |d| engine::document_range_fragment_plan(
+            d, &call.get::<String>("kind")?, &call.get::<String>("start")?, &call.get::<String>("end")?,
+            call.get("pdf")?, call.get("publisherMayAnnotateLegalReference")?, call.get("firstBlockOnly")?).and_then(value))),
+        "lookupStructureBlock" => done(with_document(doc()?, |d| engine::lookup_structure_block(
+            d, call.get("locator")?, call.get("contextBlocks")?).and_then(value))),
         "resolveDocumentAddressSpans" => done(with_document(doc()?, |d| engine::resolve_document_address_spans(
             d, &call.get::<String>("spec")?, &call.get::<String>("follow")?, call.get("depth")?).and_then(value))),
         "graphScope" => done(with_document(doc()?, |d| engine::graph_scope(
-            d, &call.get::<String>("seedLabel")?, &call.get::<String>("follow")?, call.get("depth")?,
+            d, &call.get::<legal_structure::GraphScopeSeed>("seed")?, &call.get::<String>("follow")?, call.get("depth")?,
             call.get("includeDescendants")?, call.get("includeUnits")?).and_then(value))),
         "documentHasOrigin" => done(with_document(doc()?, |d|
             engine::document_has_origin(d, &call.get::<String>("origin")?).and_then(value))),
