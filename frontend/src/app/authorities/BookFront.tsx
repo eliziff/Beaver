@@ -23,7 +23,6 @@ export const FRONT_KEYS = ["filingMedium", "bookRole", "indexShows", "bookmarks"
   "tableOrder"] as const;
 /** The settings the cover and the index are drawn from: the bookmarks change neither. */
 export const PREVIEW_KEYS = FRONT_KEYS.filter((key) => key !== "bookmarks");
-export const LEGEND = "mb-2 text-sm font-semibold text-gray-950";
 const FIELD = "mt-1 h-9 border-gray-300 text-sm md:text-sm";
 const AREA = "mt-1 min-h-14 w-full resize-y rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-accent-600";
 const LABEL = "block min-w-0 text-sm font-medium text-gray-800";

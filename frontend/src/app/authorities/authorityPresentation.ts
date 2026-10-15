@@ -1,6 +1,6 @@
 import { authorityPdfRequired, authoritySourceRequirement,
   bilingualEnactmentRequired } from "../../../../shared/authorities-sources.mjs";
-import type { AuthorityIdentity, AuthorityOccurrence, AuthoritiesProduct, AuthoritySourceLanguage } from "./types";
+import type { AuthorityIdentity, AuthoritiesProduct, AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
 import { authorityCitation as citationOf } from "../../../../shared/authorities-order.mjs";
@@ -12,14 +12,6 @@ export function authorityLabel(item: AuthorityIdentity) {
   const name = authorityName(item), citation = item.citation.trim();
   return !citation || name.toLocaleLowerCase().includes(citation.toLocaleLowerCase())
     ? name : `${name}, ${citation}`;
-}
-export function authorityCitationForms(item: AuthorityIdentity, occurrences: AuthorityOccurrence[]) {
-  // A citation the brief broke across lines is the same citation on one line.
-  const forms = [...new Set([item.citation, ...occurrences.filter(({ authorityId, kind }) =>
-    authorityId === item.id && kind !== "reference").map(({ citation }) => citation)]
-    .map((citation) => citation.replace(/\s+/gu, " ").trim()).filter(Boolean))];
-  // "1954 CanLII 3" is "1954 CanLII 3 (SCC)" without the court it is cited with: one form.
-  return forms.filter((form) => !forms.some((other) => other.startsWith(`${form} (`)));
 }
 /** An authority as the book's index and the table cite it: its style of cause or title first, then
  *  each other citation of it ("R v Oakes, [1986] 1 SCR 103, 1986 CanLII 46 (SCC)"). */

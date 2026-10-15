@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Bot, BookOpenText, Folder, PanelRightClose, PanelRightOpen, X } from "lucide-react";
+import { Bot, BookOpenText, Folder, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { ASSISTANT_DOCK_CLASS, ASSISTANT_DOCK_DEFAULT_WIDTH, ASSISTANT_DOCK_MAX_WIDTH,
     ASSISTANT_DOCK_MIN_WIDTH } from "./assistantDockLayout";
@@ -24,9 +24,6 @@ export function AssistantDock({
     onActivateTab,
     expanded,
     onExpandedChange,
-    inspectorContent,
-    inspectorOpen = false,
-    onCloseInspector,
     showCollapsedButton = true,
     defaultWidth = ASSISTANT_DOCK_DEFAULT_WIDTH,
     minWidth = ASSISTANT_DOCK_MIN_WIDTH,
@@ -37,9 +34,6 @@ export function AssistantDock({
     onActivateTab: (id: string) => void;
     expanded: boolean;
     onExpandedChange: (expanded: boolean) => void;
-    inspectorContent?: ReactNode;
-    inspectorOpen?: boolean;
-    onCloseInspector?: () => void;
     showCollapsedButton?: boolean;
     defaultWidth?: number;
     minWidth?: number;
@@ -176,37 +170,17 @@ export function AssistantDock({
                 <PanelRightOpen className="size-4" aria-hidden="true" />
             </button>
         ) : null;
-    const showingInspector = active.id !== "sources" && inspectorOpen;
-    const panel = <div className={cn(
-        "relative min-h-0 flex-1 overflow-hidden",
-        showingInspector && "grid grid-rows-[minmax(0,2fr)_minmax(0,3fr)]",
-    )}>
-        <div className={cn(
-            "relative min-h-0 overflow-hidden",
-            showingInspector ? "" : "absolute inset-0",
-        )}>
-            {tabs.filter((tab) => visited.has(tab.id) || expanded && tab.id === active.id).map((tab) => <div
-                key={tab.id}
-                aria-hidden={tab.id !== active.id}
-                className={cn(
-                    "absolute inset-0 flex flex-col overflow-hidden",
-                    tab.id !== active.id && "invisible opacity-0 pointer-events-none",
-                )}
-            >
-                {tab.content}
-            </div>)}
-        </div>
-        {showingInspector && <section aria-label="Sources"
-            className="flex min-h-0 flex-col overflow-hidden border-t border-gray-300">
-            <div className="flex min-h-10 shrink-0 items-center justify-between gap-3 bg-gray-50 ps-3 pe-2">
-                <span className="text-xs font-medium text-gray-600">Sources</span>
-                <button type="button" onClick={onCloseInspector} aria-label="Close sources"
-                    className="grid size-8 place-items-center rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
-                    <X className="size-3.5" aria-hidden="true" />
-                </button>
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{inspectorContent}</div>
-        </section>}
+    const panel = <div className="relative min-h-0 flex-1 overflow-hidden">
+        {tabs.filter((tab) => visited.has(tab.id) || expanded && tab.id === active.id).map((tab) => <div
+            key={tab.id}
+            aria-hidden={tab.id !== active.id}
+            className={cn(
+                "absolute inset-0 flex flex-col overflow-hidden",
+                tab.id !== active.id && "invisible opacity-0 pointer-events-none",
+            )}
+        >
+            {tab.content}
+        </div>)}
     </div>;
     return <>
         {expandButton}

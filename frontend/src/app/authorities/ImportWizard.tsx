@@ -74,9 +74,6 @@ export function SourceChoices({ settings, profileId, sources = true, recognition
   </div>;
 }
 
-/** The source and scan choices named in a word or two, for a setting shown as segments. */
-export const SHORT: Record<string, string> = { automatic: "Automatic sources", "manual-originals": "Original PDFs, then my uploads",
-  render: "Rebuild all from text", "page-margin": "Keep as images", "cited-pages": "Recognize cited pages", full: "Recognize every page" };
 /** The import's choices: the court, the cover and the index, the sources, and the marking. */
 const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "passageMarking", "subsequentHistory"] as const;
 /** A book's steps; a court that takes only a table skips the cover and the index. */
