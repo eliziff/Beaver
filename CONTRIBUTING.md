@@ -87,9 +87,9 @@ this fixes the manifest, target directory, development profile and environment. 
 and data-only edits reuse the installed addon. Do not create scratch Cargo manifests
 or publish Python/WASM bindings to test a Node consumer.
 
-The app and Authorities launcher select the newest built native artifact from the
-canonical debug/release directories and never retry a failed load with older code.
-Use `npm run native:build:release` only for delivery or release-performance proof.
+The app, the Authorities launcher and bulk scripts load the optimized (release) addon;
+a development loop pins the build it is testing with `LEGAL_STRUCTURE_NATIVE`. Nothing
+chooses a build by its age, and a failed load is never retried with other code.
 
 The citation workspace defaults to its grammar and core crates, keeping bindings
 explicit. Parser fingerprints select enabled feature owners and omit standalone

@@ -45,8 +45,8 @@ do not rebuild Python or WASM. Python smoke loads a development extension withou
 wheel packaging. These CI changes have not been timed on hosted runners.
 
 Local addon builds use the ordinary incremental development profile and one job;
-release optimization is explicit. App and Authorities launchers select the newest
-completed debug/release artifact without silently falling back after a load failure.
+App and Authorities launchers load the release artifact (or the build
+`LEGAL_STRUCTURE_NATIVE` pins) without silently falling back after a load failure.
 Cloud browser tests use isolated worker accounts instead of one shared user;
 ordinary application changes use the local browser gate with disposable data and
 no live-server reuse. Cloud teardown deletes documents/storage through the actual

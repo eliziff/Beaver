@@ -219,7 +219,7 @@ function Resolve-LegalStructureNative {
     $nativeRoot = Join-Path $Repo 'native\legal-structure-node'
     $select = "import(require('node:url').pathToFileURL(process.argv[1]).href).then(m => console.log(m.defaultNativeAddon(process.argv[2])))"
     $managed = & (Get-Node) -e $select $helper $nativeRoot
-    if ($LASTEXITCODE -ne 0) { throw 'Native engine missing. Run npm run native:build once.' }
+    if ($LASTEXITCODE -ne 0) { throw 'The optimized native engine is missing. Run npm run native:build:release.' }
     return $managed
 }
 

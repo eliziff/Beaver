@@ -228,7 +228,9 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     /** The engine's memory, where its host can tell: WebAssembly's never shrinks. */
     memoryBytes: () => transport.memoryBytes?.() ?? 0,
     /** Starts the engine afresh, giving back the memory it grew to; its documents are lost. */
-    recycle() { generation += 1; transport.restart?.(); } };
+    recycle() { generation += 1; transport.restart?.(); },
+    /** A synchronous operation run off this thread, for a call long enough to hold up the event loop. */
+    offThread: (name, ...positional) => invokeOff(name, positional) };
   for (const name of Object.keys(SIGNATURES)) addon[name] = ASYNC.has(name)
     ? (...positional) => invokeAsync(name, positional)
     : (...positional) => invoke(name, positional);

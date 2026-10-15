@@ -714,7 +714,7 @@ export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt
   ].join("\n");
 }
 
-export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnState,
+export async function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnState,
   options: { maxClaims?: number; maxTextLength?: number; allowUnquotedCopies?: boolean } = {}) {
   if (!Array.isArray(value) || !value.length || value.length > (options.maxClaims ?? Infinity))
     return { claims: null, errors: [options.maxClaims
@@ -757,7 +757,7 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
     claims.push({ text, evidence_ids: uniqueIds });
   });
   if (!errors.length) for (const [index, claim] of claims.entries())
-    errors.push(...legalEvidenceProseIntegrityErrors(draftQuotationText(claim.text), claim.evidence_ids, state)
+    errors.push(...(await legalEvidenceProseIntegrityErrors(draftQuotationText(claim.text), claim.evidence_ids, state))
       // The native API returns diagnostics as text. Only this editorial finding is optional;
       // explicit quotation mismatches and every evidence-integrity failure remain errors.
       .filter(error => !options.allowUnquotedCopies || !error.startsWith("unmarked copied passage "))
@@ -784,7 +784,7 @@ export function draftQuotationText(markdown: string) {
   });
 }
 
-export function legalEvidenceProseIntegrityErrors(text: string,
+export async function legalEvidenceProseIntegrityErrors(text: string,
   citedEvidenceIds: readonly string[], state: LegalEvidenceTurnState) {
   const native = structureNative(), cited = citedEvidenceIds.flatMap((id) => state.evidence.get(id)?.receipt ?? []);
   const visible = [...new Set([...state.priorEvidencePreviews.keys(), ...state.presentedEvidenceIds, ...citedEvidenceIds])]
@@ -799,7 +799,7 @@ export function legalEvidenceProseIntegrityErrors(text: string,
   const named = new Map<string, Set<string>>();
   // One scan for the whole draft: rescanning per citation made the check quadratic.
   const quoted = native.markedQuoteSpans(text);
-  const extracted = native.citationEngineCall("extract", JSON.stringify({
+  const extracted = await native.citationEngineCallAsync("extract", JSON.stringify({
     text, offsetUnit: "utf16", options: { resolve: false },
   })) as ExtractResponse;
   for (const citation of extracted.citations.filter((citation) =>
@@ -832,16 +832,16 @@ export function legalEvidenceProseIntegrityErrors(text: string,
   const handle = INTERNAL_HANDLE.exec(text.replace(/\[@[^\]\r\n]+\]/gu, ""))?.[0];
   return [
     ...(handle ? [`must not name the internal handle "${handle}"; cite the passage through its evidence instead`] : []),
-    ...pinpoints, ...native.groundedProseErrors(text, citedEvidenceIds, visible),
+    ...pinpoints, ...await native.offThread("groundedProseErrors", text, citedEvidenceIds, visible),
   ];
 }
 
 /** Claims the model submitted stay as the turn's draft even when some fail, so a correction replaces only the
  *  claims named in the errors instead of resending the whole answer. */
-export function submitLegalEvidenceAnswer(
+export async function submitLegalEvidenceAnswer(
   args: Record<string, unknown>,
   state: LegalEvidenceTurnState,
-): { ok: boolean; terminal?: true; errors?: string[]; draft_claims?: number; next?: string } {
+): Promise<{ ok: boolean; terminal?: true; errors?: string[]; draft_claims?: number; next?: string }> {
   state.attempted = true;
   if (Object.keys(args).some((key) => key !== "claims" && key !== "replace"))
     return { ok: false, errors: ["answer has unknown fields"] };
@@ -861,7 +861,7 @@ export function submitLegalEvidenceAnswer(
     draft[index] = claim;
   }
   state.draft = draft;
-  const { claims, errors } = validateGroundedClaims(draft, state, { maxClaims: 64, maxTextLength: 1_200 });
+  const { claims, errors } = await validateGroundedClaims(draft, state, { maxClaims: 64, maxTextLength: 1_200 });
   if (!claims || errors.length) return { ok: false, errors: errors.slice(0, 12), draft_claims: draft.length,
     next: `Your ${draft.length} claims are kept as this turn's draft. Send claims: null and only the claims named above as replace: [{"index": 0, "text": "…", "evidence_ids": ["…"]}]; do not resend the answer.` };
   state.answer = claims;
