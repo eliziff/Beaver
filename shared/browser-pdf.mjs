@@ -16,7 +16,10 @@ export function createPdfRuntime(lib, { workerUrl, decoders = {}, fileOrigin = g
     }
   }
   return {
-    options: { worker, BinaryDataFactory, useWorkerFetch: false, useWasm: true, isEvalSupported: false, enableHWA: true },
+    // A page opened from disk may load no font file: standard fonts come as data through fetch, not as system fonts
+    // whose fallback is a file URL.
+    options: { worker, BinaryDataFactory, useWorkerFetch: false, useWasm: true, isEvalSupported: false, enableHWA: true,
+      ...(fileOrigin && { useSystemFonts: false }) },
     destroy() { worker?.destroy(); port?.terminate(); },
   };
 }
