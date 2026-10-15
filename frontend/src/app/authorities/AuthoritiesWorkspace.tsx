@@ -1557,18 +1557,15 @@ function ManualStart({ title, busy, preferences, jurisdictionOrder,
   </section>;
 }
 
-/** Saved drafts, eight to a page. An app names the list and its empty state, says what each draft
- *  is at in place of when it was saved (`detail`), and adds actions beside the heading. */
-export function DraftsPanel({ drafts, loading, busy, onOpen, title = "Saved drafts", empty = "No saved drafts yet.",
-  detail, actions }: { drafts: WorkProductMetadata[]; loading: boolean; busy: boolean; onOpen: (id: string) => void;
-  title?: string; empty?: string; detail?: (item: WorkProductMetadata) => ReactNode; actions?: ReactNode }) {
+/** Saved drafts, eight to a page. */
+function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMetadata[]; loading: boolean; busy: boolean;
+  onOpen: (id: string) => void }) {
   const pages = Math.max(1, Math.ceil(drafts.length / 8));
   const [requestedPage, setPage] = useState(1), page = Math.min(requestedPage, pages);
   return <section className="overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="flex min-h-12 items-center gap-2 border-b border-gray-200 px-4">
       <History className="h-4 w-4 shrink-0 text-accent-700" />
-      <h2 className="font-semibold text-gray-950">{title}</h2>
-      {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}</div>
+      <h2 className="font-semibold text-gray-950">Saved drafts</h2></div>
     <div className="h-[28rem] overflow-y-auto">
       {loading ? <div className="beaver-loading-indicator grid h-full place-items-center px-4 py-12 text-sm text-gray-500"
         role="status"><span className="inline-flex items-center"><Loader2
@@ -1576,13 +1573,13 @@ export function DraftsPanel({ drafts, loading, busy, onOpen, title = "Saved draf
         : drafts.slice((page - 1) * 8, page * 8).map((item) => <button key={item.id} type="button" disabled={busy}
         onClick={() => onOpen(item.id)} className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 px-4 text-left outline-none last:border-0 hover:bg-accent-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-600">
         <span className="min-w-0"><span className="block truncate text-sm font-medium text-gray-950">{item.title}</span>
-          <span className="block truncate text-xs text-gray-500">{detail ? detail(item) : formatDateTime(item.updatedAt)}</span></span>
+          <span className="block truncate text-xs text-gray-500">{formatDateTime(item.updatedAt)}</span></span>
         <ChevronRight className="h-4 w-4 text-gray-500" />
       </button>)}
-      {!loading && !drafts.length && <p className="grid h-full place-items-center px-4 py-12 text-center text-sm text-gray-500">{empty}</p>}
+      {!loading && !drafts.length && <p className="grid h-full place-items-center px-4 py-12 text-center text-sm text-gray-500">No saved drafts yet.</p>}
     </div>
     {!loading && !!drafts.length && <Pagination page={page} pages={pages}
-      label={title} disabled={busy} onPage={setPage} />}
+      label="Saved drafts" disabled={busy} onPage={setPage} />}
   </section>;
 }
 
@@ -1869,16 +1866,14 @@ function AuthorityDetailsModal({ open, busy, authority, onClose, onSave }: {
   </Modal>;
 }
 
-function SelectField<T extends string>({ label, value, options, onChange, disabled, className,
-  placeholder = null }: {
+function SelectField<T extends string>({ label, value, options, onChange, disabled }: {
   label: string; value: T | ""; options: ReadonlyArray<{ value: T; label: string }>;
-  onChange: (value: T) => void; disabled?: boolean; className?: string;
-  placeholder?: string | null;
+  onChange: (value: T) => void; disabled?: boolean;
 }) {
-  return <label className={cn("block min-w-0 text-sm font-medium text-gray-800", className)}>{label}
+  return <label className="block min-w-0 text-sm font-medium text-gray-800">{label}
     <ModalSelect id={`authorities-${label.toLowerCase().replaceAll(" ", "-")}`}
       value={value} disabled={disabled} onChange={(next) => next && onChange(next as T)}
-      placeholder={placeholder} className="mt-1" options={options} />
+      placeholder={null} className="mt-1" options={options} />
   </label>;
 }
 
