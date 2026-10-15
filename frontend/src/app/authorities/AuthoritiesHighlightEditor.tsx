@@ -521,18 +521,21 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     if(!entries.length) return;
     setSaving(true);setError('');
     const before = Object.fromEntries(entries.map(entry => [entry.bindingRole, documents[entry.bindingRole].saved]));
+    // The saved draft now holds these entries' marks.
+    const saved = (next: AuthoritiesProduct) => {
+      revision.current = next.revision;
+      setDocuments(values => {
+        const updated = {...values};
+        for (const entry of entries) updated[entry.bindingRole] = { ...values[entry.bindingRole], saved:entry.annotations.marks };
+        return updated;
+      });
+      onSaved(next);
+    };
     // One write owns one immutable snapshot; acknowledging it cannot acknowledge later edits.
     saveRequest.current = (async () => {
       try {
         const next=await host.act(base.id,revision.current,{type:'set-annotations',entries});
-        revision.current = next.revision;
-        setDocuments(values => {
-          const updated = {...values};
-          for (const entry of entries) updated[entry.bindingRole] = {
-            ...values[entry.bindingRole], saved:entry.annotations.marks };
-          return updated;
-        });
-        onSaved(next);
+        saved(next);
       } catch(cause) {
         setError(errorMessage(cause));
         // The write may have committed with its response lost, or an unrelated edit may have
@@ -544,14 +547,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           const held = (entry: Entry) => marksKey(stored.state.authorities[entry.authorityId]
             ?.annotations?.[entry.bindingRole]?.marks ?? []);
           if (entries.every(entry => held(entry) === marksKey(entry.annotations.marks))) {
-            revision.current = stored.revision; setError('');
-            setDocuments(values => {
-              const updated = {...values};
-              for (const entry of entries) updated[entry.bindingRole] = {
-                ...values[entry.bindingRole], saved:entry.annotations.marks };
-              return updated;
-            });
-            onSaved(stored as AuthoritiesProduct);
+            setError(''); saved(stored as AuthoritiesProduct);
           } else if (entries.every(entry => held(entry) === marksKey(before[entry.bindingRole])))
             revision.current = stored.revision;
         } catch { /* offline: Retry resends to the revision last known */ }
