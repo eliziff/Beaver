@@ -1004,6 +1004,17 @@ def structure_layer(value, authored):
             "continuations": composed["continuations"], "resumes": composed["resumes"]}, report
 
 
+def used_calls(root, authored):
+    """Attempts, usage and seconds of the cached calls this authoring used."""
+    usage, attempts, seconds = {}, 0, 0
+    for call in authored["calls"]:
+        if not call["path"].endswith("response.json"): continue
+        for attempt in read_json((root / call["path"]).parent / "receipt.json")["attempts"]:
+            attempts += 1; seconds += attempt["seconds"]
+            for key, value in attempt["usage"].items(): usage[key] = usage.get(key, 0) + value
+    return {"attempts": attempts, "usage": usage, "call_seconds": round(seconds, 4)}
+
+
 def authored_layer(value, authored):
     """The structure layer over the source the typed text corrects."""
     base = package.corrected_source(value, authored["edits"]) if authored["edits"] else value
@@ -1059,12 +1070,13 @@ def run(pdf, expected, args, dispatch=_invoke):
         artifact["mode"]=args.mode
         records=association_records(args.court_records,source_hash)
         initial=package.pack(artifact,records,page_geometry(pages),form_observations(source_hash))
-        authored=author(initial,pdf,pages,args.mode,job/"authoring",args,dispatch,{"calls":0})
+        # Calls are cached per source, not per code signature, so a code change reuses them.
+        authored=author(initial,pdf,pages,args.mode,job.parent/"authoring",args,dispatch,{"calls":0})
         if not args.run:
             receipt["status"]="prepared"; print(str(job),flush=True); return job
         layer,report=authored_layer(initial,authored)
         compact=(package.retranscribe(initial,authored["edits"],layer) if authored["edits"] else package.with_structure(initial,layer))
-        compact["provenance"].update(usage_totals(job/"authoring"),authoring_report=report,text_edits=authored["edits"])
+        compact["provenance"].update(used_calls(job.parent,authored),authoring_report=report,text_edits=authored["edits"])
         with (job/"manuscript.txt").open("w",encoding="utf-8",newline="\n") as stream: stream.write(package.manuscript_text(compact))
         proof=structure_authoring_proof(compact)
         compact["provenance"]["structure_authoring"]=proof
@@ -1076,7 +1088,7 @@ def run(pdf, expected, args, dispatch=_invoke):
     except BaseException as exc:
         receipt.update(status="failed",error=str(exc)); raise
     finally:
-        receipt.update(finished_at=time.time(),**usage_totals(job/"authoring")); write_json(receipt_path,receipt)
+        receipt.update(finished_at=time.time()); write_json(receipt_path,receipt)
         if catalog: corpus_store.register_gold_run(job,package.VERSION)
 
 

@@ -462,15 +462,18 @@ def structure(chunks, lines, order):
                 continuations.setdefault("quotation", {})[anchor(previous[0])] = {
                     "next": anchor(page_spans[0]), "separator": None, "kind": "quotation"}
             previous = page_spans
-    outgoing = set()
+    outgoing, incoming = set(), set()
+    place = lambda ident: (position[ident.rsplit("@", 1)[0]], int(ident.rsplit("@", 1)[1]))
     def link(region, left, right, why):
         kind, separator = LINKS.get(region, (None, None))
         a, b = left.get("table_anchor", left["block"]) if kind == "table" else left["block"], \
                right.get("table_anchor", right["block"]) if kind == "table" else right["block"]
         if kind is None or (kind == "table" and ("table_anchor" not in left or "table_anchor" not in right)) \
-                or (kind, a) in outgoing or scope(left["spans"][0]) != scope(right["spans"][0]):
+                or (kind, a) in outgoing or (kind, b) in incoming or place(a) >= place(b) \
+                or scope(left["spans"][0]) != scope(right["spans"][0]):
+            # A link runs forward to a fragment nothing else continues into.
             report["unlinked_continuations"].append({"region": region, "reason": why}); return
-        outgoing.add((kind, a))
+        outgoing.add((kind, a)); incoming.add((kind, b))
         continuations.setdefault(kind, {})[a] = {"next": b, "separator": separator, "kind": kind}
         if kind == "paragraph" and left["group"]["attributes"].get("locator_kind") == "list_item"                 and right["group"]["attributes"].get("locator_kind") in (None, "list_item"):
             # A list item's text continues, and so does the list: the fragment is that item's.
