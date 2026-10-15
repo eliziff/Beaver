@@ -1,16 +1,17 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-/** The optimized addon, the one the served app and bulk work load. A development loop pins its own build with
- *  LEGAL_STRUCTURE_NATIVE: nothing chooses a build by its age. */
+/** The optimized addon; a development loop pins its own build with LEGAL_STRUCTURE_NATIVE. A debug build newer than
+ *  it stops the load rather than running older code unnoticed. */
 export function defaultNativeAddon(root) {
   const name = process.platform === "win32" ? "legal_structure_node.dll" :
     process.platform === "darwin" ? "liblegal_structure_node.dylib" : "liblegal_structure_node.so";
-  const release = path.join(root, "target", "release", name);
-  if (!existsSync(release)) throw new Error("The optimized native engine is missing. Run npm run native:build:release, " +
-    "or set LEGAL_STRUCTURE_NATIVE to the build to load.");
-  return release;
+  const [debug, release] = ["debug", "release"].map((profile) =>
+    statSync(path.join(root, "target", profile, name), { throwIfNoEntry: false })?.mtimeMs ?? 0);
+  if (!release || debug > release) throw new Error(`The ${release ? "debug engine is newer than the release engine"
+    : "release engine is missing"}; set LEGAL_STRUCTURE_NATIVE to the build you mean, or run npm run native:build:release.`);
+  return path.join(root, "target", "release", name);
 }
 
 export function nativeAddonFile(filename, root) {

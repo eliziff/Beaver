@@ -215,12 +215,10 @@ function Resolve-LegalStructureNative {
         }
         throw "LEGAL_STRUCTURE_NATIVE does not resolve to a library: $configured"
     }
-    $helper = Join-Path $Repo 'shared\nativeAddonFile.mjs'
-    $nativeRoot = Join-Path $Repo 'native\legal-structure-node'
-    $select = "import(require('node:url').pathToFileURL(process.argv[1]).href).then(m => console.log(m.defaultNativeAddon(process.argv[2])))"
-    $managed = & (Get-Node) -e $select $helper $nativeRoot
-    if ($LASTEXITCODE -ne 0) { throw 'The optimized native engine is missing. Run npm run native:build:release.' }
-    return $managed
+    # The served app runs the optimized engine.
+    $release = Join-Path $Repo 'native\legal-structure-node\target\release\legal_structure_node.dll'
+    if (-not (Test-Path -LiteralPath $release -PathType Leaf)) { throw 'The optimized native engine is missing. Run npm run native:build:release.' }
+    return $release
 }
 
 function Get-WordEditingStatus {
