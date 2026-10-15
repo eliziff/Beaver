@@ -102,27 +102,6 @@ export class LocalDatabase implements RelationalDatabase {
 
 const LOCAL_SCHEMA_VERSION = 17;
 
-// SQLite ignores new columns in `create table if not exists`, so columns added to an existing
-// table (nullable or with a constant default) are reconciled before the schema runs (its
-// indexes may reference them).
-const ADDED_COLUMNS: readonly (readonly [table: string, column: string, type: string])[] = [
-  ["chats", "work_product_id", "text"],
-  ["chat_messages", "submission", "jsonb"],
-  ["projects", "org_id", "text references organizations(id) on delete restrict"],
-  ["workflows", "org_id", "text references organizations(id) on delete restrict"],
-  ["project_members", "role", "text not null default 'editor' check(role in ('viewer','editor','owner'))"],
-  ["tabular_review_members", "role", "text not null default 'editor' check(role in ('viewer','editor','owner'))"],
-  ["workflow_shares", "role", "text not null default 'viewer' check(role in ('viewer','editor','owner'))"],
-];
-
-function addMissingColumns(database: DatabaseSync) {
-  for (const [table, column, type] of ADDED_COLUMNS) {
-    const columns = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-    if (!columns.length || columns.some((row) => row.name === column)) continue;
-    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
-  }
-}
-
 export function openLocalDatabase(filename: string) {
   mkdirSync(path.dirname(filename), { recursive: true, mode: 0o700 });
   const database = new DatabaseSync(filename);
@@ -140,7 +119,6 @@ export function openLocalDatabase(filename: string) {
     const core = /-- BEAVER_CORE_BEGIN\s*([\s\S]*?)\s*-- BEAVER_CORE_END/u.exec(schema)?.[1];
     if (!core) throw new Error("backend/schema.sql is missing the Beaver core schema");
     database.exec("BEGIN IMMEDIATE");
-    addMissingColumns(database);
     database.exec(core);
     database.exec(`PRAGMA user_version=${LOCAL_SCHEMA_VERSION}`);
     database.exec("COMMIT");
