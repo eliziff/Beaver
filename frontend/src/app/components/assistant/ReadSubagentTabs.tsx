@@ -33,10 +33,10 @@ export function ReadSubagentTabs({
     return <Tabs value={active.id} onValueChange={onActivate}
         options={groups.map((group) => ({ value: group.id, label:
             <span className="flex min-w-0 items-center justify-center gap-2">
-                <span className="truncate">{group.label}</span>
+                <span className="truncate"><span className="sr-only">Agent </span>{group.label}</span>
                 <AgentStatus panels={group.panels} />
             </span> }))}
-            ariaLabel="Reading agents" variant="segmented" className="h-full"
+            ariaLabel="Reading agents" variant="segmented" className="h-full" fit
             railClassName="m-2 mb-0">
         <ReadSubagentDock idPrefix={`reading-agent-${active.id}`}
             panels={active.panels} onCitationClick={onCitationClick} embedded />
