@@ -1,4 +1,4 @@
-import { createCatalogCache, fetchCatalogJson } from "../catalogCache";
+import { catalogEndpoint, createCatalogCache, fetchCatalogJson } from "../catalogCache";
 import {
     pickerModel,
     providerForModel,
@@ -49,22 +49,6 @@ type ModelsDevModel = {
 type CatalogMetadata = { id: string; contextWindow?: number; imageInput?: boolean };
 type CloudEntry = PickerModel & { nameKey: string; releasedAt?: number; pinned?: boolean };
 export type ModelsDevCatalog = { source: "live" | "unavailable"; models: PickerModel[] };
-
-function modelsDevUrl(): string {
-    const url = new URL(process.env.MODELS_DEV_URL?.trim() || "https://models.dev/api.json");
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
-        throw new Error("models.dev requires an HTTP(S) endpoint without URL credentials.");
-    }
-    return url.toString();
-}
-
-function modelsDevModelsUrl(): string {
-    const url = new URL(process.env.MODELS_DEV_MODELS_URL?.trim() || "https://models.dev/models.json");
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
-        throw new Error("models.dev requires an HTTP(S) endpoint without URL credentials.");
-    }
-    return url.toString();
-}
 
 function stringList(value: unknown): string[] {
     return Array.isArray(value)
@@ -340,10 +324,11 @@ async function probeModelsDev(): Promise<ModelsDevCatalog> {
     // Both documents are independent; fetch them together. Canonical ids are
     // optional metadata, so their failure must not drop the catalogue.
     const [payload, canonical] = await Promise.all([
-        fetchCatalogJson<unknown>(modelsDevUrl(), {
+        fetchCatalogJson<unknown>(catalogEndpoint(process.env.MODELS_DEV_URL, "https://models.dev/api.json", "models.dev"), {
             label: "models.dev listing", timeoutMs, maxBytes: MAX_CATALOG_BYTES,
         }),
-        fetchCatalogJson<unknown>(modelsDevModelsUrl(), {
+        fetchCatalogJson<unknown>(catalogEndpoint(process.env.MODELS_DEV_MODELS_URL,
+            "https://models.dev/models.json", "models.dev"), {
             label: "models.dev model metadata", timeoutMs, maxBytes: MAX_CATALOG_BYTES,
         }).catch(() => undefined),
     ]);
