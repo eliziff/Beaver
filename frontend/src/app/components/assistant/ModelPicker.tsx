@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { TabList } from "@/app/components/ui/tabs";
-import { getModelProvider, isModelAvailable, providerShortLabel } from "@/app/lib/modelAvailability";
+import { modelProvider, isModelAvailable, providerShortLabel } from "@/app/lib/modelAvailability";
 import { PROVIDER_LOGO } from "@/app/lib/providerLogos";
 import type { ApiKeyState } from "@/app/lib/api/account";
 import { cn } from "@/app/lib/utils";
@@ -95,7 +95,7 @@ export function ModelPicker({
     const [query, setQuery] = useState("");
     const selected = models.find((model) => model.id === value);
     const label = selected?.label ?? value;
-    const selectedProvider = selected ? getModelProvider(selected.id) : null;
+    const selectedProvider = selected ? modelProvider(selected.id) : null;
     const logo = selectedProvider ? PROVIDER_LOGO[selectedProvider] : undefined;
     const compactLabel = detail
         ? compactModelLabel(label).replace(/ · .+$/u, "") || label
@@ -112,7 +112,7 @@ export function ModelPicker({
         : models;
     // OpenAI leads the company rail; the rest keep their catalogue order.
     const isOpenAi = (model: ModelOption) =>
-        getModelProvider(model.id) === "openai" || model.group === "OpenAI";
+        modelProvider(model.id) === "openai" || model.group === "OpenAI";
     const availableModels = enabledModels.filter(available)
         .sort((left, right) => Number(isOpenAi(right)) - Number(isOpenAi(left)));
     const providers = [...new Set(availableModels.map((model) => model.group))];

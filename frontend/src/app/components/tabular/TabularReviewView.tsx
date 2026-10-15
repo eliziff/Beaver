@@ -27,7 +27,7 @@ import { downloadBlob } from "@/app/lib/download";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
-import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
+import { modelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
 
 import { assistantIntent, type AssistantIntent } from "../assistant/assistantIntent";
 import { errorMessage } from "@/app/lib/utils";
@@ -233,7 +233,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
     }
     function modelUnavailable() {
         if (profile?.apiKeys && !isModelAvailable(model, profile.apiKeys)) {
-            setUi({ missingProvider: getModelProvider(model) });
+            setUi({ missingProvider: modelProvider(model) });
             return true;
         }
         return false;
@@ -276,7 +276,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         } catch (error) {
             if (error instanceof BeaverApiError &&
                 error.code === "missing_api_key") {
-                setUi({ missingProvider: getModelProvider(model) });
+                setUi({ missingProvider: modelProvider(model) });
             }
             console.error("Generation failed", error);
             setUi({ generating: false });
