@@ -5,7 +5,7 @@ export function createPdfRuntime<L extends { PDFWorker: new (...args: any[]) => 
   options: { worker: InstanceType<L['PDFWorker']>;
     BinaryDataFactory: new (urls: Record<string, string>) => {
       fetch(input: { kind: string; filename: string }): Promise<Uint8Array>;
-    }; useWorkerFetch: false; useWasm: true; isEvalSupported: false; enableHWA: true };
+    }; useWorkerFetch: false; useWasm: true; isEvalSupported: false; enableHWA: true; useSystemFonts?: false };
   destroy(): void;
 };
 export function openPdfDocument<L extends { getDocument: (...args: any[]) => any }>(
