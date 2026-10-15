@@ -72,8 +72,7 @@ reused; other PDFs use the corpus classifier. The first 2,000 selected PDFs have
 For regeneration, use a fixed, unique-source manifest and `--reauthor-existing`.
 The limit applies to the selected document set before sharding, including cached
 records; reuse that same manifest and limit on restart to preserve the cumulative
-authorization cap. Existing corrected source gets complete structural reauthoring;
-new source gets source correction followed by structural authoring. Only a verified
+authorization cap. Existing corrected source and new source both get the typed-block authoring below. Only a verified
 complete-block proof bound to current authoring code and exact source/structure
 facts skips regeneration. Prior canonical gold and publication receipts are retained
 under its source owner in `superseded/<gold-sha256>/` before replacement. Other
@@ -102,64 +101,40 @@ blocks can start on one physical line. Parent edges are authored; levels and
 structural extents are derived by the shared relationship assembler. The native
 addon must expose these operations; Python does not substitute mutation rules.
 
-`prompts.py` owns reading instructions; the shared `composer.py` owns the response
-schema and adapts replies to the shared Rust applicator. Replies contain a `corrections`
-array. Each record names one operation and contains its typed payload.
-Operation variants constrain fields, enums and nullability. Schema shapes
-follow the [supported Structured Outputs subset](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas).
-Omitted decisions survive.
+One call per chunk of up to five pages authors text and structure together. The model
+sees the page images (plus the preceding page as context) and the extracted lines in
+reading order, and returns one list of blocks per page: `[region, text]` or
+`[region, text, flag]`. `prompts.py` owns the instructions and schema; there are no
+IDs, parents, nulls or offsets in the reply. Regions are text (numbered paragraphs
+included), list_item, heading, quote, note, table (rows by line, cells by ` | `),
+caption, headnote, marginal_note, furniture and page_label. Flag `continued` links a
+block to the latest earlier block of its stream (notes, tables, quotations or running
+text); `document` opens a constituent document under one root at the first block. A
+tab after a block's leading printed marker and inline `[^N]` note references are the
+only in-text conventions.
 
-Source correction uses one physical page with its immediate neighbours.
-Structural authoring follows corrected source: documents of up to five pages
-are presented whole; longer documents use contiguous five-page chunks with
-adjacent-page evidence. Every block participates, including ordinary paragraphs.
-Enclosing parents, document and quotation scopes remain addressable outside the
-chunk. Each complete block explicitly declares its source-anchored reading stream
-or null; one stream may resume across quotation boundaries in the same document.
-Inherited continuation endpoints and the latest earlier objects per active or
-enclosing scope carry exact source spans and text. They remain addressable beyond
-the adjacent image window; using them still requires source-supported continuity.
-Existing gold stream identities normalize before the first structural request.
-Model input contains source text, geometry, typography, exact block spans,
-annotations and relationships. Source corrections and structural jobs have
-separate response schemas. `--structure-run` reauthors structure on selected
-corrected source and preserves unrelated annotation layers; source defects
-require the source-correction owner.
+`blocks.py` aligns each page's typed text to that page's source lines (compatibility-,
+case- and whitespace-folded words, then characters; whole typed blocks or runs of three
+or more words typed out of extraction order align as moves). It derives each block's
+exact spans (a boundary may fall inside a line), table cells, `marker` spans
+(`locator_kind` list_item, or paragraph for numbered text), note labels and references,
+and OCR text edits where the typed text differs. Digital-born differences are reported,
+not applied: in the pilot they were retyping (substituted bullet glyphs, a "corrected"
+print typo), not extraction errors. Spacing-only differences are ignored except a word
+space inside one OCR line; dissimilar text side by side is never corrected into each
+other. Missing text joins a line only beside characters of its own block; a typed block
+matching no extracted text is reported, and extracted text typed nowhere joins a
+neighbouring block (reported). Notes are footnote annotations, quotes display
+quotations, tables grids without merges or header rows. Hierarchy (parents), fields,
+document kinds and facets, reading streams, resumptions and navigation are not authored
+here.
 
-Digitalborn edits contain only incorrect characters; grouping, order and
-annotations reuse source IDs. OCR can replace wrong whole lines. Source-stage `remove` explicitly invalidates a parser annotation before text
-correction; `group` resets block metadata after splitting and before text edits.
-Only initial parser proposals permit these resets. The immutable baseline and
-operation receipts retain the original evidence. Subsequent structural coverage
-examines every corrected block and all annotation kinds; reset blocks remain
-unknown until structurally authored. Accepted gold anchors remain strict.
-Both modes
-recover genuinely missing printed lines with an insertion anchor and image box.
-Splits retain adjacency and source geometry; explicit joins repair broken words.
-Offsets in corrections count Unicode scalars; exported ranges use UTF-16.
-Coordinates have a top-left origin with each page axis scaled to 0–1000.
-
-| Layer | Gold records |
-| --- | --- |
-| Blocks | Exact span membership, primary role, parent edges and printed locators |
-| Tables | Complete grids, blanks, merged cells and header rows |
-| Fields | Type, label, value, placeholder and checkbox state |
-| Notes | Kind, printed label, body and referring markers |
-| Quotations | Extent, layout, attribution and numbering scope |
-| Documents | Printed type, start, parent, relationship, title and source facets |
-| Continuity | Line joins, object continuations and document resumptions |
-
-Primary block roles are text, heading, caption, instruction, headnote, marginal_note,
-furniture and page_label. Lists use text blocks with locator attributes. Notes,
-tables and quotations remain independent annotation families.
-
-Layers overlap independently. Continued objects use page fragments and unique
-anchors. Incoming links can be repaired at the target boundary without changing
-context-page text. Each response validates the corrected prefix before caching;
-future endpoints are checked when reached. Local checks enforce source coverage,
-edit bounds, ownership, complete table grids, hierarchy and nonbranching links.
-Contract failures receive bounded retries with the rejected response and error.
-The complete document is validated before export.
+The shared Rust composition validates the complete layer. Text edits go through
+`correct_text` over a neutral one-block-per-line structure (`package.retranscribe`),
+so the old layer never constrains them, and publish with the new layer as one
+structure-stage update. Reading order is kept. A response is rejected only for an
+unknown region or flag, an empty block, a wrong page count, or text matching under 30%
+of the lines; a retry appends one short error line.
 
 ## Products and checks
 

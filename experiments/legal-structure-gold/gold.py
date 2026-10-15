@@ -518,7 +518,6 @@ def confirmed_annotations(state,through=None):
     for annotation in state["annotations"]:
         if through is not None and lines[annotation["line_ids"][0]]["page"]>through: continue
         attrs=annotation["attributes"]
-        if annotation["kind"]=="document": require(isinstance(attrs.get("kind"),str) and attrs["kind"].strip(),"Document kind remains an unconfirmed parser proposal")
         if annotation["kind"]=="quotation": require(attrs.get("layout") in {"inline","display"},"Quotation layout remains an unconfirmed parser proposal")
         if annotation["kind"]=="navigation" and attrs.get("kind")=="contents": require(bool(attrs.get("title")),"Contents title remains an unconfirmed parser proposal")
 

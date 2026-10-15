@@ -85,7 +85,9 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke
             atomic_json(receipt_path, receipt)
     instructions = directory / "instructions.md"
     instructions.write_text(policy.instructions, encoding="utf-8")
-    if reuse and receipt["attempts"] and not cached_rejected:
+    # A failure its policy would not retry (for example a defect another operation must fix)
+    # is not feedback for the next prompt.
+    if reuse and receipt["attempts"] and not cached_rejected and receipt["attempts"][-1].get("retryable", True):
         last = receipt["attempts"][-1]
         error = last.get("error", "")
         rejected = directory / f"attempt-{len(receipt['attempts'])}" / "last-message.json"
@@ -128,7 +130,7 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke
         except Exception as exc:
             error = policy.retry_error(exc, response)
             if error is None:
-                attempt.update(status="failed", error=str(exc) or type(exc).__name__)
+                attempt.update(status="failed", error=str(exc) or type(exc).__name__, retryable=False)
                 raise
             attempt.update(status="failed", error=error)
         except BaseException as exc:

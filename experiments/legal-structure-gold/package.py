@@ -217,7 +217,8 @@ def correct_text(value, edits, *, expected_source_sha256, expected_text_sha256):
             "Transcription correction requires canonical shared text")
     require(value["source_sha256"] == expected_source_sha256 and text_identity(value) == expected_text_sha256,
             "Transcription input changed")
-    validate(value)
+    current = value["provenance"].get("structure_authoring") is not None
+    validate(value, structure=current)
     before = line_table(value)
     result = deepcopy(value)
     after = {line["id"]: line for line in result["lines"]}
@@ -321,12 +322,55 @@ def correct_text(value, edits, *, expected_source_sha256, expected_text_sha256):
                 item = {"gold": record_gold(result, rid), **result["views"][rid]}
                 anchored["inputs_sha256"] = hashlib.sha256(encoded(item)).hexdigest()
     result["metadata"]["manuscript_sha256"] = hashlib.sha256(manuscript_text(result).encode()).hexdigest()
-    validate(result)
+    validate(result, structure=current)
     return result
 
 
-def validate(value):
-    """Validate the current annotations directly against their shared source table."""
+def plain_structure(value):
+    """Every line its own text block: the neutral base that a complete structure authoring replaces."""
+    result = deepcopy(value)
+    lines = line_table(value)
+    result["layers"]["legal_structure"] = {"blocks": [{"kind": "text", "line_ids": [ident],
+        "spans": [{"line_id": ident, "start": 0, "end": len(lines[ident]["text"])}],
+        "attributes": {"parent": None, "reading_stream_id": None}} for ident in reading_order(value)],
+        "annotations": [], "joins": {}, "continuations": {}, "resumes": {}}
+    return refresh_manuscript(result)
+
+
+def with_structure(value, layer):
+    """Replace the structure layer and recompute its manuscript view."""
+    result = deepcopy(value)
+    result["layers"]["legal_structure"] = deepcopy(layer)
+    return validate(refresh_manuscript(result))
+
+
+def retranscribe(value, edits, layer):
+    """Correct source text and replace the whole structure layer in one step."""
+    return with_structure(corrected_source(value, edits), layer)
+
+
+def corrected_source(value, edits):
+    """Exact text edits over a neutral structure.
+
+    The old structure is discarded first, so its boundaries do not constrain the edits; a retained
+    manuscript normalization that an edit touches is dropped with it."""
+    base = plain_structure(value)
+    touched = {}
+    for edit in edits: touched.setdefault(edit["line_id"], []).append(edit)
+    base["manuscript_edits"] = {ident: [n for n in normalizations if not any(
+        not (n[1] < e["start"] or n[0] > e["end"]) for e in touched.get(ident, []))]
+        for ident, normalizations in base["manuscript_edits"].items()}
+    base["manuscript_edits"] = {k: v for k, v in base["manuscript_edits"].items() if v}
+    base = refresh_manuscript(base)
+    return correct_text(base, edits, expected_source_sha256=base["source_sha256"],
+                        expected_text_sha256=text_identity(base))
+
+
+def validate(value, *, structure=True):
+    """Validate the current annotations directly against their shared source table.
+
+    structure=False checks structural spans only: a layer authored before the current policy
+    awaits re-authoring, and a transcription correction must not depend on its old semantics."""
     require(value.get("schema_version") == VERSION, "Expected canonical legal gold package")
     layers = value["layers"]
     pages = [page["page"] for page in value["pages"]]
@@ -353,8 +397,9 @@ def validate(value):
         from worker import gold
         state = structure_state(value)
         spans({key: part for key, part in layers["legal_structure"].items() if key != "native"})
-        gold.complete(state)
-        gold.ownership(state)
+        if structure:
+            gold.complete(state)
+            gold.ownership(state)
     if "ocr" in value["layers"]:
         layer = value["layers"]["ocr"]
         pages = layer["pages"]
