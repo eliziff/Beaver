@@ -1,6 +1,6 @@
 import { projectRoleRank, roleFromRank } from "./resourceAccess";
 import { randomUUID } from "node:crypto";
-import { ApplicationError, type ApplicationScope } from "./applicationError";
+import type { ApplicationScope } from "./applicationError";
 import type { ProjectFolder, ProjectRecord, ProjectRepository } from "./projectStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, deleteDocumentRows, directoryPage, missingProfileEmail, now, one, projectAccess,
@@ -77,15 +77,12 @@ export const projectRepository: ProjectRepository = {
     return db.transaction(async (tx) => {
       const current = await findProject(scope, id, true, tx, "update");
       if (!current) return null;
-      if (current.org_id && input.sharedWith) throw new ApplicationError(409, "Manage access through the organization.");
-      const shared = input.sharedWith ?? current.shared_with as string[];
       await changes(sql`UPDATE projects SET name=${input.name ?? String(current.name)},
         cm_number=${input.cmNumber === undefined ? current.cm_number as string | null : input.cmNumber},
         practice=${input.practice === undefined ? current.practice as string | null : input.practice},
-        shared_with=${encode(shared)},metadata=${encode(input.metadata ?? current.metadata ?? {})},
+        metadata=${encode(input.metadata ?? current.metadata ?? {})},
         notes=${input.notes === undefined ? current.notes as string | null : input.notes},
         updated_at=${now()} WHERE id=${id}`, tx);
-      if (input.sharedWith) await replaceMembers(tx, "project_members", id, shared);
       return findProject(scope, id, true, tx);
     });
   },

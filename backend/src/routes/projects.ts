@@ -151,7 +151,6 @@ export function createProjectsRouter(
     set("name", "name", () => requiredText(body.name, "name", 120));
     set("cm_number", "cmNumber", () => optionalText(body.cm_number, "cm_number", 200));
     set("practice", "practice", () => optionalText(body.practice, "practice", 200));
-    set("shared_with", "sharedWith", () => sharing(body.shared_with, scope.userEmail));
     set("metadata", "metadata", () => projectMetadata(body.metadata) ?? {});
     set("notes", "notes", () => optionalText(body.notes, "notes", 500));
     const project = await store.update(scope, req.params.projectId, update);

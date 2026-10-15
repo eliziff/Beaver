@@ -42,7 +42,7 @@ export const updateProject = (
   projectId: string,
   payload: Partial<Pick<
     Project,
-    "name" | "cm_number" | "practice" | "shared_with"
+    "name" | "cm_number" | "practice"
   >>,
 ) => patch<Project>(`/projects/${segment(projectId)}`, payload);
 export const deleteProject = (projectId: string) =>
