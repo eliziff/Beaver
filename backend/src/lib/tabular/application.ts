@@ -599,9 +599,6 @@ export function createTabularApplication(
         bytes: Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })),
       };
     },
-    async people(scope: TabularScope, reviewId: string) {
-      return await store.people(scope, reviewId) ?? fail(404, "Review not found");
-    },
     async update(scope: TabularScope, reviewId: string,
       input: z.infer<typeof tabularDtos.update>, operation?: TabularOperation) {
       if (input.shared_with?.includes(scope.userEmail?.trim().toLowerCase() ?? ""))

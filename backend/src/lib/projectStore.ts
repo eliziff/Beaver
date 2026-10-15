@@ -22,8 +22,6 @@ export type ProjectDirectoryItem = { kind: "folder"; folder: ProjectFolder }
 type ProjectInput = { name: string; cmNumber: string | null; practice: string | null;
   sharedWith: string[]; metadata?: Record<string, unknown>; notes?: string | null };
 type ProjectUpdate = Partial<ProjectInput>;
-type ProjectPeople = { owner: { user_id: string; email: string | null;
-  display_name: string | null }; members: { email: string; display_name: string | null }[] };
 
 export type ProjectRepository = {
   page(scope: ProjectScope, options: ProjectListOptions): Promise<ProjectPage<ProjectRecord, [string, string]>>;
@@ -31,7 +29,6 @@ export type ProjectRepository = {
   create(scope: ProjectScope, input: ProjectInput): Promise<ProjectRecord>;
   directory(scope: ProjectScope, projectId: string, options: ProjectDirectoryOptions): Promise<ProjectDirectoryPage>;
   project(scope: ProjectScope, projectId: string, owner: boolean): Promise<ProjectRecord | null>;
-  people(scope: ProjectScope, projectId: string): Promise<ProjectPeople | null>;
   update(scope: ProjectScope, projectId: string, input: ProjectUpdate): Promise<ProjectRecord | null>;
   remove(scope: ProjectScope, projectId: string): Promise<string[] | null>;
   folder(scope: ProjectScope, projectId: string, folderId: string): Promise<ProjectFolder | null>;
@@ -48,7 +45,6 @@ export type ProjectStore = {
   create: ProjectRepository["create"];
   directory(scope: ProjectScope, projectId: string, options: ProjectDirectoryOptions): Promise<ProjectPage<ProjectDirectoryItem, [number, string, string]>>;
   get(scope: ProjectScope, id: string): Promise<ProjectRecord | null>;
-  people: ProjectRepository["people"];
   update: ProjectRepository["update"];
   delete(scope: ProjectScope, id: string): Promise<boolean>;
   deleteAll(scope: ProjectScope): Promise<number>;
@@ -130,7 +126,6 @@ export function createProjectStore(
       }) };
     },
     get: (scope, projectId) => repository.project(scope, projectId, false),
-    people: (scope, projectId) => repository.people(scope, projectId),
     async update(scope, projectId, input) {
       if (input.sharedWith) await recipients(scope, input.sharedWith);
       return repository.update(scope, projectId, input);

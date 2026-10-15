@@ -71,7 +71,6 @@ const persistence = lazy(async () => {
     tabular: tabularPorts.tabularRepository, chats: chatPorts.chatRepository,
     workflows: workflowPorts.workflowRepository,
     workProducts: workProductPorts.workProductRepository,
-    workflowCollaboration: workflowPorts.workflowCollaboration,
     objects };
 });
 const documents = lazy(async () => {
@@ -105,7 +104,7 @@ const workflows = lazy(async () => {
   const [{ createWorkflowCatalog }, { createWorkflowCatalogRepository }, { relationalDatabase }] =
     await Promise.all([import("./lib/workflowCatalog"), import("./lib/relationalWorkflowCatalogRepository"),
       import("./lib/relationalDatabase")]);
-  return { repository: ports.workflows, collaboration: ports.workflowCollaboration,
+  return { repository: ports.workflows,
     catalog: createWorkflowCatalog(createWorkflowCatalogRepository(await relationalDatabase()), ports.objects) };
 });
 const workProducts = lazy(async () => (await import("./lib/workProductApplication"))

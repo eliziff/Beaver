@@ -76,7 +76,6 @@ export async function deleteUserAccountData(
         owned("tabular_reviews"),
         owned("chats"),
         owned("project_subfolders"),
-        owned("workflow_open_source_submissions", "submitted_by_user_id"),
         owned("workflow_shares", "shared_by_user_id"),
         userEmail
             ? owned("workflow_shares", "shared_with_email", userEmail.trim().toLowerCase())

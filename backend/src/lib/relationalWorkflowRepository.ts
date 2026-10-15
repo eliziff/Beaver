@@ -1,9 +1,9 @@
 import { workflowRoleRank, workflowAccessPredicate } from "./resourceAccess";
 import { randomUUID } from "node:crypto";
-import { ApplicationError, type ApplicationScope } from "./applicationError";
-import type { CreateWorkflowRepository, WorkflowAccess, WorkflowCollaboration, WorkflowRecord } from "./workflowRepository";
+import type { ApplicationScope } from "./applicationError";
+import type { CreateWorkflowRepository, WorkflowAccess, WorkflowRecord } from "./workflowRepository";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
-import { changes, deleteDocumentRows, missingProfileEmail, now, one, rows, type Row } from "./relationalRepositorySupport";
+import { changes, deleteDocumentRows, now, one, rows, type Row } from "./relationalRepositorySupport";
 import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { workflowVisibleTo } from "./systemWorkflows";
 import { type WorkflowAudience } from "mike/shared/runtime/clientContracts.mjs";
@@ -108,69 +108,3 @@ export const workflowRepository: CreateWorkflowRepository = (scope) => ({
     }));
   },
 });
-
-export const workflowCollaboration: WorkflowCollaboration = {
-  async shares(scope, workflowId) {
-    const owner = await workflowAccess(scope, workflowId);
-    if (!owner?.isOwner) return null;
-    return (await rows(sql`SELECT id,shared_with_email,role,created_at FROM workflow_shares
-      WHERE workflow_id=${workflowId} ORDER BY created_at`)).map((row) => ({ ...row,
-        allow_edit: row.role !== "viewer" })) as never;
-  },
-  async removeShare(scope, workflowId, shareId) {
-    const owner = await workflowAccess(scope, workflowId);
-    return !!owner?.isOwner && await changes(sql`DELETE FROM workflow_shares
-      WHERE id=${shareId} AND workflow_id=${workflowId}`) > 0;
-  },
-  async share(scope, workflowId, emails, allowEdit) {
-    const db = await relationalDatabase(), owner = await workflowAccess(scope, workflowId, db);
-    if (!owner?.isOwner) return "missing";
-    if (owner.workflow.org_id) throw new ApplicationError(409, "Manage organization access instead.");
-    const missingEmail = await missingProfileEmail(db, emails);
-    if (missingEmail) return { missingEmail };
-    for (const value of emails) await changes(sql`INSERT INTO workflow_shares(id,workflow_id,
-      shared_by_user_id,shared_with_email,role,created_at) VALUES(${randomUUID()},
-      ${workflowId},${scope.userId},${value.trim().toLowerCase()},
-      ${allowEdit ? "editor" : "viewer"},${now()})
-      ON CONFLICT(workflow_id,shared_with_email) DO UPDATE SET role=excluded.role`, db);
-    return "ok";
-  },
-  async latestSubmission(scope, workflowId) {
-    return await one(sql`SELECT id,status,submitted_at,updated_at,reviewed_at
-      FROM workflow_open_source_submissions WHERE workflow_id=${workflowId}
-        AND submitted_by_user_id=${scope.userId} ORDER BY submitted_at DESC LIMIT 1`) as never;
-  },
-  async submit(scope, workflow, input) {
-    const db = await relationalDatabase();
-    const profile = db.engine === "postgres" ? await one<{ display_name: string | null }>(
-      sql`SELECT display_name FROM user_preferences WHERE user_id=${scope.userId}`, db) : null;
-    const created = now(), pending = await one<{ id: string }>(sql`SELECT id
-      FROM workflow_open_source_submissions WHERE workflow_id=${workflow.id}
-        AND submitted_by_user_id=${scope.userId} AND status='pending' LIMIT 1`, db);
-    const snapshot = encode({ workflow_id: workflow.id, metadata: input.metadata,
-      launcher: { kind: "instructions", variants: [{ id: workflow.id,
-        label: workflow.variant_label, result: workflow.variant_result,
-        execution: workflow.execution, skill_md: workflow.prompt_md,
-        columns_config: workflow.columns_config }] },
-      contributor_mode: input.contributorMode, created_at: workflow.created_at });
-    if (pending) {
-      await changes(sql`UPDATE workflow_open_source_submissions SET
-        submitter_email=${scope.userEmail ?? null},submitter_name=${input.contributorMode === "named"
-          ? profile?.display_name?.trim() || null : null},contributor_mode=${input.contributorMode},
-        snapshot=${snapshot},updated_at=${created} WHERE id=${pending.id}`, db);
-      const result = await one<Row>(sql`SELECT id,status,submitted_at,updated_at,reviewed_at
-        FROM workflow_open_source_submissions WHERE id=${pending.id}`, db);
-      return { ...result, mode: "updated" } as never;
-    }
-    const id = randomUUID();
-    await changes(sql`INSERT INTO workflow_open_source_submissions(id,workflow_id,
-      submitted_by_user_id,submitter_email,submitter_name,contributor_mode,snapshot,status,
-      submitted_at,updated_at,reviewed_at) VALUES(${id},${workflow.id},${scope.userId},
-      ${scope.userEmail ?? null},${input.contributorMode === "named"
-        ? profile?.display_name?.trim() || null : null},${input.contributorMode},${snapshot},
-      'pending',${created},${created},${null})`, db);
-    const result = await one<Row>(sql`SELECT id,status,submitted_at,updated_at,reviewed_at
-      FROM workflow_open_source_submissions WHERE id=${id}`, db);
-    return { ...result, mode: "created" } as never;
-  },
-};

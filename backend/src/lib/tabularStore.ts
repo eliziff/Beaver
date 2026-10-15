@@ -67,10 +67,6 @@ export type TabularRepository = {
     Promise<WriteResult<TabularReview>>;
   detail(scope: TabularScope, reviewId: string): Promise<{ review: TabularReview;
     cells: TabularCell[] } | null>;
-  people(scope: TabularScope, reviewId: string): Promise<{
-    owner: { user_id: string; email: string | null; display_name: string | null };
-    members: { email: string; display_name: string | null }[];
-  } | null>;
   missingRecipient(scope: TabularScope, emails: string[]): Promise<string | null>;
   update(scope: TabularScope, reviewId: string, expectedVersion: string,
     input: ReviewInput): Promise<WriteResult<TabularReview>>;

@@ -144,12 +144,6 @@ export function createProjectsRouter(
     res.json(project);
   }));
 
-  router.get("/:projectId/people", route(async (req, res, scope) => {
-    const people = await store.people(scope, req.params.projectId);
-    if (!people) reject(404, "Project not found");
-    res.json(people);
-  }));
-
   router.patch("/:projectId", route(async (req, res, scope) => {
     const body = bodyOf(req);
     const update: Parameters<ProjectStore["update"]>[2] = {};

@@ -10,7 +10,7 @@ import { researchChangeCounts, researchChangeSummary, sameResearchValue,
 import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, documentAccess, missingProfileEmail, now, one, projectAccess,
-  replaceMembers, resourcePeople, reviewAccess, rows, type Row } from "./relationalRepositorySupport";
+  replaceMembers, reviewAccess, rows, type Row } from "./relationalRepositorySupport";
 import { searchFilter } from "./searchQuery";
 
 const tabularReview = (_scope: ApplicationScope, row: Row): TabularReview => {
@@ -231,10 +231,6 @@ export const tabularRepository: TabularRepository = {
     ]);
     return { review: { ...review, proposals: proposals.map((row) => researchChangeSummary(
       decode<ResearchChange>(row.record, null!))), history_count: Number(count?.total ?? 0) }, cells };
-  },
-  async people(scope, id) {
-    const review = await findReview(scope, id);
-    return review ? resourcePeople(await relationalDatabase(), review.user_id, review.shared_with) : null;
   },
   async missingRecipient(_scope, emails) {
     return missingProfileEmail(await relationalDatabase(), emails);

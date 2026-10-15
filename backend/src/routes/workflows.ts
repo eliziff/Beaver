@@ -8,12 +8,7 @@ import type { WorkflowCatalog, WorkflowCatalogSnapshot } from "../lib/workflowCa
 import { SYSTEM_WORKFLOWS, WORKFLOW_CATEGORIES, workflowVisibleTo, type InstructionVariant, type SystemWorkflow, type WorkflowContributor } from "../lib/systemWorkflows";
 import { WORKFLOW_AUDIENCES } from "mike/shared/runtime/clientContracts.mjs";
 import { tabularDtos } from "../lib/tabular/application";
-import type {
-  CreateWorkflowRepository,
-  WorkflowCollaboration,
-  WorkflowRecord,
-  WorkflowUpdate,
-} from "../lib/workflowRepository";
+import type { CreateWorkflowRepository, WorkflowRecord, WorkflowUpdate } from "../lib/workflowRepository";
 import { requireAuth } from "../middleware/auth";
 import type { DocumentStore } from "../lib/documentStore";
 
@@ -22,7 +17,6 @@ const DEFAULT_CONTRIBUTOR: WorkflowContributor = {
 };
 const DEFAULT_LANGUAGE = "English";
 const DEFAULT_JURISDICTIONS = ["General"];
-const CONTRIBUTIONS_ENABLED = process.env.WORKFLOW_CONTRIBUTIONS_ENABLED === "true";
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
 const contributorSchema = z.object({
   name: textField(200),
@@ -62,15 +56,6 @@ const updateSchema = z.object({
 const catalogueQuerySchema = z.object({
   audience: z.enum([...WORKFLOW_AUDIENCES, "all"]).default("all"),
   q: z.string().trim().max(300).default(""),
-}).strict();
-const shareSchema = z.object({
-  emails: z.array(z.string().trim().toLowerCase().email().max(320)).min(1).max(100)
-    .transform((emails) => [...new Set(emails)]),
-  allow_edit: z.boolean().default(false),
-}).strict();
-const openSourceSchema = z.object({
-  contributor_mode: z.enum(["named", "anonymous"]).default("anonymous"),
-  contributor: contributorSchema.optional(),
 }).strict();
 const idSchema = z.string().uuid();
 
@@ -119,16 +104,6 @@ const system = (workflow: SystemWorkflow, snapshot: WorkflowCatalogSnapshot) => 
 }, {
   allowEdit: false, isOwner: false,
 });
-const cloud = (collaboration: WorkflowCollaboration | undefined) =>
-  collaboration ?? reject(501, "Workflow sharing is unavailable in account-free local mode.");
-function validateContribution(workflow: WorkflowRecord) {
-  if (workflow.execution === "assistant" && !workflow.prompt_md?.trim()) {
-    reject(400, "Instruction workflows need instructions before they can be contributed.");
-  }
-  if (workflow.execution === "tabular" && !workflow.columns_config?.length) {
-    reject(400, "Tabular results need at least one column before they can be contributed.");
-  }
-}
 function variantSlug(variant: Pick<InstructionVariant, "label" | "result">) {
   return [variant.label, variant.result].filter(Boolean).join(" ").toLowerCase()
     .replace(/['"]/gu, "").replace(/[^a-z0-9]+/gu, "-").replace(/^-+|-+$/gu, "");
@@ -187,7 +162,6 @@ function workflowArchive(workflow: {
 
 export function createWorkflowsRouter(
   repositoryFor: CreateWorkflowRepository,
-  collaboration: WorkflowCollaboration | undefined,
   catalog: WorkflowCatalog,
   documents: DocumentStore,
 ) {
@@ -279,49 +253,6 @@ export function createWorkflowsRouter(
       await archive.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }),
     );
   }));
-  router.post("/:workflowId/open-source", asyncRoute(async (req, res) => {
-    if (!CONTRIBUTIONS_ENABLED) throw missing("Workflow contributions are disabled");
-    const scope = applicationScope(res), workflowId = idSchema.parse(req.params.workflowId);
-    const input = openSourceSchema.parse(req.body ?? {});
-    const access = await repositoryFor(scope).get(workflowId);
-    if (!access?.isOwner) throw missing("Workflow not found or not open-sourceable");
-    validateContribution(access.workflow);
-    const publicContributors = input.contributor_mode === "named"
-      ? [input.contributor ?? { ...DEFAULT_CONTRIBUTOR,
-        name: scope.userEmail || DEFAULT_CONTRIBUTOR.name }]
-      : [DEFAULT_CONTRIBUTOR];
-    const submission = await cloud(collaboration).submit(scope, access.workflow, {
-      contributorMode: input.contributor_mode,
-      contributor: input.contributor,
-      metadata: { ...metadata(access.workflow), contributors: publicContributors },
-    });
-    res.status(submission.mode === "created" ? 201 : 200).json(submission);
-  }));
-  router.get("/:workflowId/shares", asyncRoute(async (req, res) => {
-    const shares = await cloud(collaboration).shares(
-      applicationScope(res), idSchema.parse(req.params.workflowId));
-    if (!shares) throw missing("Workflow not found or not editable");
-    res.json(shares);
-  }));
-  router.delete("/:workflowId/shares/:shareId", asyncRoute(async (req, res) => {
-    const removed = await cloud(collaboration).removeShare(applicationScope(res),
-      idSchema.parse(req.params.workflowId), idSchema.parse(req.params.shareId));
-    if (!removed) throw missing("Workflow not found");
-    res.status(204).send();
-  }));
-  router.post("/:workflowId/share", asyncRoute(async (req, res) => {
-    const scope = applicationScope(res), input = shareSchema.parse(req.body);
-    if (scope.userEmail && input.emails.includes(scope.userEmail.toLowerCase())) {
-      reject(400, "You cannot share a workflow with yourself.");
-    }
-    const result = await cloud(collaboration).share(
-      scope, idSchema.parse(req.params.workflowId), input.emails, input.allow_edit);
-    if (result === "missing") throw missing("Workflow not found or not editable");
-    if (typeof result === "object") {
-      reject(400, `${result.missingEmail} does not belong to a Beaver user.`);
-    }
-    res.status(204).send();
-  }));
   router.get("/:workflowId", asyncRoute(async (req, res) => {
     const snapshot = await catalog.current();
     const builtin = snapshot.workflows.find(({ id }) => id === req.params.workflowId);
@@ -330,9 +261,7 @@ export function createWorkflowsRouter(
     const access = await repositoryFor(scope).get(idSchema.parse(req.params.workflowId));
     if (!access) throw missing("Workflow not found");
     res.json({ ...withAccess(present(access.workflow), access),
-      documents: await repositoryFor(scope).documents(access.workflow.id),
-      open_source_submission: access.isOwner && collaboration
-        ? await collaboration.latestSubmission(scope, access.workflow.id) : null });
+      documents: await repositoryFor(scope).documents(access.workflow.id) });
   }));
   router.patch("/:workflowId", asyncRoute(async (req, res) => {
     if ((await catalog.workflows()).some(({ id }) => id === req.params.workflowId)) reject(403, "System workflows cannot be edited.");
