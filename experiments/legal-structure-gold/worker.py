@@ -822,7 +822,7 @@ def extraction_baseline(structure, extraction):
     extracted = {line["id"]: line.get("text", "".join(s["text"] for s in line.get("spans", [])))
                  for page in extraction for line in page["lines"]}
     nodes, texts, cursor = [], [], 0
-    for index in sorted(n["page_indexes"][0] for n in structure["nodes"] if n["kind"] == "page"):
+    for index in range(len(extraction)):
         ids = [ident for ident, line in native.items() if line["page"] == index + 1]
         text = "\n".join(extracted[ident] for ident in ids)
         size = len(text.encode("utf-16-le")) // 2
@@ -927,7 +927,7 @@ def retry_prompt(prompt, error, previous):
 
 def retry_error(exc, response):
     from jsonschema import ValidationError
-    if response is None and not isinstance(exc, ValueError):
+    if response is None and not isinstance(exc, ValueError) or isinstance(exc, blocks.UnusableExtraction):
         return None
     return (f"{exc.json_path}: {exc.message}" if isinstance(exc, ValidationError) else str(exc) or type(exc).__name__)[:200]
 
