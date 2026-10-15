@@ -27,16 +27,17 @@ import composer
 import gold
 import package
 import ocr
+import blocks
+import prompts
 from gold import require
-from prompts import prompt
 
 STRUCTURE_POLICY = "legal-gold.structure-policy.v1"
 
 
 def authoring_code():
     return {p.relative_to(ROOT).as_posix():digest(p) for p in
-            (Path(__file__), HERE/"gold.py", HERE/"package.py", HERE/"prompts.py",
-             COMPOSER/"composer.py", ROOT/"legal-structure/src/composition.rs",
+            (Path(__file__), HERE/"gold.py", HERE/"package.py", HERE/"prompts.py", HERE/"blocks.py",
+             ROOT/"legal-structure/src/composition.rs",
              ROOT/"legal-structure/src/composition_projection.rs")}
 
 
@@ -491,13 +492,16 @@ def publish_update(job, expected_gold_sha256, value, *, stage, receipt, text_edi
             value = package.annotation_update(original, value, owned_paths=receipt["owned_paths"],
                 expected_source_sha256=source, expected_text_sha256=package.text_identity(original))
         else:
-            require(stage == "transcription", "Text corrections require the transcription stage")
-            corrected = package.correct_text(original, text_edits, expected_source_sha256=source,
-                expected_text_sha256=package.text_identity(original))
+            # Structure authoring types the text too: its edits and the new layer publish together.
+            require(stage in {"transcription", "structure"}, "Text corrections require the transcription or structure stage")
+            corrected = (package.correct_text(original, text_edits, expected_source_sha256=source,
+                expected_text_sha256=package.text_identity(original)) if stage == "transcription" else
+                package.retranscribe(original, text_edits, value["layers"]["legal_structure"]))
             require(value == corrected, "Transcription candidate differs from its exact edits")
             value = corrected
             receipt = {**deepcopy(receipt), "edits": deepcopy(text_edits),
-                "owned_paths": [["lines"], ["source_text"], ["metadata", "manuscript_sha256"]],
+                "owned_paths": [["lines"], ["source_text"], ["metadata", "manuscript_sha256"]] +
+                    ([["layers", "legal_structure"]] if stage == "structure" else []),
                 "output_text_sha256": package.text_identity(value), "revalidated_stages": {}}
             for prior, marker in original["provenance"].get("annotation_stages", {}).items():
                 if prior == stage: continue
@@ -906,29 +910,92 @@ def image_window(pdf, evidence, pages, dpi):
 
 
 def retry_prompt(prompt, error, previous):
-    actual = prompt + ("\n\nCorrect the previous contract failure: " + error if error else "")
-    if error and previous is not None: actual += "\nRejected response:\n" + json.dumps(previous, ensure_ascii=False)
-    return actual
+    return prompt + ("\n\nThe previous answer was rejected: " + error if error else "")
 
 
 def retry_error(exc, response):
     from jsonschema import ValidationError
     if response is None and not isinstance(exc, ValueError):
         return None
-    return (f"{exc.json_path}: {exc.message}" if isinstance(exc, ValidationError) else str(exc) or type(exc).__name__)[:1500]
+    return (f"{exc.json_path}: {exc.message}" if isinstance(exc, ValidationError) else str(exc) or type(exc).__name__)[:200]
 
 
 CALL_POLICY = CallPolicy(INSTRUCTIONS, CONFIG, retry_prompt, retry_error,
                          "No valid gold response after bounded retries: ")
 call = partial(shared_call, policy=CALL_POLICY)
+CHUNK_PAGES = 5
 
 
-def apply_authoring_response(structure, request, response, state, mode):
-    if request.get("source_locked"):
-        require(not any(next(iter(c)) in {"text","split","insert","drop","move","order","join","group"}
-                        for c in response["corrections"]),
-                "Source defects require the source-correction operation before structural authoring")
-    return gold.apply(structure,request,response,state,mode)
+def author(value, pdf, pages, mode, task, args, dispatch, budget):
+    """Type every page's blocks; return text edits, aligned chunks and call evidence.
+
+    pages are the physical page records with their image names."""
+    from codex_runner.calls import call_key
+    lines, order = package.line_table(value), package.reading_order(value)
+    schema_path = task / "schema.json"
+    write_json(schema_path, prompts.SCHEMA)
+    images_dir = task / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    results, edits, evidence, kept, dropped = [], [], [], [], []
+    try:
+        for start in range(0, len(pages), CHUNK_PAGES):
+            targets = [p["page"] for p in pages[start:start + CHUNK_PAGES]]
+            chunk = [(i, lines[i]["text"]) for i in order if lines[i]["page"] in targets]
+            if not chunk: continue
+            context = pages[start - 1]["page"] if start else None
+            text = prompts.prompt([(lines[i]["page"], t) for i, t in chunk], targets, context)
+            name = f"blocks-{targets[0]:06}-{targets[-1]:06}"
+            if not args.run:
+                planned = task / "prompts" / f"{name}.txt.gz"
+                planned.parent.mkdir(exist_ok=True)
+                _atomic_write(planned, gzip.compress(text.encode(), mtime=0)); continue
+            shown = pages[max(0, start - 1):start + CHUNK_PAGES]
+            with image_window(pdf, images_dir, shown, args.dpi) as images:
+                def aligned(response):
+                    require(len(response["pages"]) == len(targets), f"Expected {len(targets)} page lists")
+                    return blocks.chunk([([(i, t) for i, t in chunk if lines[i]["page"] == page], typed)
+                                         for page, typed in zip(targets, response["pages"])], mode)
+                result = call(text, schema_path, images, task / "calls" / name, args, aligned, dispatch, budget)
+                key = call_key(text, prompts.SCHEMA, images, args, CALL_POLICY)
+            changed, chars, untyped, unplaced = blocks.corrected(result, dict(chunk))
+            edits.extend(changed); kept.extend(untyped); dropped.extend(unplaced)
+            results.append((result, chars))
+            calls = task / "calls" / name / key[:16]
+            attempts = read_json(calls / "receipt.json")["attempts"]
+            accepted = next(n for n in range(len(attempts), 0, -1) if attempts[n - 1]["status"] == "complete")
+            for path in (calls / "response.json", calls / f"attempt-{accepted}" / "prompt.txt.gz",
+                         calls / f"attempt-{accepted}" / "events.jsonl.gz"):
+                if path.is_file(): evidence.append({"path": path.relative_to(task.parent).as_posix(), "sha256": digest(path)})
+            print(f"Gold blocks pages {targets[0]}-{targets[-1]}/{len(pages)}", flush=True)
+    finally:
+        images_dir.rmdir()
+    return {"edits": edits, "results": results, "calls": evidence, "kept_lines": kept, "unplaced_text": dropped}
+
+
+def structure_layer(value, authored):
+    """The complete structure layer over the corrected source, validated by the shared composition."""
+    lines, order = package.line_table(value), package.reading_order(value)
+    for _, chars in authored["results"]:
+        for ident, line in chars.items():
+            require("".join(c for c, _ in line) == lines[ident]["text"], "Corrected source differs from the aligned text")
+    parts, report = blocks.structure(authored["results"], lines, order)
+    state = package.structure_state(value)
+    state.update(parts, joins={}, resumes={})
+    composed = package.compose_structure(gold.composition_request(state))
+    report.update(edits=len(authored["edits"]), kept_lines=authored["kept_lines"],
+                  unanchored_blocks=[t for r, _ in authored["results"] for t in r["unanchored"]],
+                  unplaced_text=authored["unplaced_text"],
+                  typed_differences=[d for r, _ in authored["results"] for d in r["differences"]],
+                  typed_characters=sum(r["typed_characters"] for r, _ in authored["results"]),
+                  matched_characters=sum(r["matched_characters"] for r, _ in authored["results"]))
+    return {"blocks": composed["groups"], "annotations": composed["annotations"], "joins": composed["joins"],
+            "continuations": composed["continuations"], "resumes": composed["resumes"]}, report
+
+
+def authored_layer(value, authored):
+    """The structure layer over the source the typed text corrects."""
+    base = package.corrected_source(value, authored["edits"]) if authored["edits"] else value
+    return structure_layer(base, authored)
 
 
 def run(pdf, expected, args, dispatch=_invoke):
@@ -943,11 +1010,10 @@ def run(pdf, expected, args, dispatch=_invoke):
         args.extraction = producer.prepare(pdf, args.out / "producer-inputs", args.producer)
     structure,extraction=parser_input(pdf,args)
     configuration={"mode":args.mode,"model":args.model,"effort":args.effort,"dpi":args.dpi,
-        "radius":1,"source_target_pages":1,"structure_chunk_pages":5,
-        "authoring_responsibilities":["source","structure"],
+        "authoring":"typed-blocks","chunk_pages":CHUNK_PAGES,
         "structure_sha256":digest(args.structure) if args.structure else fingerprint(structure),"extraction_sha256":digest(args.extraction) if args.extraction else None,
         "extraction_evidence_sha256":fingerprint(extraction),
-        "code":{p.name:digest(p) for p in (Path(__file__),HERE/"gold.py",HERE/"package.py",HERE/"ocr.py",HERE/"prompts.py",HERE/"extract.mjs",COMPOSER/"composer.py",
+        "code":{p.name:digest(p) for p in (Path(__file__),HERE/"gold.py",HERE/"package.py",HERE/"ocr.py",HERE/"prompts.py",HERE/"blocks.py",HERE/"extract.mjs",
             ROOT/"tools/codex_runner/artifacts.py",ROOT/"tools/codex_runner/transport.py",ROOT/"tools/codex_runner/calls.py")}}
     parser_identity={k:v for k,v in (read_json(args.structure) if args.structure else {}).get("parser",{}).items() if k in {"binary_sha256","cache_key","request"}}
     if parser_identity: configuration["parser"]=parser_identity
@@ -967,65 +1033,42 @@ def run(pdf, expected, args, dispatch=_invoke):
     write_json(receipt_path,receipt)
     if catalog: corpus_store.register_gold_run(job,package.VERSION)
     try:
-        budget={"calls":0}
         evidence=job/"evidence"; source=prepare(pdf,evidence,expected,args.mode,structure,extraction,args.dpi)
         pages=[read_json(evidence/f"page-{n:06}.json.gz") for n in range(1,source["page_count"]+1)]
         state=gold.initial(structure,pages)
         write_json(job/"baseline.json.gz",structure)
-        for responsibility, chunk_size in (("source", 1), ("structure", 5)):
-            schema_path=job/f"{responsibility}-schema.json"
-            contract=composer.schema({"gold":True,"responsibility":responsibility,"source_locked":responsibility=="structure"})
-            write_json(schema_path,ocr.schema(contract) if responsibility=="source" and "ocr" in state else contract)
-            for start in range(0,len(pages),chunk_size):
-                stop=min(start+chunk_size,len(pages))
-                targets=[p["page"] for p in pages[start:stop]]
-                visible=pages[max(0,start-1):min(len(pages),stop+1)]
-                surface,request=gold.request(structure,visible,targets,state)
-                request["responsibility"]=responsibility
-                if responsibility=="structure": request.update(source_locked=True,require_complete_blocks=True)
-                text=prompt(request,args.mode)
-                name=f"{responsibility}-{targets[0]:06}-{targets[-1]:06}"
-                if not args.run:
-                    planned=job/"prompts"/f"{name}.txt.gz"
-                    planned.parent.mkdir(exist_ok=True)
-                    _atomic_write(planned,gzip.compress(text.encode(),mtime=0))
-                    continue
-                with image_window(pdf,evidence,visible,args.dpi) as images:
-                    state=call(text,schema_path,images,job/"calls"/name,args,
-                        lambda response:apply_authoring_response(surface,request,response,state,args.mode),dispatch,budget)
-                receipt.update(status="running",pages=source["page_count"],responsibility=responsibility,
-                               completed_pages=stop)
-                receipt.setdefault("coverage",{})[responsibility]=[p["page"] for p in pages[:stop]]
-                write_json(receipt_path,receipt)
-                if catalog: corpus_store.register_gold_run(job,package.VERSION)
-                print(f"Gold {responsibility} pages {start+1}-{stop}/{len(pages)}",flush=True)
+        # Parser proposals are not gold: the authoring starts from one text block per line.
+        state.update(groups=[{"kind":"text","line_ids":[i],"attributes":{"parent":None,"reading_stream_id":None}} for i in state["reading_order"]],
+                     annotations=[],native_nodes=[],joins={},continuations={},resumes={})
+        provenance={"run_id":run_id,"submission":"machine_test","configuration":configuration,
+            "execution":execution,"evidence_sha256":source["evidence_sha256"]}
+        _,artifact=gold.materialize(structure,state,provenance)
+        artifact["mode"]=args.mode
+        records=association_records(args.court_records,source_hash)
+        initial=package.pack(artifact,records,page_geometry(pages),form_observations(source_hash))
+        authored=author(initial,pdf,pages,args.mode,job/"authoring",args,dispatch,{"calls":0})
         if not args.run:
             receipt["status"]="prepared"; print(str(job),flush=True); return job
-        provenance={"run_id":run_id,"submission":"machine_test","configuration":configuration,
-            "execution":execution,"evidence_sha256":source["evidence_sha256"],**usage_totals(job)}
-        manuscript,artifact=gold.materialize(structure,state,provenance)
-        artifact["mode"]=args.mode
-        with (job/"manuscript.txt").open("w",encoding="utf-8",newline="\n") as stream: stream.write(manuscript)
-        artifact["manuscript_sha256"]=digest(job/"manuscript.txt")
-        records=association_records(args.court_records,source_hash)
-        compact=package.pack(artifact,records,page_geometry(pages),form_observations(source_hash))
+        layer,report=authored_layer(initial,authored)
+        compact=(package.retranscribe(initial,authored["edits"],layer) if authored["edits"] else package.with_structure(initial,layer))
+        compact["provenance"].update(usage_totals(job/"authoring"),authoring_report=report,text_edits=authored["edits"])
+        with (job/"manuscript.txt").open("w",encoding="utf-8",newline="\n") as stream: stream.write(package.manuscript_text(compact))
         proof=structure_authoring_proof(compact)
         compact["provenance"]["structure_authoring"]=proof
-        receipt["structure_authoring"]=proof
+        receipt.update(structure_authoring=proof,pages=source["page_count"],
+                       coverage={"structure":[p["page"] for p in pages]})
         write_json(job/"gold.json.gz",compact)
-        receipt.update(status="complete",manuscript_sha256=artifact["manuscript_sha256"],gold_sha256=digest(job/"gold.json.gz"))
+        receipt.update(status="complete",manuscript_sha256=digest(job/"manuscript.txt"),gold_sha256=digest(job/"gold.json.gz"))
         print(str(job),flush=True); return job
     except BaseException as exc:
         receipt.update(status="failed",error=str(exc)); raise
     finally:
-        receipt.update(finished_at=time.time(),**usage_totals(job)); write_json(receipt_path,receipt)
+        receipt.update(finished_at=time.time(),**usage_totals(job/"authoring")); write_json(receipt_path,receipt)
         if catalog: corpus_store.register_gold_run(job,package.VERSION)
 
 
 def reauthor_structure(job, args, dispatch=_invoke):
-    """Re-author structure over selected corrected source without replacing other layers."""
-    from copy import deepcopy
-    from codex_runner.calls import call_key
+    """Re-author the text and structure of selected gold from typed blocks, keeping other layers."""
     job=Path(job).resolve()
     receipt,original,pages=verified_run(job)
     selected=selected_run(original["source_sha256"])
@@ -1033,66 +1076,24 @@ def reauthor_structure(job, args, dispatch=_invoke):
     require(original.get("schema_version")==package.VERSION,"Structure authoring requires canonical corrected source")
     pdf=source_pdf(original["source_sha256"])
     require_source_authorable(pdf)
-    structure,state=package.structure_input(original)
-    for group in state["groups"]:
-        old=group["kind"]
-        group["kind"]=old if old in composer.KINDS else "furniture" if old in {"header","footer"} else "text"
-        group["attributes"].pop("level",None)
-        group["attributes"].setdefault("parent",None)
-        if old=="list_item":
-            group["attributes"].setdefault("locator_kind","list_item")
-            group["attributes"].setdefault("marker",[])
-    normalized=package.compose_structure({**gold.composition_request(state),"source_correction":True})
-    state["groups"]=normalized["groups"]
-    task=job/"structure-authoring"
-    task.mkdir(exist_ok=True)
-    schema_path=task/"schema.json"
-    contract=composer.schema({"gold":True,"responsibility":"structure","source_locked":True})
-    write_json(schema_path,contract)
-    budget={"calls":0}; call_evidence=[]
-    before=usage_totals(task)
     mode=original.get("mode") or original.get("metadata",{}).get("mode") or receipt.get("configuration",{}).get("mode")
     require(mode in {"digitalborn","ocr"},"Corrected source has no authoring mode")
-    evidence=task/"images"
-    evidence.mkdir(exist_ok=True)
-    try:
-        for start in range(0,len(pages),5):
-            stop=min(start+5,len(pages)); targets=[p["page"] for p in pages[start:stop]]
-            visible=pages[max(0,start-1):min(len(pages),stop+1)]
-            surface,request=gold.request(structure,visible,targets,state)
-            request.update(responsibility="structure",source_locked=True,require_complete_blocks=True)
-            text=prompt(request,mode)
-            name=f"structure-{targets[0]:06}-{targets[-1]:06}"
-            if not args.run:
-                planned=task/"prompts"/f"{name}.txt.gz"; planned.parent.mkdir(exist_ok=True)
-                _atomic_write(planned,gzip.compress(text.encode(),mtime=0)); continue
-            directory=task/"calls"/name
-            with image_window(pdf,evidence,visible,args.dpi) as images:
-                state=call(text,schema_path,images,directory,args,
-                    lambda response:apply_authoring_response(surface,request,response,state,mode),dispatch,budget)
-                key=call_key(text,contract,images,args,CALL_POLICY)
-            calls=directory/key[:16]
-            attempts=read_json(calls/"receipt.json")["attempts"]
-            accepted=next(n for n in range(len(attempts),0,-1) if attempts[n-1]["status"]=="complete")
-            work=calls/f"attempt-{accepted}"
-            for path in (work/"last-message.json",work/"prompt.txt.gz",work/"events.jsonl.gz"):
-                if path.is_file(): call_evidence.append({"path":path.relative_to(job).as_posix(),"sha256":digest(path)})
-        if not args.run: return task
-        gold.complete(state); gold.ownership(state)
-        candidate=deepcopy(original)
-        layer=candidate["layers"]["legal_structure"]
-        layer.update(blocks=state["groups"],annotations=state["annotations"],
-                     **{key:state[key] for key in ("joins","continuations","resumes")})
-        if "native_facts" in state: layer["native"]=deepcopy(state["native_facts"])
-        owned=[["layers","legal_structure"]]
-        return publish_update(job,receipt["gold_sha256"],candidate,stage="structure",receipt={
-            "schema_version":"legal-gold.structure-authoring.v1","owned_paths":owned,
-            "model":args.model,"effort":args.effort,"calls":call_evidence,
-            "coverage":{"structure":{"status":"complete","pages":[p["page"] for p in pages]}},
-            "attempts":usage_totals(task)["attempts"]-before["attempts"],
-            "code_sha256":{p.name:digest(p) for p in (Path(__file__),HERE/"gold.py",HERE/"prompts.py",COMPOSER/"composer.py")}})
-    finally:
-        evidence.rmdir()
+    task=job/"structure-authoring"
+    before=usage_totals(task)
+    authored=author(original,pdf,pages,mode,task,args,dispatch,{"calls":0})
+    if not args.run: return task
+    layer,report=authored_layer(original,authored)
+    edits=authored["edits"] or None
+    candidate=package.retranscribe(original,edits,layer) if edits else deepcopy(original)
+    if not edits: candidate["layers"]["legal_structure"]=layer
+    after=usage_totals(task)
+    return publish_update(job,receipt["gold_sha256"],candidate,stage="structure",text_edits=edits,receipt={
+        "schema_version":"legal-gold.structure-authoring.v1","owned_paths":[["layers","legal_structure"]],
+        "model":args.model,"effort":args.effort,"calls":authored["calls"],"report":report,
+        "coverage":{"structure":{"status":"complete","pages":[p["page"] for p in pages]}},
+        "attempts":after["attempts"]-before["attempts"],"call_seconds":round(after["call_seconds"]-before["call_seconds"],4),
+        "usage":{k:v-before["usage"].get(k,0) for k,v in after["usage"].items()},
+        "code_sha256":authoring_code()})
 
 
 def parse_args(argv=None):
