@@ -143,7 +143,7 @@ const DOCUMENT_ID_PROPERTY = {
   pattern: DOCUMENT_OR_DRAFT_PATTERN,
   description: "Version-pinned document resource or current-turn draft handle. Reuse the latest returned resource after every write.",
 };
-export function modelQuoteCheckReport(report: Awaited<ReturnType<typeof checkQuotes>>, offset: number) {
+function modelQuoteCheckReport(report: Awaited<ReturnType<typeof checkQuotes>>, offset: number) {
   return { mode: report.mode, total: report.total, counts: report.counts,
     next_offset: offset + 10 < report.total ? offset + 10 : null,
     citationUnits: report.citationUnits.filter((unit) => report.quotes.some((quote) =>

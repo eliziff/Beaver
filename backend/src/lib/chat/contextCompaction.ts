@@ -25,7 +25,7 @@ function llmMessages(rows: ChatMessageRecord[], provider?: Provider, model?: str
   }));
 }
 
-export function planContextCheckpoint(
+function planContextCheckpoint(
   rows: ChatMessageRecord[],
   recentTailTokens = RECENT_TAIL_TOKENS,
   provider?: Provider,

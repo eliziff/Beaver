@@ -32,18 +32,8 @@ const GROUNDED_ANSWER_CONTRACT =
   "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. End with the conclusions the question asks for: apply the law to the client's facts and say what they should do, including what to correct before acting. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
 const GROUNDED_CLAIM_GRANULARITY =
   "Keep each support unit concise and use the smallest supporting passage. Split units when their supporting evidence differs. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. When naming a paragraph, choose that paragraph's own evidence_id, not a neighbour's or a range's; a run read returns one per paragraph.";
-export const GROUNDED_QUOTATION_POLICY_CURRENT =
+const GROUNDED_QUOTATION_POLICY =
   "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.";
-export const GROUNDED_QUOTATION_POLICY_CLASSIC =
-  "Default to concise direct quotations when the source's own words answer the question or materially sharpen the analysis. Weave one to three short exact spans into your prose, with your explanation between them when useful, then attach the supporting evidence_id once at the end of that support unit. Disjoint quoted spans may share that one citation. Paraphrase only when synthesis is materially clearer; do not replace useful source language with a generic summary. Do not dump long block quotations or use quotation as a substitute for analysis.";
-export function selectGroundedQuotationPolicy(flag?: string) {
-  return flag?.trim().toLowerCase() === "classic"
-    ? GROUNDED_QUOTATION_POLICY_CLASSIC
-    : GROUNDED_QUOTATION_POLICY_CURRENT;
-}
-export const GROUNDED_QUOTATION_POLICY = selectGroundedQuotationPolicy(
-  process.env.BEAVER_GROUNDED_QUOTATION_POLICY,
-);
 
 export function legalEvidenceSourceReference(receipt: LegalEvidenceReceipt): LegalSourceReference | null {
   const reference = receipt.source_reference;
