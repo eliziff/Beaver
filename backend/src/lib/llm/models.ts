@@ -1,5 +1,6 @@
 import type { Provider } from "./types";
 import { getConfiguredModel } from "./registry";
+import { MODEL_PROVIDERS, modelProvider } from "mike/shared/runtime/clientContracts.mjs";
 
 export type PickerModel = {
     id: string; label: string; group: string; provider: Provider;
@@ -56,22 +57,15 @@ const CLAUDE_P_MODEL_PREFIX = "claude-p:";
 const OLLAMA_MODEL_PREFIX = "ollama:";
 const OPENCODE_GO_MODEL_PREFIX = "opencode-go/";
 /**
- * A selected model is a (provider, native id) pair, written `provider:native`.
- * The provider is explicit so one model can be served by several inference
- * providers. Legacy shape-only ids stay readable.
+ * A selected model is a (provider, native id) pair, written `provider:native`, so one model can be
+ * served by several inference providers; `modelProvider` also reads ids that carry no provider.
  */
-const COMPOSITE_PROVIDERS: Record<string, Provider> = {
-    claude: "claude", gemini: "gemini", openai: "openai", deepseek: "deepseek",
-    openrouter: "openrouter", meta: "meta", "opencode-go": "opencode-go",
-    codex: "codex", "claude-p": "claude-p", ollama: "ollama",
-    configured: "configured",
-};
 const COMPOSITE_PATTERN = /^([a-z-]+):([\s\S]+)$/u;
 
 /** The provider half of a composite id, when one is present. */
 function compositeProvider(model: string): Provider | null {
     const match = COMPOSITE_PATTERN.exec(model);
-    return match ? COMPOSITE_PROVIDERS[match[1]] ?? null : null;
+    return match && (MODEL_PROVIDERS as readonly string[]).includes(match[1]) ? match[1] as Provider : null;
 }
 // OpenCode Go publishes one catalog over three wire protocols, but /models
 // does not say which protocol each model speaks. This map pins the known
@@ -169,25 +163,13 @@ export function catalogModelContextWindow(model: string): number | null {
 /** The provider-native model id, with any composite provider prefix removed. */
 export function modelForProvider(model: string): string {
     const match = COMPOSITE_PATTERN.exec(model);
-    return match && COMPOSITE_PROVIDERS[match[1]] ? match[2] : model;
+    return match && compositeProvider(model) ? match[2] : model;
 }
 
 export function providerForModel(model: string): Provider {
-    const composite = compositeProvider(model);
-    if (composite) return composite;
-    if (model.startsWith(CODEX_MODEL_PREFIX)) return "codex";
-    if (model.startsWith(CLAUDE_P_MODEL_PREFIX)) return "claude-p";
-    if (model.startsWith(OLLAMA_MODEL_PREFIX)) return "ollama";
-    if (model.startsWith(OPENCODE_GO_MODEL_PREFIX)) return "opencode-go";
-    if (model.startsWith("claude")) return "claude";
-    if (model.startsWith("gemini")) return "gemini";
-    if (model.startsWith("gpt-")) return "openai";
-    if (model.startsWith("deepseek-")) return "deepseek";
-    // Transport is carried by the id shape: OpenRouter slugs are namespaced,
-    // Meta Model API takes the bare id.
-    if (model.includes("/")) return "openrouter";
-    if (model.startsWith("muse-spark-")) return "meta";
-    throw new Error(`Unknown model id: ${model}`);
+    const provider = modelProvider(model);
+    if (!provider) throw new Error(`Unknown model id: ${model}`);
+    return provider;
 }
 
 export function isSupportedModel(model: string): boolean {

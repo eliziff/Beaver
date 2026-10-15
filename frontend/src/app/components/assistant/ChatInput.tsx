@@ -8,7 +8,7 @@ import { WarningPopup } from "../popups/WarningPopup";
 import { ModelEffortToggle } from "./ModelToggle";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
+import { modelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
 import { type Document, uploadDocumentsSettled, uploadStandaloneDocument } from "@/app/lib/api/documents";
 import type { Message, ChatDraft } from "@/app/lib/api/chat";
 import { currentChatDraft, readChatDraft, writeChatDraft } from "@/app/lib/chatDrafts";
@@ -325,7 +325,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         if (!query || disabled || contextUsage?.compacting) return;
         if (!["/compact", "/help"].includes(query.toLowerCase()) &&
             apiKeys && !isModelAvailable(model, apiKeys)) {
-            setApiKeyModalProvider(getModelProvider(model));
+            setApiKeyModalProvider(modelProvider(model));
             return;
         }
         setInputValue("");
