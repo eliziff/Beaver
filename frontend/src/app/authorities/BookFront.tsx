@@ -462,23 +462,18 @@ export function BookFrontModal({ host, draft, busy, step: first, jurisdictionOrd
     secondaryAction={{ label: "Cancel", onClick: onClose }}
     primaryAction={{ label: "Save", disabled: busy || !actions.length && !chosen.length, onClick: save }}>
     <StepTabs steps={FRONT_STEPS} at={at} disabled={busy} onStep={setAt} />
-    {step === "Cover" ? <FrontLayout preview={<FrontSourcePreview slot="cover" value={own.cover} pdfs={pdfs}
-      generated={<FrontPreview host={host} draft={front} actions={preview} part="cover" label="Cover" />} />}>
-      <FrontSource slot="cover" value={own.cover} pdfs={pdfs} disabled={busy} onChange={(cover) => setOwn((current) => ({ ...current, cover }))}
-        own={<div className="grid grid-cols-2 gap-3"><div className="min-w-0">{courtField}</div></div>}>
-        <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setEdited} court={courtField}
-          onSettings={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
-      </FrontSource>
-    </FrontLayout>
-    : <FrontLayout preview={<FrontSourcePreview slot="index" value={own.index} pdfs={pdfs}
-      generated={<FrontPreview host={host} draft={front} actions={preview} part="index" label="Index" />} />}>
-      <FrontSource slot="index" value={own.index} pdfs={pdfs} disabled={busy} onChange={(index) => setOwn((current) => ({ ...current, index }))}
-        own={<IndexFields own settings={shown} disabled={busy}
-          onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />}>
-        <IndexFields settings={shown} disabled={busy}
-          onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
-      </FrontSource>
-    </FrontLayout>}
+    {step === "Cover" ? <FrontStep slot="cover" host={host} draft={front} actions={preview} value={own.cover} pdfs={pdfs}
+      disabled={busy} onChange={(cover) => setOwn((current) => ({ ...current, cover }))} court={courtField}>
+      <CoverFields cover={cover} profileId={profileId} settings={shown} disabled={busy} onCover={setEdited} court={courtField}
+        onSettings={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+    </FrontStep>
+    : <FrontStep slot="index" host={host} draft={front} actions={preview} value={own.index} pdfs={pdfs} disabled={busy}
+      onChange={(index) => setOwn((current) => ({ ...current, index }))}
+      own={<IndexFields own settings={shown} disabled={busy}
+        onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />}>
+      <IndexFields settings={shown} disabled={busy}
+        onChange={(patch) => setSettings((current) => ({ ...current, ...patch }))} />
+    </FrontStep>}
   </Modal>;
 }
 
@@ -527,7 +522,20 @@ const NAME: Record<FrontSlot, string> = { cover: "cover", index: "index" };
 
 /** A step's first choice: the page made here, or a PDF of the user's own in its place. The own PDF's
  *  card holds what the step's menu used to: its upload, the Library, and access to it again. */
-export function FrontSource({ slot, value, pdfs, disabled, onChange, children, own }: {
+/** The Cover or Index step: its fields, or a PDF of the user's own, beside the page it makes. The cover's own PDF
+ *  still asks for the court. */
+export function FrontStep({ slot, host, draft, actions, value, pdfs, disabled, onChange, court, own, children }: {
+  slot: FrontSlot; host: AuthoritiesHost; draft?: AuthoritiesProduct; actions: AuthoritiesAction[]; value: OwnFront;
+  pdfs: OwnPdfs; disabled?: boolean; onChange: (value: OwnFront) => void; court?: ReactNode; own?: ReactNode; children: ReactNode;
+}) {
+  return <FrontLayout preview={<FrontSourcePreview slot={slot} value={value} pdfs={pdfs} generated={<FrontPreview host={host}
+    draft={draft} actions={actions} part={slot} label={slot === "cover" ? "Cover" : "Index"} />} />}>
+    <FrontSource slot={slot} value={value} pdfs={pdfs} disabled={disabled} onChange={onChange}
+      own={court ? <div className="grid grid-cols-2 gap-3"><div className="min-w-0">{court}</div></div> : own}>{children}</FrontSource>
+  </FrontLayout>;
+}
+
+function FrontSource({ slot, value, pdfs, disabled, onChange, children, own }: {
   slot: FrontSlot; value: OwnFront; pdfs: OwnPdfs; disabled?: boolean; onChange: (value: OwnFront) => void;
   /** The step's fields for a generated page. */
   children: ReactNode;
@@ -568,7 +576,7 @@ export function FrontSource({ slot, value, pdfs, disabled, onChange, children, o
 }
 
 /** The preview beside a step: the page made here, or the first page of the user's own PDF. */
-export function FrontSourcePreview({ slot, value, pdfs, generated }: {
+function FrontSourcePreview({ slot, value, pdfs, generated }: {
   slot: FrontSlot; value: OwnFront; pdfs: OwnPdfs; generated: ReactNode;
 }) {
   const kept = pdfs.kept?.(slot), source = value.chosen?.file ?? (kept && !kept.issue ? kept.role : undefined);

@@ -7,7 +7,7 @@ import { courtCover } from "../../../../shared/authorities-cover.mjs";
 import { OptionCards, type CardOption } from "./OptionCards";
 import { authoritiesProfile } from "./profiles";
 import { MarkingSample, passageOptions } from "./AuthoritiesHighlightEditor";
-import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, PREVIEW_KEYS, FrontPreview, FrontSource, FrontSourcePreview, IndexFields,
+import { AuthoritiesCourtField, CoverFields, FRONT_KEYS, FrontLayout, PREVIEW_KEYS, FrontStep, IndexFields,
   Preview, previewActions, previewBook, StepTabs, useFilingContact, type FrontSlot, type OwnFront, type OwnPdfs,
   type Settings } from "./BookFront";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost } from "./host";
@@ -162,21 +162,15 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
     // Next on every step; the last imports.
     primaryAction={{ label: <>Next <ChevronRight /></>, disabled: busy || last && !!error, onClick: last ? finish : () => setStep(at + 1) }}>
     <StepTabs steps={steps} at={at} disabled={busy} onStep={setStep} />
-    {name === "Cover" ? <FrontLayout preview={<FrontSourcePreview slot="cover" value={own.cover} pdfs={pdfs}
-      generated={<FrontPreview host={host} draft={front} actions={frontActions} part="cover" label="Cover" />} />}>
-      <FrontSource slot="cover" value={own.cover} pdfs={pdfs} disabled={busy} onChange={ownFor("cover")}
-        own={<div className="grid grid-cols-2 gap-3"><div className="min-w-0">{courtField}</div></div>}>
-        <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy} court={courtField}
-          onCover={(next) => setCover(next)} onSettings={choose} />
-      </FrontSource>
-    </FrontLayout>
-    : name === "Index" ? <FrontLayout preview={<FrontSourcePreview slot="index" value={own.index} pdfs={pdfs}
-      generated={<FrontPreview host={host} draft={front} actions={frontActions} part="index" label="Index" />} />}>
-      <FrontSource slot="index" value={own.index} pdfs={pdfs} disabled={busy} onChange={ownFor("index")}
-        own={<IndexFields own settings={settings} disabled={busy} onChange={choose} />}>
-        <IndexFields settings={settings} disabled={busy} onChange={choose} />
-      </FrontSource>
-    </FrontLayout>
+    {name === "Cover" ? <FrontStep slot="cover" host={host} draft={front} actions={frontActions} value={own.cover} pdfs={pdfs}
+      disabled={busy} onChange={ownFor("cover")} court={courtField}>
+      <CoverFields cover={shownCover} profileId={profileId} settings={settings} disabled={busy} court={courtField}
+        onCover={(next) => setCover(next)} onSettings={choose} />
+    </FrontStep>
+    : name === "Index" ? <FrontStep slot="index" host={host} draft={front} actions={frontActions} value={own.index} pdfs={pdfs}
+      disabled={busy} onChange={ownFor("index")} own={<IndexFields own settings={settings} disabled={busy} onChange={choose} />}>
+      <IndexFields settings={settings} disabled={busy} onChange={choose} />
+    </FrontStep>
     : name === "Sources" ? <div className="grid content-start gap-5 overflow-y-auto p-1">
       {!book && court}
       <SourceChoices settings={settings} profileId={profileId} recognition={recognitionAvailable} disabled={busy} onChange={choose} />
