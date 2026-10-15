@@ -1377,10 +1377,9 @@ function pdfLegalEvidence(
     spans = native.pdfLookupUnitSpans(document, units.map(({ id }) => id));
   return units.flatMap((unit) => {
     if (!unit.text.trim()) return [];
-    const parts = spans[unit.id];
-    if (!parts?.length || parts.some((span) => span.end <= span.start))
-      throw new Error("PDF passage has no canonical document spans");
-    return parts.map((span) => createLibraryEvidence({
+    const span = spans[unit.id];
+    if (!span || span.end <= span.start) throw new Error("PDF passage has no canonical document span");
+    return [createLibraryEvidence({
       documentId,
       versionId,
       filename,
@@ -1389,7 +1388,7 @@ function pdfLegalEvidence(
       ...span,
       blockId: `node:${unit.id}`,
       locator: { kind: unit.kind, label: unit.locator },
-    }));
+    })];
   });
 }
 

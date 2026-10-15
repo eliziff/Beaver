@@ -340,16 +340,9 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         const { text } = passage;
         const slices = adapter.legalSourceViewer(passage.documentArtifact,
           source.reference.kind === "legislation" ? "section" : "paragraph", text.length).slices;
-        const units = slices.length ? slices.map(({ primary, start, end }) => primary ??
-          { kind: "document" as const, label: `line ${start + 1}-${end}`, start, end,
-            ranges: [{ start, end }], printedLabel: false })
+        const blocks = slices.length ? slices.map(({ primary, start, end }) => primary ??
+          { kind: "document" as const, label: `line ${start + 1}-${end}`, start, end })
           : adapter.documentAnchors(passage.documentArtifact);
-        // Receipts address contiguous source text; intersect exact membership with selected evidence.
-        const blocks = units.flatMap((block) => block.ranges.flatMap((member) =>
-          passage.ranges.flatMap((selected) => {
-            const start = Math.max(member.start, selected.start), end = Math.min(member.end, selected.end);
-            return start < end ? [{ ...block, start, end }] : [];
-          })));
         if (rules.length) {
           const captures: Capture[] = [], captureKeys = new Set<string>();
           captureRules: for (const [order, { rule, source: phrase, test }] of compiled.entries())
@@ -406,7 +399,8 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
               const receipt = passage.evidence({ text: span, start: block.start, end: block.end,
                 ...(block.kind === "document" ? {} : {
                   blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
-                  locator: provenBlockLocator(passage.documentArtifact, block, block) }) });
+                  locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"],
+                    label: block.label } }) });
               if (receipt && afterCursor(source.id, receipt)) {
                 if (span.length > MAX_CAPTURE_CHARS) { sizeLimited = true; continue; }
                 if (foundChars + span.length > MAX_CAPTURE_CHARS)

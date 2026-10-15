@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { pdfPassageGeometry, structureNative } from "../structureNative";
-import { quoteBlocks } from "../quoteCheck";
 import { renderAuthoritySourcePdf } from "../authoritiesBuild";
 
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
@@ -122,12 +121,6 @@ it("uses the complete printed paragraph, not just its numbered first line", asyn
   const native = structureNative(), document = await native.derivePdfDocument(bytes, {});
   const { targets: [target] } = await pdfPassageGeometry(document, bytes, [{ id: "29",
     locatorKind: "paragraph", locator: "29", exactQuotes: ["exact evidence continues", "A different paragraph follows"] }]);
-  const lookup = native.queryPdfDocument(document, "paragraph", "29");
-  expect(lookup.status).toBe("found");
-  expect(lookup.units.map(unit => unit.text).join(" ")).toContain("The exact evidence continues");
-  expect(lookup.units.map(unit => unit.text).join(" ")).not.toContain("A different paragraph follows");
-  const block = quoteBlocks(document, true).find(block => block.label === "par29")!;
-  expect(native.documentText(document).slice(block.start, block.end)).toBe(lookup.units[0].text);
   expect(target.status).toBe("found");
   expect(target.quotes.map(quote => quote.status)).toEqual(["found", "not_found"]);
   const [rect] = target.pages[0].passageRects;
@@ -159,13 +152,6 @@ it("distinguishes printed paragraph labels from an inferred paragraph number", a
     const result = await pdfPassageGeometry(document, bytes, [{ id: "paragraph", locatorKind: "paragraph",
       locator: printed ? "29" : "1" }]);
     expect(result.targets[0].printed).toBe(printed);
-    expect(structureNative().pdfPrintedParagraphs(document).map(paragraph => paragraph.number)).toEqual(printed ? [29] : []);
-    expect(structureNative().queryPdfDocument(document, "paragraph", printed ? "29" : "1").status)
-      .toBe(printed ? "found" : "unavailable");
-    if (!printed) {
-      expect(quoteBlocks(document, true).every(block => block.kind === "page")).toBe(true);
-      expect(structureNative().queryPdfDocument(document, "page", "1").units[0].text).toContain(text);
-    }
   }
 });
 
@@ -199,16 +185,6 @@ it("places a paragraph range from its first paragraph to its last, short ends an
     locators.map((locator) => ({ id: locator, locatorKind: "paragraph", locator })));
   const [short, whole, eight, eleven, across, repeated, missing] = targets;
   expect(targets.map(({ status }) => status)).toEqual([...Array(6).fill("found"), "not_found"]);
-  for (let number = 1; number <= 30; number++) {
-    const lookup = structureNative().queryPdfDocument(document, "paragraph", String(number));
-    expect(lookup.status, `paragraph ${number}`).toBe("found");
-    expect(lookup.units).toHaveLength(1);
-    const unit = lookup.units[0], span = structureNative().pdfLookupUnitSpans(document, [unit.id])[unit.id];
-    expect(structureNative().documentText(document).slice(span.start, span.end)).toBe(unit.text);
-    expect(lookup.units[0].text).toContain(number === 20 ? "The board adopted" : paragraph(number).slice(5, 60));
-  }
-  expect(structureNative().pdfPrintedParagraphs(document).map(item => item.number))
-    .toEqual(Array.from({ length: 30 }, (_, index) => index + 1));
   // "14-7" is written short for 14 to 17.
   expect(short.pages).toEqual(whole.pages);
   // 9 and 10 are placed by the paragraphs beside them: from 8 to just before 11, over a page break.

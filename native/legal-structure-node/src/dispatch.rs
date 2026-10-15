@@ -76,26 +76,6 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
     let doc = || call.document();
     match op {
         "nativeBuildFeatures" => done(value(engine::native_build_features())),
-        "structureCompositionBlocks" => done(legal_structure::structure_composition_blocks(call.get("request")?).and_then(value)),
-        "applyStructureComposition" => done(legal_structure::apply_structure_composition(call.get("request")?).and_then(value)),
-        #[cfg(feature = "legalpdf")]
-        "pdfOutlineTrainingRows" | "pdfScopeTrainingRows" | "pdfSpanTrainingRows" => {
-            let pages = call.get::<Vec<legalpdf::Page>>("pages")?;
-            let separators = call.get::<Option<Vec<Option<f64>>>>("separators")?.unwrap_or_else(|| vec![None; pages.len()]);
-            let outline = call.get::<Option<Vec<legalpdf::PdfOutlineEntry>>>("sourceOutline")?.unwrap_or_default();
-            let prepared = legalpdf::training_source_evidence(&pages, &separators, &outline).map_err(|error| error.to_string());
-            done(prepared.and_then(|(pages, table)| match op {
-                "pdfOutlineTrainingRows" => legalpdf::outline_training_rows(call.get("structure")?, &table,
-                    &call.get::<Option<std::collections::HashMap<String, Option<String>>>>("navigationParents")?.unwrap_or_default()).and_then(value),
-                "pdfScopeTrainingRows" => legalpdf::scope_training_rows(call.get("structure")?, &pages).and_then(value),
-                _ => legalpdf::span_training_rows(call.get("structure")?, &pages).and_then(value),
-            }))
-        }
-        "applySourceOperations" => done(legal_structure::apply_source_operations(call.get("request")?).and_then(value)),
-        "moveSourceUnits" => done(legal_structure::move_source_units(call.get("request")?).and_then(value)),
-        "correctSourceText" => done(legal_structure::correct_source_text(call.get("request")?).and_then(value)),
-        "applyStructureAnnotations" => done(legal_structure::apply_structure_annotations(call.get("request")?).and_then(value)),
-        "assembleStructureAnnotations" => done(legal_structure::assemble_structure_annotations(call.get("structure")?).and_then(value)),
         "releaseDocument" => {
             let handle = doc()?;
             documents().1.remove(&handle);
@@ -153,9 +133,6 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "pdfLookupUnitSpans" => done(with_document(doc()?, |d|
             engine::pdf_lookup_unit_spans(d, &call.get::<Vec<String>>("ids")?).and_then(value))),
         #[cfg(feature = "legalpdf")]
-        "pdfPrintedParagraphs" => done(with_document(doc()?, |d|
-            engine::pdf_printed_paragraphs(d).and_then(value))),
-        #[cfg(feature = "legalpdf")]
         "queryPdfDocument" => done(with_document(doc()?, |d| engine::query_pdf_document(
             d, call.get("locatorKind")?, call.get("locator")?, call.get("endLocator")?,
             call.get("contextBlocks")?, call.get("page")?, call.get("occurrence")?).and_then(value))),
@@ -166,7 +143,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "readDocumentTextWindow" => done(with_document(doc()?, |d| value(engine::read_document_text_window(
             d, call.get("offset")?, call.get("startChar")?, call.get("limit")?)))),
         "readDocumentTextRange" => done(with_document(doc()?, |d| value(engine::read_document_text_range(
-            d, call.get("start")?, call.get("end")?, call.get("offset")?, call.get("limit")?, call.get("startChar")?)))),
+            d, call.get("start")?, call.get("end")?, call.get("offset")?, call.get("limit")?)))),
         "documentFingerprint" => done(with_document(doc()?, |d| value(engine::document_fingerprint_of(d)))),
         "documentAnchors" => done(with_document(doc()?, |d| value(engine::document_anchors(d, call.get("end")?)))),
         "legalSourceViewer" => done(with_document(doc()?, |d| engine::legal_source_viewer(
@@ -217,9 +194,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
         "verbatimRepair" => done(value(legal_structure::verbatim_repair(
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
-        "quoteLocateDocument" => done(with_document(doc()?, |d| engine::quote_locate_document(
+        "quoteLocateDocument" => done(with_document(doc()?, |d| value(engine::quote_locate_document(
             d, &call.get::<Vec<legal_structure::QuoteBlockInput>>("blocks")?,
-            &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true)).and_then(value))),
+            &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true))))),
         "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?)
             .map(|found| found.map_or(Value::Null, |found| json!({ "metadata": found.metadata,
                 "native": share(found.native), "searchNative": found.search.map(share) })))),
