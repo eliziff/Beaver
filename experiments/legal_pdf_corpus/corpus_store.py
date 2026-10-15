@@ -70,6 +70,15 @@ create table if not exists pages(sha256 text, page integer, text text, primary k
 create virtual table if not exists pages_fts using fts5(text, content='pages', tokenize='porter unicode61');
 create trigger if not exists pages_ai after insert on pages begin
   insert into pages_fts(rowid, text) values (new.rowid, new.text); end;
+create table if not exists page_visual_fingerprints(
+  sha256 text references files(sha256), page integer, config_sha256 text, config_json text,
+  width integer, height integer, raster_sha256 text, dhash text, page_count integer, recorded_at text,
+  primary key(sha256,page,config_sha256));
+create table if not exists page_visual_diagnostics(
+  sha256 text references files(sha256), config_sha256 text, page integer,
+  diagnostic_sha256 text, diagnostic_json text, recorded_at text,
+  primary key(sha256,config_sha256,page,diagnostic_sha256));
+create index if not exists page_visual_raster on page_visual_fingerprints(config_sha256,raster_sha256);
 create table if not exists gold_records(dataset text, sha256 text references files(sha256), mode text,
   pages integer, status text not null default 'pending', run_id text,
   primary key(dataset, sha256));

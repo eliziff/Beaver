@@ -112,9 +112,9 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       sourceId = requested.type === "passage" ? requested.sourceId : requested.type === "source"
         ? Object.values(file.state.sources).find(({ reference }) => researchSourceResource(reference) ===
           researchSourceResource(requested.reference))?.id : undefined,
-      receipt = sourceId && action.type === "merge" ? action.evidence?.[0] : undefined;
+      receipts = sourceId && action.type === "merge" ? action.evidence : undefined;
     return { file, pendingChange: file.state.proposals?.find(({ id }) => !current.state.proposals?.some((prior) => prior.id === id)),
-      ...(sourceId ? { sourceId } : {}), ...(receipt ? { evidenceId: receipt.evidence_id, receipt } : {}) };
+      ...(sourceId ? { sourceId } : {}), ...(receipts ? { receipts } : {}) };
   }
   const query = (scope: Scope, id: string, input: ResearchFileQueryInput,
     options: Parameters<typeof runResearchFileQuery>[4] = {}) => runResearchFileQuery(documents, scope, id,

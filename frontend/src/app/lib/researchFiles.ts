@@ -13,7 +13,7 @@ export type ResearchFile = ResearchFileOf<Document>;
 export type ResearchQueryCoverage = { complete: boolean; next_after: string | null;
   attempted_sources: number; selected_sources: number };
 export type ResearchQueryResult = { file: ResearchFile; receipt: ResearchQueryReceipt; coverage: ResearchQueryCoverage };
-export type ResearchActionResult = ResearchFile & { sourceId?: string; evidenceId?: string; receipt?: ResearchEvidenceReceipt };
+export type ResearchActionResult = ResearchFile & { sourceId?: string; receipts?: ResearchEvidenceReceipt[] };
 export type ResearchQueryInput = ResearchSelection & { text?: string; after?: string; syntax: "literal" | "terms";
   limit?: number;
   rules?: Array<{ phrase: string; direction: "before" | "after" | "around";

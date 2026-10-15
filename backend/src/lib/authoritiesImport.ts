@@ -233,7 +233,19 @@ async function scanReview(
       ranges.forEach((range, index) => {
         const prior = merged.at(-1);
         if (!prior || !joins.has(index - 1)) { merged.push({ ...range }); return; }
-        prior.unit = { ...prior.unit, text: `${prior.unit.text}\n\n${range.unit.text}`,
+        const leftSource = prior.unit.source, rightSource = range.unit.source;
+        if ((leftSource || rightSource) && (!leftSource || !rightSource ||
+            leftSource.documentId !== rightSource.documentId || leftSource.textSha256 !== rightSource.textSha256)) {
+          throw new Error("Cannot join authority units from different source representations");
+        }
+        const source = leftSource && rightSource ? { ...leftSource,
+          nodeIds: [...new Set([...leftSource.nodeIds, ...rightSource.nodeIds])],
+          lineIds: [...new Set([...leftSource.lineIds, ...rightSource.lineIds])],
+          ranges: [...leftSource.ranges, ...rightSource.ranges],
+          mappings: [...leftSource.mappings, ...rightSource.mappings.map((mapping) => ({ ...mapping,
+            start: mapping.start + range.start - prior.start, end: mapping.end + range.start - prior.start }))],
+        } : undefined;
+        prior.unit = { ...prior.unit, ...(source && { source }), text: `${prior.unit.text}\n\n${range.unit.text}`,
           page_numbers: [...new Set([...prior.unit.page_numbers, ...range.unit.page_numbers])].sort((left, right) => left - right),
           footnote_refs: [...prior.unit.footnote_refs, ...range.unit.footnote_refs.map(([id, offset]) =>
             [id, range.start - prior.start + offset] as [number, number])] };
@@ -424,6 +436,7 @@ async function scanReview(
         evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: reference && Boolean(authorityId) };
     }
     return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,
+      ...(unit.source && { source: unit.source }),
       footnoteId: unit.footnote_id, ...(unit.note_number !== undefined && { noteNumber: unit.note_number }),
       ...(unit.note_mark && { noteMark: unit.note_mark }), ...(unit.links?.length && { authorLinks: unit.links }),
       pageNumbers: unit.page_numbers, text: unit.text, footnoteRefs: unit.footnote_refs, occurrenceIds };

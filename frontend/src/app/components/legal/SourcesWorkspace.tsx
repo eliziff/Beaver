@@ -23,7 +23,7 @@ type Controller = ReturnType<typeof useWorkspaceController>;
 const Context = createContext<Controller | null>(null);
 const ALL_SOURCES: ResearchSelection = { target: "sources" };
 const PEN_KEY = "beaver.research.pen.v1";
-export type HighlightCapture = { reference: ResearchSourceReference; revision: string; start: number; end: number };
+export type HighlightCapture = { reference: ResearchSourceReference; revision: string; ranges: Array<{ start: number; end: number }> };
 
 /** The saved source already carrying this reference, if the workspace holds one. */
 export const findResearchSource = (file: ResearchFile, reference: ResearchSourceReference) =>
