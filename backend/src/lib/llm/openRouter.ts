@@ -1,4 +1,4 @@
-import { createCatalogCache, fetchCatalogJson } from "../catalogCache";
+import { catalogEndpoint, createCatalogCache, fetchCatalogJson } from "../catalogCache";
 import { pickerModel, registerCatalogModels, type PickerModel } from "./models";
 import { tierFamily } from "./modelsDev";
 
@@ -20,14 +20,6 @@ type OpenRouterModel = {
 
 type CatalogMetadata = { id: string; contextWindow?: number; imageInput?: boolean };
 export type OpenRouterCatalog = { source: "live" | "unavailable"; models: PickerModel[] };
-
-function catalogUrl(): string {
-    const url = new URL(process.env.OPENROUTER_CATALOG_URL?.trim() || DEFAULT_URL);
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
-        throw new Error("OpenRouter requires an HTTP(S) endpoint without URL credentials.");
-    }
-    return url.toString();
-}
 
 function stringList(value: unknown): string[] {
     return Array.isArray(value)
@@ -82,7 +74,7 @@ export function normalizeOpenRouterCatalog(payload: unknown): { models: PickerMo
 }
 
 async function probeOpenRouter(): Promise<OpenRouterCatalog> {
-    const payload = await fetchCatalogJson<unknown>(catalogUrl(), {
+    const payload = await fetchCatalogJson<unknown>(catalogEndpoint(process.env.OPENROUTER_CATALOG_URL, DEFAULT_URL, label), {
         label: "OpenRouter listing",
         timeoutMs: Number(process.env.OPENROUTER_CATALOG_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
         maxBytes: MAX_CATALOG_BYTES,

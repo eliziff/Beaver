@@ -2,23 +2,15 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createCatalogCache, fetchCatalogJson } from "../catalogCache";
+import { catalogEndpoint, createCatalogCache, fetchCatalogJson } from "../catalogCache";
 import { requireApiKey } from "./apiKeys";
 import { openCodeGoModelSlug, openCodeGoWireProtocol } from "./models";
 import type { StreamChatParams } from "./types";
 
 const label = "OpenCode Go";
 
-function baseUrl() {
-  const url = new URL(
-    process.env.OPENCODE_GO_BASE_URL?.trim() ||
-      "https://opencode.ai/zen/go/v1",
-  );
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
-    throw new Error("OpenCode Go requires an HTTP(S) endpoint without URL credentials.");
-  }
-  return url.toString().replace(/\/+$/u, "");
-}
+const baseUrl = () => catalogEndpoint(process.env.OPENCODE_GO_BASE_URL, "https://opencode.ai/zen/go/v1", label)
+  .replace(/\/+$/u, "");
 
 // Flat-rate subscription: the credential is the one the OpenCode CLI already
 // holds, not a per-token API key the user pastes.

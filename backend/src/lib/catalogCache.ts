@@ -1,5 +1,13 @@
 import { bufferRemoteResponse } from "./remoteUrlSafety";
 
+/** A catalogue endpoint from its configured override or default: HTTP(S), no URL credentials. */
+export function catalogEndpoint(configured: string | undefined, fallback: string, label: string) {
+  const url = new URL(configured?.trim() || fallback);
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
+    throw new Error(`${label} requires an HTTP(S) endpoint without URL credentials.`);
+  return url.toString();
+}
+
 export async function fetchCatalogJson<T>(url: string, { label, timeoutMs, headers, maxBytes = 1024 * 1024 }: {
   label: string; timeoutMs: number; headers?: Record<string, string>; maxBytes?: number;
 }): Promise<T> {
