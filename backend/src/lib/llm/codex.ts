@@ -37,13 +37,13 @@ const DISABLED_CODEX_FEATURES = [
   "view_image",
 ];
 
-// Codex shows the model an MCP schema's types, descriptions and shapes, not its bounds; restate them.
+// Codex hides schema bounds from the model, so restate them, but not on a nullable union: described, it gets omitted.
 const SCHEMA_BOUNDS = ["minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "pattern", "minItems", "maxItems"];
 const visibleBounds = (schema: unknown): unknown => {
   if (!schema || typeof schema !== "object") return schema;
   if (Array.isArray(schema)) return schema.map(visibleBounds);
   const node = Object.fromEntries(Object.entries(schema).map(([key, value]) => [key, visibleBounds(value)]));
-  const bounds = SCHEMA_BOUNDS.filter((key) => ["string", "number"].includes(typeof node[key])).map((key) => `${key} ${node[key]}`);
+  const bounds = Array.isArray(node.type) ? [] : SCHEMA_BOUNDS.filter((key) => ["string", "number"].includes(typeof node[key])).map((key) => `${key} ${node[key]}`);
   return bounds.length ? { ...node, description: [node.description, `(${bounds.join("; ")})`].filter(Boolean).join(" ") } : node;
 };
 
