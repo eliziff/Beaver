@@ -74,16 +74,6 @@ const reviewPage = (insideProject: boolean): LazyRoute => async () => {
     },
   };
 };
-const sourcePage: LazyRoute = async () => {
-  const { LegalLibrarySourcePage } = await import("@/app/components/legal/LegalLibrary");
-  return {
-    Component: () => {
-      const { id = "" } = useParams<{ id: string }>();
-      return <LegalLibrarySourcePage referenceId={id} />;
-    },
-  };
-};
-
 const appRoutes: RouteObject[] = [
   route("assistant", page(() => import("@/app/(pages)/assistant/page"))),
   route(
@@ -128,7 +118,6 @@ const appRoutes: RouteObject[] = [
     "LegalLibraryPage",
   )),
   route("sources/view", page(() => import("@/app/(pages)/sources/view/page"))),
-  route("sources/:id", sourcePage),
   route("court-records", page(() => import("@/app/(pages)/court-records/page"))),
   route("table-of-authorities", page(() => import("@/app/(pages)/table-of-authorities/page"))),
   route("library/templates?", libraryPage),

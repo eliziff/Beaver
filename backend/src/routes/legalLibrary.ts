@@ -58,9 +58,6 @@ function sendViewer(req: Request, res: Response,
 export function createLegalLibraryRouter(application: LegalSourceApplication) {
 const router = Router();
 router.use(requireAuth);
-router.get("/", asyncRoute(async (_req, res) => {
-  res.json({ references: await application.list(userId(res)) });
-}));
 router.get("/coverage", asyncRoute(async (_req, res) => {
   const coverage = await application.coverage();
   res.set("Cache-Control", "private, max-age=3600");
@@ -90,13 +87,6 @@ router.get("/search", asyncRoute(async (req, res) => {
   };
   res.json(await application.searchLibrary(query));
 }));
-router.post("/", asyncRoute(async (req, res) => {
-  const selected = docType(req.body?.doc_type);
-  const citation = text(selected === "articles" ? req.body?.source_id ?? req.body?.citation
-    : req.body?.citation, selected === "articles" ? "source_id" : "citation");
-  res.status(201).json(await application.save(userId(res), { docType: selected, citation,
-    language: language(req.body?.language), dataset: optionalText(req.body?.dataset) }));
-}));
 router.get("/document", asyncRoute(async (req, res) => {
   const started = performance.now();
   sendViewer(req, res, await application.viewer(userId(res), {
@@ -109,16 +99,5 @@ router.get("/document", asyncRoute(async (req, res) => {
   }), started);
 }));
 
-router.get("/:referenceId/pdf-status", asyncRoute(async (req, res) => {
-  res.json(await application.pdfStatus(userId(res), req.params.referenceId));
-}));
-router.get("/:referenceId/document", asyncRoute(async (req, res) => {
-  const started = performance.now();
-  sendViewer(req, res, await application.savedViewer(userId(res), req.params.referenceId), started);
-}));
-router.delete("/:referenceId", asyncRoute(async (req, res) => {
-  await application.delete(userId(res), req.params.referenceId);
-  res.status(204).end();
-}));
 return router;
 }

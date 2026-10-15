@@ -16,7 +16,6 @@ import {
 } from "@/app/components/shared/views/highlightDocxQuote";
 import {
   getDirectLegalSourceDocument,
-  getLegalSourceDocument,
   type LegalDocumentType,
   type LegalSourceViewerPayload,
 } from "@/app/lib/api/legalSources";
@@ -57,7 +56,6 @@ export type LegalSourceTab = {
 
 export type LegalSourceViewerProps = {
   navigationRequest?: object;
-  referenceId?: string;
   provider?: "a2aj" | "journal";
   citation?: string;
   sourceId?: string | null;
@@ -235,7 +233,6 @@ export function LegalSourceViewer(props: LegalSourceViewerProps) {
 
 function LegalSourceViewerContent({
   navigationRequest,
-  referenceId,
   provider = "a2aj",
   citation,
   sourceId,
@@ -255,7 +252,7 @@ function LegalSourceViewerContent({
 }: LegalSourceViewerProps) {
   const { file: researchFile, mutations: commit, loading: researchLoading, error: workspaceError,
     passages, highlight } = useSourcesWorkspace();
-  const sourceKey = [referenceId, provider, citation, sourceId, docType, language, dataset].join("\0");
+  const sourceKey = [provider, citation, sourceId, docType, language, dataset].join("\0");
   const [result, setResult] = useState<[string, LegalSourceViewerPayload | Error]>();
   const current = result?.[0] === sourceKey ? result[1] : undefined;
   const payload = current && !(current instanceof Error) ? current : null;
@@ -275,11 +272,9 @@ function LegalSourceViewerContent({
 
   useEffect(() => {
     let live = true;
-    const request = referenceId
-      ? getLegalSourceDocument(referenceId)
-      : citation
-        ? getDirectLegalSourceDocument({ provider, citation, sourceId, docType, language, dataset })
-        : Promise.reject(new Error("Legal source reference is missing"));
+    const request = citation
+      ? getDirectLegalSourceDocument({ provider, citation, sourceId, docType, language, dataset })
+      : Promise.reject(new Error("Legal source reference is missing"));
     void request.then((value) => {
       if (!live) return;
       setResult([sourceKey, value]);
@@ -288,7 +283,7 @@ function LegalSourceViewerContent({
       if (live) setResult([sourceKey, new Error(message)]);
     });
     return () => { live = false; };
-  }, [citation, dataset, docType, language, provider, referenceId, sourceId, sourceKey]);
+  }, [citation, dataset, docType, language, provider, sourceId, sourceKey]);
 
   const slices = payload?.slices ?? [];
   const payloadReference: ResearchSourceReference | null = payload ? {

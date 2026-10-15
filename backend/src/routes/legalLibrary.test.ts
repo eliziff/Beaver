@@ -2,7 +2,6 @@ import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { a2ajLegalSourceProvider } from "../lib/legalSources/a2aj";
-import type { LegalSourceStore } from "../lib/legalSourceStore";
 import { createLegalSourceApplication } from "../lib/legalSourceApplication";
 import { createLegalLibraryRouter } from "./legalLibrary";
 
@@ -26,10 +25,7 @@ vi.mock("../lib/legalSources", async (original) => {
 
 const app = express();
 app.use(express.json());
-app.use("/sources", createLegalLibraryRouter(createLegalSourceApplication({
-  list: vi.fn(async () => []), get: vi.fn(async () => null),
-  save: vi.fn(), delete: vi.fn(async () => false),
-} as unknown as LegalSourceStore)));
+app.use("/sources", createLegalLibraryRouter(createLegalSourceApplication()));
 
 const originalAuthMode = process.env.AUTH_MODE;
 
