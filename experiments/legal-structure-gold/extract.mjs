@@ -71,15 +71,21 @@ async function extract(pdf, output, mode, requestFile) {
   const pages = newest.extraction.pages;
   // Recognized geometry is retained in the final document, native typography in
   // the extraction cache. Its source IDs are the same IDs used by the structure.
+  const exported = ({ rect, words, ...line }) => ({
+    ...line, text: line.text ?? '', bbox: rect, words: (words ?? []).map(({ rect, ...word }) => ({ ...word, bbox: rect })),
+  });
   for (const recognized of document.recognized_pages ?? []) {
     if (!recognized.lines.length) continue;
     const page = pages[recognized.pageNumber - 1];
     page.source = recognized.source;
     page.regions = recognized.regions ?? [];
-    page.lines = recognized.lines.map(({ rect, words, ...line }) => ({
-      ...line, text: line.text ?? '', bbox: rect,
-      words: words.map(({ rect, ...word }) => ({ ...word, bbox: rect })),
-    }));
+    page.lines = recognized.lines.map(exported);
+  }
+  // A native page can also hold recognized lines (the text of an image on it, such as a scanner's
+  // logo); the structure names them, so the page carries them beside its native lines.
+  for (const passage of document.passage_pages ?? []) {
+    const page = pages[passage.pageNumber - 1], known = new Set(page.lines.map(line => line.id));
+    page.lines.push(...passage.lines.filter(line => !known.has(line.id)).map(exported));
   }
   const result = {
     structure: document.structure, extraction: { source_sha256: sha256, pages },
