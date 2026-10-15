@@ -264,6 +264,9 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
     items={[{ label: "Cited provisions only", disabled: busy || copy?.excerpt === true, onSelect: () => choose(true) },
       { label: "Whole statute", disabled: busy || copy?.excerpt === false, onSelect: () => choose(false) }]}>
     <ScrollText /><span className={rowLabel}>{copy?.excerpt === false ? "Whole" : "Excerpt"}</span></ActionMenu>;
+  const sourceLink = <a href={authority.sourceUrl} target="_blank" rel="noopener noreferrer"
+    title={authority.sourceUrl} aria-label={`Open the link for ${title}`} className={rowControl}>
+    <ExternalLink /><span className={rowLabel}>Link</span></a>;
   return <article role="listitem" data-authority-id={authority.id}
     className={cn("group/row col-span-full grid min-h-14 min-w-0 grid-cols-subgrid items-center gap-y-1 border-t border-gray-200 px-3 py-2 first:border-t-0 hover:bg-gray-50 [p+&]:border-t-0",
       authority.excluded && "opacity-65")}
@@ -304,9 +307,7 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
     </div>
     <div className="col-span-3 row-start-1 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-4">
       {statutes && (copy?.choosable ? choice : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
-      {!needsPdf && authority.sourceUrl && <a href={authority.sourceUrl} target="_blank" rel="noopener noreferrer"
-        title={authority.sourceUrl} aria-label={`Open the link for ${title}`} className={rowControl}>
-        <ExternalLink /><span className={rowLabel}>Link</span></a>}
+      {!needsPdf && authority.sourceUrl && sourceLink}
       {needsPdf && (publisherUrl
         ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
               title="Download the PDF from the publisher, then upload it here."
@@ -331,9 +332,7 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
                 disabled: busy || !!sourceIssues[source.bindingRole], onSelect: () => onOpen(source.bindingRole) }))}>
               <Eye className="h-3.5 w-3.5" /><span className={rowLabel}>View</span></ActionMenu>)
         // A citation that prints its own link (a news story, a report online) opens it, as CanLII's do.
-        : authority.sourceUrl ? <a href={authority.sourceUrl} target="_blank" rel="noopener noreferrer"
-            title={authority.sourceUrl} aria-label={`Open the link for ${title}`} className={rowControl}>
-            <ExternalLink /><span className={rowLabel}>Link</span></a>
+        : authority.sourceUrl ? sourceLink
         : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
       {needsPdf && (authority.source.kind === "pending-canlii"
         ? <Button type="button" variant="ghost" className={rowControl} disabled={busy}
