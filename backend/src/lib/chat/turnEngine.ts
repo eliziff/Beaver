@@ -350,10 +350,10 @@ export async function runChatTurn(options: {
         }],
         createTools: options.createTools,
         readerAssignment: assignment,
+        // Its own passages and searches only: every evidence_id a reader is shown, it can read.
         evidenceState: childEvidence,
         priorEvidence,
         priorQueries: resume?.queries,
-        queryHistory: context.queryHistory,
         researchContext: research,
         operation: { ...context.operation, subagentId: id },
         onResearchObserved(grounding, operation) {
