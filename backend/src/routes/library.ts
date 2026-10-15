@@ -16,9 +16,6 @@ import {
 } from "../lib/normalize";
 import { pageRequest, pageResponse } from "../lib/pagination";
 import { requiredUpload, singleFileUpload } from "../lib/upload";
-import {
-  inspectDocxWorkflowCapabilities,
-} from "../lib/docxDeterministicCleanup";
 
 function nullableId(value: unknown, name: string): string | null {
   if (value === null || value === undefined) return null;
@@ -176,16 +173,6 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
       res.json(document);
     }),
   );
-
-  router.get("/:kind/documents/:documentId/workflow-capabilities", libraryRoute(async (req, res, scope) => {
-    if (scope.kind !== "file") reject(400, "Document workflows apply to Library files");
-    try {
-      res.json(await inspectDocxWorkflowCapabilities(documents, scope.userId, req.params.documentId));
-    } catch (error) {
-      const missing = error instanceof Error && error.message === "Document not found";
-      reject(missing ? 404 : 400, missing ? "Document not found" : "DOCX inspection failed");
-    }
-  }));
 
   router.post("/:kind/documents/:documentId/actions/retry-pdf-parse",
     libraryRoute(async (req, res, scope) => {

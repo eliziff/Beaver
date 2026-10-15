@@ -331,12 +331,6 @@ create table if not exists workflow_shares (
   role text not null default 'viewer' check(role in ('viewer','editor','owner')), created_at text not null,
   unique(workflow_id,shared_with_email)
 );
-create table if not exists workflow_open_source_submissions (
-  id text primary key, workflow_id text not null references workflows(id) on delete cascade,
-  submitted_by_user_id uuid not null, submitter_email text, submitter_name text,
-  contributor_mode text not null, snapshot jsonb not null, status text not null,
-  submitted_at text not null, updated_at text not null, reviewed_at text
-);
 create table if not exists audit_events (
   id text primary key, user_id uuid not null, user_email text,
   action text not null, status text not null default 'completed', title text, surface text,
@@ -460,7 +454,6 @@ alter table application_jobs add constraint application_jobs_auth_user foreign k
 alter table workflows add constraint workflows_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table work_products add constraint work_products_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table workflow_shares add constraint workflow_shares_auth_user foreign key(shared_by_user_id) references auth.users(id) on delete cascade;
-alter table workflow_open_source_submissions add constraint workflow_submissions_auth_user foreign key(submitted_by_user_id) references auth.users(id) on delete cascade;
 alter table audit_events add constraint audit_events_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table user_preferences add constraint user_preferences_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 
@@ -525,7 +518,7 @@ revoke all on table projects,project_members,project_subfolders,library_folders,
   tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
   application_job_events,application_job_commands,workflows,workflow_catalog,work_products,
-  workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
+  workflow_shares,audit_events,user_preferences
   from public,anon,authenticated;
 revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
   user_mcp_oauth_states,user_mcp_connector_tools,user_mcp_tool_audit_logs
@@ -535,7 +528,7 @@ grant all on table projects,project_members,project_subfolders,library_folders,d
   tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
   application_job_events,application_job_commands,workflows,workflow_catalog,work_products,
-  workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
+  workflow_shares,audit_events,user_preferences
   to service_role;
 grant all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
   user_mcp_oauth_states,user_mcp_connector_tools,user_mcp_tool_audit_logs
@@ -577,7 +570,6 @@ grant all on workflow_documents to service_role;
 alter table workflow_catalog enable row level security;
 alter table work_products enable row level security;
 alter table workflow_shares enable row level security;
-alter table workflow_open_source_submissions enable row level security;
 alter table audit_events enable row level security;
 alter table user_preferences enable row level security;
 

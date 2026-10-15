@@ -68,7 +68,6 @@ export async function buildUserDataExport(database: RelationalDatabase, kind: Us
       data.workflows = workflows;
       data.workflow_documents = await children("workflow_documents", "workflow_id", workflows);
       data.workflow_shares = await children("workflow_shares", "workflow_id", workflows);
-      data.workflow_open_source_submissions = await children("workflow_open_source_submissions", "workflow_id", workflows);
       data.work_products = await read(sql`SELECT w.* FROM work_products w WHERE w.user_id=${scope.userId}
         AND (w.project_id IS NULL OR EXISTS(SELECT 1 FROM projects p WHERE p.id=w.project_id AND ${projectAccess(scope)})) ORDER BY w.id`);
       for (const table of ["audit_events", "user_preferences"])

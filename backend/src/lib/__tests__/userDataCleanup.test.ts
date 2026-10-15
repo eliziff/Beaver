@@ -52,7 +52,6 @@ describe("user data cleanup", () => {
         { projectIds: ["owned-project"], includeOwned: true });
       expect(sorted(operations(requests, "DELETE"))).toEqual(sorted([
         ...ownedTables.map((table) => [table, { user_id: "eq.u1" }]),
-        ["workflow_open_source_submissions", { submitted_by_user_id: "eq.u1" }],
         ["workflow_shares", { shared_by_user_id: "eq.u1" }],
         ...(email ? [["workflow_shares", { shared_with_email: "eq.u1@example.com" }]] : []),
       ]));
@@ -86,8 +85,7 @@ describe("user data cleanup", () => {
   });
 
   it.each(["owned projects", "GET projects", "GET tabular_reviews", "PATCH projects",
-    "PATCH tabular_reviews", ...[...ownedTables, "workflow_open_source_submissions",
-      "workflow_shares"].map((table) => `DELETE ${table}`)])("propagates %s failures", async (failure) => {
+    "PATCH tabular_reviews", ...[...ownedTables, "workflow_shares"].map((table) => `DELETE ${table}`)])("propagates %s failures", async (failure) => {
     const { run, requests } = setup(failure);
     await expect(run("u1@example.com")).rejects.toThrow("fixture failure");
     if (!failure.startsWith("DELETE")) expect(operations(requests, "DELETE")).toEqual([]);

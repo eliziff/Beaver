@@ -4,7 +4,7 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { ProjectFolder, ProjectRecord, ProjectRepository } from "./projectStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, deleteDocumentRows, directoryPage, missingProfileEmail, now, one, projectAccess,
-  replaceMembers, resourcePeople, rows, type Row } from "./relationalRepositorySupport";
+  replaceMembers, rows, type Row } from "./relationalRepositorySupport";
 import { searchFilter } from "./searchQuery";
 
 const projectRecord = (_scope: ApplicationScope, row: Row): ProjectRecord => ({
@@ -72,11 +72,6 @@ export const projectRepository: ProjectRepository = {
     }, (row) => projectFolder({ ...row, project_id: projectId }));
   },
   project: findProject,
-  async people(scope, id) {
-    const project = await findProject(scope, id);
-    return project ? resourcePeople(await relationalDatabase(),
-      String(project.user_id), project.shared_with as string[]) : null;
-  },
   async update(scope, id, input) {
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
