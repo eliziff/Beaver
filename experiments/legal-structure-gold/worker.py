@@ -15,15 +15,12 @@ from functools import partial
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-COMPOSER = ROOT / "legal-pdf-parser/experiments/structure-composer"
 sys.path.insert(0, str(ROOT / "tools"))
-sys.path.insert(0, str(COMPOSER))
 sys.path.insert(0, str(ROOT / "experiments/legal_pdf_corpus"))
 import corpus_store
 from codex_runner.artifacts import atomic_json as write_json, atomic_write as _atomic_write, digest, fingerprint, read_json
 from codex_runner.calls import CallPolicy, call as shared_call, event_usage, usage_totals
 from codex_runner.transport import invoke as _invoke, terminate as _terminate
-import composer
 import gold
 import package
 import ocr
@@ -432,12 +429,13 @@ def stage_binding(job, value, stage, receipt):
     identity = package.text_identity(value)
     if receipt.get("output_text_sha256", receipt["input_text_sha256"]) == identity:
         return receipt["output_annotation_sha256"]
-    correction = annotation_receipt(job, value, "transcription")
-    if correction is not None and correction.get("output_text_sha256") == identity:
-        marker = value["provenance"]["annotation_stages"][stage]
-        binding = correction.get("revalidated_stages", {}).get(stage)
-        if binding is not None and binding["receipt_sha256"] == marker["sha256"]:
-            return binding["output_annotation_sha256"]
+    for corrector in ("transcription", "structure"):
+        correction = annotation_receipt(job, value, corrector) if corrector != stage else None
+        if correction is not None and correction.get("output_text_sha256") == identity:
+            marker = value["provenance"]["annotation_stages"][stage]
+            binding = correction.get("revalidated_stages", {}).get(stage)
+            if binding is not None and binding["receipt_sha256"] == marker["sha256"]:
+                return binding["output_annotation_sha256"]
     return None
 
 
@@ -510,11 +508,6 @@ def publish_update(job, expected_gold_sha256, value, *, stage, receipt, text_edi
                 active = stage_current(job, original, prior)
                 receipt["revalidated_stages"][prior] = {"receipt_sha256": marker["sha256"],
                     "output_annotation_sha256": fingerprint(owned_annotations(value, saved["owned_paths"])) if active else "superseded"}
-            imported = value["provenance"].get("imported_hierarchy")
-            if imported:
-                import hierarchy_pass
-                if imported["state_sha256"] == hierarchy_pass.state_identity(original):
-                    imported["state_sha256"] = hierarchy_pass.state_identity(value)
         if stage == "structure":
             proof = structure_authoring_proof(value)
             receipt = {**receipt, "structure_authoring":proof}
@@ -534,6 +527,12 @@ def publish_update(job, expected_gold_sha256, value, *, stage, receipt, text_edi
         stage_data = (json.dumps(stage_receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":"))+"\n").encode()
         import hashlib
         value = deepcopy(value)
+        if stage == "structure":
+            # Complete structure authoring supersedes stages that only annotated its layer.
+            for prior in list(value["provenance"].get("annotation_stages", {})):
+                saved = annotation_receipt(job, original, prior) if prior != stage else None
+                if saved and all(path[:2] == ["layers", "legal_structure"] for path in saved["owned_paths"]):
+                    del value["provenance"]["annotation_stages"][prior]
         value["provenance"].setdefault("annotation_stages", {})[stage] = {
             "receipt": "stages/"+stage+".json", "sha256": hashlib.sha256(stage_data).hexdigest()}
         paths = {role:path for role,path in run_artifacts(job, base_receipt).items() if role != "history"}
@@ -575,8 +574,6 @@ def correct_run(job, request):
 
 def package_value(parent, original, records, pages, forms, *, record_promotion=False):
     """Factor saved structure with current record facts, without copying stage histories."""
-    from copy import deepcopy
-    import hierarchy_pass
     if original.get("schema_version") == package.VERSION:
         compact = deepcopy(original)
         if record_promotion:
@@ -584,26 +581,14 @@ def package_value(parent, original, records, pages, forms, *, record_promotion=F
             for name in ("document_classification", "information_extraction", "chronology", "exhibit_association"):
                 compact["layers"][name] = {}
             compact["layers"].pop("source_anchors", None)
-            stages = compact["provenance"].pop("annotation_stages", {})
-            if "hierarchy" in stages and stage_current(parent, original, "hierarchy"):
-                compact["provenance"]["imported_hierarchy"] = {
-                    "artifact_sha256": stages["hierarchy"]["sha256"],
-                    "state_sha256": hierarchy_pass.state_identity(compact)}
+            compact["provenance"].pop("annotation_stages", None)
         compact = package.attach_records(compact, records, forms)
     else:
         compact = package.pack(original, records, pages, forms)
-    saved = hierarchy_pass.read_layer(parent)
-    hierarchy_sha = None
-    if saved is not None and saved[1].get("gold_sha256") == digest(parent / "gold.json.gz"):
-        hierarchy_sha = digest(saved[0])
-        hierarchy_pass.apply_items(compact, saved[1]["items"])
-        compact["provenance"]["imported_hierarchy"] = {
-            "artifact_sha256": hierarchy_sha, "state_sha256": hierarchy_pass.state_identity(compact)}
     if record_promotion:
         import anchors
         compact = anchors.enrich(compact, records, forms)
-    package.validate(compact)
-    return compact, hierarchy_sha
+    return package.validate(compact)
 
 
 def pack_run(parent, args):
@@ -629,7 +614,7 @@ def pack_run(parent, args):
         return parent
     records = association_records(args.court_records, source)
     forms = current["form_observations"] if promotion else form_observations(source)
-    compact, hierarchy_sha = package_value(parent, original, records, page_geometry(pages), forms, record_promotion=promotion)
+    compact = package_value(parent, original, records, page_geometry(pages), forms, record_promotion=promotion)
     if promotion:
         for rid in current["records"]:
             require(affidavit_record(current, rid, args.court_records) == affidavit_record(compact, rid, args.court_records),
@@ -654,7 +639,7 @@ def pack_run(parent, args):
     products["gold"] = job / "gold.json.gz"
     write_json(products["gold"], compact)
     configuration = {"mode": receipt["configuration"]["mode"], "package_version": package.VERSION,
-                     "code": {path.name: digest(path) for path in (Path(__file__), HERE / "package.py", HERE / "gold.py", HERE / "hierarchy_pass.py", COMPOSER / "composer.py")},
+                     "code": {path.name: digest(path) for path in (Path(__file__), HERE / "package.py", HERE / "gold.py")},
                      "source_run_id": receipt["run_id"]}
     packaged_receipt = {"run_id": "package-" + receipt["source_sha256"][:12] + "-" + signature[:12],
         "submission": "machine_test", "source_sha256": receipt["source_sha256"], "status": "complete",
@@ -662,8 +647,6 @@ def pack_run(parent, args):
         "parent_run": os.path.relpath(parent, job), "source_gold_sha256": receipt["gold_sha256"],
         "gold_sha256": digest(products["gold"]), "manuscript_sha256": receipt["manuscript_sha256"], "model_calls": 0,
         "artifact_paths": {role: os.path.relpath(path, job) for role, path in products.items()}}
-    if hierarchy_sha is not None:
-        packaged_receipt["source_hierarchy_sha256"] = hierarchy_sha
     if promotion:
         packaged_receipt["record_promotion"] = {"input_gold_sha256": expected_current[1],
             "record_inputs_sha256": fingerprint(records), "form_observations_sha256": fingerprint(forms)}
@@ -840,7 +823,7 @@ def prepare(pdf, evidence, expected, mode, structure, extraction, dpi=144):
             require(Path(name).name == name and digest(evidence / name) == sha, "Evidence file changed")
         return {"page_count":manifest["page_count"],"evidence_sha256":digest(evidence / "manifest.json")}
     evidence.mkdir(parents=True, exist_ok=True)
-    native = composer.source_lines(structure)
+    native = gold.source_lines(structure)
     files = {}
     with fitz.open(pdf) as doc:
         require(not doc.needs_pass and len(doc) > 0, "PDF must be unlocked and nonempty")

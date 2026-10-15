@@ -1,13 +1,11 @@
-"""Replay a saved gold run, or score a witness-stack product against its gold."""
+"""Validate a saved gold run, or score a witness-stack product against its gold."""
 import argparse
 from contextlib import closing
 from collections import Counter, defaultdict
 import difflib
-import hashlib
 import json
 from pathlib import Path
 import worker
-import composer
 import gold
 import package
 from gold import require
@@ -58,81 +56,22 @@ def replay(job):
             require(worker.fingerprint(records) == receipt['record_promotion']['record_inputs_sha256'] and
                     worker.fingerprint(compact['form_observations']) == receipt['record_promotion']['form_observations_sha256'],
                     'Promoted record evidence changed')
-            projected, hierarchy_sha = worker.package_value(parent, original, records, compact['pages'],
+            projected = worker.package_value(parent, original, records, compact['pages'],
                 compact['form_observations'], record_promotion=True)
-            require(hierarchy_sha == receipt.get('source_hierarchy_sha256'), 'Imported hierarchy evidence changed')
         else:
             projected = package.attach_records(original, records, compact['form_observations']) if original.get('schema_version') == package.VERSION else package.pack(original, records, compact['pages'], compact['form_observations'])
-        if receipt.get('source_hierarchy_sha256') and not receipt.get('record_promotion'):
-            import hierarchy_pass
-            saved_hierarchy = hierarchy_pass.read_layer(parent)
-            require(saved_hierarchy is not None, 'Imported hierarchy evidence missing')
-            path, layer = saved_hierarchy
-            require(worker.digest(path) == receipt['source_hierarchy_sha256'], 'Imported hierarchy evidence changed')
-            require(layer['gold_sha256'] == receipt['source_gold_sha256'], 'Imported hierarchy source differs')
-            hierarchy_pass.apply_items(projected, layer['items'])
-            projected['provenance']['imported_hierarchy'] = {
-                'artifact_sha256': receipt['source_hierarchy_sha256'], 'state_sha256': hierarchy_pass.state_identity(projected)}
         projected['records'].update({rid:record for rid,record in compact['records'].items() if 'owner_source_sha256' in record})
         require(projected == compact, 'Package facts changed')
-        operation_replay = 'identical'
-        operations = None
-        try: operations = replay(parent)['operations']
-        except ValueError as error:
-            code = source_receipt['configuration'].get('code', {})
-            changed = any(code.get(path.name) != worker.digest(path) for path in (worker.HERE/'gold.py',worker.COMPOSER/'composer.py'))
-            if not changed or str(error) not in {'Replay aliases changed','Replay changed the gold artifact','Replay changed the manuscript'}: raise
-            operation_replay = 'original_code_required: '+str(error)
         return {'replay': 'facts_identical', 'run_id': receipt['run_id'], 'source_sha256': compact['source_sha256'],
-                'operations': operations, 'source_operation_replay': operation_replay, 'record_layers': len(compact['records'])}
-    evidence = job / 'evidence'
-    manifest = worker.read_json(evidence / 'manifest.json')
-    require(worker.digest(evidence / 'manifest.json') == expected['provenance']['evidence_sha256'], 'Evidence manifest changed')
-    for name, sha in manifest['files'].items():
-        require(Path(name).name == name and worker.digest(evidence / name) == sha, 'Evidence changed')
-    baseline = worker.read_json(job / 'baseline.json.gz')
-    require(worker.fingerprint(baseline) == manifest['structure_sha256'], 'Baseline changed')
-    pages = [worker.read_json(evidence / f'page-{n:06}.json.gz') for n in range(1, len([n for n in baseline['nodes'] if n['kind'] == 'page']) + 1)]
-    state = gold.initial(baseline, pages)
-    metadata = compact['metadata'] if compact else expected
-    if compact:
-        configuration = compact['provenance']['configuration']
-        schema_sha = worker.digest(job / 'schema.json')
-        for index, page in enumerate(pages):
-            surface, request = gold.request(baseline, pages[max(0,index-1):index+2], [page['page']], state)
-            prompt_sha = hashlib.sha256(worker.prompt(request, metadata['mode']).encode()).hexdigest()
-            matches = []
-            for path in (job / 'calls' / f"page-{page['page']:06}").glob('*/receipt.json'):
-                call = worker.read_json(path)
-                first = call['attempts'][0] if call['attempts'] else {}
-                if call.get('response_sha256') and first.get('prompt_sha256') == prompt_sha:
-                    matches.append((path, call, first))
-            require(len(matches) == 1, 'Replay needs one matching accepted authoring response')
-            path, call, first = matches[0]
-            require(first['schema_sha256'] == schema_sha and all(first[key] == configuration[key] for key in ('model','effort')), 'Replay call identity changed')
-            response = path.parent / 'response.json'
-            require(worker.digest(response) == call['response_sha256'], 'Authoring response changed')
-            state = gold.apply(surface, request, worker.read_json(response), state, metadata['mode'])
-    else:
-        for operation in expected['operations']:
-            saved = operation['request']
-            visible = [p for p in pages if p['page'] in saved['pages']]
-            surface, request = gold.request(baseline, visible, saved['targets'], state)
-            require(composer.fingerprint(request['aliases']) == saved['aliases_sha256'] and composer.fingerprint(request['annotation_aliases']) == saved['annotation_aliases_sha256'], 'Replay aliases changed')
-            state = gold.apply(surface, request, operation['response'], state, metadata['mode'])
-    manuscript, actual = gold.materialize(baseline, state, expected['provenance'])
-    actual['mode'] = metadata['mode']
-    actual['manuscript_sha256'] = metadata['manuscript_sha256']
-    if compact:
-        records = [{'gold': package.record_gold(compact,rid), **compact['views'][rid]} for rid in compact['records'] if rid in compact['views']]
-        projected = package.pack(actual, records, worker.page_geometry(pages), compact['form_observations'])
-        projected['records'].update({rid:record for rid,record in compact['records'].items() if 'owner_source_sha256' in record})
-        require(projected == compact, 'Replay changed canonical package')
-    else:
-        require(actual == expected, 'Replay changed the gold artifact')
-    require(manuscript == (job / 'manuscript.txt').read_text(encoding='utf-8'), 'Replay changed the manuscript')
-    require(worker.digest(job / 'manuscript.txt') == receipt['manuscript_sha256'], 'Manuscript changed')
-    return {'replay': 'identical', 'run_id': receipt['run_id'], 'source_sha256': expected['source_sha256'], 'operations': len(actual['operations'])}
+                'record_layers': len(compact['records'])}
+    # A typed-block authoring run: its gold, evidence and complete-block proof must still agree.
+    require(compact is not None, 'Historical operation replay was retired; regenerate this gold')
+    worker.verified_run(job)
+    package.validate(compact)
+    require(compact['provenance'].get('structure_authoring') == worker.structure_authoring_proof(compact),
+            'Structure authoring proof differs from the gold')
+    return {'replay': 'current_facts_validated', 'run_id': receipt['run_id'], 'source_sha256': compact['source_sha256'],
+            'record_layers': len(compact['records'])}
 
 
 def state_of(value):
@@ -147,7 +86,7 @@ def state_of(value):
     extraction = value.get('extraction', {}).get('pages', [])
     value = value.get('document', value.get('baseline', value))
     structure = value.get('structure_graph', value.get('structure', value))
-    lines = composer.source_lines(structure)
+    lines = gold.source_lines(structure)
     boxes = {line['id']: [1000*v/(page['width'] if i%2 == 0 else page['height']) for i,v in enumerate(line['bbox'])]
              for page in extraction for line in page['lines']}
     pages = [{'atoms':[{'id':i, 'bbox':boxes.get(i,[0,0,0,0])} for i,l in lines.items() if l['page'] == n]}
@@ -180,7 +119,7 @@ def state_of(value):
             middle = sum(bands[i] for i in group['line_ids']) / len(group['line_ids'])
             if middle < 0.15: group['kind'] = 'header'
             elif middle > 0.85: group['kind'] = 'footer'
-    # Native products can carry the composer's source-anchored annotations too.
+    # Native products can carry source-anchored annotations too.
     if structure.get('annotations'):
         def refs(item):
             if isinstance(item, dict):
@@ -444,22 +383,24 @@ def compare(expected, candidate):
             for ident,a,b in project(line,start,end,candidate_side): cuts[ident].update((a,b))
     def features(state, candidate_side):
         lines = {l['id']:l for l in state['lines']}
-        def span(s):
-            line = lines[s['line_id']]
+        def surface(line, at, right=False):
+            # Project a corrected offset back to the unchanged extraction surface.
             lo,hi = line['source_range'] or (0,len(line['text']))
             old = line['original_text'][lo:hi] if line['source_id'] else line['text']
-            # Project corrected offsets back to the unchanged extraction surface.
-            def edge(at, right=False):
-                for _,a,b,x,y in difflib.SequenceMatcher(None,old,line['text'],autojunk=False).get_opcodes():
-                    if x <= at < y: return a + (at-x if b-a == y-x else b-a if right else 0)
-                return len(old)
-            return project(line,lo+edge(s['start']),lo+edge(s['end'],True),candidate_side)
+            for _,a,b,x,y in difflib.SequenceMatcher(None,old,line['text'],autojunk=False).get_opcodes():
+                if x <= at < y: return lo + a + (at-x if b-a == y-x else b-a if right else 0)
+            return lo + len(old)
+        def span(s):
+            line = lines[s['line_id']]
+            return project(line,surface(line,s['start']),surface(line,s['end'],True),candidate_side)
         def spans(values): return merged_spans(part for s in values for part in span(s))
         def anchor(i):
+            # A line ID or an exact source-span anchor (line@offset).
             if i is None: return None
-            line=lines[i]; start=(line['source_range'] or [0])[0]
-            origin,offset,_=project(line,start,start,candidate_side)[0]
-            return (origin,offset)
+            ident,offset = (i,0) if i in lines else (i.rsplit('@',1)[0],int(i.rsplit('@',1)[1]))
+            line=lines[ident]; start=surface(line,offset)
+            origin,at,_=project(line,start,start,candidate_side)[0]
+            return (origin,at)
         # The package's own document is the root, whichever line it opens on.
         roots={a['line_ids'][0] for a in state['annotations'] if a['kind']=='document' and a['attributes'].get('parent') is None}
         def document(i): return ('root',) if i in roots else anchor(i)
@@ -584,7 +525,7 @@ def main():
             worker.write_json(args.output.with_name(args.output.name+'.receipt.json'), {
                 'source_sha256':value['source_sha256'], 'gold_sha256':worker.digest(args.export),
                 'exported_at':worker.corpus_store.now(), 'view':'parser',
-                'exporter':{path.name:worker.digest(path) for path in (worker.HERE/'package.py',worker.HERE/'gold.py',worker.COMPOSER/'composer.py')},
+                'exporter':{path.name:worker.digest(path) for path in (worker.HERE/'package.py',worker.HERE/'gold.py')},
                 'output_sha256':worker.digest(args.output)})
         elif args.view == 'manuscript': args.output.write_text(package.manuscript_text(value),encoding='utf-8',newline='\n')
         elif args.view == 'affidavit':
