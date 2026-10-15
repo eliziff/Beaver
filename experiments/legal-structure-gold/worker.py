@@ -1132,6 +1132,7 @@ def parse_args(argv=None):
     choice.add_argument("--pack-run", type=Path, nargs="+", help="Factor existing completed runs into multipurpose packages without model calls")
     choice.add_argument("--enrich-run", type=Path, nargs="+", help="Attach saved record/form source anchors to current gold without model calls")
     choice.add_argument("--structure-run", type=Path, nargs="+", help="Re-author all structural blocks over selected corrected sources")
+    choice.add_argument("--hierarchy-run", type=Path, nargs="+", help="Decide block parents over selected current gold, written beside it unpublished")
     choice.add_argument("--record-run", type=Path, nargs="+", help="Annotate document kinds and standard information in selected current gold")
     choice.add_argument("--import-records", action="store_true", help="Port all saved record annotations into current source Gold without model calls")
     choice.add_argument("--correct-text-run", type=Path, help="Apply exact source-checked transcription edits to current Gold")
@@ -1157,7 +1158,7 @@ def parse_args(argv=None):
     parser.add_argument("--dpi", type=int, choices=range(72, 301), default=144)
     parser.add_argument("--run", action="store_true", help="Call the model; default prepares evidence and prompts only")
     args = parser.parse_args(argv)
-    if not (args.pdf or args.manifest or args.corpus or args.pack_run or args.enrich_run or args.record_run or args.import_records or args.correct_text_run or args.structure_run):
+    if not (args.pdf or args.manifest or args.corpus or args.pack_run or args.enrich_run or args.record_run or args.import_records or args.correct_text_run or args.structure_run or args.hierarchy_run):
         parser.error("Select an input or an existing Gold action")
     if bool(args.correct_text_run) != bool(args.text_edits):
         parser.error("--correct-text-run and --text-edits must be supplied together")
@@ -1179,6 +1180,11 @@ def main():
     if args.structure_run:
         for parent in args.structure_run:
             print(str(reauthor_structure(parent,args)),flush=True)
+        return
+    if args.hierarchy_run:
+        from hierarchy import run as decide_hierarchy
+        for parent in args.hierarchy_run:
+            print(json.dumps(decide_hierarchy(parent, args, _invoke)[3]), flush=True)
         return
     if args.correct_text_run:
         print(str(correct_run(args.correct_text_run, read_json(args.text_edits))), flush=True)
