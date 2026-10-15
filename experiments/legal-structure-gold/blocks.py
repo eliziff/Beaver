@@ -267,13 +267,23 @@ def corrected(result, texts):
         if merged and not "".join(c for c, _ in line).strip():
             kept.append(ident)  # a line typed nowhere stays; correction cannot delete a physical line
             merged, line = [], [(text[k], owner.get(at[k])) for k in range(len(text))]
-        for s, e, a in merged:
-            new = "".join(c[0] for c in a)
-            # An insertion takes in a neighbouring character, so no existing span edge is ambiguous.
-            if s == e: s, e, new = (s, s + 1, new + text[s]) if s < len(text) else (s - 1, s, text[s - 1] + new)
-            edits.append({"line_id": ident, "start": s, "end": e, "old": text[s:e], "text": new})
+        if merged: edits.extend(scalar_edits(ident, text, "".join(c for c, _ in line)))
         chars[ident] = line
     return edits, chars, kept, unplaced
+
+
+def scalar_edits(ident, old, new):
+    """Edits from a line's text to its corrected text. An insertion takes in a neighbouring
+    character, so no existing span edge is ambiguous; edits that then meet are one edit."""
+    edits = []
+    for tag, i1, i2, j1, j2 in SequenceMatcher(None, old, new, autojunk=False).get_opcodes():
+        if tag == "equal": continue
+        if i1 == i2: i1, i2, j1, j2 = (i1, i1 + 1, j1, j2 + 1) if i1 < len(old) else (i1 - 1, i1, j1 - 1, j2)
+        if edits and i1 < edits[-1][1]:
+            edits[-1] = (edits[-1][0], max(edits[-1][1], i2), edits[-1][2], max(edits[-1][3], j2))
+        else:
+            edits.append((i1, i2, j1, j2))
+    return [{"line_id": ident, "start": a, "end": b, "old": old[a:b], "text": new[c:d]} for a, b, c, d in edits]
 
 
 def trim(items):

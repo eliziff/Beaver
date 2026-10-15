@@ -927,6 +927,8 @@ def retry_prompt(prompt, error, previous):
 
 def retry_error(exc, response):
     from jsonschema import ValidationError
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return "it was not finished in time"
     if response is None and not isinstance(exc, ValueError) or isinstance(exc, blocks.UnusableExtraction):
         return None
     return (f"{exc.json_path}: {exc.message}" if isinstance(exc, ValidationError) else str(exc) or type(exc).__name__)[:200]
