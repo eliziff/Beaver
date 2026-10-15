@@ -15,28 +15,23 @@ type ViewMode = (typeof VIEW_OPTIONS)[number][0];
 
 interface Props {
     quotes: CitationQuoteHeaderItem[];
-    error?: string | null;
-    isLoading?: boolean;
     activeQuoteId?: string | null;
-    currentIndex?: number;
+    currentIndex: number;
     citationRef?: number;
     onSelect?: (quote: CitationQuoteHeaderItem, index: number) => void;
-    onIndexChange?: (index: number) => void;
+    onIndexChange: (index: number) => void;
 }
 
 export function CitationQuotesHeader({
     quotes,
-    error = null,
-    isLoading = false,
     activeQuoteId = null,
-    currentIndex = 0,
+    currentIndex,
     citationRef,
     onSelect,
     onIndexChange,
 }: Props) {
     const [viewMode, setViewMode] = useState<ViewMode>("single");
-    const [localIndex, setLocalIndex] = useState(currentIndex);
-    const selectedIndex = onIndexChange ? currentIndex : localIndex;
+    const selectedIndex = currentIndex;
     const hasMultipleQuotes = quotes.length > 1;
     const currentQuote = quotes[selectedIndex];
     const visibleMode =
@@ -72,10 +67,7 @@ export function CitationQuotesHeader({
                                         type="button"
                                         aria-label={`Quote ${index + 1}`}
                                         aria-pressed={selectedIndex === index}
-                                        onClick={() => {
-                                            if (onIndexChange) onIndexChange(index);
-                                            else setLocalIndex(index);
-                                        }}
+                                        onClick={() => onIndexChange(index)}
                                         className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
                                             selectedIndex === index
                                                 ? "bg-white font-medium text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.22)]"
@@ -115,18 +107,7 @@ export function CitationQuotesHeader({
                 </div>
                 {visibleMode !== "closed" && (
                     <div className="px-2 pb-2">
-                        {isLoading ? (
-                            <div className={`px-3 py-2.5 ${QUOTE_CARD_SURFACE}`}>
-                                <div className="h-3 w-28 rounded bg-gray-200" />
-                                <div className="mt-2.5 h-3 w-full rounded bg-gray-200" />
-                                <div className="mt-2 h-3 w-11/12 rounded bg-gray-200" />
-                                <div className="mt-2 h-3 w-2/3 rounded bg-gray-200" />
-                            </div>
-                        ) : error ? (
-                            <RelevantQuoteMessage tone="error">
-                                {error}
-                            </RelevantQuoteMessage>
-                        ) : quotes.length > 0 ? (
+                        {quotes.length > 0 ? (
                             visibleQuotes.length ? (
                                 <div
                                     className={
@@ -160,22 +141,10 @@ export function CitationQuotesHeader({
         </div>
     );
 }
-function RelevantQuoteMessage({
-    children,
-    tone = "neutral",
-}: {
-    children: ReactNode;
-    tone?: "neutral" | "error";
-}) {
+function RelevantQuoteMessage({ children }: { children: ReactNode }) {
     return (
         <div className={`px-3 py-2.5 ${QUOTE_CARD_SURFACE}`}>
-            <p
-                className={`font-serif text-sm leading-6 ${
-                    tone === "error" ? "text-red-700" : "text-gray-600"
-                }`}
-            >
-                {children}
-            </p>
+            <p className="font-serif text-sm leading-6 text-gray-600">{children}</p>
         </div>
     );
 }

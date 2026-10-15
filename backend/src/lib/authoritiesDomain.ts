@@ -20,7 +20,7 @@ import { attachAuthoritySource, attachedAuthoritySources,
 import type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,
   AuthoritiesBoundPdf, AuthoritiesBookParts,
   AuthoritiesBookSupplement } from "mike/shared/authorities-sources.mjs";
-export { attachedAuthoritySources, federalEnactmentCitation, hasBilingualAuthoritySource,
+export { attachedAuthoritySources,
   authoritiesBookPdfs, authorityBytesRequired, authorityReproducedInBook,
   authoritySourceRequirement, authoritySourceUrl,
   bilingualEnactmentRequired } from "mike/shared/authorities-sources.mjs";
@@ -40,7 +40,7 @@ import { authorityProcedureInput, currentTabReference, deriveAuthorityProcedure 
 
 import { AUTHORITIES_ACTION_CHOICES, AUTHORITIES_SETTINGS_CHOICES, authorityKinds,
   decodeAuthoritiesInitialSettings } from "./authoritiesActionContract";
-export { AUTHORITIES_BOOK_ROLES, authoritiesProfileIds } from "./authoritiesActionContract";
+export { authoritiesProfileIds } from "./authoritiesActionContract";
 /** Filing defaults only; source receipts remain in the repository audit data. */
 const authoritiesProfiles = profileValues as AuthoritiesProfile[];
 const AUTHORITIES_PROFILES = new Map(authoritiesProfiles.map((profile) => [profile.id, profile]));
