@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
 import { structureNative } from "./structureNative";
 import { boundedSize, searchTokens, sqliteText as string } from "./sqliteSearch";
-import { legalProviderDatabase, withSearchReadonlySqlite,
+import { legalProviderDatabase, storeExists, withSearchReadonlySqlite,
   withReadonlySqlite } from "./legalDataPath";
 
 type Row = Record<string, unknown>;
@@ -50,7 +50,8 @@ export type CitationAliasGroup = { keys: string[]; forms: string[]; ambiguous: b
 
 /** Exact aliases and their authored forms from the installed provider inventory. */
 export function a2ajCitationAliasGroups(citations: string[]): CitationAliasGroup[] | null {
-  return structureNative().a2ajAliasGroups(a2ajLocalBulkPath(), citations);
+  const store = a2ajLocalBulkPath();
+  return storeExists(store) ? structureNative().a2ajAliasGroups(store, citations) : null;
 }
 
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
