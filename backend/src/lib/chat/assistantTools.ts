@@ -3,7 +3,7 @@ import { readerHandoff } from "./readerHandoff";
 import { queryResources, readQueryHistory, type QueryHistorySource } from "./queryHistory";
 import { collapseProvisionLabels } from "../provisionLabels";
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
-  sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter,
+  sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter, libraryReadSectionSchema,
   type ResearchReadContext } from "../researchReader";
 import { ApplicationError } from "../applicationError";
 import { researchMemoCitation } from "../researchMemo";
@@ -871,7 +871,10 @@ async function runCodingShapeCall(
       return fail(`Document resource does not exist: ${requested}`);
     }
     const mode = args.mode as "text" | "drafting" | "redline" | undefined;
-    const sectionArg = trimmed(args.section);
+    const parsedSection = libraryReadSectionSchema.optional().safeParse(
+      typeof args.section === "string" ? trimmed(args.section) || undefined : args.section);
+    if (!parsedSection.success) return fail("section must be a structural handle or a returned {nodeId}.");
+    const sectionArg = parsedSection.data;
     const references = (args.references ?? "none") as
       "none" | "inbound" | "outbound" | "both";
     if (references !== "none" && !sectionArg) {
@@ -901,7 +904,7 @@ async function runCodingShapeCall(
     return readLibraryResearchWindow({ documentId: meta.id,
       versionId: document.versionId, filename: meta.filename, document: nativeDocument,
       offset: args.offset as number | undefined, start_char: startChar, limit,
-      section: sectionArg, references });
+      section: sectionArg, references, reference_offset: args.reference_offset as number | undefined });
   }
 
   if (call.name === "Edit" || call.name === "edit_docx_advanced") {
@@ -1377,9 +1380,10 @@ function pdfLegalEvidence(
     spans = native.pdfLookupUnitSpans(document, units.map(({ id }) => id));
   return units.flatMap((unit) => {
     if (!unit.text.trim()) return [];
-    const span = spans[unit.id];
-    if (!span || span.end <= span.start) throw new Error("PDF passage has no canonical document span");
-    return [createLibraryEvidence({
+    const parts = spans[unit.id];
+    if (!parts?.length || parts.some((span) => span.end <= span.start))
+      throw new Error("PDF passage has no canonical document spans");
+    return parts.map((span) => createLibraryEvidence({
       documentId,
       versionId,
       filename,
@@ -1388,7 +1392,7 @@ function pdfLegalEvidence(
       ...span,
       blockId: `node:${unit.id}`,
       locator: { kind: unit.kind, label: unit.locator },
-    })];
+    }));
   });
 }
 
@@ -1666,6 +1670,12 @@ export function assistantTools<Context extends {
         ? { ...provenance, turnId } : provenance }));
   const coding: AssistantToolRun = async (call, args, signal, progress) => {
     const requested = trimmed(args.file_path);
+    if (call.name === "Read" && args.section !== undefined && typeof args.section !== "string" &&
+        parseResourceReference(requested)?.kind !== "document")
+      return fail("A {nodeId} section requires a version-pinned document resource.");
+    if (call.name === "Read" && args.reference_offset !== undefined &&
+        (parseResourceReference(requested)?.kind !== "document" || !args.section || !args.references || args.references === "none"))
+      return fail("reference_offset requires the returned document, section and references direction.");
     if (call.name === "Read" && args.patterns) {
       const target = parseResourceReference(requested);
       if (args.pattern || target?.kind !== "source" || target.provider === "pdf")
@@ -1735,6 +1745,8 @@ export function assistantTools<Context extends {
     const workspaceId = reference?.kind === "document" &&
       (reference.documentId === researchContext?.workspace?.documentId ||
         knownDocumentNames.get(reference.documentId)?.toLowerCase().endsWith(".research.md")) ? reference.documentId : undefined;
+    if (workspaceId && args.section !== undefined && typeof args.section !== "string")
+      return fail("Read workspace findings with their returned finding references.");
     if (workspaceId && sources) {
       const saved = await sources.get(scope, workspaceId);
       if (saved) {

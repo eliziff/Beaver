@@ -269,7 +269,13 @@ const authority: Check = (value) =>
 
 const spanFields = { start: integer, end: integer, text } satisfies FieldTable<AuthorityTextSpan>;
 const authoritySpan = closed<AuthorityTextSpan>(spanFields);
-const unitFields = { id: text, kind: oneOf(["body", "footnote"]), ordinal: integer,
+const unitSource = closed<NonNullable<AuthoritiesReviewUnit["source"]>>({
+  documentId: text, textSha256: text, coordinateSpace: oneOf(["source_utf16"]),
+  nodeIds: strings, lineIds: strings,
+  ranges: list(100_000, closed<{ start: number; end: number }>({ start: integer, end: integer })),
+  mappings: list(100_000, closed<NonNullable<AuthoritiesReviewUnit["source"]>["mappings"][number]>({ start: integer, end: integer, sourceStart: integer, sourceEnd: integer, lineId: text })),
+});
+const unitFields = { source: maybe(unitSource), id: text, kind: oneOf(["body", "footnote"]), ordinal: integer,
   footnoteId: nullable(integer), noteNumber: maybe(nullable(integer)), noteMark: maybe(text),
   authorLinks: maybe(list(50_000, linkSpan)), footnoteRefs: list(50_000, pair),
   pageNumbers: list(50_000, integer), text,
@@ -446,10 +452,12 @@ function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) 
     const authority = requireRecord(authorities, item.authorityKey, "ledger authority");
     const unit = units.get(item.unit.id) ?? { id: item.unit.id, kind: item.unit.kind,
       ordinal: item.unit.ordinal, footnoteId: item.unit.footnoteId,
+      ...(item.unit.source && { source: item.unit.source }),
       footnoteRefs: item.unit.footnoteRefs, pageNumbers: item.unit.pageNumbers,
       text: item.unit.text, occurrenceIds: [] };
     if (units.has(item.unit.id) && !same({ ...unit, occurrenceIds: [] }, {
       id: item.unit.id, kind: item.unit.kind, ordinal: item.unit.ordinal,
+      ...(item.unit.source && { source: item.unit.source }),
       footnoteId: item.unit.footnoteId, footnoteRefs: item.unit.footnoteRefs,
       pageNumbers: item.unit.pageNumbers, text: item.unit.text, occurrenceIds: [],
     })) throw new AuthoritiesDomainError(`Citation ledger changes unit ${item.unit.id}.`);
@@ -1407,6 +1415,21 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
       !Number.isInteger(footnoteId) || !Number.isInteger(offset) ||
       footnoteId < 0 || offset < 0 || offset > unit.text.length)) {
       errors.push(`Invalid footnote reference anchor: ${unit.id}`);
+    }
+    if (unit.source) {
+      const source = unit.source;
+      let prior = 0;
+      const invalid = source.mappings.some((mapping, index) => {
+        const range = source.ranges[index];
+        const invalid = mapping.start < prior || mapping.end <= mapping.start || mapping.end > unit.text.length ||
+          mapping.sourceStart < 0 || mapping.sourceEnd - mapping.sourceStart !== mapping.end - mapping.start ||
+          !source.lineIds.includes(mapping.lineId) || range?.start !== mapping.sourceStart || range?.end !== mapping.sourceEnd;
+        prior = mapping.end;
+        return invalid;
+      });
+      if (invalid || source.ranges.length !== source.mappings.length || !source.documentId || !source.textSha256) {
+        errors.push("Invalid review-unit source mapping: " + unit.id);
+      }
     }
     let end = -1;
     for (const id of unit.occurrenceIds) {

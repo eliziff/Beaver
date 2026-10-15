@@ -27,6 +27,9 @@ const resource = "A version-pinned document resource or current-turn draft handl
 export const MAX_READ_PATTERNS = 50;
 const READ_WORKSPACE_GUIDE = " List selected inputs with file_path selection, or saved chat and table results with findings (pattern filters their questions and answers). Batch selected findings with finding_refs to read their text and shared exact support once.";
 
+const READ_SECTION_SCHEMA = { anyOf: [{ type: "string" }, { type: "object",
+  properties: { nodeId: { type: "string", minLength: 1 } }, required: ["nodeId"], additionalProperties: false }] };
+
 export const RESOURCE_TOOLS = [
   tool(
     "Glob",
@@ -87,7 +90,8 @@ export const RESOURCE_TOOLS = [
       offset: { type: "integer", minimum: 1, maximum: 100_000_000, description: "Starting line or item." },
       limit: { type: "integer", minimum: 1, maximum: 2000 },
       start_char: { type: "integer", minimum: 0, maximum: 100_000_000 },
-      section: { type: "string", description: "Exact structural handle, a findings section, or a reader ID. With queries, filter by reader ID or source resource." },
+      section: { ...READ_SECTION_SCHEMA, description: "Exact structural handle, a returned {nodeId} for a version-pinned document, a findings section, or a reader ID. With queries, filter by reader ID or source resource." },
+      reference_offset: { type: "integer", minimum: 0, description: "Continue a returned internal-reference traversal at this index; retain its section, references, offset and start_char." },
       references: {
         type: "string",
         enum: ["none", "inbound", "outbound", "both"],
@@ -153,7 +157,7 @@ export function readToolFor(workspace: boolean): Tool {
     description: read.description!.replace(READ_WORKSPACE_GUIDE, ""),
     inputSchema: { ...read.inputSchema, properties: { ...properties,
       file_path: { ...properties.file_path, description: "Resource from Glob or search_sources, a saved evidence_id or query_id, or readers/queries." },
-      section: { type: "string", description: "Exact structural handle or a reader ID. With queries, filter by reader ID or source resource." },
+      section: { ...READ_SECTION_SCHEMA, description: "Exact structural handle, a returned {nodeId} for a version-pinned document, or a reader ID. With queries, filter by reader ID or source resource." },
       pattern: { ...properties.pattern, description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. With queries, filter saved query text." },
     } } };
 }

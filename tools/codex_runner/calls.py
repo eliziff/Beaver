@@ -65,16 +65,27 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke
         from jsonschema import Draft202012Validator
         validator = Draft202012Validator(schema)
     response_path = directory / "response.json"
-    if reuse and response_path.is_file() and receipt.get("response_sha256") == digest(response_path):
-        response = read_json(response_path)
-        if validator is not None:
-            validator.validate(response)
-        return validate(response)
-    instructions = directory / "instructions.md"
-    instructions.write_text(policy.instructions, encoding="utf-8")
     error = ""
     previous = None
-    if reuse and receipt["attempts"]:
+    cached_rejected = False
+    if reuse and response_path.is_file() and receipt.get("response_sha256") == digest(response_path):
+        response = read_json(response_path)
+        try:
+            if validator is not None:
+                validator.validate(response)
+            return validate(response)
+        except Exception as exc:
+            error = policy.retry_error(exc, response)
+            if error is None:
+                raise
+            previous = response
+            cached_rejected = True
+            receipt.setdefault("cache_rejections", []).append({
+                "response_sha256": digest(response_path), "error": error, "rejected_at": time.time()})
+            atomic_json(receipt_path, receipt)
+    instructions = directory / "instructions.md"
+    instructions.write_text(policy.instructions, encoding="utf-8")
+    if reuse and receipt["attempts"] and not cached_rejected:
         last = receipt["attempts"][-1]
         error = last.get("error", "")
         rejected = directory / f"attempt-{len(receipt['attempts'])}" / "last-message.json"

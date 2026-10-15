@@ -12,7 +12,7 @@ VERSION = "legal-gold-package.v2"
 PAGE_NS = "http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15"
 DEFAULTS = {"schema_version": "legal-structure-gold.v3", "offset_unit": "utf16",
             "source_character_unit": "unicode_scalar", "coordinates": "visible-page-top-left-1000"}
-CORE = {"structure", "source_trace", "reading_order", "blocks", "joins", "continuations", "resumes", "operations", "provenance", "source_sha256", "ocr"}
+CORE = {"structure", "source_trace", "reading_order", "blocks", "joins", "continuations", "resumes", "operations", "provenance", "source_sha256", "ocr", "manuscript_spans", "manuscript_edits", "manuscript_suffix", "native_facts"}
 
 
 def require(ok, message):
@@ -30,7 +30,9 @@ def text_identity(value):
         return None
     fields = ("lines", "source_text", "pages", "reading_order", "manuscript_order",
               "manuscript_separators", "manuscript_edits", "manuscript_suffix")
-    return hashlib.sha256(encoded({key: value.get(key) for key in fields})).hexdigest()
+    facts = {key: value.get(key) for key in fields}
+    if "manuscript_spans" in value: facts["manuscript_spans"] = value["manuscript_spans"]
+    return hashlib.sha256(encoded(facts)).hexdigest()
 
 
 def annotation_update(original, candidate, *, owned_paths, expected_source_sha256, expected_text_sha256):
@@ -87,81 +89,178 @@ def annotation_update(original, candidate, *, owned_paths, expected_source_sha25
             text_spans(value.get("form_observations")) for value in (original, candidate))):
         require(owns(("layers", "source_anchors", "forms")) and "source_anchors" in candidate["layers"],
                 "Form changes must own and regenerate their source anchors")
+    if owns(("layers", "legal_structure")):
+        candidate = refresh_manuscript(candidate)
     validate(candidate)
     return candidate
 
 
+def move_source_units(order, moves):
+    """Apply local source-fragment moves through the shared literal operation."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--move-source-units"],
+        input=json.dumps({"order": order, "moves": moves}, ensure_ascii=False),
+        capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def assemble_structure(structure):
+    """Derive hierarchy views in Rust without round-tripping unrelated annotation fields."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--assemble-structure"],
+        input=json.dumps(structure, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def structure_blocks(structure, lines):
+    """Project native memberships into exact source-span editing blocks."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--structure-blocks"],
+        input=json.dumps({"structure": structure, "lines": lines}, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def compose_structure(request):
+    """Apply literal source-span structure through the shared native owner."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--compose-structure"],
+        input=json.dumps(request, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def resolve_annotations(request):
+    """Resolve source annotation continuations without final manuscript assembly."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--resolve-annotations"],
+        input=json.dumps(request, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def project_structure(structure, composition, retained_node_ids):
+    """Project corrected composition into the shared document without gold-specific semantics."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--project-structure"],
+        input=json.dumps({"structure": structure, "composition": composition,
+                          "retained_node_ids": retained_node_ids}, ensure_ascii=False),
+        capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def capture_native_facts(request):
+    """Factor retained producer facts using the shared source coordinate owner."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--capture-native-facts"],
+        input=json.dumps(request, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def hydrate_native_facts(request):
+    """Restore retained native facts against the current corrected source in Rust."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--hydrate-native-facts"],
+        input=json.dumps(request, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def remap_native_facts(request):
+    """Carry native factual anchors through source edits without interpreting them here."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--remap-native-facts"],
+        input=json.dumps(request, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def refresh_manuscript(value):
+    """Recompute the logical view from accepted structural facts and retained normalization."""
+    result = deepcopy(value)
+    state = structure_state(result)
+    from worker import gold
+    composed = compose_structure(gold.composition_request(state))
+    result["manuscript_spans"] = composed["manuscript_spans"]
+    result.pop("manuscript_order", None)
+    result["manuscript_separators"] = {}
+    result["manuscript_suffix"] = ""
+    result["metadata"]["manuscript_sha256"] = hashlib.sha256(manuscript_text(result).encode()).hexdigest()
+    return result
+
+
+def apply_source_operations(request):
+    """Apply physical source recovery with explicit witness correspondence."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--apply-source-operations"],
+        input=json.dumps(request, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
+def correct_source(request):
+    """Apply source characters and remap supplied scalar anchors in the native owner."""
+    import subprocess
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), "--correct-source-text"],
+        input=json.dumps(request, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
+
+
 def correct_text(value, edits, *, expected_source_sha256, expected_text_sha256):
-    """Apply exact scalar edits; preserve witnesses and reject ambiguous annotation remapping."""
-    from gold import changed_offset
+    """Apply Rust's literal scalar corrections, retaining package evidence and ownership."""
     require(value.get("schema_version") == VERSION and "lines" in value,
             "Transcription correction requires canonical shared text")
     require(value["source_sha256"] == expected_source_sha256 and text_identity(value) == expected_text_sha256,
             "Transcription input changed")
     validate(value)
     before = line_table(value)
-    changes = {}
-    require(isinstance(edits, list) and edits, "Transcription needs exact edits")
-    for edit in edits:
-        require(isinstance(edit, dict) and set(edit) == {"line_id", "start", "end", "old", "text"},
-                "Invalid transcription edit")
-        ident, start, end = edit["line_id"], edit["start"], edit["end"]
-        require(ident in before and type(start) is int and type(end) is int and
-                0 <= start <= end <= len(before[ident]["text"]) and isinstance(edit["text"], str) and
-                edit["old"] == before[ident]["text"][start:end] and edit["old"] != edit["text"],
-                "Transcription edit does not match its exact source text")
-        changes.setdefault(ident, []).append(edit)
     result = deepcopy(value)
     after = {line["id"]: line for line in result["lines"]}
-    for ident, ordered in changes.items():
-        ordered.sort(key=lambda edit: (edit["start"], edit["end"]))
-        require(all(a["end"] <= b["start"] and a["start"] != b["start"] for a,b in zip(ordered, ordered[1:])),
-                "Transcription edits overlap")
-        source = before[ident].get("source_id") or ident
-        if source not in result["source_text"]:
-            result["source_text"][source] = before[ident]["original_text"]
-        for edit in reversed(ordered):
-            text = after[ident]["text"]
-            after[ident]["text"] = text[:edit["start"]] + edit["text"] + text[edit["end"]:]
-        require(after[ident]["text"].strip(), "Transcription cannot erase a retained line")
+    affected = {edit["line_id"] for edit in edits if isinstance(edit, dict)
+                and isinstance(edit.get("line_id"), str)} if isinstance(edits, list) else set()
+    bindings = []
+    requests = []
 
-    def interval(ident, start, end):
-        ordered = changes.get(ident, [])
-        for edit in ordered:
-            a,b = edit["start"], edit["end"]
-            require(not (a < start < b or a < end < b or a == b and a in (start, end)),
-                    "Transcription crosses an annotation boundary; revise that annotation explicitly")
-        start, end = changed_offset(start, ordered), changed_offset(end, ordered, True)
-        require(start < end, "Transcription erases an annotation; revise that annotation explicitly")
-        return start,end
+    def bind(ident, target, kind="annotation", start="start", end="end"):
+        if ident not in affected: return
+        requests.append({"span": {"line_id": ident, "start": target[start], "end": target[end]}, "kind": kind})
+        bindings.append((target, start, end))
 
-    def remap(part, *, evidence=False):
+    def collect(part, kind="annotation"):
         if isinstance(part, list):
-            return [remap(item, evidence=evidence) for item in part]
-        if isinstance(part, dict):
-            if set(part) == {"line_id", "start", "end"} and part["line_id"] in changes:
-                ident = part["line_id"]
-                start,end = interval(ident, part["start"], part["end"])
-                if evidence:
-                    require(before[ident]["text"][part["start"]:part["end"]] == after[ident]["text"][start:end],
-                            "Transcription changes record evidence; revalidate the extracted fact explicitly")
-                return {**part, "start": start, "end": end}
-            return {key: remap(item, evidence=evidence) for key,item in part.items()}
-        return part
+            for item in part: collect(item, kind)
+        elif isinstance(part, dict):
+            if set(part) == {"line_id", "start", "end"}:
+                bind(part["line_id"], part, kind)
+            else:
+                for key, item in part.items():
+                    if key != "native_witness": collect(item, kind)
 
-    for ident in changes:
-        line = after[ident]
+    for ident, line in after.items():
+        changes = [edit for edit in edits if isinstance(edit, dict) and edit.get("line_id") == ident]
+        if changes and any(line.get(key) for key in ("spans", "words")):
+            line.setdefault("geometry_witness", {"text": before[ident]["text"],
+                "source_id": before[ident].get("source_id"), "source_range": before[ident].get("source_range"),
+                "witness_mapping": deepcopy(before[ident].get("witness_mapping")),
+                **{key: deepcopy(line[key]) for key in ("spans", "words") if key in line}})
         for key in ("spans", "words"):
-            for span in line.get(key, []):
-                span["start"],span["end"] = interval(ident, span["start"], span["end"])
-                if "text" in span: span["text"] = line["text"][span["start"]:span["end"]]
+            if key not in line: continue
+            line[key] = [span for span in line[key] if not changes or "start" in span and "end" in span and not any(
+                edit["start"] < span[edge] < edit["end"] or
+                edit["start"] == edit["end"] == span[edge] or
+                (not edit["text"] and edit["start"] <= span["start"] and span["end"] <= edit["end"])
+                for edit in changes for edge in ("start", "end"))]
+            for span in line[key]:
+                if "start" in span and "end" in span: bind(ident, span)
         for edit in result["manuscript_edits"].get(ident, []):
-            start,end,_ = edit
-            require(all(end < change["start"] or start > change["end"] for change in changes[ident]),
-                    "Transcription overlaps manuscript normalization; revise it explicitly")
-            edit[0],edit[1] = changed_offset(start, changes[ident]), changed_offset(end, changes[ident], True)
-    if "legal_structure" in result["layers"]:
-        result["layers"]["legal_structure"] = remap(result["layers"]["legal_structure"])
+            bind(ident, edit, "normalization", 0, 1)
+    for span in result.get("manuscript_spans", []): bind(span["line_id"], span)
+    collect({key: part for key, part in result["layers"].get("legal_structure", {}).items() if key != "native"})
 
     def locators(part):
         if isinstance(part, list):
@@ -171,21 +270,56 @@ def correct_text(value, edits, *, expected_source_sha256, expected_text_sha256):
             if isinstance(locator, dict) and locator.get("spans"):
                 require(locator.get("source_sha256"), "Precise record evidence needs its source identity")
                 if locator["source_sha256"] == result["source_sha256"]:
-                    locator["spans"] = remap(locator["spans"], evidence=True)
-            for key,item in part.items():
+                    collect(locator["spans"], "evidence")
+            for key, item in part.items():
                 if key != "source_locator": locators(item)
     locators(result["records"])
     for name in ("document_classification", "information_extraction", "chronology", "exhibit_association"):
         locators(result["layers"].get(name, {}))
+    collect(result["layers"].get("source_anchors", {}), "evidence")
+
+    witnesses = {}
+    for ident, line in before.items():
+        mapping = line.get("witness_mapping")
+        if mapping is None:
+            source_range = line.get("source_range")
+            mapping = ([{"start": 0, "end": len(line["text"]), "source_start": source_range[0],
+                         "source_end": source_range[1]}] if source_range is not None and
+                       line["original_text"][source_range[0]:source_range[1]] == line["text"] else [])
+        witnesses[ident] = mapping
+    request = {"lines": {ident: line["text"] for ident, line in before.items()},
+               "edits": edits, "anchors": requests, "witnesses": witnesses}
+    corrected = correct_source(request)
+    for ident, text in corrected["lines"].items():
+        if text != before[ident]["text"]:
+            source = before[ident].get("source_id") or ident
+            result["source_text"].setdefault(source, before[ident]["original_text"])
+            after[ident]["text"] = text
+            after[ident]["source_id"] = before[ident].get("source_id")
+            mapping = corrected["witnesses"][ident]
+            after[ident]["witness_mapping"] = mapping
+            exact = len(mapping) == 1 and mapping[0]["start"] == 0 and mapping[0]["end"] == len(text)
+            after[ident]["witness_unresolved"] = before[ident].get("source_id") is not None and not exact
+            after[ident]["source_range"] = [mapping[0]["source_start"], mapping[0]["source_end"]] if exact else None
+    for (target, start, end), span in zip(bindings, corrected["anchors"], strict=True):
+        target[start], target[end] = span["start"], span["end"]
+    for ident, line in after.items():
+        if line["text"] != before[ident]["text"]:
+            for key in ("spans", "words"):
+                for span in line.get(key, []):
+                    if "text" in span and "start" in span and "end" in span: span["text"] = line["text"][span["start"]:span["end"]]
+    native = result["layers"].get("legal_structure", {}).get("native")
+    if native is not None:
+        result["layers"]["legal_structure"]["native"] = remap_native_facts({"native_facts": native,
+            "before_lines": list(before.values()), "after_lines": list(line_table(result).values()), "edits": edits})
     if "source_anchors" in result["layers"]:
         import anchors
-        layer = remap(result["layers"]["source_anchors"], evidence=True)
+        layer = result["layers"]["source_anchors"]
         layer["text_sha256"] = anchors.text_identity(result)
         for rid, anchored in layer["records"].items():
             if anchored["owner_source_sha256"] == result["source_sha256"]:
                 item = {"gold": record_gold(result, rid), **result["views"][rid]}
                 anchored["inputs_sha256"] = hashlib.sha256(encoded(item)).hexdigest()
-        result["layers"]["source_anchors"] = layer
     result["metadata"]["manuscript_sha256"] = hashlib.sha256(manuscript_text(result).encode()).hexdigest()
     validate(result)
     return result
@@ -200,7 +334,7 @@ def validate(value):
             "Invalid physical page coverage")
     if "lines" not in value:
         require(not any(key in value for key in ("source_text", "reading_order", "manuscript_order",
-                "manuscript_separators", "manuscript_edits", "manuscript_suffix")),
+                "manuscript_separators", "manuscript_edits", "manuscript_suffix", "manuscript_spans")),
                 "Text fields require an annotated shared line table")
         require("legal_structure" not in layers and "ocr" not in layers,
                 "Structure and OCR annotations require shared text")
@@ -211,13 +345,14 @@ def validate(value):
                 require(item["line_id"] in units and type(item.get("start")) is int and type(item.get("end")) is int and
                         0 <= item["start"] < item["end"] <= len(units[item["line_id"]]["text"]),
                         "Structural span outside corrected source")
-            for part in item.values(): spans(part)
+            for key, part in item.items():
+                if key != "native_witness": spans(part)
         elif isinstance(item, list):
             for part in item: spans(part)
     if "legal_structure" in layers:
         from worker import gold
         state = structure_state(value)
-        spans(layers["legal_structure"])
+        spans({key: part for key, part in layers["legal_structure"].items() if key != "native"})
         gold.complete(state)
         gold.ownership(state)
     if "ocr" in value["layers"]:
@@ -254,7 +389,7 @@ def unproject(item, lines):
             require(0 <= a <= b <= utf16(line["text"]), "Annotation outside printed line")
             return {"line_id": line["id"], "start": len(u16slice(line["text"], 0, a)),
                     "end": len(u16slice(line["text"], 0, b))}
-        return {key: unproject(part, lines) for key, part in item.items()}
+        return {key: deepcopy(part) if key in {"native_witness", "unconfirmed_native_witnesses"} else unproject(part, lines) for key, part in item.items()}
     if isinstance(item, list):
         return [unproject(part, lines) for part in item]
     return item
@@ -265,6 +400,11 @@ def pack(value, records=(), pages=(), forms=()):
     require(value.get("schema_version") == DEFAULTS["schema_version"], "Expected completed structure gold")
     structure = value["structure"]
     printed, manuscript = structure["text"], structure["rendered_text"]
+    native = value.get("native_facts")
+    if native is None:
+        prepared = structure_blocks(structure, value["source_trace"])
+        native = capture_native_facts({"structure": structure, "lines": value["source_trace"],
+                                       "retained_node_ids": prepared["retained_node_ids"]})
     original_lines = {line["id"]: line for line in value["source_trace"]}
     annotations = unproject(structure["annotations"], original_lines)
     for annotation in annotations:
@@ -278,38 +418,50 @@ def pack(value, records=(), pages=(), forms=()):
     for original in value["source_trace"]:
         line = deepcopy(original)
         witness = line.pop("original_text")
-        if witness != line["text"] or line.get("source_range") not in (None, [0, len(witness)]):
+        if witness != line["text"] or line.get("source_range") not in (None, [0, len(witness)]) or line.get("witness_unresolved"):
             ident = line.get("source_id") or line["id"]
             require(ident not in source_text or source_text[ident] == witness, "Source witness differs")
             source_text[ident] = witness
-        if line.get("source_id") == line["id"]:
+        if line.get("source_id") == line["id"] and line.get("source_range") is not None and not line.get("witness_unresolved"):
             line.pop("source_id")
-        if line.get("source_range") == [0, len(witness)]:
+        if line.get("source_range") == [0, len(witness)] and not line.get("witness_unresolved"):
             line.pop("source_range")
         lines.append(line)
     by_id = {line["id"]: line for line in lines}
     require(len(by_id) == len(lines) == len(value["reading_order"]) and set(by_id) == set(value["reading_order"]), "Line coverage differs")
-    manuscript_order = sorted(value["reading_order"], key=lambda ident: (by_id[ident]["rendered_range"]["start"], by_id[ident]["rendered_range"]["end"]))
-    separators, manuscript_edits = {}, {}
-    end = 0
-    for index, ident in enumerate(manuscript_order):
-        line = by_id[ident]
-        begin, stop = (line["rendered_range"][key] for key in ("start", "end"))
-        require(begin >= end and stop >= begin, "Manuscript line anchors overlap")
-        logical = u16slice(manuscript, begin, stop)
-        if logical != line["text"]:
-            manuscript_edits[ident] = [[a,b,logical[c:d]] for op,a,b,c,d in difflib.SequenceMatcher(None,line["text"],logical,autojunk=False).get_opcodes() if op != "equal"]
-        separator = u16slice(manuscript, end, begin)
-        if separator != ("" if index == 0 else " "):
-            separators[ident] = separator
-        end = stop
+    manuscript_spans = value.get("manuscript_spans")
+    if manuscript_spans is not None:
+        manuscript_order = value["reading_order"]
+        separators = {}
+        manuscript_edits = deepcopy(value.get("manuscript_edits", {}))
+        manuscript_suffix = value.get("manuscript_suffix", "")
+    else:
+        manuscript_order = sorted(value["reading_order"], key=lambda ident: (by_id[ident]["rendered_range"]["start"], by_id[ident]["rendered_range"]["end"]))
+        separators, manuscript_edits = {}, {}
+        end = 0
+        for index, ident in enumerate(manuscript_order):
+            line = by_id[ident]
+            begin, stop = (line["rendered_range"][key] for key in ("start", "end"))
+            require(begin >= end and stop >= begin, "Manuscript line anchors overlap")
+            logical = u16slice(manuscript, begin, stop)
+            if logical != line["text"]:
+                manuscript_edits[ident] = [[a,b,logical[c:d]] for op,a,b,c,d in difflib.SequenceMatcher(None,line["text"],logical,autojunk=False).get_opcodes() if op != "equal"]
+            separator = u16slice(manuscript, end, begin)
+            if separator != ("" if index == 0 else " "):
+                separators[ident] = separator
+            end = stop
+        for line in lines:
+            line.pop("range")
+            line.pop("rendered_range")
+        manuscript_suffix = u16slice(manuscript, end, utf16(manuscript))
     for line in lines:
-        line.pop("range")
-        line.pop("rendered_range")
+        line.pop("range", None)
+        line.pop("rendered_range", None)
+        line.pop("rendered_spans", None)
     geometry = {page["page"]: deepcopy(page) for page in pages}
     physical_pages = [node["page_indexes"][0]+1 for node in structure["nodes"] if node["kind"] == "page"]
     require(len(set(physical_pages)) == len(physical_pages) and set(geometry) <= set(physical_pages), "Physical page coverage differs")
-    layers = {"legal_structure": {"annotations": annotations,
+    layers = {"legal_structure": {"annotations": annotations, "native": deepcopy(native),
         **{key: deepcopy(value[key]) for key in ("blocks", "joins", "continuations", "resumes")}},
         "document_classification": {}, "information_extraction": {}, "chronology": {}, "exhibit_association": {}}
     if "ocr" in value:
@@ -319,8 +471,11 @@ def pack(value, records=(), pages=(), forms=()):
         "source_sha256": value["source_sha256"], "pages": [geometry.get(number, {"page": number}) for number in physical_pages],
         "lines": lines, "source_text": source_text,
         "manuscript_separators": separators, "manuscript_edits": manuscript_edits,
-        "manuscript_suffix": u16slice(manuscript, end, len(manuscript.encode("utf-16-le"))//2),
+        "manuscript_suffix": manuscript_suffix,
         "layers": layers, "records": {}, "views": {}, "provenance": deepcopy(value["provenance"])}
+    if manuscript_spans is not None: result["manuscript_spans"] = deepcopy(manuscript_spans)
+    if "profile" in structure: result["metadata"]["profile"] = deepcopy(structure["profile"])
+    result["metadata"]["structure_tags"] = deepcopy(structure.get("structure_tags", []))
     result = attach_records(result, records, forms)
     if value["reading_order"] != [line["id"] for line in lines]: result["reading_order"] = deepcopy(value["reading_order"])
     if manuscript_order != value["reading_order"]: result["manuscript_order"] = manuscript_order
@@ -412,14 +567,16 @@ def line_table(value):
             cursor += utf16(line["text"])+1
         if not ids: cursor += 1
     require({line["page"] for line in result.values()} <= seen, "Line has no physical page")
-    manuscript_order = value.get("manuscript_order", order)
-    require(len(manuscript_order) == len(result) and set(manuscript_order) == set(result), "Manuscript-order coverage differs")
-    cursor = 0
-    for index, ident in enumerate(manuscript_order):
-        cursor += utf16(value["manuscript_separators"].get(ident, "" if index == 0 else " "))
-        length = utf16(logical_text(value, result[ident]))
-        result[ident]["rendered_range"] = {"start": cursor, "end": cursor+length}
-        cursor += length
+    projected = manuscript_projection(value, result)
+    by_line = {ident: [] for ident in result}
+    for item in projected: by_line[item["line_id"]].append(item)
+    for ident, line in result.items():
+        parts = by_line[ident]
+        require(parts, "Manuscript omits a retained source line")
+        line["rendered_range"] = {"start": min(p["range"]["start"] for p in parts),
+                                  "end": max(p["range"]["end"] for p in parts)}
+        if "manuscript_spans" in value: line["rendered_spans"] = parts
+
     return result
 
 
@@ -441,112 +598,211 @@ def printed_text(value):
         for page in value["pages"])
 
 
+def manuscript_members(value):
+    if "manuscript_spans" in value:
+        return value["manuscript_spans"]
+    lines = {line["id"]: line for line in value["lines"]}
+    order = value.get("manuscript_order", reading_order(value))
+    require(len(order) == len(lines) and set(order) == set(lines), "Manuscript-order coverage differs")
+    return [{"line_id": ident, "start": 0, "end": len(lines[ident]["text"]),
+             "separator": value["manuscript_separators"].get(ident, "" if index == 0 else " ")}
+            for index, ident in enumerate(order)]
+
+
+def logical_span(value, line, start, end):
+    from gold import changed_offset
+    require(type(start) is int and type(end) is int and 0 <= start <= end <= len(line["text"]),
+            "Manuscript membership outside source text")
+    edits = [{"start": a, "end": b, "text": text} for a, b, text in value["manuscript_edits"].get(line["id"], [])]
+    require(not any(edit["start"] < point < edit["end"] for edit in edits for point in (start, end)),
+            "Manuscript boundary crosses character normalization")
+    # An insertion at a shared boundary belongs to the following member; a final
+    # insertion belongs to the last member. Empty spans never acquire characters.
+    if start == end: return ""
+    logical = logical_text(value, line)
+    return logical[changed_offset(start, edits):changed_offset(end, edits, end == len(line["text"]))]
+
+
+def manuscript_projection(value, lines):
+    cursor = 0; result = []
+    for span in manuscript_members(value):
+        require(set(span) == {"line_id", "start", "end", "separator"} and span["line_id"] in lines,
+                "Invalid manuscript source span")
+        require(isinstance(span["separator"], str) and (not span["separator"] or span["separator"].isspace()), "Invalid manuscript separator")
+        cursor += utf16(span["separator"])
+        text = logical_span(value, lines[span["line_id"]], span["start"], span["end"])
+        result.append({"line_id": span["line_id"], "start": span["start"], "end": span["end"],
+                       "range": {"start": cursor, "end": cursor + utf16(text)}})
+        cursor += utf16(text)
+    return result
+
+
 def manuscript_text(value):
+    lines = {line["id"]: line for line in value["lines"]}
+    return "".join(span["separator"] + logical_span(value, lines[span["line_id"]], span["start"], span["end"])
+                   for span in manuscript_members(value)) + value["manuscript_suffix"]
+
+
+def native_view(value):
+    """Hydrate the opaque native layer against the package's current source."""
+    facts = value["layers"]["legal_structure"].get("native")
+    if facts is not None:
+        return hydrate_native_facts({"native_facts": facts, "lines": list(line_table(value).values()),
+                                     "reading_order": reading_order(value)})
     lines = line_table(value)
-    order = value.get("manuscript_order",reading_order(value))
-    return "".join(value["manuscript_separators"].get(ident, "" if index == 0 else " ") + logical_text(value, lines[ident])
-        for index, ident in enumerate(order)) + value["manuscript_suffix"]
-
-
-def structure_state(value):
-    """Authoritative answers for scoring; no graph builder or export history."""
-    require("legal_structure" in value["layers"], "Legal structure is not annotated for this Gold source")
-    layers = value["layers"]["legal_structure"]
-    lines = line_table(value)
-    annotations = deepcopy(layers["annotations"])
-    for annotation in annotations:
-        annotation.setdefault("spans", [{"line_id": ident, "start": 0, "end": len(lines[ident]["text"])} for ident in annotation["line_ids"]])
-    return {"lines": list(lines.values()), "reading_order": reading_order(value), "groups": deepcopy(layers["blocks"]),
-            "annotations": annotations, **{key: deepcopy(layers[key]) for key in ("joins", "continuations", "resumes")}}
-
-
-def parser_view(value):
-    """Derive a disposable graph from fixed annotations, independent of authoring history."""
-    require("legal_structure" in value["layers"], "Legal structure is not annotated for this Gold source")
-    from worker import gold
-    lines = line_table(value)
-    fragments = {}
-    fragment_ids = set(lines)
-    for ident, line in lines.items():
-        parts = []; offset = 0
-        for index, text in enumerate(line["text"].split("\n")):
-            child = ident if index == 0 else gold.stable_id("printed", [ident, index])
-            require(index == 0 or child not in fragment_ids, "Export fragment identity collision")
-            fragment_ids.add(child)
-            stop = offset + utf16(text)
-            parts.append((child, offset, stop)); offset = stop + 1
-        fragments[ident] = parts
     pages = []
     cursor = 0
     for page in value["pages"]:
         ids = [ident for ident in reading_order(value) if lines[ident]["page"] == page["page"]]
         length = utf16("\n".join(lines[ident]["text"] for ident in ids))
         pages.append({"id": f"page-{page['page']}", "kind": "page", "page_indexes": [page["page"]-1],
-                      "origin_id": "legal-gold", "line_ids": [child for ident in ids for child,_,_ in fragments[ident]],
+                      "origin_id": "legal-gold", "source": "model", "line_ids": ids,
                       "range": {"start": cursor, "end": cursor+length}})
         cursor += length+1
     basis = {"schema_version": "legalpdf.document-structure.v1", "document_id": value["source_sha256"],
-             "provider": "legal-gold", "scope": {"kind": "complete"}, "origins": [{"id": "legal-gold"}],
+             "provider": "legal-gold", "profile": deepcopy(value["metadata"].get("profile")), "scope": {"kind": "complete"}, "origins": [{"id": "legal-gold"}],
              "diagnostics": [], "source_sha256": value["source_sha256"], "offset_unit": "utf16",
-             "text": printed_text(value), "nodes": pages}
-    state = {**structure_state(value), "native_nodes": [], "removed_nodes": [], "operations": []}
+             "text": printed_text(value), "nodes": pages,
+             "source_fragments": [{"id":line["id"],"page_index":line["page"]-1,"range":deepcopy(line["range"])} for line in lines.values()],
+             "structure_tags": deepcopy(value["metadata"].get("structure_tags", [])),
+             "native_navigation": deepcopy(value["metadata"].get("native_navigation", []))}
+    basis["text_sha256"] = hashlib.sha256(basis["text"].encode()).hexdigest()
+    return {"structure": basis, "removable_nodes": [], "retained_node_ids": [],
+            "unconfirmed_native_witnesses": []}
+
+
+def structure_input(value):
+    """Use the current corrected source as the disposable native projection baseline."""
+    native = native_view(value)
+    state = {**structure_state(value, _native=native), "operations": []}
+    for line in state["lines"]:
+        size = len(line["text"])
+        line.update(source_id=line["id"], original_text=line["text"], source_range=[0,size],
+                    witness_mapping=[{"start":0,"end":size,"source_start":0,"source_end":size}])
+        line.pop("witness_unresolved", None)
+    return native["structure"], state
+
+
+def structure_state(value, *, _native=None):
+    """Authoritative answers for scoring; no graph builder or export history."""
+    require("legal_structure" in value["layers"], "Legal structure is not annotated for this Gold source")
+    layers = value["layers"]["legal_structure"]
+    native = _native if _native is not None else native_view(value)
+    lines = line_table(value)
+    annotations = deepcopy(layers["annotations"])
+    for annotation in annotations:
+        annotation.setdefault("spans", [{"line_id": ident, "start": 0, "end": len(lines[ident]["text"])} for ident in annotation["line_ids"]])
+    return {"native_nodes": deepcopy(native["removable_nodes"]),
+            **({"native_facts": deepcopy(layers["native"])} if "native" in layers else {}),
+            "native_navigation": deepcopy(native["structure"].get("native_navigation", [])),
+            "structure_tags": deepcopy(native["structure"].get("structure_tags", [])),
+            "lines": list(lines.values()), "reading_order": reading_order(value), "groups": deepcopy(layers["blocks"]),
+            "manuscript_edits": deepcopy(value["manuscript_edits"]),
+            "annotations": annotations, **{key: deepcopy(layers[key]) for key in ("joins", "continuations", "resumes")}}
+
+
+def navigation_parents(value):
+    """Confirmed navigation relationships in canonical heading IDs; ambiguous targets abstain."""
+    state = structure_state(value)
+    headings = [group for group in state["groups"] if group["kind"] == "heading"]
+    lines = {line["id"]: line for line in state["lines"]}
+    def membership(group):
+        return group.get("spans") or [{"line_id": ident, "start": 0, "end": len(lines[ident]["text"])}
+                                      for ident in group["line_ids"]]
+    def heading(target):
+        if not target: return None
+        found = [group for group in headings if all(any(part["line_id"] == span["line_id"]
+            and part["start"] <= span["start"] and span["end"] <= part["end"]
+            for part in membership(group)) for span in target)]
+        if len(found) != 1: return None
+        first = membership(found[0])[0]
+        return found[0].get("id") or f"{first['line_id']}@{first['start']}"
+    entries = {}
+    confirmations = {}
+    for entry in state["annotations"]:
+        if entry["kind"] != "navigation": continue
+        attrs = entry["attributes"]
+        if attrs["kind"] == "bookmark":
+            confirmations[attrs["witness_id"]] = heading(attrs["target"])
+        else:
+            first = entry["spans"][0]; key = f"{first['line_id']}@{first['start']}"
+            parent = attrs["parent"]
+            if parent in lines: parent += "@0"
+            entries[key] = (heading(attrs["target"]), parent)
+    for witness in state["native_navigation"]:
+        entries["bookmark:" + witness["id"]] = (confirmations.get(witness["id"]),
+            "bookmark:" + witness["parent_id"] if witness["parent_id"] is not None else None)
+    result = {}; conflicts = set()
+    for target, parent in entries.values():
+        if target is None: continue
+        parent_target = entries.get(parent, (None, None))[0] if parent is not None else None
+        if parent is not None and parent_target is None: continue
+        if target == parent_target: continue
+        if target in result and result[target] != parent_target: conflicts.add(target)
+        result[target] = parent_target
+    return {target: parent for target, parent in sorted(result.items()) if target not in conflicts}
+
+
+def structure_revision(structure):
+    """Identity includes source/rendered text, ownership, navigation and profile."""
+    return hashlib.sha256(encoded({key: value for key, value in structure.items() if key != "revision"})).hexdigest()
+
+
+def parser_view(value):
+    """Project literal gold and exact source membership into the disposable parser view."""
+    require("legal_structure" in value["layers"], "Legal structure is not annotated for this Gold source")
+    from worker import gold
+    lines = line_table(value)
+    basis, state = structure_input(value)
     _, result = gold.materialize(basis, state, deepcopy(value["provenance"]))
-    structure = result["structure"]
+    projection = manuscript_projection(value, lines)
+
+    def rendered_ranges(ranges):
+        parts = []
+        for member in projection:
+            line = lines[member["line_id"]]
+            source_start = line["range"]["start"] + utf16(line["text"][:member["start"]])
+            source_end = line["range"]["start"] + utf16(line["text"][:member["end"]])
+            for extent in ranges:
+                start, end = max(source_start, extent["start"]), min(source_end, extent["end"])
+                if start >= end: continue
+                a = len(u16slice(line["text"], 0, start-line["range"]["start"]))
+                b = len(u16slice(line["text"], 0, end-line["range"]["start"]))
+                base = member["range"]["start"]
+                parts.append({"start": base+utf16(logical_span(value, line, member["start"], a)),
+                              "end": base+utf16(logical_span(value, line, member["start"], b))})
+        merged = []
+        for part in sorted(parts, key=lambda item: (item["start"], item["end"])):
+            if merged and part["start"] <= merged[-1]["end"]:
+                merged[-1]["end"] = max(merged[-1]["end"], part["end"])
+            else: merged.append(part)
+        return merged
+
+    def attach(item, ranges):
+        parts = rendered_ranges(ranges)
+        item["rendered_ranges"] = parts
+        item["rendered_range"] = {"start": min((p["start"] for p in parts), default=0),
+                                  "end": max((p["end"] for p in parts), default=0)}
+
     def project(item):
         if isinstance(item, dict):
-            if "line_id" in item and "range" in item and "rendered_range" in item:
-                line = lines[item["line_id"]]
-                logical = logical_text(value, line)
-                changes = [{"start": a, "end": b, "text": text} for a,b,text in value["manuscript_edits"].get(line["id"], [])]
-                extent = {}
-                for key in ("start", "end"):
-                    point = len(u16slice(line["text"], 0, item["range"][key]-line["range"]["start"]))
-                    offset = gold.changed_offset(point, changes, key == "end")
-                    extent[key] = line["rendered_range"]["start"] + utf16(logical[:offset])
-                return {**item, "rendered_range": extent}
-            return {key: project(part) for key, part in item.items()}
+            result = {key: deepcopy(part) if key in {"native_witness", "unconfirmed_native_witnesses"} else project(part) for key, part in item.items()}
+            if "line_id" in item and "range" in item:
+                attach(result, [item["range"]])
+            return result
         if isinstance(item, list): return [project(part) for part in item]
         return item
-    structure = project(structure)
+
+    structure = project(result["structure"])
     for node in structure["nodes"]:
-        if node["kind"] == "page":
-            node["rendered_ranges"] = [lines[ident]["rendered_range"] for ident in node["line_ids"]]
-        elif "rendered_range" in node and node.get("line_ids"):
-            node["rendered_range"] = {"start": min(lines[ident]["rendered_range"]["start"] for ident in node["line_ids"]),
-                                      "end": max(lines[ident]["rendered_range"]["end"] for ident in node["line_ids"])}
-    if any(len(parts) > 1 for parts in fragments.values()):
-        # Native graph pages name newline-delimited fragments. Gold keeps its legal
-        # units intact; only this disposable view expands memberships and span refs.
-        rendered = {}
-        for ident, parts in fragments.items():
-            for child,start,end in parts:
-                extent = {"start": lines[ident]["range"]["start"]+start, "end": lines[ident]["range"]["start"]+end}
-                rendered[child] = project({"line_id": ident, "range": extent, "rendered_range": {}})["rendered_range"]
-        def expand(item):
-            if isinstance(item, list):
-                return [piece for value in item for piece in (expand(value) if isinstance(value, dict) and
-                    "line_id" in value and "range" in value else [expand(value)])]
-            if isinstance(item, dict):
-                if "line_id" in item and "range" in item:
-                    ident = item["line_id"]; result = []
-                    for child,start,end in fragments[ident]:
-                        a = max(item["range"]["start"], lines[ident]["range"]["start"]+start)
-                        b = min(item["range"]["end"], lines[ident]["range"]["start"]+end)
-                        if a >= b: continue
-                        piece = project({**item, "range": {"start": a, "end": b}})
-                        piece["line_id"] = child
-                        if "line_ids" in piece: piece["line_ids"] = [child]
-                        result.append(piece)
-                    return result
-                return {key: [child for ident in value for child,_,_ in fragments[ident]] if key in
-                        {"line_ids", "owned_line_ids"} else expand(value) for key,value in item.items()}
-            return item
-        structure = expand(structure)
-        for node in structure["nodes"]:
-            if node["kind"] == "page": node["rendered_ranges"] = [rendered[ident] for ident in node["line_ids"]]
+        node["rendered_membership"] = rendered_ranges(node.get("ranges") or [node["range"]])
+        membership = node.get("extent") if node["kind"] in {"heading", "section"} or node.get("role") == "heading" else None
+        attach(node, membership or node.get("ranges") or [node["range"]])
+    structure["source_fragments"] = [{"id": ident, "page_index": lines[ident]["page"]-1,
+                                       "range": deepcopy(lines[ident]["range"])} for ident in reading_order(value)]
     structure.update(text=printed_text(value), rendered_text=manuscript_text(value))
     structure["text_sha256"] = hashlib.sha256(structure["text"].encode()).hexdigest()
-    structure["revision"] = hashlib.sha256(structure["rendered_text"].encode()).hexdigest()
+    structure["revision"] = structure_revision(structure)
     return structure
 
 

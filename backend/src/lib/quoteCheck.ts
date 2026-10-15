@@ -215,7 +215,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
       // The source's text, read where a quotation was not found in a passage of it.
       let documentText: string | undefined;
       const text = () => documentText ??= engine.documentText(document), revision = engine.documentRevision(document);
-      const located = await engine.quoteLocateDocument(document, quoteBlocks(document, items[0].judgment),
+      const located = await engine.quoteLocateDocument(document, items[0].judgment,
         items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints), id: row.id })),
         options.compare !== false);
       // Each found quotation's link, its text fragments planned off this thread.
@@ -300,32 +300,7 @@ export function withOuterQuotes(text: string, open: string, close: string) {
   return hasOpen && hasClose ? value : hasOpen ? value + close : hasClose ? open + value : `${open}${value}${close}`;
 }
 
-type QuoteBlock = { kind: "paragraph" | "page" | "section"; label: string; start: number; end: number };
 type QuoteScopes = { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
-
-/** A source's paragraphs, pages and provisions, named "par12", "page 333" and "sec4"; a judgment's
- *  PDF by the paragraph numbers it prints. */
-export function quoteBlocks(native: NativeDocument, judgment = false): QuoteBlock[] {
-  const engine = structureNative();
-  if (judgment) {
-    const paragraphs = engine.documentCaseOutline(native).filter((entry) => entry.kind === "paragraph").flatMap((entry): QuoteBlock[] => {
-      const number = /^\[?(\d{1,4})\]?\.?$/u.exec(entry.label.trim())?.[1];
-      return number ? [{ kind: "paragraph", label: `par${number}`, start: entry.start, end: entry.end }] : [];
-    });
-    if (paragraphs.length) return paragraphs;
-  }
-  return engine.documentAnchors(native).flatMap((anchor): QuoteBlock[] => {
-    if (anchor.kind !== "paragraph" && anchor.kind !== "page" && anchor.kind !== "section") return [];
-    // Native labels may carry their kind ("page333", "para 12", "s. 4").
-    const prefix = { paragraph: /^(?:paras?\.?|par|¶)\s*(?=\d)/iu, page: /^(?:pages?|pp?\.?)\s*(?=\d)/iu,
-      section: /^(?:sections?|ss?\.|sec)\s*(?=\d)/iu }[anchor.kind];
-    let value = anchor.label.trim().replace(prefix, "").replace(/^\[(.*)\]$/u, "$1");
-    // A named provision has no number: "secSchedule".
-    if (anchor.kind === "section") value = value.replace(/^sec(?=[A-Z])/u, "");
-    const label = anchor.kind === "paragraph" ? `par${value}` : anchor.kind === "page" ? `page ${value}` : `sec${value}`;
-    return [{ kind: anchor.kind, label, start: anchor.start, end: anchor.end }];
-  });
-}
 
 /** The paragraphs, pages and provisions a citation's pinpoints name. */
 export function quoteScopes(pinpoints: AuthorityOccurrence["pinpoints"]): QuoteScopes {

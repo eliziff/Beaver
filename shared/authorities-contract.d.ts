@@ -167,7 +167,19 @@ export type AuthorityIdentity = {
   historyOf?: string;
 };
 
+/** Exact unchanged runs from normalized unit text into one PDF source representation (UTF-16). */
+export type AuthorityUnitSource = {
+  documentId: string;
+  textSha256: string;
+  coordinateSpace: "source_utf16";
+  nodeIds: string[];
+  lineIds: string[];
+  ranges: Array<{ start: number; end: number }>;
+  mappings: Array<{ start: number; end: number; sourceStart: number; sourceEnd: number; lineId: string }>;
+};
+
 export type AuthoritiesReviewUnit = {
+  source?: AuthorityUnitSource;
   id: string;
   kind: "body" | "footnote";
   ordinal: number;

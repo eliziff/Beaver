@@ -42,6 +42,17 @@ An unavailable detection request leaves PDF navigation usable. Byte-only standal
 previews still need supplied labels or embedded metadata because they have no
 stored-document operation to call.
 
+PDF paragraph lookup, Authorities highlighting and quotation checking use the
+same declared paragraph graph nodes, IDs, source lines and text ranges. Printed
+layout recognition belongs to parser classification; consumers do not redetect
+numbering or fill missing ranges from neighbouring paragraphs.
+The native quotation operation prepares its source blocks from shared document
+reflection, including exact memberships and exclusion of ambiguous printed
+paragraph numbers in PDF judgments. Callers supply quotations and cited scopes
+rather than reconstructing paragraph blocks.
+Structural block ordinals are not paragraph numbers. Quotations in unnumbered
+PDFs are located by page; unresolved or ambiguous printed numbers remain unresolved.
+
 ## Growing resources
 
 Each new user message carries a submission-origin declaration. Interactive browser
@@ -158,6 +169,14 @@ JSON and embedded reference bytes when advancing the application distribution.
   without a selection toggles the tool. Marks outside detected structure still
   render, using `line n–n` as the fallback pinpoint. Full findings and notes remain
   available inside the expanded source.
+- Reader text exposes every exact page member range, including multiple ranges
+  for one page. Selection capture maps every selected non-whitespace character
+  to those served ranges and preserves gaps; an ambiguous or unmappable selection
+  cannot save partial evidence. A `passage` action carries the pinned `revision`
+  and a nonempty `ranges` array of disjoint `{ start, end }` intervals. All ranges
+  are verified before one atomic merge saves their receipts and highlight types;
+  the action returns the complete `receipts` array. Dropping that selection into
+  a memo inserts a citation for every receipt in one editor transaction.
 - Read/search receipts are background evidence, not highlights or findings. A
   bound chat retains all receipts and queries but collects only explicitly saved
   or grounded-answer sources. Grounded support is not automatically highlighted.
@@ -413,6 +432,9 @@ before the files changed is refused.
   where available, passage coordinates, and safe presentation link.
 - Text-fragment and native-anchor URLs are built deterministically from verified
   source text. Models do not author source URLs.
+  Paragraph ranges and provision openings retain their resolved source coordinates.
+  Discontinuous membership may require multiple text directives; callers use them
+  only when the native planner reports complete coverage of the intended members.
 - A failed external pinpoint falls back to a truthful provider anchor or the
   internal source viewer; it never fabricates precision.
 - Quote presence, link validity, and semantic support are distinct findings.
