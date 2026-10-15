@@ -92,12 +92,6 @@ function tabReference(settings, tab) {
   return `[${settings.citationSuffixLabel} ${tab.startsWith(prefix) ? tab.slice(prefix.length) : tab}]`;
 }
 
-/** Drafts saved with the fixed "[Book of authorities Tab 4]" read it as those words. */
-function currentTabReference(settings) {
-  return settings.citationSuffix === "book-tab" ? { ...settings, citationSuffix: "custom",
-    citationSuffixLabel: `Book of authorities ${settings.tabPrefix ?? "Tab "}`.trim() } : settings;
-}
-
 /** An authority as every output cites it (the index and its bookmarks, the tables, Word's citation
  *  fields): as the brief first cites it in full, led by the style of cause or title (the name its source
  *  gives it where the brief cites it by its citation alone), then each other citation of it the brief or
@@ -172,4 +166,4 @@ function authorityCitation(draft, authority) {
   return { text, italic: ["case", "legislation"].includes(authority.kind) ? led : 0, lead: led, cited };
 }
 
-export { authorityCitation, authorityGrouping, authorityProcedureInput, currentTabReference, deriveAuthorityProcedure, tabLabel, tabReference };
+export { authorityCitation, authorityGrouping, authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference };
