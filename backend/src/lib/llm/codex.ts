@@ -37,6 +37,16 @@ const DISABLED_CODEX_FEATURES = [
   "view_image",
 ];
 
+// Codex shows the model an MCP schema's types, descriptions and shapes, not its bounds; restate them.
+const SCHEMA_BOUNDS = ["minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "pattern", "minItems", "maxItems"];
+const visibleBounds = (schema: unknown): unknown => {
+  if (!schema || typeof schema !== "object") return schema;
+  if (Array.isArray(schema)) return schema.map(visibleBounds);
+  const node = Object.fromEntries(Object.entries(schema).map(([key, value]) => [key, visibleBounds(value)]));
+  const bounds = SCHEMA_BOUNDS.filter((key) => ["string", "number"].includes(typeof node[key])).map((key) => `${key} ${node[key]}`);
+  return bounds.length ? { ...node, description: [node.description, `(${bounds.join("; ")})`].filter(Boolean).join(" ") } : node;
+};
+
 /** One-shot settlement: idle, abort and turn completion race, and the first wins. */
 function settlement() {
   let done = false;
@@ -190,7 +200,7 @@ async function runCodexTurn(params: StreamChatParams,
   const tools = params.staticTools ?? params.resolveTools?.() ?? params.tools ?? [];
   if (tools.length && params.runTools) {
     bridge = await startMcpToolBridge({
-      tools,
+      tools: tools.map((tool) => ({ ...tool, inputSchema: visibleBounds(tool.inputSchema) as typeof tool.inputSchema })),
       runTools: params.runTools,
       callbacks,
       onActivity: () => noteToolActivity(),
