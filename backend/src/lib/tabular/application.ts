@@ -96,8 +96,6 @@ export const tabularDtos = {
     document_ids: rowIds.optional(), columns_config: columns.optional(), ...researchInput,
     workflow_id: id.nullable().optional(),
     project_id: projectId.nullable().optional(),
-    shared_with: z.array(z.string().trim().toLowerCase().email().max(320)).max(100)
-      .transform((value) => [...new Set(value)]).optional(),
     expected_version: z.string().max(100).optional(),
   }).strict(),
   design: z.object({
@@ -601,8 +599,6 @@ export function createTabularApplication(
     },
     async update(scope: TabularScope, reviewId: string,
       input: z.infer<typeof tabularDtos.update>, operation?: TabularOperation) {
-      if (input.shared_with?.includes(scope.userEmail?.trim().toLowerCase() ?? ""))
-        return fail(400, "You cannot share a tabular review with yourself.");
       const current = await store.detail(scope, reviewId);
       if (!current) return fail(404, "Review not found");
       if (current.review.role === "viewer") return fail(403, "You have read-only access to this review.");
@@ -630,16 +626,8 @@ export function createTabularApplication(
             cells: config.arrangement.cells.filter((item) => item.rowId !== rowId || item.columnIndex !== columnIndex) } } } : {}),
           operation: { executor: "human", title: "Use chat answer" } }), "Review");
       }
-      if (current.review.project_id && input.shared_with !== undefined)
-        return fail(409, "Manage access on the parent project.");
-      if (!current.review.is_owner && input.shared_with !== undefined)
-        return fail(403, "Only the review owner can change sharing");
       if (!current.review.is_owner && input.project_id !== undefined)
         return fail(403, "Only the review owner can move a review");
-      if (input.shared_with) {
-        const missing = await store.missingRecipient(scope, input.shared_with);
-        if (missing) fail(400, `${missing} does not belong to a Beaver user.`);
-      }
       const nextProject = input.project_id === undefined
         ? current.review.project_id : input.project_id;
       const previousSelection = current.review.scope_config?.frozen && !input.arrangement &&
@@ -666,7 +654,6 @@ export function createTabularApplication(
           ...(input.columns_config !== undefined ? { columns: input.columns_config } : {}),
           ...(input.workflow_id !== undefined ? { workflowId: input.workflow_id } : {}),
           ...(nextSelection ? { documentIds: nextSelection.subjects.map(tabularSubjectId), scopeConfig: nextSelection } : {}),
-          ...(input.shared_with !== undefined ? { sharedWith: input.shared_with } : {}),
           seedCells, operation,
         }), "Review");
       if (nextSelection && !operation?.propose) await linkWorkspace(scope, reviewId, nextSelection, operation);

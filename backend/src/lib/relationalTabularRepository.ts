@@ -9,7 +9,7 @@ import { researchChangeCounts, researchChangeSummary, sameResearchValue,
   type ResearchChange, type ResearchChangeField } from "./researchHistory";
 import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
-import { changes, documentAccess, missingProfileEmail, now, one, projectAccess,
+import { changes, documentAccess, now, one, projectAccess,
   replaceMembers, reviewAccess, rows, type Row } from "./relationalRepositorySupport";
 import { searchFilter } from "./searchQuery";
 
@@ -82,7 +82,7 @@ const reviewCells = async (db: RelationalDatabase, id: string) =>
 function updatedState(current: TableState, input: ReviewInput): TableState {
   const review = { ...current.review };
   for (const [key, field] of Object.entries({ title: "title", projectId: "project_id", columns: "columns_config",
-    documentIds: "document_ids", scopeConfig: "scope_config", workflowId: "workflow_id", sharedWith: "shared_with" }))
+    documentIds: "document_ids", scopeConfig: "scope_config", workflowId: "workflow_id" }))
     if (input[key as keyof ReviewInput] !== undefined) review[field] = input[key as keyof ReviewInput];
   const priorSubjects = new Map(current.review.scope_config?.subjects.map((subject) => [tabularSubjectId(subject), subject]));
   const readInput = (subject: TabularSelection["subjects"][number] | undefined) => subject && ({
@@ -196,13 +196,11 @@ export const tabularRepository: TabularRepository = {
         return { status: "missing" } as const;
       if (!await lockDocuments(tx, scope, input.documentIds, input.projectId, input.scopeConfig))
         return { status: "missing" } as const;
-      const shared = input.sharedWith ?? [];
       await changes(sql`INSERT INTO tabular_reviews(id,user_id,project_id,title,columns_config,
         document_ids,scope_config,workflow_id,shared_with,created_at,updated_at) VALUES(${id},${scope.userId},
         ${input.projectId},${input.title ?? null},${encode(input.columns)},
-        ${encode(input.documentIds)},${encode(input.scopeConfig ?? { subjects: [] })},${input.workflowId ?? null},${encode(shared)},
+        ${encode(input.documentIds)},${encode(input.scopeConfig ?? { subjects: [] })},${input.workflowId ?? null},${encode([])},
         ${created},${created})`, tx);
-      await replaceMembers(tx, "tabular_review_members", id, shared);
       await syncCells(tx, id, input.documentIds, input.columns);
       const seen = new Set<string>();
       for (const seed of input.seedCells ?? []) {
@@ -231,9 +229,6 @@ export const tabularRepository: TabularRepository = {
     ]);
     return { review: { ...review, proposals: proposals.map((row) => researchChangeSummary(
       decode<ResearchChange>(row.record, null!))), history_count: Number(count?.total ?? 0) }, cells };
-  },
-  async missingRecipient(_scope, emails) {
-    return missingProfileEmail(await relationalDatabase(), emails);
   },
   async update(scope, id, expected, input) {
     const db = await relationalDatabase();
