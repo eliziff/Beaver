@@ -21,7 +21,7 @@ export type ProjectDirectoryItem = { kind: "folder"; folder: ProjectFolder }
   | { kind: "document"; document: DocumentRecord };
 type ProjectInput = { name: string; cmNumber: string | null; practice: string | null;
   sharedWith: string[]; metadata?: Record<string, unknown>; notes?: string | null };
-type ProjectUpdate = Partial<ProjectInput>;
+type ProjectUpdate = Partial<Omit<ProjectInput, "sharedWith">>;
 
 export type ProjectRepository = {
   page(scope: ProjectScope, options: ProjectListOptions): Promise<ProjectPage<ProjectRecord, [string, string]>>;
@@ -127,7 +127,6 @@ export function createProjectStore(
     },
     get: (scope, projectId) => repository.project(scope, projectId, false),
     async update(scope, projectId, input) {
-      if (input.sharedWith) await recipients(scope, input.sharedWith);
       return repository.update(scope, projectId, input);
     },
     delete: remove,
