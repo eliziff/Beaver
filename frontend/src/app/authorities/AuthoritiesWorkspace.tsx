@@ -1379,10 +1379,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                   {/* The review stays drawn, held still, while Next finds the sources; Sources replaces it. It comes
                       last, so on another step that step's own panel is the first below the steps. */}
                   {reviewable && reviewed === draft.id && <div inert={!reviewing} aria-hidden={!reviewing || undefined}
-                    // Unseen, it keeps its own size, place and scroll under a box of no height, so nothing in
-                    // it is laid out or drawn again either way.
+                    // Unseen, it keeps its own size, place and scroll under a box of no height, and the browser
+                    // skips its styles and layout, so a dialog opening over another step never restyles it. The box
+                    // of no height hides it: a skipped box reports no place, which the browser counts as a shift.
                     className={reviewing ? undefined : "h-0 overflow-clip"}><section aria-label="Citations"
-                    className="@container overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
+                    className={cn("@container overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm", !reviewing && "[content-visibility:hidden]")}>
                     <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={findings} check={currentReview || reviewError ? "done" : reviewKey || !app && sourcesFound.id !== draft.id ? "running" : sourcesFound.failed ? "failed" : "unavailable"} hidden={!reviewing}
                       busy={busy} onSelect={setSelectedId} onAction={act} onHistory={travel}
