@@ -91,7 +91,7 @@ export function ReadSubagentDock({
                                 ) : null}
                                 {panel.output ? (
                                     <details open className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs leading-5 text-gray-700">
-                                        <summary className="cursor-pointer font-medium text-gray-600">Final output{panel.citations.length ? ` · ${panel.citations.length} verified ${panel.citations.length === 1 ? "source" : "sources"}` : ""}</summary>
+                                        <summary className="cursor-pointer font-medium text-gray-600">Final output</summary>
                                         <div aria-label="Agent final output" className="prose prose-sm mt-2 max-w-none break-words text-xs leading-5 text-gray-700 [overflow-wrap:anywhere] [&_h1]:text-xs [&_h2]:text-xs [&_h3]:text-xs [&_h4]:text-xs [&_li]:text-xs [&_p]:text-xs">
                                             <CitationPillMarkdown text={panel.output} citations={panel.citations} onCitationClick={onCitationClick} />
                                         </div>
