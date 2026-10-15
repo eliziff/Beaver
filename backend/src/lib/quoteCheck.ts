@@ -300,7 +300,8 @@ export function withOuterQuotes(text: string, open: string, close: string) {
   return hasOpen && hasClose ? value : hasOpen ? value + close : hasClose ? open + value : `${open}${value}${close}`;
 }
 
-type QuoteBlock = { kind: "paragraph" | "page" | "section"; label: string; start: number; end: number };
+type QuoteBlock = { kind: "paragraph" | "page" | "section"; label: string; start: number; end: number;
+  ranges: Array<{ start: number; end: number }> };
 type QuoteScopes = { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
 
 /** A source's paragraphs, pages and provisions, named "par12", "page 333" and "sec4"; a judgment's
@@ -308,14 +309,14 @@ type QuoteScopes = { paragraphs: Array<[number, number]>; pages: Array<[number, 
 export function quoteBlocks(native: NativeDocument, judgment = false): QuoteBlock[] {
   const engine = structureNative();
   if (judgment) {
-    const paragraphs = engine.documentCaseOutline(native).filter((entry) => entry.kind === "paragraph").flatMap((entry): QuoteBlock[] => {
-      const number = /^\[?(\d{1,4})\]?\.?$/u.exec(entry.label.trim())?.[1];
-      return number ? [{ kind: "paragraph", label: `par${number}`, start: entry.start, end: entry.end }] : [];
-    });
-    if (paragraphs.length) return paragraphs;
+    const printed = engine.pdfPrintedParagraphs(native).map(({ number, start, end, ranges }): QuoteBlock =>
+      ({ kind: "paragraph", label: `par${number}`, start, end, ranges }));
+    if (printed.length) return printed;
   }
   return engine.documentAnchors(native).flatMap((anchor): QuoteBlock[] => {
     if (anchor.kind !== "paragraph" && anchor.kind !== "page" && anchor.kind !== "section") return [];
+    // A PDF that prints no paragraph numbers is placed by its pages: its blocks are numbered in reading order, not as paragraphs.
+    if (judgment && anchor.kind === "paragraph") return [];
     // Native labels may carry their kind ("page333", "para 12", "s. 4").
     const prefix = { paragraph: /^(?:paras?\.?|par|¶)\s*(?=\d)/iu, page: /^(?:pages?|pp?\.?)\s*(?=\d)/iu,
       section: /^(?:sections?|ss?\.|sec)\s*(?=\d)/iu }[anchor.kind];
@@ -323,7 +324,7 @@ export function quoteBlocks(native: NativeDocument, judgment = false): QuoteBloc
     // A named provision has no number: "secSchedule".
     if (anchor.kind === "section") value = value.replace(/^sec(?=[A-Z])/u, "");
     const label = anchor.kind === "paragraph" ? `par${value}` : anchor.kind === "page" ? `page ${value}` : `sec${value}`;
-    return [{ kind: anchor.kind, label, start: anchor.start, end: anchor.end }];
+    return [{ kind: anchor.kind, label, start: anchor.start, end: anchor.end, ranges: anchor.ranges }];
   });
 }
 
