@@ -845,6 +845,11 @@ def parser_view(value):
         attach(node, membership or node.get("ranges") or [node["range"]])
     structure["source_fragments"] = [{"id": ident, "page_index": lines[ident]["page"]-1,
                                        "range": deepcopy(lines[ident]["range"])} for ident in reading_order(value)]
+    # Corrected and split lines keep their extraction witness, so a scorer reads the export in the
+    # same frame as the gold.
+    structure["source_witnesses"] = {ident: {key: deepcopy(line[key]) for key in ("source_id", "source_range", "original_text")}
+        for ident, line in lines.items() if line["source_id"] != ident or line["original_text"] != line["text"]
+        or line["source_range"] != [0, len(line["text"])]}
     structure.update(text=printed_text(value), rendered_text=manuscript_text(value))
     structure["text_sha256"] = hashlib.sha256(structure["text"].encode()).hexdigest()
     structure["revision"] = structure_revision(structure)

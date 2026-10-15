@@ -25,6 +25,11 @@ REFERENCE = re.compile(r"\[\^([^\]\s]{1,12})\]")
 SPACE = (" ", None, None, None)
 
 
+class UnusableExtraction(Exception):
+    """The page's extracted lines do not carry its printed text, so no typed block can anchor to
+    them; asking again cannot change that."""
+
+
 def require(ok, message):
     if not ok: raise ValueError(message)
 
@@ -193,7 +198,8 @@ def chunk(pages, mode):
     if mode == "digitalborn": edits = []
     content = [item for item in typed if item is not None and not item[0].isspace()]
     matched = sum(1 for item in owner.values() if not item[0].isspace())
-    require(not content or matched >= 0.3 * len(content), "The typed text does not match these pages' extracted lines")
+    if content and matched < 0.3 * len(content):
+        raise UnusableExtraction(f"Only {matched} of {len(content)} typed characters match the extracted lines")
     for n in unanchored: parsed[n]["unanchored"] = True
     texts = [block[1] for _, blocks in pages for block in blocks]
     return {"source": source, "parsed": parsed, "owner": owner, "changes": edits,
@@ -378,7 +384,7 @@ def structure(chunks, lines, order):
             if block["region"] == "list_item": attributes.update(locator_kind="list_item", marker=mark)
             elif block["region"] in {"text", "quote"} and mark: attributes["locator_kind"] = "paragraph"
             groups.append({"kind": ROLES.get(block["region"], block["region"]), "spans": part, "attributes": attributes})
-            item = {"block": anchor(part[0]), "spans": part, "label": mark}
+            item = {"block": anchor(part[0]), "spans": part, "label": mark, "group": groups[-1]}
             if block["region"] == "note":
                 item["annotation"] = {"id": "", "kind": "note", "spans": part,
                                       "attributes": {"kind": "footnote", "label": mark, "references": []}}
@@ -466,6 +472,10 @@ def structure(chunks, lines, order):
             report["unlinked_continuations"].append({"region": region, "reason": why}); return
         outgoing.add((kind, a))
         continuations.setdefault(kind, {})[a] = {"next": b, "separator": separator, "kind": kind}
+        if kind == "paragraph" and left["group"]["attributes"].get("locator_kind") == "list_item"                 and right["group"]["attributes"].get("locator_kind") in (None, "list_item"):
+            # A list item's text continues, and so does the list: the fragment is that item's.
+            right["group"]["attributes"].update(locator_kind="list_item", marker=right["group"]["attributes"].get("marker", []))
+            continuations.setdefault("list", {})[a] = {"next": b, "separator": None, "kind": "list"}
     # A continued block resumes the latest earlier block of its stream: notes, tables, quotations
     # or the running text.
     family = lambda block: "quote" if block["region"] == "quote" or "quoted" in block["flags"] else \

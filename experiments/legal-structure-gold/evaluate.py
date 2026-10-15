@@ -92,6 +92,9 @@ def state_of(value):
     pages = [{'atoms':[{'id':i, 'bbox':boxes.get(i,[0,0,0,0])} for i,l in lines.items() if l['page'] == n]}
              for n in sorted({l['page'] for l in lines.values()})]
     state = gold.initial(structure, pages)
+    # An exported gold keeps each corrected line's extraction witness, the scorer's common frame.
+    for line in state['lines']:
+        line.update(structure.get('source_witnesses', {}).get(line['id'], {}))
     # A unit's level is its depth under the units it is projected beneath, as the gold's is (its
     # parent's plus one), not the parser's own count within a list or a type size's rank.
     by_line = {i: g for g in state['groups'] for i in g['line_ids']}
@@ -383,6 +386,12 @@ def compare(expected, candidate):
             for ident,a,b in project(line,start,end,candidate_side): cuts[ident].update((a,b))
     def features(state, candidate_side):
         lines = {l['id']:l for l in state['lines']}
+        if not any(a['kind']=='document' for a in state['annotations']) and state['reading_order']:
+            # A source without declared documents is one document, as its projection states.
+            first=state['reading_order'][0]
+            state={**state,'annotations':state['annotations']+[{'id':'source','kind':'document','line_ids':[first],
+                'spans':[{'line_id':first,'start':0,'end':len(lines[first]['text'])}],
+                'attributes':{'kind':None,'parent':None,'relationship':None,'title':[],'facets':{}}}]}
         def surface(line, at, right=False):
             # Project a corrected offset back to the unchanged extraction surface.
             lo,hi = line['source_range'] or (0,len(line['text']))
@@ -403,7 +412,11 @@ def compare(expected, candidate):
             return (origin,at)
         # The package's own document is the root, whichever line it opens on.
         roots={a['line_ids'][0] for a in state['annotations'] if a['kind']=='document' and a['attributes'].get('parent') is None}
-        def document(i): return ('root',) if i in roots else anchor(i)
+        # A document parent may name the parent's declaration rather than its opening.
+        openings={a['id']:a['line_ids'][0] for a in state['annotations'] if a['kind']=='document'}
+        def document(i):
+            i=openings.get(i,i)
+            return ('root',) if i in roots else anchor(i)
         def pieces(i):
             line=lines[i]; start,end=line['source_range'] or (0,len(line['text']))
             result=[]
@@ -483,7 +496,13 @@ def compare(expected, candidate):
         if any(a['kind']=='document' for a in state['annotations']):
             try:
                 owners,docs=gold.ownership(state); starts={a['id']:document(a['line_ids'][0]) for a in docs}
-                result['document_ownership']=[(p,starts[owners[i]]) for i in state['reading_order'] for p in pieces(i)]
+                # Blocks are identified by their first source span; a line takes its first block's owner.
+                by_line={}
+                for g in state['groups']:
+                    members=g.get('spans') or gold.whole(g['line_ids'],lines)
+                    owner=owners.get(gold.span_anchor(members[0]),owners.get(members[0]['line_id']))
+                    for member in members: by_line.setdefault(member['line_id'],owner)
+                result['document_ownership']=[(p,starts[by_line[i]]) for i in state['reading_order'] if i in by_line for p in pieces(i)]
             except (ValueError, KeyError):
                 # A candidate whose headings name a parent no group opens is an invalid hierarchy too.
                 result['document_ownership']=[(p,'invalid_hierarchy') for i in state['reading_order'] for p in pieces(i)]
