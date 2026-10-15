@@ -1,8 +1,8 @@
 """Pass 2: each pass-1 block's parent, decided per document over numbered rows.
 
-The model sees one row per logical block (continued fragments merged; furniture, page labels
-and notes left out) and answers one parent row number per row. The runner sets the parent on
-every fragment of the row and the shared composition validates the result.
+The model sees one row per logical block (continued fragments merged; furniture, page labels,
+marginal notes and notes left out) and answers one parent row number per row. The runner sets
+the parent on every fragment of the row and the shared composition validates the result.
 """
 import json
 from pathlib import Path
@@ -30,7 +30,7 @@ def rows(value):
     continued = set(following.values())
     scopes = {}
     for block in layer["blocks"]:
-        if block["id"] in continued or block["kind"] in ("furniture", "page_label") or covered(block, "note"):
+        if block["id"] in continued or block["kind"] in ("furniture", "page_label", "marginal_note") or covered(block, "note"):
             continue
         fragments, current = [block], block["id"]
         while current in following and following[current] in blocks:
