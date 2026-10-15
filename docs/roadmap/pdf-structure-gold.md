@@ -421,8 +421,7 @@ constructs source/rendered memberships and all annotation layers, remaps retaine
 native facts only through source correspondence, and uses the existing assembler.
 Unknown producer evidence is retained separately with typed values authoritative;
 unproved native anchors remain explicit unconfirmed witnesses. Gold export only
-packages that result. The provider-neutral model composer uses the same projection
-for complete requests; partial chunks retain unfinished composition state. This
+packages that result. This
 removes the gold runner as the owner of composition-to-document semantics. Native
 preparation now supplies notes, fields, table grids, document/quotation scopes and
 navigation together with its editable blocks. It identifies exactly which native
@@ -809,8 +808,7 @@ is a failed candidate, not an invitation to reopen the architecture implicitly.
 | Semantic types, annotation application, profiles and queries | `legal-structure/` and its existing bindings |
 | PDF evidence preparation and production assembly | `legal-pdf-parser/legal-pdf-structure/src/structure.rs` and connected PDF owners |
 | Lightweight model features and outline inference | `legal-pdf-parser/legal-pdf-witnesses/src/`, especially `model.rs`, `outline.rs` and `witness.rs` |
-| Gold authoring, prompts, source correction and packaging | `experiments/legal-structure-gold/`; the current shared correction schema is in `legal-pdf-parser/experiments/structure-composer/composer.py` |
-| Hierarchy pass to retire as a separate author | `experiments/legal-structure-gold/hierarchy_pass.py` |
+| Gold authoring, prompts, source correction and packaging | `experiments/legal-structure-gold/` (`prompts.py`, `blocks.py`, `worker.py`) |
 | Direct fact scoring and batch evaluation | Existing `evaluate.py` and `score_all.py` under the gold runner |
 | Shared-structure consumer integration | Existing native bindings and consuming bounded-query operations; do not recreate semantic logic in TypeScript |
 

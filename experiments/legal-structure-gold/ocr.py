@@ -136,55 +136,6 @@ def load(pdf, supplied, base):
     return {"source_sha256": sha(pdf), "offset_unit": "utf16", "text": "\n".join(chunks), "nodes": nodes, "origins": []}, pages
 
 
-def schema(base):
-    result = deepcopy(base)
-    def obj(**fields):
-        return {"type": "object", "additionalProperties": False, "required": list(fields), "properties": fields}
-    def array(item):
-        return {"type": "array", "items": item}
-    string = {"type": "string"}
-    coordinate = array(array({"type": "number", "minimum": 0, "maximum": 1000}))
-    result["properties"]["ocr"] = obj(
-        lines=array(obj(id=string, members=array(string), baseline=coordinate, boundary=coordinate)),
-        regions=array(obj(id=string, type=string, polygon=coordinate, line_ids=array(string))),
-        drop_lines=array(string), drop_regions=array(string), line_order=array(string), region_order=array(string),
-        coverage=obj(**{task: {"type": "string", "enum": list(STATUSES)} for task in TASKS}))
-    result["required"].append("ocr")
-    return result
-
-
-def apply(layer, req, response, aliases, expansion, units):
-    require("ocr" in response, "OCR page annotation missing")
-    page = next(p for p in layer["pages"] if p["page"] == req["targets"][0])
-    correction = response["ocr"]
-    for line in page["lines"]:
-        line["members"] = [j for i in line.get("members", [line["id"]]) for j in expansion.get(i, [i]) if j in units]
-    def objects(kind, drop):
-        existing = {x["id"]: x for x in page[kind]}
-        changes = correction[kind]
-        require(len({x["id"] for x in changes}) == len(changes), "Duplicate OCR replacement")
-        for ident in correction[drop]:
-            require(ident in existing, "OCR discard outside TARGET")
-            del existing[ident]
-        for change in changes:
-            ident = change["id"]
-            require(ident in existing or re.fullmatch(r"(?:o|r)_new[1-9]\d*", ident), "OCR replacement outside TARGET")
-            value = deepcopy(change)
-            if kind == "lines":
-                members = []
-                for member in value["members"]:
-                    require(member in aliases, "Unknown OCR text reference")
-                    members.extend(i for i in expansion.get(aliases[member], [aliases[member]]) if i in units)
-                value["members"] = members
-            existing[ident] = value
-        order = correction["line_order" if kind == "lines" else "region_order"] or list(existing)
-        require(len(order) == len(existing) and set(order) == set(existing), "OCR order coverage differs")
-        page[kind] = [existing[i] for i in order]
-    objects("lines", "drop_lines"); objects("regions", "drop_regions")
-    page["coverage"] = deepcopy(correction["coverage"])
-    validate_page(page, units, layer["ontology"]["labels"])
-
-
 def validate_page(page, units, labels):
     coverage = page["coverage"]
     require(set(coverage) == set(TASKS) and all(s in STATUSES for s in coverage.values()), "Invalid OCR coverage")

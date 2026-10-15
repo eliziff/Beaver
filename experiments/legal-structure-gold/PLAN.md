@@ -1,8 +1,8 @@
 # PDF structure gold generator
 
 Produce a corrected manuscript and source-anchored structure from parser evidence
-and full-page vision. The runner uses the PDF structure composer's roles and
-annotation layers, with shared Codex execution and sparse edits.
+and full-page vision. The model types each page as blocks; the runner aligns them to
+the source lines and validates them through the shared Rust composition.
 Runtime agent assistance and [PageIndex reuse](../../docs/roadmap/pageindex-detection.md)
 remain separate work.
 
@@ -104,12 +104,14 @@ addon must expose these operations; Python does not substitute mutation rules.
 One call per chunk of up to five pages authors text and structure together. The model
 sees the page images (plus the preceding page as context) and the extracted lines in
 reading order, and returns one list of blocks per page: `[region, text]` or
-`[region, text, flag]`. `prompts.py` owns the instructions and schema; there are no
+`[region, text, flags]`. `prompts.py` owns the instructions and schema; there are no
 IDs, parents, nulls or offsets in the reply. Regions are text (numbered paragraphs
-included), list_item, heading, quote, note, table (rows by line, cells by ` | `),
+included), list_item, heading, quote, note, table (one line per row, cells by ` | `),
 caption, headnote, marginal_note, furniture and page_label. Flag `continued` links a
 block to the latest earlier block of its stream (notes, tables, quotations or running
-text); `document` opens a constituent document under one root at the first block. A
+text); `document` opens a constituent document under one root at the first block;
+`quoted` keeps a list item or paragraph in the open block quotation (a `quote` block
+opens a new one; one quotation annotation per page, linked across pages). A
 tab after a block's leading printed marker and inline `[^N]` note references are the
 only in-text conventions.
 
@@ -117,12 +119,15 @@ only in-text conventions.
 case- and whitespace-folded words, then characters; whole typed blocks or runs of three
 or more words typed out of extraction order align as moves). It derives each block's
 exact spans (a boundary may fall inside a line), table cells, `marker` spans
-(`locator_kind` list_item, or paragraph for numbered text), note labels and references,
+(`locator_kind` list_item, or paragraph for numbered text; an opening quotation mark
+stays outside the marker), note labels and references,
 and OCR text edits where the typed text differs. Digital-born differences are reported,
 not applied: in the pilot they were retyping (substituted bullet glyphs, a "corrected"
 print typo), not extraction errors. Spacing-only differences are ignored except a word
 space inside one OCR line; dissimilar text side by side is never corrected into each
-other. Missing text joins a line only beside characters of its own block; a typed block
+other. The shared composition gives a note to the document of its references when they name
+one document (a footnote area printed after the next document's opening), otherwise to
+its position. Missing text joins a line only beside characters of its own block; a typed block
 matching no extracted text is reported, and extracted text typed nowhere joins a
 neighbouring block (reported). Notes are footnote annotations, quotes display
 quotations, tables grids without merges or header rows. Hierarchy (parents), fields,

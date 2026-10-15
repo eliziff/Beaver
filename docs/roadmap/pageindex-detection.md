@@ -34,10 +34,8 @@ the current Flash detector.
 
 Reuse the findings and limits of existing experiments:
 
-- [Structure composer](../../legal-pdf-parser/experiments/structure-composer/PLAN.md):
-  sparse corrections anchored to native source lines, heading level/parent
-  changes, and provider-neutral validation. Its composition candidates are not
-  independently accepted gold.
+- [Structure gold](../../experiments/legal-structure-gold/PLAN.md): typed blocks
+  aligned to native source lines and validated by the shared composition.
 - [Heading and structure arbitration](../../experiments/jev-structure-arbiter/README.md)
   and [results](../../experiments/jev-structure-arbiter/RESULTS.md): local versus
   outline versus full-context probes, with heading demotion, wrapping and level

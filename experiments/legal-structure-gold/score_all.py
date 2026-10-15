@@ -31,7 +31,6 @@ import sys
 import sqlite3
 from contextlib import closing
 import worker
-import hierarchy_pass
 import evaluate
 import corpus_store
 import package
@@ -216,8 +215,6 @@ def score_one(item):
         if expected.get('schema_version') == package.VERSION and 'legal_structure' not in expected['layers']:
             return {'run': run, **reference_metadata({'run': run}, out),
                     'status': 'unavailable', 'reason': 'legal_structure_not_annotated'}
-        # The document's hierarchy, decided over the whole document, where its layer exists.
-        expected = hierarchy_pass.apply(job, expected)
         reference_sha = worker.fingerprint(evaluate.state_of(expected)[1])
         value = worker.read_json(Path(candidate))
         if structure:
