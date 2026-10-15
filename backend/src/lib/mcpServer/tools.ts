@@ -258,7 +258,7 @@ const definitions: Array<Tool & { run: Handler }> = [{
       const entry = evidence.get(id);
       if (entry) registerLegalEvidence(state, entry.receipt, entry);
     }
-    const submitted = submitLegalEvidenceAnswer(args, state);
+    const submitted = await submitLegalEvidenceAnswer(args, state);
     draft = state.draft ?? null;
     if (!submitted.ok) return json(submitted, true);
     const citations = createLegalEvidenceCitations(state), { groups, claimRefs } = legalEvidenceCitationPlan(state);

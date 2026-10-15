@@ -1508,7 +1508,7 @@ it.each(["host", "native", "model-switch"])("reformats stored grounded claims wi
     sourceText: passage, spanText: passage, start: 0, end: passage.length });
   registerLegalEvidence(state, receipt);
   const claims = [{ text: 'The notice says “15 days”.', evidence_ids: [receipt.evidence_id] }];
-  expect(submitLegalEvidenceAnswer({ claims }, state).ok).toBe(true);
+  expect((await submitLegalEvidenceAnswer({ claims }, state)).ok).toBe(true);
   const loaded = await loadApp(), created = await request(loaded.app).post("/chat/create").send({});
   const checkpoint = kind === "host" ? { type: "context_checkpoint", schema_version: 1,
     summary: "Research completed; the user wants a table.", keep_current: false }

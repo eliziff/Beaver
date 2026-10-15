@@ -1850,7 +1850,7 @@ export function assistantTools<Context extends {
       );
       const cited = docxCitationEntries(legalEvidenceState, args.citations);
       if (legalEvidenceState) {
-        const integrityErrors = legalEvidenceProseIntegrityErrors(
+        const integrityErrors = await legalEvidenceProseIntegrityErrors(
           draftQuotationText(markdown),
           cited.flatMap(({ input }) => input.evidenceIds),
           legalEvidenceState,

@@ -242,7 +242,7 @@ export async function runChatTurn(options: {
     ...LEGAL_EVIDENCE_SUBMIT_TOOL,
     sequential: true,
     async execute(input) {
-      const submitted = submitLegalEvidenceAnswer(input, state);
+      const submitted = await submitLegalEvidenceAnswer(input, state);
       return { result: toolText(submitted),
         ...(submitted.terminal === true ? { terminal: true } : {}) };
     },

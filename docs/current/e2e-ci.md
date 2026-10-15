@@ -161,8 +161,8 @@ npm builds/tests run below normal priority and limit Rayon/OpenMP
 pools to one thread. Root Cargo configuration limits compilation to one job
 including addon builds launched from this checkout.
 Native CI commands explicitly use two jobs on their dedicated runners.
-Local addon builds use the incremental development profile; launchers select
-the newest built artifact. Release optimization is explicit delivery work.
+Local addon builds use the incremental development profile; launchers load the
+release artifact unless `LEGAL_STRUCTURE_NATIVE` pins another build.
 Avoid running builds and tests concurrently on the workstation; use focused tests
 and reuse built production assets for browser checks. Full Rust builds belong in
 CI unless native source changed and a local integration build is necessary.

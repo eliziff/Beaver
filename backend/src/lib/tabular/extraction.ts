@@ -169,7 +169,7 @@ export async function extractTabularAnswers(input: {
       const missing = args.outcome === "not_found";
       if (missing && (next().length || args.value !== null || !Array.isArray(args.claims) || args.claims.length))
         throw new Error("not_found requires complete reading, a null value and empty claims");
-      const checked = missing ? { claims: [], errors: [] } : validateGroundedClaims(args.claims, state, { allowUnquotedCopies: true });
+      const checked = missing ? { claims: [], errors: [] } : await validateGroundedClaims(args.claims, state, { allowUnquotedCopies: true });
       if (!checked.claims?.length && !missing || checked.errors.length) throw new Error(checked.errors.join("; ") || "Answer requires supporting claims");
       const claims = checked.claims!, value = missing ? null : cellValue(column, args.value), display = missing ? "Not Found" : summary(column, value);
       if (display.length > 8_000) throw new Error("The answer exceeds the cell text limit");

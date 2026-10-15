@@ -24,7 +24,7 @@ function passage(locatorLabel = "par12") {
 describe("production legal evidence", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("identifies exact source/version/occurrence independently of presentation", () => {
+  it("identifies exact source/version/occurrence independently of presentation", async () => {
     const source = { documentId: "doc", versionId: "v1", filename: "Workbook.xlsx",
       sourceText: "Same text. Same text.", spanText: "Same text.", start: 0, end: 10 };
     const first = createLibraryEvidence(source);
@@ -44,7 +44,7 @@ describe("production legal evidence", () => {
     });
   });
 
-  it.each(["document", "page"] as const)("keeps distinct Library spans on the same %s separate", (kind) => {
+  it.each(["document", "page"] as const)("keeps distinct Library spans on the same %s separate", async (kind) => {
     const state = createLegalEvidenceTurnState();
     const sourceText = "First obligation. Second obligation.";
     const receipts = [[0, 17], [18, 36]].map(([start, end]) => createLibraryEvidence({
@@ -52,94 +52,94 @@ describe("production legal evidence", () => {
       spanText: sourceText.slice(start, end), start, end, locator: { kind, label: kind === "page" ? "page1" : "text paragraph 34" },
     }));
     receipts.forEach((receipt) => registerLegalEvidence(state, receipt));
-    expect(submitLegalEvidenceAnswer({ claims: [0, 1, 0].map((index) => ({
+    expect((await submitLegalEvidenceAnswer({ claims: [0, 1, 0].map((index) => ({
       text: receipts[index].span_text, evidence_ids: [receipts[index].evidence_id],
-    })) }, state).ok).toBe(true);
+    })) }, state)).ok).toBe(true);
     expect(renderLegalEvidenceAnswer(state)).toBe("First obligation. [1]\n\nSecond obligation. [2]\n\nFirst obligation. [3]");
     expect(createLegalEvidenceCitations(state).map(({ quotes }) => quotes)).toEqual([receipts[0], receipts[1], receipts[0]].map((receipt) => [
       { quote: receipt.span_text, ...(kind === "page" && { page: "1" }) },
     ]));
-    expect(submitLegalEvidenceAnswer({ claims: [{ text: "An obligation. [3]",
-      evidence_ids: [receipts[0].evidence_id] }] }, state).ok).toBe(false);
+    expect((await submitLegalEvidenceAnswer({ claims: [{ text: "An obligation. [3]",
+      evidence_ids: [receipts[0].evidence_id] }] }, state)).ok).toBe(false);
   });
 
-  it("shares grounding checks without imposing chat answer limits on extraction", () => {
+  it("shares grounding checks without imposing chat answer limits on extraction", async () => {
     const state = createLegalEvidenceTurnState(), evidence = passage();
     registerLegalEvidence(state, evidence);
     const claims = Array.from({ length: 70 }, () => ({ text: "The appeal succeeds.",
       evidence_ids: [evidence.evidence_id] }));
-    expect(validateGroundedClaims(claims, state).errors).toEqual([]);
-    expect(submitLegalEvidenceAnswer({ claims }, state).ok).toBe(false);
+    expect((await validateGroundedClaims(claims, state)).errors).toEqual([]);
+    expect((await submitLegalEvidenceAnswer({ claims }, state)).ok).toBe(false);
     const long = [{ ...claims[0], text: "Supporting analysis. ".repeat(80) }];
-    expect(validateGroundedClaims(long, state).errors).toEqual([]);
-    expect(submitLegalEvidenceAnswer({ claims: long }, state).ok).toBe(false);
+    expect((await validateGroundedClaims(long, state)).errors).toEqual([]);
+    expect((await submitLegalEvidenceAnswer({ claims: long }, state)).ok).toBe(false);
     registerLegalEvidence(state, { ...evidence, span_text: "Tampered source text." });
-    expect(validateGroundedClaims(claims, state).errors.join(" ")).toContain("damaged passage");
+    expect((await validateGroundedClaims(claims, state)).errors.join(" ")).toContain("damaged passage");
   });
 
-  it("allows unquoted extraction wording without relaxing quote or receipt integrity", () => {
+  it("allows unquoted extraction wording without relaxing quote or receipt integrity", async () => {
     const sourceText = "The Customer shall obtain the Supplier's prior written consent before any change of control.",
       state = createLegalEvidenceTurnState(), receipt = createLibraryEvidence({ documentId: "consent",
         versionId: "v1", filename: "consent.txt", sourceText, spanText: sourceText, start: 0, end: sourceText.length }),
       claim = (text: string, id = receipt.evidence_id) => [{ text, evidence_ids: [id] }],
       options = { allowUnquotedCopies: true };
     registerLegalEvidence(state, receipt);
-    expect(submitLegalEvidenceAnswer({ claims: claim(sourceText) }, state).errors)
+    expect((await submitLegalEvidenceAnswer({ claims: claim(sourceText) }, state)).errors)
       .toEqual([expect.stringContaining("unmarked copied passage")]);
-    expect(validateGroundedClaims(claim(sourceText), state, options).errors).toEqual([]);
-    expect(validateGroundedClaims(claim(`"${sourceText}"`), state, options).errors).toEqual([]);
+    expect((await validateGroundedClaims(claim(sourceText), state, options)).errors).toEqual([]);
+    expect((await validateGroundedClaims(claim(`"${sourceText}"`), state, options)).errors).toEqual([]);
     const mixed = `${sourceText} The exception says "Consent is never required for a change of control."`;
-    expect(validateGroundedClaims(claim(mixed), state, options).errors)
+    expect((await validateGroundedClaims(claim(mixed), state, options)).errors)
       .toEqual([expect.stringContaining("does not match its cited evidence")]);
-    expect(validateGroundedClaims(claim(sourceText, "unavailable"), state, options).errors.join(" "))
+    expect((await validateGroundedClaims(claim(sourceText, "unavailable"), state, options)).errors.join(" "))
       .toContain("unknown evidence_id");
     registerLegalEvidence(state, { ...receipt, span_text: "Tampered source text." });
-    expect(validateGroundedClaims(claim(sourceText), state, options).errors.join(" "))
+    expect((await validateGroundedClaims(claim(sourceText), state, options)).errors.join(" "))
       .toContain("damaged passage");
   });
 
-  it("keeps a rejected submission as the draft and takes back only the claims that failed", () => {
+  it("keeps a rejected submission as the draft and takes back only the claims that failed", async () => {
     const state = createLegalEvidenceTurnState(), evidence = passage();
     registerLegalEvidence(state, evidence);
     const claim = (text: string) => ({ text, evidence_ids: [evidence.evidence_id] });
-    const rejected = submitLegalEvidenceAnswer({ replace: null, claims: [claim("The appeal is allowed."),
-      claim("Supporting analysis. ".repeat(80)), claim("The appeal is allowed.")] }, state);
+    const rejected = (await submitLegalEvidenceAnswer({ replace: null, claims: [claim("The appeal is allowed."),
+      claim("Supporting analysis. ".repeat(80)), claim("The appeal is allowed.")] }, state));
     expect(rejected.ok).toBe(false);
     expect(rejected.draft_claims).toBe(3);
     expect(rejected.errors).toEqual([expect.stringContaining("claims[1].text is 1679 characters and the limit is 1200")]);
     expect(rejected.next).toContain("replace");
-    const twoSentences = submitLegalEvidenceAnswer({ claims: null, replace: [{ index: 1,
-      ...claim("The appeal is allowed. The appeal is allowed.") }] }, state);
+    const twoSentences = (await submitLegalEvidenceAnswer({ claims: null, replace: [{ index: 1,
+      ...claim("The appeal is allowed. The appeal is allowed.") }] }, state));
     expect(twoSentences).toEqual({ ok: true, terminal: true });
     expect(state.answer).toHaveLength(3);
   });
 
-  it("normalizes repeated handles without weakening reference or quotation validation", () => {
+  it("normalizes repeated handles without weakening reference or quotation validation", async () => {
     const state = createLegalEvidenceTurnState(), evidence = passage();
     registerLegalEvidence(state, evidence);
     const claims = [{ text: "The appeal is allowed. This is the disposition.",
       evidence_ids: Array(8).fill(evidence.evidence_id) }];
-    expect(submitLegalEvidenceAnswer({ claims }, state)).toEqual({ ok: true, terminal: true });
+    expect((await submitLegalEvidenceAnswer({ claims }, state))).toEqual({ ok: true, terminal: true });
     expect(state.answer?.[0].evidence_ids).toEqual([evidence.evidence_id]);
     expect(claims[0].evidence_ids).toHaveLength(8);
-    expect(validateGroundedClaims([{ ...claims[0], evidence_ids: [evidence.evidence_id, null] }], state)
+    expect((await validateGroundedClaims([{ ...claims[0], evidence_ids: [evidence.evidence_id, null] }], state))
       .errors).toContain("claims[0].evidence_ids must contain 1 to 4 unique handles");
-    expect(validateGroundedClaims([{ ...claims[0], evidence_ids: ["missing", "missing"] }], state)
+    expect((await validateGroundedClaims([{ ...claims[0], evidence_ids: ["missing", "missing"] }], state))
       .errors.join(" ")).toContain("unknown evidence_id");
-    expect(validateGroundedClaims([{ ...claims[0], text: 'The court said "This is invented wording."' }], state)
+    expect((await validateGroundedClaims([{ ...claims[0], text: 'The court said "This is invented wording."' }], state))
       .errors.join(" ")).toContain("does not match its cited evidence");
   });
 
-  it("refuses a replacement that names no draft or a claim outside it", () => {
+  it("refuses a replacement that names no draft or a claim outside it", async () => {
     const state = createLegalEvidenceTurnState(), evidence = passage();
     registerLegalEvidence(state, evidence);
     const claim = { text: "The appeal is allowed.", evidence_ids: [evidence.evidence_id] };
-    expect(submitLegalEvidenceAnswer({ replace: [{ index: 0, ...claim }] }, state).errors)
+    expect((await submitLegalEvidenceAnswer({ replace: [{ index: 0, ...claim }] }, state)).errors)
       .toEqual(["there is no draft to replace; send the whole answer in claims"]);
-    submitLegalEvidenceAnswer({ claims: [{ ...claim, text: "" }] }, state);
-    expect(submitLegalEvidenceAnswer({ replace: [{ index: 2, ...claim }] }, state).errors)
+    (await submitLegalEvidenceAnswer({ claims: [{ ...claim, text: "" }] }, state));
+    expect((await submitLegalEvidenceAnswer({ replace: [{ index: 2, ...claim }] }, state)).errors)
       .toEqual(["replace names claim 2; the draft holds claims 0 to 0"]);
-    expect(submitLegalEvidenceAnswer({ replace: [{ index: 0, ...claim }] }, state))
+    expect((await submitLegalEvidenceAnswer({ replace: [{ index: 0, ...claim }] }, state)))
       .toEqual({ ok: true, terminal: true });
   });
 
@@ -181,43 +181,43 @@ describe("production legal evidence", () => {
       .toBe(false);
   });
 
-  it("accepts registered passages and emits durable receipts", () => {
+  it("accepts registered passages and emits durable receipts", async () => {
     const state = createLegalEvidenceTurnState();
     const evidence = passage();
     registerLegalEvidence(state, evidence);
-    expect(submitLegalEvidenceAnswer({ claims: [{
+    expect((await submitLegalEvidenceAnswer({ claims: [{
       text: "The appeal is allowed.",
       evidence_ids: [evidence.evidence_id],
-    }] }, state)).toEqual({ ok: true, terminal: true });
+    }] }, state))).toEqual({ ok: true, terminal: true });
     expect(renderLegalEvidenceAnswer(state)).toBe("The appeal is allowed. [1]");
     const event = legalEvidenceReceiptEvent(state)!;
     expect(event.status).toBe("passed");
     expect(priorLegalEvidenceReceipts([event])).toEqual([evidence]);
   });
 
-  it("refuses a neighbouring paragraph handle and accepts the named paragraph", () => {
+  it("refuses a neighbouring paragraph handle and accepts the named paragraph", async () => {
     const state = createLegalEvidenceTurnState();
     const wrong = passage("par73"), right = passage("par74");
     registerLegalEvidence(state, wrong); registerLegalEvidence(state, right);
     const text = "The duty applies irrespective of intention: 2024 SCC 1, para. 74.";
-    expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [wrong.evidence_id] }] }, state))
+    expect((await submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [wrong.evidence_id] }] }, state)))
       .toMatchObject({ ok: false, errors: [expect.stringContaining("paragraphs 74 require their exact passage")] });
-    expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [wrong.evidence_id, right.evidence_id] }] }, state).ok)
+    expect((await submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [wrong.evidence_id, right.evidence_id] }] }, state)).ok)
       .toBe(false);
-    expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [right.evidence_id] }] }, state).ok).toBe(true);
+    expect((await submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [right.evidence_id] }] }, state)).ok).toBe(true);
     expect(createLegalEvidenceCitations(state)[0]).toMatchObject({ locator: "74" });
     const range = "The duty applies: 2024 SCC 1, paras. 73–75.";
     const end = passage("par75"); registerLegalEvidence(state, end);
-    expect(submitLegalEvidenceAnswer({ claims: [{ text: range, evidence_ids: [wrong.evidence_id, end.evidence_id] }] }, state).ok)
+    expect((await submitLegalEvidenceAnswer({ claims: [{ text: range, evidence_ids: [wrong.evidence_id, end.evidence_id] }] }, state)).ok)
       .toBe(false);
-    expect(submitLegalEvidenceAnswer({ claims: [{ text: range,
-      evidence_ids: [wrong.evidence_id, right.evidence_id, end.evidence_id] }] }, state).ok).toBe(true);
+    expect((await submitLegalEvidenceAnswer({ claims: [{ text: range,
+      evidence_ids: [wrong.evidence_id, right.evidence_id, end.evidence_id] }] }, state)).ok).toBe(true);
   });
 
   // Replays a turn from the local transcript store (chat 582819ad), where
   // every sentence resting on R. v. Grant carried the union of every
   // paragraph read. A pinpoint belongs to the proposition it supports.
-  it("gives each claim the pinpoint of its own proposition", () => {
+  it("gives each claim the pinpoint of its own proposition", async () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const ids = ["par1", "par3", "par4", "par69"].map((label) => {
       const evidence = { ...passage(label), citation: "[1986] 1 SCR 103",
@@ -225,11 +225,11 @@ describe("production legal evidence", () => {
       registerLegalEvidence(state, evidence);
       return evidence.evidence_id;
     });
-    submitLegalEvidenceAnswer({ claims: [
+    (await submitLegalEvidenceAnswer({ claims: [
       ...ids.map((id, index) => ({ text: `Oakes proposition ${index + 1}.`, evidence_ids: [id] })),
       // Even the same receipt gets a fresh reference for a later claim.
       { text: "Oakes proposition 1 again.", evidence_ids: [ids[0]] },
-    ] }, state);
+    ] }, state));
 
     expect(createLegalEvidenceCitations(state).map(
       ({ ref, authority, pinpoint, short_form }) => [ref, authority, pinpoint, short_form],
@@ -271,23 +271,23 @@ describe("production legal evidence", () => {
     expect(readPriorLegalEvidence(state, receipts[0].evidence_id)).toBeNull();
   });
 
-  it("checks full prior passages only when read or cited, while still checking inventory previews", () => {
+  it("checks full prior passages only when read or cited, while still checking inventory previews", async () => {
     const copied = "The responding party must provide written notice before the hearing can proceed to the final determination of the disputed factual issues.",
       text = "Unrelated introductory discussion. ".repeat(10_000) + copied,
       receipt = createLibraryEvidence({ documentId: "large", versionId: "v1", filename: "Record",
         sourceText: text, spanText: text, start: 0, end: text.length }),
       state = createLegalEvidenceTurnState();
     registerPriorLegalEvidence(state, [receipt]);
-    expect(legalEvidenceProseIntegrityErrors(copied, [], state)).toEqual([]);
-    expect(legalEvidenceProseIntegrityErrors(`"${copied}"`, [receipt.evidence_id], state)).toEqual([]);
+    expect((await legalEvidenceProseIntegrityErrors(copied, [], state))).toEqual([]);
+    expect((await legalEvidenceProseIntegrityErrors(`"${copied}"`, [receipt.evidence_id], state))).toEqual([]);
     expect(readPriorLegalEvidence(state, receipt.evidence_id)).not.toBeNull();
-    expect(legalEvidenceProseIntegrityErrors(copied, [], state).join(" ")).toContain("unmarked copied passage");
+    expect((await legalEvidenceProseIntegrityErrors(copied, [], state)).join(" ")).toContain("unmarked copied passage");
 
     const preview = createLibraryEvidence({ documentId: "preview", versionId: "v1", filename: "Other record",
       sourceText: copied, spanText: copied, start: 0, end: copied.length });
     const unopened = createLegalEvidenceTurnState();
     registerPriorLegalEvidence(unopened, [preview]);
-    expect(legalEvidenceProseIntegrityErrors(copied, [], unopened).join(" ")).toContain("unmarked copied passage");
+    expect((await legalEvidenceProseIntegrityErrors(copied, [], unopened)).join(" ")).toContain("unmarked copied passage");
   });
 
   it("restores a prior A2AJ receipt against its unchanged full source", async () => {
@@ -347,7 +347,7 @@ describe("production legal evidence", () => {
       [...state.evidence.values()])).toEqual([{ receipt: related, document }]);
   });
 
-  it("requires both pinpointed sources for every review finding", () => {
+  it("requires both pinpointed sources for every review finding", async () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     state.reviewDocumentIds = new Set(["brief"]);
     const document = createLibraryEvidence({ documentId: "brief", versionId: "v1", filename: "brief.docx",
@@ -357,60 +357,60 @@ describe("production legal evidence", () => {
     for (const receipt of [document, authority]) registerLegalEvidence(state, receipt);
     const claim = (ids: string[]) => ({ text: "The result requires qualification.", evidence_ids: ids });
     for (const ids of [[document.evidence_id], [authority.evidence_id]]) {
-      expect(submitLegalEvidenceAnswer({ claims: [claim(ids)] }, state).ok).toBe(false);
+      expect((await submitLegalEvidenceAnswer({ claims: [claim(ids)] }, state)).ok).toBe(false);
       expect(renderLegalEvidenceAnswer(state)).toBeNull();
     }
-    expect(submitLegalEvidenceAnswer({ claims: [claim([document.evidence_id, authority.evidence_id])] }, state).ok).toBe(true);
+    expect((await submitLegalEvidenceAnswer({ claims: [claim([document.evidence_id, authority.evidence_id])] }, state)).ok).toBe(true);
     expect(createLegalEvidenceCitations(state).map(({ pinpoint }) => pinpoint)).toEqual(["para 5", "para 12"]);
     const broad = passage(" ");
     registerLegalEvidence(state, broad);
-    expect(submitLegalEvidenceAnswer({ claims: [claim([document.evidence_id, broad.evidence_id])] }, state).ok).toBe(false);
+    expect((await submitLegalEvidenceAnswer({ claims: [claim([document.evidence_id, broad.evidence_id])] }, state)).ok).toBe(false);
   });
 
-  it("rejects unknown evidence and keeps citation presentation out of prose", () => {
+  it("rejects unknown evidence and keeps citation presentation out of prose", async () => {
     const rejected = createLegalEvidenceTurnState();
-    expect(submitLegalEvidenceAnswer({ claims: [{
+    expect((await submitLegalEvidenceAnswer({ claims: [{
       text: "Unsupported.",
       evidence_ids: ["e_missing"],
-    }] }, rejected).ok).toBe(false);
+    }] }, rejected)).ok).toBe(false);
 
     const state = createLegalEvidenceTurnState("citation_structure");
     const evidence = passage();
     registerLegalEvidence(state, evidence);
-    submitLegalEvidenceAnswer({ claims: [{
+    (await submitLegalEvidenceAnswer({ claims: [{
       text: "The appeal is allowed.",
       evidence_ids: [evidence.evidence_id],
-    }] }, state);
+    }] }, state));
     expect(renderLegalEvidenceAnswer(state)).toBe("The appeal is allowed. [1]");
   });
 
-  it("rejects paragraph-sized claims and broad evidence bundles", () => {
+  it("rejects paragraph-sized claims and broad evidence bundles", async () => {
     const state = createLegalEvidenceTurnState();
     const evidence = ["par1", "par2", "par3", "par4", "par5"].map(passage);
     evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
 
-    expect(submitLegalEvidenceAnswer({ claims: [{
+    expect((await submitLegalEvidenceAnswer({ claims: [{
       text: "x".repeat(1_201),
       evidence_ids: [evidence[0].evidence_id],
-    }] }, state).errors).toContain("claims[0].text is 1201 characters and the limit is 1200; split it into concise support units with their own evidence_ids");
-    expect(submitLegalEvidenceAnswer({ claims: [{
+    }] }, state)).errors).toContain("claims[0].text is 1201 characters and the limit is 1200; split it into concise support units with their own evidence_ids");
+    expect((await submitLegalEvidenceAnswer({ claims: [{
       text: "One proposition.",
       evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state).errors).toContain(
+    }] }, state)).errors).toContain(
       "claims[0].evidence_ids must contain 1 to 4 unique handles",
     );
   });
 
-  it("attaches each verified passage without synthesizing citation text or URLs", () => {
+  it("attaches each verified passage without synthesizing citation text or URLs", async () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const first = passage();
     const second = passage("par13");
     registerLegalEvidence(state, first);
     registerLegalEvidence(state, second);
-    submitLegalEvidenceAnswer({ claims: [{
+    (await submitLegalEvidenceAnswer({ claims: [{
       text: "The court allowed the appeal.",
       evidence_ids: [first.evidence_id, second.evidence_id],
-    }] }, state);
+    }] }, state));
 
     const rendered = renderLegalEvidenceAnswer(state)!;
     expect(rendered).toBe("The court allowed the appeal. [1]");
@@ -419,7 +419,7 @@ describe("production legal evidence", () => {
       .toEqual(["paras 12\u201313"]);
   });
 
-  it("drops a broad authority receipt when the same claim has an exact pinpoint", () => {
+  it("drops a broad authority receipt when the same claim has an exact pinpoint", async () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const source = "The necessity test is demanding. Valero identified no unsettled question.";
     const broad = createTnaEvidence({
@@ -437,10 +437,10 @@ describe("production legal evidence", () => {
       locatorKind: "paragraph", locatorLabel: "par31",
     });
     [broad, exact].forEach((evidence) => registerLegalEvidence(state, evidence));
-    submitLegalEvidenceAnswer({ claims: [{
+    (await submitLegalEvidenceAnswer({ claims: [{
       text: "Valero identified no question requiring its joinder.",
       evidence_ids: [broad.evidence_id, exact.evidence_id],
-    }] }, state);
+    }] }, state));
 
     expect(renderLegalEvidenceAnswer(state)).toBe(
       "Valero identified no question requiring its joinder. [1]",
@@ -450,18 +450,18 @@ describe("production legal evidence", () => {
     ]);
   });
 
-  it("keeps granular support without counting sentences", () => {
+  it("keeps granular support without counting sentences", async () => {
     const state = createLegalEvidenceTurnState("citation_structure"), evidence = [passage("par30"), passage("par31")];
     evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
-    expect(submitLegalEvidenceAnswer({ claims: [{
+    expect((await submitLegalEvidenceAnswer({ claims: [{
       text: "The appeal succeeded. Both passages record that result.",
       evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state).ok).toBe(true);
+    }] }, state)).ok).toBe(true);
     expect(renderLegalEvidenceAnswer(state)).toBe("The appeal succeeded. Both passages record that result. [1]");
-    expect(submitLegalEvidenceAnswer({ claims: [
+    expect((await submitLegalEvidenceAnswer({ claims: [
       { text: "The appeal succeeded.", evidence_ids: [evidence[0].evidence_id] },
       { text: "Both passages record that result.", evidence_ids: evidence.map(({ evidence_id }) => evidence_id) },
-    ] }, state).ok).toBe(true);
+    ] }, state)).ok).toBe(true);
     expect(renderLegalEvidenceAnswer(state)).toBe("The appeal succeeded. [1]\n\nBoth passages record that result. [2]");
   });
 
@@ -472,7 +472,7 @@ describe("production legal evidence", () => {
     expect(state.failure).toBe("The model did not submit a grounded answer.");
   });
 
-  it("runs quote and unmarked-copy gates at grounded submission", () => {
+  it("runs quote and unmarked-copy gates at grounded submission", async () => {
     const quoteSource = createTnaEvidence({
       jurisdiction: "CA",
       sourceClass: "case",
@@ -503,17 +503,17 @@ describe("production legal evidence", () => {
     registerLegalEvidence(state, quoteSource);
     registerLegalEvidence(state, copiedSource);
 
-    expect(submitLegalEvidenceAnswer({ claims: [{
+    expect((await submitLegalEvidenceAnswer({ claims: [{
       text: "The court wrote, \u201cThe busybody may decide 12 motions, promptly, before the hearing continues.\u201d",
       evidence_ids: [quoteSource.evidence_id],
-    }] }, state).errors?.[0]).toContain("does not match");
-    expect(submitLegalEvidenceAnswer({ claims: [{
+    }] }, state)).errors?.[0]).toContain("does not match");
+    expect((await submitLegalEvidenceAnswer({ claims: [{
       text: "Courts should not decide constitutional issues in a factual vacuum without evidence.",
       evidence_ids: [quoteSource.evidence_id],
-    }] }, state).errors?.[0]).toContain(copiedSource.evidence_id);
-    expect(submitLegalEvidenceAnswer({ claims: [{
+    }] }, state)).errors?.[0]).toContain(copiedSource.evidence_id);
+    expect((await submitLegalEvidenceAnswer({ claims: [{
       text: "The court wrote, \u201c[T]he busybod[ies] must decide 12 motions, promptly, before the hearing continues.\u201d",
       evidence_ids: [quoteSource.evidence_id],
-    }] }, state)).toEqual({ ok: true, terminal: true });
+    }] }, state))).toEqual({ ok: true, terminal: true });
   });
 });
