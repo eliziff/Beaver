@@ -11,6 +11,8 @@ Totals are micro-averaged over all runs. `--saved` scores each run's saved basel
                       engine inputs and witnesses, filed with its cached document)
   --replay MANIFEST   re-resolve the dumped structure-engine inputs with the engine's replay
                       example instead of parsing: an engine change measured in seconds
+  --frozen MANIFEST   score against frozen-eval gold (freeze_eval.py) instead of the live
+                      catalogue; --split picks train, development or test
   --against SUMMARY   per mode, the change in each layer's pooled F1 and, per document, how many
                       got better or worse with the mean and median change
 
@@ -41,8 +43,26 @@ REPLAY = ROOT / 'native/legal-structure-node/target/release/examples/replay.exe'
 TIMINGS = {}
 
 
+def gold_file(job):
+    """A run directory's gold, or a frozen gold file itself."""
+    return job if job.name.endswith('.json.gz') else job / 'gold.json.gz'
+
+
+def frozen(manifest, split=None):
+    """Frozen evaluation gold as (mode, gold file, metadata), in the manifest's order."""
+    rows = worker.read_json(manifest)['sources']
+    for sha, row in sorted(rows.items()):
+        if split and row['split'] != split: continue
+        target = manifest.parent / 'gold' / f'{sha}.json.gz'
+        worker.require(worker.digest(target) == row['frozen_sha256'], 'Frozen gold changed')
+        yield row['mode'], target, {'source_sha256': sha, 'mode': row['mode'], 'split': row['split'], 'pages': row['pages']}
+
+
 def reference_metadata(row, out=ROOT / 'benchmarks/local-data/legal-structure-gold'):
     """Resolve an explicit saved reference without deriving identity from its path."""
+    if row['run'].startswith('frozen-eval'):
+        sha = Path(row['run']).name.split('.')[0]
+        return {'source_sha256': sha, 'mode': worker.read_json(out / 'frozen-eval' / 'manifest.json')['sources'][sha]['mode']}
     result = {key: row[key] for key in ('source_sha256', 'mode') if key in row}
     if len(result) < 2:
         receipt = worker.read_json(Path(out) / row['run'] / 'receipt.json')
@@ -106,7 +126,7 @@ def completed(out, unavailable=None):
 
 def addon_sha256():
     # The addon extract.mjs will load: a pinned one, or the most recently built.
-    pinned = os.environ.get('LEGAL_STRUCTURE_ADDON')
+    pinned = os.environ.get('LEGAL_STRUCTURE_ADDON') or os.environ.get('LEGAL_STRUCTURE_NATIVE')
     built = [ROOT / 'native/legal-structure-node/target' / p / 'legal_structure_node.dll' for p in ('debug', 'release')]
     chosen = Path(pinned) if pinned else max((p for p in built if p.exists()), key=lambda p: p.stat().st_mtime)
     return hashlib.sha256(chosen.read_bytes()).hexdigest()
@@ -116,7 +136,7 @@ def gold_request(job):
     # Parse with the request the gold was made from, so source lines stay comparable. The
     # earliest golds predate recording it; they read native text only. A Tesseract timeout
     # only bounds the wait, so a loaded machine may wait longer.
-    request = worker.read_json(job / 'gold.json.gz')['provenance']['configuration'].get('parser', {}).get('request', {})
+    request = worker.read_json(gold_file(job))['provenance']['configuration'].get('parser', {}).get('request', {})
     if request.get('ocr', {}).get('provider') == 'tesseract':
         request = {**request, 'ocr': {**request['ocr'], 'settings': {**request['ocr'].get('settings', {}), 'timeout_seconds': 1200}}}
     return request
@@ -209,9 +229,9 @@ def score_one(item):
     run, out, candidate, structure = item
     job = Path(out) / run
     try:
-        worker.recover_update(job)
-        gold_sha = worker.digest(job / 'gold.json.gz')
-        expected = worker.read_json(job / 'gold.json.gz')
+        if job.is_dir(): worker.recover_update(job)
+        gold_sha = worker.digest(gold_file(job))
+        expected = worker.read_json(gold_file(job))
         if expected.get('schema_version') == package.VERSION and 'legal_structure' not in expected['layers']:
             return {'run': run, **reference_metadata({'run': run}, out),
                     'status': 'unavailable', 'reason': 'legal_structure_not_annotated'}
@@ -220,7 +240,7 @@ def score_one(item):
         if structure:
             value['structure'] = json.loads(Path(structure).read_text(encoding='utf-8'))
         result = evaluate.compare(expected, value)
-        worker.require(worker.digest(job / 'gold.json.gz') == gold_sha, 'Gold changed during scoring')
+        worker.require(worker.digest(gold_file(job)) == gold_sha, 'Gold changed during scoring')
         return {'run': run, **reference_metadata({'run': run}, out),
                 'gold_sha256': gold_sha, 'gold_state_sha256': reference_sha, **result}
     except Exception as error:
@@ -296,10 +316,15 @@ def main():
     parser.add_argument('--tag', help='Write the summary to score/runs/TAG.json (and its replay manifest beside it)')
     parser.add_argument('--replay', type=Path, help="Re-resolve a tagged run's dumped engine inputs (TAG.manifest.json) with the replay example; no parsing")
     parser.add_argument('--layers', help='Comma-separated layers to show in --against')
+    parser.add_argument('--frozen', type=Path, help='Score against this frozen-eval manifest')
+    parser.add_argument('--split', choices=('train', 'development', 'test'), help='With --frozen, score only this split')
     parser.add_argument('--rescore', help="Score a tagged run's candidates again, parsing nothing (a scorer change)")
     args = parser.parse_args()
+    if os.environ.get('LEGAL_STRUCTURE_NATIVE') and not os.environ.get('LEGAL_STRUCTURE_ADDON'):
+        os.environ['LEGAL_STRUCTURE_ADDON'] = os.environ['LEGAL_STRUCTURE_NATIVE']
     unavailable = []
-    items = [r for r in completed(args.out, unavailable) if (not args.runs or any(r[2]['source_sha256'].startswith(p) for p in args.runs))
+    source = frozen(args.frozen, args.split) if args.frozen else completed(args.out, unavailable)
+    items = [r for r in source if (not args.runs or any(r[2]['source_sha256'].startswith(p) for p in args.runs))
              and (not args.mode or r[0] == args.mode)]
     unavailable = [r for r in unavailable if (not args.runs or any(r['source_sha256'].startswith(p) for p in args.runs))
                    and (not args.mode or r['mode'] == args.mode)]
@@ -324,7 +349,9 @@ def main():
     summary = {'source': 'rescore' if args.rescore else 'replay' if args.replay else 'saved' if args.saved else 'addon', 'runs': len(results),
                'errors': [r for r in results if 'error' in r], 'totals': aggregate(scored),
                'unavailable': unavailable + [r for r in results if r.get('status') == 'unavailable'],
-               'per_run': [{'run': r['run'], **{key:r[key] for key in ('source_sha256','mode','gold_sha256','gold_state_sha256','alignment','text')},
+               'addon_sha256': None if args.saved or args.rescore or args.replay else addon_sha256(),
+               'frozen': str(args.frozen) if args.frozen else None, 'split': args.split,
+               'per_run': [{'run': r['run'], 'parse_ms': TIMINGS.get(r['run']), **{key:r[key] for key in ('source_sha256','mode','gold_sha256','gold_state_sha256','alignment','text')},
                             'metrics': {k: {c: v[c] for c in ('expected', 'predicted', 'correct', 'f1')}
                                                           for k, v in r['metrics'].items()}} for r in scored]}
     destination = (args.out / 'score' / 'runs' / f'{args.tag}.json' if args.tag else

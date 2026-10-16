@@ -116,12 +116,11 @@ def state_of(value):
     folios = {n.get('anchor') for n in structure['nodes'] if n['kind'] == 'page'}
     bands = {l['id']: (l['bbox'][1] + l['bbox'][3]) / 2 / p['height'] for p in extraction for l in p['lines']}
     for group in state['groups']:
-        if group['kind'] != 'prose' or 'native_id' in group['attributes']: continue
+        if group['kind'] not in ('prose', 'text') or 'native_id' in group['attributes']: continue
         if any(i in folios for i in group['line_ids']): group['kind'] = 'page_label'
         elif group['line_ids'] and all(i in bands for i in group['line_ids']):
             middle = sum(bands[i] for i in group['line_ids']) / len(group['line_ids'])
-            if middle < 0.15: group['kind'] = 'header'
-            elif middle > 0.85: group['kind'] = 'footer'
+            if middle < 0.15 or middle > 0.85: group['kind'] = 'furniture'
     # Native products can carry source-anchored annotations too.
     if structure.get('annotations'):
         def refs(item):
@@ -148,6 +147,12 @@ def state_of(value):
                 state['annotations'].append({'id': n['id'], 'kind': 'document', 'line_ids': n['line_ids'], 'attributes': {
                     'kind': kind, 'parent': first, 'relationship': relationships.get(kind, 'component'), 'title': [], 'facets': {}}})
     return structure, state
+
+
+# The eight primary roles: older exports' names for the same roles.
+ROLE_ALIASES = {'prose': 'text', 'header': 'furniture', 'footer': 'furniture'}
+# Roles outside the outline: the hierarchy gold gives them no parent.
+UNRANKED_ROLES = {'furniture', 'page_label', 'marginal_note'}
 
 
 def prf(expected, actual):
@@ -379,11 +384,31 @@ def compare(expected, candidate):
                     cursor = point+1
             if cursor < b: result.append((origin,cursor,b))
         return result
+    opcodes = {}
+    def surface(line, at, right=False):
+        # Project a corrected offset back to the unchanged extraction surface.
+        lo,hi = line['source_range'] or (0,len(line['text']))
+        old = line['original_text'][lo:hi] if line['source_id'] else line['text']
+        key = (id(line), old, line['text'])
+        if key not in opcodes:
+            opcodes[key] = difflib.SequenceMatcher(None,old,line['text'],autojunk=False).get_opcodes()
+        for _,a,b,x,y in opcodes[key]:
+            if x <= at < y: return lo + a + (at-x if b-a == y-x else b-a if right else 0)
+        return lo + len(old)
+    def members(group, lines):
+        # A block is its exact source spans; several blocks may share one physical line.
+        return group.get('spans') or gold.whole(group['line_ids'], lines)
     cuts = defaultdict(set)
     for state,candidate_side in ((reference,False),(predicted,True)):
+        lines = {l['id']:l for l in state['lines']}
         for line in state['lines']:
             start,end = line['source_range'] or (0,len(line['text']))
             for ident,a,b in project(line,start,end,candidate_side): cuts[ident].update((a,b))
+        for group in state['groups']:
+            for s in members(group, lines):
+                line = lines[s['line_id']]
+                for ident,a,b in project(line,surface(line,s['start']),surface(line,s['end'],True),candidate_side):
+                    cuts[ident].update((a,b))
     def features(state, candidate_side):
         lines = {l['id']:l for l in state['lines']}
         if not any(a['kind']=='document' for a in state['annotations']) and state['reading_order']:
@@ -392,17 +417,16 @@ def compare(expected, candidate):
             state={**state,'annotations':state['annotations']+[{'id':'source','kind':'document','line_ids':[first],
                 'spans':[{'line_id':first,'start':0,'end':len(lines[first]['text'])}],
                 'attributes':{'kind':None,'parent':None,'relationship':None,'title':[],'facets':{}}}]}
-        def surface(line, at, right=False):
-            # Project a corrected offset back to the unchanged extraction surface.
-            lo,hi = line['source_range'] or (0,len(line['text']))
-            old = line['original_text'][lo:hi] if line['source_id'] else line['text']
-            for _,a,b,x,y in difflib.SequenceMatcher(None,old,line['text'],autojunk=False).get_opcodes():
-                if x <= at < y: return lo + a + (at-x if b-a == y-x else b-a if right else 0)
-            return lo + len(old)
         def span(s):
             line = lines[s['line_id']]
             return project(line,surface(line,s['start']),surface(line,s['end'],True),candidate_side)
         def spans(values): return merged_spans(part for s in values for part in span(s))
+        def span_pieces(s):
+            result=[]
+            for key,a,b in span(s):
+                boundaries=sorted(c for c in cuts[key] if a <= c <= b)
+                result.extend((key,x,y) for x,y in zip(boundaries,boundaries[1:]))
+            return result
         def anchor(i):
             # A line ID or an exact source-span anchor (line@offset).
             if i is None: return None
@@ -426,16 +450,34 @@ def compare(expected, candidate):
             return result
         sequence=[p for i in state['reading_order'] for p in pieces(i)]
         result={'coverage':sequence, 'order':list(zip(sequence,sequence[1:])), 'roles':[], 'groups':[], 'joins':[], 'hierarchy':[],
-                'hierarchy_units':[], 'hierarchy_relation':[], 'hierarchy_parent':[], 'hierarchy_marker':[], 'hierarchy_depth':[],
+                'hierarchy_units':[], 'hierarchy_roles':[], 'hierarchy_relation':[], 'hierarchy_parent':[], 'hierarchy_marker':[],
                 **{k:[] for k in ('table','field','note','quotation','document','table_cells','note_references','continuations','document_facets','document_ownership','document_resumes')}}
-        groups={g['line_ids'][0]:g for g in state['groups']}
+        # Blocks are identified by their first source span (line@start), never by a line.
+        groups={gold.block_id(g):g for g in state['groups']}
+        text_links=gold.text_links(state)
+        incoming={l['next'] for l in text_links.values()}
+        notes=[s for a in state['annotations'] if a['kind']=='note' for s in members(a,lines)]
+        tables=[s for a in state['annotations'] if a['kind']=='table' for s in members(a,lines)]
+        def inside(block, extents):
+            first=members(block,lines)[0]
+            return any(first['line_id']==s['line_id'] and s['start']<=first['start']<s['end'] for s in extents)
+        def role(block):
+            kind=ROLE_ALIASES.get(block['kind'],block['kind'])
+            if inside(block,tables): return 'table'
+            if kind=='text' and block['attributes'].get('locator_kind')=='list_item': return 'list_item'
+            return kind
+        # Hierarchy rows, as the hierarchy gold has them: one per logical block outside furniture,
+        # page labels, marginal notes and notes, a continued fragment counted with its first part.
+        position={i:n for n,i in enumerate(state['reading_order'])}
+        def order(ident):
+            line,_,at=ident.partition('@')
+            return (position.get(line,len(position)), int(at or 0))
+        units=sorted((first for first,g in groups.items() if first not in incoming
+                      and role(g) not in UNRANKED_ROLES and not inside(g,notes)), key=order)
+        parent_of={first: groups[first]['attributes'].get('parent') for first in units}
         # A unit's structure is scored relative to the unit before it in reading order (its child,
         # its sibling, a sibling of its k-th ancestor), never by absolute depth: one wrong parent
         # higher up costs that unit, not every unit under it.
-        position={i:n for n,i in enumerate(state['reading_order'])}
-        units=sorted((first for first,g in groups.items() if g['kind']=='heading' or g['attributes'].get('marker')),
-                     key=lambda first: position.get(first, len(position)))
-        parent_of={first: groups[first]['attributes'].get('parent') for first in units}
         relation={}
         for n,first in enumerate(units):
             if n == 0:
@@ -447,37 +489,36 @@ def compare(expected, candidate):
             while at is not None and at not in seen:
                 seen.add(at); chain.append(at); at = parent_of.get(at)
             relation[first] = next((('sibling' if k == 0 else f'up {k}') for k, a in enumerate(chain) if parent_of.get(a) == parent), 'other')
-        text_links=gold.text_links(state)
-        incoming={l['next'] for l in text_links.values()}
         for first,g in groups.items():
-            result['roles'].extend((p,g['kind']) for i in g['line_ids'] for p in pieces(i))
+            result['roles'].extend((p,ROLE_ALIASES.get(g['kind'],g['kind'])) for s in members(g,lines) for p in span_pieces(s))
             if first not in incoming:
-                members=list(g['line_ids']); cursor=first; visited={first}; separators={}
+                parts=list(members(g,lines)); cursor=first; visited={first}; separators={}
                 while cursor in text_links:
                     link=text_links[cursor]; cursor=link['next']
                     if cursor in visited or cursor not in groups: break
-                    separators[members[-1]]=link['separator']
-                    visited.add(cursor); members.extend(groups[cursor]['line_ids'])
-                result['groups'].append(tuple(p for i in members for p in pieces(i)))
+                    separators[len(parts)]=link['separator']
+                    visited.add(cursor); parts.extend(members(groups[cursor],lines))
+                result['groups'].append(tuple(p for s in parts for p in span_pieces(s)))
                 previous=None
-                for i in members:
-                    parts=pieces(i)
-                    result['joins'].extend((a,b,'') for a,b in zip(parts,parts[1:]))
-                    if previous is not None and parts and pieces(previous):
-                        separator=separators.get(previous,gold.line_separator(state,lines[previous],lines[i]))
-                        result['joins'].append((pieces(previous)[-1],parts[0],separator))
-                    previous=i
-            attrs=g['attributes']
-            if g['kind']=='heading' or attrs.get('marker'):
-                result['hierarchy'].append((anchor(first),g['kind'],attrs.get('locator_kind'),relation.get(first),anchor(attrs.get('parent')),spans(attrs.get('marker',[]))))
-                # The same units scored field by field, so a unit found with its role but another
-                # relation or parent still counts for what it gets right. Depth is reported, not scored
-                # in the unit's tuple.
-                result['hierarchy_units'].append((anchor(first),g['kind']))
-                result['hierarchy_relation'].append((anchor(first),relation.get(first)))
-                result['hierarchy_depth'].append((anchor(first),attrs.get('level',1)))
-                result['hierarchy_parent'].append((anchor(first),anchor(attrs.get('parent'))))
-                result['hierarchy_marker'].append((anchor(first),spans(attrs.get('marker',[]))))
+                for n,s in enumerate(parts):
+                    pieces_now=span_pieces(s)
+                    result['joins'].extend((a,b,'') for a,b in zip(pieces_now,pieces_now[1:]))
+                    if previous and pieces_now:
+                        separator=separators.get(n,'' if previous_line==s['line_id'] else
+                                                 gold.line_separator(state,lines[previous_line],lines[s['line_id']]))
+                        result['joins'].append((previous[-1],pieces_now[0],separator))
+                    previous,previous_line=pieces_now,s['line_id']
+        for first in units:
+            attrs=groups[first]['attributes']; unit=anchor(first); kind=role(groups[first])
+            result['hierarchy'].append((unit,kind,relation[first],anchor(parent_of[first]),spans(attrs.get('marker',[]))))
+            # The same units scored field by field, so a unit found with its role but another
+            # relation or parent still counts for what it gets right. Missing and spurious units
+            # count against the parent links as well as the units.
+            result['hierarchy_units'].append(unit)
+            result['hierarchy_roles'].append((unit,kind))
+            result['hierarchy_relation'].append((unit,relation[first]))
+            result['hierarchy_parent'].append((unit,anchor(parent_of[first])))
+            if attrs.get('marker'): result['hierarchy_marker'].append((unit,spans(attrs['marker'])))
         for a in gold.logical_annotations(state):
             kind=a['kind']; attrs=a['attributes']; extent=spans(a.get('spans',gold.whole(a['line_ids'],lines)))
             if kind not in result: continue
@@ -499,9 +540,9 @@ def compare(expected, candidate):
                 # Blocks are identified by their first source span; a line takes its first block's owner.
                 by_line={}
                 for g in state['groups']:
-                    members=g.get('spans') or gold.whole(g['line_ids'],lines)
-                    owner=owners.get(gold.span_anchor(members[0]),owners.get(members[0]['line_id']))
-                    for member in members: by_line.setdefault(member['line_id'],owner)
+                    parts=members(g,lines)
+                    owner=owners.get(gold.span_anchor(parts[0]),owners.get(parts[0]['line_id']))
+                    for member in parts: by_line.setdefault(member['line_id'],owner)
                 result['document_ownership']=[(p,starts[by_line[i]]) for i in state['reading_order'] if i in by_line for p in pieces(i)]
             except (ValueError, KeyError):
                 # A candidate whose headings name a parent no group opens is an invalid hierarchy too.
