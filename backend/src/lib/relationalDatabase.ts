@@ -122,7 +122,12 @@ function remoteDatabase() {
 
 let active: Promise<RelationalDatabase> | undefined;
 export const relationalDatabase = () => isLocalRuntime()
-  ? Promise.resolve(localState.relational ??= createSqliteWorker(path.join(mikeLocalDataHome(), "application.sqlite")))
+  ? Promise.resolve(localState.relational ??= createSqliteWorker(path.join(mikeLocalDataHome(), "application.sqlite"), (error) => {
+    // Nothing here can reach the database again: end the process at once (a graceful exit can wait
+    // on native work) so its supervisor starts a fresh one and other workers reclaim its jobs.
+    console.error("[sqlite] connection thread died; ending this process", { message: error.message });
+    process.kill(process.pid, "SIGKILL");
+  }))
   : active ??= Promise.resolve(remoteDatabase());
 
 export async function closeRelationalDatabase() {
