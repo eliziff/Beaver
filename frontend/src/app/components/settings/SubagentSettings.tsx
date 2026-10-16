@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { AccountSection } from "@/app/(pages)/account/AccountSection";
+import { AccountSection } from "./AccountSection";
 import { ModelEffortToggle } from "@/app/components/assistant/ModelToggle";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
@@ -23,16 +23,6 @@ export function SubagentSettings() {
     const serverEnabled = catalog?.readSubagents?.serverEnabled !== false;
 
     return (
-        <section aria-labelledby="subagents-heading">
-            <h2
-                id="subagents-heading"
-                className="mb-1 text-base font-semibold text-gray-900"
-            >
-                Subagents
-            </h2>
-            <p className="mb-4 max-w-2xl text-sm leading-6 text-gray-600">
-                Delegate bounded source review when parallel research would materially help. Subagents cannot edit files.
-            </p>
             <AccountSection className="space-y-4 p-4">
                 <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4">
                     <span className="min-w-0">
@@ -78,6 +68,5 @@ export function SubagentSettings() {
                     </span>
                 </label>
             </AccountSection>
-        </section>
     );
 }

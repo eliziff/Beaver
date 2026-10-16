@@ -3,6 +3,7 @@ import { decryptSecret, encryptionSecret, encryptSecret } from "./secretEncrypti
 import { sql, type RelationalDatabase } from "./relational";
 import type { UserCredentials } from "./userCredentials";
 import { safeErrorLog } from "./safeError";
+import { ApplicationError } from "./applicationError";
 import { type ApiKeyStatus } from "./userCredentials";
 import { API_KEY_PROVIDERS, type ApiKeyProvider } from "mike/shared/runtime/clientContracts.mjs";
 
@@ -40,7 +41,10 @@ export function getEnvironmentApiKeyStatus(): ApiKeyStatus {
   return status;
 }
 
-const secret = () => encryptionSecret("USER_API_KEYS_ENCRYPTION_SECRET");
+const secret = () => {
+  try { return encryptionSecret("USER_API_KEYS_ENCRYPTION_SECRET"); }
+  catch (error) { throw new ApplicationError(503, `This server cannot store API keys: ${(error as Error).message}.`); }
+};
 
 export function createUserCredentials(db: RelationalDatabase): UserCredentials {
   return {

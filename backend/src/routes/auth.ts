@@ -237,7 +237,7 @@ authRouter.patch("/email", requireAuth, requireMfaIfEnrolled, route(async (req, 
   const client = cookieClient(res);
   if (!client) return;
   const { data, error } = await client.auth.updateUser({ email: parsed.data },
-    { emailRedirectTo: callbackUrl(req, req.body?.next, "/account") });
+    { emailRedirectTo: callbackUrl(req, req.body?.next, "/assistant?settings=account") });
   if (error || !data.user) return authError(res, error);
   res.json({ user: publicAuthUser(data.user) });
 }));

@@ -198,7 +198,7 @@ export function createUserRouter(app: UserApplication) {
 }
 
 function oauthHtml(success: boolean, nonce: string) {
-  const target = JSON.stringify(`${publicOrigin()}/account/connectors?mcp_oauth=${
+  const target = JSON.stringify(`${publicOrigin()}/assistant?settings=connectors&mcp_oauth=${
     success ? "success" : "failure"}`);
   return `<!doctype html><meta charset="utf-8"><title>MCP authorization</title><h1>${
     success ? "Authorization complete" : "Authorization failed"

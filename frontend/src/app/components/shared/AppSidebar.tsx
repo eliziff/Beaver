@@ -2,7 +2,7 @@ import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
 import { lazy, Suspense, useEffect, useRef, useState,
   type DragEvent } from "react";
 import { BookOpenCheck, BookOpenText, ChevronRight, Files, History, PanelLeft, Settings, SlidersHorizontal, SquarePen, Trash2, Upload } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
@@ -42,7 +42,13 @@ interface AppSidebarProps {
 export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
   const { pathname } = useLocation();
   const [recyclingOpen, setRecyclingOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // The open Settings tab lives in the address (?settings=<tab>), so any link can open it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const settingsTab = searchParams.get("settings");
+  const setSettingsTab = (tab: string | null) => setSearchParams((params) => {
+    if (tab) params.set("settings", tab); else params.delete("settings");
+    return params;
+  }, { replace: true });
   const [uploadsOpen, setUploadsOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
@@ -350,7 +356,7 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
         <div className="shrink-0 border-t border-gray-300 p-1">
           <div className="flex items-center gap-1">
           <button type="button"
-            onClick={() => { setSettingsOpen(true); if (mobileOpen) onToggle(); }}
+            onClick={() => { setSettingsTab("general"); if (mobileOpen) onToggle(); }}
             className={cn(
               "flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-sm font-medium text-gray-700",
               APP_SURFACE_HOVER_CLASS)}
@@ -381,7 +387,7 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
           <RecyclingBinModal open onClose={() => setRecyclingOpen(false)}
             onRestored={loadChats} />
         )}
-        {settingsOpen && <AppSettingsModal open onClose={() => setSettingsOpen(false)} />}
+        {settingsTab !== null && <AppSettingsModal tab={settingsTab} onTabChange={setSettingsTab} onClose={() => setSettingsTab(null)} />}
         {uploadsOpen && <UploadsModal onClose={() => setUploadsOpen(false)} />}</Suspense>
     </>
   );

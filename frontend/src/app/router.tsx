@@ -121,45 +121,15 @@ const appRoutes: RouteObject[] = [
   route("court-records", page(() => import("@/app/(pages)/court-records/page"))),
   route("table-of-authorities", page(() => import("@/app/(pages)/table-of-authorities/page"))),
   route("library/templates?", libraryPage),
-  route("account", page(() => import("@/app/(pages)/account/layout")), {
-    children: [
-      {
-        index: true,
-        handle: { cloudOnly: true },
-        lazy: page(() => import("@/app/(pages)/account/page")),
-      },
-      route("features", page(() => import("@/app/(pages)/account/features/page"))),
-      route("personalisation", namedPage(
-        () => import("@/app/components/account/PersonalisationPage"),
-        "PersonalisationSettingsPage",
-      )),
-      route(
-        "privacy-data",
-        page(() => import("@/app/(pages)/account/privacy-data/page")),
-        { handle: { cloudOnly: true } },
-      ),
-      route(
-        "security",
-        page(() => import("@/app/(pages)/account/security/page")),
-        { handle: { cloudOnly: true } },
-      ),
-      route(
-        "models",
-        page(() => import("@/app/(pages)/account/models/page")),
-        { handle: { cloudOnly: true } },
-      ),
-      route("api-keys", namedPage(
-        () => import("@/app/components/settings/ApiKeySettings"),
-        "ApiKeySettings",
-      )),
-      route(
-        "connectors",
-        page(() => import("@/app/(pages)/account/connectors/page")),
-        { handle: { capability: "connectors" } },
-      ),
-    ],
-  }),
+  // Settings is a dialog; an /account address opens it at the matching tab.
+  { path: "account/*", Component: AccountRedirect },
 ];
+const ACCOUNT_TABS: Record<string, string> = { personalisation: "profile", features: "general",
+  models: "models", "api-keys": "models", connectors: "connectors" };
+function AccountRedirect() {
+  const section = useParams()["*"]?.split("/")[0] ?? "";
+  return <Navigate replace to={`/assistant?settings=${ACCOUNT_TABS[section] ?? "account"}`} />;
+}
 
 // Matched layouts and pages load concurrently after runtime configuration.
 function routes(LoginGate?: LoginGate): RouteObject[] {

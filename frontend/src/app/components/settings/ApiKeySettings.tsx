@@ -4,12 +4,9 @@ import { Eye, EyeOff } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
+import { errorMessage } from "@/app/lib/utils";
 import type { ApiKeyProvider, ApiKeyState } from "@/app/lib/api/account";
-import {
-    accountGlassIconButtonClassName,
-    accountGlassInputClassName,
-} from "@/app/(pages)/account/accountStyles";
-import { AccountSection } from "@/app/(pages)/account/AccountSection";
+import { AccountSection, accountGlassIconButtonClassName, accountGlassInputClassName } from "./AccountSection";
 const API_KEY_FIELDS = [
     {
         provider: "claude",
@@ -60,13 +57,7 @@ export function ApiKeySettings() {
     const { profile, updateApiKey } = useUserProfile();
     const { runMfa, mfaPopup } = useMfaAction();
     return (
-        <div>
-            <h2 className="mb-1 text-base font-semibold text-gray-900">
-                API keys
-            </h2>
-            <p className="mb-4 text-sm leading-6 text-gray-600">
-                Your saved keys are encrypted and take precedence over shared server keys.
-            </p>
+        <>
             <AccountSection className="divide-y divide-gray-200">
                 {API_KEY_FIELDS.map((field) => (
                     <ApiKeyField
@@ -79,7 +70,7 @@ export function ApiKeySettings() {
                 ))}
             </AccountSection>
             {mfaPopup}
-        </div>
+        </>
     );
 }
 function ApiKeyField({
@@ -90,7 +81,7 @@ function ApiKeyField({
 }: {
     field: (typeof API_KEY_FIELDS)[number];
     state?: ApiKeyState[ApiKeyProvider];
-    update: (provider: ApiKeyProvider, value: string | null) => Promise<boolean>;
+    update: (provider: ApiKeyProvider, value: string | null) => Promise<void>;
     runMfa: ReturnType<typeof useMfaAction>["runMfa"];
 }) {
     const [reveal, setReveal] = useState(false);
@@ -109,11 +100,7 @@ function ApiKeyField({
                 setError(null);
                 setSaving(true);
                 try {
-                    const ok = await update(
-                        field.provider,
-                        action === "save" ? value! : null,
-                    );
-                    if (!ok) throw new Error();
+                    await update(field.provider, action === "save" ? value! : null);
                     form?.reset();
                     setReveal(false);
                 } finally {
@@ -121,8 +108,8 @@ function ApiKeyField({
                 }
             },
             {
-                onError: () =>
-                    setError(`Failed to ${action} ${field.label}.`),
+                onError: (caught) =>
+                    setError(errorMessage(caught, `Failed to ${action} ${field.label}.`)),
             },
         );
     };

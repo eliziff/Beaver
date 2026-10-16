@@ -7,7 +7,7 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { useMfaAction } from "../account/useMfaAction";
 import { Button } from "../ui/button";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
-import { AccountSection } from "@/app/(pages)/account/AccountSection";
+import { AccountSection } from "./AccountSection";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { ModalSelect } from "../modals/ModalSelect";
 
@@ -37,10 +37,6 @@ export function OrganizationSettings() {
   }, { onError: (error) => setError(errorMessage(error)) });
   const admin = detail?.organization.role === "admin";
   return <section className="space-y-5">
-    <div>
-      <h2 className="mb-1 text-base font-semibold text-gray-900">Organizations</h2>
-      <p className="text-sm leading-6 text-gray-600">Share projects and workflows with your team.</p>
-    </div>
     {error && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{error}</p>}
     {organizations.length > 0 && <label className="grid gap-2 text-sm font-medium text-gray-900" htmlFor="settings-organization">Manage organization
       <ModalSelect id="settings-organization" value={selected} onChange={select} disabled={busy}

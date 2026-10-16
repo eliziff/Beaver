@@ -4,7 +4,7 @@ import { errorMessage } from "@/app/lib/utils";
 import { Button } from "../ui/button";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { useMfaAction } from "../account/useMfaAction";
-import { AccountSection } from "@/app/(pages)/account/AccountSection";
+import { AccountSection } from "./AccountSection";
 import { ModalTextarea } from "../modals/ModalTextarea";
 import { Switch } from "../ui/switch";
 
