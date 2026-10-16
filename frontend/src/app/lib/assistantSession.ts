@@ -332,9 +332,9 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
   if (event.type === "workflow_run") return updateAssistant(state, (message) => ({ ...message, workflowRuns: upsertById(message.workflowRuns, event.run, ASSISTANT_LIMITS.activities) }));
   if (event.type === "reader") {
     const previous = state.readers.find(({ id }) => id === event.reader.id);
-    const reader = event.reader.status === "running" && previous ? {
-      ...previous,
-      status: event.reader.status,
+    // A live reader event carries only what changed: its new activity, or its answer when it ends.
+    const reader = previous ? {
+      ...previous, ...event.reader,
       activities: event.reader.activities.reduce((items, activity) =>
         upsertById(items, activity, ASSISTANT_LIMITS.activities), previous.activities),
     } : event.reader;

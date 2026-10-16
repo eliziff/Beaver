@@ -8,7 +8,7 @@ import type { ChatScope, ChatStore } from "./chatStore";
 import { createJobEventWriter, finishJobCommand, watchJob,
   pendingJobCommands, PermanentJobError, type ApplicationJob,
   jsonValue, type JobHandler } from "./jobQueue";
-import { providerErrorCode } from "./safeError";
+import { providerErrorCode, safeErrorLog } from "./safeError";
 import { jsonRecord } from "./value";
 
 export const CHAT_TURN_JOB = "chat.turn";
@@ -36,7 +36,9 @@ export function chatTurnJobHandler(
     const events = await createJobEventWriter(job.id);
     let acceptingEvents = true;
     const emit: EventSink["emit"] = (event) => {
-      if (acceptingEvents) events.append(event);
+      // An oversized live event is dropped, not the turn: the saved transcript still carries it.
+      try { if (acceptingEvents) events.append(event); }
+      catch (error) { console.warn("[chat] live event not sent", { type: event.type, ...safeErrorLog(error) }); }
     };
     const current = turn.chatId ? await chats.get(turn.scope, turn.chatId) : null;
     if (turn.chatId && !current) throw new PermanentJobError("ChatUnavailable");
