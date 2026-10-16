@@ -4,7 +4,8 @@
 //     --input <docx> [--input <docx> …] --out <dir> [--no-quotes] [--setting supra_linking=aggressive]
 //     [--llm <module whose default export is an llm> --setting run_mode=high_accuracy|economy|ultra_economy]
 // A2AJ answers come from the local store, then from the recorded answers in
-// benchmarks/local-data/alr-verifier/a2aj-http-cache; new live lookups are off unless --a2aj-live <n>.
+// benchmarks/local-data/alr-verifier/a2aj-http-cache; new live lookups are off unless --a2aj-live <n>. Nothing else
+// leaves the computer, as in the Python app's local-only run: a publisher's page (CanLII, CourtListener) is a miss.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -20,16 +21,14 @@ const option = (name: string) => { const at = args.indexOf(name); return at >= 0
 const settings: Record<string, string> = Object.fromEntries(args.flatMap((value, index) =>
   value === "--setting" ? [args[index + 1].split(/=(.*)/su, 2)] : []));
 
-// Record/replay every api.a2aj.ca answer; new lookups are capped.
+// Record/replay every api.a2aj.ca answer; new lookups are capped; any other address fails at once.
 const cacheDir = path.join(SUITE, "a2aj-http-cache");
 let live = Number(option("--a2aj-live") ?? 0);
 const undici = createRequire(path.join(REPO, "backend/package.json"))("undici") as { fetch: typeof fetch };
 const realFetch = undici.fetch;
 undici.fetch = (async (resource: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
   const url = typeof resource === "string" ? resource : resource instanceof URL ? resource.toString() : resource.url;
-  // --local-only: nothing off the computer, as the Python app's local-only run.
-  if (args.includes("--local-only") && !/^https:\/\/api\.a2aj\.ca\//u.test(url)) throw new TypeError(`local only: ${url}`);
-  if (!/^https:\/\/api\.a2aj\.ca\//u.test(url)) return realFetch(resource, init);
+  if (!/^https:\/\/api\.a2aj\.ca\//u.test(url)) throw new TypeError(`local only: ${url}`);
   const method = (init?.method ?? "GET").toUpperCase(), file = path.join(cacheDir,
     `${createHash("sha256").update(`${method} ${url}`).digest("hex")}.json`);
   if (existsSync(file)) {
@@ -46,6 +45,7 @@ undici.fetch = (async (resource: Parameters<typeof fetch>[0], init?: Parameters<
   }
   return new Response(method === "HEAD" ? null : body, { status: response.status, headers: response.headers });
 }) as typeof fetch;
+globalThis.fetch = undici.fetch;
 
 // Every --input in one process, as the page reads documents once it has loaded: one input writes to --out, several
 // each to --out/<its name>.
