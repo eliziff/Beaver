@@ -26,7 +26,7 @@ const listClass: Record<TabVariant, string> = {
     segmented: "gap-1 rounded-lg bg-gray-100 p-1",
     dock: "gap-1",
     pill: "w-full flex-wrap items-center gap-1 py-0.5 sm:w-auto sm:gap-2",
-    settings: "flex-1 grid-cols-2 gap-1 sm:grid-cols-5",
+    settings: "flex-1 grid-cols-2 gap-1 sm:grid-cols-3",
     sheets: "h-full items-stretch",
 };
 const tabClass: Record<TabVariant, string> = {

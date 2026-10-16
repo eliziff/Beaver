@@ -3,10 +3,7 @@ import { ChevronDown, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
 import type { McpConnectorSummary } from "@/app/lib/api/account";
 import { Switch } from "@/app/components/ui/switch";
-import {
-    accountGlassIconButtonClassName,
-    accountGlassInputClassName,
-} from "@/app/(pages)/account/accountStyles";
+import { accountGlassIconButtonClassName, accountGlassInputClassName } from "@/app/components/settings/AccountSection";
 export type McpConnectorDraft = {
     name: string;
     serverUrl: string;

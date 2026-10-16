@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-    Navigate,
-    Outlet,
-    useLocation,
-    useMatches,
-} from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { PanelLeft } from "lucide-react";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
 import { CollectionState } from "@/app/components/shared/CollectionState";
@@ -13,37 +8,18 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
-import { isLocalMode } from "@/app/lib/authMode";
-import { getRuntimeConfig } from "@/app/lib/runtimeConfig";
 
 export default function AppShell() {
     const { isAuthenticated, authLoading } = useAuth();
     const { profile, loading: profileLoading } = useUserProfile();
     const { pathname } = useLocation();
-    const access = useMatches().reduce<{
-        cloudOnly?: boolean;
-        capability?: "connectors";
-    }>(
-        (current, match) => ({
-            ...current,
-            ...(match.handle as typeof current | undefined),
-        }),
-        {},
-    );
     const authoritiesActive = pathname === "/table-of-authorities";
     // The assistant's own column starts at the top bar on narrow screens, so the
     // right dock lines up with the left sidebar instead of sitting a bar lower.
     // Covers /assistant and the project-hosted assistant chat too.
     const assistantRoute = /(^|\/)assistant(\/|$)/u.test(pathname);
-    const capabilityUnavailable = access.capability &&
-        !getRuntimeConfig().capabilities[access.capability];
-    const unavailable = isLocalMode && access.cloudOnly
-        ? ["Unavailable in local mode", "This feature is not available locally yet."]
-        : capabilityUnavailable
-          ? ["Unavailable in this deployment",
-              "This feature is disabled by the server administrator."]
-          : authoritiesActive && !profileLoading && !profile
-            ? ["Authorities unavailable",
+    const unavailable = authoritiesActive && !profileLoading && !profile
+          ? ["Authorities unavailable",
                 "Your settings could not be loaded. Try again."]
           : authoritiesActive && profile?.features.authorities === false
             ? ["Authorities disabled",

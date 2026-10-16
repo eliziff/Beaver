@@ -18,7 +18,7 @@ type Context = {
   loading: boolean;
   updateProfile: (value: ProfilePatch) => Promise<boolean>;
   updateMfaOnLogin: (enabled: boolean) => Promise<boolean>;
-  updateApiKey: (provider: ApiKeyProvider, value: string | null) => Promise<boolean>;
+  updateApiKey: (provider: ApiKeyProvider, value: string | null) => Promise<void>;
 };
 
 const UserProfileContext = createContext<Context | null>(null);
@@ -78,20 +78,11 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
     loading: authLoading || (!!userId && userId !== loadedUser),
     updateProfile: (next) => mutate(() => updateUserProfile(next), true),
     updateMfaOnLogin: (enabled) => mutate(() => updateUserMfaOnLogin(enabled), true),
+    // Errors reach the caller, which shows the server's reason.
     updateApiKey: async (provider, value) => {
-      if (!user) return false;
-      const key = value?.trim() || null;
-      try {
-        const status = await saveApiKey(provider, key);
-        setProfile((current) => current ? {
-          ...current,
-          apiKeys: normalizeApiKeys(status),
-        } : null);
-        return true;
-      } catch (error) {
-        if (isMfaRequiredError(error)) throw error;
-        return false;
-      }
+      if (!user) return;
+      const status = await saveApiKey(provider, value?.trim() || null);
+      setProfile((current) => current ? { ...current, apiKeys: normalizeApiKeys(status) } : null);
     },
   };
   return <UserProfileContext.Provider value={value}>{children}</UserProfileContext.Provider>;

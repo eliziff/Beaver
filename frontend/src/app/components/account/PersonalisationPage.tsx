@@ -5,7 +5,6 @@ import { Input } from "@/app/components/ui/input";
 import { SiteLogo } from "@/app/components/site-logo";
 import { JurisdictionPreferenceEditor } from "@/app/components/settings/JurisdictionPreferenceEditor";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { CollectionState } from "@/app/components/shared/CollectionState";
 import { safeNext } from "@/app/lib/utils";
 
@@ -70,7 +69,7 @@ function Fields({ onboarding, onDone }: {
                     Practice setting
                     <select id="personal-setting" name="practiceSetting"
                         defaultValue={profile.practiceSetting ?? ""}
-                        className="mt-2 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                        className="mt-2 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50">
                         <option value="">Not specified</option>
                         <option value="private_practice">Private practice</option>
                         <option value="in_house">In-house</option>
@@ -85,10 +84,10 @@ function Fields({ onboarding, onDone }: {
                 className="block text-sm font-medium text-gray-700" hint="Separate areas with commas."
                 defaultValue={profile.practiceAreas.join(", ")}
                 placeholder="e.g. commercial litigation, employment" />
-            <div>
+            {onboarding && <div>
                 <h2 className="mb-2 text-sm font-medium text-gray-900">Default jurisdiction</h2>
                 <JurisdictionPreferenceEditor compact />
-            </div>
+            </div>}
             {!onboarding && <fieldset className="border-t border-gray-200 pt-5">
                 <legend className="text-sm font-semibold text-gray-950">Court filing details</legend>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -99,7 +98,7 @@ function Fields({ onboarding, onDone }: {
                     <label className="text-sm font-medium text-gray-700 sm:col-span-2">Address for service
                         <textarea name="filingAddress" rows={2} autoComplete="street-address"
                             defaultValue={profile.filingContact.address}
-                            className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base leading-6 outline-none focus-visible:ring-2 focus-visible:ring-red-600" />
+                            className="mt-2 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base leading-6 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm" />
                     </label>
                     <Field label="Telephone" name="filingPhone" type="tel" autoComplete="tel"
                         defaultValue={profile.filingContact.phone} />
@@ -147,10 +146,5 @@ export function OnboardingPage() {
     );
 }
 
-export function PersonalisationSettingsPage() {
-    return (
-        <AccountSection heading="Personalisation">
-            <div className="p-4 sm:p-5"><Fields onboarding={false} /></div>
-        </AccountSection>
-    );
-}
+/** The profile and court filing details, as Settings shows them. */
+export const ProfileSettings = () => <Fields onboarding={false} />;
