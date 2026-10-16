@@ -209,7 +209,18 @@ export async function openApp(record, { browser, html, serve, mode = "file", net
     .map((line) => line.trim()).join(" ")}`.trim()));
   // Leptonica and Tesseract's layout analysis, inside the bundled OCR engine, print their own
   // diagnostics to the console as errors.
-  page.on("console", (message) => { if (message.type() === "error" && !/^Error in (?:pix|bmf)\w+:|^Detected \d+ diacritics$/u.test(message.text())) errors.push(message.text()); });
+  page.on("console", async (message) => {
+    if (message.type() !== "error" || /^Error in (?:pix|bmf)\w+:|^Detected \d+ diacritics$/u.test(message.text())) return;
+    errors.push(message.text());
+    for (const argument of message.args()) {
+      const causes = await argument.evaluate(value => {
+        const chain = [];
+        for (let cause = value?.cause; cause instanceof Error; cause = cause.cause) chain.push(cause.stack || cause.message);
+        return chain;
+      }).catch(() => []);
+      errors.push(...causes);
+    }
+  });
   return new App({ record, page, context, server, mode, log, errors, label, url: server?.url ?? pathToFileURL(html).href });
 }
 

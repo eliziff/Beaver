@@ -4,7 +4,8 @@
 //     --input <docx> [--input <docx> …] --out <dir> [--no-quotes] [--setting supra_linking=aggressive]
 //     [--llm <module whose default export is an llm> --setting run_mode=high_accuracy|economy|ultra_economy]
 // A2AJ answers come from the local store, then from the recorded answers in
-// benchmarks/local-data/alr-verifier/a2aj-http-cache; new live lookups are off unless --a2aj-live <n>.
+// benchmarks/local-data/alr-verifier/a2aj-http-cache; new live lookups are off unless --a2aj-live <n>. Nothing else
+// leaves the computer, as in the Python app's local-only run: a publisher's page (CanLII, CourtListener) is a miss.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -20,16 +21,14 @@ const option = (name: string) => { const at = args.indexOf(name); return at >= 0
 const settings: Record<string, string> = Object.fromEntries(args.flatMap((value, index) =>
   value === "--setting" ? [args[index + 1].split(/=(.*)/su, 2)] : []));
 
-// Record/replay every api.a2aj.ca answer; new lookups are capped.
+// Record/replay every api.a2aj.ca answer; new lookups are capped; any other address fails at once.
 const cacheDir = path.join(SUITE, "a2aj-http-cache");
 let live = Number(option("--a2aj-live") ?? 0);
 const undici = createRequire(path.join(REPO, "backend/package.json"))("undici") as { fetch: typeof fetch };
 const realFetch = undici.fetch;
 undici.fetch = (async (resource: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
   const url = typeof resource === "string" ? resource : resource instanceof URL ? resource.toString() : resource.url;
-  // --local-only: nothing off the computer, as the Python app's local-only run.
-  if (args.includes("--local-only") && !/^https:\/\/api\.a2aj\.ca\//u.test(url)) throw new TypeError(`local only: ${url}`);
-  if (!/^https:\/\/api\.a2aj\.ca\//u.test(url)) return realFetch(resource, init);
+  if (!/^https:\/\/api\.a2aj\.ca\//u.test(url)) throw new TypeError(`local only: ${url}`);
   const method = (init?.method ?? "GET").toUpperCase(), file = path.join(cacheDir,
     `${createHash("sha256").update(`${method} ${url}`).digest("hex")}.json`);
   if (existsSync(file)) {
@@ -46,6 +45,7 @@ undici.fetch = (async (resource: Parameters<typeof fetch>[0], init?: Parameters<
   }
   return new Response(method === "HEAD" ? null : body, { status: response.status, headers: response.headers });
 }) as typeof fetch;
+globalThis.fetch = undici.fetch;
 
 // Every --input in one process, as the page reads documents once it has loaded: one input writes to --out, several
 // each to --out/<its name>.
@@ -95,7 +95,7 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
     const llm = (await import(pathToFileURL(path.resolve(option("--llm")!)).href)).default;
     const module = (name: string) => pathToFileURL(process.env.ALR_RUNTIME_BUNDLE
       ? path.join(path.dirname(process.env.ALR_RUNTIME_BUNDLE), `${name}.mjs`)
-      : path.join(config.alr_quote_verifier, `beaver_app/runtime/${name}.ts`)).href;
+      : path.join(REPO, `backend/src/lib/quoteVerification/${name === "ai" ? "runModel" : name}.ts`)).href;
     const { alrModel } = await import(module("ai"));
     const { alrCheckedWorkbook } = await import(module("checkedWorkbook"));
     const run = alrModel(llm.default ?? llm, settings.run_mode, (message: string) => console.error(message));
@@ -103,12 +103,17 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
     workbook = { filename: made.name, bytes: made.workbook };
     modelCalls = run.stats;
   } else {
-    const written = await ops["alr-workbook"]({ draft, check, options }, { signal });
+    const written = await ops["verify-workbook"]({ draft, check, options }, { signal });
     workbook = written.files.find((item: { role: string }) => item.role === "workbook");
   }
   step("workbook");
   mkdirSync(out, { recursive: true });
   writeFileSync(path.join(out, workbook.filename), workbook.bytes);
+  // Product state for consumer equivalence; execution identities stay in the
+  // separate receipt. Retain all citation/source fields, not only summary counts.
+  writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".citations.json")), JSON.stringify({
+    units: draft.units, authorities: draft.authorities, occurrences: draft.occurrences,
+  }));
   // Save individual checks: workbook row statuses combine several quotations and cannot grade each one.
   const usedUnits = new Set(check.quotes.flatMap((quote: any) =>
     [quote.unitId, ...quote.candidates.map((candidate: any) => candidate.unitId)]));
@@ -139,6 +144,9 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
     })),
   };
   writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".quotes.json")), JSON.stringify(quoteOutput));
+  writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".quotation-results.json")), JSON.stringify({
+    units: quoteOutput.units, quotes: quoteOutput.quotes,
+  }));
   writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".run.json")), JSON.stringify({
     document: file.filename, settings, seconds: (performance.now() - started) / 1000, steps, summary: check.counts, modelCalls }, null, 2));
   console.log(JSON.stringify({ document: file.filename, seconds: Math.round((performance.now() - started) / 100) / 10, counts: check.counts }));

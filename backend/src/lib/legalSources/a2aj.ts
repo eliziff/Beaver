@@ -7,7 +7,7 @@ import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCi
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
-import { inSqliteRun, onSqliteRunEnd } from "../legalDataPath";
+import { inSqliteRun, onSqliteRunEnd, storeExists } from "../legalDataPath";
 import { normalizeWhitespace } from "../text";
 import { nativeDocumentLive, structureNative, type A2AJStoreDocument, type A2AJStoreLookup,
   type NativeDocument } from "../structureNative";
@@ -403,6 +403,7 @@ const running = new Set<A2AJCompiledDocument>();
 const lookups = new Map<string, Promise<A2AJStoreDocument | null>>();
 onSqliteRunEnd(() => { running.clear(); lookups.clear(); });
 async function storeDocument(lookup: A2AJStoreLookup) {
+  if (!storeExists(a2ajLocalBulkPath())) return null;
   if (!inSqliteRun()) return structureNative().a2ajDocument(a2ajLocalBulkPath(), lookup);
   const key = JSON.stringify([a2ajLocalBulkPath(), lookup]);
   const ask = () => {
@@ -437,7 +438,7 @@ async function document(args: {
   args.signal?.throwIfAborted();
   const docType = args.docType ?? "cases";
   const language = args.language === "fr" ? "fr" : "en";
-  const snapshot = statSync(a2ajLocalBulkPath(), { throwIfNoEntry: false });
+  const snapshot = storeExists(a2ajLocalBulkPath()) ? statSync(a2ajLocalBulkPath(), { throwIfNoEntry: false }) : undefined;
   const cacheKey = (sourceUrl: string) => JSON.stringify([
     snapshot && [snapshot.ino, snapshot.size, snapshot.mtimeMs],
     docType, language, args.dataset?.trim().toLowerCase() ?? "",

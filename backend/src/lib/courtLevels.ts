@@ -1,3 +1,5 @@
+import { structureNative } from "./structureNative";
+
 /**
  * Court-hierarchy levels for the A2AJ corpus court codes (the exact
  * values of citator case_doc.court and the a2aj_corpus/cases directory
@@ -23,43 +25,19 @@ export type CourtLevel = {
     | "tribunal";
 };
 
-const LEVELS: Record<string, CourtLevel> = {
-  SCC: { level: 5, kind: "apex" },
-
-  FCA: { level: 4, kind: "appellate" },
-  CMAC: { level: 4, kind: "appellate" },
-  BCCA: { level: 4, kind: "appellate" },
-  ONCA: { level: 4, kind: "appellate" },
-  NSCA: { level: 4, kind: "appellate" },
-  YKCA: { level: 4, kind: "appellate" },
-
-  BCSC: { level: 3, kind: "superior_trial" },
-  NSSC: { level: 3, kind: "superior_trial" },
-  FC: { level: 3, kind: "superior_trial" },
-  TCC: { level: 3, kind: "superior_trial" },
-
-  NSPC: { level: 2, kind: "inferior_trial" },
-  NSFC: { level: 2, kind: "inferior_trial" },
-  NSSM: { level: 2, kind: "inferior_trial" },
-
-  CART: { level: 1, kind: "tribunal" },
-  CHRT: { level: 1, kind: "tribunal" },
-  CIRB: { level: 1, kind: "tribunal" },
-  CITT: { level: 1, kind: "tribunal" },
-  CT: { level: 1, kind: "tribunal" },
-  FPSLREB: { level: 1, kind: "tribunal" },
-  OHSTC: { level: 1, kind: "tribunal" },
-  OIC: { level: 1, kind: "tribunal" },
-  PSDPT: { level: 1, kind: "tribunal" },
-  RAD: { level: 1, kind: "tribunal" },
-  RLLR: { level: 1, kind: "tribunal" },
-  RPD: { level: 1, kind: "tribunal" },
-  SCT: { level: 1, kind: "tribunal" },
-  SST: { level: 1, kind: "tribunal" },
-  TATC: { level: 1, kind: "tribunal" },
+const RANK: Record<CourtLevel["kind"], CourtLevel["level"]> = {
+  apex: 5, appellate: 4, superior_trial: 3, inferior_trial: 2, tribunal: 1,
 };
+const levels = new Map<string, CourtLevel | null>();
 
 export function courtLevel(code: string | null | undefined): CourtLevel | null {
-  if (!code) return null;
-  return LEVELS[code.trim().toUpperCase()] ?? null;
+  if (!code?.trim()) return null;
+  const surface = code.trim().toUpperCase();
+  if (levels.has(surface)) return levels.get(surface)!;
+  const courts = structureNative().citationEngineCall("registry",
+    JSON.stringify({ table: "courts", surface })) as Array<{ hierarchy: CourtLevel["kind"] }>;
+  const court = courts[0];
+  const result = court ? { level: RANK[court.hierarchy], kind: court.hierarchy } : null;
+  levels.set(surface, result);
+  return result;
 }

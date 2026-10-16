@@ -271,25 +271,32 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
 }
 
 type ResolvedCitation = { form: string; span: { start: number; end: number }; antecedent?: number; key?: string };
-/** The authority a reference added by hand names, as the engine resolves it reading the brief up to it, its notes
- *  numbered as the brief numbers them. */
-function referenceTarget(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units"][number],
-  occurrence: AuthorityOccurrence, sources: CitationServices) {
-  let text = "", at = 0;
-  const notes: Array<{ number: number; start: number; end: number }> = [];
+/** The authority each reference names, as the engine resolves the brief, its notes numbered as the brief numbers them:
+ *  the full citation its chain ends at, else the citation found in the note's part it names (a report or a book the
+ *  engine reads no citation in, added by hand). */
+function referenceTargets(draft: AuthoritiesDraft, references: AuthorityOccurrence[], sources: CitationServices) {
+  let text = "";
+  const notes: Array<{ number: number; start: number; end: number }> = [], starts = new Map<string, number>();
   for (const item of draft.units) {
-    const start = text.length;
-    text += item.text;
-    if (item.kind === "footnote" && typeof item.noteNumber === "number") notes.push({ number: item.noteNumber, start, end: text.length });
-    if (item.id === unit.id) { at = start; break; }
-    text += "\n\n";
+    starts.set(item.id, text.length);
+    if (item.kind === "footnote" && typeof item.noteNumber === "number")
+      notes.push({ number: item.noteNumber, start: text.length, end: text.length + item.text.length });
+    text += `${item.text}\n\n`;
   }
-  const { citations } = structureNative().citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
-    options: { resolve: true, notes } })) as { citations: ResolvedCitation[] };
-  const { start, end } = occurrence.coreSpan;
-  let target = citations.find(({ form, span }) => form !== "full" && span.start < at + end && at + start < span.end);
-  while (target && target.form !== "full") target = target.antecedent === undefined ? undefined : citations[target.antecedent];
-  return target?.key ? knownAuthority(draft, target.key, sources) : null;
+  const { citations, sourceParts, resolutions = [] } = structureNative().citationEngineCall("extract", JSON.stringify({
+    text, offsetUnit: "utf16", options: { resolve: true, notes } })) as { citations: ResolvedCitation[];
+    sourceParts: Array<{ start: number; end: number }>; resolutions?: Array<{ index: number; sourcePart?: number | null }> };
+  return new Map(references.map((occurrence) => {
+    const at = starts.get(occurrence.unitId) ?? 0, { start, end } = occurrence.coreSpan;
+    const index = citations.findIndex(({ form, span }) => form !== "full" && span.start < at + end && at + start < span.end);
+    let target: ResolvedCitation | undefined = citations[index];
+    while (target && target.form !== "full") target = target.antecedent === undefined ? undefined : citations[target.antecedent];
+    const part = sourceParts[resolutions.find((resolution) => resolution.index === index)?.sourcePart ?? -1];
+    const named = part && Object.values(draft.occurrences).find((item) => item.authorityId && !item.referenceKind &&
+      part.start <= (starts.get(item.unitId) ?? -1) + item.start && (starts.get(item.unitId) ?? -1) + item.start < part.end);
+    return [occurrence.id, target?.key ? knownAuthority(draft, target.key, sources)
+      : named ? draft.authorities[named.authorityId!] ?? null : null] as const;
+  }));
 }
 
 function trimmedRange(unit: AuthoritiesDraft["units"][number], start: number, end: number) {
@@ -551,7 +558,7 @@ function addOccurrence(draft: AuthoritiesDraft,
     [], sources);
   if (!occurrence.pinpoints.length) Object.assign(occurrence, followingPinpoints(draft, unit, occurrence, sources));
   if (occurrence.referenceKind && !occurrence.reference) {
-    const target = referenceTarget(draft, unit, occurrence, sources);
+    const target = referenceTargets(draft, [occurrence], sources).get(occurrence.id);
     if (target) Object.assign(occurrence, { authorityId: target.id,
       reference: { kind: occurrence.referenceKind, targetAuthorityId: target.id } });
   }
@@ -560,9 +567,18 @@ function addOccurrence(draft: AuthoritiesDraft,
   const named = discovered ?? (occurrence.authorityId || sources.occurrences(occurrence.text).length ||
     sources.references(occurrence.text).length ? null : textAuthority(occurrence.citation));
   if (named) occurrence.authorityId = named.id;
-  const changed = named && !draft.authorities[named.id]
-    ? updateAuthoritiesDraft(draft, { type: "add-authority", authority: named }) : draft;
-  return updateAuthoritiesDraft(changed, { type: "add-occurrence", occurrence });
+  const editor = editAuthoritiesDraft(draft);
+  if (named && !draft.authorities[named.id]) editor.apply({ type: "add-authority", authority: named });
+  editor.apply({ type: "add-occurrence", occurrence });
+  // The ibids and supras naming nothing that name the new authority's part (an "Ibid at 50" after a report) name it.
+  if (named) for (const [id, target] of referenceTargets(editor.draft, Object.values(editor.draft.occurrences)
+    .filter((item) => item.referenceKind && !item.authorityId), sources)) {
+    const reference = editor.draft.occurrences[id];
+    if (target?.id !== named.id) continue;
+    editor.apply({ type: "set-reference", occurrenceId: id, reference: { kind: reference.referenceKind!, targetAuthorityId: named.id } });
+    editor.apply({ type: "set-reviewed", occurrenceId: id, reviewed: !!reference.reviewed });
+  }
+  return editor.result();
 }
 
 /** The pinpoints a citation selected without them goes on to write ("R v Jordan, 2016 SCC 27"
