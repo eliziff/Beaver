@@ -41,16 +41,18 @@ const foreignProviders = [
 ] as const;
 
 /** Resolves the first citation form a provider matches; never a best guess. Without `foreignCases`,
- *  US and UK decisions are not looked up. */
+ *  US and UK decisions are not looked up. A provider that failed (CanLII's challenge, an outage) is not asked
+ *  again for another form of the same authority: the form names the same document. */
 async function resolveForeignAuthoritySource(citations: readonly string[], signal?: AbortSignal,
   kind: "case" | "legislation" = "case", foreignCases = true) {
+  const failed = new Set<string>();
   for (const citation of citations.map((value) => value.trim()).filter(Boolean)) {
     signal?.throwIfAborted();
     for (const { id, claims, source } of foreignProviders) {
-      if (!foreignCases && FOREIGN_CASE_PROVIDERS.has(id)) continue;
+      if (failed.has(id) || !foreignCases && FOREIGN_CASE_PROVIDERS.has(id)) continue;
       if (!claims.canResolve?.({ text: citation, kind })) continue;
       let found: Awaited<ReturnType<typeof source>> = null;
-      try { found = await source(citation, signal); } catch { signal?.throwIfAborted(); }
+      try { found = await source(citation, signal); } catch { signal?.throwIfAborted(); failed.add(id); }
       if (!found || (!found.pdfUrl && !found.text.trim())) continue;
       return { ...found, provider: id, name: found.title, stableSourceId: `${id}:${found.id}`,
         sourceSha256: canonicalJsonSha256({ provider: id, id: found.id, text: found.text }) };
