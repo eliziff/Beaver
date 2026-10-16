@@ -386,14 +386,10 @@ export async function runChatTurn(options: {
       }
       inheritReads(grounding);
       if (resume) resumableReaders.delete(resume.id);
-      publish({
-        ...base,
-        status: "completed",
-        output: child.fullText,
-        activities: [...activities.values()],
-        citations: createLegalEvidenceCitations(child.evidence),
-        grounding,
-      });
+      const citations = createLegalEvidenceCitations(child.evidence);
+      // The page already holds each activity from its own live event; this one adds the answer.
+      publish({ ...base, status: "completed", output: child.fullText, activities: [...activities.values()],
+        citations, grounding }, { ...base, status: "completed", output: child.fullText, citations });
       return {
         tool_use_id: call.id,
         status: "ok",
@@ -406,21 +402,15 @@ export async function runChatTurn(options: {
       const status = interrupted ? "interrupted" as const : "error" as const;
       const saved = checkpoint();
       const errorMessage = safeErrorMessage(error, "Reading agent failed"), code = providerErrorCode(error);
-      for (const [key, activity] of activities) {
-        if (activity.status === "running") activities.set(key, { ...activity, status });
-      }
+      const settled = [...activities.values()].flatMap((activity) =>
+        activity.status === "running" ? [{ ...activity, status }] : []);
+      settled.forEach((activity) => activities.set(activity.id, activity));
       if (saved) resumableReaders.set(id, { ...saved, activities: [...activities.values()] });
-      publish({
-        ...base,
-        status,
-        error: errorMessage,
-        publicError: saved
-          ? `${/ground(?:ed|ing)/iu.test(errorMessage) ? "Grounding verification" : "Reading agent"} failed; this reading agent can be resumed.`
-          : code ? PROVIDER_ERROR_MESSAGES[code]
-          : "Reading agent failed; retry it or select another reader model.",
-        activities: [...activities.values()],
-        ...(saved && { resume: saved }),
-      });
+      const failed = { ...base, status, error: errorMessage, publicError: saved
+        ? `${/ground(?:ed|ing)/iu.test(errorMessage) ? "Grounding verification" : "Reading agent"} failed; this reading agent can be resumed.`
+        : code ? PROVIDER_ERROR_MESSAGES[code] : "Reading agent failed; retry it or select another reader model." };
+      publish({ ...failed, activities: [...activities.values()], ...(saved && { resume: saved }) },
+        { ...failed, activities: settled });
       return {
         tool_use_id: call.id,
         status: "error",
