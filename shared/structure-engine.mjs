@@ -58,7 +58,7 @@ export const SIGNATURES = {
   classifyCitatorExcerpt: ["text"], classifyCitatorExcerpts: ["texts"],
   groundedProseErrors: ["text", "citedEvidenceIds", "visibleEvidence"],
   quoteRepairSuggestion: ["claim", "spans"], markedQuoteSpans: ["text"], quoteComparison: ["authored", "source"],
-  quoteLocateDocument: ["document", "judgment", "quotes", "compare"], editorialQuote: ["authored", "source"],
+  quoteLocateDocument: ["document", "source", "quotes", "compare"], editorialQuote: ["authored", "source"],
   verbatimRepair: ["authored", "source"], journalTitleSearches: ["citation"], journalTitleChoice: ["hits"],
   readDocumentRange: ["document", "kind", "from", "to", "contextBlocks"],
   canliiCaseUrl: ["citations", "language", "court"], canliiLawUrl: ["text"], canliiCourtRoute: ["court"],
