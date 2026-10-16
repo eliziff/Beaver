@@ -284,6 +284,7 @@ type StructureAddon = {
    *  groundedProseErrors of it against the passage it was found in (the whole text where not), named by its id;
    *  with compare false, located only. */
   quoteLocateDocument(document: NativeDocument,
+    /** A provider's text; a PDF, read by the locators it prints; a statute's PDF, its provisions as its print reads them. */
     source: "text" | "pdf" | "legislation",
     quotes: Array<{ quote: string; scopes: { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
       id?: string }>, compare?: boolean):
