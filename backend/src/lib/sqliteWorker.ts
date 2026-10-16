@@ -8,7 +8,7 @@ type Reply = { id: number; result?: QueryResult<Record<string, unknown>>; error?
 
 // The production worker loads compiled JS; source-mode tests/dev use the existing
 // tsx dependency. Nothing is compiled or evaluated from a request or SQL value.
-export function createSqliteWorker(filename: string): RelationalDatabase {
+export function createSqliteWorker(filename: string, onLost?: (error: Error) => void): RelationalDatabase {
   const source = __filename.endsWith(".ts");
   const worker = source
     ? new Worker(`require(${JSON.stringify(require.resolve("tsx/cjs"))}); require(${JSON.stringify(__filename)});`,
@@ -20,6 +20,7 @@ export function createSqliteWorker(filename: string): RelationalDatabase {
   const requests = new Map<number, { resolve(value: QueryResult<Record<string, unknown>>): void;
     reject(error: Error): void }>();
   const fail = (error: Error) => {
+    if (!failure && !closing) onLost?.(error);
     failure ??= error;
     for (const request of requests.values()) request.reject(failure);
     requests.clear(); worker.unref();
