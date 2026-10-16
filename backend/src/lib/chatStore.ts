@@ -29,7 +29,8 @@ export type ChatCommitResult = { status: "missing" }
 // (already completed, mutation committed, a newer user message) still guard it.
 export type ChatTurnCommit = { expectedVersion: number | null;
   userMessage?: { id: string; turnId?: string; content: string; files?: unknown; workflow?: unknown; submission?: PromptSubmission };
-  assistantMessage?: { id: string; turnId?: string; content: AssistantEvent[]; citations?: unknown[] } };
+  /** changed: the events written since this writer's last commit; the others are already stored. */
+  assistantMessage?: { id: string; turnId?: string; content: AssistantEvent[]; citations?: unknown[]; changed?: ReadonlySet<number> } };
 
 export class ChatStoreError extends Error {
   constructor(readonly status: number, message: string) { super(message); }

@@ -780,7 +780,7 @@ ${registeredWorkflow.skill_md}` : "",
       if (claimed.status === "conflict") {
         conflict("chat_version_conflict", claimed.currentVersion);
       }
-      let version = claimed.currentVersion;
+      let version = claimed.currentVersion, saved = commit.assistantMessage ? [...assistantContent] : [];
       if (research && (!research.state.chats?.includes(chat.id) || researchFileId !== chat.research_file_id ||
           JSON.stringify(researchSelection ?? null) !== JSON.stringify(chat.research_selection ?? null))) {
         await deps.sources.bind(auth, research.document.id, { chatId: chat.id,
@@ -908,13 +908,13 @@ ${registeredWorkflow.skill_md}` : "",
             if (!chatAvailable) continue;
             const result = await deps.chats.commitTurn(auth, chat!.id, {
               expectedVersion: version,
-              assistantMessage: { id: assistantId, turnId, content,
-                citations: [...assistantCitations] },
+              assistantMessage: { id: assistantId, turnId, content, citations: [...assistantCitations],
+                changed: new Set(content.flatMap((event, index) => event === saved[index] ? [] : [index])) },
             });
             if (result.status === "conflict")
               conflict("chat_version_conflict", result.currentVersion);
             if (result.status === "missing") chatAvailable = false;
-            if (result.status === "committed") version = result.currentVersion;
+            if (result.status === "committed") { version = result.currentVersion; saved = content; }
           }
         })().finally(() => { persistence = undefined; });
         return persistence;
