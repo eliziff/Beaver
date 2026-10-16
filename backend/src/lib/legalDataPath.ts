@@ -47,6 +47,8 @@ export function legalProviderDatabase(provider: string, filename: string) {
 let runs = 0;
 const held = new Map<string, { database: DatabaseSync; search: boolean }>();
 const runEnds = new Set<() => void>();
+// Stores an operation found missing: it does not ask the disk again while it runs, though its lookups ask for each.
+const absent = new Set<string>();
 /** Calls `end` whenever the last run ends: a reader that keeps its own handles closes them. */
 export const onSqliteRunEnd = (end: () => void) => { runEnds.add(end); };
 
@@ -59,6 +61,7 @@ export async function withSqliteRun<T>(work: () => Promise<T>): Promise<T> {
     if (--runs === 0) {
       for (const { database } of held.values()) database.close();
       held.clear();
+      absent.clear();
       for (const end of runEnds) end();
     }
   }
@@ -66,6 +69,13 @@ export async function withSqliteRun<T>(work: () => Promise<T>): Promise<T> {
 
 /** Whether an operation is running (withSqliteRun): what it reads is kept until it ends. */
 export const inSqliteRun = () => runs > 0;
+
+/** Whether a store's file is there; an operation that found it missing finds it missing until it ends. */
+export function storeExists(filename: string) {
+  if (held.has(filename) || !absent.has(filename) && existsSync(filename)) return true;
+  if (runs) absent.add(filename);
+  return false;
+}
 
 function readonlyHandle(filename: string, search: boolean) {
   const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
@@ -90,8 +100,7 @@ export function withReadonlySqlite<T>(
   operation: (database: DatabaseSync) => T,
   search = false,
 ): T | null {
-  // A database an operation holds is there.
-  if (!held.has(filename) && !existsSync(filename)) return null;
+  if (!storeExists(filename)) return null;
   const { database, close } = readonlyHandle(filename, search);
   try {
     return operation(database);

@@ -164,7 +164,12 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     const authority = occurrence?.authorityId ? draft.authorities[occurrence.authorityId] : candidate;
     if (!authority) return { candidateId, status: "unresolved", detail: "The citation names no source to read.", receipt: null };
     try {
-      const found = await sourceFor(occurrence?.authorityId ?? null, authority, candidate?.text ?? "");
+      // A supra or ibid names its article by the part that first cites it, as Sources found it, not by its own words.
+      const origin = occurrence?.reference && Object.values(draft.occurrences).find((item) =>
+        item.authorityId === occurrence.authorityId && !item.reference);
+      const part = origin ? citationUnits[draft.units.findIndex(({ id }) => id === origin.unitId)]?.parts.find((item) =>
+        origin.start >= item.start && origin.start < item.end)?.text ?? "" : candidate?.text ?? "";
+      const found = await sourceFor(occurrence?.authorityId ?? null, authority, part);
       if (found.missing) return { candidateId, status: found.missing, receipt: null,
         detail: "The citation did not resolve to one available source." };
       return { row, candidateId, pinpoints: occurrence?.pinpoints ?? candidate?.pinpoints ?? [], source: found.source,

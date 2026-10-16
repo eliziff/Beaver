@@ -36,7 +36,7 @@ export async function chooseCard(app, scope, name) {
   await app.interact(`choose "${name}"`, () => option.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }));
 }
 
-/** Add file, the import's steps (the court, the sources, the marking), Import: to the first citation
+/** Add file, the import's steps (the court, the sources, the marking), then finish: to the first citation
  *  marked in the document. */
 export async function importBrief(app, file, { court, sourceMode, marking, shot = null, first = false, budget } = {}) {
   await app.pick(() => app.button("Add file").click(), [file]);
@@ -46,12 +46,13 @@ export async function importBrief(app, file, { court, sourceMode, marking, shot 
     if (await setup.getByRole("radio", { name: PROFILES[court], exact: true }).count()) await chooseCard(app, setup, PROFILES[court]);
     else await chooseCourt(app, setup.getByRole("button", { name: "Other court" }), court);
   }
-  const step = (name) => setup.getByRole("list", { name: "Import steps" }).getByRole("button", { name }).click();
+  const step = (name) => setup.getByRole("list", { name: "Steps", exact: true }).getByRole("button", { name, exact: true }).click();
   if (sourceMode) { await step("Sources"); await chooseCard(app, setup, SOURCE_MODES[sourceMode]); }
   if (marking) { await step("Marking"); await chooseCard(app, setup, MARKINGS[marking]); }
   if (shot) await app.shots(shot);
+  await step("Marking");
   const started = await app.now();
-  await setup.getByRole("button", { name: /^Import(?: with .*defaults)?$/u }).click();
+  await setup.getByRole("button", { name: "Next", exact: true }).click();
   await app.page.locator(".citation-document .citation-band[data-active]").first().waitFor({ timeout: 120_000 });
   const ms = await app.now() - started;
   // A profile's first import starts the engine; every later one finds it warm.

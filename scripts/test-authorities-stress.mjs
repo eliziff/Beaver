@@ -89,6 +89,8 @@ for (const item of selected) {
   try { await item.run({ ...shared, browser, renderer, record, open }); }
   catch (error) {
     record.check(false, "the case stopped", error.stack?.split("\n").slice(0, 8).join("\n"));
+    for (const app of apps.filter(app => !app.closed))
+      record.check(!app.errors.length, `${app.label}: the page reported errors`, [...new Set(app.errors)].slice(0, 8));
     // What the page showed when it stopped.
     for (const app of apps) await app.page.screenshot({ path: path.join(record.out, `stopped-${app.label}.png`) }).catch(() => {});
   }
