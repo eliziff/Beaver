@@ -41,21 +41,16 @@ function grouped(values: Sequenced[]) {
   return result;
 }
 
-async function syncMessageEvents(
-  tx: RelationalDatabase,
-  messageId: string,
-  values: AssistantEvent[],
-) {
-  const prior = new Map((await tx.query<{ sequence: number; value: unknown }>(sql`
-    SELECT ordinal AS sequence,event AS value FROM chat_message_events
-    WHERE message_id=${messageId}`)).rows.map((row) =>
-      [Number(row.sequence), encode(decode(row.value, null))] as const));
+// A save writes only the events its writer changed (the version check proves the rest are
+// stored), and never reads the transcript back: one event can be megabytes.
+async function syncMessageEvents(tx: RelationalDatabase, messageId: string,
+  values: AssistantEvent[], changed?: ReadonlySet<number>) {
   for (let sequence = 0; sequence < values.length; sequence += 1) {
-    const value = encode(values[sequence]);
-    if (prior.get(sequence) === value) continue;
+    if (changed && !changed.has(sequence)) continue;
     await tx.query(sql`INSERT INTO chat_message_events(
-      message_id,ordinal,event,created_at) VALUES(${messageId},${sequence},${value},${now()})
-      ON CONFLICT(message_id,ordinal) DO UPDATE SET event=excluded.event`);
+      message_id,ordinal,event,created_at) VALUES(${messageId},${sequence},${encode(values[sequence])},${now()})
+      ON CONFLICT(message_id,ordinal) DO UPDATE SET event=excluded.event
+      WHERE chat_message_events.event IS DISTINCT FROM excluded.event`);
   }
   await tx.query(sql`DELETE FROM chat_message_events WHERE message_id=${messageId}
     AND ordinal>=${values.length}`);
@@ -130,7 +125,7 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
         ${assistantMessage.citations === undefined ? null : encode(assistantMessage.citations)},${created})
         ON CONFLICT(id) DO UPDATE SET turn_id=COALESCE(excluded.turn_id,chat_messages.turn_id),
           content=excluded.content,citations=excluded.citations`, tx);
-        await syncMessageEvents(tx, assistantMessage.id, assistantMessage.content);
+        await syncMessageEvents(tx, assistantMessage.id, assistantMessage.content, assistantMessage.changed);
       }
     }
     return { status: "committed", currentVersion: version };
