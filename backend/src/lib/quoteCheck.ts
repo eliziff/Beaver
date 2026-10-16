@@ -150,14 +150,14 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   const engine = structureNative();
   /** The whole source a citation names: a PDF the user attached for it, else its provider's text. */
   async function sourceFor(authorityId: string | null, authority: { kind: string; citation: string },
-    part: string): Promise<CitedSource & { judgment?: boolean }> {
+    part: string): Promise<CitedSource> {
     const pdf = authorityId ? attached.get(authorityId) : undefined;
-    return pdf ? { ...pdf, judgment: true } : read(authority, part);
+    return pdf ?? read(authority, part);
   }
   type Row = ReturnType<typeof splitQuoteChecks>[number];
   /** A quotation's source, read, waiting to be located in it. */
   type Pending = { row: Row; candidateId: string; pinpoints: AuthorityOccurrence["pinpoints"];
-    source: LegalSourceReference; document: NativeDocument; judgment: boolean; check?: QuoteCheck };
+    source: LegalSourceReference; document: NativeDocument; check?: QuoteCheck };
   const unavailable = (candidateId: string): QuoteCheck => ({ candidateId, status: "unavailable",
     detail: "Source retrieval failed; this quotation has not been verified.", receipt: null });
   async function readFor(row: Row, candidateId: string): Promise<Pending | QuoteCheck> {
@@ -170,7 +170,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
       if (found.missing) return { candidateId, status: found.missing, receipt: null,
         detail: "The citation did not resolve to one available source." };
       return { row, candidateId, pinpoints: occurrence?.pinpoints ?? candidate?.pinpoints ?? [], source: found.source,
-        document: found.document, judgment: !!found.judgment };
+        document: found.document };
     } catch {
       signal?.throwIfAborted();
       return unavailable(candidateId);
@@ -215,7 +215,10 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
       // The source's text, read where a quotation was not found in a passage of it.
       let documentText: string | undefined;
       const text = () => documentText ??= engine.documentText(document), revision = engine.documentRevision(document);
-      const located = await engine.quoteLocateDocument(document, items[0].judgment,
+      // An attached PDF is read by the locators it prints: a statute's, with its provisions as its print reads them.
+      const { provider, kind } = items[0].source;
+      const located = await engine.quoteLocateDocument(document,
+        provider !== "attached" ? "text" : kind === "legislation" ? "legislation" : "pdf",
         items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints), id: row.id })),
         options.compare !== false);
       // Each found quotation's link, its text fragments planned off this thread.
