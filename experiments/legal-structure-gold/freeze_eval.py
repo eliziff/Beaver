@@ -21,6 +21,8 @@ from gold import require
 
 ROOT = Path(__file__).resolve().parents[2]
 HOME = ROOT / 'benchmarks/local-data/legal-structure-gold'
+SALT = 'pdf-structure-gold-eval-split-v1'
+TEST_SHARE = 0.2
 
 
 def digest(path):
@@ -28,23 +30,42 @@ def digest(path):
 
 
 def frozen_split(out):
-    """The family split, copied once and bound by hash."""
+    """The family split, made once and bound by hash.
+
+    Families exposed during earlier tuning stay in development, as the selection records. The
+    rest are ordered by a salted hash of their identity and fill test to a fifth of all sources;
+    the others train. A family over a fiftieth of the sources trains, so no one family dominates
+    the test set. The selection's own 80/10/10 assignment left test at 72 sources once its 316
+    exposed members were moved to development.
+    """
     split = out / 'split.json'
     if not split.exists():
         selection = json.loads((HOME / 'family-selection.json').read_text(encoding='utf-8'))
+        family = {m['sha256']: m['family_id'] for m in selection['members']}
+        exposed = {family[sha] for sha in selection['exposed_sources'] if sha in family}
+        sizes = {}
+        for identity in family.values(): sizes[identity] = sizes.get(identity, 0) + 1
+        total, target = len(family), round(len(family) * TEST_SHARE)
+        assigned, tested = {identity: 'development' for identity in exposed}, 0
+        for identity in sorted(set(sizes) - exposed, key=lambda f: hashlib.sha256((SALT + f).encode()).hexdigest()):
+            fits = tested < target and sizes[identity] <= total // 50
+            assigned[identity] = 'test' if fits else 'train'
+            tested += sizes[identity] if fits else 0
         worker.write_json(split, {'source': 'family-selection.json', 'source_sha256': digest(HOME / 'family-selection.json'),
-                                  'policy': selection['split_policy'], 'salt': selection['salt'],
-                                  'members': {m['sha256']: {'split': m['split'], 'family_id': m['family_id']}
-                                              for m in selection['members']}})
+                                  'salt': SALT, 'test_share': TEST_SHARE, 'policy': frozen_split.__doc__.strip(),
+                                  'members': {sha: {'split': assigned[identity], 'family_id': identity}
+                                              for sha, identity in family.items()}})
     return json.loads(split.read_text(encoding='utf-8'))
 
 
 def runs(home):
     """The newest completed run per source that carries a hierarchy pass over its own blocks."""
     chosen = {}
-    for result in sorted(home.glob('*/*/*/hierarchy-authoring/result.json')):
+    # Reauthored sources keep theirs beside the catalogue's selected gold; new sources in their run.
+    found = [*(home / 'current').glob('*/hierarchy-authoring/result.json'),
+             *(path for mode in ('digitalborn', 'ocr') for path in (home / mode).glob('*/*/hierarchy-authoring/result.json'))]
+    for result in sorted(found):
         job = result.parents[1]
-        if job.parents[1].name not in ('digitalborn', 'ocr'): continue
         receipt = json.loads((job / 'receipt.json').read_text(encoding='utf-8'))
         if receipt.get('status') != 'complete' or not (job / 'gold.json.gz').exists(): continue
         if result.stat().st_mtime < (job / 'gold.json.gz').stat().st_mtime: continue
@@ -80,6 +101,7 @@ def main():
                 print('skip', sha[:12], error[:200]); continue
             add(manifest, sha, job, receipt, split, target, value_pages, report); added += 1
             if added % 20 == 0: worker.write_json(manifest_path, manifest)
+    for sha, row in manifest['sources'].items(): row['split'] = split[sha]['split']
     manifest['rounds'] = manifest.get('rounds', 0) + bool(added)
     worker.write_json(manifest_path, manifest)
     counts = {}
@@ -111,7 +133,7 @@ def freeze_one(item):
 def add(manifest, sha, job, receipt, split, target, pages, report):
         manifest['sources'][sha] = {
             'mode': receipt['configuration']['mode'], 'split': split[sha]['split'], 'family_id': split[sha]['family_id'],
-            'pages': pages, 'run': str(job.relative_to(HOME)), 'receipt_sha256': digest(job / 'receipt.json'),
+            'pages': pages, 'run': job.relative_to(HOME).as_posix(), 'receipt_sha256': digest(job / 'receipt.json'),
             'gold_sha256': digest(job / 'gold.json.gz'), 'hierarchy_sha256': digest(job / 'hierarchy-authoring/result.json'),
             'frozen_sha256': digest(target), 'hierarchy_report': report, 'round': manifest.get('rounds', 0) + 1}
 
