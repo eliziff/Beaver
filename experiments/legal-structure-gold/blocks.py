@@ -505,6 +505,15 @@ def structure(chunks, lines, order):
             else: link(block["region"], fragments[earlier][-1], parts[0], "flag")
         for left, right in zip(parts, parts[1:]): link(block["region"], left, right, "page break")
         if stream: last[stream] = number
+    # A continued table is one grid: a fragment typed with fewer cells per row has empty ones.
+    tables = {anchor(a["spans"][0]): a for a in annotations if a["kind"] == "table"}
+    links = continuations.get("table", {})
+    for start in set(links) - {link["next"] for link in links.values()}:
+        chain = [start]
+        while chain[-1] in links: chain.append(links[chain[-1]]["next"])
+        width = max(len(row) for ident in chain for row in tables[ident]["attributes"]["rows"])
+        for ident in chain:
+            for row in tables[ident]["attributes"]["rows"]: row.extend([] for _ in range(width - len(row)))
     return {"groups": groups, "annotations": annotations, "continuations": continuations}, report
 
 
