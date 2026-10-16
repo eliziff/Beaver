@@ -158,8 +158,6 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   /** A quotation's source, read, waiting to be located in it. */
   type Pending = { row: Row; candidateId: string; pinpoints: AuthorityOccurrence["pinpoints"];
     source: LegalSourceReference; document: NativeDocument; check?: QuoteCheck };
-  const unavailable = (candidateId: string): QuoteCheck => ({ candidateId, status: "unavailable",
-    detail: "Source retrieval failed; this quotation has not been verified.", receipt: null });
   async function readFor(row: Row, candidateId: string): Promise<Pending | QuoteCheck> {
     const occurrence = draft.occurrences[candidateId];
     const candidate = row.candidates.find(({ id }) => id === candidateId);
@@ -172,8 +170,9 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
       return { row, candidateId, pinpoints: occurrence?.pinpoints ?? candidate?.pinpoints ?? [], source: found.source,
         document: found.document };
     } catch {
+      // A provider that fails to answer has given no source text, as one that has none.
       signal?.throwIfAborted();
-      return unavailable(candidateId);
+      return { candidateId, status: "unavailable", receipt: null, detail: "The source's text could not be found." };
     }
   }
   // Each source the quotation's note cites is checked on its own, as the ALR Quote Verifier checks each citation part
@@ -211,37 +210,20 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   // is done.
   await Promise.all([...bySource].map(async ([document, items]) => {
     signal?.throwIfAborted();
-    try {
-      // The source's text, read where a quotation was not found in a passage of it.
-      let documentText: string | undefined;
-      const text = () => documentText ??= engine.documentText(document), revision = engine.documentRevision(document);
-      // An attached PDF is read by the locators it prints: a statute's, with its provisions as its print reads them.
-      const { provider, kind } = items[0].source;
-      const located = await engine.quoteLocateDocument(document,
-        provider !== "attached" ? "text" : kind === "legislation" ? "legislation" : "pdf",
-        items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints), id: row.id })),
-        options.compare !== false);
-      // Each found quotation's link, its text fragments planned off this thread.
-      const passages = items.map((item, index) => {
-        try { return linkedPassage(item, located[index].match); } catch (error) { return error as Error; }
-      });
-      await planLegalSourcePinpoints(document, passages.flatMap((passage) => passage && !(passage instanceof Error)
-        ? [passage] : [])).catch(() => signal?.throwIfAborted());
-      const hashes = new Map<string, string>();
-      items.forEach((item, index) => {
-        try {
-          const passage = passages[index];
-          if (passage instanceof Error) throw passage;
-          item.check = checked(item, located[index], passage, text, revision, hashes);
-        } catch {
-          signal?.throwIfAborted();
-          item.check = unavailable(item.candidateId);
-        }
-      });
-    } catch {
-      signal?.throwIfAborted();
-      for (const item of items) item.check ??= unavailable(item.candidateId);
-    }
+    // The source's text, read where a quotation was not found in a passage of it.
+    let documentText: string | undefined;
+    const text = () => documentText ??= engine.documentText(document), revision = engine.documentRevision(document);
+    // An attached PDF is read by the locators it prints: a statute's, with its provisions as its print reads them.
+    const { provider, kind } = items[0].source;
+    const located = await engine.quoteLocateDocument(document,
+      provider !== "attached" ? "text" : kind === "legislation" ? "legislation" : "pdf",
+      items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints), id: row.id })),
+      options.compare !== false);
+    // Each found quotation's link, its text fragments planned off this thread.
+    const passages = items.map((item, index) => linkedPassage(item, located[index].match));
+    await planLegalSourcePinpoints(document, passages.flatMap((passage) => passage ? [passage] : []));
+    const hashes = new Map<string, string>();
+    items.forEach((item, index) => { item.check = checked(item, located[index], passages[index], text, revision, hashes); });
     emit();
   }));
   /** The passage a found quotation's link opens: the block that holds the quoted words, with the block's own anchor

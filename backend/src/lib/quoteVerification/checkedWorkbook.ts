@@ -524,7 +524,7 @@ function quoteFields(quotes: Checked[]) {
       : accepted && !limited ? "OG_PINPOINT_MATCH" : "OG_PINPOINT_PARTIAL",
     quote_check_notes: [alternate.length ? pinpoint
       : limited ? "The cited pinpoint could not be isolated in the available source structure." : "",
-      quotes.some((quote) => !quote.receipt) ? "One or more quotations could not be checked because source text was unavailable." : "",
+      quotes.some((quote) => !quote.receipt) ? "No source text was found for one or more quotations." : "",
       quotes.some((quote) => quote.receipt?.match.location === "unmatched") ? "One or more quotations were not found in the source text." : "",
       quotes.some((quote) => quote.receipt && !quote.receipt.comparison) ? "One or more quotations have not been compared with the source wording." : ""
     ].filter(Boolean).join(" "),
