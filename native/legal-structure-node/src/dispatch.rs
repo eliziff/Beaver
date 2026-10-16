@@ -221,7 +221,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "verbatimRepair" => done(value(legal_structure::verbatim_repair(
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
         "quoteLocateDocument" => done(with_document(doc()?, |d| engine::quote_locate_document(
-            d, call.get::<bool>("judgment")?,
+            d, call.get::<legal_structure::QuoteSource>("source")?,
             &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true)).and_then(value))),
         "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?)
             .map(|found| found.map_or(Value::Null, |found| json!({ "metadata": found.metadata,

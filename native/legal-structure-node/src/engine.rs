@@ -325,14 +325,14 @@ pub fn citation_engine_call(method: &str, request: &str) -> Result<serde_json::V
 /// its id.
 pub fn quote_locate_document(
     document: &NativeDocument,
-    judgment: bool,
+    source: legal_structure::QuoteSource,
     quotes: &[legal_structure::QuoteToLocate],
     compare: bool,
 ) -> CoreResult<Vec<serde_json::Value>> {
     let text = document_text(document, None);
-    // An attached judgment's PDF is read by the locators it prints.
-    let source = if judgment { legal_structure::QuoteSource::Pdf } else { legal_structure::QuoteSource::Text };
-    let blocks = legal_structure::document_quote_blocks(document.structure(), &document.query, source, None);
+    let provisions = (source == legal_structure::QuoteSource::Legislation)
+        .then(|| document.instrument().map(legal_structure::PrintedStatute::quote_blocks)).flatten();
+    let blocks = legal_structure::document_quote_blocks(document.structure(), &document.query, source, provisions);
     Ok(legal_structure::locate_source_quotes(source, text, &blocks, quotes, compare).into_iter().zip(quotes).map(|(located, item)| {
         if !compare {
             return serde_json::to_value(&located).expect("a located quotation serializes");
