@@ -13,6 +13,7 @@ import { legalSourceOperations } from "../legalSourceApplication";
 import { buildLegalSourcePinpoint, canliiPinpointLink, citedPassageLink, legalSourceLocatorAnchor, sourceUrl } from "../legalSourceLinks";
 import { isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import type { NativeDocument } from "../structureNative";
+import type { LegalSourceReference } from "../legalSources";
 import type { QuoteCitationUnit } from "../quoteCitationSplit";
 import { structureNative } from "../structureNative";
 import { ApplicationError } from "../applicationError";
@@ -286,14 +287,24 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // The quotation found in a decision's or statute's A2AJ text, whose link this app makes (quoteLink).
   const a2ajFound = (index: number) => (checkedOn.get(index) ?? []).find((quote) => quote.receipt?.link
     && quote.receipt.match.location !== "unmatched" && quote.receipt.source.provider === "a2aj");
-  const documents = await Promise.all(parts.map(async (_, index): Promise<NativeDocument | null> => {
+  // Each part's source as read, and the pages that publish it (its provider's and the CanLII page its citation names,
+  // as partLink builds a link to it); none for a PDF attached for the authority.
+  const reads = await Promise.all(parts.map(async (_, index): Promise<{ document: NativeDocument; pages: string[] } | null> => {
     const source = /#(?:par|sec)/u.test(linkOf(index)) || pinpointed(index).length || a2ajFound(index) ? cited(index) : null;
     // A PDF attached for the authority (a CanLII download, a file from the watched folder) is read as its source.
     const own = source && "id" in source ? attached.get(String(source.id)) : undefined;
-    if (own) return own;
+    if (own) return { document: own, pages: [] };
     const found = source && read ? await read(source) : null;
-    return found && !found.missing ? found.document : null;
+    return found && !found.missing ? { document: found.document, pages: sourcePages(found.source) } : null;
   }));
+  const documents = reads.map((found) => found?.document ?? null);
+  // A text fragment is planned from the source read, so it goes on no link to another page of the site that publishes
+  // that source (a link to an Act cited for its regulation keeps its anchor alone); where the source's page on the
+  // link's site is not known, the link is taken to be its page.
+  const publishes = (index: number, link: string) => {
+    const pages = (reads[index]?.pages ?? []).map(pageIdentity).filter((page) => page.site === pageIdentity(link).site);
+    return !pages.length || pages.some((page) => page.page === pageIdentity(link).page);
+  };
   // A link this app makes: its anchor given its passage's text fragment where the passage can be read,
   // then as the text fragments option keeps it. The author's and the editor's own links stay as written.
   const own = (index: number) => !!editorLinks[index] || !!authorLinks[index] || (!kinds[index].kind && usableLink(fields[index].link_candidate));
@@ -304,6 +315,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // its anchor text shows), made once for the parts that cite it.
   const passageLinks = new Map<NativeDocument | null, Map<string, string>>();
   const passageLink = (link: string, document: NativeDocument | null, index: number) => {
+    if (!publishes(index, link)) return link;
     const pinpoints = pinpointed(index).length || !kinds[index].kind || origin[index] < 0 ? pinpointed(index)
       : pinpointed(origin[index]);
     let made = passageLinks.get(document);
@@ -336,7 +348,9 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     if (receipt.source.collection === "SCC" && kind === "paragraph") return link;
     const base = builtLink(index);
     if (!isCanliiUrl(base)) return link;
-    return buildLegalSourcePinpoint({ url: base, anchor: kind ? legalSourceLocatorAnchor(base, kind, label) ?? "" : "",
+    const anchor = kind ? legalSourceLocatorAnchor(base, kind, label) ?? "" : "";
+    if (!publishes(index, base)) return sourceUrl(base, anchor) ?? link;
+    return buildLegalSourcePinpoint({ url: base, anchor,
       blockText: receipt.match.text, documentText: document }, [receipt.match.fragment || found!.quote])?.target ?? link;
   };
   const passages = parts.map((_, index) => documents[index] ? pinpointed(index).flatMap((fragment) => {
@@ -445,6 +459,31 @@ function pdfToPage(link: string) {
 
 /** A link without its text fragment; its paragraph, section or page anchor stays. */
 const withoutFragment = (link: string) => link.replace(/#?:~:text=.*$/u, "");
+
+/** The pages that publish a source read: its provider's page and the CanLII page its citation names, as partLink
+ *  builds a link to it. */
+function sourcePages(source: LegalSourceReference) {
+  const language = source.language === "fr" ? "fr" : "en", dataset = source.collection ?? "";
+  const citations = [source.citation, source.alternateCitation].filter((value): value is string => !!value);
+  const canlii = source.kind === "legislation"
+    ? buildCanliiLawUrl({ dataset, citation: source.citation ?? "", language })
+    : source.kind === "case" ? structureNative().canliiCaseUrl(citations, language, dataset || null)
+      ?? citations.map((citation) => indexedCaseUrl(citation)).find(Boolean) ?? null : null;
+  return [source.url, canlii].filter((value): value is string => !!value);
+}
+
+/** A link's site (its host, with or without "www.") and the document page it opens there, whatever its scheme, query or
+ *  fragment: a CanLII statute's or regulation's by its jurisdiction and citation, at any version and as consolidated
+ *  or annual. */
+function pageIdentity(value: string) {
+  try {
+    const url = new URL(value), site = url.hostname.toLowerCase().replace(/^www\./u, "");
+    const law = isCanliiUrl(url) ? /^\/(?:en|fr)\/([a-z]+)\/laws\/[a-z]+\/([^/]+)\//u.exec(url.pathname) : null;
+    return { site, page: law ? `${law[1]}/laws/${law[2]}` : url.pathname };
+  } catch {
+    return { site: "", page: value };
+  }
+}
 
 /** A part's link: the author's own (unless `own` is false); else its source's page: CanLII for a Canadian decision or
  *  statute A2AJ identifies or its citation names, an article's PDF at its cited page, another provider's page.
