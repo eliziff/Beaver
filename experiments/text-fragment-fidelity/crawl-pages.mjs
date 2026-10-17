@@ -574,7 +574,7 @@ async function crawl(page, url) {
     manifest.write(`${JSON.stringify({ url: fetchUrl, file, bytes: html.length, contentType: "text/html", httpStatus, challenged, frozenElements: frozen.elements })}\n`);
     return { ok: true, bytes: html.length, httpStatus, challenged, frozenElements: frozen.elements };
   } catch (error) {
-    manifest.write(`${JSON.stringify({ url, file: null, error: String(error).slice(0, 80) })}\n`);
+    manifest.write(`${JSON.stringify({ url, fetchUrl: fetchUrlFor(url), file: null, error: String(error).slice(0, 80) })}\n`);
     return { ok: false, error: String(error).slice(0, 80) };
   }
 }
