@@ -67,6 +67,13 @@ export type AuthoritiesBuildSettings = {
   /** A decision of subsequent history ("aff'd 2010 ABCA 191"): a tab of its own (the default), or
    *  printed with the case it follows, with no tab, index line or source of its own. */
   subsequentHistory?: "omit" | "include";
+  /** How the book reproduces each case and other source (a statute goes by its own length): in full (the
+   *  default), or as an excerpt of its first page, the pages the brief cites, and the context around them. */
+  caseCopy?: "whole" | "excerpt";
+  /** The paragraphs an excerpt keeps before and after each cited paragraph of a case (default 1). */
+  contextParagraphs?: number;
+  /** The pages an excerpt keeps before and after each cited page of a source without placed paragraphs (default 1). */
+  contextPages?: number;
 };
 
 export type AuthoritiesSettings = AuthoritiesBuildSettings & {
@@ -157,7 +164,8 @@ export type AuthorityIdentity = {
   source: AuthoritySourceDecision;
   highlightExclusions?: AuthorityHighlightExclusion[];
   annotations?: PdfAnnotationSets;
-  /** A statute in the book as an excerpt (true) or whole (false), as chosen; unset, by its length. */
+  /** In the book as an excerpt (true) or whole (false), as chosen; unset, a statute by its length and any
+   *  other authority as the book's `caseCopy` says. */
   excerpt?: boolean;
   userAdded?: true;
   /** Import provenance: detected while scanning, never entered by hand. */

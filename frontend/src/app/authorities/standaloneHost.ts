@@ -1,6 +1,6 @@
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
-import { attachedAuthoritySources, authoritiesInputPlan, statuteExcerpt } from "../../../../shared/authorities-sources.mjs";
+import { attachedAuthoritySources, authoritiesInputPlan, authorityExcerpt } from "../../../../shared/authorities-sources.mjs";
 import { oneAtATime } from "../../../../shared/one-at-a-time.mjs";
 import type { AuthoritiesProduct } from "./types";
 import {
@@ -197,13 +197,14 @@ async function sourceText(product: AuthoritiesProduct, role: string, signal?: Ab
 type RecognitionJob = { controller: AbortController; progress: PdfProgress };
 const recognitionJobs = new Map<string, RecognitionJob>();
 
-/** What a statute's excerpt depends on: the statute, its PDFs, where the brief cites it, what is marked in it and
- *  the settings a build reads it under. Another value is another count; a TAB page or a right-hand start is not. */
+/** What an excerpt depends on: the authority, its PDFs, where the brief cites it, what is marked in it and the
+ *  settings a build reads it under. Another value is another count; a TAB page or a right-hand start is not. */
 function excerptInputs(product: AuthoritiesProduct) {
   const { state } = product;
-  const statutes = Object.values(state.authorities).filter((authority) => !authority.excluded && statuteExcerpt(authority));
-  return { statutes, key: JSON.stringify([product.id, state.settings.passageMarking, state.settings.scannedPdfPolicy,
-    state.settings.finalPdf, state.settings.linkPinpoints, statutes.map((authority) => [authority.id, authority.excerpt,
+  const excerpted = Object.values(state.authorities).filter((authority) => !authority.excluded && authorityExcerpt(state, authority));
+  return { excerpted, key: JSON.stringify([product.id, state.settings.passageMarking, state.settings.scannedPdfPolicy,
+    state.settings.finalPdf, state.settings.linkPinpoints, state.settings.contextParagraphs, state.settings.contextPages,
+    excerpted.map((authority) => [authority.id, authority.excerpt,
       attachedAuthoritySources(authority.source).map(({ bindingRole, sourceSha256 }) => [bindingRole, sourceSha256]),
       Object.values(state.occurrences).filter(({ authorityId }) => authorityId === authority.id)
         .map(({ id, pinpoints }) => [id, pinpoints]),
@@ -211,14 +212,14 @@ function excerptInputs(product: AuthoritiesProduct) {
 }
 /** The last count asked for, by draft: a preview asks again only when what the count depends on changed. */
 const excerptCounts = new Map<string, { key: string; counted: Promise<Record<string, number>> }>();
-/** The pages each statute the book excerpts keeps, by authority, read in the runtime that reads the sources (so
- *  a build finds them read): each statute's PDFs in turn, the last giving its count. */
+/** The pages each authority the book excerpts keeps, by authority, read in the runtime that reads the sources (so
+ *  a build finds them read): each authority's PDFs in turn, the last giving its count. */
 function excerptPages(product: AuthoritiesProduct) {
-  const { statutes, key } = excerptInputs(product), kept = excerptCounts.get(product.id);
+  const { excerpted, key } = excerptInputs(product), kept = excerptCounts.get(product.id);
   if (kept?.key === key) return kept.counted;
   const counted = (async () => {
     const pages: Record<string, number> = {};
-    for (const authority of statutes) for (const source of attachedAuthoritySources(authority.source)) {
+    for (const authority of excerpted) for (const source of attachedAuthoritySources(authority.source)) {
       const form: AuthoritiesRequest = { draft: product.state, role: source.bindingRole };
       const file = await resolveExact(product.state.bindings[source.bindingRole], true);
       if (!file) break;

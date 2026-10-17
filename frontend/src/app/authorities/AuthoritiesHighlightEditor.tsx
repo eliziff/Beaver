@@ -103,7 +103,8 @@ const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string
 
 type Marking = AuthoritiesBuildSettings['passageMarking'];
 // The colours the book's marks are written in (authoritiesAnnotations.ts), at their opacity.
-const RED_LINE = 'rgb(191 20 20 / .9)', BLACK_LINE = 'rgb(20 20 20 / .9)', YELLOW = 'rgb(255 235 153 / .45)';
+const RED_LINE = 'rgb(191 20 20 / .9)', BLACK_LINE = 'rgb(20 20 20 / .9)';
+export const YELLOW = 'rgb(255 235 153 / .45)';
 /** A page in miniature whose middle paragraph is cited, marked as the built book marks it. */
 function MarkPreview({ type }: { type: Marking }) {
   const line = type === 'margin' ? RED_LINE : type === 'sidelined' ? BLACK_LINE : undefined;
@@ -161,7 +162,7 @@ const savedSet = (product: AuthoritiesProduct, choice: Choice) => {
 type Prepared = { set: PdfAnnotationSet; warning: string };
 type Ahead = { choice: Choice; result?: Promise<Prepared>; ready?: Prepared };
 /** Automatic marks prepared before their source is opened, for one draft: all it asks of them but
- *  the step it is on, the marks saved and how much of each statute goes in, which preparing them
+ *  the step it is on, the marks saved and how much of each authority goes in, which preparing them
  *  reads none of. */
 type Store = { draft: string; product: AuthoritiesProduct; abort: AbortController; sources: Map<string, Ahead>;
   queue: Ahead[]; running: boolean };
@@ -170,6 +171,7 @@ const draftKey = (product: AuthoritiesProduct) => {
   let key = draftKeys.get(product.state);
   if (key === undefined) draftKeys.set(product.state, key = `${product.id}\0${JSON.stringify(product.state,
     function (name, value) { return name === 'annotations' || name === 'excerpt' && typeof value === 'boolean' ||
+      this === product.state.settings && ['caseCopy', 'contextParagraphs', 'contextPages'].includes(name) ||
       name === 'stage' && this === product.state ? undefined : value; })}`);
   return key;
 };

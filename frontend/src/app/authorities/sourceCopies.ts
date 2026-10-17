@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { attachedAuthoritySources, statuteExcerpt } from "../../../../shared/authorities-sources.mjs";
+import { attachedAuthoritySources, authorityExcerpt } from "../../../../shared/authorities-sources.mjs";
 import { oneAtATime } from "../../../../shared/one-at-a-time.mjs";
 import { getPdfJs, openPdfDocument, PDF_DOCUMENT_OPTIONS } from "@/app/lib/pdfJs";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
 
-/** A statute row's book copy: whether it can be chosen, and excerpt or whole (unknown until the
- *  statute's length is). */
-export type StatuteCopy = { choosable: boolean; excerpt?: boolean };
+/** A row's book copy: whether it can be chosen, and excerpt or whole (a statute's unknown until its
+ *  length is). */
+export type SourceCopy = { choosable: boolean; excerpt?: boolean };
 
 type Read = { key: string; role: string };
 
@@ -30,30 +30,30 @@ function storeFor(host: AuthoritiesHost, draftId: string) {
 }
 
 /**
- * The book copy of each statute the book reproduces, by authority: as chosen in `shown`, else by
- * its length, recorded when its PDF was attached or read here, one PDF at a time while `active`, the
- * first time it is wanted.
+ * The book copy of each authority the book reproduces, by authority: as chosen in `shown`, else a statute
+ * by its length, recorded when its PDF was attached or read here, one PDF at a time while `active`, the
+ * first time it is wanted, and any other as the book's setting says.
  */
-export function useStatuteCopies(host: AuthoritiesHost, product: AuthoritiesProduct | undefined,
+export function useSourceCopies(host: AuthoritiesHost, product: AuthoritiesProduct | undefined,
   shown: AuthoritiesProduct | undefined, active: boolean) {
   const [version, setVersion] = useState(0);
   const { rows, wanted } = useMemo(() => {
-    const rows = new Map<string, StatuteCopy>(), wanted: Read[] = [];
+    const rows = new Map<string, SourceCopy>(), wanted: Read[] = [];
     const state = shown?.state, held = product && stores.get(host);
     const read = held?.draftId === product?.id ? held?.read : undefined;
     if (!product || !state || state.import.kind !== "document" || state.outputMode === "table" && !state.settings.finalPdf)
       return { rows, wanted };
     for (const id of state.authorityOrder) {
       const authority = state.authorities[id];
-      if (authority?.kind !== "legislation") continue;
+      if (!authority) continue;
       const sources = attachedAuthoritySources(authority.source);
       if (!sources.length || authority.excluded) { rows.set(id, { choosable: false }); continue; }
-      const counts = sources.map(({ bindingRole, sourceSha256, pageCount }) => {
+      const counts = authority.kind !== "legislation" ? undefined : sources.map(({ bindingRole, sourceSha256, pageCount }) => {
         const key = `count\0${sourceSha256}`, value = pageCount ?? read?.get(key);
         if (value === undefined && host.readSource) wanted.push({ key, role: bindingRole });
         return typeof value === "number" ? value : undefined;
       });
-      rows.set(id, { choosable: true, excerpt: statuteExcerpt(authority, counts) });
+      rows.set(id, { choosable: true, excerpt: authorityExcerpt(state, authority, counts) });
     }
     return { rows, wanted };
   // What has been read is kept outside React; `version` moves on as each read lands.

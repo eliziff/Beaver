@@ -74,6 +74,7 @@ export const AUTHORITIES_SETTINGS_CHOICES = {
   filingMedium: ["electronic", "paper"],
   bookRole: AUTHORITIES_BOOK_ROLES,
   subsequentHistory: ["omit", "include"],
+  caseCopy: ["whole", "excerpt"],
 } as const;
 
 export function decodeAuthoritiesInitialSettings(value: unknown): AuthoritiesInitialSettings {
@@ -83,7 +84,7 @@ function settings(value: unknown, initial: true): AuthoritiesInitialSettings;
 function settings(value: unknown, initial?: false): Partial<AuthoritiesBuildSettings>;
 function settings(value: unknown, initial = false) {
   const item = object(value), allowed = new Set([
-    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "citationSuffixLabel", "allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", "tabPages", "rightHandStarts", "sourceText", "foreignCaseLookup", ...(initial
+    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "citationSuffixLabel", "allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", "tabPages", "rightHandStarts", "sourceText", "foreignCaseLookup", "contextParagraphs", "contextPages", ...(initial
       ? ["profileId", "outputMode", "insertIntoDocument"] : []),
   ]);
   if (Object.keys(item).some((key) => !allowed.has(key))) return bad();
@@ -95,6 +96,7 @@ function settings(value: unknown, initial = false) {
     result.tabStart = integer(item.tabStart, 1);
     if (Number(result.tabStart) > 10_000) return bad();
   }
+  for (const key of ["contextParagraphs", "contextPages"]) if (item[key] !== undefined) result[key] = integer(item[key]);
   if (item.tabPrefix !== undefined) {
     // Preserve intentional trailing spaces in the prefix.
     plain(item.tabPrefix, 80); result.tabPrefix = item.tabPrefix;
