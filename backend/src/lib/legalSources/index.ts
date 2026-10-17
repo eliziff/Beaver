@@ -64,7 +64,12 @@ export type LegalSourceResolveRequest = {
 // looks, as the Python app's local-only run asks none.
 let local = false;
 export const keepLookupsLocal = (value: boolean) => { local = value; };
-export const lookupsLeaveComputer = () => !local;
+// A runtime that cannot reach the US and UK publishers' hosts (AuthoritiesHelper's page built without them) looks
+// for no decision there, as a draft that leaves them out looks for none: their providers are not asked.
+let foreignCaseHosts = true;
+export const reachForeignCaseHosts = (value: boolean) => { foreignCaseHosts = value; };
+export const lookupsLeaveComputer = (provider?: string) =>
+  !local && (foreignCaseHosts || !FOREIGN_CASE_PROVIDERS.has(provider ?? ""));
 
 /** The providers of US and UK decisions, which a draft can leave out (its foreignCaseLookup setting). */
 export const FOREIGN_CASE_PROVIDERS: ReadonlySet<string> = new Set(["courtlistener", "tna", "govuk-et", "govinfo"]);

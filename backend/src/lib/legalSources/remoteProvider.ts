@@ -82,7 +82,7 @@ export function remoteCaseProvider<Result>(spec: {
       LegalSourceReference;
   return {
     id: spec.id,
-    canResolve: ({ kind, text }) => kind === "case" && lookupsLeaveComputer() && Boolean(spec.matches(text)),
+    canResolve: ({ kind, text }) => kind === "case" && lookupsLeaveComputer(spec.id) && Boolean(spec.matches(text)),
     async resolve({ text, signal }) {
       const result = await spec.search(text, signal);
       return result ? [reference(result)] : [];
