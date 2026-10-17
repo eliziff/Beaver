@@ -1,21 +1,15 @@
-"""Align typed blocks to the source lines and express them in the shared structure contract.
+"""Align typed lines to the source lines.
 
-The model types each block's printed text in reading order. The runner derives the rest:
-the source characters each block, table cell, printed marker and note reference covers;
-scalar text corrections where the typed text differs from the extraction; and continuation
-and document links. The shared Rust composition validates the result.
+The model types each page's printed lines in reading order. The runner derives the rest: the
+source characters each typed line, table cell, printed marker and note reference covers, and the
+scalar text corrections where the typed text differs from the extraction.
 """
 from difflib import SequenceMatcher
 import re
 import unicodedata
 
-from prompts import REGIONS, FLAGS
+from prompts import REGIONS
 
-ROLES = {"quote": "text", "note": "text", "table": "text", "list_item": "text"}
-MARKED = {"text", "list_item", "quote", "heading"}
-LINKS = {"text": ("paragraph", " "), "list_item": ("paragraph", " "), "caption": ("paragraph", " "),
-         "headnote": ("paragraph", " "), "marginal_note": ("paragraph", " "), "heading": ("heading", " "),
-         "note": ("note", " "), "quote": ("paragraph", " "), "table": ("table", None)}
 OPENING = "\"'“‘„‚«"
 FOLD = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'", "′": "'", "`": "'",
                       "“": '"', "”": '"', "„": '"', "‟": '"', "″": '"',
@@ -26,7 +20,7 @@ SPACE = (" ", None, None, None)
 
 
 class UnusableExtraction(Exception):
-    """The page's extracted lines do not carry its printed text, so no typed block can anchor to
+    """The page's extracted lines do not carry its printed text, so no typed line can anchor to
     them; asking again cannot change that."""
 
 
@@ -34,38 +28,40 @@ def require(ok, message):
     if not ok: raise ValueError(message)
 
 
-# Typed items are (char, block, cell, tag); tag is None, "marker" or ("ref", n). None separates
-# blocks and cells. Source items are (char, line_id, offset); None separates lines.
+# Typed items are (char, line, cell, tag); tag is None, ("marker", k) or ("ref", n). None separates
+# typed lines and cells. Source items are (char, line_id, offset); None separates lines.
 
-def typed_items(blocks, first=0):
+def typed_items(lines, first=0):
     items, parsed = [], []
-    for number, block in enumerate(blocks, first):
-        region, text = block[0], block[1]
-        flags = set(block[2]) if len(block) > 2 else set()
-        require(region in REGIONS and flags <= set(FLAGS), "Unknown region or flag")
-        rows = [row.split("|") for row in text.split("\n")] if region == "table" else [[text]]
-        width = max(len(row) for row in rows)
-        start, references = len(items), []
-        for r, row in enumerate(rows):
-            for c, cell in enumerate(row):
-                items.append(None)
-                tab = cell.find("\t") if region != "table" else -1
-                marker = tab if 0 < tab <= 12 and cell[:tab].strip() and "\n" not in cell[:tab] else None
-                position = 0
-                for match in [*REFERENCE.finditer(cell), None]:
-                    end = match.start() if match else len(cell)
-                    for offset in range(position, end):
-                        tag = "marker" if marker is not None and offset < marker else None
-                        items.append((cell[offset], number, r * width + c, tag))
-                    if match:
-                        # The marker is printed glued to its word but may be extracted on its own.
-                        references.append(match[1])
-                        items.append(None)
-                        items.extend((char, number, r * width + c, ("ref", len(references) - 1)) for char in match[1])
-                        items.append(None)
-                        position = match.end()
-        require(any(item and not item[0].isspace() for item in items[start:]), "A block has no text")
-        parsed.append({"region": region, "flags": flags, "width": width, "rows": len(rows), "references": references})
+    for number, (region, text) in enumerate(lines, first):
+        require(region in REGIONS, "Unknown region")
+        cells = text.split("|") if region == "table" else [text]
+        start, references, markers = len(items), [], 0
+        for c, cell in enumerate(cells):
+            items.append(None)
+            # Leading printed markers, each closed by a tab: "12\t(1)\tThe Minister".
+            ends, at = [], 0
+            while region != "table":
+                tab = cell.find("\t", at)
+                if not (0 < tab - at <= 12 and cell[at:tab].strip() and "\n" not in cell[at:tab]): break
+                ends.append(tab); at = tab + 1
+            markers = max(markers, len(ends))
+            position = 0
+            for match in [*REFERENCE.finditer(cell), None]:
+                end = match.start() if match else len(cell)
+                for offset in range(position, end):
+                    k = next((k for k, stop in enumerate(ends) if offset < stop), None)
+                    tag = ("marker", k) if k is not None and (k == 0 or offset > ends[k - 1]) else None
+                    items.append((cell[offset], number, c, tag))
+                if match:
+                    # The marker is printed glued to its word but may be extracted on its own.
+                    references.append(match[1])
+                    items.append(None)
+                    items.extend((char, number, c, ("ref", len(references) - 1)) for char in match[1])
+                    items.append(None)
+                    position = match.end()
+        require(any(item and not item[0].isspace() for item in items[start:]), "A line has no text")
+        parsed.append({"region": region, "cells": len(cells), "markers": markers, "references": references})
     items.append(None)
     return items, parsed
 
@@ -309,49 +305,35 @@ def divide(items, sizes):
     return result
 
 
-def inside(span, members):
-    return any(span["line_id"] == m["line_id"] and m["start"] <= span["start"] and span["end"] <= m["end"] for m in members)
-
-
-def label(text):
-    return unicodedata.normalize("NFKC", text).strip(" .()[]{}:")
-
-
-def structure(chunks, lines, order):
-    """Blocks, annotations and links over corrected lines.
+def typed_spans(chunks, lines, order):
+    """Each typed line's source spans, cells, markers and note references over the corrected lines.
 
     chunks: [(result, chars)] in reading order; lines: {id: {"text", "page"}} after correction;
-    order: reading order of line ids. Returns the composition request parts and a report."""
+    order: reading order of line ids. Returns the parsed typed lines with their spans, and a report."""
     position = {ident: n for n, ident in enumerate(order)}
-    blocks, owned = [], {}
+    typed, owned = [], {}
     for result, chars in chunks:
-        base = len(blocks)
-        blocks.extend(result["parsed"])
+        base = len(typed)
+        typed.extend(result["parsed"])
         for ident, line in chars.items():
             owned[ident] = [(c, None if o is None else (base + o[1], o[2], o[3])) for c, o in line]
-    report = {"lines_without_typed_text": [], "unlinked_continuations": [], "unmatched_references": [],
-              "table_anchor_mismatch": []}
+    report = {"lines_without_typed_text": []}
     # Characters the model did not type take the owner of their neighbours on the line, then on the page.
     for ident in order:
         if ident not in owned: continue
         line = owned[ident]
-        last = None
-        for n, (c, o) in enumerate(line):
-            if o is not None: last = o[:2]
-            elif last is not None: line[n] = (c, (*last, None))
-        last = None
-        for n in range(len(line) - 1, -1, -1):
-            c, o = line[n]
-            if o is not None: last = o[:2]
-            elif last is not None: line[n] = (c, (*last, None))
+        for sweep in (range(len(line)), range(len(line) - 1, -1, -1)):
+            last = None
+            for n in sweep:
+                c, o = line[n]
+                if o is not None: last = o[:2]
+                elif last is not None: line[n] = (c, (*last, None))
     ids = [i for i in order if i in owned]
     for n, ident in enumerate(ids):
         if owned[ident] and owned[ident][0][1] is None:
             page = lines[ident]["page"]
             near = [j for j in reversed(ids[:n]) if lines[j]["page"] == page] + [j for j in ids[n + 1:] if lines[j]["page"] == page]
-            source = next((j for j in near if owned[j] and owned[j][0][1] is not None), None) or \
-                     next((j for j in reversed(ids[:n]) if owned[j] and owned[j][0][1] is not None), None) or \
-                     next(j for j in ids[n + 1:] if owned[j] and owned[j][0][1] is not None)
+            source = next((j for j in near if owned[j] and owned[j][0][1] is not None), None) or                      next((j for j in reversed(ids[:n]) if owned[j] and owned[j][0][1] is not None), None) or                      next(j for j in ids[n + 1:] if owned[j] and owned[j][0][1] is not None)
             fill = owned[source][-1][1][:2] if position[source] < position[ident] else owned[source][0][1][:2]
             owned[ident] = [(c, (*fill, None)) for c, _ in owned[ident]]
             report["lines_without_typed_text"].append(lines[ident]["text"])
@@ -360,8 +342,7 @@ def structure(chunks, lines, order):
         for ident in ids:
             line, n = owned[ident], 0
             while n < len(line):
-                k = key(line[n][1])
-                m = n
+                k = key(line[n][1]); m = n
                 while m < len(line) and key(line[m][1]) == k: m += 1
                 if k is not None:
                     a, b = n, m
@@ -371,169 +352,19 @@ def structure(chunks, lines, order):
                     if a < b: result.setdefault(k, []).append({"line_id": ident, "start": a, "end": b})
                 n = m
         return result
-    block_spans = spans(lambda o: o[0])
-    cell_spans = spans(lambda o: o[:2], strip=True)
-    markers = spans(lambda o: o[0] if o[2] == "marker" else None, strip=True)
-    for found in markers.values():
+    whole = spans(lambda o: o[0])
+    cells = spans(lambda o: o[:2], strip=True)
+    markers = spans(lambda o: (o[0], o[2][1]) if isinstance(o[2], tuple) and o[2][0] == "marker" else None, strip=True)
+    references = spans(lambda o: (o[0], o[2][1]) if isinstance(o[2], tuple) and o[2][0] == "ref" else None, strip=True)
+    for (n, k), found in markers.items():
         # An opening quotation mark stays in the text but outside the printed marker.
-        while found and lines[found[0]["line_id"]]["text"][found[0]["start"]] in OPENING:
+        while k == 0 and found and lines[found[0]["line_id"]]["text"][found[0]["start"]] in OPENING:
             found[0]["start"] += 1
             if found[0]["start"] == found[0]["end"]: found.pop(0)
-    references = spans(lambda o: (o[0], o[2][1]) if isinstance(o[2], tuple) else None, strip=True)
-    anchor = lambda span: f"{span['line_id']}@{span['start']}"
-    groups, annotations, fragments = [], [], {}
-    for number, block in enumerate(blocks):
-        members = sorted(block_spans.get(number, []), key=lambda s: (position[s["line_id"]], s["start"]))
-        pages = {}
-        for span in members: pages.setdefault(lines[span["line_id"]]["page"], []).append(span)
-        fragments[number] = []
-        for index, part in enumerate(pages.values()):
-            attributes = {"parent": None, "reading_stream_id": None}
-            mark = [s for s in markers.get(number, []) if index == 0 and inside(s, part)]
-            if block["region"] in MARKED and mark: attributes["marker"] = mark
-            if block["region"] == "list_item": attributes.update(locator_kind="list_item", marker=mark)
-            elif block["region"] in {"text", "quote"} and mark: attributes["locator_kind"] = "paragraph"
-            groups.append({"kind": ROLES.get(block["region"], block["region"]), "spans": part, "attributes": attributes})
-            item = {"block": anchor(part[0]), "spans": part, "label": mark, "group": groups[-1]}
-            if block["region"] == "note":
-                item["annotation"] = {"id": "", "kind": "note", "spans": part,
-                                      "attributes": {"kind": "footnote", "label": mark, "references": []}}
-                annotations.append(item["annotation"])
-            fragments[number].append(item)
-        if block["region"] == "table" and members:
-            table_fragments(block, number, cell_spans, lines, position, fragments[number], annotations, report)
-    # Documents: each flagged block opens a constituent of one root at the first block.
-    at = lambda span: (position[span["line_id"]], span["start"])
-    def straddled(opening):
-        o = at(opening)
-        return any(at(g["spans"][0]) < o and (position[s["line_id"]], s["end"] - 1) >= o
-                   for g in groups for s in g["spans"])
-    starts = [n for n, b in enumerate(blocks) if "document" in b["flags"] and fragments[n]]
-    report["document_starts_inside_blocks"] = [blocks[n]["region"] for n in starts if straddled(fragments[n][0]["spans"][0])]
-    starts = [n for n in starts if not straddled(fragments[n][0]["spans"][0])]
-    first = min((n for n in fragments if fragments[n]), key=lambda n: at(fragments[n][0]["spans"][0]), default=None)
-    documents = []
-    if starts and first is not None:
-        root = "document:" + fragments[first][0]["block"]
-        for n in [first] + [n for n in starts if n != first]:
-            opening = fragments[n][0]["spans"][0]
-            documents.append({"id": "document:" + anchor(opening), "kind": "document", "spans": [opening],
-                              "attributes": {"kind": None, "parent": None if n == first else root,
-                                             "relationship": None, "title": [], "facets": {}}})
-        annotations.extend(documents)
-    opens = sorted(at(d["spans"][0]) for d in documents)
-    scope = lambda span: sum(1 for o in opens if o <= at(span))
-    # A note reference names the note with the same printed label: the next one, else the last
-    # before. The shared composition gives a note to the document of its references; a note
-    # referenced from two documents keeps the references of the document it is printed in.
-    text = lambda members: label("".join(lines[s["line_id"]]["text"][s["start"]:s["end"]] for s in members))
-    notes = [(n, text(fragments[n][0]["label"])) for n, b in enumerate(blocks)
-             if b["region"] == "note" and fragments[n] and fragments[n][0]["label"]]
-    report["references"] = sum(len(b["references"]) for b in blocks)
-    report["references_linked"] = 0
-    for (number, k), refs in sorted(references.items()):
-        printed = text(refs)
-        candidates = [n for n, value in notes if value == printed]
-        target = next((n for n in candidates if n > number), candidates[-1] if candidates else None)
-        if target is None or len(refs) != 1:
-            report["unmatched_references"].append(printed); continue
-        fragments[target][0]["annotation"]["attributes"]["references"].extend(refs)
-    for n, _ in notes:
-        note = fragments[n][0]["annotation"]["attributes"]
-        if len({scope(r) for r in note["references"]}) > 1:
-            here = scope(fragments[n][0]["spans"][0])
-            report["unmatched_references"].extend(text([r]) for r in note["references"] if scope(r) != here)
-            note["references"] = [r for r in note["references"] if scope(r) == here]
-        report["references_linked"] += len(note["references"])
-    # Block quotations: a quote block opens one, quoted blocks and continued quotes extend the open
-    # one, other running text closes it. One annotation per page, linked across pages.
-    continuations, quotations, current = {}, [], None
-    for number, block in enumerate(blocks):
-        if not fragments[number]: continue
-        if block["region"] == "quote" and not ("continued" in block["flags"] and quotations):
-            current = [number]; quotations.append(current)
-        elif block["region"] == "quote" or "quoted" in block["flags"]:
-            if current is None:
-                current = quotations[-1] if "continued" in block["flags"] and quotations else []
-                if not current: quotations.append(current)
-            current.append(number)
-        elif block["region"] not in {"furniture", "page_label", "note"}:
-            current = None
-    for members in quotations:
-        pages = {}
-        for n in members:
-            for part in fragments[n]: pages.setdefault(lines[part["spans"][0]["line_id"]]["page"], []).extend(part["spans"])
-        previous = None
-        for page_spans in pages.values():
-            page_spans.sort(key=at)
-            annotations.append({"id": "", "kind": "quotation", "spans": page_spans,
-                                "attributes": {"layout": "display", "attribution": []}})
-            if previous is not None:
-                continuations.setdefault("quotation", {})[anchor(previous[0])] = {
-                    "next": anchor(page_spans[0]), "separator": None, "kind": "quotation"}
-            previous = page_spans
-    outgoing, incoming = set(), set()
-    place = lambda ident: (position[ident.rsplit("@", 1)[0]], int(ident.rsplit("@", 1)[1]))
-    def link(region, left, right, why):
-        kind, separator = LINKS.get(region, (None, None))
-        a, b = left.get("table_anchor", left["block"]) if kind == "table" else left["block"], \
-               right.get("table_anchor", right["block"]) if kind == "table" else right["block"]
-        if kind is None or (kind == "table" and ("table_anchor" not in left or "table_anchor" not in right)) \
-                or (kind, a) in outgoing or (kind, b) in incoming or place(a) >= place(b) \
-                or scope(left["spans"][0]) != scope(right["spans"][0]):
-            # A link runs forward to a fragment nothing else continues into.
-            report["unlinked_continuations"].append({"region": region, "reason": why}); return
-        outgoing.add((kind, a)); incoming.add((kind, b))
-        continuations.setdefault(kind, {})[a] = {"next": b, "separator": separator, "kind": kind}
-        if kind == "paragraph" and left["group"]["attributes"].get("locator_kind") == "list_item"                 and right["group"]["attributes"].get("locator_kind") in (None, "list_item"):
-            # A list item's text continues, and so does the list: the fragment is that item's.
-            right["group"]["attributes"].update(locator_kind="list_item", marker=right["group"]["attributes"].get("marker", []))
-            continuations.setdefault("list", {})[a] = {"next": b, "separator": None, "kind": "list"}
-    # A continued block resumes the latest earlier block of its stream: notes, tables, quotations
-    # or the running text.
-    family = lambda block: "quote" if block["region"] == "quote" or "quoted" in block["flags"] else \
-        block["region"] if block["region"] in {"note", "table"} else None if block["region"] in {"furniture", "page_label"} else "text"
-    last = {}
-    for number, block in enumerate(blocks):
-        parts = fragments[number]
-        if not parts: continue
-        stream = family(block)
-        if "continued" in block["flags"]:
-            earlier = last.get(stream)
-            if earlier is None or blocks[earlier]["region"] != block["region"] and ROLES.get(blocks[earlier]["region"], blocks[earlier]["region"]) != ROLES.get(block["region"], block["region"]):
-                report["unlinked_continuations"].append({"region": block["region"], "reason": "no earlier block of its kind"})
-            else: link(block["region"], fragments[earlier][-1], parts[0], "flag")
-        for left, right in zip(parts, parts[1:]): link(block["region"], left, right, "page break")
-        if stream: last[stream] = number
-    # A continued table is one grid: a fragment typed with fewer cells per row has empty ones.
-    tables = {anchor(a["spans"][0]): a for a in annotations if a["kind"] == "table"}
-    links = continuations.get("table", {})
-    for start in set(links) - {link["next"] for link in links.values()}:
-        chain = [start]
-        while chain[-1] in links: chain.append(links[chain[-1]]["next"])
-        width = max(len(row) for ident in chain for row in tables[ident]["attributes"]["rows"])
-        for ident in chain:
-            for row in tables[ident]["attributes"]["rows"]: row.extend([] for _ in range(width - len(row)))
-    return {"groups": groups, "annotations": annotations, "continuations": continuations}, report
-
-
-def table_fragments(block, number, cell_spans, lines, position, parts, annotations, report):
-    """One table annotation per page fragment, rows on the page of their first text."""
-    width, pages = block["width"], [lines[p["spans"][0]["line_id"]]["page"] for p in parts]
-    rows, current = {}, pages[0]
-    for r in range(block["rows"]):
-        cells = [sorted(cell_spans.get((number, r * width + c), []), key=lambda s: (position[s["line_id"]], s["start"])) for c in range(width)]
-        found = [s for cell in cells for s in cell]
-        if found: current = lines[min(found, key=lambda s: (position[s["line_id"]], s["start"]))["line_id"]]["page"]
-        rows.setdefault(current, []).append([[s for s in cell if lines[s["line_id"]]["page"] == current] for cell in cells])
-    for page, part in zip(pages, parts):
-        grid = rows.get(page, [])
-        populated = [s for row in grid for cell in row for s in cell]
-        if not populated: continue
-        first = next(cell[0] for row in grid for cell in row if cell)
-        earliest = min(populated, key=lambda s: (position[s["line_id"]], s["start"]))
-        if first != earliest:
-            report["table_anchor_mismatch"].append(page); continue
-        annotations.append({"id": "", "kind": "table", "spans": sorted(populated, key=lambda s: (position[s["line_id"]], s["start"])),
-                            "attributes": {"rows": grid, "header_rows": [], "merges": []}})
-        part["table_anchor"] = f"{first['line_id']}@{first['start']}"
+    out = []
+    for n, item in enumerate(typed):
+        out.append({"region": item["region"], "spans": whole.get(n, []),
+                    "markers": [markers.get((n, k), []) for k in range(item["markers"])],
+                    "references": [{"label": label, "spans": references.get((n, r), [])} for r, label in enumerate(item["references"])],
+                    **({"cells": [cells.get((n, c), []) for c in range(item["cells"])]} if item["region"] == "table" else {})})
+    return out, report

@@ -1,46 +1,61 @@
-"""The structure-gold authoring call: page images and extracted lines in, typed blocks out."""
+"""The structure-gold calls: lines (page images and extracted lines in, typed lines and their
+grouping out) and hierarchy (numbered units and page images in, parents out)."""
 
-REGIONS = ("text", "list_item", "heading", "quote", "note", "table", "caption", "headnote",
+REGIONS = ("text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote",
            "marginal_note", "furniture", "page_label")
-FLAGS = ("continued", "document", "quoted")
 
-INSTRUCTIONS = """Transcribe each TARGET page as a list of blocks in reading order, one list per TARGET page. Each block is [region, text] or [region, text, flags].
+LINES = """Transcribe each TARGET page line by line in reading order, one list per page. Each line is [region, text].
 
-Text is the block's printed text, line by line, joined with \\n. The extracted lines below can be wrong: type what the images show, keeping extracted characters the print agrees with and correcting misread, garbled or missing ones. Type every printed character of the TARGET pages once.
+Text is the line's printed text. The extracted lines below can be wrong: type what the image shows.
 
 Regions:
-text: a paragraph, numbered or not, or other running text
-list_item: one item of a list
+text: running text, such as a paragraph or a numbered provision
+list_item: every line of an item in a list
 heading: a heading or title
-quote: a block quotation set off from the running text; each quote block starts a new quotation
-note: one footnote or endnote
-table: a whole table; one line per row, cells joined by " | ", a cell's own line breaks become spaces
+quote: a block quotation set off from the running text; a quotation inside a paragraph is text
+note: a footnote or endnote
+table: a table row; cells joined by " | "
+contents: an entry of a table of contents or an index
 caption: a case caption (court, parties, file number)
 headnote: a law reporter's editorial summary or catchwords
 marginal_note: a side note beside a statute provision
 furniture: a running header or footer
 page_label: a printed page number
 
-When a block starts with a printed marker (number, letter, symbol or bullet), put a tab right after it.
-Mark each note reference in the running text as [^N] with its printed marker, e.g. held[^12] that.
+When a line starts with a printed marker (number, letter, symbol or bullet), put a tab right after it; if a second marker follows, as in "12 (1)", put a tab after it too.
+Mark each note reference in the text as [^N] with its printed marker.
 
-Flags:
-continued: the block continues an earlier block interrupted by a page break or other blocks; split such a block at the page break.
-document: the block starts a separate document in the file, such as an exhibit or schedule.
-quoted: the block, such as a list item or paragraph, belongs to the block quotation before it."""
+Also give, per page: starts, the numbers (from 1) of the lines that begin a new paragraph, heading, list item, note, table row or other unit; continues, true if the page's running text opens by continuing a unit from the page before; and documents, the numbers of the lines that begin a separate document in the file, such as an exhibit or schedule."""
 
-SCHEMA = {"type": "object", "additionalProperties": False, "required": ["pages"], "properties": {
-    "pages": {"type": "array", "items": {"type": "array", "items": {"type": "array", "minItems": 2, "maxItems": 3, "prefixItems": [
-        {"type": "string", "enum": list(REGIONS)}, {"type": "string"}, {"type": "array", "items": {"type": "string", "enum": list(FLAGS)}}],
-        # Strict schemas over HTTPS require items beside prefixItems.
-        "items": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string", "enum": list(FLAGS)}}]}}}}}}
+_LINE = {"type": "array", "minItems": 2, "maxItems": 2,
+         "prefixItems": [{"type": "string", "enum": list(REGIONS)}, {"type": "string"}],
+         # Strict schemas over HTTPS require items beside prefixItems.
+         "items": {"type": "string"}}
+_NUMBERS = {"type": "array", "items": {"type": "integer", "minimum": 1}}
+LINES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["pages"], "properties": {
+    "pages": {"type": "array", "items": {"type": "object", "additionalProperties": False,
+                                         "required": ["lines", "starts", "continues", "documents"],
+                                         "properties": {"lines": {"type": "array", "items": _LINE}, "starts": _NUMBERS,
+                                                        "continues": {"type": "boolean"}, "documents": _NUMBERS}}}}}
+
+HIERARCHY = """For each row give the number of the row it falls under (its heading, provision, paragraph or list item), or 0 if it is top level. Rows are in reading order; the page images show their layout."""
+HIERARCHY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["parents"],
+                    "properties": {"parents": {"type": "array", "items": {"type": "integer", "minimum": 0}}}}
 
 
-def prompt(lines, targets, context=None):
-    """lines: (page, text) in reading order for the TARGET pages; context: an earlier page shown first."""
-    shown = ([f"page {context} (context, already transcribed)"] if context else []) + [f"page {p}" for p in targets]
-    parts = [INSTRUCTIONS, "\nImages in order: " + ", ".join(shown) + ".", "\nEXTRACTED LINES"]
+def lines_prompt(lines, targets, before=None):
+    """lines: {page: [extracted line text]} for the TARGET pages; before: the last extracted lines
+    of the page before them, so the first page can tell whether it continues a unit."""
+    parts = [LINES, "\nImages in order: " + ", ".join(f"page {p}" for p in targets) + "."]
+    if before: parts.append("\nThe page before ends:\n" + "\n".join(before))
+    parts.append("\nEXTRACTED LINES")
     for page in targets:
         parts.append(f"[page {page}]")
-        parts.extend(text for at, text in lines if at == page)
+        parts.extend(lines.get(page, []))
     return "\n".join(parts)
+
+
+def hierarchy_prompt(rows, shown, pages):
+    """rows: [(page, region, text)]; shown: the row indexes in this call; pages: the imaged pages."""
+    return (HIERARCHY + "\nImages in order: " + ", ".join(f"page {p}" for p in pages) + ".\n\nROWS\n"
+            + "\n".join(f"{n + 1} | p{rows[n][0]} | {rows[n][1]} | {rows[n][2]}" for n in shown))
