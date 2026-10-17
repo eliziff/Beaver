@@ -12,7 +12,7 @@ import { canonicalJsonSha256, sha256 } from "./hash";
 import { structureNative, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
 import { authorityPdfRequired, type AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
-import { matchFolderPdf } from "mike/shared/folder-pdf-match.mjs";
+import { headerIdentities, matchFolderPdf, verifyIdentity } from "mike/shared/folder-pdf-match.mjs";
 
 /** A PDF's name and its first pages' native text, line by line, as the page read it. */
 export type PdfOpening = { filename: string; pages: string[]; marginText?: string[] };
@@ -135,6 +135,21 @@ export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, pa
   return match?.record.authority.id ?? null;
 }
 
+/** A PDF given to a case awaiting its CanLII or publisher PDF is refused when its opening citation names another case,
+ *  as the watched folder's matcher tells it; one with no readable opening citation (a scan) goes by its caption. */
+function refuseOtherCase(draft: AuthoritiesDraft, authority: AuthorityIdentity, pages: string[]) {
+  if (authority.source.kind !== "pending-canlii" && !authority.sourceVerificationUrl) return;
+  const opening = pages.map((page) => ({ lines: page.split("\n").map((text) => ({ text })) }));
+  const call = (method: string, request: unknown) => structureNative().citationEngineCall(method, JSON.stringify(request));
+  const identities = headerIdentities(opening, call);
+  if (!identities.length) return;
+  try { verifyIdentity(opening, { citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }, call); }
+  catch {
+    const own = identities.find(({ family }) => family === "neutral") ?? identities[0];
+    throw new ApplicationError(400, `This PDF is ${own.text}, not ${authority.citation}; it was not attached.`);
+  }
+}
+
 /** A PDF's caption flags a different case, or fills a missing style of cause. Auto-fetch only fills
  *  authorities still without PDFs; manual uploads may replace them. */
 export async function authorityPdfCaption(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer, autoFetched = false) {
@@ -142,7 +157,9 @@ export async function authorityPdfCaption(draft: AuthoritiesDraft, authorityId: 
   if (autoFetched && authority?.source.kind === "attached")
     throw new ApplicationError(400, `${authority.citation} already has a PDF; it was not replaced.`);
   if (!authority || authority.kind !== "case") return draft;
-  const text = (await authorityPdfText({ bytes, maxPages: 1 })).pageTextByPage[0] ?? "";
+  const pages = (await authorityPdfText({ bytes, maxPages: 2 })).pageTextByPage;
+  refuseOtherCase(draft, authority, pages);
+  const text = pages[0] ?? "";
   const name = captionStyleOfCause(text, citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat());
   if (!name) return draft;
   const mismatch = caseNameMismatch(authority, { citation: authority.citation, name });
