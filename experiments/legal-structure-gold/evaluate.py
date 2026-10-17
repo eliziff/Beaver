@@ -4,7 +4,6 @@ from collections import Counter, defaultdict
 import difflib
 import json
 from pathlib import Path
-import unicodedata
 import worker
 import gold
 import package
@@ -17,10 +16,6 @@ V4 = 'legal-structure-gold.v4'
 KINDS = {'heading': 'heading', 'caption': 'caption', 'headnote': 'headnote', 'marginal_note': 'marginal_note',
          'furniture': 'furniture', 'page_label': 'page_label', 'contents': 'contents'}
 OWN = {'furniture', 'page_label'}
-
-
-def label(text):
-    return unicodedata.normalize('NFKC', text).strip(' .()[]{}:')
 
 
 def projected(value):
@@ -37,7 +32,6 @@ def projected(value):
     position = {ident: n for n, ident in enumerate(order)}
     at = lambda span: (position[span['line_id']], span['start'])
     anchor = lambda spans: gold.span_anchor(spans[0])
-    printed = lambda spans: label(''.join(lines[s['line_id']]['text'][s['start']:s['end']] for s in spans))
     ids = lambda spans: list(dict.fromkeys(s['line_id'] for s in spans))
     typed, units = value['typed'], value['units']
 
@@ -81,27 +75,17 @@ def projected(value):
     # another under it.
     opened = [u for u, unit in enumerate(units) if parts[u] and any(typed[n]['document'] for n in unit['lines'])]
     start = min((found[0][0] for found in parts if found), key=at, default=None)
-    opens = []
     if opened and start is not None:
         root = 'document:' + gold.span_anchor(start)
         for opening in [start] + [parts[u][0][0] for u in opened if parts[u][0][0] != start]:
-            opens.append(at(opening))
             annotations.append({'id': 'document:' + gold.span_anchor(opening), 'kind': 'document',
                                 'line_ids': [opening['line_id']], 'spans': [opening],
                                 'attributes': {'kind': None, 'parent': None if opening == start else root,
                                                'relationship': None, 'title': [], 'facets': {}}})
-    scope = lambda span: sum(1 for o in opens if o <= at(span))
-    # A note reference names the note with its printed label in its document: the next one,
-    # else the last before.
-    labelled = [(u, printed(note['attributes']['label'])) for u, note in notes.items() if note['attributes']['label']]
-    owner = {n: u for u, unit in enumerate(units) for n in unit['lines']}
-    for n, line in enumerate(typed):
-        for reference in line['references']:
-            if len(reference['spans']) != 1: continue
-            span = reference['spans'][0]
-            found = [u for u, text in labelled if text == printed([span]) and scope(notes[u]['spans'][0]) == scope(span)]
-            target = next((u for u in found if u > owner[n]), found[-1] if found else None)
-            if target is not None: notes[target]['attributes']['references'].append(span)
+    # Each note reference with the note the notes pass paired it with.
+    for pair in value['notes']:
+        if pair['note'] is None or pair['reference'] is None: continue
+        notes[pair['note']]['attributes']['references'].extend(typed[pair['line']]['references'][pair['reference']]['spans'])
     # Tables: consecutive table rows, with only furniture, page labels and notes between, form one
     # table, one annotation per page linked across pages; a row is on the page of its first cell.
     tables, current = [], None
