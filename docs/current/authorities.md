@@ -139,9 +139,9 @@ grouping sources.
 CanLII is manual-only in every edition: the row opens the document page in a new
 tab; **Upload** opens the file chooser in Downloads, and dropping a downloaded PDF
 onto that row uses the same attachment operation. A PDF whose opening citation names
-another case is refused with a plain message and nothing is attached; one with no
-readable opening citation (a scan) goes by its caption, and a caption that gives the
-citation another case's name is flagged on its row. CanLII and View share one aligned column.
+another case is attached and its row warns that the citation names a different case,
+giving the PDF's own citation; one with no readable opening citation (a scan) goes by
+its caption, which warns the same way when it gives the citation another case's name. CanLII and View share one aligned column.
 No iframe, proxy, server fetch, scraper or automated navigation is part of this
 handoff.
 
