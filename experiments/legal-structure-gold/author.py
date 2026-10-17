@@ -1,8 +1,8 @@
-"""PDF structure gold in two passes, each with the page images.
+"""PDF structure gold in three passes, each with the page images.
 
 Lines: the model sees each page and its extracted lines, types every printed line with its region,
 and marks where units start, whether the page continues the one before, and where a separate
-document starts. Hierarchy: the model sees the document's units, numbered, with their pages, and
+document starts. Notes: the model pairs every note reference with the note it belongs to. Hierarchy: the model sees the document's units, numbered, with their pages, and
 gives each its parent. The runner aligns the typed lines to the extracted ones and writes one gold
 file per source.
 
@@ -133,9 +133,42 @@ def chars_of(aligned):
     return {item[1] for item in aligned["source"] if item is not None}
 
 
-def author_hierarchy(typed, images, job, args):
+def author_notes(typed, groups, images, job, args):
+    """Each note reference with the unit of its note: [{line, marker, references index or None, note}].
+    The note is None only where the page holds no note for it (its body was never printed or read)."""
+    numbered, at = {}, {}
+    for n, line in enumerate(typed):
+        numbered.setdefault(line["page"], []).append((line["region"], line["text"]))
+        at[(line["page"], len(numbered[line["page"]]))] = n
+    starts = {members[0]: u for u, members in enumerate(groups) if typed[members[0]]["region"] == "note"}
+    notes = [(typed[n]["page"], next(k for (p, k), m in at.items() if m == n), typed[n]["text"]) for n in sorted(starts)]
+    note_at = {(p, k): starts[at[(p, k)]] for p, k, _ in notes}
+    pages = sorted(numbered)
+    schema = job / "calls" / "notes-schema.json"
+    write_json(schema, prompts.NOTES_SCHEMA)
+    def one(targets):
+        def valid(response):
+            for page, line, _, note_page, note_line in response["pairs"]:
+                gold.require(page in targets and (page, line) in at, "A reference must be on a numbered line of a TARGET page")
+                gold.require((note_page, note_line) == (0, 0) or (note_page, note_line) in note_at,
+                             "A note must be where a note begins, from NOTES, or 0, 0 where none is printed")
+            return response["pairs"]
+        return call(prompts.notes_prompt(numbered, notes, targets), schema, [images[p] for p in targets],
+                    job / "calls" / f"notes-{targets[0]:06}-{targets[-1]:06}", args, valid, policy=POLICY)
+    chunks = [pages[i:i + CHUNK_PAGES] for i in range(0, len(pages), CHUNK_PAGES)]
+    with ThreadPoolExecutor(args.parallel) as pool:
+        answers = [pair for result in pool.map(one, chunks) for pair in result]
+    pairs = []
+    for page, line, marker, note_page, note_line in answers:
+        n = at[(page, line)]
+        marked = [r for r, ref in enumerate(typed[n]["references"]) if ref["label"] == marker]
+        pairs.append({"line": n, "marker": marker, "reference": marked[0] if marked else None,
+                      "note": note_at.get((note_page, note_line))})
+    return pairs
+
+
+def author_hierarchy(typed, groups, images, job, args):
     """Each unit's parent: 0-based unit index or None."""
-    groups = hierarchy.units(typed)
     parents = [None] * len(groups)
     schema = job / "calls" / "hierarchy-schema.json"
     write_json(schema, prompts.HIERARCHY_SCHEMA)
@@ -166,11 +199,13 @@ def author(pdf, mode, args):
         images = render(pdf, pages, job / "images", args.dpi)
         authored = author_lines(lines, pages, images, mode, job, args)
         gold_lines, typed, edits, report = assemble(lines, authored, mode)
-        units = author_hierarchy(typed, images, job, args)
+        groups = hierarchy.units(typed)
+        notes = author_notes(typed, groups, images, job, args)
+        units = author_hierarchy(typed, groups, images, job, args)
         value = {"schema_version": VERSION, "source_sha256": source, "mode": mode, "page_count": len(pages), "parser": parser,
                  "authoring": {"model": args.model, "effort": args.effort, "dpi": args.dpi, "chunk_pages": CHUNK_PAGES,
-                               "prompts": {"lines": prompts.LINES, "hierarchy": prompts.HIERARCHY}},
-                 "lines": gold_lines, "typed": typed, "units": units, "text_edits": edits, "report": report}
+                               "prompts": {"lines": prompts.LINES, "notes": prompts.NOTES, "hierarchy": prompts.HIERARCHY}},
+                 "lines": gold_lines, "typed": typed, "units": units, "notes": notes, "text_edits": edits, "report": report}
         write_json(job / "gold.json.gz", value)
         receipt.update(status="complete", gold_sha256=digest(job / "gold.json.gz"), pages=len(pages), units=len(units))
         return job

@@ -38,6 +38,16 @@ LINES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["p
                                          "properties": {"lines": {"type": "array", "items": _LINE}, "starts": _NUMBERS,
                                                         "continues": {"type": "boolean"}, "documents": _NUMBERS}}}}}
 
+NOTES = """Pair every note reference on the TARGET pages with its note. A note reference is a printed marker in the running text (a superscript number, letter or symbol, or one in brackets) that points to a footnote or endnote. A star page, a page number, or a number belonging to a citation or list is not one.
+
+The lines are numbered per page; references the transcriber noticed are written [^N]. Check them against the images: add the ones it missed and leave out the ones that are not references.
+
+For every reference give [page, line, marker, note page, note line]: where the reference is, its printed marker, and the page and line where its note begins, from NOTES."""
+NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["pairs"], "properties": {"pairs": {"type": "array", "items": {
+    "type": "array", "minItems": 5, "maxItems": 5,
+    "prefixItems": [{"type": "integer"}, {"type": "integer"}, {"type": "string"}, {"type": "integer"}, {"type": "integer"}],
+    "items": {"type": ["integer", "string"]}}}}}
+
 HIERARCHY = """For each row give the number of the row it falls under (its heading, provision, paragraph or list item), or 0 if it is top level. Rows are in reading order; the page images show their layout."""
 HIERARCHY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["parents"],
                     "properties": {"parents": {"type": "array", "items": {"type": "integer", "minimum": 0}}}}
@@ -53,6 +63,13 @@ def lines_prompt(lines, targets, before=None):
         parts.append(f"[page {page}]")
         parts.extend(lines.get(page, []))
     return "\n".join(parts)
+
+
+def notes_prompt(numbered, notes, targets):
+    """numbered: {page: [(region, text)]}; notes: [(page, line, text)] where each note begins."""
+    return (NOTES + "\nImages in order: " + ", ".join(f"page {p}" for p in targets) + ".\n\nNOTES\n"
+            + "\n".join(f"p{p}:{n} | {' '.join(text.split())[:60]}" for p, n, text in notes) + "\n\nLINES\n"
+            + "\n".join(f"[page {p}]\n" + "\n".join(f"{n} | {r} | {t}" for n, (r, t) in enumerate(numbered[p], 1)) for p in targets))
 
 
 def hierarchy_prompt(rows, shown, pages):
