@@ -135,11 +135,11 @@ export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, pa
   return match?.record.authority.id ?? null;
 }
 
-/** The other case a PDF given to a case awaiting its CanLII or publisher PDF opens with, as the watched folder's matcher
- *  reads its opening citation, named by its caption where it prints one; null where it opens with the case's own
- *  citation or with none that can be read (a scan). */
+/** The other case a PDF opens with, as the watched folder's matcher reads its opening citation, named by its caption
+ *  where it prints one; null where it opens with the case's own citation or with none that can be read (a scan). A
+ *  case awaiting its CanLII or publisher PDF is that citation; any other case's PDF may open with a parallel citation
+ *  of the same decision, so it is another case only where its caption shares no party's name with the case's. */
 function openingOtherCase(draft: AuthoritiesDraft, authority: AuthorityIdentity, pages: string[]) {
-  if (authority.source.kind !== "pending-canlii" && !authority.sourceVerificationUrl) return null;
   const opening = pages.map((page) => ({ lines: page.split("\n").map((text) => ({ text })) }));
   const call = (method: string, request: unknown) => structureNative().citationEngineCall(method, JSON.stringify(request));
   const identities = headerIdentities(opening, call);
@@ -147,7 +147,10 @@ function openingOtherCase(draft: AuthoritiesDraft, authority: AuthorityIdentity,
   try { verifyIdentity(opening, { citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }, call); }
   catch {
     const own = identities.find(({ family }) => family === "neutral") ?? identities[0];
-    return { citation: own.text, name: captionStyleOfCause(pages[0] ?? "", [own.key]) ?? own.text };
+    const name = captionStyleOfCause(pages[0] ?? "", [own.key]);
+    if (authority.source.kind === "pending-canlii" || authority.sourceVerificationUrl)
+      return { citation: own.text, name: name ?? own.text };
+    return name && caseNameMismatch(authority, { citation: own.text, name }) ? { citation: own.text, name } : null;
   }
   return null;
 }
