@@ -49,7 +49,7 @@ export const HISTORY_OPTIONS: ReadonlyArray<CardOption<NonNullable<AuthoritiesBu
     detail: "Keeps a case’s later history in its citation only." },
 ];
 /** Whether the book has each case and other source whole or as an excerpt. A Federal Court book on paper has a
- *  decision on a free public database as an excerpt either way, unless the decision is chosen whole. */
+ *  decision on a free public database as the court's extract unless excerpts are chosen, or the decision is chosen whole. */
 const copyOptions = (federalPaper: boolean): ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildSettings["caseCopy"]>>> => [
   { value: "whole", label: "Whole cases", detail: `Includes each case and other source in full.${federalPaper
     ? " Note: A Federal Court book on paper includes a decision on a free public database as an excerpt (Federal Courts Rules, r 70(2.1))." : ""}` },

@@ -83,16 +83,19 @@ export function statuteExcerpt(authority, pageCounts = attachedAuthoritySources(
 /** A decision whose reasons a free public database holds (A2AJ's, CanLII's): its address there, or null. */
 export function freeDatabaseCase(authority) {
   const value = authority.kind === "case" ? authoritySourceUrl(authority) : null;
-  return value && (authority.sourceIdentity?.provider === "a2aj" || isCanliiUrl(value)) ? value : null;
+  return value && /^https?:\/\//iu.test(value) && (authority.sourceIdentity?.provider === "a2aj" || isCanliiUrl(value)) ? value : null;
 }
 /** Whether a case or another source goes in the book as an excerpt: as chosen for it, else as the book's
- *  `caseCopy` says, where a Federal Court book on paper takes a decision on a free public database as an
- *  excerpt (Federal Courts Rules, r 70(2.1)). A statute goes as `statuteExcerpt` says. */
+ *  `caseCopy` says, or as the court's extract. A statute goes as `statuteExcerpt` says. */
 export function authorityExcerpt(draft, authority, pageCounts) {
   if (authority.kind === "legislation") return statuteExcerpt(authority, pageCounts);
   if (authority.source.kind !== "attached") return false;
-  return authority.excerpt ?? (draft.settings.caseCopy === "excerpt" || federalPaperBook(draft.settings) && !!freeDatabaseCase(authority));
+  return authority.excerpt ?? (draft.settings.caseCopy === "excerpt" || courtExtract(draft, authority));
 }
+/** A decision a Federal Court book on paper has as the court's own extract (Federal Courts Rules, r 70(2.1)):
+ *  one on a free public database, where no excerpt was chosen for it or for the book. */
+export const courtExtract = (draft, authority) => authority.excerpt === undefined && draft.settings.caseCopy !== "excerpt" &&
+  federalPaperBook(draft.settings) && !!freeDatabaseCase(authority);
 /** A Federal Court book filed on paper, which has a decision on a free public database as an excerpt. */
 export const federalPaperBook = (settings) => settings.filingMedium === "paper" &&
   !!profiles.find(({ id }) => id === settings.profileId)?.requirements?.federalFormatting;

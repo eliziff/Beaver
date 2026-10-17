@@ -94,6 +94,7 @@ export function freeDatabaseCase(authority: ExcerptAuthority): string | null;
 export function authorityExcerpt(draft: { settings: ExcerptSettings }, authority: ExcerptAuthority,
   pageCounts?: Array<number | undefined>): boolean | undefined;
 export function federalPaperBook(settings: ExcerptSettings): boolean;
+export function courtExtract(draft: { settings: ExcerptSettings }, authority: ExcerptAuthority): boolean;
 export function excerptContext(settings: { contextParagraphs?: number; contextPages?: number }): { paragraphs: number; pages: number };
 export function authoritiesBookPdfs(draft: Pick<SourceDraft, "bookParts">): AuthoritiesBoundPdf[];
 export const AUTHORITIES_BOOK_SLOTS: readonly ["cover", "index", "supplemental", "brief"];

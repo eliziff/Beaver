@@ -42,7 +42,7 @@ import { authorityCitation, authorityProcedureInput, deriveAuthorityProcedure, t
 import { urlHostname } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { assembleFinalAuthoritiesPdf, assertBriefPdfMatches, briefOccurrencePages, filingLinkUrl,
   filingTabText } from "./authoritiesFinalPdf";
-import { authoritiesBriefPdf, authorityExcerpt, authorityTabbed, excerptContext, federalPaperBook,
+import { authoritiesBriefPdf, authorityExcerpt, authorityTabbed, courtExtract, excerptContext,
   freeDatabaseCase } from "mike/shared/authorities-sources.mjs";
 
 export type { AuthoritiesBuildReceipt, AuthoritiesOutputRole };
@@ -130,7 +130,7 @@ export function authorityPassageTargets(draft: AuthoritiesDraft, authorityId: st
  *  under ids of their own ("context:44") that keep them from being marked or bookmarked. */
 export function excerptContextTargets(draft: AuthoritiesDraft, authority: AuthorityIdentity): NativePdfPassageTarget[] {
   const { paragraphs } = excerptContext(draft.settings);
-  if (authority.kind !== "case" || !paragraphs || !authorityExcerpt(draft, authority)) return [];
+  if (authority.kind !== "case" || !paragraphs || !authorityExcerpt(draft, authority) || courtExtract(draft, authority)) return [];
   const cited = [...authority.locators.map(({ kind, label }) => ({ kind, first: label, last: label })),
     ...Object.values(draft.occurrences).flatMap((occurrence) => occurrence.authorityId === authority.id
       ? occurrence.pinpoints.map(({ kind, text, first, last }) => ({ kind, first: first ?? text, last: last ?? first ?? text })) : [])];
@@ -200,8 +200,9 @@ export function authoritiesTextRoles(draft: AuthoritiesDraft) {
       [...locatorKinds].some((kind) => kind !== "page");
     const needsQuoteText = ["margin", "text"].includes(draft.settings.passageMarking) &&
       requests.some(({ exactQuotes }) => exactQuotes.length);
-    // An authority that may go in as an excerpt is read for where its cited passages are.
-    const excerpt = !!requests.length && authorityExcerpt(draft, authority) !== false;
+    // An authority that may go in as an excerpt is read for where its cited passages are; a decision the
+    // court's extract takes, for where its reasons begin.
+    const excerpt = (!!requests.length || courtExtract(draft, authority)) && authorityExcerpt(draft, authority) !== false;
     return authority.source.sources.flatMap(source => {
       const saved = annotationSetForSource(authority.annotations, source.bindingRole, source.sourceSha256);
       return excerpt || needsOcr || needsLinkGeometry || !saved && (needsLocatorText || needsQuoteText)
@@ -1140,9 +1141,9 @@ async function prepareAuthorityBook(
         pageIndex: sections.find((item) => item.title === label.split("(")[0] || item.title.startsWith(`${label.split("(")[0]} `))
           ?.pageIndex ?? offset }));
     }
-    // A decision a Federal Court book on paper excerpts names the database holding it in full on each page.
+    // The court's extract names the database holding the decision in full on each page.
     return { ...source, pageIndices: excerpt?.pages ?? source.document.getPageIndices(),
-      databaseReference: excerpt?.pages && federalPaperBook(draft.settings) ? freePublicDatabaseReference(source.authority!) : null,
+      databaseReference: excerpt?.pages && courtExtract(draft, source.authority!) ? freePublicDatabaseReference(source.authority!) : null,
       excerpt: !!excerpt, rebuiltBookmarks };
   }));
   const rowByKey = new Map(rows.map((row) => [row.key, row]));
@@ -1233,10 +1234,11 @@ function citedLocatorPages(draft: AuthoritiesDraft, authorityId: string, pages: 
 
 type ExcerptInput = { pageCount: number; parts: number[]; marked?: Iterable<number>; pageTextByPage?: string[];
   ocrTextByPage?: string[]; pageBindings?: PdfPageBinding[]; passageGeometry?: NativePdfPassageGeometry; contextPages?: number[] };
-/** What an authority's book copy keeps as an excerpt: a statute's, or a case's or another source's. */
+/** What an authority's book copy keeps as an excerpt: a statute's, the court's extract of a decision, or a case's
+ *  or another source's. */
 const bookExcerptPages = (draft: AuthoritiesDraft, authority: AuthorityIdentity, input: ExcerptInput) =>
   authority.kind === "legislation" ? statuteExcerptPages(draft, authority, input)
-    : { missing: [], pages: sourceExcerptPages(draft, authority, input) };
+    : { missing: [], pages: (courtExtract(draft, authority) ? federalPaperExtract : sourceExcerptPages)(draft, authority, input) };
 
 /** What a statute's book copy keeps of its PDFs (`parts`, their lengths) as an excerpt: the first page
  *  of each, every page a cited provision spans, every page marked, and any page past them (a missing
@@ -1308,11 +1310,29 @@ function statuteCurrency(pages?: string[]) {
   return found && found.charAt(0).toUpperCase() + found.slice(1);
 }
 
+/** The Federal Court's extract of a decision in a book on paper (Federal Courts Rules, r 70(2.1)): every page
+ *  through the one its reasons begin on (the headnote), and each cited or marked page with the pages either side.
+ *  Null where its reasons are not found or nothing cited is placed: it goes in whole. */
+function federalPaperExtract(draft: AuthoritiesDraft, authority: AuthorityIdentity, input: ExcerptInput) {
+  const text = Array.from({ length: input.pageCount }, (_, index) =>
+    input.pageTextByPage?.[index]?.trim() || input.ocrTextByPage?.[index] || "");
+  const reasonsStart = text.findIndex((page) => /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
+  const cited = citedSourcePages(draft, authority.id, text, input.pageBindings, input.pageCount, input.passageGeometry,
+    attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual"));
+  for (const index of input.marked ?? []) cited.add(index);
+  if (reasonsStart < 0 || !cited.size) return null;
+  const selected = new Set(Array.from({ length: reasonsStart + 1 }, (_, index) => index));
+  cited.forEach((index) => {
+    for (let page = index - 1; page <= index + 1; page += 1)
+      if (page >= 0 && page < input.pageCount) selected.add(page);
+  });
+  return [...selected].sort((left, right) => left - right);
+}
+
 /** What the book copy of a case or another source keeps as an excerpt (`parts`, its PDFs' lengths): the first
  *  page of each PDF, every page a cited passage is placed on or marked, and the context around them: the pages
  *  holding the paragraphs before and after each cited paragraph of a case (`contextPages`), and the pages before
- *  and after any other cited page. A decision a Federal Court book on paper excerpts keeps its headnote too: every
- *  page before its reasons begin. Null where nothing cited is placed: it goes in whole. */
+ *  and after any other cited page. Null where nothing cited is placed: it goes in whole. */
 function sourceExcerptPages(draft: AuthoritiesDraft, authority: AuthorityIdentity, input: ExcerptInput) {
   const placed = citedLocatorPages(draft, authority.id, input.pageTextByPage ?? [], input.pageBindings,
     input.pageCount, input.passageGeometry, attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual"));
@@ -1328,11 +1348,6 @@ function sourceExcerptPages(draft: AuthoritiesDraft, authority: AuthorityIdentit
   let start = 0;
   for (const count of input.parts) { kept.add(start); start += count; }
   for (let page = start; page < input.pageCount; page++) kept.add(page);
-  if (federalPaperBook(draft.settings) && freeDatabaseCase(authority)) {
-    const reasons = Array.from({ length: input.pageCount }, (_, index) => input.pageTextByPage?.[index]?.trim() ||
-      input.ocrTextByPage?.[index] || "").findIndex((page) => /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
-    for (let page = 0; page <= reasons; page++) kept.add(page);
-  }
   return [...kept].filter((page) => page >= 0 && page < input.pageCount).sort((left, right) => left - right);
 }
 
