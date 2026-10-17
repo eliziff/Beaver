@@ -3,7 +3,7 @@
 // to WebAssembly in the browser (native/legal-structure-node/src/dispatch.rs).
 
 const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
-  "fixDocxSupraCrossReferences", "hasDocxSupraReferences", "deriveDocxDocument", "docxText",
+  "fixDocxSupraCrossReferences", "deriveDocxDocument", "docxText",
   "docxAuthorityTextUnits", "derivePdfDocument", "preparePdfDocument", "restorePdfDocument",
   "pdfPassageGeometryPages", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "textFragmentPlans",
   "citationEngineCallAsync"]);
@@ -15,7 +15,7 @@ export const SIGNATURES = {
   applyStructureComposition: ["request"],
   resolveCompositionAnnotations: ["request"],
   deriveDocumentStructure: ["request"], deriveDocumentFingerprint: ["request"],
-  fixDocxSupraCrossReferences: ["bytes"], hasDocxSupraReferences: ["bytes"],
+  fixDocxSupraCrossReferences: ["bytes"],
   deriveDocxDocument: ["bytes", "id", "drafting"], docxText: ["bytes", "drafting", "limit"],
   docxAuthorityTextUnits: ["bytes"],
   derivePdfDocument: ["bytes", "request"], preparePdfDocument: ["bytes", "request"],
@@ -35,7 +35,7 @@ export const SIGNATURES = {
   sourceParagraphMarkers: ["document"], sourceParagraphMarker: ["document", "markupStart"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   statuteOutline: ["text", "articles"], caseOutline: ["text"],
-  documentCaseOutline: ["document"], documentTextStatistics: ["document", "texts"],
+  documentTextStatistics: ["document", "texts"],
   citationLookupKey: ["text"], citationLookupKeys: ["texts"], providerCitationsInText: ["text"],
   citationEngineCall: ["method", "request"], citationEngineCallAsync: ["method", "request"],
   documentReadingOrder: ["request"],

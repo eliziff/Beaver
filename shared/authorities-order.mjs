@@ -166,4 +166,4 @@ function authorityCitation(draft, authority) {
   return { text, italic: ["case", "legislation"].includes(authority.kind) ? led : 0, lead: led, cited };
 }
 
-export { authorityCitation, authorityGrouping, authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference };
+export { authorityCitation, authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference };

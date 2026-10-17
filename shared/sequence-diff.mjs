@@ -45,7 +45,7 @@ export function sequenceOpcodes(left, right) {
  *  fields), or a side longer than 200 characters, is replaced whole. Equal texts plan nothing.
  *  Ported exactly from the ALR macro (typesetting-macro-upload source/vba/ALR_Rules.bas ALR_PlanTextEdits,
  *  Option Compare Binary): same tie-breaks, UTF-16 units as VBA's Len and Mid$ count them. */
-export function minimalEditPlan(t, s, base = 0, spanLength = t.length) {
+function minimalEditPlan(t, s, base = 0, spanLength = t.length) {
   if (t === s) return [];
   const a = t.length, b = s.length;
   if (a !== spanLength || a > 200 || b > 200) return [[base, spanLength, s]];

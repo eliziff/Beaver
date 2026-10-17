@@ -5,7 +5,7 @@ export type { ResearchLabel, ResearchSourceReference, ResearchSource, ResearchPa
   ResearchQueryReceipt, ResearchChange, ResearchPageItem,
   ResearchSelection } from "mike/shared/runtime/researchContract.mjs";
 import type { ResearchSource, ResearchChange, ResearchQueryReceipt, ResearchFileOf,
-  ResearchFileState, ResearchSourceReference, ResearchSelection,
+  ResearchSourceReference, ResearchSelection,
   LegalEvidenceReceipt } from "mike/shared/runtime/researchContract.mjs";
 export type ResearchEvidenceReceipt = LegalEvidenceReceipt;
 export type ResearchProposal = Pick<ResearchChange, "id" | "title" | "createdAt" | "executor" | "model" | "counts">;
@@ -23,8 +23,6 @@ export type ResearchQueryInput = ResearchSelection & { text?: string; after?: st
 export const researchHighlightCount = (source: ResearchSource) =>
   Object.values(source.passages?.labelCounts ?? {}).reduce((sum, count) => sum + count, 0);
 
-export const newResearchState = (): ResearchFileState => ({ schemaVersion: "beaver.research.v2",
-  labels: {}, sources: {}, queries: null, note: "" });
 export const isResearchDocument = (document: Document) =>
   document.file_type === "md" && document.filename.toLowerCase().endsWith(".research.md");
 export { researchSourceKey } from "mike/shared/runtime/resourceReferences.mjs";

@@ -550,10 +550,6 @@ export function citedPassageLink(rawUrl: string, document: NativeDocument | null
   return plan?.sourceSafeComplete && plan.directives.length ? appendDirectives(url, plan.directives) : url;
 }
 
-function normalizedIdentity(value: string | null | undefined) {
-  return value?.trim().replace(/\s+/gu, " ").toLowerCase() ?? "";
-}
-
 function isCanadianDecisionUrl(url: URL) {
   const host = url.hostname.replace(/^www\./iu, "");
   const path = url.pathname.toLowerCase();
@@ -599,19 +595,4 @@ export function hasCanadianDecisionLink(answer: string) {
       return strip(target) ? url : suffix;
     });
   return found;
-}
-
-export function buildA2AJParagraphRangeUrl(
-  citation: string,
-  start: string,
-  end: string,
-  document?: A2AJCompiledDocument,
-) {
-  if (!document?.url || (citation && ![document.citation, document.alternateCitation]
-    .map(normalizedIdentity).includes(normalizedIdentity(citation)))) return null;
-  const plan = structureNative().documentRangeFragmentPlan(document.native, "paragraph", start, end,
-    isPdfSourceUrl(document.url), publisherMayAnnotateLegalReference(document.url), false);
-  if (!plan?.sourceSafeComplete || !plan.directives.length) return null;
-  const baseUrl = sourceUrl(document.url, `par${Number(start)}`);
-  return baseUrl ? appendDirectives(baseUrl, plan.directives) : null;
 }

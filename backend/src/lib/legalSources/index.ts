@@ -240,7 +240,3 @@ export function createLegalSourceRegistry<Native = unknown>(
     },
   };
 }
-
-export type LegalSourceRegistry<Native = unknown> = ReturnType<
-  typeof createLegalSourceRegistry<Native>
->;

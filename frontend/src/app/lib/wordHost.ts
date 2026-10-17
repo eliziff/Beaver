@@ -1,5 +1,3 @@
-import { characterPlan, descendingPlan, highlightRuns } from "../../../../shared/sequence-diff.mjs";
-
 export type ClientToolCall = {
     type: "client_tool_call";
     callId: string;
