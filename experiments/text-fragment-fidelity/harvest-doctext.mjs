@@ -43,6 +43,8 @@ for (const row of pending) {
     const docType = /^(?:LEGISLATION|REGULATIONS)-/u.test(row.dataset) ? "laws" : "cases";
     const document = await a2ajLegalSourceProvider.document({
       citation: row.citation, docType, language: "en", dataset: row.dataset,
+      // The harvested page: a citation two store records share resolves to none without it.
+      sourceUrl: row.url,
     });
     const text = document?.native ? structureNative().documentText(document.native) : "";
     if (text) {
