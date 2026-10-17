@@ -69,7 +69,6 @@ type RequirementAuthority = {
 };
 
 export function attachedAuthoritySources(source: AuthoritySourceDecision): AttachedAuthoritySource[];
-export function federalEnactmentCitation(citation: string): boolean;
 export function hasBilingualAuthoritySource(source: AuthoritySourceDecision): boolean;
 export function authoritySourceUrl(authority: RequirementAuthority): string | null;
 export function bilingualEnactmentRequired(authority: Pick<RequirementAuthority, "kind" | "citation">,

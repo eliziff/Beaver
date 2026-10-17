@@ -540,7 +540,7 @@ export type AuthoritiesDocumentImport = {
 /** A brief's draft: its citations read from its text. A brief's own text is what it says, however it reads. Only its
  *  scanned pages (a picture of a page, its text layer invisible or absent) are recognized, where the runtime has a
  *  recognizer, and a scan's layer that reads better than its recognition stands. */
-export async function importAuthoritiesDocument(input: AuthoritiesDocumentImport,
+async function importAuthoritiesDocument(input: AuthoritiesDocumentImport,
   projection: ProjectionReader = documentProjectionService, native: AuthoritiesNative = structureNative()) {
   const sourceSha256 = sha256(input.bytes);
   const imported: AuthoritiesImport = { kind: "document", bindingRole: "source",

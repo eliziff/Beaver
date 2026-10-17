@@ -38,7 +38,7 @@ export function decodePdfOpening(value: unknown) {
 export function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   return typeof value === "string" && choices.includes(value as T) ? value as T : bad();
 }
-export const AUTHORITIES_BOOK_ROLES = ["applicant", "respondent", "joint", "appellant",
+const AUTHORITIES_BOOK_ROLES = ["applicant", "respondent", "joint", "appellant",
   "intervener", "plaintiff", "defendant", "moving-party", "responding-party"] as const;
 import profiles from "mike/shared/authorities-profiles.json";
 export const authoritiesProfileIds = profiles.map(({ id }) => id);

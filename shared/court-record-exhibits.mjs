@@ -50,5 +50,5 @@ const mentionKey = (value) => value.normalize("NFKC").toLocaleLowerCase()
 /** Exhibit labels stay single letters through ZZ; one affidavit cannot exceed them. */
 const MAX_EXHIBIT_LABELS = 702;
 
-export { MAX_EXHIBIT_LABELS, exhibitIndex, exhibitName, exhibitNames, extractExhibitMentions,
+export { MAX_EXHIBIT_LABELS, exhibitIndex, exhibitName, extractExhibitMentions,
   mentionKey, sourceExhibitLabels };

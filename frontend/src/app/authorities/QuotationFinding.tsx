@@ -12,7 +12,7 @@ const fold = (text: string) => text.normalize("NFKD").replace(/\p{M}+/gu, "")
   .replace(/["“”«»„]/gu, '"').replace(/['‘’‚`´]/gu, "'").replace(/[‐‑‒–—―−]/gu, "-").toLowerCase();
 
 /** Presentation only; correction eligibility is enforced by the server. */
-export function quotationDiff(authored: string, source: string) {
+function quotationDiff(authored: string, source: string) {
   const tokens = (text: string) => text.match(/\s+|[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s]/gu) ?? [];
   const before = tokens(authored), after = tokens(source);
   const opcodes = sequenceOpcodes(before.map(fold), after.map(fold));
@@ -23,7 +23,7 @@ export function quotationDiff(authored: string, source: string) {
       ({ before: before.slice(a0, a1).join("").trim(), after: after.slice(b0, b1).join("").trim() })),
   };
 }
-export function readableLocator(kind: string, label: string) {
+function readableLocator(kind: string, label: string) {
   const clean = label.replace(/^(?:paragraphs?|paras?|par|pages?|sections?|secs?|pp?|ss?)\.?\s*/iu, "");
   return `${kind === "paragraph" ? "para" : kind === "section" ? "s" : "p"} ${clean}`;
 }

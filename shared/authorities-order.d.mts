@@ -32,8 +32,6 @@ export function deriveAuthorityProcedure(input: AuthorityTabFormat & {
 export type AuthorityOrder = "first-reference" | "alphabetical" | "custom";
 /** Groups by kind, cases or legislation first, or one list. */
 export type AuthorityGrouping = "none" | "cases-first" | "legislation-first";
-export function authorityGrouping(settings: { grouping?: AuthorityGrouping;
-  tableOrder: AuthorityOrder }): AuthorityGrouping;
 
 /** The stored draft state both the server and the browser plan a book from. */
 export type BookDraftState = {

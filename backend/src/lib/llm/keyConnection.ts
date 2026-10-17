@@ -1,4 +1,4 @@
-// A model a person connects in their own browser: an API key (its provider read from the key's prefix), an
+// A model a person connects in their own browser: an API key (its provider named by the page), an
 // OpenRouter key made by OAuth PKCE, or an OpenAI-compatible server on their own computer (Ollama, LM Studio).
 // Requests go from the browser to that provider alone, through the same AI SDK provider packages as
 // sdkProviders.ts; the key is never written anywhere by this module. `structuredLlm` gives such a model as the
@@ -16,32 +16,18 @@ export type StructuredLlm = {
     signal?: AbortSignal }): Promise<{ text: string; usage: StructuredUsage }>;
 };
 
-/** Each provider: its name, where its OpenAI-compatible API is (when it has one), and the model it is used with
- *  first when its listing has it. `confidential` is false where the provider's own terms let it use what is sent. */
-export const KEY_PROVIDERS: Record<KeyProvider, { label: string; baseUrl?: string; preferred: RegExp[];
-  confidential: boolean }> = {
-  openai: { label: "OpenAI", baseUrl: "https://api.openai.com/v1", preferred: [/^gpt-5\.2$/u, /^gpt-5(\.\d+)?$/u, /^gpt-5/u], confidential: true },
-  anthropic: { label: "Anthropic", preferred: [/sonnet/u, /opus/u], confidential: true },
-  gemini: { label: "Google Gemini", preferred: [/^gemini-[\d.]+-flash$/u, /flash(?!.*lite)/u], confidential: false },
-  groq: { label: "Groq", baseUrl: "https://api.groq.com/openai/v1", preferred: [/^openai\/gpt-oss-120b$/u], confidential: true },
-  cerebras: { label: "Cerebras", baseUrl: "https://api.cerebras.ai/v1", preferred: [/^gpt-oss-120b$/u], confidential: true },
-  openrouter: { label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", preferred: [/^openai\/gpt-5\.2$/u, /^openai\/gpt-5/u], confidential: true },
-  mistral: { label: "Mistral", baseUrl: "https://api.mistral.ai/v1", preferred: [/^mistral-medium-latest$/u, /^mistral-large-latest$/u], confidential: false },
-  local: { label: "Local model", baseUrl: "http://localhost:11434/v1", preferred: [], confidential: true },
+/** Each provider: where its OpenAI-compatible API is (when it has one), and the model it is used with first when its
+ *  listing has it. */
+const KEY_PROVIDERS: Record<KeyProvider, { baseUrl?: string; preferred: RegExp[] }> = {
+  openai: { baseUrl: "https://api.openai.com/v1", preferred: [/^gpt-5\.2$/u, /^gpt-5(\.\d+)?$/u, /^gpt-5/u] },
+  anthropic: { preferred: [/sonnet/u, /opus/u] },
+  gemini: { preferred: [/^gemini-[\d.]+-flash$/u, /flash(?!.*lite)/u] },
+  groq: { baseUrl: "https://api.groq.com/openai/v1", preferred: [/^openai\/gpt-oss-120b$/u] },
+  cerebras: { baseUrl: "https://api.cerebras.ai/v1", preferred: [/^gpt-oss-120b$/u] },
+  openrouter: { baseUrl: "https://openrouter.ai/api/v1", preferred: [/^openai\/gpt-5\.2$/u, /^openai\/gpt-5/u] },
+  mistral: { baseUrl: "https://api.mistral.ai/v1", preferred: [/^mistral-medium-latest$/u, /^mistral-large-latest$/u] },
+  local: { baseUrl: "http://localhost:11434/v1", preferred: [] },
 };
-
-/** The provider a key belongs to, read from its prefix; Mistral's keys have none, only their 32 letters and digits. */
-export function detectKeyProvider(key: string): Exclude<KeyProvider, "local"> | null {
-  const value = key.trim();
-  if (value.startsWith("sk-ant-")) return "anthropic";
-  if (value.startsWith("sk-or-")) return "openrouter";
-  if (value.startsWith("sk-")) return "openai";
-  if (value.startsWith("AIza")) return "gemini";
-  if (value.startsWith("gsk_")) return "groq";
-  if (value.startsWith("csk-")) return "cerebras";
-  if (/^[A-Za-z0-9]{32}$/u.test(value)) return "mistral";
-  return null;
-}
 
 const ANTHROPIC_HEADERS = (key: string) => ({ "x-api-key": key, "anthropic-version": "2023-06-01",
   // Anthropic answers a browser only when it is told the key is the person's own.

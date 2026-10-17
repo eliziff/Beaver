@@ -4,7 +4,7 @@ import { fixDocxSupras } from "../docxDeterministicCleanup";
 import { resolveTrackedChange, extractTrackedChangeIds } from "../docxTrackedChanges";
 import { structureNative } from "../structureNative";
 
-const { fixDocxSupraCrossReferences, hasDocxSupraReferences } = structureNative();
+const { fixDocxSupraCrossReferences } = structureNative();
 
 const W =
   "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
@@ -104,24 +104,6 @@ describe("deterministic DOCX supra cleanup", () => {
     expect(await entry(result.bytes, "word/footnotes.xml")).toContain(
       "NOTEREF MikeSupraNote2 \\h",
     );
-  });
-
-  it("stops on a supra with a nearby number", async () => {
-    expect(
-      await hasDocxSupraReferences(
-        await fixture({
-          supraXml:
-            "<w:r><w:t>See Smith, supra: </w:t></w:r><w:r><w:t>2.</w:t></w:r>",
-        }),
-      ),
-    ).toBe(true);
-    expect(
-      await hasDocxSupraReferences(
-        await fixture({
-          supraXml: `<w:r><w:t>supra ${"x".repeat(41)} 2</w:t></w:r>`,
-        }),
-      ),
-    ).toBe(false);
   });
 
   it("reports an out-of-range target instead of guessing", async () => {

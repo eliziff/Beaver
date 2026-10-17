@@ -15,17 +15,6 @@ export function canliiFileCitation(name) {
   return match ? `${match[1]} ${match[2].toLowerCase() === 'canlii' ? 'CanLII' : match[2].toUpperCase()} ${match[3]}` : null;
 }
 
-/** The newest top-level CanLII-named PDF per citation, e.g. { citation: "2019 ABQB 666", file }. */
-export function canliiFiles(files) {
-  const best = new Map();
-  for (const file of files) {
-    const citation = canliiFileCitation(file.name);
-    if (!citation || (file.webkitRelativePath || '').split('/').length > 2) continue;
-    if (!(best.get(citation)?.lastModified >= file.lastModified)) best.set(citation, file);
-  }
-  return [...best].map(([citation, file]) => ({ citation, file }));
-}
-
 /** Native text written vertically at a page's side margin, before any citation parsing. */
 export function rotatedMarginText(items, viewport, Util) {
   const reading = viewport.rotation ? viewport.clone({ rotation: 0 }) : viewport;
