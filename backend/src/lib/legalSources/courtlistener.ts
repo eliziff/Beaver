@@ -433,7 +433,7 @@ function provider(
   return {
     id: "courtlistener",
     canResolve: (request) =>
-      request.kind === "case" && (courtlistenerLocalBulkAvailable() || lookupsLeaveComputer()) &&
+      request.kind === "case" && (courtlistenerLocalBulkAvailable() || lookupsLeaveComputer("courtlistener")) &&
         structureNative().providerCitationsInText(request.text).some(({ jurisdiction }) => jurisdiction === "us"),
     async resolve(request) {
       const clusterId = await citationCluster(request.text, options.apiToken, request.signal);
