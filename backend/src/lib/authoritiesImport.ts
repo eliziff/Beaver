@@ -10,6 +10,7 @@ import {
   type AuthoritiesImport,
   type AuthorityCitationLedger,
   type AuthoritiesSourceMode,
+  type AuthoritiesBuildSettings,
   type AuthorityIdentity,
   type AuthorityKind,
   type AuthorityOccurrence,
@@ -27,9 +28,11 @@ import { citationAliasKeysBatch } from "./caselawCitator";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
 import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { mapBounded } from "./mapBounded";
+import { registerWorkExtents } from "mike/shared/work-extents.mjs";
 import type { Citation, ExtractResponse, ResolveResponse, SourcePart } from "legal-citations";
 
 type DocumentInput = Extract<WorkProductInput, { kind: "document" }>;
+type SupraLinking = NonNullable<AuthoritiesBuildSettings["supraLinking"]>;
 type ProjectionReader = Pick<typeof documentProjectionService, "read"> &
   Partial<Pick<typeof documentProjectionService, "preparePdf">>;
 type AuthoritiesNative = Pick<ReturnType<typeof structureNative>,
@@ -163,14 +166,12 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
   });
 }
 
-/** `supraLinking`: "named" links a supra by its note number, or by the short name it writes when that
- *  names one earlier citation; "aggressive" also links by a cited note holding one source and by a
- *  predictable short name (the ALR Quote Verifier's aggressive supra linking). */
+/** `supraLinking`: the citation engine's splitting tier its references are resolved at (the draft setting). */
 async function scanReview(
   imported: AuthoritiesImport,
   bindings: Record<string, WorkProductInput>,
   units: NativeAuthorityTextUnit[],
-  supraLinking: "named" | "aggressive" = "named",
+  supraLinking: SupraLinking = "safe",
 ): Promise<AuthoritiesFreshReview> {
   const occurrences: Record<string, AuthorityOccurrence> = {};
   const authorities: Record<string, AuthorityIdentity> = {};
@@ -199,7 +200,7 @@ async function scanReview(
   // A Canadian brief is read with McGill's and COAL's forms; without the Bluebook or a US jurisdiction the engine
   // reads no extended United States forms (a registration or account number reads as one of its codes).
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
-    options: { resolve: false, notes, styles: ["mcgill", "coal"], earlyReferences: true },
+    options: { resolve: false, notes, styles: ["mcgill", "coal"], earlyReferences: true, splitTier: supraLinking },
   })) as ExtractResponse;
   // The brief's own court file number (its cover's) is never one of its authorities, though an
   // order made under it that the brief names ("Re Ash Ltd, Order of Madam Justice Fen dated …,
@@ -268,13 +269,23 @@ async function scanReview(
     kind: unit.kind, footnote_id: unit.footnote_id, footnote_refs: unit.footnote_refs,
     item_offsets: items.map(({ start }) => start),
   })))).map(([unit, item]) => parsed[unit].items[item].index);
-  // Only the note parts that cite reach the resolver: a prose note is never an authority.
+  // The note parts that cite: only these can be an authority (a prose note is never one).
   const references = native.citationEngineCall("noteReferences", JSON.stringify({ parts: extracted.sourceParts,
     citations: extracted.citations, offsetUnit: "utf16" })) as NativeReferencePart[];
-  const sourceParts = await enrichStatuteSources(references.map(({ part }) => part), extracted.citations, native);
+  const enriched = await enrichStatuteSources(references.map(({ part }) => part), extracted.citations, native);
+  // Every part reaches the resolver, prose included, so an ibid after a prose note continues from it (and stands for
+  // no authority) rather than from the last part that cites.
+  const indexOf = new Map(extracted.sourceParts.map((part, index) => [`${part.start}:${part.end}`, index]));
+  const partIndex = (part: SourcePart) => indexOf.get(`${part.start}:${part.end}`) ?? -1;
+  const enrichedAt = new Map(references.map((source, at) => [partIndex(source.part), enriched[at]]));
+  const sourceParts = extracted.sourceParts.map((part, index) => enrichedAt.get(index) ?? part);
+  // How far the cited works run (Beaver's works pack), so a pinpoint past a work's end refuses a reference's link.
+  registerWorkExtents(native);
+  // Every reference's association, the one each consumer reads (the verifier's workbook and quotation check, Sources):
+  // the document's text, so a reference can be read by the words before its note's marker, at the setting's tier.
   const result = native.citationEngineCall("resolve", JSON.stringify({ citations: extracted.citations, notes,
-    readingOrder: order, sourceParts,
-    supraHintMode: "aggressive", supraLinkingMode: supraLinking,
+    readingOrder: order, sourceParts, text, offsetUnit: "utf16",
+    supraHintMode: "aggressive", splitTier: supraLinking,
     aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
   })) as ResolveResponse;
   const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
@@ -291,8 +302,9 @@ async function scanReview(
     }
   };
   const origins = new Set(result.resolutions.flatMap(({ sourcePart }) => sourcePart == null ? [] : [sourcePart]));
-  const originParts = references.flatMap((source, index) => origins.has(index) &&
-    source.references.every(({ form }) => form !== "citation") ? [{ index, ...source, reference: source.references[0] }] : []);
+  const originParts = references.flatMap((source) => origins.has(partIndex(source.part)) &&
+    source.references.every(({ form }) => form !== "citation")
+    ? [{ ...source, index: partIndex(source.part), reference: source.references[0] }] : []);
   const sourceGroups = new Map<number, string>();
   const unkeyed = new Map<string, string>();
   // The link each citation writes ("online: <…>", a URL in its text), by citation.
@@ -383,6 +395,8 @@ async function scanReview(
     ...sourceOccurrences.map((source) => ({ start: source.start, citation: null, source })),
   ].sort((left, right) => left.start - right.start);
   let cursor = 0;
+  // Each citation's occurrence, and where each occurrence starts in the text.
+  const occurrenceOf = new Map<number, string>(), startOf = new Map<string, number>();
   const reviewUnits = ranges.map(({ unit, start, end }) => {
     const occurrenceIds: string[] = [];
     const sourceTextSha256 = sha256(unit.text);
@@ -395,6 +409,7 @@ async function scanReview(
         const local = (range: Span) => ({ start: range.start - start, end: range.end - start });
         const full = local(source);
         occurrenceIds.push(id);
+        startOf.set(id, start + full.start);
         occurrences[id] = { id, unitId: unit.key, ...full,
           text: unit.text.slice(full.start, full.end),
           ...occurrenceSpans(unit.text, full, local(source.core), [], undefined),
@@ -421,6 +436,8 @@ async function scanReview(
         citation.style.start <= citation.span.start
         ? citation.style.start - start : core.start, end: core.end };
       occurrenceIds.push(id);
+      occurrenceOf.set(citation.index, id);
+      startOf.set(id, start + full.start);
       occurrences[id] = { id, unitId: unit.key, ...full,
         text: unit.text.slice(full.start, full.end),
         ...occurrenceSpans(unit.text, styled, core, pinpoints.map(({ span }) => local(span)),
@@ -442,6 +459,25 @@ async function scanReview(
       ...(unit.links?.length && { authorLinks: unit.links }),
       pageNumbers: unit.page_numbers, text: unit.text, footnoteRefs: unit.footnote_refs, occurrenceIds };
   });
+  // Where the engine resolved each reference, as its citations of the authority: the one its chain ends at (its
+  // origin) and the one it names directly, each the first of the authority's in the part the engine gives.
+  for (const resolution of result.resolutions) {
+    const id = occurrenceOf.get(resolution.index), reference = id ? occurrences[id].reference : null;
+    if (!reference) continue;
+    const inPart = (index: number | null | undefined) => {
+      const part = index == null ? undefined : sourceParts[index];
+      return part && Object.keys(occurrences).filter((other) => other !== id
+        && occurrences[other].authorityId === reference.targetAuthorityId
+        && part.start <= startOf.get(other)! && startOf.get(other)! < part.end)
+        .sort((left, right) => startOf.get(left)! - startOf.get(right)!)[0];
+    };
+    const antecedent = resolution.antecedent == null ? undefined : occurrenceOf.get(resolution.antecedent);
+    const origin = inPart(resolution.sourcePart)
+      ?? (antecedent && occurrences[antecedent].authorityId === reference.targetAuthorityId ? antecedent : undefined);
+    const named = inPart(resolution.targetPart);
+    if (origin) reference.originId = origin;
+    if (named) reference.namedId = named;
+  }
   // The parser can return overlapping full spans even when their citation cores
   // are distinct. Keep both editable mentions by trimming only shared context.
   for (const unit of reviewUnits) {
@@ -533,7 +569,7 @@ export type AuthoritiesDocumentImport = {
   filename: string; fileType: "docx" | "pdf"; bytes: Buffer; binding: WorkProductInput;
   reference: { documentId: string; versionId: string };
   snapshot: AuthoritiesDocumentSnapshot | null;
-  sourceMode?: AuthoritiesSourceMode; supraLinking?: "named" | "aggressive";
+  sourceMode?: AuthoritiesSourceMode; supraLinking?: SupraLinking;
   /** The citations Beaver wrote into a brief it drafted, read in place of a scan where they still fit. */
   ledger?: Omit<AuthorityCitationLedger, "document">;
 };
@@ -548,8 +584,9 @@ async function importAuthoritiesDocument(input: AuthoritiesDocumentImport,
     filename: input.filename, fileType: input.fileType, snapshot: input.snapshot };
   const bindings = { source: input.binding };
   let initial = createAuthoritiesDraft(imported, bindings);
-  if (input.sourceMode) initial = reduceAuthoritiesDraft(initial, { type: "set-settings",
-    settings: { sourceMode: input.sourceMode } });
+  if (input.sourceMode || input.supraLinking) initial = reduceAuthoritiesDraft(initial, { type: "set-settings",
+    settings: { ...input.sourceMode && { sourceMode: input.sourceMode },
+      ...input.supraLinking && { supraLinking: input.supraLinking } } });
   if (input.ledger && input.snapshot) {
     try {
       return reduceAuthoritiesDraft(initial, { type: "ingest-ledger", ledger: { ...input.ledger, document: input.snapshot } });
@@ -677,7 +714,7 @@ export const withScheme = (link: unknown) => typeof link === "string" && /^[a-z0
 /** A brief the standalone runtime is handed: the page keeps the file, known here by its hash. */
 export async function importStandaloneAuthoritiesFile(input: {
   filename: string; fileType: "docx" | "pdf"; bytes: Buffer; modified: number;
-  sourceMode?: AuthoritiesSourceMode; supraLinking?: "named" | "aggressive";
+  sourceMode?: AuthoritiesSourceMode; supraLinking?: SupraLinking;
 }, projection: ProjectionReader = documentProjectionService,
 native: AuthoritiesNative = structureNative()) {
   const sourceSha256 = sha256(input.bytes);

@@ -74,6 +74,11 @@ export type AuthoritiesBuildSettings = {
   contextParagraphs?: number;
   /** The pages an excerpt keeps before and after each cited page of a source without placed paragraphs (default 1). */
   contextPages?: number;
+  /** How far the import links an ibid or a supra where the evidence is incomplete, the citation engine's splitting
+   *  tiers: "safe" (the default) links what a reference's own note and words support, "moderate" also reads a supra
+   *  by its name where the note it gives cites another work, "aggressive" also continues an ibid from the last source
+   *  of a note that cites several. Read at import; a refresh reads it again. */
+  supraLinking?: "safe" | "moderate" | "aggressive";
 };
 
 export type AuthoritiesSettings = AuthoritiesBuildSettings & {
@@ -232,7 +237,10 @@ export type AuthorityOccurrence = {
    *  key are one citation of it written two ways ("RSC 1985, c C-5" and "R.S.C., 1985, c. C-5"). */
   key?: string;
   authorityId: string | null;
-  reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string } | null;
+  /** What a reference stands for: the authority, and as the import's citation engine resolved it, the citations
+   *  (occurrences) its chain ends at (`originId`) and it names directly (`namedId`: the one an ibid follows, the
+   *  note's citation a supra numbers). A reference the user links has neither. */
+  reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string; originId?: string; namedId?: string } | null;
   referenceKind?: "short" | "supra" | "ibid";
   /** Each pinpoint's locator kind and value ("82-91"), and where its unit writes it: anywhere in
    * the unit, inside the citation's range or not. Drafts saved before pinpoints kept their place

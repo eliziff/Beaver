@@ -167,6 +167,7 @@ const settingsShape = closed<AuthoritiesSettings>({
   missingSourcePolicy: choice("missingSourcePolicy"), filingMedium: maybe(choice("filingMedium")),
   bookRole: maybe(choice("bookRole")), subsequentHistory: maybe(choice("subsequentHistory")),
   caseCopy: maybe(choice("caseCopy")), contextParagraphs: maybe(count), contextPages: maybe(count),
+  supraLinking: maybe(choice("supraLinking")),
 });
 /** Settings the chosen profile actually offers, read back through its own decoder. */
 const buildSettings: Check = (item) => {
@@ -285,7 +286,8 @@ const unitFields = { source: maybe(unitSource), id: text, kind: oneOf(["body", "
 } satisfies FieldTable<Omit<AuthoritiesReviewUnit, "occurrenceIds">>;
 const reviewUnit = closed<AuthoritiesReviewUnit>({ ...unitFields, occurrenceIds: strings });
 const reference = closed<NonNullable<AuthorityOccurrence["reference"]>>({
-  kind: oneOf(AUTHORITIES_ACTION_CHOICES.reference), targetAuthorityId: text });
+  kind: oneOf(AUTHORITIES_ACTION_CHOICES.reference), targetAuthorityId: text, originId: maybe(text),
+  namedId: maybe(text) });
 const occurrence = closed<AuthorityOccurrence>({ id: text, unitId: text, ...spanFields,
   authoritySpan, coreSpan: authoritySpan, pinpointSpan: nullable(authoritySpan),
   pinpointPhrase: maybe(authoritySpan), kind: (value) => authorityKind(value) || value === "reference", citation: text,
@@ -1041,8 +1043,9 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       const occurrence = requireRecord(draft.occurrences, action.occurrenceId, "occurrence");
       if (action.authorityId) requireRecord(draft.authorities, action.authorityId, "authority");
       occurrence.authorityId = action.authorityId;
+      // The engine's resolution (its origin and named citations) was of the authority the user replaced.
       if (occurrence.reference) occurrence.reference = action.authorityId
-        ? { ...occurrence.reference, targetAuthorityId: action.authorityId } : null;
+        ? { kind: occurrence.reference.kind, targetAuthorityId: action.authorityId } : null;
       occurrence.reviewed = true;
       break;
     }

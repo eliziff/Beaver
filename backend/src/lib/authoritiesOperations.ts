@@ -224,8 +224,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     "import": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const settings = initialSettings(input?.settings);
     const imported = await importStandaloneAuthoritiesFile({
-      ...await standaloneSource(input), sourceMode: settings?.sourceMode,
-      ...(input.supraLinking === "aggressive" ? { supraLinking: "aggressive" as const } : {}),
+      ...await standaloneSource(input), sourceMode: settings?.sourceMode, supraLinking: settings?.supraLinking,
     });
     return draftResult( applyAuthoritiesInitialSettings(imported, settings), []);
     },
@@ -237,7 +236,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     if (input?.replace !== "true" && imported.fileType !== source.fileType)
       reject(400, "The refreshed source type must match the imported document");
     const fresh = await importStandaloneAuthoritiesFile({
-      ...source, sourceMode: current.settings.sourceMode,
+      ...source, sourceMode: current.settings.sourceMode, supraLinking: current.settings.supraLinking,
     });
     const currentInput = current.bindings[imported.bindingRole], freshInput = fresh.bindings.source;
     const currentSource = currentInput?.kind === "local-file" ? currentInput
@@ -314,7 +313,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     const { bytes, draft: decided } = prepared;
     const filename = prepared.source.filename.replace(/(?: corrected)?\.docx$/iu, " corrected.docx");
     const fresh = await importStandaloneAuthoritiesFile({ filename, fileType: "docx", bytes,
-      modified: 0, sourceMode: current.settings.sourceMode });
+      modified: 0, sourceMode: current.settings.sourceMode, supraLinking: current.settings.supraLinking });
     const state = correctedAuthoritiesDraft(decided, fresh, current.stage);
     return fileResult( { draft: state }, [{ role: "source", filename: "source.docx",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes }]);
