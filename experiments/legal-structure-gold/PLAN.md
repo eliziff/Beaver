@@ -28,17 +28,22 @@ The lines pass (`prompts.LINES`, three pages per call) types each page's lines i
 as `[region, text]`: text, list_item, heading, quote, note, table (cells joined by ` | `),
 contents, caption, headnote, marginal_note, furniture or page_label. A tab follows each leading
 printed marker (two for `12 (1)`), `[^N]` marks a note reference, and per page the reply gives
-the lines that start a unit, whether the page continues the unit before, and the lines that start
-a separate document. `blocks.py` aligns the typed lines to the extracted ones: each typed line's
+the lines that start a unit and whether the page continues the unit before. `blocks.py` aligns the typed lines to the extracted ones: each typed line's
 source spans, cells, markers and references over the corrected text, and OCR text edits where the
 typing differs (digital-born differences are reported, not applied).
 
+The notes pass (`prompts.NOTES`, three pages per call, with an index of where every note begins)
+pairs every note reference with its note's first line; an answer naming any other line is asked
+again.
+
 `hierarchy.py` groups typed lines into units (a start and the lines continuing it, across a page
-the page continues) and asks, per document and a page window at a time, for each ranked unit's
-parent; furniture, page labels, marginal notes, notes and contents stay out of the outline.
+the page continues) and asks, a page window at a time, for each ranked unit's parent and, where
+the file holds several documents, the units that start and end each one; furniture, page labels,
+marginal notes, notes and contents stay out of the outline.
 
 A v4 file holds `lines` [{id, page, text (extracted), corrected?}], `typed` [{page, region, text,
-start, document, continues, spans, markers, references, cells?}], `units` [{lines, parent}],
+start, continues, spans, markers, references, cells?}], `units` [{lines, parent, starts_document,
+ends_document}], `notes` [{line, marker, reference, note}],
 `text_edits` and a `report` of unanchored, unplaced and kept text.
 
 ## Score
@@ -61,10 +66,9 @@ on one page, unbroken), with its parent's first span as `parent`; fragments of o
 by paragraph, heading or note continuations (list items add a list continuation). List items are
 text with a `list_item` locator and their marker; numbered text gets a paragraph locator. Block
 quotes are running text. Notes are text inside a footnote annotation whose label is the note's
-first marker; a reference is paired with the next note with its printed label in its document,
-else the last before. Consecutive table rows (only furniture, page labels and notes between) form
+first marker; each reference is paired with the note the notes pass gave it. Consecutive table rows (only furniture, page labels and notes between) form
 one table, one grid per page linked across pages. The first block opens the source's document and
-each unit holding a document start opens another. Contents keep their own role and stay out of
+each unit that starts a document opens another. Contents keep their own role and stay out of
 the outline. v4 lines carry no geometry, so their reading position stands for it.
 
 Layers: text, coverage, order, roles, groups and joins (adjacent pieces of one logical block),

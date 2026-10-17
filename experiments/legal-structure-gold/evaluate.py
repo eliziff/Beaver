@@ -73,7 +73,7 @@ def projected(value):
                 continuations['list'][anchor(left)] = {'next': anchor(right), 'separator': None, 'kind': 'list'}
     # Documents: the first block opens the source's own; each unit holding a document start opens
     # another under it.
-    opened = [u for u, unit in enumerate(units) if parts[u] and any(typed[n]['document'] for n in unit['lines'])]
+    opened = [u for u, unit in enumerate(units) if parts[u] and unit['starts_document']]
     start = min((found[0][0] for found in parts if found), key=at, default=None)
     if opened and start is not None:
         root = 'document:' + gold.span_anchor(start)

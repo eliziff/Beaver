@@ -52,10 +52,10 @@ Rules for the code:
 
 1. **Lines:** the model sees each page and its extracted lines, types every printed line with its
    region (correcting misread text), puts a tab after each printed marker, writes note references
-   as `[^N]`, and gives the lines that start a unit, whether the page continues the one before,
-   and where a separate document starts.
+   as `[^N]`, and gives the lines that start a unit and whether the page continues the one before.
 2. **Notes:** the model pairs every note reference with the line where its note begins.
-3. **Hierarchy:** the model gives each unit its parent.
+3. **Hierarchy:** the model gives each unit its parent and, where the file holds several
+   documents (a judgment with exhibits, a book of articles), where each starts and ends.
 
 The runner aligns the typed lines to the extracted ones and records the corrections, spans,
 markers, pairs and parents. Prompts stay small: they state the task and fix broad

@@ -1,8 +1,7 @@
 """PDF structure gold in three passes, each with the page images.
 
 Lines: the model sees each page and its extracted lines, types every printed line with its region,
-and marks where units start, whether the page continues the one before, and where a separate
-document starts. Notes: the model pairs every note reference with the note it belongs to. Hierarchy: the model sees the document's units, numbered, with their pages, and
+and marks where units start and whether the page continues the one before. Notes: the model pairs every note reference with the note it belongs to. Hierarchy: the model sees the document's units, numbered, with their pages, and
 gives each its parent. The runner aligns the typed lines to the extracted ones and writes one gold
 file per source.
 
@@ -95,8 +94,7 @@ def author_lines(lines, pages, images, mode, job, args):
         def valid(response):
             gold.require(len(response["pages"]) == len(targets), f"Expected {len(targets)} page lists")
             for page in response["pages"]:
-                gold.require(all(0 < n <= len(page["lines"]) for n in page["starts"] + page["documents"]),
-                             "starts and documents must number the page's own lines")
+                gold.require(all(0 < n <= len(page["lines"]) for n in page["starts"]), "starts must number the page's own lines")
             return blocks.chunk([([(l["id"], l["text"]) for l in by_page.get(p, [])], [tuple(x) for x in page["lines"]])
                                  for p, page in zip(targets, response["pages"])], mode), response
         aligned, response = call(text, schema, [images[p] for p in targets], job / "calls" / f"lines-{targets[0]:06}-{targets[-1]:06}",
@@ -116,10 +114,9 @@ def assemble(lines, authored, mode):
         report["unanchored_lines"] += aligned["unanchored"]; report["typed_differences"] += aligned["differences"]
         results.append((aligned, chars))
         for page, answer in zip(targets, response["pages"]):
-            starts, documents = set(answer["starts"]), set(answer["documents"])
+            starts = set(answer["starts"])
             for n, (region, text) in enumerate(answer["lines"], 1):
-                typed.append({"page": page, "region": region, "text": text, "start": n in starts,
-                              "document": n in documents, "continues": answer["continues"]})
+                typed.append({"page": page, "region": region, "text": text, "start": n in starts, "continues": answer["continues"]})
     corrected = {ident: "".join(c for c, _ in line) for _, chars in results for ident, line in chars.items()}
     order = [l["id"] for l in lines]
     located, located_report = blocks.typed_spans(results, {l["id"]: {"text": corrected.get(l["id"], l["text"]), "page": l["page"]} for l in lines}, order)
@@ -168,18 +165,21 @@ def author_notes(typed, groups, images, job, args):
 
 
 def author_hierarchy(typed, groups, images, job, args):
-    """Each unit's parent: 0-based unit index or None."""
-    parents = [None] * len(groups)
+    """Each unit with its parent (0-based unit index or None) and whether it starts or ends one of
+    the file's documents."""
     schema = job / "calls" / "hierarchy-schema.json"
     write_json(schema, prompts.HIERARCHY_SCHEMA)
-    for s, scope in enumerate(hierarchy.scopes(typed, groups)):
-        rows = [hierarchy.row(typed, groups[u]) for u in scope]
-        def ask(shown, pages):
-            return call(prompts.hierarchy_prompt(rows, shown, pages), schema, [images[p] for p in pages],
-                        job / "calls" / f"hierarchy-{s:03}-{shown[0]:05}", args, hierarchy.checked(shown), policy=POLICY)
-        for u, parent in zip(scope, hierarchy.decide(rows, ask)):
-            parents[u] = scope[parent - 1] if parent else None
-    return [{"lines": members, "parent": parent} for members, parent in zip(groups, parents)]
+    scope = hierarchy.ranked(typed, groups)
+    rows = [hierarchy.row(typed, groups[u]) for u in scope]
+    def ask(shown, pages):
+        return call(prompts.hierarchy_prompt(rows, shown, pages), schema, [images[p] for p in pages],
+                    job / "calls" / f"hierarchy-{shown[0]:05}", args, hierarchy.checked(shown), policy=POLICY)
+    parents, starts, ends = hierarchy.decide(rows, ask)
+    starts, ends = hierarchy.documents(starts, ends, len(rows))
+    units = [{"lines": members, "parent": None, "starts_document": False, "ends_document": False} for members in groups]
+    for n, u in enumerate(scope):
+        units[u].update(parent=scope[parents[n] - 1] if parents[n] else None, starts_document=n in starts, ends_document=n in ends)
+    return units
 
 
 def author(pdf, mode, args):

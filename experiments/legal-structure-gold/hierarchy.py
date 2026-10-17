@@ -33,13 +33,9 @@ def units(lines):
     return result
 
 
-def scopes(lines, groups):
-    """Ranked units per document: [[unit index]]; a unit holding a document start opens one."""
-    found = [[]]
-    for u, members in enumerate(groups):
-        if any(lines[n]["document"] for n in members) and found[-1]: found.append([])
-        if lines[members[0]]["region"] not in UNRANKED: found[-1].append(u)
-    return [scope for scope in found if scope]
+def ranked(lines, groups):
+    """The units the hierarchy orders: [unit index]."""
+    return [u for u, members in enumerate(groups) if lines[members[0]]["region"] not in UNRANKED]
 
 
 def row(lines, members):
@@ -48,9 +44,10 @@ def row(lines, members):
 
 
 def decide(rows, ask):
-    """Parent row numbers (1-based, 0 for top level) for every row, a page window at a time; the
-    still-open ancestors of the window before carry its context forward."""
-    parents, start = [0] * len(rows), 0
+    """Parent row numbers (1-based, 0 for top level) for every row, and the rows that start and end
+    a document, a page window at a time; the still-open ancestors of the window before carry its
+    context forward."""
+    parents, starts, ends, start = [0] * len(rows), set(), set(), 0
     while start < len(rows):
         pages = []
         end = start
@@ -63,10 +60,26 @@ def decide(rows, ask):
             while parents[at]:
                 at = parents[at] - 1; context.add(at)
         shown = sorted(context) + list(range(start, end))
-        for n, parent in zip(shown, ask(shown, sorted({rows[n][0] for n in shown}))):
+        answer = ask(shown, sorted({rows[n][0] for n in shown}))
+        for n, parent in zip(shown, answer["parents"]):
             if n >= start: parents[n] = parent
+        starts |= {n - 1 for n in answer["starts"] if n - 1 >= start}
+        ends |= {n - 1 for n in answer["ends"] if n - 1 >= start}
         start = end
-    return parents
+    return parents, starts, ends
+
+
+def documents(starts, ends, rows):
+    """Starts and ends paired: a document still open where the next starts, or at the last row,
+    ends on the row before."""
+    ends, open_ = set(ends), None
+    for n in range(rows):
+        if n in starts:
+            if open_ is not None and n - 1 >= open_: ends.add(n - 1)
+            open_ = n
+        if n in ends: open_ = None
+    if open_ is not None: ends.add(rows - 1)
+    return set(starts), ends
 
 
 def checked(shown):
@@ -74,5 +87,7 @@ def checked(shown):
         parents = response["parents"]
         if len(parents) != len(shown): raise ValueError(f"Expected {len(shown)} parents, one per row")
         if not all(parent - 1 < n for n, parent in zip(shown, parents)): raise ValueError("A row's parent must be an earlier row")
-        return parents
+        if not set(response["starts"]) | set(response["ends"]) <= {n + 1 for n in shown}:
+            raise ValueError("starts and ends must number shown rows")
+        return response
     return validate
