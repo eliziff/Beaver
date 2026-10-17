@@ -136,13 +136,13 @@ Installed citation indexes supply alias evidence to the same resolver; the
 shared engine checks reciprocal agreement and contradictory identities before
 grouping sources.
 
-Full Authorities and ALR try an ordinary, bounded CanLII document read after the
-corpus providers miss. Native parsing owns its text, citation identity and passages.
-A challenge, redirect or unreadable source leaves the case for a browser visit and
-PDF attachment; acquisition never tries to evade verification. Authorities-lite keeps its manual CanLII handoff.
-The row opens the document page in a new tab; **Upload** opens the file chooser in
-Downloads, and dropping a downloaded PDF onto that row uses the same attachment
-operation. CanLII and View share one aligned column.
+CanLII is manual-only in every edition: the row opens the document page in a new
+tab; **Upload** opens the file chooser in Downloads, and dropping a downloaded PDF
+onto that row uses the same attachment operation. A PDF the user uploads is never
+refused for its citation; a caption that gives the citation another case's name is
+flagged on its row. CanLII and View share one aligned column.
+No iframe, proxy, server fetch, scraper or automated navigation is part of this
+handoff.
 
 **Auto-fetch from folder** watches the folder Chrome or Edge saves into, such as
 `Downloads\Authorities` (Chrome will not share Downloads itself). The choice is kept

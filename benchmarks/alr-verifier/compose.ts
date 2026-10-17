@@ -6,7 +6,7 @@
 // A2AJ answers come from the local store, then from the recorded answers in
 // benchmarks/local-data/alr-verifier/a2aj-http-cache; new live lookups are off unless --a2aj-live <n>, and an A2AJ
 // lookup not recorded fails the run. Nothing else leaves the computer, as in the Python app's local-only run: every
-// other address answers 404, so a publisher's page (CanLII, CourtListener, the National Archives) is a miss.
+// other address answers 404, so a publisher's page (CourtListener, the National Archives) is a miss.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";

@@ -26,9 +26,8 @@ records its exact revision and fresh-clone proof. Complete application bootstrap
 and native/runtime certification remain separate gates.
 
 The current [Authorities contract](../current/authorities.md) replaces the old
-Python integration/hosted-pilot assumptions. Full Authorities and ALR may try
-ordinary bounded CanLII document reads after corpus providers miss. Challenges and redirects require manual browser
-navigation and attachment; Authorities-lite keeps its manual CanLII handoff.
+Python integration/hosted-pilot assumptions. CanLII remains a manual navigation
+and attachment handoff.
 The [performance guide](../current/performance.md) records implemented mechanisms
 and their limits, not another optimization backlog or a blanket speed guarantee.
 
@@ -48,8 +47,7 @@ store, feature SDK, plugin marketplace or graph framework. Vectors need held-out
 benefit, not speculative adoption. Do not turn a refactor into experiment cleanup.
 
 Preserve accessibility and actual browser/dock proof. No court login, payment,
-filing, service or docket automation. CanLII reads must remain bounded and stop for
-manual handoff on challenges or redirects; no verification bypass. Metered
+filing, service or docket automation; no automated CanLII acquisition. Metered
 model calls and private-document transmission require explicit authorization.
 
 ## Retained backlog and limits
