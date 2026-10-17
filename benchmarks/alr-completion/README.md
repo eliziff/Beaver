@@ -84,7 +84,7 @@ these measurements describe this frozen workload, not all possible inputs.
 
 Reuse `benchmarks/alr-verifier/compose.ts` and its existing local-only input/source
 stores for complete Free-mode workbooks and quotation output. The maintained
-private manuscript harness is `benchmarks/citation-benchmarks-private/tools/arm_engine_parts.mts`;
+private manuscript harness is `benchmarks/local-data/citation-benchmarks-private/tools/arm_engine_parts.mts`;
 its `score_splits.py` evaluates the independent gold. The old
 `benchmarks/authorities-split` projection is not the production splitting path.
 Reuse the Authorities
