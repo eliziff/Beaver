@@ -39,10 +39,11 @@ import { structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
 import { authorityCitation, authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference } from "mike/shared/authorities-order.mjs";
-import { isCanliiUrl, urlHostname } from "mike/shared/runtime/canliiPageUrls.mjs";
+import { urlHostname } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { assembleFinalAuthoritiesPdf, assertBriefPdfMatches, briefOccurrencePages, filingLinkUrl,
   filingTabText } from "./authoritiesFinalPdf";
-import { authoritiesBriefPdf, authorityTabbed, statuteExcerpt } from "mike/shared/authorities-sources.mjs";
+import { authoritiesBriefPdf, authorityExcerpt, authorityTabbed, excerptContext, federalPaperBook,
+  freeDatabaseCase } from "mike/shared/authorities-sources.mjs";
 
 export type { AuthoritiesBuildReceipt, AuthoritiesOutputRole };
 export type AuthoritiesBuildArtifact = {
@@ -65,7 +66,9 @@ export type AuthoritiesBuildInput = {
   workProduct: { id: string; revision: number };
   sources?: Record<string, { bytes?: Uint8Array; resolved?: ResolvedWorkProductInput;
     pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[]; pageBindings?: PdfPageBinding[];
-    passageGeometry?: NativePdfPassageGeometry; outline?: NativeOutlineEntry[] }>;
+    passageGeometry?: NativePdfPassageGeometry; outline?: NativeOutlineEntry[];
+    /** The pages holding the paragraphs an excerpted case keeps around its cited ones (excerptContextTargets). */
+    contextPages?: number[] }>;
   signal?: AbortSignal;
   finalPdfSource?: (bytes: Uint8Array, filename: string) => Promise<Uint8Array>;
   /** Told what the build is doing, as it starts each part. */
@@ -123,6 +126,23 @@ export function authorityPassageTargets(draft: AuthoritiesDraft, authorityId: st
   }).map((target, index) => ({ id: `passage:${index + 1}`, ...target }));
 }
 
+/** The paragraphs an excerpted case keeps before and after each cited paragraph, placed as its cited ones are,
+ *  under ids of their own ("context:44") that keep them from being marked or bookmarked. */
+export function excerptContextTargets(draft: AuthoritiesDraft, authority: AuthorityIdentity): NativePdfPassageTarget[] {
+  const { paragraphs } = excerptContext(draft.settings);
+  if (authority.kind !== "case" || !paragraphs || !authorityExcerpt(draft, authority)) return [];
+  const cited = [...authority.locators.map(({ kind, label }) => ({ kind, first: label, last: label })),
+    ...Object.values(draft.occurrences).flatMap((occurrence) => occurrence.authorityId === authority.id
+      ? occurrence.pinpoints.map(({ kind, text, first, last }) => ({ kind, first: first ?? text, last: last ?? first ?? text })) : [])];
+  const numbers = new Set<number>();
+  for (const { kind, first, last } of cited) {
+    const [from, to] = [Number(first), Number(last)];
+    if (kind !== "paragraph" || !Number.isSafeInteger(from) || !Number.isSafeInteger(to)) continue;
+    for (let step = 1; step <= paragraphs; step++) { if (from - step >= 1) numbers.add(from - step); numbers.add(to + step); }
+  }
+  return [...numbers].map((number) => ({ id: `context:${number}`, locatorKind: "paragraph", locator: String(number), exactQuotes: [] }));
+}
+
 /** A quote with its neighbouring words, so one citation cited twice on a page stays two. A note
  *  number printed against the first word, or a mark after the last, breaks one side only. */
 const inContext = (text: string, start: number, end: number) => [[4, 4], [0, 4], [4, 0]].map(([before, after]) => {
@@ -169,11 +189,8 @@ export function authoritiesTextRoles(draft: AuthoritiesDraft) {
     draft.settings.linkPinpoints) && draft.import.kind === "document" && draft.import.fileType === "pdf"
     ? [draft.import.bindingRole] : [];
   if (draft.outputMode === "table" && !draft.settings.finalPdf) return new Set(filingRoles);
-  const federal = authoritiesProfile(draft.settings.profileId).requirements?.federalFormatting;
   return new Set([...filingRoles, ...Object.values(draft.authorities).flatMap((authority) => {
     if (!authorityTabbed(draft, authority) || authority.source.kind !== "attached") return [];
-    const paperExtract = federal && draft.settings.filingMedium === "paper" &&
-      freePublicDatabaseReference(authority);
     const requests = authorityPassageRequests(draft, authority.id);
     const locatorKinds = new Set(requests.flatMap(({ locators }) =>
       locators.map(({ kind }) => kind)));
@@ -183,11 +200,11 @@ export function authoritiesTextRoles(draft: AuthoritiesDraft) {
       [...locatorKinds].some((kind) => kind !== "page");
     const needsQuoteText = ["margin", "text"].includes(draft.settings.passageMarking) &&
       requests.some(({ exactQuotes }) => exactQuotes.length);
-    // A statute that may go in as an excerpt is read for where its cited provisions are.
-    const excerpt = !!requests.length && statuteExcerpt(authority) !== false;
+    // An authority that may go in as an excerpt is read for where its cited passages are.
+    const excerpt = !!requests.length && authorityExcerpt(draft, authority) !== false;
     return authority.source.sources.flatMap(source => {
       const saved = annotationSetForSource(authority.annotations, source.bindingRole, source.sourceSha256);
-      return paperExtract || excerpt || needsOcr || needsLinkGeometry || !saved && (needsLocatorText || needsQuoteText)
+      return excerpt || needsOcr || needsLinkGeometry || !saved && (needsLocatorText || needsQuoteText)
         ? [source.bindingRole] : [];
     });
   })]);
@@ -257,12 +274,8 @@ function authoritySourceLink(authority: AuthorityIdentity) {
 }
 
 function freePublicDatabaseReference(authority: AuthorityIdentity) {
-  if (authority.kind !== "case") return null;
-  const value = authoritySourceLink(authority);
-  if (!value) return null;
-  const url = new URL(value);
-  return authority.sourceIdentity?.provider === "a2aj" || isCanliiUrl(url)
-    ? { url: value, host: urlHostname(url) } : null;
+  const value = freeDatabaseCase(authority) && authoritySourceLink(authority);
+  return value ? { url: value, host: urlHostname(value) } : null;
 }
 
 function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
@@ -794,7 +807,7 @@ async function filingPdfArtifact(groups: Group[], filename: string,
 type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity | null;
   markedPages?: Set<number>; /** The length of each of the authority's PDFs, in the order joined. */ parts?: number[];
   pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[]; pageBindings?: PdfPageBinding[];
-  passageGeometry?: NativePdfPassageGeometry; outline?: PdfOutline[] };
+  passageGeometry?: NativePdfPassageGeometry; contextPages?: number[]; outline?: PdfOutline[] };
 type PreparedBookPdf = LoadedBookPdf & { pageIndices: number[];
   databaseReference: { url: string; host: string } | null; excerpt?: boolean;
   /** The cited provisions rebuilt from the statute's text, where each is in the rebuilt pages. */
@@ -888,7 +901,7 @@ async function loadAuthorityPdf(
     pageBindings: loaded[0].text?.pageBindings,
     pageTextByPage: loaded[0].text?.pageTextByPage,
     ocrTextByPage: loaded[0].text?.ocrTextByPage,
-    passageGeometry: loaded[0].text?.passageGeometry };
+    passageGeometry: loaded[0].text?.passageGeometry, contextPages: loaded[0].text?.contextPages };
   const document = await pdf.PDFDocument.create();
   for (const item of loaded) await appendPages(document, item.document);
   return { document, markedPages, outline, parts,
@@ -899,7 +912,7 @@ async function loadAuthorityPdf(
  *  recognized text in turn, and the passages found in each, their pages counted on from the PDFs before. */
 function combinedSourceTexts(sources: AttachedAuthoritySource[],
   items: Array<{ count: number; text?: NonNullable<AuthoritiesBuildInput["sources"]>[string] }>) {
-  const pageTextByPage: string[] = [], ocrTextByPage: string[] = [];
+  const pageTextByPage: string[] = [], ocrTextByPage: string[] = [], contextPages: number[] = [];
   const pageBindings: PdfPageBinding[] = [];
   const geometries: Array<{ offset: number; value: NativePdfPassageGeometry }> = [];
   let offset = 0;
@@ -911,6 +924,7 @@ function combinedSourceTexts(sources: AttachedAuthoritySource[],
     pageTextByPage.push(...Array.from({ length: count }, (_, index) => text?.pageTextByPage?.[index] ?? ""));
     ocrTextByPage.push(...Array.from({ length: count }, (_, index) => text?.ocrTextByPage?.[index] ?? ""));
     if (text?.passageGeometry) geometries.push({ offset, value: text.passageGeometry });
+    contextPages.push(...(text?.contextPages ?? []).map((page) => offset + page));
     offset += count;
   }
   const first = geometries[0]?.value;
@@ -926,7 +940,7 @@ function combinedSourceTexts(sources: AttachedAuthoritySource[],
           }) })) }))),
   } satisfies NativePdfPassageGeometry : undefined;
   return { pageTextByPage, pageBindings, ocrTextByPage: ocrTextByPage.some(Boolean) ? ocrTextByPage : undefined,
-    passageGeometry };
+    passageGeometry, contextPages };
 }
 
 /** The page a missing PDF's tab keeps: it names the authority (and the language, where one of two
@@ -976,16 +990,16 @@ function bookFront(draft: AuthoritiesDraft, subtitle: string) {
 
 /** A source's text, pages and passages as a build reads them; null where it has not been read. */
 export type BuildSourceText = (source: AttachedAuthoritySource) => Promise<NonNullable<AuthoritiesBuildInput["sources"]>[string] | null>;
-/** The pages a build keeps of each statute the book excerpts, by authority: read from each PDF's text as a
- *  build reads it, with the passages marked in it (`only`: that statute alone). A statute whose PDFs are not all
- *  read is left out, as is one that goes in whole. */
-export async function statuteExcerptPageCounts(draft: AuthoritiesDraft, readText: BuildSourceText, only?: string) {
+/** The pages a build keeps of each authority the book excerpts, by authority: read from each PDF's text as a
+ *  build reads it, with the passages marked in it (`only`: that authority alone). An authority whose PDFs are not
+ *  all read is left out, as is one that goes in whole. */
+export async function excerptPageCounts(draft: AuthoritiesDraft, readText: BuildSourceText, only?: string) {
   const excerpts: Record<string, number> = {};
   await Promise.all(Object.values(draft.authorities).filter(({ id }) => !only || id === only).map(async (authority) => {
     const key = authority.id, sources = attachedAuthoritySources(authority.source);
     if (authority.excluded || !authorityReproducedInBook(draft, authority)) return;
     const parts = sources.map(({ pageCount }) => pageCount);
-    if (!sources.length || parts.some((count) => !count) || !statuteExcerpt(authority, parts)) return;
+    if (!sources.length || parts.some((count) => !count) || !authorityExcerpt(draft, authority, parts)) return;
     const texts = await Promise.all(sources.map((source) => readText(source).catch(() => null)));
     if (texts.some((text) => !text)) return;
     let offset = 0;
@@ -1005,15 +1019,16 @@ export async function statuteExcerptPageCounts(draft: AuthoritiesDraft, readText
     });
     const combined = sources.length === 1 ? texts[0]! : combinedSourceTexts(sources,
       texts.map((text, index) => ({ count: parts[index]!, text: text! })));
-    const excerpt = statuteExcerptPages(draft, authority, { pageCount: offset, parts: parts as number[], marked,
-      pageTextByPage: combined.pageTextByPage, pageBindings: combined.pageBindings, passageGeometry: combined.passageGeometry });
+    const excerpt = bookExcerptPages(draft, authority, { pageCount: offset, parts: parts as number[], marked,
+      pageTextByPage: combined.pageTextByPage, ocrTextByPage: combined.ocrTextByPage, pageBindings: combined.pageBindings,
+      passageGeometry: combined.passageGeometry, contextPages: combined.contextPages });
     if (excerpt.pages) excerpts[key] = excerpt.pages.length;
   }));
   return excerpts;
 }
 
-/** The cover and the index as a build of the draft draws them. `excerptPages`: the pages each statute the book
- *  excerpts keeps (statuteExcerptPageCounts), read in the runtime that reads the sources. */
+/** The cover and the index as a build of the draft draws them. `excerptPages`: the pages each authority the book
+ *  excerpts keeps (excerptPageCounts), read in the runtime that reads the sources. */
 export async function authoritiesBookFront(draft: AuthoritiesDraft, title: string, excerptPages: Record<string, number> = {}) {
   // A build names a manual book's cover after its title, an imported brief's after nothing else.
   const subtitle = draft.import.kind === "document" ? "" : title;
@@ -1024,7 +1039,7 @@ export async function authoritiesBookFront(draft: AuthoritiesDraft, title: strin
   const drawn = bookFront(listed, subtitle), bytes = new Uint8Array(), profile = authoritiesProfile(draft.settings.profileId);
   // Each authority takes the pages its attached PDFs had when they were attached, and a missing language's
   // page where the book adds one; one without a PDF yet stands in a page, as a build's placeholder does.
-  // A statute in the book as an excerpt keeps the pages a build keeps of it.
+  // An authority in the book as an excerpt keeps the pages a build keeps of it.
   const pagesOf = (authority: AuthorityIdentity) => {
     const sources = attachedAuthoritySources(authority.source);
     if (!sources.length) return 1;
@@ -1105,11 +1120,10 @@ async function prepareAuthorityBook(
       ? loadBookPdf(pdf, draft.bookParts.index, "the custom index", attached) : null,
   ]);
   const sources: PreparedBookPdf[] = await Promise.all([...authoritySources, ...supplementalSources].map(async (source) => {
-    const extract = federalPaperExtract(draft, source);
-    const excerpt = !extract && source.authority && source.parts && statuteExcerpt(source.authority, source.parts)
-      ? statuteExcerptPages(draft, source.authority, { pageCount: source.document.getPageCount(), parts: source.parts,
-        marked: source.markedPages, pageTextByPage: source.pageTextByPage, pageBindings: source.pageBindings,
-        passageGeometry: source.passageGeometry }) : null;
+    const excerpt = source.authority && source.parts && authorityExcerpt(draft, source.authority, source.parts)
+      ? bookExcerptPages(draft, source.authority, { pageCount: source.document.getPageCount(), parts: source.parts,
+        marked: source.markedPages, pageTextByPage: source.pageTextByPage, ocrTextByPage: source.ocrTextByPage,
+        pageBindings: source.pageBindings, passageGeometry: source.passageGeometry, contextPages: source.contextPages }) : null;
     // What the PDF does not place is rebuilt from the statute's text, after the pages it does.
     const rebuilt = excerpt?.missing.length && source.authority
       ? await rebuiltProvisions(source.authority, source.name, excerpt.missing, statuteText, signal,
@@ -1126,8 +1140,10 @@ async function prepareAuthorityBook(
         pageIndex: sections.find((item) => item.title === label.split("(")[0] || item.title.startsWith(`${label.split("(")[0]} `))
           ?.pageIndex ?? offset }));
     }
-    return { ...source, pageIndices: extract?.pageIndices ?? excerpt?.pages ?? source.document.getPageIndices(),
-      databaseReference: extract?.databaseReference ?? null, excerpt: !!excerpt, rebuiltBookmarks };
+    // A decision a Federal Court book on paper excerpts names the database holding it in full on each page.
+    return { ...source, pageIndices: excerpt?.pages ?? source.document.getPageIndices(),
+      databaseReference: excerpt?.pages && federalPaperBook(draft.settings) ? freePublicDatabaseReference(source.authority!) : null,
+      excerpt: !!excerpt, rebuiltBookmarks };
   }));
   const rowByKey = new Map(rows.map((row) => [row.key, row]));
   const rowGroups = groups.flatMap(({ label, entries }) => {
@@ -1165,7 +1181,7 @@ async function prepareAuthorityBook(
         bookScanPolicy(draft) === "full" || bookScanPolicy(draft) === "cited-pages" && cited.has(index)
           ? pdfNormalized(text).replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?") : "") : undefined;
       // An excerpt that leaves out the page saying how current the statute is says it atop its first page.
-      const currency = source.excerpt ? statuteCurrency(source.pageTextByPage) : undefined;
+      const currency = source.excerpt && source.authority?.kind === "legislation" ? statuteCurrency(source.pageTextByPage) : undefined;
       const kept = currency && source.pageIndices.some((index) => source.pageTextByPage?.[index]
         ?.replace(/\s+/gu, " ").toLowerCase().includes(currency.toLowerCase()));
       return { key: source.key, name: source.name, italic: source.italic, tab: source.tab, sourceUrl: source.sourceUrl,
@@ -1215,12 +1231,17 @@ function citedLocatorPages(draft: AuthoritiesDraft, authorityId: string, pages: 
   return result;
 }
 
+type ExcerptInput = { pageCount: number; parts: number[]; marked?: Iterable<number>; pageTextByPage?: string[];
+  ocrTextByPage?: string[]; pageBindings?: PdfPageBinding[]; passageGeometry?: NativePdfPassageGeometry; contextPages?: number[] };
+/** What an authority's book copy keeps as an excerpt: a statute's, or a case's or another source's. */
+const bookExcerptPages = (draft: AuthoritiesDraft, authority: AuthorityIdentity, input: ExcerptInput) =>
+  authority.kind === "legislation" ? statuteExcerptPages(draft, authority, input)
+    : { missing: [], pages: sourceExcerptPages(draft, authority, input) };
+
 /** What a statute's book copy keeps of its PDFs (`parts`, their lengths) as an excerpt: the first page
  *  of each, every page a cited provision spans, every page marked, and any page past them (a missing
  *  language's). `pages` is null where no cited provision is placed: the statute goes in whole. */
-function statuteExcerptPages(draft: AuthoritiesDraft, authority: AuthorityIdentity, input: {
-  pageCount: number; parts: number[]; marked?: Iterable<number>; pageTextByPage?: string[];
-  pageBindings?: PdfPageBinding[]; passageGeometry?: NativePdfPassageGeometry }) {
+function statuteExcerptPages(draft: AuthoritiesDraft, authority: AuthorityIdentity, input: ExcerptInput) {
   const placed = citedLocatorPages(draft, authority.id, input.pageTextByPage ?? [], input.pageBindings,
     input.pageCount, input.passageGeometry, attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual"));
   const kept = new Set([...input.marked ?? [], ...[...placed.values()].flatMap((pages) => [...pages])]);
@@ -1287,27 +1308,32 @@ function statuteCurrency(pages?: string[]) {
   return found && found.charAt(0).toUpperCase() + found.slice(1);
 }
 
-function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf) {
-  if (!source.authority ||
-      !authoritiesProfile(draft.settings.profileId).requirements?.federalFormatting ||
-      draft.settings.filingMedium !== "paper") return null;
-  const databaseReference = freePublicDatabaseReference(source.authority);
-  if (!databaseReference) return null;
-  const pageCount = source.document.getPageCount();
-  const text = Array.from({ length: pageCount }, (_, index) =>
-    source.pageTextByPage?.[index]?.trim() || source.ocrTextByPage?.[index] || "");
-  const reasonsStart = text.findIndex((page) =>
-    /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
-  const cited = citedSourcePages(draft, source.authority.id, text, source.pageBindings, pageCount, source.passageGeometry,
-    attachedAuthoritySources(source.authority.source).some(({ origin }) => origin === "manual"));
-  source.markedPages?.forEach(index => cited.add(index));
-  if (reasonsStart < 0 || !cited.size) return null;
-  const selected = new Set(Array.from({ length: reasonsStart + 1 }, (_, index) => index));
-  cited.forEach((index) => {
-    for (let page = index - 1; page <= index + 1; page += 1)
-      if (page >= 0 && page < pageCount) selected.add(page);
-  });
-  return { pageIndices: [...selected].sort((left, right) => left - right), databaseReference };
+/** What the book copy of a case or another source keeps as an excerpt (`parts`, its PDFs' lengths): the first
+ *  page of each PDF, every page a cited passage is placed on or marked, and the context around them: the pages
+ *  holding the paragraphs before and after each cited paragraph of a case (`contextPages`), and the pages before
+ *  and after any other cited page. A decision a Federal Court book on paper excerpts keeps its headnote too: every
+ *  page before its reasons begin. Null where nothing cited is placed: it goes in whole. */
+function sourceExcerptPages(draft: AuthoritiesDraft, authority: AuthorityIdentity, input: ExcerptInput) {
+  const placed = citedLocatorPages(draft, authority.id, input.pageTextByPage ?? [], input.pageBindings,
+    input.pageCount, input.passageGeometry, attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual"));
+  const { pages } = excerptContext(draft.settings), marked = [...input.marked ?? []];
+  // A case whose cited paragraphs are placed takes its context in paragraphs; anything else, in pages.
+  const byParagraph = authority.kind === "case" && [...placed.keys()].some((key) => key.startsWith("paragraph\0"));
+  const kept = new Set(marked);
+  const around = (page: number) => { for (let near = page - pages; near <= page + pages; near++) kept.add(near); };
+  placed.forEach((at, key) => at.forEach((page) => byParagraph && key.startsWith("paragraph\0") ? kept.add(page) : around(page)));
+  if (!kept.size) return null;
+  if (byParagraph) input.contextPages?.forEach((page) => kept.add(page));
+  else marked.forEach(around);
+  let start = 0;
+  for (const count of input.parts) { kept.add(start); start += count; }
+  for (let page = start; page < input.pageCount; page++) kept.add(page);
+  if (federalPaperBook(draft.settings) && freeDatabaseCase(authority)) {
+    const reasons = Array.from({ length: input.pageCount }, (_, index) => input.pageTextByPage?.[index]?.trim() ||
+      input.ocrTextByPage?.[index] || "").findIndex((page) => /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
+    for (let page = 0; page <= reasons; page++) kept.add(page);
+  }
+  return [...kept].filter((page) => page >= 0 && page < input.pageCount).sort((left, right) => left - right);
 }
 
 function artifact(

@@ -16,7 +16,7 @@ import type { AuthoritiesAction, AuthoritiesBookSupplement, AuthoritiesDraft, Au
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesSourceIssue } from "./host";
 import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
-import type { StatuteCopy } from "./statuteExcerpts";
+import type { SourceCopy } from "./sourceCopies";
 import canliiLogo from "./canlii.ico";
 
 const control = "h-8 shrink-0 border-gray-300 px-2.5 text-[0.8125rem]";
@@ -47,8 +47,8 @@ export type AuthorityPanelProps = {
   onRetrySource?: (id: string) => void;
   onEditIdentity: (authority: AuthorityIdentity) => void;
   onWatchFolder?: () => void; watchedFolder?: string;
-  /** Each statute's book copy, by authority: every statute row has its line. */
-  statuteCopies?: ReadonlyMap<string, StatuteCopy>;
+  /** Each authority's book copy, by authority: every row the book reproduces has its line. */
+  copies?: ReadonlyMap<string, SourceCopy>;
   /** Each authority's group in the book ("Cases", "Legislation", ...), by authority. */
   groups?: ReadonlyMap<string, string>;
 };
@@ -81,7 +81,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
-  ocr, statuteCopies, groups, others, settings, finding = false, citedIn }: PanelProps) {
+  ocr, copies, groups, others, settings, finding = false, citedIn }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
   // A row is drawn again only when what it shows changes. The workspace's own changes (a source opened, a
   // status line) give the panel new callbacks each time; the rows get stable ones that call the latest.
@@ -145,7 +145,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       </div>
       {settings && settingsOpen && <div className="mb-3 rounded-lg border border-gray-300 bg-gray-50 p-3">{settings}</div>}
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
-      {/* A list with statutes keeps room for their Excerpt and Whole beside the actions on every row. */}
+      {/* A list whose sources go in as excerpts or whole keeps room for Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
         className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 overflow-hidden rounded-lg border border-gray-300 bg-white @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_auto]">
         {authorities.slice(0, drawn).map((authority, index) => <Fragment key={authority.id}>
@@ -154,7 +154,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
             <p className={GROUP}>{groups?.get(authority.id)}</p>}
           <AuthorityRow authority={authority} busy={busy} finding={finding && !authority.excluded}
           caseWarning={!authority.excluded && authority.citedCase && !state.discrepancyDecisions?.[authority.citedCase.id] ? authority.citedCase : undefined}
-          order={shown} copy={statuteCopies?.get(authority.id)} statutes={!!statuteCopies?.size}
+          order={shown} copy={copies?.get(authority.id)} choosing={!!copies?.size}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)} citedIn={citedIn?.get(authority.id)}
           citationLine={authorityCitationLine(state, authority)} italicName={authorityNameItalic(state, authority)}
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
@@ -193,8 +193,8 @@ const recognitionKey = (authority: AuthorityIdentity, ocr?: SourceOcrPanel) => !
 const AuthorityRow = memo(Row);
 function Row({ authority, tab, citationLine, italicName, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, statutes, finding = false, citedIn, caseWarning }: {
-  order: string[]; copy?: StatuteCopy; statutes: boolean; finding?: boolean; citedIn?: string;
+  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, choosing, finding = false, citedIn, caseWarning }: {
+  order: string[]; copy?: SourceCopy; choosing: boolean; finding?: boolean; citedIn?: string;
   caseWarning?: AuthorityIdentity["citedCase"];
   authority: AuthorityIdentity; tab?: string; citationLine: string; busy: boolean; needsPdf: boolean;
   /** The name is a style of cause or title, set in italics. */
@@ -275,11 +275,13 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
   const saveLink = (value: string) => { setLinking(false);
     const url = value.trim() && (/^https?:\/\//iu.test(value.trim()) ? value.trim() : `https://${value.trim()}`);
     if ((url || null) !== (authority.sourceUrl ?? null)) onAction({ type: "set-authority-link", authorityId: authority.id, url: url || null }); };
-  // A statute in the book as an excerpt or whole, chosen among the row's actions.
+  // The authority in the book as an excerpt or whole, chosen among the row's actions.
   const choose = (excerpt: boolean) => onAction({ type: "set-authority-excerpt", authorityId: authority.id, excerpt });
+  const statute = authority.kind === "legislation";
   const choice = <ActionMenu label={`${title} in the book`} triggerClassName={rowControl}
-    items={[{ label: "Cited provisions only", disabled: busy || copy?.excerpt === true, onSelect: () => choose(true) },
-      { label: "Whole statute", disabled: busy || copy?.excerpt === false, onSelect: () => choose(false) }]}>
+    items={[{ label: statute ? "Cited provisions only" : "Cited passages only", disabled: busy || copy?.excerpt === true, onSelect: () => choose(true) },
+      { label: statute ? "Whole statute" : authority.kind === "case" ? "Whole case" : "Whole document",
+        disabled: busy || copy?.excerpt === false, onSelect: () => choose(false) }]}>
     <ScrollText /><span className={rowLabel}>{copy?.excerpt === false ? "Whole" : "Excerpt"}</span></ActionMenu>;
   const sourceLink = <a href={authority.sourceUrl} target="_blank" rel="noopener noreferrer"
     title={authority.sourceUrl} aria-label={`Open the link for ${title}`} className={rowControl}>
@@ -323,7 +325,7 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
         : subline && <p className="line-clamp-2 text-[0.8125rem] leading-5 text-gray-500" title={subline}>{subline}</p>}
     </div>
     <div className="col-span-3 row-start-1 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-4">
-      {statutes && (copy?.choosable ? choice : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
+      {choosing && (copy?.choosable ? choice : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
       {!needsPdf && authority.sourceUrl && sourceLink}
       {needsPdf && (publisherUrl
         ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"

@@ -1,4 +1,5 @@
 import profiles from "./authorities-profiles.json" with { type: "json" };
+import { isCanliiUrl } from "./runtime/canliiPageUrls.mjs";
 
 /** The courts whose preset, not the user, says what a filed book does with a missing PDF. */
 const COURT_SOURCE_POLICY = new Set(profiles.filter((profile) =>
@@ -78,6 +79,25 @@ export function statuteExcerpt(authority, pageCounts = attachedAuthoritySources(
   return authority.excerpt ?? (pageCounts.includes(undefined) ? undefined
     : Math.max(...pageCounts) > STATUTE_EXCERPT_PAGES);
 }
+
+/** A decision whose reasons a free public database holds (A2AJ's, CanLII's): its address there, or null. */
+export function freeDatabaseCase(authority) {
+  const value = authority.kind === "case" ? authoritySourceUrl(authority) : null;
+  return value && (authority.sourceIdentity?.provider === "a2aj" || isCanliiUrl(value)) ? value : null;
+}
+/** Whether a case or another source goes in the book as an excerpt: as chosen for it, else as the book's
+ *  `caseCopy` says, where a Federal Court book on paper takes a decision on a free public database as an
+ *  excerpt (Federal Courts Rules, r 70(2.1)). A statute goes as `statuteExcerpt` says. */
+export function authorityExcerpt(draft, authority, pageCounts) {
+  if (authority.kind === "legislation") return statuteExcerpt(authority, pageCounts);
+  if (authority.source.kind !== "attached") return false;
+  return authority.excerpt ?? (draft.settings.caseCopy === "excerpt" || federalPaperBook(draft.settings) && !!freeDatabaseCase(authority));
+}
+/** A Federal Court book filed on paper, which has a decision on a free public database as an excerpt. */
+export const federalPaperBook = (settings) => settings.filingMedium === "paper" &&
+  !!profiles.find(({ id }) => id === settings.profileId)?.requirements?.federalFormatting;
+/** The context an excerpt keeps around each cited passage. */
+export const excerptContext = (settings) => ({ paragraphs: settings.contextParagraphs ?? 1, pages: settings.contextPages ?? 1 });
 
 /** Whether the book reproduces this authority, asked by the builder (which loads the
  *  PDF or a stub) and the workspace (which plans the same book). An authority whose PDF

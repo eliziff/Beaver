@@ -4,7 +4,7 @@ import { documentProjectionService } from "./documentProjectionService";
 import { docxToPdf, wordToPdfAvailable } from "./convert";
 import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
-import { statuteExcerptPageCounts, statuteExcerptSummary } from "./authoritiesBuild";
+import { excerptPageCounts, statuteExcerptSummary } from "./authoritiesBuild";
 import { sourceReadings } from "./sourceReadings";
 import { mapAuthorityBookBytes } from "mike/shared/runtime/authoritiesBook.mjs";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
@@ -255,7 +255,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     "book-front": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const actions = Array.isArray(input?.actions) && input.actions.length <= 3 ? input.actions as unknown[]
       : reject(400, "actions are invalid");
-    // The pages each excerpted statute keeps, as "excerpt-pages" counted them in the runtime that reads sources.
+    // The pages each excerpted authority keeps, as "excerpt-pages" counted them in the runtime that reads sources.
     const counted = input?.excerptPages === undefined ? {} : typeof input.excerptPages === "string"
       ? json(input.excerptPages, "excerptPages") : input.excerptPages;
     const excerptPages = counted && typeof counted === "object" && Object.values(counted).every((pages) =>
@@ -264,7 +264,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       bytes: await authoritiesBookFrontPdf(draft(input?.draft), actions.map(decodeAuthoritiesUserAction),
         String(input?.title ?? ""), excerptPages) }]);
     },
-    // A statute's excerpt's pages for the index preview, one PDF at a time: the PDF given is read as a build reads
+    // An excerpt's pages for the index preview, one PDF at a time: the PDF given is read as a build reads
     // it (a build then finds it read), and its authority's pages counted once all its PDFs are read.
     "excerpt-pages": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const state = draft(json(input?.draft, "draft"));
@@ -276,7 +276,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
       return reject(409, "The PDF no longer matches this authority source");
     const read = authoritiesSourceText(state, readings);
     const own = await read(role, { bytes, sourceSha256: source.sourceSha256, signal: context.signal });
-    const counts = await statuteExcerptPageCounts(state, async (item) => item.bindingRole === role ? own : read(item.bindingRole,
+    const counts = await excerptPageCounts(state, async (item) => item.bindingRole === role ? own : read(item.bindingRole,
       { sourceSha256: item.sourceSha256, signal: context.signal } as Parameters<typeof read>[1]).catch(() => null), authority.id);
     return value({ authorityId: authority.id, pages: counts[authority.id] ?? null });
     },

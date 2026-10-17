@@ -151,6 +151,7 @@ const pair: Check = (value) => Array.isArray(value) && value.length === 2 &&
   Array.from(value).every(integer);
 const linkSpan: Check = (value) => Array.isArray(value) && value.length === 3 && integer(value[0]) && integer(value[1]) &&
   text(value[2]);
+const count: Check = (value) => integer(value) && Number(value) >= 0;
 const choice = (key: keyof typeof AUTHORITIES_SETTINGS_CHOICES): Check =>
   oneOf(AUTHORITIES_SETTINGS_CHOICES[key]);
 
@@ -165,6 +166,7 @@ const settingsShape = closed<AuthoritiesSettings>({
   passageMarking: choice("passageMarking"), scannedPdfPolicy: choice("scannedPdfPolicy"),
   missingSourcePolicy: choice("missingSourcePolicy"), filingMedium: maybe(choice("filingMedium")),
   bookRole: maybe(choice("bookRole")), subsequentHistory: maybe(choice("subsequentHistory")),
+  caseCopy: maybe(choice("caseCopy")), contextParagraphs: maybe(count), contextPages: maybe(count),
 });
 /** Settings the chosen profile actually offers, read back through its own decoder. */
 const buildSettings: Check = (item) => {
@@ -882,12 +884,9 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     case "exclude-authority":
       requireRecord(draft.authorities, action.authorityId, "authority").excluded = action.excluded;
       break;
-    case "set-authority-excerpt": {
-      const authority = requireRecord(draft.authorities, action.authorityId, "authority");
-      if (authority.kind !== "legislation") throw new AuthoritiesDomainError("Only a statute goes in as an excerpt.");
-      authority.excerpt = action.excerpt;
+    case "set-authority-excerpt":
+      requireRecord(draft.authorities, action.authorityId, "authority").excerpt = action.excerpt;
       break;
-    }
     case "set-annotations": {
       if (!Array.isArray(action.entries) || !action.entries.length || action.entries.length > 2_000)
         throw new AuthoritiesDomainError("Annotation sources are invalid.");

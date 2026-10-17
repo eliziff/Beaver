@@ -49,7 +49,7 @@ import { attachedAuthoritySources, authoritiesInputPlan, authorityReproducedInBo
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 import { AuthoritiesHighlights, PASSAGE_OPTIONS, useHighlightsAhead } from "./AuthoritiesHighlightEditor";
-import { useStatuteCopies } from "./statuteExcerpts";
+import { useSourceCopies } from "./sourceCopies";
 
 type WorkspaceTab = "automatic" | "manual" | "drafts";
 type StartPreferences = Remembered;
@@ -1159,7 +1159,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // them at once; never during the review or a build, which would wait behind it.
   useHighlightsAhead(host, draft && (!app || "highlights" in app.steps) && (stage === "sources" || stage === "highlights")
     ? draft : undefined, ocr.tracked);
-  const statuteCopies = useStatuteCopies(host, draft, shown, stage === "sources" || stage === "highlights");
+  const copies = useSourceCopies(host, draft, shown, stage === "sources" || stage === "highlights");
   // Once in a browser: the first time Sources settles, nothing fetching, with authorities still
   // needing a PDF, what to do about them. Storage that can't be read means no explainer.
   const [explaining, setExplaining] = useState(false);
@@ -1241,7 +1241,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // finds them again; uploaded PDFs stay.
   const sourced = !!draft && draft.state.import.kind === "document", recognition = host.recognitionAvailable !== false;
   const sourceSettings = draft && !app?.sourceSettings && <SourceChoices settings={draft.state.settings} profileId={draft.state.settings.profileId}
-    sources={sourced} recognition={recognition} disabled={busy} onChange={({ sourceMode, ...patch }) => sourceMode
+    sources={sourced} recognition={recognition} context={draft.state.outputMode !== "table" || !!draft.state.settings.finalPdf}
+    disabled={busy} onChange={({ sourceMode, ...patch }) => sourceMode
       ? setSourceChange(sourceMode) : act({ type: "set-settings", settings: patch })} />;
   useEffect(() => {
     const fixed = app?.sourceSettings;
@@ -1257,7 +1258,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       finally { setOperation(""); }
     });
   };
-  const authorityPanelProps = { authorities, tabs: app ? NO_TABS : authorityTabs, groups: authorityGroups, busy, sourceIssues, statuteCopies,
+  const authorityPanelProps = { authorities, tabs: app ? NO_TABS : authorityTabs, groups: authorityGroups, busy, sourceIssues, copies,
     onAction: act, onEditIdentity: setEditingAuthority,
     onRetrySource: retryPublisherSource,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),

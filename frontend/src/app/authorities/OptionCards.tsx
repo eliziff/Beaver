@@ -23,7 +23,7 @@ export function OptionCard({ type = "radio", name, checked, disabled, onChange, 
   </label>;
 }
 
-/** A card that holds a file instead of a choice, laid out as the choices are. */
+/** A card that holds a file or a value instead of a choice, laid out as the choices are. */
 export function FileCard({ label, detail, action, disabled, className }: {
   label: ReactNode; detail: ReactNode; action?: ReactNode; disabled?: boolean; className?: string;
 }) {

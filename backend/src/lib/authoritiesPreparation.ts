@@ -1,7 +1,8 @@
-import { authoritiesInputPlan } from "mike/shared/authorities-sources.mjs";
+import { authoritiesInputPlan, authorityExcerpt } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
 import { updateAuthoritiesDraft } from "./authoritiesActions";
-import { authoritiesTextRoles, authorityFilingTargets, authorityPassageTargets, bookScanPolicy } from "./authoritiesBuild";
+import { authoritiesTextRoles, authorityFilingTargets, authorityPassageTargets, bookScanPolicy,
+  excerptContextTargets } from "./authoritiesBuild";
 import { authorityCitationForms, authoritiesProfile, type AuthoritiesDraft } from "./authoritiesDomain";
 import type { AuthoritiesDiscrepancyRequest } from "mike/shared/authorities-contract.d.ts";
 import { authoritiesDiscrepancyCorrection, reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
@@ -110,9 +111,11 @@ function sourceReading(draft: AuthoritiesDraft, readings?: SourceReadings) {
         citations: authority ? authorityCitationForms(draft, authority.id) : [],
         reporterOriginal: attached?.source.origin === "original",
         ocrTargets: filing ? [] : targets,
-        // A statute's cited provisions are placed whatever is marked: its excerpt keeps their pages.
-        passageTargets: brief ? [] : filing || linkGeometry || draft.settings.passageMarking !== "none" ||
-          authority?.kind === "legislation" ? targets : [],
+        // A statute's cited provisions are placed whatever is marked, as are an excerpt's cited passages and
+        // the paragraphs around them: its excerpt keeps their pages.
+        passageTargets: brief ? [] : [...filing || linkGeometry || draft.settings.passageMarking !== "none" ||
+          authority?.kind === "legislation" || authority && authorityExcerpt(draft, authority) ? targets : [],
+          ...authority ? excerptContextTargets(draft, authority) : []],
         // A brief's citations are placed by its own text, as the draft reviewed them.
         ...(linkFiling ? { filing: { ...draft, stage: undefined, authorities: Object.fromEntries(Object.entries(
           draft.authorities).map(([id, { annotations: _, ...authority }]) => [id, authority])) } } : {}) },
@@ -130,10 +133,15 @@ function sourceReading(draft: AuthoritiesDraft, readings?: SourceReadings) {
     const result = await kept("text", text, input, (input) => authorityPdfText({ ...input, ...read,
       ...(filing ? { passageTargets: (pages: string[]) => authorityFilingTargets(draft, pages) } : {}) }));
     input.signal?.throwIfAborted();
+    // The paragraphs placed for an excerpt's context are its pages, never passages of their own.
+    const context = (cited: boolean) => result.passageGeometry?.targets.filter(({ id }) => id.startsWith("context:") !== cited);
+    const contextPages = [...new Set(context(false)?.flatMap(({ status, pages }) =>
+      status === "found" ? pages.map(({ pageNumber }) => pageNumber - 1) : []))];
     return { pageTextByPage: result.pageTextByPage,
       ...(result.pageLabels ? { pageLabels: result.pageLabels, pageBindings: result.pageBindings } : {}),
       ...(result.ocrTextByPage.some(Boolean) ? { ocrTextByPage: result.ocrTextByPage } : {}),
-      ...(result.passageGeometry ? { passageGeometry: result.passageGeometry } : {}) };
+      ...(result.passageGeometry ? { passageGeometry: { ...result.passageGeometry, targets: context(true)! } } : {}),
+      ...(contextPages.length ? { contextPages } : {}) };
   };
   return { plan, request, kept, readText };
 }
