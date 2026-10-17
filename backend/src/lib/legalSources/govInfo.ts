@@ -54,6 +54,7 @@ async function searchGovInfoCase(text: string, signal?: AbortSignal) {
       signal,
     },
   );
+  if (!body) return null;
   const expected = docket.replace(":", "_").toLowerCase();
   const matches = new Map<string, GovInfoSearchResult>();
   for (const value of arrayValue(body.results)) {
@@ -95,6 +96,7 @@ async function fetchGovInfoCase(
     "api.govinfo.gov",
     { signal },
   );
+  if (!body) throw new Error(`GovInfo lists ${result.packageId} but publishes no summary of it.`);
   const title = stringValue(body.title) ?? result.title;
   const text = [
     title,

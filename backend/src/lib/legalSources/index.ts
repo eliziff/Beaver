@@ -60,6 +60,12 @@ export type LegalSourceResolveRequest = {
   signal?: AbortSignal;
 };
 
+// "Use only local data": while it holds, a provider that would ask a host on the network is not a place a lookup
+// looks, as the Python app's local-only run asks none.
+let local = false;
+export const keepLookupsLocal = (value: boolean) => { local = value; };
+export const lookupsLeaveComputer = () => !local;
+
 /** The providers of US and UK decisions, which a draft can leave out (its foreignCaseLookup setting). */
 export const FOREIGN_CASE_PROVIDERS: ReadonlySet<string> = new Set(["courtlistener", "tna", "govuk-et", "govinfo"]);
 

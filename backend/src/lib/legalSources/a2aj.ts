@@ -6,14 +6,14 @@ import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
-import { guardedRemoteFetch } from "../remoteUrlSafety";
+import { guardedRemoteFetch, networkFailure, RETRY_WAITS_MS, wait } from "../remoteUrlSafety";
 import { inSqliteRun, onSqliteRunEnd, storeExists } from "../legalDataPath";
 import { normalizeWhitespace } from "../text";
 import { nativeDocumentLive, structureNative, type A2AJStoreDocument, type A2AJStoreLookup,
   type NativeDocument } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
-import { isUnitedStatesSearch } from ".";
+import { isUnitedStatesSearch, keepLookupsLocal, lookupsLeaveComputer } from ".";
 import type { LegalSourceProvider, LegalSourceReference, LegalSourceResolveRequest, LegalSourceSearchRequest } from ".";
 import type { LegalSourceSearchHit } from "mike/shared/runtime/clientContracts.mjs";
 
@@ -139,9 +139,11 @@ function sourceUrl(record: JsonObject, language: Language) {
 }
 
 export type A2AJFailureReason = "rate-limited" | "error" | "timeout" | "unreachable" | "local-only";
-/** A2AJ did not answer a lookup: the authority was not checked, which is not the same as not found. */
+/** A2AJ did not answer a lookup: the authority was not checked, which is not the same as not found. `transient`: no
+ *  answer came, or A2AJ failed or held the lookup off, so asking again can answer it. */
 export class A2AJUnavailable extends Error {
-  constructor(readonly reason: A2AJFailureReason, readonly retryAt: number | null = null, detail?: string) {
+  constructor(readonly reason: A2AJFailureReason, readonly retryAt: number | null = null, detail?: string,
+    readonly transient = reason === "rate-limited" || reason === "timeout" || reason === "unreachable") {
     super(detail || (reason === "rate-limited" ? "A2AJ is limiting requests."
       : reason === "timeout" ? "A2AJ did not answer in time."
       : reason === "unreachable" ? "A2AJ could not be reached."
@@ -150,18 +152,17 @@ export class A2AJUnavailable extends Error {
   }
 }
 
-let remoteAllowed = true;
 /** The A2AJ store a run's lookups read: a path to an a2aj.sqlite (a2ajLocalBulk.ts), or nothing for
  *  the configured one. */
 export type A2AJCorpusInput = string;
 /**
- * Points lookups at the store a run was given, and keeps them on this computer when `localOnly`:
- * a source the store lacks is then reported as unavailable rather than asked of A2AJ.
+ * Points lookups at the store a run was given, and keeps every provider's lookups on this computer when `localOnly`:
+ * a source the store lacks is then a miss, as in the Python app's local-only run, never asked of A2AJ.
  */
 export function useA2AJCorpus(input: A2AJCorpusInput | null | undefined, options: { localOnly?: boolean } = {}) {
   useA2AJStore(typeof input === "string" && input ? input : null);
-  if (remoteAllowed === !!options.localOnly) documents.clear();
-  remoteAllowed = !options.localOnly;
+  if (lookupsLeaveComputer() === !!options.localOnly) documents.clear();
+  keepLookupsLocal(!!options.localOnly);
 }
 // A limit A2AJ sets (429, or a 503 that names a Retry-After) holds every lookup until it passes.
 // Only a time A2AJ named is reported as when it allows lookups again; a hold of our own
@@ -172,12 +173,12 @@ const pause = (reason: A2AJFailureReason, retryAfter: string | null, hold: numbe
   if (until && until > paused.until) paused = { until, reason, named: !!named };
   return held(reason, named, until);
 };
-/** A lookup refused while a hold lasts, saying when lookups start again: A2AJ's own time when it
- *  named one, else the time of our own hold. */
+/** A lookup refused while a hold lasts, or that A2AJ failed (5xx), saying when lookups start again: A2AJ's own time
+ *  when it named one, else the time of our own hold. Asking again can answer it. */
 const held = (reason: A2AJFailureReason, named: number | null, until: number | null) => {
   const time = until && new Date(until).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   return new A2AJUnavailable(reason, named, reason !== "rate-limited" || !time ? undefined : named
-    ? `A2AJ is limiting requests until ${time}.` : `A2AJ is limiting requests. Lookups start again at ${time}.`);
+    ? `A2AJ is limiting requests until ${time}.` : `A2AJ is limiting requests. Lookups start again at ${time}.`, true);
 };
 const retryAt = (value: string | null) => {
   const seconds = Number(value), date = value ? Date.parse(value) : NaN;
@@ -189,12 +190,6 @@ const retryAt = (value: string | null) => {
 const refusal = (response: Response) => response.status === 429
   ? pause("rate-limited", response.headers.get("retry-after"), 60_000)
   : response.status >= 500 ? pause("error", response.headers.get("retry-after"), null) : null;
-// What fetch rejects with when no answer could be used: a TypeError (undici, browsers), or a
-// lookup or socket error from Node. Anything else was raised by our own request path.
-const NETWORK_CODES = new Set(["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ECONNRESET",
-  "ETIMEDOUT", "EHOSTUNREACH", "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_SOCKET"]);
-const networkFailure = (error: unknown) => error instanceof TypeError ||
-  NETWORK_CODES.has(String((error as { code?: unknown })?.code));
 
 function apiError(status: number, body: unknown) {
   const detail = object(body)?.detail;
@@ -291,7 +286,7 @@ async function request(
   params: Record<string, string | number | undefined>, signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();
-  if (!remoteAllowed) throw new A2AJUnavailable("local-only");
+  if (!lookupsLeaveComputer()) throw new A2AJUnavailable("local-only");
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") query.set(key, String(value));
@@ -302,13 +297,24 @@ async function request(
     scope: "shared", kind: "legal-source-a2aj", key: url, version: 1,
     ...(immutable ? {} : { ttlMs: 24 * 60 * 60_000 }),
     produce: async () => {
-      signal?.throwIfAborted();
-      if (Date.now() < paused.until) throw held(paused.reason, paused.named ? paused.until : null, paused.until);
-      withinLimits();
-      const response = await send(url, signal);
-      const body = await response.json().catch(() => null);
-      if (!response.ok) throw apiError(response.status, body);
-      return object(body) ?? {};
+      // A lookup A2AJ left unanswered (no connection, no answer in time, a server error) is asked again after 1 s and
+      // 4 s; one it holds off, when the hold ends, where that is within a minute. Past that its failure is the run's.
+      for (let attempt = 1; ; attempt += 1) {
+        signal?.throwIfAborted();
+        try {
+          if (Date.now() < paused.until) throw held(paused.reason, paused.named ? paused.until : null, paused.until);
+          withinLimits();
+          const response = await send(url, signal);
+          const body = await response.json().catch(() => null);
+          if (!response.ok) throw apiError(response.status, body);
+          return object(body) ?? {};
+        } catch (error) {
+          const pause = error instanceof A2AJUnavailable && error.transient && attempt <= RETRY_WAITS_MS.length
+            ? Math.max(RETRY_WAITS_MS[attempt - 1], paused.until - Date.now()) : Infinity;
+          if (pause > 60_000) throw error;
+          await wait(pause, signal);
+        }
+      }
     },
   });
   signal?.throwIfAborted();
@@ -462,7 +468,7 @@ async function document(args: {
       { citation: full.citation, docType, language, dataset: full.dataset }, section, { citation: full.citation,
         url: full.url, alternateCitation: full.alternateCitation, dataset: full.dataset, name: full.name });
     let scoped: Pick<A2AJDocument, "text"> | undefined;
-    if (!local) {
+    if (!local && lookupsLeaveComputer()) {
       const payload = await request("/fetch", {
         citation, doc_type: docType, output_language: language, section,
       }, args.signal);
@@ -506,7 +512,7 @@ async function document(args: {
   // case's name before it, which only makes another request of each way it is written; for a court it holds; and
   // searched once, for the first form.
   const named = new Set(core.length ? [citation, english].filter((form) => !core.includes(form)) : []);
-  const asked = local ? [] : await coveredForms(forms.filter((form) => !named.has(form)), docType, args.signal);
+  const asked = local || !lookupsLeaveComputer() ? [] : await coveredForms(forms.filter((form) => !named.has(form)), docType, args.signal);
   if (!source) for (const form of asked) {
     args.signal?.throwIfAborted();
     const payload = await request("/fetch", { citation: form, doc_type: docType, output_language: language }, args.signal);
@@ -533,7 +539,7 @@ async function document(args: {
   }
   const found = local ?? source;
   if (!found) return null;
-  const verifiedPdf = args.discoverPdf === false || !remoteAllowed ? null : await decisiaPdf(found.url, args.signal);
+  const verifiedPdf = args.discoverPdf === false || !lookupsLeaveComputer() ? null : await decisiaPdf(found.url, args.signal);
   let result: A2AJCompiledDocument;
   if (local) {
     const { native: provisions, searchNative, ...metadata } = local;

@@ -1,6 +1,6 @@
 import { cachedContent } from "../contentCache";
-import { guardedRemoteFetch } from "../remoteUrlSafety";
-import { searchJurisdiction } from ".";
+import { retriedRemoteFetch } from "../remoteUrlSafety";
+import { lookupsLeaveComputer, searchJurisdiction } from ".";
 import type { LegalSourceProvider, LegalSourceReference } from ".";
 import { structureNative, type NativeDocument } from "../structureNative";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
@@ -23,7 +23,7 @@ async function courtlistenerFetch<T>(
   const method = init?.method ?? "GET";
   const perform = async () => {
     const token = apiToken?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim();
-    const response = await guardedRemoteFetch(
+    const response = await retriedRemoteFetch(
       url,
       { ...init, headers: { Accept: "application/json", ...token ? { Authorization: `Token ${token}` } : {},
         ...(init?.headers ?? {}) } },
@@ -92,38 +92,37 @@ async function capPageCitations(filepath: string | null | undefined, signal?: Ab
   const path = value?.startsWith(archivePrefix)
     ? value.slice(archivePrefix.length)
     : value?.replace(/^\/+/, "");
-  if (!path || path.includes("..") || !/^[\w./-]+\.json$/u.test(path)) return [];
+  // The Caselaw Access Project's page citations for the case, which are not asked while lookups stay on this computer;
+  // none where it publishes none (404).
+  if (!path || path.includes("..") || !/^[\w./-]+\.json$/u.test(path) || !lookupsLeaveComputer()) return [];
   const url = `https://archive.org/download/${path}`;
-  try {
-    const data = await cachedContent<JsonRecord>({
-      scope: "shared", kind: "courtlistener-cap-metadata", key: url, version: 1,
-      produce: async () => {
-        const response = await guardedRemoteFetch(
-          url,
-          { signal },
-          { label: "CAP metadata request", allowedHosts: ["archive.org"],
-            defaultPortOnly: true, allowIpLiterals: false, timeoutMs: 15_000,
-            response: { label: "CAP metadata response", maxBytes: 8 * 1024 * 1024,
-              contentTypes: ["application/json", "application/*+json"] } },
-        );
-        if (!response.ok) throw new Error(`CAP metadata error (${response.status})`);
-        return response.json() as Promise<JsonRecord>;
-      },
-    });
-    return (Array.isArray(data.citations) ? data.citations : [])
-      .map((value, index) => ({
-        cite: asString((value as JsonRecord)?.cite),
-        type: asString((value as JsonRecord)?.type),
-        index,
-      }))
-      .filter((value): value is { cite: string; type: string | null; index: number } => !!value.cite)
-      .sort((left, right) =>
-        (CAP_CITATION_ORDER.get(left.type ?? "") ?? 99) -
-          (CAP_CITATION_ORDER.get(right.type ?? "") ?? 99) || left.index - right.index)
-      .map(({ cite }) => cite);
-  } catch {
-    return [];
-  }
+  const data = await cachedContent<JsonRecord>({
+    scope: "shared", kind: "courtlistener-cap-metadata", key: url, version: 1,
+    produce: async () => {
+      const response = await retriedRemoteFetch(
+        url,
+        { signal },
+        { label: "CAP metadata request", allowedHosts: ["archive.org"],
+          defaultPortOnly: true, allowIpLiterals: false, timeoutMs: 15_000,
+          response: { label: "CAP metadata response", maxBytes: 8 * 1024 * 1024,
+            contentTypes: ["application/json", "application/*+json"] } },
+      );
+      if (response.status === 404) return {};
+      if (!response.ok) throw new Error(`CAP metadata error (${response.status})`);
+      return response.json() as Promise<JsonRecord>;
+    },
+  });
+  return (Array.isArray(data.citations) ? data.citations : [])
+    .map((value, index) => ({
+      cite: asString((value as JsonRecord)?.cite),
+      type: asString((value as JsonRecord)?.type),
+      index,
+    }))
+    .filter((value): value is { cite: string; type: string | null; index: number } => !!value.cite)
+    .sort((left, right) =>
+      (CAP_CITATION_ORDER.get(left.type ?? "") ?? 99) -
+        (CAP_CITATION_ORDER.get(right.type ?? "") ?? 99) || left.index - right.index)
+    .map(({ cite }) => cite);
 }
 
 function opinionIdentifier(opinion: JsonRecord) {
@@ -283,31 +282,26 @@ async function citationCluster(
     }
     if (!courtlistenerApiTokenAvailable(apiToken)) return null;
   }
-  try {
-    const results = await courtlistenerFetch<unknown>(
-      "/citation-lookup/",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ text: text.slice(0, 64000) }),
-        signal,
-      },
-      apiToken,
-    );
-    return uniqueCitationCluster((Array.isArray(results) ? results : []).flatMap((value) => {
-      const row = jsonRecord(value);
-      if (!Array.isArray(row?.clusters)) return [];
-      return row.clusters.flatMap((value) => {
-        const cluster = jsonRecord(value);
-        return asString(cluster?.absolute_url) ? [cluster?.id] : [];
-      });
-    }));
-  } catch (error) {
-    // Preserve optional API fallback: a local miss survives API failure, while
-    // API-only failures (including cancellation) still propagate to the registry.
-    if (!localAvailable) throw error;
-    return null;
-  }
+  // CourtListener is not asked while lookups stay on this computer.
+  if (!lookupsLeaveComputer()) return null;
+  const results = await courtlistenerFetch<unknown>(
+    "/citation-lookup/",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ text: text.slice(0, 64000) }),
+      signal,
+    },
+    apiToken,
+  );
+  return uniqueCitationCluster((Array.isArray(results) ? results : []).flatMap((value) => {
+    const row = jsonRecord(value);
+    if (!Array.isArray(row?.clusters)) return [];
+    return row.clusters.flatMap((value) => {
+      const cluster = jsonRecord(value);
+      return asString(cluster?.absolute_url) ? [cluster?.id] : [];
+    });
+  }));
 }
 
 async function getBulkCourtlistenerCaseOpinions(clusterId: number, opinionId?: number) {
@@ -436,8 +430,8 @@ function provider(
   return {
     id: "courtlistener",
     canResolve: (request) =>
-      request.kind === "case" && structureNative().providerCitationsInText(request.text)
-        .some(({ jurisdiction }) => jurisdiction === "us"),
+      request.kind === "case" && (courtlistenerLocalBulkAvailable() || lookupsLeaveComputer()) &&
+        structureNative().providerCitationsInText(request.text).some(({ jurisdiction }) => jurisdiction === "us"),
     async resolve(request) {
       const clusterId = await citationCluster(request.text, options.apiToken, request.signal);
       return clusterId
@@ -479,16 +473,10 @@ function provider(
       const wantedOpinionId = request.source.part ? Number(request.source.part) : undefined;
       if (wantedOpinionId !== undefined &&
           (!Number.isSafeInteger(wantedOpinionId) || wantedOpinionId <= 0)) return [];
-      let caseRecord: JsonRecord;
-      try {
-        caseRecord = await caseOpinions({
-          clusterId, opinionId: wantedOpinionId,
-          apiToken: options.apiToken, signal: request.signal,
-        });
-      } catch {
-        request.signal?.throwIfAborted();
-        return [];
-      }
+      const caseRecord: JsonRecord = await caseOpinions({
+        clusterId, opinionId: wantedOpinionId,
+        apiToken: options.apiToken, signal: request.signal,
+      });
       const opinions = Array.isArray(caseRecord.opinions)
         ? caseRecord.opinions.filter((opinion): opinion is object =>
             Boolean(opinion) && typeof opinion === "object")

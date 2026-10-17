@@ -291,7 +291,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     // A PDF attached for the authority (a CanLII download, a file from the watched folder) is read as its source.
     const own = source && "id" in source ? attached.get(String(source.id)) : undefined;
     if (own) return own;
-    const found = source && read ? await read(source).catch(() => { signal?.throwIfAborted(); return null; }) : null;
+    const found = source && read ? await read(source) : null;
     return found && !found.missing ? found.document : null;
   }));
   // A link this app makes: its anchor given its passage's text fragment where the passage can be read,

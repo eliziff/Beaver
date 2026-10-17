@@ -13,10 +13,10 @@ import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { justiceLawsLegalSourceProvider, justiceLawsSource } from "./legalSources/justiceLaws";
 import { govUkEmploymentTribunalLegalSourceProvider, govUkEmploymentTribunalCaseSource } from "./legalSources/govUkEmploymentTribunal";
 import { govInfoLegalSourceProvider, govInfoCaseSource } from "./legalSources/govInfo";
-import { canliiLegalSourceProvider, canliiSource } from "./legalSources/canlii";
+import { CanliiRefused, canliiLegalSourceProvider, canliiSource } from "./legalSources/canlii";
 import { journalLegalSourceProvider } from "./legalSources/journal";
 import { splitQuoteCitationUnits } from "./quoteCitationSplit";
-import { FOREIGN_CASE_PROVIDERS, type LegalSourceReference } from "./legalSources";
+import { FOREIGN_CASE_PROVIDERS } from "./legalSources";
 import { mapBounded } from "./mapBounded";
 import { legislationPdfUrl, publisherOpenUrl, publisherPdfCandidate } from "./legalSourcePresentation";
 import { downloadProviderOriginalPdf, publisherOriginalUrls, PublisherDownloadFailure } from "./providerPdfLibraryBridge";
@@ -41,18 +41,21 @@ const foreignProviders = [
 ] as const;
 
 /** Resolves the first citation form a provider matches; never a best guess. Without `foreignCases`,
- *  US and UK decisions are not looked up. A provider that failed (CanLII's challenge, an outage) is not asked
- *  again for another form of the same authority: the form names the same document. */
+ *  US and UK decisions are not looked up. CanLII, once it refuses this app (its challenge, which it puts to every
+ *  page alike), is not asked for the authority's other forms; any other failure is the run's. */
 async function resolveForeignAuthoritySource(citations: readonly string[], signal?: AbortSignal,
   kind: "case" | "legislation" = "case", foreignCases = true) {
-  const failed = new Set<string>();
+  let refused = false;
   for (const citation of citations.map((value) => value.trim()).filter(Boolean)) {
     signal?.throwIfAborted();
     for (const { id, claims, source } of foreignProviders) {
-      if (failed.has(id) || !foreignCases && FOREIGN_CASE_PROVIDERS.has(id)) continue;
+      if ((refused && id === "canlii") || !foreignCases && FOREIGN_CASE_PROVIDERS.has(id)) continue;
       if (!claims.canResolve?.({ text: citation, kind })) continue;
       let found: Awaited<ReturnType<typeof source>> = null;
-      try { found = await source(citation, signal); } catch { signal?.throwIfAborted(); failed.add(id); }
+      try { found = await source(citation, signal); } catch (error) {
+        if (!(error instanceof CanliiRefused)) throw error;
+        refused = true;
+      }
       if (!found || (!found.pdfUrl && !found.text.trim())) continue;
       return { ...found, provider: id, name: found.title, stableSourceId: `${id}:${found.id}`,
         sourceSha256: canonicalJsonSha256({ provider: id, id: found.id, text: found.text }) };
@@ -73,7 +76,8 @@ export const authoritySourceServices = {
       dateFrom: from, dateTo: to, limit: 20, ordered: false, signal }),
   /** The journal article a commentary citation names, by its citation or quoted title. */
   resolveJournal: async (citation: string, signal?: AbortSignal) =>
-    (await journalLegalSourceProvider.resolve!({ text: citation, kind: "journal", signal }))[0] as LegalSourceReference | undefined ?? null,
+    journalLegalSourceProvider.canResolve!({ text: citation, kind: "journal" })
+      ? (await journalLegalSourceProvider.resolve!({ text: citation, kind: "journal", signal }))[0] ?? null : null,
   download: downloadProviderOriginalPdf,
   /** A publisher's original the host has kept, by the address it was fetched at; never fetched here. */
   stored: undefined as ((url: string) => Promise<Uint8Array | null>) | undefined,
@@ -255,8 +259,6 @@ export async function resolveAuthoritiesSources(
       return { source, revision };
     } catch (error) {
       signal?.throwIfAborted();
-      // Working locally only, a source the local store lacks is a miss: A2AJ is not asked.
-      if (error instanceof A2AJUnavailable && error.reason === "local-only") continue;
       // A failure of our own is a defect named by its own message, never A2AJ's error.
       failure = error instanceof A2AJUnavailable && error.reason !== "local-only" ? { reason: error.reason,
         retryAfter: error.retryAt ? new Date(error.retryAt).toISOString() : null }
@@ -325,9 +327,8 @@ export async function resolveAuthoritiesSources(
       !("mismatch" in resolutions[index]) && !resolutions[index].source &&
       ["unresolved", "resolved"].includes(draft.authorities[id]?.source.kind) ? [id] : []), async (id) => {
     signal?.throwIfAborted();
-    try { return [id, await sources.resolveForeign(authorityCitationForms(draft, id), signal,
-      draft.authorities[id].kind as "case" | "legislation", draft.settings.foreignCaseLookup !== false)] as const; }
-    catch { signal?.throwIfAborted(); return [id, null] as const; }
+    return [id, await sources.resolveForeign(authorityCitationForms(draft, id), signal,
+      draft.authorities[id].kind as "case" | "legislation", draft.settings.foreignCaseLookup !== false)] as const;
   });
   for (const [id, found] of foreign) {
     if (!found || !draft.authorities[id]) continue;
@@ -371,8 +372,7 @@ export async function resolveAuthoritiesSources(
     const unit = occurrence && draft.units.find((item) => item.id === occurrence.unitId);
     const [split] = unit ? await splitQuoteCitationUnits([unit.text], signal) : [];
     const part = split?.parts.find((item) => occurrence!.start >= item.start && occurrence!.start < item.end);
-    let article: Awaited<ReturnType<SourceServices["resolveJournal"]>> = null;
-    try { article = await sources.resolveJournal(part?.text ?? authority.citation, signal); } catch { signal?.throwIfAborted(); }
+    const article = await sources.resolveJournal(part?.text ?? authority.citation, signal);
     if (!article?.url) continue;
     editor.apply({ type: "resolve-authority", authorityId: id, citation: authority.citation, name: authority.name,
       source: { provider: "journal", stableSourceId: `journal:${article.id}`,

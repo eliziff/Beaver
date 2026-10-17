@@ -228,6 +228,49 @@ export async function guardedRemoteFetch(input: Parameters<typeof fetch>[0],
   }
 }
 
+// What fetch rejects with when no answer could be used: a TypeError (undici, browsers), or a lookup or socket error
+// from Node. Anything else was raised by our own request path.
+const NETWORK_CODES = new Set(["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ECONNRESET",
+  "ETIMEDOUT", "EHOSTUNREACH", "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_SOCKET"]);
+export const networkFailure = (error: unknown) => error instanceof TypeError ||
+  NETWORK_CODES.has(String((error as { code?: unknown })?.code));
+/** A server that failed or limited the request: asking again can answer it. */
+const unanswered = (status: number) => status === 429 || status >= 500;
+/** The waits before a request is asked again. */
+export const RETRY_WAITS_MS = [1_000, 4_000];
+export const wait = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+  signal?.throwIfAborted();
+  const timer = setTimeout(() => { signal?.removeEventListener("abort", stop); resolve(); }, ms);
+  const stop = () => { clearTimeout(timer); reject(signal!.reason); };
+  signal?.addEventListener("abort", stop, { once: true });
+});
+
+/** guardedRemoteFetch, asked again after 1 s and then 4 s where no answer came (no connection, no answer in time, or a
+ *  service relaying either) or the server failed or limited the request (5xx, 429), after the time its Retry-After names
+ *  where that is within a minute. The last answer, or failure, is the caller's. */
+export async function retriedRemoteFetch(input: string, init?: Parameters<typeof fetch>[1],
+  policy: RemoteFetchPolicy = {}): Promise<Response> {
+  for (let attempt = 1; ; attempt += 1) {
+    let response: Response;
+    try { response = await guardedRemoteFetch(input, init, policy); }
+    catch (error) {
+      init?.signal?.throwIfAborted();
+      const status = Number((error as { status?: unknown })?.status);
+      if (attempt > RETRY_WAITS_MS.length || !(networkFailure(error) || (error as Error)?.name === "TimeoutError" ||
+        unanswered(status))) throw error;
+      await wait(RETRY_WAITS_MS[attempt - 1], init?.signal ?? undefined);
+      continue;
+    }
+    if (attempt > RETRY_WAITS_MS.length || !unanswered(response.status)) return response;
+    const named = response.headers.get("retry-after"), seconds = Number(named);
+    const after = !named ? 0 : Number.isFinite(seconds) ? seconds * 1000 : Date.parse(named) - Date.now();
+    const pause = Math.max(RETRY_WAITS_MS[attempt - 1], Number.isFinite(after) ? after : 0);
+    if (pause > 60_000) return response;
+    await response.body?.cancel().catch(() => undefined);
+    await wait(pause, init?.signal ?? undefined);
+  }
+}
+
 async function guardedRemoteFetchOnce(input: Parameters<typeof fetch>[0],
   init: Parameters<typeof fetch>[1], policy: RemoteFetchPolicy): Promise<Response> {
   const request = typeof input === "string" || input instanceof URL ? null : input;

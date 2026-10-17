@@ -45,6 +45,7 @@ async function searchEmploymentTribunalCase(
     HOST,
     { signal },
   );
+  if (!body) return null;
   const matches = new Map<string, EmploymentTribunalSearchResult>();
   for (const value of arrayValue(body.results)) {
     const item = objectValue(value);
@@ -97,6 +98,7 @@ async function fetchEmploymentTribunalCase(
     HOST,
     { signal },
   );
+  if (!body) throw new Error(`GOV.UK lists ${result.caseNumber} but publishes no content for it.`);
   const details = objectValue(body.details) ?? {};
   const title = stringValue(body.title) ?? result.title;
   const description = stringValue(body.description);

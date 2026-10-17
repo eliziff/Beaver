@@ -4,8 +4,9 @@
 //     --input <docx> [--input <docx> …] --out <dir> [--no-quotes] [--setting supra_linking=aggressive]
 //     [--llm <module whose default export is an llm> --setting run_mode=high_accuracy|economy|ultra_economy]
 // A2AJ answers come from the local store, then from the recorded answers in
-// benchmarks/local-data/alr-verifier/a2aj-http-cache; new live lookups are off unless --a2aj-live <n>. Nothing else
-// leaves the computer, as in the Python app's local-only run: a publisher's page (CanLII, CourtListener) is a miss.
+// benchmarks/local-data/alr-verifier/a2aj-http-cache; new live lookups are off unless --a2aj-live <n>, and an A2AJ
+// lookup not recorded fails the run. Nothing else leaves the computer, as in the Python app's local-only run: every
+// other address answers 404, so a publisher's page (CanLII, CourtListener, the National Archives) is a miss.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -21,21 +22,21 @@ const option = (name: string) => { const at = args.indexOf(name); return at >= 0
 const settings: Record<string, string> = Object.fromEntries(args.flatMap((value, index) =>
   value === "--setting" ? [args[index + 1].split(/=(.*)/su, 2)] : []));
 
-// Record/replay every api.a2aj.ca answer; new lookups are capped; any other address fails at once.
+// Record/replay every api.a2aj.ca answer; new lookups are capped; any other address is not found.
 const cacheDir = path.join(SUITE, "a2aj-http-cache");
 let live = Number(option("--a2aj-live") ?? 0);
 const undici = createRequire(path.join(REPO, "backend/package.json"))("undici") as { fetch: typeof fetch };
 const realFetch = undici.fetch;
 undici.fetch = (async (resource: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
   const url = typeof resource === "string" ? resource : resource instanceof URL ? resource.toString() : resource.url;
-  if (!/^https:\/\/api\.a2aj\.ca\//u.test(url)) throw new TypeError(`local only: ${url}`);
+  if (!/^https:\/\/api\.a2aj\.ca\//u.test(url)) return new Response(null, { status: 404 });
   const method = (init?.method ?? "GET").toUpperCase(), file = path.join(cacheDir,
     `${createHash("sha256").update(`${method} ${url}`).digest("hex")}.json`);
   if (existsSync(file)) {
     const saved = JSON.parse(readFileSync(file, "utf8")) as { status: number; headers: Record<string, string>; body: string };
     return new Response(method === "HEAD" ? null : saved.body, { status: saved.status, headers: saved.headers });
   }
-  if (live <= 0) throw new TypeError(`A2AJ lookup not recorded and live lookups are off: ${url}`);
+  if (live <= 0) throw new Error(`A2AJ lookup not recorded and live lookups are off: ${url}`);
   live--;
   const response = await realFetch(resource, init), body = method === "HEAD" ? "" : await response.text();
   if (response.status !== 429 && response.status < 500) {

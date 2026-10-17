@@ -542,11 +542,13 @@ function exactJournalIdentity(value: string) {
 
 const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
   id: "journal",
-  canResolve: ({ kind }) => kind === "journal",
+  // An article is looked for only where the journals database is on this computer.
+  canResolve: ({ kind }) => kind === "journal" && existsSync(journalDatabasePath()),
   async resolve(request) {
     const candidates = [request.text, ...(request.alternateTexts ?? [])]
       .map((value) => value.trim().replace(/\s+/gu, " "))
       .filter(Boolean);
+    if (!candidates.length) return [];
     for (const candidate of candidates) {
       const article = await document(candidate);
       if (article) return [journalReference(article)];
