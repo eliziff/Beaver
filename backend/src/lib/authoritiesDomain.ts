@@ -279,6 +279,7 @@ const unitSource = closed<NonNullable<AuthoritiesReviewUnit["source"]>>({
 });
 const unitFields = { source: maybe(unitSource), id: text, kind: oneOf(["body", "footnote"]), ordinal: integer,
   footnoteId: nullable(integer), noteNumber: maybe(nullable(integer)), noteMark: maybe(text),
+  restartSequence: maybe(integer),
   authorLinks: maybe(list(50_000, linkSpan)), footnoteRefs: list(50_000, pair),
   pageNumbers: list(50_000, integer), text,
 } satisfies FieldTable<Omit<AuthoritiesReviewUnit, "occurrenceIds">>;

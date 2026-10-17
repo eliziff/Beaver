@@ -13,7 +13,6 @@ import { legalSourceOperations } from "../legalSourceApplication";
 import { buildLegalSourcePinpoint, canliiPinpointLink, citedPassageLink, legalSourceLocatorAnchor, sourceUrl } from "../legalSourceLinks";
 import { isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import type { NativeDocument } from "../structureNative";
-import type { LegalSourceReference } from "../legalSources";
 import type { QuoteCitationUnit } from "../quoteCitationSplit";
 import { structureNative } from "../structureNative";
 import { ApplicationError } from "../applicationError";
@@ -125,7 +124,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   const UNNUMBERED = 0xffff_ffff;
   const notes = ranges.map(({ note, start, end }) => ({ start, end,
     number: note.noteNumber === null ? UNNUMBERED : note.noteNumber ?? note.footnoteId!,
-    sequence: note.noteNumber === null ? UNNUMBERED : 0,
+    sequence: note.noteNumber === null ? UNNUMBERED : note.restartSequence ?? 0,
     ...(anchors.has(note.footnoteId!) ? { anchor: anchors.get(note.footnoteId!) } : {}) }));
   // How far the cited works run (Beaver's works pack), so a pinpoint past a work's end refuses the link.
   registerWorkExtents(structureNative());
@@ -179,28 +178,6 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     const row = resolution?.targetPart != null ? rowOf(resolution.targetPart) : -1;
     return row >= 0 ? row : origin[index];
   });
-  // A supra the engine leaves unresolved, to a note it names: the note's part its short form names, else its first, as
-  // the Python app chooses (alr_quote_verifier.py _choose_supra_target_part_index), saying so where it defaults.
-  const supraNotes = new Map<number, string>();
-  parts.forEach((part, index) => {
-    const named = kinds[index].notes[0], note = named ? ranges.find(({ note }) => String(note.noteNumber) === named)?.note : undefined;
-    if (kinds[index].kind !== "supra" || origin[index] >= 0 || !note) return;
-    const candidates = parts.flatMap((item, at) => item.range.note === note ? [at] : []);
-    if (!candidates.length) return;
-    const choose = (at: number, said?: string) => { origin[index] = target[index] = at; if (said) supraNotes.set(index, said); };
-    if (candidates.length === 1) return choose(candidates[0]);
-    const hint = engine<string>("supraHint", { text: part.text, aggressive: options.supraLinking === "aggressive", fallback: false }).toLowerCase();
-    if (!hint) return choose(candidates[0], "Supra target footnote has multiple references; could not infer intended citation-part (no short form). Defaulted to part 1.");
-    const score = (at: number, token: string) => {
-      const text = parts[at].text.toLowerCase(), short = fields[at].short_form.toLowerCase();
-      return text.includes(`[${token}]`) || short && short === token ? 4
-        : wholeWord(text, token) ? 2 : text.includes(token) ? 1 : 0;
-    };
-    const best = (token: string) => candidates.reduce((top, at) => score(at, token) > score(top, token) ? at : top);
-    for (const token of [hint, hint.split(/\s+/u).at(-1)!]) if (score(best(token), token) > 0) return choose(best(token));
-    choose(candidates[0], `Supra short form ('${hint}') did not match any citation-part in note ${named}. Available: ${candidates
-      .map((at, n) => `part ${n + 1}='${fields[at].short_form || parts[at].text.slice(0, 80)}'`).join("; ")}. Defaulted to part 1.`);
-  });
   // The link an editor gave the part's citation, or one carried to it from another citation of the same authority
   // (Beaver's set-occurrence-links), where the author gave none: kept as written, a reference's included.
   const editorLinks = parts.map((part, index) => usableLink(fields[index].link_candidate) ? ""
@@ -217,33 +194,32 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // author's own link stays as written.
   const anchored = links.map((link, index) => link && !kinds[index].kind && !usableLink(fields[index].link_candidate)
     ? canliiPinpointLink(link, fields[index].pinpoint_fragments) : link);
-  // A supra takes its origin's link only where the short form it gives is its origin's, as the Python app checks
-  // (alr_quote_verifier.py _should_use_ref_chain_origin); an ibid always does, a supra's included.
-  const shortForm = (value: string) => value.trim().replace(/[‘’]/gu, "'").replace(/[“”]/gu, '"')
-    .replace(/^[[({"'\s]+|[\])}"'\s]+$/gu, "").replace(/\s+/gu, " ").trim().replace(/\.+$/u, "").trim().toLowerCase();
-  const chainOrigin = (index: number, depth = 0): number => kinds[index].kind && origin[index] >= 0 && origin[index] !== index
-    && depth < 50 ? chainOrigin(origin[index], depth + 1) : index;
-  const takesOrigin = (index: number) => {
-    if (kinds[index].kind !== "supra") return true;
-    const own = shortForm(fields[index].short_form || engine<string>("supraHint", { text: parts[index].text,
-      aggressive: options.supraLinking === "aggressive", fallback: false }));
-    return !own || shortForm(fields[chainOrigin(index)].short_form) === own;
-  };
   const reanchor = (link: string, text: string) => engine<string>("reanchorReference", { link, text });
-  // Each reference's link from the article's earlier parts, as the Python app gives it before it follows a reference's
-  // chain (alr_quote_verifier.py _resolve_footnote_reference_links): an ibid the part before it's, a supra that of the
-  // earlier part its name or note names, over the notes before its own; the engine follows the article's parts in one
-  // call (registryLinks).
-  const registryLinks = engine<string[]>("registryLinks", { aggressive: options.supraLinking === "aggressive",
-    parts: parts.map((part, index) => ({ text: part.text, kind: kinds[index].kind || "",
-      own: editorLinks[index] || authorLinks[index], anchored: anchored[index],
-      note: part.range.note.noteNumber === null && part.range.note.noteMark ? part.range.note.noteMark
-        : String(part.range.note.noteNumber ?? part.range.note.footnoteId),
-      shortForm: fields[index].short_form, endsNote: parts[index + 1]?.range !== part.range })) });
-  const linkOf = (index: number, depth = 0): string => editorLinks[index] || authorLinks[index] || registryLinks[index]
-    || (kinds[index].kind && origin[index] >= 0 && origin[index] !== index && depth < 50
-      ? depth || takesOrigin(index) ? reanchor(linkOf(origin[index], depth + 1), parts[index].text) : ""
-      : anchored[index]);
+  // A part's paragraph and section pinpoints.
+  const pinpointed = (index: number) => fields[index].pinpoint_fragments.filter((fragment) => /^(?:par|sec)/u.test(fragment));
+  // A reference's link is the link of the part the engine resolves it to, at the reference's own pinpoint; an ibid
+  // without one takes the link of the reference it names directly where that opens the same page, keeping its anchor.
+  // A reference the engine leaves unresolved has none. The author's and an editor's own links stay as written.
+  const linked = new Map<number, string>();
+  const linkOf = (index: number, depth = 0): string => {
+    if (!linked.has(index)) {
+      const own = editorLinks[index] || authorLinks[index];
+      linked.set(index, own || !kinds[index].kind ? own || anchored[index]
+        : origin[index] < 0 || origin[index] === index || depth >= 50 ? ""
+          : reanchor(linkOf(linkedFrom(index, depth), depth + 1), parts[index].text));
+    }
+    return linked.get(index)!;
+  };
+  const linkedFrom = (index: number, depth = 0) => {
+    const named = target[index];
+    return kinds[index].kind === "ibid" && !pinpointed(index).length && named >= 0 && named !== origin[index]
+      && named !== index && depth < 50 && samePage(linkOf(named, depth + 1), linkOf(origin[index], depth + 1))
+      ? named : origin[index];
+  };
+  // The part whose pinpoint a reference's link opens at, and whose passage it shows: its own, else that of the part
+  // it takes its link from.
+  const pinpointedAt = (index: number, depth = 0): number => pinpointed(index).length || !kinds[index].kind
+    || origin[index] < 0 || origin[index] === index || depth >= 50 ? index : pinpointedAt(linkedFrom(index), depth + 1);
   if (model) {
     // A supra the engine left unresolved: the model chooses among the earlier notes' parts, as resolved so far.
     const open = parts.flatMap((_, index) => kinds[index].kind === "supra" && origin[index] < 0 ? [index] : []);
@@ -257,6 +233,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
       const found = offered[at].find(({ candidate }) => candidate === chosen[at]);
       if (found) origin[index] = target[index] = found.at;
     });
+    linked.clear();
   }
   const quotesOf = new Map<string, QuoteResult[]>(), checkedOn = new Map<number, Checked[]>();
   for (const quote of check.quotes) {
@@ -273,7 +250,6 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   }
   // The source a part cites, read where its link names a paragraph or provision or it pinpoints one (a reference
   // reads its origin's): the passage gives the link its text fragment, and the row its anchor text.
-  const pinpointed = (index: number) => fields[index].pinpoint_fragments.filter((fragment) => /^(?:par|sec)/u.test(fragment));
   const cited = (index: number, depth = 0): { kind: string; citation: string } | null => {
     if (kinds[index].kind) return origin[index] >= 0 && origin[index] !== index && depth < 50 ? cited(origin[index], depth + 1) : null;
     const authority = partAuthority(draft, parts[index]), field = fields[index];
@@ -287,37 +263,26 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // The quotation found in a decision's or statute's A2AJ text, whose link this app makes (quoteLink).
   const a2ajFound = (index: number) => (checkedOn.get(index) ?? []).find((quote) => quote.receipt?.link
     && quote.receipt.match.location !== "unmatched" && quote.receipt.source.provider === "a2aj");
-  // Each part's source as read, and the pages that publish it (its provider's and the CanLII page its citation names,
-  // as partLink builds a link to it); none for a PDF attached for the authority.
-  const reads = await Promise.all(parts.map(async (_, index): Promise<{ document: NativeDocument; pages: string[] } | null> => {
+  const documents = await Promise.all(parts.map(async (_, index): Promise<NativeDocument | null> => {
     const source = /#(?:par|sec)/u.test(linkOf(index)) || pinpointed(index).length || a2ajFound(index) ? cited(index) : null;
     // A PDF attached for the authority (a CanLII download, a file from the watched folder) is read as its source.
     const own = source && "id" in source ? attached.get(String(source.id)) : undefined;
-    if (own) return { document: own, pages: [] };
+    if (own) return own;
     const found = source && read ? await read(source) : null;
-    return found && !found.missing ? { document: found.document, pages: sourcePages(found.source) } : null;
+    return found && !found.missing ? found.document : null;
   }));
-  const documents = reads.map((found) => found?.document ?? null);
-  // A text fragment is planned from the source read, so it goes on no link to another page of the site that publishes
-  // that source (a link to an Act cited for its regulation keeps its anchor alone); where the source's page on the
-  // link's site is not known, the link is taken to be its page.
-  const publishes = (index: number, link: string) => {
-    const pages = (reads[index]?.pages ?? []).map(pageIdentity).filter((page) => page.site === pageIdentity(link).site);
-    return !pages.length || pages.some((page) => page.page === pageIdentity(link).page);
-  };
   // A link this app makes: its anchor given its passage's text fragment where the passage can be read,
   // then as the text fragments option keeps it. The author's and the editor's own links stay as written.
   const own = (index: number) => !!editorLinks[index] || !!authorLinks[index] || (!kinds[index].kind && usableLink(fields[index].link_candidate));
   const fragments = options.textFragments ?? "all";
   const keepsFragment = (index: number) => own(index) || fragments === "all"
     || (fragments === "pinpointless" && !pinpointed(index).length);
-  // A passage's link at the part the citation pinpoints (a reference without a pinpoint of its own, its origin's, as
-  // its anchor text shows), made once for the parts that cite it; every link is planned at once, off this thread.
+  // A passage's link at the part the citation pinpoints (a reference without a pinpoint of its own, that of the part
+  // it takes its link from, as its anchor text shows), made once for the parts that cite it; every link is planned at
+  // once, off this thread.
   const passageLinks = new Map<NativeDocument | null, Map<string, Promise<string>>>();
   const passageLink = async (link: string, document: NativeDocument | null, index: number) => {
-    if (!publishes(index, link)) return link;
-    const pinpoints = pinpointed(index).length || !kinds[index].kind || origin[index] < 0 ? pinpointed(index)
-      : pinpointed(origin[index]);
+    const pinpoints = pinpointed(pinpointedAt(index));
     let made = passageLinks.get(document);
     if (!made) passageLinks.set(document, made = new Map());
     const key = JSON.stringify([link, pinpoints]);
@@ -348,9 +313,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     if (receipt.source.collection === "SCC" && kind === "paragraph") return link;
     const base = builtLink(index);
     if (!isCanliiUrl(base)) return link;
-    const anchor = kind ? legalSourceLocatorAnchor(base, kind, label) ?? "" : "";
-    if (!publishes(index, base)) return sourceUrl(base, anchor) ?? link;
-    return buildLegalSourcePinpoint({ url: base, anchor,
+    return buildLegalSourcePinpoint({ url: base, anchor: kind ? legalSourceLocatorAnchor(base, kind, label) ?? "" : "",
       blockText: receipt.match.text, documentText: document }, [receipt.match.fragment || found!.quote])?.target ?? link;
   };
   const passages = parts.map((_, index) => documents[index] ? pinpointed(index).flatMap((fragment) => {
@@ -376,7 +339,6 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
       notes.push("Previous footnote has multiple references; style guidance prefers supra over ibid in this situation.");
     if (kind === "ibid" && !previous) notes.push("Ibid appears as the first reference; no preceding reference exists.");
     const named = kinds[index].notes[0], note = named ? ranges.find(({ note }) => String(note.noteNumber) === named)?.note : undefined;
-    if (supraNotes.has(index)) notes.push(supraNotes.get(index)!);
     if (kind === "supra" && origin[index] < 0 && named)
       notes.push(!note ? `Supra target footnote (note ${named}) not found in this DOCX.`
         : partsOf(note) > 1 ? "Supra target footnote has multiple references; could not infer intended citation-part." : "");
@@ -405,8 +367,8 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
       citation_part_index: indexInNote[index] + 1, citation_part_kind: field.kind, citation_part_text: part.text,
       citation_part_corrected: field.corrected, citation_part_link: partLinks[index],
       ...warning && { citation_part_warning: warning },
-      // A reference without a pinpoint of its own shows its origin's passage.
-      citation_part_anchor_text: passages[index] || (org ? passages[origin[index]] : ""),
+      // A reference without a pinpoint of its own shows the passage of the part it takes its link from.
+      citation_part_anchor_text: passages[pinpointedAt(index)],
       short_form: field.short_form, bare_citation: field.bare_citation,
       citation_with_style: field.citation_with_style, pinpoint_fragments: pythonJson(field.pinpoint_fragments),
       page_pinpoints: pythonJson(field.page_pinpoints.map(Number)), first_page: firstPage(index),
@@ -440,15 +402,6 @@ function partAuthority(draft: AuthoritiesDraft, part: PlacedPart) {
   return partOccurrences(draft, part).filter((item) => item.authorityId)
     .map((item) => draft.authorities[item.authorityId!]).find(Boolean);
 }
-/** Whether `token` stands in `text` as a whole word, Python's \b with Unicode word characters. */
-function wholeWord(text: string, token: string) {
-  for (let at = text.indexOf(token); at >= 0; at = text.indexOf(token, at + 1)) {
-    const before = text.slice(0, at).at(-1) ?? "", after = text[at + token.length] ?? "";
-    if (!/[\p{L}\p{N}_]/u.test(before) && !/[\p{L}\p{N}_]/u.test(after)) return true;
-  }
-  return false;
-}
-
 /** A CanLII PDF link as its page, anchor kept, unless it names a PDF page: paragraph and section anchors are the page's
  *  (alr_quote_verifier.py _canlii_pdf_to_html_sibling, applied to every part's link). */
 function pdfToPage(link: string) {
@@ -460,16 +413,10 @@ function pdfToPage(link: string) {
 /** A link without its text fragment; its paragraph, section or page anchor stays. */
 const withoutFragment = (link: string) => link.replace(/#?:~:text=.*$/u, "");
 
-/** The pages that publish a source read: its provider's page and the CanLII page its citation names, as partLink
- *  builds a link to it. */
-function sourcePages(source: LegalSourceReference) {
-  const language = source.language === "fr" ? "fr" : "en", dataset = source.collection ?? "";
-  const citations = [source.citation, source.alternateCitation].filter((value): value is string => !!value);
-  const canlii = source.kind === "legislation"
-    ? buildCanliiLawUrl({ dataset, citation: source.citation ?? "", language })
-    : source.kind === "case" ? structureNative().canliiCaseUrl(citations, language, dataset || null)
-      ?? citations.map((citation) => indexedCaseUrl(citation)).find(Boolean) ?? null : null;
-  return [source.url, canlii].filter((value): value is string => !!value);
+/** Whether two links open one page, whatever their anchors (pageIdentity). */
+function samePage(a: string, b: string) {
+  const [x, y] = [a, b].map((link) => pageIdentity(pdfToPage(link)));
+  return x.site === y.site && x.page === y.page;
 }
 
 /** A link's site (its host, with or without "www.") and the document page it opens there, whatever its scheme, query or

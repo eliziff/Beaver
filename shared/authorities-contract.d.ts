@@ -197,6 +197,9 @@ export type AuthoritiesReviewUnit = {
   noteNumber?: number | null;
   /** That mark, as the brief prints it, where it prints one. */
   noteMark?: string;
+  /** How many times the brief has started counting its notes afresh before this one (a section printing its notes in
+   * another format), so the "supra note 1" of the body after a starred author note names the body's first. */
+  restartSequence?: number;
   /** A note's hyperlinks, as its author gave them: where each lies in `text`, and its address. */
   authorLinks?: Array<[number, number, string]>;
   footnoteRefs: Array<[number, number]>;
