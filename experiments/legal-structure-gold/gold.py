@@ -4,9 +4,6 @@ import json
 from pathlib import Path
 import subprocess
 
-# The composition's primary roles; a scorer role outside them (contents) composes as text.
-COMPOSED = {"text", "heading", "caption", "instruction", "headnote", "marginal_note", "furniture", "page_label"}
-
 
 def require(value, message):
     if not value: raise ValueError(message)
@@ -70,20 +67,8 @@ def block_id(block):
     return block.get("id") or span_anchor((block.get("spans") or [{"line_id":block["line_ids"][0],"start":0}])[0])
 
 
-def composed_groups(state):
-    return [g if g["kind"] in COMPOSED else {**g, "kind": "text"} for g in state["groups"]]
-
-
-def composition_request(state, through=None):
-    return {"lines":state["lines"],"groups":composed_groups(state),"annotations":state["annotations"],
-            "reading_order":state["reading_order"],"targets":[],"visible_pages":[],"edits":[],
-            "native_navigation":state.get("native_navigation",[]),
-            "removable_nodes":state.get("native_nodes",[]),
-            "through":through,**{key:state.get(key,{}) for key in ("joins","continuations","resumes","manuscript_edits")}}
-
-
 def compose_structure(state):
-    return native("--compose-structure", composition_request(state))
+    return native("--compose-structure", {key: state[key] for key in ("lines", "groups", "annotations", "reading_order", "continuations")})
 
 
 def continuations(state):
@@ -99,14 +84,12 @@ def text_links(state):
 
 
 def logical_annotations(state):
-    return native("--resolve-annotations", {"lines":state["lines"],"reading_order":state["reading_order"],
-        "annotations":state["annotations"],"continuations":state["continuations"],
-        "groups":composed_groups(state),"through":None})["annotations"]
+    return native("--resolve-annotations", {key: state[key] for key in ("lines", "reading_order", "annotations", "continuations")})["annotations"]
 
 
 def ownership(state):
     result=compose_structure(state)
-    return {g["id"]:g["ownership"]["document_id"] for g in result["groups"] if g.get("ownership")},[a for a in result["annotations"] if a["kind"]=="document"]
+    return {g["id"]:g["document"] for g in result["groups"]},[a for a in result["annotations"] if a["kind"]=="document"]
 
 
 def initial(structure, pages):
@@ -118,7 +101,4 @@ def initial(structure, pages):
         line.update(box=evidence[ident]["bbox"], original_text=line["text"], source_id=ident, source_range=[0,len(line["text"])])
     prepared = native("--structure-blocks", {"structure": structure, "lines": list(lines.values())})
     return {"lines":list(lines.values()),"groups":prepared["groups"],"annotations":prepared["annotations"],
-            "manuscript_edits":deepcopy(prepared.get("manuscript_edits",{})),
-            "reading_order":list(lines),"joins":prepared["joins"],"continuations":prepared["continuations"],"resumes":prepared["resumes"],
-            "native_navigation":deepcopy(structure.get("native_navigation",[])),
-            "native_nodes":prepared["removable_nodes"]}
+            "reading_order":list(lines),"continuations":prepared["continuations"]}

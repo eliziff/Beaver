@@ -78,30 +78,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "nativeBuildFeatures" => done(value(engine::native_build_features())),
         "structureCompositionBlocks" => done(legal_structure::structure_composition_blocks(call.get("request")?).and_then(value)),
         "applyStructureComposition" => done(legal_structure::apply_structure_composition(call.get("request")?).and_then(value)),
-        "projectStructureComposition" => done(legal_structure::project_structure_composition(call.get("request")?).and_then(value)),
         "resolveCompositionAnnotations" => done(legal_structure::resolve_composition_annotations(call.get("request")?).and_then(value)),
-        "captureCompositionNativeFacts" => done(legal_structure::capture_composition_native_facts(call.get("request")?).and_then(value)),
-        "hydrateCompositionNativeFacts" => done(legal_structure::hydrate_composition_native_facts(call.get("request")?).and_then(value)),
-        "remapCompositionNativeFacts" => done(legal_structure::remap_composition_native_facts(call.get("request")?).and_then(value)),
-        #[cfg(feature = "legalpdf")]
-        "pdfOutlineTrainingRows" | "pdfScopeTrainingRows" | "pdfScopeOpeningTrainingRows" | "pdfSpanTrainingRows" | "pdfMembershipTrainingRows" => {
-            let pages = call.get::<Vec<legalpdf::Page>>("pages")?;
-            let separators = call.get::<Option<Vec<Option<f64>>>>("separators")?.unwrap_or_else(|| vec![None; pages.len()]);
-            let outline = call.get::<Option<Vec<legalpdf::PdfOutlineEntry>>>("sourceOutline")?.unwrap_or_default();
-            let prepared = legalpdf::training_source_evidence(&pages, &separators, &outline).map_err(|error| error.to_string());
-            done(prepared.and_then(|(pages, table, navigation)| match op {
-                "pdfOutlineTrainingRows" => legalpdf::outline_training_rows(call.get("structure")?, &table, &navigation).and_then(value),
-                "pdfScopeTrainingRows" => legalpdf::scope_training_rows(call.get("structure")?, &table).and_then(value),
-                "pdfScopeOpeningTrainingRows" => legalpdf::scope_opening_training_rows(call.get("structure")?, &table).and_then(value),
-                "pdfMembershipTrainingRows" => legalpdf::membership_training_rows(call.get("structure")?, &table).and_then(value),
-                _ => legalpdf::span_training_rows(call.get("structure")?, &pages, &table).and_then(value),
-            }))
-        }
-        "applySourceOperations" => done(legal_structure::apply_source_operations(call.get("request")?).and_then(value)),
-        "moveSourceUnits" => done(legal_structure::move_source_units(call.get("request")?).and_then(value)),
-        "correctSourceText" => done(legal_structure::correct_source_text(call.get("request")?).and_then(value)),
-        "applyStructureAnnotations" => done(legal_structure::apply_structure_annotations(call.get("request")?).and_then(value)),
-        "assembleStructureAnnotations" => done(legal_structure::assemble_structure_annotations(call.get("structure")?).and_then(value)),
         "releaseDocument" => {
             let handle = doc()?;
             documents().1.remove(&handle);

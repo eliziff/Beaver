@@ -106,31 +106,6 @@ if (process.argv[2] === '--structure-blocks') {
 } else if (process.argv[2] === '--compose-structure') {
   try { console.log(JSON.stringify(parser.applyStructureComposition(JSON.parse(readFileSync(0, 'utf8'))))); }
   catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--scope-opening-training-rows') {
-  try {
-    const { structure, pages, separators, source_outline } = JSON.parse(readFileSync(0, 'utf8'));
-    console.log(JSON.stringify(parser.pdfScopeOpeningTrainingRows(structure, pages, separators, source_outline)));
-  } catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--scope-training-rows') {
-  try {
-    const { structure, pages, separators, source_outline } = JSON.parse(readFileSync(0, 'utf8'));
-    console.log(JSON.stringify(parser.pdfScopeTrainingRows(structure, pages, separators, source_outline)));
-  } catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--membership-training-rows') {
-  try {
-    const { structure, pages, separators, source_outline } = JSON.parse(readFileSync(0, 'utf8'));
-    console.log(JSON.stringify(parser.pdfMembershipTrainingRows(structure, pages, separators, source_outline)));
-  } catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--span-training-rows') {
-  try {
-    const { structure, pages, separators, source_outline } = JSON.parse(readFileSync(0, 'utf8'));
-    console.log(JSON.stringify(parser.pdfSpanTrainingRows(structure, pages, separators, source_outline)));
-  } catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--outline-training-rows') {
-  try {
-    const { structure, pages, separators, source_outline } = JSON.parse(readFileSync(0, 'utf8'));
-    console.log(JSON.stringify(parser.pdfOutlineTrainingRows(structure, pages, separators, source_outline)));
-  } catch (error) { console.error(error.message); process.exitCode = 1; }
 } else if (process.argv[2] === '--batch') {
   for (const { pdf, output, mode, requestFile } of JSON.parse(readFileSync(process.argv[3], 'utf8'))) {
     const began = performance.now();
