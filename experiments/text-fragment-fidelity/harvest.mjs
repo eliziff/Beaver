@@ -19,10 +19,11 @@ const SLEEP_MS = process.argv.includes("--laws") ? 250 : 1050;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const DOC_TYPE = process.argv.includes("--laws") ? "laws" : "cases";
-const KIND = DOC_TYPE === "laws" ? "section" : "paragraph";
 const BLOCK_KIND = DOC_TYPE === "laws" ? "section" : "paragraph";
 const DOC_KIND = DOC_TYPE === "laws" ? "legislation" : "case";
 const ANCHOR_PREFIX = DOC_TYPE === "laws" ? "sec" : "par";
+// Seed labels name a case paragraph "p<n>": seedDocumentKey() and the existing corpus read them that way.
+const LABEL_PREFIX = DOC_TYPE === "laws" ? "sec" : "p";
 
 // Principle: reliability over completeness — drop tiny hard bits at edges,
 // paint the core, never paint extraneous content. Harvest centres hard tokens
@@ -72,6 +73,9 @@ function isUniquePhrase(haystack, phrase) {
 const root = path.resolve(here, "..", "..");
 const { a2ajLegalSourceProvider } = await import(
   new URL("../../backend/src/lib/legalSources/a2aj.ts", import.meta.url).href
+);
+const { structureNative } = await import(
+  new URL("../../backend/src/lib/structureNative.ts", import.meta.url).href
 );
 
 function hash32(value) {
@@ -215,9 +219,9 @@ function receiptsForDoc(citation, dataset, url, source) {
   const sanitize = String(citation).replace(/[^\w.-]+/gu, "_");
   const receipts = [];
   const pushReceipt = (blockLabel, shape, quote) => {
-    let label = `${dataset}_${sanitize}_${ANCHOR_PREFIX}${blockLabel}_${shape}`;
+    let label = `${dataset}_${sanitize}_${LABEL_PREFIX}${blockLabel}_${shape}`;
     let suffix = 2;
-    while (seededLabels.has(label)) label = `${dataset}_${sanitize}_${ANCHOR_PREFIX}${blockLabel}_${shape}_${suffix++}`;
+    while (seededLabels.has(label)) label = `${dataset}_${sanitize}_${LABEL_PREFIX}${blockLabel}_${shape}_${suffix++}`;
     seededLabels.add(label);
     receipts.push({
       label,
@@ -326,9 +330,9 @@ function receiptsForDoc(citation, dataset, url, source) {
       }
       if (!windowB) continue;
       if (finalStartB < startA + 9 + 10) continue;
-      let label = `${dataset}_${sanitize}_${ANCHOR_PREFIX}${candidate.label}_multi-directive`;
+      let label = `${dataset}_${sanitize}_${LABEL_PREFIX}${candidate.label}_multi-directive`;
       let suffix = 2;
-      while (seededLabels.has(label)) label = `${dataset}_${sanitize}_${ANCHOR_PREFIX}${candidate.label}_multi-directive_${suffix++}`;
+      while (seededLabels.has(label)) label = `${dataset}_${sanitize}_${LABEL_PREFIX}${candidate.label}_multi-directive_${suffix++}`;
       seededLabels.add(label);
       receipts.push({
         label,
@@ -390,30 +394,34 @@ async function main() {
     for (const candidate of candidates) {
       if (needed <= 0) break;
       const { citation } = candidate;
-      let lookup = null;
+      let document = null;
       try {
-        lookup = await a2ajLegalSourceProvider.lookup({
-          citation, docType: DOC_TYPE, language: "en", kind: KIND, locator: "1",
+        document = await a2ajLegalSourceProvider.document({
+          citation, docType: DOC_TYPE, language: "en", dataset,
+          sourceUrl: candidate.url || undefined, discoverPdf: false,
         });
       } catch (error) {
-        appendJsonl(manifestPath, { citation, dataset, url: candidate.url, status: `lookup-error` });
+        appendJsonl(manifestPath, { citation, dataset, url: candidate.url, status: `lookup-error`, error: String(error).slice(0, 120) });
         manifest.set(citation, {});
         continue;
       }
       await sleep(SLEEP_MS);
-      if (!lookup || lookup.status !== "found") {
-        appendJsonl(manifestPath, { citation, dataset, url: candidate.url, status: `lookup-${lookup?.status ?? "null"}` });
+      if (!document) {
+        appendJsonl(manifestPath, { citation, dataset, url: candidate.url, status: "lookup-not_found" });
         manifest.set(citation, {});
         continue;
       }
-      const url = typeof lookup.url === "string" ? lookup.url : "";
+      const url = typeof document.url === "string" ? document.url : "";
       if (!/^https?:\/\//iu.test(url)) {
         appendJsonl(manifestPath, { citation, dataset, url, status: "no-public-url" });
         manifest.set(citation, {});
         continue;
       }
-      const source = a2ajLegalSourceProvider.source(lookup);
-      const receipts = source?.blocks?.length
+      const source = {
+        text: structureNative().documentText(document.native),
+        blocks: structureNative().documentAnchors(document.native),
+      };
+      const receipts = source.blocks.length
         ? receiptsForDoc(citation, dataset, url, source)
         : [];
       appendJsonl(manifestPath, {
