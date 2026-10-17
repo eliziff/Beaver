@@ -331,6 +331,8 @@ type StructureAddon = {
           "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel">>;
         primary: Pick<NativeDocumentBlock,
           "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel"> | null;
+        /** The slice is a heading the structure reads. */
+        heading?: boolean;
       }>;
       truncated: boolean;
       documentRevision: string;

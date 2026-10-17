@@ -523,14 +523,16 @@ function LegalSourceViewerContent({
                   </div>}
                   {marker && <span className="pt-[0.23rem] text-right text-xs font-semibold text-gray-600">{marker}</span>}
                   <div data-legal-text={sliceIndex} className="min-w-0 [&_li>p]:mb-0">
-                    <LegalMarkdown>
-                      {viewerMarkdown(
-                        slice.text,
-                        slice.primary,
-                        payload.reference.docType,
-                        slice.start,
-                      )}
-                    </LegalMarkdown>
+                    {slice.heading
+                      ? <p role="heading" aria-level={3} className="mt-4 font-semibold text-gray-900">{slice.text}</p>
+                      : <LegalMarkdown>
+                        {viewerMarkdown(
+                          slice.text,
+                          slice.primary,
+                          payload.reference.docType,
+                          slice.start,
+                        )}
+                      </LegalMarkdown>}
                   </div>
                 </section>
               );

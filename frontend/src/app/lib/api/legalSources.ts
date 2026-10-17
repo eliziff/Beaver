@@ -39,6 +39,8 @@ export interface LegalSourceViewerPayload {
     depth: number;
     anchors: LegalSourceViewerAnchor[];
     primary: LegalSourceViewerAnchor | null;
+    /** The slice is a heading the structure reads. */
+    heading?: boolean;
   }[];
   truncated: boolean;
 }
