@@ -1228,22 +1228,24 @@ function compactPdfLookup(filename: string, lookup: PdfLookupResult, evidence: L
   return {
     ok: true, title: filename,
     handle: lookup.evidence.handle,
-    passages: units.map((unit) => {
-      const receipt = evidence.find((value) => value.block_id === `node:${unit.id}` ||
+    // A passage the PDF interrupts (a page's running head and notes between its parts) has a receipt for each part,
+    // and each part is shown with its own.
+    passages: units.flatMap((unit) => {
+      const receipts = evidence.filter((value) => value.block_id === `node:${unit.id}` ||
         value.stable_source_id.endsWith(`:${unit.kind}:${unit.id}`)),
-        text = receipt?.span_text ?? unit.text,
+        texts = receipts.length ? receipts.map((receipt) => receipt.span_text ?? unit.text) : [unit.text],
         proposition = Object.fromEntries(Object.entries(unit.proposition ?? {}).filter(([key, value]) =>
           !["sentence", "passage_since_prior_note"].includes(key) ||
-          typeof value !== "string" || value.trim() && !text.includes(value.trim()) &&
+          typeof value !== "string" || value.trim() && !texts.some((text) => text.includes(value.trim())) &&
           (key !== "passage_since_prior_note" || value.trim() !== unit.proposition?.sentence?.trim())));
-      return { ...(receipt ? { evidence_id: receipt.evidence_id } : {}),
+      return texts.map((text, index) => ({ ...(receipts[index] ? { evidence_id: receipts[index].evidence_id } : {}),
         kind: unit.kind, locator: unit.locator, text,
         ...(unit.page_numbers.length ? { pages: unit.page_numbers } : {}),
         ...(unit.confidence !== null && unit.confidence < 1 ? { confidence: unit.confidence } : {}),
-        ...(Object.keys(proposition).length ? { proposition } : {}),
+        ...(index === 0 && Object.keys(proposition).length ? { proposition } : {}),
         ...(unit.note ? { note: { label: unit.note.label,
           ...(unit.note.warnings.length ? { warnings: unit.note.warnings } : {}) } } : {}),
-        ...(!selected.has(`${unit.kind}:${unit.id}`) ? { role: "context" } : {}) };
+        ...(!selected.has(`${unit.kind}:${unit.id}`) ? { role: "context" } : {}) }));
     }),
   };
 }
