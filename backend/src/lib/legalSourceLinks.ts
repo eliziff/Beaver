@@ -27,81 +27,33 @@ export type LegalSourceEvidence = {
   pageScoped?: boolean;
 };
 
-// Decisia/Norma deployments (SCC, FCA, FC, TCC, ONCA, NSCA, tribunals, and
-// decisia.lexum.com tenants). Their default document URL is an iframe shell
-// with no text and no anchors; `?iframe=true` serves the document inline
-// with `name="parN"` paragraph anchors. Live-verified across 14 hosts on
-// 2026-07-27. Detection is by host+path because A2AJ supplies markdown, not
-// the source HTML — per-document anchor presence cannot be known here, and
-// some older documents (e.g. pre-2013 SCC items) carry no anchors at all.
-const DECISIA_HOSTS =
-  /^(decisions?\.[\w-]+\.(?:gc\.)?ca|decisia\.lexum\.com|coadecisions\.ontariocourts\.ca)$/iu;
+/** The citation engine's reading of a source's address (common-law-cite url.rs). */
+const engine = <T>(method: string, request: object) =>
+  structureNative().citationEngineCall(method, JSON.stringify(request)) as T;
 
-function isDecisiaDocument(url: URL) {
-  return DECISIA_HOSTS.test(url.hostname) && /\/item\/\d+\/index\.do$/iu.test(url.pathname);
-}
-
-export function legalSourceLocatorAnchor(
-  rawUrl: string | null, kind: A2AJLocatorKind, label: string,
-) {
-  if (!rawUrl) return undefined;
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return undefined;
-  }
-  const canlii = /(^|\.)canlii\.org$/iu.test(url.hostname);
-  if (kind === "paragraph") {
-    const number = label.match(/^par(\d+)/iu)?.[1];
-    return number &&
-      ((canlii && url.pathname.includes("/doc/")) || isDecisiaDocument(url))
-      ? `par${Number(number)}`
-      : undefined;
-  }
-  if (kind === "page") {
-    const number = label.match(/^(?:page=?)?(\d+)/iu)?.[1];
-    return number && url.pathname.toLowerCase().endsWith(".pdf")
-      ? `page=${Number(number)}`
-      : undefined;
-  }
-  // CanLII statute pages anchor a section as sec2 and a subsection as sec2subsec1; receipts label them 2 and 2(1).
-  const numbered = label.match(/^(\d+(?:\.\d+)*)(?:\s*\((\d+)\))?/u);
-  const section = label.match(/^sec[\w.-]+/iu)?.[0] ??
-    (numbered ? `sec${numbered[1]}${numbered[2] ? `subsec${numbered[2]}` : ""}` : undefined);
-  return section && canlii && url.pathname.includes("/laws/")
-    ? section
-    : undefined;
+/** The anchor a source's page has for a locator its reading labels ("par12", "page 3", "2(1)"): CanLII's and
+ *  Decisia's paragraph anchors, a PDF's page, CanLII's section and subsection anchors. */
+export function legalSourceLocatorAnchor(rawUrl: string | null, kind: A2AJLocatorKind, label: string) {
+  return rawUrl ? engine<string | null>("sourceAnchor", { url: rawUrl, kind, label }) ?? undefined : undefined;
 }
 
 /**
- * Canonical publisher URL for a legal source: rejects non-http and
- * unlinkable hosts, rewrites CanLII PDF paths, applies the Decisia parameters, and
- * resolves the anchor the target actually supports.
+ * Canonical publisher URL for a legal source: the citation engine's link to it (a CanLII PDF opens its page, a PDF
+ * keeps only a page anchor) at `anchor` where given, else the anchor it has, with the parameters a Decisia decision's
+ * viewer needs; null for an address that is not http(s) or cannot be linked. A path on this host stays one.
  */
 export function sourceUrl(rawUrl: string, anchor?: string): string | null {
   const local = rawUrl.startsWith("/") && !rawUrl.startsWith("//") && !rawUrl.includes("\\");
-  let url: URL;
-  try {
-    url = local ? new URL(rawUrl, "http://mike.local") : new URL(rawUrl);
-  } catch {
-    return null;
+  let address = rawUrl;
+  if (local) {
+    try { address = new URL(rawUrl, "http://mike.local").href; } catch { return null; }
   }
-  if (/(^|\.)getcaselaw\.com$/iu.test(url.hostname)) return null;
-  if (!["http:", "https:"].includes(url.protocol) ||
-      (local && url.origin !== "http://mike.local")) {
-    return null;
-  }
-
-  const existingAnchor = url.hash.slice(1).split(":~:", 1)[0];
-  const canliiPdf = /(^|\.)canlii\.org$/iu.test(url.hostname) &&
-    url.pathname.toLowerCase().endsWith(".pdf");
-  const requestedAnchor = anchor ?? existingAnchor;
-  const convertedCanliiPdf = canliiPdf && !requestedAnchor.startsWith("page=");
-  if (convertedCanliiPdf) {
-    url.pathname = url.pathname.replace(/\.pdf$/iu, ".html");
-  }
-  if (isDecisiaDocument(url)) {
+  const linked = engine<{ url: string; decisia: boolean } | null>("sourceUrl",
+    { url: address, ...anchor !== undefined && { anchor } });
+  if (!linked) return null;
+  const url = new URL(linked.url);
+  if (local) return url.origin === "http://mike.local" ? `${url.pathname}${url.search}${url.hash}` : null;
+  if (linked.decisia) {
     // INTENTIONAL, LOAD-BEARING FEATURE - text fragments cannot work on
     // Decisia without both parameters. This is not a flaw, lint, or
     // cosmetic preference; do not remove or "normalize" either one.
@@ -129,14 +81,7 @@ export function sourceUrl(rawUrl: string, anchor?: string): string | null {
     url.searchParams.set("iframe", "true");
     url.searchParams.set("site_preference", "mobile");
   }
-
-  let resolvedAnchor =
-    anchor !== undefined ? anchor : convertedCanliiPdf ? "" : existingAnchor;
-  if (/\/document\.do$/iu.test(url.pathname) || url.pathname.toLowerCase().endsWith(".pdf")) {
-    resolvedAnchor = /^page=\d+$/iu.test(resolvedAnchor) ? resolvedAnchor : "";
-  }
-  url.hash = resolvedAnchor ? `#${resolvedAnchor}` : "";
-  return local ? `${url.pathname}${url.search}${url.hash}` : url.toString();
+  return url.toString();
 }
 
 function appendDirectives(url: string, directives: string[]) {
@@ -513,57 +458,34 @@ export function buildLegalSourcePinpointUrl(evidence: LegalSourceEvidence, quote
   return buildLegalSourcePinpoint(evidence, quotes)?.target ?? null;
 }
 
-/**
- * A CanLII decision or statute link at a citation's first pinpoint when that is a paragraph of the decision or a
- * section of the statute ("par12", "sec4", as the citation engine's fields name them), as the ALR Quote Verifier
- * anchors a citation's link. Another link, a PDF, or a link that already has an anchor stays as it is.
- */
-export function canliiPinpointLink(rawUrl: string, pinpoints: readonly string[]) {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return rawUrl;
-  }
-  const first = pinpoints[0] ?? "";
-  if (!/(^|\.)canlii\.org$/iu.test(url.hostname) || url.hash || url.pathname.toLowerCase().endsWith(".pdf") ||
-    !/^(?:par|sec)/u.test(first)) return rawUrl;
-  const anchor = legalSourceLocatorAnchor(rawUrl, first.startsWith("par") ? "paragraph" : "section", first);
-  return anchor ? sourceUrl(rawUrl, anchor) ?? rawUrl : rawUrl;
-}
-
 /** Add complete source-anchored text fragments beside the existing paragraph or provision anchor. A provision link
  *  paints the part of the provision its citation pinpoints ("sec16(3)", "sec445(1)(a)") where the document has it,
  *  else the provision's opening block. Each plan runs off the JavaScript thread, so a workbook plans its links at once. */
 export async function citedPassageLink(rawUrl: string, document: NativeDocument | null | undefined,
   pinpoints: readonly string[] = []) {
   const url = sourceUrl(rawUrl);
-  if (!url) return null;
-  const anchor = new URL(url, "http://mike.local").hash.slice(1);
-  const paragraph = /^par(\d+)$/u.exec(anchor)?.[1];
-  const [, number, subsection] = /^sec([\w.-]+?)(?:subsec(\w+))?$/u.exec(anchor) ?? [];
-  if (!paragraph && !number) return url;
-  const engine = structureNative();
-  if (!document) return url;
-  const label = paragraph ?? `${number}${subsection ? `(${subsection})` : ""}`;
+  if (!url || !document) return url;
+  const locator = engine<{ kind: "paragraph" | "section"; label: string; part?: string } | null>("passageLocator",
+    { url, pinpoints });
+  if (!locator) return url;
   // Provision links target the opening block of the provision or pinpointed part; paragraph links include every exact
   // member of the resolved paragraph.
   const plan = async (target: string) => {
-    const found = await engine.offThread("documentRangeFragmentPlan", document, paragraph ? "paragraph" : "section",
-      target, target, isPdfSourceUrl(url), publisherMayAnnotateLegalReference(url), !paragraph);
+    const found = await structureNative().offThread("documentRangeFragmentPlan", document, locator.kind,
+      target, target, isPdfSourceUrl(url), publisherMayAnnotateLegalReference(url), locator.kind === "section");
     return found?.sourceSafeComplete && found.directives.length ? found : null;
   };
-  const part = paragraph ? undefined : pinpoints.map((value) => /^sec(.+)$/u.exec(value)?.[1])
-    .find((value) => value?.startsWith(`${label}(`));
+  const { label, part } = locator;
   const planned = (part && await plan(part)) || await plan(label);
   return planned ? appendDirectives(url, planned.directives) : url;
 }
 
+/** A Canadian decision's page: one whose paragraphs the citation engine anchors (a CanLII or Decisia decision), or a
+ *  B.C. court's or the Supreme Court's case page. */
 function isCanadianDecisionUrl(url: URL) {
   const host = url.hostname.replace(/^www\./iu, "");
   const path = url.pathname.toLowerCase();
-  return isDecisiaDocument(url) ||
-    (host === "canlii.org" && url.pathname.includes("/doc/")) ||
+  return !!legalSourceLocatorAnchor(url.href, "paragraph", "par1") ||
     (host === "bccourts.ca" && path.includes("/jdb-txt/")) ||
     (host === "scc-csc.ca" && path.includes("/case-dossier/"));
 }

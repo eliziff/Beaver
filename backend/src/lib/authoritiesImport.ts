@@ -93,7 +93,12 @@ export const nativeReferenceSpans = (reference: NativeAuthorityReferenceOccurren
   occurrenceSpans(text, { start: reference.start, end: reference.token.end }, reference.token,
     reference.pinpoints, reference.pinpointPhrase, offset);
 
-const CANLII_STATUTE = /^https?:\/\/(?:www\.)?canlii\.org\/(en|fr)\/(ca|on|bc)\/laws\/(?:stat|astat)\/([^/#?]+)\//iu;
+/** A federal, Ontario or B.C. statute's CanLII page, as the citation engine reads it: its language, jurisdiction and id. */
+const canliiStatute = (url: string | null | undefined, native: ReturnType<typeof structureNative>) => {
+  const page = url ? native.citationEngineCall("canliiLawPage", JSON.stringify({ url })) as
+    { language: "en" | "fr"; jurisdiction: string; kind: string; id: string } | null : null;
+  return page && Object.hasOwn(STATUTE_DATASET, page.jurisdiction) && ["stat", "astat"].includes(page.kind) ? page : null;
+};
 const STATUTE_DATASET = { ca: "LEGISLATION-FED", on: "LEGISLATION-ON",
   bc: "LEGISLATION-BC" } as const;
 const sourceName = (value: string) => value.normalize("NFKC").toLowerCase()
@@ -118,14 +123,13 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
     const output = native.citationEngineCall("url", JSON.stringify({ citation,
       anchor: true })) as { urls: Array<{ index: number; url: string | null }> };
     const url = output.urls.find((item) => item.index === citation.index)?.url;
-    const match = url?.match(CANLII_STATUTE);
-    if (!match) return [];
-    const [, language, jurisdiction, slug] = match;
+    const page = canliiStatute(url, native);
+    if (!page) return [];
     const core = statuteCore(citation)!;
-    if (!slugKey(slug).startsWith(core) && !core.startsWith(slugKey(slug))) return [];
-    return [{ partIndex, part, citation, url: url!, language: language as "en" | "fr",
-      dataset: STATUTE_DATASET[jurisdiction.toLowerCase() as keyof typeof STATUTE_DATASET],
-      jurisdiction: jurisdiction.toLowerCase(), name, core }];
+    if (!slugKey(page.id).startsWith(core) && !core.startsWith(slugKey(page.id))) return [];
+    return [{ partIndex, part, citation, url: url!, language: page.language,
+      dataset: STATUTE_DATASET[page.jurisdiction as keyof typeof STATUTE_DATASET],
+      jurisdiction: page.jurisdiction, name, core }];
   });
   if (!candidates.length) return parts;
   const queries = [...new Map(candidates.map(({ dataset, name, language }) =>
@@ -154,9 +158,9 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
         if (statutes.length !== 1 || statuteCore(statutes[0]) !== candidate.core) return [];
         const base = buildCanliiLawUrl({ dataset: hit.collection ?? "",
           citation: hit.citation ?? null, language: candidate.language });
-        const route = base?.match(CANLII_STATUTE);
-        if (!route || route[1] !== candidate.language ||
-          route[2] !== candidate.jurisdiction) return [];
+        const route = canliiStatute(base, native);
+        if (!route || route.language !== candidate.language ||
+          route.jurisdiction !== candidate.jurisdiction) return [];
         const fragment = new URL(candidate.url).hash;
         return [base!.split("#")[0] + fragment];
       });
@@ -518,47 +522,21 @@ async function scanReview(
     occurrences, authorities, authorityOrder };
 }
 
-const COVER_ROLE = /^(applicants?|respondents?|appellants?|plaintiffs?|defendants?|petitioners?|interven(?:er|or)s?|moving part(?:y|ies)|responding part(?:y|ies))\s*:?$/iu;
-/** The parties named in a filing's BETWEEN block, in the order and roles the cover prints them. */
-function coverParties(opening: string): AuthoritiesCover["partyGroups"] {
-  const lines = opening.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-  const start = lines.findIndex((line) => /^between\s*:?$/iu.test(line));
-  if (start < 0) return [];
-  const groups: AuthoritiesCover["partyGroups"] = [];
-  let names: string[] = [];
-  for (const line of lines.slice(start + 1)) {
-    if (COVER_ROLE.test(line)) {
-      const word = line.replace(/\s*:$/u, "").toLowerCase();
-      const role = word.startsWith("interven") ? "Intervener" : word.replace(/s$|ies$/u, (end) => end === "ies" ? "y" : "")
-        .replace(/^\w|\s\w/gu, (ch) => ch.toUpperCase());
-      if (names.length) groups.push({ role, parties: names });
-      names = [];
-    } else if (/^(and|-\s*and\s*-|v\.?)$/iu.test(line)) continue;
-    else if (/^[A-Z][A-Z\s]+$/u.test(line) && line.length > 12 && !names.length && groups.length) break;
-    else names.push(line);
-  }
-  return groups;
-}
-
 function importedCover(units: NativeAuthorityTextUnit[]): AuthoritiesCover {
   const body = units.filter(({ kind }) => kind === "body");
   const firstPage = body.filter(({ page_numbers }) => page_numbers.includes(1));
   const opening = (firstPage.length ? firstPage : body.slice(0, 80))
     .map(({ text }) => text).join("\n");
   const fields = sourceDocumentFields(opening ? [opening] : [])?.cover;
-  // A brief "of the Applicant" is answered by a book of authorities of the same party, a role named
-  // as a role ("of the Applicant") and any other party as the brief names it.
-  const lines = opening.split(/\r?\n/u).map((line) => line.trim()), document = lines.findIndex((line) => /^DOCUMENT\s*:?$/u.test(line));
-  const named = fields?.recordTitle || (document < 0 ? "" : lines[document + 1]) ||
-    lines.map((line) => /^DOCUMENT\s*:?\s+(.+)$/u.exec(line)?.[1]).find(Boolean) || "";
-  const [, the, party] = /\bof\s+(the\s+)?(.{2,120}?)\s*$/iu.exec(named) ?? [];
-  const role = party && COVER_ROLE.test(party) ? party.charAt(0).toUpperCase() + party.slice(1).toLowerCase() : party;
+  // The parties its BETWEEN block names, and whose brief it is: a brief "of the Applicant" is answered by a book of
+  // authorities of the same party, a role named as a role and any other party as the brief names it.
+  const { partyGroups, filedBy } = structureNative().filingCover(opening, fields?.recordTitle || null);
   const contact = { name: fields?.counselName ?? "", address: fields?.counselAddress ?? "",
     phone: fields?.counselPhone ?? "", fax: fields?.counselFax ?? "", email: fields?.counselEmail ?? "" };
   return { courtFileNumber: fields?.courtFileNumber ?? "",
-    partyGroups: coverParties(opening),
+    partyGroups,
     applicationUnder: fields?.applicationUnder ?? "",
-    title: role ? `Book of Authorities of ${the ? "the " : ""}${role}` : "",
+    title: filedBy ? `Book of Authorities of ${filedBy.article ? "the " : ""}${filedBy.party}` : "",
     ...(fields?.registry && { judicialCentre: fields.registry }),
     ...(Object.values(contact).some(Boolean) && { contact }) };
 }

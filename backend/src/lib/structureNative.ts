@@ -344,6 +344,19 @@ type StructureAddon = {
   /** A judgment's outline read from its text: its headings by level, numbered paragraphs, the lists
    *  within them, and the matter around its reasons, in order. */
   caseOutline(text: string): NativeCaseOutlineEntry[];
+  /** Where a statute's text holds each cited provision, part ("16(3)(a)") or range ("49-51"), by its outline: each span
+   *  (UTF-16) with everything under it, in the text's order; a label it does not hold has none. */
+  statuteProvisionSpans(text: string, labels: string[]): Array<[number, number]>;
+  /** How current a statute's print says it is, from its first pages ("Current to September 21, 2026"). */
+  statuteCurrency(pages: string[]): string | null;
+  /** A filing's cover from its opening page's text: the parties its BETWEEN block names in their roles, and whose
+   *  document it is, from `title` (its record title) where given, else its DOCUMENT line. */
+  filingCover(opening: string, title: string | null): {
+    partyGroups: Array<{ role: string; parties: string[] }>;
+    filedBy?: { party: string; article: boolean };
+  };
+  /** What a line of a judgment's front matter is: a party's role, a labelled line, counsel's line, or another. */
+  frontMatterLine(text: string): "party" | "labelled" | "counsel" | "other";
   documentTextStatistics(document: NativeDocument, texts: string[]): Array<{ occurrences: number; words: number }>;
   textFragmentPlan(blockText: string, quotes: string[], pdf: boolean,
     publisherMayAnnotateLegalReference: boolean,
