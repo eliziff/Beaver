@@ -300,19 +300,23 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   const fragments = options.textFragments ?? "all";
   const keepsFragment = (index: number) => own(index) || fragments === "all"
     || (fragments === "pinpointless" && !pinpointed(index).length);
-  // A passage's link, made once for the parts that cite it.
+  // A passage's link at the part the citation pinpoints (a reference without a pinpoint of its own, its origin's, as
+  // its anchor text shows), made once for the parts that cite it.
   const passageLinks = new Map<NativeDocument | null, Map<string, string>>();
-  const passageLink = (link: string, document: NativeDocument | null) => {
+  const passageLink = (link: string, document: NativeDocument | null, index: number) => {
+    const pinpoints = pinpointed(index).length || !kinds[index].kind || origin[index] < 0 ? pinpointed(index)
+      : pinpointed(origin[index]);
     let made = passageLinks.get(document);
     if (!made) passageLinks.set(document, made = new Map());
-    let found = made.get(link);
-    if (found === undefined) made.set(link, found = citedPassageLink(link, document) ?? link);
+    const key = JSON.stringify([link, pinpoints]);
+    let found = made.get(key);
+    if (found === undefined) made.set(key, found = citedPassageLink(link, document, pinpoints) ?? link);
     return found;
   };
   const partLinks = parts.map((_, index) => {
     const link = pdfToPage(linkOf(index));
     if (own(index)) return link;
-    const passage = /#(?:par|sec)/u.test(link) ? passageLink(link, documents[index]) : link;
+    const passage = /#(?:par|sec)/u.test(link) ? passageLink(link, documents[index], index) : link;
     return keepsFragment(index) ? passage : withoutFragment(passage);
   });
   // A quotation's link, as the Python app makes it (alr_quote_verifier.py _a2aj_link_for_pinpoint,
