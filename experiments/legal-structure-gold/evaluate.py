@@ -1,88 +1,143 @@
-"""Validate a saved gold run, or score a witness-stack product against its gold."""
+"""Score a parser export against its v4 structure gold, or validate a saved record publication."""
 import argparse
-from contextlib import closing
 from collections import Counter, defaultdict
 import difflib
 import json
 from pathlib import Path
+import unicodedata
 import worker
 import gold
 import package
 from gold import require
 
+V4 = 'legal-structure-gold.v4'
+# The scorer's roles for typed regions the composition has no primary role for: block quotes are
+# running text, notes and tables are text inside their annotations, list items are text with a
+# list_item locator. Contents keep their own role.
+KINDS = {'heading': 'heading', 'caption': 'caption', 'headnote': 'headnote', 'marginal_note': 'marginal_note',
+         'furniture': 'furniture', 'page_label': 'page_label', 'contents': 'contents'}
+OWN = {'furniture', 'page_label'}
 
-def replay(job):
-    worker.recover_update(job)
-    receipt = worker.read_json(job / 'receipt.json')
-    require(receipt['status'] == 'complete', 'Replay requires a completed run')
-    require(worker.digest(job / 'gold.json.gz') == receipt['gold_sha256'], 'Gold artifact changed')
-    expected = worker.read_json(job / 'gold.json.gz')
-    compact = expected if expected.get('schema_version') == package.VERSION else None
-    if compact is not None and receipt.get('kind') == 'record_import':
-        worker.verified_run(job)
-        return {'replay': 'current_facts_validated', 'run_id': receipt['run_id'],
-                'source_sha256': compact['source_sha256'], 'operations': None, 'record_layers': len(compact['records'])}
-    if receipt.get('kind') == 'annotation_update':
-        worker.verified_run(job)
-        package.validate(compact)
-        stages = compact['provenance'].get('annotation_stages', {})
-        current = {stage: worker.stage_current(job, compact, stage) for stage in stages}
-        require(any(current.values()), 'No annotation stage describes current gold')
-        receipts = {stage: worker.read_json(job / marker['receipt']) for stage, marker in stages.items()}
-        for stage, saved in receipts.items():
-            require(worker.stage_binding(job, compact, stage, saved) is not None,
-                    'Annotation stage refers to different shared text')
-            if not current[stage]:
-                require(any(a[:len(b)] == b or b[:len(a)] == a
-                            for other, active in current.items() if active
-                            for a in saved['owned_paths'] for b in receipts[other]['owned_paths']),
-                        'Changed annotations have no current owning stage')
-        return {'replay': 'current_facts_validated', 'run_id': receipt['run_id'],
-                'source_sha256': compact['source_sha256'], 'annotation_stages': sorted(stages),
-                'superseded_annotation_stages': sorted(stage for stage, active in current.items() if not active),
-                'operations': None, 'record_layers': len(compact['records'])}
-    if receipt.get('parent_run'):
-        parent = (job / receipt['parent_run']).resolve()
-        require(compact is not None and parent != job.resolve(), 'Invalid package parent')
-        require(worker.digest(parent / 'gold.json.gz') == receipt['source_gold_sha256'], 'Source gold changed')
-        source_receipt, original, pages = worker.verified_run(parent)
-        paths = receipt['artifact_paths']
-        require(worker.digest(job / paths['manuscript']) == receipt['manuscript_sha256'], 'Manuscript changed')
-        require(compact['pages'] == worker.page_geometry(pages), 'Package page geometry changed')
-        records = [{'gold': package.record_gold(compact,rid), **compact['views'][rid]} for rid in compact['records'] if rid in compact['views']]
-        if receipt.get('record_promotion'):
-            records.extend(worker.court_record_item(rid) for rid,record in compact['records'].items() if 'owner_source_sha256' in record)
-            records.sort(key=lambda item: item['gold']['record_id'])
-            require(worker.fingerprint(records) == receipt['record_promotion']['record_inputs_sha256'] and
-                    worker.fingerprint(compact['form_observations']) == receipt['record_promotion']['form_observations_sha256'],
-                    'Promoted record evidence changed')
-            projected = worker.package_value(parent, original, records, compact['pages'],
-                compact['form_observations'], record_promotion=True)
-        else:
-            projected = package.attach_records(original, records, compact['form_observations']) if original.get('schema_version') == package.VERSION else package.pack(original, records, compact['pages'], compact['form_observations'])
-        projected['records'].update({rid:record for rid,record in compact['records'].items() if 'owner_source_sha256' in record})
-        require(projected == compact, 'Package facts changed')
-        return {'replay': 'facts_identical', 'run_id': receipt['run_id'], 'source_sha256': compact['source_sha256'],
-                'record_layers': len(compact['records'])}
-    # A typed-block authoring run: its gold, evidence and complete-block proof must still agree.
-    require(compact is not None, 'Historical operation replay was retired; regenerate this gold')
-    worker.verified_run(job)
-    package.validate(compact)
-    require(compact['provenance'].get('structure_authoring') == worker.structure_authoring_proof(compact),
-            'Structure authoring proof differs from the gold')
-    return {'replay': 'current_facts_validated', 'run_id': receipt['run_id'], 'source_sha256': compact['source_sha256'],
-            'record_layers': len(compact['records'])}
+
+def label(text):
+    return unicodedata.normalize('NFKC', text).strip(' .()[]{}:')
+
+
+def projected(value):
+    """A v4 gold in the scorer's frame: its lines, one block per unit fragment (a unit's lines on
+    one page, unbroken), parents, markers, continuations, notes paired with their references,
+    tables and document starts.
+
+    v4 lines carry no geometry: their reading position stands for it when sources are aligned."""
+    require(value.get('schema_version') == V4, 'Expected a legal-structure-gold.v4 file')
+    lines = {line['id']: {'id': line['id'], 'page': line['page'], 'text': line.get('corrected', line['text']),
+                          'original_text': line['text'], 'source_id': line['id'], 'source_range': [0, len(line['text'])],
+                          'box': [0, n, 0, n]} for n, line in enumerate(value['lines'])}
+    order = list(lines)
+    position = {ident: n for n, ident in enumerate(order)}
+    at = lambda span: (position[span['line_id']], span['start'])
+    anchor = lambda spans: gold.span_anchor(spans[0])
+    printed = lambda spans: label(''.join(lines[s['line_id']]['text'][s['start']:s['end']] for s in spans))
+    ids = lambda spans: list(dict.fromkeys(s['line_id'] for s in spans))
+    typed, units = value['typed'], value['units']
+
+    def fragments(members):
+        """A unit's spans, split at each page and at each line another unit interrupts."""
+        result, previous = [], None
+        for n in members:
+            for k, span in enumerate(typed[n]['spans']):
+                if not result or lines[result[-1][-1]['line_id']]['page'] != lines[span['line_id']]['page']                         or k == 0 and n != previous + 1:
+                    result.append([])
+                result[-1].append(span)
+            previous = n
+        return [sorted(spans, key=at) for spans in result]
+
+    parts = [fragments(unit['lines']) for unit in units]
+    region = [typed[unit['lines'][0]]['region'] for unit in units]
+    heads = [anchor(found[0]) if found else None for found in parts]
+    groups, annotations, continuations = [], [], defaultdict(dict)
+    notes = {}
+    for u, unit in enumerate(units):
+        first = typed[unit['lines'][0]]
+        marker = [s for spans in first['markers'] for s in spans]
+        parent = heads[unit['parent']] if unit['parent'] is not None else None
+        for k, spans in enumerate(parts[u]):
+            attributes = {'parent': parent, 'reading_stream_id': None}
+            if region[u] == 'list_item': attributes.update(locator_kind='list_item', marker=marker if k == 0 else [])
+            elif k == 0 and marker and region[u] in ('text', 'quote'): attributes.update(locator_kind='paragraph', marker=marker)
+            elif k == 0 and marker and region[u] == 'heading': attributes['marker'] = marker
+            groups.append({'kind': KINDS.get(region[u], 'text'), 'line_ids': ids(spans), 'spans': spans, 'attributes': attributes})
+            if region[u] == 'note':
+                annotations.append({'id': 'note:' + anchor(spans), 'kind': 'note', 'line_ids': ids(spans), 'spans': spans, 'attributes': {
+                    'kind': 'footnote', 'label': first['markers'][0] if k == 0 and first['markers'] else [], 'references': []}})
+                if k == 0: notes[u] = annotations[-1]
+        if region[u] in OWN: continue
+        kind = 'heading' if region[u] == 'heading' else 'note' if region[u] == 'note' else 'paragraph'
+        for left, right in zip(parts[u], parts[u][1:]):
+            continuations[kind][anchor(left)] = {'next': anchor(right), 'separator': ' ', 'kind': kind}
+            if region[u] == 'list_item':
+                continuations['list'][anchor(left)] = {'next': anchor(right), 'separator': None, 'kind': 'list'}
+    # Documents: the first block opens the source's own; each unit holding a document start opens
+    # another under it.
+    opened = [u for u, unit in enumerate(units) if parts[u] and any(typed[n]['document'] for n in unit['lines'])]
+    start = min((found[0][0] for found in parts if found), key=at, default=None)
+    opens = []
+    if opened and start is not None:
+        root = 'document:' + gold.span_anchor(start)
+        for opening in [start] + [parts[u][0][0] for u in opened if parts[u][0][0] != start]:
+            opens.append(at(opening))
+            annotations.append({'id': 'document:' + gold.span_anchor(opening), 'kind': 'document',
+                                'line_ids': [opening['line_id']], 'spans': [opening],
+                                'attributes': {'kind': None, 'parent': None if opening == start else root,
+                                               'relationship': None, 'title': [], 'facets': {}}})
+    scope = lambda span: sum(1 for o in opens if o <= at(span))
+    # A note reference names the note with its printed label in its document: the next one,
+    # else the last before.
+    labelled = [(u, printed(note['attributes']['label'])) for u, note in notes.items() if note['attributes']['label']]
+    owner = {n: u for u, unit in enumerate(units) for n in unit['lines']}
+    for n, line in enumerate(typed):
+        for reference in line['references']:
+            if len(reference['spans']) != 1: continue
+            span = reference['spans'][0]
+            found = [u for u, text in labelled if text == printed([span]) and scope(notes[u]['spans'][0]) == scope(span)]
+            target = next((u for u in found if u > owner[n]), found[-1] if found else None)
+            if target is not None: notes[target]['attributes']['references'].append(span)
+    # Tables: consecutive table rows, with only furniture, page labels and notes between, form one
+    # table, one annotation per page linked across pages; a row is on the page of its first cell.
+    tables, current = [], None
+    for u in range(len(units)):
+        if region[u] == 'table' and parts[u]:
+            if current is None: current = []; tables.append(current)
+            current.append(u)
+        elif region[u] not in OWN | {'note'}: current = None
+    for rows in tables:
+        pages = {}
+        for u in rows:
+            cells = defaultdict(list)
+            for n in units[u]['lines']:
+                for c, spans in enumerate(typed[n].get('cells', [])): cells[c].extend(spans)
+            row = [cells[c] for c in range(max(cells, default=-1) + 1)]
+            found = [s for cell in row for s in cell]
+            if found: pages.setdefault(lines[min(found, key=at)['line_id']]['page'], []).append(row)
+        if not pages: continue
+        width = max(len(row) for grid in pages.values() for row in grid)
+        chain = []
+        for grid in pages.values():
+            grid = [row + [[] for _ in range(width - len(row))] for row in grid]
+            populated = [s for row in grid for cell in row for s in cell]
+            annotations.append({'id': 'table:' + anchor(populated), 'kind': 'table', 'line_ids': ids(populated), 'spans': populated,
+                                'attributes': {'rows': grid, 'header_rows': [], 'merges': []}})
+            chain.append(anchor(populated))
+        for left, right in zip(chain, chain[1:]):
+            continuations['table'][left] = {'next': right, 'separator': None, 'kind': 'table'}
+    return {'source_sha256': value['source_sha256']}, {
+        'lines': list(lines.values()), 'reading_order': order, 'groups': groups, 'annotations': annotations,
+        'joins': {}, 'continuations': dict(continuations), 'resumes': {}, 'manuscript_edits': {}}
 
 
 def state_of(value):
-    if value.get('schema_version') == package.VERSION:
-        return {'source_sha256': value['source_sha256']}, package.structure_state(value)
-    if value.get('schema_version') == gold.VERSION:
-        structure = value['structure']
-        lines = {l['id']: l for l in value['source_trace']}
-        return structure, {'lines':list(lines.values()), 'groups':value['blocks'],
-            'reading_order':value['reading_order'], 'annotations':package.unproject(structure['annotations'], lines),
-            'joins':value['joins'],'continuations':value['continuations'],'resumes':value['resumes']}
+    """The scorer's frame of a v4 gold or of a parser export."""
+    if value.get('schema_version') == V4: return projected(value)
     extraction = value.get('extraction', {}).get('pages', [])
     value = value.get('document', value.get('baseline', value))
     structure = value.get('structure_graph', value.get('structure', value))
@@ -92,9 +147,6 @@ def state_of(value):
     pages = [{'atoms':[{'id':i, 'bbox':boxes.get(i,[0,0,0,0])} for i,l in lines.items() if l['page'] == n]}
              for n in sorted({l['page'] for l in lines.values()})]
     state = gold.initial(structure, pages)
-    # An exported gold keeps each corrected line's extraction witness, the scorer's common frame.
-    for line in state['lines']:
-        line.update(structure.get('source_witnesses', {}).get(line['id'], {}))
     # A unit's level is its depth under the units it is projected beneath, as the gold's is (its
     # parent's plus one), not the parser's own count within a list or a type size's rank.
     by_line = {i: g for g in state['groups'] for i in g['line_ids']}
@@ -152,7 +204,7 @@ def state_of(value):
 # The eight primary roles: older exports' names for the same roles.
 ROLE_ALIASES = {'prose': 'text', 'header': 'furniture', 'footer': 'furniture'}
 # Roles outside the outline: the hierarchy gold gives them no parent.
-UNRANKED_ROLES = {'furniture', 'page_label', 'marginal_note'}
+UNRANKED_ROLES = {'furniture', 'page_label', 'marginal_note', 'contents'}
 
 
 def prf(expected, actual):
@@ -362,7 +414,7 @@ def merged_spans(values):
 
 
 def compare(expected, candidate):
-    require(expected.get('schema_version') in {gold.VERSION, package.VERSION}, 'Expected a generated structure gold artifact')
+    require(expected.get('schema_version') == V4, 'Expected a legal-structure-gold.v4 file')
     gs, reference = state_of(expected); ps, predicted = state_of(candidate)
     require(gs['source_sha256'] == ps['source_sha256'], 'Candidate belongs to another PDF')
     project_candidate, alignment, (wanted_text,got_text) = source_alignment(reference,predicted)
@@ -451,7 +503,7 @@ def compare(expected, candidate):
         sequence=[p for i in state['reading_order'] for p in pieces(i)]
         result={'coverage':sequence, 'order':list(zip(sequence,sequence[1:])), 'roles':[], 'groups':[], 'joins':[], 'hierarchy':[],
                 'hierarchy_units':[], 'hierarchy_roles':[], 'hierarchy_relation':[], 'hierarchy_parent':[], 'hierarchy_marker':[],
-                **{k:[] for k in ('table','field','note','quotation','document','table_cells','note_references','continuations','document_facets','document_ownership','document_resumes')}}
+                **{k:[] for k in ('table','note','document','table_cells','note_references','continuations','document_ownership')}}
         # Blocks are identified by their first source span (line@start), never by a line.
         groups={gold.block_id(g):g for g in state['groups']}
         text_links=gold.text_links(state)
@@ -492,22 +544,15 @@ def compare(expected, candidate):
         for first,g in groups.items():
             result['roles'].extend((p,ROLE_ALIASES.get(g['kind'],g['kind'])) for s in members(g,lines) for p in span_pieces(s))
             if first not in incoming:
-                parts=list(members(g,lines)); cursor=first; visited={first}; separators={}
+                parts=list(members(g,lines)); cursor=first; visited={first}
                 while cursor in text_links:
-                    link=text_links[cursor]; cursor=link['next']
+                    cursor=text_links[cursor]['next']
                     if cursor in visited or cursor not in groups: break
-                    separators[len(parts)]=link['separator']
                     visited.add(cursor); parts.extend(members(groups[cursor],lines))
-                result['groups'].append(tuple(p for s in parts for p in span_pieces(s)))
-                previous=None
-                for n,s in enumerate(parts):
-                    pieces_now=span_pieces(s)
-                    result['joins'].extend((a,b,'') for a,b in zip(pieces_now,pieces_now[1:]))
-                    if previous and pieces_now:
-                        separator=separators.get(n,'' if previous_line==s['line_id'] else
-                                                 gold.line_separator(state,lines[previous_line],lines[s['line_id']]))
-                        result['joins'].append((previous[-1],pieces_now[0],separator))
-                    previous,previous_line=pieces_now,s['line_id']
+                pieces_now=[p for s in parts for p in span_pieces(s)]
+                result['groups'].append(tuple(pieces_now))
+                # Adjacent pieces of one logical block; v4 records no separators between them.
+                result['joins'].extend(zip(pieces_now,pieces_now[1:]))
         for first in units:
             attrs=groups[first]['attributes']; unit=anchor(first); kind=role(groups[first])
             result['hierarchy'].append((unit,kind,relation[first],anchor(parent_of[first]),spans(attrs.get('marker',[]))))
@@ -523,20 +568,16 @@ def compare(expected, candidate):
             kind=a['kind']; attrs=a['attributes']; extent=spans(a.get('spans',gold.whole(a['line_ids'],lines)))
             if kind not in result: continue
             if kind=='table':
-                result[kind].append((extent,len(attrs['rows']),len(attrs['rows'][0]),tuple(attrs.get('header_rows',[])),tuple(tuple(m) for m in attrs.get('merges',[]))))
+                result[kind].append((extent,len(attrs['rows']),len(attrs['rows'][0])))
                 result['table_cells'].extend((anchor(a['line_ids'][0]),r,c,None if cell is None else spans(cell)) for r,row in enumerate(attrs['rows']) for c,cell in enumerate(row))
-            elif kind=='field': result[kind].append((extent,attrs['type'],*(spans(attrs.get(k,[])) for k in ('label','value','placeholder')),attrs.get('state')))
             elif kind=='note':
-                result[kind].append((extent,attrs['kind'],spans(attrs.get('label',[]))))
+                result[kind].append((extent,spans(attrs.get('label',[]))))
                 result['note_references'].extend((extent,spans([s])) for s in attrs.get('references',[]))
-            elif kind=='quotation': result[kind].append((extent,attrs['layout'],spans(attrs.get('attribution',[]))))
-            elif kind=='document':
-                start=document(a['line_ids'][0]); result[kind].append((start,attrs['kind'],document(attrs.get('parent')),attrs.get('relationship')))
-                result['document_facets'].append((start,'title',spans(attrs.get('title',[]))))
-                result['document_facets'].extend((start,k,spans(v)) for k,v in attrs.get('facets',{}).items())
+            elif kind=='document': result[kind].append(document(a['line_ids'][0]))
         if any(a['kind']=='document' for a in state['annotations']):
             try:
-                owners,docs=gold.ownership(state); starts={a['id']:document(a['line_ids'][0]) for a in docs}
+                # Text before the first declared document is the source's own: the root's.
+                owners,docs=gold.ownership(state); starts={'source':('root',),**{a['id']:document(a['line_ids'][0]) for a in docs}}
                 # Blocks are identified by their first source span; a line takes its first block's owner.
                 by_line={}
                 for g in state['groups']:
@@ -547,8 +588,7 @@ def compare(expected, candidate):
             except (ValueError, KeyError):
                 # A candidate whose headings name a parent no group opens is an invalid hierarchy too.
                 result['document_ownership']=[(p,'invalid_hierarchy') for i in state['reading_order'] for p in pieces(i)]
-        result['document_resumes']=[(anchor(i),document(v['document'])) for i,v in state.get('resumes',{}).items()]
-        result['continuations']=[(anchor(i),anchor(l['next']),l['kind'],l['separator']) for i,l in gold.continuations(state)]
+        result['continuations']=[(anchor(i),anchor(l['next']),l['kind']) for i,l in gold.continuations(state)]
         return result
     wanted=features(reference,False); got=features(predicted,True)
     matched=total=exact=0
@@ -563,43 +603,52 @@ def compare(expected, candidate):
             'metrics':{k:prf(wanted[k],got[k]) for k in wanted}}
 
 
+def replay(job):
+    """Validate a saved record publication: its receipt, gold and current annotation stages."""
+    worker.recover_update(job)
+    receipt = worker.read_json(job / 'receipt.json')
+    require(receipt['status'] == 'complete', 'Replay requires a completed run')
+    require(worker.digest(job / 'gold.json.gz') == receipt['gold_sha256'], 'Gold artifact changed')
+    value = worker.read_json(job / 'gold.json.gz')
+    require(value.get('schema_version') == package.VERSION, 'Replay requires a canonical gold package')
+    worker.verified_run(job)
+    result = {'replay': 'current_facts_validated', 'run_id': receipt['run_id'], 'source_sha256': value['source_sha256'],
+              'record_layers': len(value['records'])}
+    if receipt.get('kind') == 'record_import': return result
+    require(receipt.get('kind') == 'annotation_update', 'Replay validates record imports and annotation publications')
+    package.validate(value)
+    stages = value['provenance'].get('annotation_stages', {})
+    current = {stage: worker.stage_current(job, value, stage) for stage in stages}
+    require(any(current.values()), 'No annotation stage describes current gold')
+    receipts = {stage: worker.read_json(job / marker['receipt']) for stage, marker in stages.items()}
+    for stage, saved in receipts.items():
+        require(worker.stage_binding(job, value, stage, saved) is not None, 'Annotation stage refers to different shared text')
+        if not current[stage]:
+            require(any(a[:len(b)] == b or b[:len(a)] == a
+                        for other, active in current.items() if active
+                        for a in saved['owned_paths'] for b in receipts[other]['owned_paths']),
+                    'Changed annotations have no current owning stage')
+    return {**result, 'annotation_stages': sorted(stages),
+            'superseded_annotation_stages': sorted(stage for stage, active in current.items() if not active)}
+
+
 def main():
     worker.low_priority()
     parser=argparse.ArgumentParser(description=__doc__)
     action=parser.add_mutually_exclusive_group(required=True)
-    action.add_argument('--replay',type=Path); action.add_argument('--gold',type=Path)
-    action.add_argument('--export',type=Path)
+    action.add_argument('--replay',type=Path,help='A record publication to validate')
+    action.add_argument('--gold',type=Path,help='A v4 gold file to score --candidate against')
+    action.add_argument('--export',type=Path,help='A gold package to export --record-id from')
     parser.add_argument('--candidate',type=Path); parser.add_argument('--output',type=Path)
-    parser.add_argument('--view',choices=('parser','manuscript','affidavit','ocr','pagexml','line-ocr','ocr-all'),default='parser')
-    parser.add_argument('--record-id'); parser.add_argument('--pdf',type=Path)
-    parser.add_argument('--dpi',type=int,choices=range(72,301),default=300)
+    parser.add_argument('--record-id')
     args=parser.parse_args()
     if args.gold and not args.candidate: parser.error('--gold requires --candidate')
     if args.export:
-        if not args.output: parser.error('--export requires --output')
+        if not (args.output and args.record_id): parser.error('--export requires --record-id and --output')
         value=worker.read_json(args.export)
         require(value.get('schema_version') == package.VERSION, 'Export requires a canonical gold package')
         args.output.parent.mkdir(parents=True,exist_ok=True)
-        if args.view == 'parser':
-            worker.write_json(args.output,package.parser_view(value))
-            worker.write_json(args.output.with_name(args.output.name+'.receipt.json'), {
-                'source_sha256':value['source_sha256'], 'gold_sha256':worker.digest(args.export),
-                'exported_at':worker.corpus_store.now(), 'view':'parser',
-                'exporter':{path.name:worker.digest(path) for path in (worker.HERE/'package.py',worker.HERE/'gold.py')},
-                'output_sha256':worker.digest(args.output)})
-        elif args.view == 'manuscript': args.output.write_text(package.manuscript_text(value),encoding='utf-8',newline='\n')
-        elif args.view == 'affidavit':
-            if not args.record_id: parser.error('--view affidavit requires --record-id')
-            worker.write_json(args.output,worker.affidavit_record(value,args.record_id))
-        else:
-            pdf=args.pdf
-            if pdf is None:
-                import sqlite3
-                with closing(sqlite3.connect(worker.corpus_store.DB.as_uri()+'?mode=ro',uri=True)) as db:
-                    row=db.execute('select path from files where sha256=?',(value['source_sha256'],)).fetchone()
-                require(row is not None,'OCR source missing from corpus')
-                pdf=worker.corpus_store.HOME/row[0]
-            print(json.dumps(package.export_ocr(value,pdf,args.output,args.dpi,args.view in {'pagexml','ocr-all'},args.view in {'line-ocr','ocr-all'})))
+        worker.write_json(args.output,worker.affidavit_record(value,args.record_id))
         return
     result=replay(args.replay) if args.replay else compare(worker.read_json(args.gold),worker.read_json(args.candidate))
     if args.output: worker.write_json(args.output,result)

@@ -808,7 +808,7 @@ is a failed candidate, not an invitation to reopen the architecture implicitly.
 | Semantic types, annotation application, profiles and queries | `legal-structure/` and its existing bindings |
 | PDF evidence preparation and production assembly | `legal-pdf-parser/legal-pdf-structure/src/structure.rs` and connected PDF owners |
 | Lightweight model features and outline inference | `legal-pdf-parser/legal-pdf-witnesses/src/`, especially `model.rs`, `outline.rs` and `witness.rs` |
-| Gold authoring, prompts, source correction and packaging | `experiments/legal-structure-gold/` (`prompts.py`, `blocks.py`, `worker.py`) |
+| Gold authoring, prompts and source correction | `experiments/legal-structure-gold/` (`author.py`, `prompts.py`, `blocks.py`, `hierarchy.py`) |
 | Direct fact scoring and batch evaluation | Existing `evaluate.py` and `score_all.py` under the gold runner |
 | Shared-structure consumer integration | Existing native bindings and consuming bounded-query operations; do not recreate semantic logic in TypeScript |
 

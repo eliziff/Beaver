@@ -1,18 +1,18 @@
-"""Score a native addon against every completed gold run, per layer.
+"""Score a native addon against every completed v4 gold (<out>/v4/*/gold.json.gz), per layer.
 
-Each gold PDF is parsed again with the request its gold was made from, by a pinned addon
+Each gold PDF is parsed again with the app's PDF profile, as its gold was, by a pinned addon
 (LEGAL_STRUCTURE_ADDON) or the most recently built: shards of runs in parallel, each loading the
 addon once (extract.mjs --batch), long PDFs first, with earlier builds' OCR and extraction carried
-forward. Runs are then scored in parallel against their gold with its document-level layer.
-Totals are micro-averaged over all runs. `--saved` scores each run's saved baseline instead.
+forward. Runs are then scored in parallel against their gold. Totals are micro-averaged over all
+runs. PDFs come from the corpus, or from an authoring manifest (--manifest, as author.py takes).
 
   --mode / --runs     score a subset (written to subset.json unless --tag)
   --tag NAME          write score/runs/NAME.json and NAME.manifest.json (each run's candidate,
                       engine inputs and witnesses, filed with its cached document)
   --replay MANIFEST   re-resolve the dumped structure-engine inputs with the engine's replay
                       example instead of parsing: an engine change measured in seconds
-  --frozen MANIFEST   score against frozen-eval gold (freeze_eval.py) instead of the live
-                      catalogue; --split picks train, development or test
+  --frozen MANIFEST   score against frozen gold files (manifest sources with gold/<sha>.json.gz)
+                      instead of <out>/v4; --split picks train, development or test
   --against SUMMARY   per mode, the change in each layer's pooled F1 and, per document, how many
                       got better or worse with the mean and median change
 
@@ -30,12 +30,9 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-import sqlite3
-from contextlib import closing
 import worker
 import evaluate
 import corpus_store
-import package
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -66,62 +63,18 @@ def reference_metadata(row, out=ROOT / 'benchmarks/local-data/legal-structure-go
     result = {key: row[key] for key in ('source_sha256', 'mode') if key in row}
     if len(result) < 2:
         receipt = worker.read_json(Path(out) / row['run'] / 'receipt.json')
-        saved = {'source_sha256': receipt['source_sha256'], 'mode': receipt['configuration']['mode']}
+        saved = {'source_sha256': receipt['source_sha256'], 'mode': receipt['mode']}
         worker.require(all(saved[key] == value for key, value in result.items()), 'Saved source metadata differs')
         result = saved
     return result
 
 
-def completed(out, unavailable=None):
-    for pending in out.glob('current/*/publication.json'):
-        worker.recover_update(pending.parent)
-    selected = {}
-    indexed = set()
-    omitted = {}
-    if corpus_store.DB.exists():
-        with closing(sqlite3.connect(corpus_store.DB.as_uri()+'?mode=ro',uri=True)) as db:
-            current = db.execute("select r.sha256,a.path,a.sha256,g.path,g.sha256 from gold_records r"
-                " join gold_artifacts a on a.run_id=r.run_id and a.role='receipt'"
-                " join gold_artifacts g on g.run_id=r.run_id and g.role='gold'"
-                " where r.dataset=? and r.status='complete'", (package.VERSION,)).fetchall()
-        for sha,receipt_path,receipt_sha,gold_path,gold_sha in current:
-            receipt = Path(receipt_path)
-            job = receipt.parent
-            if not job.resolve().is_relative_to(out.resolve()): continue
-            worker.require(worker.digest(receipt) == receipt_sha, 'Selected gold receipt changed')
-            value = worker.read_json(receipt)
-            worker.require(value['status'] == 'complete' and value['source_sha256'] == sha and
-                worker.digest(Path(gold_path)) == gold_sha == value['gold_sha256'], 'Selected gold changed')
-            compact = worker.read_json(Path(gold_path))
-            if 'legal_structure' not in compact.get('layers', {}):
-                omitted[sha] = {'run': str(job.relative_to(out)), 'source_sha256': sha,
-                    'mode': value['configuration']['mode'], 'reason': 'legal_structure_not_annotated'}
-                continue
-            selected[sha] = (None, (value['configuration']['mode'], job, value))
-            indexed.add(sha)
-    for receipt in sorted(out.glob('*/*/*/receipt.json')):
-        mode = receipt.parents[2].name
-        if mode not in ('digitalborn', 'ocr', 'packages'): continue
-        if receipt.parents[1].name in indexed: continue
+def completed(out):
+    """Completed v4 golds as (mode, run directory, receipt)."""
+    for receipt in sorted(out.glob('v4/*/receipt.json')):
         value = worker.read_json(receipt)
-        if value.get('status') != 'complete' or not (receipt.parent / 'gold.json.gz').exists(): continue
-        sha = value['source_sha256']
-        if sha in indexed: continue
-        expected = worker.read_json(receipt.parent / 'gold.json.gz')
-        if not ('legal_structure' in expected.get('layers', {}) if expected.get('schema_version') == package.VERSION else 'structure' in expected):
-            omitted.setdefault(sha, {'run': str(receipt.parent.relative_to(out)), 'source_sha256': sha,
-                'mode': value['configuration']['mode'], 'reason': 'legal_structure_not_annotated'})
-            continue
-        source = worker.read_json(receipt.parent / value['parent_run'] / 'receipt.json') if value.get('parent_run') else value
-        priority = (source.get('finished_at',0), mode == 'packages', value.get('finished_at',0))
-        if sha not in selected or priority > selected[sha][0]:
-            selected[sha] = (priority, (value['configuration']['mode'], receipt.parent, value))
-    missing = [row for sha, row in sorted(omitted.items()) if sha not in selected]
-    if unavailable is not None:
-        unavailable.extend(missing)
-    elif missing:
-        print(f'Skipping {len(missing)} sources without legal-structure annotations', file=sys.stderr)
-    for sha in sorted(selected): yield selected[sha][1]
+        if value.get('status') == 'complete' and (receipt.parent / 'gold.json.gz').is_file():
+            yield value['mode'], receipt.parent, value
 
 
 def addon_sha256():
@@ -132,26 +85,13 @@ def addon_sha256():
     return hashlib.sha256(chosen.read_bytes()).hexdigest()
 
 
-def gold_request(job):
-    # Parse with the request the gold was made from, so source lines stay comparable. The
-    # earliest golds predate recording it; they read native text only. A Tesseract timeout
-    # only bounds the wait, so a loaded machine may wait longer.
-    request = worker.read_json(gold_file(job))['provenance']['configuration'].get('parser', {}).get('request', {})
-    if request.get('ocr', {}).get('provider') == 'tesseract':
-        request = {**request, 'ocr': {**request['ocr'], 'settings': {**request['ocr'].get('settings', {}), 'timeout_seconds': 1200}}}
-    return request
-
-
-def carry(cache, sha, binary, request):
+def carry(cache, sha, binary):
     # An earlier build's recognition and extraction, hard-linked forward: their cache keys name
     # the OCR and extraction code, so a structure-only build reuses them and any other misses
     # them. Each request keeps its own; a layout parse reuses its plain request's.
     root = cache / sha
     layout = '-layout' if os.environ.get('LAYOUT_PACK') else ''
-    # Carried already: nothing to walk.
-    own = root / binary / (request + layout) / 'parse-v1'
-    if not root.is_dir() or all((own / stage).exists() for stage in ('recognition', 'extractions')):
-        return
+    if not root.is_dir(): return
     for stage in ('recognition', 'extractions'):
         newest = {}
         for source in root.glob(f'*/*/parse-v1/{stage}'):
@@ -167,25 +107,17 @@ def carry(cache, sha, binary, request):
                 except OSError: shutil.copytree(previous, target, dirs_exist_ok=True)
 
 
-def extract_all(items, out, workers, env=None):
+def extract_all(items, out, workers, pdfs, env=None):
     """Parse every run's PDF with the addon loaded once per shard: shards in parallel, long PDFs
     first. Returns {run: (candidate file, engine dump or None)} and {run: error}."""
     cache, binary = out / 'score' / 'candidates', addon_sha256()
-    jobs, runs, keys = [], {}, {}
-    requests = {}
+    jobs, runs = [], {}
     for mode, job, receipt in items:
-        request = gold_request(job)
-        saved = cache / f'request-{worker.fingerprint(request)[:16]}.json'
-        if saved not in requests:
-            saved.parent.mkdir(parents=True, exist_ok=True)
-            saved.write_text(json.dumps(request), encoding='utf-8'); requests[saved] = True
-        pdf = pdf_path(receipt['source_sha256'])
-        # The parse's cache directory is named for the request as extract.mjs serializes it.
-        keys[receipt['source_sha256']] = hashlib.sha256(json.dumps(request, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()[:16]
-        jobs.append({'pdf': str(pdf), 'output': str(cache), 'mode': mode, 'requestFile': str(saved)})
+        pdf = pdf_path(receipt['source_sha256'], pdfs)
+        jobs.append({'pdf': str(pdf), 'output': str(cache), 'mode': mode})
         runs[(str(pdf), mode)] = str(job.relative_to(out))
     with ThreadPoolExecutor(16) as pool:
-        list(pool.map(lambda item: carry(cache, item[2]['source_sha256'], binary, keys[item[2]['source_sha256']]), items))
+        list(pool.map(lambda item: carry(cache, item[2]['source_sha256'], binary), items))
     jobs.sort(key=lambda j: -Path(j['pdf']).stat().st_size)
     shards = [shard for shard in (jobs[i::workers] for i in range(workers)) if shard]
     produced, errors = {}, {}
@@ -229,12 +161,8 @@ def score_one(item):
     run, out, candidate, structure = item
     job = Path(out) / run
     try:
-        if job.is_dir(): worker.recover_update(job)
         gold_sha = worker.digest(gold_file(job))
         expected = worker.read_json(gold_file(job))
-        if expected.get('schema_version') == package.VERSION and 'legal_structure' not in expected['layers']:
-            return {'run': run, **reference_metadata({'run': run}, out),
-                    'status': 'unavailable', 'reason': 'legal_structure_not_annotated'}
         reference_sha = worker.fingerprint(evaluate.state_of(expected)[1])
         value = worker.read_json(Path(candidate))
         if structure:
@@ -307,38 +235,38 @@ def compare(before, after, layers=None, out=ROOT / 'benchmarks/local-data/legal-
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--out', type=Path, default=ROOT / 'benchmarks/local-data/legal-structure-gold')
-    parser.add_argument('--saved', action='store_true', help="Score each run's saved baseline")
     parser.add_argument('--against', type=Path, help='Earlier summary to compare with')
     parser.add_argument('--workers', type=int, default=os.cpu_count() or 8)
     parser.add_argument('--show', action='store_true', help='Print per-run F1 for each layer')
     parser.add_argument('--runs', nargs='*', default=[], help='Score only runs whose source SHA256 starts with one of these')
-    parser.add_argument('--mode', choices=('digitalborn', 'ocr', 'packages'), help='Score only runs of this mode')
+    parser.add_argument('--mode', choices=('digitalborn', 'ocr'), help='Score only runs of this mode')
     parser.add_argument('--tag', help='Write the summary to score/runs/TAG.json (and its replay manifest beside it)')
     parser.add_argument('--replay', type=Path, help="Re-resolve a tagged run's dumped engine inputs (TAG.manifest.json) with the replay example; no parsing")
     parser.add_argument('--layers', help='Comma-separated layers to show in --against')
     parser.add_argument('--frozen', type=Path, help='Score against this frozen-eval manifest')
     parser.add_argument('--split', choices=('train', 'development', 'test'), help='With --frozen, score only this split')
     parser.add_argument('--rescore', help="Score a tagged run's candidates again, parsing nothing (a scorer change)")
+    parser.add_argument('--manifest', type=Path, help='Find PDFs outside the corpus by an authoring manifest: {documents: [{path}]}')
+    parser.add_argument('--root', type=Path, help='Base for manifest paths (default: the manifest directory)')
     args = parser.parse_args()
     if os.environ.get('LEGAL_STRUCTURE_NATIVE') and not os.environ.get('LEGAL_STRUCTURE_ADDON'):
         os.environ['LEGAL_STRUCTURE_ADDON'] = os.environ['LEGAL_STRUCTURE_NATIVE']
-    unavailable = []
-    source = frozen(args.frozen, args.split) if args.frozen else completed(args.out, unavailable)
+    source = frozen(args.frozen, args.split) if args.frozen else completed(args.out)
     items = [r for r in source if (not args.runs or any(r[2]['source_sha256'].startswith(p) for p in args.runs))
              and (not args.mode or r[0] == args.mode)]
-    unavailable = [r for r in unavailable if (not args.runs or any(r['source_sha256'].startswith(p) for p in args.runs))
-                   and (not args.mode or r['mode'] == args.mode)]
+    pdfs = {}
+    if args.manifest:
+        base = args.root or args.manifest.parent
+        for row in worker.read_json(args.manifest)['documents']:
+            pdfs[worker.digest(base / row['path'])] = (base / row['path']).resolve()
     started = time.time()
     errors, dumps = {}, {}
     if args.rescore:
         sources = {row['run']: (row['candidate'], None) for row in worker.read_json(args.out / 'score' / 'runs' / f'{args.rescore}.manifest.json')}
     elif args.replay:
         sources = {run: files for run, files in replay_all(args.replay, args.out).items()}
-    elif args.saved:
-        sources = {str(job.relative_to(args.out)): (str(job / receipt.get('artifact_paths', {}).get('baseline', 'baseline.json.gz')), None)
-                   for _, job, receipt in items}
     else:
-        produced, errors = extract_all(items, args.out, args.workers) if items else ({}, {})
+        produced, errors = extract_all(items, args.out, args.workers, pdfs) if items else ({}, {})
         sources = {run: (file, None) for run, (file, _, _) in produced.items()}
         dumps = {run: (dump, witnesses) for run, (_, dump, witnesses) in produced.items() if dump and Path(dump).is_file()}
     parsed = time.time()
@@ -346,16 +274,15 @@ def main():
         results = list(pool.map(score_one, [(run, str(args.out), c, s) for run, (c, s) in sources.items()], chunksize=4))
     results += [{'run': run, 'error': error} for run, error in errors.items()]
     scored = [r for r in results if 'metrics' in r]
-    summary = {'source': 'rescore' if args.rescore else 'replay' if args.replay else 'saved' if args.saved else 'addon', 'runs': len(results),
+    summary = {'source': 'rescore' if args.rescore else 'replay' if args.replay else 'addon', 'runs': len(results),
                'errors': [r for r in results if 'error' in r], 'totals': aggregate(scored),
-               'unavailable': unavailable + [r for r in results if r.get('status') == 'unavailable'],
-               'addon_sha256': None if args.saved or args.rescore or args.replay else addon_sha256(),
+               'addon_sha256': None if args.rescore or args.replay else addon_sha256(),
                'frozen': str(args.frozen) if args.frozen else None, 'split': args.split,
                'per_run': [{'run': r['run'], 'parse_ms': TIMINGS.get(r['run']), **{key:r[key] for key in ('source_sha256','mode','gold_sha256','gold_state_sha256','alignment','text')},
                             'metrics': {k: {c: v[c] for c in ('expected', 'predicted', 'correct', 'f1')}
                                                           for k, v in r['metrics'].items()}} for r in scored]}
     destination = (args.out / 'score' / 'runs' / f'{args.tag}.json' if args.tag else
-                   args.out / 'score' / ('saved.json' if args.saved else 'subset.json' if (args.runs or args.mode) else 'latest.json'))
+                   args.out / 'score' / ('subset.json' if (args.runs or args.mode) else 'latest.json'))
     worker.write_json(destination, summary)
     if dumps:
         references = {row['run']: row for row in scored}
@@ -364,7 +291,7 @@ def main():
                             **{key: references[run][key] for key in ('gold_sha256','gold_state_sha256') if run in references},
                             'candidate': sources[run][0], 'dump': dump, 'witnesses': witnesses}
                            for run, (dump, witnesses) in dumps.items()])
-    print(f"{summary['runs']} runs, {len(summary['errors'])} errors, {len(summary['unavailable'])} unannotated sources -> {destination} "
+    print(f"{summary['runs']} runs, {len(summary['errors'])} errors -> {destination} "
           f"(parse {parsed - started:.0f}s, score {time.time() - parsed:.0f}s)")
     if TIMINGS:
         slowest = sorted(TIMINGS.items(), key=lambda item: -item[1])[:8]
@@ -381,8 +308,10 @@ def main():
     for error in summary['errors']: print('ERROR', error['run'], error['error'][-300:], file=sys.stderr)
 
 
-def pdf_path(sha):
+def pdf_path(sha, pdfs):
+    if sha in pdfs: return pdfs[sha]
     row = corpus_store.connect().execute('select path from files where sha256=?', (sha,)).fetchone()
+    worker.require(row is not None, f'Source PDF {sha} is in neither the manifest nor the corpus')
     return corpus_store.HOME / row[0]
 
 

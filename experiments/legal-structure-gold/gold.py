@@ -1,12 +1,23 @@
-"""Source-anchored structure state: native source lines, composition and materialized gold."""
+"""Source-anchored structure state of a parser export, and the shared composition the scorer reads it with."""
 from copy import deepcopy
-import ocr
+import json
+from pathlib import Path
+import subprocess
 
-VERSION = "legal-structure-gold.v3"
+# The composition's primary roles; a scorer role outside them (contents) composes as text.
+COMPOSED = {"text", "heading", "caption", "instruction", "headnote", "marginal_note", "furniture", "page_label"}
 
 
 def require(value, message):
     if not value: raise ValueError(message)
+
+
+def native(command, request):
+    """One shared native operation through extract.mjs."""
+    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), command],
+        input=json.dumps(request, ensure_ascii=False), capture_output=True, encoding="utf-8")
+    require(operation.returncode == 0, operation.stderr.strip())
+    return json.loads(operation.stdout)
 
 
 def source_lines(structure):
@@ -35,17 +46,6 @@ def source_lines(structure):
     return result
 
 
-def changed_offset(point, changes, right=False):
-    delta=0
-    for e in changes:
-        if point<e["start"]: break
-        if point==e["start"]:
-            return point+delta+(len(e["text"]) if right and e["start"]==e["end"] else 0)
-        if point<e["end"]: return e["start"]+delta+(len(e["text"]) if right else 0)
-        delta+=len(e["text"])-(e["end"]-e["start"])
-    return point+delta
-
-
 def range_refs(span, lines, structure):
     result = []
     for line in lines.values():
@@ -70,19 +70,20 @@ def block_id(block):
     return block.get("id") or span_anchor((block.get("spans") or [{"line_id":block["line_ids"][0],"start":0}])[0])
 
 
+def composed_groups(state):
+    return [g if g["kind"] in COMPOSED else {**g, "kind": "text"} for g in state["groups"]]
+
+
 def composition_request(state, through=None):
-    return {"lines":state["lines"],"groups":state["groups"],"annotations":state["annotations"],
+    return {"lines":state["lines"],"groups":composed_groups(state),"annotations":state["annotations"],
             "reading_order":state["reading_order"],"targets":[],"visible_pages":[],"edits":[],
             "native_navigation":state.get("native_navigation",[]),
             "removable_nodes":state.get("native_nodes",[]),
             "through":through,**{key:state.get(key,{}) for key in ("joins","continuations","resumes","manuscript_edits")}}
 
 
-def line_separator(state, left, right):
-    left_range,right_range=left.get("source_range"),right.get("source_range")
-    adjacent=left.get("source_id") is not None and left.get("source_id")==right.get("source_id") and left_range is not None and right_range is not None and left_range[1]==right_range[0]
-    link=state["joins"].get(left["id"]+"@0",state["joins"].get(left["id"],{}))
-    return link.get("separator","" if adjacent else " ")
+def compose_structure(state):
+    return native("--compose-structure", composition_request(state))
 
 
 def continuations(state):
@@ -90,102 +91,34 @@ def continuations(state):
 
 
 def text_links(state):
-    """Expose the shared logical-block assembly to legacy inspection callers."""
-    from package import compose_structure
-    assembled=compose_structure(composition_request(state))
+    """Each block's next fragment in its logical block, from the shared assembly."""
+    assembled=compose_structure(state)
     groups={block_id(group):group for group in assembled["groups"]}
-    separators={span_anchor(span):span["separator"] for span in assembled["manuscript_spans"]}
-    return {left:{"next":right,"separator":separators[right],
-                  "kind":"heading" if groups[left]["kind"]=="heading" else "paragraph"}
+    return {left:{"next":right,"kind":"heading" if groups[left]["kind"]=="heading" else "paragraph"}
             for parts in assembled["logical_blocks"].values() for left,right in zip(parts,parts[1:])}
 
 
-def annotation_view(state,through=None):
-    from package import resolve_annotations
-    return resolve_annotations({"lines":state["lines"],"reading_order":state["reading_order"],
-        "annotations":state["annotations"],"continuations":state["continuations"],
-        "groups":state["groups"],"through":through})
-
-
 def logical_annotations(state):
-    return annotation_view(state)["annotations"]
+    return native("--resolve-annotations", {"lines":state["lines"],"reading_order":state["reading_order"],
+        "annotations":state["annotations"],"continuations":state["continuations"],
+        "groups":composed_groups(state),"through":None})["annotations"]
 
+
+def ownership(state):
+    result=compose_structure(state)
+    return {g["id"]:g["ownership"]["document_id"] for g in result["groups"] if g.get("ownership")},[a for a in result["annotations"] if a["kind"]=="document"]
 
 
 def initial(structure, pages):
+    """The parser's blocks and annotations over its source lines, with their page boxes."""
     lines = source_lines(structure)
     evidence = {a["id"]: a for p in pages for a in p["atoms"]}
     require(set(lines) == set(evidence), "Evidence source-ID coverage differs from native structure")
     for ident, line in lines.items():
-        line.update(box=evidence[ident]["bbox"], type=evidence[ident].get("type", []),
-                    spans=deepcopy(evidence[ident].get("spans", [])), words=deepcopy(evidence[ident].get("words", [])),
-                    original_text=line["text"], source_id=ident, source_range=[0,len(line["text"])])
-        line.update({key:deepcopy(evidence[ident][key]) for key in ("ocr","region_id","region_type","source") if key in evidence[ident]})
-    import package
-    prepared = package.structure_blocks(structure, list(lines.values()))
-    groups = prepared["groups"]
-    annotations = prepared["annotations"]
-    state={"parser_proposals":True,"lines":list(lines.values()),"groups":groups,"annotations":annotations,
-           "manuscript_edits":deepcopy(prepared.get("manuscript_edits",{})),
-           "reading_order":list(lines),"joins":prepared["joins"],"continuations":prepared["continuations"],"resumes":prepared["resumes"],"operations":[],
-           "native_navigation":deepcopy(structure.get("native_navigation",[])),
-           "structure_tags":deepcopy(structure.get("structure_tags",[])),
-           "native_nodes":prepared["removable_nodes"]}
-    if any("ocr" in page for page in pages):
-        require(all("ocr" in page for page in pages), "OCR page evidence incomplete")
-        state["ocr"] = {**deepcopy(pages[0]["ocr_metadata"]), "pages": [deepcopy(p["ocr"]) for p in pages]}
-    return state
-
-
-
-def confirmed_annotations(state,through=None):
-    lines={line["id"]:line for line in state["lines"]}
-    for annotation in state["annotations"]:
-        if through is not None and lines[annotation["line_ids"][0]]["page"]>through: continue
-        attrs=annotation["attributes"]
-        if annotation["kind"]=="quotation": require(attrs.get("layout") in {"inline","display"},"Quotation layout remains an unconfirmed parser proposal")
-        if annotation["kind"]=="navigation" and attrs.get("kind")=="contents": require(bool(attrs.get("title")),"Contents title remains an unconfirmed parser proposal")
-
-
-def complete(state,through=None):
-    from package import compose_structure
-    confirmed_annotations(state,through)
-    compose_structure(composition_request(state,through))
-    return True
-
-
-def ownership(state,through=None):
-    from package import compose_structure
-    result=compose_structure(composition_request(state,through))
-    return {g["id"]:g["ownership"]["document_id"] for g in result["groups"] if g.get("ownership")},[a for a in result["annotations"] if a["kind"]=="document"]
-
-
-def materialize(structure,state,provenance):
-    from package import project_structure
-    projected=project_structure(structure,
-        {**composition_request(state),"structure_tags":state.get("structure_tags",structure.get("structure_tags",[]))},
-        [node["id"] for node in state["native_nodes"]])
-    assembled=projected["composition"]
-    document=projected["structure"]
-    evidence=projected["structure_evidence"]
-    document.update(evidence.get("fields",{}))
-    for kind in ("nodes","notes"):
-        for item in document.get(kind,[]):
-            item.update(evidence.get(kind,{}).get(item["id"],{}))
-    units={line["id"]:line for line in assembled["lines"]}
-    return document["rendered_text"],{
-        "schema_version":VERSION,"source_sha256":structure["source_sha256"],
-        "offset_unit":"utf16","source_character_unit":"unicode_scalar",
-        "coordinates":"visible-page-top-left-1000","structure":document,
-        "source_trace":projected["source_trace"],
-        "native_facts":projected["native_facts"],
-        "unconfirmed_native_witnesses":projected["unconfirmed_native_witnesses"],
-        "reading_order":assembled["reading_order"],"blocks":assembled["groups"],
-        "manuscript_spans":assembled["manuscript_spans"],
-        "manuscript_edits":assembled["manuscript_edits"],
-        "native_navigation":deepcopy(document.get("native_navigation",[])),
-        "joins":assembled["joins"],"continuations":assembled["continuations"],
-        "resumes":assembled["resumes"],
-        "operations":state["operations"],"provenance":provenance,
-        **({"ocr":ocr.compact(state["ocr"],units)} if "ocr" in state else {})
-    }
+        line.update(box=evidence[ident]["bbox"], original_text=line["text"], source_id=ident, source_range=[0,len(line["text"])])
+    prepared = native("--structure-blocks", {"structure": structure, "lines": list(lines.values())})
+    return {"lines":list(lines.values()),"groups":prepared["groups"],"annotations":prepared["annotations"],
+            "manuscript_edits":deepcopy(prepared.get("manuscript_edits",{})),
+            "reading_order":list(lines),"joins":prepared["joins"],"continuations":prepared["continuations"],"resumes":prepared["resumes"],
+            "native_navigation":deepcopy(structure.get("native_navigation",[])),
+            "native_nodes":prepared["removable_nodes"]}

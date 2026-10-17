@@ -100,23 +100,8 @@ async function extract(pdf, output, mode, requestFile) {
 if (process.argv[2] === '--structure-blocks') {
   try { console.log(JSON.stringify(parser.structureCompositionBlocks(JSON.parse(readFileSync(0, 'utf8'))))); }
   catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--apply-source-operations') {
-  try { console.log(JSON.stringify(parser.applySourceOperations(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--project-structure') {
-  try { console.log(JSON.stringify(parser.projectStructureComposition(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
 } else if (process.argv[2] === '--resolve-annotations') {
   try { console.log(JSON.stringify(parser.resolveCompositionAnnotations(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--capture-native-facts') {
-  try { console.log(JSON.stringify(parser.captureCompositionNativeFacts(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--hydrate-native-facts') {
-  try { console.log(JSON.stringify(parser.hydrateCompositionNativeFacts(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--remap-native-facts') {
-  try { console.log(JSON.stringify(parser.remapCompositionNativeFacts(JSON.parse(readFileSync(0, 'utf8'))))); }
   catch (error) { console.error(error.message); process.exitCode = 1; }
 } else if (process.argv[2] === '--compose-structure') {
   try { console.log(JSON.stringify(parser.applyStructureComposition(JSON.parse(readFileSync(0, 'utf8'))))); }
@@ -145,19 +130,6 @@ if (process.argv[2] === '--structure-blocks') {
   try {
     const { structure, pages, separators, source_outline } = JSON.parse(readFileSync(0, 'utf8'));
     console.log(JSON.stringify(parser.pdfOutlineTrainingRows(structure, pages, separators, source_outline)));
-  } catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--correct-source-text') {
-  try { console.log(JSON.stringify(parser.correctSourceText(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--move-source-units') {
-  try { console.log(JSON.stringify(parser.moveSourceUnits(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--assemble-structure') {
-  try {
-    const { structure, levels, extents } = parser.assembleStructureAnnotations(JSON.parse(readFileSync(0, 'utf8')));
-    const rendered_memberships = Object.fromEntries(structure.nodes.map(node => [node.id, node.rendered_membership ?? []]));
-    const rendered_extents = Object.fromEntries(structure.nodes.map(node => [node.id, node.rendered_ranges ?? []]));
-    console.log(JSON.stringify({ levels, extents, rendered_memberships, rendered_extents }));
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 } else if (process.argv[2] === '--batch') {
   for (const { pdf, output, mode, requestFile } of JSON.parse(readFileSync(process.argv[3], 'utf8'))) {
