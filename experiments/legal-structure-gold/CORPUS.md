@@ -51,56 +51,12 @@ test data or replace the roadmap gold authoring and evaluation gates.
 
 ## Final input freeze
 
-Once source-family, visual duplicate-page and exposure reviews are complete and
-all selected sources have current structural authoring, run:
-
-```text
-python experiments/legal-structure-gold/freeze_corpus.py --freeze --selection benchmarks/local-data/legal-structure-gold/family-selection.json --review benchmarks/local-data/legal-structure-gold/family-selection-review.json
-```
-
-This writes the private `family-frozen.json`. It preserves the prepared member set
-and long-source group assignments, refreshes current artifact/family evidence, and
-refuses a changed partition until the prepared selection is explicitly revised.
-Use `--selection` without `--freeze` to prepare that revision for review. It never
-authors answers, trains or scores.
-
-The review adds `exposure_review: {sources: [SHA, ...], evidence: ...}` covering
-every selected source; `exposed_sources` still identifies known prior exposure.
-A review assertion is retained evidence, not authentication of who performed it.
-
-Freezing requires full-page canonical structural gold and current settled-policy
-authoring evidence. Initial source/structure authoring and structural reauthoring
-share the same proof; an additional structural pass is not required for newly
-authored sources. Source, artifact, selection, review, policy and authoring
-identities are bound in the manifest. The trainer verifies that binding and opens
-only training gold; it cannot accept a prepared manifest by changing its status
-string.
-
-Source preparation and structural acceptance reject PDFs that require dynamic
-XFA rendering, including apparently successful viewer-fallback pages. Explicit
-static XFA (`dynamicRender=forbidden`, without `NeedsRendering=true`) is supported;
-unknown or ambiguous declarations remain unresolved. The same check covers
-cached authoring, interrupted structural publication and newly selected structural
-packages. Freeze checks the hash-verified PDF under its explicit corpus home.
-Metadata support does not certify page completeness; the source author still
-needs complete page evidence.
-
-The current prepared selection contains 1,209 sources: 1,161 canonical structural
-packages plus the unchanged 48 long PDFs. The private
-`structure-authoring-plan.json` binds the existing-source batch to current
-artifact hashes and runner directories: 1,254 chunks, at most three attempts per
-chunk (3,762 calls). It records pending model authorization; generating this
-plan does not authorize dispatch or alter gold.
-
-Capability-aware preparation produced 1,250 prompt files for 1,157 supported
-sources, with zero preparation errors, model calls or gold changes. Four selected
-dynamic XFA sources need complete source-backed page appearance before authoring;
-their ordinary page trees show viewer-fallback notices. Three independently
-inspected static XFA sources remain supported. The cohort remains unchanged. `long-source-modes.json` records evidenced mode
-proposals for the 21 previously unknown long sources; `long-authoring-inputs.json`
-contains the unchanged 48 inputs (27 OCR, 21 digitalborn). One source has retained
-PDF syntax diagnostics. These are source-preparation artifacts, not quality scores
-or approval to send documents to a provider.
+The former `--freeze` bound the selection to the v3 structural packages and their authoring
+proof. It was retired with v3 structure authoring; the selected sources are re-authored as v4
+gold (`author.py`), which has no freeze yet. The review adds
+`exposure_review: {sources: [SHA, ...], evidence: ...}` covering every selected source;
+`exposed_sources` still identifies known prior exposure. A review assertion is retained
+evidence, not authentication of who performed it.
 
 ## Historical exposure review
 

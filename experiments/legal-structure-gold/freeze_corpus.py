@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 from collections import Counter, defaultdict
 import hashlib
-import gzip
 import json
 import os
 from pathlib import Path
@@ -290,89 +289,18 @@ def prepare(db, home, review_path=None, selection=None):
     return manifest
 
 
-def freeze(manifest, home, review_path, selection_path):
-    """Bind reviewed membership to current, fully re-authored canonical answers.
-
-    This publishes input identities only. It does not train, score, invoke an
-    author, mutate gold, or repair interrupted publications.
-    """
-    validate_partitions(manifest)
-    import package
-    from worker import current_structure_authoring
-
-    if manifest["shortages"] or manifest["family_review_missing"] or manifest["visual_duplicate_review_missing"]:
-        raise ValueError("Long-source selection and source-family/page reviews must be complete before freezing")
-    if any(count == 0 for count in manifest["scans_by_group"].values()):
-        raise ValueError("Every long-source group requires scan coverage")
-    review = json.loads(review_path.read_text(encoding="utf-8"))
-    if set(review.get("exposed_sources", [])) != set(manifest["exposed_sources"]):
-        raise ValueError("Reviewed exposure identities changed after membership preparation")
-    members = {member["sha256"] for member in manifest["members"]}
-    exposure = review.get("exposure_review", {})
-    if not exposure.get("evidence") or not members <= set(exposure.get("sources", [])):
-        raise ValueError("Historical exposure review must explicitly cover every selected source")
-    def file_hash(path):
-        with path.open("rb") as stream:
-            return hashlib.file_digest(stream, "sha256").hexdigest()
-
-    with read_catalogue(home) as db:
-        source_files = {row["sha256"]: row["path"] for row in db.execute("select sha256,path from files")}
-    selection = json.loads(selection_path.read_text(encoding="utf-8"))
-    prior_splits = {member["sha256"]: member["split"] for member in selection["members"]}
-    if any(prior_splits[member["sha256"]] != member["split"] for member in manifest["members"]):
-        raise ValueError("Family or exposure evidence changes a partition; explicitly revise the prepared selection before freezing")
-    identities = []
-    for member in manifest["members"]:
-        selected = member["selected_gold"]
-        if not selected or selected["status"] != "complete" or selected["sha256"] != member["sha256"]:
-            raise ValueError("Every selected source requires complete canonical structural gold")
-        path = Path(selected["path"])
-        if not path.is_absolute():
-            path = home / path
-        selected["path"] = str(path.resolve())
-        if file_hash(path) != selected["artifact_sha256"]:
-            raise ValueError("Selected gold artifact changed before freezing")
-        gold = json.loads(gzip.decompress(path.read_bytes()) if path.suffix == ".gz" else path.read_bytes())
-        package.validate(gold)
-        if gold["source_sha256"] != member["sha256"] or "legal_structure" not in gold["layers"]:
-            raise ValueError("Frozen gold requires the selected source's structural layer")
-        expected_pages = list(range(1, member["pages"] + 1))
-        if sorted(page["page"] for page in gold["pages"]) != expected_pages:
-            raise ValueError("Frozen structural gold must cover the complete source")
-        job = path.parent
-        if (job / "publication.json").exists():
-            raise ValueError("Finish the selected gold publication before freezing")
-        source = home / source_files[member["sha256"]]
-        if file_hash(source) != member["sha256"]:
-            raise ValueError("Canonical PDF differs from its source identity")
-        proof = current_structure_authoring(job, gold, pdf=source)
-        identities.append({"sha256": member["sha256"], "artifact_sha256": selected["artifact_sha256"],
-            "structure_authoring_sha256": digest(proof),
-            "text_identity": package.text_identity(gold)})
-    frozen = {**manifest, "status": "evaluation_frozen", "blockers": [],
-        "freeze": {"review_sha256": file_hash(review_path), "selection_sha256": file_hash(selection_path), "gold": identities,
-                   "policy_sha256": file_hash(Path(__file__).resolve().parents[2] / "docs/roadmap/pdf-structure-gold.md")}}
-    frozen["freeze"]["identity"] = digest(frozen)
-    return frozen
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", type=Path, default=Path(os.environ.get("OPEN_LEGAL_DATA_HOME") or Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "OpenLegalData"))
     parser.add_argument("--review", type=Path, help="Private source-family and selection evidence JSON")
     parser.add_argument("--selection", type=Path, help="Retain the prepared source cohort and long-source group assignments while refreshing evidence")
-    parser.add_argument("--freeze", action="store_true", help="Freeze reviewed membership and current revised structural gold; never train or score")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    if args.freeze and (args.review is None or args.selection is None):
-        parser.error("--freeze requires --selection and --review with complete family/page/exposure evidence")
     if args.output is None:
-        args.output = Path(__file__).resolve().parents[2] / "benchmarks/local-data/legal-structure-gold" / ("family-frozen.json" if args.freeze else "family-selection.json")
+        args.output = Path(__file__).resolve().parents[2] / "benchmarks/local-data/legal-structure-gold" / "family-selection.json"
     selection = json.loads(args.selection.read_text(encoding="utf-8")) if args.selection else None
     with read_catalogue(args.home.resolve()) as db:
         manifest = prepare(db, args.home.resolve(), args.review, selection)
-    if args.freeze:
-        manifest = freeze(manifest, args.home.resolve(), args.review, args.selection)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_suffix(args.output.suffix + ".part")
     try:

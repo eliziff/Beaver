@@ -128,7 +128,7 @@ Older originals and pilot history artifacts stay indexed while the format is
 validated, but are not dependencies of new gold or its exports.
 Packages reference the dated form-observation keys and metadata hashes in this
 index rather than creating another authority catalogue. See the gold runner's
-[package and export contract](../legal-structure-gold/PLAN.md#multipurpose-gold).
+[records section](../legal-structure-gold/PLAN.md#records).
 The annotation workflow is automated and has no human review queue.
 The current package dataset selects one gold per source for scoring. Failed or
 unfinished enrichment retains its last completed selection. Structure and OCR
