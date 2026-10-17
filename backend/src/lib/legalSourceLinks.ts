@@ -534,8 +534,8 @@ export function canliiPinpointLink(rawUrl: string, pinpoints: readonly string[])
 
 /** Add complete source-anchored text fragments beside the existing paragraph or provision anchor. A provision link
  *  paints the part of the provision its citation pinpoints ("sec16(3)", "sec445(1)(a)") where the document has it,
- *  else the provision's opening block. */
-export function citedPassageLink(rawUrl: string, document: NativeDocument | null | undefined,
+ *  else the provision's opening block. Each plan runs off the JavaScript thread, so a workbook plans its links at once. */
+export async function citedPassageLink(rawUrl: string, document: NativeDocument | null | undefined,
   pinpoints: readonly string[] = []) {
   const url = sourceUrl(rawUrl);
   if (!url) return null;
@@ -548,14 +548,14 @@ export function citedPassageLink(rawUrl: string, document: NativeDocument | null
   const label = paragraph ?? `${number}${subsection ? `(${subsection})` : ""}`;
   // Provision links target the opening block of the provision or pinpointed part; paragraph links include every exact
   // member of the resolved paragraph.
-  const plan = (target: string) => {
-    const found = engine.documentRangeFragmentPlan(document, paragraph ? "paragraph" : "section",
+  const plan = async (target: string) => {
+    const found = await engine.offThread("documentRangeFragmentPlan", document, paragraph ? "paragraph" : "section",
       target, target, isPdfSourceUrl(url), publisherMayAnnotateLegalReference(url), !paragraph);
     return found?.sourceSafeComplete && found.directives.length ? found : null;
   };
   const part = paragraph ? undefined : pinpoints.map((value) => /^sec(.+)$/u.exec(value)?.[1])
     .find((value) => value?.startsWith(`${label}(`));
-  const planned = (part && plan(part)) || plan(label);
+  const planned = (part && await plan(part)) || await plan(label);
   return planned ? appendDirectives(url, planned.directives) : url;
 }
 
