@@ -41,11 +41,13 @@ for (const group of documents) {
   const [documentKey, members] = group;
   const source = doctext.get(documentKey ?? "")!;
   const documentText = builder === "production"
-    ? await structure!.deriveDocumentStructure({ kind: "a2aj", input: {
+    ? await structure!.deriveDocumentStructure({ kind: "provider_text", input: {
+        provider: "a2aj",
         citation: source.citation,
         source_kind: /^(?:LEGISLATION|REGULATIONS)-/u.test(source.dataset) ? "laws" : "cases",
         text: source.text,
         dataset: source.dataset,
+        require_report_start: source.dataset.toUpperCase() === "SCC",
         url: members[0].seed.url,
       } })
     : source.text;
