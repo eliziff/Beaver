@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { inSqliteRun, legalDataHome, legalProviderDatabase, onSqliteRunEnd } from "../legalDataPath";
+import { inSqliteRun, legalDataHome, legalProviderDatabase, onSqliteRunEnd, storeExists } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
 import { sqliteText as string } from "../sqliteSearch";
 import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
@@ -111,7 +111,7 @@ function trustedUrl(value: string | null) {
 let foundPath: { settings: string; path: string } | null = null;
 function journalDatabasePath() {
   const settings = `${process.env.MIKE_PUBLIC_ENDPOINT_DB ?? ""}\n${process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB ?? ""}\n${legalDataHome()}`;
-  if (foundPath?.settings === settings && existsSync(foundPath.path)) return foundPath.path;
+  if (foundPath?.settings === settings && storeExists(foundPath.path)) return foundPath.path;
   foundPath = { settings, path: locateJournalDatabase() };
   return foundPath.path;
 }
@@ -522,7 +522,23 @@ function findTitledArticle(citation: string) {
   // The engine says what to search for and which found name is the title's; the index is searched here.
   const engine = structureNative();
   return engine.journalTitleChoice(engine.journalTitleSearches(citation).flatMap(({ title, query }) =>
-    findArticles(query, 5, { names: true, syntax: "fts5" }).map(({ name, articleId }) => ({ title, name, articleId }))));
+    articleNames(query, 5).map(({ name, articleId }) => ({ title, name, articleId }))));
+}
+
+/** The names of the `size` articles whose names match an FTS query best, oldest first, as findArticles gives them:
+ *  only the name and date are read, not the row (its abstract lies past the article's text). */
+function articleNames(query: string, size: number) {
+  const search = searchDatabase();
+  if (!search) throw new Error("Boolean search requires the journal FTS index");
+  const ids = (search.prepare("SELECT rowid AS article_id FROM article_metadata WHERE article_metadata MATCH ? ORDER BY bm25(article_metadata) LIMIT ?")
+    .all(query, size) as Array<{ article_id: number }>).map(({ article_id }) => article_id);
+  if (!ids.length) return [];
+  const rows = new Map((database().prepare(`SELECT article_id, name_en, document_date_en FROM articles
+    WHERE article_id IN (${ids.map(() => "?").join(",")})`).all(...ids) as Row[]).map((row) => [integer(row.article_id), row]));
+  return ids.flatMap((id) => {
+    const row = rows.get(id);
+    return row ? [{ articleId: id, name: string(row, "name_en") ?? `Article ${id}`, date: string(row, "document_date_en") }] : [];
+  }).sort((left, right) => (left.date ?? "￿").localeCompare(right.date ?? "￿"));
 }
 
 /** An article's PDF opened at a printed page: the database's page map gives the PDF page, which
@@ -543,7 +559,7 @@ function exactJournalIdentity(value: string) {
 const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
   id: "journal",
   // An article is looked for only where the journals database is on this computer.
-  canResolve: ({ kind }) => kind === "journal" && existsSync(journalDatabasePath()),
+  canResolve: ({ kind }) => kind === "journal" && storeExists(journalDatabasePath()),
   async resolve(request) {
     const candidates = [request.text, ...(request.alternateTexts ?? [])]
       .map((value) => value.trim().replace(/\s+/gu, " "))
