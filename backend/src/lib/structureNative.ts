@@ -197,7 +197,8 @@ type StructureAddon = {
   documentLive?(document: NativeDocument): boolean;
   memoryBytes?(): number;
   recycle?(): void;
-  offThread<M extends "groundedProseErrors">(method: M, ...args: Parameters<StructureAddon[M]>): Promise<ReturnType<StructureAddon[M]>>;
+  offThread<M extends "groundedProseErrors" | "documentRangeFragmentPlan">(method: M,
+    ...args: Parameters<StructureAddon[M]>): Promise<ReturnType<StructureAddon[M]>>;
   nativeBuildFeatures(): string;
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   deriveDocxDocument(bytes: Buffer, id: string, drafting?: boolean): Promise<NativeDocument>;

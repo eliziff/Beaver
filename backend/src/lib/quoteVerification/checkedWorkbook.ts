@@ -312,9 +312,9 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   const keepsFragment = (index: number) => own(index) || fragments === "all"
     || (fragments === "pinpointless" && !pinpointed(index).length);
   // A passage's link at the part the citation pinpoints (a reference without a pinpoint of its own, its origin's, as
-  // its anchor text shows), made once for the parts that cite it.
-  const passageLinks = new Map<NativeDocument | null, Map<string, string>>();
-  const passageLink = (link: string, document: NativeDocument | null, index: number) => {
+  // its anchor text shows), made once for the parts that cite it; every link is planned at once, off this thread.
+  const passageLinks = new Map<NativeDocument | null, Map<string, Promise<string>>>();
+  const passageLink = async (link: string, document: NativeDocument | null, index: number) => {
     if (!publishes(index, link)) return link;
     const pinpoints = pinpointed(index).length || !kinds[index].kind || origin[index] < 0 ? pinpointed(index)
       : pinpointed(origin[index]);
@@ -322,15 +322,15 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     if (!made) passageLinks.set(document, made = new Map());
     const key = JSON.stringify([link, pinpoints]);
     let found = made.get(key);
-    if (found === undefined) made.set(key, found = citedPassageLink(link, document, pinpoints) ?? link);
+    if (found === undefined) made.set(key, found = citedPassageLink(link, document, pinpoints).then((made) => made ?? link));
     return found;
   };
-  const partLinks = parts.map((_, index) => {
+  const partLinks = await Promise.all(parts.map(async (_, index) => {
     const link = pdfToPage(linkOf(index));
     if (own(index)) return link;
-    const passage = /#(?:par|sec)/u.test(link) ? passageLink(link, documents[index], index) : link;
+    const passage = /#(?:par|sec)/u.test(link) ? await passageLink(link, documents[index], index) : link;
     return keepsFragment(index) ? passage : withoutFragment(passage);
-  });
+  }));
   // A quotation's link, as the Python app makes it (alr_quote_verifier.py _a2aj_link_for_pinpoint,
   // _prefer_scc_official_quote_link): on the CanLII page this app builds for the citation (a reference's, its origin's,
   // whatever link the author or an editor gave), at the paragraph or provision where the quotation is found, with the
