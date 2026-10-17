@@ -132,7 +132,8 @@ def arm(args) -> None:
     subprocess.run([NODE, str(HERE / "bundle.mjs"), str(ALR), str(bundles)], cwd=REPO, check=True)
     env["ALR_RUNTIME_BUNDLE"] = str(bundles / "operations.mjs")
     command = [NODE, "--experimental-strip-types", "--no-warnings", str(HERE / "compose.ts"),
-               *(["--no-quotes"] if args.no_quotes else [])]
+               *(["--no-quotes"] if args.no_quotes else []),
+               *(["--a2aj-live", str(args.a2aj_live)] if args.a2aj_live else [])]
     llm_dir = SUITE / "llm" / args.arm
     if args.arm != "free":
         # The run mode's model is codex exec (codexArm.ts), with its answers recorded and replayed.
@@ -229,6 +230,7 @@ def main() -> int:
     a.add_argument("--concurrency", type=int, default=6, help="codex turns at once per document process")
     a.add_argument("--setting", action="append", help="key=value passed to compose.ts --setting")
     a.add_argument("--no-quotes", action="store_true", help="skip the quote check (links, splits and references only)")
+    a.add_argument("--a2aj-live", type=int, default=0, help="A2AJ lookups not yet recorded that may go live, once, and be recorded")
     a.add_argument("--name", help="the arm's folder name (default: arm, or arm-mode)")
     a.add_argument("--inputs", help="a folder whose DOCX are run in place of the suite's")
     a.set_defaults(func=arm)
