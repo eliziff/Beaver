@@ -802,6 +802,9 @@ ${registeredWorkflow.skill_md}` : "",
 
       let persistence: Promise<void> | undefined, pendingContent: AssistantEvent[] | undefined,
         chatAvailable = true, nextCheckpoint = 0;
+      // Saves run one at a time behind the turn; the first that fails stops the turn as its error.
+      const unsaved = new AbortController(), turnSignal = AbortSignal.any([signal, unsaved.signal]);
+      const persisted = async () => { await persistence; unsaved.signal.throwIfAborted(); };
       let localTools!: ReturnType<typeof createChatToolRunner>;
       const openWorkProduct = (kind: NonNullable<ChatTurnInput["work_product"]>["kind"]) =>
         input.work_product?.kind === kind ? input.work_product : undefined;
@@ -867,7 +870,7 @@ ${registeredWorkflow.skill_md}` : "",
             editMode: input.edit_mode,
             onMutation: async () => {
               localTools.commitMutation();
-              await persistence;
+              await persisted();
             },
           }) : []),
         ],
@@ -898,7 +901,7 @@ ${registeredWorkflow.skill_md}` : "",
             Boolean(event.resume && !(previous?.type === "subagent_run" && previous.resume)));
         }
         assistantCitations.push(...citations);
-        if (!force && performance.now() < nextCheckpoint) return persistence;
+        if (unsaved.signal.aborted || !force && performance.now() < nextCheckpoint) return;
         nextCheckpoint = performance.now() + CHAT_PROGRESS_CHECKPOINT_MS;
         pendingContent = [...assistantContent];
         persistence ??= (async () => {
@@ -916,8 +919,7 @@ ${registeredWorkflow.skill_md}` : "",
             if (result.status === "missing") chatAvailable = false;
             if (result.status === "committed") { version = result.currentVersion; saved = content; }
           }
-        })().finally(() => { persistence = undefined; });
-        return persistence;
+        })().catch((error: unknown) => unsaved.abort(error)).finally(() => { persistence = undefined; });
       }
 
       let providerSession: Awaited<ReturnType<
@@ -941,7 +943,7 @@ ${registeredWorkflow.skill_md}` : "",
       let activeContinuationId = (execution?.memoryContextKey ?? null) === (memory?.key ?? null)
         ? execution?.continuationId ?? providerSession?.continuationId : providerSession?.continuationId;
       const onSubagentEvent = (event: ReadSubagentEvent) => {
-        void queuePersist([event])?.catch(() => undefined);
+        queuePersist([event]);
       };
       const auditTurn = (outcome: {
         status?: "cancelled" | "failed"; events: AssistantEvent[] | null }) =>
@@ -968,13 +970,13 @@ ${registeredWorkflow.skill_md}` : "",
           emit: (event) => {
             sink.emit(event);
             if (event.type === "tool_activity" || event.type === "steering")
-              void queuePersist([event], [], event.type === "steering")?.catch(() => undefined);
+              queuePersist([event], [], event.type === "steering");
           },
           apiKeys: features.apiKeys,
           reasoningEffort: input.reasoning_effort,
           compactThreshold: compactionThresholdForModel(selectedModel),
           promptCacheKey: providerSession?.promptCacheKey ?? sha256(JSON.stringify([auth.userId, chat.id, selectedModel])),
-          signal,
+          signal: turnSignal,
           prepareMessages: async (onCompaction) => {
             const prepared = await compactChatContext({
               store: deps.chats, scope: auth, chatId: chat!.id,
@@ -1003,10 +1005,10 @@ ${registeredWorkflow.skill_md}` : "",
           onProviderControl: sink.setControl,
           canRetryProviderSession: () => !localTools.mutationCommitted(),
           onSubagentEvent,
-          onModelMessages: event => queuePersist([event], [], true),
+          onModelMessages: event => { queuePersist([event], [], true); return persisted(); },
         });
         activeContinuationId = result.continuationId ?? activeContinuationId;
-        await persistence;
+        await persisted();
         const events = result.events.filter(({ type }) => !TRANSIENT_EVENT_TYPES.has(type));
         if (!result.fullText && !result.events.some(({ type }) => [
           "content", "document_artifact", "workflow_run",
@@ -1014,7 +1016,8 @@ ${registeredWorkflow.skill_md}` : "",
           events.push({ type: "error", message: "The selected model returned no response." });
         }
         events.push({ type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 });
-        await queuePersist(events, result.citations, true);
+        queuePersist(events, result.citations, true);
+        await persisted();
         if (!chat.title) {
           const lastUser = [...messages].reverse().find(({ role }) => role === "user");
           if (lastUser?.content) {
@@ -1032,12 +1035,13 @@ ${registeredWorkflow.skill_md}` : "",
             text: input.current_turn.kind === "message" ? input.current_turn.content : JSON.stringify(input.current_turn.responses) });
         }
         return { chatId: chat.id, transcriptVersion: version };
-      } catch (error) {
+      } catch (thrown) {
+        await persistence;
+        const error = unsaved.signal.aborted ? unsaved.signal.reason as unknown : thrown;
         const message = safeErrorMessage(error, "Model request failed");
         console.error("[chat]", safeErrorLog(error));
-        if (chatAvailable) {
-          await persistence?.catch(() => undefined);
-          await queuePersist([
+        if (chatAvailable && !unsaved.signal.aborted) {
+          queuePersist([
             ...(error instanceof AssistantStreamError
               ? error.events.filter(({ type }) => !TRANSIENT_EVENT_TYPES.has(type))
               : []),
@@ -1047,7 +1051,8 @@ ${registeredWorkflow.skill_md}` : "",
             !isAbortError(error) ? { type: "error", message, code: providerErrorCode(error) }
               : leaseWasLost(signal) ? { type: "error", message: INTERRUPTED_TURN_MESSAGE }
                 : { type: "turn_status", status: "cancelled" },
-          ], [], true)?.catch((persistError) => console.error(
+          ], [], true);
+          await persisted().catch((persistError) => console.error(
             "[chat] failed to persist model error", safeErrorLog(persistError),
           ));
           await providerSession?.save(activeContinuationId, version);

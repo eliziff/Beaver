@@ -550,7 +550,7 @@ export function startJobWorker(
   const active = (async () => {
     const db = await relationalDatabase();
     const changes = watchJobChanges(db.notifications, kinds.map((kind) => `queue:${kind}`));
-    let nextPruneAt = 0;
+    let nextPruneAt = 0, failures = 0;
     try {
       while (!stopping) {
         const version = changes.version;
@@ -562,10 +562,13 @@ export function startJobWorker(
           const next = await claim(workerId, lease, kinds);
           if (next) await execute(next);
           else await changes.wait(version, shutdown.signal);
+          failures = 0;
         } catch (error) {
           if (!stopping) {
-            console.error("[jobs] worker cycle failed", { error: errorCategory(error) });
-            await changes.wait(changes.version, shutdown.signal);
+            failures += 1;
+            console.error("[jobs] worker cycle failed", { error: errorCategory(error), failures });
+            // A failure that persists waits longer each time, and queue notifications do not cut that short.
+            await watchJobChanges(undefined, []).wait(0, shutdown.signal, Math.min(30_000, 500 * 2 ** failures));
           }
         }
       }
