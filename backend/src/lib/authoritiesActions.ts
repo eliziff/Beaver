@@ -135,37 +135,39 @@ export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, pa
   return match?.record.authority.id ?? null;
 }
 
-/** A PDF given to a case awaiting its CanLII or publisher PDF is refused when its opening citation names another case,
- *  as the watched folder's matcher tells it; one with no readable opening citation (a scan) goes by its caption. */
-function refuseOtherCase(draft: AuthoritiesDraft, authority: AuthorityIdentity, pages: string[]) {
-  if (authority.source.kind !== "pending-canlii" && !authority.sourceVerificationUrl) return;
+/** The other case a PDF given to a case awaiting its CanLII or publisher PDF opens with, as the watched folder's matcher
+ *  reads its opening citation, named by its caption where it prints one; null where it opens with the case's own
+ *  citation or with none that can be read (a scan). */
+function openingOtherCase(draft: AuthoritiesDraft, authority: AuthorityIdentity, pages: string[]) {
+  if (authority.source.kind !== "pending-canlii" && !authority.sourceVerificationUrl) return null;
   const opening = pages.map((page) => ({ lines: page.split("\n").map((text) => ({ text })) }));
   const call = (method: string, request: unknown) => structureNative().citationEngineCall(method, JSON.stringify(request));
   const identities = headerIdentities(opening, call);
-  if (!identities.length) return;
+  if (!identities.length) return null;
   try { verifyIdentity(opening, { citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }, call); }
   catch {
     const own = identities.find(({ family }) => family === "neutral") ?? identities[0];
-    throw new ApplicationError(400, `This PDF is ${own.text}, not ${authority.citation}; it was not attached.`);
+    return { citation: own.text, name: captionStyleOfCause(pages[0] ?? "", [own.key]) ?? own.text };
   }
+  return null;
 }
 
-/** A PDF's caption flags a different case, or fills a missing style of cause. Auto-fetch only fills
- *  authorities still without PDFs; manual uploads may replace them. */
+/** A PDF whose opening citation or caption names another case is flagged as a different case; its caption fills a
+ *  missing style of cause. Auto-fetch only fills authorities still without PDFs; manual uploads may replace them. */
 export async function authorityPdfCaption(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer, autoFetched = false) {
   const authority = draft.authorities[authorityId];
   if (autoFetched && authority?.source.kind === "attached")
     throw new ApplicationError(400, `${authority.citation} already has a PDF; it was not replaced.`);
   if (!authority || authority.kind !== "case") return draft;
   const pages = (await authorityPdfText({ bytes, maxPages: 2 })).pageTextByPage;
-  refuseOtherCase(draft, authority, pages);
-  const text = pages[0] ?? "";
-  const name = captionStyleOfCause(text, citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat());
-  if (!name) return draft;
-  const mismatch = caseNameMismatch(authority, { citation: authority.citation, name });
+  const other = openingOtherCase(draft, authority, pages);
+  const name = other ? null : captionStyleOfCause(pages[0] ?? "", citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat());
+  if (!other && !name) return draft;
+  const mismatch = other ? { id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, other.citation, other.name]),
+    ...other, named: null } : caseNameMismatch(authority, { citation: authority.citation, name });
   const checked = mismatch || authority.citedCase
     ? updateAuthoritiesDraft(draft, { type: "set-cited-case", authorityId, citedCase: mismatch }) : draft;
-  return !authority.name && !authority.displayName
+  return name && !authority.name && !authority.displayName
     ? updateAuthoritiesDraft(checked, { type: "rename-authority", authorityId, displayName: name }) : checked;
 }
 
