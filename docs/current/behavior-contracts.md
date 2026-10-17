@@ -47,11 +47,13 @@ same declared paragraph graph nodes, IDs, source lines and text ranges. Printed
 layout recognition belongs to parser classification; consumers do not redetect
 numbering or fill missing ranges from neighbouring paragraphs.
 The native quotation operation prepares its source blocks from shared document
-reflection, including exact memberships and exclusion of ambiguous printed
-paragraph numbers in PDF judgments. Callers supply quotations and cited scopes
-rather than reconstructing paragraph blocks.
+reflection, including exact memberships. A printed number the PDF repeats (an
+order's items, then the reasons' paragraphs) is cited as the ALR Quote Verifier
+cites it: every block of the cited number is searched, and a quotation found in
+one is at that number. Callers supply quotations and cited scopes rather than
+reconstructing paragraph blocks.
 Structural block ordinals are not paragraph numbers. Quotations in unnumbered
-PDFs are located by page; unresolved or ambiguous printed numbers remain unresolved.
+PDFs are located by page.
 
 ## Growing resources
 
