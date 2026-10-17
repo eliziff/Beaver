@@ -56,6 +56,15 @@ void (async () => {
   // The runtime, as run.py bundles it once (ALR_RUNTIME_BUNDLE), else its TypeScript, compiled as it is read.
   const runtime = process.env.ALR_RUNTIME_BUNDLE || path.join(config.alr_quote_verifier, "beaver_app/runtime/operations.ts");
   const { createAuthoritiesOperations } = await import(pathToFileURL(runtime).href);
+  // The internal edition's CanLII index (canlii.db), as the Python app's internal edition reads it, installed as ALR's
+  // localStores.ts installs it.
+  const canliiIndex = path.join(config.alr_quote_verifier, "data/canlii_db/canlii.db");
+  if (!process.env.ALR_CANLII_DB && existsSync(canliiIndex)) process.env.ALR_CANLII_DB = canliiIndex;
+  const bundled = (name: string, source: string) =>
+    import(pathToFileURL(process.env.ALR_RUNTIME_BUNDLE ? path.join(path.dirname(runtime), `${name}.mjs`) : source).href);
+  const { useCanliiIndex } = await bundled("canlii", path.join(REPO, "backend/src/lib/legalSources/canlii.ts"));
+  useCanliiIndex((await bundled("canliiIndex",
+    path.join(config.alr_quote_verifier, "beaver_app/runtime/canliiIndex.ts"))).indexedCaseUrl);
   const ops = createAuthoritiesOperations();
   const native = process.env.LEGAL_STRUCTURE_NATIVE ?? defaultNativeAddon(path.join(REPO, "native/legal-structure-node"));
   const runIdentity = { runtime_sha256: createHash("sha256").update(readFileSync(runtime)).digest("hex"),
