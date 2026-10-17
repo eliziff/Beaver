@@ -194,6 +194,11 @@ def aligned_gold(reference: dict[str, dict]) -> tuple[Path, Path, dict]:
             counts["supra_aligned"] += 1
         else:
             counts["supra_dropped"] += 1
+    # Source-read corrections of supra rows (gold/supra_corrections.jsonl), each with its evidence from the document.
+    corrections_path = out_dir / "supra_corrections.jsonl"
+    fixes = {c["row_id"]: c for c in read_jsonl(corrections_path)} if corrections_path.exists() else {}
+    supra_rows = [{**row, **fixes[row["id"]]["corrected"]} if row["id"] in fixes else row for row in supra_rows]
+    counts["supra_corrected"] = sum(row["id"] in fixes for row in supra_rows)
     split_path, supra_path = out_dir / "split_aligned.jsonl", out_dir / "supra_aligned.jsonl"
     for path, rows in ((split_path, split_rows), (supra_path, supra_rows)):
         path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
