@@ -1,6 +1,7 @@
 import { cachedContent } from "../contentCache";
-import { guardedRemoteFetch } from "../remoteUrlSafety";
+import { retriedRemoteFetch } from "../remoteUrlSafety";
 import { structureNative } from "../structureNative";
+import { lookupsLeaveComputer } from ".";
 
 /**
  * Federal legislation A2AJ's consolidated statutes do not hold, from Justice Laws: an annual statute
@@ -36,7 +37,7 @@ function claimed(text: string) {
 async function annualTitle(year: string, chapter: string, signal?: AbortSignal) {
   const html = await cachedContent({ scope: "shared", kind: "legal-source-justice-laws-annual", key: `${year}_${chapter}`,
     version: 1, ttlMs: 30 * 24 * 60 * 60 * 1_000, produce: async () => {
-      const response = await guardedRemoteFetch(`${ORIGIN}/eng/AnnualStatutes/${year}_${chapter}/`, { signal,
+      const response = await retriedRemoteFetch(`${ORIGIN}/eng/AnnualStatutes/${year}_${chapter}/`, { signal,
         headers: { Accept: "text/html" } }, { label: "Justice Laws annual statute", allowedHosts: HOSTS,
         defaultPortOnly: true, allowIpLiterals: false, timeoutMs: 15_000,
         response: { label: "Justice Laws annual statute page", maxBytes: 4 * 1024 * 1024, contentTypes: ["text/html"] } });
@@ -67,5 +68,9 @@ export async function justiceLawsSource(citation: string, signal?: AbortSignal) 
 
 export const justiceLawsLegalSourceProvider = {
   id: "justice-laws",
-  canResolve: ({ kind, text }: { kind: string; text: string }) => kind === "legislation" && !!claimed(text),
+  // An annual statute is named by its page on Justice Laws, which is not asked while lookups stay on this computer.
+  canResolve: ({ kind, text }: { kind: string; text: string }) => {
+    const claim = kind === "legislation" ? claimed(text) : null;
+    return !!claim && (claim.kind === "constitution" || lookupsLeaveComputer());
+  },
 };

@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import { cachedContent } from "../contentCache";
-import { guardedRemoteFetch } from "../remoteUrlSafety";
+import { retriedRemoteFetch } from "../remoteUrlSafety";
 import { structureNative } from "../structureNative";
 import {
   arrayValue,
@@ -41,6 +41,7 @@ const citationFrom = (value: string) => structureNative().providerCitationsInTex
 const normalized = (value: string) =>
   value.replace(/\s+/gu, " ").trim().toLowerCase();
 
+/** The XML at `url`; null where the National Archives publishes none there (404). */
 async function fetchXml(url: string, accept: string, signal?: AbortSignal) {
   signal?.throwIfAborted();
   const value = await cachedContent({
@@ -50,7 +51,7 @@ async function fetchXml(url: string, accept: string, signal?: AbortSignal) {
     version: 1,
     ttlMs: 7 * 24 * 60 * 60 * 1_000,
     produce: async () => {
-      const response = await guardedRemoteFetch(
+      const response = await retriedRemoteFetch(
         url,
         { signal, headers: { Accept: accept } },
         {
@@ -71,6 +72,7 @@ async function fetchXml(url: string, accept: string, signal?: AbortSignal) {
           },
         },
       );
+      if (response.status === 404) return null;
       if (!response.ok) throw new Error(`TNA request failed (${response.status})`);
       return response.text();
     },
@@ -89,11 +91,9 @@ async function searchTnaCase(text: string, signal?: AbortSignal) {
     court,
     per_page: "50",
   });
-  const root = objectValue(parseXml(await fetchXml(
-    `${ORIGIN}/atom.xml?${query}`,
-    "application/atom+xml, application/xml",
-    signal,
-  )));
+  const atom = await fetchXml(`${ORIGIN}/atom.xml?${query}`, "application/atom+xml, application/xml", signal);
+  if (atom === null) return null;
+  const root = objectValue(parseXml(atom));
   const feed = objectValue(root?.feed) ?? root;
   const matches = new Map<string, TnaSearchResult>();
   for (const value of arrayValue(feed?.entry)) {
@@ -136,11 +136,8 @@ async function fetchTnaCase(
   const xmlUrl = legalSourceUrl(result.xmlUrl, ORIGIN, HOSTS);
   const url = legalSourceUrl(result.url, ORIGIN, HOSTS);
   if (!xmlUrl || !url) throw new Error("Invalid TNA case URL");
-  const xml = await fetchXml(
-    xmlUrl,
-    "application/akn+xml, application/xml, text/xml",
-    signal,
-  );
+  const xml = await fetchXml(xmlUrl, "application/akn+xml, application/xml, text/xml", signal);
+  if (xml === null) throw new Error(`The National Archives lists ${result.citation} but publishes no XML at ${xmlUrl}.`);
   const native = await structureNative().deriveDocumentStructure({
     kind: "native_markup",
     input: {

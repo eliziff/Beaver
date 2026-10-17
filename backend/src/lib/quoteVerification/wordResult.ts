@@ -131,7 +131,7 @@ export function wordResult(draft: AuthoritiesDraft, check: Check, rows: Awaited<
     const marked = certain ? markedWords(authored, match!.corrected) : null;
     const source = certain ? sourceWords(authored, match!.fragment) : null;
     note.quotes.push({ id: quote.id, unitId: quote.unitId, start: quote.start, end: quote.end, text: quote.quote,
-      status: match ? "found" : best?.status ?? "unresolved", perfect: supported, pinpoint: match?.pinpoint ?? "",
+      status: match ? "found" : best?.status ?? "no-source", perfect: supported, pinpoint: match?.pinpoint ?? "",
       detail: best?.detail ?? "", link: placed[part]?.link || best?.receipt?.link || "", marked, source,
       part: candidate?.unitId === note.unitId && part >= 0 ? part : null });
     if (!match || (!supported && !marked && !source)) continue;

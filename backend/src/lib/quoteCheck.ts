@@ -95,8 +95,11 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
  *  then the document as a whole (the engine's locate_quotes_in, ported from the ALR Quote Verifier). */
 export type QuoteLocation = NativeQuoteLocation;
 /** One cited source's check of a quotation: whether it holds the quotation as written ("verified") or with
- *  differences ("mismatch"), where, and what differs; or why it could not be read. */
-export type QuoteCheck = { candidateId: string | null; status: "verified" | "mismatch" | "unavailable" | "unresolved";
+ *  differences or not at all ("mismatch"), where, and what differs; or "no-source" where no source text could be
+ *  obtained for its citation, as the Python app's "No source text found for this citation.": none is held on this
+ *  computer, published by a provider the app asks, or attached, or the quotation is followed by no citation. A
+ *  provider that fails to answer fails the check; it is never a result. */
+export type QuoteCheck = { candidateId: string | null; status: "verified" | "mismatch" | "no-source";
   detail: string;
   receipt: null | { source: LegalSourceReference; sourceSha256: string; passageSha256: string;
     locator: LegalSourceLocator | null; text: string; errors: string[];
@@ -105,29 +108,30 @@ export type QuoteCheck = { candidateId: string | null; status: "verified" | "mis
 export type QuoteResult = ReturnType<typeof splitQuoteChecks>[number] & { checks: QuoteCheck[] };
 /** PDFs the user attached, read, by authority. */
 export type AttachedQuoteSources = ReadonlyMap<string, { document: NativeDocument; source: LegalSourceReference }>;
-const STATUSES = ["verified", "mismatch", "unresolved", "unavailable"] as const;
+const STATUSES = ["verified", "mismatch", "no-source"] as const;
+const NO_SOURCE_TEXT = "No source text found for this citation.";
 const memo = <T, K>(cache: Map<K, T>, key: K, load: () => T) => {
   if (!cache.has(key)) cache.set(key, load());
   return cache.get(key)!;
 };
 
-export type CitedSource = { missing: "unresolved" | "unavailable" }
+export type CitedSource = { missing: true }
   | { missing?: undefined; source: LegalSourceReference; document: NativeDocument };
 /** The whole source a citation names, as its provider has it (A2AJ for a Canadian decision or statute, the
- *  journals database for an article), each resolved and read once. An article is found by the title its
- *  citation part carries. */
+ *  journals database for an article), each resolved and read once; `missing` where no provider the app asks holds
+ *  one source for it. An article is found by the title its citation part carries. A provider's failure is thrown. */
 export function citedSourceReader(sources = legalSourceOperations, signal?: AbortSignal) {
   const resolutions = new Map<string, ReturnType<typeof sources.resolve>>();
   const documents = new Map<string, ReturnType<typeof sources.readPassage>>();
   return async (authority: { kind: string; citation: string }, part = ""): Promise<CitedSource> => {
     const kind = authority.kind === "commentary" ? "journal" : authority.kind;
-    if (kind !== "case" && kind !== "legislation" && kind !== "journal") return { missing: "unresolved" as const };
-    const text = kind === "journal" && part ? part : authority.citation;
+    const text = (kind === "journal" && part ? part : authority.citation).trim();
+    if ((kind !== "case" && kind !== "legislation" && kind !== "journal") || !text) return { missing: true };
     const resolved = await memo(resolutions, JSON.stringify([kind, text]), () => sources.resolve({ text, kind, signal }));
-    if (resolved.status !== "found") return { missing: "unavailable" as const };
+    if (resolved.status !== "found") return { missing: true };
     const read = await memo(documents, JSON.stringify(resolved.value), () => sources.readPassage({ source: resolved.value, signal }));
     const document = read.status === "found" ? read.values[0]?.documentArtifact : undefined;
-    return document ? { source: resolved.value, document } : { missing: "unavailable" as const };
+    return document ? { source: resolved.value, document } : { missing: true };
   };
 }
 
@@ -162,23 +166,16 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     const occurrence = draft.occurrences[candidateId];
     const candidate = row.candidates.find(({ id }) => id === candidateId);
     const authority = occurrence?.authorityId ? draft.authorities[occurrence.authorityId] : candidate;
-    if (!authority) return { candidateId, status: "unresolved", detail: "The citation names no source to read.", receipt: null };
-    try {
-      // A supra or ibid names its article by the part that first cites it, as Sources found it, not by its own words.
-      const origin = occurrence?.reference && Object.values(draft.occurrences).find((item) =>
-        item.authorityId === occurrence.authorityId && !item.reference);
-      const part = origin ? citationUnits[draft.units.findIndex(({ id }) => id === origin.unitId)]?.parts.find((item) =>
-        origin.start >= item.start && origin.start < item.end)?.text ?? "" : candidate?.text ?? "";
-      const found = await sourceFor(occurrence?.authorityId ?? null, authority, part);
-      if (found.missing) return { candidateId, status: found.missing, receipt: null,
-        detail: "The citation did not resolve to one available source." };
-      return { row, candidateId, pinpoints: occurrence?.pinpoints ?? candidate?.pinpoints ?? [], source: found.source,
-        document: found.document };
-    } catch {
-      // A provider that fails to answer has given no source text, as one that has none.
-      signal?.throwIfAborted();
-      return { candidateId, status: "unavailable", receipt: null, detail: "The source's text could not be found." };
-    }
+    if (!authority) return { candidateId, status: "no-source", detail: NO_SOURCE_TEXT, receipt: null };
+    // A supra or ibid names its article by the part that first cites it, as Sources found it, not by its own words.
+    const origin = occurrence?.reference && Object.values(draft.occurrences).find((item) =>
+      item.authorityId === occurrence.authorityId && !item.reference);
+    const part = origin ? citationUnits[draft.units.findIndex(({ id }) => id === origin.unitId)]?.parts.find((item) =>
+      origin.start >= item.start && origin.start < item.end)?.text ?? "" : candidate?.text ?? "";
+    const found = await sourceFor(occurrence?.authorityId ?? null, authority, part);
+    if (found.missing) return { candidateId, status: "no-source", receipt: null, detail: NO_SOURCE_TEXT };
+    return { row, candidateId, pinpoints: occurrence?.pinpoints ?? candidate?.pinpoints ?? [], source: found.source,
+      document: found.document };
   }
   // Each source the quotation's note cites is checked on its own, as the ALR Quote Verifier checks each citation part
   // of a note; a citation the user linked is the one checked, and with firstCitationOnly the note's first citation is.
@@ -203,7 +200,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     for (let index = completed; index < rows.length; index = completed) {
       const checks = prepared[index].map((item) => "document" in item ? item.check : item);
       if (checks.some((check) => !check)) return;
-      if (!checks.length) checks.push({ candidateId: null, status: "unresolved", receipt: null,
+      if (!checks.length) checks.push({ candidateId: null, status: "no-source", receipt: null,
         detail: "No citation follows this quotation." });
       const quote: QuoteResult = { ...rows[index], checks: checks as QuoteCheck[] };
       quotes[index] = quote;

@@ -1,9 +1,9 @@
 import { cachedContent } from "../contentCache";
-import { guardedRemoteFetch, normalizeRemoteHttpsUrl } from "../remoteUrlSafety";
+import { normalizeRemoteHttpsUrl, retriedRemoteFetch } from "../remoteUrlSafety";
 import { type NativeDocument } from "../structureNative";
 import { jsonRecord as objectValue } from "../value";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
-import type { LegalSourceReference, LegalSourceProvider } from ".";
+import { lookupsLeaveComputer, type LegalSourceReference, type LegalSourceProvider } from ".";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -82,7 +82,7 @@ export function remoteCaseProvider<Result>(spec: {
       LegalSourceReference;
   return {
     id: spec.id,
-    canResolve: ({ kind, text }) => kind === "case" && Boolean(spec.matches(text)),
+    canResolve: ({ kind, text }) => kind === "case" && lookupsLeaveComputer() && Boolean(spec.matches(text)),
     async resolve({ text, signal }) {
       const result = await spec.search(text, signal);
       return result ? [reference(result)] : [];
@@ -121,11 +121,12 @@ export function legalSourceUrl(
   }
 }
 
+/** The JSON at `url`; null where the host publishes none there (404). */
 export async function cachedLegalSourceJson(
   url: string,
   allowedHost: "www.gov.uk" | "api.govinfo.gov",
   init?: RequestInit,
-): Promise<JsonObject> {
+): Promise<JsonObject | null> {
   init?.signal?.throwIfAborted();
   const cacheUrl = new URL(url);
   cacheUrl.searchParams.delete("api_key");
@@ -139,7 +140,7 @@ export async function cachedLegalSourceJson(
     produce: async () => {
       const headers = new Headers(init?.headers);
       headers.set("Accept", "application/json");
-      const response = await guardedRemoteFetch(
+      const response = await retriedRemoteFetch(
         url,
         { ...init, headers },
         {
@@ -155,6 +156,7 @@ export async function cachedLegalSourceJson(
           },
         },
       );
+      if (response.status === 404) return null;
       if (!response.ok) {
         throw new Error(`Legal source request failed (${response.status})`);
       }
