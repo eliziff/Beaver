@@ -1,120 +1,78 @@
-"""Pass 2: each pass-1 block's parent, decided per document over numbered rows.
+"""Units of typed lines, and the pass that gives each unit its parent.
 
-The model sees one row per logical block (continued fragments merged; furniture, page labels,
-marginal notes and notes left out) and answers one parent row number per row. The runner sets
-the parent on every fragment of the row and the shared composition validates the result.
+A unit is a paragraph, heading, list item, note, table row or other block: a typed line the model
+marked as a start, with the lines that continue it on its page and, where the page continues the
+one before, across the page break. Running headers, footers and page numbers are units of their own.
 """
-import json
-from pathlib import Path
-
-import package
-from gold import require
-
-INSTRUCTIONS = """For each row give the number of the row it belongs under (its heading, list item or the paragraph it continues), or 0 if it is top level. Rows are in reading order."""
-SCHEMA = {"type": "object", "additionalProperties": False, "required": ["parents"],
-          "properties": {"parents": {"type": "array", "items": {"type": "integer", "minimum": 0}}}}
-CHUNK_ROWS = 200
-TEXT_LINKS = ("paragraph", "heading", "list")
+OWN = {"furniture", "page_label"}
+UNRANKED = OWN | {"marginal_note", "note", "contents"}
+CHUNK_PAGES, CHUNK_ROWS = 8, 200
 
 
-def rows(value):
-    """Document scopes of rows: (first block, region, text, fragment blocks)."""
-    layer = value["layers"]["legal_structure"]
-    lines = package.line_table(value)
-    text = lambda block: " ".join(lines[s["line_id"]]["text"][s["start"]:s["end"]] for s in block["spans"])
-    covered = lambda block, kind: any(s["line_id"] == a["line_id"] and a["start"] <= s["start"] < a["end"]
-                                      for s in block["spans"][:1] for n in layer["annotations"] if n["kind"] == kind
-                                      for a in n["spans"])
-    blocks = {block["id"]: block for block in layer["blocks"]}
-    following = {anchor: link["next"] for kind in TEXT_LINKS for anchor, link in layer["continuations"].get(kind, {}).items()}
-    continued = set(following.values())
-    scopes = {}
-    for block in layer["blocks"]:
-        if block["id"] in continued or block["kind"] in ("furniture", "page_label", "marginal_note") or covered(block, "note"):
-            continue
-        fragments, current = [block], block["id"]
-        while current in following and following[current] in blocks:
-            current = following[current]; fragments.append(blocks[current])
-        region = "table" if covered(block, "table") else "list_item" if block["attributes"].get("locator_kind") == "list_item" else block["kind"]
-        if block["ownership"]["quotation_id"]: region = "quoted " + region
-        scopes.setdefault(block["ownership"]["document_id"], []).append(
-            {"block": block["id"], "region": region, "text": " ".join(text(block).split())[:60], "fragments": [f["id"] for f in fragments]})
-    return list(scopes.values())
+def family(region):
+    return "body" if region in ("text", "list_item") else region
 
 
-def prompt(scope, shown):
-    return INSTRUCTIONS + "\n\nROWS\n" + "\n".join(f"{n + 1} | {scope[n]['region']} | {scope[n]['text']}" for n in shown)
+def units(lines):
+    """[[typed line index]] in reading order. lines: the gold's typed lines, each with page, region,
+    start and the page's continues flag."""
+    result, last, page = [], {}, None
+    for n, line in enumerate(lines):
+        if line["page"] != page:
+            page, earlier, last = line["page"], last, {}
+        kind = family(line["region"])
+        joined = None
+        if line["region"] not in OWN and not line["start"]:
+            joined = last.get(kind)
+            if joined is None and line["continues"]: joined = earlier.get(kind)
+        if joined is None:
+            result.append([n]); joined = len(result) - 1
+        else:
+            result[joined].append(n)
+        if line["region"] not in OWN: last[kind] = joined
+    return result
 
 
-def decide(scope, ask):
-    """Parent row numbers (1-based, 0 for top level) for every row, chunk by chunk."""
-    parents = [0] * len(scope)
-    for start in range(0, len(scope), CHUNK_ROWS):
-        # Still-open ancestors of the previous chunk's last row carry its context forward.
-        # A trailing top-level row (a side note, a caption) must not hide the open outline.
+def scopes(lines, groups):
+    """Ranked units per document: [[unit index]]; a unit holding a document start opens one."""
+    found = [[]]
+    for u, members in enumerate(groups):
+        if any(lines[n]["document"] for n in members) and found[-1]: found.append([])
+        if lines[members[0]]["region"] not in UNRANKED: found[-1].append(u)
+    return [scope for scope in found if scope]
+
+
+def row(lines, members):
+    first = lines[members[0]]
+    return first["page"], first["region"], " ".join(first["text"].split())[:80]
+
+
+def decide(rows, ask):
+    """Parent row numbers (1-based, 0 for top level) for every row, a page window at a time; the
+    still-open ancestors of the window before carry its context forward."""
+    parents, start = [0] * len(rows), 0
+    while start < len(rows):
+        pages = []
+        end = start
+        while end < len(rows) and end - start < CHUNK_ROWS and (rows[end][0] in pages or len(pages) < CHUNK_PAGES):
+            if rows[end][0] not in pages: pages.append(rows[end][0])
+            end += 1
         context = set()
         for at in range(max(0, start - 5), start):
             context.add(at)
             while parents[at]:
                 at = parents[at] - 1; context.add(at)
-        context = sorted(context)
-        shown = context + list(range(start, min(start + CHUNK_ROWS, len(scope))))
-        answer = ask(prompt(scope, shown), shown)
-        for n, parent in zip(shown, answer):
+        shown = sorted(context) + list(range(start, end))
+        for n, parent in zip(shown, ask(shown, sorted({rows[n][0] for n in shown}))):
             if n >= start: parents[n] = parent
+        start = end
     return parents
 
 
 def checked(shown):
     def validate(response):
         parents = response["parents"]
-        require(len(parents) == len(shown), f"Expected {len(shown)} parents, one per row")
-        require(all(parent - 1 < n for n, parent in zip(shown, parents)), "A row's parent must be an earlier row")
+        if len(parents) != len(shown): raise ValueError(f"Expected {len(shown)} parents, one per row")
+        if not all(parent - 1 < n for n, parent in zip(shown, parents)): raise ValueError("A row's parent must be an earlier row")
         return parents
     return validate
-
-
-def apply(value, scopes, decided):
-    """The structure layer with parents; a parent outside the row's quotation scope is dropped."""
-    layer = json.loads(json.dumps(value["layers"]["legal_structure"]))
-    blocks = {block["id"]: block for block in layer["blocks"]}
-    report = {"rows": 0, "with_parent": 0, "dropped_cross_scope": 0}
-    for scope, parents in zip(scopes, decided):
-        for row, parent in zip(scope, parents):
-            report["rows"] += 1
-            target = scope[parent - 1]["block"] if parent else None
-            if target and blocks[target]["ownership"] != blocks[row["block"]]["ownership"]:
-                report["dropped_cross_scope"] += 1; target = None
-            report["with_parent"] += bool(target)
-            for fragment in row["fragments"]:
-                blocks[fragment]["attributes"]["parent"] = target
-    return package.with_structure(value, layer)["layers"]["legal_structure"], report
-
-
-def outline(scope, parents):
-    """Rows indented under their parents, for reading."""
-    depth = []
-    for n, parent in enumerate(parents):
-        depth.append(depth[parent - 1] + 1 if parent else 0)
-    return "\n".join(f"{'    ' * d}{n + 1}. [{row['region']}] {row['text']}" for n, (row, d) in enumerate(zip(scope, depth)))
-
-
-def run(job, args, dispatch):
-    """Decide a selected gold's hierarchy; write the pilot result beside it without publishing."""
-    from worker import call, verified_run, write_json
-    job = Path(job)
-    _, value, _ = verified_run(job)
-    task = job / "hierarchy-authoring"
-    task.mkdir(exist_ok=True)
-    schema_path = task / "schema.json"
-    write_json(schema_path, SCHEMA)
-    scopes = rows(value)
-    decided = []
-    for index, scope in enumerate(scopes):
-        ask = lambda text, shown: call(text, schema_path, [], task / "calls" / f"scope-{index:03}", args,
-                                       checked(shown), dispatch)
-        decided.append(decide(scope, ask))
-    layer, report = apply(value, scopes, decided)
-    write_json(task / "result.json", {"scopes": [{"rows": scope, "parents": parents} for scope, parents in zip(scopes, decided)],
-                                      "report": report, "instructions": INSTRUCTIONS, "schema": SCHEMA})
-    return task / "result.json", scopes, decided, report
