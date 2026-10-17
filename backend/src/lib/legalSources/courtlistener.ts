@@ -14,11 +14,12 @@ const COURTLISTENER_WEB_BASE = "https://www.courtlistener.com";
 const COURTLISTENER_STORAGE_BASE = "https://storage.courtlistener.com";
 type JsonRecord = Record<string, unknown>;
 
+/** CourtListener's answer, or null where it publishes nothing at that address (404). */
 async function courtlistenerFetch<T>(
   pathOrUrl: string,
   init?: RequestInit,
   apiToken?: string | null,
-): Promise<T> {
+): Promise<T | null> {
   const url = pathOrUrl.startsWith("http") ? pathOrUrl : `${COURTLISTENER_BASE}${pathOrUrl}`;
   const method = init?.method ?? "GET";
   const perform = async () => {
@@ -33,6 +34,7 @@ async function courtlistenerFetch<T>(
         response: { label: "CourtListener response", maxBytes: 64 * 1024 * 1024,
           contentTypes: ["application/json", "application/*+json"] } },
     );
+    if (response.status === 404) return null;
     if (!response.ok) {
       const message = response.status === 429 ? "CourtListener rate limit exceeded."
         : response.status === 401 || response.status === 403
@@ -192,6 +194,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
   const MAX_OPINION_PAGES = 10;
   const cluster = await courtlistenerFetch<JsonRecord>(
     `/clusters/${args.clusterId}/`, { signal: args.signal }, args.apiToken);
+  if (!cluster) throw new Error(`CourtListener has no cluster ${args.clusterId}.`);
   const pageCitations = await capPageCitations(asString(cluster.filepath_json_harvard), args.signal);
   const opinions: Awaited<ReturnType<typeof compactOpinion>>[] = [];
   let nextUrl: string | null = `/opinions/?cluster=${args.clusterId}`;
@@ -201,7 +204,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
     pages += 1;
     const data = await courtlistenerFetch<JsonRecord>(
       nextUrl, { signal: args.signal }, args.apiToken);
-    const results = Array.isArray(data.results) ? data.results : [];
+    const results = Array.isArray(data?.results) ? data.results : [];
     const pageOpinions = results.filter((opinion): opinion is JsonRecord =>
       !!opinion && typeof opinion === "object" && !Array.isArray(opinion));
     for (const opinion of pageOpinions.filter((opinion) =>
@@ -209,7 +212,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
       opinions.push(await compactOpinion(opinion, pageCitations));
     }
     if (args.opinionId !== undefined && opinions.length) break;
-    nextUrl = asString(data.next);
+    nextUrl = asString(data?.next);
   }
 
   return {
@@ -362,7 +365,7 @@ async function searchCases(args: {
 
   const data = await courtlistenerFetch<JsonRecord>(
     `/search/?${params}`, { signal: args.signal }, args.apiToken);
-  const rawResults = Array.isArray(data.results) ? data.results : [];
+  const rawResults = Array.isArray(data?.results) ? data.results : [];
   return {
     query,
     results: rawResults.slice(0, limit).map((raw) => {
