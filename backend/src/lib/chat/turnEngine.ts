@@ -8,7 +8,7 @@ import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
   type ProviderContextCheckpoint, type SteeringMessage, type StreamChatResult,
   type UserApiKeys, type CompactionDetails } from "../llm";
 import { isAbortError, throwIfAborted } from "../llm/abort";
-import { providerErrorCode, safeErrorMessage } from "../safeError";
+import { providerErrorCode, safeErrorLog, safeErrorMessage } from "../safeError";
 import { assistantReadActivity, assistantToolActivityLabel } from "./tools/a2ajTools";
 import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
 import { publicAssistantEvent, parsePublicAssistantEvent, type AssistantEvent, type AskInputsEvent,
@@ -478,7 +478,7 @@ export async function runChatTurn(options: {
       }
     })
       .then(async (results) => { await researchPersistence; return results; }, async (error) => {
-        await researchPersistence.catch(() => undefined); throw error;
+        await researchPersistence.catch((saved) => console.error("[chat] research reads not saved", safeErrorLog(saved))); throw error;
       })
       .catch((error) => {
         settleToolActivities(providerSignal.aborted ? "interrupted" : "error",
