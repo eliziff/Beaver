@@ -11,6 +11,8 @@ export function buildA2AJWebPinpointUrl(
   plan: NativeTextFragmentPlan,
 ) {
   if (!source.citation || !plan.sourceSafeComplete || !plan.directives.length) return null;
+  // The reader draws a document's first 200,000 characters until Load more is pressed (document.js CHUNK).
+  if (plan.sourceWordIntervals.some(({ end }) => end > 200_000)) return null;
   const url = new URL("https://law.a2aj.ca/document");
   url.searchParams.set("citation", source.citation);
   url.searchParams.set("doc_type", source.docType ?? "cases");

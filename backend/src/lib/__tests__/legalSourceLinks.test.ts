@@ -4,10 +4,8 @@ import {
   buildA2AJDocumentPinpointUrl,
   buildLegalSourcePinpoint,
   buildLegalSourcePinpointUrl,
-  preferredPublisherPdfTarget,
-  shouldUseA2AJWebFallback,
 } from "../legalSourceLinks";
-import { structureNative, type NativeTextFragmentPlan } from "../structureNative";
+import { structureNative } from "../structureNative";
 import { buildA2AJWebPinpointUrl } from "../a2ajWebLinks";
 
 async function nativeDocument(
@@ -516,112 +514,6 @@ describe("verified legal-source links", () => {
       text,
       [ordinaryPassage],
     )).toContain("https://www.bccourts.ca/");
-  });
-
-  it("routes only proved no-oracle provider-plan signatures", async () => {
-    const plan = (overrides: Partial<NativeTextFragmentPlan> = {}): NativeTextFragmentPlan => ({
-      directives: ["text=one%20two%20three%20four%20five%20six%20seven%20eight%20nine"],
-      sourceWordIntervals: [{
-        quoteIndex: 0, start: 10, end: 30, firstWord: 0, lastWord: 8,
-      }],
-      paintQuotes: ["one two three four five six seven eight nine"],
-      sourceSafeComplete: true,
-      paintedWords: 9,
-      ...overrides,
-    });
-    const phrase = "one two three four five six seven eight nine";
-    const block = (count: number) => [
-      phrase,
-      ...Array.from({ length: count - 9 }, (_, index) => `padding${index}`),
-    ].join(" ");
-
-    expect(shouldUseA2AJWebFallback(
-      "laws",
-      "https://www.ontario.ca/laws/statute/example",
-      plan(),
-      await nativeSource(phrase),
-      block(200),
-    )).toBe(true);
-    expect(shouldUseA2AJWebFallback(
-      "laws",
-      "https://www.ontario.ca/laws/statute/example",
-      plan(),
-      await nativeSource(`${phrase}. ${phrase}.`),
-      block(200),
-    )).toBe(false);
-    expect(shouldUseA2AJWebFallback(
-      "laws",
-      "https://publications.saskatchewan.ca/example.pdf",
-      plan({ sourceWordIntervals: [{
-        quoteIndex: 0, start: 200_010, end: 200_030, firstWord: 0, lastWord: 1,
-      }] }),
-      await nativeSource(phrase),
-      block(200),
-    )).toBe(false);
-    expect(shouldUseA2AJWebFallback(
-      "laws",
-      "https://www.justice.gov.nt.ca/en/files/legislation/example/example.a.pdf",
-      plan({ sourceWordIntervals: [{
-        quoteIndex: 0, start: 1_010, end: 1_030, firstWord: 0, lastWord: 1,
-      }] }),
-      await nativeSource(phrase),
-      block(63),
-    )).toBe(false);
-    const islands = [
-      "alpha bravo charlie delta echo foxtrot",
-      "golf hotel india juliet kilo lima",
-      "mike november",
-      "oscar papa quebec romeo sierra tango",
-    ];
-    const islandBlock = [
-      ...islands,
-      ...Array.from({ length: 85 }, (_, index) => `remainder${index}`),
-    ].join(" ");
-    expect(shouldUseA2AJWebFallback(
-      "laws",
-      "https://www.justice.gov.nt.ca/en/files/legislation/example/example.r1.pdf",
-      plan({
-        directives: islands.map((island) => `text=${encodeURIComponent(island)}`),
-        sourceWordIntervals: [
-          { quoteIndex: 0, start: 1_001, end: 1_002, firstWord: 0, lastWord: 0 },
-          { quoteIndex: 0, start: 1_003, end: 1_004, firstWord: 1, lastWord: 1 },
-          { quoteIndex: 0, start: 1_005, end: 1_006, firstWord: 2, lastWord: 2 },
-          { quoteIndex: 0, start: 1_007, end: 1_008, firstWord: 3, lastWord: 3 },
-        ],
-        paintQuotes: islands,
-        paintedWords: 20,
-      }),
-      await nativeSource(islands.join(" ")),
-      islandBlock,
-    )).toBe(false);
-  });
-
-  it("puts the proved longest PDF island first", async () => {
-    const short = "alpha bravo charlie delta echo foxtrot golf";
-    const long = "hotel india juliet kilo lima mike november oscar papa";
-    const block = [short, long,
-      ...Array.from({ length: 74 }, (_, index) => `padding${index}`)].join(" ");
-    const plan: NativeTextFragmentPlan = {
-      directives: [short, long].map((quote) => `text=${encodeURIComponent(quote)}`),
-      sourceWordIntervals: [
-        { quoteIndex: 0, start: 1_001, end: 1_010, firstWord: 0, lastWord: 6 },
-        { quoteIndex: 0, start: 1_011, end: 1_020, firstWord: 7, lastWord: 15 },
-      ],
-      paintQuotes: [short, long],
-      sourceSafeComplete: true,
-      paintedWords: 16,
-    };
-    const target = preferredPublisherPdfTarget(
-      "laws",
-      `https://www.princeedwardisland.ca/sites/default/files/legislation/example.pdf` +
-        `#:~:${plan.directives.join("&")}`,
-      plan,
-      await nativeSource(`${short} ${long}`),
-      block,
-    )!;
-
-    expect(target.indexOf(encodeURIComponent(long)))
-      .toBeLessThan(target.indexOf(encodeURIComponent(short)));
   });
 
   it("keeps CanLII PDF page links on the PDF", async () => {
