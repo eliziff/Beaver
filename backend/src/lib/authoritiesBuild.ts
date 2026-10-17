@@ -127,10 +127,13 @@ export function authorityPassageTargets(draft: AuthoritiesDraft, authorityId: st
 }
 
 /** The paragraphs an excerpted case keeps before and after each cited paragraph, placed as its cited ones are,
- *  under ids of their own ("context:44") that keep them from being marked or bookmarked. */
+ *  under ids of their own ("context:44") that keep them from being marked or bookmarked. The court's extract
+ *  keeps its paragraph 1 instead: its pages run through the one its reasons begin on. */
 export function excerptContextTargets(draft: AuthoritiesDraft, authority: AuthorityIdentity): NativePdfPassageTarget[] {
   const { paragraphs } = excerptContext(draft.settings);
-  if (authority.kind !== "case" || !paragraphs || !authorityExcerpt(draft, authority) || courtExtract(draft, authority)) return [];
+  if (authority.kind !== "case" || !authorityExcerpt(draft, authority)) return [];
+  if (courtExtract(draft, authority)) return [{ id: "context:1", locatorKind: "paragraph", locator: "1", exactQuotes: [] }];
+  if (!paragraphs) return [];
   const cited = [...authority.locators.map(({ kind, label }) => ({ kind, first: label, last: label })),
     ...Object.values(draft.occurrences).flatMap((occurrence) => occurrence.authorityId === authority.id
       ? occurrence.pinpoints.map(({ kind, text, first, last }) => ({ kind, first: first ?? text, last: last ?? first ?? text })) : [])];
@@ -1312,15 +1315,16 @@ function statuteCurrency(pages?: string[]) {
 
 /** The Federal Court's extract of a decision in a book on paper (Federal Courts Rules, r 70(2.1)): every page
  *  through the one its reasons begin on (the headnote), and each cited or marked page with the pages either side.
+ *  Its reasons begin where the engine places its paragraph 1 (excerptContextTargets).
  *  Null where its reasons are not found or nothing cited is placed: it goes in whole. */
 function federalPaperExtract(draft: AuthoritiesDraft, authority: AuthorityIdentity, input: ExcerptInput) {
   const text = Array.from({ length: input.pageCount }, (_, index) =>
     input.pageTextByPage?.[index]?.trim() || input.ocrTextByPage?.[index] || "");
-  const reasonsStart = text.findIndex((page) => /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
+  const reasonsStart = Math.min(...input.contextPages ?? []);
   const cited = citedSourcePages(draft, authority.id, text, input.pageBindings, input.pageCount, input.passageGeometry,
     attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual"));
   for (const index of input.marked ?? []) cited.add(index);
-  if (reasonsStart < 0 || !cited.size) return null;
+  if (!Number.isFinite(reasonsStart) || !cited.size) return null;
   const selected = new Set(Array.from({ length: reasonsStart + 1 }, (_, index) => index));
   cited.forEach((index) => {
     for (let page = index - 1; page <= index + 1; page += 1)
