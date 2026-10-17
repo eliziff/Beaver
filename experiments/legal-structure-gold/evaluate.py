@@ -56,7 +56,7 @@ def projected(value):
         marker = [s for spans in first['markers'] for s in spans]
         parent = heads[unit['parent']] if unit['parent'] is not None else None
         for k, spans in enumerate(parts[u]):
-            attributes = {'parent': parent, 'reading_stream_id': None}
+            attributes = {'parent': parent}
             if region[u] == 'list_item': attributes.update(locator_kind='list_item', marker=marker if k == 0 else [])
             elif k == 0 and marker and region[u] in ('text', 'quote'): attributes.update(locator_kind='paragraph', marker=marker)
             elif k == 0 and marker and region[u] == 'heading': attributes['marker'] = marker
@@ -116,7 +116,7 @@ def projected(value):
             continuations['table'][left] = {'next': right, 'separator': None, 'kind': 'table'}
     return {'source_sha256': value['source_sha256']}, {
         'lines': list(lines.values()), 'reading_order': order, 'groups': groups, 'annotations': annotations,
-        'joins': {}, 'continuations': dict(continuations), 'resumes': {}, 'manuscript_edits': {}}
+        'continuations': dict(continuations)}
 
 
 def state_of(value):
