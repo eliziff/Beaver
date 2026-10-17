@@ -13,7 +13,6 @@ import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { justiceLawsLegalSourceProvider, justiceLawsSource } from "./legalSources/justiceLaws";
 import { govUkEmploymentTribunalLegalSourceProvider, govUkEmploymentTribunalCaseSource } from "./legalSources/govUkEmploymentTribunal";
 import { govInfoLegalSourceProvider, govInfoCaseSource } from "./legalSources/govInfo";
-import { CanliiRefused, canliiLegalSourceProvider, canliiSource } from "./legalSources/canlii";
 import { journalLegalSourceProvider } from "./legalSources/journal";
 import { splitQuoteCitationUnits } from "./quoteCitationSplit";
 import { FOREIGN_CASE_PROVIDERS } from "./legalSources";
@@ -37,25 +36,18 @@ const foreignProviders = [
   { id: "justice-laws", claims: justiceLawsLegalSourceProvider, source: justiceLawsSource },
   { id: "govuk-et", claims: govUkEmploymentTribunalLegalSourceProvider, source: govUkEmploymentTribunalCaseSource },
   { id: "govinfo", claims: govInfoLegalSourceProvider, source: govInfoCaseSource },
-  { id: "canlii", claims: canliiLegalSourceProvider, source: canliiSource },
 ] as const;
 
 /** Resolves the first citation form a provider matches; never a best guess. Without `foreignCases`,
- *  US and UK decisions are not looked up. CanLII, once it refuses this app (its challenge, which it puts to every
- *  page alike), is not asked for the authority's other forms; any other failure is the run's. */
+ *  US and UK decisions are not looked up. A provider's failure is the run's. */
 async function resolveForeignAuthoritySource(citations: readonly string[], signal?: AbortSignal,
   kind: "case" | "legislation" = "case", foreignCases = true) {
-  let refused = false;
   for (const citation of citations.map((value) => value.trim()).filter(Boolean)) {
     signal?.throwIfAborted();
     for (const { id, claims, source } of foreignProviders) {
-      if ((refused && id === "canlii") || !foreignCases && FOREIGN_CASE_PROVIDERS.has(id)) continue;
+      if (!foreignCases && FOREIGN_CASE_PROVIDERS.has(id)) continue;
       if (!claims.canResolve?.({ text: citation, kind })) continue;
-      let found: Awaited<ReturnType<typeof source>> = null;
-      try { found = await source(citation, signal); } catch (error) {
-        if (!(error instanceof CanliiRefused)) throw error;
-        refused = true;
-      }
+      const found = await source(citation, signal);
       if (!found || (!found.pdfUrl && !found.text.trim())) continue;
       return { ...found, provider: id, name: found.title, stableSourceId: `${id}:${found.id}`,
         sourceSha256: canonicalJsonSha256({ provider: id, id: found.id, text: found.text }) };

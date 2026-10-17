@@ -14,10 +14,8 @@ registry; it does not re-fetch or reconstruct provider records.
 
 The corpus adapters remain preferred. Authorities source acquisition also routes
 National Archives, GOV.UK Employment Tribunal, CourtListener and GovInfo citations
-through their existing adapters, then tries an ordinary bounded CanLII document
-read. CanLII passage reads use the same native document parser and verified citation
-identity as acquisition. A challenge or redirect requires
-a manual browser visit and PDF attachment, never automated verification bypass.
+through their existing adapters. CanLII is never read: a CanLII citation gets its
+document-page link, opened by the user, and the PDF the user attaches.
 
 Browser transports preserve each edition's network restrictions. APIs and documents
 that lack usable CORS use the narrowly constrained `POST /source` bridge in
