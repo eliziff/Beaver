@@ -10,7 +10,7 @@ import { indexedCaseUrl } from "../legalSources/canlii";
 import { citedSourceReader, outerQuoteMarks, pinpointSummary, withOuterQuotes, type checkQuotes, type QuoteCheck,
   type QuoteResult } from "../quoteCheck";
 import { legalSourceOperations } from "../legalSourceApplication";
-import { buildLegalSourcePinpoint, canliiPinpointLink, citedPassageLink, legalSourceLocatorAnchor, sourceUrl } from "../legalSourceLinks";
+import { buildLegalSourcePinpoint, citedPassageLink, legalSourceLocatorAnchor, sourceUrl } from "../legalSourceLinks";
 import { isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import type { NativeDocument } from "../structureNative";
 import type { QuoteCitationUnit } from "../quoteCitationSplit";
@@ -194,7 +194,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // A full part's link at its first paragraph or section pinpoint, as the Python app anchors a CanLII link; the
   // author's own link stays as written.
   const anchored = links.map((link, index) => link && !kinds[index].kind && !usableLink(fields[index].link_candidate)
-    ? canliiPinpointLink(link, fields[index].pinpoint_fragments) : link);
+    ? engine<string>("canliiPinpointUrl", { url: link, pinpoints: fields[index].pinpoint_fragments }) : link);
   const reanchor = (link: string, text: string) => engine<string>("reanchorReference", { link, text });
   // A part's paragraph and section pinpoints.
   const pinpointed = (index: number) => fields[index].pinpoint_fragments.filter((fragment) => /^(?:par|sec)/u.test(fragment));
@@ -408,11 +408,7 @@ function partAuthority(draft: AuthoritiesDraft, part: PlacedPart) {
 }
 /** A CanLII PDF link as its page, anchor kept, unless it names a PDF page: paragraph and section anchors are the page's
  *  (alr_quote_verifier.py _canlii_pdf_to_html_sibling, applied to every part's link). */
-function pdfToPage(link: string) {
-  const at = link.indexOf("#"), base = at < 0 ? link : link.slice(0, at), anchor = at < 0 ? "" : link.slice(at + 1);
-  if (!/^https?:\/\/(?:[^/]+\.)?canlii\.org\//iu.test(base) || !/\.pdf$/iu.test(base) || /^page=-?\d+$/iu.test(anchor.trim())) return link;
-  return `${base.replace(/\.pdf$/iu, ".html")}${at < 0 ? "" : `#${anchor}`}`;
-}
+const pdfToPage = (link: string) => engine<string>("canliiPdfPage", { url: link });
 
 /** A link without its text fragment; its paragraph, section or page anchor stays. */
 const withoutFragment = (link: string) => link.replace(/#?:~:text=.*$/u, "");
@@ -429,8 +425,8 @@ function samePage(a: string, b: string) {
 function pageIdentity(value: string) {
   try {
     const url = new URL(value), site = url.hostname.toLowerCase().replace(/^www\./u, "");
-    const law = isCanliiUrl(url) ? /^\/(?:en|fr)\/([a-z]+)\/laws\/[a-z]+\/([^/]+)\//u.exec(url.pathname) : null;
-    return { site, page: law ? `${law[1]}/laws/${law[2]}` : url.pathname };
+    const law = engine<{ jurisdiction: string; id: string } | null>("canliiLawPage", { url: value });
+    return { site, page: law ? `${law.jurisdiction}/laws/${law.id}` : url.pathname };
   } catch {
     return { site: "", page: value };
   }
@@ -438,7 +434,7 @@ function pageIdentity(value: string) {
 
 /** A part's link: the author's own (unless `own` is false); else its source's page: CanLII for a Canadian decision or
  *  statute A2AJ identifies or its citation names, an article's PDF at its cited page, another provider's page.
- *  Its paragraph or section anchor is added after, as the Python app adds it (canliiPinpointLink). */
+ *  Its paragraph or section anchor is added after, as the Python app adds it (the engine's canliiPinpointUrl). */
 function partLink(draft: AuthoritiesDraft, part: PlacedPart, field: Fields, own = true) {
   // The web address the part writes, with or without its scheme ("online: <example.org>").
   const address = withScheme(field.link_candidate.trim());

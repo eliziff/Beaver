@@ -665,7 +665,6 @@ export async function renderAuthoritySourcePdf(input: {
     // Its front matter (the court, the parties, counsel) is set as a judgment sets it: short lines
     // centred, each party's role at the right margin, a labelled line ("DOCKET: C69420") at the left.
     const body = judgment.findIndex((entry) => entry.kind === "heading" || entry.kind === "paragraph");
-    const role = /^(?:(?:the\s+)?(?:appellants?|respondents?|applicants?|plaintiffs?|defendants?|petitioners?|intervener?s?|intervenors?|moving\s+part(?:y|ies)|responding\s+part(?:y|ies))(?:\s*\([^()]*\))?(?:\s+and\s+\S.*)?)$/iu;
     const aligned = (text: string, align: "center" | "right") => {
       // A line set in capitals (the court, WARNING) is set bold, as the judgment sets it.
       const font = text === text.toLocaleUpperCase("en-CA") && /\p{Lu}{3}/u.test(text) ? bold : serif;
@@ -685,9 +684,11 @@ export async function renderAuthoritySourcePdf(input: {
       const front = index < body && entry.kind === "text" && !entry.level;
       // The provider's opening line repeats the title block ("R. v. Murphy, 2022 ONCA 615").
       if (!index && front && entry.text.trim() === `${input.name?.trim()}, ${input.citation.trim()}`) continue;
-      if (front && role.test(entry.text.trim())) aligned(entry.text.trim(), "right");
-      else if (front && entry.text.trim().length <= 72 && !/^[\p{L}\s]+:\s/u.test(entry.text)
-        && !/,\s+for\s+the\s/iu.test(entry.text) && !/[.;:]$/u.test(entry.text.trim())) aligned(entry.text.trim(), "center");
+      // A party's role at the right margin; a short line that is no label's and no counsel's, centred.
+      const line = front ? structureNative().frontMatterLine(entry.text) : null;
+      if (line === "party") aligned(entry.text.trim(), "right");
+      else if (line === "other" && entry.text.trim().length <= 72 && !/[.;:]$/u.test(entry.text.trim()))
+        aligned(entry.text.trim(), "center");
       else if (entry.kind === "heading") draw([{ text: title, font: bold }], 0, [13, 12, 11][Math.min(entry.level, 2)], true);
       else if (entry.kind === "paragraph") draw([{ text: entry.text, font: serif }], 36, 10.5, false,
         { runs: [{ text: entry.label, font: bold }], x: 0 });
@@ -1185,7 +1186,8 @@ async function prepareAuthorityBook(
         bookScanPolicy(draft) === "full" || bookScanPolicy(draft) === "cited-pages" && cited.has(index)
           ? pdfNormalized(text).replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?") : "") : undefined;
       // An excerpt that leaves out the page saying how current the statute is says it atop its first page.
-      const currency = source.excerpt && source.authority?.kind === "legislation" ? statuteCurrency(source.pageTextByPage) : undefined;
+      const currency = source.excerpt && source.authority?.kind === "legislation"
+        ? structureNative().statuteCurrency(source.pageTextByPage ?? []) ?? undefined : undefined;
       const kept = currency && source.pageIndices.some((index) => source.pageTextByPage?.[index]
         ?.replace(/\s+/gu, " ").toLowerCase().includes(currency.toLowerCase()));
       return { key: source.key, name: source.name, italic: source.italic, tab: source.tab, sourceUrl: source.sourceUrl,
@@ -1268,23 +1270,8 @@ async function rebuiltProvisions(authority: AuthorityIdentity, name: string,
   wanted: AuthorityPassageRequest["locators"], statuteText?: StatuteText, signal?: AbortSignal, federal = false) {
   const found = await statuteText?.(authority, signal);
   if (!found?.text.trim()) return null;
-  const outline = structureNative().statuteOutline(found.text);
-  const entry = (label: string) => {
-    const [top, ...parts] = label.replace(/\s+/gu, "").match(/^[^(]+|\([^)]*\)/gu) ?? [];
-    let at = outline.find((item) => ["section", "article"].includes(item.kind) &&
-      item.label.replace(/\.$/u, "") === top?.replace(/\.$/u, ""));
-    for (const part of parts) at = at && outline.find((item) => item.start >= at!.start && item.end <= at!.end &&
-      item.level > at!.level && item.label === part);
-    return at;
-  };
-  const spans = wanted.flatMap(({ label }) => {
-    const whole = entry(label);
-    if (whole) return [[whole.start, whole.end]];
-    // A range ("49-51", "33 to 35") runs from its first provision through its last.
-    const [from, to] = label.split(/\s*(?:-|–|to)\s*/u);
-    const [first, last] = [entry(from ?? ""), to ? entry(to) : undefined];
-    return first && last ? [[first.start, last.end]] : [];
-  }).sort(([left], [right]) => left - right);
+  // Each cut from the text by the structure layer's outline: a provision, a part of one, or a range of them.
+  const spans = structureNative().statuteProvisionSpans(found.text, wanted.map(({ label }) => label));
   if (!spans.length) return null;
   const text = spans.map(([start, end]) => found.text.slice(start, end).trim()).join("\n\n");
   const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: authority.name ?? name, citation: authority.citation,
@@ -1302,16 +1289,6 @@ export function statuteExcerptSummary(draft: AuthoritiesDraft, authority: Author
   return { pageCount, pages: pages?.length ?? null, placed };
 }
 
-
-const DATE = String.raw`(?:[A-Z][a-z]+\.?\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\.?\s+\d{4}|\d{4}-\d{2}-\d{2})`;
-const CURRENCY = new RegExp(String.raw`\bcurrent\s+(?:(?:to|as\s+of)\s*:?\s*${DATE}|from\s+${DATE}\s+to\s+${DATE})`, "iu");
-/** How current a statute's PDF says it is, in its publisher's words from its first pages ("Current to
- *  September 21, 2026", "Current as of April 1, 2023", "Current from 1 June 2026 to 30 Sept. 2026");
- *  nothing where it says nothing. */
-function statuteCurrency(pages?: string[]) {
-  const found = CURRENCY.exec((pages ?? []).slice(0, 3).join("\n").replace(/\s+/gu, " "))?.[0];
-  return found && found.charAt(0).toUpperCase() + found.slice(1);
-}
 
 /** The Federal Court's extract of a decision in a book on paper (Federal Courts Rules, r 70(2.1)): every page
  *  through the one its reasons begin on (the headnote), and each cited or marked page with the pages either side.
