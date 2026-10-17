@@ -55,7 +55,7 @@ export const logout = (global = false) =>
     request<void>("/logout", json("POST", { scope: global ? "global" : "local" }));
 
 export const updateAuthEmail = (email: string) =>
-    request<AuthResult>("/email", json("PATCH", { email, next: "/account" }));
+    request<AuthResult>("/email", json("PATCH", { email }));
 
 export const updateAuthPassword = (password: string, signOut = false) =>
     request<AuthResult>("/password", json("PATCH", { password, signOut }));
