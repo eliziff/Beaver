@@ -387,8 +387,8 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
       citation_part_index: indexInNote[index] + 1, citation_part_kind: field.kind, citation_part_text: part.text,
       citation_part_corrected: field.corrected, citation_part_link: partLinks[index],
       ...warning && { citation_part_warning: warning },
-      // A reference shows its origin's passage where the origin pinpoints one.
-      citation_part_anchor_text: org && passages[origin[index]] ? passages[origin[index]] : passages[index],
+      // A reference without a pinpoint of its own shows its origin's passage.
+      citation_part_anchor_text: passages[index] || (org ? passages[origin[index]] : ""),
       short_form: field.short_form, bare_citation: field.bare_citation,
       citation_with_style: field.citation_with_style, pinpoint_fragments: pythonJson(field.pinpoint_fragments),
       page_pinpoints: pythonJson(field.page_pinpoints.map(Number)), first_page: firstPage(index),
