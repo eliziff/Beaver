@@ -66,34 +66,35 @@ function ownOf(citation: any): Own {
   return { key: citation.key, reporter: null, year: null, volume: null, page: null };
 }
 
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " ", sect: "§", para: "¶" };
-const plain = (html: string) => html.replace(/<(?:br|p|div|blockquote|li|h\d)\b[^>]*>/giu, "\n").replace(/<[^>]+>/gu, "")
-  .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/giu, (all, name: string) => name.startsWith("#x") ? String.fromCodePoint(parseInt(name.slice(2), 16))
-    : name.startsWith("#") ? String.fromCodePoint(Number(name.slice(1))) : ENTITIES[name.toLowerCase()] ?? all);
-
 /** What one text gives: read on a worker. */
-function harvest(job: Job): Harvest {
+async function harvest(job: Job): Promise<Harvest> {
   const native = structureNative();
   const call = (text: string) => (native.citationEngineCall("extract", JSON.stringify({ text,
     options: { resolve: true, parallel: true } })) as any).citations as any[];
   const own = job.own ? call(job.own).filter((citation) => citation.form === "full" && citation.key).map(ownOf) : [];
   const ownKeys = new Set(own.map((item) => item.key));
-  // Star pagination, read from the markup before it is dropped.
+  let text = job.text, paragraphs: number | null = null, sections: Harvest["sections"] = null;
+  // An opinion's pages, as the structure engine reads its rendition: printed star pagination, page numbers
+  // and page breaks. Each run of consecutive pages is one series (an official and a regional reporter's).
   let stars: Harvest["stars"] = null;
-  const mark = (group: string, page: number) => {
-    stars ??= {};
-    const held = stars[group];
-    stars[group] = held ? [Math.min(held[0], page), Math.max(held[1], page), held[2] + 1] : [page, page, 1];
-  };
   if (job.kind === KIND.opinion) {
-    for (const found of job.text.matchAll(/<page-number\b[^>]*?citation-index="(\d+)"[^>]*?label="(\d+)"/gu)) mark(`h${found[1]}`, Number(found[2]));
-    for (const found of job.text.matchAll(/class="star-pagination"[^>]*>\s*(\*{1,3})\s*(\d{1,5})/gu)) mark(`s${found[1].length}`, Number(found[2]));
+    const plainText = job.field === "plain_text";
+    const document = await native.deriveDocumentStructure({ kind: "native_markup", input: { provider: "courtlistener",
+      id: job.id, text: plainText ? job.text : "", markup: plainText ? null : job.text } });
+    text = native.documentText(document);
+    const series: Array<[number, number, number]> = [];
+    let last = 0;
+    for (const block of native.documentAnchors(document)) {
+      const number = Number(/(\d{1,5})$/u.exec(block.label)?.[1]);
+      if (!number) continue;
+      if (block.kind === "paragraph" && block.printedLabel) last = Math.max(last, number);
+      if (block.kind !== "page") continue;
+      const held = series.find((run) => run[1] === number - 1 || run[1] === number);
+      if (held) { held[1] = number; held[2]++; } else series.push([number, number, 1]);
+    }
+    paragraphs = last || null;
+    if (series.length) stars = Object.fromEntries(series.map((run, index) => [`p${index + 1}`, run]));
   }
-  const text = job.kind === KIND.opinion && job.field !== "plain_text" ? plain(job.text) : job.text;
-  if (job.kind === KIND.opinion && job.field === "plain_text") {
-    for (const found of text.matchAll(/(?:^|[\s[])(\*{1,3})(\d{1,5})(?=[\]\s])/gmu)) mark(`s${found[1].length}`, Number(found[2]));
-  }
-  let paragraphs: number | null = null, sections: Harvest["sections"] = null;
   if (job.kind === KIND.law) {
     const labels = native.statuteOutline(text).filter((entry) => entry.kind === "section" || entry.kind === "article")
       .map((entry) => entry.label.trim().replace(/[.\s]+$/u, "")).filter(Boolean);
@@ -102,7 +103,7 @@ function harvest(job: Job): Harvest {
       sections = { count: labels.length, first: labels[0], last: labels[labels.length - 1],
         low: numbers.length ? Math.min(...numbers) : null, high: numbers.length ? Math.max(...numbers) : null };
     }
-  } else {
+  } else if (job.kind !== KIND.opinion) {
     let last = 0;
     for (const entry of native.caseOutline(text)) {
       if (entry.kind !== "paragraph") continue;
@@ -148,12 +149,14 @@ function harvest(job: Job): Harvest {
 }
 
 if (!isMainThread) {
-  parentPort!.on("message", (jobs: Job[] | null) => {
+  parentPort!.on("message", async (jobs: Job[] | null) => {
     if (!jobs) process.exit(0);
-    parentPort!.postMessage(jobs.map((job) => {
-      try { return harvest(job); }
-      catch (error) { return { id: job.id, own: [], paragraphs: null, sections: null, stars: null, words: 0, cited: {}, error: String(error) }; }
-    }));
+    const results = [];
+    for (const job of jobs) {
+      try { results.push(await harvest(job)); }
+      catch (error) { results.push({ id: job.id, own: [], paragraphs: null, sections: null, stars: null, words: 0, cited: {}, error: String(error) }); }
+    }
+    parentPort!.postMessage(results);
   });
 } else void (async () => {
   const source = process.argv[2];
