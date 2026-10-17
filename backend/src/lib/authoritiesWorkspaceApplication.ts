@@ -143,7 +143,8 @@ export function createAuthoritiesWorkspaceApplication(
 
   async function saveRefresh(scope: ApplicationScope, product: AuthoritiesProduct,
     draft: AuthoritiesDraft, revision: number, source: AuthoritiesImportSource) {
-    const fresh = await importer.draft(scope, source, { sourceMode: draft.settings.sourceMode });
+    const fresh = await importer.draft(scope, source,
+      { sourceMode: draft.settings.sourceMode, supraLinking: draft.settings.supraLinking });
     return workProducts.save(scope, product.id, { revision, state: await refreshedAuthoritiesDraft(draft, fresh) });
   }
 
@@ -181,7 +182,8 @@ export function createAuthoritiesWorkspaceApplication(
             snapshot.versionId !== version.id || snapshot.sha256 !== version.source_sha256 ||
             draft.import.filename !== version.filename) {
           signal?.throwIfAborted();
-          const fresh = await importer.draft(scope, binding, { sourceMode: draft.settings.sourceMode });
+          const fresh = await importer.draft(scope, binding,
+            { sourceMode: draft.settings.sourceMode, supraLinking: draft.settings.supraLinking });
           draft = await refreshedAuthoritiesDraft(draft, fresh, signal);
         }
       }
@@ -353,7 +355,7 @@ export function createAuthoritiesWorkspaceApplication(
         const fresh = await importer.draft(scope, { kind: "document",
           documentId: binding.documentId,
           version: { versionId: version.id, sha256: version.source_sha256 } },
-        { sourceMode: draft.settings.sourceMode });
+        { sourceMode: draft.settings.sourceMode, supraLinking: draft.settings.supraLinking });
         return workProducts.save(scope, id, { revision: input.revision,
           state: correctedAuthoritiesDraft(decided, fresh, draft.stage) });
       }, "The accepted Authorities correction could not be saved");
@@ -369,7 +371,8 @@ export function createAuthoritiesWorkspaceApplication(
       settings?: AuthoritiesInitialSettings;
     }) {
       const initial = applyAuthoritiesInitialSettings(
-        await importer.draft(scope, input.source, { sourceMode: input.settings?.sourceMode }), input.settings);
+        await importer.draft(scope, input.source, { sourceMode: input.settings?.sourceMode,
+          supraLinking: input.settings?.supraLinking }), input.settings);
       const title = input.title ?? (initial.import.kind === "document"
         ? initial.import.filename.replace(/\.[^.]+$/u, "") || "Authorities"
         : "Authorities");

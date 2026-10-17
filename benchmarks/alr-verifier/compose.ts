@@ -86,8 +86,8 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
   let mark = started;
   const step = (name: string) => { const now = performance.now(); steps[name] = Math.round(now - mark) / 1000; mark = now; };
   const file = { filename: path.basename(input), bytes: new Uint8Array(readFileSync(input)), modified: 0 };
-  let draft = (await ops.import({ files: [file], settings: { outputMode: "table", sourceText: true },
-    ...(settings.supra_linking === "aggressive" ? { supraLinking: "aggressive" } : {}) }, { signal })).data;
+  let draft = (await ops.import({ files: [file], settings: { outputMode: "table", sourceText: true,
+    supraLinking: settings.supra_linking ?? "safe" } }, { signal })).data;
   step("import");
   draft = (await ops.sources({ draft }, { signal, progress: () => undefined })).data;
   step("sources");
@@ -98,7 +98,7 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
       units.map((unit, index) => ({ unitId: draft.units[index].id, ...unit }))) }
     : (await ops["quote-check"]({ draft }, { signal })).data;
   step("quotes");
-  const options = { exportDetail: "diagnostic-hidden", supraLinking: settings.supra_linking ?? "safe", footnotes: settings.fn_filter ?? "" };
+  const options = { exportDetail: "diagnostic-hidden", footnotes: settings.fn_filter ?? "" };
   // An AI run mode: the page's run mode over the given llm (the page gives it a model the person connected).
   let workbook: { filename: string; bytes: Uint8Array }, modelCalls: unknown = null;
   if (option("--llm") && settings.run_mode && settings.run_mode !== "free") {

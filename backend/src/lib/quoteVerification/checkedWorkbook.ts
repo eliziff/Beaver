@@ -2,7 +2,7 @@
 // footnote, filled from an Authorities draft and its quote check. Only mapping: the parts, links, references and
 // quotation results are the primitives'.
 import { authoritySourceUrl } from "mike/shared/authorities-sources.mjs";
-import type { AuthoritiesDraft } from "../authoritiesDomain";
+import type { AuthoritiesDraft, AuthorityOccurrence } from "../authoritiesDomain";
 import { withScheme } from "../authoritiesImport";
 import { footnotePropositions, type QuoteContext } from "../authoritiesQuotations";
 import { journalLegalSourceProvider } from "../legalSources/journal";
@@ -17,15 +17,11 @@ import type { QuoteCitationUnit } from "../quoteCitationSplit";
 import { structureNative } from "../structureNative";
 import { ApplicationError } from "../applicationError";
 import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
-import { registerWorkExtents } from "mike/shared/work-extents.mjs";
 import { styledXlsx, type XlsxCell, type XlsxRun, type XlsxStyles } from "../quoteCheckWorkbook";
 
 type Check = Awaited<ReturnType<typeof checkQuotes>>;
 export type AlrExportDetail = "display" | "display-json" | "diagnostic-hidden" | "diagnostic";
 export type AlrWorkbookOptions = { exportDetail?: AlrExportDetail; footnotes?: string;
-  /** How far supra and ibid links reach where the evidence is incomplete, the engine's splitting-mode tiers:
-   *  "safe" (the default), "moderate" or "aggressive". */
-  supraLinking?: "safe" | "moderate" | "aggressive";
   /** The quotation's context, the Python app's proposition_mode: the passage since the note before ("passage", the
    *  default) or the sentence the note's marker ends or stands in. */
   quoteContext?: QuoteContext;
@@ -78,7 +74,6 @@ function footnoteFilter(text = "") {
 
 type Part = { start: number; end: number; text: string; anchors: string[] };
 type Citation = { index: number; form: string; key?: string; span: { start: number; end: number }; fields?: { page?: string } };
-type Resolution = { index: number; antecedent?: number | null; sourcePart?: number | null; targetPart?: number | null };
 type Fields = QuoteCitationUnit["parts"][number]["fields"];
 const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, JSON.stringify(request)) as T;
 const usableLink = (link: string) => /^https?:\/\/[^/\s]/iu.test((link ?? "").trim());
@@ -98,13 +93,12 @@ export type AlrModel = {
     signal?: AbortSignal): Promise<Array<AlrCandidate | null>>;
 };
 
-/** One row per part of every note, as the note splitter gives them: prose, books, reports and web pages
- *  as well as citations, so any of them can be what an ibid or supra names. The engine reads the whole
- *  article in its splitting mode, each note anchored where its marker stands, and says for each reference
- *  the part it names directly and the part its chain ends at; a reference's link is that origin's,
- *  reanchored to the reference's own pinpoint. With a `model` (an AI run mode), the notes it reads take its
- *  parts and fields, each placed on the note's text, references keep the engine's resolution, and a supra the
- *  engine leaves unresolved takes the earlier part the model names. */
+/** One row per part of every note, as the note splitter gives them at the draft's tier: prose, books, reports and web
+ *  pages as well as citations. A reference stands for the authority its import resolved it to (the association
+ *  Sources and the quotation check read, and a user's relinking changes): its origin is the part that last cites that
+ *  authority in full before it, and its link is that origin's, reanchored to the reference's own pinpoint. With a
+ *  `model` (an AI run mode), the notes it reads take its parts and fields, each placed on the note's text, and a supra
+ *  the import left unresolved takes the earlier part the model names. */
 export async function alrRows(draft: AuthoritiesDraft, check: Check, options: AlrWorkbookOptions = {},
   model?: AlrModel, signal?: AbortSignal, attached: ReadonlyMap<string, NativeDocument> = new Map()): Promise<Row[]> {
   const units = [...draft.units].sort((a, b) => a.ordinal - b.ordinal);
@@ -126,10 +120,8 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     number: note.noteNumber === null ? UNNUMBERED : note.noteNumber ?? note.footnoteId!,
     sequence: note.noteNumber === null ? UNNUMBERED : note.restartSequence ?? 0,
     ...(anchors.has(note.footnoteId!) ? { anchor: anchors.get(note.footnoteId!) } : {}) }));
-  // How far the cited works run (Beaver's works pack), so a pinpoint past a work's end refuses the link.
-  registerWorkExtents(structureNative());
-  const extracted = engine<{ citations: Citation[]; sourceParts: Part[]; resolutions?: Resolution[] }>("extract", {
-    text, offsetUnit: "utf16", options: { resolve: true, splitTier: options.supraLinking ?? "safe", notes } });
+  const extracted = engine<{ citations: Citation[]; sourceParts: Part[] }>("extract", {
+    text, offsetUnit: "utf16", options: { resolve: false, splitTier: draft.settings.supraLinking ?? "safe", notes } });
   const engineParts = extracted.sourceParts.map((part, source) => {
     const range = ranges.find(({ start, end }) => start <= part.start && part.end <= end);
     return { ...part, range: range!, local: part.start - (range?.start ?? 0), raw: part, source };
@@ -159,23 +151,32 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   const links = rows.map((row, index) => "at" in row ? engineLinks[row.at]
     : kinds[index].kind ? "" : partLink(draft, row, fields[index]));
   const partAt = (offset: number) => parts.findIndex((part) => part.start <= offset && offset < part.end);
-  // An engine part's row: the row that holds its start.
-  const rowOf = (source: number) => source < extracted.sourceParts.length ? partAt(extracted.sourceParts[source].start) : -1;
-  const byIndex = new Map(extracted.citations.map((citation) => [citation.index, citation]));
-  const resolutionOf = new Map((extracted.resolutions ?? []).map((resolution) => [resolution.index, resolution]));
-  // Each reference part's resolution, as the engine gives it for the reference the part holds.
-  const resolved = parts.map((part) => extracted.citations.filter((citation) => citation.form !== "full" &&
-    part.start <= citation.span.start && citation.span.end <= part.end)
-    .map((citation) => resolutionOf.get(citation.index)).find((resolution) =>
-      resolution && (resolution.sourcePart != null || resolution.antecedent != null)));
-  const origin = resolved.map((resolution) => {
-    if (!resolution) return -1;
-    if (resolution.sourcePart != null) return rowOf(resolution.sourcePart);
-    const antecedent = byIndex.get(resolution.antecedent!);
-    return antecedent ? partAt(antecedent.span.start) : -1;
+  // The draft's citations where they stand in the article.
+  const unitStart = new Map(placed.map(({ unit, start }) => [unit.id, start]));
+  const at = (item: AuthorityOccurrence) => unitStart.get(item.unitId)! + item.start;
+  const occurrences = Object.values(draft.occurrences).filter((item) => unitStart.has(item.unitId))
+    .sort((a, b) => at(a) - at(b));
+  // Each part's reference: the first it holds that stands for an authority.
+  const reference = parts.map((part) => occurrences.find((item) => item.kind === "reference" && item.authorityId
+    && part.start <= at(item) && at(item) < part.end));
+  // The part holding a citation the import stored for a reference, where it still cites the reference's authority.
+  const stored = (item: AuthorityOccurrence | undefined, id: string | undefined) => {
+    const cites = id ? draft.occurrences[id] : undefined;
+    return cites && cites.authorityId === item!.authorityId && unitStart.has(cites.unitId) ? partAt(at(cites)) : -1;
+  };
+  // A reference's origin, the part its import's resolution ends at; for one the user linked, the part that last cites
+  // its authority in full before it (else first does).
+  const origin = reference.map((item) => {
+    if (!item) return -1;
+    const resolved = stored(item, item.reference?.originId);
+    if (resolved >= 0) return resolved;
+    const full = occurrences.filter((other) => other.authorityId === item.authorityId && other.kind !== "reference");
+    const cites = full.filter((other) => at(other) < at(item)).at(-1) ?? full[0];
+    return cites ? partAt(at(cites)) : -1;
   });
-  const target = resolved.map((resolution, index) => {
-    const row = resolution?.targetPart != null ? rowOf(resolution.targetPart) : -1;
+  // The part a reference names directly, else its origin.
+  const target = reference.map((item, index) => {
+    const row = item ? stored(item, item.reference?.namedId) : -1;
     return row >= 0 ? row : origin[index];
   });
   // The link an editor gave the part's citation, or one carried to it from another citation of the same authority
@@ -197,9 +198,9 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   const reanchor = (link: string, text: string) => engine<string>("reanchorReference", { link, text });
   // A part's paragraph and section pinpoints.
   const pinpointed = (index: number) => fields[index].pinpoint_fragments.filter((fragment) => /^(?:par|sec)/u.test(fragment));
-  // A reference's link is the link of the part the engine resolves it to, at the reference's own pinpoint; an ibid
-  // without one takes the link of the reference it names directly where that opens the same page, keeping its anchor.
-  // A reference the engine leaves unresolved has none. The author's and an editor's own links stay as written.
+  // A reference's link is its origin's link, at the reference's own pinpoint; an ibid without one takes the link of
+  // the reference it names directly where that opens the same page, keeping its anchor. A reference the import left
+  // unresolved has none. The author's and an editor's own links stay as written.
   const linked = new Map<number, string>();
   const linkOf = (index: number, depth = 0): string => {
     if (!linked.has(index)) {
@@ -221,7 +222,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   const pinpointedAt = (index: number, depth = 0): number => pinpointed(index).length || !kinds[index].kind
     || origin[index] < 0 || origin[index] === index || depth >= 50 ? index : pinpointedAt(linkedFrom(index), depth + 1);
   if (model) {
-    // A supra the engine left unresolved: the model chooses among the earlier notes' parts, as resolved so far.
+    // A supra the import left unresolved: the model chooses among the earlier notes' parts, as resolved so far.
     const open = parts.flatMap((_, index) => kinds[index].kind === "supra" && origin[index] < 0 ? [index] : []);
     const offered = open.map((index) => parts.slice(0, parts.findIndex((part) => part.range === parts[index].range))
       .flatMap((part, at) => kinds[at].kind && origin[at] < 0 ? [] : [{ at, candidate: { note: String(part.range.note.noteNumber
@@ -249,9 +250,12 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     }
   }
   // The source a part cites, read where its link names a paragraph or provision or it pinpoints one (a reference
-  // reads its origin's): the passage gives the link its text fragment, and the row its anchor text.
+  // reads the authority it stands for): the passage gives the link its text fragment, and the row its anchor text.
   const cited = (index: number, depth = 0): { kind: string; citation: string } | null => {
-    if (kinds[index].kind) return origin[index] >= 0 && origin[index] !== index && depth < 50 ? cited(origin[index], depth + 1) : null;
+    // A reference reads the authority it stands for; one a model chose for, its origin's.
+    const stands = reference[index]?.authorityId ? draft.authorities[reference[index]!.authorityId!] : undefined;
+    if (kinds[index].kind) return stands ?? (origin[index] >= 0 && origin[index] !== index && depth < 50
+      ? cited(origin[index], depth + 1) : null);
     const authority = partAuthority(draft, parts[index]), field = fields[index];
     if (authority) return authority;
     const kind = field.kind === "case" ? "case" : ["statute", "regulation", "gazette"].includes(field.kind) ? "legislation" : "";

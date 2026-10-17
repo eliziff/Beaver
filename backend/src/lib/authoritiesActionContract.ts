@@ -75,6 +75,7 @@ export const AUTHORITIES_SETTINGS_CHOICES = {
   bookRole: AUTHORITIES_BOOK_ROLES,
   subsequentHistory: ["omit", "include"],
   caseCopy: ["whole", "excerpt"],
+  supraLinking: ["safe", "moderate", "aggressive"],
 } as const;
 
 export function decodeAuthoritiesInitialSettings(value: unknown): AuthoritiesInitialSettings {
