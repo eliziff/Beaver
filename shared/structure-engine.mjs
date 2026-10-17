@@ -76,13 +76,6 @@ class EngineError extends Error {}
 /** An opaque engine document, released when JavaScript no longer references it. */
 class NativeDocumentHandle { constructor(handle, generation) { this.handle = handle; this.generation = generation; } }
 
-/** Readies an engine before its first real call: the citation engine builds its grammars and tables on first use.
- *  `partly` builds only those one short citation reaches, for an engine that seldom reads citations. */
-export const warmStructureAddon = (addon, { partly = false } = {}) => partly
-  ? addon.citationEngineCall("extract", JSON.stringify({ text: "R v Oakes, [1986] 1 SCR 103", offsetUnit: "utf16",
-    options: { resolve: false } }))
-  : addon.citationEngineCall("warm", "{}");
-
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 /** `[u32 json length][json {op, args}][bytes]` */
 function engineRequest(op, args, bytes) {
@@ -220,5 +213,8 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
   for (const name of Object.keys(SIGNATURES)) addon[name] = ASYNC.has(name)
     ? (...positional) => invokeAsync(name, positional)
     : (...positional) => invoke(name, positional);
+  // Where the host has threads, the citation engine builds its grammars and tables off this one as the engine starts,
+  // so the first document read waits for none; without them each is built on first use.
+  if (transport.callAsync) void invokeOff("citationEngineCall", ["warm", "{}"]).catch(() => {});
   return addon;
 }
