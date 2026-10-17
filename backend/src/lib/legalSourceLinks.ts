@@ -532,8 +532,11 @@ export function canliiPinpointLink(rawUrl: string, pinpoints: readonly string[])
   return anchor ? sourceUrl(rawUrl, anchor) ?? rawUrl : rawUrl;
 }
 
-/** Add complete source-anchored text fragments beside the existing paragraph or provision anchor. */
-export function citedPassageLink(rawUrl: string, document: NativeDocument | null | undefined) {
+/** Add complete source-anchored text fragments beside the existing paragraph or provision anchor. A provision link
+ *  paints the part of the provision its citation pinpoints ("sec16(3)", "sec445(1)(a)") where the document has it,
+ *  else the provision's opening block. */
+export function citedPassageLink(rawUrl: string, document: NativeDocument | null | undefined,
+  pinpoints: readonly string[] = []) {
   const url = sourceUrl(rawUrl);
   if (!url) return null;
   const anchor = new URL(url, "http://mike.local").hash.slice(1);
@@ -543,11 +546,17 @@ export function citedPassageLink(rawUrl: string, document: NativeDocument | null
   const engine = structureNative();
   if (!document) return url;
   const label = paragraph ?? `${number}${subsection ? `(${subsection})` : ""}`;
-  // Provision links retain their opening-block target; paragraph links include
-  // every exact member of the resolved paragraph.
-  const plan = engine.documentRangeFragmentPlan(document, paragraph ? "paragraph" : "section",
-    label, label, isPdfSourceUrl(url), publisherMayAnnotateLegalReference(url), !paragraph);
-  return plan?.sourceSafeComplete && plan.directives.length ? appendDirectives(url, plan.directives) : url;
+  // Provision links target the opening block of the provision or pinpointed part; paragraph links include every exact
+  // member of the resolved paragraph.
+  const plan = (target: string) => {
+    const found = engine.documentRangeFragmentPlan(document, paragraph ? "paragraph" : "section",
+      target, target, isPdfSourceUrl(url), publisherMayAnnotateLegalReference(url), !paragraph);
+    return found?.sourceSafeComplete && found.directives.length ? found : null;
+  };
+  const part = paragraph ? undefined : pinpoints.map((value) => /^sec(.+)$/u.exec(value)?.[1])
+    .find((value) => value?.startsWith(`${label}(`));
+  const planned = (part && plan(part)) || plan(label);
+  return planned ? appendDirectives(url, planned.directives) : url;
 }
 
 function isCanadianDecisionUrl(url: URL) {
