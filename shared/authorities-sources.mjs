@@ -1,5 +1,4 @@
 import profiles from "./authorities-profiles.json" with { type: "json" };
-import { isCanliiUrl } from "./runtime/canliiPageUrls.mjs";
 
 /** The courts whose preset, not the user, says what a filed book does with a missing PDF. */
 const COURT_SOURCE_POLICY = new Set(profiles.filter((profile) =>
@@ -80,10 +79,15 @@ export function statuteExcerpt(authority, pageCounts = attachedAuthoritySources(
     : Math.max(...pageCounts) > STATUTE_EXCERPT_PAGES);
 }
 
-/** A decision whose reasons a free public database holds (A2AJ's, CanLII's): its address there, or null. */
+/** A decision whose reasons a free public database holds (A2AJ's, CanLII's on any host of canlii.ca or
+ *  canlii.org): its address there, or null. */
 export function freeDatabaseCase(authority) {
   const value = authority.kind === "case" ? authoritySourceUrl(authority) : null;
-  return value && /^https?:\/\//iu.test(value) && (authority.sourceIdentity?.provider === "a2aj" || isCanliiUrl(value)) ? value : null;
+  let url;
+  try { url = new URL(value ?? ""); } catch { return null; }
+  const host = url.hostname.toLowerCase().replace(/\.+$/u, "");
+  return ["http:", "https:"].includes(url.protocol) && (authority.sourceIdentity?.provider === "a2aj" ||
+    ["canlii.ca", "canlii.org"].some((domain) => host === domain || host.endsWith(`.${domain}`))) ? value : null;
 }
 /** Whether a case or another source goes in the book as an excerpt: as chosen for it, else as the book's
  *  `caseCopy` says, or as the court's extract. A statute goes as `statuteExcerpt` says. */

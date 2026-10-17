@@ -66,7 +66,7 @@ function ExcerptSample({ excerpt }: { excerpt: boolean }) {
         excerpt && ![0, 3, 4].includes(index) && "opacity-25")}>
         {!index && <span className="mx-auto mb-[5%] h-[4%] w-3/4 shrink-0 rounded-sm bg-gray-700" />}
         {Array.from({ length: index ? 9 : 7 }, (_, line) => <span key={line} className="h-[3%] shrink-0 rounded-sm bg-gray-300"
-          style={index === 4 && line >= 2 && line <= 4 ? { background: YELLOW } : undefined} />)}
+          style={index === 4 && line >= 2 && line <= 4 ? { boxShadow: `0 0 0 0.25rem ${YELLOW}` } : undefined} />)}
       </div>
       <span className="text-xs tabular-nums text-gray-600">{index + 1}</span>
     </div>)}
