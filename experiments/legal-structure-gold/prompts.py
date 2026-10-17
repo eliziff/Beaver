@@ -25,7 +25,7 @@ page_label: a printed page number
 When a line starts with a printed marker (number, letter, symbol or bullet), put a tab right after it; if a second marker follows, as in "12 (1)", put a tab after it too.
 Mark each note reference in the text as [^N] with its printed marker.
 
-Also give, per page: starts, the numbers (from 1) of the lines that begin a new paragraph, heading, list item, note, table row or other unit; continues, true if the page's running text opens by continuing a unit from the page before; and documents, the numbers of the lines that begin a separate document in the file, such as an exhibit or schedule."""
+Also give, per page: starts, the numbers (from 1) of the lines that begin a new paragraph, heading, list item, note, table row or other unit; and continues, true if the page's running text opens by continuing a unit from the page before."""
 
 _LINE = {"type": "array", "minItems": 2, "maxItems": 2,
          "prefixItems": [{"type": "string", "enum": list(REGIONS)}, {"type": "string"}],
@@ -34,9 +34,9 @@ _LINE = {"type": "array", "minItems": 2, "maxItems": 2,
 _NUMBERS = {"type": "array", "items": {"type": "integer", "minimum": 1}}
 LINES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["pages"], "properties": {
     "pages": {"type": "array", "items": {"type": "object", "additionalProperties": False,
-                                         "required": ["lines", "starts", "continues", "documents"],
+                                         "required": ["lines", "starts", "continues"],
                                          "properties": {"lines": {"type": "array", "items": _LINE}, "starts": _NUMBERS,
-                                                        "continues": {"type": "boolean"}, "documents": _NUMBERS}}}}}
+                                                        "continues": {"type": "boolean"}}}}}}
 
 NOTES = """Pair every note reference on the TARGET pages with its note. A note reference is a printed marker in the running text (a superscript number, letter or symbol, or one in brackets) that points to a footnote or endnote. A star page, a page number, or a number belonging to a citation or list is not one.
 
@@ -48,9 +48,12 @@ NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["p
     "prefixItems": [{"type": "integer"}, {"type": "integer"}, {"type": "string"}, {"type": "integer"}, {"type": "integer"}],
     "items": {"type": ["integer", "string"]}}}}}
 
-HIERARCHY = """For each row give the number of the row it falls under (its heading, provision, paragraph or list item), or 0 if it is top level. Rows are in reading order; the page images show their layout."""
-HIERARCHY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["parents"],
-                    "properties": {"parents": {"type": "array", "items": {"type": "integer", "minimum": 0}}}}
+HIERARCHY = """For each row give the number of the row it falls under (its heading, provision, paragraph or list item), or 0 if it is top level. Rows are in reading order; the page images show their layout.
+
+If the file holds more than one document, such as a judgment with exhibits or a book of several articles, also give starts, the numbers of the rows that begin a document, and ends, the numbers of the rows that end one; otherwise give them empty."""
+HIERARCHY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["parents", "starts", "ends"],
+                    "properties": {"parents": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+                                   "starts": _NUMBERS, "ends": _NUMBERS}}
 
 
 def lines_prompt(lines, targets, before=None):
@@ -74,5 +77,6 @@ def notes_prompt(numbered, notes, targets):
 
 def hierarchy_prompt(rows, shown, pages):
     """rows: [(page, region, text)]; shown: the row indexes in this call; pages: the imaged pages."""
+    more = "\n(More rows follow on later pages.)" if shown[-1] + 1 < len(rows) else ""
     return (HIERARCHY + "\nImages in order: " + ", ".join(f"page {p}" for p in pages) + ".\n\nROWS\n"
-            + "\n".join(f"{n + 1} | p{rows[n][0]} | {rows[n][1]} | {rows[n][2]}" for n in shown))
+            + "\n".join(f"{n + 1} | p{rows[n][0]} | {rows[n][1]} | {rows[n][2]}" for n in shown) + more)
