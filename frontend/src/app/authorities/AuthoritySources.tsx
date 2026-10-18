@@ -25,9 +25,10 @@ const control = "h-8 shrink-0 border-gray-300 px-2.5 text-[0.8125rem]";
 export const rowControl = "inline-flex h-8 w-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-1 text-[0.8125rem] font-medium text-gray-700 outline-none hover:bg-gray-50 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-accent-600 disabled:pointer-events-none disabled:text-gray-400 [&_svg]:size-3.5 [&_svg]:shrink-0 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2";
 export const rowLabel = "hidden @min-[44rem]/sources:inline";
 type LookupFailure = NonNullable<AuthorityIdentity["sourceLookupFailure"]>;
-const lookupReason = ({ reason, detail }: LookupFailure) => ({
-  "rate-limited": "A2AJ is limiting requests", timeout: "A2AJ took too long to answer", unreachable: "A2AJ couldn't be reached",
-  error: "A2AJ answered with an error", defect: `Authorities failed with an error of its own (${detail ?? "no message"})`,
+const lookupReason = ({ reason, detail, provider = "A2AJ" }: LookupFailure) => ({
+  "rate-limited": `${provider} is limiting requests`, timeout: `${provider} took too long to answer`,
+  unreachable: `${provider} couldn't be reached`, error: `${provider} answered with an error`,
+  defect: `Authorities failed with an error of its own (${detail ?? "no message"})`,
 })[reason];
 /** Why the publisher's original is not there, when its download did not bring it. */
 const publisherReason = ({ sourceDownloadFailure }: AuthorityIdentity) => sourceDownloadFailure === "refused"

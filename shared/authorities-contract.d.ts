@@ -141,6 +141,8 @@ export type AuthoritySourceLookupFailure = {
   retryAfter: string | null;
   /** A defect's own message. */
   detail?: string;
+  /** The service that could not answer, by name ("CourtListener"); A2AJ where none is given. */
+  provider?: string;
 };
 
 export type AuthorityCitedCase = {

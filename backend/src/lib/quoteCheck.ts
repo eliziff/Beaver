@@ -98,7 +98,8 @@ export type QuoteLocation = NativeQuoteLocation;
  *  differences or not at all ("mismatch"), where, and what differs; or "no-source" where no source text could be
  *  obtained for its citation, as the Python app's "No source text found for this citation.": none is held on this
  *  computer, published by a provider the app asks, or attached, or the quotation is followed by no citation. A
- *  provider that fails to answer fails the check; it is never a result. */
+ *  provider that fails to answer leaves its source's quotations "no-source", its error in the detail: the rest of
+ *  the check goes on. */
 export type QuoteCheck = { candidateId: string | null; status: "verified" | "mismatch" | "no-source";
   detail: string;
   receipt: null | { source: LegalSourceReference; sourceSha256: string; passageSha256: string;
@@ -115,11 +116,12 @@ const memo = <T, K>(cache: Map<K, T>, key: K, load: () => T) => {
   return cache.get(key)!;
 };
 
-export type CitedSource = { missing: true }
+export type CitedSource = { missing: true; detail?: string }
   | { missing?: undefined; source: LegalSourceReference; document: NativeDocument };
 /** The whole source a citation names, as its provider has it (A2AJ for a Canadian decision or statute, the
  *  journals database for an article), each resolved and read once; `missing` where no provider the app asks holds
- *  one source for it. An article is found by the title its citation part carries. A provider's failure is thrown. */
+ *  one source for it. An article is found by the title its citation part carries. A provider that cannot answer
+ *  leaves this source missing, its error the detail (the Python app's no-source state), never the whole check. */
 export function citedSourceReader(sources = legalSourceOperations, signal?: AbortSignal) {
   const resolutions = new Map<string, ReturnType<typeof sources.resolve>>();
   const documents = new Map<string, ReturnType<typeof sources.readPassage>>();
@@ -127,11 +129,17 @@ export function citedSourceReader(sources = legalSourceOperations, signal?: Abor
     const kind = authority.kind === "commentary" ? "journal" : authority.kind;
     const text = (kind === "journal" && part ? part : authority.citation).trim();
     if ((kind !== "case" && kind !== "legislation" && kind !== "journal") || !text) return { missing: true };
-    const resolved = await memo(resolutions, JSON.stringify([kind, text]), () => sources.resolve({ text, kind, signal }));
-    if (resolved.status !== "found") return { missing: true };
-    const read = await memo(documents, JSON.stringify(resolved.value), () => sources.readPassage({ source: resolved.value, signal }));
-    const document = read.status === "found" ? read.values[0]?.documentArtifact : undefined;
-    return document ? { source: resolved.value, document } : { missing: true };
+    try {
+      const resolved = await memo(resolutions, JSON.stringify([kind, text]), () => sources.resolve({ text, kind, signal }));
+      if (resolved.status !== "found") return { missing: true };
+      const read = await memo(documents, JSON.stringify(resolved.value), () => sources.readPassage({ source: resolved.value, signal }));
+      const document = read.status === "found" ? read.values[0]?.documentArtifact : undefined;
+      return document ? { source: resolved.value, document } : { missing: true };
+    } catch (error) {
+      signal?.throwIfAborted();
+      return { missing: true, detail: `No source text: the source could not be looked up (${
+        (error instanceof Error ? error.message : String(error)).replace(/[.\s]+$/u, "")}).` };
+    }
   };
 }
 
@@ -173,7 +181,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     const part = origin ? citationUnits[draft.units.findIndex(({ id }) => id === origin.unitId)]?.parts.find((item) =>
       origin.start >= item.start && origin.start < item.end)?.text ?? "" : candidate?.text ?? "";
     const found = await sourceFor(occurrence?.authorityId ?? null, authority, part);
-    if (found.missing) return { candidateId, status: "no-source", receipt: null, detail: NO_SOURCE_TEXT };
+    if (found.missing) return { candidateId, status: "no-source", receipt: null, detail: found.detail ?? NO_SOURCE_TEXT };
     return { row, candidateId, pinpoints: occurrence?.pinpoints ?? candidate?.pinpoints ?? [], source: found.source,
       document: found.document };
   }
