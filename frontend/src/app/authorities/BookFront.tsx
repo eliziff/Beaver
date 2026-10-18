@@ -167,8 +167,7 @@ export function IndexFields({ settings, disabled, onChange, own = false }: {
   const tabPages = settings.tabPages ?? true;
   const rightHand = settings.rightHandStarts ?? true;
   // The Federal Court's index links each authority from a source column of its own.
-  const links = settings.indexLinks ?? false, federal = !!authoritiesProfile(settings.profileId).requirements?.federalFormatting;
-  return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
+  const links = settings.indexLinks ?? false, federal = !!authoritiesProfile(settings.profileId).requirements?.federalFormatting;  return <fieldset className="grid min-w-0 gap-3" disabled={disabled}>
     <legend className="sr-only">Index</legend>
     {!own && <OptionCards legend="Beside each authority" value={settings.indexShows ?? "tabs"}
       columns disabled={disabled} options={[{ value: "tabs", label: "Its tab", detail: "The index gives each authority's tab." },
@@ -176,7 +175,7 @@ export function IndexFields({ settings, disabled, onChange, own = false }: {
       onChange={(indexShows) => onChange({ indexShows })} />}
     {!own && !federal && <OptionCard type="checkbox" checked={links} onChange={() => onChange({ indexLinks: !links })}
       label="Link each citation to the authority online"
-      detail="Makes each citation in the index a link to the authority's web address; its tab number still opens its tab. Note: Requires a web address for the authority." />}
+      detail="Makes each citation in the index a link to the authority's web address; its tab number still opens its tab." />}
     <OptionCards legend="Bookmarks under each tab" value={settings.bookmarks ?? "highlights"} columns disabled={disabled}
       options={[{ value: "highlights", label: "Highlighted passages", detail: "Each tab's bookmarks go to the passages highlighted in it." },
         { value: "headings", label: "The source's own headings", detail: "Each tab's bookmarks follow the headings of the source itself." }]}
