@@ -74,7 +74,7 @@ export function createAuthoritiesRuntimeRouter(authenticate: RequestHandler,
         ? error.message : "Checking stopped. Completed receipts are available to download." })}\n\n`);
     } finally { res.end(); }
   }));
-  const uploads = new Set<AuthoritiesOperation>(["source-text", "source-read", "excerpt", "page-labels",
+  const uploads = new Set<AuthoritiesOperation>(["source-text", "source-read", "excerpt", "excerpt-pages", "page-labels",
     "annotations", "import", "refresh", "discrepancies/actions", "pdf"]);
   const streamed = new Set<AuthoritiesOperation>(["source-text", "source-read", "sources", "build"]);
   for (const operation of Object.keys(operations) as AuthoritiesOperation[]) {

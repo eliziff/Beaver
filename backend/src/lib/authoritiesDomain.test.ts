@@ -138,8 +138,8 @@ describe("authorities draft domain", () => {
     expect(decodeAuthoritiesDraft(structuredClone(draft))?.authorities.act.excerpt).toBe(true);
     draft = reduceAuthoritiesDraft(draft, { type: "set-authority-excerpt", authorityId: "act", excerpt: false });
     expect(statuteExcerpt(draft.authorities.act, [800])).toBe(false);
-    expect(() => reduceAuthoritiesDraft(draft, { type: "set-authority-excerpt", authorityId: "case", excerpt: true }))
-      .toThrow(AuthoritiesDomainError);
+    expect(reduceAuthoritiesDraft(draft, { type: "set-authority-excerpt", authorityId: "case", excerpt: true })
+      .authorities.case.excerpt).toBe(true);
     expect(decodeAuthoritiesDraft({ ...structuredClone(draft), authorities: { ...draft.authorities,
       act: { ...draft.authorities.act, excerpt: "yes" } } })).toBeNull();
   });

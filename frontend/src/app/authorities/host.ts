@@ -76,6 +76,9 @@ export interface AuthoritiesHost {
     /** Reads `file` as the store, or stops reading it (null); `localOnly` keeps A2AJ lookups on this computer. */
     mount(store: AuthoritiesLocalStore, file: File | AuthoritiesServedFile | null, options?: { localOnly?: boolean }): Promise<void>;
   };
+  /** The pages a build keeps of each authority the book excerpts, by authority: null where nothing it cites is
+   *  placed in its PDF, so it goes in whole. */
+  excerptPages?(product: AuthoritiesProduct): Promise<Record<string, number | null>>;
   /** The book's cover and first index page, as a PDF, with `actions` applied to the draft first. */
   bookFront?(product: AuthoritiesProduct, actions: AuthoritiesAction[], signal?: AbortSignal): Promise<Blob>;
   build(product: AuthoritiesProduct, progress?: (message: string) => void,
