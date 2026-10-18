@@ -293,11 +293,33 @@ fn find(connection: &Connection, lookup: &Lookup) -> CoreResult<Option<i64>> {
         values.extend([url.to_owned(), url.to_owned()]);
     }
     let mut statement = connection.prepare_cached(&format!(
-        "SELECT document.id FROM document WHERE {} ORDER BY document.id LIMIT 2", filters.join(" AND ")))
-        .map_err(sql)?;
-    let ids = statement.query_map(rusqlite::params_from_iter(values.iter()), |row| row.get::<_, i64>(0))
-        .map_err(sql)?.collect::<Result<Vec<_>, _>>().map_err(sql)?;
-    Ok((ids.len() == 1).then(|| ids[0]))
+        "SELECT document.id, document.name_en, document.name_fr, document.citation_en, document.citation2_en,
+         document.citation_fr, document.citation2_fr FROM document WHERE {} ORDER BY document.id LIMIT 16",
+        filters.join(" AND "))).map_err(sql)?;
+    let rows = statement.query_map(rusqlite::params_from_iter(values.iter()), |row| {
+        let text = |at: usize| row.get_ref(at).map(cell);
+        Ok((row.get::<_, i64>(0)?, [text(1)?, text(2)?], [text(3)?, text(4)?, text(5)?, text(6)?]))
+    }).map_err(sql)?.collect::<Result<Vec<_>, _>>().map_err(sql)?;
+    if rows.len() == 1 {
+        return Ok(Some(rows[0].0));
+    }
+    // Several documents under one key ("RSC 1985, c 1" is a statute and its supplements' chapters 1): the one whose
+    // own citation the citation is ("RSC 1985, c 1 (2nd Supp)"), else the one whose name it writes ("Customs Act,
+    // RSC 1985, c 1").
+    let written = folded(citation);
+    let only = |chosen: Vec<i64>| (chosen.len() == 1).then(|| chosen[0]);
+    let cited = rows.iter().filter(|(_, _, citations)| citations.iter().flatten().any(|own| folded(own) == written))
+        .map(|(id, _, _)| *id).collect::<Vec<_>>();
+    let named = rows.iter().filter(|(_, names, _)| names.iter().flatten()
+        .any(|name| folded(name).len() > 3 && written.contains(&folded(name)))).map(|(id, _, _)| *id).collect::<Vec<_>>();
+    Ok(only(cited).or_else(|| only(named)))
+}
+
+/// Lowercase words, each set apart by one space: a name compared as written in a citation.
+fn folded(value: &str) -> String {
+    let words = value.split(|character: char| !character.is_alphanumeric()).filter(|word| !word.is_empty())
+        .map(str::to_lowercase).collect::<Vec<_>>();
+    format!(" {} ", words.join(" "))
 }
 
 /// A document the store holds under a citation, derived once while JavaScript holds it.
