@@ -132,6 +132,10 @@ struct Record {
     counts: BTreeMap<String, usize>,
     /// A hash of every node as `kind label start-end parent` and every note as `note label body > references`.
     nodes: String,
+    /// What `nodes` hashes, written beside the census (`<label>.nodes.jsonl`) so two readings compare
+    /// node by node without reading the documents again.
+    #[serde(skip)]
+    listing: String,
 }
 
 /// Byte offsets of each UTF-16 unit, so the structure's offsets slice the text.
@@ -209,6 +213,36 @@ fn case_counts(structure: &DocumentStructure, counts: &mut BTreeMap<String, usiz
             .filter(|line| bracketed(line).is_some() || line.starts_with("Footnote ")).count();
         if notes > 0 { counts.insert("witness_tail_note_lines".to_owned(), notes); }
     }
+    // The count read short or not at all: lines after the last numbered paragraph opening with its next
+    // numbers, and, where no paragraph is numbered, a count from 1 of five or more among line openings.
+    let numbers = structure.nodes.iter().filter_map(|node| node.label.as_deref()?.strip_prefix("par")?.parse::<u32>().ok());
+    match (numbers.max(), paragraphs.last()) {
+        (Some(last), Some(&(_, end))) => {
+            // Up to the note list, whose numbers run past the paragraphs' as often as not.
+            let continuing = units.slice(end, length).lines()
+                .take_while(|line| { let line = line.trim(); bracketed(line) != Some(1) && line != "Footnote 1" && line != "Footnotes" })
+                .filter(|line| opening_number(line).is_some_and(|number| number > last && number <= last + 400)).count();
+            if continuing > 0 { counts.insert("witness_count_continues".to_owned(), continuing); }
+        }
+        _ => {
+            // A note list (bracketed, most of it in the last quarter) is no missed count.
+            let text = units.slice(0, length);
+            let (mut run, mut bracketed_run, mut tail) = (0u32, 0usize, 0usize);
+            let mut at = 0;
+            for line in text.split_inclusive('\n') {
+                if let Some(number) = opening_number(line) {
+                    if number == run + 1 {
+                        run = number;
+                        if bracketed(line.trim_start()).is_some() { bracketed_run += 1; }
+                        if at * 4 > text.len() * 3 { tail += 1; }
+                    }
+                }
+                at += line.len();
+            }
+            let note_list = bracketed_run == run as usize && tail * 10 >= run as usize * 7;
+            if run >= 5 && !note_list { counts.insert("witness_unnumbered_count".to_owned(), run as usize); }
+        }
+    }
     // A note call is a bracketed number run into the word or punctuation before it ("appeal.[1] The").
     let bytes = structure.text.as_bytes();
     let calls = structure.text.match_indices('[').filter(|(at, _)| {
@@ -216,6 +250,20 @@ fn case_counts(structure: &DocumentStructure, counts: &mut BTreeMap<String, usiz
             && bracketed(&structure.text[*at..]).is_some_and(|number| number < 1000)
     }).count();
     if calls > 0 { counts.insert("witness_glued_calls".to_owned(), calls); }
+}
+
+/// The paragraph number a line opens with, in any form a provider prints one: "[12] …", "(12) …", "12. …"
+/// or "12 The …".
+fn opening_number(line: &str) -> Option<u32> {
+    let line = line.trim_start();
+    if let Some(number) = bracketed(line) {
+        return Some(number);
+    }
+    let (inner, wrapped) = match line.strip_prefix('(') { Some(rest) => (rest, true), None => (line, false) };
+    let digits = inner.bytes().take(4).take_while(u8::is_ascii_digit).count();
+    let rest = &inner[digits..];
+    let opens = if wrapped { rest.starts_with(") ") } else { rest.starts_with(". ") || rest.starts_with(' ') && rest[1..].starts_with(char::is_uppercase) };
+    (digits > 0 && opens).then(|| inner[..digits].parse().ok()).flatten()
 }
 
 /// The number a text opens with in brackets: "[12] …" is 12.
@@ -280,6 +328,7 @@ fn census(job: Job) -> Record {
     let mut digest = DefaultHasher::new();
     digest.write(nodes.as_bytes());
     record.nodes = format!("{:016x}", digest.finish());
+    record.listing = nodes;
     record
 }
 
@@ -384,10 +433,13 @@ fn run(options: &Options) -> Result<()> {
         }
         drop(send_records);
         let mut writer = BufWriter::new(File::create(&path)?);
+        let mut listings = BufWriter::new(File::create(out.join(format!("{label}.nodes.jsonl")))?);
         for record in receive_records {
             summary.add(&record);
             serde_json::to_writer(&mut writer, &record)?;
             writer.write_all(b"\n")?;
+            serde_json::to_writer(&mut listings, &serde_json::json!({ "key": record.key, "nodes": record.listing }))?;
+            listings.write_all(b"\n")?;
             if summary.records % 20_000 == 0 {
                 eprintln!("{} documents, {:.0} s", summary.records, started.elapsed().as_secs_f64());
             }
