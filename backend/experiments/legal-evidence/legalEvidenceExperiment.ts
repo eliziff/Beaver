@@ -5,7 +5,7 @@ import {
   type A2AJDocument,
 } from "../../src/lib/legalSources/a2aj";
 import {
-  buildA2AJDocumentPinpointUrl,
+  a2ajDocumentLinks,
   buildA2AJParagraphRangeUrl,
   hasCanadianDecisionLink,
 } from "../../src/lib/legalSourceLinks";
@@ -2108,13 +2108,7 @@ export function renderLegalEvidenceAnswer(
             [document],
           )
         : document && receipt.span_text && a2ajLocator
-          ? buildA2AJDocumentPinpointUrl(
-              document,
-              a2ajLocator,
-              receipt.span_text,
-              [],
-              source,
-            )
+          ? a2ajDocumentLinks(document, a2ajLocator, receipt.span_text, []).best
           : receipt.external_url;
     const locator = paragraphRange
       ? `paras. ${Number(paragraphRange[1])}\u2013${Number(paragraphRange[2])}`
