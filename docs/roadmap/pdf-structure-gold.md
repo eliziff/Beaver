@@ -50,17 +50,20 @@ Rules for the code:
 `experiments/legal-structure-gold/author.py` makes one gold file per source
 (`legal-structure-gold.v4`) in three passes. Every pass sees the page images.
 
-1. **Lines:** the model sees each page and its extracted lines, gives every printed line with its
-   region (correcting misread text), puts a tab after each printed marker, writes note references
-   with their printed mark as `[^mark]`, and numbers the lines that start a unit; every other line
-   continues one.
-2. **Notes:** the model pairs every note reference with the line where its note begins.
+1. **Lines:** the model sees each page and its extracted lines and gives the page's units, each a
+   region and its printed lines (correcting misread text), with a tab after each printed marker
+   and note references written with their printed mark as `[^mark]`; a flag says when a page's
+   first unit continues the page before.
+2. **Notes:** the model pairs every note reference with its note's number in the document's index.
 3. **Hierarchy:** over the whole document at once (in windows only past the model's context), the
-   model gives each unit its parent and, where the file holds several documents (a judgment with
+   model gives each unit that falls under another its parent, as row pairs, and, where the file holds several documents (a judgment with
    exhibits, a book of articles), where each starts and ends.
 
 The runner aligns the typed lines to the extracted ones and records the corrections, spans,
-markers, pairs and parents. Prompts stay small: they state the task and fix broad
+markers, pairs, parents and the model's reading order, and keeps the authoring extraction (line
+and word boxes) beside the gold so OCR, layout and parser models can train from it. Its receipt
+counts recognition misses (typed lines matching no extracted line) and the engine's split and
+merged lines, for the OCR census; the gold corrects recognition, never segmentation. Prompts stay small: they state the task and fix broad
 misunderstandings, never edge cases. Model choice comes from measurement; gpt-6.1-sol at low
 effort was chosen on a 120-page probe (lines) and on the journal footnote gold (notes: every one
 of 457 gold pairs).
