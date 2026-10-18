@@ -38,11 +38,19 @@ export function createPdfViewer({ PDFViewer, EventBus }, container, element, sig
   const viewer = new PDFViewer({ container, viewer: element, eventBus,
     removePageBorders: true, // Page, canvas and selection coordinates must share the same box.
     textLayerMode: 0, annotationMode: 0, annotationEditorMode: -1,
-    maxCanvasPixels: (globalThis.devicePixelRatio || 1) > 2 ? 2_000_000 : undefined,
-    enableHWA: true, enableDetailCanvas: (globalThis.devicePixelRatio || 1) <= 2, abortSignal: signal,
+    // PDF.js's own canvas limit and detail canvas on every screen: a page past the limit renders whole at
+    // reduced size, its visible area sharp.
+    enableHWA: true, abortSignal: signal,
     // Without one, every viewer parses PDF.js's whole Fluent bundle and translates each page as it
     // is added; the page names it would give are set where the pages are made (pdf/viewer.ts).
     l10n: { translate() {}, pause() {}, resume() {} } });
+  // A stamp or signature applied as an annotation is part of the page: the canvas draws each annotation's
+  // appearance (AnnotationMode.ENABLE) while PDF.js builds no annotation layer, whose per-page work slowed
+  // drawing by a fifth. Page views exist at pagesinit, before any is drawn.
+  eventBus.on('pagesinit', () => { for (let i = 0; i < viewer.pagesCount; i++) {
+    const view = viewer.getPageView(i), context = view._getRenderingContext.bind(view);
+    view._getRenderingContext = (...args) => ({ ...context(...args), annotationMode: 1 });
+  }});
   eventBus.on('pagerendered', ({pageNumber, error}) => {
     if (!error || signal.aborted) return;
     const page = viewer.getPageView(pageNumber - 1).div;
