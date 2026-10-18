@@ -1,9 +1,10 @@
 """PDF structure gold in three passes, each with the page images.
 
-Lines: the model sees each page and its extracted lines, types every printed line with its region,
-and marks where units start and whether the page continues the one before. Notes: the model pairs every note reference with the note it belongs to. Hierarchy: the model sees the document's units, numbered, with their pages, and
-gives each its parent. The runner aligns the typed lines to the extracted ones and writes one gold
-file per source.
+Lines: the model corrects each page's extracted lines, gives every printed line its region and
+says which lines start a unit. Notes: the model pairs every note reference with its note.
+Hierarchy: the model sees the document's units, numbered, and gives each its parent and where each
+of the file's documents starts and ends. The runner aligns the typed lines to the extracted ones
+and writes one gold file per source.
 
   python experiments/legal-structure-gold/author.py --pdf FILE --mode digitalborn|ocr [--out DIR]
   python experiments/legal-structure-gold/author.py --manifest FILE [--root DIR] [--limit 0] [--shard k/n]
@@ -12,6 +13,7 @@ import argparse
 import gzip
 import json
 import os
+import struct
 import subprocess
 import sys
 import time
@@ -92,8 +94,9 @@ def author_lines(lines, pages, images, mode, job, args):
         before = [l["text"] for l in by_page.get(targets[0] - 1, [])[-2:]]
         text = prompts.lines_prompt({p: [l["text"] for l in by_page.get(p, [])] for p in targets}, targets, before)
         def valid(response):
-            gold.require(len(response["pages"]) == len(targets), f"Expected {len(targets)} page lists")
+            gold.require(len(response["pages"]) == len(targets), f"Expected {len(targets)} pages")
             for page in response["pages"]:
+                gold.require(all(len(line) == 2 for line in page["lines"]), "Each line is [region, text]")
                 gold.require(all(0 < n <= len(page["lines"]) for n in page["starts"]), "starts must number the page's own lines")
             return blocks.chunk([([(l["id"], l["text"]) for l in by_page.get(p, [])], [tuple(x) for x in page["lines"]])
                                  for p, page in zip(targets, response["pages"])], mode), response
@@ -116,7 +119,7 @@ def assemble(lines, authored, mode):
         for page, answer in zip(targets, response["pages"]):
             starts = set(answer["starts"])
             for n, (region, text) in enumerate(answer["lines"], 1):
-                typed.append({"page": page, "region": region, "text": text, "start": n in starts, "continues": answer["continues"]})
+                typed.append({"page": page, "region": region, "text": blocks.labelled(region, text), "start": n in starts})
     corrected = {ident: "".join(c for c, _ in line) for _, chars in results for ident, line in chars.items()}
     order = [l["id"] for l in lines]
     located, located_report = blocks.typed_spans(results, {l["id"]: {"text": corrected.get(l["id"], l["text"]), "page": l["page"]} for l in lines}, order)
@@ -138,18 +141,25 @@ def author_notes(typed, groups, images, job, args):
         numbered.setdefault(line["page"], []).append((line["region"], line["text"]))
         at[(line["page"], len(numbered[line["page"]]))] = n
     starts = {members[0]: u for u, members in enumerate(groups) if typed[members[0]]["region"] == "note"}
-    notes = [(typed[n]["page"], next(k for (p, k), m in at.items() if m == n), typed[n]["text"]) for n in sorted(starts)]
+    where = {n: key for key, n in at.items()}
+    notes = [(*where[n], typed[n]["text"]) for n in sorted(starts)]
     note_at = {(p, k): starts[at[(p, k)]] for p, k, _ in notes}
+    if not notes: return []
     pages = sorted(numbered)
     schema = job / "calls" / "notes-schema.json"
     write_json(schema, prompts.NOTES_SCHEMA)
     def one(targets):
         def valid(response):
-            for page, line, _, note_page, note_line in response["pairs"]:
-                gold.require(page in targets and (page, line) in at, "A reference must be on a numbered line of a TARGET page")
+            pairs = []
+            for pair in response["pairs"]:
+                gold.require(len(pair) == 5 and all(str(pair[k]).isdigit() for k in (0, 1, 3, 4)),
+                             "Each pair is [page, line, mark, note page, note line]")
+                page, line, note_page, note_line = (int(pair[k]) for k in (0, 1, 3, 4))
+                gold.require(page in targets and (page, line) in at, "A reference must be on a numbered line of these pages")
                 gold.require((note_page, note_line) == (0, 0) or (note_page, note_line) in note_at,
                              "A note must be where a note begins, from NOTES, or 0, 0 where none is printed")
-            return response["pairs"]
+                pairs.append((page, line, str(pair[2]), note_page, note_line))
+            return pairs
         return call(prompts.notes_prompt(numbered, notes, targets), schema, [images[p] for p in targets],
                     job / "calls" / f"notes-{targets[0]:06}-{targets[-1]:06}", args, valid, policy=POLICY)
     chunks = [pages[i:i + CHUNK_PAGES] for i in range(0, len(pages), CHUNK_PAGES)]
@@ -158,10 +168,17 @@ def author_notes(typed, groups, images, job, args):
     pairs = []
     for page, line, marker, note_page, note_line in answers:
         n = at[(page, line)]
-        marked = [r for r, ref in enumerate(typed[n]["references"]) if ref["label"] == marker]
+        marked = [r for r, ref in enumerate(typed[n]["references"]) if ref["label"].strip("()[]") == marker.strip("()[]")]
         pairs.append({"line": n, "marker": marker, "reference": marked[0] if marked else None,
                       "note": note_at.get((note_page, note_line))})
     return pairs
+
+
+def image_tokens(path):
+    """Input tokens of a page image, from its PNG size (measured: about 2,400 for a letter page at
+    144 dpi)."""
+    with open(path, "rb") as stream: width, height = struct.unpack(">II", stream.read(24)[16:24])
+    return width * height // 700
 
 
 def author_hierarchy(typed, groups, images, job, args):
@@ -174,7 +191,7 @@ def author_hierarchy(typed, groups, images, job, args):
     def ask(shown, pages):
         return call(prompts.hierarchy_prompt(rows, shown, pages), schema, [images[p] for p in pages],
                     job / "calls" / f"hierarchy-{shown[0]:05}", args, hierarchy.checked(shown), policy=POLICY)
-    parents, starts, ends = hierarchy.decide(rows, ask)
+    parents, starts, ends = hierarchy.decide(rows, ask, {p: image_tokens(path) for p, path in images.items()})
     starts, ends = hierarchy.documents(starts, ends, len(rows))
     units = [{"lines": members, "parent": None, "starts_document": False, "ends_document": False} for members in groups]
     for n, u in enumerate(scope):
@@ -233,6 +250,7 @@ def main():
     p.add_argument("--attempts", type=int, default=3)
     p.add_argument("--parallel", type=int, default=4, help="Concurrent model calls per source")
     a = p.parse_args()
+    gold.low_priority()
     args = SimpleNamespace(model=a.model, effort=a.effort, attempts=a.attempts, max_calls=None, timeout=a.timeout,
                            dpi=a.dpi, parallel=a.parallel, out=a.out.resolve())
     if a.pdf:

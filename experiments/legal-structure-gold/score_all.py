@@ -30,9 +30,11 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-import worker
-import evaluate
-import corpus_store
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / 'tools'), str(Path(__file__).resolve().parents[2] / 'experiments/legal_pdf_corpus')]
+from codex_runner.artifacts import atomic_json as write_json, digest, fingerprint, read_json  # noqa: E402
+from gold import require  # noqa: E402
+import evaluate  # noqa: E402
+import corpus_store  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -47,11 +49,11 @@ def gold_file(job):
 
 def frozen(manifest, split=None):
     """Frozen evaluation gold as (mode, gold file, metadata), in the manifest's order."""
-    rows = worker.read_json(manifest)['sources']
+    rows = read_json(manifest)['sources']
     for sha, row in sorted(rows.items()):
         if split and row['split'] != split: continue
         target = manifest.parent / 'gold' / f'{sha}.json.gz'
-        worker.require(worker.digest(target) == row['frozen_sha256'], 'Frozen gold changed')
+        require(digest(target) == row['frozen_sha256'], 'Frozen gold changed')
         yield row['mode'], target, {'source_sha256': sha, 'mode': row['mode'], 'split': row['split'], 'pages': row['pages']}
 
 
@@ -59,12 +61,12 @@ def reference_metadata(row, out=ROOT / 'benchmarks/local-data/legal-structure-go
     """Resolve an explicit saved reference without deriving identity from its path."""
     if row['run'].startswith('frozen-eval'):
         sha = Path(row['run']).name.split('.')[0]
-        return {'source_sha256': sha, 'mode': worker.read_json(out / 'frozen-eval' / 'manifest.json')['sources'][sha]['mode']}
+        return {'source_sha256': sha, 'mode': read_json(out / 'frozen-eval' / 'manifest.json')['sources'][sha]['mode']}
     result = {key: row[key] for key in ('source_sha256', 'mode') if key in row}
     if len(result) < 2:
-        receipt = worker.read_json(Path(out) / row['run'] / 'receipt.json')
+        receipt = read_json(Path(out) / row['run'] / 'receipt.json')
         saved = {'source_sha256': receipt['source_sha256'], 'mode': receipt['mode']}
-        worker.require(all(saved[key] == value for key, value in result.items()), 'Saved source metadata differs')
+        require(all(saved[key] == value for key, value in result.items()), 'Saved source metadata differs')
         result = saved
     return result
 
@@ -72,7 +74,7 @@ def reference_metadata(row, out=ROOT / 'benchmarks/local-data/legal-structure-go
 def completed(out):
     """Completed v4 golds as (mode, run directory, receipt)."""
     for receipt in sorted(out.glob('v4/*/receipt.json')):
-        value = worker.read_json(receipt)
+        value = read_json(receipt)
         if value.get('status') == 'complete' and (receipt.parent / 'gold.json.gz').is_file():
             yield value['mode'], receipt.parent, value
 
@@ -148,7 +150,7 @@ def replay_all(manifest, out):
     return {run: (candidate file, replayed structure file)}."""
     root = out / 'score' / 'replay'
     root.mkdir(parents=True, exist_ok=True)
-    rows = worker.read_json(manifest)
+    rows = read_json(manifest)
     jobs = [{'dump': r['dump'], 'output': str(root / f'{n}.json')} for n, r in enumerate(rows)]
     for job in jobs: Path(job['output']).unlink(missing_ok=True)
     listing = root / 'jobs.json'
@@ -161,14 +163,14 @@ def score_one(item):
     run, out, candidate, structure = item
     job = Path(out) / run
     try:
-        gold_sha = worker.digest(gold_file(job))
-        expected = worker.read_json(gold_file(job))
-        reference_sha = worker.fingerprint(evaluate.state_of(expected)[1])
-        value = worker.read_json(Path(candidate))
+        gold_sha = digest(gold_file(job))
+        expected = read_json(gold_file(job))
+        reference_sha = fingerprint(evaluate.state_of(expected)[1])
+        value = read_json(Path(candidate))
         if structure:
             value['structure'] = json.loads(Path(structure).read_text(encoding='utf-8'))
         result = evaluate.compare(expected, value)
-        worker.require(worker.digest(gold_file(job)) == gold_sha, 'Gold changed during scoring')
+        require(digest(gold_file(job)) == gold_sha, 'Gold changed during scoring')
         return {'run': run, **reference_metadata({'run': run}, out),
                 'gold_sha256': gold_sha, 'gold_state_sha256': reference_sha, **result}
     except Exception as error:
@@ -197,7 +199,7 @@ def compare(before, after, layers=None, out=ROOT / 'benchmarks/local-data/legal-
         for row in summary['per_run']:
             row = {**row, **reference_metadata(row, out)}
             key = (row['source_sha256'], row['mode'])
-            worker.require(key not in result, 'Repeated source/mode in score summary')
+            require(key not in result, 'Repeated source/mode in score summary')
             result[key] = row
         return result
     earlier, later = indexed(before), indexed(after)
@@ -257,12 +259,12 @@ def main():
     pdfs = {}
     if args.manifest:
         base = args.root or args.manifest.parent
-        for row in worker.read_json(args.manifest)['documents']:
-            pdfs[worker.digest(base / row['path'])] = (base / row['path']).resolve()
+        for row in read_json(args.manifest)['documents']:
+            pdfs[digest(base / row['path'])] = (base / row['path']).resolve()
     started = time.time()
     errors, dumps = {}, {}
     if args.rescore:
-        sources = {row['run']: (row['candidate'], None) for row in worker.read_json(args.out / 'score' / 'runs' / f'{args.rescore}.manifest.json')}
+        sources = {row['run']: (row['candidate'], None) for row in read_json(args.out / 'score' / 'runs' / f'{args.rescore}.manifest.json')}
     elif args.replay:
         sources = {run: files for run, files in replay_all(args.replay, args.out).items()}
     else:
@@ -283,10 +285,10 @@ def main():
                                                           for k, v in r['metrics'].items()}} for r in scored]}
     destination = (args.out / 'score' / 'runs' / f'{args.tag}.json' if args.tag else
                    args.out / 'score' / ('subset.json' if (args.runs or args.mode) else 'latest.json'))
-    worker.write_json(destination, summary)
+    write_json(destination, summary)
     if dumps:
         references = {row['run']: row for row in scored}
-        worker.write_json(destination.with_suffix('.manifest.json'),
+        write_json(destination.with_suffix('.manifest.json'),
                           [{'run': run, **reference_metadata({'run': run}, args.out),
                             **{key: references[run][key] for key in ('gold_sha256','gold_state_sha256') if run in references},
                             'candidate': sources[run][0], 'dump': dump, 'witnesses': witnesses}
@@ -297,7 +299,7 @@ def main():
         slowest = sorted(TIMINGS.items(), key=lambda item: -item[1])[:8]
         print(f"structure stage {sum(TIMINGS.values()) / 1000:.0f}s in all; slowest: " + ", ".join(f"{run.split(os.sep)[1][:12]} {ms / 1000:.1f}s" for run, ms in slowest))
     if args.against:
-        compare(worker.read_json(args.against), summary, set(args.layers.split(',')) if args.layers else None, args.out)
+        compare(read_json(args.against), summary, set(args.layers.split(',')) if args.layers else None, args.out)
     else:
         print(f"{'layer':22} {'exp':>6} {'pred':>6} {'P':>6} {'R':>6} {'F1':>6}")
         for name, t in sorted(summary['totals'].items()):
@@ -311,7 +313,7 @@ def main():
 def pdf_path(sha, pdfs):
     if sha in pdfs: return pdfs[sha]
     row = corpus_store.connect().execute('select path from files where sha256=?', (sha,)).fetchone()
-    worker.require(row is not None, f'Source PDF {sha} is in neither the manifest nor the corpus')
+    require(row is not None, f'Source PDF {sha} is in neither the manifest nor the corpus')
     return corpus_store.HOME / row[0]
 
 

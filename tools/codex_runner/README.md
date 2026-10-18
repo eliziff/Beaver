@@ -29,10 +29,9 @@ responses, compressed events/errors, hashes, usage and elapsed time. Output
 locations belong to the calling task and must use its durable private store.
 `usage_totals` reads that task's `calls/<unit>/<key>/receipt.json` tree.
 
-The page-gold, document-hierarchy and record-annotation tasks share the call
-lifecycle. Tasks retain their own prompts and validation; the hierarchy task
-also has its own retry policy. Hierarchy receipts live under the source run's `hierarchy/` directory,
-separate from page-authoring receipts. Pagination and compaction callers share
+The structure gold's lines, notes and hierarchy passes share the call
+lifecycle, each with its own prompt and validation and its receipts under the
+source run's `calls/` directory. Pagination and compaction callers share
 the process transport while retaining their benchmark-specific retry/result
 contracts. The provider-neutral structure composer keeps its existing bounded
 module-negotiation loop; do not wrap it in another retry loop.

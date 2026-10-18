@@ -1,13 +1,14 @@
-"""Score a parser export against its v4 structure gold, or validate a saved record publication."""
+"""Score a parser export against its v4 structure gold."""
 import argparse
 from collections import Counter, defaultdict
 import difflib
 import json
 from pathlib import Path
-import worker
-import gold
-import package
-from gold import require
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+from codex_runner.artifacts import atomic_json as write_json, read_json  # noqa: E402
+import gold  # noqa: E402
+from gold import require  # noqa: E402
 
 V4 = 'legal-structure-gold.v4'
 # The scorer's roles for typed regions the composition has no primary role for: block quotes are
@@ -587,55 +588,15 @@ def compare(expected, candidate):
             'metrics':{k:prf(wanted[k],got[k]) for k in wanted}}
 
 
-def replay(job):
-    """Validate a saved record publication: its receipt, gold and current annotation stages."""
-    worker.recover_update(job)
-    receipt = worker.read_json(job / 'receipt.json')
-    require(receipt['status'] == 'complete', 'Replay requires a completed run')
-    require(worker.digest(job / 'gold.json.gz') == receipt['gold_sha256'], 'Gold artifact changed')
-    value = worker.read_json(job / 'gold.json.gz')
-    require(value.get('schema_version') == package.VERSION, 'Replay requires a canonical gold package')
-    worker.verified_run(job)
-    result = {'replay': 'current_facts_validated', 'run_id': receipt['run_id'], 'source_sha256': value['source_sha256'],
-              'record_layers': len(value['records'])}
-    if receipt.get('kind') == 'record_import': return result
-    require(receipt.get('kind') == 'annotation_update', 'Replay validates record imports and annotation publications')
-    package.validate(value)
-    stages = value['provenance'].get('annotation_stages', {})
-    current = {stage: worker.stage_current(job, value, stage) for stage in stages}
-    require(any(current.values()), 'No annotation stage describes current gold')
-    receipts = {stage: worker.read_json(job / marker['receipt']) for stage, marker in stages.items()}
-    for stage, saved in receipts.items():
-        require(worker.stage_binding(job, value, stage, saved) is not None, 'Annotation stage refers to different shared text')
-        if not current[stage]:
-            require(any(a[:len(b)] == b or b[:len(a)] == a
-                        for other, active in current.items() if active
-                        for a in saved['owned_paths'] for b in receipts[other]['owned_paths']),
-                    'Changed annotations have no current owning stage')
-    return {**result, 'annotation_stages': sorted(stages),
-            'superseded_annotation_stages': sorted(stage for stage, active in current.items() if not active)}
-
-
 def main():
-    worker.low_priority()
+    gold.low_priority()
     parser=argparse.ArgumentParser(description=__doc__)
-    action=parser.add_mutually_exclusive_group(required=True)
-    action.add_argument('--replay',type=Path,help='A record publication to validate')
-    action.add_argument('--gold',type=Path,help='A v4 gold file to score --candidate against')
-    action.add_argument('--export',type=Path,help='A gold package to export --record-id from')
-    parser.add_argument('--candidate',type=Path); parser.add_argument('--output',type=Path)
-    parser.add_argument('--record-id')
+    parser.add_argument('--gold',type=Path,required=True,help='A v4 gold file')
+    parser.add_argument('--candidate',type=Path,required=True,help='A parser export')
+    parser.add_argument('--output',type=Path)
     args=parser.parse_args()
-    if args.gold and not args.candidate: parser.error('--gold requires --candidate')
-    if args.export:
-        if not (args.output and args.record_id): parser.error('--export requires --record-id and --output')
-        value=worker.read_json(args.export)
-        require(value.get('schema_version') == package.VERSION, 'Export requires a canonical gold package')
-        args.output.parent.mkdir(parents=True,exist_ok=True)
-        worker.write_json(args.output,worker.affidavit_record(value,args.record_id))
-        return
-    result=replay(args.replay) if args.replay else compare(worker.read_json(args.gold),worker.read_json(args.candidate))
-    if args.output: worker.write_json(args.output,result)
+    result=compare(read_json(args.gold),read_json(args.candidate))
+    if args.output: write_json(args.output,result)
     print(json.dumps(result,ensure_ascii=False,indent=2))
 
 

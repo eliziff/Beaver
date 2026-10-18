@@ -28,13 +28,19 @@ def require(ok, message):
     if not ok: raise ValueError(message)
 
 
+def labelled(region, text):
+    """A typed line with a note's leading mark as its label, not a reference to it."""
+    return re.sub(r"^(\s*)\[\^([^\]\s]{1,12})\]\t", r"\1\2\t", text) if region == "note" else text
+
+
 # Typed items are (char, line, cell, tag); tag is None, ("marker", k) or ("ref", n). None separates
 # typed lines and cells. Source items are (char, line_id, offset); None separates lines.
 
 def typed_items(lines, first=0):
     items, parsed = [], []
     for number, (region, text) in enumerate(lines, first):
-        require(region in REGIONS, "Unknown region")
+        require(region in REGIONS, f"Unknown region {region!r}: regions are " + ", ".join(REGIONS))
+        text = labelled(region, text)
         cells = text.split("|") if region == "table" else [text]
         start, references, markers = len(items), [], 0
         for c, cell in enumerate(cells):
@@ -253,7 +259,8 @@ def corrected(result, texts):
                 merged[-1] = [merged[-1][0], max(merged[-1][1], change[1]), merged[-1][2] + change[2]]
             else:
                 merged.append(change)
-        merged = [m for m in merged if text[m[0]:m[1]] != "".join(c[0] for c in m[2])]
+        # Canonically equivalent text (a precomposed letter for a letter and its accent) is no correction.
+        merged = [m for m in merged if unicodedata.normalize("NFC", text[m[0]:m[1]]) != unicodedata.normalize("NFC", "".join(c[0] for c in m[2]))]
         line, cursor = [], 0
         for start, end, added in merged:
             line.extend((text[k], owner.get(at[k])) for k in range(cursor, start))

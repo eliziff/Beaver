@@ -77,6 +77,10 @@ def invoke(
     arguments.extend(extra_args)
     arguments.extend(["--output-schema", str(schema_path)])
     for image_path in image_paths:
+        # Relative to the call's working directory, so a call with many pages fits the Windows
+        # command line (8,191 characters through the npm shim).
+        try: image_path = os.path.relpath(image_path, work_dir)
+        except ValueError: pass  # another drive
         arguments.extend(["--image", str(image_path)])
     arguments.append("-")
     # Keep events observable during long composition calls, not only after exit.
