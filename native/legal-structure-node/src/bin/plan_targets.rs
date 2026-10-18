@@ -121,8 +121,11 @@ fn plan_seed(query: &DocumentQuery, structure: &DocumentStructure, source: &Valu
         let canlii_anchor = kind.and_then(|kind| source_anchor(&canlii, kind, label)).unwrap_or_default();
         row.insert("canliiTarget".into(), json!(passage_link(query, structure,
             &request(&canlii, Some(&canlii_anchor))).map(|link| link.target)));
+        // The pinpoint's part below the page's anchor ("sec55.7(1)(a)" under #sec55.7subsec1) goes with it, as a
+        // citation's does.
+        let parts = anchor.and_then(engine_pinpoint).map(|(_, parts, _, _)| parts).unwrap_or_default();
         row.insert("canliiPassageTarget".into(), json!((!canlii_anchor.is_empty())
-            .then(|| cited_passage_link(query, structure, &format!("{canlii}#{canlii_anchor}"), &[])).flatten()));
+            .then(|| cited_passage_link(query, structure, &format!("{canlii}#{canlii_anchor}"), &parts)).flatten()));
         row.insert("canlii".into(), json!(canlii));
     }
     if let Some((target, own)) = anchor.and_then(|anchor| provider_passage(query, structure, text(seed, "url"), anchor)) {
