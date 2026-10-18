@@ -70,12 +70,13 @@ export function authoritySourceRequirement(draft, authority, requirements, prepa
 
 /** A statute whose PDF runs longer than this goes in the book as an excerpt unless chosen whole. */
 export const STATUTE_EXCERPT_PAGES = 30;
-/** Whether a statute goes in the book as an excerpt: as chosen, else by the length of its longest
- *  PDF (`pageCounts`, by default as recorded when each was attached); undefined while one is unknown. */
+/** Whether a statute goes in the book as an excerpt: as chosen for it, else as the book's `legislationCopy` says
+ *  ("length", the default: by the length of its longest PDF, `pageCounts`, by default as recorded when each was
+ *  attached; undefined while one is unknown). */
 export function statuteExcerpt(authority, pageCounts = attachedAuthoritySources(authority.source)
-  .map(({ pageCount }) => pageCount)) {
+  .map(({ pageCount }) => pageCount), copy = "length") {
   if (authority.kind !== "legislation" || authority.source.kind !== "attached") return false;
-  return authority.excerpt ?? (pageCounts.includes(undefined) ? undefined
+  return authority.excerpt ?? (copy !== "length" ? copy === "excerpt" : pageCounts.includes(undefined) ? undefined
     : Math.max(...pageCounts) > STATUTE_EXCERPT_PAGES);
 }
 
@@ -95,12 +96,13 @@ export const authorityPassagesCited = (draft, authority) => !!authority.locators
   Object.values(draft.occurrences ?? {}).some(({ authorityId, pinpoints }) => authorityId === authority.id && pinpoints.length) ||
   Object.values(authority.annotations ?? {}).some((set) => set?.marks?.length);
 /** Whether a case or another source goes in the book as an excerpt: as chosen for it, else as the book's
- *  `caseCopy` says, or as the court's extract. One the brief cites no passage of goes whole. A statute goes as
- *  `statuteExcerpt` says. */
+ *  `caseCopy` (a case) or `otherCopy` (another source) says, or as the court's extract. One the brief cites no
+ *  passage of goes whole. A statute goes as `statuteExcerpt` says. */
 export function authorityExcerpt(draft, authority, pageCounts) {
-  if (authority.kind === "legislation") return statuteExcerpt(authority, pageCounts);
+  if (authority.kind === "legislation") return statuteExcerpt(authority, pageCounts, draft.settings.legislationCopy);
   if (authority.source.kind !== "attached" || !authorityPassagesCited(draft, authority)) return false;
-  return authority.excerpt ?? (draft.settings.caseCopy === "excerpt" || courtExtract(draft, authority));
+  return authority.excerpt ?? ((authority.kind === "case" ? draft.settings.caseCopy : draft.settings.otherCopy) === "excerpt" ||
+    courtExtract(draft, authority));
 }
 /** A decision a Federal Court book on paper has as the court's own extract (Federal Courts Rules, r 70(2.1)):
  *  one on a free public database, where no excerpt was chosen for it or for the book. */

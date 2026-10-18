@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { excerptContext, federalPaperBook } from "../../../../shared/authorities-sources.mjs";
+import { excerptContext, federalPaperBook, STATUTE_EXCERPT_PAGES } from "../../../../shared/authorities-sources.mjs";
 import { ChevronLeft, ChevronRight, FileText, Loader2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { Button } from "@/app/components/ui/button";
@@ -48,13 +48,22 @@ export const HISTORY_OPTIONS: ReadonlyArray<CardOption<NonNullable<AuthoritiesBu
   { value: "omit", label: "Do not include subsequent history in book",
     detail: "Keeps a case’s later history in its citation only." },
 ];
-/** Whether the book has each case and other source whole or as an excerpt. A Federal Court book on paper has a
- *  decision on a free public database as the court's extract unless excerpts are chosen, or the decision is chosen whole. */
-const copyOptions = (federalPaper: boolean): ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildSettings["caseCopy"]>>> => [
-  { value: "whole", label: "Whole cases", detail: `Includes each case and other source in full.${federalPaper
+/** Whether the book has each case, statute and other source whole or as an excerpt. A Federal Court book on paper
+ *  has a decision on a free public database as the court's extract unless excerpts are chosen, or the decision is
+ *  chosen whole. */
+const caseCopyOptions = (federalPaper: boolean): ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildSettings["caseCopy"]>>> => [
+  { value: "whole", label: "Whole", detail: `Includes each case in full.${federalPaper
     ? " Note: A Federal Court book on paper includes a decision on a free public database as an excerpt (Federal Courts Rules, r 70(2.1))." : ""}` },
-  { value: "excerpt", label: "Excerpts",
-    detail: "Includes the pages of each case and other source that your brief cites, with the pages and paragraphs around them that you choose below. A source your brief cites without a pinpoint is included in full." },
+  { value: "excerpt", label: "Excerpts", detail: "Includes the pages of each case that your brief cites." },
+];
+const LEGISLATION_COPY_OPTIONS: ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildSettings["legislationCopy"]>>> = [
+  { value: "length", label: "By length", detail: `Includes statutes over ${STATUTE_EXCERPT_PAGES} pages as excerpts.` },
+  { value: "whole", label: "Whole", detail: "Includes each statute in full." },
+  { value: "excerpt", label: "Excerpts", detail: "Includes the pages with the cited provisions." },
+];
+const OTHER_COPY_OPTIONS: ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildSettings["otherCopy"]>>> = [
+  { value: "whole", label: "Whole", detail: "Includes each other source in full." },
+  { value: "excerpt", label: "Excerpts", detail: "Includes the pages of each other source that your brief cites." },
 ];
 /** A sample case of eight pages, cited at a paragraph on page 5 whose paragraph before begins on page 4: whole, or
  *  as the excerpt the settings make of it, the pages left out faded; its link atop its first page where printed. */
@@ -97,26 +106,23 @@ type ExcerptSettings = Pick<AuthoritiesBuildSettings, "caseCopy" | "contextParag
 function ExcerptChoices({ settings, excerpts, disabled, onChange }: { settings: ExcerptSettings; excerpts: boolean;
   disabled?: boolean; onChange: (patch: Partial<ExcerptSettings>) => void }) {
   const { paragraphs, pages, firstPage } = excerptContext(settings), links = settings.caseLinks ?? false;
-  return <>
-    <fieldset disabled={disabled || !excerpts}>
-      <legend className="mb-1.5 text-[0.8125rem] font-medium text-gray-700">Excerpts</legend>
-      <div className="grid gap-2">
-        <ContextCount label="Pages of context" value={pages} disabled={disabled || !excerpts}
-          detail="Includes this many pages before and after each page your brief cites. Enter 0 to include only the cited pages."
-          onChange={(contextPages) => onChange({ contextPages })} />
-        <ContextCount label="Paragraphs of context" value={paragraphs} disabled={disabled || !excerpts}
-          detail="Includes the pages that hold this many paragraphs before and after each paragraph your brief cites. Enter 0 to include only the cited paragraphs."
-          onChange={(contextParagraphs) => onChange({ contextParagraphs })} />
-        <OptionCard type="checkbox" checked={firstPage} onChange={() => onChange({ excerptFirstPage: !firstPage })}
-          label="Include the first page" detail="Includes the first page of each case and other source, where its name, court and date appear." />
-      </div>
-    </fieldset>
-    <fieldset disabled={disabled}>
-      <legend className="mb-1.5 text-[0.8125rem] font-medium text-gray-700">Links</legend>
+  // Two to a row, so the step's choices fit without scrolling; the link applies whole or excerpt.
+  return <fieldset disabled={disabled}>
+    <legend className="mb-1.5 text-[0.8125rem] font-medium text-gray-700">Excerpts and links</legend>
+    <div className="grid gap-2 sm:grid-cols-2">
+      <ContextCount label="Pages of context" value={pages} disabled={disabled || !excerpts}
+        detail="Includes this many pages before and after each cited page. 0 includes none."
+        onChange={(contextPages) => onChange({ contextPages })} />
+      <ContextCount label="Paragraphs of context" value={paragraphs} disabled={disabled || !excerpts}
+        detail="Includes this many paragraphs before and after each cited paragraph. 0 includes none."
+        onChange={(contextParagraphs) => onChange({ contextParagraphs })} />
+      <OptionCard type="checkbox" checked={firstPage} disabled={disabled || !excerpts}
+        onChange={() => onChange({ excerptFirstPage: !firstPage })}
+        label="Include the first page" detail="Includes the first page of each excerpt." />
       <OptionCard type="checkbox" checked={links} onChange={() => onChange({ caseLinks: !links })}
-        label="Print each case’s link" detail="Prints the web address of each case at the top of its first page in the book, as a link that opens the case. Note: Requires a link for the case, as shown in Sources." />
-    </fieldset>
-  </>;
+        label="Print each case’s link" detail="Prints each case’s web address at the top of its first page, as a link." />
+    </div>
+  </fieldset>;
 }
 
 type SourceSettings = Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy" | "grouping" | "tableOrder" |
@@ -152,7 +158,7 @@ export function SourceChoices({ settings, profileId, sources = true, recognition
 }
 
 /** The import's choices: the court, the cover and the index, the sources, the excerpts, and the marking. */
-const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "caseCopy", "contextPages", "contextParagraphs",
+const WIZARD_KEYS = [...FRONT_KEYS, "sourceMode", "scannedPdfPolicy", "caseCopy", "legislationCopy", "otherCopy", "contextPages", "contextParagraphs",
   "excerptFirstPage", "caseLinks", "passageMarking", "subsequentHistory"] as const;
 /** A book's steps; a court that takes only a table skips the cover, the index and the excerpts. */
 const BOOK_STEPS = ["Cover", "Index", "Sources", "Excerpts", "Marking"] as const, TABLE_STEPS = ["Sources", "Marking"] as const;
@@ -256,9 +262,14 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
     </div>
     : name === "Excerpts" ? <FrontLayout preview={<Preview label="Preview of a case in the book"><div className="flex min-h-0 flex-1 p-4">
       <ExcerptSample settings={settings} /></div></Preview>}>
-      <OptionCards legend="Cases and other sources" value={settings.caseCopy ?? "whole"} disabled={busy}
-        options={copyOptions(federalPaperBook(settings))} onChange={(caseCopy) => choose({ caseCopy })} />
-      <ExcerptChoices settings={settings} excerpts={settings.caseCopy === "excerpt"} disabled={busy} onChange={choose} />
+      <OptionCards legend="Cases" value={settings.caseCopy ?? "whole"} columns disabled={busy}
+        options={caseCopyOptions(federalPaperBook(settings))} onChange={(caseCopy) => choose({ caseCopy })} />
+      <OptionCards legend="Legislation" value={settings.legislationCopy ?? "length"} columns={3} disabled={busy}
+        options={LEGISLATION_COPY_OPTIONS} onChange={(legislationCopy) => choose({ legislationCopy })} />
+      <OptionCards legend="Other sources" value={settings.otherCopy ?? "whole"} columns disabled={busy}
+        options={OTHER_COPY_OPTIONS} onChange={(otherCopy) => choose({ otherCopy })} />
+      <ExcerptChoices settings={settings} excerpts={settings.caseCopy === "excerpt" || settings.otherCopy === "excerpt"}
+        disabled={busy} onChange={choose} />
     </FrontLayout>
     : <FrontLayout preview={<Preview label="Preview of a marked page"><div className="flex min-h-0 flex-1 p-4"><MarkingSample type={settings.passageMarking} /></div></Preview>}>
       <OptionCards legend="Passage marking" value={settings.passageMarking} options={passageOptions(profileId)}

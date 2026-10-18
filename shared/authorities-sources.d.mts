@@ -84,8 +84,9 @@ export function authorityReproducedInBook(draft: BookDraft,
   authority: RequirementAuthority & { excluded: boolean }): boolean;
 export const STATUTE_EXCERPT_PAGES: number;
 export function statuteExcerpt(authority: { kind: string; excerpt?: boolean; source: AuthoritySourceDecision },
-  pageCounts?: Array<number | undefined>): boolean | undefined;
-type ExcerptSettings = { caseCopy?: "whole" | "excerpt"; contextParagraphs?: number; contextPages?: number;
+  pageCounts?: Array<number | undefined>, copy?: "length" | "whole" | "excerpt"): boolean | undefined;
+type ExcerptSettings = { caseCopy?: "whole" | "excerpt"; otherCopy?: "whole" | "excerpt";
+  legislationCopy?: "length" | "whole" | "excerpt"; contextParagraphs?: number; contextPages?: number;
   excerptFirstPage?: boolean; filingMedium?: "electronic" | "paper"; profileId: string };
 type ExcerptAuthority = RequirementAuthority & { id: string; excerpt?: boolean; locators?: ReadonlyArray<unknown>;
   annotations?: Record<string, { marks?: ReadonlyArray<unknown> } | undefined>;

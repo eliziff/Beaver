@@ -166,7 +166,8 @@ const settingsShape = closed<AuthoritiesSettings>({
   passageMarking: choice("passageMarking"), scannedPdfPolicy: choice("scannedPdfPolicy"),
   missingSourcePolicy: choice("missingSourcePolicy"), filingMedium: maybe(choice("filingMedium")),
   bookRole: maybe(choice("bookRole")), subsequentHistory: maybe(choice("subsequentHistory")),
-  caseCopy: maybe(choice("caseCopy")), contextParagraphs: maybe(count), contextPages: maybe(count),
+  caseCopy: maybe(choice("caseCopy")), otherCopy: maybe(choice("otherCopy")),
+  legislationCopy: maybe(choice("legislationCopy")), contextParagraphs: maybe(count), contextPages: maybe(count),
   excerptFirstPage: maybe(flag), caseLinks: maybe(flag),
   supraLinking: maybe(choice("supraLinking")),
 });
