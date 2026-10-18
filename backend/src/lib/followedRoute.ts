@@ -40,7 +40,8 @@ export function followedRoute(handler: (req: Request, res: Response, progress?: 
       // A result already under way is broken off, as an ordinary response is.
       if (started) throw error;
       const known = error instanceof ApplicationError;
-      if (!known && !req.destroyed && !(res as { abandoned?: boolean }).abandoned) console.error(error);
+      // A request the page abandoned is no defect. (A request whose body was read is always destroyed.)
+      if (!known && !res.destroyed) console.error(error);
       res.status(known ? error.status : 500).json(known
         ? { detail: error.message, ...error.details }
         : { detail: "Authorities could not complete that operation" });
