@@ -262,3 +262,23 @@ The planner's `BrowserReplay` and `browser_key` in legal-structure `text_fragmen
     (paint inside the cited block); 6 W2 rows too, whose blocks join non-adjacent cited paragraphs (65 + 69) rather
     than run on; 7 rows "no target", 1 "bad page". 300 earlier hits stayed on target; 3 became straddles because the
     box is now the quoted occurrence, not the whole block, so long-range overpaint shows.
+- **2026-10-18 rounds d22–d24 (combined corpus: brief-derived links, 521 real quotations, 2,080 provider parts; 17,721
+  links, ~13,900 judged):** 95.8% on target / 97.2% on target or at the anchor → 97.8% / 98.6%.
+  - Planner (legal-structure 3985063, then the shed/glued/seamed commit): a prefix or suffix stays inside the
+    passage's sentence (a page prints the sentence end otherwise: −255 → −59 wrong place); markdown marks adjoin a
+    label; a citation's pinpoint part is painted or nothing is; a term's outer punctuation is shed where the shed
+    term still selects (a page prints "(Emphasis added)" for the document's "[Emphasis added.]"; +36 links, −10
+    where the mark was what told "In this Act:" from a table of contents); New Brunswick glues "57An application"
+    (`publisher_glues_section_labels`, +16 of 29 section openings); a context across a sentence end is read where
+    none other tells a headnote-repeated sentence apart.
+  - Gate: CanLII sets `sec12` after `sec12subsec1`, so the anchor's passage ended before it began (target null);
+    words found outside the anchor's passage (a header's copy) are now the passage's. 18 verdicts changed.
+  - Reuse keys carry the link: a verdict rekeyed from a seed whose link changed is wrong (one round was re-run).
+  - Residue by cause (read off the cached pages, not guessed): pages holding another version of the text (Alberta
+    "Board"→"Regulator", SOR/2005-99 dropped from Justice Laws) ~38; pages without anchors where the words alone
+    cannot settle it (bccourts 1999–2001 `.txt` wraps lines, so a term cannot straddle one; Alberta KP and Nova
+    Scotia print no ids); SCR judgments before 1995 are numbered by no publisher (A2AJ, Lexum and CanLII alike), so
+    a bare paragraph pinpoint into them has nothing to land on. Lexum pages before 2016 print no `par` anchors.
+  - Routing (3,904 labels judged on both a publisher's page and CanLII's): publisher always 99.08 / 99.28; CanLII
+    always 98.13 / 99.46; CanLII only where the engine can print no anchor on the publisher's page 99.15 / 99.54;
+    oracle 99.46 / 99.97. The anchor is the fallback guarantee; its absence is the failure mode.

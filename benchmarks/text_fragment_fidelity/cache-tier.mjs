@@ -39,7 +39,7 @@ import zlib from "node:zlib";
 
 const PAINT = [255, 0, 255];
 // The verdict logic's version, in every reuse key: changed whenever a change here can change a verdict.
-const GATE_VERSION = "2026-10-18-d21";
+const GATE_VERSION = "2026-10-18-d23";
 
 /** What a link's verdict depends on: the gate, its mode, the link and its intended words, and the saved page (its file's
  *  size and time; for Law Web, the A2AJ store its /fetch answers from). */
@@ -363,10 +363,17 @@ function targetBox({ pinpoint, texts, within, ordinal, occurrences, passageText,
   const name = (element) => element.getAttribute("name") ?? element.id;
   let passageRange = null;
   if (anchor) {
+    // The page's other markers of the anchor's own family: a passage ends at the next one. (Justice Laws numbers every
+    // line with a bare id, which is no provision marker there.)
+    const family = [/^par\.?\d/u, /^sec[\d.]/u, /^s-\d/u, /^section\d/u, /^\d+(\.\d+)?(\(\d+\))?$/u, /^se:\d/u, /^\d+_/u, /^s\d+(s\d+)?$/u]
+      .find((pattern) => pattern.test(pinpoint)) ?? /^(par|sec)[\d.]+/u;
     const markers = [...document.querySelectorAll('a[name^="par"], a[name^="sec"], [id^="sec"], [id^="s-"], [id^="section"], [id^="se:"], [id]')]
-      .filter((element) => /^(par\.?\d|sec[\d.]|s-\d|section\d|\d+(\.\d+)?(\(\d+\))?$|se:\d|\d+_|s\d+(s\d+)?$)/u.test(name(element)));
+      .filter((element) => family.test(name(element)));
+    // Neither one of its own parts (sec5subsec2 under sec5) nor its own provision's marker set after it (CanLII sets
+    // "sec12" after "sec12subsec1", where "12 (1)" prints as one line).
     const next = markers.slice(markers.indexOf(anchor) + 1)
-      .find((element) => !(name(element).startsWith(pinpoint) && /^[a-z]/u.test(name(element).slice(pinpoint.length))));
+      .find((element) => !(name(element).startsWith(pinpoint) && /^[a-z]/u.test(name(element).slice(pinpoint.length)))
+        && !(pinpoint.startsWith(name(element)) && /^[a-z]/u.test(pinpoint.slice(name(element).length))));
     passageRange = document.createRange();
     passageRange.setStartBefore(anchor);
     if (next) passageRange.setEndBefore(next);
@@ -426,10 +433,14 @@ function targetBox({ pinpoint, texts, within, ordinal, occurrences, passageText,
     }
     if (chosen) found.push(chosen);
   }
-  if (found.length) return { method: "text", occurrences: count, ambiguous,
-    top: Math.min(...found.map(({ top }) => top)), bottom: Math.max(...found.map(({ bottom }) => bottom)) };
-  if (!anchor) return null;
-  const passage = box(passageRange);
+  const passage = anchor ? box(passageRange) : null;
+  if (found.length) {
+    const words = { top: Math.min(...found.map(({ top }) => top)), bottom: Math.max(...found.map(({ bottom }) => bottom)) };
+    // The words found outside the anchor's passage are a copy of them (a header, a headnote): the passage is the target.
+    const outside = passage && (words.bottom < passage.top || words.top > passage.bottom);
+    return outside ? { method: "anchor", occurrences: count, ambiguous, ...passage }
+      : { method: "text", occurrences: count, ambiguous, ...words };
+  }
   return passage ? { method: "anchor", occurrences: 0, ambiguous: false, ...passage } : null;
 }
 
@@ -537,8 +548,9 @@ export async function runCacheTier({ seedsPath, outDir }) {
           const norm = (value) => value.toLowerCase().normalize("NFKD").match(/[\p{L}\p{N}]+/gu)?.join(" ") ?? "";
           const passage = norm([...texts, seed.target?.passage ?? ""].join(" "));
           const words = norm(painted).split(" ").filter(Boolean);
-          const head = words.slice(0, Math.min(8, words.length)).join(" ");
-          if (head.split(" ").length >= 3 && passage.includes(head)) {
+          // The painted words, as many as were read (a passage's opening alone may open another passage too).
+          const head = words.slice(0, Math.min(40, words.length)).join(" ");
+          if (words.length >= 3 && passage.includes(head)) {
             const copies = await page.evaluate((phrase) => {
               const text = document.body.innerText.toLowerCase().normalize("NFKD").match(/[\p{L}\p{N}]+/gu)?.join(" ") ?? "";
               return text.split(phrase).length - 1;
