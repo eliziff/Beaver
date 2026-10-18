@@ -617,14 +617,10 @@ export async function renderAuthoritySourcePdf(input: {
 
   if (statute.length) {
     const provision = (kind: string) => !["part", "division", "heading", "schedule"].includes(kind);
-    // The words before the first heading (the long title, an enacting formula), without the title
-    // and citation already on the page or the source's emphasis marks.
-    const plain = (value: string) => value.replace(/[*_]+/gu, "").replace(/\n\s*\n+/gu, "\n").trim();
-    const opening = plain(input.text.slice(0, statute[0].start)).split("\n").map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#") && line !== input.citation.trim()).join(" ");
-    if (opening) draw([{ text: opening, font: italic }]);
     let sectionLevel = 0, carried: Run[] = [];
     for (const [index, entry] of statute.entries()) {
+      // The words before the first heading: the long title, an enacting formula.
+      if (entry.kind === "preamble") { draw([{ text: entry.text, font: italic }]); continue; }
       if (!provision(entry.kind)) {
         // A heading keeps a marginal note and a few lines of what it heads with it.
         if (y - 110 < bottom + 18) { current = page(); y = height - top; }
@@ -635,7 +631,7 @@ export async function renderAuthoritySourcePdf(input: {
       const opens = ["section", "article"].includes(entry.kind);
       if (opens) sectionLevel = entry.level;
       const indent = carried.length ? 0 : 18 * Math.max(0, entry.level - sectionLevel);
-      const label = { text: `${entry.label} `, font: opens ? bold : serif }, text = plain(entry.text);
+      const label = { text: `${entry.label} `, font: opens ? bold : serif }, text = entry.text;
       // A section whose words start in its first subsection prints on one line with it: "2 (1) In this Act,".
       const [first = "", ...rest] = text.split("\n");
       const opening: Run[] = [...carried, label, { text: first, font: serif }];
@@ -644,7 +640,7 @@ export async function renderAuthoritySourcePdf(input: {
         // together, up to six) with it on its page; a section whose words start in its first
         // subsection, that subsection's.
         const next = statute[index + 1];
-        const lead = opens && !text && next ? [...opening, { text: plain(next.text).split("\n")[0], font: serif }] : opening;
+        const lead = opens && !text && next ? [...opening, { text: next.text.split("\n")[0], font: serif }] : opening;
         const lines = Math.min(layout(lead, 10.5, width - left - right - indent).length, 6);
         if (y - (14 + gap(10) + gap(10.5) + lines * 14.5) < bottom + 18) { current = page(); y = height - top; }
         placing = { start: entry.start, note: entry.title };
@@ -664,7 +660,6 @@ export async function renderAuthoritySourcePdf(input: {
     // within a paragraph indented a step for each level.
     // Its front matter (the court, the parties, counsel) is set as a judgment sets it: short lines
     // centred, each party's role at the right margin, a labelled line ("DOCKET: C69420") at the left.
-    const body = judgment.findIndex((entry) => entry.kind === "heading" || entry.kind === "paragraph");
     const aligned = (text: string, align: "center" | "right") => {
       // A line set in capitals (the court, WARNING) is set bold, as the judgment sets it.
       const font = text === text.toLocaleUpperCase("en-CA") && /\p{Lu}{3}/u.test(text) ? bold : serif;
@@ -678,17 +673,13 @@ export async function renderAuthoritySourcePdf(input: {
       }
       y -= gap(10.5);
     };
-    for (const [index, entry] of judgment.entries()) {
+    for (const entry of judgment) {
       const title = [entry.label, entry.text].filter(Boolean).join(" ");
       placing = { start: entry.start, ...(entry.kind === "heading" ? { heading: entry.level + 2, title } : {}) };
-      const front = index < body && entry.kind === "text" && !entry.level;
-      // The provider's opening line repeats the title block ("R. v. Murphy, 2022 ONCA 615").
-      if (!index && front && entry.text.trim() === `${input.name?.trim()}, ${input.citation.trim()}`) continue;
-      // A party's role at the right margin; a short line that is no label's and no counsel's, centred.
-      const line = front ? structureNative().frontMatterLine(entry.text) : null;
-      if (line === "party") aligned(entry.text.trim(), "right");
-      else if (line === "other" && entry.text.trim().length <= 72 && !/[.;:]$/u.test(entry.text.trim()))
-        aligned(entry.text.trim(), "center");
+      // The provider's title line repeats the title block ("R. v. Murphy, 2022 ONCA 615").
+      if (entry.role === "title") continue;
+      if (entry.role === "party") aligned(entry.text, "right");
+      else if (entry.role === "caption") aligned(entry.text, "center");
       else if (entry.kind === "heading") draw([{ text: title, font: bold }], 0, [13, 12, 11][Math.min(entry.level, 2)], true);
       else if (entry.kind === "paragraph") draw([{ text: entry.text, font: serif }], 36, 10.5, false,
         { runs: [{ text: entry.label, font: bold }], x: 0 });
