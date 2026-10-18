@@ -50,9 +50,9 @@ export default function TableOfAuthoritiesPage() {
         onInitialConsumed={onInitialConsumed}
         onFocusChange={setFocus}
         onDraftChange={onDraftChange} refreshToken={assistant.refreshToken}
-        headerActions={assistant.product ? <WorkProductAssistantButton available
-          expanded={assistant.expanded} onClick={() => assistant.setExpanded((open) => !open)} />
-          : undefined} />
+        // Drawn on every tab, off without a draft, so the header never shifts between them.
+        headerActions={<WorkProductAssistantButton available={!!assistant.product}
+          expanded={assistant.expanded} onClick={() => assistant.setExpanded((open) => !open)} />} />
     </div>
     {draftId && <WorkProductAssistant expanded={assistant.expanded} focus={focus}
       product={assistant.product} synced={assistant.synced} chatId={assistant.chatId}
