@@ -38,10 +38,10 @@ export function createAuthoritiesStandaloneApp({ port, buildId, frontend }: Auth
   app.use("/pdfjs-standard-fonts", express.static(
     path.join(frontend, "pdfjs-standard-fonts"), staticOptions));
   app.get(["/", "/authorities.html"], (_req, res) => res.sendFile(page));
-  app.use(((error, req, res, _next) => {
+  app.use(((error, _req, res, _next) => {
     const status = error instanceof ApplicationError ? error.status : 500;
     // A defect is logged; a request the page itself abandoned is not one.
-    if (status === 500 && !req.destroyed) console.error(error);
+    if (status === 500 && !res.destroyed) console.error(error);
     res.status(status).json({ detail: status === 500
       ? "Authorities could not complete that operation"
       : error.message });
