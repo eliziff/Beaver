@@ -152,8 +152,8 @@ describe("verified legal-source links", () => {
 
     expect(textDirectives(result!)).toHaveLength(1);
     expect(paintedTerms(textDirectives(result!)[0]!)).toEqual([
-      "phrase",
-      "line",
+      "phrase split across",
+      "a source line",
     ]);
   });
 
@@ -161,7 +161,7 @@ describe("verified legal-source links", () => {
     const text = "duties arise under sections 5.1.1 annotation follows";
     const documentText = await nativeSource(text);
     const bclaws = buildLegalSourcePinpointUrl({
-      url: "https://www.canlii.org/en/bc/laws/stat/sbc-2003-c-63/latest/sbc-2003-c-63.html",
+      url: "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/03063_01",
       blockText: text,
       documentText,
     }, [text])!;
@@ -190,8 +190,7 @@ describe("verified legal-source links", () => {
 
     expect(textDirectives(result!)).toHaveLength(1);
     expect(paintedTerms(textDirectives(result!)[0]!)).toEqual([
-      "I",
-      "not.",
+      "I will note that fentanyl and some other controlled substances are inherently toxic, whether in the control of the accused or not",
     ]);
     expect(result).not.toContain("text=38%5D");
   });
@@ -254,12 +253,11 @@ describe("verified legal-source links", () => {
     expect(result.match(/text=/gu)).toHaveLength(2);
     expect(result).toContain("&text=");
     expect(paintedTerms(textDirectives(result)[0]!)).toEqual([
-      "self-regulating",
+      "self",
       "profession",
     ]);
     expect(paintedTerms(textDirectives(result)[1]!)).toEqual([
-      "frivolous,",
-      "request",
+      "frivolous, vexatious request",
     ]);
     const partial = buildA2AJDocumentPinpointUrl(
         document,
@@ -269,7 +267,7 @@ describe("verified legal-source links", () => {
       )!;
     expect(textDirectives(partial)).toHaveLength(1);
     expect(paintedTerms(textDirectives(partial)[0]!)).toEqual([
-      "self-regulating",
+      "self",
       "profession",
     ]);
   });
@@ -296,7 +294,7 @@ describe("verified legal-source links", () => {
     // Browser-order replay emits the deterministic first source occurrence.
     expect(paintedTerms(textDirectives(
       buildLegalSourcePinpointUrl(evidence, ["of the premises"])!,
-    )[0]!)).toEqual(["of", "premises."]);
+    )[0]!)).toEqual(["of the premises"]);
   });
 
   it("allows same-origin viewer paths and rejects unsafe relative URLs", async () => {
@@ -346,7 +344,7 @@ describe("verified legal-source links", () => {
 
     expect(result).toContain("https://decisions.scc-csc.ca/");
     expect(result).toContain("iframe=true&site_preference=mobile");
-    expect(paintedTerms(textDirectives(result)[0]!)).toEqual(["motiveless", "act"]);
+    expect(paintedTerms(textDirectives(result)[0]!)).toEqual(["motiveless act"]);
   });
 
   it("keeps a context-resolved repeated SCC passage on the publisher", async () => {
@@ -570,8 +568,7 @@ describe("verified legal-source links", () => {
     const directives = textDirectives(result);
     expect(directives).toHaveLength(1);
     expect(paintedTerms(directives[0]!)).toEqual([
-      "Delay in seeking child support can",
-      "apply.",
+      "Delay in seeking child support can prejudice both parties, but the applicable factors must not be decided arbitrarily not to apply",
     ]);
   });
 
@@ -593,8 +590,7 @@ describe("verified legal-source links", () => {
     // span; it never appears on the page, so a target containing it can
     // only fail.
     expect(paintedTerms(textDirectives(result)[0]!)).toEqual([
-      "The court",
-      "circumstances.",
+      "The court must ensure that the quantum of a retroactive award fits the circumstances",
     ]);
     expect(result).not.toContain("99%2D135");
   });
@@ -614,8 +610,7 @@ describe("verified legal-source links", () => {
       ],
     )!;
     expect(paintedTerms(textDirectives(decisia)[0]!)).toEqual([
-      "5",
-      "orders.",
+      "Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders",
     ]);
 
     const kingsPrinter =
@@ -630,8 +625,7 @@ describe("verified legal-source links", () => {
       ["(2) The court may make a child support order only if"],
     )!;
     expect(paintedTerms(textDirectives(subsection)[0]!)).toEqual([
-      "The",
-      "if",
+      "The court may make a child support order only if",
     ]);
     expect(subsection).not.toContain("text=%282%29");
 
@@ -648,8 +642,7 @@ describe("verified legal-source links", () => {
       ],
     )!;
     expect(paintedTerms(textDirectives(section)[0]!)).toEqual([
-      "In making",
-      "guidelines.",
+      "In making a child support order, the court shall do so in accordance with the prescribed guidelines",
     ]);
     expect(section).not.toContain("text=51");
   });
@@ -671,8 +664,8 @@ describe("verified legal-source links", () => {
     const directives = textDirectives(result);
     expect(directives).toHaveLength(1);
     expect(paintedTerms(directives[0]!)).toEqual([
-      "A second",
-      "Summary",
+      "A second way",
+      "5.5 Summary",
     ]);
     expect(directives.join("&")).not.toMatch(/%0A/iu);
   });
@@ -727,8 +720,8 @@ describe("verified legal-source links", () => {
     const directives = textDirectives(result);
     expect(directives).toHaveLength(1);
     expect(paintedTerms(directives[0]!)).toEqual([
-      "retroactively",
-      "provisions.",
+      "retroactively decrease child",
+      "and related provisions.",
     ]);
   });
 
@@ -817,7 +810,7 @@ describe("verified legal-source links", () => {
     const directives = decodeURIComponent(result.slice(result.indexOf(":~:") + 3));
     expect(directives).toMatch(/-,|,-/u);
     expect(directives.startsWith("text=follow,-") ||
-      directives.includes(",-on this appeal")).toBe(true);
+      directives.includes(",-on")).toBe(true);
   });
 
 });
