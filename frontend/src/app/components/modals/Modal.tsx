@@ -78,6 +78,9 @@ export function Modal({
         const dialog = dialogRef.current;
         if (!open || !dialog) return;
         dialog.showModal();
+        // The dialog itself takes focus, not its first button (Close): a key still on its way, such as the
+        // Enter that chose a file, then cannot close what it opened.
+        dialog.focus();
         return () => {
             if (dialog.open) dialog.close();
             window.setTimeout(() => {
@@ -98,6 +101,7 @@ export function Modal({
             data-shortcut-layer
             data-shortcut-open={open ? "true" : "false"}
             data-shortcut-close
+            tabIndex={-1}
             onCancel={(event) => {
                 event.preventDefault();
                 onEscape();
@@ -115,7 +119,7 @@ export function Modal({
                 pointerStartedOnBackdrop.current = false;
             }}
             className={cn(
-                "m-auto w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg p-0 backdrop:bg-black/20",
+                "m-auto w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg p-0 outline-none backdrop:bg-black/20",
                 fit
                     ? "h-fit max-h-[calc(100dvh-2rem)]"
                     : "h-[min(600px,calc(100dvh-2rem))]",
