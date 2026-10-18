@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { A2AJCompiledDocument } from "../legalSources/a2aj";
 import {
-  buildA2AJDocumentPinpointUrl,
+  a2ajDocumentLinks,
   buildLegalSourcePinpoint,
   buildLegalSourcePinpointUrl,
 } from "../legalSourceLinks";
@@ -54,6 +54,9 @@ function paintedTerms(directive: string) {
   if (pieces.at(-1)?.startsWith("-")) pieces.pop();
   return pieces.map(decodeURIComponent);
 }
+
+const a2ajBest = (...[source, locator, blockText, quotes]: Parameters<typeof a2ajDocumentLinks>) =>
+  a2ajDocumentLinks(source, locator, blockText, quotes).best;
 
 describe("verified legal-source links", () => {
   it("keeps PDF fragments split by A2AJ source lineation", async () => {
@@ -221,7 +224,7 @@ describe("verified legal-source links", () => {
       "The distinctive source words establish this proposition conclusively.";
     const document = await nativeDocument(text, url);
 
-    const result = buildA2AJDocumentPinpointUrl(
+    const result = a2ajBest(
       document,
       { kind, label },
       text,
@@ -239,7 +242,7 @@ describe("verified legal-source links", () => {
       text,
       "https://www.canlii.org/en/ca/laws/stat/example/latest/example.html",
     );
-    const result = buildA2AJDocumentPinpointUrl(
+    const result = a2ajBest(
       document,
       { kind: "section", label: "sec6" },
       text,
@@ -259,7 +262,7 @@ describe("verified legal-source links", () => {
     expect(paintedTerms(textDirectives(result)[1]!)).toEqual([
       "frivolous, vexatious request",
     ]);
-    const partial = buildA2AJDocumentPinpointUrl(
+    const partial = a2ajBest(
         document,
         { kind: "section", label: "sec6" },
         text,
@@ -335,7 +338,7 @@ describe("verified legal-source links", () => {
         "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21212/index.do" +
         "?foo=bar&iframe=false&site_preference=desktop",
     );
-    const result = buildA2AJDocumentPinpointUrl(
+    const result = a2ajBest(
       document,
       { kind: "paragraph", label: "par191" },
       text,
@@ -362,7 +365,7 @@ describe("verified legal-source links", () => {
       text,
       "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21213/index.do",
     );
-    const result = buildA2AJDocumentPinpointUrl(
+    const result = a2ajBest(
       { ...document, verifiedPdf: {
         url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/21213/1/document.do",
         pdfOnly: false,
@@ -385,7 +388,7 @@ describe("verified legal-source links", () => {
       "2023 SCC 14",
     );
 
-    expect(buildA2AJDocumentPinpointUrl(
+    expect(a2ajBest(
       document,
       { kind: "paragraph", label: "par81" },
       text,
@@ -393,13 +396,13 @@ describe("verified legal-source links", () => {
     )).toBe(
       "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do?iframe=true&site_preference=mobile#par81",
     );
-    expect(buildA2AJDocumentPinpointUrl(
+    expect(a2ajBest(
       { ...document, url: null },
       { kind: "paragraph", label: "par81" },
       text,
       [],
     )).toBeNull();
-    expect(buildA2AJDocumentPinpointUrl(
+    expect(a2ajBest(
       { ...document, url: null },
       { kind: "paragraph", label: "par81" },
       text,
@@ -412,7 +415,7 @@ describe("verified legal-source links", () => {
       "ABCA",
     );
     expect(
-      buildA2AJDocumentPinpointUrl(
+      a2ajBest(
         official,
         { kind: "paragraph", label: "par12" },
         structureNative().documentText(official.native),
@@ -420,7 +423,7 @@ describe("verified legal-source links", () => {
       ),
     ).toBe("https://example.test/official-decision");
     expect(
-      buildA2AJDocumentPinpointUrl(
+      a2ajBest(
         document,
         { kind: "paragraph", label: "par81" },
         text,
@@ -442,7 +445,7 @@ describe("verified legal-source links", () => {
       "BCCA",
     );
 
-    const result = buildA2AJDocumentPinpointUrl(
+    const result = a2ajBest(
       document,
       { kind: "paragraph", label: "par1" },
       text.split("\n")[0]!,
@@ -465,13 +468,13 @@ describe("verified legal-source links", () => {
       "BCCA",
     );
 
-    expect(buildA2AJDocumentPinpointUrl(
+    expect(a2ajBest(
       document,
       { kind: "paragraph", label: "par1" },
       text,
       [legalPassage],
     )).toContain("https://www.bccourts.ca/");
-    expect(buildA2AJDocumentPinpointUrl(
+    expect(a2ajBest(
       document,
       { kind: "paragraph", label: "par1" },
       text,
@@ -485,7 +488,7 @@ describe("verified legal-source links", () => {
       text,
       "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.pdf",
     );
-    const result = buildA2AJDocumentPinpointUrl(
+    const result = a2ajBest(
       document,
       { kind: "page", label: "page19" },
       text,
@@ -516,7 +519,7 @@ describe("verified legal-source links", () => {
       ],
     ]) {
       const document = await nativeDocument(text, url, citation, dataset);
-      const result = buildA2AJDocumentPinpointUrl(
+      const result = a2ajBest(
         document,
         { kind: "paragraph", label: "par42" },
         text,
@@ -537,7 +540,7 @@ describe("verified legal-source links", () => {
       "https://www.bccourts.ca/jdb-txt/ca/26/03/2026BCCA0310.htm";
     const quote = "distinctive unanchored proposition";
     const document = await nativeDocument(text, url, "2026 BCCA 310", "BCCA");
-    const result = buildA2AJDocumentPinpointUrl(
+    const result = a2ajBest(
       document,
       { kind: "paragraph", label: "par42" },
       text,

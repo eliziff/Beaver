@@ -78,32 +78,6 @@ export function a2ajDocumentLinks(
   });
 }
 
-export function buildA2AJDocumentPinpointUrl(
-  source: A2AJCompiledDocument, locator: { kind: A2AJLocatorKind; label: string },
-  blockText: string, quotes: string[],
-  requireComplete = false,
-) {
-  const document = source.searchNative;
-  const complete = (plan: NativeTextFragmentPlan | null | undefined) => !requireComplete || !!plan?.sourceSafeComplete;
-  // The passage on the provider's page A2AJ's text came from; else on A2AJ Law Web, which renders that text; else, with
-  // a fragment, on the document's CanLII page. None: the caller's plain authority link.
-  const publisher = source.url ? buildLegalSourcePinpoint({
-    url: source.url, verifiedPdf: source.verifiedPdf,
-    anchor: legalSourceLocatorAnchor(source.url, locator.kind, locator.label),
-    blockText, documentText: document,
-  }, quotes, source.docType === "laws") : null;
-  if (publisher && complete(publisher.plan)) return publisher.target;
-  const lawWeb = structureNative().lawWebLink(document, source.citation, source.docType ?? "cases", blockText, quotes);
-  if (lawWeb) return lawWeb;
-  const canliiUrl = source.docType === "laws" ? structureNative().canliiLawUrl(source.citation)
-    : structureNative().canliiCaseUrl([source.citation, source.alternateCitation ?? ""].filter(Boolean),
-      source.language, source.dataset);
-  const canlii = canliiUrl ? buildLegalSourcePinpoint({ url: canliiUrl,
-    anchor: legalSourceLocatorAnchor(canliiUrl, locator.kind, locator.label), blockText, documentText: document,
-  }, quotes) : null;
-  return canlii?.plan?.directives.length && complete(canlii.plan) ? canlii.target : null;
-}
-
 /** The engine's link for a passage (legal-structure passage_links), kept for the passages planned most recently: a
  *  quote check plans its links off the JavaScript thread first, and the workbook it feeds asks for them again. */
 const LINKS_KEPT = 512;
