@@ -973,6 +973,7 @@ function bookFront(draft: AuthoritiesDraft, subtitle: string) {
   return { subtitle, documentTitle: draft.cover.title || bookTitle, bookTitle, federal,
     alberta: !!profile.requirements?.albertaCover,
     indexShows: draft.settings.indexShows ?? "tabs",
+    indexLinks: !!draft.settings.indexLinks,
     tabPages: draft.settings.tabPages ?? true,
     rightHandStarts: draft.settings.rightHandStarts ?? true,
     electronic: draft.settings.filingMedium === "electronic",
