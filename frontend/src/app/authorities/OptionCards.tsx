@@ -53,10 +53,10 @@ export type CardOption<T extends string> = { value: T; label: string; detail?: s
  *  the choice made. */
 export function OptionCards<T extends string>({ legend, value, options, onChange, columns, disabled,
   className, collapsed = false }: { legend: string; value: T; options: ReadonlyArray<CardOption<T>>;
-  onChange: (value: T) => void; columns?: boolean; disabled?: boolean; className?: string; collapsed?: boolean }) {
+  onChange: (value: T) => void; columns?: boolean | 3; disabled?: boolean; className?: string; collapsed?: boolean }) {
   const cards = <fieldset className={collapsed ? "mt-3" : className} disabled={disabled}>
     <legend className={collapsed ? "sr-only" : "mb-1.5 text-[0.8125rem] font-medium text-gray-700"}>{legend}</legend>
-    <div className={cn("grid auto-rows-fr gap-2", columns && "sm:grid-cols-2")}>
+    <div className={cn("grid auto-rows-fr gap-2", columns === 3 ? "sm:grid-cols-3" : columns && "sm:grid-cols-2")}>
       {options.map((option) => <OptionCard key={option.value} name={`authorities-${legend}`}
         checked={value === option.value} onChange={() => onChange(option.value)}
         label={option.label} detail={option.detail} preview={option.preview} />)}

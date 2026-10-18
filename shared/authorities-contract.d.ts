@@ -71,9 +71,14 @@ export type AuthoritiesBuildSettings = {
   /** A decision of subsequent history ("aff'd 2010 ABCA 191"): a tab of its own (the default), or
    *  printed with the case it follows, with no tab, index line or source of its own. */
   subsequentHistory?: "omit" | "include";
-  /** How the book reproduces each case and other source (a statute goes by its own length): in full (the
-   *  default), or as an excerpt of the pages the brief cites, the context around them and, by default, its first page. */
+  /** How the book reproduces each case: in full (the default), or as an excerpt of the pages the brief cites,
+   *  the context around them and, by default, its first page. */
   caseCopy?: "whole" | "excerpt";
+  /** How the book reproduces each source that is neither a case nor legislation, as `caseCopy` does a case. */
+  otherCopy?: "whole" | "excerpt";
+  /** How the book reproduces each statute: by its length ("length", the default: an excerpt of its cited
+   *  provisions past STATUTE_EXCERPT_PAGES, else in full), in full, or always as an excerpt. */
+  legislationCopy?: "length" | "whole" | "excerpt";
   /** The paragraphs an excerpt keeps before and after each cited paragraph of a case (default 1; 0 keeps only the
    *  cited paragraphs), by the pages they are on. */
   contextParagraphs?: number;
@@ -178,8 +183,8 @@ export type AuthorityIdentity = {
   source: AuthoritySourceDecision;
   highlightExclusions?: AuthorityHighlightExclusion[];
   annotations?: PdfAnnotationSets;
-  /** In the book as an excerpt (true) or whole (false), as chosen; unset, a statute by its length and any
-   *  other authority as the book's `caseCopy` says. */
+  /** In the book as an excerpt (true) or whole (false), as chosen; unset, as the book's `caseCopy`,
+   *  `legislationCopy` or `otherCopy` says for its kind. */
   excerpt?: boolean;
   userAdded?: true;
   /** Import provenance: detected while scanning, never entered by hand. */
