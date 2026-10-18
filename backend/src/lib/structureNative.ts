@@ -199,7 +199,7 @@ type StructureAddon = {
   documentLive?(document: NativeDocument): boolean;
   memoryBytes?(): number;
   recycle?(): void;
-  offThread<M extends "groundedProseErrors" | "passageLink" | "citedPassageLink">(method: M,
+  offThread<M extends "groundedProseErrors" | "passageLink" | "citedPassageLink" | "sourceLinks">(method: M,
     ...args: Parameters<StructureAddon[M]>): Promise<ReturnType<StructureAddon[M]>>;
   nativeBuildFeatures(): string;
   /** A passage's link on a source's page with the fragments planned against the document (legal-structure). */
@@ -208,6 +208,14 @@ type StructureAddon = {
     : { target: string; plan: NativeTextFragmentPlan | null } | null;
   /** The link citing a passage by its anchor, with its paragraph's or provision's fragments where they plan whole. */
   citedPassageLink(document: NativeDocument, url: string, pinpoints: readonly string[]): string | null;
+  /** Every link a passage of an A2AJ document can take (publisher, CanLII, Law Web) and the one routed best:
+   *  the publisher's where its page prints an anchor for the pinpoint, else CanLII's (legal-structure source_links). */
+  sourceLinks(document: NativeDocument, request: { url?: string; dataset: string; citation: string;
+    alternateCitation?: string | null; language?: string; docType?: string;
+    locator?: { kind: string; label: string } | null; blockText: string; quotes: string[];
+    verifiedPdf?: { url: string; pdfOnly?: boolean } | null })
+    : { publisher: { target: string; plan: NativeTextFragmentPlan | null } | null;
+        canlii: { target: string; plan: NativeTextFragmentPlan | null } | null; lawWeb: string | null; best: string | null };
   /** The passage on A2AJ Law Web's reader of the document; null where it cannot be planned whole there. */
   lawWebLink(document: NativeDocument, citation: string, docType: string, blockText: string, quotes: string[]): string | null;
   canliiA2ajLawUrl(dataset: string, citation: string, language: string): string | null;
