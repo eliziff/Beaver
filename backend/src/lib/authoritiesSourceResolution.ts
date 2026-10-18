@@ -107,7 +107,7 @@ const caseNamesAgree = (written: string[], other: string) => structureNative().c
  *  does (2021 SCC 4 is R v Murtaza; the brief's Parranto is 2021 SCC 46). Null when the names agree.
  *  A short form alone ("Main Decision") names no party: it can agree with the case, never set it apart. */
 async function citedCaseMismatch(authority: AuthorityIdentity, source: { citation: string; name: string | null;
-  date: string | null; dataset: string | null }, sources: SourceServices, signal?: AbortSignal,
+  date: string | null; dataset: string | null; searchText: () => string }, sources: SourceServices, signal?: AbortSignal,
   mode: "resolve" | "warn" = "resolve"): Promise<AuthorityCitedCase | null> {
   const mismatch = caseNameMismatch(authority, source);
   if (!mismatch || mode === "warn") return mismatch;
@@ -324,7 +324,7 @@ export async function resolveAuthoritiesSources(
   });
   for (const [id, found] of foreign) {
     if (!found || !draft.authorities[id]) continue;
-    const mismatch = caseNameMismatch(draft.authorities[id], found);
+    const mismatch = caseNameMismatch(draft.authorities[id], { ...found, searchText: () => found.text });
     const previous = draft.authorities[id].sourceIdentity;
     if (previous && (previous.stableSourceId !== found.stableSourceId ||
         previous.sourceSha256 !== found.sourceSha256)) throw new ApplicationError(409,

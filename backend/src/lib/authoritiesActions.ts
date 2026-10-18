@@ -105,14 +105,37 @@ function unusedRole(draft: AuthoritiesDraft, role: string) {
 const captionStyleOfCause = (text: string, keys: readonly string[]) =>
   structureNative().citationEngineCall("captionStyleOfCause", JSON.stringify({ text, keys })) as string | null;
 
-/** A source whose parties share no distinctive name with the manuscript's case. */
+/** The parties a decision's caption names, as its outline reads the matter before its reasons: each block of lines
+ *  ending at a party's role ("Appellant", "Respondents"), from the line after the previous role or a "Between:", or
+ *  from the first caption line after a label, whose own lines run on below it ("CORAM: A J.A." over "B J.A."). The
+ *  bench and counsel come under labels or after the last role, outside every block. */
+function captionParties(text: string) {
+  const parties: string[] = [];
+  let block: string[] | null = null;
+  for (const entry of structureNative().caseOutline(text)) {
+    if (entry.kind === "paragraph") break;
+    if (entry.role === "party") { parties.push(...block ?? []); block = []; }
+    else if (entry.role === "labelled" || entry.role === "counsel" || entry.kind === "heading") block = null;
+    else if (entry.text.trimEnd().endsWith(":")) block = [];
+    else if (block || entry.role === "caption") (block ??= []).push(entry.text);
+  }
+  return parties;
+}
+
+/** A source whose parties share no distinctive name with the manuscript's case: neither its title nor, where its
+ *  text is given, any party its caption names. A title can name a few of many parties (A2AJ's "msi Spergel Inc. v.
+ *  I.F. Propco Holdings" for the case cited as "Dilollo, Re", whose caption names "the Estate of Cosimo Dilollo"). */
 export function caseNameMismatch(authority: AuthorityIdentity,
-  source: { citation: string; name: string | null }): AuthorityCitedCase | null {
+  source: { citation: string; name: string | null; searchText?: () => string }): AuthorityCitedCase | null {
   const styled = authority.mentionedAs || authority.name;
   if (authority.kind !== "case" || !source.name || !styled?.trim()) return null;
-  const agreement = structureNative().citationEngineCall("caseNamesAgree",
-    JSON.stringify({ written: [styled, ...authority.shortNames ?? []], other: source.name })) as { agrees: boolean };
-  return agreement.agrees ? null : {
+  const agreement = (other: string) => structureNative().citationEngineCall("caseNamesAgree",
+    JSON.stringify({ written: [styled, ...authority.shortNames ?? []], other })) as { agrees: boolean; other: string[] };
+  if (agreement(source.name).agrees) return null;
+  const parties = source.searchText ? captionParties(source.searchText()) : [];
+  // A caption whose parties give no distinctive name (the Crown alone) tells nothing.
+  const caption = parties.length ? agreement(parties.join("\n")) : null;
+  return caption?.agrees && caption.other.length ? null : {
     id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, source.citation, source.name]),
     citation: source.citation, name: source.name, named: null,
   };
@@ -150,7 +173,8 @@ function openingOtherCase(draft: AuthoritiesDraft, authority: AuthorityIdentity,
     const name = captionStyleOfCause(pages[0] ?? "", [own.key]);
     if (authority.source.kind === "pending-canlii" || authority.sourceVerificationUrl)
       return { citation: own.text, name: name ?? own.text };
-    return name && caseNameMismatch(authority, { citation: own.text, name }) ? { citation: own.text, name } : null;
+    return name && caseNameMismatch(authority, { citation: own.text, name, searchText: () => pages.join("\n") })
+      ? { citation: own.text, name } : null;
   }
   return null;
 }
@@ -167,7 +191,7 @@ export async function authorityPdfCaption(draft: AuthoritiesDraft, authorityId: 
   const name = other ? null : captionStyleOfCause(pages[0] ?? "", citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat());
   if (!other && !name) return draft;
   const mismatch = other ? { id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, other.citation, other.name]),
-    ...other, named: null } : caseNameMismatch(authority, { citation: authority.citation, name });
+    ...other, named: null } : caseNameMismatch(authority, { citation: authority.citation, name, searchText: () => pages.join("\n") });
   const checked = mismatch || authority.citedCase
     ? updateAuthoritiesDraft(draft, { type: "set-cited-case", authorityId, citedCase: mismatch }) : draft;
   return name && !authority.name && !authority.displayName
