@@ -41,14 +41,16 @@ export type NativeReferencePart = { part: import("legal-citations").SourcePart;
 
 /** `label` as printed ("726.1", "(2)", "PART XXIII"); `title` a marginal note or heading; `text` the
  *  entry's own words; `start`/`end` (string indices) span it and everything under it. */
-export type NativeStatuteOutlineEntry = { kind: "part" | "division" | "heading" | "schedule" | "section" |
+export type NativeStatuteOutlineEntry = { kind: "preamble" | "part" | "division" | "heading" | "schedule" | "section" |
   "article" | "subsection" | "paragraph" | "subparagraph" | "clause"; level: number; label: string;
   title?: string; text: string; start: number; end: number };
 
 /** A judgment's outline entry: `label` as printed ("[12]", "IV.", "(a)", "•"); `level` a heading's
  *  depth or an item's depth in its list (from 1); `start`/`end` (string indices) span it. */
 export type NativeCaseOutlineEntry = { kind: "heading" | "paragraph" | "item" | "text"; level: number;
-  label: string; text: string; start: number; end: number };
+  label: string; text: string; start: number; end: number;
+  /** A front-matter line's part: the provider's title line, a party's role, the caption's short lines. */
+  role?: "title" | "party" | "caption" | "labelled" | "counsel" };
 
 /** `start` is in the document's query text; `pageIndex` is a PDF's zero-based page. */
 export type NativeOutlineEntry = { kind: "heading" | "section"; level: number; title: string;
@@ -357,8 +359,6 @@ type StructureAddon = {
     partyGroups: Array<{ role: string; parties: string[] }>;
     filedBy?: { party: string; article: boolean };
   };
-  /** What a line of a judgment's front matter is: a party's role, a labelled line, counsel's line, or another. */
-  frontMatterLine(text: string): "party" | "labelled" | "counsel" | "other";
   documentTextStatistics(document: NativeDocument, texts: string[]): Array<{ occurrences: number; words: number }>;
   textFragmentPlan(blockText: string, quotes: string[], pdf: boolean,
     publisherMayAnnotateLegalReference: boolean,
