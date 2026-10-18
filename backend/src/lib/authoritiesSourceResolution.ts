@@ -38,21 +38,45 @@ const foreignProviders = [
   { id: "govinfo", claims: govInfoLegalSourceProvider, source: govInfoCaseSource },
 ] as const;
 
+const PROVIDER_NAMES: Record<typeof foreignProviders[number]["id"], string> = { tna: "The National Archives",
+  courtlistener: "CourtListener", "justice-laws": "Justice Laws", "govuk-et": "GOV.UK", govinfo: "GovInfo" };
+
+/** A provider that could not answer, as the authority's lookup failure: its own, never the run's. */
+export class ForeignLookupFailure extends Error {
+  constructor(readonly failure: AuthoritySourceLookupFailure) { super(failure.detail ?? failure.reason); }
+}
+const foreignFailure = (provider: typeof foreignProviders[number]["id"], error: unknown): AuthoritySourceLookupFailure => {
+  const detail = error instanceof Error ? error.message : String(error);
+  const reason = /rate limit|\b429\b/iu.test(detail) ? "rate-limited"
+    : error instanceof Error && (error.name === "TimeoutError" || /timed? ?out/iu.test(detail)) ? "timeout"
+    : /fetch failed|ENOTFOUND|ECONNREFUSED|ECONNRESET|cannot be reached/iu.test(detail) ? "unreachable" : "error";
+  return { reason, retryAfter: null, detail, provider: PROVIDER_NAMES[provider] };
+};
+
 /** Resolves the first citation form a provider matches; never a best guess. Without `foreignCases`,
- *  US and UK decisions are not looked up. A provider's failure is the run's. */
+ *  US and UK decisions are not looked up. A provider that cannot answer leaves the others asked; where none
+ *  finds the source, the first failure is the authority's (ForeignLookupFailure), never the run's. */
 async function resolveForeignAuthoritySource(citations: readonly string[], signal?: AbortSignal,
   kind: "case" | "legislation" = "case", foreignCases = true) {
+  let failure: AuthoritySourceLookupFailure | undefined;
   for (const citation of citations.map((value) => value.trim()).filter(Boolean)) {
     signal?.throwIfAborted();
     for (const { id, claims, source } of foreignProviders) {
       if (!foreignCases && FOREIGN_CASE_PROVIDERS.has(id)) continue;
       if (!claims.canResolve?.({ text: citation, kind })) continue;
-      const found = await source(citation, signal);
+      let found: Awaited<ReturnType<typeof source>>;
+      try { found = await source(citation, signal); }
+      catch (error) {
+        signal?.throwIfAborted();
+        failure ??= foreignFailure(id, error);
+        continue;
+      }
       if (!found || (!found.pdfUrl && !found.text.trim())) continue;
       return { ...found, provider: id, name: found.title, stableSourceId: `${id}:${found.id}`,
         sourceSha256: canonicalJsonSha256({ provider: id, id: found.id, text: found.text }) };
     }
   }
+  if (failure) throw new ForeignLookupFailure(failure);
   return null;
 }
 
@@ -319,8 +343,15 @@ export async function resolveAuthoritiesSources(
       !("mismatch" in resolutions[index]) && !resolutions[index].source &&
       ["unresolved", "resolved"].includes(draft.authorities[id]?.source.kind) ? [id] : []), async (id) => {
     signal?.throwIfAborted();
-    return [id, await sources.resolveForeign(authorityCitationForms(draft, id), signal,
-      draft.authorities[id].kind as "case" | "legislation", draft.settings.foreignCaseLookup !== false)] as const;
+    try {
+      return [id, await sources.resolveForeign(authorityCitationForms(draft, id), signal,
+        draft.authorities[id].kind as "case" | "legislation", draft.settings.foreignCaseLookup !== false)] as const;
+    } catch (error) {
+      // A provider that could not answer leaves this authority unchecked, marked for a retry; the others go on.
+      if (!(error instanceof ForeignLookupFailure)) throw error;
+      editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: error.failure });
+      return [id, null] as const;
+    }
   });
   for (const [id, found] of foreign) {
     if (!found || !draft.authorities[id]) continue;
