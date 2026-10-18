@@ -631,8 +631,8 @@ function drawAlbertaCover(pdf: PdfModule, page: PdfPage, regular: PdfFont, bold:
   ];
   let y = 724;
   for (const [label, value, field, font = regular] of rows) {
-    // A value beside the stamp box stops short of it.
-    const width = (y > stamp.bottom ? stamp.x - 12 : right) - valueX;
+    // A value beside the stamp box stops short of it: its field's top, 10 points over its first line, too.
+    const width = (y + 10 > stamp.bottom ? stamp.x - 12 : right) - valueX;
     const labels = wrapped(bold, label, 8, valueX - left - 14), values = wrapped(font, value, size, width);
     labels.forEach((line, index) => page.drawText(line, { x: left, y: y - index * 10, size: 8, font: bold }));
     const lines = values.map((line, index): [string, number, number] => [line, valueX, y - index * leading]);
