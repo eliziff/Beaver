@@ -47,6 +47,10 @@ export type AuthoritiesBuildSettings = {
   /** What the book's index gives for each authority beside its citation: its tab ("tabs", the
    *  default) or its tab and the book pages it fills. */
   indexShows?: "tabs" | "tabs-and-pages";
+  /** Whether each citation in the book's index is a link to the authority's web address, as many filed books
+   *  link theirs, while its leader and tab still open its tab (default false). The Federal Court's index has its
+   *  own source column instead. */
+  indexLinks?: boolean;
   /** A "TAB n" page before each authority, where its index link and bookmark land (default true). */
   tabPages?: boolean;
   /** The bookmarks under each tab: the passages the book marks in it ("highlights", the default:

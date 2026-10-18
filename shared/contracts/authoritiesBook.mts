@@ -25,6 +25,8 @@ export type PreparedAuthoritiesBook<Bytes = Uint8Array> = {
   alberta?: boolean;
   /** What the index gives beside each citation: its tab, or its tab and the pages it fills. */
   indexShows?: "tabs" | "tabs-and-pages";
+  /** Each citation in the index a link to its `sourceUrl`, in link blue; its leader and tab still open its tab. */
+  indexLinks?: boolean;
   /** A "TAB n" page before each authority, where its index link and bookmark land. */
   tabPages?: boolean;
   customCover?: Bytes; customIndex?: Bytes;
@@ -260,8 +262,12 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
               const tabTarget = tabStarts.get(token.entry.key);
               const pageLabel = ranges.get(token.entry.key)?.join(", ") ?? "—";
               const last = y - (token.lines.length - 1) * leading;
+              // A linked citation is in Word's link blue, as most filed books show their index links.
+              const url = !federal && input.indexLinks ? token.entry.sourceUrl : null;
+              const lineWidth = (line: typeof token.lines[number]) => line.reduce((sum, run) =>
+                sum + (run.italic ? serifItalic : serif).widthOfTextAtSize(run.text, bodySize), 0);
               token.lines.forEach((line, index) => drawRuns(page, line, { x: titleX, y: y - index * leading,
-                size: bodySize, roman: serif, italic: serifItalic }));
+                size: bodySize, roman: serif, italic: serifItalic, ...url && { color: pdf.rgb(5 / 255, 99 / 255, 193 / 255) } }));
               if (federal) {
                 // Only the Federal Court's index links each authority to its public source.
                 const sourceUrl = token.entry.sourceUrl;
@@ -289,15 +295,16 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
                 page.drawText(pageLabel, { x: right - width, y: last, size: bodySize, font: serif });
                 leaderEnd = right - width - 8;
               }
-              const lastLine = token.lines[token.lines.length - 1] ?? [];
-              const leaderStart = titleX + lastLine.reduce((sum, run) =>
-                sum + (run.italic ? serifItalic : serif).widthOfTextAtSize(run.text, bodySize), 0) + 6;
+              const leaderStart = titleX + lineWidth(token.lines[token.lines.length - 1] ?? []) + 6;
               const dot = serif.widthOfTextAtSize(" .", bodySize);
               const dots = Math.floor((leaderEnd - leaderStart) / dot);
               if (dots > 1) page.drawText(" .".repeat(dots), { x: leaderEnd - dots * dot, y: last,
                 size: bodySize, font: serif });
+              // Linked, each line of the citation opens the authority online and the leader and tab its tab.
+              if (url) token.lines.forEach((line, index) => links.push({ page, url,
+                rect: [titleX - 1, y - index * leading - 4, titleX + lineWidth(line) + 1, y - index * leading + bodySize] }));
               if (tabTarget !== undefined && !frontOnly) links.push({ page, targetPageIndex: tabTarget,
-                rect: [margin - 2, last - 4, pageRight + 2, y + bodySize] });
+                rect: url ? [leaderStart - 4, last - 4, pageRight + 2, last + bodySize] : [margin - 2, last - 4, pageRight + 2, y + bodySize] });
               y -= token.height;
             }
             if (!(federal && electronic)) {

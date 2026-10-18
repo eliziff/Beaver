@@ -103,7 +103,10 @@ its row says Whole once its PDFs are read as the build reads them. A Federal Cou
 book on paper keeps the court's own extract of a decision on a free public database
 unless excerpts are chosen. `caseLinks` prints each case's source link, canonicalized
 as the table's links are, as an Acrobat header line atop the case's first page in
-the book, with a link annotation over it, on any PDF, scans included.
+the book, with a link annotation over it, on any PDF, scans included. `indexLinks`
+makes each citation in the generated index a link to that same address, in Word's
+link blue, as many filed books link their index entries; the entry's leader and tab
+still open its tab. The Federal Court's index has its source column instead.
 
 ## Source and quotation review
 
