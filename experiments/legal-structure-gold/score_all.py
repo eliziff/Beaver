@@ -49,6 +49,7 @@ def gold_file(job):
 
 def frozen(manifest, split=None):
     """Frozen evaluation gold as (mode, gold file, metadata), in the manifest's order."""
+    manifest = manifest.resolve()
     rows = read_json(manifest)['sources']
     for sha, row in sorted(rows.items()):
         if split and row['split'] != split: continue

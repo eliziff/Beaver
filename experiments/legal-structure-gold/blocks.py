@@ -325,6 +325,7 @@ def typed_spans(chunks, lines, order):
         for ident, line in chars.items():
             owned[ident] = [(c, None if o is None else (base + o[1], o[2], o[3])) for c, o in line]
     report = {"lines_without_typed_text": []}
+    filled = set()
     # Characters the model did not type take the owner of their neighbours on the line, then on the page.
     for ident in order:
         if ident not in owned: continue
@@ -344,6 +345,7 @@ def typed_spans(chunks, lines, order):
             fill = owned[source][-1][1][:2] if position[source] < position[ident] else owned[source][0][1][:2]
             owned[ident] = [(c, (*fill, None)) for c, _ in owned[ident]]
             report["lines_without_typed_text"].append(lines[ident]["text"])
+            filled.add(ident)
     def spans(key, strip=False):
         result = {}
         for ident in ids:
@@ -374,4 +376,13 @@ def typed_spans(chunks, lines, order):
                     "markers": [markers.get((n, k), []) for k in range(item["markers"])],
                     "references": [{"label": label, "spans": references.get((n, r), [])} for r, label in enumerate(item["references"])],
                     **({"cells": [cells.get((n, c), []) for c in range(item["cells"])]} if item["region"] == "table" else {})})
+    # Where the extraction's line segmentation differs from the print: a printed line the engine
+    # split (one typed line over several source lines, table rows aside) and printed lines it
+    # merged (one source line typed as several). A superscript extracted on its own line counts.
+    owners = {}
+    for n, item in enumerate(out):
+        ids = {s["line_id"] for s in item["spans"]} - filled
+        for ident in ids: owners.setdefault(ident, set()).add(n)
+    report["engine_split_lines"] = sum(1 for item in out if item["region"] != "table" and len({s["line_id"] for s in item["spans"]} - filled) > 1)
+    report["engine_merged_lines"] = sum(1 for typed_lines in owners.values() if len(typed_lines) > 1)
     return out, report
