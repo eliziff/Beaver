@@ -24,13 +24,24 @@ def projected(value):
     one page, unbroken), parents, markers, continuations, notes paired with their references,
     tables and document starts.
 
-    v4 lines carry no geometry: their reading position stands for it when sources are aligned."""
+    v4 lines carry no geometry: their reading position, the model's typed order, stands for it when
+    sources are aligned."""
     require(value.get('schema_version') == V4, 'Expected a legal-structure-gold.v4 file')
     lines = {line['id']: {'id': line['id'], 'page': line['page'], 'text': line.get('corrected', line['text']),
-                          'original_text': line['text'], 'source_id': line['id'], 'source_range': [0, len(line['text'])],
-                          'box': [0, n, 0, n]} for n, line in enumerate(value['lines'])}
-    order = list(lines)
+                          'original_text': line['text'], 'source_id': line['id'], 'source_range': [0, len(line['text'])]}
+             for line in value['lines']}
+    # Reading order is the order the model typed the lines in; a line it never typed keeps its
+    # place after the typed line before it in the extraction. Its position stands for geometry.
+    typed_order = list(dict.fromkeys(s['line_id'] for item in value['typed'] for s in item['spans']))
+    typed_set, after, leading, last = set(typed_order), defaultdict(list), [], None
+    for ident in lines:
+        if ident in typed_set: last = ident
+        elif last is None: leading.append(ident)
+        else: after[last].append(ident)
+    order = leading + [ident for typed_id in typed_order for ident in [typed_id] + after[typed_id]]
+    require(len(order) == len(lines), 'Every gold line takes one reading position')
     position = {ident: n for n, ident in enumerate(order)}
+    for ident, n in position.items(): lines[ident]['box'] = [0, n, 0, n]
     at = lambda span: (position[span['line_id']], span['start'])
     anchor = lambda spans: gold.span_anchor(spans[0])
     ids = lambda spans: list(dict.fromkeys(s['line_id'] for s in spans))
@@ -85,7 +96,8 @@ def projected(value):
                                                'relationship': None, 'title': [], 'facets': {}}})
     # Each note reference with the note the notes pass paired it with.
     for pair in value['notes']:
-        if pair['note'] is None or pair['reference'] is None: continue
+        # A note whose typed lines anchored nowhere has no annotation to pair with.
+        if pair['note'] is None or pair['reference'] is None or pair['note'] not in notes: continue
         notes[pair['note']]['attributes']['references'].extend(typed[pair['line']]['references'][pair['reference']]['spans'])
     # Tables: consecutive table rows, with only furniture, page labels and notes between, form one
     # table, one annotation per page linked across pages; a row is on the page of its first cell.
