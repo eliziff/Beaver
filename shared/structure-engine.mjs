@@ -34,7 +34,7 @@ export const SIGNATURES = {
   sourceMarkup: ["document"], sourceOpinionComponents: ["document"],
   sourceParagraphMarkers: ["document"], sourceParagraphMarker: ["document", "markupStart"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
-  statuteOutline: ["text", "articles"], caseOutline: ["text"], statuteProvisionSpans: ["text", "labels"],
+  statuteOutline: ["text", "articles"], caseOutline: ["text"], documentCaseOutline: ["document"], statuteProvisionSpans: ["text", "labels"],
   statuteCurrency: ["pages"], filingCover: ["opening", "title"],
   documentTextStatistics: ["document", "texts"],
   citationLookupKey: ["text"], citationLookupKeys: ["texts"], providerCitationsInText: ["text"],

@@ -115,6 +115,37 @@ function locatorLabel(label: string) {
   return label.startsWith("sec") ? label.slice(3) : label;
 }
 
+type OutlineEntry = NonNullable<LegalSourceViewerPayload["outline"]>[number];
+type Slice = LegalSourceViewerPayload["slices"][number];
+
+/** The outline's entries that open within a slice. */
+function outlineEntries(outline: LegalSourceViewerPayload["outline"], slice: Slice) {
+  return (outline ?? []).filter(({ start }) => start >= slice.start && start < slice.end);
+}
+
+/** A heading sized by its level among the judgment's headings, as the Authorities book sets it. */
+function JudgmentHeading({ text, entry }: { text: string; entry?: OutlineEntry }) {
+  const level = entry?.level ?? 2;
+  const size = ["mt-7 text-[1.2em] font-bold", "mt-6 text-[1.1em] font-bold", "mt-5 font-bold"][Math.min(level, 2)];
+  return <p role="heading" aria-level={Math.min(level + 2, 6)} className={`${size} text-gray-900`}>{text}</p>;
+}
+
+/** A judgment's front matter set as a judgment sets it, as the Authorities book does: a party's role at
+ *  the right margin, the caption's short lines centred (in bold where set in capitals), labelled and
+ *  counsel's lines at the left. */
+function FrontMatter({ slice, entries }: { slice: Slice; entries: OutlineEntry[] }) {
+  let at = slice.start;
+  return <>{slice.text.split("\n").map((line, index) => {
+    const start = at;
+    at += line.length + 1;
+    if (!line.trim()) return null;
+    const role = entries.find((entry) => entry.start >= start && entry.start < start + line.length)?.role;
+    const capitals = line === line.toLocaleUpperCase() && /\p{Lu}{3}/u.test(line);
+    const placed = role === "party" ? "text-right" : role === "caption" ? `text-center${capitals ? " font-semibold" : ""}` : "";
+    return <p key={index} className={`mb-1 ${placed}`}>{line.trim()}</p>;
+  })}</>;
+}
+
 export function legalSourceViewerActions(metadata: Metadata) {
   return ([
     ["source", "Site", metadata.url],
@@ -524,7 +555,10 @@ function LegalSourceViewerContent({
                   {marker && <span className="pt-[0.23rem] text-right text-xs font-semibold text-gray-600">{marker}</span>}
                   <div data-legal-text={sliceIndex} className="min-w-0 [&_li>p]:mb-0">
                     {slice.heading
-                      ? <p role="heading" aria-level={3} className="mt-4 font-semibold text-gray-900">{slice.text}</p>
+                      ? <JudgmentHeading text={slice.text} entry={outlineEntries(payload.outline, slice)
+                        .find(({ kind }) => kind === "heading")} />
+                      : !slice.primary && outlineEntries(payload.outline, slice).some(({ role }) => role)
+                      ? <FrontMatter slice={slice} entries={outlineEntries(payload.outline, slice)} />
                       : <LegalMarkdown>
                         {viewerMarkdown(
                           slice.text,

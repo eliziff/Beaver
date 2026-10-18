@@ -42,6 +42,14 @@ export interface LegalSourceViewerPayload {
     /** The slice is a heading the structure reads. */
     heading?: boolean;
   }[];
+  /** A judgment's front-matter parts and headings, as the structure reads them (offsets the slices'). */
+  outline?: {
+    kind: "heading" | "paragraph" | "item" | "text";
+    level: number;
+    role?: "title" | "party" | "caption" | "labelled" | "counsel";
+    start: number;
+    end: number;
+  }[];
   truncated: boolean;
 }
 interface LegalSourceViewerAnchor {

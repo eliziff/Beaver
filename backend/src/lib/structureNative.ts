@@ -348,6 +348,8 @@ type StructureAddon = {
   /** A judgment's outline read from its text: its headings by level, numbered paragraphs, the lists
    *  within them, and the matter around its reasons, in order. */
   caseOutline(text: string): NativeCaseOutlineEntry[];
+  /** caseOutline read from a document's own text, its offsets the document's. */
+  documentCaseOutline(document: NativeDocument): NativeCaseOutlineEntry[];
   /** Where a statute's text holds each cited provision, part ("16(3)(a)") or range ("49-51"), by its outline: each span
    *  (UTF-16) with everything under it, in the text's order; a label it does not hold has none. */
   statuteProvisionSpans(text: string, labels: string[]): Array<[number, number]>;
