@@ -10,8 +10,8 @@ import { indexedCaseUrl } from "../legalSources/canlii";
 import { citedSourceReader, outerQuoteMarks, pinpointSummary, withOuterQuotes, type checkQuotes, type QuoteCheck,
   type QuoteResult } from "../quoteCheck";
 import { legalSourceOperations } from "../legalSourceApplication";
-import { buildLegalSourcePinpoint, citedPassageLink, legalSourceLocatorAnchor, sourceUrl } from "../legalSourceLinks";
-import { isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
+import { citedPassageLink, sourceUrl } from "../legalSourceLinks";
+import type { LegalSourceReference } from "../legalSources";
 import type { NativeDocument } from "../structureNative";
 import type { QuoteCitationUnit } from "../quoteCitationSplit";
 import { structureNative } from "../structureNative";
@@ -266,14 +266,36 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // The quotation found in a decision's or statute's A2AJ text, whose link this app makes (quoteLink).
   const a2ajFound = (index: number) => (checkedOn.get(index) ?? []).find((quote) => quote.receipt?.link
     && quote.receipt.match.location !== "unmatched" && quote.receipt.source.provider === "a2aj");
-  const documents = await Promise.all(parts.map(async (_, index): Promise<NativeDocument | null> => {
+  const read_ = await Promise.all(parts.map(async (_, index)
+    : Promise<{ document: NativeDocument; source?: LegalSourceReference } | null> => {
     const source = /#(?:par|sec)/u.test(linkOf(index)) || pinpointed(index).length || a2ajFound(index) ? cited(index) : null;
     // A PDF attached for the authority (a CanLII download, a file from the watched folder) is read as its source.
     const own = source && "id" in source ? attached.get(String(source.id)) : undefined;
-    if (own) return own;
+    if (own) return { document: own };
     const found = source && read ? await read(source) : null;
-    return found && !found.missing ? found.document : null;
+    return found && !found.missing ? { document: found.document, source: found.source } : null;
   }));
+  const documents = read_.map((found) => found?.document ?? null);
+  // A passage of an A2AJ source is linked where the engine routes it best: the publisher's page where it prints an
+  // anchor for the passage, else CanLII's (legal-structure source_links).
+  const routed = async (index: number, locator: { kind: string; label: string } | null, blockText: string,
+    quotes: string[]) => {
+    const found = read_[index], source = found?.source;
+    if (!found || !source || source.provider !== "a2aj" || !source.citation || !blockText) return null;
+    const links = await structureNative().offThread("sourceLinks", found.document, {
+      ...source.url && { url: source.url }, dataset: source.collection ?? "", citation: source.citation,
+      alternateCitation: source.alternateCitation ?? null, language: source.language ?? "en",
+      docType: source.kind === "legislation" ? "laws" : "cases", locator, blockText, quotes });
+    return links.best;
+  };
+  const locatorOf = (pinpoint: string) => pinpoint.startsWith("par") ? { kind: "paragraph" as const, label: pinpoint }
+    : pinpoint.startsWith("sec") ? { kind: "section" as const, label: pinpoint.slice(3) } : null;
+  const blockOf = (index: number, pinpoint: string) => {
+    const locator = locatorOf(pinpoint), document = documents[index];
+    return locator && document ? structureNative().readDocumentRange(document, locator.kind,
+      locator.kind === "paragraph" ? pinpoint.slice(3) : locator.label, locator.kind === "paragraph"
+        ? pinpoint.slice(3) : locator.label, 0)?.selected[0]?.text.trim() ?? "" : "";
+  };
   // A link this app makes: its anchor given its passage's text fragment where the passage can be read,
   // then as the text fragments option keeps it. The author's and the editor's own links stay as written.
   const own = (index: number) => !!editorLinks[index] || !!authorLinks[index] || (!kinds[index].kind && usableLink(fields[index].link_candidate));
@@ -290,34 +312,27 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     if (!made) passageLinks.set(document, made = new Map());
     const key = JSON.stringify([link, pinpoints]);
     let found = made.get(key);
-    if (found === undefined) made.set(key, found = citedPassageLink(link, document, pinpoints).then((made) => made ?? link));
+    const pinpoint = pinpoints[0];
+    if (found === undefined) made.set(key, found = (pinpoint && read_[index]?.source
+      ? routed(index, locatorOf(pinpoint), blockOf(index, pinpoint), [])
+      : citedPassageLink(link, document, pinpoints)).then((made) => made ?? link));
     return found;
   };
   const partLinks = await Promise.all(parts.map(async (_, index) => {
     const link = pdfToPage(linkOf(index));
     if (own(index)) return link;
-    const passage = /#(?:par|sec)/u.test(link) ? await passageLink(link, documents[index], index) : link;
+    const passage = /#(?:par|sec)/u.test(link) || read_[index]?.source && pinpointed(pinpointedAt(index)).length
+      ? await passageLink(link, documents[index], index) : link;
     return keepsFragment(index) ? passage : withoutFragment(passage);
   }));
-  // A quotation's link, as the Python app makes it (alr_quote_verifier.py _a2aj_link_for_pinpoint,
-  // _prefer_scc_official_quote_link): on the CanLII page this app builds for the citation (a reference's, its origin's,
-  // whatever link the author or an editor gave), at the paragraph or provision where the quotation is found, with the
-  // quoted words' text fragment beside it. A Supreme Court of Canada paragraph stays on the Court's own page, as A2AJ
-  // gives it, and so does a link where this app builds no CanLII page.
-  const builtLink = (index: number, depth = 0): string => kinds[index].kind
-    ? origin[index] >= 0 && origin[index] !== index && depth < 50 ? builtLink(origin[index], depth + 1) : ""
-    : partLink(draft, parts[index], fields[index], false);
-  const quoteLink = (index: number, link: string) => {
+  // A quotation's link: the passage's routed link with the quoted words' text fragment, where the quotation was found
+  // in the A2AJ text of the source this part cites.
+  const quoteLink = async (index: number, link: string) => {
     const found = a2ajFound(index), receipt = found?.receipt, document = documents[index];
     if (!receipt || receipt.link !== link || !document || structureNative().documentRevision(document) !== receipt.sourceSha256)
       return link;
     const label = receipt.match.labels[0] ?? "";
-    const kind = label.startsWith("par") ? "paragraph" : label.startsWith("sec") ? "section" : "";
-    if (receipt.source.collection === "SCC" && kind === "paragraph") return link;
-    const base = builtLink(index);
-    if (!isCanliiUrl(base)) return link;
-    return buildLegalSourcePinpoint({ url: base, anchor: kind ? legalSourceLocatorAnchor(base, kind, label) ?? "" : "",
-      blockText: receipt.match.text, documentText: document }, [receipt.match.fragment || found!.quote])?.target ?? link;
+    return await routed(index, locatorOf(label), receipt.match.text, [receipt.match.fragment || found!.quote]) ?? link;
   };
   const passages = parts.map((_, index) => documents[index] ? pinpointed(index).flatMap((fragment) => {
     const [, kind, value] = /^(par|sec)(.+)$/u.exec(fragment)!;
@@ -353,6 +368,9 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
       citation.fields?.page && parts[index].start <= citation.span.start && citation.span.end <= parts[index].end)?.fields?.page;
     return typeof page === "string" ? page : (page as { text?: string } | undefined)?.text ?? "";
   };
+  // Every quotation's routed link, planned at once off this thread.
+  const quoteLinks = await Promise.all(parts.map((_, index) =>
+    quoteLink(index, quoteFields(checkedOn.get(index) ?? []).quote_match_link)));
   return parts.flatMap((part, index): Row[] => {
     const note = part.range.note, number = note.noteNumber ?? note.footnoteId!;
     if (wanted && !wanted.has(number)) return [];
@@ -378,7 +396,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
       has_quotes: quotes.length ? "YES" : "NO", quote_count: quotes.length,
       quotes_list_json: pythonJson(quotes.map(({ quote }) => quote.trim()), false), _quote_ids: quotes.map(({ id }) => id),
       ...checked, quote_match_link: (keepsFragment(index) ? (link: string) => link : withoutFragment)(
-        quoteLink(index, checked.quote_match_link)),
+        quoteLinks[index]),
       journal_match_info: "",
       ref_kind: kinds[index].kind.toUpperCase(),
       ref_target_footnote_id: tgt ? String(tgt.range.note.footnoteId) : "",
