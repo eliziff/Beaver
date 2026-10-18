@@ -695,6 +695,10 @@ async function viewer(args: {
         language: found.language, upstreamLicense: found.upstreamLicense,
       },
       slices: viewer.slices,
+      // What the reader styles as a judgment sets it: its front matter's parts and its headings' levels.
+      outline: docType === "cases" ? structureNative().documentCaseOutline(compiled)
+        .filter((entry) => entry.role || entry.kind === "heading")
+        .map(({ kind, level, role, start, end }) => ({ kind, level, role, start, end })) : [],
       truncated: viewer.truncated,
     };
     const digest = crypto.createHash("sha256").update(JSON.stringify([
