@@ -19,8 +19,7 @@ import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesCover, Aut
 export const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["sourceMode"]>> = [
   { value: "automatic", label: "Automatic sources",
     detail: "Uses original PDFs where they exist and builds the rest from their text." },
-  { value: "manual-originals", label: "Use available original PDFs and manually add the PDFs myself for the rest",
-    detail: "Uses original PDFs where they exist. Note: Requires you to upload a PDF for each of the rest." },
+  { value: "manual-originals", label: "Use available original PDFs and manually add the PDFs myself for the rest" },
   { value: "render", label: "Rebuild all sources from text (where available)",
     detail: "Builds every source from its text, even where an original PDF exists." },
 ];
@@ -66,19 +65,17 @@ const OTHER_COPY_OPTIONS: ReadonlyArray<CardOption<NonNullable<AuthoritiesBuildS
   { value: "excerpt", label: "Excerpts", detail: "Includes the pages of each other source that your brief cites." },
 ];
 /** A sample case of eight pages, cited at a paragraph on page 5 whose paragraph before begins on page 4: whole, or
- *  as the excerpt the settings make of it, the pages left out faded; its link atop its first page where printed. */
+ *  as the excerpt the settings make of it, the pages left out faded. */
 function ExcerptSample({ settings }: { settings: ExcerptSettings }) {
   const { paragraphs, pages, firstPage } = excerptContext(settings), excerpt = settings.caseCopy === "excerpt";
   const kept = Array.from({ length: 8 }, (_, index) => !excerpt || Math.abs(index - 4) <= pages ||
     index === 3 && paragraphs > 0 || index === 0 && firstPage);
   const shown = kept.flatMap((keep, index) => keep ? [index + 1] : []);
   return <div role="img" aria-label={`A sample case of eight pages, cited at a paragraph on page 5${excerpt
-    ? `, as an excerpt of page${shown.length > 1 ? "s" : ""} ${shown.join(", ")}` : ", in full"}${settings.caseLinks
-    ? ", with its link at the top of its first page" : ""}`} className="m-auto grid w-full max-w-[34rem] grid-cols-4 gap-3">
+    ? `, as an excerpt of page${shown.length > 1 ? "s" : ""} ${shown.join(", ")}` : ", in full"}`} className="m-auto grid w-full max-w-[34rem] grid-cols-4 gap-3">
     {kept.map((keep, index) => <div key={index} className="grid gap-1 text-center">
       <div className={cn("relative flex aspect-[8.5/11] flex-col gap-[5%] bg-white px-[12%] py-[14%] shadow-[0_1px_3px_rgb(0_0_0/.15)]",
         !keep && "opacity-25")}>
-        {!index && settings.caseLinks && <span className="absolute inset-x-[22%] top-[5%] h-[2.5%] rounded-sm bg-blue-600" />}
         {!index && <span className="mx-auto mb-[5%] h-[4%] w-3/4 shrink-0 rounded-sm bg-gray-700" />}
         {Array.from({ length: index ? 9 : 7 }, (_, line) => <span key={line} className="h-[3%] shrink-0 rounded-sm bg-gray-300"
           style={index === 4 && line >= 2 && line <= 4 ? { boxShadow: `0 0 0 0.25rem ${YELLOW}` } : undefined} />)}
@@ -100,15 +97,15 @@ function ContextCount({ label, detail, value, disabled, onChange }: {
     className="h-8 w-16 border-gray-300 text-sm md:text-sm" />} />;
 }
 
-type ExcerptSettings = Pick<AuthoritiesBuildSettings, "caseCopy" | "contextParagraphs" | "contextPages" | "excerptFirstPage" | "caseLinks">;
+type ExcerptSettings = Pick<AuthoritiesBuildSettings, "caseCopy" | "contextParagraphs" | "contextPages" | "excerptFirstPage">;
 /** What an excerpt keeps around each cited passage, and whether it keeps the first page (`excerpts`: whether the
- *  book has excerpts; without them the cards stay, faded), then whether each case's first page prints its link. */
+ *  book has excerpts; without them the cards stay, faded). */
 function ExcerptChoices({ settings, excerpts, disabled, onChange }: { settings: ExcerptSettings; excerpts: boolean;
   disabled?: boolean; onChange: (patch: Partial<ExcerptSettings>) => void }) {
-  const { paragraphs, pages, firstPage } = excerptContext(settings), links = settings.caseLinks ?? false;
-  // Two to a row, so the step's choices fit without scrolling; the link applies whole or excerpt.
+  const { paragraphs, pages, firstPage } = excerptContext(settings);
+  // Two to a row, so the step's choices fit without scrolling.
   return <fieldset disabled={disabled}>
-    <legend className="mb-1.5 text-[0.8125rem] font-medium text-gray-700">Excerpts and links</legend>
+    <legend className="mb-1.5 text-[0.8125rem] font-medium text-gray-700">Excerpts</legend>
     <div className="grid gap-2 sm:grid-cols-2">
       <ContextCount label="Pages of context" value={pages} disabled={disabled || !excerpts}
         detail="Includes this many pages before and after each cited page. 0 includes none."
@@ -119,21 +116,19 @@ function ExcerptChoices({ settings, excerpts, disabled, onChange }: { settings: 
       <OptionCard type="checkbox" checked={firstPage} disabled={disabled || !excerpts}
         onChange={() => onChange({ excerptFirstPage: !firstPage })}
         label="Include the first page" detail="Includes the first page of each excerpt." />
-      <OptionCard type="checkbox" checked={links} onChange={() => onChange({ caseLinks: !links })}
-        label="Print each case’s link" detail="Prints each case’s web address at the top of its first page, as a link." />
     </div>
   </fieldset>;
 }
 
 type SourceSettings = Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy" | "grouping" | "tableOrder" |
-  "subsequentHistory"> & ExcerptSettings;
+  "subsequentHistory" | "caseLinks"> & ExcerptSettings;
 /** The sources' settings as cards, two columns: the same at import and, opened, at Sources, where the context an
- *  excerpt keeps and the cases' links are set too (`context`). */
+ *  excerpt keeps is set too (`context`). */
 export function SourceChoices({ settings, profileId, sources = true, recognition = true, context = false, disabled, onChange }: {
   settings: SourceSettings; profileId: AuthoritiesProfileId; sources?: boolean; recognition?: boolean; context?: boolean;
   disabled?: boolean; onChange: (patch: Partial<SourceSettings>) => void;
 }) {
-  const locked = authoritiesProfile(profileId).locked?.settings;
+  const locked = authoritiesProfile(profileId).locked?.settings, links = settings.caseLinks ?? false;
   // Two columns, each its own stack: Order has two choices, so Subsequent history sits under it in the
   // room that leaves, and the step fits without scrolling.
   return <div className="grid content-start gap-5 lg:grid-cols-2">
@@ -142,6 +137,8 @@ export function SourceChoices({ settings, profileId, sources = true, recognition
         onChange={(sourceMode) => onChange({ sourceMode })} />}
       <OptionCards legend="Groups" value={settings.grouping ?? (settings.tableOrder === "first-reference" ? "none" : "cases-first")}
         options={GROUP_OPTIONS} disabled={disabled || !!locked?.grouping} onChange={(grouping) => onChange({ grouping })} />
+      <OptionCard type="checkbox" checked={links} disabled={disabled} onChange={() => onChange({ caseLinks: !links })}
+        label="Print each case’s link" detail="Prints each case’s web address at the top of its first page, as a link." />
       {/* A row may go in as an excerpt whatever the book's choice, so the context is offered either way. */}
       {context && <ExcerptChoices settings={settings} excerpts disabled={disabled} onChange={onChange} />}
     </div>
