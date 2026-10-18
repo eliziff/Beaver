@@ -42,20 +42,20 @@ const PROVIDER_NAMES: Record<typeof foreignProviders[number]["id"], string> = { 
   courtlistener: "CourtListener", "justice-laws": "Justice Laws", "govuk-et": "GOV.UK", govinfo: "GovInfo" };
 
 /** A provider that could not answer, as the authority's lookup failure: its own, never the run's. */
-export class ForeignLookupFailure extends Error {
+export class ProviderLookupFailure extends Error {
   constructor(readonly failure: AuthoritySourceLookupFailure) { super(failure.detail ?? failure.reason); }
 }
-const foreignFailure = (provider: typeof foreignProviders[number]["id"], error: unknown): AuthoritySourceLookupFailure => {
+const providerFailure = (provider: string, error: unknown): AuthoritySourceLookupFailure => {
   const detail = error instanceof Error ? error.message : String(error);
   const reason = /rate limit|\b429\b/iu.test(detail) ? "rate-limited"
     : error instanceof Error && (error.name === "TimeoutError" || /timed? ?out/iu.test(detail)) ? "timeout"
     : /fetch failed|ENOTFOUND|ECONNREFUSED|ECONNRESET|cannot be reached/iu.test(detail) ? "unreachable" : "error";
-  return { reason, retryAfter: null, detail, provider: PROVIDER_NAMES[provider] };
+  return { reason, retryAfter: null, detail, provider };
 };
 
 /** Resolves the first citation form a provider matches; never a best guess. Without `foreignCases`,
  *  US and UK decisions are not looked up. A provider that cannot answer leaves the others asked; where none
- *  finds the source, the first failure is the authority's (ForeignLookupFailure), never the run's. */
+ *  finds the source, the first failure is the authority's (ProviderLookupFailure), never the run's. */
 async function resolveForeignAuthoritySource(citations: readonly string[], signal?: AbortSignal,
   kind: "case" | "legislation" = "case", foreignCases = true) {
   let failure: AuthoritySourceLookupFailure | undefined;
@@ -68,7 +68,7 @@ async function resolveForeignAuthoritySource(citations: readonly string[], signa
       try { found = await source(citation, signal); }
       catch (error) {
         signal?.throwIfAborted();
-        failure ??= foreignFailure(id, error);
+        failure ??= providerFailure(PROVIDER_NAMES[id], error);
         continue;
       }
       if (!found || (!found.pdfUrl && !found.text.trim())) continue;
@@ -76,7 +76,7 @@ async function resolveForeignAuthoritySource(citations: readonly string[], signa
         sourceSha256: canonicalJsonSha256({ provider: id, id: found.id, text: found.text }) };
     }
   }
-  if (failure) throw new ForeignLookupFailure(failure);
+  if (failure) throw new ProviderLookupFailure(failure);
   return null;
 }
 
@@ -348,8 +348,9 @@ export async function resolveAuthoritiesSources(
         draft.authorities[id].kind as "case" | "legislation", draft.settings.foreignCaseLookup !== false)] as const;
     } catch (error) {
       // A provider that could not answer leaves this authority unchecked, marked for a retry; the others go on.
-      if (!(error instanceof ForeignLookupFailure)) throw error;
-      editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: error.failure });
+      signal?.throwIfAborted();
+      editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: error instanceof ProviderLookupFailure
+        ? error.failure : { reason: "defect", retryAfter: null, detail: error instanceof Error ? error.message : String(error) } });
       return [id, null] as const;
     }
   });
@@ -395,7 +396,15 @@ export async function resolveAuthoritiesSources(
     const unit = occurrence && draft.units.find((item) => item.id === occurrence.unitId);
     const [split] = unit ? await splitQuoteCitationUnits([unit.text], signal) : [];
     const part = split?.parts.find((item) => occurrence!.start >= item.start && occurrence!.start < item.end);
-    const article = await sources.resolveJournal(part?.text ?? authority.citation, signal);
+    let article: Awaited<ReturnType<SourceServices["resolveJournal"]>>;
+    try { article = await sources.resolveJournal(part?.text ?? authority.citation, signal); }
+    catch (error) {
+      // The journals database failing leaves this article unchecked, marked for a retry; the others go on.
+      signal?.throwIfAborted();
+      editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: providerFailure("The journals database", error) });
+      continue;
+    }
+    if (authority.sourceLookupFailure) editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: null });
     if (!article?.url) continue;
     editor.apply({ type: "resolve-authority", authorityId: id, citation: authority.citation, name: authority.name,
       source: { provider: "journal", stableSourceId: `journal:${article.id}`,
