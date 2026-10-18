@@ -30,9 +30,10 @@ const native = await structureNative().deriveDocumentStructure({
 const nativeText = structureNative().documentText(native);
 const needle = (seed.quotes?.[0] ?? "").split(/\s+/u).slice(0, 6).join(" ");
 const needleAt = nativeText.indexOf(needle);
-const plan = structureNative().textFragmentPlan(
-  seed.blockText ?? "", seed.quotes ?? [], false, false, splitHtmlSourceBlocks, native,
-);
+const plan = structureNative().passageLink(native, {
+  url: seed.url, blockText: seed.blockText ?? "", quotes: seed.quotes ?? [],
+  preferIndependentHtmlBlocks: splitHtmlSourceBlocks,
+})?.plan ?? null;
 const plannedAt = plan.sourceWordIntervals?.[0]?.start;
 console.log(JSON.stringify({
   ...(process.argv.includes("--text")

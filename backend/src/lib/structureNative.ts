@@ -199,9 +199,18 @@ type StructureAddon = {
   documentLive?(document: NativeDocument): boolean;
   memoryBytes?(): number;
   recycle?(): void;
-  offThread<M extends "groundedProseErrors" | "documentRangeFragmentPlan">(method: M,
+  offThread<M extends "groundedProseErrors" | "passageLink" | "citedPassageLink">(method: M,
     ...args: Parameters<StructureAddon[M]>): Promise<ReturnType<StructureAddon[M]>>;
   nativeBuildFeatures(): string;
+  /** A passage's link on a source's page with the fragments planned against the document (legal-structure). */
+  passageLink(document: NativeDocument, request: { url: string; anchor?: string; blockText: string; quotes: string[];
+    preferIndependentHtmlBlocks?: boolean; verifiedPdf?: { url: string; pdfOnly?: boolean } | null })
+    : { target: string; plan: NativeTextFragmentPlan | null } | null;
+  /** The link citing a passage by its anchor, with its paragraph's or provision's fragments where they plan whole. */
+  citedPassageLink(document: NativeDocument, url: string, pinpoints: readonly string[]): string | null;
+  /** The passage on A2AJ Law Web's reader of the document; null where it cannot be planned whole there. */
+  lawWebLink(document: NativeDocument, citation: string, docType: string, blockText: string, quotes: string[]): string | null;
+  canliiA2ajLawUrl(dataset: string, citation: string, language: string): string | null;
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   deriveDocxDocument(bytes: Buffer, id: string, drafting?: boolean): Promise<NativeDocument>;
   docxText(bytes: Buffer, drafting?: boolean, limit?: number): Promise<string>;
@@ -361,20 +370,6 @@ type StructureAddon = {
     partyGroups: Array<{ role: string; parties: string[] }>;
     filedBy?: { party: string; article: boolean };
   };
-  documentTextStatistics(document: NativeDocument, texts: string[]): Array<{ occurrences: number; words: number }>;
-  textFragmentPlan(blockText: string, quotes: string[], pdf: boolean,
-    publisherMayAnnotateLegalReference: boolean,
-    splitHtmlSourceBlocks: boolean,
-    document: NativeDocument): NativeTextFragmentPlan;
-  /** textFragmentPlan for each of several passages of a document, run off the JavaScript thread. */
-  textFragmentPlans(document: NativeDocument, requests: Array<{ blockText: string; quotes: string[]; pdf: boolean;
-    publisherMayAnnotateLegalReference: boolean; splitHtmlSourceBlocks: boolean }>): Promise<NativeTextFragmentPlan[]>;
-  textFragmentPlanStandalone(blockText: string, quotes: string[], pdf: boolean,
-    publisherMayAnnotateLegalReference: boolean,
-    splitHtmlSourceBlocks: boolean): NativeTextFragmentPlan;
-  documentRangeFragmentPlan(document: NativeDocument, kind: NativeDocumentBlock["kind"],
-    start: string, end: string, pdf: boolean, publisherMayAnnotateLegalReference: boolean,
-    firstBlockOnly: boolean): NativeTextFragmentPlan | null;
   lookupStructureBlock(document: NativeDocument, locator: string | { nodeId: string },
     contextBlocks: number): {
       status: "found" | "not_found" | "unavailable" | "ambiguous";

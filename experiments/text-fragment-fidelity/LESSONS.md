@@ -83,6 +83,14 @@ The planner's `BrowserReplay` and `browser_key` in legal-structure `text_fragmen
   - Lexum (Norma) hosts block with a captcha after about 130 pages at 4 workers. Crawl with 1 worker in small
     batches and never bypass the captcha.
   - Its pink paragraph markers, about (255,219,242), are not paint: the replay detector requires blue >= red.
+- **A2AJ Law Web (law.a2aj.ca, open source, run locally):**
+  - It draws a document only after its `/fetch` answers: cases as one pre-wrapped text node, legislation line by line
+    as `<p>`/`<h*>` blocks with `#` marks and `*emphasis*` stars dropped; only the first 200,001 characters until
+    "load more". Links are planned on that page text (`law_web_page_text`, legal-structure passage_links.rs).
+  - Chrome does not find a fragment in text that arrives late. Through a real local server
+    (`law-web-server.mjs --delay-ms`, the cache tier's `--law-web-server`), 120 links that paint at 0 ms: 300 ms
+    API latency, 99 on target and 20 nothing painted; 1,500 ms, 2 on target (2026-10-18). The in-browser replay
+    answers `/fetch` at once, so its Law Web rates are an upper bound. Never measure against the live site.
 - **Competition Tribunal (decisions.ct-tc.gc.ca):**
   - Older items are pdf-cards whose only text is a PDF; modern items render inline (RESULTS addendum 2026-08-23).
   - The 2026-10 crawl got HTTP 403 for 125 targets.
@@ -141,6 +149,17 @@ The planner's `BrowserReplay` and `browser_key` in legal-structure `text_fragmen
   - 772 of 53,677 equivalence rows changed, every one a row that had a hyphen. 683 paint the same words; 665 are now
     hyphen-free.
   - Cache gate on the 28 changed CanLII seeds: 3 anchor-only became hits (Kennedy-44/45), with none lost.
+- **Hard seams (2026-10-18), measured on the cached pages:**
+  - No term holds a sentence end or a hyphen; seams fall only between terms, where Chrome takes any whitespace
+    (a sentence end between prefix and start painted 22/23 on publisher pages, 7/7 on CanLII).
+  - A term across a sentence end painted nothing on 36% of CanLII and 50% of publisher links (no-seam: 3%, 2%).
+    Quotation marks, apostrophes and dashes inside terms failed ~1 in 10, so terms may hold them.
+  - Abbreviation stops ("Mr.", "s.", "v.", "R.") are not sentence ends: of ~36,000 on cached SCC and CanLII pages
+    none had a no-break space and a space; sentence ends had it 43-46% of the time.
+  - A printed label is context only alone ("[101]-,In determining…"); a trimmed label's piece takes context back to
+    its line's start. This tells apart a paragraph a headnote repeats.
+  - Where no single directive selects a piece: an exact directive of it read to its sentence's edge, then a cover of
+    its parts between seams. Seam-free pieces take an exact directive before a range.
 - **Speed (plans identical unless noted):**
   - 917615b: about 900 ms became about 60 ms on a long SCC paragraph.
   - 7d87ece and 2f8088a (2026-09-11): the Write stall, `range_directive_for` synchronous on the worker's main thread

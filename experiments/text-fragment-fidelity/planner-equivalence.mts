@@ -120,15 +120,11 @@ async function cite(index: number, document: (typeof documents)[number]) {
       const quoteSets: Array<[string, string[]]> = [["whole", [block]]];
       if (parts.length >= 1) quoteSets.push(["middle", [parts[Math.floor(parts.length / 2)]]]);
       if (parts.length >= 2) quoteSets.push(["ends", [parts[0], parts.at(-1)!]]);
-      for (const [quoteLabel, quotes] of quoteSets) {
-        for (const [pdf, annotate, split] of quoteLabel === "whole" ? flagSets : flagSets.filter(([pdf, annotate]) => !pdf && !annotate)) {
-          write(`${passage}|${quoteLabel}|${+pdf}${+annotate}${+split}`, "plan",
-            structureNative().textFragmentPlan(block, quotes, pdf, annotate, split, native));
-        }
-      }
-      for (const split of [false, true])
-        write(`${passage}|whole|standalone${+split}`, "standalone",
-          structureNative().textFragmentPlanStandalone(block, [block], false, false, split));
+      const url = entry.document?.url;
+      if (!url) continue;
+      for (const [quoteLabel, quotes] of quoteSets)
+        write(`${passage}|${quoteLabel}`, "passage",
+          structureNative().passageLink(native, { url, blockText: block, quotes }));
     }
   }
 }

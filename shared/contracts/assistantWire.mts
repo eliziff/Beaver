@@ -1,7 +1,6 @@
 import { z } from "./schema.mjs";
 import { promptSubmissionSchema } from "./promptSubmission.mjs";
 import { WORK_PRODUCT_KINDS } from "../work-products.mjs";
-import { buildCanliiLawUrl } from "./canliiLawUrls.mjs";
 
 export const ASSISTANT_LIMITS = { activities: 256, artifacts: 64, blocks: 128,
   citations: 256, readers: 32, text: 1_000_000 } as const;
@@ -50,20 +49,12 @@ const citation = z.discriminatedUnion("kind", [
       page: z.union([finite, short]).optional() }).strict()).max(32).default([]) }).strict(),
 ]);
 export type AssistantCitation = z.infer<typeof citation>;
-/** Legislation links go to CanLII's statute page, also for citations stored before that rule. */
-export function withCanliiLawLinks<T extends { kind?: unknown; source_class?: unknown; dataset?: unknown; citation?: unknown }>(citations: T[]): T[] {
-  return citations.map((item) => {
-    const canlii = item.kind === "a2aj" && item.source_class !== "case" ? buildCanliiLawUrl({ dataset: String(item.dataset ?? ""),
-      citation: typeof item.citation === "string" ? item.citation : null, language: "en" }) : null;
-    return canlii ? { ...item, url: canlii, external_url: canlii } : item;
-  });
-}
 export function parseAssistantCitations(value: unknown): AssistantCitation[] {
   try {
-    return Array.isArray(value) ? withCanliiLawLinks(value.slice(0, ASSISTANT_LIMITS.citations).flatMap((raw) => {
+    return Array.isArray(value) ? value.slice(0, ASSISTANT_LIMITS.citations).flatMap((raw) => {
       try { const parsed = citation.safeParse(raw); return parsed.success ? [parsed.data] : []; }
       catch { return []; }
-    })) : [];
+    }) : [];
   } catch { return []; }
 }
 const citations = z.array(z.unknown()).transform(parseAssistantCitations);

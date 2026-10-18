@@ -7,7 +7,7 @@ use legal_structure::{
     classify_citator_excerpt, document_fingerprint, docx_structure_lint, grounded_prose_errors,
     has_citation_in_text, journal_document_structure, journal_text_document_structure,
     marked_quote_spans, provider_citations_in_text, provider_text_document_structure,
-    quote_repair_suggestion, text_fragment_plan, utf16_prefix_ceil, AuthoritativeTableCell,
+    quote_repair_suggestion, utf16_prefix_ceil, AuthoritativeTableCell,
     DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure,
     FollowDirection, JournalPageLabel, NativeMarkupInput, OutlineEntry, PrintedStatute,
     ProviderTextInput, VisibleEvidenceText,
@@ -41,6 +41,10 @@ pub enum StructureRequest {
         text: Option<String>,
         #[serde(default)]
         page_rows: Vec<JournalPageLabel>,
+    },
+    /// A structure derived earlier and stored as JSON (the store_documents bin), read back as it is.
+    Stored {
+        path: String,
     },
 }
 
@@ -173,6 +177,8 @@ pub fn derive_document_structure(request: StructureRequest) -> CoreResult<Native
             return Err("journal request requires filename or text".to_owned());
         }
         .map_err(native_error)?,
+        StructureRequest::Stored { path } => serde_json::from_reader(BufReader::new(File::open(&path)
+            .map_err(|error| format!("{path}: {error}"))?)).map_err(|error| format!("{path}: {error}"))?,
     };
     Ok(NativeDocument::new(NativeProduct::Structure(structure)))
 }
@@ -424,54 +430,6 @@ pub fn smallest_containing_document_block(
     document
         .query
         .smallest_containing_block(document.structure(), start as usize, end as usize)
-}
-
-pub fn document_text_fragment_plan(
-    document: &NativeDocument,
-    block_text: &str,
-    quotes: &[String],
-    pdf: bool,
-    publisher_may_annotate_legal_reference: bool,
-    split_html_source_blocks: bool,
-) -> impl Serialize {
-    document.query.text_fragment_plan(
-        document.structure(),
-        block_text,
-        quotes,
-        pdf,
-        publisher_may_annotate_legal_reference,
-        split_html_source_blocks,
-    )
-}
-
-pub fn text_fragment_plan_standalone(
-    block_text: &str,
-    quotes: &[String],
-    pdf: bool,
-    publisher_may_annotate_legal_reference: bool,
-    split_html_source_blocks: bool,
-) -> impl Serialize {
-    text_fragment_plan(
-        block_text,
-        None,
-        quotes,
-        pdf,
-        publisher_may_annotate_legal_reference,
-        split_html_source_blocks,
-    )
-}
-
-pub fn document_range_fragment_plan(
-    document: &NativeDocument,
-    kind: &str,
-    start: &str,
-    end: &str,
-    pdf: bool,
-    publisher_may_annotate_legal_reference: bool,
-    first_block_only: bool,
-) -> CoreResult<impl Serialize> {
-    Ok(document.query.range_fragment_plan(document.structure(), document_kind(kind)?,
-        start, end, pdf, publisher_may_annotate_legal_reference, first_block_only))
 }
 
 pub fn lookup_structure_block(

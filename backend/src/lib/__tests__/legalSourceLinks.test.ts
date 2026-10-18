@@ -6,7 +6,6 @@ import {
   buildLegalSourcePinpointUrl,
 } from "../legalSourceLinks";
 import { structureNative } from "../structureNative";
-import { buildA2AJWebPinpointUrl } from "../a2ajWebLinks";
 
 async function nativeDocument(
   text: string,
@@ -111,14 +110,8 @@ describe("verified legal-source links", () => {
 
   it("exposes the complete source-word proof from the native planner", async () => {
     const text = "alpha beta gamma";
-    const plan = structureNative().textFragmentPlan(
-      text,
-      [text],
-      false,
-      false,
-      false,
-      await nativeSource(text),
-    );
+    const plan = structureNative().passageLink(await nativeSource(text),
+      { url: "https://example.com/", blockText: text, quotes: [text] })?.plan;
 
     expect(plan).toMatchObject({
       sourceSafeComplete: true,
@@ -279,34 +272,6 @@ describe("verified legal-source links", () => {
       "self-regulating",
       "profession",
     ]);
-  });
-
-  it("builds an actual A2AJ document-view fallback with native directives", () => {
-    const source = {
-      docType: "cases",
-      citation: "1980 BCCA 1",
-    } as const;
-    const plan = {
-      directives: ["text=amount,Act", "text=amount,payable"],
-      sourceWordIntervals: [{
-        quoteIndex: 0, start: 4, end: 61, firstWord: 1, lastWord: 11,
-      }],
-      sourceSafeComplete: true,
-      paintedWords: 10,
-      paintQuotes: [
-        "amount was $200,000.00 under the Act",
-        "amount was $200,000.00 under the Act and remains payable",
-      ],
-    };
-    const target = buildA2AJWebPinpointUrl(source, plan)!;
-    expect(target).toBe(
-      "https://law.a2aj.ca/document?citation=1980+BCCA+1&doc_type=cases" +
-      "#:~:text=amount,Act&text=amount,payable",
-    );
-    expect(buildA2AJWebPinpointUrl(source, {
-      ...plan,
-      sourceSafeComplete: false,
-    })).toBeNull();
   });
 
   it("links a quote carrying an editorial alteration", async () => {

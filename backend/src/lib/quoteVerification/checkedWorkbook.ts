@@ -16,7 +16,6 @@ import type { NativeDocument } from "../structureNative";
 import type { QuoteCitationUnit } from "../quoteCitationSplit";
 import { structureNative } from "../structureNative";
 import { ApplicationError } from "../applicationError";
-import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { styledXlsx, type XlsxCell, type XlsxRun, type XlsxStyles } from "../quoteCheckWorkbook";
 
 type Check = Awaited<ReturnType<typeof checkQuotes>>;
@@ -450,7 +449,7 @@ function partLink(draft: AuthoritiesDraft, part: PlacedPart, field: Fields, own 
     const [, language, dataset] = identity.stableSourceId.split(":");
     const lang = language === "fr" ? "fr" : "en";
     const canlii = authority.kind === "legislation"
-      ? buildCanliiLawUrl({ dataset, citation: authority.citation, language: lang })
+      ? structureNative().canliiA2ajLawUrl(dataset, authority.citation, lang)
       : structureNative().canliiCaseUrl([authority.citation, ...identity.citationForms ?? []], lang, dataset);
     if (canlii) return canlii;
   }
