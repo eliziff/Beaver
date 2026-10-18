@@ -14,6 +14,10 @@ const COURTLISTENER_WEB_BASE = "https://www.courtlistener.com";
 const COURTLISTENER_STORAGE_BASE = "https://storage.courtlistener.com";
 type JsonRecord = Record<string, unknown>;
 
+/** The API key CourtListener's lookups are made with: the caller's, else the environment's. */
+const courtlistenerToken = (apiToken?: string | null) =>
+  apiToken?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim() || null;
+
 /** CourtListener's answer, or null where it publishes nothing at that address (404). */
 async function courtlistenerFetch<T>(
   pathOrUrl: string,
@@ -23,7 +27,7 @@ async function courtlistenerFetch<T>(
   const url = pathOrUrl.startsWith("http") ? pathOrUrl : `${COURTLISTENER_BASE}${pathOrUrl}`;
   const method = init?.method ?? "GET";
   const perform = async () => {
-    const token = apiToken?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim();
+    const token = courtlistenerToken(apiToken);
     const response = await retriedRemoteFetch(
       url,
       { ...init, headers: { Accept: "application/json", ...token ? { Authorization: `Token ${token}` } : {},
@@ -432,8 +436,11 @@ function provider(
 ): LegalSourceProvider<CourtlistenerLegalSourceNative> {
   return {
     id: "courtlistener",
+    // CourtListener answers a citation lookup only with an API key (401 without one): with neither its bulk copy here
+    // nor a key it is not asked, as a page that cannot reach it asks it nothing.
     canResolve: (request) =>
-      request.kind === "case" && (courtlistenerLocalBulkAvailable() || lookupsLeaveComputer("courtlistener")) &&
+      request.kind === "case" && (courtlistenerLocalBulkAvailable()
+        || lookupsLeaveComputer("courtlistener") && courtlistenerToken(options.apiToken) !== null) &&
         structureNative().providerCitationsInText(request.text).some(({ jurisdiction }) => jurisdiction === "us"),
     async resolve(request) {
       const clusterId = await citationCluster(request.text, options.apiToken, request.signal);
