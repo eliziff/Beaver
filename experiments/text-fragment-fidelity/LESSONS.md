@@ -160,6 +160,16 @@ The planner's `BrowserReplay` and `browser_key` in legal-structure `text_fragmen
     its line's start. This tells apart a paragraph a headnote repeats.
   - Where no single directive selects a piece: an exact directive of it read to its sentence's edge, then a cover of
     its parts between seams. Seam-free pieces take an exact directive before a range.
+- **Miss-class round (2026-10-18, r15-r18, every cached page, the fixed gate c515ed24e9):**
+  - Kept: a passage opening its paragraph always takes its printed label as prefix (A/B over 3,690 links: elsewhere
+    10 -> 3, on target +8, none worse); the paragraph read-back reads its start in order (a headnote repeating the
+    passage no longer blocks it); "at para." / "at p.", "15 (1)" / "11 (e)" and "[101] In" are seams; statute names
+    end a term on annotating hosts (legal-citations reference_names: A2AJ's statute titles, the Charter, the text's
+    own cited titles and short forms). Net against r14 on the same links: +40 on target, 7 lost, no new wrong place.
+  - Rejected: a note reference glued to a word ("interests.[1]") as a seam. Its lone number became a piece no
+    directive selects, so whole passages lost their fragment (29, then 37 links), against 2 it was meant to fix.
+  - Rejected: offering a spaced label whole ("45 (1)") beside its last part. The planner then paired it with shorter
+    endpoints and failed wherever CanLII closes the label up ("9(1)"): 61 links lost against 4 won.
 - **Speed (plans identical unless noted):**
   - 917615b: about 900 ms became about 60 ms on a long SCC paragraph.
   - 7d87ece and 2f8088a (2026-09-11): the Write stall, `range_directive_for` synchronous on the worker's main thread

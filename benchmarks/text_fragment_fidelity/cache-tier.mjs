@@ -25,14 +25,30 @@
 // rest); --resume keeps the rows already in <out>/cache-tier.jsonl; --no-shots keeps no screenshots; --fast judges
 // paint only. A row that is no test of its link says why in `excluded`: "bad page" (the saved page is an error page) or
 // "no target" (the seed's block is not in its source document, and nothing was painted).
+// --reuse <earlier cache-tier.jsonl> (repeatable) takes an earlier row's verdict for a link whose `reuseKey` it shares:
+// the same link and intended words on the same saved page, judged by the same gate (GATE_VERSION) in the same mode.
+// Every link is still judged; one whose inputs are unchanged is not opened again.
 
 import { chromium } from "playwright-core";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 
 const PAINT = [255, 0, 255];
+// The verdict logic's version, in every reuse key: changed whenever a change here can change a verdict.
+const GATE_VERSION = "c515ed24e9";
+
+/** What a link's verdict depends on: the gate, its mode, the link and its intended words, and the saved page (its file's
+ *  size and time; for Law Web, the texts its /fetch answers from). */
+export function reuseKey(seed, stored, { fast, lawWebTexts }) {
+  // Whole seconds: a page copied to another machine (tar) keeps its time to the second.
+  const stamp = (file) => { try { const stat = fs.statSync(file); return `${stat.size}:${Math.floor(stat.mtimeMs / 1000)}`; } catch { return ""; } };
+  return crypto.createHash("sha256").update(JSON.stringify([GATE_VERSION, !!fast, seed.url, seed.target ?? null,
+    stored?.store ?? null, stored?.file ? stamp(stored.file) : "", stored?.store === "law-web" && lawWebTexts
+      ? stamp(lawWebTexts) : ""])).digest("hex").slice(0, 32);
+}
 
 function argValues(name) {
   const argv = process.argv.slice(2);
@@ -50,7 +66,7 @@ function providerKey(url) {
   }
 }
 
-function loadPageStores() {
+export function loadPageStores() {
   const pages = new Map();
   const canliiKey = (url) => url.split(/[?#]/u)[0].replace(/^https?:\/\/(www\.)?canlii\.org/u, "");
   const key = (url) => /^https?:\/\/(www\.)?canlii\.org\//u.test(url) ? canliiKey(url) : providerKey(url);
@@ -426,6 +442,11 @@ export async function runCacheTier({ seedsPath, outDir }) {
     .filter((line) => line.trim() && !line.startsWith("//")).map((line) => JSON.parse(line))
     .filter((seed) => seed.tier === "cache" && !done.has(seed.id));
   const { pages, key, lawWeb } = loadPageStores();
+  const keyed = { fast, lawWebTexts: argValues("--law-web-texts")[0] };
+  // Earlier verdicts by what they depend on; a row of a link that failed in the browser is never taken.
+  const earlier = new Map(argValues("--reuse").flatMap((file) => fs.readFileSync(file, "utf8").split(/\r?\n/u))
+    .filter((line) => line.startsWith("{")).map((line) => JSON.parse(line))
+    .filter((row) => row.reuseKey && (!row.error || /local store|pdf page/u.test(row.error))).map((row) => [row.reuseKey, row]));
   const [lawWebServer] = argValues("--law-web-server");
   const browser = await chromium.launch({ channel: "chrome", headless: true, args: lawWebServer
     ? [`--host-resolver-rules=MAP law.a2aj.ca 127.0.0.1:${lawWebServer},MAP api.a2aj.ca 127.0.0.1:${lawWebServer}`] : [] });
@@ -564,9 +585,11 @@ export async function runCacheTier({ seedsPath, outDir }) {
     const drain = (queue, lanes) => Promise.all(Array.from({ length: lanes }, async () => {
       let worker = await context.newPage();
       for (let group = queue.shift(); group; group = queue.shift()) {
-        const record = await gate(group[0], worker);
+        const reuse = reuseKey(group[0], pages.get(key(group[0].url)), keyed);
+        const record = earlier.has(reuse) ? { ...earlier.get(reuse), reused: true }
+          : { ...await gate(group[0], worker), reuseKey: reuse };
         // A page the browser failed on (a load that timed out keeps navigating) is replaced.
-        if (record.error && !/local store|pdf page/u.test(record.error)) {
+        if (record.error && !record.reused && !/local store|pdf page/u.test(record.error)) {
           await worker.close().catch(() => {});
           worker = await context.newPage();
         }
