@@ -50,12 +50,14 @@ Rules for the code:
 `experiments/legal-structure-gold/author.py` makes one gold file per source
 (`legal-structure-gold.v4`) in three passes. Every pass sees the page images.
 
-1. **Lines:** the model sees each page and its extracted lines, types every printed line with its
+1. **Lines:** the model sees each page and its extracted lines, gives every printed line with its
    region (correcting misread text), puts a tab after each printed marker, writes note references
-   as `[^N]`, and gives the lines that start a unit and whether the page continues the one before.
+   with their printed mark as `[^mark]`, and numbers the lines that start a unit; every other line
+   continues one.
 2. **Notes:** the model pairs every note reference with the line where its note begins.
-3. **Hierarchy:** the model gives each unit its parent and, where the file holds several
-   documents (a judgment with exhibits, a book of articles), where each starts and ends.
+3. **Hierarchy:** over the whole document at once (in windows only past the model's context), the
+   model gives each unit its parent and, where the file holds several documents (a judgment with
+   exhibits, a book of articles), where each starts and ends.
 
 The runner aligns the typed lines to the extracted ones and records the corrections, spans,
 markers, pairs and parents. Prompts stay small: they state the task and fix broad

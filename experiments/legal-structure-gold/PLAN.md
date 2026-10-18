@@ -1,8 +1,9 @@
 # PDF structure gold
 
-The gold runner sees each page already extracted (native text or OCR), with its image. A lines
-pass fixes the transcription and gives every printed line its region; a hierarchy pass then gives
-each unit of the document its parent. One `legal-structure-gold.v4` file per source holds the
+The gold runner sees each page already extracted (native text or OCR), with its image, in every
+pass. A lines pass fixes the transcription and gives every printed line its region; a notes pass
+pairs every note reference with its note; a hierarchy pass then gives each unit of the whole
+document its parent and marks where each document of a multi-document file starts and ends. One `legal-structure-gold.v4` file per source holds the
 answer. The scorer measures a parser export against it. Runtime agent assistance and
 [PageIndex reuse](../../docs/roadmap/pageindex-detection.md) remain separate work.
 
@@ -24,25 +25,30 @@ caching, attempts and usage.
 with the app's own PDF profile (`backend/src/lib/pdfProfile.ts`), which routes pages to OCR
 as the app does.
 
-The lines pass (`prompts.LINES`, three pages per call) types each page's lines in reading order
-as `[region, text]`: text, list_item, heading, quote, note, table (cells joined by ` | `),
-contents, caption, headnote, marginal_note, furniture or page_label. A tab follows each leading
-printed marker (two for `12 (1)`), `[^N]` marks a note reference, and per page the reply gives
-the lines that start a unit and whether the page continues the unit before. `blocks.py` aligns the typed lines to the extracted ones: each typed line's
-source spans, cells, markers and references over the corrected text, and OCR text edits where the
-typing differs (digital-born differences are reported, not applied).
+The lines pass (`prompts.LINES`, three pages per call) gives each page's printed lines in reading
+order as `[region, text]`, corrected against the image: text, list_item, heading, quote (a block
+quotation), note, table (cells joined by ` | `), contents, caption, headnote, marginal_note,
+furniture or page_label. A tab follows each leading printed marker and `[^mark]` writes a note
+reference with its mark as printed (a note's own leading mark is its label, never a reference). Per page the reply numbers the lines that start a unit; any other
+line continues the last unit of its kind on its page or the page before. `blocks.py` aligns the
+typed lines to the extracted ones: each typed line's source spans, cells, markers and references
+over the corrected text, and OCR text edits where the typing differs (digital-born differences are
+reported, not applied; canonically equivalent characters are no edit).
 
 The notes pass (`prompts.NOTES`, three pages per call, with an index of where every note begins)
 pairs every note reference with its note's first line; an answer naming any other line is asked
-again.
+again. A file without notes makes no notes calls.
 
-`hierarchy.py` groups typed lines into units (a start and the lines continuing it, across a page
-the page continues) and asks, a page window at a time, for each ranked unit's parent and, where
-the file holds several documents, the units that start and end each one; furniture, page labels,
-marginal notes, notes and contents stay out of the outline.
+`hierarchy.py` groups typed lines into units and asks for each ranked unit's parent and, where the
+file holds several documents, the units that start and end each one. The whole document goes in
+one call with every page image while it fits the model's context (gpt-6.1-sol: 500k tokens; a
+letter page at 144 dpi costs about 2,400, so about 150 pages) and the codex command line (about
+150 image paths); a longer document goes in windows that each fill those bounds, carrying the
+still-open ancestors of the window before. Furniture, page
+labels, marginal notes, notes and contents stay out of the outline.
 
 A v4 file holds `lines` [{id, page, text (extracted), corrected?}], `typed` [{page, region, text,
-start, continues, spans, markers, references, cells?}], `units` [{lines, parent, starts_document,
+start, spans, markers, references, cells?}], `units` [{lines, parent, starts_document,
 ends_document}], `notes` [{line, marker, reference, note}],
 `text_edits` and a `report` of unanchored, unplaced and kept text.
 
@@ -79,42 +85,3 @@ annotations, reading streams, fields, resumptions, note kinds, separators, table
 merges, document kinds, relationships or facets, so those are not scored. Source-trace alignment
 keeps exact coordinates for shared extraction lines and projects page-local Unicode spans for
 different extractions, reporting coverage and split/merge counts apart from the scores.
-
-## Records
-
-`worker.py` is the records runner's home: the canonical `legal-gold-package.v2` package per
-source, its record owners and the scoped annotation publisher.
-
-```powershell
-python experiments/legal-structure-gold/worker.py --record-run <current-run> --record-selection <selection.json> --run
-python experiments/legal-structure-gold/worker.py --enrich-run <canonical-run> <another-run>
-python experiments/legal-structure-gold/worker.py --import-records
-python experiments/legal-structure-gold/evaluate.py --replay <current-run>
-python experiments/legal-structure-gold/evaluate.py --export <gold.json.gz> --record-id <id> --output <record.json>
-python benchmarks/court-record-exhibits/score.py records <predictions.json>
-```
-
-`record_pass.py` adds document classification and selected standard information through the
-shared call lifecycle. Its selection binds existing corpus PDFs, record page mappings and
-source/proceeding/family/template separation from the frozen holdout. Each derivative document
-is annotated within its explicit page scope. Classification coverage is recorded separately from
-partial field coverage. Typed JSON values pass through a validated JSON-string response envelope.
-Precise field evidence uses source-qualified Unicode spans in the package's shared text; the
-model's exact printed-text cross-check stays in the call response. Page-only evidence remains
-page-only.
-
-The corpus SQLite index owns the catalogue: `gold_records` links each dataset/source SHA256 to
-its selected run, `gold_runs` and `gold_artifacts` record provenance and product hashes. A pass
-starts from the selected gold, declares the paths it owns, preserves other layers and binds its
-receipt to the input source, text and gold hash; publication rejects stale input, journals the
-write and recovers it if interrupted. `--import-records` ports existing record facts and
-source/split recipes into one current owner per source; PDFs without text annotations keep page
-geometry and record layers only. `--enrich-run` refreshes record/form annotations and their
-source anchors. Matching affidavit records are read from the existing court-record-exhibits home
-(`--court-records` selects another); their source/split recipes stay in `views`.
-
-`anchors.py` binds evidence to one source SHA and text identity. Quotes use unique literal
-matches; normalized values additionally need a labelled field annotation whose value spans
-cover the match. Ambiguous, absent or derived values keep page-only evidence. `record_score.py`
-scores document type, form/role labels, segment extent, typed field values, value status and
-field/row locations separately.
