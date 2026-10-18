@@ -89,11 +89,17 @@ export function freeDatabaseCase(authority) {
   return ["http:", "https:"].includes(url.protocol) && (authority.sourceIdentity?.provider === "a2aj" ||
     ["canlii.ca", "canlii.org"].some((domain) => host === domain || host.endsWith(`.${domain}`))) ? value : null;
 }
+/** Whether the brief cites a passage of an authority (a pinpoint, or a locator of the authority's own) or one is
+ *  marked in it: what an excerpt is made around. */
+export const authorityPassagesCited = (draft, authority) => !!authority.locators?.length ||
+  Object.values(draft.occurrences ?? {}).some(({ authorityId, pinpoints }) => authorityId === authority.id && pinpoints.length) ||
+  Object.values(authority.annotations ?? {}).some((set) => set?.marks?.length);
 /** Whether a case or another source goes in the book as an excerpt: as chosen for it, else as the book's
- *  `caseCopy` says, or as the court's extract. A statute goes as `statuteExcerpt` says. */
+ *  `caseCopy` says, or as the court's extract. One the brief cites no passage of goes whole. A statute goes as
+ *  `statuteExcerpt` says. */
 export function authorityExcerpt(draft, authority, pageCounts) {
   if (authority.kind === "legislation") return statuteExcerpt(authority, pageCounts);
-  if (authority.source.kind !== "attached") return false;
+  if (authority.source.kind !== "attached" || !authorityPassagesCited(draft, authority)) return false;
   return authority.excerpt ?? (draft.settings.caseCopy === "excerpt" || courtExtract(draft, authority));
 }
 /** A decision a Federal Court book on paper has as the court's own extract (Federal Courts Rules, r 70(2.1)):
@@ -103,8 +109,9 @@ export const courtExtract = (draft, authority) => authority.excerpt === undefine
 /** A Federal Court book filed on paper, which has a decision on a free public database as an excerpt. */
 export const federalPaperBook = (settings) => settings.filingMedium === "paper" &&
   !!profiles.find(({ id }) => id === settings.profileId)?.requirements?.federalFormatting;
-/** The context an excerpt keeps around each cited passage. */
-export const excerptContext = (settings) => ({ paragraphs: settings.contextParagraphs ?? 1, pages: settings.contextPages ?? 1 });
+/** The context an excerpt keeps around each cited passage, and whether it keeps the source's first page. */
+export const excerptContext = (settings) => ({ paragraphs: settings.contextParagraphs ?? 1, pages: settings.contextPages ?? 0,
+  firstPage: settings.excerptFirstPage ?? true });
 
 /** Whether the book reproduces this authority, asked by the builder (which loads the
  *  PDF or a stub) and the workspace (which plans the same book). An authority whose PDF

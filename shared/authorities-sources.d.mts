@@ -86,15 +86,20 @@ export const STATUTE_EXCERPT_PAGES: number;
 export function statuteExcerpt(authority: { kind: string; excerpt?: boolean; source: AuthoritySourceDecision },
   pageCounts?: Array<number | undefined>): boolean | undefined;
 type ExcerptSettings = { caseCopy?: "whole" | "excerpt"; contextParagraphs?: number; contextPages?: number;
-  filingMedium?: "electronic" | "paper"; profileId: string };
-type ExcerptAuthority = RequirementAuthority & { excerpt?: boolean; sourceIdentity?: { externalUrl?: string | null;
-  provider?: string } | null };
+  excerptFirstPage?: boolean; filingMedium?: "electronic" | "paper"; profileId: string };
+type ExcerptAuthority = RequirementAuthority & { id: string; excerpt?: boolean; locators?: ReadonlyArray<unknown>;
+  annotations?: Record<string, { marks?: ReadonlyArray<unknown> } | undefined>;
+  sourceIdentity?: { externalUrl?: string | null; provider?: string } | null };
+type ExcerptDraft = { settings: ExcerptSettings;
+  occurrences?: Record<string, { authorityId?: string | null; pinpoints: ReadonlyArray<unknown> }> };
 export function freeDatabaseCase(authority: ExcerptAuthority): string | null;
-export function authorityExcerpt(draft: { settings: ExcerptSettings }, authority: ExcerptAuthority,
+export function authorityPassagesCited(draft: ExcerptDraft, authority: ExcerptAuthority): boolean;
+export function authorityExcerpt(draft: ExcerptDraft, authority: ExcerptAuthority,
   pageCounts?: Array<number | undefined>): boolean | undefined;
 export function federalPaperBook(settings: ExcerptSettings): boolean;
-export function courtExtract(draft: { settings: ExcerptSettings }, authority: ExcerptAuthority): boolean;
-export function excerptContext(settings: { contextParagraphs?: number; contextPages?: number }): { paragraphs: number; pages: number };
+export function courtExtract(draft: ExcerptDraft, authority: ExcerptAuthority): boolean;
+export function excerptContext(settings: { contextParagraphs?: number; contextPages?: number; excerptFirstPage?: boolean }):
+  { paragraphs: number; pages: number; firstPage: boolean };
 export function authoritiesBookPdfs(draft: Pick<SourceDraft, "bookParts">): AuthoritiesBoundPdf[];
 export const AUTHORITIES_BOOK_SLOTS: readonly ["cover", "index", "supplemental", "brief"];
 export type AuthoritiesBookSlot = typeof AUTHORITIES_BOOK_SLOTS[number];

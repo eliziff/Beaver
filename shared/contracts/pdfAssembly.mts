@@ -259,9 +259,10 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
   /** Draws a page number, or a running line such as a statute's currency, as Acrobat draws its own
    *  headers and footers: a pagination artifact showing a form on the Headers/Footers layer, which
    *  carries the settings Header & Footer > Update and Remove work from. A number's settings count
-   *  the pages it runs over, so a page inserted among them is numbered on Update. */
+   *  the pages it runs over, so a page inserted among them is numbered on Update. Returns where the line
+   *  lies on the page ([x1, y1, x2, y2]), for a link over it. */
   function drawPageNumber(page: PDFPage, number: number | string, font: PDFFont,
-    position: PdfPageNumberPosition, size = 9, inset = 72, offset = 36) {
+    position: PdfPageNumberPosition, size = 9, inset = 72, offset = 36): number[] {
     const text = String(number), textWidth = font.widthOfTextAtSize(text, size);
     const crop = page.getCropBox(), angle = ((page.getRotation().angle % 360) + 360) % 360;
     const sideways = angle === 90 || angle === 270;
@@ -291,6 +292,10 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
         Attached: [kind === "Header" ? "Top" : "Bottom"] }) as unknown as string]),
     pdf.pushGraphicsState(), pdf.concatTransformationMatrix(cos, sin, -sin, cos, crop.x + pageX, crop.y + pageY),
     pdf.drawObject(page.node.newXObject("HF", form)), pdf.popGraphicsState(), pdf.endMarkedContent());
+    const corners = [[0, -size / 4], [textWidth, size]].map(([u, v]) =>
+      [crop.x + pageX + cos * u - sin * v, crop.y + pageY + sin * u + cos * v]);
+    return [Math.min(corners[0][0], corners[1][0]), Math.min(corners[0][1], corners[1][1]),
+      Math.max(corners[0][0], corners[1][0]), Math.max(corners[0][1], corners[1][1])];
   }
 
   /** Names a document as Acrobat shows it: its title in the title bar, and in both the document

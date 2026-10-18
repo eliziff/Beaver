@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { attachedAuthoritySources, authorityExcerpt } from "../../../../shared/authorities-sources.mjs";
+import { attachedAuthoritySources, authorityExcerpt, authorityPassagesCited } from "../../../../shared/authorities-sources.mjs";
 import { oneAtATime } from "../../../../shared/one-at-a-time.mjs";
 import { getPdfJs, openPdfDocument, PDF_DOCUMENT_OPTIONS } from "@/app/lib/pdfJs";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
 
 /** A row's book copy: whether it can be chosen, and excerpt or whole (a statute's unknown until its
- *  length is). */
-export type SourceCopy = { choosable: boolean; excerpt?: boolean };
+ *  length is); `cited`: whether the brief cites a passage of it, which an excerpt needs. */
+export type SourceCopy = { choosable: boolean; excerpt?: boolean; cited?: boolean };
 
 type Read = { key: string; role: string };
 
@@ -32,11 +32,19 @@ function storeFor(host: AuthoritiesHost, draftId: string) {
 /**
  * The book copy of each authority the book reproduces, by authority: as chosen in `shown`, else a statute
  * by its length, recorded when its PDF was attached or read here, one PDF at a time while `active`, the
- * first time it is wanted, and any other as the book's setting says.
+ * first time it is wanted, and any other as the book's setting says. An excerpt the build would put in whole,
+ * nothing it cites being placed in its PDF, says so once its PDFs are read as a build reads them.
  */
 export function useSourceCopies(host: AuthoritiesHost, product: AuthoritiesProduct | undefined,
   shown: AuthoritiesProduct | undefined, active: boolean) {
   const [version, setVersion] = useState(0);
+  const [counted, setCounted] = useState<{ id: string; pages: Record<string, number | null> }>();
+  useEffect(() => {
+    if (!active || !product || !host.excerptPages) return;
+    let current = true;
+    void host.excerptPages(product).then((pages) => { if (current) setCounted({ id: product.id, pages }); }, () => {});
+    return () => { current = false; };
+  }, [host, product, active]);
   const { rows, wanted } = useMemo(() => {
     const rows = new Map<string, SourceCopy>(), wanted: Read[] = [];
     const state = shown?.state, held = product && stores.get(host);
@@ -53,11 +61,13 @@ export function useSourceCopies(host: AuthoritiesHost, product: AuthoritiesProdu
         if (value === undefined && host.readSource) wanted.push({ key, role: bindingRole });
         return typeof value === "number" ? value : undefined;
       });
-      rows.set(id, { choosable: true, excerpt: authorityExcerpt(state, authority, counts) });
+      const whole = counted?.id === product.id && counted.pages[id] === null;
+      rows.set(id, { choosable: true, excerpt: !whole && authorityExcerpt(state, authority, counts),
+        cited: !whole && (authority.kind === "legislation" || authorityPassagesCited(state, authority)) });
     }
     return { rows, wanted };
   // What has been read is kept outside React; `version` moves on as each read lands.
-  }, [host, product, shown, version]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [host, product, shown, version, counted]); // eslint-disable-line react-hooks/exhaustive-deps
   const reads = wanted.map(({ key }) => key).join("\n");
   useEffect(() => {
     if (!active || !product || !reads) return;

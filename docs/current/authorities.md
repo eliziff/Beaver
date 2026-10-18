@@ -91,6 +91,20 @@ final-PDF destinations follow the pages kept; the Word outputs are unchanged. Th
 row's line names what the brief cites, as written, and counts the excerpt from the
 reading the build reuses.
 
+A case or another source goes in whole unless the import's Excerpts step
+(`settings.caseCopy`) or its Sources row (`AuthorityIdentity.excerpt`) makes it an
+excerpt; one the brief cites no passage of goes whole and its row says so. An
+excerpt keeps whole pages, as filed books do: every page a cited passage is placed
+on or marked, `contextPages` pages either side (default 0), the pages holding
+`contextParagraphs` paragraphs before and after each cited paragraph of a case
+(default 1, as Federal Courts Rules r 70(2.1) asks), and each PDF's first page
+unless `excerptFirstPage` is false. With nothing cited placed it goes whole, and
+its row says Whole once its PDFs are read as the build reads them. A Federal Court
+book on paper keeps the court's own extract of a decision on a free public database
+unless excerpts are chosen. `caseLinks` prints each case's source link, canonicalized
+as the table's links are, as an Acrobat header line atop the case's first page in
+the book, with a link annotation over it, on any PDF, scans included.
+
 ## Source and quotation review
 
 Citation review renders the retained Word or PDF bytes through the shared document

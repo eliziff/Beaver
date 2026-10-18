@@ -128,11 +128,13 @@ export function authorityPassageTargets(draft: AuthoritiesDraft, authorityId: st
 
 /** The paragraphs an excerpted case keeps before and after each cited paragraph, placed as its cited ones are,
  *  under ids of their own ("context:44") that keep them from being marked or bookmarked. The court's extract
- *  keeps its paragraph 1 instead: its pages run through the one its reasons begin on. */
+ *  keeps its paragraphs 1 and 2 instead: its pages run through the one its reasons begin on, found by either where
+ *  the other is printed more than once (a headnote that cites the reasons' paragraph 1). */
 export function excerptContextTargets(draft: AuthoritiesDraft, authority: AuthorityIdentity): NativePdfPassageTarget[] {
   const { paragraphs } = excerptContext(draft.settings);
   if (authority.kind !== "case" || !authorityExcerpt(draft, authority)) return [];
-  if (courtExtract(draft, authority)) return [{ id: "context:1", locatorKind: "paragraph", locator: "1", exactQuotes: [] }];
+  if (courtExtract(draft, authority)) return ["1", "2"].map((locator) =>
+    ({ id: `context:${locator}`, locatorKind: "paragraph", locator, exactQuotes: [] }));
   if (!paragraphs) return [];
   const cited = [...authority.locators.map(({ kind, label }) => ({ kind, first: label, last: label })),
     ...Object.values(draft.occurrences).flatMap((occurrence) => occurrence.authorityId === authority.id
@@ -1181,8 +1183,10 @@ async function prepareAuthorityBook(
         ? structureNative().statuteCurrency(source.pageTextByPage ?? []) ?? undefined : undefined;
       const kept = currency && source.pageIndices.some((index) => source.pageTextByPage?.[index]
         ?.replace(/\s+/gu, " ").toLowerCase().includes(currency.toLowerCase()));
+      // A case's link, where the book prints it, atop the case's first page.
+      const link = draft.settings.caseLinks && source.authority?.kind === "case" ? authoritySourceLink(source.authority) : null;
       return { key: source.key, name: source.name, italic: source.italic, tab: source.tab, sourceUrl: source.sourceUrl,
-        ...(currency && !kept && { header: pdfText(currency) }),
+        ...(currency && !kept && { header: pdfText(currency) }), ...(link && { link }),
         bytes: await source.document.save({ useObjectStreams: false }),
         pageIndices: source.pageIndices, databaseReference: source.databaseReference, ocrTextByPage, bookmarks,
         // Under its tab, an authority's marked passages alone, unless its own headings are asked for.
@@ -1283,7 +1287,7 @@ export function statuteExcerptSummary(draft: AuthoritiesDraft, authority: Author
 
 /** The Federal Court's extract of a decision in a book on paper (Federal Courts Rules, r 70(2.1)): every page
  *  through the one its reasons begin on (the headnote), and each cited or marked page with the pages either side.
- *  Its reasons begin where the engine places its paragraph 1 (excerptContextTargets).
+ *  Its reasons begin where the engine places its paragraph 1, or else its paragraph 2 (excerptContextTargets).
  *  Null where its reasons are not found or nothing cited is placed: it goes in whole. */
 function federalPaperExtract(draft: AuthoritiesDraft, authority: AuthorityIdentity, input: ExcerptInput) {
   const text = Array.from({ length: input.pageCount }, (_, index) =>
@@ -1301,24 +1305,20 @@ function federalPaperExtract(draft: AuthoritiesDraft, authority: AuthorityIdenti
   return [...selected].sort((left, right) => left - right);
 }
 
-/** What the book copy of a case or another source keeps as an excerpt (`parts`, its PDFs' lengths): the first
- *  page of each PDF, every page a cited passage is placed on or marked, and the context around them: the pages
- *  holding the paragraphs before and after each cited paragraph of a case (`contextPages`), and the pages before
- *  and after any other cited page. Null where nothing cited is placed: it goes in whole. */
+/** What the book copy of a case or another source keeps as an excerpt (`parts`, its PDFs' lengths): every page a
+ *  cited passage is placed on or marked, the pages either side of each (`pages` of context), the pages holding the
+ *  paragraphs kept before and after each cited paragraph of a case (`contextPages`), and the first page of each PDF
+ *  unless it is left out. Null where nothing cited is placed: it goes in whole. */
 function sourceExcerptPages(draft: AuthoritiesDraft, authority: AuthorityIdentity, input: ExcerptInput) {
   const placed = citedLocatorPages(draft, authority.id, input.pageTextByPage ?? [], input.pageBindings,
     input.pageCount, input.passageGeometry, attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual"));
-  const { pages } = excerptContext(draft.settings), marked = [...input.marked ?? []];
-  // A case whose cited paragraphs are placed takes its context in paragraphs; anything else, in pages.
-  const byParagraph = authority.kind === "case" && [...placed.keys()].some((key) => key.startsWith("paragraph\0"));
-  const kept = new Set(marked);
-  const around = (page: number) => { for (let near = page - pages; near <= page + pages; near++) kept.add(near); };
-  placed.forEach((at, key) => at.forEach((page) => byParagraph && key.startsWith("paragraph\0") ? kept.add(page) : around(page)));
-  if (!kept.size) return null;
-  if (byParagraph) input.contextPages?.forEach((page) => kept.add(page));
-  else marked.forEach(around);
+  const { pages, firstPage } = excerptContext(draft.settings);
+  const cited = new Set([...input.marked ?? [], ...[...placed.values()].flatMap((at) => [...at])]);
+  if (!cited.size) return null;
+  const kept = new Set(input.contextPages);
+  cited.forEach((page) => { for (let near = page - pages; near <= page + pages; near++) kept.add(near); });
   let start = 0;
-  for (const count of input.parts) { kept.add(start); start += count; }
+  for (const count of input.parts) { if (firstPage) kept.add(start); start += count; }
   for (let page = start; page < input.pageCount; page++) kept.add(page);
   return [...kept].filter((page) => page >= 0 && page < input.pageCount).sort((left, right) => left - right);
 }

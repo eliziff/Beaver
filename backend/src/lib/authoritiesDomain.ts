@@ -167,6 +167,7 @@ const settingsShape = closed<AuthoritiesSettings>({
   missingSourcePolicy: choice("missingSourcePolicy"), filingMedium: maybe(choice("filingMedium")),
   bookRole: maybe(choice("bookRole")), subsequentHistory: maybe(choice("subsequentHistory")),
   caseCopy: maybe(choice("caseCopy")), contextParagraphs: maybe(count), contextPages: maybe(count),
+  excerptFirstPage: maybe(flag), caseLinks: maybe(flag),
   supraLinking: maybe(choice("supraLinking")),
 });
 /** Settings the chosen profile actually offers, read back through its own decoder. */

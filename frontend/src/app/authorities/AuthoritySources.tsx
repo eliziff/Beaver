@@ -279,7 +279,8 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
   const choose = (excerpt: boolean) => onAction({ type: "set-authority-excerpt", authorityId: authority.id, excerpt });
   const statute = authority.kind === "legislation";
   const choice = <ActionMenu label={`${title} in the book`} triggerClassName={rowControl}
-    items={[{ label: statute ? "Cited provisions only" : "Cited passages only", disabled: busy || copy?.excerpt === true, onSelect: () => choose(true) },
+    items={[{ label: statute ? "Cited provisions only" : "Cited passages only",
+      disabled: busy || copy?.excerpt === true || copy?.cited === false, onSelect: () => choose(true) },
       { label: statute ? "Whole statute" : authority.kind === "case" ? "Whole case" : "Whole document",
         disabled: busy || copy?.excerpt === false, onSelect: () => choose(false) }]}>
     <ScrollText /><span className={rowLabel}>{copy?.excerpt === false ? "Whole" : "Excerpt"}</span></ActionMenu>;

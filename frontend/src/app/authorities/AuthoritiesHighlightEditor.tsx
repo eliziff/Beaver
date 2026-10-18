@@ -171,7 +171,7 @@ const draftKey = (product: AuthoritiesProduct) => {
   let key = draftKeys.get(product.state);
   if (key === undefined) draftKeys.set(product.state, key = `${product.id}\0${JSON.stringify(product.state,
     function (name, value) { return name === 'annotations' || name === 'excerpt' && typeof value === 'boolean' ||
-      this === product.state.settings && ['caseCopy', 'contextParagraphs', 'contextPages'].includes(name) ||
+      this === product.state.settings && ['caseCopy', 'contextParagraphs', 'contextPages', 'excerptFirstPage', 'caseLinks'].includes(name) ||
       name === 'stage' && this === product.state ? undefined : value; })}`);
   return key;
 };

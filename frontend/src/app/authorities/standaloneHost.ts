@@ -204,6 +204,7 @@ function excerptInputs(product: AuthoritiesProduct) {
   const excerpted = Object.values(state.authorities).filter((authority) => !authority.excluded && authorityExcerpt(state, authority));
   return { excerpted, key: JSON.stringify([product.id, state.settings.passageMarking, state.settings.scannedPdfPolicy,
     state.settings.finalPdf, state.settings.linkPinpoints, state.settings.contextParagraphs, state.settings.contextPages,
+    state.settings.excerptFirstPage,
     excerpted.map((authority) => [authority.id, authority.excerpt,
       attachedAuthoritySources(authority.source).map(({ bindingRole, sourceSha256 }) => [bindingRole, sourceSha256]),
       Object.values(state.occurrences).filter(({ authorityId }) => authorityId === authority.id)
@@ -211,21 +212,22 @@ function excerptInputs(product: AuthoritiesProduct) {
       authority.annotations ?? null, authority.highlightExclusions ?? null])]) };
 }
 /** The last count asked for, by draft: a preview asks again only when what the count depends on changed. */
-const excerptCounts = new Map<string, { key: string; counted: Promise<Record<string, number>> }>();
+const excerptCounts = new Map<string, { key: string; counted: Promise<Record<string, number | null>> }>();
 /** The pages each authority the book excerpts keeps, by authority, read in the runtime that reads the sources (so
- *  a build finds them read): each authority's PDFs in turn, the last giving its count. */
+ *  a build finds them read): each authority's PDFs in turn, the last giving its count, null where it goes whole. */
 function excerptPages(product: AuthoritiesProduct) {
   const { excerpted, key } = excerptInputs(product), kept = excerptCounts.get(product.id);
   if (kept?.key === key) return kept.counted;
   const counted = (async () => {
-    const pages: Record<string, number> = {};
+    const pages: Record<string, number | null> = {};
     for (const authority of excerpted) for (const source of attachedAuthoritySources(authority.source)) {
       const form: AuthoritiesRequest = { draft: product.state, role: source.bindingRole };
       const file = await resolveExact(product.state.bindings[source.bindingRole], true);
-      if (!file) break;
+      // A PDF that cannot be read leaves its authority uncounted.
+      if (!file) { delete pages[authority.id]; break; }
       form.files = [file];
       const counted = (await runtimeResponse("excerpt-pages", form)).data as { authorityId: string; pages: number | null };
-      if (counted.pages) pages[counted.authorityId] = counted.pages;
+      if (counted.pages !== undefined) pages[counted.authorityId] = counted.pages;
     }
     return pages;
   })();
@@ -370,8 +372,10 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   },
   // The cover and index are drawn by the previews' own runtime, with the pages each statute the book excerpts
   // keeps, counted where the sources are read.
+  excerptPages,
   bookFront: async (product, actions, signal) => (await runtimeResponse("book-front", { draft: product.state, actions,
-    title: product.title, excerptPages: await excerptPages(product) }, signal))
+    title: product.title, excerptPages: Object.fromEntries(Object.entries(await excerptPages(product))
+      .filter(([, pages]) => pages)) }, signal))
     .files!.map(file => new Blob([file.bytes.slice().buffer as ArrayBuffer], { type: file.mimeType }))[0],
   attach: (id, authorityId, revision, selected, language = "en") =>
     attachPdf(id, revision, selected, { authority_id: authorityId, language,

@@ -8,9 +8,9 @@ type PdfModule = typeof import("pdf-lib");
 /** `italic`: how many of the name's first characters are italic, its style of cause or title. */
 export type BookRow = { key: string; name: string; italic?: number; tab: string; sourceUrl?: string | null };
 /** `header`: a line at the top of its first page in the book (an excerpt's currency, where the
- *  excerpt leaves out the page that states it). */
+ *  excerpt leaves out the page that states it). `link`: an address printed there as a link instead (a case's). */
 export type PreparedBookSource<Bytes = Uint8Array> = BookRow & {
-  bytes: Bytes; pageIndices: number[]; ocrTextByPage?: string[]; header?: string;
+  bytes: Bytes; pageIndices: number[]; ocrTextByPage?: string[]; header?: string; link?: string;
   databaseReference: { url: string; host: string } | null;
   bookmarks: Array<{ title: string; pageIndex: number }>;
   /** The source's own outline: its publisher bookmarks, or the headings and sections read from it. */
@@ -187,9 +187,17 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             if (tabbed) drawTabPage(document.addPage([612, 792]), source.tab, fonts.bold);
             if (blankAfter) document.addPage([612, 792]);
           } : undefined,
-          decorate: source.databaseReference || source.header ? (page, index, { fonts }) => {
+          decorate: source.databaseReference || source.header || source.link ? (page, index, { fonts }) => {
             if (source.header && index === source.pageIndices[0]) engine.drawPageNumber(page, source.header,
               fonts.regular, "top-centre", 8, 72, 24);
+            // The link as a header line of its own, in the size that fits the page's width, under a link to it.
+            if (source.link && index === source.pageIndices[0]) {
+              const text = pdfText(source.link), crop = page.getCropBox();
+              const width = (page.getRotation().angle % 180 ? crop.height : crop.width) - 72;
+              const size = Math.max(5, Math.min(8, 8 * width / fonts.regular.widthOfTextAtSize(text, 8)));
+              links.push({ page, rect: engine.drawPageNumber(page, text, fonts.regular, "top-centre", size, 36, 24),
+                url: source.link });
+            }
             if (!source.databaseReference) return;
             const { url, host } = source.databaseReference;
             const crop = page.getCropBox(), label = `FREE PUBLIC DATABASE: ${host}`;

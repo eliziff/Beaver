@@ -68,12 +68,17 @@ export type AuthoritiesBuildSettings = {
    *  printed with the case it follows, with no tab, index line or source of its own. */
   subsequentHistory?: "omit" | "include";
   /** How the book reproduces each case and other source (a statute goes by its own length): in full (the
-   *  default), or as an excerpt of its first page, the pages the brief cites, and the context around them. */
+   *  default), or as an excerpt of the pages the brief cites, the context around them and, by default, its first page. */
   caseCopy?: "whole" | "excerpt";
-  /** The paragraphs an excerpt keeps before and after each cited paragraph of a case (default 1). */
+  /** The paragraphs an excerpt keeps before and after each cited paragraph of a case (default 1; 0 keeps only the
+   *  cited paragraphs), by the pages they are on. */
   contextParagraphs?: number;
-  /** The pages an excerpt keeps before and after each cited page of a source without placed paragraphs (default 1). */
+  /** The pages an excerpt keeps before and after each page it cites (default 0: only the cited pages). */
   contextPages?: number;
+  /** Whether an excerpt keeps the first page of each of its source's PDFs (default true). */
+  excerptFirstPage?: boolean;
+  /** Whether the book prints each case's link at the top of the case's first page, as a clickable link (default false). */
+  caseLinks?: boolean;
   /** How far the import links an ibid or a supra where the evidence is incomplete, the citation engine's splitting
    *  tiers: "safe" (the default) links what a reference's own note and words support, "moderate" also reads a supra
    *  by its name where the note it gives cites another work, "aggressive" also continues an ibid from the last source

@@ -293,8 +293,9 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     // The other citations of a citation's authority that a link given to it would carry to (authoritiesLinkPropagation.ts).
     "link-propagation": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> =>
       value(await linkPropagationTargets(draft(input?.draft), text(input?.occurrenceId), text(input?.url, 8192), context.signal)),
+    // The findings as data: the passage each was read from stays with the engine that read it.
     "discrepancies": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
-    return value(await reviewDiscrepancies(draft(input?.draft), context.signal));
+    return value((await reviewDiscrepancies(draft(input?.draft), context.signal)).map(({ citedPassage: _, ...finding }) => finding));
     },
     "discrepancies/actions": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const current = draft(typeof input?.draft === "string"
