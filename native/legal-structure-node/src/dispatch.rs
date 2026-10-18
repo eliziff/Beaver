@@ -42,17 +42,6 @@ fn with_document<T>(handle: u32, operation: impl FnOnce(&NativeDocument) -> Core
     operation(&document)
 }
 
-/// One of a document's text fragment plans, as `textFragmentPlan` takes it.
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PlanRequest {
-    block_text: String,
-    quotes: Vec<String>,
-    pdf: bool,
-    publisher_may_annotate_legal_reference: bool,
-    split_html_source_blocks: bool,
-}
-
 struct Call {
     args: Value,
 }
@@ -161,8 +150,6 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             call.get::<Option<String>>("title")?.as_deref()))),
         "documentCaseOutline" => done(with_document(doc()?, |d|
             engine::case_outline(engine::document_text(d, None)).and_then(value))),
-        "documentTextStatistics" => done(with_document(doc()?, |d| value(d.query.text_statistics(
-            d.structure(), &call.get::<Vec<String>>("texts")?)))),
         "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(
             d, call.get::<Option<bool>>("legislation")?.unwrap_or(false))))),
         "sourceMarkup" => done(with_document(doc()?, |d| value(engine::source_markup(d)))),
@@ -180,6 +167,16 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "canliiCaseUrl" => done(value(legal_structure::canlii_case_url(&call.get::<Vec<String>>("citations")?,
             &call.get::<Option<String>>("language")?.unwrap_or_default(), call.get::<Option<String>>("court")?.as_deref()))),
         "canliiLawUrl" => done(value(legal_structure::canlii_law_url(&call.get::<String>("text")?))),
+        "canliiA2ajLawUrl" => done(value(legal_structure::citations::url::canlii_a2aj_law_url(
+            &call.get::<String>("dataset")?, &call.get::<String>("citation")?, &call.get::<String>("language")?))),
+        // A passage's links on a source's page, planned against the document (legal-structure passage_links).
+        "passageLink" => done(with_document(doc()?, |d| value(legal_structure::passage_link(
+            &d.query, d.structure(), &call.get::<legal_structure::PassageLinkRequest>("request")?)))),
+        "citedPassageLink" => done(with_document(doc()?, |d| value(legal_structure::cited_passage_link(
+            &d.query, d.structure(), &call.get::<String>("url")?, &call.get::<Vec<String>>("pinpoints")?)))),
+        "lawWebLink" => done(with_document(doc()?, |d| value(legal_structure::law_web_link(&d.query, d.structure(),
+            &call.get::<String>("citation")?, &call.get::<String>("docType")?, &call.get::<String>("blockText")?,
+            &call.get::<Vec<String>>("quotes")?)))),
         "canliiCourtRoute" => done(value(legal_structure::canlii_court_route(&call.get::<String>("court")?))),
         "citationOccurrencesInText" => done(value(engine::citation_occurrences(&call.get::<String>("text")?))),
         "authorityReferencesInText" => done(value(engine::authority_references(&call.get::<String>("text")?))),
@@ -218,18 +215,6 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             call.get("contextBlocks")?).and_then(value))),
         "smallestContainingDocumentBlock" => done(with_document(doc()?, |d| value(
             engine::smallest_containing_document_block(d, call.get("start")?, call.get("end")?)))),
-        "textFragmentPlan" => done(with_document(doc()?, |d| value(engine::document_text_fragment_plan(
-            d, &call.get::<String>("blockText")?, &call.get::<Vec<String>>("quotes")?, call.get("pdf")?,
-            call.get("publisherMayAnnotateLegalReference")?, call.get("splitHtmlSourceBlocks")?)))),
-        "textFragmentPlans" => done(with_document(doc()?, |d| value(call.get::<Vec<PlanRequest>>("requests")?.iter()
-            .map(|plan| engine::document_text_fragment_plan(d, &plan.block_text, &plan.quotes, plan.pdf,
-                plan.publisher_may_annotate_legal_reference, plan.split_html_source_blocks)).collect::<Vec<_>>()))),
-        "textFragmentPlanStandalone" => done(value(engine::text_fragment_plan_standalone(
-            &call.get::<String>("blockText")?, &call.get::<Vec<String>>("quotes")?, call.get("pdf")?,
-            call.get("publisherMayAnnotateLegalReference")?, call.get("splitHtmlSourceBlocks")?))),
-        "documentRangeFragmentPlan" => done(with_document(doc()?, |d| engine::document_range_fragment_plan(
-            d, &call.get::<String>("kind")?, &call.get::<String>("start")?, &call.get::<String>("end")?,
-            call.get("pdf")?, call.get("publisherMayAnnotateLegalReference")?, call.get("firstBlockOnly")?).and_then(value))),
         "lookupStructureBlock" => done(with_document(doc()?, |d| engine::lookup_structure_block(
             d, call.get("locator")?, call.get("contextBlocks")?).and_then(value))),
         "resolveDocumentAddressSpans" => done(with_document(doc()?, |d| engine::resolve_document_address_spans(

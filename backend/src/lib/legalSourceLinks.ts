@@ -2,7 +2,6 @@ import { type A2AJCompiledDocument, type A2AJLocatorKind } from "./legalSources/
 import { structureNative, type NativeDocument,
   type NativeTextFragmentPlan } from "./structureNative";
 import type { VerifiedPdfEvidence } from "./legalSourcePresentation";
-import { buildA2AJWebPinpointUrl } from "./a2ajWebLinks";
 
 /**
  * Deterministic pinpoint URLs: a provider anchor where one exists, plus text
@@ -53,36 +52,14 @@ export function sourceUrl(rawUrl: string, anchor?: string): string | null {
   return url.origin === "http://mike.local" ? `${url.pathname}${url.search}${url.hash}` : null;
 }
 
-function appendDirectives(url: string, directives: string[]) {
-  if (!directives.length) return url;
-  return url.includes("#")
-    ? `${url}:~:${directives.join("&")}`
-    : `${url}#:~:${directives.join("&")}`;
-}
-
-function isPdfSourceUrl(rawUrl: string) {
-  try {
-    const url = new URL(rawUrl, "http://mike.local");
-    const path = url.pathname.toLocaleLowerCase();
-    const href = url.href.toLocaleLowerCase();
-    return path.endsWith(".pdf") || path.endsWith("/document.do") ||
-      url.searchParams.get("rendition")?.toLocaleLowerCase() === "pdf" ||
-      href.includes("laws.yukon.ca/cms/images/legislation/") ||
-      href.includes("justice.gov.nt.ca/en/files/legislation/") ||
-      href.includes("princeedwardisland.ca/sites/default/files/legislation/") ||
-      /publications\.saskatchewan\.ca\/api\/v1\/products\/[^/]+\/formats\//u.test(href);
-  } catch {
-    const path = rawUrl.toLocaleLowerCase().split(/[?#]/u, 1)[0];
-    return path.endsWith(".pdf") || path.endsWith("/document.do");
-  }
-}
-
-function publisherMayAnnotateLegalReference(rawUrl: string) {
-  try {
-    return new URL(rawUrl, "http://mike.local").hostname === "www.bclaws.gov.bc.ca";
-  } catch {
-    return false;
-  }
+/** A path on this host, as the absolute address the engine reads, and the engine's answer as a path again. */
+const LOCAL = "http://mike.local";
+const isLocal = (rawUrl: string) => rawUrl.startsWith("/") && !rawUrl.startsWith("//") && !rawUrl.includes("\\");
+const toEngine = (rawUrl: string) => isLocal(rawUrl) ? new URL(rawUrl, LOCAL).href : rawUrl;
+function fromEngine(linked: string | null, local: boolean) {
+  if (!linked || !local) return linked;
+  const url = new URL(linked);
+  return url.origin === LOCAL ? `${url.pathname}${url.search}${url.hash}` : null;
 }
 
 export function buildA2AJDocumentPinpointUrl(
@@ -100,8 +77,7 @@ export function buildA2AJDocumentPinpointUrl(
     blockText, documentText: document,
   }, quotes, source.docType === "laws") : null;
   if (publisher && complete(publisher.plan)) return publisher.target;
-  const plan = structureNative().textFragmentPlan(blockText, quotes, false, false, true, document);
-  const lawWeb = complete(plan) ? buildA2AJWebPinpointUrl(source, plan) : null;
+  const lawWeb = structureNative().lawWebLink(document, source.citation, source.docType ?? "cases", blockText, quotes);
   if (lawWeb) return lawWeb;
   const canliiUrl = source.docType === "laws" ? structureNative().canliiLawUrl(source.citation)
     : structureNative().canliiCaseUrl([source.citation, source.alternateCitation ?? ""].filter(Boolean),
@@ -112,86 +88,50 @@ export function buildA2AJDocumentPinpointUrl(
   return canlii?.plan?.directives.length && complete(canlii.plan) ? canlii.target : null;
 }
 
-/** The engine's text fragment plan, a pure reading of a block, its quotations and its document (by revision), kept
- *  for the passages planned most recently: a quote check plans a link and the workbook it feeds plans it again. */
-const PLANS_KEPT = 512;
-const plans = new Map<string, NativeTextFragmentPlan>();
-const planKey = (blockText: string, quotes: string[], pdf: boolean, annotated: boolean, split: boolean,
-  document: NativeDocument) => JSON.stringify([structureNative().documentRevision(document), blockText, quotes, pdf,
-  annotated, split]);
-function keepPlan(key: string, plan: NativeTextFragmentPlan) {
-  plans.delete(key);
-  plans.set(key, plan);
-  if (plans.size > PLANS_KEPT) plans.delete(plans.keys().next().value!);
+/** The engine's link for a passage (legal-structure passage_links), kept for the passages planned most recently: a
+ *  quote check plans its links off the JavaScript thread first, and the workbook it feeds asks for them again. */
+const LINKS_KEPT = 512;
+type PassageLinkRequest = Parameters<ReturnType<typeof structureNative>["passageLink"]>[1];
+type PassageLink = ReturnType<ReturnType<typeof structureNative>["passageLink"]>;
+const links = new Map<string, PassageLink>();
+const linkKey = (document: NativeDocument, request: PassageLinkRequest) =>
+  JSON.stringify([structureNative().documentRevision(document), request]);
+function keepLink(key: string, link: PassageLink) {
+  links.delete(key);
+  links.set(key, link);
+  if (links.size > LINKS_KEPT) links.delete(links.keys().next().value!);
 }
-function plannedFragments(blockText: string, quotes: string[], pdf: boolean, annotated: boolean, split: boolean,
-  document: NativeDocument) {
-  const key = planKey(blockText, quotes, pdf, annotated, split, document);
-  const plan = plans.get(key) ?? structureNative().textFragmentPlan(blockText, quotes, pdf, annotated, split, document);
-  keepPlan(key, plan);
-  return plan;
-}
+const linkRequest = (evidence: Pick<LegalSourceEvidence, "url" | "anchor" | "blockText" | "verifiedPdf">,
+  quotes: string[], preferIndependentHtmlBlocks = false): PassageLinkRequest => ({
+  url: toEngine(evidence.url), ...evidence.anchor !== undefined && { anchor: evidence.anchor },
+  blockText: evidence.blockText, quotes, preferIndependentHtmlBlocks,
+  verifiedPdf: evidence.verifiedPdf ? { url: evidence.verifiedPdf.url, pdfOnly: evidence.verifiedPdf.pdfOnly } : null,
+});
 
-/** Plans ahead, off this thread and all in one call, the text fragments that buildLegalSourcePinpoint first asks for
- *  each of a document's passages (each at its own address): a quote check links each quotation it finds. */
+/** Plans ahead, off this thread, the links that buildLegalSourcePinpoint first asks for each of a document's
+ *  passages (each at its own address): a quote check links each quotation it finds. */
 export async function planLegalSourcePinpoints(document: NativeDocument,
   passages: Array<{ url: string; anchor?: string; blockText: string; quotes: string[] }>) {
-  const requests = passages.flatMap(({ url, anchor, blockText, quotes }) => {
-    const baseUrl = sourceUrl(url, anchor);
-    if (!baseUrl || !blockText) return [];
-    const request = { blockText, quotes, pdf: isPdfSourceUrl(baseUrl),
-      publisherMayAnnotateLegalReference: publisherMayAnnotateLegalReference(baseUrl), splitHtmlSourceBlocks: false };
-    return plans.has(planKey(blockText, quotes, request.pdf, request.publisherMayAnnotateLegalReference, false, document))
-      ? [] : [request];
-  });
-  if (!requests.length) return;
-  const planned = await structureNative().textFragmentPlans(document, requests);
-  requests.forEach((request, index) => keepPlan(planKey(request.blockText, request.quotes, request.pdf,
-    request.publisherMayAnnotateLegalReference, false, document), planned[index]));
+  await Promise.all(passages.filter(({ blockText }) => blockText).map(async (passage) => {
+    const request = linkRequest(passage, passage.quotes);
+    const key = linkKey(document, request);
+    if (!links.has(key)) keepLink(key, await structureNative().offThread("passageLink", document, request));
+  }));
 }
 
+/** The passage's link at its page: the page at the passage's anchor with its block's or quotations' fragments
+ *  (a verified PDF where only that plans whole), from the engine. */
 export function buildLegalSourcePinpoint(
   evidence: LegalSourceEvidence,
   quotes: string[],
   preferIndependentHtmlBlocks = false,
 ) {
-  const baseUrl = sourceUrl(evidence.url, evidence.anchor);
-  if (!baseUrl) return null;
-  if (!evidence.blockText) return { target: baseUrl, plan: null };
-  const plan = (url: string, pdf: boolean) => {
-    const fragmentPlan = (splitHtmlSourceBlocks: boolean) =>
-      plannedFragments(evidence.blockText, quotes, pdf,
-        publisherMayAnnotateLegalReference(url), splitHtmlSourceBlocks,
-        evidence.documentText);
-    const base = fragmentPlan(false);
-    const [directive] = base.directives;
-    const value = directive?.slice("text=".length) ?? "";
-    const simpleRange = base.directives.length === 1 && value.split(",").length === 2 &&
-      !value.includes("-,") && !value.includes(",-");
-    if (!preferIndependentHtmlBlocks || pdf || !simpleRange) return base;
-    const blocks = fragmentPlan(true);
-    return blocks.sourceSafeComplete && blocks.directives.length >= 2 &&
-      blocks.paintedWords === base.paintedWords && structureNative()
-        .documentTextStatistics(evidence.documentText, blocks.paintQuotes).every(({ occurrences }) => occurrences === 1)
-      ? blocks : base;
-  };
-  const verifiedPdfUrl = evidence.verifiedPdf
-    ? sourceUrl(evidence.verifiedPdf.url, evidence.anchor) : null;
-  let targetUrl = baseUrl;
-  let pdf = isPdfSourceUrl(targetUrl);
-  if (!pdf && evidence.verifiedPdf?.pdfOnly && verifiedPdfUrl) {
-    targetUrl = verifiedPdfUrl;
-    pdf = true;
-  }
-  let selected = plan(targetUrl, pdf);
-  if (!pdf && !selected.sourceSafeComplete && verifiedPdfUrl) {
-    const fallback = plan(verifiedPdfUrl, true);
-    if (fallback.sourceSafeComplete || fallback.paintedWords > selected.paintedWords) {
-      targetUrl = verifiedPdfUrl;
-      selected = fallback;
-    }
-  }
-  return { target: appendDirectives(targetUrl, selected.directives), plan: selected };
+  const request = linkRequest(evidence, quotes, preferIndependentHtmlBlocks);
+  const key = linkKey(evidence.documentText, request);
+  const link = links.has(key) ? links.get(key)! : structureNative().passageLink(evidence.documentText, request);
+  keepLink(key, link);
+  const target = link && fromEngine(link.target, isLocal(evidence.url));
+  return link && target ? { target, plan: link.plan } : null;
 }
 
 export function buildLegalSourcePinpointUrl(evidence: LegalSourceEvidence, quotes: string[]) {
@@ -205,19 +145,8 @@ export async function citedPassageLink(rawUrl: string, document: NativeDocument 
   pinpoints: readonly string[] = []) {
   const url = sourceUrl(rawUrl);
   if (!url || !document) return url;
-  const locator = engine<{ kind: "paragraph" | "section"; label: string; part?: string } | null>("passageLocator",
-    { url, pinpoints });
-  if (!locator) return url;
-  // Provision links target the opening block of the provision or pinpointed part; paragraph links include every exact
-  // member of the resolved paragraph.
-  const plan = async (target: string) => {
-    const found = await structureNative().offThread("documentRangeFragmentPlan", document, locator.kind,
-      target, target, isPdfSourceUrl(url), publisherMayAnnotateLegalReference(url), locator.kind === "section");
-    return found?.sourceSafeComplete && found.directives.length ? found : null;
-  };
-  const { label, part } = locator;
-  const planned = (part && await plan(part)) || await plan(label);
-  return planned ? appendDirectives(url, planned.directives) : url;
+  const linked = await structureNative().offThread("citedPassageLink", document, toEngine(url), [...pinpoints]);
+  return fromEngine(linked, isLocal(url)) ?? url;
 }
 
 /** A Canadian decision's page: one whose paragraphs the citation engine anchors (a CanLII or Decisia decision), or a

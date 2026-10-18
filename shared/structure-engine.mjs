@@ -5,7 +5,7 @@
 const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
   "fixDocxSupraCrossReferences", "deriveDocxDocument", "docxText",
   "docxAuthorityTextUnits", "derivePdfDocument", "preparePdfDocument", "restorePdfDocument",
-  "pdfPassageGeometryPages", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "textFragmentPlans",
+  "pdfPassageGeometryPages", "quoteLocateDocument", "a2ajDocument", "a2ajSection",
   "citationEngineCallAsync"]);
 // Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes;
 // "document" is a handle.
@@ -36,7 +36,6 @@ export const SIGNATURES = {
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   statuteOutline: ["text", "articles"], caseOutline: ["text"], documentCaseOutline: ["document"], statuteProvisionSpans: ["text", "labels"],
   statuteCurrency: ["pages"], filingCover: ["opening", "title"],
-  documentTextStatistics: ["document", "texts"],
   citationLookupKey: ["text"], citationLookupKeys: ["texts"], providerCitationsInText: ["text"],
   citationEngineCall: ["method", "request"], citationEngineCallAsync: ["method", "request"],
   documentReadingOrder: ["request"],
@@ -49,13 +48,10 @@ export const SIGNATURES = {
   verbatimRepair: ["authored", "source"], journalTitleSearches: ["citation"], journalTitleChoice: ["hits"],
   readDocumentRange: ["document", "kind", "from", "to", "contextBlocks"],
   canliiCaseUrl: ["citations", "language", "court"], canliiLawUrl: ["text"], canliiCourtRoute: ["court"],
+  canliiA2ajLawUrl: ["dataset", "citation", "language"],
+  passageLink: ["document", "request"], citedPassageLink: ["document", "url", "pinpoints"],
+  lawWebLink: ["document", "citation", "docType", "blockText", "quotes"],
   smallestContainingDocumentBlock: ["document", "start", "end"],
-  textFragmentPlan: ["blockText", "quotes", "pdf", "publisherMayAnnotateLegalReference",
-    "splitHtmlSourceBlocks", "document"],
-  textFragmentPlans: ["document", "requests"],
-  textFragmentPlanStandalone: ["blockText", "quotes", "pdf", "publisherMayAnnotateLegalReference",
-    "splitHtmlSourceBlocks"],
-  documentRangeFragmentPlan: ["document", "kind", "start", "end", "pdf", "publisherMayAnnotateLegalReference", "firstBlockOnly"],
   lookupStructureBlock: ["document", "locator", "contextBlocks"],
   resolveDocumentAddressSpans: ["document", "spec", "follow", "depth"],
   graphScope: ["document", "seed", "follow", "depth", "includeDescendants", "includeUnits"],

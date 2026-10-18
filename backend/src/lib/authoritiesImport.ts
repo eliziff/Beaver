@@ -26,7 +26,6 @@ import { structureNative, type NativeAuthorityReferenceOccurrence, type NativeAu
 import type { WorkProductInput } from "./workProduct";
 import { citationAliasKeysBatch } from "./caselawCitator";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
-import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { mapBounded } from "./mapBounded";
 import { registerWorkExtents } from "mike/shared/work-extents.mjs";
 import type { Citation, ExtractResponse, ResolveResponse, SourcePart } from "legal-citations";
@@ -156,8 +155,7 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
         const statutes = parsed.citations.filter((citation) => citation.form === "full" &&
           citation.authority === "statute");
         if (statutes.length !== 1 || statuteCore(statutes[0]) !== candidate.core) return [];
-        const base = buildCanliiLawUrl({ dataset: hit.collection ?? "",
-          citation: hit.citation ?? null, language: candidate.language });
+        const base = structureNative().canliiA2ajLawUrl(hit.collection ?? "", hit.citation ?? "", candidate.language);
         const route = canliiStatute(base, native);
         if (!route || route.language !== candidate.language ||
           route.jurisdiction !== candidate.jurisdiction) return [];

@@ -2,7 +2,6 @@ import crypto from "node:crypto";
 import { statSync } from "node:fs";
 import { cachedContent } from "../contentCache";
 import { a2ajLocalBulkPath, searchLocalA2AJ, useA2AJStore } from "../a2ajLocalBulk";
-import { buildCanliiLawUrl } from "mike/shared/runtime/canliiLawUrls.mjs";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
@@ -133,7 +132,7 @@ function publisherUrl(record: JsonObject, language: Language) {
  *  publisher's, else the page CanLII publishes for a decision's citation. */
 function sourceUrl(record: JsonObject, language: Language) {
   const dataset = string(record.dataset) ?? "";
-  return buildCanliiLawUrl({ dataset, citation: languageText(record, "citation", language), language }) ??
+  return structureNative().canliiA2ajLawUrl(dataset, languageText(record, "citation", language) ?? "", language) ??
     publisherUrl(record, language) ?? structureNative().canliiCaseUrl([languageText(record, "citation", language),
       languageText(record, "citation2", language)].filter((value): value is string => !!value), language, dataset);
 }
