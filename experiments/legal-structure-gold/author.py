@@ -1,7 +1,7 @@
 """PDF structure gold in three passes, each with the page images.
 
-Lines: the model corrects each page's extracted lines, gives every printed line its region and
-says which lines start a unit. Notes: the model pairs every note reference with its note.
+Lines: the model corrects each page's extracted lines and gives them as units, each a region and
+its lines. Notes: the model pairs every note reference with its note's number.
 Hierarchy: the model sees the document's units, numbered, and gives each its parent and where each
 of the file's documents starts and ends. The runner aligns the typed lines to the extracted ones
 and writes one gold file per source.
@@ -72,15 +72,47 @@ def extract(pdf, mode, out, timeout):
     return lines, {"binary_sha256": exported.get("parser", {}).get("binary_sha256"), "structure_sha256": fingerprint(structure)}
 
 
-def render(pdf, pages, directory, dpi):
+# The model receives an image scaled to fit 2,048 pixels on its long side (measured on gpt-6.1-sol:
+# a page rendered at 300 dpi costs the tokens of one at about 215 dpi, and no more detail reaches
+# it), so each page is rendered at the resolution that fills that: about 186 dpi for a letter page.
+LONG_SIDE = 2048
+
+
+def render(pdf, pages, directory, dpi_cap):
+    """Each page's image, rendered so its long side is LONG_SIDE pixels (at most dpi_cap)."""
     import fitz
     directory.mkdir(parents=True, exist_ok=True)
     paths = {}
     with fitz.open(pdf) as document:
         for page in pages:
-            paths[page] = directory / f"page-{page:06}.png"
+            rect = document[page - 1].rect
+            dpi = min(dpi_cap, int(LONG_SIDE * 72 / max(rect.width, rect.height, 1)))
+            paths[page] = directory / f"page-{page:06}-{dpi}.png"
             if not paths[page].is_file(): document[page - 1].get_pixmap(dpi=dpi, alpha=False).save(paths[page])
     return paths
+
+
+def embedded_images(pdf):
+    """Images the PDF places on its pages, by page and box in PDF points, with the page fraction
+    they cover: a figure, a stamp or a scanned insert. Derived from the file, never asked of the
+    model; a scanned page is one image covering it."""
+    import fitz
+    result = []
+    with fitz.open(pdf) as document:
+        for n, page in enumerate(document, 1):
+            area = page.rect.width * page.rect.height or 1
+            for info in page.get_image_info():
+                if info["width"] * info["height"] < 40_000: continue
+                box = fitz.Rect(info["bbox"])
+                result.append({"page": n, "bbox": [round(v, 1) for v in box], "fraction": round(box.get_area() / area, 3)})
+    return result
+
+
+def blank(image):
+    """A page image that is nearly all white: nothing printed, so no text was expected."""
+    import fitz
+    pixmap = fitz.Pixmap(str(image))
+    return sum(pixmap.samples) / len(pixmap.samples) > 250
 
 
 def author_lines(lines, pages, images, mode, job, args):
@@ -95,16 +127,19 @@ def author_lines(lines, pages, images, mode, job, args):
         text = prompts.lines_prompt({p: [l["text"] for l in by_page.get(p, [])] for p in targets}, targets, before)
         def valid(response):
             gold.require(len(response["pages"]) == len(targets), f"Expected {len(targets)} pages")
-            for page in response["pages"]:
-                gold.require(all(len(line) == 2 for line in page["lines"]), "Each line is [region, text]")
-                gold.require(all(0 < n <= len(page["lines"]) for n in page["starts"]), "starts must number the page's own lines")
-            return blocks.chunk([([(l["id"], l["text"]) for l in by_page.get(p, [])], [tuple(x) for x in page["lines"]])
+            gold.require(all(unit["lines"] for page in response["pages"] for unit in page["units"]), "A unit has at least one line")
+            return blocks.chunk([([(l["id"], l["text"]) for l in by_page.get(p, [])], flat(page))
                                  for p, page in zip(targets, response["pages"])], mode), response
         aligned, response = call(text, schema, [images[p] for p in targets], job / "calls" / f"lines-{targets[0]:06}-{targets[-1]:06}",
                                  args, valid, policy=POLICY)
         return targets, aligned, response
     with ThreadPoolExecutor(args.parallel) as pool:
         return list(pool.map(one, chunks))
+
+
+def flat(page):
+    """A page's typed lines, (region, text), in reading order."""
+    return [(unit["region"], text) for unit in page["units"] for text in unit["lines"]]
 
 
 def assemble(lines, authored, mode):
@@ -117,9 +152,11 @@ def assemble(lines, authored, mode):
         report["unanchored_lines"] += aligned["unanchored"]; report["typed_differences"] += aligned["differences"]
         results.append((aligned, chars))
         for page, answer in zip(targets, response["pages"]):
-            starts = set(answer["starts"])
-            for n, (region, text) in enumerate(answer["lines"], 1):
-                typed.append({"page": page, "region": region, "text": blocks.labelled(region, text), "start": n in starts})
+            # A unit's first line starts it, except the page's first unit when it continues the page before.
+            for u, unit in enumerate(answer["units"]):
+                for k, text in enumerate(unit["lines"]):
+                    typed.append({"page": page, "region": unit["region"], "text": blocks.labelled(unit["region"], text),
+                                  "start": k == 0 and not (u == 0 and answer["continues"])})
     corrected = {ident: "".join(c for c, _ in line) for _, chars in results for ident, line in chars.items()}
     order = [l["id"] for l in lines]
     located, located_report = blocks.typed_spans(results, {l["id"]: {"text": corrected.get(l["id"], l["text"]), "page": l["page"]} for l in lines}, order)
@@ -145,20 +182,19 @@ def author_notes(typed, groups, images, job, args):
     notes = [(*where[n], typed[n]["text"]) for n in sorted(starts)]
     note_at = {(p, k): starts[at[(p, k)]] for p, k, _ in notes}
     if not notes: return []
-    pages = sorted(numbered)
+    # Only pages holding a typed reference or a note line are asked about; measured on the probe
+    # documents, the notes pass never added a reference on a page without one.
+    pages = sorted({line["page"] for line in typed if line["references"] or line["region"] == "note"})
     schema = job / "calls" / "notes-schema.json"
     write_json(schema, prompts.NOTES_SCHEMA)
     def one(targets):
         def valid(response):
             pairs = []
             for pair in response["pairs"]:
-                gold.require(len(pair) == 5 and all(str(pair[k]).isdigit() for k in (0, 1, 3, 4)),
-                             "Each pair is [page, line, mark, note page, note line]")
-                page, line, note_page, note_line = (int(pair[k]) for k in (0, 1, 3, 4))
+                page, line, k = pair["page"], pair["line"], pair["note"]
                 gold.require(page in targets and (page, line) in at, "A reference must be on a numbered line of these pages")
-                gold.require((note_page, note_line) == (0, 0) or (note_page, note_line) in note_at,
-                             "A note must be where a note begins, from NOTES, or 0, 0 where none is printed")
-                pairs.append((page, line, str(pair[2]), note_page, note_line))
+                gold.require(0 <= k <= len(notes), "A note is its number in NOTES, or 0 where none is printed")
+                pairs.append((page, line, pair["mark"], k))
             return pairs
         return call(prompts.notes_prompt(numbered, notes, targets), schema, [images[p] for p in targets],
                     job / "calls" / f"notes-{targets[0]:06}-{targets[-1]:06}", args, valid, policy=POLICY)
@@ -166,11 +202,11 @@ def author_notes(typed, groups, images, job, args):
     with ThreadPoolExecutor(args.parallel) as pool:
         answers = [pair for result in pool.map(one, chunks) for pair in result]
     pairs = []
-    for page, line, marker, note_page, note_line in answers:
+    for page, line, marker, k in answers:
         n = at[(page, line)]
         marked = [r for r, ref in enumerate(typed[n]["references"]) if ref["label"].strip("()[]") == marker.strip("()[]")]
         pairs.append({"line": n, "marker": marker, "reference": marked[0] if marked else None,
-                      "note": note_at.get((note_page, note_line))})
+                      "note": note_at[notes[k - 1][:2]] if k else None})
     return pairs
 
 
@@ -214,17 +250,22 @@ def author(pdf, mode, args):
         import fitz
         with fitz.open(pdf) as document: pages = list(range(1, len(document) + 1))
         images = render(pdf, pages, job / "images", args.dpi)
+        receipt["pages_without_text"] = [p for p in pages if p not in {l["page"] for l in lines} and not blank(images[p])]
+        write_json(job / "receipt.json", receipt)
         authored = author_lines(lines, pages, images, mode, job, args)
         gold_lines, typed, edits, report = assemble(lines, authored, mode)
         groups = hierarchy.units(typed)
         notes = author_notes(typed, groups, images, job, args)
         units = author_hierarchy(typed, groups, images, job, args)
         value = {"schema_version": VERSION, "source_sha256": source, "mode": mode, "page_count": len(pages), "parser": parser,
-                 "authoring": {"model": args.model, "effort": args.effort, "dpi": args.dpi, "chunk_pages": CHUNK_PAGES,
+                 "images": embedded_images(pdf),
+                 "authoring": {"model": args.model, "effort": args.effort, "long_side": LONG_SIDE, "dpi_cap": args.dpi, "chunk_pages": CHUNK_PAGES,
                                "prompts": {"lines": prompts.LINES, "notes": prompts.NOTES, "hierarchy": prompts.HIERARCHY}},
                  "lines": gold_lines, "typed": typed, "units": units, "notes": notes, "text_edits": edits, "report": report}
         write_json(job / "gold.json.gz", value)
-        receipt.update(status="complete", gold_sha256=digest(job / "gold.json.gz"), pages=len(pages), units=len(units))
+        receipt.update(status="complete", gold_sha256=digest(job / "gold.json.gz"), pages=len(pages), units=len(units),
+                       typed_lines=len(typed), notes=len(notes),
+                       report={key: len(item) if isinstance(item, list) else item for key, item in report.items()})
         return job
     except BaseException as exc:
         receipt.update(status="failed", error=str(exc)[-1000:]); raise
@@ -245,7 +286,7 @@ def main():
     p.add_argument("--shard", default="0/1", help="k/n: every n-th manifest row from the k-th")
     p.add_argument("--model", default="gpt-6.1-sol")
     p.add_argument("--effort", default="low")
-    p.add_argument("--dpi", type=int, default=144)
+    p.add_argument("--dpi", type=int, default=300, help="Render resolution cap; pages render to a 2,048-pixel long side")
     p.add_argument("--timeout", type=int, default=900)
     p.add_argument("--attempts", type=int, default=3)
     p.add_argument("--parallel", type=int, default=4, help="Concurrent model calls per source")

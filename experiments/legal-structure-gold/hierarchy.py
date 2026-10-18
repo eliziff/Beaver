@@ -7,7 +7,8 @@ headers, footers and page numbers are units of their own.
 OWN = {"furniture", "page_label"}
 UNRANKED = OWN | {"marginal_note", "note", "contents"}
 # Input tokens of one hierarchy call: gpt-6.1-sol's 500k context, less its instructions, reasoning
-# and answer. A whole document fits up to about 150 pages at 144 dpi; a longer one goes in windows.
+# and answer. A whole document fits up to about 100 pages at the 2,048-pixel long side; a longer one
+# goes in windows.
 BUDGET = 400_000
 # Images of one call: the codex command line (8,191 characters through the npm shim) holds about 150
 # page images at about 44 characters each.
@@ -50,7 +51,8 @@ def row_tokens(row):
 
 
 def decide(rows, ask, page_tokens):
-    """Parent row numbers (1-based, 0 for top level) for every row, and the rows that start and end
+    """Parent row numbers (1-based, 0 for top level) for every row, from the model's [row, parent]
+    pairs, and the rows that start and end
     a document: the whole document in one call when it fits the budget and image count, otherwise
     windows that each fill them, carrying the still-open ancestors of the window before."""
     parents, starts, ends, start = [0] * len(rows), set(), set(), 0
@@ -69,8 +71,8 @@ def decide(rows, ask, page_tokens):
             cost += extra; pages.add(rows[end][0]); end += 1
         shown = sorted(context) + list(range(start, end))
         answer = ask(shown, sorted(pages))
-        for n, parent in zip(shown, answer["parents"]):
-            if n >= start: parents[n] = parent
+        for row, parent in answer["parents"]:
+            if row - 1 >= start: parents[row - 1] = parent
         starts |= {n - 1 for n in answer["starts"] if n - 1 >= start}
         ends |= {n - 1 for n in answer["ends"] if n - 1 >= start}
         start = end
@@ -93,12 +95,13 @@ def documents(starts, ends, rows):
 
 
 def checked(shown):
-    numbered = set(shown)
+    numbered = {n + 1 for n in shown}
     def validate(response):
         parents = response["parents"]
-        if len(parents) != len(shown): raise ValueError(f"Expected {len(shown)} parents, one per row")
-        if not all(parent == 0 or parent - 1 in numbered and parent - 1 < n for n, parent in zip(shown, parents)):
-            raise ValueError("A row's parent must be an earlier row, or 0")
+        if not all(len(pair) == 2 for pair in parents): raise ValueError("Each parent is [row, the row it falls under]")
+        if len({row for row, _ in parents}) != len(parents): raise ValueError("A row has one parent")
+        if not all(row in numbered and (parent == 0 or parent in numbered and parent < row) for row, parent in parents):
+            raise ValueError("A row's parent must be an earlier shown row")
         if not set(response["starts"]) | set(response["ends"]) <= {n + 1 for n in shown}:
             raise ValueError("starts and ends must number shown rows")
         return response
