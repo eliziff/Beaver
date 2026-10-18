@@ -21,8 +21,10 @@
 //     document's text and renders it) at law.a2aj.ca, its /fetch answered from the given texts, so a Law Web link
 //     opens on the page Law Web itself draws. With --law-web-server <port>, a real local server answers both names
 //     instead (experiments/text-fragment-fidelity/law-web-server.mjs), Chrome resolving them to it.
-// Pages are served at their own address. --workers N opens N pages at once; --resume keeps the rows already in
-// <out>/cache-tier.jsonl; --no-shots keeps no screenshots; --fast judges paint only.
+// Pages are served at their own address. --workers N opens N pages at once (Law Web pages one at a time, after the
+// rest); --resume keeps the rows already in <out>/cache-tier.jsonl; --no-shots keeps no screenshots; --fast judges
+// paint only. A row that is no test of its link says why in `excluded`: "bad page" (the saved page is an error page) or
+// "no target" (the seed's block is not in its source document, and nothing was painted).
 
 import { chromium } from "playwright-core";
 import fs from "node:fs";
@@ -278,14 +280,23 @@ function pageFacts({ anchor, pinpoint, words }) {
     firstBodyTop: firstBody ? Math.round(firstBody.top) : null,
     wordsInView: words ? view.includes(normalize(words)) : null,
     title: document.title.slice(0, 120),
+    heading: document.querySelector("h1")?.textContent.replace(/\s+/gu, " ").trim().slice(0, 120) ?? "",
   };
 }
 
-// Runs in the page: where the intended words sit (viewport coordinates), found by their own text, nearest the
-// pinpoint's anchor where the page has one, else inside the block they are quoted from (`within`, found on the page by
-// its own words), else at the occurrence the source holds them at (`ordinal` of `occurrences` there), else the
-// paragraph or section the anchor opens. Several texts (a link painting several quotations) give the box around all.
-function targetBox({ pinpoint, texts, within, ordinal, occurrences, passageText }) {
+// A saved page that is a site's error page (a cached 404), told by its short title or heading: an HTTP error status
+// with "error" or "not found", or a bare "not found" ("404 Error | CanLII", "Error 404 - File not found"; of 6,433
+// stored pages, 42 match and all are error pages).
+const ERROR_PAGE = /\b[45]\d\d\b[^|]*\b(?:error|not found|forbidden|unavailable)\b|\b(?:error|not found)\b[^|]*\b[45]\d\d\b|^\s*(?:(?:page|file|document)\s+)?not\s+found\b/iu;
+
+// Runs in the page: where the intended words sit (viewport coordinates), found by their own text inside the cited
+// block: the block they are quoted from (`within`, found on the page by its own words), kept to the paragraph or section
+// the pinpoint's anchor opens where the page has one (a source block may run into later paragraphs). Of several
+// occurrences there, the one whose neighbouring words are the source's (`contexts`), else the whole block. Words not in
+// the block are found on the whole page: nearest the anchor, else at the occurrence the source holds them at (`ordinal`
+// of `occurrences` there); else the anchor's passage. Several texts (a link painting several quotations) give the box
+// around all.
+function targetBox({ pinpoint, texts, within, ordinal, occurrences, passageText, contexts }) {
   const tokenize = (value) => [...value.toLowerCase().matchAll(/[\p{L}\p{N}]+/gu)];
   const words = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: (node) =>
@@ -323,18 +334,53 @@ function targetBox({ pinpoint, texts, within, ordinal, occurrences, passageText 
     }
     return spans;
   };
+  // The anchor's passage: from it to the next paragraph or section anchor that is not one of its own subsections.
+  const name = (element) => element.getAttribute("name") ?? element.id;
+  let passageRange = null;
+  if (anchor) {
+    const markers = [...document.querySelectorAll('a[name^="par"], a[name^="sec"], [id^="sec"]')]
+      .filter((element) => /^(par|sec)[\d.]+/u.test(name(element)));
+    const next = markers.slice(markers.indexOf(anchor) + 1)
+      .find((element) => !(name(element).startsWith(pinpoint) && /^[a-z]/u.test(name(element).slice(pinpoint.length))));
+    passageRange = document.createRange();
+    passageRange.setStartBefore(anchor);
+    if (next) passageRange.setEndBefore(next);
+    else passageRange.setEndAfter(document.body.lastChild);
+  }
+  // Its words, first to last.
+  const inPassage = passageRange ? words.flatMap((word, index) =>
+    passageRange.isPointInRange(word.node, word.start) ? [index] : []) : [];
+  const scope = inPassage.length ? [inPassage[0], inPassage.at(-1)] : null;
   // The block the texts are quoted from, where the page holds it once: with its own number where the page prints it
-  // there (a headnote may repeat the block's words), else without.
+  // there (a headnote may repeat the block's words), else without; kept to the anchor's passage.
   const labelledBlocks = within ? spansOf(within, 0, words.length - 1, true) : [];
   const blocks = labelledBlocks.length ? labelledBlocks : within ? spansOf(within) : [];
-  const block = blocks.length === 1 ? blocks[0] : null;
+  let block = blocks.length === 1 ? blocks[0] : null;
+  if (scope) block = block && block[0] <= scope[1] && block[1] >= scope[0]
+    ? [Math.max(block[0], scope[0]), Math.min(block[1], scope[1])] : scope;
+  // Of several occurrences, the one whose neighbouring words agree with the source's most, where only one does.
+  const byContext = (spans, context) => {
+    if (!context || spans.length < 2) return null;
+    const before = tokenize(context.before ?? "").map((match) => match[0]).reverse();
+    const after = tokenize(context.after ?? "").map((match) => match[0]);
+    const agree = ([start, end]) => {
+      let count = 0;
+      while (count < before.length && words[start - 1 - count]?.word === before[count]) count += 1;
+      let following = 0;
+      while (following < after.length && words[end + 1 + following]?.word === after[following]) following += 1;
+      return count + following;
+    };
+    const scored = spans.map((span) => [span, agree(span)]).sort((a, b) => b[1] - a[1]);
+    return scored[0][1] >= 2 && scored[0][1] > scored[1][1] ? scored[0][0] : null;
+  };
   const found = [];
   let count = 0, ambiguous = false;
   for (const [index, text] of texts.entries()) {
     const inBlock = block ? spansOf(text, block[0], block[1]) : [];
     if (inBlock.length > 1) {
-      // The block holds the words more than once and the quotation names none of them: the block is the target.
-      const whole = box(toRange(block));
+      // The block holds the words more than once: the source's occurrence, else (the quotation names none of them) the
+      // block is the target.
+      const whole = box(toRange(byContext(inBlock, contexts?.[index]) ?? block));
       if (index === 0) count = inBlock.length;
       if (whole) { found.push(whole); continue; }
     }
@@ -358,17 +404,7 @@ function targetBox({ pinpoint, texts, within, ordinal, occurrences, passageText 
   if (found.length) return { method: "text", occurrences: count, ambiguous,
     top: Math.min(...found.map(({ top }) => top)), bottom: Math.max(...found.map(({ bottom }) => bottom)) };
   if (!anchor) return null;
-  // The anchor's passage: from it to the next paragraph or section anchor that is not one of its own subsections.
-  const name = (element) => element.getAttribute("name") ?? element.id;
-  const markers = [...document.querySelectorAll('a[name^="par"], a[name^="sec"], [id^="sec"]')]
-    .filter((element) => /^(par|sec)[\d.]+/u.test(name(element)));
-  const next = markers.slice(markers.indexOf(anchor) + 1)
-    .find((element) => !(name(element).startsWith(pinpoint) && /^[a-z]/u.test(name(element).slice(pinpoint.length))));
-  const range = document.createRange();
-  range.setStartBefore(anchor);
-  if (next) range.setEndBefore(next);
-  else range.setEndAfter(document.body.lastChild);
-  const passage = box(range);
+  const passage = box(passageRange);
   return passage ? { method: "anchor", occurrences: 0, ambiguous: false, ...passage } : null;
 }
 
@@ -446,9 +482,10 @@ export async function runCacheTier({ seedsPath, outDir }) {
         const texts = seed.target?.texts ?? (seed.target?.text ? [seed.target.text] : []);
         const target = texts.length || seed.target?.pinpoint ? await page.evaluate(targetBox, { pinpoint, texts,
           within: seed.target?.within, ordinal: seed.target?.ordinal, occurrences: seed.target?.occurrences,
-          passageText: seed.target?.passage }) : null;
+          passageText: seed.target?.passage, contexts: seed.target?.contexts }) : null;
         t.push(Date.now());
-        const shot = keepShots ? path.resolve(outDir, `${seed.id}.png`) : undefined;
+        // A file name Windows accepts (seed ids hold ":").
+        const shot = keepShots ? path.resolve(outDir, `${seed.id.replace(/[<>:"/\\|?*]/gu, "_")}.png`) : undefined;
         const png = await page.screenshot(shot ? { path: shot } : {});
         t.push(Date.now());
         const paint = paintedPixels(png);
@@ -490,6 +527,11 @@ export async function runCacheTier({ seedsPath, outDir }) {
         // Landing = the paragraph/section holding the painted text, else the viewport top.
         const focus = paint.count > 40 ? paint.top : 2;
         const { markers, firstBodyTop, ...rest } = facts;
+        // Rows that are no test of the link: a cached error page, or a target whose block the source document lacks
+        // (the link rightly paints nothing).
+        if ([facts.title, facts.heading].some((text) => text.length <= 60 && ERROR_PAGE.test(text))) {
+          record.excluded = "bad page";
+        } else if (seed.target?.missing && paint.count <= 40) record.excluded = "no target";
         let landedAt = null;
         for (const marker of markers) if (marker.top <= focus) landedAt = marker.name;
         Object.assign(record, rest, {
@@ -514,8 +556,12 @@ export async function runCacheTier({ seedsPath, outDir }) {
       const key = JSON.stringify([seed.url, seed.target ?? null]);
       same.set(key, [...same.get(key) ?? [], seed]);
     }
-    const queue = [...same.values()];
-    await Promise.all(Array.from({ length: workers }, async () => {
+    // Law Web's text arrives after load and Chrome finds no fragment in text that arrives late, so its pages are opened
+    // one at a time after the rest (at a stated --delay-ms of law-web-server.mjs that is a latency measurement, never a
+    // concurrency one); other pages --workers at a time.
+    const groups = [...same.values()];
+    const lawWebPage = (group) => pages.get(key(group[0].url))?.store === "law-web";
+    const drain = (queue, lanes) => Promise.all(Array.from({ length: lanes }, async () => {
       let worker = await context.newPage();
       for (let group = queue.shift(); group; group = queue.shift()) {
         const record = await gate(group[0], worker);
@@ -529,9 +575,12 @@ export async function runCacheTier({ seedsPath, outDir }) {
           fs.appendFileSync(output, `${JSON.stringify(row)}\n`);
         }
         console.log(JSON.stringify({ id: record.id, seeds: group.length, painted: record.painted ?? null,
-          paintInTarget: record.paintInTarget ?? null, error: record.error }));
+          paintInTarget: record.paintInTarget ?? null, error: record.error, excluded: record.excluded }));
       }
+      await worker.close().catch(() => {});
     }));
+    await drain(groups.filter((group) => !lawWebPage(group)), workers);
+    await drain(groups.filter(lawWebPage), 1);
   } finally {
     await context.close();
     await browser.close();

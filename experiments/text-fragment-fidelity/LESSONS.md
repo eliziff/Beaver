@@ -236,3 +236,19 @@ The planner's `BrowserReplay` and `browser_key` in legal-structure `text_fragmen
   beaver-native-addon-locked-rebuild).
 - **Paint colours:** the replay gates look for lavender (231,209,252). The cache tier forces magenta
   (255,0,255) through `::target-text`.
+- **Cache-tier measurement errors fixed (2026-10-18, the r14 miss analysis):**
+  - Seeds split a block at every `[N] `, so a citation's `[2017] 1 S.C.R.` cut `within` short and the gate measured
+    another occurrence. Pieces now split only at labels printed like the block's own, after a sentence end, numbering
+    a later paragraph (the next one where the document holds the block in one run). Passage targets are the
+    pinpoint's own piece. Seeds carry the source words around each quotation (`contexts`, from the planner's
+    `sourceWordIntervals`); the gate uses them only to choose among occurrences inside the cited block, which is kept
+    to the anchor's passage where the page has one.
+  - Law Web pages are gated one at a time after the rest: at `--workers 4` their text arrived late and 80 links
+    painted nothing that paint one at a time.
+  - `excluded: "bad page"` (a cached error page, by its short title or heading) and `"no target"` (under a quarter
+    of the block's six-word runs are in its document, and nothing painted) leave the denominator.
+  - Screenshot names replace `:`, so `--no-shots` is no longer needed on Windows.
+  - Re-gate of r14's 216 failures: 80 Law Web nothing-painted and 22 of 26 wrong-target rows now paint on target
+    (paint inside the cited block); 6 W2 rows too, whose blocks join non-adjacent cited paragraphs (65 + 69) rather
+    than run on; 7 rows "no target", 1 "bad page". 300 earlier hits stayed on target; 3 became straddles because the
+    box is now the quoted occurrence, not the whole block, so long-range overpaint shows.
