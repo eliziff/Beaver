@@ -3,24 +3,27 @@
 REGIONS = ("text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote",
            "marginal_note", "furniture", "page_label")
 
-LINES = """Correct each page's extracted lines against its image. Give every printed line in reading order as [region, text]: text, list_item, heading, quote (block quotation), note (footnote or endnote), table (cells joined by " | "), contents (table of contents or index entry), caption (case caption), headnote, marginal_note, furniture (running header or footer) or page_label.
+LINES = """Correct each page's extracted lines against its image. Give the page's units in reading order, each as its region and its printed lines: text, list_item, heading, quote (block quotation), note (footnote or endnote), table (one row; cells joined by " | "), contents (table of contents or index entry), caption (case caption), headnote, marginal_note, furniture (running header or footer) or page_label. A unit is a paragraph, heading, item, note, row, running header or page number.
 Put a tab after each leading printed marker. Write note references as [^mark], the mark as printed, brackets included.
-starts: the numbers of the lines that begin a unit (paragraph, heading, item, note, row); other lines continue the unit before them, also across pages."""
+continues: true when the page's first unit continues the unit before it on the page before."""
 
-_NUMBERS = {"type": "array", "items": {"type": "integer"}}
+_UNIT = {"type": "object", "additionalProperties": False, "required": ["region", "lines"], "properties": {
+    "region": {"type": "string", "enum": list(REGIONS)}, "lines": {"type": "array", "items": {"type": "string"}}}}
 LINES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["pages"], "properties": {"pages": {"type": "array", "items": {
-    "type": "object", "additionalProperties": False, "required": ["lines", "starts"], "properties": {
-        "lines": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}, "starts": _NUMBERS}}}}}
+    "type": "object", "additionalProperties": False, "required": ["continues", "units"], "properties": {
+        "continues": {"type": "boolean"}, "units": {"type": "array", "items": _UNIT}}}}}}
 
 NOTES = """Pair every note reference on these pages with its note. A reference is a printed mark, usually superscript, not a note named in words. References are written [^mark]: check them against the images, adding missed ones and dropping false ones.
-Give each as [page, line, mark, note page, note line], where the note's first line is from NOTES."""
-NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["pairs"], "properties": {
-    "pairs": {"type": "array", "items": {"type": "array", "items": {"type": ["integer", "string"]}}}}}
+Give each as its page, line and mark, and the number of its note in NOTES (0 where none is printed)."""
+NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["pairs"], "properties": {"pairs": {"type": "array", "items": {
+    "type": "object", "additionalProperties": False, "required": ["page", "line", "mark", "note"], "properties": {
+        "page": {"type": "integer"}, "line": {"type": "integer"}, "mark": {"type": "string"}, "note": {"type": "integer"}}}}}}
 
-HIERARCHY = """Give each row the number of the row it falls under (its heading, provision, paragraph or list item), or 0 if none.
+HIERARCHY = """For each row that falls under another row (its heading, provision, paragraph or list item), give [row, that row]; rows under none are left out.
 If the file holds several documents, such as a judgment and its exhibits, give starts and ends: the rows that begin and end each one; otherwise leave them empty."""
+_NUMBERS = {"type": "array", "items": {"type": "integer"}}
 HIERARCHY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["parents", "starts", "ends"],
-                    "properties": {"parents": _NUMBERS, "starts": _NUMBERS, "ends": _NUMBERS}}
+                    "properties": {"parents": {"type": "array", "items": _NUMBERS}, "starts": _NUMBERS, "ends": _NUMBERS}}
 
 
 def images(pages):
@@ -42,7 +45,7 @@ def lines_prompt(lines, targets, before=None):
 def notes_prompt(numbered, notes, targets):
     """numbered: {page: [(region, text)]}; notes: [(page, line, text)] where each note begins."""
     return (NOTES + "\n" + images(targets) + "\nNOTES\n"
-            + "\n".join(f"p{p}:{n} | {' '.join(text.split())[:60]}" for p, n, text in notes) + "\nLINES\n"
+            + "\n".join(f"{k} | p{p}:{n} | {' '.join(text.split())[:60]}" for k, (p, n, text) in enumerate(notes, 1)) + "\nLINES\n"
             + "\n".join(f"[page {p}]\n" + "\n".join(f"{n} | {r} | {t}" for n, (r, t) in enumerate(numbered[p], 1)) for p in targets))
 
 
