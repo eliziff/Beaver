@@ -3,27 +3,32 @@
 // form a link can take, as `<label>~<form>`:
 //   provider  the quotation on the publisher page A2AJ names (`target`), where there is a quotation;
 //   canlii    the quotation on the document's CanLII page (`canliiTarget`), where there is a quotation;
-//   passage   the block cited on its CanLII page (`canliiPassageTarget`).
+//   passage   the block cited on its CanLII page (`canliiPassageTarget`);
+//   provider-passage  the block cited on the publisher page A2AJ names (`providerPassageTarget`), at the anchor that
+//             page prints for it (`providerPassageAnchor`), or by its text fragment alone where it prints none.
 // Each seed names its intended words (the quotations, or for a passage link none: the passage its anchor opens) and,
-// for a page without the block's anchor, which occurrence of them the A2AJ document means (`ordinal` of
-// `occurrences`), counted as the cache tier counts words, and the source words around each quotation where the planner
-// found it (`contexts`). A target whose block its document does not hold is `missing`. LégisQuébec targets are left
-// out (never fetched or scored).
-// Usage: node experiments/text-fragment-fidelity/cache-tier-seeds.mjs [targets.jsonl] > seeds.jsonl
+// for a page without the block's anchor, which occurrence of them the document means (`ordinal` of `occurrences`),
+// counted as the cache tier counts words in the text the planner planned on (the stored structure's), and the source
+// words around each quotation where the planner found it (`contexts`). A target whose block its document does not hold
+// is `missing`. LégisQuébec targets are left out (never fetched or scored).
+// Usage: node experiments/text-fragment-fidelity/cache-tier-seeds.mjs TARGETS.jsonl REQUESTS.jsonl STORED_DIR > seeds.jsonl
+//   (REQUESTS and STORED_DIR as plan_targets read them: a target's document is the stored structure of the request with
+//   its dataset and publisher address)
 import fs from "node:fs";
-import path from "node:path";
 import { seedDocumentKey } from "./seed-document-key.mjs";
 
-const results = path.join(import.meta.dirname, "results");
-const targetsPath = process.argv[2] ?? path.join(results, "targets.jsonl");
+const [targetsPath, requestsPath, storedDir] = process.argv.slice(2);
+if (!storedDir) throw new Error("usage: cache-tier-seeds.mjs TARGETS.jsonl REQUESTS.jsonl STORED_DIR");
 const lines = (file) => fs.readFileSync(file, "utf8").split(/\r?\n/u).filter(Boolean);
 const targets = lines(targetsPath).map((line) => JSON.parse(line))
   .filter((row) => !/legisquebec/iu.test(row.url));
-const wanted = new Set(targets.map(seedDocumentKey));
+const stored = new Map(lines(requestsPath).map((line) => JSON.parse(line))
+  .map(({ key, input }) => [`${input.dataset}|${input.url}`, key]));
 const documents = new Map();
-for (const line of lines(path.join(results, "doctext.jsonl"))) {
-  const row = JSON.parse(line);
-  if (wanted.has(row.key)) documents.set(row.key, row.text);
+for (const row of targets) {
+  const key = seedDocumentKey(row), file = stored.get(`${row.dataset}|${row.url}`);
+  if (documents.has(key) || !file || !fs.existsSync(`${storedDir}/${file}.json`)) continue;
+  documents.set(key, JSON.parse(fs.readFileSync(`${storedDir}/${file}.json`, "utf8")).text);
 }
 
 const tokenize = (value) => [...String(value ?? "").toLowerCase().matchAll(/[\p{L}\p{N}]+/gu)].map((match) => match[0]);
@@ -155,10 +160,12 @@ for (const row of targets) {
       ...occurrence(key, passage, passage), ...missing && { missing: true } }],
     ["passage", row.canliiPassageTarget, { pinpoint: row.canliiPassageTarget?.split("#")[1]?.split(":~:")[0] || null,
       texts: [], passage, ...occurrence(key, passage, passage), ...missing && { missing: true } }],
+    ["provider-passage", row.providerPassageTarget, { pinpoint: row.providerPassageAnchor || null, texts: [], passage,
+      ...occurrence(key, passage, passage), ...missing && { missing: true } }],
   ];
   for (const [form, url, target] of forms) {
     if (!url) continue;
-    console.log(JSON.stringify({ id: `${row.label}~${form}`, tier: "cache", role: form === "passage" ? "citation" : "quote",
+    console.log(JSON.stringify({ id: `${row.label}~${form}`, tier: "cache", role: form.endsWith("passage") ? "citation" : "quote",
       origin: "a2aj-corpus", strategy: form, host: host(url), dataset: row.dataset, shape: row.shape, url, target }));
   }
 }

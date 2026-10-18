@@ -16,9 +16,9 @@
 //   --canlii-cache <dir with index.json>  (ALR Quote Verifier cache/canlii_html layout)
 //   --provider-cache <dir with page-html-manifest.jsonl and page-html/>  (any host, keyed by its whole address:
 //     experiments/text-fragment-fidelity/results, as crawl-pages.mjs stores publisher pages)
-//   --law-web <a2aj-law-web checkout> --law-web-texts <jsonl of {citation, dataset, name, date, url, text}>:
+//   --law-web <a2aj-law-web checkout> --law-web-store <a2aj.sqlite>:
 //     A2AJ Law Web's reader (github.com/a2aj-ca/a2aj-law-web, a static page that asks api.a2aj.ca/fetch for a
-//     document's text and renders it) at law.a2aj.ca, its /fetch answered from the given texts, so a Law Web link
+//     document's text and renders it) at law.a2aj.ca, its /fetch answered from A2AJ's own store, so a Law Web link
 //     opens on the page Law Web itself draws. With --law-web-server <port>, a real local server answers both names
 //     instead (experiments/text-fragment-fidelity/law-web-server.mjs), Chrome resolving them to it.
 // Pages are served at their own address. --workers N opens N pages at once (Law Web pages one at a time, after the
@@ -34,20 +34,21 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import zlib from "node:zlib";
 
 const PAINT = [255, 0, 255];
 // The verdict logic's version, in every reuse key: changed whenever a change here can change a verdict.
-const GATE_VERSION = "c515ed24e9";
+const GATE_VERSION = "2026-10-18-d21";
 
 /** What a link's verdict depends on: the gate, its mode, the link and its intended words, and the saved page (its file's
- *  size and time; for Law Web, the texts its /fetch answers from). */
-export function reuseKey(seed, stored, { fast, lawWebTexts }) {
+ *  size and time; for Law Web, the A2AJ store its /fetch answers from). */
+export function reuseKey(seed, stored, { fast, lawWebStore }) {
   // Whole seconds: a page copied to another machine (tar) keeps its time to the second.
   const stamp = (file) => { try { const stat = fs.statSync(file); return `${stat.size}:${Math.floor(stat.mtimeMs / 1000)}`; } catch { return ""; } };
   return crypto.createHash("sha256").update(JSON.stringify([GATE_VERSION, !!fast, seed.url, seed.target ?? null,
-    stored?.store ?? null, stored?.file ? stamp(stored.file) : "", stored?.store === "law-web" && lawWebTexts
-      ? stamp(lawWebTexts) : ""])).digest("hex").slice(0, 32);
+    stored?.store ?? null, stored?.file ? stamp(stored.file) : "", stored?.store === "law-web" && lawWebStore
+      ? stamp(lawWebStore) : ""])).digest("hex").slice(0, 32);
 }
 
 function argValues(name) {
@@ -116,21 +117,26 @@ export function loadPageStores() {
 // A2AJ Law Web reproduced from its own source: the reader's files, and its API's /fetch answered from local texts.
 function loadLawWeb(pages, key) {
   const [root] = argValues("--law-web");
-  const [textsPath] = argValues("--law-web-texts");
-  if (!root || !textsPath) return null;
-  const texts = new Map();
-  for (const line of fs.readFileSync(textsPath, "utf8").split(/\r?\n/u)) {
-    if (!line.trim()) continue;
-    const row = JSON.parse(line);
-    const docType = /^(?:LEGISLATION|REGULATIONS)-/u.test(row.dataset) ? "laws" : "cases";
-    const id = `${docType}|${row.citation}`;
-    if (texts.has(id)) continue;
-    texts.set(id, row);
+  const [storePath] = argValues("--law-web-store");
+  if (!root || !storePath) return null;
+  // A2AJ's own store: Law Web's /fetch answers with its documents' texts, and holds a page for each of them.
+  const store = new DatabaseSync(storePath, { readOnly: true });
+  // Each document's row by its type and citation (the store indexes neither), its text read only when asked for.
+  const rowIds = new Map();
+  for (const { id, citation, docType } of store.prepare(
+    "select id, citation_en as citation, doc_type as docType from document where citation_en is not null").iterate()) {
+    rowIds.set(`${docType}|${citation}`, id);
     const page = new URL("https://law.a2aj.ca/document");
-    page.searchParams.set("citation", row.citation);
+    page.searchParams.set("citation", citation);
     page.searchParams.set("doc_type", docType);
     if (!pages.has(key(page.href))) pages.set(key(page.href), { store: "law-web" });
   }
+  const byId = store.prepare(`select citation_en as citation, name_en as name, dataset, document_date_en as date,
+    url_en as url, unofficial_text_en as text from document where id = ?`);
+  const fetchRow = { get: (citation, docType) => {
+    const id = rowIds.get(`${docType}|${citation}`);
+    return id === undefined ? undefined : byId.get(id);
+  } };
   const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png" };
   // --law-web-server <port>: law.a2aj.ca and api.a2aj.ca answered by a real local server (law-web-server.mjs) that
   // Chrome reaches under those names, instead of from inside the browser.
@@ -146,7 +152,7 @@ function loadLawWeb(pages, key) {
     }
     if (url.hostname !== "api.a2aj.ca" || url.pathname !== "/fetch") return null;
     const docType = url.searchParams.get("doc_type") === "laws" ? "laws" : "cases";
-    const row = texts.get(`${docType}|${url.searchParams.get("citation")}`);
+    const row = fetchRow.get(url.searchParams.get("citation"), docType);
     const start = Number(url.searchParams.get("start_char") ?? 0);
     const end = url.searchParams.has("end_char") ? Number(url.searchParams.get("end_char")) : undefined;
     const results = row ? [{ citation_en: row.citation, name_en: row.name ?? null, dataset: row.dataset,
@@ -319,7 +325,10 @@ function targetBox({ pinpoint, texts, within, ordinal, occurrences, passageText,
     node.parentElement?.closest("script, style, noscript") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
   for (let node = walker.nextNode(); node; node = walker.nextNode())
     for (const match of tokenize(node.textContent)) words.push({ node, start: match.index, end: match.index + match[0].length, word: match[0] });
-  const anchor = /^(par\d+|sec[\d.]+(subsec\d+)?)$/u.test(pinpoint ?? "")
+  // The anchors pages print for paragraphs and provisions: CanLII's and Decisia's par12/sec5subsec2, Lexum's older
+  // par.12, Justice Laws s-5, BC Laws section5, Manitoba 5 and 5(2), New Brunswick se:5-ss:2, Newfoundland 5_, e-Laws s5s2.
+  const ANCHOR = /^(par\.?\d+|sec[\d.]+(subsec\d+)?|s-[\d.]+|section[\d.]+|\d+(\.\d+)?(\(\d+\))?|se:[\w:.-]+|\d+_\d*|s\d+(s\d+)?)$/u;
+  const anchor = ANCHOR.test(pinpoint ?? "")
     ? document.getElementById(pinpoint) ?? document.querySelector(`a[name="${CSS.escape(pinpoint)}"]`) : null;
   // A passage whose page has no anchor for it (older CanLII pages print most paragraph numbers as text) is its words.
   if (!anchor && !texts.length && passageText) texts = [passageText];
@@ -354,8 +363,8 @@ function targetBox({ pinpoint, texts, within, ordinal, occurrences, passageText,
   const name = (element) => element.getAttribute("name") ?? element.id;
   let passageRange = null;
   if (anchor) {
-    const markers = [...document.querySelectorAll('a[name^="par"], a[name^="sec"], [id^="sec"]')]
-      .filter((element) => /^(par|sec)[\d.]+/u.test(name(element)));
+    const markers = [...document.querySelectorAll('a[name^="par"], a[name^="sec"], [id^="sec"], [id^="s-"], [id^="section"], [id^="se:"], [id]')]
+      .filter((element) => /^(par\.?\d|sec[\d.]|s-\d|section\d|\d+(\.\d+)?(\(\d+\))?$|se:\d|\d+_|s\d+(s\d+)?$)/u.test(name(element)));
     const next = markers.slice(markers.indexOf(anchor) + 1)
       .find((element) => !(name(element).startsWith(pinpoint) && /^[a-z]/u.test(name(element).slice(pinpoint.length))));
     passageRange = document.createRange();
@@ -442,7 +451,7 @@ export async function runCacheTier({ seedsPath, outDir }) {
     .filter((line) => line.trim() && !line.startsWith("//")).map((line) => JSON.parse(line))
     .filter((seed) => seed.tier === "cache" && !done.has(seed.id));
   const { pages, key, lawWeb } = loadPageStores();
-  const keyed = { fast, lawWebTexts: argValues("--law-web-texts")[0] };
+  const keyed = { fast, lawWebStore: argValues("--law-web-store")[0] };
   // Earlier verdicts by what they depend on; a row of a link that failed in the browser is never taken.
   const earlier = new Map(argValues("--reuse").flatMap((file) => fs.readFileSync(file, "utf8").split(/\r?\n/u))
     .filter((line) => line.startsWith("{")).map((line) => JSON.parse(line))
@@ -501,7 +510,8 @@ export async function runCacheTier({ seedsPath, outDir }) {
         const pinpoint = seed.target?.pinpoint?.split(" ")[0];
         const facts = await page.evaluate(pageFacts, { anchor, pinpoint, words: seed.target?.words ?? null });
         const texts = seed.target?.texts ?? (seed.target?.text ? [seed.target.text] : []);
-        const target = texts.length || seed.target?.pinpoint ? await page.evaluate(targetBox, { pinpoint, texts,
+        // A passage on a page that prints no anchor for it is found by its own text (targetBox).
+        const target = texts.length || seed.target?.pinpoint || seed.target?.passage ? await page.evaluate(targetBox, { pinpoint, texts,
           within: seed.target?.within, ordinal: seed.target?.ordinal, occurrences: seed.target?.occurrences,
           passageText: seed.target?.passage, contexts: seed.target?.contexts }) : null;
         t.push(Date.now());
@@ -512,13 +522,35 @@ export async function runCacheTier({ seedsPath, outDir }) {
         const paint = paintedPixels(png);
         t.push(Date.now());
         record.steps = t.slice(1).map((v, i) => v - t[i]);
+        // Whether the link's anchor is on the page: a link that paints nothing still lands at it.
+        record.anchorOnPage = anchor ? await page.evaluate((name) => !!(document.getElementById(name)
+          ?? document.querySelector(`a[name="${CSS.escape(name)}"]`)), anchor) : false;
         // The share of the paint inside the intended words' box, and of the box's visible rows painted.
         if (target && paint.count) {
           const inside = paint.rows.filter(([row]) => row >= target.top - 6 && row <= target.bottom + 6);
           record.paintInTarget = Number((inside.reduce((sum, [, n]) => sum + n, 0) / paint.count).toFixed(3));
         }
-        record.target = target && { method: target.method, occurrences: target.occurrences,
-          ambiguous: target.ambiguous, top: Math.round(target.top), bottom: Math.round(target.bottom) };
+        // Where no box could be drawn, or the paint fell outside it: the painted words, read off the page, that the
+        // page holds once and the intended passage holds, are the passage (a copy elsewhere would make them two).
+        if (paint.count && !(record.paintInTarget > 0)) {
+          const painted = paintedWords(png, await page.evaluate(viewportWords)).join(" ");
+          const norm = (value) => value.toLowerCase().normalize("NFKD").match(/[\p{L}\p{N}]+/gu)?.join(" ") ?? "";
+          const passage = norm([...texts, seed.target?.passage ?? ""].join(" "));
+          const words = norm(painted).split(" ").filter(Boolean);
+          const head = words.slice(0, Math.min(8, words.length)).join(" ");
+          if (head.split(" ").length >= 3 && passage.includes(head)) {
+            const copies = await page.evaluate((phrase) => {
+              const text = document.body.innerText.toLowerCase().normalize("NFKD").match(/[\p{L}\p{N}]+/gu)?.join(" ") ?? "";
+              return text.split(phrase).length - 1;
+            }, head);
+            if (copies === 1) {
+              record.paintInTarget = 1;
+              record.target = { method: "painted-text", occurrences: 1, ambiguous: false, top: paint.top, bottom: paint.bottom };
+            }
+          }
+        }
+        if (record.target?.method !== "painted-text") record.target = target && { method: target.method,
+          occurrences: target.occurrences, ambiguous: target.ambiguous, top: Math.round(target.top), bottom: Math.round(target.bottom) };
         record.paintBottomY = paint.bottom;
         // The painted words, read off the screenshot word by word.
         if (paint.count) record.paintedWords = paintedWords(png, await page.evaluate(viewportWords)).join(" ");

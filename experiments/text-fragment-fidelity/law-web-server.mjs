@@ -1,26 +1,27 @@
 #!/usr/bin/env node
 // A2AJ Law Web served locally as the real site is, so links to it are checked in Chrome without the live site:
 // the reader's own files (github.com/a2aj-ca/a2aj-law-web checkout) at https://law.a2aj.ca, GitHub Pages' clean
-// paths included (/document is document.html), and A2AJ's API at https://api.a2aj.ca answering /fetch from local
-// texts, sliced by code point as the API's Python does. Chrome reaches it under the real names with
+// paths included (/document is document.html), and A2AJ's API at https://api.a2aj.ca answering /fetch from A2AJ's own
+// store (a local a2aj.sqlite, read-only), sliced by code point as the API's Python does. Chrome reaches it under the
+// real names with
 //   --host-resolver-rules="MAP law.a2aj.ca 127.0.0.1:<port>,MAP api.a2aj.ca 127.0.0.1:<port>"
 // and certificate errors ignored (the certificate is self-signed, made once with openssl).
-// Usage: node law-web-server.mjs --root <law-web checkout> --texts <jsonl of {citation, dataset, name, date, url,
-//   text}> [--port 8443]
+// Usage: node law-web-server.mjs --root <law-web checkout> --store <a2aj.sqlite> [--port 8443] [--delay-ms N]
 import fs from "node:fs";
 import https from "node:https";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 
 const argv = process.argv.slice(2);
 const value = (name, fallback) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : fallback);
 const root = value("--root");
-const textsPath = value("--texts");
+const storePath = value("--store");
 const port = Number(value("--port", "8443"));
 // --delay-ms N: /fetch answers after N ms, as a distant API does.
 const delay = Number(value("--delay-ms", "0"));
-if (!root || !textsPath) throw new Error("usage: law-web-server.mjs --root <checkout> --texts <jsonl> [--port N]");
+if (!root || !storePath) throw new Error("usage: law-web-server.mjs --root <checkout> --store <a2aj.sqlite> [--port N]");
 
 const certDir = path.join(os.tmpdir(), "law-web-server-cert");
 const key = path.join(certDir, "key.pem"), cert = path.join(certDir, "cert.pem");
@@ -30,13 +31,16 @@ if (!fs.existsSync(cert)) {
     "-subj", "/CN=law.a2aj.ca", "-addext", "subjectAltName=DNS:law.a2aj.ca,DNS:api.a2aj.ca"], { stdio: "ignore" });
 }
 
-const texts = new Map();
-for (const line of fs.readFileSync(textsPath, "utf8").split(/\r?\n/u)) {
-  if (!line.trim()) continue;
-  const row = JSON.parse(line);
-  const docType = /^(?:LEGISLATION|REGULATIONS)-/u.test(row.dataset) ? "laws" : "cases";
-  if (!texts.has(`${docType}|${row.citation}`)) texts.set(`${docType}|${row.citation}`, row);
-}
+const store = new DatabaseSync(storePath, { readOnly: true });
+// Each document's row by its type and citation (the store indexes neither), its text read only when asked for.
+const rowIds = new Map(store.prepare("select id, doc_type as docType, citation_en as citation from document")
+  .all().map(({ id, docType, citation }) => [`${docType}|${citation}`, id]));
+const byId = store.prepare(`select citation_en as citation, name_en as name, dataset, document_date_en as date,
+  url_en as url, unofficial_text_en as text from document where id = ?`);
+const fetchRow = (citation, docType) => {
+  const id = rowIds.get(`${docType}|${citation}`);
+  return id === undefined ? undefined : byId.get(id);
+};
 // A document's text as code points, made on its first request.
 const points = new Map();
 const codePoints = (id, text) => {
@@ -59,7 +63,7 @@ https.createServer({ key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, (
     if (url.pathname !== "/fetch") return send(response, 200, "application/json", JSON.stringify({ results: [] }), cors);
     const docType = url.searchParams.get("doc_type") === "laws" ? "laws" : "cases";
     const id = `${docType}|${url.searchParams.get("citation")}`;
-    const row = texts.get(id);
+    const row = fetchRow(url.searchParams.get("citation"), docType);
     const start = Number(url.searchParams.get("start_char") ?? 0);
     const end = url.searchParams.has("end_char") ? Number(url.searchParams.get("end_char")) : undefined;
     const results = row ? [{ citation_en: row.citation, name_en: row.name ?? null, dataset: row.dataset,
@@ -76,4 +80,4 @@ https.createServer({ key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, (
     return send(response, 404, "text/plain", "");
   }
   send(response, 200, types[path.extname(full)] ?? "application/octet-stream", fs.readFileSync(full));
-}).listen(port, "127.0.0.1", () => console.log(JSON.stringify({ listening: port, documents: texts.size })));
+}).listen(port, "127.0.0.1", () => console.log(JSON.stringify({ listening: port, store: storePath })));

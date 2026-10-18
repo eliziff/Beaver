@@ -3,12 +3,16 @@
 //! every seed's links planned by the engine's own passage links over each document's stored structure (the
 //! store_documents bin), on every core.
 //!
-//!   plan_targets SEEDS.jsonl DOCTEXT.jsonl REQUESTS.jsonl STORED_DIR OUT.jsonl [--threads N] [--only LABELS.txt]
+//!   plan_targets SEEDS.jsonl REQUESTS.jsonl STORED_DIR OUT.jsonl [--threads N] [--only LABELS.txt]
 //!
 //! `--only` plans just the seeds a file names, one label per line (a gate id's `label~form` names its label).
 //!
 //! REQUESTS.jsonl names each stored structure (`{ key, input }`, as store_documents read it); a seed's document is
-//! the request whose citation and dataset are its doctext row's.
+//! the request with its dataset and publisher address.
+//!
+//! `providerPassageTarget` is the seed's pinpoint (`par12`, `sec5`, `sec5(2)(b)`) linked on the publisher's page as a
+//! citation's pinpoint is linked (`cited_passage_link`, the pinpoint's part passed as the citation's pinpoint), its
+//! anchor then the one that publisher's page prints for it (`provider_anchor`), or none where it prints none.
 
 use legal_structure::citations::url::{canlii_a2aj_law_url, source_anchor};
 use legal_structure::{
@@ -51,6 +55,44 @@ fn document_key(seed: &Value) -> Option<String> {
     })
 }
 
+/// A seed's pinpoint as the engine reads a link's anchor (`par12`; `sec5subsec2`, `sec5`) with the pinpoint naming a
+/// provision's deeper part (`sec5(2)(b)`, `sec5(a)`), and the provision's section and subsection numbers.
+fn engine_pinpoint(anchor: &str) -> Option<(String, Vec<String>, &str, Option<&str>)> {
+    if anchor.strip_prefix("par").is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())) {
+        return Some((anchor.to_owned(), Vec::new(), &anchor[3..], None));
+    }
+    let label = anchor.strip_prefix("sec")?;
+    let section_end = label.find('(').unwrap_or(label.len());
+    let section = &label[..section_end];
+    if section.is_empty() || !section.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-') {
+        return None;
+    }
+    let first_part = label[section_end..].strip_prefix('(').and_then(|rest| rest.split_once(')')).map(|(part, _)| part);
+    let subsection = first_part.filter(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()));
+    let engine = match subsection {
+        Some(subsection) => format!("sec{section}subsec{subsection}"),
+        None => format!("sec{section}"),
+    };
+    let deeper = label.len() > section_end + subsection.map_or(0, |part| part.len() + 2);
+    Some((engine, if deeper { vec![anchor.to_owned()] } else { Vec::new() }, section, subsection))
+}
+
+/// The seed's pinpoint linked on its publisher's page (`providerPassageTarget`), with the anchor the engine knows that
+/// page prints for it (`source_anchor`: Decisia's `par12`, Justice Laws' `s-5`, BC Laws' `section5`, …), or its text
+/// fragment alone where it prints none (bccourts, Alberta's King's Printer, Nova Scotia).
+fn provider_passage(query: &DocumentQuery, structure: &DocumentStructure, url: &str, anchor: &str)
+    -> Option<(String, String)> {
+    let (engine, pinpoints, _, _) = engine_pinpoint(anchor)?;
+    let page = url.split('#').next().unwrap_or(url);
+    let linked = cited_passage_link(query, structure, &format!("{page}#{engine}"), &pinpoints)?;
+    let (base, fragment) = linked.split_once('#')?;
+    let directives = fragment.strip_prefix(engine.as_str()).unwrap_or("");
+    let kind = if engine.starts_with("par") { "paragraph" } else { "section" };
+    let own = source_anchor(base, kind, &engine).unwrap_or_default();
+    let fragment = format!("{own}{directives}");
+    Some((if fragment.is_empty() { base.to_owned() } else { format!("{base}#{fragment}") }, own))
+}
+
 fn plan_seed(query: &DocumentQuery, structure: &DocumentStructure, source: &Value, seed: &Value) -> Value {
     let dataset = text(source, "dataset");
     let citation = text(source, "citation");
@@ -83,6 +125,10 @@ fn plan_seed(query: &DocumentQuery, structure: &DocumentStructure, source: &Valu
             .then(|| cited_passage_link(query, structure, &format!("{canlii}#{canlii_anchor}"), &[])).flatten()));
         row.insert("canlii".into(), json!(canlii));
     }
+    if let Some((target, own)) = anchor.and_then(|anchor| provider_passage(query, structure, text(seed, "url"), anchor)) {
+        row.insert("providerPassageTarget".into(), json!(target));
+        row.insert("providerPassageAnchor".into(), json!(own));
+    }
     row.insert("lawWebTarget".into(), json!(law_web_link(query, structure, citation, if laws { "laws" } else { "cases" },
         block_text, &quotes)));
     Value::Object(row)
@@ -94,8 +140,8 @@ fn main() {}
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let [seeds, doctext, requests, stored, out, ..] = args.as_slice() else {
-        return Err("usage: plan_targets SEEDS DOCTEXT REQUESTS STORED_DIR OUT [--threads N]".into());
+    let [seeds, requests, stored, out, ..] = args.as_slice() else {
+        return Err("usage: plan_targets SEEDS REQUESTS STORED_DIR OUT [--threads N]".into());
     };
     let threads = args.iter().position(|arg| arg == "--threads")
         .and_then(|at| args.get(at + 1)?.parse().ok()).unwrap_or(8usize);
@@ -104,11 +150,10 @@ fn main() -> Result<()> {
         .map(|labels| labels.lines().map(|line| line.split('~').next().unwrap_or("").to_owned()).collect());
     let seeds: Vec<Value> = lines(seeds)?.into_iter()
         .filter(|seed| only.as_ref().is_none_or(|only| only.contains(text(seed, "label")))).collect();
-    let sources: HashMap<String, Value> = lines(doctext)?.into_iter()
-        .filter_map(|row| Some((row.get("key")?.as_str()?.to_owned(), row))).collect();
-    let stored_keys: HashMap<(String, String), String> = lines(requests)?.into_iter().filter_map(|row| {
-        let input = row.get("input")?;
-        Some(((text(input, "citation").to_owned(), text(input, "dataset").to_owned()), text(&row, "key").to_owned()))
+    // Each stored structure's request by its dataset and publisher address, as a seed names its document.
+    let stored_requests: HashMap<(String, String), (String, Value)> = lines(requests)?.into_iter().filter_map(|row| {
+        let input = row.get("input")?.clone();
+        Some(((text(&input, "dataset").to_owned(), text(&input, "url").to_owned()), (text(&row, "key").to_owned(), input)))
     }).collect();
     let mut documents: Vec<(String, Vec<usize>)> = Vec::new();
     let mut at: HashMap<String, usize> = HashMap::new();
@@ -123,12 +168,14 @@ fn main() -> Result<()> {
         for _ in 0..threads {
             scope.spawn(|| loop {
                 let Some((key, members)) = documents.get(next.fetch_add(1, Ordering::Relaxed)) else { break };
-                let Some(source) = sources.get(key) else { continue };
-                let stored_key = stored_keys.get(&(text(source, "citation").to_owned(), text(source, "dataset").to_owned()));
-                let Some(structure) = stored_key.and_then(|stored_key| {
-                    let file = File::open(Path::new(stored).join(format!("{stored_key}.json"))).ok()?;
-                    serde_json::from_reader::<_, DocumentStructure>(BufReader::new(file)).ok()
-                }) else {
+                let first = &seeds[members[0]];
+                let Some((stored_key, source)) = stored_requests.get(&(text(first, "dataset").to_owned(),
+                    text(first, "url").to_owned())) else {
+                    eprintln!("{key}: no stored request");
+                    continue;
+                };
+                let Some(structure) = File::open(Path::new(stored).join(format!("{stored_key}.json"))).ok()
+                    .and_then(|file| serde_json::from_reader::<_, DocumentStructure>(BufReader::new(file)).ok()) else {
                     eprintln!("{key}: no stored structure");
                     continue;
                 };
