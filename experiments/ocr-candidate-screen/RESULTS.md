@@ -39,6 +39,16 @@ on the first document after 36.7 seconds of startup. Driver initialization and
 shader compilation remain expensive; calibration is reused within a process.
 Native Extreme measured about 5.0% CER, distinct from the browser's 4.784%.
 
+The final extracted Windows ZIP recheck measured Balanced CPU **8.34 pages/s /
+2.546% CER**, automatic GPU **10.90 / 2.548%**, and Quality automatic GPU
+**10.70 / 2.258%**, each over three warm passes. Automatic startup was 9.4–9.9
+seconds. Balanced selected two GPU recognizers with batch 64 in this recheck;
+Quality selected four with batch 32, both with two detectors. The 26,275,138-byte
+archive has SHA-256
+`856ea08467b7e8623b915530df91b9157acff73da403f2a461b9f8fb717393c9`,
+matching GitHub's published digest. All five CPU tiers also passed the extracted
+package's invented-scan CER and overwrite/inventory checks.
+
 Full `documentProjectionService.preparePdf` profiling found an additional 2.2
 seconds spent scanning separators after OCR. Prefetching the existing 150 dpi
 raster cache concurrently with OCR preserved the separator algorithm and
@@ -58,6 +68,11 @@ structure/export. The pool control reported eight cores and 8 GB to exercise
 the existing four-pair policy, rather than imposing it on every computer.
 The full HTML and Lite both passed offline OCR; Lite's independently invented
 scan also passed searchable-PDF readback and screenshot inspection.
+The Windows standalone package was built locally and passed native loading,
+loopback startup, draft creation and OCR through its bundled DLL/models on that
+invented scan. Its native probe uses the shared transport adapter and an isolated,
+disposable parser cache. The combined Authorities app release remains separate
+from the published OCR runtime while the other Authorities changes are unfinished.
 
 Partial-page native OCR fetches logits for real confidence scores, preserving
 the existing picture/print filter. The invented cropped-title fixture passes
