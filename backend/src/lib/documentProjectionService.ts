@@ -102,8 +102,8 @@ function safeParserError(error: unknown) {
     return safe("PDF is invalid or corrupt");
   if (/timed out|ETIMEDOUT/iu.test(message)) return safe("PDF structural parsing timed out");
   if (/Tesseract/iu.test(message)) return safe("Tesseract OCR could not start");
-  if (/Kraken|LEGALPDF_KRAKEN|ONNX/iu.test(message))
-    return safe("Kraken-lite OCR could not start; check its local runtime assets");
+  if (/Indra|LEGALPDF_INDRA|ONNX/iu.test(message))
+    return safe("Indra OCR could not start; check its local runtime assets");
   if (/layout|PPdoc|OpenVINO/iu.test(message))
     return safe("PDF layout analysis could not start; check its local runtime assets");
   if (/source changed/iu.test(message))

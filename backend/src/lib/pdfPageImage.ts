@@ -9,7 +9,7 @@ export type PdfPageImage = { image: LlmImage; page: number; pageCount: number;
 
 /** The PDF engine's interpreter, which already carries pypdfium2. */
 export const pdfPagePython = () => process.env.BEAVER_PYTHON?.trim() ||
-  process.env.LEGALPDF_KRAKEN_PYTHON?.trim() ||
+  process.env.LEGALPDF_PYTHON?.trim() ||
   (process.platform === "win32" ? "python" : "python3");
 
 /** Rasterizes one page so a vision model can read what extraction could not. */

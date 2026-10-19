@@ -1,0 +1,8 @@
+{
+  "name": "legal-ocr-candidate-screen",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "tesseract.js": "7.0.0"
+  }
+}

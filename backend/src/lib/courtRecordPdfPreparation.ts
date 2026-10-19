@@ -21,7 +21,7 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
     versionId = `source:${digest}`;
   try {
     const prepared = await projection.preparePdf({ documentId, versionId, bytes,
-      sourceSha256: digest, pages, ocrProvider: "kraken-lite" });
+      sourceSha256: digest, pages, ocrProvider: "indra" });
     if (!Number.isSafeInteger(prepared.pageCount) || prepared.pageCount < 1 ||
         prepared.pageCount > 2_000) {
       throw new ApplicationError(409, "This PDF has an unsupported page count");

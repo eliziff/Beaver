@@ -128,7 +128,7 @@ export function createLibraryStore(
           ? "Tesseract was not found. Install it or configure its executable."
           : ocrProvider === "tesseract"
             ? "OCR could not start. Check the local Tesseract installation and retry."
-            : "OCR could not start. Check the local Kraken-lite runtime and retry.");
+            : "OCR could not start. Check the local Indra runtime and retry.");
       }
     },
     async moveDocument(scope, id, folderId) {

@@ -90,6 +90,9 @@ or publish Python/WASM bindings to test a Node consumer.
 The app, the Authorities launcher and bulk scripts load the optimized (release) addon;
 a development loop pins the build it is testing with `LEGAL_STRUCTURE_NATIVE`. Unpinned,
 a debug build newer than release stops the load; a failed load is never retried with other code.
+For native PDF phase timings, build with `npm run native:build -- --release --diagnostics`
+and run with `LEGALPDF_PROFILE_PHASES=1`. Ordinary builds omit that instrumentation.
+The helper uses one Cargo job and remaps source paths in both profiles.
 
 The citation workspace defaults to its grammar and core crates, keeping bindings
 explicit. Parser fingerprints select enabled feature owners and omit standalone

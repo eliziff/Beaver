@@ -1,0 +1,38 @@
+--- a/onnxruntime/core/mlas/lib/wasm_simd/SgemmKernelWasmSimd.cpp
++++ b/onnxruntime/core/mlas/lib/wasm_simd/SgemmKernelWasmSimd.cpp
+@@ -16,6 +16,7 @@
+ --*/
+ 
+ #include "mlasi.h"
++#include "ocr_sgemm_tiles.h"
+ 
+ template<bool ZeroMode, bool ProcessTwoRows>
+ size_t
+@@ -420,6 +421,12 @@
+ 
+ --*/
+ {
++    if (CountM >= 6) {
++        return OcrSgemmSixRows<ZeroMode>(A, B, C, CountK, CountN, lda, ldc, alpha);
++    }
++    if (CountM >= 4) {
++        return OcrSgemmFourRows<ZeroMode>(A, B, C, CountK, CountN, lda, ldc, alpha);
++    }
+     size_t RowsHandled;
+     
+     if (CountM >= 2) {
+--- a/cmake/onnxruntime_mlas.cmake
++++ b/cmake/onnxruntime_mlas.cmake
+@@ -299,6 +299,12 @@
+     )
+   endif()
+   target_sources(onnxruntime_mlas PRIVATE ${mlas_platform_srcs})
++  if(onnxruntime_OCR_SGEMM_FMA)
++    set_property(SOURCE "${MLAS_SRC_DIR}/wasm_simd/SgemmKernelWasmSimd.cpp"
++      APPEND PROPERTY COMPILE_OPTIONS -mrelaxed-simd -ffp-contract=off)
++    set_property(SOURCE "${MLAS_SRC_DIR}/wasm_simd/SgemmKernelWasmSimd.cpp"
++      APPEND PROPERTY COMPILE_DEFINITIONS OCR_SGEMM_FMA=1)
++  endif()
+ elseif(MSVC)
+   setup_mlas_source_for_windows()
+ else()

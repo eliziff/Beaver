@@ -18,10 +18,10 @@ describe("authority PDF text preparation", () => {
     });
   });
   it("finishes a retained partial OCR profile when all scanned pages are requested", async () => {
-    const partial = { cacheKey: "partial", status: "ready", profile: { ocr: { provider: "kraken-lite" } } };
+    const partial = { cacheKey: "partial", status: "ready", profile: { ocr: { provider: "indra" } } };
     let complete = false;
     const preparePdf = vi.fn(async (request) => {
-      complete = request.ocrProvider === "kraken-lite";
+      complete = request.ocrProvider === "indra";
       return { ...partial, pageCount: 2, pagesNeedingOcr: complete ? [] : [1],
         ocrRoutedPages: complete ? [0, 1] : [0] };
     });
@@ -41,14 +41,14 @@ describe("authority PDF text preparation", () => {
 
   it("OCRs resolved cited physical pages only and keeps all pages for the viewer", async () => {
     const preparePdf = vi.fn().mockResolvedValueOnce({ pageCount: 3, profile: {}, pagesNeedingOcr: [2], ocrRoutedPages: [] })
-      .mockResolvedValueOnce({ pageCount: 3, profile: { ocr: { provider: "kraken-lite" } }, pagesNeedingOcr: [], ocrRoutedPages: [2] });
+      .mockResolvedValueOnce({ pageCount: 3, profile: { ocr: { provider: "indra" } }, pagesNeedingOcr: [], ocrRoutedPages: [2] });
     const pdfPageTexts = vi.fn(async () => Array.from({ length: 8 }, (_, index) => `page ${index + 1}`));
     const pdfPassageGeometry = vi.fn(async () => ({ targets: [{ status: "found", pages: [{ pageNumber: 3 }] }] }));
     const result = await authorityPdfText({ bytes: Buffer.from("source"), scannedPdfPolicy: "cited-pages",
       ocrTargets: [{ id: "p", locatorKind: "page", locator: "42" }] },
       { preparePdf, pdfPageTexts, pdfPassageGeometry, pdfPagination: async () => resolvePdfPagination(["40", "41", "42"], []) } as never);
     // The engine numbers requested pages from one; cited page 3 must be requested as 3.
-    expect(preparePdf.mock.calls[1][0]).toMatchObject({ ocrProvider: "kraken-lite", pages: [3] });
+    expect(preparePdf.mock.calls[1][0]).toMatchObject({ ocrProvider: "indra", pages: [3] });
     expect(result.pageTextByPage).toEqual(["page 1", "page 2", "page 3"]);
     expect(result.ocrTextByPage).toEqual(["", "", "page 3"]);
   });
@@ -71,12 +71,12 @@ describe("authority PDF text preparation", () => {
 
   it("reads the whole scan when no printed page answers to a pinpoint", async () => {
     const preparePdf = vi.fn().mockResolvedValueOnce({ pageCount: 2, profile: {}, pagesNeedingOcr: [0, 1], ocrRoutedPages: [] })
-      .mockResolvedValueOnce({ pageCount: 2, profile: { ocr: { provider: "kraken-lite" } }, pagesNeedingOcr: [], ocrRoutedPages: [0, 1] });
+      .mockResolvedValueOnce({ pageCount: 2, profile: { ocr: { provider: "indra" } }, pagesNeedingOcr: [], ocrRoutedPages: [0, 1] });
     const pdfPageTexts = vi.fn(async () => Array.from({ length: 8 }, (_, index) => `page ${index + 1}`));
     const result = await authorityPdfText({ bytes: Buffer.from("source"), scannedPdfPolicy: "cited-pages",
       ocrTargets: [{ id: "p", locatorKind: "page", locator: "900" }] },
       { preparePdf, pdfPageTexts, pdfPagination: async () => resolvePdfPagination([null, null], []) } as never);
-    expect(preparePdf.mock.calls[1][0]).toMatchObject({ ocrProvider: "kraken-lite" });
+    expect(preparePdf.mock.calls[1][0]).toMatchObject({ ocrProvider: "indra" });
     expect(preparePdf.mock.calls[1][0].pages).toBeUndefined();
     expect(result.ocrTextByPage).toEqual(["page 1", "page 2"]);
   });

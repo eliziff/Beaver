@@ -177,8 +177,8 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
   router.post("/:kind/documents/:documentId/actions/retry-pdf-parse",
     libraryRoute(async (req, res, scope) => {
       const ocr = req.body?.ocr_provider;
-      if (ocr !== undefined && ocr !== "tesseract" && ocr !== "kraken-lite")
-        reject(400, "ocr_provider must be kraken-lite or tesseract");
+      if (ocr !== undefined && ocr !== "tesseract" && ocr !== "indra")
+        reject(400, "ocr_provider must be indra or tesseract");
       const layoutProvider = req.body?.layout_provider;
       if (layoutProvider !== undefined && !["none", "local"].includes(layoutProvider))
         reject(400, "layout_provider must be none or local");

@@ -205,7 +205,7 @@ describe("SQLite relational repository contract", () => {
     const document = selective;
     const pending = await enqueuePdfReprocess({ userId: owner.userId, documentId: document.id,
       versionId: document.current_version_id, sourceSha256: document.source_sha256,
-      ocrProvider: "kraken-lite" });
+      ocrProvider: "indra" });
     await expect(documents.parseStates(owner, [document.id])).resolves.toMatchObject([
       { parse_state: { status: "queued", page_count: 4 } }]);
     await queue.requestJobCancellation(pending.id, owner.userId);

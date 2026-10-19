@@ -154,7 +154,7 @@ export function createAuthoritiesOperations(resolveSources: typeof resolveAuthor
     if (input?.prepareOnly === "true") {
       // One recognition pass, followed page by page as "recognized/total".
       const prepared = await documentProjectionService.preparePdf({ ...reference, bytes,
-        ocrProvider: "kraken-lite", pages, signal: context.signal, ...(progress ? { progress: (value) => {
+        ocrProvider: "indra", pages, signal: context.signal, ...(progress ? { progress: (value) => {
           if (value.phase === "recognizing") progress(`${value.recognized}/${value.total}`);
         } } : {}) });
       const text = await documentProjectionService.pdfTextLayer(() => bytes, reference,

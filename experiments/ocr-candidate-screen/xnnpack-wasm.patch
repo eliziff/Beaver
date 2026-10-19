@@ -1,0 +1,18 @@
+diff --git a/onnxruntime/wasm/api.cc b/onnxruntime/wasm/api.cc
+--- a/onnxruntime/wasm/api.cc
++++ b/onnxruntime/wasm/api.cc
+@@ -168,6 +168,14 @@ OrtSessionOptions* OrtCreateSessionOptions(size_t graph_optimization_level,
+ 
+   RETURN_NULLPTR_IF_ERROR(SetSessionLogVerbosityLevel, session_options, log_verbosity_level);
+ 
++#ifdef USE_XNNPACK
++  // Experimental CPU kernel build: register before the default CPU fallback.
++  const char* xnnpack_keys[] = {"intra_op_num_threads"};
++  const char* xnnpack_values[] = {"1"};
++  RETURN_NULLPTR_IF_ERROR(SessionOptionsAppendExecutionProvider, session_options,
++                         "XNNPACK", xnnpack_keys, xnnpack_values, 1);
++#endif
++
+ #ifdef ENABLE_EXTENSION_CUSTOM_OPS
+   // Enable ORT CustomOps in onnxruntime-extensions
+   RETURN_NULLPTR_IF_ERROR(EnableOrtCustomOps, session_options);

@@ -216,7 +216,7 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
     if (!prepared || merged.textlessPageCount) {
       progress?.("Reading the scanned pages");
       await retryLibraryPdfParse("files", documentId, {
-        ocr_provider: "kraken-lite",
+        ocr_provider: "indra",
         ...(versionId ? { version_id: versionId } : {}),
       });
       await waitForPdfPreparation(documentId, progress, signal);
