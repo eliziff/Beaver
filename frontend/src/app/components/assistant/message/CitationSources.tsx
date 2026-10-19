@@ -20,7 +20,8 @@ function shortCaseName(value: string): string {
     const parties = value.split(/\s+v(?:\.|ersus)?\s+/iu);
     if (parties.length < 2) return value;
     const left = parties[0].replace(/[,.;]+$/u, "").trim();
-    const right = parties[1].replace(/[,.;].*$/u, "").trim();
+    // "B.C. Tel, 2002 BCCA 363": the name ends at its comma, not at an initial's period.
+    const right = parties[1].replace(/[,;].*$/u, "").replace(/\.$/u, "").trim();
     return /^(?:R|The (?:King|Queen|Crown)|United States|State)$/iu.test(left)
         ? right || left
         : left;

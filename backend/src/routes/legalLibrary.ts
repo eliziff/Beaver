@@ -4,7 +4,6 @@ import { reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import { trimmedText } from "../lib/value";
 import type { LegalSourceApplication } from "../lib/legalSourceApplication";
-import { searchFts5 } from "../lib/searchQuery";
 
 function text(value: unknown, name: string, maximum = 500) {
   const result = trimmedText(value);
@@ -71,8 +70,7 @@ router.get("/search", asyncRoute(async (req, res) => {
   const query: Parameters<LegalSourceApplication["searchLibrary"]>[0] = {
     docType: selected,
     size: Number.parseInt(String(req.query.size ?? "12"), 10),
-    text: searchFts5(text(req.query.query, "query")),
-    syntax: "fts5" as const,
+    text: text(req.query.query, "query"),
     searchType: req.query.search_type === "name" ? "name" as const : "full_text" as const,
     language: language(req.query.language),
     collection: optionalText(req.query.dataset),

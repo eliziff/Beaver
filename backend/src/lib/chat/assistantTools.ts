@@ -62,9 +62,13 @@ import {
   legalEvidenceResourceReference,
   legalEvidenceProseIntegrityErrors,
   draftQuotationText,
+  isEvidenceId,
+  legalEvidenceEntry,
   legalSourceEvidence,
   modelEvidencePassage,
   modelEvidencePreview,
+  normalizedEvidenceId,
+  parseEvidenceHandle,
   readPriorLegalEvidence,
   registerLegalEvidence,
   type LegalEvidenceReceipt,
@@ -1671,7 +1675,7 @@ export function assistantTools<Context extends {
       projectId: matterId, libraryKind: "file", provenance: provenance?.actor === "assistant" && turnId
         ? { ...provenance, turnId } : provenance }));
   const coding: AssistantToolRun = async (call, args, signal, progress) => {
-    const requested = trimmed(args.file_path);
+    let requested = trimmed(args.file_path);
     if (call.name === "Read" && args.section !== undefined && typeof args.section !== "string" &&
         parseResourceReference(requested)?.kind !== "document")
       return fail("A {nodeId} section requires a version-pinned document resource.");
@@ -1690,6 +1694,9 @@ export function assistantTools<Context extends {
       : fail("No research scope is selected");
     if (args.finding_refs !== undefined && (requested !== "findings" || args.section || args.pattern))
       return fail("Use finding_refs with file_path=findings, without section or pattern.");
+    // Without a Sources workspace, a chat's saved findings are the evidence it already holds.
+    if (call.name === "Read" && requested === "findings" && (!sources || !researchContext?.workspace) && !args.finding_refs)
+      requested = "evidence";
     if (call.name === "Read" && requested === "findings") {
       if (!sources || !researchContext?.workspace) return fail("Open a Sources workspace to read its findings");
       const reference = args.section ? researchFindingReferenceSchema.parse(JSON.parse(String(args.section))) : undefined,
@@ -1716,7 +1723,11 @@ export function assistantTools<Context extends {
           read: { file_path: "readers", section: event.id } })), total: readers.length,
           next_offset: offset + limit < readers.length ? offset + limit + 1 : null });
         const event = readers.find(event => event.id === args.section);
-        return event ? result(readerHandoff(event, legalEvidenceState, offset, limit)) : fail("Reader result not found in this scope");
+        if (!event) return fail("Reader result not found in this scope");
+        // A reader's passages become citable by whoever reads its findings.
+        for (const receipt of event.grounding?.evidence ?? [])
+          if (!legalEvidenceState.evidence.has(receipt.evidence_id)) registerLegalEvidence(legalEvidenceState, receipt, {}, false);
+        return result(readerHandoff(event, legalEvidenceState, offset, limit));
       }
       if (requested === "queries" || /^q_/u.test(requested)) {
         const queries = [...(await queryHistory?.() ?? legalEvidenceState.queries.values())].filter(query =>
@@ -1733,11 +1744,15 @@ export function assistantTools<Context extends {
         return result({ total: permittedEvidence.length, items: values,
           next_offset: offset + limit < permittedEvidence.length ? offset + limit + 1 : null });
       }
-      if (/^e_/u.test(requested)) {
-        const saved = researchContext?.subjects?.flatMap(({ savedEvidence }) => savedEvidence ?? [])
-          .find(({ evidence_id }) => evidence_id === requested);
-        if (saved && !legalEvidenceState.evidence.has(requested)) registerLegalEvidence(legalEvidenceState, saved);
-        const entry = readPriorLegalEvidence(legalEvidenceState, requested);
+      if (isEvidenceId(requested)) {
+        // A saved passage, or the saved passage holding the lines a handle names, joins this conversation's evidence.
+        const id = normalizedEvidenceId(requested), key = parseEvidenceHandle(id)?.key;
+        for (const saved of researchContext?.subjects?.flatMap(({ savedEvidence }) => savedEvidence ?? []) ?? [])
+          if (!legalEvidenceState.evidence.has(saved.evidence_id) &&
+              (saved.evidence_id === id || key && parseEvidenceHandle(saved.evidence_id)?.key === key))
+            registerLegalEvidence(legalEvidenceState, saved);
+        legalEvidenceEntry(legalEvidenceState.evidence, id);
+        const entry = readPriorLegalEvidence(legalEvidenceState, id);
         return entry && inScope({ resource: legalEvidenceResourceReference(entry.receipt) ?? "", evidence: [entry.receipt] })
           ? { ...result(modelEvidencePassage(entry.receipt)), evidence: [entry.receipt] } : fail("Evidence unavailable in the selected scope");
       }
@@ -1956,7 +1971,7 @@ export function assistantTools<Context extends {
     }
     const grouped = new Map<string, LegalEvidenceReceipt[]>();
     for (const id of ids) {
-      const receipt = legalEvidenceState?.evidence.get(id)?.receipt;
+      const receipt = legalEvidenceState && legalEvidenceEntry(legalEvidenceState.evidence, id)?.receipt;
       if (!receipt) throw new Error(`Unknown evidence ID: ${id}`);
       const key = structureNative().citationLookupKey(receipt.citation);
       if (!key) throw new Error(`Evidence does not identify an authority: ${id}`);
@@ -2045,12 +2060,11 @@ export function assistantTools<Context extends {
         input: {
           query: searched.query,
           source_types: sourceTypes,
-          syntax: input.syntax === "boolean" ? "boolean" : "terms",
-          search_type: searched.search_type,
           jurisdiction: readerAssignment?.jurisdiction ?? (trimmed(input.jurisdiction) || null),
           collection: collection || null,
-          court: trimmed(input.court) || null,
           speaker: trimmed(input.speaker) || null,
+          author: trimmed(input.author) || null,
+          journal: trimmed(input.journal) || null,
           date_from: trimmed(input.date_from) || null,
           date_to: trimmed(input.date_to) || null,
           sort: trimmed(input.sort) || "relevance",
@@ -2111,9 +2125,9 @@ export function assistantTools<Context extends {
         return fail("memo requires a title and Markdown content");
       if (!research || research.versionId !== versionId ||
           research.workingRevision !== edit.workingRevision) return fail("Version conflict");
-      const inlineIds = [...markdown.matchAll(/\[@([^\]\n]+)\]/gu)].map((match) => match[1]),
+      const inlineIds = [...markdown.matchAll(/\[@([^\]\n]+)\]/gu)].map((match) => normalizedEvidenceId(match[1])),
         ids = [...new Set([...inlineIds, ...(Array.isArray(input.evidence_ids)
-          ? input.evidence_ids.map(trimmed).filter(Boolean) : [])])], wanted = new Set(ids),
+          ? input.evidence_ids.map(trimmed).filter(Boolean).map(normalizedEvidenceId) : [])])], wanted = new Set(ids),
         sourceByKey = new Map(Object.values(research.state.sources).map((source) =>
           [researchSourceKey(source.reference), source])), sourceIds = [...new Set(ids.flatMap((id) => {
           const receipt = legalEvidenceState?.evidence.get(id)?.receipt,
@@ -2139,7 +2153,7 @@ export function assistantTools<Context extends {
           "The evidence_ids list does not define aliases. Read or save missing passages before citing them." });
       const links = new Map(ids.map((id, index) => [id, citations[index]!]));
       const body = markdown.replace(/^#\s+[^\r\n]*(?:\r?\n)+/u, "")
-        .replace(/\[@([^\]\n]+)\]/gu, (_marker, id: string) => links.get(id)!);
+        .replace(/\[@([^\]\n]+)\]/gu, (_marker, id: string) => links.get(normalizedEvidenceId(id))!);
       const memo = `${command.mode === "append" && research.state.note ? `${research.state.note}\n\n` : ""}` +
         `## ${title.replace(/[\r\n#]/gu, " ")}\n\n${body}`;
       const { file: next } = await sources.update(scope, documentId, { versionId, workingRevision: edit.workingRevision,
@@ -2190,9 +2204,10 @@ export function assistantTools<Context extends {
           ? input.query_ids.filter((id): id is string => typeof id === "string") : [];
         const queries = queryIds.map((id) => legalEvidenceState.queries.get(id));
         const evidenceIds = new Set(Array.isArray(input.evidence_ids)
-          ? input.evidence_ids.filter((id): id is string => typeof id === "string") : []);
+          ? input.evidence_ids.filter((id): id is string => typeof id === "string").map(normalizedEvidenceId) : []);
         savedEvidenceIds = [...evidenceIds];
-        const evidence = [...evidenceIds].map((id) => legalEvidenceState.evidence.get(id)?.receipt);
+        // Saving lines of a passage saves exactly those lines.
+        const evidence = [...evidenceIds].map((id) => legalEvidenceEntry(legalEvidenceState.evidence, id)?.receipt);
         if (evidence.some((item) => !item) || queries.some((item) => !item))
           return fail("Use exact evidence_ids or query_ids returned by Read or search_sources");
         if (!evidence.length && !queries.length) return fail(

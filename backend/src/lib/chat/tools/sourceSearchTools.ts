@@ -1,8 +1,8 @@
+import { ApplicationError } from "../../applicationError";
 import { legalSourceOperations } from "../../legalSourceApplication";
 import type { Tool } from "../../llm";
 import { researchSourceResource } from "../../researchFile";
 import { trimmedText as text } from "../../value";
-import { hasCaseNameInText } from "../legalEvidence";
 import { objectSchema, type BeaverToolPolicy } from "../toolRegistry";
 
 const SEARCH_SOURCES_TOOL_NAME = "search_sources";
@@ -13,14 +13,14 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
   reader: ["CA", "US"],
   annotations: { readOnlyHint: true },
   description:
-    "Discover candidates in installed corpora: bounded results with snippets, not exhaustive coverage. For exhaustive work, partition the scope and track searches; an omitted source or zero returned results is not proof of absence. Inspect prior queries on demand when resuming. Read known sources with pattern to locate passages rather than rediscovering them. Use exact passages for conclusions.",
+    "Search installed legal sources: one query matched against each source's name, citations and text, narrowed by the scope filters. Returns bounded results with snippets, not exhaustive coverage. For exhaustive work, partition the scope and track searches; an omitted source or zero returned results is not proof of absence. Inspect prior queries on demand when resuming. Read known sources with pattern to locate passages rather than rediscovering them. Use exact passages for conclusions.",
   inputSchema: objectSchema({
     query: {
       type: "string",
       minLength: 1,
       maxLength: 256,
       description:
-        "Exact tokens; with syntax=boolean use quoted phrases, prefix* (at least three characters), NEAR(...), AND, OR, NOT, and parentheses.",
+        "Keywords, a case name or a citation. Every word is required; \"quoted phrase\", OR, NOT or -word, prefix* and (brackets) as on CanLII.",
     },
     source_types: {
       type: "array",
@@ -34,17 +34,6 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
       description:
         "Relevant source types.",
     },
-    syntax: {
-      type: "string",
-      enum: ["terms", "boolean"],
-      description: "Defaults to terms (all tokens required).",
-    },
-    search_type: {
-      type: "string",
-      enum: ["full_text", "name"],
-      description:
-        "Use name only for a case style of cause; omit it for legal concepts, quotations, legislation, or commentary.",
-    },
     jurisdiction: {
       type: "string",
       description:
@@ -53,16 +42,14 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
     collection: {
       type: "string",
       description:
-        "Exact installed dataset or court collection code, such as ONCA. Availability is corpus-dependent.",
-    },
-    court: {
-      type: "string",
-      description: "Exact CourtListener court code when its indexed/API field is available.",
+        "Exact court, tribunal or legislation collection code, such as ONCA, or a CourtListener court id such as scotus.",
     },
     speaker: {
       type: "string",
       description: "Speaker-name substring for Hansard.",
     },
+    author: { type: "string", description: "Author-name substring for journal articles." },
+    journal: { type: "string", description: "Journal name or abbreviation substring." },
     date_from: { type: "string", description: "Inclusive YYYY-MM-DD lower bound." },
     date_to: { type: "string", description: "Inclusive YYYY-MM-DD upper bound." },
     sort: {
@@ -86,7 +73,7 @@ const MAX_SEARCH_CACHE = 128;
 function date(value: unknown, name: string) {
   const parsed = text(value);
   if (parsed && !/^\d{4}-\d{2}-\d{2}$/u.test(parsed)) {
-    throw new Error(`${name} must be YYYY-MM-DD`);
+    throw new ApplicationError(400, `${name} must be YYYY-MM-DD`);
   }
   return parsed || undefined;
 }
@@ -97,9 +84,9 @@ function sourceTypes(value: unknown) {
     ? value.filter((item): item is string => typeof item === "string")
     : [];
   const valid = selected.filter((item) => allowed.has(item));
-  if (!valid.length) throw new Error("source_types must select at least one corpus");
+  if (!valid.length) throw new ApplicationError(400, "source_types must select at least one corpus");
   const unique = new Set(valid);
-  if (unique.size > 2) throw new Error("source_types may select at most two corpora");
+  if (unique.size > 2) throw new ApplicationError(400, "source_types may select at most two corpora");
   return unique;
 }
 
@@ -118,45 +105,27 @@ export async function searchSources(
   signal?: AbortSignal,
 ) {
   const query = text(args.query);
-  if (!query) throw new Error("query is required");
-  if (query.length > 256) throw new Error("query must be at most 256 characters");
-  if (/\b[\p{L}\p{N}]{1,2}\*/u.test(query)) {
-    throw new Error("prefix terms must contain at least three characters");
-  }
-  if (args.court_level) {
-    throw new Error(
-      "court_level is unavailable: no installed search index exposes reliable court-level metadata",
-    );
-  }
+  if (!query) throw new ApplicationError(400, "query is required");
+  if (query.length > 256) throw new ApplicationError(400, "query must be at most 256 characters");
   const jurisdiction = country(args.jurisdiction);
   if (jurisdiction === "unsupported") {
-    throw new Error("jurisdiction is unavailable in the installed source indexes");
+    throw new ApplicationError(400, "jurisdiction is unavailable in the installed source indexes");
   }
   const types = sourceTypes(args.source_types);
-  const syntax = args.syntax === "boolean" ? "fts5" : "terms";
-  const searchType = args.search_type === "name" ||
-      (types.size === 1 && types.has("case") && hasCaseNameInText(query))
-    ? "name" as const
-    : "full_text" as const;
   const startDate = date(args.date_from, "date_from");
   const endDate = date(args.date_to, "date_to");
   const limit = Math.max(1, Math.min(20, Math.trunc(Number(args.limit) || 10)));
   const perProvider = Math.min(20, Math.max(limit, 10));
-  const requestedSort =
-    args.sort === "most_cited" || args.sort === "most_discussed"
-      ? args.sort
-      : args.sort === "newest" || args.sort === "oldest"
-        ? args.sort
-        : "relevance";
+  const requestedSort = ["most_cited", "most_discussed", "newest", "oldest"].includes(String(args.sort))
+    ? args.sort as "most_cited" | "most_discussed" | "newest" | "oldest" : "relevance";
   const cacheKey = JSON.stringify([
     query,
     [...types].sort(),
-    syntax,
-    searchType,
     jurisdiction,
     text(args.collection),
-    text(args.court),
     text(args.speaker),
+    text(args.author),
+    text(args.journal),
     startDate,
     endDate,
     requestedSort,
@@ -171,12 +140,11 @@ export async function searchSources(
   const searched = await legalSourceOperations.search({
     text: query,
     kinds: [...types] as Array<"case" | "legislation" | "journal" | "hansard">,
-    syntax,
-    searchType,
     jurisdiction,
     collection: text(args.collection) || undefined,
-    court: text(args.court) || undefined,
     speaker: text(args.speaker) || undefined,
+    author: text(args.author) || undefined,
+    journal: text(args.journal) || undefined,
     dateFrom: startDate,
     dateTo: endDate,
     sort: requestedSort,
@@ -195,7 +163,6 @@ export async function searchSources(
       requestedSort === "relevance"
         ? "provider BM25/relevance with a 15% citator RRF signal where available"
         : requestedSort,
-    search_type: searchType,
     results,
     ...(unavailable.length ? { unavailable } : {}),
   };

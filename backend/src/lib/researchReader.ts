@@ -12,7 +12,8 @@ import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
 import type { A2AJCompiledDocument } from "./legalSources/a2aj";
 import { pageResearchItems, researchHighlightCount, researchSourceFromResource, researchSourceResource, researchSourceReferenceSchema,
   type ResearchFile, type ResearchEvidence, type ResearchQueryReceipt } from "./researchFile";
-import { createA2AJPassageEvidence, createLibraryEvidence, legalSourceEvidence,
+import { createA2AJPassageEvidence, createLibraryEvidence, legalSourceEvidence, citationUnits, documentKey,
+  modelEvidencePassage, numberedLines, numberedReceipt,
   legalEvidenceSourceReference, legalEvidenceResourceReference, restorePriorLegalEvidence, storedLegalEvidenceReceipt,
   createLegalEvidenceTurnState, registerLegalEvidence, registerLegalResearchQueries, legalEvidenceReceiptEvent,
   type LegalEvidenceReceipt, type LegalEvidenceSpan, type RegisteredEvidence,
@@ -390,8 +391,9 @@ export async function readResearchResource(documents: DocumentStore, scope: Appl
     const evidence = restored.map(({ receipt }) => receipt),
       next = offset + selected.length < input.evidence.length
         ? [{ resource: input.resource, offset: offset + selected.length + 1 }] : [];
-    return { ...result({ resource: input.resource, passages: evidence.map((receipt) => ({
-      evidence_id: receipt.evidence_id, locator: receipt.locator, text: receipt.span_text })), next }), evidence,
+    return { ...result({ resource: input.resource, passages: evidence.map((receipt) => citationUnits() === "json"
+      ? { evidence_id: receipt.evidence_id, locator: receipt.locator, text: receipt.span_text }
+      : modelEvidencePassage(receipt)), next }), evidence,
       evidenceSources: new Map(restored.map(({ receipt, ...value }) => [receipt.evidence_id, value])),
       coverage: { complete: !next.length, next } };
   }
@@ -487,6 +489,61 @@ const modelLegalPassage = (receipt: LegalEvidenceReceipt) => ({
   evidence_id: receipt.evidence_id, kind: receipt.locator.kind,
   locator: receipt.locator.label, text: receipt.span_text,
 });
+
+/** The numbered line of a passage at or after a character of its document. */
+function lineAt(receipt: LegalEvidenceReceipt, at: number) {
+  const lines = numberedLines(receipt), start = receipt.span?.start;
+  if (!lines || start === undefined) return undefined;
+  const index = receipt.units!.findIndex(([, end]) => start + end > at);
+  return index < 0 ? undefined : lines[index].number;
+}
+
+type ReadSourceDetail = { resource: string; title?: string | null; citation?: string | null;
+  extent?: { locator_kind: string; first: string; last: string }; date?: string | null; collection?: string | null;
+  language?: string | null; opinion_type?: unknown; author?: unknown; qualification?: string };
+
+/** A read as its sources' numbered lines: the read's notes, then each source's heading with the key its lines are
+ *  cited by ("4f9c2ab Moazzen-Ahmadi v. Ahmadi-Far, 2021 BCCA 447 · BCCA · 2021-11-26 · paragraphs 1–44") and the
+ *  lines of its passages in order, a blank line where the numbering skips; a passage without numbered lines is its
+ *  JSON. */
+function numberedSourceText(sources: readonly ReadSourceDetail[], receipts: readonly LegalEvidenceReceipt[],
+  notes: readonly string[], after: readonly string[]) {
+  const bySource = new Map<string, LegalEvidenceReceipt[]>();
+  for (const receipt of receipts) {
+    const reference = legalEvidenceSourceReference(receipt),
+      resource = sources.length === 1 ? sources[0].resource : reference ? researchSourceResource(reference) : "";
+    bySource.set(resource, [...bySource.get(resource) ?? [], receipt]);
+  }
+  const passages = (receipts: readonly LegalEvidenceReceipt[]) => {
+    const lines = new Map<number, string>(), unnumbered: string[] = [];
+    for (const receipt of receipts) {
+      const numbered = numberedLines(receipt);
+      if (numbered) numbered.forEach(({ number, text }) => lines.set(number, text));
+      else unnumbered.push(JSON.stringify(modelLegalPassage(receipt)));
+    }
+    let previous = 0;
+    return [...[...lines].sort(([left], [right]) => left - right).map(([number, text]) => {
+      const line = `${previous && number !== previous + 1 ? "\n" : ""}L${number} ${text}`;
+      previous = number;
+      return line;
+    }), ...unnumbered];
+  };
+  const blocks = sources.map((source) => {
+    const read = bySource.get(source.resource) ?? [];
+    bySource.delete(source.resource);
+    const name = [source.title, source.citation].filter(Boolean).join(", "),
+      details = [source.collection, source.date,
+        source.extent && `${source.extent.locator_kind}s ${[source.extent.first, source.extent.last]
+          .map((label) => label.replace(/^par(?=\d)/u, "")).join("–")}`,
+        typeof source.opinion_type === "string" &&
+          `${source.opinion_type}${typeof source.author === "string" ? ` by ${source.author}` : ""}`,
+        source.language && source.language !== "en" && source.language].filter(Boolean);
+    return [[read[0] && documentKey(read[0]), name, ...details.map((detail) => `· ${detail}`)].filter(Boolean).join(" "),
+      ...source.qualification ? [source.qualification] : [], ...passages(read)].join("\n");
+  });
+  return [...notes, ...blocks, ...[...bySource.values()].map(passages).map((lines) => lines.join("\n")), ...after]
+    .filter(Boolean).join("\n\n");
+}
 
 function readerBoundary(source: LegalSourceReference, reader: ReadSubagentAssignment | undefined) {
   const region = source.provider === "courtlistener" || source.provider === "govinfo"
@@ -584,8 +641,11 @@ async function readLegalSource(
     }> = [], unclassified = new Set<string>();
     // The character budget is the real limit; the old 20 made needless windows.
     let remaining = Math.min(2_000, Math.max(1, Math.trunc(Number(args.limit) || 2_000))), chars = 0;
+    // Every passage a read returns is cited by its document's numbered lines.
+    const numbered = (receipt: LegalEvidenceReceipt | undefined, passage: LegalSourcePassage) =>
+      receipt && numberedReceipt(receipt, passage.documentArtifact);
     const registered = read.values.flatMap((passage) => {
-      if (locator || patterns.length) return [{ passage, receipt: legalSourceEvidence(passage),
+      if (locator || patterns.length) return [{ passage, receipt: numbered(legalSourceEvidence(passage), passage),
         source: legalEvidenceSource(passage) }];
       const native = structureNative(), artifact = passage.documentArtifact,
         resource = researchSourceResource(passage.source), offset = Number(args.offset) || 1,
@@ -607,12 +667,12 @@ async function readLegalSource(
           located = block && ["paragraph", "page", "section", "footnote"].includes(kind),
           whole = located && block.text === row.text ? block : null,
           start = row.span[0], end = row.span[1],
-          receipt = whole ? legalSourceEvidence({ ...passage, role: "selected", text: whole.text,
+          receipt = numbered(whole ? legalSourceEvidence({ ...passage, role: "selected", text: whole.text,
             blockArtifact: whole, locator: { requested: { kind: kind as "paragraph" | "page" | "section" | "footnote",
               value: whole.label }, label: whole.label } })
             : legalSourceEvidence(passage, { text: row.text, start, end,
             ...(block ? { blockId: `${block.kind}:${block.label}:${start}:${end}`,
-              ...(located ? { locator: { kind, label: block.label } } : {}) } : {}) });
+              ...(located ? { locator: { kind, label: block.label } } : {}) } : {}) }), passage);
         if (!receipt) throw new Error("The source cannot provide exact passage evidence");
         const size = JSON.stringify(modelLegalPassage(receipt)).length;
         if (!remaining || chars + size > 32_000) {
@@ -625,8 +685,9 @@ async function readLegalSource(
         selected.push({ passage: { ...passage, role: "selected", text: row.text },
           receipt, source: legalEvidenceSource(passage) });
         if (split) {
+          // A row cut short resumes after the last whole line its receipt shows.
           next.push({ file_path: resource, offset: row.lineNumber,
-            start_char: row.span[1] - (passage.text.lastIndexOf("\n", row.span[0] - 1) + 1) });
+            start_char: Math.max(row.span[1], receipt.span?.end ?? 0) - (passage.text.lastIndexOf("\n", row.span[0] - 1) + 1) });
           return selected;
         }
       }
@@ -696,11 +757,12 @@ async function readLegalSource(
             const span = passage.locator.requested
               ? { start: 0, end: passage.text.length, text: passage.text }
               : cleanSearchEvidenceSpan(passage, hit);
-            const receipt = passage.locator.requested ? legalSourceEvidence(passage)
-              : legalSourceEvidence(passage, span);
+            const receipt = numbered(passage.locator.requested ? legalSourceEvidence(passage)
+              : legalSourceEvidence(passage, span), passage);
             const before = passage.text.slice(Math.max(judgment, hit.at - contextChars), span.start),
-              after = passage.text.slice(span.end, Math.min(passage.text.length, hit.at + hit.excerpt.length + contextChars));
-            const value = { at: hit.at, ...(receipt ? { evidence_id: receipt.evidence_id,
+              after = passage.text.slice(span.end, Math.min(passage.text.length, hit.at + hit.excerpt.length + contextChars)),
+              line = receipt && lineAt(receipt, (passage.locator.requested ? passage.blockArtifact?.start ?? 0 : 0) + hit.at);
+            const value = { at: hit.at, ...(line ? { line } : {}), ...(receipt ? { evidence_id: receipt.evidence_id,
               ...(before ? { before } : {}), ...(after ? { after } : {}) }
               : { context: hit.context, locator: passage.locator.label }) };
             const size = JSON.stringify(value).length + (receipt ? JSON.stringify(modelPassage(receipt)).length : 0);
@@ -719,13 +781,23 @@ async function readLegalSource(
       const evidence = uniqueReceipts(queries.flatMap(query => query.hits.map(hit => hit.receipt)));
       const visible = queries.map(({ allowance: _allowance, prior: _prior, hits, ...query }) => ({ ...query,
         hits: hits.map(({ receipt: _receipt, ...hit }) => hit) }));
+      // Each pattern's matches by the numbered lines they fall on, then those passages once.
+      const matches = queries.map(({ pattern, total_matches, hits, truncated, headnote_matches, reused }) => {
+        const lines = [...new Set(hits.flatMap(({ line }) => line ? [`L${line}`] : []))];
+        return `${JSON.stringify(pattern)}: ${total_matches ? `${total_matches} match${total_matches === 1 ? "" : "es"}` : "no matches"}` +
+          (lines.length ? ` at ${lines.join(", ")}` : "") + (truncated ? "; more than shown" : "") +
+          (headnote_matches ? `; ${headnote_matches} more in the headnote, not shown` : "") +
+          (reused ? `; the same search found none before (${reused})` : "");
+      });
       return {
         activityCitations,
         coverage: { complete: true, next: [] },
-        ...result({ ok: true, sources: sourceDetails,
+        ...result(citationUnits() === "json" ? { ok: true, sources: sourceDetails,
           ...(args.patterns ? { queries: visible } : visible[0]),
           ...(evidence.length ? { passages: evidence.map(modelPassage) } : {}),
-          ...(pdfRenditions.length ? { pdf_renditions: pdfRenditions } : {}) }),
+          ...(pdfRenditions.length ? { pdf_renditions: pdfRenditions } : {}) }
+          : numberedSourceText(sourceDetails, evidence, matches,
+            pdfRenditions.length ? [`PDF renditions: ${JSON.stringify(pdfRenditions)}`] : [])),
         ...(evidence.length ? { evidence } : {}),
         ...(evidenceSources.size ? { evidenceSources } : {}),
         queryReceipts: queries.map(query => query.prior ?? ({ call_id: call.id, tool: "Read",
@@ -772,7 +844,7 @@ async function readLegalSource(
           } =>
             unit.kind === "paragraph" || unit.kind === "page" ||
             unit.kind === "section" || unit.kind === "footnote"
-          ).flatMap((unit) => unit.ranges.map((range) => createA2AJPassageEvidence({
+          ).flatMap((unit) => unit.ranges.map((range) => numberedReceipt(createA2AJPassageEvidence({
             citation: metadata.citation as string,
             name: typeof metadata.name === "string" ? metadata.name : null,
             dataset: metadata.dataset as string,
@@ -785,7 +857,7 @@ async function readLegalSource(
             sourceClass: "legislation",
             blockId: `${unit.kind}:${unit.label}:${unit.start}:${unit.end}`,
             locator: { kind: unit.kind, label: unit.label },
-          })));
+          }), artifact)));
           relatedEvidence.push(...receipts);
           receipts.forEach((receipt) => evidenceSources.set(receipt.evidence_id, {
             document: metadata as unknown as A2AJCompiledDocument,
@@ -821,7 +893,10 @@ async function readLegalSource(
         : {}),
     };
     return {
-      ...result(payload),
+      ...result(citationUnits() === "json" ? payload : numberedSourceText(sourceDetails, evidences, [], [
+        ...next.map((cursor) => `Next: Read(${JSON.stringify(cursor)})`),
+        ...(pdfRenditions.length ? [`PDF renditions: ${JSON.stringify(pdfRenditions)}`] : []),
+        ...(referenceNeighborhood ? [`References: ${JSON.stringify(referenceNeighborhood)}`] : [])])),
       coverage: { complete: !next.length, next: next.map(({ file_path, ...cursor }) => ({ resource: file_path, ...cursor })) },
       activityCitations,
       evidence: evidences,
@@ -890,16 +965,20 @@ function renderLibraryRead(input: LibraryWindowInput, lines: LibraryReadLine[],
   suffix: string, coverage: ResearchRead["coverage"]): ResearchRead {
   const native = structureNative(), sourceSha256 = native.documentRevision(input.document),
     text = native.documentText(input.document), receipts = new Map<string, LegalEvidenceReceipt>();
+  let heading = "";
   const content = lines.map(({ rendered, span, locator, receipt: prepared }) => {
     if (!span || span[0] === span[1]) return rendered;
-    const receipt = prepared ?? createLibraryEvidence({ documentId: input.documentId, versionId: input.versionId,
-      filename: input.filename, sourceSha256, start: span[0], end: span[1],
-      spanText: text.slice(span[0], span[1]), locator });
+    const receipt = numberedReceipt(prepared ?? createLibraryEvidence({ documentId: input.documentId,
+      versionId: input.versionId, filename: input.filename, sourceSha256, start: span[0], end: span[1],
+      spanText: text.slice(span[0], span[1]), locator }), input.document), numbered = numberedLines(receipt);
     receipts.set(receipt.evidence_id, receipt);
-    return `${receipt.evidence_id} ${rendered}`;
+    // A cell, or a passage the document's lines do not number, keeps its own id.
+    if (!numbered) return `${receipt.evidence_id} ${rendered}`;
+    heading ||= `${documentKey(receipt)} ${input.filename}\n`;
+    return numbered.map(({ number, text }) => `L${number} ${text}`).join("\n");
   }).join("\n") + suffix;
   const evidence = [...receipts.values()];
-  return { ...result(content), evidence,
+  return { ...result(heading + content), evidence,
     evidenceSources: new Map(evidence.map(({ evidence_id }) => [evidence_id, { source: input.document }])),
     coverage };
 }

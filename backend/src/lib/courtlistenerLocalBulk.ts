@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { boundedSize as limit, searchTokens } from "./sqliteSearch";
+import { boundedSize as limit } from "./sqliteSearch";
+import { searchFts5 } from "./searchQuery";
 import { legalProviderDatabase, withSearchReadonlySqlite,
   withReadonlySqlite } from "./legalDataPath";
 
@@ -159,17 +160,12 @@ export function getLocalCourtlistenerCase(
   });
 }
 
-function ftsQuery(query: string, syntax: "terms" | "fts5" = "terms") {
-  if (syntax === "fts5") return query.trim();
-  return searchTokens(query).map((token) => `"${token.replace(/"/gu, '""')}"`).join(" AND ");
-}
-
 export function searchLocalCourtlistenerCases(args: {
-  query: string; limit?: number; syntax?: "terms" | "fts5";
+  query: string; limit?: number;
   filedAfter?: string; filedBefore?: string;
 }): LocalCourtlistenerCluster[] | null {
-  const query = ftsQuery(args.query, args.syntax);
-  if (!query) return [];
+  if (!/[\p{L}\p{N}]/u.test(args.query)) return [];
+  const query = searchFts5(args.query);
   return withSearchDatabase((database) => {
     const wanted = limit(args.limit, 10, 50);
     const dateFilters: string[] = [];

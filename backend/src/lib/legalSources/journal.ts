@@ -5,6 +5,7 @@ import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { inSqliteRun, legalDataHome, legalProviderDatabase, onSqliteRunEnd, storeExists } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
 import { sqliteText as string } from "../sqliteSearch";
+import { searchFts5, searchTerms } from "../searchQuery";
 import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
 import { isUnitedStatesSearch } from ".";
 import type { LegalSourceProvider, LegalSourceSearchRequest, LegalSourceReference } from ".";
@@ -217,17 +218,12 @@ const displayCitation = (row: Row) => structureNative().citationEngineCall("form
   year: string(row, "document_date_en"), volume: string(row, "volume"), issue: string(row, "issue"),
   journal: string(row, "journal_abbrev"), firstPage: string(row, "first_page") })) as string;
 
-function queryTokens(value: string) {
-  return value.normalize("NFKC").toLocaleLowerCase()
-    .match(/[\p{L}\p{N}]+/gu)?.filter((token) => token.length > 1).slice(0, 8) ?? [];
-}
-
 function result(row: Row, query: string): JournalArticleSearchResult {
   const articleId = integer(row.article_id)!;
   const abstract = string(row, "abstract");
   const folded = abstract?.toLocaleLowerCase() ?? "";
-  const position = queryTokens(query)
-    .map((token) => folded.indexOf(token))
+  const position = searchTerms(query)
+    .map((term) => folded.indexOf(term.toLocaleLowerCase()))
     .find((index) => index >= 0);
   return {
     provider: "journal",
@@ -255,7 +251,7 @@ const SEARCH_COLUMNS = `article_id, dataset, citation_en, name_en, authors,
 function findArticles(
   query: string,
   size = 10,
-  options: Pick<LegalSourceSearchRequest, "syntax" | "author" | "journal" | "dateFrom" | "dateTo" | "sort">
+  options: Pick<LegalSourceSearchRequest, "author" | "journal" | "dateFrom" | "dateTo" | "sort">
     & { names?: boolean } = {},
 ): JournalArticleSearchResult[] {
   query = query.trim();
@@ -271,8 +267,7 @@ function findArticles(
     return row ? [result(row, query)] : [];
   }
 
-  const tokens = queryTokens(query);
-  if (!tokens.length) return [];
+  if (!/[\p{L}\p{N}]/u.test(query)) return [];
   const wanted = Math.min(Math.max(Math.trunc(size), 1), 25);
   const select = (predicate: string, values: SQLInputValue[],
     suffix = "", trailing: SQLInputValue[] = []) => {
@@ -289,58 +284,36 @@ function findArticles(
       .all(...values, ...filters.map(([, value]) => value), ...trailing) as Row[];
   };
   const search = searchDatabase();
-  if (search) {
-    const ftsQuery = options.syntax === "fts5" ? query
-      : tokens.map((token) => `"${token.replace(/"/gu, '""')}"`).join(" AND ");
-    const candidateLimit =
-      options.author || options.journal || options.dateFrom || options.dateTo
-        ? Math.min(250, wanted * 10)
-        : wanted;
-    const ids = (search.prepare(options.names
-      ? "SELECT rowid AS article_id FROM article_metadata WHERE article_metadata MATCH ? ORDER BY bm25(article_metadata) LIMIT ?"
-      : `SELECT rowid AS article_id
-       FROM article_search
-       WHERE article_search MATCH ?
-       ORDER BY bm25(article_search, 4.0, 1.0)
-       LIMIT ?`,
-    ).all(ftsQuery, candidateLimit) as Array<{ article_id: number }>).map(({ article_id }) => article_id);
-    if (!ids.length) return [];
-    const rows = select(`article_id IN (${ids.map(() => "?").join(",")})`, ids);
-    const byId = new Map(rows.map((row) => [integer(row.article_id), row]));
-    const found = ids.flatMap((id) => {
-      const row = byId.get(id);
-      return row ? [result(row, query)] : [];
+  if (!search) throw new Error("Journal search requires the journal FTS index");
+  const candidateLimit =
+    options.author || options.journal || options.dateFrom || options.dateTo
+      ? Math.min(250, wanted * 10)
+      : wanted;
+  const ids = (search.prepare(options.names
+    ? "SELECT rowid AS article_id FROM article_metadata WHERE article_metadata MATCH ? ORDER BY bm25(article_metadata) LIMIT ?"
+    : `SELECT rowid AS article_id
+     FROM article_search
+     WHERE article_search MATCH ?
+     ORDER BY bm25(article_search, 4.0, 1.0)
+     LIMIT ?`,
+  ).all(searchFts5(query), candidateLimit) as Array<{ article_id: number }>).map(({ article_id }) => article_id);
+  if (!ids.length) return [];
+  const rows = select(`article_id IN (${ids.map(() => "?").join(",")})`, ids);
+  const byId = new Map(rows.map((row) => [integer(row.article_id), row]));
+  const found = ids.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [result(row, query)] : [];
+  });
+  if (options.sort === undefined || options.sort === "newest" || options.sort === "oldest") {
+    found.sort((left, right) => {
+      const missing = "\uffff";
+      if (options.sort === "newest") {
+        return (right.date ?? "").localeCompare(left.date ?? "");
+      }
+      return (left.date ?? missing).localeCompare(right.date ?? missing);
     });
-    if (options.sort === undefined || options.sort === "newest" || options.sort === "oldest") {
-      found.sort((left, right) => {
-        const missing = "\uffff";
-        if (options.sort === "newest") {
-          return (right.date ?? "").localeCompare(left.date ?? "");
-        }
-        return (left.date ?? missing).localeCompare(right.date ?? missing);
-      });
-    }
-    return found.slice(0, wanted);
   }
-  if (options.syntax === "fts5") {
-    throw new Error("Boolean search requires the journal FTS index");
-  }
-  const haystack = `LOWER(
-    COALESCE(name_en, '') || ' ' || COALESCE(citation_en, '') || ' ' ||
-    COALESCE(authors, '') || ' ' || COALESCE(journal_name, '') || ' ' ||
-    COALESCE(journal_abbrev, '')
-  )`;
-  const rows = select(
-    `text IS NOT NULL AND length(text) > 0 AND ${tokens.map(() => `${haystack} LIKE ?`).join(" AND ")}`,
-    tokens.map((token) => `%${token}%`),
-    `ORDER BY ${options.sort === "newest"
-      ? "document_date_en DESC, article_id"
-      : options.sort === "oldest"
-        ? "document_date_en ASC, article_id"
-        : "CASE WHEN LOWER(name_en) = LOWER(?) THEN 0 ELSE 1 END, article_id"} LIMIT ?`,
-    [...(options.sort === "newest" || options.sort === "oldest" ? [] : [query]), wanted],
-  );
-  return rows.map((row) => result(row, query));
+  return found.slice(0, wanted);
 }
 
 function inside(base: string, candidate: string) {
@@ -569,7 +542,10 @@ const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
       const article = await document(candidate);
       if (article) return [journalReference(article)];
     }
-    const matches = findArticles(candidates[0] ?? request.text, 10, { names: true }).filter((match) =>
+    // A citation is matched by its words, each taken literally, not read as a search expression.
+    const words = (candidates[0] ?? request.text).normalize("NFKC").match(/[\p{L}\p{N}]+/gu)
+      ?.filter((word) => word.length > 1).slice(0, 8).map((word) => `"${word}"`).join(" ") ?? "";
+    const matches = !words ? [] : findArticles(words, 10, { names: true }).filter((match) =>
       candidates.some((candidate) =>
         exactJournalIdentity(candidate) === exactJournalIdentity(match.citation) ||
         exactJournalIdentity(candidate) === exactJournalIdentity(match.name)));
@@ -578,9 +554,11 @@ const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
     const article = await document(String(titled ?? matches[0].articleId));
     return article ? [journalReference(article)] : [];
   },
-  canSearch: (request) => request.kinds.includes("journal"),
+  // In a search of several kinds, filters journals do not index (a court, a collection, the US) leave journals out.
+  canSearch: (request) => request.kinds.includes("journal") && !(request.kinds.length > 1 &&
+    (request.collection || isUnitedStatesSearch(request))),
   async search(request) {
-    if (request.court || request.collection || isUnitedStatesSearch(request)) {
+    if (request.collection || isUnitedStatesSearch(request)) {
       throw new Error("jurisdiction and court metadata are not indexed");
     }
     return findArticles(request.text, request.perProviderLimit ?? request.limit, request)

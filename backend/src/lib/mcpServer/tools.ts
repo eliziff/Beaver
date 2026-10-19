@@ -6,7 +6,8 @@ import type { LegalSourceReference } from "mike/shared/contracts/legalSourceRefe
 import { SEARCH_SOURCES_TOOL, searchSources } from "../chat/tools/sourceSearchTools";
 import { RESOURCE_TOOLS } from "../chat/resourceTools";
 import { objectSchema, toolText } from "../chat/toolRegistry";
-import { createLegalEvidenceTurnState, LEGAL_EVIDENCE_SUBMIT_TOOL, legalEvidenceCitationPlan, registerLegalEvidence,
+import { createLegalEvidenceTurnState, LEGAL_EVIDENCE_SUBMIT_TOOL, legalEvidenceCitationPlan, legalEvidenceEntry,
+  normalizedEvidenceId, parseEvidenceHandle, registerLegalEvidence,
   renderLegalEvidenceAnswer, restorePriorLegalEvidence, storedLegalEvidenceReceipt, submitLegalEvidenceAnswer,
   type RegisteredEvidence } from "../chat/legalEvidence";
 import { mikeLocalDataHome } from "../legalDataPath";
@@ -68,9 +69,20 @@ let stored: Map<string, LegalEvidenceReceipt> | undefined;
 const storedReceipts = () => stored ??= new Map((existsSync(receiptFile) ? readFileSync(receiptFile, "utf8").split("\n") : [])
   .flatMap((line) => { try { const receipt = storedLegalEvidenceReceipt(JSON.parse(line));
     return receipt ? [[receipt.evidence_id, receipt] as const] : []; } catch { return []; } }));
+/** Evidence a text names: digest ids and passage handles. */
+const evidenceIdsIn = (value: string) => [...new Set((value.match(
+  /\be_[\w-]{18}(?![\w-])|\b[0-9a-f]{7}#L\d+(?:-L\d+)?\b/giu) ?? []).map(normalizedEvidenceId))];
+/** Each id's passage, or for lines of a passage the stored passage holding them, restored with its source. */
 async function restore(ids: string[], signal: AbortSignal) {
-  const missing = ids.flatMap((id) => !evidence.has(id) && storedReceipts().get(id) || []);
-  if (missing.length) for (const entry of await restorePriorLegalEvidence(missing, signal))
+  const missing = new Map<string, LegalEvidenceReceipt>();
+  for (const id of ids.map(normalizedEvidenceId)) {
+    if (legalEvidenceEntry(evidence, id)) continue;
+    const handle = parseEvidenceHandle(id), receipt = storedReceipts().get(id) ?? (handle ? [...storedReceipts().values()]
+      .find((stored) => { const range = parseEvidenceHandle(stored.evidence_id);
+        return range?.key === handle.key && range.first <= handle.first && handle.last <= range.last; }) : undefined);
+    if (receipt) missing.set(receipt.evidence_id, receipt);
+  }
+  if (missing.size) for (const entry of await restorePriorLegalEvidence([...missing.values()], signal))
     evidence.set(entry.receipt.evidence_id, entry);
 }
 
@@ -112,30 +124,36 @@ async function read(args: Record<string, unknown>, signal: AbortSignal) {
 
 /** A citation's link names only its evidence: Beaver builds the publisher link (paragraph or section
  *  anchor with a text fragment of the exact words) when it is opened. */
-const citeLink = (origin: string, ids: readonly string[]) => `${origin}/cite/${ids.join("+")}`;
+const citeLink = (origin: string, ids: readonly string[]) =>
+  `${origin}/cite/${ids.map(encodeURIComponent).join("+")}`;
 /** Each passage with Beaver's citation of it and its link. */
 function linked<T extends { evidence_id: string }>(passage: T, origin: string) {
-  const entry = evidence.get(passage.evidence_id);
+  const entry = legalEvidenceEntry(evidence, passage.evidence_id);
   if (!entry) return passage;
   return { ...passage, cite: [legalEvidenceAuthority(entry.receipt), legalEvidenceLocatorText(entry)].filter(Boolean).join(", "),
     link: citeLink(origin, [passage.evidence_id]) };
 }
-function withLinks(result: CallToolResult, origin: string): CallToolResult {
-  const block = result.content[0];
+function withLinks(outcome: NonNullable<Awaited<ReturnType<typeof read>>>, origin: string): CallToolResult {
+  const result = outcome.result, block = result.content[0];
   if (result.isError || block?.type !== "text") return result;
-  const data = JSON.parse(block.text) as { passages?: Array<{ evidence_id: string }> };
-  return Array.isArray(data.passages)
-    ? json({ ...data, passages: data.passages.map((passage) => linked(passage, origin)) }) : result;
+  try {
+    const data = JSON.parse(block.text) as { passages?: Array<{ evidence_id: string }> };
+    return Array.isArray(data.passages)
+      ? json({ ...data, passages: data.passages.map((passage) => linked(passage, origin)) }) : result;
+  } catch {
+    // A read of numbered lines: each passage's citation and link after them.
+    const links = (outcome.evidence ?? []).flatMap(({ evidence_id }) => {
+      const passage = linked({ evidence_id }, origin);
+      return "link" in passage ? [`${evidence_id}: ${passage.cite} ${passage.link}`] : [];
+    });
+    return links.length ? toolText(`${block.text}\n\nLinks:\n${links.join("\n")}`) : result;
+  }
 }
 
-const passagesOf = (result: CallToolResult) => {
-  const block = result.content[0];
-  try {
-    const data = JSON.parse(block?.type === "text" ? block.text : "{}") as { passages?: unknown };
-    return Array.isArray(data.passages) ? data.passages as Array<{ evidence_id: string; text: string;
-      kind: string; locator: string }> : [];
-  } catch { return []; }
-};
+/** The passages a read returned, with their text. */
+const passagesOf = (outcome: Awaited<ReturnType<typeof read>>) => (outcome?.evidence ?? []).flatMap((receipt) =>
+  receipt.span_text ? [{ evidence_id: receipt.evidence_id, text: receipt.span_text,
+    kind: receipt.locator.kind, locator: receipt.locator.label }] : []);
 
 async function authoritiesSummary(api: BeaverApi, id: string) {
   const product = await api(`/authorities/${encodeURIComponent(id)}`) as {
@@ -201,7 +219,7 @@ const definitions: Array<Tool & { run: Handler }> = [{
     if (located.error) return json({ ok: false, error: located.error }, true);
     const { citation: _citation, kind: _kind, ...input } = args;
     const outcome = await read({ ...input, file_path: located.resource }, signal);
-    return outcome ? withLinks(outcome.result, origin) : json({ ok: false, error: "That resource is not a readable legal source." }, true);
+    return outcome ? withLinks(outcome, origin) : json({ ok: false, error: "That resource is not a readable legal source." }, true);
   },
 }, {
   name: "verify_quote",
@@ -225,7 +243,7 @@ const definitions: Array<Tool & { run: Handler }> = [{
       ...(args.end_locator ? { end_locator: args.end_locator } : {}) }
       : { patterns: [...new Set([words.slice(0, 6).join(" "), words.slice(-6).join(" ")])], max_results: 6 };
     const outcome = await read({ file_path: located.resource, ...locate }, signal);
-    const passages = outcome ? passagesOf(outcome.result) : [];
+    const passages = passagesOf(outcome);
     if (!passages.length) return json({ ok: true, status: "unlocated",
       detail: "No passage of the source contains the quotation's opening or closing words; read the source to find it." });
     const source = passages.map(({ text }) => text).join("\n\n");
@@ -252,10 +270,10 @@ const definitions: Array<Tool & { run: Handler }> = [{
   async run(args, context) {
     const state = createLegalEvidenceTurnState();
     state.draft = draft;
-    const cited = [...new Set(JSON.stringify([args, draft]).match(/\be_[\w-]{18}(?![\w-])/gu) ?? [])];
+    const cited = evidenceIdsIn(JSON.stringify([args, draft]));
     await restore(cited, context.signal);
-    for (const id of new Set(JSON.stringify([args, draft]).match(/\be_[\w-]{18}(?![\w-])/gu) ?? [])) {
-      const entry = evidence.get(id);
+    for (const id of cited) {
+      const entry = legalEvidenceEntry(evidence, id);
       if (entry) registerLegalEvidence(state, entry.receipt, entry);
     }
     const submitted = await submitLegalEvidenceAnswer(args, state);
@@ -397,7 +415,7 @@ export async function callTool(name: string, args: Record<string, unknown>, cont
  *  /cite/<evidence_id>[+<evidence_id>…] link opens. */
 export async function evidenceLink(ids: string[], signal: AbortSignal) {
   await restore(ids, signal);
-  const entries = ids.flatMap((id) => evidence.get(id) ?? []);
+  const entries = ids.flatMap((id) => legalEvidenceEntry(evidence, id) ?? []);
   if (entries.length !== ids.length || !entries.length) return null;
   if (entries.length === 1) {
     const link = legalEvidenceDocumentLink(entries[0]);

@@ -2,7 +2,8 @@ import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
 import { structureNative } from "./structureNative";
-import { boundedSize, searchTokens, sqliteText as string } from "./sqliteSearch";
+import { boundedSize, sqliteText as string } from "./sqliteSearch";
+import { hasSearchOperators, searchFts5 } from "./searchQuery";
 import { legalProviderDatabase, storeExists, withSearchReadonlySqlite,
   withReadonlySqlite } from "./legalDataPath";
 
@@ -158,10 +159,9 @@ function addDatasetFilter(filters: string[], values: Array<string | number>,
   values.push(...datasets);
 }
 
-function ftsQuery(tokens: string[], searchType: "full_text" | "name") {
-  const fields = searchType === "name" ? "{name_en name_fr} : " : "";
-  return tokens.map((token) => `${fields}"${token}"`).join(" AND ");
-}
+/** What names a source, as CanLII's second search box reads: its name and its citations ("Hryniak v Mauldin 2014 SCC
+ *  7" names a case by both). */
+const NAME_COLUMNS = ["name_en", "name_fr", "citation_en", "citation_fr", "citation2_en", "citation2_fr"];
 
 function hasFts(database: DatabaseSync) {
   return !!database.prepare(
@@ -194,14 +194,12 @@ export function searchLocalA2AJ(args: {
   language?: Language; size?: number; dataset?: string;
   startDate?: string; endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
-  querySyntax?: "terms" | "fts5";
   /** False: the results are wanted in any order. */
   ordered?: boolean;
 }): A2AJSearchResult[] | null {
   const query = args.query.trim();
   if (!query) throw new Error("query is required");
-  const tokens = searchTokens(query);
-  if (!tokens.length) return [];
+  if (!/[\p{L}\p{N}]/u.test(query)) return [];
   const language = args.language === "fr" ? "fr" : "en";
   const wanted = boundedSize(args.size, 10, 50);
   const docType = args.docType ?? "cases";
@@ -223,36 +221,36 @@ export function searchLocalA2AJ(args: {
     // A name search in named collections, wanted in any order, reads those collections' names: the index's lists for
     // a common word ("of", "and") run through every document's text. Where more names match than are wanted, the
     // index chooses which.
-    const words = tokens.map(nameWords);
-    if (args.ordered === false && args.searchType === "name" && args.querySyntax !== "fts5" && args.dataset?.trim()
-      && words.every((word) => word.length === 1)) {
+    const words = nameWords(query);
+    if (args.ordered === false && args.searchType === "name" && args.dataset?.trim() && !hasSearchOperators(query)) {
       const asked = new Set(args.dataset.split(",").map((name) => name.trim().toLowerCase()).filter(Boolean));
       const names = datasets(database).filter((name) => asked.has(name.toLowerCase()));
       const rows = names.length ? (database.prepare(`SELECT ${SEARCH_COLUMNS} FROM document
         WHERE document.dataset IN (${names.map(() => "?").join(", ")}) AND ${filters.join(" AND ")}`)
         .all(...names, ...values) as Row[]).filter((row) => {
-        const held = new Set([...nameWords(string(row, "name_en") ?? ""), ...nameWords(string(row, "name_fr") ?? "")]);
-        return words.every(([word]) => held.has(word));
+        const held = new Set(["name_en", "name_fr", "citation_en", "citation_fr", "citation2_en", "citation2_fr"]
+          .flatMap((column) => nameWords(string(row, column) ?? "")));
+        return words.every((word) => held.has(word));
       }) : [];
       if (rows.length <= wanted) return rows.flatMap((row) => {
         const metadata = documentMetadata(row, language);
         return metadata ? [{ ...metadata, snippet: null }] : [];
       });
     }
-    filters.unshift("document_search MATCH ?");
-    values.unshift(args.querySyntax === "fts5"
-      ? query : ftsQuery(tokens, args.searchType ?? "full_text"));
     const order = args.sortResults === "newest_first" ? `${date} DESC, document.id`
       : args.sortResults === "oldest_first" ? `${date} ASC, document.id` : "rank";
-    values.push(wanted);
-    return database
-      .prepare(
-        `SELECT ${SEARCH_COLUMNS}
-         FROM document_search JOIN document ON document.id = document_search.rowid
-         WHERE ${filters.join(" AND ")}
-         ORDER BY ${order}
-         LIMIT ?`)
-      .all(...values)
+    const matching = (columns?: readonly string[]) => database.prepare(
+      `SELECT ${SEARCH_COLUMNS}
+       FROM document_search JOIN document ON document.id = document_search.rowid
+       WHERE document_search MATCH ? AND ${filters.join(" AND ")}
+       ORDER BY ${order}
+       LIMIT ?`).all(searchFts5(query, columns), ...values, wanted) as Row[];
+    // Ranked by relevance, the sources a query names (by name or citation) come before those whose text holds it, as
+    // a search engine ranks a title match first: "Hryniak v Mauldin" or "2014 SCC 7" finds that case, not its citers.
+    const named = args.searchType === "name" || order === "rank" ? matching(NAME_COLUMNS) : [];
+    const rows = args.searchType === "name" ? named
+      : [...new Map([...named, ...matching()].map((row) => [row.id, row])).values()].slice(0, wanted);
+    return rows
       .flatMap((row) => {
         const metadata = documentMetadata(row, language);
         // The search projection deliberately excludes full text.

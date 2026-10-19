@@ -31,7 +31,14 @@ export type LegalEvidenceMode = "citation_structure";
 const GROUNDED_ANSWER_CONTRACT =
   "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. End with the conclusions the question asks for: apply the law to the client's facts and say what they should do, including what to correct before acting. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
 const GROUNDED_CLAIM_GRANULARITY =
-  "Keep each support unit concise and use the smallest supporting passage. Split units when their supporting evidence differs. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. When naming a paragraph, choose that paragraph's own evidence_id, not a neighbour's or a range's; a run read returns one per paragraph.";
+  "Keep each support unit concise and use the smallest supporting passage. Split units when their supporting evidence differs. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. " +
+  (citationUnits() === "json"
+    ? "When naming a paragraph, choose that paragraph's own evidence_id, not a neighbour's or a range's; a run read returns one per paragraph."
+    : "Cite the numbered lines that support the claim, as reads return them: one line as key#L12, or consecutive lines of one passage as key#L12-L14, with the key from the source's heading. When naming a paragraph, cite its own lines, not a neighbour's.");
+/** What a claim's evidence_ids hold. */
+const EVIDENCE_IDS_DESCRIPTION = citationUnits() === "json"
+  ? "Returned passage IDs supporting this claim, one to four of them. Prefer one; use several when they jointly support the proposition."
+  : "The passages supporting this claim, one to four: numbered lines a read returned (key#L12, or key#L12-L14 within one passage), or the evidence_id of a passage returned without numbered lines. Prefer one; use several when they jointly support the proposition.";
 const GROUNDED_QUOTATION_POLICY =
   "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.";
 
@@ -108,6 +115,105 @@ export function createLegalEvidenceTurnState(
 }
 
 const sha256 = (value: string) => `sha256:${hexSha256(value)}`;
+
+/** How a read numbers a document's text and a citation names a passage (BEAVER_CITATION_UNITS): "sentences" numbers
+ *  every sentence of every line, "lines" every line, and "json" returns passages as JSON objects with digest ids. */
+export type CitationUnits = "json" | "lines" | "sentences";
+export function citationUnits(): CitationUnits {
+  const value = process.env.BEAVER_CITATION_UNITS?.trim();
+  return value === "json" || value === "lines" ? value : "sentences";
+}
+
+/** A passage's handle: its document's key, then the numbered lines it covers ("4f9c2ab#L412-L414"). */
+const HANDLE = /^([0-9a-f]{7})#L([1-9][0-9]{0,6})(?:-L([1-9][0-9]{0,6}))?$/iu;
+export function parseEvidenceHandle(id: string) {
+  const match = HANDLE.exec(id.trim());
+  if (!match) return null;
+  const first = Number(match[2]), last = Number(match[3] ?? match[2]);
+  return last >= first ? { key: match[1].toLowerCase(), first, last } : null;
+}
+export const evidenceHandle = (key: string, first: number, last = first) =>
+  `${key}#L${first}${last > first ? `-L${last}` : ""}`;
+/** An id as the evidence store keeps it: a handle written one way, any other id as given. */
+export function normalizedEvidenceId(id: string) {
+  const handle = parseEvidenceHandle(id);
+  return handle ? evidenceHandle(handle.key, handle.first, handle.last) : id.trim();
+}
+/** What names evidence: a passage's handle, or the digest id of a passage with no numbered lines. */
+export const isEvidenceId = (id: string) => parseEvidenceHandle(id) !== null || /^e_[\w-]{18}$/u.test(id);
+
+/** A document revision's key, the same wherever its text is read. */
+export const documentKey = (receipt: Pick<LegalEvidenceReceipt, "provider" | "stable_source_id" | "source_reference" |
+  "source_sha256" | "version">) => hexSha256(JSON.stringify([receipt.provider, receipt.stable_source_id,
+  receipt.source_reference?.part ?? "", receipt.source_sha256, receipt.version, citationUnits()])).slice(0, 7);
+
+/** The numbered lines of the documents read most recently, with their text. */
+const numberedDocuments = new Map<string, { text: string; units: Array<[number, number]> }>();
+function documentUnits(document: NativeDocument) {
+  const native = structureNative(), mode = citationUnits(), key = `${native.documentRevision(document)}\u0000${mode}`;
+  let numbered = numberedDocuments.get(key);
+  if (numbered) numberedDocuments.delete(key);
+  else {
+    const text = native.documentText(document);
+    numbered = { text, units: native.textUnits(text, mode === "sentences") };
+  }
+  numberedDocuments.set(key, numbered);
+  if (numberedDocuments.size > 32) numberedDocuments.delete(numberedDocuments.keys().next().value!);
+  return numbered;
+}
+
+/** The receipt as its document's numbered lines cite it: its span widened to whole lines, its id their handle, and
+ *  each line's offsets kept, so a line or run of lines within it can be cited without the document. */
+export function numberedReceipt(receipt: LegalEvidenceReceipt, document: NativeDocument): LegalEvidenceReceipt {
+  const span = receipt.span;
+  if (citationUnits() === "json" || !span || receipt.block_id.startsWith("pdf:") || receipt.locator.cells ||
+      receipt.source_sha256 !== structureNative().documentRevision(document)) return receipt;
+  const { text, units } = documentUnits(document);
+  // The span is in the document's own coordinates where its text starts there (a block's span may run on past its
+  // text's closing line break).
+  if (!receipt.span_text || !text.startsWith(receipt.span_text, span.start)) return receipt;
+  let low = 0, high = units.length;
+  while (low < high) { const middle = (low + high) >> 1; if (units[middle][1] <= span.start) low = middle + 1; else high = middle; }
+  let last = low - 1;
+  while (last + 1 < units.length && units[last + 1][0] < span.end) last += 1;
+  if (last < low) return receipt;
+  const start = units[low][0], end = units[last][1], spanText = text.slice(start, end);
+  return { ...receipt, evidence_id: evidenceHandle(documentKey(receipt), low + 1, last + 1), span: { start, end },
+    span_text: spanText, exact_span_sha256: sha256(spanText), span_sha256: sha256(normalizeWhitespace(spanText)),
+    units: units.slice(low, last + 1).map(([unitStart, unitEnd]) => [unitStart - start, unitEnd - start]) };
+}
+
+/** A passage's numbered lines as a reader shows them ("L412 The fifth factor …"); null without numbered lines. */
+export function numberedLines(receipt: LegalEvidenceReceipt) {
+  const handle = parseEvidenceHandle(receipt.evidence_id), text = receipt.span_text;
+  return handle && text && receipt.units?.length === handle.last - handle.first + 1
+    ? receipt.units.map(([start, end], index) => ({ number: handle.first + index, text: text.slice(start, end) }))
+    : null;
+}
+
+/** The registered passage an id names, or the line or run of lines of one that a handle names, registered as its
+ *  own passage the first time it is named. */
+export function legalEvidenceEntry(evidence: Map<string, RegisteredEvidence>, id: string): RegisteredEvidence | undefined {
+  const normalized = normalizedEvidenceId(id), known = evidence.get(normalized), wanted = parseEvidenceHandle(normalized);
+  if (known || !wanted) return known;
+  let parent: { entry: RegisteredEvidence; first: number; last: number } | undefined;
+  for (const entry of evidence.values()) {
+    const range = parseEvidenceHandle(entry.receipt.evidence_id);
+    if (range?.key === wanted.key && range.first <= wanted.first && wanted.last <= range.last &&
+        entry.receipt.span && entry.receipt.units?.length === range.last - range.first + 1 &&
+        (!parent || range.last - range.first < parent.last - parent.first)) parent = { entry, ...range };
+  }
+  if (!parent) return undefined;
+  const { receipt } = parent.entry, units = receipt.units!.slice(wanted.first - parent.first, wanted.last - parent.first + 1),
+    start = units[0][0], end = units[units.length - 1][1], text = receipt.span_text!.slice(start, end);
+  const entry: RegisteredEvidence = { ...parent.entry, receipt: { ...receipt, evidence_id: normalized,
+    span: { start: receipt.span!.start + start, end: receipt.span!.start + end }, span_text: text,
+    exact_span_sha256: sha256(text), span_sha256: sha256(normalizeWhitespace(text)),
+    units: units.map(([unitStart, unitEnd]) => [unitStart - start, unitEnd - start]) } };
+  evidence.set(normalized, entry);
+  return entry;
+}
+
 /** Receipt and query identities are the same short digest over their defining fields. */
 const shortId = (prefix: "e" | "q", identity: unknown) => `${prefix}_${crypto
   .createHash("sha256").update(JSON.stringify(identity)).digest("base64url").slice(0, 18)}`;
@@ -484,7 +590,9 @@ export function storedLegalEvidenceReceipt(value: unknown): LegalEvidenceReceipt
   const locator = object(row?.locator);
   const sourceReference = object(row?.source_reference);
   return row &&
-    typeof row.evidence_id === "string" && row.evidence_id.startsWith("e_") &&
+    typeof row.evidence_id === "string" && isEvidenceId(row.evidence_id) &&
+    (row.units === undefined || Array.isArray(row.units) && row.units.every((unit) => Array.isArray(unit) &&
+      unit.length === 2 && unit.every((offset) => Number.isSafeInteger(offset) && offset >= 0))) &&
     typeof row.stable_source_id === "string" && typeof row.source_sha256 === "string" &&
     typeof row.span_sha256 === "string" &&
     (row.span_text === null || typeof row.span_text === "string") &&
@@ -518,7 +626,7 @@ export function storedLegalResearchQueryReceipt(value: unknown): LegalResearchQu
     const result = object(value);
     return result && result.rank === index + 1 &&
       (typeof result.resource === "string" && result.resource.startsWith("source://") ||
-        typeof result.evidence_id === "string" && result.evidence_id.startsWith("e_"));
+        typeof result.evidence_id === "string" && isEvidenceId(result.evidence_id));
   });
   return valid ? row as unknown as LegalResearchQueryReceipt : null;
 }
@@ -675,9 +783,10 @@ export function legalEvidenceRequested(messages: readonly {
     CITATION_REQUEST.test(requests.at(-2) ?? "");
 }
 
-export function modelEvidencePassage({ evidence_id, citation, name, locator,
-  span_text }: LegalEvidenceReceipt) {
-  return { evidence_id, citation, name, locator, exact_passage: span_text };
+export function modelEvidencePassage(receipt: LegalEvidenceReceipt) {
+  const { evidence_id, citation, name, locator, span_text } = receipt, lines = numberedLines(receipt);
+  return { evidence_id, citation, name, locator,
+    ...(lines ? { lines: lines.map(({ number, text }) => `L${number} ${text}`) } : { exact_passage: span_text }) };
 }
 
 export function readPriorLegalEvidence(state: LegalEvidenceTurnState, evidenceId: string) {
@@ -728,7 +837,7 @@ export async function validateGroundedClaims(value: unknown, state: LegalEvidenc
       : "";
     const rawIds = row?.evidence_ids;
     const ids = Array.isArray(rawIds)
-      ? rawIds.filter((id): id is string => typeof id === "string" && Boolean(id))
+      ? rawIds.filter((id): id is string => typeof id === "string" && Boolean(id)).map(normalizedEvidenceId)
       : [];
     const uniqueIds = [...new Set(ids)];
     if (!row || Object.keys(row).some((key) => !["text", "evidence_ids"].includes(key)))
@@ -741,8 +850,10 @@ export async function validateGroundedClaims(value: unknown, state: LegalEvidenc
     if (!uniqueIds.length || uniqueIds.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0))
       errors.push(`claims[${index}].evidence_ids must contain 1 to 4 unique handles`);
     for (const id of uniqueIds) {
-      const receipt = state.evidence.get(id)?.receipt;
-      if (!receipt) errors.push(`claims[${index}] has unknown evidence_id: ${id}`);
+      const receipt = legalEvidenceEntry(state.evidence, id)?.receipt;
+      if (!receipt) errors.push(parseEvidenceHandle(id)
+        ? `claims[${index}] cites ${id}, which no passage read in this conversation covers; cite lines a read returned, within one passage`
+        : `claims[${index}] has unknown evidence_id: ${id}`);
       else if (receipt.scope !== "passage") errors.push(`claims[${index}] requires passage evidence for ${id}`);
       else if (!receipt.span_text) errors.push(`claims[${index}] requires exact passage text for ${id}`);
       else if (!readPriorLegalEvidence(state, id)) errors.push(`claims[${index}] has damaged passage evidence: ${id}`);
@@ -766,7 +877,7 @@ export async function validateGroundedClaims(value: unknown, state: LegalEvidenc
 }
 
 const INTERNAL_HANDLE =
-  /\b(?:body|node|unit|block|chars):\s*\d{1,6}\b|\bpar\d{1,5}\b|\be_[0-9a-f]{8,}\b|\be_[\w-]{18}(?![\w-])/iu;
+  /\b(?:body|node|unit|block|chars):\s*\d{1,6}\b|\bpar\d{1,5}\b|\be_[0-9a-f]{8,}\b|\be_[\w-]{18}(?![\w-])|\b[0-9a-f]{7}#L\d+(?:-L\d+)?\b/iu;
 
 /** The names of the statutes, regulations and rules a passage itself names ("The Freedom of Information and Protection
  *  of Privacy Act is repealed."): writing such a name is naming the instrument, not copying the passage. */
@@ -884,7 +995,7 @@ const claimSchema = {
       type: "array",
       minItems: 1,
       items: { type: "string" },
-      description: "Returned passage IDs supporting this claim, one to four of them. Prefer one; use several when they jointly support the proposition.",
+      description: EVIDENCE_IDS_DESCRIPTION,
     },
   },
   required: ["text", "evidence_ids"],

@@ -81,8 +81,9 @@ export function searchFilter(haystack: SqlFragment, query: string): SqlFragment 
   return query.trim() ? compile(parseSearch(query)) : sql.raw("1=1");
 }
 
-/** Converts the shared syntax to explicit FTS5 grouping without changing priority. */
-export function searchFts5(query: string) {
+/** Converts the shared syntax to explicit FTS5 grouping without changing priority. Every term is quoted and every
+ *  group bracketed, so the expression is always one FTS5 can read; within `columns` (a column filter) where given. */
+export function searchFts5(query: string, columns?: readonly string[]) {
   const compile = (node: SearchNode): string => {
     if (node.kind === "term") {
       const value = `"${node.value.replace(/"/gu, '""')}"`;
@@ -90,5 +91,23 @@ export function searchFts5(query: string) {
     }
     return `(${compile(node.left)} ${node.kind.toUpperCase()} ${compile(node.right)})`;
   };
+  if (!query.trim()) return "";
+  const expression = compile(parseSearch(query));
+  return columns?.length ? `{${columns.join(" ")}} : (${expression})` : expression;
+}
+
+/** Converts the shared syntax to Lucene's query string, for search services that read it (CourtListener's
+ *  Elasticsearch, A2AJ's search): phrases quoted, a prefix as a bare stem with *, explicit operators and grouping. */
+export function searchLucene(query: string) {
+  const compile = (node: SearchNode): string => {
+    if (node.kind === "term") {
+      const value = node.value.replace(/["\\]/gu, "\\$&");
+      return node.prefix ? `${value.replace(/[\s+\-!(){}[\]^~*?:/|&]/gu, "\\$&")}*` : `"${value}"`;
+    }
+    return `(${compile(node.left)} ${node.kind.toUpperCase()} ${compile(node.right)})`;
+  };
   return query.trim() ? compile(parseSearch(query)) : "";
 }
+
+/** The words a query asks for, for showing where a result holds them. */
+export const searchTerms = (query: string) => searchMatcher(query)?.terms ?? [];

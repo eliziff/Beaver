@@ -3,6 +3,7 @@ import { retriedRemoteFetch } from "../remoteUrlSafety";
 import { lookupsLeaveComputer, searchJurisdiction } from ".";
 import type { LegalSourceProvider, LegalSourceReference } from ".";
 import { structureNative, type NativeDocument } from "../structureNative";
+import { searchLucene } from "../searchQuery";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { jsonRecord, nonemptyString as asString, trimmedText } from "../value";
 import { courtlistenerLocalBulkAvailable, getLocalCourtlistenerCase,
@@ -333,7 +334,6 @@ async function searchCases(args: {
   filedAfter?: string;
   filedBefore?: string;
   limit?: number;
-  querySyntax?: "terms" | "fts5";
   apiToken?: string | null;
   signal?: AbortSignal;
 }) {
@@ -341,7 +341,7 @@ async function searchCases(args: {
   if (!query) return { error: "query is required." };
   const limit = Math.max(1, Math.min(20, Math.floor(args.limit ?? 10)));
   const local = args.court?.trim() ? null : searchLocalCourtlistenerCases({
-    query, limit, syntax: args.querySyntax,
+    query, limit,
     filedAfter: args.filedAfter, filedBefore: args.filedBefore,
   });
   if (local?.length || (local !== null && !courtlistenerApiTokenAvailable(args.apiToken))) {
@@ -362,7 +362,7 @@ async function searchCases(args: {
       }),
     };
   }
-  const params = new URLSearchParams({ type: "o", q: query });
+  const params = new URLSearchParams({ type: "o", q: searchLucene(query) });
   if (args.court?.trim()) params.set("court", args.court.trim());
   if (args.filedAfter?.trim()) params.set("filed_after", args.filedAfter.trim());
   if (args.filedBefore?.trim()) params.set("filed_before", args.filedBefore.trim());
@@ -456,11 +456,10 @@ function provider(
     async search(request) {
       const response = await searchCases({
         query: request.text,
-        court: request.court || request.collection,
+        court: request.collection,
         filedAfter: request.dateFrom,
         filedBefore: request.dateTo,
         limit: request.perProviderLimit ?? request.limit,
-        querySyntax: request.syntax,
         apiToken: options.apiToken,
         signal: request.signal,
       });
