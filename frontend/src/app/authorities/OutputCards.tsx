@@ -94,6 +94,8 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
     });
   }, [versions, building, draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const built = rows.filter(({ roles }) => roles.some((role) => outputs[role]));
+  // Every file the outputs made, the ones turned off left out.
+  const everything = rows.flatMap(({ roles, made }) => made === false ? [] : roles.flatMap((role) => outputs[role] ? [outputs[role]] : []));
   const status = building ? progress || "Building…" : note
     || (built.length ? `${listed(built.map(({ title }) => title))} ${built.length === 1 ? "is" : "are"} ready.` : "");
   return <section aria-labelledby={`${id}-outputs`} className="min-w-0">
@@ -137,10 +139,13 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
         </li>;
       })}
     </ul>
-    <div className="mt-3 flex items-center justify-end gap-3">
-      {/* Two lines, always there and as tall as Build, so progress, notes and what is ready never move it. */}
-      <div className="flex min-h-10 min-w-0 flex-1 items-center justify-end">
-        <p role="status" aria-live="polite" title={status} className="line-clamp-2 text-right text-sm leading-5 text-gray-700">{status}</p></div>
+    {/* Two lines over the buttons, always there, so progress, notes and what is ready never move them. */}
+    <div className="mt-3 flex min-h-10 items-center justify-end">
+      <p role="status" aria-live="polite" title={status} className="line-clamp-2 text-right text-sm leading-5 text-gray-700">{status}</p></div>
+    <div className="mt-2 flex items-center justify-end gap-3">
+      <Button type="button" variant="outline" className="h-10 shrink-0 border-gray-400" disabled={busy || !everything.length}
+        onClick={() => everything.forEach((output) => onDownload(output.documentId, output.versionId, output.filename))}>
+        <Download /> Download all</Button>
       <Button type="button" className="h-10 min-w-32 shrink-0" disabled={busy && !building} onClick={building ? onCancel : onBuild}>
         {building ? <><Loader2 className="motion-safe:animate-spin" /> Cancel</> : <><ActionIcon /> {action.label}</>}</Button>
     </div>

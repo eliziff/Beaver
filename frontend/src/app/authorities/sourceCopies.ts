@@ -30,7 +30,7 @@ function storeFor(host: AuthoritiesHost, draftId: string) {
 }
 
 /**
- * The book copy of each authority the book reproduces, by authority: as chosen in `shown`, else a statute
+ * The book copy of each authority the book reproduces, its PDF attached or not, by authority: as chosen in `shown`, else a statute
  * by its length, recorded when its PDF was attached or read here, one PDF at a time while `active`, the
  * first time it is wanted, and any other as the book's setting says. An excerpt the build would put in whole,
  * nothing it cites being placed in its PDF, says so once its PDFs are read as a build reads them.
@@ -55,7 +55,15 @@ export function useSourceCopies(host: AuthoritiesHost, product: AuthoritiesProdu
       const authority = state.authorities[id];
       if (!authority) continue;
       const sources = attachedAuthoritySources(authority.source);
-      if (!sources.length || authority.excluded) { rows.set(id, { choosable: false }); continue; }
+      if (authority.excluded) { rows.set(id, { choosable: false }); continue; }
+      // A row still waiting for its PDF is chosen now, the book's setting until it is: the choice holds once it arrives.
+      if (!sources.length) {
+        const copy = authority.kind === "legislation" ? state.settings.legislationCopy
+          : authority.kind === "case" ? state.settings.caseCopy : state.settings.otherCopy;
+        rows.set(id, { choosable: true, excerpt: authority.excerpt ?? (copy === "excerpt" ? true : copy === "whole" ? false : undefined),
+          cited: authority.kind === "legislation" || authorityPassagesCited(state, authority) });
+        continue;
+      }
       const counts = authority.kind !== "legislation" ? undefined : sources.map(({ bindingRole, sourceSha256, pageCount }) => {
         const key = `count\0${sourceSha256}`, value = pageCount ?? read?.get(key);
         if (value === undefined && host.readSource) wanted.push({ key, role: bindingRole });
