@@ -116,6 +116,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
     const frame = requestAnimationFrame(() => setDrawn((count) => count + SLICE));
     return () => cancelAnimationFrame(frame);
   }, [drawn, authorities.length]);
+  const longestTab = [...authorities.map((authority) => authority.excluded ? "Excluded" : tabs.get(authority.id) ?? ""),
+    ...others?.parts.map(({ tab }) => tab) ?? []].reduce((longest, tab) => tab.length > longest.length ? tab : longest, "");
   return <><section className="@container/sources mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
       onDragOver={(event) => { if (!busy && onFiles && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
@@ -149,6 +151,11 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       {/* A list whose sources go in as excerpts or whole keeps room for Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
         className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 overflow-hidden rounded-lg border border-gray-300 bg-white @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_auto]">
+        {/* The tab column is as wide as the longest tab of the whole list from the first frame, not of the rows
+            drawn so far: "Tab 100" drawn after "Tab 13" would move every row. */}
+        <span aria-hidden className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-nowrap pl-3 text-[0.8125rem] font-medium tabular-nums">
+          {longestTab.startsWith("Tab ") ? <><span className={rowLabel}>{longestTab}</span>
+            <span className="@min-[44rem]/sources:hidden">{longestTab.slice(4)}</span></> : longestTab}</span>
         {authorities.slice(0, drawn).map((authority, index) => <Fragment key={authority.id}>
           {/* Each group under its heading, as the book and the table set them out. */}
           {headed && groups?.get(authority.id) !== groups?.get(authorities[index - 1]?.id) &&
