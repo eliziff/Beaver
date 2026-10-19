@@ -133,12 +133,13 @@ export function findAuthoritiesDiscrepancies(
           id: findingId(occurrence, source, kind, authoredQuote),
           actions: replacement ? ["ignore", "pinpoint"] : ["ignore"] });
       } else if (!matchCount) {
+        // Authorities raises obvious errors only: wording the cited passage holds otherwise. Words found nowhere
+        // (scare quotes, a defined term, a heading) are no such error; ALR's own check lists every miss.
         const repair = verbatimRepair(authoredQuote, source.cited.text);
-        const excerpt = repair ? { ...source.cited, text: repair } : null;
-        const target = excerpt && quoteTarget(draft.units, unit.footnoteId, authoredQuote);
-        const kind = excerpt ? "quote_mismatch" as const : "quote_unlocated" as const;
-        findings.push({ ...base, ...(excerpt ? { kind: "quote_mismatch" as const, found: excerpt }
-          : { kind: "quote_unlocated" as const, found: null }),
+        if (!repair) continue;
+        const target = quoteTarget(draft.units, unit.footnoteId, authoredQuote);
+        const kind = "quote_mismatch" as const;
+        findings.push({ ...base, kind, found: { ...source.cited, text: repair },
           id: findingId(occurrence, source, kind, authoredQuote),
           actions: target ? ["ignore", "quote_exact", "quote_editorial"] : ["ignore"] });
       }
