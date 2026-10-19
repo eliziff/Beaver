@@ -301,16 +301,23 @@ export function FrontPreview({ host, draft, actions, part, label, className }: {
   }, [key, again]); // eslint-disable-line react-hooks/exhaustive-deps
   return <Preview className={className} label={`Preview: ${label}`}>
     {shown?.error && !shown.bytes ? <p role="alert" className="m-auto p-6 text-center text-sm text-red-800">{shown.error}</p>
-      : <PagesPreview bytes={shown?.bytes} pages={part === "cover" ? "first" : "after-first"} label={label} keep={`front:${draft?.id}:${part}`} />}
+      : <PagesPreview bytes={shown?.bytes} pages={part === "cover" ? "first" : "after-first"} label={label} keep={`front:${draft?.id}`} />}
   </Preview>;
 }
 
 // Each page kept as the bitmap it was drawn into: shown as it is, never encoded as an image file.
 type DrawnPage = { bitmap: ImageBitmap; width: number; height: number };
+/** A PDF's pages by number, those not drawn yet missing, and how many it has. */
+type Drawn = { pages: (DrawnPage | undefined)[]; total: number };
 const sameBytes = (a: Uint8Array, b: Uint8Array) => a === b || a.length === b.length && a.every((byte, index) => byte === b[index]);
-/** The pages each pane drew last, with what they were drawn from, so a pane opened again shows them at
- *  once and draws again only what changed. */
-const drawings = new Map<string, { bytes: Uint8Array; width: number; pages: DrawnPage[] }>();
+/** Every page of the PDF each pane drew last, with what it was drawn from, so a pane opened again, or one
+ *  showing other pages of the same PDF (the cover's and the index's), shows them at once and draws again
+ *  only what changed. */
+const drawings = new Map<string, { bytes: Uint8Array; width: number } & Drawn>();
+/** The pages a pane shows of a drawing. */
+const chosen = <T,>(drawn: { pages: T[]; total: number } | undefined, pages: "first" | "after-first" | "all") => !drawn ? undefined
+  : pages === "all" ? drawn.pages : pages === "first" ? drawn.pages.slice(0, 1)
+    : drawn.total === 1 ? drawn.pages : drawn.pages.slice(1, drawn.total);
 let fontFrame: HTMLIFrameElement | undefined;
 /** The document the previews' PDFs are drawn in: a hidden frame's, so each font PDF.js adds for a drawing
  *  (and removes after it) lays out that frame alone, not every element of the page beneath. */
@@ -332,7 +339,7 @@ export function PagesPreview({ bytes, pages, label, keep }: {
 }) {
   const sheet = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
-  const [drawn, setDrawn] = useState(() => drawings.get(keep)?.pages);
+  const [drawn, setDrawn] = useState<Drawn | undefined>(() => drawings.get(keep));
   useEffect(() => {
     const element = sheet.current;
     if (!element) return;
@@ -348,6 +355,8 @@ export function PagesPreview({ bytes, pages, label, keep }: {
     // The same PDF drawn again (a pane opened anew, a front unchanged) keeps its pages as drawn.
     if (!bytes || !width || kept && kept.width === width && sameBytes(kept.bytes, bytes)) {
       if (kept && bytes && kept.bytes !== bytes) kept.bytes = bytes;
+      // A pane opened anew shows the pages kept for it, never the last pane's.
+      if (kept) setDrawn(kept);
       return;
     }
     let active = true;
@@ -356,33 +365,36 @@ export function PagesPreview({ bytes, pages, label, keep }: {
       const task = openPdfDocument(await getPdfJs(), { data: bytes.slice(), ownerDocument }, PDF_DOCUMENT_OPTIONS);
       const made: DrawnPage[] = [];
       try {
-        const document = await task.promise;
-        const numbers = [...Array(document.numPages).keys()].map((index) => index + 1)
-          .filter((number) => pages === "all" || (pages === "first" ? number === 1 : number > 1 || document.numPages === 1));
-        for (const number of numbers) {
-          const page = await document.getPage(number), base = page.getViewport({ scale: 1 });
+        const document = await task.promise, total = document.numPages;
+        // Every page, by its number, the pane's own first: the rest are the pages the pane beside it shows of
+        // the same PDF (the cover's and the index's), so that pane opens with them drawn.
+        const numbers = [...Array(total).keys()], own = new Set(chosen({ pages: numbers, total }, pages));
+        for (const index of [...numbers.filter((index) => own.has(index)), ...numbers.filter((index) => !own.has(index))]) {
+          const page = await document.getPage(index + 1), base = page.getViewport({ scale: 1 });
           const viewport = page.getViewport({ scale: width * window.devicePixelRatio / base.width });
           const canvas = ownerDocument.createElement("canvas");
           canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
           await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
           const bitmap = await createImageBitmap(canvas);
           if (!active) return;
-          made.push({ bitmap, width: base.width, height: base.height });
+          made[index] = { bitmap, width: base.width, height: base.height };
           // Each page takes its place as it is ready; the rest of the last drawing stays until then.
-          setDrawn((current) => [...made, ...(current ?? []).slice(made.length)]);
+          setDrawn((current) => ({ total, pages: numbers.map((at) => made[at] ?? current?.pages[at]) }));
         }
         const old = drawings.get(keep);
-        drawings.set(keep, { bytes, width, pages: made });
-        setDrawn(made);
-        if (old) setTimeout(() => old.pages.forEach(({ bitmap }) => { if (!made.some((page) => page.bitmap === bitmap)) bitmap.close(); }), 1000);
+        drawings.set(keep, { bytes, width, pages: made, total });
+        setDrawn({ pages: made, total });
+        if (old) setTimeout(() => old.pages.forEach((page) => { if (page && !made.includes(page)) page.bitmap.close(); }), 1000);
       } finally { await task.destroy(); }
     })().catch(() => {});
     return () => { active = false; };
-  }, [bytes, pages, width, keep]);
+  // Not redrawn for another pane's pages: every page is drawn, the pane's own first when it starts.
+  }, [bytes, width, keep]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = chosen(drawn, pages)?.filter((page) => !!page) ?? [];
   return <div className="min-h-0 flex-1 overflow-y-auto p-3">
     <div ref={sheet} className="grid gap-3">
-      {drawn?.length ? drawn.map((page, index) => <DrawnPageView key={index} page={page}
-        label={drawn.length > 1 ? `${label}, page ${index + 1}` : label} />)
+      {shown.length ? shown.map((page, index) => <DrawnPageView key={index} page={page}
+        label={shown.length > 1 ? `${label}, page ${index + 1}` : label} />)
         : <div aria-hidden="true" className="aspect-[8.5/11] w-full animate-pulse bg-white/70" />}
     </div>
   </div>;
