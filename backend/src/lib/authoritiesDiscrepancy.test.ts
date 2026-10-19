@@ -12,8 +12,9 @@ function occurrence(id = "citation", authorityId: string | null = "case",
     authoritySpan: { start: 0, end: text.length, text },
     coreSpan: { start: 0, end: 10, text: "2020 SCC 1" },
     pinpointSpan: { start: 19, end: 20, text: "7" }, kind: "case",
+    pinpointPhrase: { start: 11, end: 20, text: "at para 7" },
     citation: "2020 SCC 1", authorityId, reference: null,
-    pinpoints: [{ kind: "paragraph", text: "7" }], evidenceIds: [],
+    pinpoints: [{ kind: "paragraph", text: "7", first: "7" }], evidenceIds: [],
     sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed };
 }
 
@@ -95,7 +96,7 @@ describe("authorities discrepancy review", () => {
     expect(findings).toEqual([expect.objectContaining({
       kind: "wrong_pinpoint", authoredPinpoint: { kind: "paragraph", text: "7" },
       found: { locator: { kind: "paragraph", label: "9" }, text: phrase },
-      actions: ["ignore", "pinpoint"],
+      actions: ["pinpoint", "ignore"],
     })]);
     expect(findAuthoritiesDiscrepancies(draft(`The court wrote "${phrase}"`),
       source("No match.", [{ label: "9", text: phrase }]))[0].id).toBe(findings[0].id);

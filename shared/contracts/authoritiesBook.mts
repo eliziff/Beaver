@@ -1,4 +1,4 @@
-import type { PDFFont as PdfFont, PDFPage as PdfPage, Color as PdfColor } from "pdf-lib";
+import type { PDFFont as PdfFont, PDFPage as PdfPage, Color as PdfColor, PDFDocument } from "pdf-lib";
 import type { AuthoritiesCover } from "../authorities-contract.d.ts";
 import { mapOutline, pdfAssembly, splitPdfPageRanges, type PdfAssemblyInput,
   type PdfOutline } from "./pdfAssembly.mjs";
@@ -8,9 +8,10 @@ type PdfModule = typeof import("pdf-lib");
 /** `italic`: how many of the name's first characters are italic, its style of cause or title. */
 export type BookRow = { key: string; name: string; italic?: number; tab: string; sourceUrl?: string | null };
 /** `header`: a line at the top of its first page in the book (an excerpt's currency, where the
- *  excerpt leaves out the page that states it). `link`: an address printed there as a link instead (a case's). */
+ *  excerpt leaves out the page that states it). `link`: an address printed there as a link instead (a case's).
+ *  `bytes` null: the authority has no PDF yet, and the book holds one page naming it in its place. */
 export type PreparedBookSource<Bytes = Uint8Array> = BookRow & {
-  bytes: Bytes; pageIndices: number[]; ocrTextByPage?: string[]; header?: string; link?: string;
+  bytes: Bytes | null; pageIndices: number[]; ocrTextByPage?: string[]; header?: string; link?: string;
   databaseReference: { url: string; host: string } | null;
   bookmarks: Array<{ title: string; pageIndex: number }>;
   /** The source's own outline: its publisher bookmarks, or the headings and sections read from it. */
@@ -56,11 +57,12 @@ export async function mapAuthorityBookBytes<From, To>(book: PreparedAuthoritiesB
     customCover: book.customCover === undefined ? undefined : await convert(book.customCover, "book-cover"),
     customIndex: book.customIndex === undefined ? undefined : await convert(book.customIndex, "book-index"),
     sources: await Promise.all(book.sources.map(async (source, index) => ({ ...source,
-      bytes: await convert(source.bytes, `book-source-${index}`) }))),
+      bytes: source.bytes === null ? null : await convert(source.bytes, `book-source-${index}`) }))),
   };
 }
 
-export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAuthoritiesBook,
+/** `input`'s PDFs as their bytes, or as documents already open where the book is assembled where they were read. */
+export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAuthoritiesBook<Uint8Array | PDFDocument>,
   signal?: AbortSignal, fontkit?: PdfAssemblyInput<string>["fontkit"]): Promise<BuiltAuthorityBook[]> {
   const engine = pdfAssembly(pdf);
   const { federal, electronic, paperCover, coverLine, documentTitle, bookTitle, subtitle, frontOnly = false,
@@ -101,14 +103,15 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
     if (chunks[chunks.length - 1].length && needs > room) { chunks.push([]); room = top - bottom; }
     chunks[chunks.length - 1].push(token); room -= token.height;
   });
-  const readSourceOutlines = async (bytes: Uint8Array) => {
+  const readSourceOutlines = async (bytes: Uint8Array | PDFDocument) => {
     signal?.throwIfAborted();
-    const document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
+    const document = !(bytes instanceof Uint8Array) ? bytes
+      : await pdf.PDFDocument.load(bytes, { updateMetadata: false, parseSpeed: Infinity });
     signal?.throwIfAborted();
     return engine.readOutlines(document);
   };
   const [sources, coverOutline, indexOutline] = await Promise.all([
-    Promise.all(input.sources.map(async source => source.outline !== undefined ? source :
+    Promise.all(input.sources.map(async source => source.outline !== undefined || source.bytes === null ? source :
       { ...source, outline: await readSourceOutlines(source.bytes) })),
     customCover ? readSourceOutlines(customCover) : [],
     customIndex ? readSourceOutlines(customIndex) : [],
@@ -127,6 +130,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
   const volumes = limits?.maxPages && singlePages > limits.maxPages
     ? splitAtTabs(all, limits.maxPages - splitOverhead, added) : [all];
   let placements: BuiltAuthorityBook["placements"][] = [];
+  const sizes = new Map<string, number>();
   const built = await engine.volumes(volumes, (volumes) => {
     const multi = volumes.length > 1, generatedToc = !customIndex;
     if (customIndex && multi && limits?.completeToc) throw new Error(
@@ -161,7 +165,11 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
     });
     placements = plans.map(({ slices }) => slices.map(({ source, localStart, tabStart, pageIndices }) =>
       ({ key: source.key, pageIndex: localStart, tabPageIndex: tabStart, sourcePageIndices: pageIndices })));
-    return plans.map((plan, volumeIndex): PdfAssemblyInput<"serif" | "serifItalic" | "serifBold" | "regular" | "bold"> => {
+    // The page standing in for an authority without a PDF names it in bold, its style of cause in bold italic.
+    const boldFace = federal ? pdf.StandardFonts.TimesRomanBold : arialFont(pdf, "bold", arial);
+    const named = sources.some(({ bytes }) => bytes === null);
+    return plans.map((plan, volumeIndex): PdfAssemblyInput<"serif" | "serifItalic" | "serifBold" | "regular" | "bold" |
+      "boldItalic"> => {
       const contentWidth = 612 - (2 * margin);
       const volumeLabel = `Volume ${volumeIndex + 1} of ${volumes.length}`;
       const localStarts = new Map(plan.slices.map(({ source, localStart }) => [source.key, localStart]));
@@ -179,17 +187,12 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
         signal, fontkit: arial ? fontkit : undefined,
         fonts: { serif: pdf.StandardFonts.TimesRoman, serifItalic: pdf.StandardFonts.TimesRomanItalic,
           serifBold: pdf.StandardFonts.TimesRomanBold,
-          regular: federal ? pdf.StandardFonts.TimesRoman : arialFont(pdf, "regular", arial),
-          bold: federal ? pdf.StandardFonts.TimesRomanBold : arialFont(pdf, "bold", arial) },
-        parts: frontOnly ? [] : plan.slices.map(({ source, pageIndices, tabbed, blankBefore, blankAfter }) => ({
-          id: source.key, source: source.bytes, pageIndices, ocrFont: "regular",
-          ocrTextByPage: source.ocrTextByPage,
-          draw: tabbed || blankBefore ? ({ document, fonts }) => {
-            if (blankBefore) document.addPage([612, 792]);
-            if (tabbed) drawTabPage(document.addPage([612, 792]), source.tab, fonts.bold);
-            if (blankAfter) document.addPage([612, 792]);
-          } : undefined,
-          decorate: source.databaseReference || source.header || source.link ? (page, index, { fonts }) => {
+          regular: federal ? pdf.StandardFonts.TimesRoman : arialFont(pdf, "regular", arial), bold: boldFace,
+          // The same font as bold, embedded once, where no page names a missing authority.
+          boldItalic: !named ? boldFace : federal ? pdf.StandardFonts.TimesRomanBoldItalic : arialFont(pdf, "boldItalic", arial) },
+        parts: frontOnly ? [] : plan.slices.map(({ source, pageIndices, tabbed, blankBefore, blankAfter }) => {
+          const decorate = source.databaseReference || source.header || source.link ? (page: PdfPage, index: number,
+            { fonts }: { fonts: Record<"regular" | "bold", PdfFont> }) => {
             if (source.header && index === source.pageIndices[0]) engine.drawPageNumber(page, source.header,
               fonts.regular, "top-centre", 8, 72, 24);
             // The link as a header line of its own, in the size that fits the page's width, under a link to it.
@@ -210,8 +213,25 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
               opacity: .94, borderOpacity: 1 });
             page.drawText(label, { x, y, size, font: fonts.bold, color: pdf.rgb(.08, .08, .08) });
             links.push({ page, rect: [x - 5, y - 3, x - 5 + width, y + 15], url });
-          } : undefined,
-        })),
+          } : undefined;
+          return { id: source.key, ...(source.bytes !== null && { source: source.bytes }), pageIndices, ocrFont: "regular",
+            ocrTextByPage: source.ocrTextByPage, decorate,
+            draw: tabbed || blankBefore || source.bytes === null ? (context) => {
+              const { document, fonts } = context;
+              if (blankBefore) document.addPage([612, 792]);
+              if (tabbed) drawTabPage(document.addPage([612, 792]), source.tab, fonts.bold);
+              if (blankAfter) document.addPage([612, 792]);
+              if (source.bytes !== null) return;
+              // So the PDF can be put in its place later.
+              const page = document.addPage([612, 792]), size = federal ? 12 : 14;
+              let y = 620;
+              for (const line of citationLines({ roman: fonts.bold, italic: fonts.boldItalic }, source.name,
+                source.italic ?? 0, size, 612 - (2 * margin))) {
+                drawRuns(page, line, { x: margin, y, size, roman: fonts.bold, italic: fonts.boldItalic }); y -= size + 6;
+              }
+              decorate?.(page, 0, context);
+            } : undefined };
+        }),
         before: async ({ document, fonts: { regular, bold, serif, serifItalic, serifBold } }) => {
           let coverBottom = 400;
           if (customCover) await engine.appendPages(document, customCover);
@@ -380,12 +400,15 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
         saveOptions: { useObjectStreams: true },
       };
     });
-  }, limits, (volume, output) => {
+  }, limits, async (volume, output) => {
     const count = volume.reduce((sum, item) => sum + item.pageIndices.length, 0);
     if (count < 2) throw new Error("One PDF page exceeds the court's electronic filing size limit.");
     // As many volumes as its size asks for, a little room left in each, each authority weighed by
-    // its own PDF's bytes.
-    const perPage = (item: typeof volume[number]) => item.source.bytes.byteLength / Math.max(1, item.source.pageIndices.length);
+    // its own PDF's bytes: an open document's, as it saves.
+    for (const { source } of volume) if (source.bytes && !(source.bytes instanceof Uint8Array) && !sizes.has(source.key))
+      sizes.set(source.key, (await source.bytes.save({ useObjectStreams: false, objectsPerTick: Infinity })).byteLength);
+    const perPage = (item: typeof volume[number]) => (item.source.bytes instanceof Uint8Array ? item.source.bytes.byteLength
+      : sizes.get(item.source.key) ?? 0) / Math.max(1, item.source.pageIndices.length);
     const weight = volume.reduce((sum, item) => sum + item.pageIndices.length * perPage(item), 0);
     const parts = Math.max(2, Math.ceil(output.bytes.byteLength * 1.1 / (limits?.maxBytes || Infinity)));
     // Filled to nine tenths of the limit where the court gives one in bytes.

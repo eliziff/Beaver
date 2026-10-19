@@ -1958,7 +1958,9 @@ function allFindings(product: AuthoritiesProduct | undefined, quotes: readonly F
     return [{ kind: "different_case", id: cited.id, occurrenceId: first.id, authorityId: authority.id,
       footnoteId: unit?.footnoteId ?? null, citation: first.authoritySpan.text, text: unit?.text ?? "",
       cited: { citation: cited.citation, name: cited.name }, named: cited.named,
-      actions: cited.named ? ["use_named_case", "keep_cited_case", "ignore"] : ["keep_cited_case", "ignore"] }];
+      actions: [...cited.named ? ["use_named_case" as const] : [],
+        ...product.state.import.kind === "document" && product.state.import.fileType === "docx" ? ["use_cited_name" as const] : [],
+        "keep_cited_case", "ignore"] }];
   });
   return [...quotes, ...cases].sort((left, right) => (order.get(left.occurrenceId) ?? 0) - (order.get(right.occurrenceId) ?? 0));
 }

@@ -200,7 +200,14 @@ async function preparePdf(input: PdfOpenInput) {
       const sourceSha256 = sha256(input.bytes);
       if (input.sourceSha256 && sourceSha256 !== input.sourceSha256)
         throw new Error("PDF source changed after preparation began");
-      const cached = await structureNative().restorePdfDocument(pdfCacheRequest({ ...input, sourceSha256 }, input.pdfProfile.cacheKey));
+      // The restored reading joins the working set, so the outline, pages and text read next reuse it.
+      const key = projectionKey({ ...input, sourceSha256, cacheKey: input.pdfProfile.cacheKey });
+      let cached = await existingProjection<NativeDocument>(key) ?? null;
+      if (!cached) {
+        cached = await structureNative().restorePdfDocument(pdfCacheRequest({ ...input, sourceSha256 }, input.pdfProfile.cacheKey));
+        const restored = cached;
+        if (restored) await projectionFor(key, async () => restored);
+      }
       // A reading no longer kept is made again below, as it was first made.
       if (cached) return { summary: preparedSummary(structureNative().pdfDocumentSummary(cached), sourceSha256), profile };
     }
@@ -465,6 +472,8 @@ type PdfSourceOptions = {
   reporterOriginal?: boolean;
   pages?: number[];
   pdfProfile?: PdfProfileSelection;
+  ocrProvider?: PdfOpenInput["ocrProvider"];
+  layout?: PdfOpenInput["layout"];
   signal?: AbortSignal;
   progress?: (value: PdfPreparationProgress) => void | Promise<void>;
 };
@@ -501,6 +510,8 @@ async function pdfDocumentForSource(
       bytes,
       ...(pages ? { pages } : {}),
       pdfProfile: options.pdfProfile,
+      ocrProvider: options.ocrProvider,
+      layout: options.layout,
       signal: options.signal,
       progress: options.progress,
     });
@@ -623,10 +634,7 @@ async function pdfInformation(source: DocumentProjectionSource, citations: strin
   const starts = source.reporterOriginal ? reporterStartPages(citations) : [];
   const result = await projectionFor(`${projectionKey(reference)}\0pdf-information:${starts.join(",")}`, async () => {
     const { bytes } = await boundedSource(source);
-    const document = reference.cacheKey
-      ? await structureNative().restorePdfDocument(pdfCacheRequest(reference, reference.cacheKey))
-        ?? await openPdf({ ...reference, bytes, ocrProvider: null, layout: false })
-      : await openPdf({ ...reference, bytes, ocrProvider: null, layout: false });
+    const document = await pdfDocumentForSource(() => bytes, reference, { ocrProvider: null, layout: false });
     const summary = structureNative().pdfDocumentSummary(document);
     return JSON.stringify({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr,
       pageMap: await paginationFor(document, starts) });

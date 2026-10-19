@@ -2,17 +2,16 @@
 // marking, each built and its marks read back from the book: their kind and their colour.
 import path from "node:path";
 import { fixtureA2aj } from "../fixtures.mjs";
-import { attach, build, dock, downloads, importBrief, MARKINGS, row, step } from "../flows.mjs";
+import { attach, build, dock, downloads, importBrief, MARKINGS, step } from "../flows.mjs";
 import { BUDGETS } from "../harness.mjs";
 import { checkPdf } from "../outputs.mjs";
 
 const pick = (files, pattern) => Object.entries(files).find(([name]) => pattern.test(name))?.[1];
-const EDITOR_REGIONS = { pdf: ["dialog section[aria-label='Authority PDF editor']", "paint"], panel: "aside[aria-label=Highlights] ul",
+const EDITOR_REGIONS = { pdf: ["dialog section[aria-label='Authority PDF editor']:not([aria-hidden=true])", "paint"], panel: "aside[aria-label=Highlights] ul",
   heading: "aside[aria-label=Highlights] h2", tools: "[role=group][aria-label='Highlight tool']" };
 // What each marking draws in the book: red or black lines (squares in the margin), yellow highlights.
 const EXPECTED = {
   margin: (kinds) => !!kinds["Square red"] && !kinds["Square black"],
-  sidelined: (kinds) => !!kinds["Square black"] && !kinds["Square red"] && !kinds["Highlight yellow"],
   paragraph: (kinds) => !!kinds["Highlight yellow"] && !kinds["Square black"],
   text: (kinds) => !kinds["Square black"],
   none: (kinds) => !Object.keys(kinds).length,
@@ -20,24 +19,30 @@ const EXPECTED = {
 
 export const HIGHLIGHT_CASES = [{
   name: "highlights",
-  title: "The Highlights editor, and each of the five passage markings built and read back",
+  title: "The Highlights editor, and each offered passage marking built and read back",
   async run({ open, fixtures, record, renderer }) {
     const app = await open({ network: { a2aj: fixtureA2aj() } });
     await app.load();
-    await importBrief(app, fixtures.briefPdf);
+    await importBrief(app, fixtures.briefPdf, { scanned: "full" });
     await step(app, "Sources", { via: "next" });
     await attach(app, "Waterways Licensing Act", fixtures.statute);
     await attach(app, "Lakeshore", fixtures.scan);
-    await row(app, "Lakeshore").getByRole("status").filter({ hasText: "Text recognition complete" }).waitFor({ timeout: 30_000 });
+    await app.idle();
+    await app.page.waitForFunction(() => ![...document.querySelectorAll("[aria-label='Authority tab slots'] [role=status]")]
+      .some(item => /Recognizing|Waiting/u.test(item.textContent)), null, { timeout: 120_000 });
     await step(app, "Highlights", { via: "next" });
     await app.shots("highlights-step");
     // Every marking, chosen on the step and built: the book carries that marking's marks only.
     const marking = app.page.getByRole("group", { name: "Passage marking" });
+    const showMarking = async () => {
+      const summary = app.page.locator("summary", { hasText: "Passage marking" });
+      if (!await summary.evaluate(element => element.parentElement.open)) await summary.click();
+    };
     let reached = false;
     for (const [key, name] of Object.entries(MARKINGS)) {
       if (reached) await app.page.getByRole("tab", { name: "Highlights" }).click();
-      // On the step the marking is closed under its name until opened.
-      await app.page.locator("summary", { hasText: "Passage marking" }).click();
+      // Open the marking choices, preserving a panel already left open on this step.
+      await showMarking();
       await marking.waitFor();
       const option = marking.getByRole("radio", { name, exact: true });
       if (!await option.isChecked()) await app.interact(`choose ${name}`, () => option.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }));
@@ -60,13 +65,14 @@ export const HIGHLIGHT_CASES = [{
     }
     // The editor: sources switched with every frame sampled, a mark added, undone and redone.
     await app.page.getByRole("tab", { name: "Highlights" }).click();
-    await app.page.locator("summary", { hasText: "Passage marking" }).click();
+    await showMarking();
     await marking.locator("label", { has: app.page.getByRole("radio", { name: MARKINGS.margin, exact: true }) }).click({ position: { x: 6, y: 6 } });
     await app.page.waitForFunction(() => !document.querySelector("fieldset[disabled]"), null, { timeout: 30_000 });
     await app.idle();
     await app.interact("open the editor", () => app.button("Edit in PDF").click(), { budget: BUDGETS.dialog,
       wait: () => app.page.getByRole("dialog", { name: "Highlights" }).locator(".pdf-text-layer").first().waitFor({ timeout: 30_000 }) });
     const editor = app.page.getByRole("dialog", { name: "Highlights" });
+    const saved = () => editor.locator("button[aria-label='Close highlights']:enabled").waitFor({ timeout: 30_000 });
     const ready = () => app.page.waitForFunction(() => document.querySelector("aside[aria-label=Highlights]")?.getAttribute("aria-busy") === "false" &&
       !document.querySelector("aside[aria-label=Highlights]")?.textContent.includes("Preparing"), null, { timeout: 30_000 });
     await ready();
@@ -81,7 +87,19 @@ export const HIGHLIGHT_CASES = [{
     await app.interact("choose the statute", () => editor.getByRole("combobox", { name: "Authority PDF" }).selectOption(statute),
       { regions: EDITOR_REGIONS, wait: ready, rest: 400 });
     const cards = editor.locator("aside ul > li"), before = await cards.count();
-    await app.page.waitForFunction((phrase) => {
+    // Another tab renames the draft while this editor still holds its earlier revision.
+    const renamed = "Harbour review, revised title", other = await app.context.newPage();
+    try {
+      await other.goto(app.page.url());
+      await other.getByRole("button", { name: "authorities draft actions" }).click();
+      await other.getByRole("menuitem", { name: "Rename" }).click();
+      const title = other.getByRole("textbox", { name: "Rename authorities draft" });
+      await title.fill(renamed); await title.press("Enter");
+      await other.locator("header h1").filter({ hasText: renamed }).waitFor();
+    } catch (cause) {
+      await other.screenshot({ path: path.join(record.out, "other-tab.png") }); throw cause;
+    } finally { await other.close(); }
+    const selectText = (phrase) => app.page.waitForFunction((phrase) => {
       for (const layer of document.querySelectorAll("dialog .pdf-text-layer")) {
         const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
         for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -92,15 +110,34 @@ export const HIGHLIGHT_CASES = [{
         }
       }
       return false;
-    }, "shall not refuse", { timeout: 30_000 });
+    }, phrase, { timeout: 30_000 });
+    await selectText("shall not refuse");
     await app.interact("Highlight text", () => editor.getByRole("button", { name: "Highlight text" }).click(),
       { wait: () => app.page.waitForFunction((count) => document.querySelectorAll("dialog aside ul > li").length > count, before) });
-    await editor.getByText("Saving…").waitFor({ state: "detached" });
+    await saved();
+    record.check(!await editor.getByRole("alert").count(), "an unrelated draft revision does not block highlight autosave");
+    record.check(await app.page.locator("header h1").innerText() === renamed, "highlight autosave keeps the other tab's rename");
     await app.interact("Undo", () => editor.getByRole("button", { name: "Undo" }).click(),
       { wait: () => app.page.waitForFunction((count) => document.querySelectorAll("dialog aside ul > li").length === count, before) });
     await app.interact("Redo", () => editor.getByRole("button", { name: "Redo" }).click(),
       { wait: () => app.page.waitForFunction((count) => document.querySelectorAll("dialog aside ul > li").length === count + 1, before) });
-    await editor.getByText("Saving…").waitFor({ state: "detached" });
+    await saved();
+    await selectText("shall not refuse");
+    await editor.getByRole("button", { name: "Highlight text" }).click();
+    await app.settle();
+    record.check(await cards.count() === before + 1, "highlighting the same words selects the existing highlight");
+    await selectText("shall not refuse to");
+    await editor.getByRole("button", { name: "Highlight text" }).click();
+    await cards.filter({ hasText: "shall not refuse to" }).first().waitFor();
+    await saved();
+    record.check(await cards.count() === before + 1 && (await cards.allInnerTexts()).some(text => text.includes("shall not refuse to")),
+      "a short extension widens the highlight even when its centre remains inside it", await cards.allInnerTexts());
+    await selectText("shall not refuse to renew a licence");
+    await editor.getByRole("button", { name: "Highlight text" }).click();
+    await cards.filter({ hasText: "shall not refuse to renew a licence" }).first().waitFor();
+    await saved();
+    record.check(await cards.count() === before + 1 && (await cards.allInnerTexts()).some(text => text.includes("shall not refuse to renew a licence")),
+      "extending a selection widens the existing highlight", await cards.allInnerTexts());
     await app.shots("editor-added");
     record.check(await cards.count() === before + 1, "the added highlight is kept after undo and redo", await cards.allInnerTexts());
     await app.interact("close the editor", () => editor.getByRole("button", { name: "Close highlights" }).click(),

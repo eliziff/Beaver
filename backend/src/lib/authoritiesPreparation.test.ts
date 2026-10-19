@@ -27,6 +27,7 @@ const reviewer = async () => [finding];
 
 beforeEach(() => {
   pdfText.mockReset().mockResolvedValue({ pageTextByPage: ["native"], ocrTextByPage: [""] });
+  vi.mocked(authorityPdfOutline).mockReset().mockResolvedValue([]);
 });
 
 describe("shared Authorities correction preparation", () => {
@@ -124,6 +125,13 @@ function markedDraft() {
 }
 
 describe("shared Authorities text preparation", () => {
+  it.each(["highlights", "headings"] as const)("includes source headings only when %s bookmarks request them", async (bookmarks) => {
+    const state = markedDraft(); state.settings.bookmarks = bookmarks;
+    const outline = [{ kind: "heading" as const, level: 0, title: "Reasons", start: 0, pageIndex: 0 }];
+    vi.mocked(authorityPdfOutline).mockResolvedValue(outline);
+    const result = await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") });
+    expect(result.outline).toEqual(bookmarks === "headings" ? outline : undefined);
+  });
   it("retains page pinpoint geometry for final links even when passage marking and OCR are off", async () => {
     const state = markedDraft();
     state.settings.passageMarking = "none";

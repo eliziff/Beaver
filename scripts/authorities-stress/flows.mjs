@@ -6,7 +6,7 @@ import { BUDGETS } from "./harness.mjs";
 export const PROFILES = { general: "No court preset", abkb: "Court of King’s Bench of Alberta", abca: "Court of Appeal of Alberta",
   federal: "Federal Court" };
 const PROFILE_IDS = { general: "general", abkb: "ab-court-of-kings-bench", abca: "ab-court-of-appeal", federal: "federal-court" };
-export const MARKINGS = { margin: "Red line and quote highlight", sidelined: "Black line", paragraph: "Paragraph highlight",
+export const MARKINGS = { margin: "Red line and quote highlight", paragraph: "Paragraph highlight",
   text: "Quote highlight", none: "No passage marks" };
 export const SOURCE_MODES = { automatic: "Automatic sources",
   manual: "Use available original PDFs and manually add the PDFs myself for the rest",
@@ -38,7 +38,7 @@ export async function chooseCard(app, scope, name) {
 
 /** Add file, the import's steps (the court, the sources, the marking), then finish: to the first citation
  *  marked in the document. */
-export async function importBrief(app, file, { court, sourceMode, marking, shot = null, first = false, budget } = {}) {
+export async function importBrief(app, file, { court, sourceMode, marking, scanned, shot = null, first = false, budget } = {}) {
   await app.pick(() => app.button("Add file").click(), [file]);
   const setup = app.page.getByRole("dialog", { name: "Import" });
   await setup.waitFor();
@@ -47,7 +47,11 @@ export async function importBrief(app, file, { court, sourceMode, marking, shot 
     else await chooseCourt(app, setup.getByRole("button", { name: "Other court" }), court);
   }
   const step = (name) => setup.getByRole("list", { name: "Steps", exact: true }).getByRole("button", { name, exact: true }).click();
-  if (sourceMode) { await step("Sources"); await chooseCard(app, setup, SOURCE_MODES[sourceMode]); }
+  if (sourceMode || scanned) {
+    await step("Sources");
+    if (sourceMode) await chooseCard(app, setup, SOURCE_MODES[sourceMode]);
+    if (scanned) await chooseCard(app, setup.getByRole("group", { name: "Scanned PDFs" }), SCANNED[scanned]);
+  }
   if (marking) { await step("Marking"); await chooseCard(app, setup, MARKINGS[marking]); }
   if (shot) await app.shots(shot);
   await step("Marking");
@@ -116,18 +120,17 @@ export async function build(app, label, { missing = null, start = () => app.butt
   let started = await app.now();
   const timeout = Math.max(60_000, budget * 4);
   await start();
-  // The click shows at once: the build's Cancel, or a dialog.
-  await app.page.waitForFunction(() => document.querySelector("dialog[open], [role=dialog]") ||
-    [...document.querySelectorAll("[aria-label=Outputs] button")].some((button) => button.textContent.trim() === "Cancel"),
-  null, { timeout: 10_000, polling: "raf" });
-  // Once the sources are checked it asks about missing PDFs, or builds without asking: built
-  // means outputs ready with no Cancel and no dialog left, which an open warning never is.
-  const warning = app.page.getByRole("dialog", { name: "Missing PDFs" });
+  // A fast build may already be finished when the click returns. Read its visible result,
+  // including on a rebuild, rather than requiring its transient Cancel button to be observed.
+  const ready = dock(app).getByRole("status").filter({ hasText: /\b(?:is|are) ready\.$/u });
+  const finished = async () => {
+    await ready.waitFor({ timeout });
+    await app.page.locator("dialog[open], [role=dialog]").waitFor({ state: "hidden", timeout });
+    await ready.waitFor({ timeout });
+  };
+  const warning = app.page.getByRole("dialog", { name: "Authorities without a PDF" });
   const asked = await Promise.race([warning.waitFor({ timeout }).then(() => true),
-    app.page.waitForFunction(() => document.querySelector("aside[aria-label=Outputs] [data-output][data-ready]") &&
-      !document.querySelector("dialog[open], [role=dialog]") &&
-      ![...document.querySelectorAll("aside[aria-label=Outputs] button")].some((button) => button.textContent.trim() === "Cancel"),
-    null, { timeout, polling: 50 }).then(() => false)]);
+    finished().then(() => false)]);
   if (asked) {
     const checked = await app.now() - started;
     app.record.note(`${app.label} ${label}: Missing PDFs asked after`, checked);
@@ -139,12 +142,8 @@ export async function build(app, label, { missing = null, start = () => app.butt
     started = await app.now();
     await app.button("Build", warning).click();
   } else if (missing) app.record.check(false, `${app.label} ${label}: Build asked nothing about missing PDFs`, String(missing));
-  await app.page.waitForFunction(() => {
-    const outputs = [...document.querySelectorAll("aside[aria-label=Outputs] button[aria-label^='Download ']")];
-    return outputs.length && outputs.every((button) => !button.getAttribute("aria-label").startsWith("Download previous")) &&
-      ![...document.querySelectorAll("aside[aria-label=Outputs] button")].some((button) => button.textContent.trim() === "Cancel") &&
-      !document.querySelector("dialog[open], [role=dialog]");
-  }, null, { timeout, polling: 50 });
+  await finished();
+  await dock(app).getByRole("button", { name: /^Download .+\.(?:pdf|docx)$/u }).first().waitFor({ timeout });
   const ms = await app.now() - started;
   app.record.note(`${app.label} build ${label}`, ms);
   app.record.check(ms < budget, `${app.label} ${label}: built in ${Math.round(ms)} ms (budget ${budget})`);
@@ -154,7 +153,7 @@ export async function build(app, label, { missing = null, start = () => app.butt
 export async function downloads(app, label) {
   const saved = {}, dir = path.join(app.record.out, "downloads", `${app.label}-${label}`);
   await mkdir(dir, { recursive: true });
-  for (const output of await dock(app).getByRole("button", { name: /^Download / }).all()) {
+  for (const output of await dock(app).getByRole("button", { name: /^Download (?!all$)/u }).all()) {
     const download = app.page.waitForEvent("download");
     await output.click();
     const file = path.join(dir, (await download).suggestedFilename());

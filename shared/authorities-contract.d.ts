@@ -276,7 +276,7 @@ export type AuthorityOccurrence = {
 };
 
 export type AuthoritiesDiscrepancyAction =
-  "ignore" | "pinpoint" | "quote_exact" | "quote_editorial" | "use_named_case" | "keep_cited_case";
+  "ignore" | "pinpoint" | "pinpoint_extend" | "quote_exact" | "quote_editorial" | "use_named_case" | "keep_cited_case" | "use_cited_name";
 /** A request on a finding: a decision, or "reopen", which undoes the decision made on it. */
 export type AuthoritiesDiscrepancyRequest = AuthoritiesDiscrepancyAction | "reopen";
 export type AuthoritiesDiscrepancyCorrectionRecord = {
@@ -442,7 +442,7 @@ export type AuthoritiesDiscrepancy<Evidence = unknown> = {
   citedPassage?: Evidence;
 } & (
   | { kind: "quote_mismatch"; found: AuthoritiesSourcePassage | null }
-  | { kind: "wrong_pinpoint"; found: AuthoritiesSourcePassage }
+  | { kind: "wrong_pinpoint"; found: AuthoritiesSourcePassage; /** The pinpoint each change writes: the quotation's alone, or the cited range extended to it. */ pinpoint?: string; extended?: string }
   | { kind: "quote_unlocated"; found: null }
 );
 

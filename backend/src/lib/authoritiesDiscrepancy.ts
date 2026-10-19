@@ -76,6 +76,31 @@ export function pinpointText(authored: string, label: string) {
     : value || null;
 }
 
+/** The pinpoint phrase rewritten to the place a quotation is at, as the citation engine reads the authored
+ *  pinpoint and writes the new one ("at paras 121-22" with 123: "at para 123"). `extend` keeps the cited range
+ *  and reaches the place next to it ("at paras 121-123"); a place not next to it has no extension. */
+export function pinpointCorrection(occurrence: AuthorityOccurrence, label: string, extend = false) {
+  const pin = occurrence.pinpoints[0], phrase = occurrence.pinpointPhrase ?? occurrence.pinpointSpan;
+  if (occurrence.pinpoints.length !== 1 || !pin?.first || !phrase) return null;
+  const engine = structureNative();
+  const value = (engine.citationEngineCall("pinpointsAt", JSON.stringify({ text: label, start: 0, end: label.length })) as
+    Array<{ first?: string }>)[0]?.first ?? label.trim();
+  const [first, last, at] = [Number(pin.first), Number(pin.last ?? pin.first), Number(value)];
+  const whole = [first, last, at].every(Number.isInteger);
+  const locator = !extend ? { first: value }
+    : whole && at === first - 1 ? { first: value, last: pin.last ?? pin.first }
+      : whole && at === last + 1 ? { first: pin.first, last: value } : null;
+  if (!locator) return null;
+  const written = (engine.citationEngineCall("format", JSON.stringify({ pinpoint: { kind: pin.kind, locators: [locator] } })) as
+    { pinpoint?: string }).pinpoint;
+  if (!written) return null;
+  // A manually placed span may hold only the locators; their introduction stays outside it.
+  // Otherwise a phrase the brief writes without "at" keeps it out.
+  const replacement = !occurrence.pinpointPhrase ? written.slice(written.indexOf(locator.first))
+    : /^at\s/iu.test(phrase.text) ? written : written.replace(/^at\s+/iu, "");
+  return replacement === phrase.text ? null : { start: phrase.start, end: phrase.end, expected: phrase.text, replacement };
+}
+
 function findingId(occurrence: AuthorityOccurrence,
   source: AuthoritiesOccurrenceSource, kind: AuthoritiesDiscrepancy["kind"], quote: string) {
   // Unrelated Word edits must not resurrect dismissed findings. Relevant text, source
@@ -118,7 +143,8 @@ export function findAuthoritiesDiscrepancies(
         const count = exactCount(candidate.text, authoredQuote);
         if (!count) continue;
         matchCount += count;
-        if (matchCount === 1) found = { ...candidate, text: authoredQuote };
+        // The whole paragraph, so the card shows the quotation where the source holds it.
+        if (matchCount === 1) found = candidate;
         else { found = null; break; }
       }
       const base = { occurrenceId: occurrence.id, authorityId: occurrence.authorityId!,
@@ -126,12 +152,12 @@ export function findAuthoritiesDiscrepancies(
         authoredQuote, authoredPinpoint: { kind: occurrence.pinpoints[0].kind, text: occurrence.pinpoints[0].text }, cited: source.cited,
         citedPassage: source.citedPassage };
       if (matchCount === 1 && found && !sameLocator(source.cited, found)) {
-        const replacement = occurrence.pinpointSpan && pinpointText(
-          occurrence.pinpointSpan.text, found.locator.label);
+        const replacement = pinpointCorrection(occurrence, found.locator.label)?.replacement,
+          extended = pinpointCorrection(occurrence, found.locator.label, true)?.replacement;
         const kind = "wrong_pinpoint" as const;
-        findings.push({ ...base, kind, found,
+        findings.push({ ...base, kind, found, ...(replacement ? { pinpoint: replacement } : {}), ...(extended ? { extended } : {}),
           id: findingId(occurrence, source, kind, authoredQuote),
-          actions: replacement ? ["ignore", "pinpoint"] : ["ignore"] });
+          actions: [...(extended ? ["pinpoint_extend" as const] : []), ...(replacement ? ["pinpoint" as const] : []), "ignore"] });
       } else if (!matchCount) {
         // Authorities raises obvious errors only: wording the cited passage holds otherwise. Words found nowhere
         // (scare quotes, a defined term, a heading) are no such error; ALR's own check lists every miss.
@@ -163,11 +189,10 @@ export function authoritiesDiscrepancyCorrection(
   draft: ReviewDraft, finding: AuthoritiesDiscrepancy, action: AuthoritiesDiscrepancyAction,
 ): AuthoritiesDiscrepancyCorrection | null {
   if (action === "ignore" || finding.kind === "quote_unlocated" || !finding.actions.includes(action)) return null;
-  if (action === "pinpoint" && finding.kind === "wrong_pinpoint") {
-    const occurrence = draft.occurrences[finding.occurrenceId], span = occurrence?.pinpointSpan;
-    const replacement = span && pinpointText(span.text, finding.found.locator.label);
-    return span && replacement ? { unitId: occurrence.unitId, start: span.start, end: span.end,
-      expected: span.text, replacement } : null;
+  if ((action === "pinpoint" || action === "pinpoint_extend") && finding.kind === "wrong_pinpoint") {
+    const occurrence = draft.occurrences[finding.occurrenceId];
+    const change = occurrence && pinpointCorrection(occurrence, finding.found.locator.label, action === "pinpoint_extend");
+    return change ? { unitId: occurrence.unitId, ...change } : null;
   }
   if ((action === "quote_exact" || action === "quote_editorial") && finding.kind === "quote_mismatch" &&
       finding.found && verbatimRepair(finding.authoredQuote, finding.found.text)) {

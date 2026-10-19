@@ -56,11 +56,24 @@ export async function prepareAuthoritiesCorrection<T extends { bytes: Buffer }>(
   const cited = Object.values(draft.authorities).find(({ citedCase }) => citedCase?.id === input.id);
   if (cited && !draft.discrepancyDecisions?.[input.id]) {
     const citedCase = cited.citedCase!, named = citedCase.named;
-    if (!["ignore", "keep_cited_case", ...named ? ["use_named_case"] : []].includes(action))
+    if (!["ignore", "keep_cited_case", "use_cited_name", ...named ? ["use_named_case"] : []].includes(action))
       reject(400, "That correction is not available for this citation");
     const before = { id: cited.id, citation: cited.citation, name: cited.name, citedCase: structuredClone(citedCase) };
     const take = (value: AuthoritiesDraft) => action === "ignore" ? value : updateAuthoritiesDraft(value,
       { type: action === "use_named_case" ? "use-named-case" : "keep-cited-case", authorityId: cited.id });
+    if (action === "use_cited_name") {
+      if (!word) reject(409, "Source corrections require an imported Word document");
+      // The citation is right: each place the brief writes the case in full takes the name of the case it cites.
+      const corrections = Object.values(draft.occurrences).flatMap((occurrence) => {
+        if (occurrence.authorityId !== cited.id || occurrence.kind === "reference") return [];
+        const { authoritySpan: whole, coreSpan: core } = occurrence;
+        const name = whole.text.slice(0, Math.max(0, core.start - whole.start)).replace(/[\s,]+$/u, "");
+        return name && name !== citedCase.name ? [{ unitId: occurrence.unitId, start: whole.start, end: whole.start + name.length,
+          expected: name, replacement: citedCase.name }] : [];
+      });
+      if (!corrections.length) reject(409, "The correction cannot be mapped to the reviewed Word document");
+      return decide(corrections, before, take);
+    }
     if (action !== "use_named_case" || !word) return { kind: "ignored" as const, draft: take(updateAuthoritiesDraft(draft,
       { type: "resolve-discrepancy", id: input.id, action, ...action !== "ignore" ? { correction: { revisions: [], authority: before } } : {} })) };
     // Each place the brief writes the citation in full, as written there, takes the named case's.
@@ -105,7 +118,7 @@ function sourceReading(draft: AuthoritiesDraft, readings?: SourceReadings) {
     return {
       // The book nests each authority's own headings and sections under its tab; a final PDF
       // without bookmarks of its own is outlined by the brief's headings.
-      outline: authority && draft.outputMode !== "table" || filing && draft.settings.finalPdf
+      outline: authority && plan.bookRoles.has(role) && draft.settings.bookmarks === "headings" || filing && draft.settings.finalPdf
         ? { legislation: authority?.kind === "legislation" } : null,
       text: { scannedPdfPolicy: filing ? "page-margin" as const : bookScanPolicy(draft),
         citations: authority ? authorityCitationForms(draft, authority.id) : [],

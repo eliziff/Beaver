@@ -352,7 +352,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
 }) {
   // A review edits one known revision; a concurrent write must not be silently overwritten.
   const [base] = useState(product);
-  const revision = useRef(product.revision);
+  const savedDraft = useRef(product);
   const saveRequest = useRef<Promise<void> | null>(null);
   const [choices] = useState(initialChoices);
   const [role, setRole] = useState(choices[0].bindingRole);
@@ -522,10 +522,11 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     });
     if(!entries.length) return;
     setSaving(true);setError('');
-    const before = Object.fromEntries(entries.map(entry => [entry.bindingRole, documents[entry.bindingRole].saved]));
+    const before = Object.fromEntries(entries.map(entry => [entry.bindingRole,
+      savedDraft.current.state.authorities[entry.authorityId]?.annotations?.[entry.bindingRole]?.marks ?? []]));
     // The saved draft now holds these entries' marks.
     const saved = (next: AuthoritiesProduct) => {
-      revision.current = next.revision;
+      savedDraft.current = next;
       setDocuments(values => {
         const updated = {...values};
         for (const entry of entries) updated[entry.bindingRole] = { ...values[entry.bindingRole], saved:entry.annotations.marks };
@@ -536,10 +537,9 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     // One write owns one immutable snapshot; acknowledging it cannot acknowledge later edits.
     saveRequest.current = (async () => {
       try {
-        const next=await host.act(base.id,revision.current,{type:'set-annotations',entries});
+        const next=await host.act(base.id,savedDraft.current.revision,{type:'set-annotations',entries});
         saved(next);
       } catch(cause) {
-        setError(errorMessage(cause));
         // The write may have committed with its response lost, or an unrelated edit may have
         // moved the draft on; either way every retry would repeat the same revision conflict.
         // Continue from the stored revision only while these sources hold what this editor
@@ -550,9 +550,11 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
             ?.annotations?.[entry.bindingRole]?.marks ?? []);
           if (entries.every(entry => held(entry) === marksKey(entry.annotations.marks))) {
             setError(''); saved(stored as AuthoritiesProduct);
-          } else if (entries.every(entry => held(entry) === marksKey(before[entry.bindingRole])))
-            revision.current = stored.revision;
-        } catch { /* offline: Retry resends to the revision last known */ }
+          } else if (entries.every(entry => held(entry) === marksKey(before[entry.bindingRole]))) {
+            savedDraft.current = stored as AuthoritiesProduct;
+            saved(await host.act(base.id, stored.revision, {type:'set-annotations',entries}));
+          } else setError(errorMessage(cause));
+        } catch(retryCause) { setError(errorMessage(retryCause)); }
       }
     })();
     try { await saveRequest.current; }
@@ -587,7 +589,38 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
                     // keeps its state, so showing it changes nothing on its pages.
                     highlightSelection,disabled: disabled || key === shown && !on,
                     onSelect:setSelectedId,onCreate:(fragments,text)=>{
-                      const id=crypto.randomUUID();edit(marks => [...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
+                      // Highlights merge as a reader's highlighter does: a selection overlapping or touching highlights
+                      // joins them into one, which widens a highlight from either end; words all highlighted already
+                      // add nothing and select their highlight.
+                      type Fragments=typeof fragments;
+                      const touch=([a0,b0,a1,b1]:Fragments[number]['rects'][number],[c0,d0,c1,d1]:Fragments[number]['rects'][number])=>{
+                        const gap=Math.min(b1-b0,d1-d0)/2;return a0<=c1+gap&&c0<=a1+gap&&b0<=d1&&d0<=b1;};
+                      const meets=(left:Fragments,right:Fragments)=>left.some(l=>right.some(r=>l.pageNumber===r.pageNumber&&
+                        l.rects.some(a=>r.rects.some(b=>touch(a,b)))));
+                      const inside=(outer:Fragments,inner:Fragments)=>inner.every(({pageNumber,rects})=>rects.every(([x0,y0,x1,y1])=>
+                        outer.some(f=>f.pageNumber===pageNumber&&f.rects.some(([a0,b0,a1,b1])=>
+                          x0>=a0-1e-4&&x1<=a1+1e-4&&y0>=b0-1e-4&&y1<=b1+1e-4))));
+                      const joined=marksOf(key).filter(mark=>mark.kind==='highlight'&&meets(mark.fragments,fragments));
+                      const holder=joined.find(mark=>inside(mark.fragments,fragments));
+                      if(holder){setSelectedId(holder.id);return;}
+                      // Each line keeps one rect: the widest reach of the highlights joined on it.
+                      const pages=new Map<number,Fragments[number]['rects']>();
+                      for(const part of [...joined.flatMap(mark=>mark.fragments),...fragments])
+                        for(const rect of part.rects){const lines=pages.get(part.pageNumber)??[];pages.set(part.pageNumber,lines);
+                          const line=lines.find(([,y0,,y1])=>(rect[1]+rect[3])/2>=y0&&(rect[1]+rect[3])/2<=y1);
+                          if(line){line[0]=Math.min(line[0],rect[0]);line[2]=Math.max(line[2],rect[2]);}else lines.push([...rect]);}
+                      const merged=[...pages].sort(([a],[b])=>a-b).map(([pageNumber,rects])=>({pageNumber,
+                        rects:rects.sort((a,b)=>a[1]-b[1]||a[0]-b[0])}));
+                      // The words joined, in reading order, each overlap written once.
+                      const excerpt=[...joined.map(mark=>({at:mark.fragments,text:mark.excerpt??''})),{at:fragments,text}]
+                        .sort((a,b)=>a.at[0].pageNumber-b.at[0].pageNumber||a.at[0].rects[0][1]-b.at[0].rects[0][1]||a.at[0].rects[0][0]-b.at[0].rects[0][0])
+                        .reduce((all,{text:next})=>{if(all.includes(next))return all;
+                          for(let n=Math.min(all.length,next.length);n>0;n--)if(all.endsWith(next.slice(0,n)))return all+next.slice(n);
+                          return all?`${all} ${next}`:next;},'');
+                      const gone=new Set(joined.map(mark=>mark.id)),id=joined[0]?.id??crypto.randomUUID();
+                      edit(marks => [...marks.filter(mark=>!gone.has(mark.id)),{...joined[0],id,kind:'highlight',origin:'manual',
+                        label:joined[0]?.label??'Custom highlight',excerpt:excerpt.slice(0,2_000),rgb:joined[0]?.rgb??[1,.92,.6],opacity:joined[0]?.opacity??.45,
+                        fragments:merged}]);setSelectedId(id);
                     }}} /></div>; })}
             {!pdfs[shown] && <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{!loading && 'PDF unavailable'}</div>}
           </div>

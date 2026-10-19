@@ -202,6 +202,31 @@ number accuracy is not established. Reporter-offset inference remains separate.
 
 ## Collections and navigation
 
+Authorities book preparation reads four PDFs concurrently within the existing
+eight-entry projection working set. Page information joins that same document
+instead of restoring it independently. Heading extraction follows the requested
+bookmark setting. Missing-authority pages share the book's fonts; native-host
+assembly copies open, marked PDFs without a save/reload round trip. Standalone
+saves those sources once for its book worker. Stream-boundary scanning and
+unshaped invisible OCR text avoid per-byte parser calls and visible-text shaping;
+the OCR text retains its embedded font subset and Unicode mapping. Assembly yields
+between parts and writes 1,000 PDF objects per turn, preserving progress and
+cancellation opportunities without the library's default frequent pauses.
+
+An October 19 Windows/Node 22.20.0 comparison built the same private 1,851-page
+book in separate fresh processes using the same optimized native engine and
+retained parser/OCR artifacts. The final committed-source baseline took 42.07 seconds;
+the final candidate took 7.06 seconds (another fresh-process run took 6.35 seconds).
+All pages' extracted text, outlines, link
+annotations and highlight annotations matched exactly. These are cold application
+processes, not empty parser caches or first-time recognition timings. A separate
+137-page scan took 35.2 seconds when its current OCR result was absent and 1.8
+seconds in another fresh process with that result retained. The ignored
+`benchmarks/local-data/authorities-performance/` keeps source references, hashes,
+comparison inputs and receipts; it contains private material and is not published.
+Machine load varied during investigation, so these samples are not a general
+latency guarantee.
+
 Authorities citation review indexes units once and counts body occurrences in one
 ordered pass for location labels. Selecting another citation does not rescan every
 preceding occurrence against every unit. The loaded list still renders in full;

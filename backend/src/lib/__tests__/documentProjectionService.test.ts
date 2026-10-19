@@ -24,6 +24,16 @@ afterEach(async () => {
 });
 
 describe("DocumentProjectionService", () => {
+  it("returns unknown labels for a textless PDF without starting OCR when its retained preparation is unavailable", async () => {
+    const projections = await service();
+    const { PDFDocument, rgb } = await import("pdf-lib"), pdf = await PDFDocument.create();
+    pdf.addPage([612, 792]).drawRectangle({ x: 72, y: 500, width: 200, height: 20, color: rgb(0, 0, 0) });
+    const bytes = Buffer.from(await pdf.save());
+    expect(await projections.pdfPageLabels({ documentId: "unavailable-preparation", versionId: "v1", fileType: "pdf",
+      sourceSha256: sha256(bytes), readBytes: () => bytes, pdfProfile: { cacheKey: "f".repeat(64), status: "degraded",
+        profile: { ocr: { provider: "indra", settings: { model_pack: path.join(localData!, "not-installed") } } } } }))
+      .toEqual([null]);
+  });
   it("reads saved PDF form values through the pinned native projection", async () => {
     const projections = await service();
     const { PDFDocument } = await import("pdf-lib"), pdf = await PDFDocument.create();

@@ -2,8 +2,40 @@ import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFNa
   PDFNumber, PDFRawStream, StandardFonts, degrees } from "pdf-lib";
 import { expect, it } from "vitest";
 import * as pdf from "pdf-lib";
+import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { pdfFontkit } from "./systemArial";
 import { nestedOutline, pdfAssembly, sourceOutline } from "mike/shared/runtime/pdfAssembly.mjs";
 const { addInternalLink, applyOcrText, applyOutlines, applyPageLabels, drawPageNumber, assemble, appendPages } = pdfAssembly(pdf);
+
+it.each(["\n", "\r", "\r\n", ""])("reads indirect-length streams ending with %j without losing their contents", (ending) => {
+  const content = "first stream\ninside\nendstream\nlast";
+  const bytes = new TextEncoder().encode(`<< /Length 7 0 R >>\nstream\n${content}${ending}endstream`);
+  const parser = pdf.PDFObjectParser.forBytes(bytes, pdf.PDFContext.create());
+  const stream = parser.parseObject() as PDFRawStream;
+  expect(new TextDecoder().decode(stream.contents)).toBe(content);
+});
+
+it("keeps custom-font OCR searchable across pages without substituting ligatures", async () => {
+  const require = createRequire(new URL("../../../frontend/package.json", import.meta.url));
+  const library = path.dirname(require.resolve("pdfjs-dist/package.json"));
+  const document = await PDFDocument.create();
+  document.registerFontkit((await pdfFontkit())!);
+  const font = await document.embedFont(await readFile(path.join(library, "standard_fonts/LiberationSans-Regular.ttf")),
+    { subset: true });
+  applyOcrText(document.addPage(), font, "office affine café");
+  applyOcrText(document.addPage(), font, "jazz waltz coöperate");
+  const { getDocument } = await import(pathToFileURL(path.join(library, "legacy/build/pdf.mjs")).href);
+  const task = getDocument({ data: await document.save(), useSystemFonts: false }), decoded = await task.promise;
+  try {
+    for (const [index, expected] of ["office affine café", "jazz waltz coöperate"].entries()) {
+      const text = await (await decoded.getPage(index + 1)).getTextContent();
+      expect(text.items.map((item: { str?: string }) => item.str ?? "").join("")).toBe(expected);
+    }
+  } finally { await task.destroy(); }
+});
 
 it("preserves local named destinations through repeated page copies without changing remote links", async () => {
   const original = await PDFDocument.create();
