@@ -1,0 +1,14 @@
+diff --git a/onnxruntime/core/mlas/lib/wasm_simd/SgemmKernelWasmSimd.cpp b/onnxruntime/core/mlas/lib/wasm_simd/SgemmKernelWasmSimd.cpp
+--- a/onnxruntime/core/mlas/lib/wasm_simd/SgemmKernelWasmSimd.cpp
++++ b/onnxruntime/core/mlas/lib/wasm_simd/SgemmKernelWasmSimd.cpp
+@@ -18,3 +18,4 @@
+ #include "mlasi.h"
++#include "ocr_sgemm_four_rows.h"
+ 
+ template<bool ZeroMode, bool ProcessTwoRows>
+@@ -423,2 +424,5 @@
+ {
++    if (CountM >= 4) {
++        return OcrSgemmFourRows<ZeroMode>(A, B, C, CountK, CountN, lda, ldc, alpha);
++    }
+     size_t RowsHandled;

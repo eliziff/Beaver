@@ -5,7 +5,7 @@ import type { WorkProductBuildReceipt } from "./workProduct";
 import type { AuthorityCitationLedger } from "./authoritiesDomain";
 
 export type DocumentScope = ApplicationScope;
-export type LegalPdfOcrProvider = "kraken-lite" | "tesseract";
+export type LegalPdfOcrProvider = "indra" | "tesseract";
 export type LegalPdfProfile = {
   ocr?: { provider: LegalPdfOcrProvider; settings: Record<string, unknown> };
   layout?: { provider: "ppdoc"; settings: Record<string, unknown> };
@@ -39,7 +39,7 @@ export function decodePdfProfileSelection(value: unknown): PdfProfileSelection |
     /^[a-f0-9]{64}$/u.test(record.cacheKey) &&
     (record.status === "ready" || record.status === "degraded") &&
     Object.keys(profile).every((key) => key === "ocr" || key === "layout") &&
-    setting(profile.ocr, ["tesseract", "kraken-lite"]) &&
+    setting(profile.ocr, ["tesseract", "indra"]) &&
     setting(profile.layout, "ppdoc")
     ? { cacheKey: record.cacheKey, profile: profile as LegalPdfProfile,
       status: record.status, ...(layers ? { textLayerPages: { ...layers as Record<string, string> } } : {}) }

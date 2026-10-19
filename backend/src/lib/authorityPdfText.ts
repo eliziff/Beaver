@@ -83,7 +83,7 @@ export async function authorityPdfText(input: {
     return result;
   };
   if (policy === "full" && native.pagesNeedingOcr.length) {
-    recognized = await projection.preparePdf({ ...recognition, ocrProvider: "kraken-lite" });
+    recognized = await projection.preparePdf({ ...recognition, ocrProvider: "indra" });
   } else if (policy === "cited-pages") {
     if (targets.length && targets.every(({ locatorKind }) => locatorKind === "page")) {
       const locate = async (prepared: typeof native) => {
@@ -102,7 +102,7 @@ export async function authorityPdfText(input: {
             page <= Math.min(3, native.pageCount); page++) {
           if (!recognized.pagesNeedingOcr.includes(page - 1)) continue;
           openingPages.push(page);
-          recognized = await projection.preparePdf({ ...recognition, ocrProvider: "kraken-lite", pages: [...openingPages] });
+          recognized = await projection.preparePdf({ ...recognition, ocrProvider: "indra", pages: [...openingPages] });
           located = await locate(recognized);
         }
       }
@@ -118,7 +118,7 @@ export async function authorityPdfText(input: {
     if (recognized.pagesNeedingOcr.some(index => !recognizedPages || recognizedPages.has(index)))
       recognized = await projection.preparePdf({ ...recognition,
       // Recognized pages are held zero-based for indexing; the engine numbers them from one.
-      ocrProvider: "kraken-lite", ...(recognizedPages
+      ocrProvider: "indra", ...(recognizedPages
         ? { pages: [...recognizedPages].map((index) => index + 1).sort((a, b) => a - b) } : {}) });
   }
   const routed = new Set(policy === "page-margin" ? [] : recognized.ocrRoutedPages);

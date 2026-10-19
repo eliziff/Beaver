@@ -108,7 +108,7 @@ may await the full projection. Remote multimodal layout is an explicit user or
 operator action only, never an automatic fallback.
 
 An explicit reprocess request is a third, user-initiated form. It may choose
-Tesseract or Kraken-Lite OCR and the installed local PP-DocLayout runtime. It
+Tesseract or native Indra OCR and the installed local PP-DocLayout runtime. It
 uses the same source-bound group, queue, limits, and parser cache; there is no
 second PDF queue or in-process promise tail.
 

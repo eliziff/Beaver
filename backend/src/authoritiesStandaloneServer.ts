@@ -57,10 +57,10 @@ export async function startAuthoritiesStandalone() {
   if (!existsSync(path.join(frontend, "authorities.html")))
     throw new Error("Build the frontend before starting Authorities");
   // Scanned sources are recognized on demand; missing model files stop startup, not each source.
-  try { profileFor("kraken-lite", false); }
+  try { profileFor("indra", false); }
   catch (error) {
     throw new Error(`Text recognition files are missing (${error instanceof Error ? error.message : error}). ` +
-      "Set LEGALPDF_ENGINE_ROOT to the legal-pdf-parser folder that holds runtime/kraken.");
+      "Set LEGALPDF_ENGINE_ROOT to the legal-pdf-parser folder that holds runtime/indra and runtime/onnx.");
   }
   const app = createAuthoritiesStandaloneApp({ port, buildId, frontend });
   const listener = app.listen(port, "127.0.0.1", () => {

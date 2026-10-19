@@ -35,7 +35,7 @@ function documentPayload(job: ApplicationJob) {
 function reprocessPayload(job: ApplicationJob) {
   const base = documentPayload(job), value = job.payload as Record<string, unknown>;
   if (value.ocrProvider !== undefined && value.ocrProvider !== null &&
-      value.ocrProvider !== "tesseract" && value.ocrProvider !== "kraken-lite") {
+      value.ocrProvider !== "tesseract" && value.ocrProvider !== "indra") {
     throw new Error("InvalidPdfJob");
   }
   const ocrProvider = value.ocrProvider as PdfOcrProvider | null | undefined;
@@ -140,7 +140,7 @@ export async function enqueueAuthorityOcr(input: PdfSource & {
   userId: string; citedPages: number[]; pages?: number[];
 }) {
   const cited = [...new Set(input.citedPages)].sort((a, b) => a - b);
-  const settings = { ...input, ocrProvider: "kraken-lite" as const };
+  const settings = { ...input, ocrProvider: "indra" as const };
   if (input.pages?.length) return enqueuePdfReprocess({ ...settings, pages: input.pages, priority: 60 });
   if (cited.length) await enqueuePdfReprocess({ ...settings, pages: cited, priority: 60 });
   return enqueuePdfReprocess({ ...settings, priority: 40 });

@@ -584,7 +584,7 @@ async function importAuthoritiesDocument(input: AuthoritiesDocumentImport,
     const scanned = (summary?.scannedPages ?? []).filter((index) => summary?.pagesNeedingOcr.includes(index));
     if (!scanned.length) return own;
     try {
-      return await read({ ...reference, bytes: input.bytes, ocrProvider: "kraken-lite",
+      return await read({ ...reference, bytes: input.bytes, ocrProvider: "indra",
         pages: scanned.map((index) => index + 1) });
     } catch { return own; }
   };

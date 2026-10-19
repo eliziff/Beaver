@@ -1,0 +1,36 @@
+--- a/onnxruntime/core/mlas/lib/convolve.cpp
++++ b/onnxruntime/core/mlas/lib/convolve.cpp
+@@ -15,6 +15,9 @@
+ --*/
+ 
+ #include "mlasi.h"
++#if defined(__wasm_simd128__)
++#include "ocr_depthwise_wasm.h"
++#endif
+ 
+ //
+ // Define the number of working buffer elements required per thread.
+@@ -871,6 +874,23 @@
+ 
+     const size_t BatchCount = Parameters->BatchCount;
+     const size_t GroupCount = Parameters->GroupCount;
++
++#if defined(__wasm_simd128__)
++    if (Parameters->Dimensions == 2 && GroupCount > 1 &&
++        Parameters->InputChannels == 1 && FilterCount == 1 &&
++        Parameters->InputShape[0] == 1 &&
++        Parameters->KernelShape[0] == 1 && Parameters->KernelShape[1] == 9 &&
++        Parameters->StrideShape[0] == 1 && Parameters->StrideShape[1] == 1 &&
++        Parameters->DilationShape[0] == 1 && Parameters->DilationShape[1] == 1 &&
++        Parameters->Padding[0] == 0 && Parameters->Padding[1] == 4 &&
++        Parameters->Padding[2] == 0 && Parameters->Padding[3] == 4 &&
++        Parameters->Beta == 0.0f &&
++        Parameters->Activation->ActivationKind == MlasIdentityActivation &&
++        MlasGetMaximumThreadCount(ThreadPool) == 1) {
++        OcrDepthwiseNine(Input, Filter, Bias, Output, BatchCount, GroupCount, Parameters->InputSize);
++        return;
++    }
++#endif
+ 
+     const MLAS_CONV_ALGORITHM Algorithm = Parameters->Algorithm;
+ 
