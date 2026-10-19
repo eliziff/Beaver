@@ -284,7 +284,7 @@ export const STRESS_CASES = [{
     const pdf = await checkPdf(record, "long book", book, { tabs: fixtures.long.authorities.length, marks: true });
     await renderer.sheet(book, path.join(record.out, "long-book.jpg"), { first: 4, pages: [1, 2, 3, 4, pdf.tabs[10]?.page, pdf.tabs[60]?.page].filter(Boolean) });
     const table = pick(files, /table-of-authorities\.docx$/u);
-    // The table opens with the cases in alphabetical order: the first of them is on its first page.
+    // A named case must remain in the complete Word table, whatever order the court uses.
     const first = fixtures.long.authorities.filter(({ kind }) => kind === "case").map(({ name }) => name).sort()[0];
     if (table) word.push({ record, file: table, expect: { lists: [first] } });
     await discard(record, book);

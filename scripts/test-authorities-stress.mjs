@@ -123,8 +123,9 @@ if (word.length && !args["no-word"]) {
       `${where}: ${expect.toa ? "its table shows as opened" : "no table"}`, { toaFields: result.toaFields, toaText: result.toaText?.slice(0, 200) });
     if (expect.toaHas) for (const name of expect.toaHas) record.check(result.toaText?.includes(name), `${where}: the table lists ${name}`, result.toaText?.slice(0, 300));
     checkWordTables((...args) => record.check(...args), where, result, expect);
-    // A table of authorities delivered as its own document is the document's text.
-    if (expect.lists) for (const name of expect.lists) record.check(result.text?.includes(name), `${where}: the table lists ${name}`, result.text?.slice(0, 300));
+    // Word's text preview is bounded; its complete paragraph entries include later pages.
+    const listedText = [result.text ?? "", ...(result.entries ?? []).map(({ text }) => text)].join("\n");
+    if (expect.lists) for (const name of expect.lists) record.check(listedText.includes(name), `${where}: the table lists ${name}`, result.text?.slice(0, 300));
     if (expect.tabs !== undefined) record.check(expect.tabs ? result.tabReferences >= expect.tabs : !result.tabReferences,
       `${where}: ${expect.tabs || "no"} tab references`, result.tabReferences);
     if (expect.text) record.check(expect.text.test(result.text), `${where}: reads ${expect.text}`, result.text?.slice(0, 300));
