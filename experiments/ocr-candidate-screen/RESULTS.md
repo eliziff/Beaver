@@ -22,8 +22,8 @@ recognizer in the same pipeline and Tesseract.js Fast. The native implementation
 and package builder live in `legal-pdf-parser`, with a Windows x64 executable and
 CPU/DirectML libraries. Both runtimes consume the same model inventory.
 
-The following desktop measurements reuse the frozen 55-page PDF and 145,475
-human-gold characters. Native OCR includes PDF rendering, learned detection,
+The original v0.2.0 desktop measurements below reuse the frozen 55-page PDF and
+145,475 human-gold characters. Native OCR includes PDF rendering, learned detection,
 crops and recognition. Its three-pass warm medians exclude startup and parser
 structure/cache work. The default backend and pool plan calibrate on each machine.
 
@@ -80,6 +80,49 @@ on CPU and DirectML. Whole-page compact-ID decoding remains the fast path.
 The 14 OCR behavior tests, CLI crop/rotation/UserUnit check, installer inventory
 check and provenance mutation gate passed. Broader frontend/backend TypeScript
 checks still report unrelated existing Vite implicit-any and S3 client errors.
+
+## Native startup update (v0.2.1)
+
+The October 19 update uses provider and hardware-capability checks for automatic
+selection, Windows' high-performance adapter order and CPU-capacity worker
+limits. Integrated and FP16-emulating adapters default to CPU. Detector and
+recognizer pools load concurrently; successfully opened GPU sessions are retained.
+Explicit settings still override the defaults.
+
+| Fresh-process Balanced latency, desktop | Frozen v0.2.0 | v0.2.1 |
+| --- | ---: | ---: |
+| GPU initialization | 9.492 s | 0.771 s |
+| CPU initialization | 3.476 s | 0.242 s |
+| GPU first-page CLI wall time | 10.339 s | 1.640 s |
+| CPU first-page CLI wall time | 3.932 s | 0.706 s |
+| First 55-page GPU document including initialization | 14.396 s | 5.794 s |
+
+First-page candidate values are medians of three fresh processes; the old
+first-page control is one frozen process. Initialization excludes process launch
+and input loading. These runs reuse an already-used machine and may benefit from
+filesystem and driver caches. Quality GPU initialization was 0.772 seconds and
+its first-page command finished in 1.647 seconds.
+
+Three-pass warm medians remain 8.27 pages/s / 2.546% CER for Balanced CPU,
+11.00 / 2.548% for Balanced automatic DirectML, and 10.90 / 2.258% for Quality
+automatic DirectML. The input, models and scoring are unchanged. All 55 pages'
+text, confidence and geometry exactly equal the frozen CPU and GPU controls
+with matching execution plans. The i3-1315U laptop selected CPU with four
+recognizers and three detectors, initialized in 0.32-0.83 seconds and measured
+3.90 pages/s warm under its current background load.
+
+The 14 OCR tests and 12 source-mutation provenance checks plus DOCX isolation
+passed. The extracted package passed every CPU tier and automatic selection on
+both machines. A hash-valid invalid GPU graph forced initialization failure and
+returned the same CPU text, confidence and boxes. The standalone package was
+rebuilt with the new addon and passed native loading, loopback startup and OCR
+from its bundled assets. A final native application pass took 8.907 seconds for
+the first 55-page preparation and 8.329 seconds on a fresh-source warm pass
+(6.60 pages/s), including structure and cache work. Its text and complete word
+geometry hashes match the prior DirectML prefetch control exactly; the structure
+status remains degraded. These are single integration passes. Raw inputs and receipts remain in private
+`native/startup/` and `native/package/latest{,-desktop}/`; reproduction commands
+are in the harness README.
 
 ## Data and training
 

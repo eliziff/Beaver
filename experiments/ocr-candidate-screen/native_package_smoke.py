@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unicodedata
 import uuid
@@ -53,18 +54,52 @@ def main():
     gold = normalized((fixture / "synthetic-gold.txt").read_text(encoding="utf-8"))
     result = {"origin": "machine_test", "run_id": str(uuid.uuid4()), "input_origin": "independently_invented",
               "runtime_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "tiers": {}}
-    for tier in ("quality", "balanced", "fast", "turbo", "extreme"):
-        destination = output / (tier + ".json")
-        child = subprocess.run([binary, fixture / "synthetic-scan.png", "--tier", tier, "--backend", "cpu",
-            "--workers", "1", "--threads", "1", "--layout-workers", "1", "--batch-size", "16", "--width-bucket", "24",
-            "--output", destination], cwd=stage, capture_output=True, timeout=120)
+    cases = [(tier, "cpu") for tier in ("quality", "balanced", "fast", "turbo", "extreme")] + [("balanced", "auto")]
+    for tier, backend in cases:
+        destination = output / (tier + ("-auto" if backend == "auto" else "") + ".json")
+        args = [binary, fixture / "synthetic-scan.png", "--tier", tier, "--backend", backend, "--output", destination]
+        if backend == "cpu":
+            args += ["--workers", "1", "--threads", "1", "--layout-workers", "1", "--batch-size", "16", "--width-bucket", "24"]
+        child = subprocess.run(args, cwd=stage, capture_output=True, timeout=120)
         assert child.returncode == 0, child.stderr.decode("utf-8", errors="replace")
-        pages = json.loads(destination.read_text(encoding="utf-8"))["pages"]
+        value = json.loads(destination.read_text(encoding="utf-8"))
+        pages = value["pages"]
         assert len(pages) == 1
         text = normalized("\n".join(line["text"] for line in pages[0]["lines"]))
         cer = distance(text, gold) / len(gold)
         assert cer < .12, f"{tier}: fixture CER {cer}"
-        result["tiers"][tier] = {"cer": cer, "characters": len(text), "lines": len(pages[0]["lines"])}
+        checked = {"cer": cer, "characters": len(text), "lines": len(pages[0]["lines"]),
+                   "backend": value["runtime"]["backend"], "startup_seconds": value["startup_seconds"]}
+        if backend == "auto":
+            result["automatic"] = checked
+        else:
+            result["tiers"][tier] = checked
+    if result["automatic"]["backend"] != "cpu":
+        with tempfile.TemporaryDirectory(prefix="gpu-fallback-", dir=output) as directory:
+            root = Path(directory)
+            assert root.is_relative_to(output)
+            models = root / "models"
+            shutil.copytree(stage / "runtime/indra", models)
+            manifest_path = models / "manifest.json"
+            pack = json.loads(manifest_path.read_text(encoding="utf-8"))
+            gpu = pack["models"][pack["tiers"]["balanced"]["model"]]["gpu"]
+            invalid = b"machine_test: independently invented invalid ONNX graph"
+            (models / gpu["path"]).write_bytes(invalid)
+            gpu["sha256"] = hashlib.sha256(invalid).hexdigest()
+            pack["assets"][gpu["path"]].update(bytes=len(invalid), sha256=gpu["sha256"])
+            manifest_path.write_text(json.dumps(pack), encoding="utf-8")
+            destination = root / "fallback.json"
+            child = subprocess.run([binary, fixture / "synthetic-scan.png", "--model-pack", models,
+                "--backend", "auto", "--workers", "1", "--threads", "1", "--layout-workers", "1",
+                "--batch-size", "16", "--width-bucket", "24", "--output", destination],
+                cwd=stage, capture_output=True, timeout=120)
+            assert child.returncode == 0, child.stderr.decode("utf-8", errors="replace")
+            fallback = json.loads(destination.read_text(encoding="utf-8"))
+            assert fallback["runtime"]["backend"] == "cpu"
+            reference = json.loads((output / "balanced.json").read_text(encoding="utf-8"))
+            recognized = lambda value: [(page["lines"], page["layout_boxes"]) for page in value["pages"]]
+            assert recognized(fallback) == recognized(reference)
+            result["gpu_fallback"] = "passed: failed GPU initialization returns the exact CPU result"
     (output / "results.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result))
 
