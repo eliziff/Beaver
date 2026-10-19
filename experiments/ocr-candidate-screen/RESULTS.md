@@ -124,6 +124,69 @@ status remains degraded. These are single integration passes. Raw inputs and rec
 `native/startup/` and `native/package/latest{,-desktop}/`; reproduction commands
 are in the harness README.
 
+## Pixel transfer and parallel rendering follow-up (v0.2.2)
+
+The October 19 laptop profile found 133.6 summed recognition-worker seconds in
+crop/tensor preparation versus 35.0 in inference. Recognition repeatedly drew
+GPU-backed page bitmaps into CPU canvases. Reusing one CPU-backed page canvas per
+recognition task reduced that transfer cost. All timing figures below still
+include PDF rendering, learned detection, line preparation and recognition.
+
+| Browser on i3-1315U / Intel UHD | Warm pages/s | CER |
+| --- | ---: | ---: |
+| Original worker, quiet CPU control (one warm pass) | 1.284 | 2.506% |
+| Updated default CPU (three-pass median) | 3.887 | 2.513% |
+| Updated default automatic GPU (three-pass median) | 5.039 | 2.512% |
+
+The updated first GPU document took 13.672 seconds, plus 2.663 seconds of model
+initialization; input opening and export are separate. Initial measurements
+while another build ran were 1.123 pages/s for the original CPU worker and
+3.692 / 4.488 for the updated CPU / GPU. CPU pageBatch=2 reached 3.993 under that
+load, while pageBatch=4 with bucket=64 fell to 3.664. Two GPU detector workers
+reached 4.150; two recognition workers plus two detectors reached 4.249.
+Batch=64 reached 4.646. Those overrides were not promoted into default policy.
+
+Padding GPU tensor widths to 64 or 128 reduced the number of distinct input
+shapes from 76 to 46 or 36, but measured only 4.284 / 4.683 pages/s, with first
+documents of 14.521 / 18.612 seconds. The 8-pixel default measured 5.039 and
+13.672 seconds. A raw full-page array scan was also rejected: it changed crop
+sampling and measured only 1.715 pages/s on the desktop CPU. The accepted change
+retains the existing crop and resize path.
+
+| Native on Ryzen 5 2600X / RTX 3080 Ti | Before pages/s | After pages/s | CER |
+| --- | ---: | ---: | ---: |
+| Balanced automatic GPU | 11.016 | 13.731 | 2.548% |
+| Balanced CPU | 8.271 | 8.280 | 2.546% |
+| Quality automatic GPU | 10.903 | 12.097 | 2.258% |
+
+Native rendering now uses remaining CPU capacity, up to four renderers, with one
+shared parsed PDF, thread-local render caches and bounded ordered windows.
+GPU initialization remains 0.798 seconds; its first full document including
+initialization took 5.000 seconds. All 55 CPU/GPU pages equal the frozen controls
+exactly, including confidence and word geometry. Nine independently invented
+rotation/crop/UserUnit pages also match v0.2.1 exactly. Four detector workers and
+two recognizers measured 13.592, offering no gain over the default allocation.
+
+The 14 native OCR tests and 31 browser source tests pass. Browser measurements
+check all 55 exported text pages and unchanged first-page pixels. Private raw
+outputs and hashes remain in the owning `runtime-speed/` receipt directories.
+The browser and Windows OCR packages are published in
+[v0.2.2](https://github.com/eliziff/legal-browser-ocr/releases/tag/v0.2.2), with
+GitHub asset digests checked against all five local release files. The shared
+model manifest remains byte-identical to v0.2.0.
+
+The final linked application addon retained the prior DirectML OCR text and word
+geometry hashes. Its current full application pass measured 7.656 seconds cold
+and 7.856 pages/s on one fresh-source warm pass, including structure and cache
+writes; that addon also includes the other agent's current query work, so this is
+an integration result rather than an isolated rendering comparison. The native
+standalone package passed loopback startup and OCR using its bundled assets.
+Both standalone browser HTML builds now embed the v0.2.2 worker; the full HTML
+recognized all 55 laptop pages offline on automatic WebGPU in 23.355 seconds on
+its first use, at 2.452% CER, with a 0.026-second cache hit. These application
+figures include their host work and are separate from the direct browser table.
+The combined Authorities app release remains pending the other Authorities work.
+
 ## Data and training
 
 Reused the existing CATMuS transfer bundle and compiled Kraken Arrow files in
