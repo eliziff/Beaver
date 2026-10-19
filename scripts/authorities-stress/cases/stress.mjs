@@ -6,7 +6,7 @@ import path from "node:path";
 import { rm, stat, writeFile } from "node:fs/promises";
 import { briefHtml, fixtureA2aj, LONG_STATUTE, longBrief, longStatuteRecord, NAVIGATION_ACT,
   navigationSubsection } from "../fixtures.mjs";
-import { attach, build, dock, downloads, importBrief, outputMode, outputOptions, row, setOption, step, tick } from "../flows.mjs";
+import { attach, build, dock, downloads, importBrief, outputOptions, row, setOption, step, tick } from "../flows.mjs";
 import { BUDGETS } from "../harness.mjs";
 import { checkPdf, inspectPdf } from "../outputs.mjs";
 import { loadHar } from "../network.mjs";
@@ -57,7 +57,7 @@ async function switchSources(app, count) {
     null, { timeout: 60_000 });
   for (let index = 0; index < count; index += 1)
     await app.interact(`editor: next source ${index + 1}`, () => editor.getByRole("button", { name: /^Next authority/u }).click(),
-      { regions: { pdf: ["dialog section[aria-label='Authority PDF editor']", "paint"], heading: "aside[aria-label=Highlights] h2" }, wait: ready, rest: 300 });
+      { regions: { pdf: ["dialog section[aria-label='Authority PDF editor']:not([aria-hidden=true])", "paint"], heading: "aside[aria-label=Highlights] h2" }, wait: ready, rest: 300 });
 }
 
 export const STRESS_CASES = [{
@@ -265,6 +265,9 @@ export const STRESS_CASES = [{
     await app.backgroundTasks(sources, "gathering");
     const slots = await app.page.getByRole("list", { name: "Authority tab slots" }).getByRole("listitem").count();
     record.check(slots === fixtures.long.authorities.length, "each authority has one tab slot", [slots, fixtures.long.authorities.length]);
+    const help = app.page.getByRole("dialog", { name: "Some sources need adding" });
+    if (await help.waitFor({ timeout: 2000 }).then(() => true, () => false))
+      await help.getByRole("button", { name: "Got it", exact: true }).click();
     await app.shots("sources");
     await app.interact("scroll the sources", async () => {
       for (let step = 0; step < 12; step += 1) { await app.page.mouse.wheel(0, 600); await app.page.waitForTimeout(40); }
@@ -272,7 +275,9 @@ export const STRESS_CASES = [{
     await app.page.locator(".authorities-workspace").evaluate((element) => element.scrollTo(0, 0));
     await step(app, "Highlights", { via: "next" });
     await step(app, "Build book", { via: "next" });
-    await outputMode(app, "both");
+    const tableOutput = dock(app).getByRole("switch", { name: "Table of Authorities", exact: true });
+    if (!await tableOutput.isChecked()) await tableOutput.check();
+    await app.idle();
     const ms = await build(app, "book and table", { missing: /./u, budget: 30_000 });
     record.note("build of 120 authorities", ms);
     const files = await downloads(app, "outputs"), book = pick(files, /book-of-authorities\.pdf$/u);

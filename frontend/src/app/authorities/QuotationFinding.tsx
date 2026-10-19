@@ -81,46 +81,78 @@ function view(finding: Finding, note: (footnoteId: number | string) => string, s
     return {
       what: "Citation names a different case", where: finding.footnoteId ? `footnote ${note(finding.footnoteId)}` : "",
       yours: written(finding.named ? <Struck>{finding.cited.citation}</Struck> : finding.cited.citation),
-      yoursNow: (action: Action) => written(action === "use_named_case" && finding.named ? finding.named.citation : finding.cited.citation),
+      yoursNow: (action: Action) => {
+        if (action === "use_named_case" && finding.named) return written(finding.named.citation);
+        // The brief's name for the case, before its citation, takes the cited case's name.
+        const name = at > 0 ? finding.citation.slice(0, at).replace(/[\s,]+$/u, "") : "";
+        if (action !== "use_cited_name" || !name) return written(finding.cited.citation);
+        return <><span className="text-gray-400">{context.before}</span><Added>{finding.cited.name}</Added>
+          {finding.citation.slice(name.length)}<span className="text-gray-400">{context.after}</span></>;
+      },
       sourceLabel: "Source",
       source: <>{finding.cited.citation} is <i>{finding.cited.name}</i>.{finding.named
         ? <><br /><i>{finding.named.name}</i> is <Added>{finding.named.citation}</Added>.</> : null}</>,
       options: (action: Action) => action === "use_named_case" && finding.named
-        ? { label: `Use ${finding.named.citation}`, detail: `Changes the citation in your Word copy to ${finding.named.citation}, everywhere it is cited.` }
-        : action === "keep_cited_case" ? { label: `Keep ${finding.cited.citation}`,
-          detail: `The book cites it as ${finding.cited.name}, ${finding.cited.citation}. Your brief is not changed.` }
-          : { label: "Keep as written", detail: "Leaves your brief and the book as they are." },
+        ? { label: `Cite ${finding.named.citation}`, detail: `Your Word copy cites ${finding.named.citation}, ${finding.named.name}, instead of ${finding.cited.citation}. The book includes that decision.` }
+        : action === "use_cited_name" ? { label: `Name it ${finding.cited.name}`,
+          detail: `Your Word copy keeps ${finding.cited.citation} and names it ${finding.cited.name}. The book includes it under that name.` }
+        : action === "keep_cited_case" ? { label: `Keep ${finding.cited.citation}, under its own name`,
+          detail: `Your brief is not changed. The book includes ${finding.cited.citation} as ${finding.cited.name}.` }
+          : { label: "Keep as written", detail: `Your brief is not changed. The book includes ${finding.cited.citation} under the name your brief gives it.` },
       changed: (action: Action) => action === "use_named_case" && finding.named
         ? `Changed in your Word copy: ${quoted(finding.cited.citation)} is now ${quoted(finding.named.citation)}.`
+        : action === "use_cited_name" ? `Changed in your Word copy: the case is now named ${finding.cited.name}.`
         : action === "keep_cited_case" ? `The book cites it as ${finding.cited.name}, ${finding.cited.citation}.` : "Kept as written.",
+    };
+  }
+  if (finding.kind === "wrong_pinpoint") {
+    // The quotation's words are right; what changes is the footnote's pinpoint, so the card shows the footnote.
+    const pinpoint = readableLocator(finding.authoredPinpoint.kind, finding.authoredPinpoint.text);
+    const next = (action: Action) => {
+      const text = action === "pinpoint" ? finding.pinpoint : action === "pinpoint_extend" ? finding.extended : undefined;
+      return text ? text.replace(/^at\s+/u, "") : null;
+    };
+    // The pinpoint leads on both sides; the words quoted and the paragraph's text are only there to recognise it.
+    const found = readableLocator(finding.found.locator.kind, finding.found.locator.label);
+    const footnote = (at: ReactNode) => <><span className="text-base font-medium text-gray-950">
+      Footnote {note(finding.footnoteId)}: {finding.citation} at {at}</span>{"\n"}
+      <span className="text-xs text-gray-500">quoting “{finding.authoredQuote}”</span></>;
+    return {
+      what: "Pinpoint does not include the quotation", where: `footnote ${note(finding.footnoteId)}`,
+      yours: footnote(<Struck>{pinpoint}</Struck>),
+      yoursNow: (action: Action) => footnote(next(action) ? <Added>{next(action)}</Added> : pinpoint),
+      sourceLabel: sourceName(finding.authorityId) || "The source",
+      source: <><span className="text-base font-medium text-gray-950">“{finding.authoredQuote}” is at <Added>{found}</Added></span>
+        {"\n"}<span className="text-xs text-gray-500">{finding.found.text}</span></>,
+      options: (action: Action) => next(action)
+        ? { label: action === "pinpoint_extend" ? `Extend to ${next(action)}` : `Change to ${next(action)}`,
+          detail: `Changes ${quoted(pinpoint)} to ${quoted(next(action)!)} in footnote ${note(finding.footnoteId)} of your Word copy.` }
+        : { label: "Keep as written", detail: "Leaves your brief as it is." },
+      changed: (action: Action) => next(action)
+        ? `Changed in your Word copy: ${quoted(pinpoint)} is now ${quoted(next(action)!)}.` : "Kept as written.",
     };
   }
   const source = finding.found, context = quotationContext(finding.proposition, finding.authoredQuote);
   const diff = source && quotationDiff(finding.authoredQuote, source.text);
   const pinpoint = readableLocator(finding.authoredPinpoint.kind, finding.authoredPinpoint.text);
-  const newPinpoint = source && readableLocator(source.locator.kind, source.locator.label);
   const quote = (inner: ReactNode) => <><span className="text-gray-400">{context.before}</span>{inner}
     <span className="text-gray-400">{context.after}</span></>;
-  const what = finding.kind === "wrong_pinpoint" ? "Quotation is at another pinpoint"
-    : finding.kind === "quote_unlocated" ? "Quotation not found in the passage cited" : "Quotation differs from the source";
+  const what = finding.kind === "quote_unlocated" ? "Quotation not found in the passage cited" : "Quotation differs from the source";
   return {
     what, where: `footnote ${note(finding.footnoteId)} · ${finding.citation} at ${pinpoint}`,
     yours: quote(finding.kind === "quote_mismatch" && diff ? <Diff pieces={diff.authored} /> : <>{finding.authoredQuote}</>),
     yoursNow: (action: Action) => quote(action === "quote_exact" && source ? <>{source.text}</> : <>{finding.authoredQuote}</>),
     // The source by its name and citation, not the brief's "Ibid" or short form.
-    sourceLabel: `${sourceName(finding.authorityId) || "The source"} · ${newPinpoint
-      ?? readableLocator(finding.cited.locator.kind, finding.cited.locator.label)}`,
+    sourceLabel: `${sourceName(finding.authorityId) || "The source"} · ${source
+      ? readableLocator(source.locator.kind, source.locator.label) : readableLocator(finding.cited.locator.kind, finding.cited.locator.label)}`,
     source: finding.kind === "quote_mismatch" && diff ? <Diff source pieces={diff.source} />
       : source ? <>{source.text}</> : <span className="text-gray-600">These words are not in the passage cited.</span>,
-    options: (action: Action) => action === "pinpoint"
-      ? { label: "Change the pinpoint", detail: `Changes ${quoted(pinpoint)} to ${quoted(newPinpoint ?? "")} in your Word copy.` }
-      : action === "quote_exact" ? { label: "Use the source’s wording",
+    options: (action: Action) => action === "quote_exact" ? { label: "Use the source’s wording",
         detail: `${diff ? sentence(changeList(diff.changes)) : "Changes the quotation"} in your Word copy.` }
         : action === "quote_editorial" ? { label: "Mark the change",
           detail: "Marks the source’s words in your quotation with brackets, and words left out with an ellipsis, in your Word copy." }
           : { label: "Keep as written", detail: "Leaves your brief as it is." },
-    changed: (action: Action) => action === "pinpoint" ? `Changed in your Word copy: ${quoted(pinpoint)} is now ${quoted(newPinpoint ?? "")}.`
-      : action === "quote_exact" && diff ? `In your Word copy, ${changeList(diff.changes, true)}.`
+    changed: (action: Action) => action === "quote_exact" && diff ? `In your Word copy, ${changeList(diff.changes, true)}.`
         : action === "quote_editorial" ? "Changed in your Word copy: the changes are marked." : "Kept as written.",
   };
 }

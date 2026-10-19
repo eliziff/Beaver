@@ -5,7 +5,7 @@ import { reject } from "./applicationError";
 import { attachAuthoritiesBookPdf, attachAuthorityPdf, authoritiesReview, authorityPdfCaption,
   applyAuthoritiesUserAction, updateAuthoritiesDraft, type AuthoritiesUserAction } from "./authoritiesActions";
 import { authoritiesBookFront, authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations,
-  type AuthoritiesBuildInput, type StatuteText } from "./authoritiesBuild";
+  savedAuthoritiesBook, type AuthoritiesBuildInput, type StatuteText } from "./authoritiesBuild";
 import { attachedAuthoritySources, authorityCitationForms, type AuthoritiesDraft,
   type AuthoritySourceLanguage } from "./authoritiesDomain";
 import { carriedLinks } from "./authoritiesLinkPropagation";
@@ -18,6 +18,7 @@ import type { PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBoo
 import { documentProjectionService } from "./documentProjectionService";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
+import { mapBounded } from "./mapBounded";
 import type { SourceReadings } from "./sourceReadings";
 import type { ResolvedWorkProductInput, WorkProductInput } from "./workProduct";
 
@@ -115,7 +116,7 @@ export async function authorityAnnotations(state: AuthoritiesDraft, input: {
   if (!authority || !source) return reject(400, "The authority PDF is not attached");
   if (sha256(input.bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
   const pdf = await import("pdf-lib");
-  const document = await pdf.PDFDocument.load(input.bytes, { updateMetadata: false });
+  const document = await pdf.PDFDocument.load(input.bytes, { updateMetadata: false, parseSpeed: Infinity });
   if (!document.getPageCount() || document.getPageCount() > 2_000) return reject(400, "Unsupported PDF page count");
   const reading = input.recognize ? state
     : { ...state, settings: { ...state.settings, scannedPdfPolicy: "page-margin" as const } };
@@ -130,9 +131,8 @@ export async function authorityAnnotations(state: AuthoritiesDraft, input: {
 export type AuthoritiesBuildFile = { role: string; filename: string; bytes: Buffer; sourceSha256: string;
   reference?: SourcePdfReference; pdfProfile?: PdfProfileSelection; resolved?: ResolvedWorkProductInput };
 
-/** The draft's outputs, built from the sources the host read. Every source is read at once: its preparation waits only
- *  on the parsers and recognizers that bound that work (native preparation runs off the event loop), so a scan's pages
- *  are queued for recognition from the start, not after the sources before it. `prepareBook` hands back the prepared
+/** The draft's outputs, built from the sources the host read. Sources are read in parallel within the projection
+ *  working set, so a PDF's text, passages and labels reuse its open document. `prepareBook` hands back the prepared
  *  book for the host to assemble (in a page's worker) in place of assembling it here. */
 export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
   title: string; workProduct: { id: string; revision: number }; files: readonly AuthoritiesBuildFile[];
@@ -153,7 +153,7 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
   progress?.(`Reading sources · 0 of ${files.length}`);
   const sources: NonNullable<AuthoritiesBuildInput["sources"]> = Object.fromEntries(Object.entries(options.unread ?? {})
     .map(([role, resolved]) => [role, { resolved }]));
-  await Promise.all(files.map(async (file) => {
+  await mapBounded(files, async (file) => {
     signal.throwIfAborted();
     // Recognizing a scan's pages is the long part of reading one: it reports page by page.
     const recognizing = (done: number, total: number) =>
@@ -162,8 +162,10 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
       ...file.reference, pdfProfile: file.pdfProfile, signal, progress: recognizing })
       .catch((error) => {
         if (signal.aborted) throw error;
-        return reject(409, error instanceof Error ? `Could not read ${file.filename}: ${error.message}`
-          : `Could not read ${file.filename}`);
+        // A PDF whose text cannot be read still goes in the book, whole and unmarked: it was attached to be there.
+        console.warn("[authorities] source text unread", { filename: file.filename,
+          error: error instanceof Error ? error.message : String(error) });
+        return { pageTextByPage: [] as string[], pageBindings: undefined };
       }).finally(() => progress?.(`Reading sources · ${++read} of ${files.length}`));
     // An authority's PDF in the book is placed by its printed pages, read from it where its text was not read.
     const attached = authorityOf.get(file.role);
@@ -172,16 +174,20 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
         documentId: file.reference?.documentId ?? `standalone-authority:${file.sourceSha256}`,
         versionId: file.reference?.versionId ?? file.sourceSha256, sourceSha256: file.sourceSha256, fileType: "pdf",
         readBytes: () => file.bytes, pdfProfile: file.pdfProfile, reporterOriginal: attached.source.origin === "original",
-      }, authorityCitationForms(state, attached.authority.id)) : undefined);
+      }, authorityCitationForms(state, attached.authority.id)).catch((error) => {
+        if (signal.aborted) throw error;
+        return undefined;
+      }) : undefined);
     sources[file.role] = { ...(preparation.byteRoles.has(file.role) ? { bytes: file.bytes } : {}),
       ...text, pageBindings, pageLabels: pageBindings?.map((page) => page.label),
       ...(file.resolved ? { resolved: file.resolved } : {}) };
-  }));
+  });
   let book: PreparedAuthoritiesBook | undefined;
   const built = await (options.builder ?? buildAuthorities)({ draft: state, title: options.title,
     workProduct: options.workProduct, sources, signal, progress, statuteText: options.statuteText,
     ...(options.finalPdfSource ? { finalPdfSource: options.finalPdfSource } : {}),
-  }, options.prepareBook && !state.settings.finalPdf ? async (prepared) => { book = prepared; return []; } : undefined)
+  }, options.prepareBook && !state.settings.finalPdf
+    ? async (prepared) => { book = await savedAuthoritiesBook(prepared); return []; } : undefined)
     .catch((error) => {
       if (signal.aborted) throw error;
       return reject(409, error instanceof Error ? error.message : "Authorities could not be built");

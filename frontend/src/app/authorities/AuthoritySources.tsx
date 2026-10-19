@@ -150,7 +150,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
       {/* A list whose sources go in as excerpts or whole keeps room for Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
-        className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 overflow-hidden rounded-lg border border-gray-300 bg-white @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_auto]">
+        className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 overflow-hidden rounded-lg border border-gray-300 bg-white @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_2.5rem_minmax(8rem,max-content)] @min-[44rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_5.625rem_minmax(16rem,max-content)]">
         {/* The tab column is as wide as the longest tab of the whole list from the first frame, not of the rows
             drawn so far: "Tab 100" drawn after "Tab 13" would move every row. */}
         <span aria-hidden className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-nowrap pl-3 text-[0.8125rem] font-medium tabular-nums">
@@ -333,8 +333,11 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
       {recognition && ocr ? <SourceOcrInline status={recognition} ocr={ocr} className="w-full max-w-sm" />
         : subline && <p className="line-clamp-2 text-[0.8125rem] leading-5 text-gray-500" title={subline}>{subline}</p>}
     </div>
-    <div className="col-span-3 row-start-1 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-4">
-      {choosing && (copy?.choosable ? choice : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
+    {/* Excerpt or Whole has its own column, so it sits in one place on every row whatever actions follow it. */}
+    {choosing && <div className="hidden @min-[30rem]/sources:col-start-4 @min-[30rem]/sources:row-start-1 @min-[30rem]/sources:flex">
+      {copy?.choosable && choice}</div>}
+    <div className="col-span-3 row-start-1 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-5 @min-[30rem]/sources:-ml-2">
+      {choosing && <span className="contents @min-[30rem]/sources:hidden">{copy?.choosable ? choice : <span className="w-10" />}</span>}
       {!needsPdf && authority.sourceUrl && sourceLink}
       {needsPdf && (publisherUrl
         ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
@@ -416,7 +419,7 @@ function OtherPdfRow({ part, tab, busy, issue, files, sourceLabel, choose, onAct
       <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}><title>{mark.label}</title></mark.Icon>
     </span>
     <h3 className="min-w-0 truncate text-sm font-medium text-gray-950" title={part.filename}>{name}</h3>
-    <div className="col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1">
+    <div className="col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-5 @min-[30rem]/sources:-ml-2">
       {relinkable(issue) ? <Button type="button" variant="ghost" className={cn(rowControl, "text-red-800")} disabled={busy}
           onClick={() => onRelink(part.bindingRole)}><FilePlus2 /><span className="truncate">Allow file access</span></Button>
         : onOpen ? <Button type="button" variant="ghost" className={rowControl} disabled={busy || !!issue}

@@ -12,8 +12,8 @@ corrections, highlight preparation, the book front and the build. The runtime
 operations (`authoritiesOperations.ts`, also wrapped by apps built from the page)
 and Beaver's Library workspace (`authoritiesWorkspaceApplication.ts`) are adapters
 that decode requests and say where drafts and PDFs are kept. Beaver's adapter also
-verifies Library versions, leaves recognition to its durable queue (its highlight
-reads never recognize) and saves outputs as Library documents; a page assembles
+verifies Library versions, reuses retained recognition (its highlight reads never
+recognize) and saves outputs as Library documents; a page assembles
 its book in a worker. Both UIs keep the Auto-fetch folder in the browser and draw
 the import's preview book. The Python
 [AuthoritiesHelper reference](https://github.com/eliziff/AuthoritiesHelper) is not
@@ -71,6 +71,17 @@ The latter explicitly permits incomplete output, retaining tab numbers with
 labelled pages or omitted PDFs according to the existing missing-source policy.
 Identify incomplete output in its metadata/cover; source version checks,
 attachment verification and required cover details still apply.
+
+An attached PDF whose structural reading or recognition fails still goes in whole,
+without automatic marks that require that reading. A degraded or unfinished Library
+preparation does not exclude the PDF. A build completes recognition requested by
+its scan setting when the retained preparation does not cover those pages.
+Source reading uses four concurrent operations within the existing projection
+working set; page labels reuse the document already opened for text and passages.
+Source headings are read only for heading bookmarks or a final PDF's opening brief.
+Missing-source pages are drawn directly in the book with its shared fonts. Beaver
+copies marked, open PDFs into the book; standalone serializes them once for its
+assembly worker.
 
 User authority order is distinct from Table of Authorities sorting. Each included
 authority occupies a monotonically numbered slot even when its PDF is missing;
@@ -229,6 +240,10 @@ unlocated targets. Word-level differences and bounded source context support the
 review; a supported quotation is not a judgment about editorial fairness or the
 legal proposition. Do not invent a target or coordinates to hide an unresolved
 match.
+Wrong-pinpoint findings show the whole replacement phrase and, for an adjacent
+paragraph, the option to extend the cited range. A mismatched case name in a Word
+brief can take the cited decision's name while retaining its citation. These Word
+corrections use tracked changes and the existing decision undo operation.
 
 ## Visual highlights and export
 
@@ -267,12 +282,16 @@ retain their existing formatting.
 preferences seed automatic marks; **None** starts without them and still permits
 manual text selection/area drawing. Card selection navigates to exact geometry;
 selecting a mark identifies its card, including cycling overlapping marks.
+Selecting words already highlighted selects that mark; an overlapping or adjacent
+selection widens it instead of adding another highlight over the same words.
 Edits have per-source undo/redo and revision-checked, serialized autosave; editing
 continues while a save is in flight. A failed save remains dirty and can be retried.
+An unrelated draft revision is retried once after checking the stored highlights;
+another reviewer's changed highlights remain a conflict.
 Each source owns its saved snapshot and review state alongside its undo history.
 A save acknowledges only its submitted snapshot, not edits made during the request.
 Abandoned automatic preparation resumes on revisit unless that source was reviewed.
-Only the active source retains PDF bytes; switching sources preserves mark history.
+The active source and its neighbours retain PDF bytes; switching sources preserves mark history.
 OCR geometry is retained by the parser and read independently of annotation state,
 including when reopening a draft. Word boxes are used when available; line-only
 recognition retains its text and line box rather than inventing word coordinates.

@@ -170,7 +170,42 @@ type HeaderFooterSet = { kind: "Header" | "Footer"; slot: "Center" | "Right"; fo
   inset: number; offset: number; text: string | null; settings: PDFRef;
   pages: Array<{ page: PDFPage; number: number }> };
 
+const STREAM = [...new TextEncoder().encode("stream")], ENDSTREAM = [...new TextEncoder().encode("endstream")];
+/** pdf-lib finds where a stream ends, when its /Length is not a number it has read (an indirect one, as in many
+ *  scans), by trying each keyword at every byte of the stream through method calls. This tries them in one loop over
+ *  the bytes, only where one can begin, and finds the same end. */
+function fastStreamEnds(pdf: typeof import("pdf-lib")) {
+  type Stream = { bytes: Uint8Array; idx: number; length: number };
+  const parser = pdf.PDFObjectParser.prototype as unknown as {
+    findEndOfStreamFallback(startPos: unknown): number; bytes: Stream; fastStreamEnds?: true };
+  if (parser.fastStreamEnds) return;
+  parser.fastStreamEnds = true;
+  const at = (bytes: Uint8Array, index: number, keyword: number[]) => {
+    if (index + keyword.length > bytes.length) return false;
+    for (let offset = 0; offset < keyword.length; offset++) if (bytes[index + offset] !== keyword[offset]) return false;
+    return true;
+  };
+  parser.findEndOfStreamFallback = function (this: { bytes: Stream }, startPos: unknown) {
+    const stream = this.bytes, { bytes, length } = stream;
+    let nesting = 1, index = stream.idx, end = index;
+    while (index < length) {
+      end = index;
+      const byte = bytes[index];
+      if (byte === 0x73 && at(bytes, index, STREAM)) { nesting += 1; index += STREAM.length; }
+      else if (byte === 0x0d && bytes[index + 1] === 0x0a && at(bytes, index + 2, ENDSTREAM)) { nesting -= 1; index += 11; }
+      else if ((byte === 0x0d || byte === 0x0a) && at(bytes, index + 1, ENDSTREAM)) { nesting -= 1; index += 10; }
+      else if (byte === 0x65 && at(bytes, index, ENDSTREAM)) { nesting -= 1; index += ENDSTREAM.length; }
+      else index += 1;
+      if (!nesting) break;
+    }
+    stream.idx = index;
+    if (nesting) throw new pdf.PDFStreamParsingError(startPos as never);
+    return end;
+  };
+}
+
 export function pdfAssembly(pdf: typeof import("pdf-lib")) {
+  fastStreamEnds(pdf);
   const { PDFHexString, PDFName, degrees, rgb } = pdf;
   // Each document's headers and footers by their settings, written out when it is saved.
   const headerFooterSets = new WeakMap<PDFDocument, Map<string, HeaderFooterSet>>();
@@ -419,8 +454,34 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     page.pushOperators(pdf.pushGraphicsState(), pdf.beginText(),
       pdf.setFontAndSize(page.node.newFontDictionary(font.name, font.ref), 1),
       pdf.setTextRenderingMode(pdf.TextRenderingMode.Invisible), pdf.setLineHeight(1), pdf.moveText(1, 1),
-      ...lines.flatMap((line) => [pdf.showText(font.encodeText(line)), pdf.nextLine()]),
+      ...lines.flatMap((line) => [pdf.showText(unshapedText(font, line)), pdf.nextLine()]),
       pdf.endText(), pdf.popGraphicsState());
+  }
+  /** Invisible text is only searched and copied, so each character takes its glyph straight from the font's
+   *  map, recorded as pdf-lib records a shaped one (its subset and ToUnicode stay whole): shaping a scan's
+   *  every line was most of a book's assembly. */
+  function unshapedText(font: PDFFont, text: string) {
+    type Glyph = { id: number };
+    const embedder = (font as unknown as { embedder?: { font?: { glyphForCodePoint?(code: number): Glyph };
+      subset?: { includeGlyph(glyph: Glyph): number }; glyphs?: Glyph[]; glyphIdMap?: Map<number, number>;
+      glyphCache?: { invalidate(): void } } }).embedder;
+    const lookup = embedder?.font?.glyphForCodePoint?.bind(embedder.font);
+    if (!lookup) return font.encodeText(text);
+    // Keep pdf-lib's font embedding and ToUnicode maps up to date.
+    (font as unknown as { modified: boolean }).modified = true;
+    const codes: string[] = [];
+    for (const character of text) {
+      const glyph = lookup(character.codePointAt(0)!);
+      let id = glyph.id;
+      if (embedder!.subset) {
+        id = embedder!.subset.includeGlyph(glyph);
+        embedder!.glyphs![id - 1] = glyph;
+        embedder!.glyphIdMap!.set(glyph.id, id);
+      }
+      codes.push(id.toString(16).padStart(4, "0"));
+    }
+    embedder!.glyphCache?.invalidate();
+    return pdf.PDFHexString.of(codes.join(""));
   }
 
   /** The PDF's own bookmarks, as titled, with the pages they open (shifted by `offset`). */
@@ -632,7 +693,7 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
   async function appendPages(document: PDFDocument, source: Uint8Array | PDFDocument,
     pageIndices?: number[], each?: (page: PDFPage, sourceIndex: number) => void) {
     const loaded = source instanceof Uint8Array
-      ? await pdf.PDFDocument.load(source, { updateMetadata: false }) : source;
+      ? await pdf.PDFDocument.load(source, { updateMetadata: false, parseSpeed: Infinity }) : source;
     removeActiveContent(pdf, loaded);
     const indices = pageIndices ?? loaded.getPageIndices();
     if (!indices.length) return [];
@@ -677,6 +738,7 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     const context = { document, fonts: await embedFonts(document, input.fonts, input.fontkit),
       starts: new Map<string, number>() };
     await input.before?.(context);
+    let turnStarted = Date.now();
     for (const part of input.parts) {
       input.signal?.throwIfAborted();
       context.starts.set(part.id, document.getPageCount());
@@ -685,6 +747,10 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
         if (part.ocrFont) applyOcrText(page, context.fonts[part.ocrFont], part.ocrTextByPage?.[index]);
         part.decorate?.(page, index, context);
       });
+      if (Date.now() - turnStarted >= 32) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        turnStarted = Date.now();
+      }
     }
     await input.after?.(context);
     const numbers = input.pageNumbers;
@@ -702,7 +768,7 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     }
     input.signal?.throwIfAborted();
     removeActiveContent(pdf, document);
-    const bytes = await document.save(input.saveOptions);
+    const bytes = await document.save({ objectsPerTick: 1_000, ...input.saveOptions });
     input.signal?.throwIfAborted();
     return { bytes, pageCount: document.getPageCount() };
   }
@@ -710,7 +776,7 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
   async function volumes<Plan, Font extends string>(plans: Plan[],
     prepare: (plans: Plan[]) => PdfAssemblyInput<Font>[] | Promise<PdfAssemblyInput<Font>[]>,
     limits: PdfVolumeLimits | undefined,
-    split: (plan: Plan, output: PdfAssemblyResult) => Plan[]) {
+    split: (plan: Plan, output: PdfAssemblyResult) => Plan[] | Promise<Plan[]>) {
     while (true) {
       const inputs = await prepare(plans), built: PdfAssemblyResult[] = [];
       for (const input of inputs) built.push(await assemble(input));
@@ -718,7 +784,7 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
         !!limits?.maxPages && pageCount > limits.maxPages ||
         !!limits?.maxBytes && bytes.byteLength > limits.maxBytes);
       if (oversized < 0) return built;
-      const divided = split(plans[oversized], built[oversized]);
+      const divided = await split(plans[oversized], built[oversized]);
       if (divided.length < 2) throw new Error("The PDF could not be divided into filing-sized volumes.");
       plans.splice(oversized, 1, ...divided);
     }

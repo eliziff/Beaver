@@ -84,7 +84,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   sourceBytes: Uint8Array, books: Book[]) {
   const draft = input.draft, sources = input.sources ?? {};
   let document: pdf.PDFDocument;
-  try { document = await pdf.PDFDocument.load(sourceBytes, { updateMetadata: false }); }
+  try { document = await pdf.PDFDocument.load(sourceBytes, { updateMetadata: false, parseSpeed: Infinity }); }
   catch { throw new Error("The brief PDF could not be opened for final export."); }
   // The brief's own code stays out of the final PDF, as each source's does (appendPages).
   removeActiveContent(pdf, document);
@@ -107,7 +107,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   }
   for (const output of books) {
     input.signal?.throwIfAborted();
-    const offset = document.getPageCount(), book = await pdf.PDFDocument.load(output.bytes, { updateMetadata: false });
+    const offset = document.getPageCount(), book = await pdf.PDFDocument.load(output.bytes, { updateMetadata: false, parseSpeed: Infinity });
     const children = readOutlines(book, offset);
     const volume = output.role === "book" ? "1" : output.role.slice(5);
     outlines.push({ title: books.length > 1 ? `Book of authorities — Volume ${volume}` : "Book of authorities",
@@ -143,7 +143,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
     for (const source of attachedAuthoritySources(authority.source)) {
       sourceOffsets.set(source.bindingRole, offset);
       offset += sources[source.bindingRole]?.bytes === undefined ? 1
-        : (await pdf.PDFDocument.load(sources[source.bindingRole].bytes!, { updateMetadata: false })).getPageCount();
+        : (await pdf.PDFDocument.load(sources[source.bindingRole].bytes!, { updateMetadata: false, parseSpeed: Infinity })).getPageCount();
     }
   }
   const pinpointDestination = (id: string) => {
@@ -276,6 +276,6 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   input.signal?.throwIfAborted();
   // What the brief's and the book's copies carried in that nothing refers to stays out.
   dropUnreachable(pdf, document);
-  return { bytes: Buffer.from(await document.save({ useObjectStreams: true })),
+  return { bytes: Buffer.from(await document.save({ useObjectStreams: true, objectsPerTick: Infinity })),
     pageCount: document.getPageCount(), warnings };
 }

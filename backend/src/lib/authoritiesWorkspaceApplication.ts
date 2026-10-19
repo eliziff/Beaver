@@ -28,6 +28,7 @@ import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
 import { documentProjectionService } from "./documentProjectionService";
+import { sourceReadings } from "./sourceReadings";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
@@ -91,6 +92,9 @@ export function createAuthoritiesWorkspaceApplication(
   sources: SourceServices = authoritySourceServices,
   discrepancyReviewer: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
 ) {
+  // What each source was read to, kept across builds as the standalone app keeps it: a rebuild reads again only
+  // a source whose bytes or reading changed.
+  const readings = sourceReadings();
   async function open(scope: ApplicationScope, id: string) {
     const found = await workProducts.get(scope, id);
     if (found.kind !== "authorities") throw new ApplicationError(404,
@@ -243,11 +247,6 @@ export function createAuthoritiesWorkspaceApplication(
           reference: { documentId: binding.documentId, versionId: source.versionId }, pdfProfile: file.pdfProfile, resolved });
       } else unread[bindingRole] = resolved;
     }
-    const preparedRoles = new Set([...plan.bookRoles, ...plan.textRoles]);
-    const preparation = new Map(preparedRoles.size
-      ? (await documents.parseStates(scope, [...preparedRoles].map((role) =>
-        libraryBinding(draft, role).documentId))).map((state) => [state.id, state.parse_state])
-      : []);
     const readPdf = async (source: BoundPdf, label: string, allowMissing = false) => {
       signal?.throwIfAborted();
       const binding = libraryBinding(draft, source.bindingRole);
@@ -258,20 +257,7 @@ export function createAuthoritiesWorkspaceApplication(
           file.version.source_sha256 !== source.sourceSha256 ||
           sha256(file.bytes) !== source.sourceSha256) throw new ApplicationError(409,
         `${label} changed: ${source.filename}`);
-      // A book's sources are recognized by Library's own queue before a build reads them.
-      if (plan.bookRoles.has(source.bindingRole) && !file.pdfProfile) {
-        const state = preparation.get(binding.documentId);
-        const pending = state?.status === "queued" || state?.status === "parsing";
-        throw new ApplicationError(409, pending
-          ? `${source.filename} is still being prepared.`
-          : state?.error?.includes("password-protected")
-            ? `${source.filename}: ${state.error}`
-            : `${source.filename} could not be prepared. Remove any password or usage restrictions, then add it again.`,
-        { document_id: binding.documentId,
-          pdf_status: state?.status ?? "unprepared",
-          pdf_phase: state?.phase,
-          pdf_pages: state?.pages?.join(",") });
-      }
+      // Every PDF goes in: one Library has not prepared (or prepared only in part) is read by the build itself.
       files.push({ role: source.bindingRole, filename: source.filename, bytes: file.bytes,
         sourceSha256: source.sourceSha256, reference: { documentId: binding.documentId, versionId: file.version.id },
         pdfProfile: file.pdfProfile, resolved: { kind: "document", documentId: binding.documentId,
@@ -550,7 +536,7 @@ export function createAuthoritiesWorkspaceApplication(
       try {
         const { files, unread } = await buildFiles(scope, draft, signal);
         ({ built } = await buildAuthoritiesDraft(draft, { title: product.title, workProduct: { id, revision },
-          files, unread, builder, signal: signal ?? new AbortController().signal, progress,
+          files, unread, builder, readings, signal: signal ?? new AbortController().signal, progress,
           statuteText: (authority, abort) => authorityStatuteText(draft, authority, sources, abort),
           ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
         }));

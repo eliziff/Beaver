@@ -48,7 +48,7 @@ export const AUTHORITIES_ACTION_CHOICES = {
   pinpoint: ["paragraph", "page", "section", "subsection", "rule", "article", "schedule", "footnote", "clause"],
   outputMode: ["table", "book", "both"], slot: ["cover", "index", "brief"],
   stage: ["citations", "sources", "highlights", "build"],
-  discrepancy: ["ignore", "pinpoint", "quote_exact", "quote_editorial", "use_named_case", "keep_cited_case"],
+  discrepancy: ["ignore", "pinpoint", "pinpoint_extend", "quote_exact", "quote_editorial", "use_named_case", "keep_cited_case", "use_cited_name"],
 } as const;
 export const AUTHORITIES_TOOL_ACTIONS = [
     "set-authority-span", "set-pinpoint-span", "clear-pinpoint", "add-occurrence",

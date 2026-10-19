@@ -8,7 +8,7 @@ import type { Nodes } from "mdast";
 import { nestedOutline, pdfAssembly, sourceOutline, type PdfOutline } from "mike/shared/runtime/pdfAssembly.mjs";
 import { arialFont, type PdfFontSource } from "mike/shared/runtime/arialFont.mjs";
 import { pdfFontkit, systemArial } from "./systemArial";
-import { renderAuthoritiesBook, citationLines, drawRuns, fit, pdfNormalized, pdfText, wrapped,
+import { renderAuthoritiesBook, citationLines, drawRuns, fit, mapAuthorityBookBytes, pdfNormalized, pdfText, wrapped,
   type BookRow, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 const { addInternalLink: addLink, applyOutlines, appendPages, readOutlines } = pdfAssembly(pdfLibrary);
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
@@ -726,7 +726,7 @@ export async function renderAuthoritySourcePdf(input: {
   document.setTitle(title); document.setSubject(citation); document.setCreator("Beaver");
   document.setProducer("Beaver · pdf-lib"); document.setCreationDate(new Date(0));
   document.setModificationDate(new Date(0));
-  return { bytes: Buffer.from(await document.save({ useObjectStreams: false })), pageCount: pages.length };
+  return { bytes: Buffer.from(await document.save({ useObjectStreams: false, objectsPerTick: Infinity })), pageCount: pages.length };
 }
 
 async function filingPdfArtifact(groups: Group[], filename: string,
@@ -737,7 +737,7 @@ async function filingPdfArtifact(groups: Group[], filename: string,
     throw new Error("The imported filing PDF changed before building.");
   }
   let filing: PdfDocument;
-  try { filing = await pdf.PDFDocument.load(sourceBytes, { updateMetadata: false }); }
+  try { filing = await pdf.PDFDocument.load(sourceBytes, { updateMetadata: false, parseSpeed: Infinity }); }
   catch { throw new Error("The imported filing PDF could not be opened."); }
   if (!filing.getPageCount()) throw new Error("The imported filing PDF is empty.");
   const entries = groups.flatMap(({ entries: items }) => items);
@@ -797,12 +797,13 @@ async function filingPdfArtifact(groups: Group[], filename: string,
   document.setTitle("Filing with Table of Authorities"); document.setCreator("Beaver");
   document.setProducer("Beaver / pdf-lib"); document.setCreationDate(new Date(0));
   document.setModificationDate(new Date(0));
-  const output = Buffer.from(await document.save({ useObjectStreams: false }));
+  const output = Buffer.from(await document.save({ useObjectStreams: false, objectsPerTick: Infinity }));
   return artifact("annotated-document", filename, "application/pdf", output,
     document.getPageCount());
 }
 
-type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity | null;
+/** `document` null: an authority without a PDF, whose page the book draws naming it. */
+type LoadedBookPdf = BookRow & { document: PdfDocument | null; authority: AuthorityIdentity | null;
   markedPages?: Set<number>; /** The length of each of the authority's PDFs, in the order joined. */ parts?: number[];
   pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[]; pageBindings?: PdfPageBinding[];
   passageGeometry?: NativePdfPassageGeometry; contextPages?: number[]; outline?: PdfOutline[] };
@@ -834,7 +835,7 @@ async function loadBookPdf(
   }
   let document: PdfDocument;
   try {
-    document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
+    document = await pdf.PDFDocument.load(bytes, { updateMetadata: false, parseSpeed: Infinity });
   } catch {
     throw new Error(`Attached PDF could not be opened for ${label}.`);
   }
@@ -1060,7 +1061,7 @@ async function prepareAuthorityBook(
   draft: AuthoritiesDraft, groups: Group[], filename: string, subtitle: string,
   attached: NonNullable<AuthoritiesBuildInput["sources"]>, signal?: AbortSignal,
   progress?: (message: string) => void, statuteText?: StatuteText,
-): Promise<PreparedAuthoritiesBook> {
+): Promise<OpenAuthoritiesBook> {
   signal?.throwIfAborted();
   const pdf = await import("pdf-lib");
   const profile = authoritiesProfile(draft.settings.profileId);
@@ -1096,8 +1097,8 @@ async function prepareAuthorityBook(
       const loaded = source.kind === "attached"
         ? await loadAuthorityPdf(pdf, source.sources, entry, attached,
           { draft, authority: entry.authority })
-        : { document: await missingSourcePdf(pdf, entry, federal) };
-      if (source.kind === "attached" && draft.settings.allowIncomplete &&
+        : { document: null };
+      if (loaded.document && source.kind === "attached" && draft.settings.allowIncomplete &&
           authoritySourceRequirement(draft, entry.authority, profile.requirements) ===
             "incomplete-enactment") {
         const missingLanguage = source.sources.some(({ language }) => language === "en") ? "French" : "English";
@@ -1119,8 +1120,9 @@ async function prepareAuthorityBook(
       ? loadBookPdf(pdf, draft.bookParts.index, "the custom index", attached) : null,
   ]);
   const sources: PreparedBookPdf[] = await Promise.all([...authoritySources, ...supplementalSources].map(async (source) => {
-    const excerpt = source.authority && source.parts && authorityExcerpt(draft, source.authority, source.parts)
-      ? bookExcerptPages(draft, source.authority, { pageCount: source.document.getPageCount(), parts: source.parts,
+    const { document } = source;
+    const excerpt = document && source.authority && source.parts && authorityExcerpt(draft, source.authority, source.parts)
+      ? bookExcerptPages(draft, source.authority, { pageCount: document.getPageCount(), parts: source.parts,
         marked: source.markedPages, pageTextByPage: source.pageTextByPage, ocrTextByPage: source.ocrTextByPage,
         pageBindings: source.pageBindings, passageGeometry: source.passageGeometry, contextPages: source.contextPages }) : null;
     // What the PDF does not place is rebuilt from the statute's text, after the pages it does.
@@ -1128,9 +1130,9 @@ async function prepareAuthorityBook(
       ? await rebuiltProvisions(source.authority, source.name, excerpt.missing, statuteText, signal,
         !!profile.requirements?.federalFormatting) : null;
     let rebuiltBookmarks: PreparedBookPdf["rebuiltBookmarks"];
-    if (rebuilt) {
-      const offset = source.document.getPageCount();
-      await appendPages(source.document, rebuilt);
+    if (rebuilt && document) {
+      const offset = document.getPageCount();
+      await appendPages(document, rebuilt);
       excerpt!.pages!.push(...rebuilt.getPageIndices().map((index) => offset + index));
       // Each rebuilt provision is bookmarked where its section opens in the rebuilt pages.
       const flat = (items: PdfOutline[]): PdfOutline[] => items.flatMap((item) => [item, ...flat(item.children ?? [])]);
@@ -1140,7 +1142,8 @@ async function prepareAuthorityBook(
           ?.pageIndex ?? offset }));
     }
     // The court's extract names the database holding the decision in full on each page.
-    return { ...source, pageIndices: excerpt?.pages ?? source.document.getPageIndices(),
+    // An authority without a PDF has the one page the book draws naming it.
+    return { ...source, pageIndices: excerpt?.pages ?? document?.getPageIndices() ?? [0],
       databaseReference: excerpt?.pages && courtExtract(draft, source.authority!) ? freePublicDatabaseReference(source.authority!) : null,
       excerpt: !!excerpt, rebuiltBookmarks };
   }));
@@ -1174,7 +1177,7 @@ async function prepareAuthorityBook(
         }) : []) ?? []).concat(source.rebuiltBookmarks ?? []).sort((left, right) => left.pageIndex - right.pageIndex);
       // A scan's text where only cited pages are read: those pages, or every page an excerpt keeps.
       const cited = source.excerpt ? new Set(source.pageIndices) : source.authority ? citedSourcePages(draft,
-        source.authority.id, source.pageTextByPage ?? [], undefined, source.document.getPageCount(), source.passageGeometry,
+        source.authority.id, source.pageTextByPage ?? [], undefined, source.pageIndices.length, source.passageGeometry,
         !!requirePrinted) : new Set<number>();
       const ocrTextByPage = source.authority ? source.ocrTextByPage?.map((text, index) =>
         bookScanPolicy(draft) === "full" || bookScanPolicy(draft) === "cited-pages" && cited.has(index)
@@ -1188,7 +1191,7 @@ async function prepareAuthorityBook(
       const link = draft.settings.caseLinks && source.authority?.kind === "case" ? authoritySourceLink(source.authority) : null;
       return { key: source.key, name: source.name, italic: source.italic, tab: source.tab, sourceUrl: source.sourceUrl,
         ...(currency && !kept && { header: pdfText(currency) }), ...(link && { link }),
-        bytes: await source.document.save({ useObjectStreams: false }),
+        bytes: source.document,
         pageIndices: source.pageIndices, databaseReference: source.databaseReference, ocrTextByPage, bookmarks,
         // Under its tab, an authority's marked passages alone, unless its own headings are asked for.
         ...(draft.settings.bookmarks !== "headings" ? { outline: [] }
@@ -1197,7 +1200,15 @@ async function prepareAuthorityBook(
   };
 }
 
-async function bookArtifacts(plan: PreparedAuthoritiesBook, signal?: AbortSignal) {
+/** A prepared book whose sources are still the documents read and marked: assembled here, they are copied from as they
+ *  are, never saved and read again. */
+export type OpenAuthoritiesBook = PreparedAuthoritiesBook<Uint8Array | PdfDocument>;
+
+/** The prepared book as bytes, for a host that assembles it elsewhere. */
+export const savedAuthoritiesBook = (plan: OpenAuthoritiesBook) => mapAuthorityBookBytes(plan, async (source) =>
+  source instanceof Uint8Array ? source : await source.save({ useObjectStreams: false, objectsPerTick: Infinity }));
+
+async function bookArtifacts(plan: OpenAuthoritiesBook, signal?: AbortSignal) {
   return (await renderAuthoritiesBook(pdfLibrary, { ...plan, arial: plan.arial ?? await systemArial() }, signal,
     await pdfFontkit())).map((item) =>
     ({ ...artifact(item.role, item.filename, item.mimeType, Buffer.from(item.bytes), item.pageCount),
@@ -1272,7 +1283,7 @@ async function rebuiltProvisions(authority: AuthorityIdentity, name: string,
   const text = spans.map(([start, end]) => found.text.slice(start, end).trim()).join("\n\n");
   const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: authority.name ?? name, citation: authority.citation,
     date: null, sourceUrl: null, text, provider: found.provider, retrieved: new Date().toISOString().slice(0, 10), federal });
-  return pdfLibrary.PDFDocument.load(bytes);
+  return pdfLibrary.PDFDocument.load(bytes, { parseSpeed: Infinity });
 }
 
 /** What a statute's excerpt holds of one of its PDFs, read as a build of the draft reads it. */
