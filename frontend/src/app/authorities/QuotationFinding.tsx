@@ -70,8 +70,8 @@ const changeList = (changes: Array<{ before: string; after: string }>, done = fa
 const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** What a finding shows: what and where, the brief's words beside the source's, and its choices. */
-/** `note` gives a footnote's number as the brief prints it. */
-function view(finding: Finding, note: (footnoteId: number | string) => string) {
+/** `note` gives a footnote's number as the brief prints it; `sourceName` an authority's name and citation. */
+function view(finding: Finding, note: (footnoteId: number | string) => string, sourceName: (authorityId: string) => string) {
   if (isCase(finding)) {
     // The citation in its sentence; its citation struck only where there is a case to put in its place.
     const at = finding.citation.indexOf(finding.cited.citation), context = quotationContext(finding.text, finding.citation);
@@ -107,7 +107,9 @@ function view(finding: Finding, note: (footnoteId: number | string) => string) {
     what, where: `footnote ${note(finding.footnoteId)} · ${finding.citation} at ${pinpoint}`,
     yours: quote(finding.kind === "quote_mismatch" && diff ? <Diff pieces={diff.authored} /> : <>{finding.authoredQuote}</>),
     yoursNow: (action: Action) => quote(action === "quote_exact" && source ? <>{source.text}</> : <>{finding.authoredQuote}</>),
-    sourceLabel: source ? `The source · ${newPinpoint}` : `The source · ${readableLocator(finding.cited.locator.kind, finding.cited.locator.label)}`,
+    // The source by its name and citation, not the brief's "Ibid" or short form.
+    sourceLabel: `${sourceName(finding.authorityId) || "The source"} · ${newPinpoint
+      ?? readableLocator(finding.cited.locator.kind, finding.cited.locator.label)}`,
     source: finding.kind === "quote_mismatch" && diff ? <Diff source pieces={diff.source} />
       : source ? <>{source.text}</> : <span className="text-gray-600">These words are not in the passage cited.</span>,
     options: (action: Action) => action === "pinpoint"
@@ -127,9 +129,10 @@ const plural = (count: number, one: string, many = `${one}s`) => `${count} ${cou
 /** The quotations and citations the check found, one at a time in the brief's order: what is wrong and where,
  *  the brief's words beside the source's, the choices as cards, and one Apply. A decision stays on the card
  *  with what it changed, and can be taken back. */
-export function QuotationReview({ items, checked, note = String, currentId, busy, error, onSelect, onOpenSource, onResolve, onUndo, onDone }: {
+export function QuotationReview({ items, checked, note = String, sourceName = () => "", currentId, busy, error, onSelect, onOpenSource, onResolve, onUndo, onDone }: {
   /** The findings, undefined while being checked; `checked` names the check they come from. */
-  items?: Finding[]; checked?: string; note?: (footnoteId: number | string) => string; currentId: string; busy: boolean; error?: string;
+  items?: Finding[]; checked?: string; note?: (footnoteId: number | string) => string;
+  sourceName?: (authorityId: string) => string; currentId: string; busy: boolean; error?: string;
   onSelect: (id: string) => void;
   onOpenSource?: (finding: AuthoritiesDiscrepancy) => void;
   onResolve?: (finding: Finding, action: AuthoritiesDiscrepancyAction, done: () => void) => void;
@@ -146,7 +149,7 @@ export function QuotationReview({ items, checked, note = String, currentId, busy
   const order = decided && !list.some(({ id }) => id === decided.finding.id)
     ? [...list.slice(0, decided.at), decided.finding, ...list.slice(decided.at)] : list;
   const index = finding ? Math.max(0, order.findIndex(({ id }) => id === finding.id)) : 0;
-  const shown = finding && view(finding, note);
+  const shown = finding && view(finding, note, sourceName);
   const done = decided && finding && decided.finding.id === finding.id ? decided.action : undefined;
   const action = choice?.id === finding?.id ? choice?.action : undefined;
   const counts = { wording: list.filter(item => !isCase(item) && item.kind !== "quote_unlocated").length,

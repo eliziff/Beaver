@@ -1231,6 +1231,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const quotationReview = draft && findingId &&
     <QuotationReview items={currentReview ? openFindings : undefined} checked={currentReview?.key}
       note={(id) => notes.get(String(id)) ?? String(id)} currentId={findingId}
+      sourceName={(id) => { const authority = draft?.state.authorities[id];
+        return authority ? [authority.name, authority.citation].filter(Boolean).join(", ") : ""; }}
       busy={busy || !currentReview} error={error || currentReview?.error} onSelect={openFinding}
       onOpenSource={host.readSource ? openFindingSource : undefined}
       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}

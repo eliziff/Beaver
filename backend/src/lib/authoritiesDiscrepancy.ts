@@ -224,8 +224,8 @@ export async function reviewAuthoritiesDiscrepancies(
       // Several footnotes quoting one decision share its viewer.
       const mode = locator.kind === "section" ? "section" : "paragraph";
       const viewerKey = `${identity.sourceSha256}\0${mode}`;
-      const viewer = viewers.get(viewerKey) ?? structureNative().legalSourceViewer(
-        selected.documentArtifact, mode, 10_000);
+      // The whole source: a quotation found anywhere in it says where it is.
+      const viewer = viewers.get(viewerKey) ?? structureNative().legalSourceViewer(selected.documentArtifact, mode);
       viewers.set(viewerKey, viewer);
       const alternatives = viewer.slices.flatMap(({ primary, text }) => primary &&
         primary.kind === locator.kind
