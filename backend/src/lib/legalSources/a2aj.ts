@@ -8,6 +8,7 @@ import { decisiaIndexUrl, verifiedDecisiaPdf,
 import { guardedRemoteFetch, networkFailure, RETRY_WAITS_MS, wait } from "../remoteUrlSafety";
 import { inSqliteRun, onSqliteRunEnd, storeExists } from "../legalDataPath";
 import { normalizeWhitespace } from "../text";
+import { searchLucene } from "../searchQuery";
 import { nativeDocumentLive, structureNative, type A2AJStoreDocument, type A2AJStoreLookup,
   type NativeDocument } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
@@ -581,10 +582,10 @@ async function search(input: LegalSourceSearchRequest, docType: DocType) {
     : input.sort === "oldest" ? "oldest_first" as const : "default" as const;
   const local = searchLocalA2AJ({ query, docType, language, size, sortResults,
     searchType: input.searchType, dataset: input.collection,
-    startDate: input.dateFrom, endDate: input.dateTo, querySyntax: input.syntax, ordered: input.ordered });
+    startDate: input.dateFrom, endDate: input.dateTo, ordered: input.ordered });
   if (local !== null) return local;
   const payload = await request("/search", {
-    query, doc_type: docType, search_type: input.searchType ?? "full_text",
+    query: searchLucene(query), doc_type: docType, search_type: input.searchType ?? "full_text",
     search_language: language, size: Math.min(Math.max(Math.floor(size ?? 10), 1), 50),
     dataset: input.collection?.trim(), start_date: input.dateFrom?.trim(),
     end_date: input.dateTo?.trim(), sort_results: sortResults,

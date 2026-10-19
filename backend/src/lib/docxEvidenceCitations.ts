@@ -1,6 +1,9 @@
 import { legalEvidenceDocumentLink } from "./chat/citations";
 import { legalEvidenceLocatorText } from "./chat/citationPresentation";
 import {
+  isEvidenceId,
+  legalEvidenceEntry,
+  normalizedEvidenceId,
   registerDocumentLegalEvidence,
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
@@ -13,7 +16,6 @@ import { structureNative, type NativeAuthorityTextUnit } from "./structureNative
 import { isJsonRecord } from "./value";
 
 const CITATION_ID = /^[a-z][a-z0-9_-]{0,63}$/u;
-const EVIDENCE_ID = /^e_[A-Za-z0-9_-]{8,64}$/u;
 
 type CitationInput = {
   id: string;
@@ -53,7 +55,7 @@ function citationInputs(raw: unknown): CitationInput[] {
   return Object.entries(raw).map(([key, value]) => {
     const id = key.trim();
     const evidenceIds = Array.isArray(value)
-      ? value.map((item) => typeof item === "string" ? item.trim() : "")
+      ? value.map((item) => typeof item === "string" ? normalizedEvidenceId(item) : "")
       : [];
     if (!CITATION_ID.test(id) || seen.has(id)) {
       throw new Error("DOCX citation ids must be unique lowercase identifiers.");
@@ -61,7 +63,7 @@ function citationInputs(raw: unknown): CitationInput[] {
     if (
       !evidenceIds.length ||
       evidenceIds.length > 16 ||
-      evidenceIds.some((evidenceId) => !EVIDENCE_ID.test(evidenceId)) ||
+      evidenceIds.some((evidenceId) => !isEvidenceId(evidenceId)) ||
       new Set(evidenceIds).size !== evidenceIds.length
     ) {
       throw new Error(`DOCX citation "${id}" has invalid evidence_ids.`);
@@ -93,7 +95,7 @@ export function docxCitationEntries(
     throw new Error("DOCX citations require this turn's legal evidence registry.");
   }
   return inputs.map((input) => ({ input, entries: input.evidenceIds.map((evidenceId) => {
-    const entry = state?.evidence.get(evidenceId);
+    const entry = state && legalEvidenceEntry(state.evidence, evidenceId);
     if (!entry) {
       throw new Error(
         `DOCX citation "${input.id}" has unknown evidence_id: ${evidenceId}.`,

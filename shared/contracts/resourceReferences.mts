@@ -23,7 +23,7 @@ export const RESOURCE_LOCATOR_KINDS = [
 
 const DOCUMENT_RESOURCE = "document://[^/?#]+/version/[^/?#]+";
 export const DOCUMENT_OR_DRAFT_PATTERN = `^(?:${DOCUMENT_RESOURCE}|draft-[1-9][0-9]*)$`;
-export const READABLE_RESOURCE_PATTERN = `^(?:${DOCUMENT_RESOURCE}|source://[^/?#]+/[^/?#]+|workflow://[^/?#]+(?:/references/[^/?#]+)?|draft-[1-9][0-9]*|[eq]_[A-Za-z0-9_-]+|evidence|queries|selection|findings|readers)$`;
+export const READABLE_RESOURCE_PATTERN = `^(?:${DOCUMENT_RESOURCE}|source://[^/?#]+/[^/?#]+|workflow://[^/?#]+(?:/references/[^/?#]+)?|draft-[1-9][0-9]*|[eq]_[A-Za-z0-9_-]+|[0-9a-fA-F]{7}#L[0-9]+(?:-L[0-9]+)?|evidence|queries|selection|findings|readers)$`;
 
 const segment = (value: string) => {
   if (!value) throw new Error("Resource reference segments cannot be empty");

@@ -52,7 +52,7 @@ describe("A2AJ client", () => {
       dataset: "LEGISLATION-FED", citation_en: "RSC 1985, c P-21", name_en: "Privacy Act",
     }] }), { status: 200 }));
     try {
-      expect(await a2ajLegalSourceProvider.search!({ text: '"privacy"', syntax: "fts5", kinds: [kind] }))
+      expect(await a2ajLegalSourceProvider.search!({ text: '"privacy"', kinds: [kind] }))
         .toMatchObject([{ kind, title: "Privacy Act" }]);
       expect(guardedRemoteFetch).toHaveBeenCalledTimes(1);
       const url = new URL(String(guardedRemoteFetch.mock.calls[0][0]));

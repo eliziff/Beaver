@@ -7,7 +7,7 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentRecord, DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { parseResourceReference, researchSourceKey } from "mike/shared/runtime/resourceReferences.mjs";
-import { legalEvidenceSourceReference, legalEvidenceResourceReference, type LegalEvidenceReceipt,
+import { isEvidenceId, legalEvidenceSourceReference, legalEvidenceResourceReference, type LegalEvidenceReceipt,
   storedLegalEvidenceReceipt, storedLegalResearchQueryReceipt,
   type LegalResearchQueryReceipt } from "./chat/legalEvidence";
 import type { LegalSourceReference } from "./legalSources";
@@ -126,7 +126,7 @@ const validQuery = (id: string, value: unknown) => { const item = record(value),
     (item.sourceIds as string[]).every((value) => uuid.safeParse(value).success) &&
     validIds(item.matchedSourceIds) && (item.matchedSourceIds as string[]).every((value) =>
       uuid.safeParse(value).success && sourceIds.has(value)) &&
-    validIds(item.evidenceIds, "e_") &&
+    validIds(item.evidenceIds) && (item.evidenceIds as string[]).every(isEvidenceId) &&
     (item.sourceFingerprints === undefined || !!record(item.sourceFingerprints) &&
       Object.entries(item.sourceFingerprints as Record<string, unknown>).every(([sourceId, hashes]) =>
         sourceIds.has(sourceId) && Array.isArray(hashes) && hashes.length <= 10_000 &&
@@ -581,7 +581,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   const applyField = (change: ResearchChangeField, value: unknown) => {
     const field = change.field;
     if ((change.target === "label" || change.target === "source") && !uuid.safeParse(change.id).success ||
-        change.target === "passage" && (!change.id.startsWith("e_") || !uuid.safeParse(change.sourceId).success))
+        change.target === "passage" && (!isEvidenceId(change.id) || !uuid.safeParse(change.sourceId).success))
       throw new ApplicationError(400, "Invalid research change target");
     if (change.target === "workspace") {
       if (field === "note" && typeof value === "string") { state.note = value; return; }

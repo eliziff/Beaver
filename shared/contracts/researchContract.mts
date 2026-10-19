@@ -134,6 +134,8 @@ export type LegalEvidenceReceipt = {
   exact_span_sha256?: string;
   span_sha256: string;
   span_text: string | null;
+  /** The passage's numbered lines as [start, end) offsets into span_text, the first numbered as its handle says. */
+  units?: Array<[number, number]>;
   citation: string;
   target_citation?: string;
   name: string | null;

@@ -2,7 +2,7 @@ import { MAX_READ_PATTERNS, readPatterns } from "../resourceTools";
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { collapseProvisionLabels } from "../../provisionLabels";
-import type { LegalEvidenceReceipt } from "../legalEvidence";
+import { isEvidenceId, type LegalEvidenceReceipt } from "../legalEvidence";
 import { trimmedText } from "../../value";
 
 export type A2AJReferenceDirection = "none" | "inbound" | "outbound" | "both";
@@ -133,8 +133,8 @@ export function assistantToolActivityLabel(
       title ??= SOURCE_LABELS[resource.provider] ?? resource.provider;
     } else if (resource || UUID.test(file)) {
       title ??= `the selected ${resource?.kind ?? "document"}`;
-    } else if (/^[eq]_[A-Za-z0-9_-]+$/u.test(file)) {
-      title ??= file.startsWith("e_") ? "the saved evidence" : "the saved search";
+    } else if (/^[eq]_[A-Za-z0-9_-]+$/u.test(file) || isEvidenceId(file)) {
+      title ??= file.startsWith("q_") ? "the saved search" : "the saved evidence";
     } else {
       title ??= activityText(file.replace(/^.*[\\/]/u, ""), 80);
     }
@@ -192,21 +192,28 @@ export function assistantToolActivityLabel(
         : rawJurisdiction;
     const collection = activityText(args.collection, 40)?.toUpperCase();
     const suffix = collection?.match(/-([A-Z]{2,3})$/u)?.[1];
-    const province = (suffix ?? collection?.slice(0, 2)) === "YK"
-      ? "YT"
-      : suffix ?? collection?.slice(0, 2);
+    const province = suffix === "YK" ? "YT" : suffix;
+    // A court's collection is named by its code (NSPC): two courts of one province must not read as one search.
     const place = province && province in a2ajLegalSourceProvider.jurisdictions
       ? a2ajLegalSourceProvider.jurisdictions[province as keyof typeof a2ajLegalSourceProvider.jurisdictions]
-      : jurisdiction;
+      : collection ?? jurisdiction;
+    // Searches split by date read alike unless the label names the range.
+    const day = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/u.test(String(value ?? "")) ? String(value) : undefined;
+    const from = day(args.date_from), to = day(args.date_to);
+    const span = from && to
+      ? from.endsWith("-01-01") && to.endsWith("-12-31")
+        ? from.slice(0, 4) === to.slice(0, 4) ? ` in ${from.slice(0, 4)}` : ` from ${from.slice(0, 4)} to ${to.slice(0, 4)}`
+        : ` from ${from} to ${to}`
+      : from ? ` from ${from}` : to ? ` up to ${to}` : "";
     const labels: Record<string, string> = {
-      case: "case law",
+      case: "cases",
       legislation: "legislation",
       journal: "journal articles",
       hansard: "Hansard",
     };
     const scope = [place, kinds.map((kind) => labels[kind] ?? kind).join(" and ")]
       .filter(Boolean).join(" ") || "legal sources";
-    return query ? `Searching ${scope} for “${query}”` : `Searching ${scope}`;
+    return query ? `Searching ${scope} for “${query}”${span}` : `Searching ${scope}${span}`;
   }
   if (name === "Edit") return "Editing the selected document";
   if (name === "Write") return `Creating ${activityText(args.filename, 80) ?? "a document"}`;

@@ -2,6 +2,7 @@ import { researchFindingReferenceToolSchema } from "mike/shared/runtime/research
 import type { Tool } from "../llm";
 import type { DocIndex } from "./types";
 import { objectSchema } from "./toolRegistry";
+import { citationUnits } from "./legalEvidence";
 import {
   DOCUMENT_OR_DRAFT_PATTERN,
   READABLE_RESOURCE_PATTERN,
@@ -22,6 +23,9 @@ const tool = (
 });
 
 const resource = "A version-pinned document resource or current-turn draft handle.";
+/** Whether reads number their lines for citation (see citationUnits). */
+const NUMBERED = citationUnits() !== "json";
+const HIT = NUMBERED ? "each hit is returned with the numbered lines of its passage," : "each hit returns its unit's evidence_id,";
 /** Not a cost limit: max_results and the result's character budget bound what a search returns, and each phrase is one
  *  scan of text already held. Each phrase is kept as its own search in the turn's history, so a list stays bounded. */
 export const MAX_READ_PATTERNS = 50;
@@ -77,7 +81,9 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    `Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To search a legal source you already hold, batch independent phrases in patterns (one source fetch); use pattern for a single phrase, not another corpus search. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. Read reader findings with file_path readers and section=reader_id. Search prior work on demand with file_path queries, pattern=term and optionally section=source_resource or reader_id; zero matches describe only that search, not semantic absence. List prior evidence with file_path evidence.${READ_WORKSPACE_GUIDE} Use drafting for semantic DOCX Markdown or redline for editorial markup.`,
+    `Read a document, legal source, saved evidence_id or query_id. ${NUMBERED
+      ? "Sources and documents come back as numbered lines (L412) under a heading that starts with the source's key: cite a line as key#L412 or consecutive lines of one passage as key#L412-L414, and Read file_path key#L412-L414 to see them again. A run of paragraphs is one call: give locator and end_locator, so never read a run one unit per call."
+      : "A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call."} To search a legal source you already hold, batch independent phrases in patterns (one source fetch); use pattern for a single phrase, not another corpus search. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. Read reader findings with file_path readers and section=reader_id. Search prior work on demand with file_path queries, pattern=term and optionally section=source_resource or reader_id; zero matches describe only that search, not semantic absence. List prior evidence with file_path evidence.${READ_WORKSPACE_GUIDE} Use drafting for semantic DOCX Markdown or redline for editorial markup.`,
     {
       file_path: {
         type: "string",
@@ -118,7 +124,7 @@ export const RESOURCE_TOOLS = [
         type: "string",
         minLength: 1,
         maxLength: 256,
-        description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. Or an exact support ID from findings; with queries, filter saved query text; with findings and no section, filter saved questions and answers.",
+        description: `Literal phrase to find inside the source; ${HIT} and hits in a case's headnote are counted, not returned. Or an exact support ID from findings; with queries, filter saved query text; with findings and no section, filter saved questions and answers.`,
       },
       patterns: { type: "array", minItems: 1, maxItems: MAX_READ_PATTERNS, uniqueItems: true,
         items: { type: "string", minLength: 1, maxLength: 256 },
@@ -158,7 +164,7 @@ export function readToolFor(workspace: boolean): Tool {
     inputSchema: { ...read.inputSchema, properties: { ...properties,
       file_path: { ...properties.file_path, description: "Resource from Glob or search_sources, a saved evidence_id or query_id, or readers/queries." },
       section: { ...READ_SECTION_SCHEMA, description: "Exact structural handle, a returned {nodeId} for a version-pinned document, or a reader ID. With queries, filter by reader ID or source resource." },
-      pattern: { ...properties.pattern, description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. With queries, filter saved query text." },
+      pattern: { ...properties.pattern, description: `Literal phrase to find inside the source; ${HIT} and hits in a case's headnote are counted, not returned. With queries, filter saved query text.` },
     } } };
 }
 

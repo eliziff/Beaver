@@ -193,6 +193,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "quoteRepairSuggestion" => done(value(engine::quote_repair(
             &call.get::<String>("claim")?, &call.get::<Vec<String>>("spans")?))),
         "markedQuoteSpans" => done(value(engine::quote_spans(&call.get::<String>("text")?))),
+        "textUnits" => done(value(legal_structure::text_units(&call.get::<String>("text")?,
+            call.get::<bool>("sentences")?))),
         "journalTitleSearches" => done(value(legal_structure::journal_title_searches(&call.get::<String>("citation")?))),
         "journalTitleChoice" => done(value(legal_structure::journal_title_choice(
             &call.get::<Vec<legal_structure::JournalTitleHit>>("hits")?))),

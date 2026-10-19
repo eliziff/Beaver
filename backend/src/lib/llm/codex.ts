@@ -79,18 +79,22 @@ function number(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function usageFromTokenUpdate(value: unknown): NormalizedLlmUsage | undefined {
-  const last = record(record(value)?.last);
-  if (!last) return undefined;
+/** A token count Codex reports (its thread's running total, or its last request's) as normalized usage. */
+function tokenCount(value: unknown): NormalizedLlmUsage | undefined {
+  const count = record(value);
+  if (!count) return undefined;
   const usage = {
-    inputTokens: number(last.inputTokens),
-    outputTokens: number(last.outputTokens),
-    reasoningTokens: number(last.reasoningOutputTokens),
-    cacheReadInputTokens: number(last.cachedInputTokens),
-    cacheWriteInputTokens: number(last.cacheWriteInputTokens),
+    inputTokens: number(count.inputTokens),
+    outputTokens: number(count.outputTokens),
+    reasoningTokens: number(count.reasoningOutputTokens),
+    cacheReadInputTokens: number(count.cachedInputTokens),
+    cacheWriteInputTokens: number(count.cacheWriteInputTokens),
   };
   return Object.values(usage).some((item) => item !== null) ? usage : undefined;
 }
+const usageDifference = (left: NormalizedLlmUsage, right: NormalizedLlmUsage): NormalizedLlmUsage =>
+  Object.fromEntries(Object.entries(left).map(([key, value]) => [key, value === null ? null
+    : value - (right[key as keyof NormalizedLlmUsage] ?? 0)])) as NormalizedLlmUsage;
 
 function codexStreamCallbacks(
   params: { callbacks?: StreamChatParams["callbacks"]; enableThinking?: boolean },
@@ -215,7 +219,7 @@ async function runCodexTurn(params: StreamChatParams,
   let turnId = "";
   let fullText = "";
   let structuredText: string | undefined;
-  let usage: NormalizedLlmUsage | undefined;
+  let usage: NormalizedLlmUsage | undefined, totalBefore: NormalizedLlmUsage | undefined;
   let failure = "";
   let compactionRunning = false;
   let interruptTimer: NodeJS.Timeout | undefined;
@@ -307,7 +311,13 @@ async function runCodexTurn(params: StreamChatParams,
       }
       case "thread/tokenUsage/updated": {
         const tokenUsage = record(event.params.tokenUsage);
-        usage = usageFromTokenUpdate(tokenUsage) ?? usage;
+        // Codex reports after every request of the turn, and its thread outlives the turn: what the turn used is the
+        // thread's latest total less its total before the turn's first request.
+        const total = tokenCount(tokenUsage?.total), lastRequest = tokenCount(tokenUsage?.last);
+        if (total && lastRequest) {
+          totalBefore ??= usageDifference(total, lastRequest);
+          usage = usageDifference(total, totalBefore);
+        } else usage = lastRequest ?? usage;
         const last = record(tokenUsage?.last);
         const window = number(tokenUsage?.modelContextWindow);
         const used = number(last?.totalTokens);

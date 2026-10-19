@@ -1,5 +1,7 @@
 import { type LegalSourceSearchHit } from "mike/shared/runtime/clientContracts.mjs";
 import { safeErrorLog } from "../safeError";
+import { ApplicationError } from "../applicationError";
+import { searchMatcher } from "../searchQuery";
 import type { NativeDocument, NativeDocumentBlock } from "../structureNative";
 
 export type LegalSourceKind = "case" | "legislation" | "journal" | "hansard";
@@ -14,17 +16,19 @@ export { legalSourceReferenceSchema, type LegalSourceReference } from "mike/shar
 import type { LegalSourceReference } from "mike/shared/runtime/legalSourceReference.mjs";
 
 export type LegalSourceSearchRequest = {
+  /** The search in the shared syntax (searchQuery.ts, CanLII's): words are all required; quotes, OR, NOT or -, * and
+   *  brackets as CanLII reads them. Each store compiles it for its own index. */
   text: string;
   kinds: readonly LegalSourceKind[];
   providers?: readonly string[];
-  syntax?: "terms" | "fts5";
   jurisdiction?: string | null;
+  /** A court, tribunal or legislation collection code (ONCA, SCC, LEGISLATION-ON, a CourtListener court id). */
   collection?: string;
-  court?: string;
   speaker?: string;
   author?: string;
   journal?: string;
   language?: "en" | "fr";
+  /** name: only what names a source (case name, title, citation), as CanLII's second search box reads. */
   searchType?: "full_text" | "name";
   dateFrom?: string;
   dateTo?: string;
@@ -154,6 +158,7 @@ export function createLegalSourceRegistry<Native = unknown>(
     providerIds: providers.map(({ id }) => id),
     async search(request: LegalSourceSearchRequest) {
       request.signal?.throwIfAborted();
+      if (!searchMatcher(request.text)) throw new ApplicationError(400, "The query could not be read: close each quotation mark and bracket, and give each AND, OR and NOT a term on both sides.");
       const selected = providers.filter(
         (provider) =>
           provider.search &&
@@ -168,7 +173,8 @@ export function createLegalSourceRegistry<Native = unknown>(
             if (hits === null) return { provider: provider.id, error: "not_installed" };
             return { provider: provider.id, hits };
           } catch (error) {
-            if (request.signal?.aborted) throw error;
+            // A request the asker must correct reaches them; any other failure leaves that provider out.
+            if (request.signal?.aborted || error instanceof ApplicationError) throw error;
             console.warn("[legal-source] provider unavailable", {
               provider: provider.id, ...safeErrorLog(error),
             });

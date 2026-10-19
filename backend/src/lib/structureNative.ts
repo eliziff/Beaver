@@ -299,6 +299,8 @@ type StructureAddon = {
     visibleEvidence: unknown): string[];
   quoteRepairSuggestion(claim: string, spans: string[]): string | null;
   markedQuoteSpans(text: string): Array<{ text: string; start: number; end: number }>;
+  /** A text's citable units as UTF-16 [start, end) spans: every line, and with sentences every sentence of a line. */
+  textUnits(text: string, sentences: boolean): Array<[number, number]>;
   /** Each quotation located through the source structure the engine holds (each quotation with
    *  the paragraphs, pages and provisions its citation names) and compared with the source's words there, with
    *  groundedProseErrors of it against the passage it was found in (the whole text where not), named by its id;

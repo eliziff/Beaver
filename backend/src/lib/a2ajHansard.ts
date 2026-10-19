@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { searchTokens, sqliteText as string } from "./sqliteSearch";
+import { sqliteText as string } from "./sqliteSearch";
+import { searchFts5 } from "./searchQuery";
 import { legalProviderDatabase, withSearchReadonlySqlite,
   withReadonlySqlite } from "./legalDataPath";
 import { isUnitedStatesSearch } from "./legalSources";
@@ -84,17 +85,14 @@ function searchHit(row: Row): HansardSearchHit | null {
 export function searchLocalHansard(args: {
   query: string; size?: number; speaker?: string; startDate?: string; endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
-  querySyntax?: "terms" | "fts5";
 }): HansardSearchHit[] | null {
   const query = args.query.trim();
   if (!query) throw new Error("query is required");
-  const tokens = searchTokens(query);
-  if (!tokens.length) return [];
+  if (!/[\p{L}\p{N}]/u.test(query)) return [];
   const wanted = Math.max(1, Math.min(50, Math.trunc(args.size ?? 10)));
   return withSearchDatabase((database) => {
     const filters = ["intervention_search MATCH ?"];
-    const values: Array<string | number> = [args.querySyntax === "fts5"
-      ? query : tokens.map((token) => `"${token}"`).join(" AND ")];
+    const values: Array<string | number> = [searchFts5(query)];
     if (args.speaker?.trim()) {
       filters.push("LOWER(intervention.speaker) LIKE ?");
       values.push(`%${args.speaker.trim().toLocaleLowerCase()}%`);
@@ -163,7 +161,7 @@ export const hansardLegalSourceProvider: LegalSourceProvider<HansardIntervention
   id: "hansard",
   canSearch: (request) => request.kinds.includes("hansard"),
   async search(request) {
-    if (request.court || request.collection || isUnitedStatesSearch(request)) {
+    if (request.collection || isUnitedStatesSearch(request)) {
       throw new Error("only installed Canadian Hansard collections are searchable");
     }
     const rows = searchLocalHansard({
@@ -174,7 +172,6 @@ export const hansardLegalSourceProvider: LegalSourceProvider<HansardIntervention
       endDate: request.dateTo,
       sortResults: request.sort === "newest" ? "newest_first"
         : request.sort === "oldest" ? "oldest_first" : "default",
-      querySyntax: request.syntax,
     });
     return rows?.map((row) => ({
       provider: "hansard",
