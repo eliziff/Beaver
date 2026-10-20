@@ -4,6 +4,7 @@ import {
     parseAsync,
     renderDocument,
     type Options as DocxPreviewOptions,
+    type PreviewDocument,
 } from "docx-preview";
 import {
     highlightDocxQuotes,
@@ -215,6 +216,7 @@ export function DocxCanvas({
     }, []);
     useEffect(() => {
         let cancelled = false;
+        let dispose = () => {};
         if (!bytes || !containerRef.current || !scrollRef.current) return;
         const scrollEl = scrollRef.current;
         const containerEl = containerRef.current;
@@ -222,10 +224,9 @@ export function DocxCanvas({
         const thisRender = ++renderKeyRef.current;
         (async () => {
             try {
-                const doc = await parseAsync(bytes, DOCX_RENDER_OPTIONS).then((value) => {
-                    tagDocxMarkers(value as DocxNoteModel);
-                    return value as DocxNoteModel;
-                });
+                const doc = await parseAsync(bytes, DOCX_RENDER_OPTIONS) as PreviewDocument & DocxNoteModel;
+                dispose = doc.dispose;
+                tagDocxMarkers(doc);
                 if (cancelled) return;
                 await renderDocument(
                     doc,
@@ -256,7 +257,10 @@ export function DocxCanvas({
                         onReady: ready,
                         quotes: pendingQuotes,
                     } = current();
-                    if (pendingHighlight) {
+                    if (typeof pendingInitialScroll === "number") {
+                        highlightDocxQuotes(containerEl, pendingQuotes ?? []);
+                        scrollRef.current.scrollTop = pendingInitialScroll;
+                    } else if (pendingHighlight) {
                         scrollToHighlight(
                             containerEl,
                             scrollRef.current,
@@ -274,8 +278,6 @@ export function DocxCanvas({
                         )
                     ) {
                         // The quote helper applied the requested scroll position.
-                    } else if (typeof pendingInitialScroll === "number") {
-                        scrollRef.current.scrollTop = pendingInitialScroll;
                     } else {
                         scrollRef.current.scrollTop = lastScrollTopRef.current;
                     }
@@ -284,11 +286,15 @@ export function DocxCanvas({
                 });
             } catch (e) {
                 console.error("docx-preview render failed", e);
+                dispose();
                 if (!cancelled) { setRenderFailure(bytes); current().onUnavailable?.(); }
+            } finally {
+                if (cancelled) dispose();
             }
         })();
         return () => {
             cancelled = true;
+            dispose();
         };
     }, [bytes]);
     useEffect(() => {
@@ -311,18 +317,23 @@ export function DocxCanvas({
     useEffect(() => {
         const el = scrollRef.current;
         if (!el) return;
-        let scheduled = false;
+        let frame = 0;
         const onScroll = () => {
             lastScrollTopRef.current = el.scrollTop;
-            if (scheduled) return;
-            scheduled = true;
-            requestAnimationFrame(() => {
-                scheduled = false;
+            if (frame) return;
+            frame = requestAnimationFrame(() => {
+                frame = 0;
                 current().onScrollChange?.(el.scrollTop);
             });
         };
         el.addEventListener("scroll", onScroll, { passive: true });
-        return () => el.removeEventListener("scroll", onScroll);
+        return () => {
+            el.removeEventListener("scroll", onScroll);
+            if (frame) {
+                cancelAnimationFrame(frame);
+                current().onScrollChange?.(lastScrollTopRef.current);
+            }
+        };
     }, []);
     return (
         <div

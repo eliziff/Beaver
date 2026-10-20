@@ -8,7 +8,8 @@ import { publicOrigin } from "./lib/publicOrigin";
 import { precompressedAssets } from "./lib/precompressedAssets";
 import { wordManifest } from "./lib/wordManifest";
 
-const frontend = path.resolve(__dirname, "../../frontend/dist");
+const frontend = process.env.BEAVER_FRONTEND_DIR
+  ? path.resolve(process.env.BEAVER_FRONTEND_DIR) : path.resolve(__dirname, "../../frontend/dist");
 const config = publicRuntimeConfig();
 const cloudOrigin = config.mode === "cloud" ? publicOrigin() : null;
 const connectSrc = ["'self'"];

@@ -65,6 +65,10 @@ Records separately. `build:deploy` replaces served Beaver and Word output togeth
 and requires stopping the live service. Development and staging skip React Compiler
 and asset precompression; explicit app/Authorities delivery retains both. Build
 logs do not gzip bundles just to print size statistics. Type checking is separate.
+An isolated launcher can serve staged app output by setting `BEAVER_FRONTEND_DIR`
+to the absolute `frontend/.tmp/app-dist` directory after `npm run build --prefix frontend`.
+Use a separate port and local data/launcher directories; this leaves a running
+app's `frontend/dist` intact.
 Tailwind uses its Vite adapter directly; CSS entries explicitly own their source
 scopes instead of scanning unrelated repository and staged output files.
 

@@ -529,6 +529,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         tabs.length ? (
             <AssistantSidePanel
                     embedded={embedded}
+                    active={dockOpen && activeDockTab === "sources"}
                     tabs={visibleTabs}
                     activeTabId={activeTabId}
                     projectId={projectId}

@@ -15,6 +15,7 @@ $ErrorActionPreference = 'Stop'
 $Repo = Split-Path -Parent $PSScriptRoot
 $Backend = Join-Path $Repo 'backend'
 $Frontend = Join-Path $Repo 'frontend'
+$FrontendBuild = if ($env:BEAVER_FRONTEND_DIR) { $env:BEAVER_FRONTEND_DIR } else { Join-Path $Frontend 'dist' }
 $ListenPort = if ($env:PORT) { [int]$env:PORT } else { 3000 }
 if ($ListenPort -lt 1 -or $ListenPort -gt 65535) { throw 'PORT must be between 1 and 65535.' }
 $BaseUrl = "http://127.0.0.1:$ListenPort"
@@ -31,7 +32,7 @@ $Services = @(
 )
 $Builds = @(
     [pscustomobject]@{ Name = 'backend'; Path = Join-Path $Backend 'dist\supervisor.js'; Command = 'cd backend; npm run build' },
-    [pscustomobject]@{ Name = 'frontend'; Path = Join-Path $Frontend 'dist\index.html'; Command = 'cd frontend; npm run build:deploy' }
+    [pscustomobject]@{ Name = 'frontend'; Path = Join-Path $FrontendBuild 'index.html'; Command = 'cd frontend; npm run build:deploy' }
 )
 
 function Get-ProcessStamp([int]$Id) {

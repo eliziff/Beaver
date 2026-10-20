@@ -28,10 +28,11 @@ export interface Options {
 }
 
 export { defaultOptions };
+export type PreviewDocument = { dispose: () => void };
 export const parseAsync = parse as (
     data: Blob | ArrayBuffer | ArrayBufferView,
     options?: Partial<Options>,
-) => Promise<unknown>;
+) => Promise<PreviewDocument>;
 export const renderDocument = renderParsed as (
     document: unknown,
     body: HTMLElement,

@@ -26,6 +26,18 @@ export class WordDocument {
 	private _package: OpenXmlPackage;
 	private _parser: DocumentParser;
 	private _options: any;
+	private _media = { urls: new Set<string>(), disposed: false };
+	readonly dispose: () => void;
+
+	constructor() {
+		const media = this._media;
+		// The reader keeps this callback without keeping the parsed ZIP and document tree.
+		this.dispose = () => {
+			media.disposed = true;
+			for (const url of media.urls) URL.revokeObjectURL(url);
+			media.urls.clear();
+		};
+	}
 
 	rels: Relationship[];
 	parts: Part[] = [];
@@ -169,14 +181,16 @@ export class WordDocument {
 	}
 
 	private blobToURL(blob: Blob): string | Promise<string> {
-		if (!blob)
+		if (!blob || this._media.disposed)
 			return null;
 
 		if (this._options.useBase64URL) {
 			return blobToBase64(blob);
 		}
 
-		return URL.createObjectURL(blob);
+		const url = URL.createObjectURL(blob);
+		this._media.urls.add(url);
+		return url;
 	}
 
 	findPartByRelId(id: string, basePart: Part = null) {
