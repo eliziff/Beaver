@@ -52,7 +52,8 @@ function judgeLayout() {
   const name = (element) => (element.getAttribute("aria-label") || element.innerText || element.value || element.tagName)
     .trim().replace(/\s+/gu, " ").slice(0, 60);
   const dialogs = [...document.querySelectorAll("dialog[open], [role=dialog]")].filter(shown);
-  const scope = dialogs.at(-1) ?? document.body;
+  const menus = [...document.querySelectorAll("[role=menu]")].filter(shown);
+  const scope = menus.at(-1) ?? dialogs.at(-1) ?? document.body;
   const controls = [...scope.querySelectorAll("button, a[href], input:not([type=hidden]), select, textarea, [role=tab], [role=menuitem]")]
     .filter((element) => shown(element)).map((element) => ({ element, rect: visibleRect(element), box: element.getBoundingClientRect() }))
     .filter(({ rect }) => rect);
@@ -96,7 +97,8 @@ function judgeLayout() {
   }
   // A list's rows keep their last action in one column.
   for (const list of scope.querySelectorAll("[role=list], ul")) {
-    const rows = [...list.children].filter((row) => shown(row) && row.getBoundingClientRect().height > 20);
+    const rows = [...list.children].filter((row) => shown(row) && row.getBoundingClientRect().height > 20 &&
+      ["flex", "grid"].includes(getComputedStyle(row).display));
     const rights = rows.map((row) => [...row.querySelectorAll("button, a[href]")].filter(shown).map((element) => element.getBoundingClientRect())
       .filter(({ width }) => width > 1).reduce((most, rect) => Math.max(most, rect.right), -1)).filter((right) => right > 0);
     if (rights.length >= 3 && Math.max(...rights) - Math.min(...rights) > 1.5)

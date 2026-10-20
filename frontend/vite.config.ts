@@ -3,7 +3,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig, searchForWorkspaceRoot } from "vite";
+import { defineConfig, searchForWorkspaceRoot, type UserConfig } from "vite";
 import { precompressedAssets } from "./scripts/precompressed-assets.mjs";
 
 const apiOrigin = process.env.BEAVER_API_ORIGIN ?? "http://127.0.0.1:3001";
@@ -15,7 +15,7 @@ const pages = {
     mcpApp: fileURLToPath(new URL("./mcp-app.html", import.meta.url)),
 };
 
-export default defineConfig(async ({ mode, command }) => {
+export default defineConfig(async ({ mode, command }): Promise<UserConfig> => {
     const deployment = mode === "deployment";
     const optimize = command === "build" && (deployment || mode === "authorities");
     const deliveryPlugins = optimize ? [(await import("@rolldown/plugin-babel")).default({

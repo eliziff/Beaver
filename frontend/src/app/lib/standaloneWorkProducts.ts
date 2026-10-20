@@ -522,11 +522,12 @@ export async function readSourceAnswer(url: string) {
 
 /** Retains generated/downloaded bytes without pretending they have a user filesystem handle. */
 export async function retainStandaloneFile(file: File) {
-  const sha256 = await digestBytes(new Uint8Array(await file.arrayBuffer()));
+  const bytes = await file.arrayBuffer(), sha256 = await digestBytes(new Uint8Array(bytes));
   const id = storedFileId(sha256), database = await openDatabase();
   retainedNow.add(id);
   const transaction = database.transaction(FILES, "readwrite");
-  transaction.objectStore(FILES).put({ id, mimeType: file.type, blob: file } satisfies StoredFile);
+  // A picked File may still depend on its disk entry; the retained copy owns its bytes.
+  transaction.objectStore(FILES).put({ id, mimeType: file.type, blob: new Blob([bytes], { type: file.type }) } satisfies StoredFile);
   await completed(transaction);
   const binding = { kind: "local-file", handleId: id,
     lastSeen: { name: file.name, size: file.size, modified: file.lastModified, sha256 } } as const;

@@ -1661,6 +1661,8 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   };
   const rows: OutputRow[] = [
     { key: "book", title: "Book of Authorities", roles: Object.keys(draft.outputs).filter((role) => /^book(?:-\d+)?$/u.test(role)),
+      made: manual ? undefined : book, madeLocked: !!profile.locked?.outputMode,
+      onMade: (made: boolean) => onAction({ type: "set-output-mode", outputMode: made ? table ? "both" : "book" : "table" }),
       sentence: lockedMode ?? "Creates a PDF that contains the cover, the index and each authority behind its tab." },
     ...manual ? [] : [wordDocument ? { key: "word", title: "Word copy", roles: ["annotated-document", "table"],
       made: wordMade, onMade: makeWord, onChange: () => setOutput("word"),

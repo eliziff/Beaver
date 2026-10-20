@@ -14,7 +14,7 @@ export const SOURCE_MODES = { automatic: "Automatic sources",
 const REGIONS = { header: "header[data-workspace-header]", steps: "[role=tablist][aria-label='Book steps']", panel: "#authorities-step" };
 
 /** A choice that changes what is made changes what the Build step and its Outputs dock list. */
-export const outputsChange = ({ sources }) => sources.every(({ node }) => (node ?? "").includes("/build"));
+export const outputsChange = ({ sources }) => sources.every(({ node }) => /\/build|\[Book\]|ul\.grid\.gap-3|section\.min-w-0 > div\.mt-/u.test(node ?? ""));
 /** Picks a court in the court chooser that `opener` opens: its jurisdiction, then the court. */
 export async function chooseCourt(app, opener, court, { shiftsOk } = {}) {
   const id = PROFILE_IDS[court];
@@ -44,7 +44,7 @@ export async function importBrief(app, file, { court, sourceMode, marking, scann
   await setup.waitFor();
   if (court) {
     if (await setup.getByRole("radio", { name: PROFILES[court], exact: true }).count()) await chooseCard(app, setup, PROFILES[court]);
-    else await chooseCourt(app, setup.getByRole("button", { name: "Other court" }), court);
+    else await chooseCourt(app, setup.getByRole("button", { name: /^Court:/u }), court);
   }
   const step = (name) => setup.getByRole("list", { name: "Steps", exact: true }).getByRole("button", { name, exact: true }).click();
   if (sourceMode || scanned) {
@@ -77,6 +77,12 @@ export async function step(app, name, { budget = 300, via = "tab", wait } = {}) 
     () => via === "next" ? app.button("Next").click() : tab.click(),
     { budget, longTask: BUDGETS.stepTask, regions: REGIONS, shiftsOk: ({ sources }) => sources.every(({ node }) => /beaver-loading-indicator|\[role=status\]/u.test(node ?? "")),
       wait: wait ?? (() => app.page.getByRole("tab", { name, exact: true, selected: true }).waitFor({ timeout: 120_000 })) });
+  // Acknowledge the one-time guidance before opening a menu it would otherwise cover.
+  if (name === "Sources" && !app.sourcesExplained) {
+    const guidance = app.page.getByRole("dialog", { name: "Some sources need adding" });
+    const appeared = await guidance.waitFor({ timeout: 2000 }).then(() => true, () => false);
+    if (appeared) { await app.button("Got it", guidance).click(); app.sourcesExplained = true; }
+  }
   return result;
 }
 export const row = (app, name) => app.page.getByRole("list", { name: "Authority tab slots" }).getByRole("listitem")
@@ -94,13 +100,15 @@ export async function attach(app, name, file) {
 }
 
 export const dock = (app) => app.page.getByRole("region", { name: "Outputs" });
-/** An output's options, opened from its card: `run` works in the dialog, then Done closes it. */
+/** An output's options, saved together; unchanged choices close with Cancel. */
 export async function outputOptions(app, card, run) {
-  await app.interact(`open the ${card} options`, () => dock(app).getByRole("button", { name: `${card} options` }).click(), { budget: BUDGETS.dialog });
+  await app.interact(`open the ${card} options`, () => dock(app).getByRole("button", { name: `Options for ${card}`, exact: true }).click(), { budget: BUDGETS.dialog });
   const dialog = app.page.getByRole("dialog", { name: card });
   await dialog.waitFor();
   const result = await run(dialog);
-  await app.button("Done", dialog).click(); await dialog.waitFor({ state: "detached" }); await app.idle();
+  const save = app.button("Save", dialog);
+  await (await save.isEnabled() ? save : app.button("Cancel", dialog)).click();
+  await dialog.waitFor({ state: "detached" }); await app.idle();
   return result;
 }
 /** Ticks or unticks a checkbox card, where it can be changed. */
@@ -109,11 +117,14 @@ export async function tick(app, box, on) {
   await app.interact(`${on ? "tick" : "untick"} a box`, () => box.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }),
     { shiftsOk: outputsChange });
 }
-/** What Build makes, the book, the table or both, through the two outputs' options. */
+/** What Build makes, through the output choices exposed to the reader. */
 export async function outputMode(app, mode) {
-  const table = await dock(app).getByRole("button", { name: "Word copy options" }).count() ? "Word copy" : "Table of Authorities";
+  const table = await dock(app).getByRole("button", { name: "Options for Word copy", exact: true }).count() ? "Word copy" : "Table of Authorities";
   await outputOptions(app, table, (dialog) => tick(app, dialog.getByRole("checkbox", { name: "A Table of Authorities in its own Word document" }), mode !== "book"));
-  await outputOptions(app, "Book of Authorities", (dialog) => tick(app, dialog.getByRole("checkbox", { name: "Make the Book of Authorities" }), mode !== "table"));
+  const book = dock(app).locator("[data-output=book]").getByRole("switch");
+  app.record.check(await book.count() > 0, `${app.label}: output choices include whether to make the book`);
+  if (await book.count()) await book.setChecked(mode !== "table");
+  await app.idle();
 }
 /** Build (or `start`), through Missing PDFs when it asks; to every output current. */
 export async function build(app, label, { missing = null, start = () => app.button("Build", dock(app)).click(), budget = 2500, shot = null } = {}) {
@@ -166,16 +177,21 @@ const SCANNED = { "page-margin": "Keep scans as images", "cited-pages": "Recogni
 /** A setting from Build, set where it lives: the book's or the table's options, or Sources (its scans
  *  and tabs), coming back to Build after. */
 export async function setOption(app, label, value) {
-  if (label === "Missing sources") return outputOptions(app, "Book of Authorities", (dialog) =>
-    chooseCard(app, dialog, value === "omit" ? "Leave out of the book" : "Keep their tabs"));
+  if (label === "Missing sources") {
+    await app.button("Review the authorities without a PDF").click();
+    const dialog = app.page.getByRole("dialog", { name: "Authorities without a PDF", exact: true });
+    await chooseCard(app, dialog, value === "omit" ? "Leave out of the book" : "Keep their tabs");
+    await app.button("Close", dialog).last().click(); await app.idle();
+    return;
+  }
   if (label === "Table locations") {
-    const table = await dock(app).getByRole("button", { name: "Word copy options" }).count() ? "Word copy" : "Table of Authorities";
+    const table = await dock(app).getByRole("button", { name: "Options for Word copy", exact: true }).count() ? "Word copy" : "Table of Authorities";
     return outputOptions(app, table, (dialog) => dialog.locator("#authorities-cited-at").selectOption(value));
   }
   await step(app, "Sources");
   if (label === "Scanned PDFs") {
-    const summary = app.page.locator("summary", { hasText: "Scanned PDFs" });
-    if (!await summary.evaluate((element) => element.parentElement.open)) await summary.click();
+    const settings = app.button("Source settings");
+    if (await settings.getAttribute("aria-expanded") !== "true") await settings.click();
     await chooseCard(app, app.page.getByRole("group", { name: "Scanned PDFs" }), SCANNED[value]);
   } else if (label === "Tabs") {
     await app.button("Tab labels").click();

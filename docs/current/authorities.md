@@ -33,9 +33,11 @@ differ from those it was read with. Changing the court later keeps every setting
 user chose (any that differs from the outgoing court's default), applies the new
 court's locks and defaults, and says which settings it changed. The steps' choices
 reappear closed at Sources and Highlights and as the cover and index at Build.
-Build makes three outputs, each a card with one options dialog: the Book of
+Build lists three outputs: the Book of
 Authorities, the Word copy (for a PDF brief, the Table of Authorities), and the final
-PDF. Original input bytes remain unchanged. Source acquisition starts when
+PDF. The book can be turned off for a table-only build; Manual mode always makes
+a book and court presets retain their required output locks. Original input bytes
+remain unchanged. Source acquisition starts when
 the imported citations enter review, before the user advances to Sources, and
 reconciles changed citations and newly linked references. Attached scans begin OCR
 after inspection unless the user chose page-margin mode. Pinpoint changes update
@@ -99,9 +101,9 @@ when the row needs it. An excerpt keeps each PDF's first page, every page a cite
 section, paragraph or page spans in the build's passage geometry, and every marked
 page; with no cited provision placed, the statute goes in whole and its row says so.
 Index ranges, bookmarks (those into pages left out go), marks, recognized text and
-final-PDF destinations follow the pages kept; the Word outputs are unchanged. The
-row's line names what the brief cites, as written, and counts the excerpt from the
-reading the build reuses.
+final-PDF destinations follow the pages kept; the Word outputs are unchanged.
+The row's menu chooses Whole or Excerpt; previews and the index reuse the build's
+reading to count the excerpt.
 
 A case or another source goes in whole unless the import's Excerpts step
 (`settings.caseCopy` for cases, `settings.otherCopy` for the rest) or its Sources row
@@ -130,6 +132,8 @@ at the cursor, merge adjacent occurrences or remove a detection. These operation
 change reviewed ranges, never the source bytes. Whole-range edits preserve the
 unselected portions of overlapping neighbouring detections. If a rendered passage
 cannot be mapped reliably, the extracted-text editor remains available.
+Adding a pinpoint paints the selected text immediately; its save reads the kind
+from the surrounding words, with undo/redo available before that save completes.
 
 Rust citation records and verified provider aliases own identity. Do not resolve
 an ambiguous citation by selecting the first plausible candidate or recreating
@@ -360,6 +364,11 @@ writer cannot open are rejected before attachment. Encrypted PDFs need an
 unencrypted copy, including readable PDFs with owner restrictions that the current
 writer does not support. Replacing an unavailable retained file refreshes its
 preview availability even when its content hash is unchanged.
+Uploaded authority PDFs are retained as byte snapshots, so changing or moving the
+picked original cannot invalidate them. Connected briefs retain their file handles
+and can ask for access or be reconnected after a move. OCR text prepared by the
+parser remains in exports when locating a pinpoint required reading the whole
+scan; an unlocated pinpoint still adds no guessed passage mark.
 
 Restore the [repository checkout](local-subrepositories.md), install root/backend/
 frontend npm dependencies, and build the native addon for the current platform:

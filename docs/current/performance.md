@@ -603,6 +603,22 @@ the same independently invented 20-line image. Earlier local candidates recorded
 a 215 ms startup task, a 56 ms interaction and a 106 ms transition task beyond their
 respective 200/50/100 ms budgets; the final artifact pass is not a universal latency bound.
 
+The broader standalone stress runner now follows the current import, source menus
+and output controls, includes PDF form values when checking covers, and opens its
+Word outputs in an isolated invisible Word instance. Generated benchmark inputs
+live in `benchmarks/local-data/authorities-stress/generated/`; reports and previews
+overwrite `.tmp/authorities-e2e/`. The optional article/HAR remains a separate gate.
+
+Removing the PDF worker's one-time warm-up was rejected after three alternating
+fresh-browser comparisons per input. The invented brief's cold median improved
+from 2.93 to 2.42 seconds, but the public judgment regressed from 4.93 to 5.43
+seconds; citation lists matched in all twelve imports. The existing startup stays.
+The private `benchmarks/local-data/authorities-stress/cold-import.json` retains
+input/artifact hashes and every sample. Strict latency checks still matter: the
+broader run observed cold imports up to 7.39 seconds, review interactions up to
+88 ms and a 208 ms step task under varying machine load. Successful functional
+and Word checks do not certify those performance budgets.
+
 The custom wheel listener remains non-passive to preserve PDF-only Ctrl-wheel and
 trackpad zoom. The shared viewer sets `will-change: transform` on the scroll
 container while it is mounted, so Chrome can move that layer without waiting for
