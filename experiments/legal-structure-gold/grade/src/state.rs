@@ -1,0 +1,662 @@
+//! The scorer's frame: source lines, reading order, blocks over exact source spans, annotations
+//! (notes, tables, documents) and continuations. The gold is projected into it from its typed
+//! lines and units; a parser structure through the composition the apps read.
+use legal_structure::{
+    CompositionAnnotation, CompositionBlock, CompositionLine, CompositionLink, CompositionLinks,
+    SourceSpan,
+};
+use legal_structure_model::DocumentStructure;
+use serde::Deserialize;
+use serde_json::{json, Map, Value};
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+pub struct Line {
+    pub id: String,
+    pub page: usize,
+    /// The line's text as this side reads it: the gold's correction, or the parser's own.
+    pub text: Vec<char>,
+    /// (page, middle, left): the gold's reading position stands for its geometry.
+    pub spatial: (usize, f64, f64),
+    pub page_band: Option<f64>,
+}
+
+pub struct State {
+    pub lines: Vec<Line>,
+    pub index: HashMap<String, usize>,
+    pub reading_order: Vec<usize>,
+    pub groups: Vec<CompositionBlock>,
+    pub annotations: Vec<CompositionAnnotation>,
+    pub continuations: CompositionLinks,
+}
+
+impl State {
+    pub fn line(&self, id: &str) -> &Line {
+        &self.lines[self.index[id]]
+    }
+
+    pub fn composition_lines(&self) -> Vec<CompositionLine> {
+        self.lines
+            .iter()
+            .map(|line| CompositionLine {
+                id: line.id.clone(),
+                text: line.text.iter().collect(),
+                page: line.page,
+                evidence: BTreeMap::new(),
+            })
+            .collect()
+    }
+
+    pub fn order_ids(&self) -> Vec<String> {
+        self.reading_order
+            .iter()
+            .map(|&n| self.lines[n].id.clone())
+            .collect()
+    }
+}
+
+pub fn anchor(span: &SourceSpan) -> String {
+    format!("{}@{}", span.line_id, span.start)
+}
+
+/// A block's identity: its declared id, or its first span.
+pub fn block_id(block: &CompositionBlock) -> String {
+    if !block.id.is_empty() {
+        return block.id.clone();
+    }
+    match block.spans.first() {
+        Some(span) => anchor(span),
+        None => format!("{}@0", block.line_ids[0]),
+    }
+}
+
+fn unique_ids(spans: &[SourceSpan]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    spans
+        .iter()
+        .filter(|s| seen.insert(s.line_id.clone()))
+        .map(|s| s.line_id.clone())
+        .collect()
+}
+
+fn link(next: String, separator: Option<&str>, kind: &str) -> CompositionLink {
+    CompositionLink {
+        next,
+        separator: separator.map(str::to_owned),
+        attributes: BTreeMap::from([("kind".to_owned(), json!(kind))]),
+    }
+}
+
+fn attributes(value: Value) -> Map<String, Value> {
+    value.as_object().cloned().unwrap_or_default()
+}
+
+#[derive(Deserialize)]
+pub struct Gold {
+    pub schema_version: String,
+    pub source_sha256: String,
+    #[serde(default)]
+    pub parser: Value,
+    pub lines: Vec<GoldLine>,
+    pub typed: Vec<Typed>,
+    pub units: Vec<Unit>,
+    pub notes: Vec<NotePair>,
+}
+
+#[derive(Deserialize)]
+pub struct GoldLine {
+    pub id: String,
+    pub page: usize,
+    pub text: String,
+    #[serde(default)]
+    pub corrected: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct Typed {
+    pub region: String,
+    #[serde(default)]
+    pub spans: Vec<SourceSpan>,
+    #[serde(default)]
+    pub markers: Vec<Vec<SourceSpan>>,
+    #[serde(default)]
+    pub references: Vec<Reference>,
+    #[serde(default)]
+    pub cells: Option<Vec<Vec<SourceSpan>>>,
+}
+
+#[derive(Deserialize)]
+pub struct Reference {
+    #[serde(default)]
+    pub spans: Vec<SourceSpan>,
+}
+
+#[derive(Deserialize)]
+pub struct Unit {
+    pub lines: Vec<usize>,
+    pub parent: Option<usize>,
+    #[serde(default)]
+    pub starts_document: bool,
+}
+
+#[derive(Deserialize)]
+pub struct NotePair {
+    pub line: usize,
+    pub reference: Option<usize>,
+    pub note: Option<usize>,
+}
+
+pub const V4: &str = "legal-structure-gold.v4";
+
+/// The scorer's kinds for typed regions; the rest are running text (block quotes, notes and
+/// tables inside their annotations, list items with a list_item locator).
+fn kind_of(region: &str) -> &str {
+    match region {
+        "heading" | "caption" | "headnote" | "marginal_note" | "furniture" | "page_label"
+        | "contents" => region,
+        _ => "text",
+    }
+}
+
+fn own(region: &str) -> bool {
+    matches!(region, "furniture" | "page_label")
+}
+
+/// A v4 gold in the scorer's frame: one block per unit fragment (a unit's lines on one page,
+/// unbroken), parents, markers, continuations, notes with their references, tables and documents.
+/// The gold's reading order is the order the model typed its lines in.
+pub fn projected(gold: &Gold) -> Result<State, String> {
+    if gold.schema_version != V4 {
+        return Err("Expected a legal-structure-gold.v4 file".into());
+    }
+    let index: HashMap<String, usize> = gold
+        .lines
+        .iter()
+        .enumerate()
+        .map(|(n, l)| (l.id.clone(), n))
+        .collect();
+    // Reading order: the typed order; a line never typed keeps its place after the typed line
+    // before it in the extraction.
+    let mut typed_order = Vec::new();
+    let mut seen = HashSet::new();
+    for item in &gold.typed {
+        for span in &item.spans {
+            if seen.insert(span.line_id.as_str()) {
+                typed_order.push(span.line_id.as_str());
+            }
+        }
+    }
+    let (mut leading, mut after, mut last) = (Vec::new(), HashMap::<&str, Vec<usize>>::new(), None);
+    for (n, line) in gold.lines.iter().enumerate() {
+        if seen.contains(line.id.as_str()) {
+            last = Some(line.id.as_str());
+        } else if let Some(previous) = last {
+            after.entry(previous).or_default().push(n);
+        } else {
+            leading.push(n);
+        }
+    }
+    let mut order = leading;
+    for id in &typed_order {
+        order.push(*index.get(*id).ok_or("Typed span names an absent line")?);
+        order.extend(after.get(id).into_iter().flatten());
+    }
+    if order.len() != gold.lines.len() {
+        return Err("Every gold line takes one reading position".into());
+    }
+    let mut position = vec![0usize; gold.lines.len()];
+    for (k, &n) in order.iter().enumerate() {
+        position[n] = k;
+    }
+    let lines: Vec<Line> = gold
+        .lines
+        .iter()
+        .enumerate()
+        .map(|(n, l)| Line {
+            id: l.id.clone(),
+            page: l.page,
+            text: l.corrected.as_deref().unwrap_or(&l.text).chars().collect(),
+            spatial: (l.page, position[n] as f64, 0.0),
+            page_band: None,
+        })
+        .collect();
+    let at = |span: &SourceSpan| (position[index[&span.line_id]], span.start);
+    let page_of = |span: &SourceSpan| gold.lines[index[&span.line_id]].page;
+    let typed = &gold.typed;
+    let units = &gold.units;
+    // A unit's spans, split at each page and at each line another unit interrupts.
+    let fragments = |members: &[usize]| -> Vec<Vec<SourceSpan>> {
+        let mut result: Vec<Vec<SourceSpan>> = Vec::new();
+        let mut previous: Option<usize> = None;
+        for &n in members {
+            for (k, span) in typed[n].spans.iter().enumerate() {
+                let split = match result.last() {
+                    None => true,
+                    Some(current) => {
+                        page_of(current.last().unwrap()) != page_of(span)
+                            || k == 0 && previous.is_some_and(|p| n != p + 1)
+                    }
+                };
+                if split {
+                    result.push(Vec::new());
+                }
+                result.last_mut().unwrap().push(span.clone());
+            }
+            previous = Some(n);
+        }
+        for spans in &mut result {
+            spans.sort_by_key(|s| at(s));
+        }
+        result
+    };
+    let parts: Vec<Vec<Vec<SourceSpan>>> = units.iter().map(|u| fragments(&u.lines)).collect();
+    let region: Vec<&str> = units
+        .iter()
+        .map(|u| typed[u.lines[0]].region.as_str())
+        .collect();
+    let heads: Vec<Option<String>> = parts
+        .iter()
+        .map(|found| found.first().map(|spans| anchor(&spans[0])))
+        .collect();
+    let mut groups = Vec::new();
+    let mut annotations = Vec::new();
+    let mut continuations = CompositionLinks::new();
+    let mut notes: HashMap<usize, usize> = HashMap::new();
+    for (u, unit) in units.iter().enumerate() {
+        let first = &typed[unit.lines[0]];
+        let marker: Vec<SourceSpan> = first.markers.iter().flatten().cloned().collect();
+        let parent = match unit.parent {
+            Some(p) => heads.get(p).cloned().flatten(),
+            None => None,
+        };
+        for (k, spans) in parts[u].iter().enumerate() {
+            let mut attrs = Map::new();
+            attrs.insert(
+                "parent".into(),
+                parent.clone().map_or(Value::Null, Value::String),
+            );
+            if region[u] == "list_item" {
+                attrs.insert("locator_kind".into(), json!("list_item"));
+                attrs.insert(
+                    "marker".into(),
+                    json!(if k == 0 { marker.clone() } else { Vec::new() }),
+                );
+            } else if k == 0 && !marker.is_empty() && matches!(region[u], "text" | "quote") {
+                attrs.insert("locator_kind".into(), json!("paragraph"));
+                attrs.insert("marker".into(), json!(marker));
+            } else if k == 0 && !marker.is_empty() && region[u] == "heading" {
+                attrs.insert("marker".into(), json!(marker));
+            }
+            groups.push(CompositionBlock {
+                id: String::new(),
+                kind: kind_of(region[u]).to_owned(),
+                line_ids: unique_ids(spans),
+                spans: spans.clone(),
+                attributes: attrs,
+                document: None,
+            });
+            if region[u] == "note" {
+                let label = if k == 0 {
+                    first.markers.first().cloned().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                annotations.push(CompositionAnnotation {
+                    id: format!("note:{}", anchor(&spans[0])),
+                    kind: "note".into(),
+                    line_ids: unique_ids(spans),
+                    spans: spans.clone(),
+                    attributes: attributes(
+                        json!({"kind": "footnote", "label": label, "references": []}),
+                    ),
+                });
+                if k == 0 {
+                    notes.insert(u, annotations.len() - 1);
+                }
+            }
+        }
+        if own(region[u]) {
+            continue;
+        }
+        let kind = match region[u] {
+            "heading" => "heading",
+            "note" => "note",
+            _ => "paragraph",
+        };
+        for pair in parts[u].windows(2) {
+            let (left, right) = (anchor(&pair[0][0]), anchor(&pair[1][0]));
+            continuations
+                .entry(kind.into())
+                .or_default()
+                .insert(left.clone(), link(right.clone(), Some(" "), kind));
+            if region[u] == "list_item" {
+                continuations
+                    .entry("list".into())
+                    .or_default()
+                    .insert(left, link(right, None, "list"));
+            }
+        }
+    }
+    // Documents: the first block opens the source's own; each unit holding a document start opens
+    // another under it.
+    let opened: Vec<usize> = (0..units.len())
+        .filter(|&u| !parts[u].is_empty() && units[u].starts_document)
+        .collect();
+    let start = parts
+        .iter()
+        .filter_map(|found| found.first().map(|spans| &spans[0]))
+        .min_by_key(|s| at(s));
+    if let (false, Some(start)) = (opened.is_empty(), start) {
+        let root = format!("document:{}", anchor(start));
+        let mut openings = vec![start.clone()];
+        openings.extend(
+            opened
+                .iter()
+                .map(|&u| parts[u][0][0].clone())
+                .filter(|s| s != start),
+        );
+        for opening in openings {
+            let parent = if &opening == start {
+                Value::Null
+            } else {
+                json!(root)
+            };
+            annotations.push(CompositionAnnotation {
+                id: format!("document:{}", anchor(&opening)), kind: "document".into(), line_ids: vec![opening.line_id.clone()],
+                spans: vec![opening],
+                attributes: attributes(json!({"kind": null, "parent": parent, "relationship": null, "title": [], "facets": {}})),
+            });
+        }
+    }
+    // Each note reference with the note the notes pass paired it with.
+    for pair in &gold.notes {
+        let (Some(note), Some(reference)) = (pair.note, pair.reference) else {
+            continue;
+        };
+        let Some(&annotation) = notes.get(&note) else {
+            continue;
+        };
+        let spans = &typed[pair.line].references[reference].spans;
+        let references = annotations[annotation]
+            .attributes
+            .get_mut("references")
+            .unwrap()
+            .as_array_mut()
+            .unwrap();
+        references.extend(spans.iter().map(|s| json!(s)));
+    }
+    // Tables: consecutive table rows, with only furniture, page labels and notes between, form one
+    // table, one grid per page linked across pages; a row is on the page of its first cell.
+    let mut tables: Vec<Vec<usize>> = Vec::new();
+    let mut current = false;
+    for u in 0..units.len() {
+        if region[u] == "table" && !parts[u].is_empty() {
+            if !current {
+                tables.push(Vec::new());
+                current = true;
+            }
+            tables.last_mut().unwrap().push(u);
+        } else if !own(region[u]) && region[u] != "note" {
+            current = false;
+        }
+    }
+    for rows in tables {
+        let mut pages: Vec<(usize, Vec<Vec<Vec<SourceSpan>>>)> = Vec::new();
+        for u in rows {
+            let mut cells: BTreeMap<usize, Vec<SourceSpan>> = BTreeMap::new();
+            for &n in &units[u].lines {
+                for (c, spans) in typed[n].cells.iter().flatten().enumerate() {
+                    cells.entry(c).or_default().extend(spans.iter().cloned());
+                }
+            }
+            let width = cells.keys().next_back().map_or(0, |c| c + 1);
+            let row: Vec<Vec<SourceSpan>> = (0..width)
+                .map(|c| cells.remove(&c).unwrap_or_default())
+                .collect();
+            let Some(first) = row.iter().flatten().min_by_key(|s| at(s)) else {
+                continue;
+            };
+            let page = page_of(first);
+            match pages.iter_mut().find(|(p, _)| *p == page) {
+                Some((_, grid)) => grid.push(row),
+                None => pages.push((page, vec![row])),
+            }
+        }
+        if pages.is_empty() {
+            continue;
+        }
+        let width = pages
+            .iter()
+            .flat_map(|(_, grid)| grid.iter().map(Vec::len))
+            .max()
+            .unwrap_or(0);
+        let mut chain = Vec::new();
+        for (_, grid) in pages {
+            let grid: Vec<Vec<Vec<SourceSpan>>> = grid
+                .into_iter()
+                .map(|mut row| {
+                    row.resize(width, Vec::new());
+                    row
+                })
+                .collect();
+            let populated: Vec<SourceSpan> = grid.iter().flatten().flatten().cloned().collect();
+            let first = anchor(&populated[0]);
+            annotations.push(CompositionAnnotation {
+                id: format!("table:{first}"),
+                kind: "table".into(),
+                line_ids: unique_ids(&populated),
+                spans: populated,
+                attributes: attributes(json!({"rows": grid, "header_rows": [], "merges": []})),
+            });
+            chain.push(first);
+        }
+        for pair in chain.windows(2) {
+            continuations
+                .entry("table".into())
+                .or_default()
+                .insert(pair[0].clone(), link(pair[1].clone(), None, "table"));
+        }
+    }
+    Ok(State {
+        lines,
+        index,
+        reading_order: order,
+        groups,
+        annotations,
+        continuations,
+    })
+}
+
+/// One page of the parser's extraction, as the export carries it: its size and its lines' boxes.
+pub struct ExtractionPage {
+    pub width: f64,
+    pub height: f64,
+    pub lines: Vec<(String, [f64; 4])>,
+}
+
+/// A parser structure in the scorer's frame, through the same composition the apps read.
+pub fn parsed(
+    structure: &DocumentStructure,
+    extraction: &[ExtractionPage],
+) -> Result<State, String> {
+    if structure.offset_unit != "utf16" {
+        return Err("Expected the native UTF-16 structure contract".into());
+    }
+    let units: Vec<u16> = structure.text.encode_utf16().collect();
+    let slice = |start: usize, end: usize| -> Result<String, String> {
+        String::from_utf16(
+            units
+                .get(start..end)
+                .ok_or("Invalid native source fragment")?,
+        )
+        .map_err(|e| e.to_string())
+    };
+    let mut sources: Vec<(String, String, usize, usize, usize)> = Vec::new();
+    if !structure.source_fragments.is_empty() {
+        for fragment in &structure.source_fragments {
+            let (start, end) = (fragment.range.start, fragment.range.end);
+            sources.push((
+                fragment.id.clone(),
+                slice(start, end)?,
+                fragment.page_index + 1,
+                start,
+                end,
+            ));
+        }
+    } else {
+        for page in structure
+            .nodes
+            .iter()
+            .filter(|n| n.kind == legal_structure_model::NodeKind::Page)
+        {
+            let (mut start, end) = (page.range.start, page.range.end);
+            let content = slice(start, end)?;
+            if page.line_ids.is_empty() && content.split('\n').next().unwrap_or("").is_empty() {
+                continue;
+            }
+            let pieces: Vec<&str> = content.split('\n').collect();
+            if pieces.len() != page.line_ids.len() {
+                return Err("Native page source IDs do not match its text range".into());
+            }
+            for (id, text) in page.line_ids.iter().zip(pieces) {
+                let stop = start + text.encode_utf16().count();
+                sources.push((
+                    id.clone(),
+                    text.to_owned(),
+                    page.page_indexes[0] + 1,
+                    start,
+                    stop,
+                ));
+                start = stop + 1;
+            }
+        }
+    }
+    let mut boxes: HashMap<&str, ([f64; 4], f64)> = HashMap::new();
+    for page in extraction {
+        for (id, bbox) in &page.lines {
+            boxes.insert(
+                id.as_str(),
+                (
+                    [
+                        1000.0 * bbox[0] / page.width,
+                        1000.0 * bbox[1] / page.height,
+                        1000.0 * bbox[2] / page.width,
+                        1000.0 * bbox[3] / page.height,
+                    ],
+                    (bbox[1] + bbox[3]) / 2.0 / page.height,
+                ),
+            );
+        }
+    }
+    if sources
+        .iter()
+        .map(|s| s.0.as_str())
+        .collect::<HashSet<_>>()
+        .len()
+        != sources.len()
+    {
+        return Err("Duplicate native line ID".into());
+    }
+    let mut lines = Vec::new();
+    let mut composition = Vec::new();
+    for (id, text, page, start, end) in &sources {
+        // A line the extraction does not place has no box and no band.
+        let (bbox, band) = boxes
+            .get(id.as_str())
+            .map_or(([0.0; 4], None), |(bbox, band)| (*bbox, Some(*band)));
+        lines.push(Line {
+            id: id.clone(),
+            page: *page,
+            text: text.chars().collect(),
+            spatial: (*page, (bbox[1] + bbox[3]) / 2.0, bbox[0]),
+            page_band: band,
+        });
+        composition.push(CompositionLine {
+            id: id.clone(),
+            text: text.clone(),
+            page: *page,
+            evidence: BTreeMap::from([("range".to_owned(), json!({"start": start, "end": end}))]),
+        });
+    }
+    let prepared = legal_structure::structure_composition_blocks(
+        legal_structure::StructureCompositionBlocksRequest {
+            structure: structure.clone(),
+            lines: composition,
+        },
+    )?;
+    let index: HashMap<String, usize> = lines
+        .iter()
+        .enumerate()
+        .map(|(n, l)| (l.id.clone(), n))
+        .collect();
+    let mut groups = prepared.groups;
+    // The structure leaves running heads, folios and print margins out of every node, and names
+    // each page's folio line; such a line in the page's outer bands is furniture.
+    let folios: HashSet<&str> = structure
+        .nodes
+        .iter()
+        .filter(|n| n.kind == legal_structure_model::NodeKind::Page)
+        .filter_map(|n| n.anchor.as_deref())
+        .collect();
+    for group in &mut groups {
+        if !matches!(group.kind.as_str(), "prose" | "text")
+            || group.attributes.contains_key("native_id")
+        {
+            continue;
+        }
+        if group.line_ids.iter().any(|id| folios.contains(id.as_str())) {
+            group.kind = "page_label".into();
+        } else if !group.line_ids.is_empty() {
+            let bands: Option<Vec<f64>> = group
+                .line_ids
+                .iter()
+                .map(|id| lines[index[id]].page_band)
+                .collect();
+            if let Some(bands) = bands {
+                let middle = bands.iter().sum::<f64>() / bands.len() as f64;
+                if !(0.15..=0.85).contains(&middle) {
+                    group.kind = "furniture".into();
+                }
+            }
+        }
+    }
+    // A PDF parser's constituents are sections under the package's own document.
+    let mut annotations = prepared.annotations;
+    let roots: Vec<CompositionAnnotation> = annotations
+        .iter()
+        .filter(|a| a.kind == "document")
+        .cloned()
+        .collect();
+    annotations.retain(|a| a.kind != "document");
+    if let Some(root) = roots.into_iter().next() {
+        let first = root.line_ids[0].clone();
+        annotations.push(root);
+        for node in structure.nodes.iter().filter(|n| {
+            n.kind == legal_structure_model::NodeKind::Section
+                && n.grammar
+                    .as_deref()
+                    .is_some_and(|g| g.starts_with("constituent_"))
+                && !n.line_ids.is_empty()
+        }) {
+            let kind = &node.grammar.as_deref().unwrap()["constituent_".len()..];
+            let relationship = match kind {
+                "exhibit" => "exhibit",
+                "schedule" => "schedule",
+                "annex" => "attachment",
+                _ => "component",
+            };
+            annotations.push(CompositionAnnotation {
+                id: node.id.clone(), kind: "document".into(), line_ids: node.line_ids.clone(), spans: Vec::new(),
+                attributes: attributes(json!({"kind": kind, "parent": first, "relationship": relationship, "title": [], "facets": {}})),
+            });
+        }
+    }
+    let reading_order = (0..lines.len()).collect();
+    Ok(State {
+        lines,
+        index,
+        reading_order,
+        groups,
+        annotations,
+        continuations: prepared.continuations,
+    })
+}

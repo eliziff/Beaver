@@ -182,3 +182,49 @@ annotations, reading streams, fields, resumptions, note kinds, separators, table
 merges, document kinds, relationships or facets, so those are not scored. Source-trace alignment
 keeps exact coordinates for shared extraction lines and projects page-local Unicode spans for
 different extractions, reporting coverage and split/merge counts apart from the scores.
+
+Gold stays fixed when OCR changes. Its authoring line IDs locate reference annotations; candidate
+lines need not have those IDs or the same segmentation. Cache new recognition separately by its
+runtime/model identity and align its text to the reference before scoring structure. The
+Rust grader in `grade/` uses the standard Myers implementation in
+[`diff-match-patch-rs`](https://docs.rs/diff-match-patch-rs/0.5.1/diff_match_patch_rs/).
+Exact unchanged witnesses bypass diffing; unique exact text anchors preserve identity when
+reading order changes. Remaining text aligns within each page in Unicode scalar coordinates.
+The comparison frame is the corrected gold text: projecting it back onto the authoring OCR
+would lose characters inserted by corrections. Split and merged lines form connected components for
+recognition scoring. Structural features still use the candidate's own order, groups and exact
+annotation spans. Unmatched text remains an error. Matching is deterministic (no diff timeout
+or line-mode heuristic). Repeated text can have multiple equally valid alignments; this is not
+bit-for-bit parity with Python's `SequenceMatcher`.
+
+Select predictions explicitly using the existing cache inventory:
+
+```sh
+structure-gold grade <gold-dir> <cohort-manifest.json> --candidates <gold-dir>/ocr-cache-state.json
+```
+
+The inventory's `inputs` rows name `source_sha256` and `candidate` export paths. Relative paths
+resolve beside the inventory. Only listed documents are graded, test is excluded by default,
+and a failed document makes the command fail after writing its report. `--exports` is the
+authoring-export baseline, selected by the gold's recorded parser identity; default replay
+uses the saved authoring extractions in `inputs/`. Neither is a refresh of OCR.
+The desktop refresh keeps its new exports in `parsed/` alongside the authoring exports.
+`ocr-cache-state.json` beside the cohort manifest records their binary, request, source identities
+and unchanged gold hashes; `ocr-cache-jobs.json` and `ocr-cache-request.json` feed the existing
+`extract.mjs --batch` runner.
+
+This follows established practice: [Kraken recognition training](https://kraken.re/main/user_guide/training_recognition.html)
+uses page images and corrected PAGE/ALTO line annotations, with compiled crops as derived data.
+[Dinglehopper](https://github.com/qurator-spk/dinglehopper) compares extracted text for CER/WER;
+its text sequence includes line breaks, and it does not replace structure or exact note-position
+scoring. For differing segmentation,
+[OmniDocBench](https://github.com/opendatalab/OmniDocBench#updates) keeps gold unchanged and adapts
+the prediction's matching granularity. Match text independently of IDs, then score the candidate's
+own grouping, order and relationships; alignment must not supply the answers being evaluated.
+
+Rust grader validation (2026-10-19): six independent regression tests pass. The refreshed OCR
+train/development subset (424 documents, 2,190 pages) grades in 1.4 seconds on the desktop,
+with no errors and all gold file hashes unchanged. Accumulated alignment time averages
+1.56 ms per page. This measures cached exports through grading; it excludes PDF extraction
+and OCR. The recorded OCR cache-fill batch took 906.5 seconds for all 453 OCR documents,
+including export overhead; it is a separate measurement.
