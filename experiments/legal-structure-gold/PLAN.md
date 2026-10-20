@@ -161,13 +161,18 @@ change over the runs both scored. `--tag`, `--replay` and `--rescore` keep a run
 for replay or rescoring without parsing.
 
 `evaluate.projected` puts a v4 gold in the scorer's frame, so source alignment and feature
-extraction read gold and parser export alike. Each unit becomes one block per fragment (its lines
-on one page, unbroken), with its parent's first span as `parent`; fragments of one unit are linked
-by paragraph, heading or note continuations (list items add a list continuation). List items are
+extraction read gold and parser export alike. Each unit becomes one block per fragment, with its
+parent's first span as `parent`; fragments of one unit are linked by paragraph, heading or note
+continuations (list items add a list continuation). The Rust grader cuts fragments from what the
+source shows: a unit's spans in reading order, split at each page and at each line another unit
+holds between them (Python split wherever the gold's typed spans of the unit were not adjacent,
+an authoring detail no parser or label can see). List items are
 text with a `list_item` locator and their marker; numbered text gets a paragraph locator. Block
 quotes are running text. Notes are text inside a footnote annotation whose label is the note's
-first marker; each reference is paired with the note the notes pass gave it. Consecutive table rows (only furniture, page labels and notes between) form
-one table, one grid per page linked across pages. The first block opens the source's document and
+first marker; each reference is paired with the note the notes pass gave it. Table rows
+consecutive in reading order (only furniture, page labels and notes between) form one table, one
+grid per page linked across pages, each cell's text in reading order; a unit without text (3,826
+in 563 golds) separates nothing. The first block opens the source's document and
 each unit that starts a document opens another. Contents keep their own role and stay out of
 the outline. The gold's reading order is the order the model typed the lines in (a line it never
 typed keeps its place after the typed line before it), so the order layer scores the parser's
@@ -305,47 +310,56 @@ the parallel Claude work owns along with notes and tables.
 ## Tier-1 line tagger (2026-10-20)
 
 `structure-gold rows GOLD_DIR MANIFEST OUT_DIR` replays the parser over each train and
-development gold's inputs and writes one JSON document per line of `OUT_DIR/rows-<split>.jsonl`:
-each source line in the parser's reading order with its evidence (geometry, typography, text
-shape and the readers' flags, `rows::FEATURES`), the parser's labels (tier 0) and the gold's.
-A line's labels are its region (the gold's 12 regions, or none), what starts on it (inside, a
-unit, a continued fragment), its unit's relation to the ranked unit before (first, child,
-sibling, up 1 to 5, other), whether another document opens on it, and whether a note reference
-sits on it. `labels.rs` reads them alike from the gold and from the parser's composition.
-1,092 documents export in about 16 seconds.
+development gold's inputs and writes one JSON document per piece of `OUT_DIR/rows-<split>.jsonl`.
+A piece is a line cut at every boundary of the frame's blocks (most lines are one piece; OCR lines
+that run a margin note into the body, two table rows or two notes are several). Each piece, in
+the parser's reading order, carries its line's evidence (geometry, typography, the readers'
+flags), its own text shape and place in the line (`rows::FEATURES`), the parser's labels (tier
+0) and the gold's, carried onto the parser's pieces through the scorer's alignment. A piece's
+labels: its unit's region (the gold's 12 regions, or none); whether it opens a unit, continues
+the unit open in its stream (body, notes, margin notes, furniture, page labels) or resumes an
+earlier unit, which it points at; on a unit's first piece the unit it falls under, pointed at;
+the relation that parent makes to the ranked unit before (first, child, sibling, up 1 to 5,
+other); whether another document opens on it; and whether a paired note reference sits on it.
+Pointers are rows (-1 for none). `labels.rs` reads them alike from the gold and from the
+parser's composition. 1,092 documents export in about 19 seconds.
 
 `structure-gold grade ... --labels FILE` scores a tagger's labels ({sha256, ids, labels} per
-document): it decodes them into the gold's own form over the replayed parser, which supplies
-what labels do not say (markers, note references, the notes they pair with, table cells).
-A line that starts a unit opens one; the others join their region family's open unit; a unit's
-lines are typed together; parents follow each relation up the ancestors. Decoding the parser's
-own labels reproduces the parser within 0.005 on every layer but tables and notes, and decoding
-the gold's labels gives the encoding's ceiling.
+document, ids naming pieces as `line@offset`): it decodes them into the gold's own form over the
+replayed parser's pieces, which supply what labels do not say (markers, note references, the
+notes they pair with, table cells). `structure-gold selfcheck GOLD MANIFEST self|labels
+[--worst LAYERS]` scores the gold against itself and the gold's own labels decoded over the gold:
+both read 1.0000 on every layer over all 1,092 train/development documents, so a perfect
+tagger scores 1.0 and every shortfall is the parser's frame or the model. Relations read one
+unit after another had cascaded (the gold's own labels gave parents 0.758); parents are pointed
+at instead. `explain SHA --roundtrip` and `explain SHA --tree` show a round trip's or the
+parser's own node tree.
 
 `train_tagger.py ROWS_DIR --out DIR --model gru|transformer` trains a sequence tagger on the
 desktop GPU (character CNN, feature projection, two-layer BiGRU of width 128 or a four-layer
 transformer, five heads); `train_trees.py` trains LightGBM per head over each line and its two
 neighbours on each side. Development selects epochs and trees; test is not read.
 
-Development (381 documents), pooled F1, on the parser with the marker extents and heading levels
-of 2026-10-20. The hybrid takes the model's regions, starts and relations and keeps the parser's
-notes, references and document starts. Rows add each line's place among the parser's ranked
-units: the unit before it and that unit's ancestors, compared by indentation, type, region and,
-through the engine's numbering grammar, the same family with the next ordinal. Tables do not
-survive label decoding yet (the parser's grids would stay in a Rust integration).
+Development (381 documents), pooled F1. The parser's frame bounds what any tagger over its pieces
+can reach: the gold's labels carried onto them and decoded (the frame's ceiling) keep the
+parser's reading order, cuts, markers, notes and grids.
 
-| Layer | Parser | Trees hybrid | Gold labels (ceiling) |
-|---|---|---|---|
-| roles | 0.837 | 0.895 | 0.968 |
-| groups | 0.686 | 0.743 | 0.910 |
-| hierarchy | 0.108 | 0.219 | 0.548 |
-| hierarchy_units | 0.773 | 0.872 | 0.987 |
-| hierarchy_roles | 0.551 | 0.767 | 0.987 |
-| hierarchy_relation | 0.443 | 0.591 | 0.866 |
-| hierarchy_parent | 0.206 | 0.360 | 0.713 |
-| note / note_references | 0.498 / 0.554 | 0.497 / 0.554 | 0.655 / 0.743 |
+| Layer | Parser | Gold labels on the parser's pieces |
+|---|---|---|
+| order | 0.835 | 0.850 |
+| roles | 0.837 | 0.967 |
+| groups | 0.686 | 0.913 |
+| hierarchy | 0.108 | 0.717 |
+| hierarchy_units | 0.773 | 0.989 |
+| hierarchy_roles | 0.551 | 0.966 |
+| hierarchy_parent | 0.206 | 0.979 |
+| hierarchy_marker | 0.712 | 0.738 |
+| note / note_references | 0.498 / 0.554 | 0.661 / 0.741 |
+| table / table_cells | 0.100 / 0.215 | 0.142 / 0.286 |
 
-Per-line development accuracy, tier 0 → trees: region 0.688 → 0.827, start 0.896 → 0.969,
+The model results below were measured with the cascading relation encoding, whose own ceiling
+was parents 0.713; they are superseded until retrained on pointers. Per-line development
+accuracy, tier 0 → trees: region 0.688 → 0.827, start 0.896 → 0.969,
 relation 0.548 → 0.697. Earlier, without the unit context, the BiGRU (0.70M parameters) read
 region 0.777, start 0.947, relation 0.687 and the transformer (1.42M) 0.719, 0.939, 0.608; the
 trees were smallest and best on most layers, the GRU best on cross-page continuations. Trees

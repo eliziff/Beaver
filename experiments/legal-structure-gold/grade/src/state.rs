@@ -223,32 +223,39 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
     let page_of = |span: &SourceSpan| gold.lines[index[&span.line_id]].page;
     let typed = &gold.typed;
     let units = &gold.units;
-    // A unit's spans, split at each page and at each line another unit interrupts.
-    let fragments = |members: &[usize]| -> Vec<Vec<SourceSpan>> {
-        let mut result: Vec<Vec<SourceSpan>> = Vec::new();
-        let mut previous: Option<usize> = None;
-        for &n in members {
-            for (k, span) in typed[n].spans.iter().enumerate() {
-                let split = match result.last() {
-                    None => true,
-                    Some(current) => {
-                        page_of(current.last().unwrap()) != page_of(span)
-                            || k == 0 && previous.is_some_and(|p| n != p + 1)
-                    }
-                };
-                if split {
-                    result.push(Vec::new());
-                }
-                result.last_mut().unwrap().push(span.clone());
+    // A unit's spans in reading order, split at each page and at each line of another unit that
+    // comes between: what the source shows, never how the gold happened to group its typed spans.
+    let mut placed: Vec<((usize, usize), usize, &SourceSpan)> = units
+        .iter()
+        .enumerate()
+        .flat_map(|(u, unit)| unit.lines.iter().flat_map(move |&n| typed[n].spans.iter().map(move |s| (u, s))))
+        .map(|(u, s)| (at(s), u, s))
+        .collect();
+    placed.sort_by_key(|&(position, u, _)| (position, u));
+    // Lines some unit holds text on, counted up to each reading position.
+    let mut held = vec![false; gold.lines.len()];
+    for &((line, _), _, _) in &placed {
+        held[line] = true;
+    }
+    let mut before = vec![0usize; gold.lines.len() + 1];
+    for (p, &h) in held.iter().enumerate() {
+        before[p + 1] = before[p] + usize::from(h);
+    }
+    let mut parts: Vec<Vec<Vec<SourceSpan>>> = vec![Vec::new(); units.len()];
+    let mut last: Vec<Option<(usize, &SourceSpan)>> = vec![None; units.len()];
+    for &((line, _), u, span) in &placed {
+        let split = match last[u] {
+            None => true,
+            Some((previous, prior)) => {
+                page_of(prior) != page_of(span) || line > previous + 1 && before[line] > before[previous + 1]
             }
-            previous = Some(n);
+        };
+        if split {
+            parts[u].push(Vec::new());
         }
-        for spans in &mut result {
-            spans.sort_by_key(|s| at(s));
-        }
-        result
-    };
-    let parts: Vec<Vec<Vec<SourceSpan>>> = units.iter().map(|u| fragments(&u.lines)).collect();
+        parts[u].last_mut().unwrap().push(span.clone());
+        last[u] = Some((line, span));
+    }
     let region: Vec<&str> = units
         .iter()
         .map(|u| typed[u.lines[0]].region.as_str())
@@ -384,12 +391,15 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
             .unwrap();
         references.extend(spans.iter().map(|s| json!(s)));
     }
-    // Tables: consecutive table rows, with only furniture, page labels and notes between, form one
-    // table, one grid per page linked across pages; a row is on the page of its first cell.
+    // Tables: table rows consecutive in reading order, with only furniture, page labels and notes
+    // between, form one table, one grid per page linked across pages; a row is on the page of its
+    // first cell. A unit without text stands nowhere and separates nothing.
     let mut tables: Vec<Vec<usize>> = Vec::new();
     let mut current = false;
-    for u in 0..units.len() {
-        if region[u] == "table" && !parts[u].is_empty() {
+    let mut in_order: Vec<usize> = (0..units.len()).filter(|&u| !parts[u].is_empty()).collect();
+    in_order.sort_by_key(|&u| (at(&parts[u][0][0]), u));
+    for u in in_order {
+        if region[u] == "table" {
             if !current {
                 tables.push(Vec::new());
                 current = true;
@@ -408,9 +418,14 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
                     cells.entry(c).or_default().extend(spans.iter().cloned());
                 }
             }
+            // A cell's text in reading order.
             let width = cells.keys().next_back().map_or(0, |c| c + 1);
             let row: Vec<Vec<SourceSpan>> = (0..width)
-                .map(|c| cells.remove(&c).unwrap_or_default())
+                .map(|c| {
+                    let mut spans = cells.remove(&c).unwrap_or_default();
+                    spans.sort_by_key(|s| at(s));
+                    spans
+                })
                 .collect();
             let Some(first) = row.iter().flatten().min_by_key(|s| at(s)) else {
                 continue;
