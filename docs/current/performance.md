@@ -593,6 +593,16 @@ and GPU allocation are outside that measurement. The public byte/URL gate checks
 both embedded and served packaging:
 `node --test AuthoritiesHelper/modern/browser-ocr/assets.test.mjs`.
 
+The published [Authorities v0.3.14](https://github.com/eliziff/AuthoritiesHelper/releases/tag/authorities-v0.3.14)
+HTML passed the focused scan/highlight browser cases from disk, including pause,
+resume, reload, text geometry, passage marks and PDF export. Four two-page scans
+finished in 4.73 s across a reload; the scanned book built in 254 ms. These are one
+local run, not a controlled recognition speed comparison. The browser app, embedding
+API and raw embedded-assets adapter also returned identical text and geometry on
+the same independently invented 20-line image. Earlier local candidates recorded
+a 215 ms startup task, a 56 ms interaction and a 106 ms transition task beyond their
+respective 200/50/100 ms budgets; the final artifact pass is not a universal latency bound.
+
 The custom wheel listener remains non-passive to preserve PDF-only Ctrl-wheel and
 trackpad zoom. The shared viewer sets `will-change: transform` on the scroll
 container while it is mounted, so Chrome can move that layer without waiting for
