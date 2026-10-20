@@ -500,12 +500,12 @@ and other UI work can still stall under load. Full/Lite browser checks cover rea
 workers, viewing, selection, highlights, export and reopening; Lite is checked from
 both file and HTTP origins. The assistant-dock smoke passed with screenshot review.
 
-The local candidate consumes the owning `legal-browser-ocr` checkout through
-`AUTHORITIES_OCR_SOURCE`; Lite records its layout/source hashes in `SOURCES.json`,
-and full Authorities includes the layout hash in its OCR cache identity. Publish
-and pin the reviewed Beaver/OCR revisions before a standalone release: the current
-published Beaver pin does not yet contain the new shared files. Build-time copies
-are generated inputs, never a second maintained implementation.
+Development can consume the owning `legal-browser-ocr` checkout through
+`AUTHORITIES_OCR_SOURCE`; release packaging resolves its latest verified runtime
+archive. Lite records layout/source hashes in `SOURCES.json`, and full Authorities
+includes the layout hash in its OCR cache identity. First-party sources build from
+their independent main checkouts. Build-time copies are generated inputs, never
+a second maintained implementation.
 
 The shared reader uses PDF.js's `PDFViewer` for page geometry, visible-page priority,
 scroll-direction preloading, resumable rendering, zoom previews and bounded page

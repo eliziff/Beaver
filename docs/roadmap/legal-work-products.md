@@ -263,6 +263,13 @@ Application intake, source replacement, large multipart builds and proven
 manual-source pinpoint destinations have focused checks; these do not establish
 corpus or all-profile release readiness.
 
+The broader Authorities builder unit file still has the same 17 failing checks
+on the pre-change source and the end-to-end repair candidate; its additional
+OCR-export regression passes. Reconcile the default-layout, annotation, source
+structure and PDF text/encoding assertions before treating that builder gate as
+green. Private comparison logs remain in
+`benchmarks/local-data/authorities-stress/unit-comparison.json`.
+
 1. Maintain the full profile/source/gap matrix, normative/example/discretionary
    classification, official forms/real-reference hashes, CanLII terms/links,
    Authorities parity fixtures and UI/Library/startup/build/LoC baseline. No new
