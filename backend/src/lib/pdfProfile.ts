@@ -59,9 +59,8 @@ function configuredLegalPdfProfile(env: NodeJS.ProcessEnv = process.env): LegalP
   const ocr = configuredLegalPdfOcrProvider(env, root);
   if (ocr === "tesseract") {
     profile.ocr = { provider: ocr, settings: {
-      language: env.LEGALPDF_OCR_LANGUAGE?.trim() || "eng",
-      dpi: numericSetting(env, "LEGALPDF_OCR_DPI") ?? 180,
-      psm: numericSetting(env, "LEGALPDF_OCR_PSM") ?? 3,
+      ...(env.LEGALPDF_OCR_LANGUAGE?.trim() ? { language: env.LEGALPDF_OCR_LANGUAGE.trim() } : {}),
+      ...numericSettings(env, [["dpi", "LEGALPDF_OCR_DPI"], ["psm", "LEGALPDF_OCR_PSM"]]),
     } };
   } else if (ocr === "indra") {
     const layout = env.LEGALPDF_INDRA_LAYOUT?.trim();
