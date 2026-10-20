@@ -9,13 +9,21 @@
 //!       --out names another file. Totals are pooled per split; test is left out unless asked.
 //!       --candidates reads the existing OCR cache manifest (inputs: source_sha256, candidate),
 //!       scores only its exports, and never selects them by gold line IDs.
+//!       --labels FILE decodes a tagger's per-line labels ({sha256, ids, labels} rows) over the
+//!       replayed parser, which supplies markers, references and note pairs, and scores them.
+//!   structure-gold rows GOLD_DIR MANIFEST OUT_DIR
+//!       the tier-1 tagger's training rows, train and development only: each line's evidence
+//!       with the replayed parser's labels and the gold's, one JSON document per line of
+//!       OUT_DIR/rows-<split>.jsonl.
 //!   structure-gold explain GOLD_DIR MANIFEST SHA_PREFIX [--exports | --candidates FILE] [--layers a,b] [--limit N]
 //!       one document's missed (-) and spurious (+) items per layer, as text.
 //!   structure-gold paragraph-data GOLD_DIR MANIFEST OUT_DIR
 //!       exports Rust boundary features and fixed-gold targets, excluding test.
 mod alignment;
+mod labels;
 mod paragraph_data;
 mod paragraph_features;
+mod rows;
 mod score;
 mod state;
 mod text_diff;
@@ -24,7 +32,7 @@ use legal_pdf_core::{read_gzip_json, write_gzip_json};
 use legal_structure_model::DocumentStructure;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -129,20 +137,28 @@ fn authoring<T>(
     gold_lines: &HashSet<&str>,
     found: Vec<T>,
     lines: impl Fn(&T) -> HashSet<String>,
+    same: Option<&dyn Fn(&T, &T) -> bool>,
 ) -> Result<T, String> {
-    let mut matches = found.into_iter().filter(|item| {
+    let mut matches: Vec<T> = found.into_iter().filter(|item| {
         let own = lines(item);
         own.len() == gold_lines.len() && own.iter().all(|id| gold_lines.contains(id.as_str()))
-    });
-    let selected = matches
-        .next()
-        .ok_or_else(|| format!("{sha256}: no authoring parse holds the gold's lines"))?;
-    if matches.next().is_some() {
+    }).collect();
+    if matches.is_empty() {
+        return Err(format!("{sha256}: no authoring parse holds the gold's lines"));
+    }
+    // Parses that read the very same lines are one reading for the gold, whichever is taken.
+    let first = matches.remove(0);
+    if matches.iter().any(|other| same.as_ref().is_none_or(|same| !same(&first, other))) {
         return Err(format!(
             "{sha256}: ambiguous authoring parse; use --candidates FILE"
         ));
     }
-    Ok(selected)
+    Ok(first)
+}
+
+/// The structure-stage inputs: STRUCTURE_GOLD_INPUTS where set, else the gold's own inputs/.
+fn inputs_dir(gold: &Path) -> PathBuf {
+    std::env::var_os("STRUCTURE_GOLD_INPUTS").map_or_else(|| gold.join("inputs"), PathBuf::from)
 }
 
 fn files(directory: &Path) -> Vec<PathBuf> {
@@ -188,7 +204,7 @@ fn parallel<T: Send>(
 
 fn inputs(gold: &Path, manifest: &Path) -> Result<(), String> {
     let all = sources(gold, manifest)?;
-    let destination = gold.join("inputs");
+    let destination = inputs_dir(gold);
     std::fs::create_dir_all(&destination).map_err(|e| e.to_string())?;
     let started = Instant::now();
     let results = parallel(
@@ -217,7 +233,7 @@ fn inputs(gold: &Path, manifest: &Path) -> Result<(), String> {
                 };
                 let readings = files(&parse.join("parse-v1/recognition"));
                 candidates.push(
-                    legalpdf::gold_structure_inputs(&pdf, extraction, &readings)
+                    legalpdf::gold_structure_inputs(&pdf, extraction, &readings, std::env::var_os("STRUCTURE_GOLD_FRESH").is_some())
                         .map_err(|e| format!("{}: {e}", source.sha256))?,
                 );
             }
@@ -232,6 +248,11 @@ fn inputs(gold: &Path, manifest: &Path) -> Result<(), String> {
                         .flat_map(|p| p.lines.iter().map(|l| l.id.clone()))
                         .collect()
                 },
+                Some(&|a: &legalpdf::ExtractedPdf, b: &legalpdf::ExtractedPdf| {
+                    let read = |e: &legalpdf::ExtractedPdf| e.pages.iter()
+                        .flat_map(|p| p.lines.iter().map(|l| (l.id.clone(), l.text.clone()))).collect::<Vec<_>>();
+                    read(a) == read(b)
+                }),
             )?;
             write_gzip_json(&target, &extracted).map_err(|e| e.to_string())
         },
@@ -337,7 +358,9 @@ fn candidate(
                     .iter()
                     .map(|f| f.id.clone())
                     .collect()
-            })?
+            },
+                None,
+            )?
         };
         if export.extraction.source_sha256 != source.sha256 {
             return Err("Candidate extraction belongs to another PDF".into());
@@ -355,8 +378,7 @@ fn candidate(
         return Ok((export.structure, pages));
     }
     let extracted: legalpdf::ExtractedPdf = read_gzip_json(
-        &gold
-            .join("inputs")
+        &inputs_dir(gold)
             .join(format!("{}.json.gz", source.sha256)),
     )
     .map_err(|e| format!("{}: {e}", source.sha256))?;
@@ -407,6 +429,41 @@ fn grade_one(
         parse_ms: (parsed_at - started).as_secs_f64() * 1e3,
         score_ms: parsed_at.elapsed().as_secs_f64() * 1e3,
     })
+}
+
+/// Per document, each line's labels from a tagger's predictions file: {sha256, ids, labels}.
+fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<String, labels::LineLabel>>>, String> {
+    let Some(path) = path else { return Ok(None) };
+    let text = std::fs::read_to_string(local(path)).map_err(|e| format!("{path}: {e}"))?;
+    let mut found = BTreeMap::new();
+    for line in text.lines().filter(|l| !l.trim().is_empty()) {
+        let row: Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
+        let sha = row["sha256"].as_str().ok_or("Labels row without sha256")?.to_owned();
+        let ids = row["ids"].as_array().ok_or("Labels row without ids")?;
+        let rows = row["labels"].as_array().ok_or("Labels row without labels")?;
+        let mut per_line = HashMap::new();
+        for (id, label) in ids.iter().zip(rows) {
+            let field = |k: usize| label[k].as_u64().unwrap_or(0) as usize;
+            per_line.insert(id.as_str().unwrap_or_default().to_owned(), labels::LineLabel {
+                region: field(0), start: field(1), relation: field(2), document: field(3) == 1, reference: field(4) == 1,
+            });
+        }
+        found.insert(sha, per_line);
+    }
+    Ok(Some(found))
+}
+
+/// A tagger's labels for one document, decoded over the replayed parser and scored like a parse.
+fn grade_labels(gold: &Path, source: &Source, per_line: &HashMap<String, labels::LineLabel>) -> Result<Graded, String> {
+    let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+    let started = Instant::now();
+    let (structure, pages) = candidate(gold, source, &expected, false, None)?;
+    let parsed_at = Instant::now();
+    let tier0 = state::parsed(&structure, &pages)?;
+    let line_labels: Vec<labels::LineLabel> = tier0.lines.iter().map(|l| per_line.get(&l.id).copied().unwrap_or_default()).collect();
+    let decoded = labels::decode(&tier0, &line_labels, &source.sha256);
+    let score = score::compare(&state::projected(&expected)?, &state::projected(&decoded)?)?;
+    Ok(Graded { score, parse_ms: (parsed_at - started).as_secs_f64() * 1e3, score_ms: parsed_at.elapsed().as_secs_f64() * 1e3 })
 }
 
 fn metrics_json(metrics: &BTreeMap<&'static str, score::Metric>) -> Value {
@@ -525,6 +582,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
         return Err("Choose --exports or --candidates FILE".into());
     }
     let selected = candidates(inventory.as_deref())?;
+    let labelled = label_file(value("--labels").as_deref())?;
     let split = value("--split");
     let prefixes: Vec<&String> = options
         .iter()
@@ -541,6 +599,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     let all: Vec<Source> = all
         .into_iter()
         .filter(|s| inventory.is_none() || selected.contains_key(&s.sha256))
+        .filter(|s| labelled.is_none() || labelled.as_ref().is_some_and(|l| l.contains_key(&s.sha256)))
         .filter(|s| {
             split
                 .as_deref()
@@ -559,7 +618,15 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
             .map_or(0, |m| m.len())
     };
     let results = parallel(&all, weight, |source| {
-        grade_one(gold, source, exports, selected.get(&source.sha256))
+        let began = Instant::now();
+        let result = match &labelled {
+            Some(labelled) => grade_labels(gold, source, &labelled[&source.sha256]),
+            None => grade_one(gold, source, exports, selected.get(&source.sha256)),
+        };
+        if began.elapsed().as_secs() >= 10 {
+            eprintln!("slow: {} took {:.0}s", source.sha256, began.elapsed().as_secs_f64());
+        }
+        result
     });
     let elapsed = started.elapsed().as_secs_f64();
     let mut rows = Vec::new();
@@ -662,6 +729,88 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     Ok(())
 }
 
+/// The tier-1 tagger's training rows: train and development documents, never test.
+fn rows(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
+    let all: Vec<Source> = sources(gold, manifest)?.into_iter().filter(|s| s.split != "test").collect();
+    std::fs::create_dir_all(out).map_err(|e| e.to_string())?;
+    let started = Instant::now();
+    let weight = |s: &Source| std::fs::metadata(inputs_dir(gold).join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
+    let results = parallel(&all, weight, |source| -> Result<String, String> {
+        let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+        let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256)))
+            .map_err(|e| format!("{}: {e}", source.sha256))?;
+        let mut pages = Vec::new();
+        let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
+        let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
+            width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
+        }).collect();
+        let candidate = state::parsed(document.structure(), &boxes)?;
+        let reference = state::projected(&expected)?;
+        let parsed_regions = labels::parsed_regions(&candidate);
+        let tier0 = labels::labels(&candidate, &|n| parsed_regions[n])?;
+        let gold_regions = labels::gold_regions(&expected, &reference);
+        let wanted = labels::labels(&reference, &|n| gold_regions[n])?;
+        let gold_labels = reference.lines.iter().map(|l| l.id.clone()).zip(wanted).collect();
+        let mut row = rows::document(&pages, &candidate, &tier0, &gold_labels);
+        row["sha256"] = json!(source.sha256);
+        row["split"] = json!(source.split);
+        row["mode"] = json!(source.mode);
+        Ok(serde_json::to_string(&row).map_err(|e| e.to_string())?)
+    });
+    let mut files: BTreeMap<String, std::io::BufWriter<std::fs::File>> = BTreeMap::new();
+    let mut failed = 0;
+    for (source, result) in all.iter().zip(results) {
+        match result {
+            Ok(line) => {
+                use std::io::Write;
+                let file = match files.entry(source.split.clone()) {
+                    std::collections::btree_map::Entry::Occupied(e) => e.into_mut(),
+                    std::collections::btree_map::Entry::Vacant(e) => e.insert(std::io::BufWriter::new(
+                        std::fs::File::create(out.join(format!("rows-{}.jsonl", source.split))).map_err(|e| e.to_string())?)),
+                };
+                writeln!(file, "{line}").map_err(|e| e.to_string())?;
+            }
+            Err(error) => {
+                failed += 1;
+                eprintln!("ERROR {error}");
+            }
+        }
+    }
+    eprintln!("{} documents, {failed} failed, in {:.1}s; features: {}", all.len(), started.elapsed().as_secs_f64(), rows::FEATURES.join(","));
+    Ok(())
+}
+
+/// Diagnostic: the note pairer over one document's replayed pages, its markers beside each line.
+fn pairing(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
+    use legal_structure::LayoutAnalysis;
+    let source = sources(gold, manifest)?.into_iter().find(|s| s.sha256.starts_with(prefix)).ok_or("No such gold")?;
+    let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256)))
+        .map_err(|e| format!("{}: {e}", source.sha256))?;
+    let mut pages = Vec::new();
+    legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| e.to_string())?;
+    let output = legal_structure::STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), true);
+    let audit = output.pairing_audit.ok_or("No pairing audit")?;
+    println!("{}", serde_json::to_string(&audit.pairing_summary).map_err(|e| e.to_string())?);
+    let range = options.first().and_then(|r| r.split_once('-')).and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)));
+    let mut by_line: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for marker in &audit.markers {
+        let line = marker["line_id"].as_str().unwrap_or_default().to_owned();
+        by_line.entry(line).or_default().push(format!("{}:{}", marker["role"].as_str().unwrap_or("?"), marker["note_id"]));
+    }
+    for page in &pages {
+        if range.is_some_and(|(a, b)| page.number < a || page.number > b) {
+            continue;
+        }
+        for line in &page.lines {
+            let marks = by_line.get(&line.id).map(|m| m.join(",")).unwrap_or_default();
+            let text: String = line.text.chars().take(70).collect();
+            println!("p{} {:>10} {:>9} {}{:<14} | {text}", page.number, line.region_type, line.note_region_mode,
+                if line.exclude_from_body { "X " } else { "  " }, marks);
+        }
+    }
+    Ok(())
+}
+
 /// One document's missed and spurious items, layer by layer.
 fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
     let value = |name: &str| {
@@ -702,9 +851,15 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
         .map(|l| l.split(',').map(str::to_owned).collect())
         .unwrap_or_default();
     let limit = value("--limit").and_then(|n| n.parse().ok()).unwrap_or(40);
+    let mut candidate_state = state::parsed(&structure, &pages)?;
+    if let Some(labelled) = label_file(value("--labels").as_deref())? {
+        let per_line = labelled.get(&source.sha256).ok_or("No labels for this source")?;
+        let line_labels: Vec<labels::LineLabel> = candidate_state.lines.iter().map(|l| per_line.get(&l.id).copied().unwrap_or_default()).collect();
+        candidate_state = state::projected(&labels::decode(&candidate_state, &line_labels, &source.sha256))?;
+    }
     let text = score::explain(
         &state::projected(&expected)?,
-        &state::parsed(&structure, &pages)?,
+        &candidate_state,
         &layers,
         limit,
     )?;
@@ -728,11 +883,17 @@ fn main() {
         [command, gold, manifest, out] if command == "paragraph-data" => {
             paragraph_data::export(Path::new(gold), Path::new(manifest), Path::new(out))
         }
+        [command, gold, manifest, out] if command == "rows" => {
+            rows(Path::new(gold), Path::new(manifest), Path::new(out))
+        }
+        [command, gold, manifest, prefix, options @ ..] if command == "pairing" => {
+            pairing(Path::new(gold), Path::new(manifest), prefix, options)
+        }
         [command, gold, manifest, prefix, options @ ..] if command == "explain" => {
             explain(Path::new(gold), Path::new(manifest), prefix, options)
         }
         _ => Err(
-            "usage: structure-gold inputs|grade|explain GOLD_DIR MANIFEST [SHA] [options]".into(),
+            "usage: structure-gold inputs|grade|rows|explain GOLD_DIR MANIFEST [SHA|OUT_DIR] [options]".into(),
         ),
     };
     if let Err(error) = result {

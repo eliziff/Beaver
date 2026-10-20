@@ -301,3 +301,61 @@ disabled. Stale fixture fields, missing test engine installs and omitted region-
 were corrected without changing expected outcomes. Held-out evaluation and app-addon delivery
 remain separate gates. The plan's next target is region/role and unit-relation inference, which
 the parallel Claude work owns along with notes and tables.
+
+## Tier-1 line tagger (2026-10-20)
+
+`structure-gold rows GOLD_DIR MANIFEST OUT_DIR` replays the parser over each train and
+development gold's inputs and writes one JSON document per line of `OUT_DIR/rows-<split>.jsonl`:
+each source line in the parser's reading order with its evidence (geometry, typography, text
+shape and the readers' flags, `rows::FEATURES`), the parser's labels (tier 0) and the gold's.
+A line's labels are its region (the gold's 12 regions, or none), what starts on it (inside, a
+unit, a continued fragment), its unit's relation to the ranked unit before (first, child,
+sibling, up 1 to 5, other), whether another document opens on it, and whether a note reference
+sits on it. `labels.rs` reads them alike from the gold and from the parser's composition.
+1,092 documents export in about 16 seconds.
+
+`structure-gold grade ... --labels FILE` scores a tagger's labels ({sha256, ids, labels} per
+document): it decodes them into the gold's own form over the replayed parser, which supplies
+what labels do not say (markers, note references, the notes they pair with, table cells).
+A line that starts a unit opens one; the others join their region family's open unit; a unit's
+lines are typed together; parents follow each relation up the ancestors. Decoding the parser's
+own labels reproduces the parser within 0.005 on every layer but tables and notes, and decoding
+the gold's labels gives the encoding's ceiling.
+
+`train_tagger.py ROWS_DIR --out DIR --model gru|transformer` trains a sequence tagger on the
+desktop GPU (character CNN, feature projection, two-layer BiGRU of width 128 or a four-layer
+transformer, five heads); `train_trees.py` trains LightGBM per head over each line and its two
+neighbours on each side. Development selects epochs and trees; test is not read.
+
+Development (381 documents), pooled F1. The hybrid takes the model's regions, starts and
+relations and keeps the parser's notes, references and document starts; tables do not survive
+label decoding yet (the parser's grids would stay in a Rust integration).
+
+| Layer | Parser | GRU hybrid | Trees hybrid | Gold labels (ceiling) |
+|---|---|---|---|---|
+| roles | 0.837 | 0.883 | 0.897 | 0.968 |
+| groups | 0.685 | 0.698 | 0.745 | 0.910 |
+| hierarchy_units | 0.772 | 0.843 | 0.873 | 0.987 |
+| hierarchy_roles | 0.550 | 0.710 | 0.741 | 0.987 |
+| hierarchy_relation | 0.442 | 0.567 | 0.578 | 0.866 |
+| hierarchy_parent | 0.203 | 0.346 | 0.345 | 0.713 |
+| continuations | 0.306 | 0.476 | 0.309 | 0.916 |
+| note / note_references | 0.498 / 0.554 | 0.497 / 0.554 | 0.497 / 0.554 | 0.655 / 0.743 |
+
+Per-line development accuracy (tier 0 → GRU, 0.70M parameters → transformer, 1.42M → trees):
+region 0.688 → 0.777 → 0.719 → 0.801; start 0.895 → 0.947 → 0.939 → 0.966; relation 0.549 →
+0.687 → 0.608 → 0.678. The trees are the smallest and best on most layers and evaluate in pure
+Rust; the GRU's continuations show what wider context adds. Training takes about 2 minutes
+(trees, CPU) and 8 minutes (GRU, GPU).
+
+## Notes (2026-10-20)
+
+A bare or bracketed number opening a body-zone line in body type with prose beside it is a
+section, subsection or paragraph number, not a note's label, unless its text reads as a
+citation (an endnote list). 1,092 train/development documents: note 0.330 → 0.348,
+note_references 0.372 → 0.396 (29 better, 4 worse); the journal footnote gold
+(`olj_pairing`, 95 articles) is unchanged (labels P 0.9885 R 0.9727, references P 0.9931
+R 0.9535). Still open: Westlaw printouts in books of authorities set their calls at 8⅓ points
+over 10 (0.833 of the line, above extraction's 0.82 superscript limit), and the pairer takes one
+label chain for the whole PDF, so each judgment's restarting end list is rejected as overlapping
+it; and statutes' source-history notes carry no label.
