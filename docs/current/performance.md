@@ -282,6 +282,41 @@ warm reads after one warm-up). The September 8 comparison against `ab7246374` me
 803 → 62 ms for `lease`, and 405 → 435 ms for an absent term. These are local synthetic
 results, not PostgreSQL measurements or a general latency guarantee.
 
+## Source-reading and viewer memory (October 19, 2026)
+
+Authorities source readings copy their JSON record/array containers while sharing
+immutable text strings. Readers can still edit their own nested arrays and geometry
+without changing another reader or the retained result. Pending-read coalescing,
+progress, cancellation, identity and the 32-million-character retention budget are
+unchanged. The budget measures serialized characters, not total resident memory.
+
+The independently invented 4,800-page workload in
+`backend/scripts/measure-source-readings.mts` retained 51.56 MiB of JavaScript heap
+with the previous full structured copies and 26.08 MiB with container copies,
+including the cache and live reader results. An uncached read retained 25.74 MiB.
+Once readers released their results, the cache still retained about 25.67 MiB in
+both versions. These are fresh-process, post-GC heap measurements, not peak memory
+or native/GPU measurements. Reproduce from `backend` with
+`node --expose-gc --import tsx scripts/measure-source-readings.mts`.
+
+Only the active document-backed source tab mounts its PDF/Word/spreadsheet reader;
+switching dock panels or collapsing the dock releases that reader too. Tabs and
+edit controls retain their state. PDF readers return to their page coordinates and
+zoom, Word readers return to their scroll position, and a new citation/edit target
+or document version clears the previous position. Research editors and running
+workflow panels keep their existing lifetimes.
+Document highlight-capture text also loads only for the active reader; deactivation
+aborts the request, drops retained text and ignores late responses. Inactive legal
+readers cannot replace the active highlight-capture registration.
+
+The maintained Word renderer owns and revokes its image/font object URLs on
+disposal, including resources completing after disposal. Its disposal callback
+does not retain the parsed document/ZIP. Rebuild its checked-in runtime after a
+source edit with `npx --no-install esbuild frontend/vendor/docx-preview/src/docx-preview.ts
+--bundle --format=esm --target=es2022 --minify
+--outfile=frontend/vendor/docx-preview/dist/docx-preview.mjs` from the repository root.
+The dock browser smoke covers reader release, media URLs, scroll and zoom restoration.
+
 ## Document text
 
 `documentProjectionService.text()` reuses immutable extracted text in the existing

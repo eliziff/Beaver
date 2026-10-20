@@ -63,12 +63,13 @@ interface Props {
     researchRefreshKey?: string | null;
     researchFileId?: string | null;
     embedded?: boolean;
+    active?: boolean;
 }
 function LegalResearchPanel({ tab, projectId, active }: { tab: LegalSourceTab;
     projectId?: string; active: boolean }) {
   const [open, setOpen] = useState(false), [sourceDropNonce, setSourceDropNonce] = useState(0);
     return <>
-        <LegalSourceViewer {...tab} navigationRequest={tab} compact projectId={projectId} onOpenResearch={(intent) => { setOpen(true);
+        <LegalSourceViewer {...tab} active={active} navigationRequest={tab} compact projectId={projectId} onOpenResearch={(intent) => { setOpen(true);
                 if (intent) setSourceDropNonce((value) => value + 1); }} />
         <ResearchWorkspaceHost embedded floating open={open && active} onOpenChange={setOpen}
             projectId={projectId} sourceDropNonce={sourceDropNonce} />
@@ -95,6 +96,7 @@ function AssistantSidePanelContent({
     onScrollChange,
     onOpenWorkflows,
     embedded = false,
+    active: panelActive = true,
 }: Props) {
     const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
     if (!active) return null;
@@ -141,7 +143,7 @@ function AssistantSidePanelContent({
                             return <WorkflowRunPanel run={tab.run} />;
                         }
                         if (tab.kind === "legal") {
-                            return <LegalResearchPanel tab={tab} projectId={projectId} active={isActive} />;
+                            return <LegalResearchPanel tab={tab} projectId={projectId} active={panelActive && isActive} />;
                         }
                         const mode: DocPanelMode =
                             tab.kind === "citation"
@@ -166,6 +168,7 @@ function AssistantSidePanelContent({
                         return (
                             <DocPanel
                                 {...tab}
+                                active={panelActive && isActive}
                                 projectId={projectId}
                                 mode={mode}
                                 isReloading={

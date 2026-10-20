@@ -1,4 +1,4 @@
-import { createPdfSession, type PdfSession, PDF_ZOOM_MIN as ZOOM_MIN, PDF_ZOOM_MAX as ZOOM_MAX, PDF_ZOOM_STEP as ZOOM_STEP } from '../../../../../../shared/pdf/viewer';
+import { createPdfSession, type PdfSession, type PdfViewPosition, PDF_ZOOM_MIN as ZOOM_MIN, PDF_ZOOM_MAX as ZOOM_MAX, PDF_ZOOM_STEP as ZOOM_STEP } from '../../../../../../shared/pdf/viewer';
 import "pdfjs-dist/web/pdf_viewer.css";
 import "../../../../../../shared/pdf/pdfTextLayer.css";
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
@@ -29,6 +29,8 @@ export interface PdfCanvasProps {
     error?: string | null;
     quotes?: CitationQuote[];
     quoteFocusKey?: string | number;
+    initialView?: PdfViewPosition;
+    onViewChange?: (view: PdfViewPosition) => void;
     rounded?: boolean;
     ariaLabel?: string;
     onUnavailable?: () => void;
@@ -51,7 +53,8 @@ type Layout = PdfSession & { search(quotes: CitationQuote[]): Promise<void> };
 
 export function PdfCanvas({source, bytes, loading = false, error, quotes = [], quoteFocusKey,
     rounded = true, ariaLabel = "PDF document", onUnavailable, annotationEditor,
-    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady, onRendered, drawPage, hidden}: PdfCanvasProps) {
+    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady, onRendered, drawPage, hidden,
+    initialView, onViewChange}: PdfCanvasProps) {
     const containerRef = useRef<HTMLDivElement>(null), scrollRef = useRef<HTMLDivElement>(null);
     const layoutRef = useRef<Layout | null>(null);
     const previewRef = useRef<HTMLDivElement | null>(null);
@@ -75,6 +78,8 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
     const notifyTextReady = useEffectEvent((page: number, element: HTMLElement, focus = false) => onTextReady?.(page, element, focus));
     const notifyRendered = useEffectEvent(() => onRendered?.());
+    const readView = useEffectEvent(() => initialView);
+    const notifyView = useEffectEvent((view: PdfViewPosition) => onViewChange?.(view));
     useLayoutEffect(() => { setEmbeddedPageLabels(undefined); }, [bytes, source, authoredPageLabels]);
     useLayoutEffect(() => {
         editorRef.current = annotationEditor; quotesRef.current = quotes;
@@ -143,8 +148,10 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                 if (!signal.aborted && labels?.length === pdf.numPages) setEmbeddedPageLabels(labels);
             }).catch(() => { /* Printed labels are optional; physical navigation remains available. */ });
             const cache = createPdfPageCache(pdf), found = new Map<number, CitationQuote[]>();
+            const restoredView = readView();
             session = createPdfSession({lib:{PDFViewer,EventBus},TextLayer:lib.TextLayer,pdf,
                 container:scrollRef.current!,element:containerRef.current!,signal,
+                initialView:restoredView,onViewChange:notifyView,
                 readEditor:() => editorRef.current,readText:number => recognizedRef.current.get(number),
                 readTextLoader:() => textLoaderRef.current,
                 onTextReady:(number,element) => {
@@ -154,10 +161,10 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                 onRendered:() => { clearPreview(); setPreparing(false); notifyRendered(); },onError:fail});
             viewer = session.viewer;
             const {viewer:current,pages,preparePage,ensureText} = session;
-            const search = async (entries: CitationQuote[]) => {
+            const search = async (entries: CitationQuote[], focus = true) => {
                 const request = ++quoteGenerationRef.current;
                 const live = () => !signal.aborted && request === quoteGenerationRef.current;
-                pages.forEach(clearHighlights); found.clear(); let focused = false;
+                pages.forEach(clearHighlights); found.clear(); let focused = !focus;
                 for (const entry of entries) {
                     const hint = Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length ? entry.page : undefined;
                     if (!quoteSegments(entry.quote).length) continue;
@@ -189,7 +196,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
             if (signal.aborted) return;
             if (drawPage) drawPage.current = session.drawPage;
             setNumPages(pdf.numPages); setLayoutRevision(value => value + 1);
-            void search(quotesRef.current).catch(fail);
+            void search(quotesRef.current, !restoredView).catch(fail);
         })().catch(fail);
         return () => dispose(mountedRef.current);
     }, [bytes, source, error, clearPreview, authoredPageLabels, drawPage]);

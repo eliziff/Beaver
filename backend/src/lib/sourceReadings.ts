@@ -3,6 +3,16 @@ import { canonicalJsonSha256 } from "./hash";
 type Reading = { signal?: AbortSignal; progress?: (done: number, total: number) => void };
 export type SourceReadings = ReturnType<typeof sourceReadings>;
 
+// Readings contain JSON records and arrays. Copy their containers, sharing immutable strings;
+// structuredClone duplicates the full text even for the first reader of a cold source.
+function copyReading<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(copyReading) as T;
+  if (value && typeof value === "object") return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, copyReading(item)]),
+  ) as T;
+  return value;
+}
+
 const abortable = <T>(result: Promise<T>, signal?: AbortSignal) => !signal ? result
   : new Promise<T>((resolve, reject) => {
     const stop = () => reject(signal.reason);
@@ -25,7 +35,7 @@ export function sourceReadings(limit = 32_000_000) {
   let size = 0;
   return async <T, R extends Reading>(key: unknown, input: R, read: (input: R) => Promise<T>): Promise<T> => {
     const id = canonicalJsonSha256(key), hit = kept.get(id);
-    if (hit) { kept.delete(id); kept.set(id, hit); return structuredClone(hit.value) as T; }
+    if (hit) { kept.delete(id); kept.set(id, hit); return copyReading(hit.value) as T; }
     let job = running.get(id);
     if (!job || job.stop.signal.aborted) {
       const stop = new AbortController(), listeners = new Set<NonNullable<Reading["progress"]>>();
@@ -49,7 +59,7 @@ export function sourceReadings(limit = 32_000_000) {
     current.readers += 1;
     if (input.progress) current.listeners.add(input.progress);
     try {
-      return structuredClone(await abortable(current.result, input.signal)) as T;
+      return copyReading(await abortable(current.result, input.signal)) as T;
     } finally {
       if (input.progress) current.listeners.delete(input.progress);
       if (--current.readers === 0) current.stop.abort();

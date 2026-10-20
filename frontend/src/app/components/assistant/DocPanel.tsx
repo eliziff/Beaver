@@ -15,6 +15,7 @@ import { SourcesWorkspaceProvider, useSourcesWorkspaceOrNull } from "../legal/So
 import { useReaderCapture } from "../shared/useReaderCapture";
 
 import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
+import type { PdfViewPosition } from "../../../../../shared/pdf/viewer";
 
 function ResearchDocument({ documentId, projectId }: { documentId: string; projectId?: string }) {
   return <SourcesWorkspaceProvider fileId={documentId} projectId={projectId}>
@@ -40,6 +41,7 @@ export function DocPanel({
   versionNumber,
   mode,
   isReloading = false,
+  active = true,
   warning,
   onWarningDismiss,
   initialScrollTop,
@@ -53,6 +55,7 @@ export function DocPanel({
   versionNumber: number | null;
   mode: DocPanelMode;
   isReloading?: boolean;
+  active?: boolean;
   warning?: string | null;
   onWarningDismiss?: () => void;
   initialScrollTop?: number | null;
@@ -61,9 +64,13 @@ export function DocPanel({
 }) {
   const [downloading, setDownloading] = useState(false);
   const reader = useRef<HTMLDivElement>(null), workspace = useSourcesWorkspaceOrNull();
-  useReaderCapture(reader, versionId && !filename.toLowerCase().endsWith(".research.md")
+  const focus = mode.kind === "citation" ? mode.citation : mode.kind === "edit" ? mode.focusKey : null;
+  const view = useRef<{ versionId: string | null; focus: typeof focus; position?: PdfViewPosition;
+    scrollTop?: number | null }>({ versionId, focus, scrollTop: initialScrollTop });
+  if (view.current.versionId !== versionId || view.current.focus !== focus) view.current = { versionId, focus };
+  useReaderCapture(reader, active && versionId && !filename.toLowerCase().endsWith(".research.md")
     ? { provider: "library", kind: "document", id: documentId, versionId, title: filename } : null,
-    workspace?.highlight ?? null);
+    active ? workspace?.highlight ?? null : null);
   const documentQuotes = mode.kind === "citation"
     ? getDocumentCitationQuotes(mode.citation)
     : undefined;
@@ -111,12 +118,14 @@ export function DocPanel({
       <div ref={reader} data-highlighter={workspace?.highlight.armed || undefined}
         className={`flex min-h-0 flex-1 flex-col p-3 ${workspace?.highlight.armed ? "cursor-crosshair" : ""}`}>
         {filename.toLowerCase().endsWith(".research.md") ? <ResearchDocument
-          documentId={documentId} projectId={projectId} /> : <DocumentViewer
+          documentId={documentId} projectId={projectId} /> : active && <DocumentViewer
           documentId={documentId}
           kind={isDocxFilename(filename)
             ? "docx"
             : isSpreadsheetFilename(filename) ? "spreadsheet" : "pdf"}
           versionId={versionId}
+          initialView={view.current.position}
+          onViewChange={(position) => { view.current.position = position; }}
           quotes={mode.kind === "citation"
             ? expandCitationToEntries(mode.citation)
             : undefined}
@@ -126,8 +135,8 @@ export function DocPanel({
             .map(({ cell, sheet }) => ({ cell, sheet }))}
           warning={warning ?? null}
           onWarningDismiss={onWarningDismiss}
-          initialScrollTop={initialScrollTop ?? null}
-          onScrollChange={onScrollChange}
+          initialScrollTop={view.current.scrollTop ?? null}
+          onScrollChange={(scrollTop) => { view.current.scrollTop = scrollTop; onScrollChange?.(scrollTop); }}
         />}
       </div>
     </div>

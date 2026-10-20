@@ -55,6 +55,7 @@ export type LegalSourceTab = {
 };
 
 export type LegalSourceViewerProps = {
+  active?: boolean;
   navigationRequest?: object;
   provider?: "a2aj" | "journal";
   citation?: string;
@@ -280,6 +281,7 @@ function LegalSourceViewerContent({
   onScrollTop,
   restoreScrollTop,
   onBack,
+  active = true,
 }: LegalSourceViewerProps) {
   const { file: researchFile, mutations: commit, loading: researchLoading, error: workspaceError,
     passages, highlight } = useSourcesWorkspace();
@@ -373,7 +375,7 @@ function LegalSourceViewerContent({
     if (match) scrollTo(root.current, match);
   }, [payload, quoteIndex, quotes, savedPassages]);
 
-  useReaderCapture(root, payloadReference, highlight,
+  useReaderCapture(root, payloadReference, active ? highlight : null,
     payload ? { revision: payload.reference.sourceSha256, slices } : null, setResearchError);
   useEffect(() => {
     if (!payload || !root.current) return;

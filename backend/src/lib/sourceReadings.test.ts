@@ -41,4 +41,18 @@ describe("kept source readings", () => {
     await readings({ source: "a" }, {}, read);
     expect(read).toHaveBeenCalledTimes(4);
   });
+
+  it("isolates nested geometry and page edits between joined and retained readers", async () => {
+    const readings = sourceReadings(), read = async () => ({
+      pages: ["An invented garden has a circular pond. 🌿"], optional: undefined,
+      targets: [{ label: "4", pages: [{ page: 2, rects: [[0.1, 0.2, 0.3, 0.4]] }] }],
+    });
+    const expected = await read();
+    const [one, two] = await Promise.all([readings("garden", {}, read), readings("garden", {}, read)]);
+    one.pages[0] = "Changed";
+    one.targets[0].pages[0].rects[0][0] = 0.9;
+    one.targets.push({ label: "8", pages: [] });
+    expect(two).toEqual(expected);
+    expect(await readings("garden", {}, read)).toEqual(expected);
+  });
 });

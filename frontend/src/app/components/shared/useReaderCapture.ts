@@ -19,10 +19,10 @@ export function useReaderCapture(root: React.RefObject<HTMLElement | null>,
   const [loaded, setLoaded] = useState<{ id: string; version: string; text: ReaderText } | null>(null);
   const text = supplied ?? (highlight && loaded?.id === id && loaded.version === version ? loaded.text : null);
   useEffect(() => {
-    if (!id || !version || !highlight) return;
+    if (!id || !version || !highlight) { setLoaded(null); return; }
     const abort = new AbortController();
     void getDocumentReaderText(id, version, abort.signal)
-      .then((next) => setLoaded({ id, version, text: next })).catch(() => undefined);
+      .then((next) => { if (!abort.signal.aborted) setLoaded({ id, version, text: next }); }).catch(() => undefined);
     return () => abort.abort();
   }, [id, version, !!highlight]);
   const block = useRef<HTMLElement | null>(null), capture = useRef<() => HighlightCapture | null>(() => null);

@@ -8,6 +8,7 @@ import type { RecognizedPage } from './pdfRecognizedText';
 import type { PdfAnnotation } from '../pdf-annotations.mjs';
 
 export const PDF_ZOOM_MIN = .5, PDF_ZOOM_MAX = 3, PDF_ZOOM_STEP = .25;
+export type PdfViewPosition = { pageNumber: number; left: number; top: number; zoom: number; renderZoom: number };
 /** PDF.js's RenderingStates.FINISHED: a page view whose canvas is painted. */
 const FINISHED = 3;
 const clampZoom = (value: number) => Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, value));
@@ -21,6 +22,7 @@ export function createPdfSession(options: {
   readTextLoader?: () => PdfPageTextLoader | undefined;
   onTextReady?: (number: number, element: HTMLElement) => void;
   onPage?: (number: number) => void; onZoom?: (zoom: number) => void;
+  initialView?: PdfViewPosition; onViewChange?: (view: PdfViewPosition) => void;
   onRendered?: (number: number, error?: unknown) => void; onError: (error: unknown) => void;
 }) {
   const {pdf,container,element}=options, abort=new AbortController(), {signal}=abort;
@@ -30,8 +32,10 @@ export function createPdfSession(options: {
     holder: HTMLElement; scale: number; layer: ReturnType<typeof createPdfPageTextLayer>;
   }>();
   let annotations: ReturnType<typeof attachPdfAnnotationLayer> | undefined;
-  let zoom=1, fit=1, frame=0, settle=0, zooming=false, navigation=0, disposed=false;
-  let requestedZoom=1, origin: number[] | undefined;
+  let zoom=options.initialView?.zoom ?? 1, fit=1, frame=0, settle=0, zooming=false, navigation=0, disposed=false;
+  // PDF.js rounds gesture scales; preserve the drawn zoom as well as the control's requested zoom.
+  let renderZoom=options.initialView?.renderZoom ?? zoom;
+  let requestedZoom=zoom, origin: number[] | undefined, restoring=!!options.initialView;
   const release=(number: number)=>{
     const entry=layers.get(number);entry?.layer.destroy();entry?.holder.remove();layers.delete(number);
   };
@@ -136,6 +140,7 @@ export function createPdfSession(options: {
       const box=container.getBoundingClientRect();
       const anchor=origin && [origin[0]-box.left+container.offsetLeft,origin[1]-box.top+container.offsetTop];
       viewer.updateScale({scaleFactor:fit*zoom/viewer.currentScale,origin:anchor,drawingDelay:150});
+      renderZoom=viewer.currentScale/fit;
       options.onZoom?.(zoom);
       settle=window.setTimeout(()=>{
         zooming=false;
@@ -151,7 +156,7 @@ export function createPdfSession(options: {
   const fitOf=(first: PDFPageProxy)=>Math.max(.1,(width-24)/first.getViewport({scale:1}).width)/(96/72);
   const resize=()=>{
     const first=viewer.getPageView(0)?.pdfPage;if(!first)return;
-    fit=fitOf(first);viewer.currentScale=fit*zoom;
+    fit=fitOf(first);viewer.currentScale=fit*renderZoom;
   };
   let width=container.clientWidth;
   const observer=new ResizeObserver(()=>{
@@ -180,11 +185,20 @@ export function createPdfSession(options: {
   for(const type of ['touchend','touchcancel'])container.addEventListener(type,()=>{distance=0;},{passive:true,signal});
   const ready=new Promise<void>(resolve=>{
     signal.addEventListener('abort',()=>resolve(),{once:true});
-    eventBus.on('pagesinit',()=>{
+    eventBus.on('pagesinit',async()=>{
       if(signal.aborted)return;
       syncAll();
-      resize();updateAnnotations();resolve();
+      resize();updateAnnotations();
+      const view=options.initialView;
+      if(view && await preparePage(view.pageNumber) && !signal.aborted) viewer.scrollPageIntoView({
+        pageNumber:view.pageNumber,destArray:[null,{name:'XYZ'},view.left,view.top,null],
+        ignoreDestinationZoom:true,allowNegativeOffset:true,
+      });
+      restoring=false;options.onZoom?.(zoom);resolve();
     });
+  });
+  eventBus.on('updateviewarea',({location}: {location: {pageNumber:number;left:number;top:number}})=>{
+    if(!signal.aborted && !restoring)options.onViewChange?.({...location,zoom,renderZoom:viewer.currentScale/fit});
   });
   eventBus.on('pagesloaded',()=>{if(!signal.aborted)syncAll();});
   eventBus.on('scalechanging',()=>{if(!signal.aborted)for(const number of layers.keys())sync(number);});
@@ -218,7 +232,7 @@ export function createPdfSession(options: {
   // then leaves PDF.js nothing in flight.
   void pdf.getPage(1).then(first=>{
     if(signal.aborted || options.signal.aborted)return;
-    if(width)(viewer as unknown as {_currentScale: number})._currentScale=fitOf(first)*zoom;
+    if(width)(viewer as unknown as {_currentScale: number})._currentScale=fitOf(first)*renderZoom;
     viewer.setDocument(pdf);void viewer.pagesPromise?.catch((error: unknown)=>{if(!signal.aborted)options.onError(error);});
   },(error: unknown)=>{if(!signal.aborted)options.onError(error);});
   if(options.signal.aborted)destroy();
