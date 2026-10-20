@@ -431,8 +431,10 @@ fn grade_one(
     })
 }
 
-/// Per document, each line's labels from a tagger's predictions file: {sha256, ids, labels}.
-fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<String, labels::LineLabel>>>, String> {
+/// Per document, each piece's labels from a tagger's predictions file: {sha256, ids, labels}, ids
+/// naming pieces (line@offset) and each label [region, start, relation, document, reference,
+/// parent row, resumed row], a pointer being the row of the piece it names, or -1.
+fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<String, labels::Label>>>, String> {
     let Some(path) = path else { return Ok(None) };
     let text = std::fs::read_to_string(local(path)).map_err(|e| format!("{path}: {e}"))?;
     let mut found = BTreeMap::new();
@@ -441,28 +443,36 @@ fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<Stri
         let sha = row["sha256"].as_str().ok_or("Labels row without sha256")?.to_owned();
         let ids = row["ids"].as_array().ok_or("Labels row without ids")?;
         let rows = row["labels"].as_array().ok_or("Labels row without labels")?;
-        let mut per_line = HashMap::new();
+        let mut per_piece = HashMap::new();
         for (id, label) in ids.iter().zip(rows) {
             let field = |k: usize| label[k].as_u64().unwrap_or(0) as usize;
-            per_line.insert(id.as_str().unwrap_or_default().to_owned(), labels::LineLabel {
+            let pointer = |k: usize| label.get(k).and_then(Value::as_i64).filter(|&row| row >= 0)
+                .and_then(|row| ids.get(row as usize)).and_then(Value::as_str).map(str::to_owned);
+            per_piece.insert(id.as_str().unwrap_or_default().to_owned(), labels::Label {
                 region: field(0), start: field(1), relation: field(2), document: field(3) == 1, reference: field(4) == 1,
+                parent: pointer(5), continues: pointer(6),
             });
         }
-        found.insert(sha, per_line);
+        found.insert(sha, per_piece);
     }
     Ok(Some(found))
 }
 
+/// A tagger's labels decoded over a frame's own pieces.
+fn decode_labels(frame: &state::State, per_piece: &HashMap<String, labels::Label>, sha256: &str) -> Result<state::State, String> {
+    let pieces = labels::pieces(frame);
+    let found: Vec<labels::Label> = pieces.iter().map(|p| per_piece.get(&labels::anchor(frame, p)).cloned().unwrap_or_default()).collect();
+    state::projected(&labels::decode(frame, &pieces, &found, sha256))
+}
+
 /// A tagger's labels for one document, decoded over the replayed parser and scored like a parse.
-fn grade_labels(gold: &Path, source: &Source, per_line: &HashMap<String, labels::LineLabel>) -> Result<Graded, String> {
+fn grade_labels(gold: &Path, source: &Source, per_piece: &HashMap<String, labels::Label>) -> Result<Graded, String> {
     let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
     let started = Instant::now();
     let (structure, pages) = candidate(gold, source, &expected, false, None)?;
     let parsed_at = Instant::now();
-    let tier0 = state::parsed(&structure, &pages)?;
-    let line_labels: Vec<labels::LineLabel> = tier0.lines.iter().map(|l| per_line.get(&l.id).copied().unwrap_or_default()).collect();
-    let decoded = labels::decode(&tier0, &line_labels, &source.sha256);
-    let score = score::compare(&state::projected(&expected)?, &state::projected(&decoded)?)?;
+    let decoded = decode_labels(&state::parsed(&structure, &pages)?, per_piece, &source.sha256)?;
+    let score = score::compare(&state::projected(&expected)?, &decoded)?;
     Ok(Graded { score, parse_ms: (parsed_at - started).as_secs_f64() * 1e3, score_ms: parsed_at.elapsed().as_secs_f64() * 1e3 })
 }
 
@@ -748,11 +758,12 @@ fn rows(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
         let candidate = state::parsed(document.structure(), &boxes)?;
         let reference = state::projected(&expected)?;
         let parsed_regions = labels::parsed_regions(&candidate);
-        let tier0 = labels::labels(&candidate, &|n| parsed_regions[n])?;
+        let (pieces, tier0) = labels::labels(&candidate, &|p| parsed_regions.of(p))?;
         let gold_regions = labels::gold_regions(&expected, &reference);
-        let wanted = labels::labels(&reference, &|n| gold_regions[n])?;
-        let gold_labels = reference.lines.iter().map(|l| l.id.clone()).zip(wanted).collect();
-        let mut row = rows::document(&pages, &candidate, &tier0, &gold_labels);
+        let (gold_pieces, wanted) = labels::labels(&reference, &|p| gold_regions.of(p))?;
+        let alignment = alignment::align(&reference, &candidate)?;
+        let carried = labels::carry(&reference, &gold_pieces, &wanted, &candidate, &pieces, &alignment);
+        let mut row = rows::document(&pages, &candidate, &pieces, &tier0, &carried);
         row["sha256"] = json!(source.sha256);
         row["split"] = json!(source.split);
         row["mode"] = json!(source.mode);
@@ -812,6 +823,57 @@ fn pairing(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
     Ok(())
 }
 
+/// The gold against itself through the scorer (must be 1.0 everywhere), and the gold's own labels
+/// decoded over the gold's own lines, order, markers and notes (any shortfall is the label
+/// encoding or the decoder, never the gold): `selfcheck GOLD MANIFEST self|labels`.
+fn selfcheck(gold: &Path, manifest: &Path, mode: &str, options: &[String]) -> Result<(), String> {
+    let value = |name: &str| options.iter().position(|o| o == name).and_then(|n| options.get(n + 1)).cloned();
+    let split = value("--split");
+    let all: Vec<Source> = sources(gold, manifest)?.into_iter()
+        .filter(|s| split.as_deref().map_or(s.split != "test", |want| s.split == want)).collect();
+    let results = parallel(&all, |_| 0, |source| -> Result<score::Score, String> {
+        let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+        let reference = state::projected(&expected)?;
+        let candidate = match mode {
+            "self" => state::projected(&expected)?,
+            _ => roundtrip(&expected, &reference)?,
+        };
+        score::compare(&reference, &candidate)
+    });
+    let mut totals: BTreeMap<&str, score::Metric> = BTreeMap::new();
+    let mut errors = 0;
+    for result in &results {
+        match result {
+            Ok(score) => for (name, m) in &score.metrics { totals.entry(name).or_default().add(m); },
+            Err(error) => { errors += 1; eprintln!("ERROR {error}"); }
+        }
+    }
+    println!("{mode}: {} documents, {errors} errors", all.len());
+    for (name, m) in totals {
+        println!("{name:22} {:8} {:8} {:8} {:.4}", m.expected, m.predicted, m.correct, m.f1());
+    }
+    // The documents losing most on each named layer: missed plus spurious items.
+    for layer in value("--worst").map(|l| l.split(',').map(str::to_owned).collect::<Vec<_>>()).unwrap_or_default() {
+        let mut lost: Vec<(usize, &str)> = all.iter().zip(&results).filter_map(|(source, result)| {
+            let m = result.as_ref().ok()?.metrics.get(layer.as_str())?;
+            let lost = m.expected + m.predicted - 2 * m.correct;
+            (lost > 0).then_some((lost, source.sha256.as_str()))
+        }).collect();
+        lost.sort_by(|a, b| b.cmp(a));
+        let total: usize = lost.iter().map(|l| l.0).sum();
+        println!("{layer}: {total} lost in {} documents; worst {}", lost.len(),
+            lost.iter().take(8).map(|(n, sha)| format!("{}:{n}", &sha[..12])).collect::<Vec<_>>().join(" "));
+    }
+    Ok(())
+}
+
+/// The gold's own labels decoded over the gold's own lines, order, markers and notes.
+fn roundtrip(expected: &state::Gold, reference: &state::State) -> Result<state::State, String> {
+    let regions = labels::gold_regions(expected, reference);
+    let (pieces, found) = labels::labels(reference, &|p| regions.of(p))?;
+    state::projected(&labels::decode(reference, &pieces, &found, &expected.source_sha256))
+}
+
 /// One document's missed and spurious items, layer by layer.
 fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
     let value = |name: &str| {
@@ -852,11 +914,29 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
         .map(|l| l.split(',').map(str::to_owned).collect())
         .unwrap_or_default();
     let limit = value("--limit").and_then(|n| n.parse().ok()).unwrap_or(40);
+    if options.iter().any(|o| o == "--tree") {
+        // The parser's own node tree: kind, role, grammar, label and the start of its text.
+        let text: Vec<u16> = structure.text.encode_utf16().collect();
+        let parents: HashMap<&str, &str> = structure.nodes.iter()
+            .filter_map(|n| n.parent_id.as_deref().map(|p| (n.id.as_str(), p))).collect();
+        for node in structure.nodes.iter().filter(|n| n.kind != legal_structure_model::NodeKind::Page) {
+            let (mut depth, mut at) = (0, node.id.as_str());
+            while let Some(p) = parents.get(at) { depth += 1; at = p; }
+            let range = node.heading_range.as_ref().unwrap_or(&node.range);
+            let end = range.end.min(range.start + 70).min(text.len());
+            let snippet = String::from_utf16_lossy(&text[range.start.min(end)..end]).replace('\n', " / ");
+            println!("{}{:?} {:?} {} {} [{}] {snippet:?}", "  ".repeat(depth), node.kind, node.role,
+                node.grammar.as_deref().unwrap_or("-"), node.label.as_deref().unwrap_or("-"),
+                node.line_ids.first().map(String::as_str).unwrap_or("-"));
+        }
+    }
     let mut candidate_state = state::parsed(&structure, &pages)?;
+    if options.iter().any(|o| o == "--roundtrip") {
+        candidate_state = roundtrip(&expected, &state::projected(&expected)?)?;
+    }
     if let Some(labelled) = label_file(value("--labels").as_deref())? {
-        let per_line = labelled.get(&source.sha256).ok_or("No labels for this source")?;
-        let line_labels: Vec<labels::LineLabel> = candidate_state.lines.iter().map(|l| per_line.get(&l.id).copied().unwrap_or_default()).collect();
-        candidate_state = state::projected(&labels::decode(&candidate_state, &line_labels, &source.sha256))?;
+        let per_piece = labelled.get(&source.sha256).ok_or("No labels for this source")?;
+        candidate_state = decode_labels(&candidate_state, per_piece, &source.sha256)?;
     }
     let text = score::explain(
         &state::projected(&expected)?,
@@ -883,6 +963,9 @@ fn main() {
         }
         [command, gold, manifest, out] if command == "paragraph-data" => {
             paragraph_data::export(Path::new(gold), Path::new(manifest), Path::new(out))
+        }
+        [command, gold, manifest, mode, options @ ..] if command == "selfcheck" => {
+            selfcheck(Path::new(gold), Path::new(manifest), mode, options)
         }
         [command, gold, manifest, out] if command == "rows" => {
             rows(Path::new(gold), Path::new(manifest), Path::new(out))
