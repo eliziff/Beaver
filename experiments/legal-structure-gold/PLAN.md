@@ -228,3 +228,76 @@ with no errors and all gold file hashes unchanged. Accumulated alignment time av
 1.56 ms per page. This measures cached exports through grading; it excludes PDF extraction
 and OCR. The recorded OCR cache-fill batch took 906.5 seconds for all 453 OCR documents,
 including export overhead; it is a separate measurement.
+
+## Paragraph model (2026-10-19)
+
+`structure-gold paragraph-data GOLD_DIR MANIFEST OUT_DIR` exports the Rust reader's adjacent body-line
+witnesses and boundary targets aligned to the fixed gold. Mixed-unit or weakly aligned lines
+are omitted. Test sources are excluded. The reviewed family selection matches all 1,092
+exported train/development sources; 1,053 have eligible pairs (110,125 train, 121,692 development).
+The frozen dataset and evaluation stay in private `paragraph-model/` under the gold directory.
+Its dataset SHA-256 is `d0ecc9c4d95e9a6eee277f8c7a70411f2b687b2e81e1de22f6a3940277684d14`.
+
+Train with `python train_paragraphs.py OUT_DIR/dataset.json --out OUT_DIR` from this directory.
+The scaler fits train only; PyTorch trains logistic and 30→32→1 ReLU models with weighted binary
+cross entropy, AdamW and seed 7. Development selects the model and a conservative merge threshold
+at 95% minimum precision. On the desktop RTX 3080 Ti, optimization took 0.76 and 0.54 seconds
+respectively, excluding data loading and imports. The MLP's boundary-only development F1 is
+0.8740 against the Rust baseline's 0.8499: 1,479 correct repairs among 1,554 proposed merges.
+These are proposal metrics. The conservative Rust integration kept strong geometry, indentation,
+enumerator and native-type boundaries, but its actual development group F1 moved only
+0.68528→0.68529 (train 0.44440→0.44460). Notes and references were unchanged. This does not justify
+shipping its inference code. `score/parser-before.json` and `score/parser-after.json` retain the
+1,092-document comparison: 14.2 and 15.9 seconds, zero errors, cached recognition throughout.
+
+The experimental weights stay in private `paragraph-model/model.json`: 1,025 parameters,
+SHA-256 `d39c10ed61444f2559df85cea7338b6a01df9bfd3122d582bdf0b14521f7027c`.
+Reproduce them from the frozen dataset: regenerating features after changing paragraph
+segmentation creates a different experiment. The model proposals concentrate on same-row text
+fragments. The retained paragraph correction reuses the extractor's existing MuPDF 0.8-em
+spacing invariant in paragraph grouping; the ineffective model runtime was removed.
+
+## Parser candidate (2026-10-20)
+
+The final outline assembler now consumes the heading reader's inferred levels, retaining its
+style fallback, bookmark overrides and document/quotation contexts. Numeric, enumerator and
+hierarchy marker extents exclude trailing separator whitespace without moving content starts or
+layout padding. Paragraph grouping joins adjacent fragments of one printed row, while retaining
+indentation, numbered-item and column boundaries. This changes structure, not recognition.
+
+`score/parser-before.json` and `score/fragments-after.json` compare the same 1,092 completed
+train/development sources with fixed cached recognition and fixed gold; neither uses test.
+The intermediate hierarchy-only candidate is `score/hierarchy-after.json`.
+Reproduce a comparison with `structure-gold grade GOLD_DIR MANIFEST --out REPORT --against BASELINE`.
+All 1,092 gold and input hashes still match the frozen training manifest. The measured binary's
+SHA-256 is `f99c68b5aa8005d39b132ede7339b81461dc356caac5651a5e61b0a42e296be7`.
+
+| Development F1 | Before | Final |
+| --- | --- | --- |
+| Complete hierarchy assignment | 0.05891 | 0.10717 |
+| Parent links | 0.20152 | 0.20415 |
+| Marker spans | 0.13690 | 0.71200 |
+| Unit starts | 0.77040 | 0.77165 |
+| Grouping | 0.68528 | 0.68625 |
+
+Most of the complete-hierarchy gain is marker correctness; parent inference remains weak.
+Grouping improves in 82 sources and worsens in three; train grouping F1 moves 0.44440→0.45391.
+Development grouping improves for native-text sources (0.71988→0.72062) and OCR sources
+(0.32233→0.32403). Note extents and note-reference scores do not change. Two additional
+cross-page paragraph continuations in scans disagree with the gold; these are retained as
+measured regressions, not repaired by rewriting the reference. Final structure replay plus
+grading takes 16.7 seconds, with zero document errors; PDF extraction and OCR are excluded.
+
+Validation: owning-crate checks, marker-offset tests including indented Unicode input, typed
+numeric/hierarchy tests, heading/context/navigation tests and seven grader/training-target tests
+pass, as do 12 cache-provenance mutations and DOCX isolation. The structure library has 44
+passing tests, two ignored corpus tests and two existing heading-boundary failures
+(`heading_and_utf16_edges_match_javascript`, `instrument_heads_keep_token_and_heading_boundaries`);
+both also fail with the original marker extents restored. The final PDF-structure library has
+91 passing tests and two pre-existing furniture
+failures (`a_running_head_naming_each_page_s_sections_is_furniture`,
+`attached_top_note_labels_are_not_repeated_headers`); both also fail with the paragraph model
+disabled. Stale fixture fields, missing test engine installs and omitted region-view rebuilds
+were corrected without changing expected outcomes. Held-out evaluation and app-addon delivery
+remain separate gates. The plan's next target is region/role and unit-relation inference, which
+the parallel Claude work owns along with notes and tables.
