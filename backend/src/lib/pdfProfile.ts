@@ -64,20 +64,20 @@ function configuredLegalPdfProfile(env: NodeJS.ProcessEnv = process.env): LegalP
       psm: numericSetting(env, "LEGALPDF_OCR_PSM") ?? 3,
     } };
   } else if (ocr === "indra") {
-    const layout = env.LEGALPDF_INDRA_LAYOUT?.trim() || "indra";
-    if (layout !== "indra" && layout !== "tesseract")
+    const layout = env.LEGALPDF_INDRA_LAYOUT?.trim();
+    if (layout && layout !== "indra" && layout !== "tesseract")
       throw new Error("LEGALPDF_INDRA_LAYOUT must be indra or tesseract");
     const [runtime, tesseractLibrary] = nativeLibraryNames(platform);
     const backend = env.LEGALPDF_INDRA_BACKEND?.trim();
     profile.ocr = { provider: ocr, settings: {
-      dpi: numericSetting(env, "LEGALPDF_OCR_DPI") ?? 144,
-      layout,
+      ...(layout ? { layout } : {}),
       ...(backend && backend !== "auto" ? { backend } : {}),
-      tier: env.LEGALPDF_INDRA_TIER?.trim() || "balanced",
+      ...(env.LEGALPDF_INDRA_TIER?.trim() ? { tier: env.LEGALPDF_INDRA_TIER.trim() } : {}),
       model_pack: configuredPath(env, root, "LEGALPDF_INDRA_MODEL_PACK", "runtime/indra", "manifest.json"),
       runtime: configuredPath(env, root, "LEGALPDF_ONNX_RUNTIME", `runtime/onnx/${runtime}`),
       ...(layout === "tesseract" ? {tesseract_library: configuredPath(env, root, "LEGALPDF_INDRA_TESSERACT_LIBRARY", `runtime/${tesseractLibrary}`)} : {}),
       ...numericSettings(env, [
+        ["dpi", "LEGALPDF_OCR_DPI"],
         ["threads", "LEGALPDF_INDRA_THREADS"], ["workers", "LEGALPDF_INDRA_WORKERS"],
         ["layout_workers", "LEGALPDF_INDRA_LAYOUT_WORKERS"],
         ["batch_size", "LEGALPDF_INDRA_BATCH_SIZE"],

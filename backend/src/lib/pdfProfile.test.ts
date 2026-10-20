@@ -24,10 +24,9 @@ describe("installed native OCR profiles", () => {
     vi.unstubAllEnvs();
     if (root && root.startsWith(path.resolve(tmpdir()) + path.sep)) rmSync(root, { recursive: true, force: true });
   });
-  it("selects installed Indra without binding a machine-specific backend or worker count", () => {
+  it("selects installed Indra and leaves recognition defaults to the parser", () => {
     const profile = profileFor(undefined, false);
     expect(profile.ocr).toEqual({ provider: "indra", settings: {
-      dpi: 144, layout: "indra", tier: "balanced",
       model_pack: path.join(root, "runtime/indra"),
       runtime: path.join(root, "runtime/onnx", runtime),
     } });
@@ -37,7 +36,8 @@ describe("installed native OCR profiles", () => {
     vi.stubEnv("LEGALPDF_INDRA_BACKEND", "cpu");
     vi.stubEnv("LEGALPDF_INDRA_THREADS", "2");
     vi.stubEnv("LEGALPDF_INDRA_TIER", "quality");
-    expect(profileFor("indra", false).ocr?.settings).toMatchObject({ backend: "cpu", threads: 2, tier: "quality" });
+    vi.stubEnv("LEGALPDF_OCR_DPI", "192");
+    expect(profileFor("indra", false).ocr?.settings).toMatchObject({ backend: "cpu", threads: 2, tier: "quality", dpi: 192 });
     vi.stubEnv("LEGALPDF_INDRA_LAYOUT", "tesseract");
     expect(() => profileFor("indra", false)).toThrow(/TESSERACT_LIBRARY/u);
   });
