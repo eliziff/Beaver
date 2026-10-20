@@ -9,9 +9,10 @@ without duplicating the page corpus. Source lists retain the original article
 partition; the harness rejects page or article overlap.
 
 The delivered runtime is now the five-tier Indra package in
-[Legal Browser OCR v0.2.2](https://github.com/eliziff/legal-browser-ocr/releases/tag/v0.2.2).
+[Legal Browser OCR v0.2.3](https://github.com/eliziff/legal-browser-ocr/releases/tag/v0.2.3).
 Production browser and native consumers use that shared model manifest. Earlier
 Kraken comparisons and intermediate candidates below remain experiment history.
+The native runtime remains v0.2.2; v0.2.3 changes the browser pipeline only.
 
 Native delivery lives in `legal-pdf-parser/legal-pdf-ocr`; build and package with
 that owner's `tools/build_ocr_runtime.py` and `tools/package_ocr_runtime.py`.
@@ -41,6 +42,41 @@ of `3`; keep its sample count separate from candidate medians. The laptop and
 desktop follow-up receipts live in private `browser/full-test/latest/*/runtime-speed/`.
 `tensorWidth=64` or `128` tests tensor padding; original line widths stay unchanged.
 These experiments did not improve the laptop result. The 8-pixel default remains.
+
+The v0.2.3 browser defaults overlap a real PDF.js worker, CPU detection/crop
+preparation and one GPU recognizer, using two bounded ordered page batches.
+`prepareWorker=0`, `fixedBatch=0`, `pdfPort=0`, and
+`layoutBackend=webgpu&layoutWorkers=1` are ablation controls. Final results live
+under `runtime-speed/v023-final/`; the laptop also runs hosted PNG recognition
+and model switching through all five tiers. `OCR_BENCH_SKIP_HOSTED=1` skips that
+additional smoke during a timing sweep; the receipt records the skip.
+
+The following scripts produce separate experimental artifacts rather than
+changing the released weights or dependencies:
+
+- `gpu_detector.py` lowers activations into copied FP32/FP16 detector graphs;
+  `build_gpu_detector.mjs gpu-fp32|gpu-fp16` substitutes one into a prototype HTML.
+  `inspect_browser_gpu.mjs HTML_NAME PRIVATE_OUTPUT QUERY` captures actual node
+  placement, not a throughput benchmark. HardSwish was already decomposed by
+  ORT; Softplus was the real detector data fallback.
+- `prepare_gpu_argmax.py` removes only the redundant ArgMax output from copied
+  GPU models, checking logits, lengths and class-ID parity. Run
+  `build_gpu_argmax.mjs` and benchmark its HTML with `gpuArgMax=128`.
+  `gpu_argmax_benchmark.mjs PRIVATE_OUTPUT` checks the independent WGSL kernel
+  against CPU expectations and stock fixed-vocabulary output, then rotates
+  timing order across seven trials on prepared GPU tensors.
+- `prepare_browser_gpu_runtime.py` stages checksum-verified official ORT 1.30
+  files without installing a dependency. `build_browser_gpu_runtime.mjs
+  jsep|asyncify|jspi` builds an alternate GPU worker/runtime pair. The CPU
+  runtime remains the pinned custom 1.22 build. The slower JSPI candidate was
+  rejected as a laptop default.
+
+The historical atlas/canvas/output-pipeline prototypes are frozen privately in
+`browser/runtime-speed/prototype-source.patch` against browser source revision
+`90beccd19854121df2c8e576754e702862836529`. Apply it only to an isolated durable
+checkout of that revision to reproduce those old flags. Current production
+sources omit the rejected branches. Do not compare the early contended laptop
+timings with the quiet final controls.
 
 `native_render_parity.mjs INVENTED_FIXTURE.pdf OUTPUT [V0.2.1_EXE]` compares the
 frozen v0.2.1 executable and current canonical executable across nine pages, including

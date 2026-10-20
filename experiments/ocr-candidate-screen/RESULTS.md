@@ -187,6 +187,101 @@ its first use, at 2.452% CER, with a 0.026-second cache hit. These application
 figures include their host work and are separate from the direct browser table.
 The combined Authorities app release remains pending the other Authorities work.
 
+## Browser pipeline follow-up (v0.2.3)
+
+The browser-first follow-up keeps the released recognition/detection weights,
+full recognition width and fractional Canvas crop sampling. PDF.js now receives
+an explicit module-worker port in the embedded HTML. Its automatic setup had
+fallen back to a fake worker when opened from disk. GPU document processing uses
+fixed, ordered four-page groups with two bounded groups in flight, overlapping
+CPU detection and crop preparation with one GPU recognition session. Detection
+uses at most two CPU workers in GPU mode, reduced on browsers reporting fewer
+cores; CPU recognition retains the existing core-based limits.
+
+The same frozen 55-page PDF and 145,475 human-gold characters produced these
+three-warm-pass medians. Timings include rendering, detection, preparation,
+inference and text assembly, excluding input opening, model startup and export.
+The laptop used Chromium 149 and Intel UHD WebGPU; the desktop used Chromium 151
+and the RTX 3080 Ti. Actual adapter information confirmed hardware acceleration.
+
+| Browser configuration | Warm pages/s | CER | First document | Model initialization |
+| --- | ---: | ---: | ---: | ---: |
+| Laptop Balanced CPU | 4.547 | 2.513% | 13.424 s | 1.821 s |
+| Laptop Balanced automatic GPU | 6.055 | 2.512% | 11.338 s | 2.708 s |
+| Desktop Balanced CPU | 7.725 | 2.601% | 8.556 s | 2.910 s |
+| Desktop Balanced automatic GPU | 12.731 | 2.606% | 6.655 s | 3.253 s |
+| Desktop Quality automatic GPU | 9.515 | 2.252% | 7.523 s | 3.236 s |
+
+The final laptop GPU passes were 6.170 / 6.029 / 6.055 pages/s; desktop GPU
+passes were 12.304 / 12.731 / 12.821. Frozen v0.2.2 GPU controls measured 5.458
+and 8.561 respectively, giving 10.9% / 48.7% improvements, with identical text
+hashes on each machine. CPU and GPU detection have slightly different line
+coordinates. Desktop final GPU geometry also matches its frozen control.
+All 55 exported text pages, original first-page pixels, repeated recognition
+and PDF reopening passed. Browser source tests passed 35/35. The self-contained
+HTML has SHA-256 `7e4060a0e54f06bf40d298679154e279e4a7458d28d0fa430e47b79275e7b199`.
+
+The crop-worker ablation measured 5.888 pages/s on the laptop over three warm
+passes and 10.242 on the desktop over one. It is a modest laptop gain and a
+larger desktop gain. Raising recognition batch size from 32 to 64 reduced the
+laptop screen from 5.938 to 5.618. The released default stays at 32. Earlier
+tests during a separate eight-core citator build are retained privately but
+are excluded from the accepted comparison. That process completed normally;
+its scheduling was never changed.
+
+Other investigated candidates remain experimental:
+
+- A parallel WGSL ArgMax reduction uses 64, 128 or 256 lanes with first-index
+  tie handling. Independent numeric checks cover 1x1 through 4096x1680 tensors.
+  Including result download, the 128-lane component measured 4.1 ms versus
+  stock's 7.6 ms on the laptop. It did not improve the ordinary page pipeline;
+  the default retains the existing compact-ID graph. A desktop combination
+  of two GPU recognizers, CPU detection and the kernel measured 9.329 pages/s,
+  below the accepted pipeline. Component speedups do not establish page gains.
+- Verbose node placement showed that ORT 1.22 automatically decomposes
+  HardSwish; the detector was not doing 31 CPU HardSwish fallbacks. Its actual
+  non-metadata CPU operation was Softplus. Replacing it with the stable
+  `relu(x) + log(1 + exp(-abs(x)))` removed that fallback. FP32 and FP16
+  detector variants measured 8.851 / 8.866 desktop pages/s in the older page
+  pipeline, versus controls of 8.517 / 8.616, with worse initial latency.
+  These graphs were not promoted.
+- ONNX Runtime Web 1.30 offers a genuinely different C++ GPU backend, including
+  JSPI, separate from its existing TypeScript JSEP backend. With stable fixed
+  page groups, JSPI measured 4.706 laptop pages/s / 2.513% CER versus the frozen
+  1.22 control's 5.458 / 2.512%. It is not the released backend. The initial
+  variable-batch run changed a character between passes and failed the strict
+  text-stability gate; that failure was not waived. See the upstream
+  [backend migration design](https://github.com/microsoft/onnxruntime/blob/v1.30.0/docs/design/onnxruntime_web_jsep_to_webgpu_ep_migration.md).
+- Crop atlases, canvas reuse, CPU rasterization and pipelined GPU-output
+  downloads gave no convincing full-document improvement. Their production
+  branches were removed; the private source patch and receipts retain them.
+
+Private receipts live in `browser/full-test/latest/{laptop,desktop}/runtime-speed/`;
+`v023-final/` is the accepted HTML run. The dedicated crop worker is packaged as
+`preparation-worker.js`; native runtime behavior is unchanged in this follow-up.
+
+[v0.2.3](https://github.com/eliziff/legal-browser-ocr/releases/tag/v0.2.3) is
+published with all five asset digests verified; the Windows native ZIP is
+carried forward byte-for-byte from v0.2.2. GitHub Pages built commit
+`21326cc46311eced0a47c495562fab43d074a315`. Its live HTML matches the released
+HTML hash above. An independently invented PDF passed repeated live recognition
+and exact recognized-text export with networking disabled after app loading;
+that deployment smoke is separate from the real-document accuracy benchmark.
+
+The remaining laptop stages still justify further experiments. Its final
+9.084-second median document pass contains about 5.0-5.2 seconds of serialized
+recognizer runs and 4.0-4.5 crop/preparation worker seconds. Detection consumes
+about 11.7-13.0 summed worker seconds across two workers. These stages overlap;
+their durations are not additive wall-time savings. Candidate next steps are
+GPU crop/resize/normalization feeding GPU-resident input tensors, a detector
+worker sweep followed by detector pruning/distillation, static-shape graph
+capture after removing CPU data fallbacks, and a guarded single-image PDF fast
+path. [ORT documents GPU input tensors and preallocated outputs](https://onnxruntime.ai/docs/tutorials/web/ep-webgpu.html);
+its [graph capture guidance](https://onnxruntime.ai/docs/tutorials/web/performance-diagnosis.html)
+requires static shapes and GPU-supported computing kernels. Our current dynamic
+width graph is not eligible merely by setting a flag. None of these future
+changes has a measured full-document gain yet.
+
 ## Data and training
 
 Reused the existing CATMuS transfer bundle and compiled Kraken Arrow files in
