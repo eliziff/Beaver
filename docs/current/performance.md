@@ -575,12 +575,19 @@ The maintained browser gate is
 It checks persistence, source/model isolation, concurrent tabs, replacement and
 eviction under the byte budget, and denied/aborted storage.
 
-Browser OCR inflates only the selected CPU or WebGPU assets. The PDF raster worker
+Standalone Authorities calls Legal Browser OCR's embedding API; that repository
+owns the default tier, resolution, backend, worker budgets, detection, preparation
+and recognition pools shared with its browser app. Packaging resolves its latest
+release and checks the archive digest and asset manifest. Native Authorities leaves
+OCR defaults to Legal PDF Parser, forwarding installed asset paths and explicit
+environment overrides. The native model installer also resolves the latest release.
+
+Browser OCR inflates only assets required by the selected path. The PDF raster worker
 can start without inflating either recognizer. Assets consumed as data URLs retain
-that representation alone. The existing Balanced models, 144 dpi rasterization,
-backend selection and worker limits are unchanged. A fresh Chromium asset-only
-probe using the packaged v0.2.2 assets measured post-GC backing storage growth of
-76.0 MiB before, 16.3 MiB for CPU and 30.8 MiB for GPU afterward. It used served
+that representation alone. A fresh Chromium asset-only probe using the packaged
+v0.2.3 assets measured post-GC backing storage growth of 76.0 MiB before,
+16.3 MiB for CPU and 42.2 MiB for GPU afterward. The GPU path includes its CPU
+line detector and crop preparation worker. The probe used served
 compressed assets and no inference; embedded payload strings, model-session memory
 and GPU allocation are outside that measurement. The public byte/URL gate checks
 both embedded and served packaging:

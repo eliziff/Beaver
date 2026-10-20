@@ -305,6 +305,8 @@ export const STRESS_CASES = [{
     await app.load();
     await importBrief(app, fixtures.scanBrief, { sourceMode: 'manual', scanned: 'full' });
     await step(app, "Sources", { via: "next" });
+    const explainer = app.page.getByRole("dialog", { name: "Some sources need adding" });
+    await explainer.getByRole("button", { name: "Got it", exact: true }).click();
     const files = fixtures.scans.map(({ file }) => file);
     const startedAt = Date.now(), started = await app.now();
     for (const item of fixtures.scans) await attach(app, item.name, item.file);
