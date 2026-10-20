@@ -9,13 +9,18 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 /// Names of the numeric features, in row order.
-pub const FEATURES: [&str; 44] = [
+pub const FEATURES: [&str; 79] = [
     "x0", "y0", "x1", "y1", "height", "gap_above", "gap_below", "indent", "right_gap", "width", "centre",
     "size", "bold", "italic", "superscript", "monospace", "size_change", "font_change", "underlined",
     "length", "upper", "digits", "punctuation", "spaces", "starts_digit", "starts_upper", "starts_lower",
     "starts_open", "starts_mark", "ends_period", "ends_colon", "ends_comma", "ends_hyphen", "ends_digit",
     "ocr", "confidence", "page_quality", "page_position", "line_position", "first_on_page", "last_on_page",
     "excluded", "label_candidate", "note_mode",
+    "marker", "ordinal", "prefix_depth",
+    "u0_exists", "u0_indent", "u0_size", "u0_bold", "u0_family", "u0_next", "u0_region", "u0_distance",
+    "u1_exists", "u1_indent", "u1_size", "u1_bold", "u1_family", "u1_next", "u1_region", "u1_distance",
+    "u2_exists", "u2_indent", "u2_size", "u2_bold", "u2_family", "u2_next", "u2_region", "u2_distance",
+    "u3_exists", "u3_indent", "u3_size", "u3_bold", "u3_family", "u3_next", "u3_region", "u3_distance",
 ];
 
 fn median(mut values: Vec<f64>) -> f64 {
@@ -77,6 +82,96 @@ fn text_shape(text: &str) -> [f64; 15] {
     ]
 }
 
+const CHAIN: usize = 4;
+
+/// Each line's place among the parser's ranked units: the unit before it in reading order and that
+/// unit's ancestors as the parser assembled them, each compared with the line by indentation,
+/// type and the engine's numbering grammar (same family, the next ordinal). Per candidate line.
+fn unit_context(candidate: &State, tier0: &[LineLabel], geometry: &dyn Fn(usize) -> Option<(f64, f64, f64, bool)>)
+    -> (Vec<Vec<f64>>, Vec<String>) {
+    use legal_structure::LayoutAnalysis;
+    let ranked = |n: usize| tier0[n].start == 1 && !matches!(tier0[n].region, 0 | 5 | 7 | 10 | 11 | 12);
+    // The parser's blocks by the line they start on, their markers and their parents' lines.
+    let mut start_of: HashMap<String, usize> = HashMap::new();
+    for group in &candidate.groups {
+        if let Some(first) = group.spans.first() {
+            if let Some(&n) = candidate.index.get(&first.line_id) {
+                start_of.insert(crate::state::block_id(group), n);
+            }
+        }
+    }
+    let mut parent_of: HashMap<usize, usize> = HashMap::new();
+    let mut marker_of: HashMap<usize, legal_structure::layout::NumberingMarker> = HashMap::new();
+    for group in &candidate.groups {
+        let Some(&n) = group.spans.first().and_then(|s| candidate.index.get(&s.line_id)) else { continue };
+        if let Some(parent) = group.attributes.get("parent").and_then(serde_json::Value::as_str).and_then(|a| start_of.get(a)) {
+            parent_of.entry(n).or_insert(*parent);
+        }
+        let spans: Vec<legal_structure::SourceSpan> = serde_json::from_value(group.attributes.get("marker").cloned().unwrap_or_default()).unwrap_or_default();
+        let text: String = spans.iter().filter_map(|s| candidate.index.get(&s.line_id).map(|&m| {
+            let chars = &candidate.lines[m].text;
+            chars[s.start.min(chars.len())..s.end.min(chars.len())].iter().collect::<String>()
+        })).collect::<Vec<_>>().join(" ");
+        if !text.trim().is_empty() {
+            if let Some(marker) = legal_structure::STRUCTURE_ANALYSIS.numbering_marker(text.trim(), None) {
+                marker_of.entry(n).or_insert(marker);
+            }
+        }
+    }
+    let mut rows = vec![Vec::new(); candidate.lines.len()];
+    let mut families = vec![String::new(); candidate.lines.len()];
+    let mut previous: Option<usize> = None;
+    let position: HashMap<usize, usize> = candidate.reading_order.iter().enumerate().map(|(k, &n)| (n, k)).collect();
+    for &n in &candidate.reading_order {
+        let own = marker_of.get(&n).filter(|_| tier0[n].start == 1);
+        let mut values = vec![
+            f64::from(u8::from(own.is_some())),
+            own.map_or(0.0, |m| (1.0 + f64::from(m.ordinal)).ln() / 5.0),
+            own.map_or(0.0, |m| m.prefix.len().min(3) as f64 / 3.0),
+        ];
+        families[n] = own.map(|m| m.family.clone()).unwrap_or_default();
+        let mut chain = Vec::new();
+        let mut at = previous;
+        while let Some(unit) = at.filter(|u| chain.len() < CHAIN && !chain.contains(u)) {
+            chain.push(unit);
+            at = parent_of.get(&unit).copied();
+        }
+        let here = geometry(n);
+        for k in 0..CHAIN {
+            let Some(&unit) = chain.get(k) else {
+                values.extend([0.0; 8]);
+                continue;
+            };
+            let there = geometry(unit);
+            let theirs = marker_of.get(&unit);
+            let (indent, size, bold) = match (here, there) {
+                (Some((x, s, w, b)), Some((x2, s2, _, b2))) => (
+                    ((x - x2) / w).clamp(-1.0, 1.0),
+                    if s2 > 0.0 && s > 0.0 { (s / s2).min(4.0) } else { 1.0 },
+                    f64::from(u8::from(b == b2)),
+                ),
+                _ => (0.0, 1.0, 0.0),
+            };
+            let family = match (own, theirs) {
+                (Some(a), Some(b)) => f64::from(u8::from(a.family == b.family)),
+                _ => -1.0,
+            };
+            let next = match (own, theirs) {
+                (Some(a), Some(b)) => f64::from(u8::from(a.family == b.family && a.ordinal == b.ordinal + 1)),
+                _ => 0.0,
+            };
+            let distance = position[&n].saturating_sub(position[&unit]) as f64;
+            values.extend([1.0, indent, size, bold, family, next, f64::from(u8::from(tier0[n].region == tier0[unit].region)),
+                (1.0 + distance).ln() / 8.0]);
+        }
+        rows[n] = values;
+        if ranked(n) {
+            previous = Some(n);
+        }
+    }
+    (rows, families)
+}
+
 /// One document's rows, over the candidate's lines in its reading order.
 pub fn document(
     pages: &[Page],
@@ -121,6 +216,12 @@ pub fn document(
     let mut tier0_rows = Vec::new();
     let mut gold_rows = Vec::new();
     let row = |label: &LineLabel| json!([label.region, label.start, label.relation, u8::from(label.document), u8::from(label.reference)]);
+    let geometry = |n: usize| -> Option<(f64, f64, f64, bool)> {
+        let &(p, k) = by_id.get(candidate.lines[n].id.as_str())?;
+        let line = &pages[p].lines[k];
+        Some((line.bbox[0], dominant(line).map_or(0.0, |d| d.1), pages[p].width.max(1.0), flagged(line, 16) > 0.5))
+    };
+    let (context, families) = unit_context(candidate, tier0, &geometry);
     for &n in &candidate.reading_order {
         let line = &candidate.lines[n];
         let Some(&(p, k)) = by_id.get(line.id.as_str()) else { continue };
@@ -162,11 +263,12 @@ pub fn document(
             f64::from(u8::from(own.paragraph_label_candidate)),
             f64::from(u8::from(!own.note_region_mode.is_empty())),
         ]);
+        values.extend(context[n].iter().copied());
         debug_assert_eq!(values.len(), FEATURES.len());
         ids.push(line.id.clone());
         page_of.push(p);
         features.push(values.into_iter().map(|v| (v * 1e4).round() / 1e4).collect::<Vec<f64>>());
-        texts.push(json!([own.text.chars().take(48).collect::<String>(), own.region_type, own.note_region_mode]));
+        texts.push(json!([own.text.chars().take(48).collect::<String>(), own.region_type, own.note_region_mode, families[n]]));
         tier0_rows.push(row(&tier0[n]));
         gold_rows.push(gold.get(&line.id).map_or(json!(null), row));
     }
