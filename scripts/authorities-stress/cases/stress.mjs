@@ -6,7 +6,7 @@ import path from "node:path";
 import { rm, stat, writeFile } from "node:fs/promises";
 import { briefHtml, fixtureA2aj, LONG_STATUTE, longBrief, longStatuteRecord, NAVIGATION_ACT,
   navigationSubsection } from "../fixtures.mjs";
-import { attach, build, dock, downloads, importBrief, outputOptions, row, setOption, step, tick } from "../flows.mjs";
+import { attach, build, chooseCard, dock, downloads, importBrief, outputOptions, row, setOption, step, tick } from "../flows.mjs";
 import { BUDGETS } from "../harness.mjs";
 import { checkPdf, inspectPdf } from "../outputs.mjs";
 import { loadHar } from "../network.mjs";
@@ -310,6 +310,9 @@ export const STRESS_CASES = [{
     await app.pick(() => app.button("Add files").click(), files);
     await app.page.waitForFunction((count) => document.querySelectorAll("[aria-label='Authority tab slots'] > [role=listitem]").length === count,
       files.length, { timeout: 60_000 });
+    await app.button("Source settings").click();
+    await chooseCard(app, app.page.getByRole("group", { name: "Scanned PDFs" }), "Recognize every page");
+    await app.button("Source settings").click();
     // Several read at once: one recognizing, the rest waiting their turn, every row keeping its height.
     const status = () => app.page.getByRole("list", { name: "Authority tab slots" }).getByRole("status").allInnerTexts();
     await app.page.waitForFunction(() => [...document.querySelectorAll("[aria-label='Authority tab slots'] [role=status]")]

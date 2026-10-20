@@ -558,6 +558,28 @@ separate size/time metadata. Memory and persistent payload budgets remain 64 MiB
 apiece, not a bound on total process memory. Cache schema 2 discards old disposable
 OCR results, without touching drafts. Lite keeps its existing storage behavior.
 
+The October 19 browser probe wrote 150 independently invented pages (4,383,441
+JSON characters) in groups of four to an empty IndexedDB cache. Whole-document
+storage serialized 661,270,440 characters and wrote 11,325 page copies; page storage
+serialized 4,383,290 characters and wrote 150 pages. Three alternating fresh-browser
+runs had median write times of 2.53 s versus 0.095 s (ranges 2.50–2.56 s and
+0.087–0.098 s). This measures cache overhead, not recognition or total build time.
+The maintained browser gate is
+`node --test --test-concurrency=1 AuthoritiesHelper/modern/html/ocr-cache.test.mjs`.
+It checks persistence, source/model isolation, concurrent tabs, replacement and
+eviction under the byte budget, and denied/aborted storage.
+
+Browser OCR inflates only the selected CPU or WebGPU assets. The PDF raster worker
+can start without inflating either recognizer. Assets consumed as data URLs retain
+that representation alone. The existing Balanced models, 144 dpi rasterization,
+backend selection and worker limits are unchanged. A fresh Chromium asset-only
+probe using the packaged v0.2.2 assets measured post-GC backing storage growth of
+76.0 MiB before, 16.3 MiB for CPU and 30.8 MiB for GPU afterward. It used served
+compressed assets and no inference; embedded payload strings, model-session memory
+and GPU allocation are outside that measurement. The public byte/URL gate checks
+both embedded and served packaging:
+`node --test AuthoritiesHelper/modern/browser-ocr/assets.test.mjs`.
+
 The custom wheel listener remains non-passive to preserve PDF-only Ctrl-wheel and
 trackpad zoom. The shared viewer sets `will-change: transform` on the scroll
 container while it is mounted, so Chrome can move that layer without waiting for
