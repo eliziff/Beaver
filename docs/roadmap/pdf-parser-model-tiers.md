@@ -42,10 +42,13 @@ Its decisions and its intermediate evidence are features for tier 1, and its rep
 
 ## Tier 1: the fast model
 
-A line-sequence tagger that reads a page's lines in order, with a few lines of context from the
-pages before and after, and labels each line. Parents are not predicted directly: the model
-predicts each unit's relation to the unit before it, and Rust resolves the parent from the
-ancestor stack, which is the same relative encoding the scorer uses.
+A sequence tagger that reads a document's pieces in order (a piece is a line cut at the
+parser's block boundaries; most lines are one piece) in fixed windows with context on each side,
+and labels each piece. Each unit's parent is pointed at: a pointer head scores the unit starts
+before it in reach, as HRDoc and Detect-Order-Construct build a document's tree. Relations to the
+previous unit, resolved one after another on the ancestor stack, were tried first and cascade:
+the gold's own relations decoded that way give parents 0.758, where the gold's own pointers give
+1.0 (`selfcheck labels`).
 
 **Inputs per line** (all computed in Rust today or trivially added):
 
@@ -61,9 +64,9 @@ ancestor stack, which is the same relative encoding the scorer uses.
   type for scanned pages;
 - position: page index over page count; line index over lines on the page.
 
-**Heads:** region (12), unit start (2), relation to previous unit (first, child, sibling, up 1 to
-up 6, other), document start (2), carries a note reference (2). Markers and reference spans stay
-with the grammars; the model only says whether the line has them.
+**Heads:** region (12), unit start (continues, opens, resumes an earlier unit), document start
+(2), carries a note reference (2), and the parent pointer. Markers and reference spans stay with
+the grammars; the model only says whether the piece has them.
 
 **Architecture candidates**, trained and compared on the same rows:
 

@@ -17,6 +17,7 @@ import argparse
 import json
 import math
 import random
+import re
 import time
 from pathlib import Path
 
@@ -33,7 +34,7 @@ HEADS = [("region", 0, len(REGIONS)), ("start", 1, len(STARTS)), ("document", 3,
 UNRANKED = {0, 5, 7, 10, 11, 12}
 TEXT_CHARS = 32
 REACH = 384
-PAIR_FEATURES = 32
+PAIR_FEATURES = 36
 
 
 def load(path):
@@ -60,12 +61,25 @@ def chars(text):
     return codes + [0] * (TEXT_CHARS - len(codes))
 
 
+FRENCH = re.compile(r"\b(le|la|les|des|du|une|est|sont|aux|dans|pour|qui|sur|par|au|ou|et|de)\b|[éèêàçùâîô]", re.I)
+ENGLISH = re.compile(r"\b(the|of|and|to|in|is|for|that|by|with|or|any|shall|under|be|on|a)\b", re.I)
+# Evidence beside the exported features: the piece's language.
+EXTRA_FEATURES = 1
+
+
+def language(text):
+    """From -1 (English function words) to 1 (French), 0 where neither shows."""
+    french, english = len(FRENCH.findall(text)), len(ENGLISH.findall(text))
+    return (french - english) / max(french + english, 1)
+
+
 class Document:
     """One document's tensors: normalized evidence, tier 0, text, reader codes, raw pair evidence, gold."""
 
     def __init__(self, raw, names, vocabs, mean, std):
         values = np.asarray(raw["features"], dtype=np.float32)
-        self.features = (values - mean) / std
+        self.language = np.asarray([language(t[0]) for t in raw["text"]], dtype=np.float32)
+        self.features = np.concatenate([(values - mean) / std, self.language[:, None]], axis=1).astype(np.float32)
         self.tier0 = np.asarray(raw["tier0"], dtype=np.int64)
         self.text = np.asarray([chars(t[0]) for t in raw["text"]], dtype=np.int64)
         region_types, note_modes, families = vocabs
@@ -89,6 +103,14 @@ class Document:
         ladder = sorted(set(loose), key=lambda s: (-s[0], not s[1], not s[3], not s[2]))
         place = {s: k for k, s in enumerate(ladder)}
         self.loose_id = np.asarray([place[s] for s in loose], dtype=np.int64)
+        # Each numbering family's place in the order the document first uses them: the outer
+        # families come first ("I." before "A." before "(1)").
+        first = {}
+        for n in range(len(values)):
+            if self.family[n] > 0:
+                first.setdefault((int(self.family[n]), self.style[n][5]), len(first))
+        self.family_rank = np.asarray([first.get((int(self.family[n]), self.style[n][5]), -1) for n in range(len(values))],
+                                      dtype=np.int64)
         self.length = len(values)
 
 
@@ -127,6 +149,7 @@ class Starts:
         same_family = (p[..., 7] > 0) & (c[..., 7] > 0) & (doc.family[queries][:, None] == doc.family[held])
         own, theirs = doc.tier0[queries, 0][:, None], doc.tier0[held, 0]
         kinds = [np.broadcast_to(own == r, shape) for r in (1, 2, 3)] + [theirs == r for r in (1, 2, 3)]
+        numbered = (doc.family_rank[queries][:, None] >= 0) & (doc.family_rank[held] >= 0)
         features = np.stack([
             p[..., 0] - c[..., 0], p[..., 1] - c[..., 1], np.broadcast_to(p[..., 2], shape), c[..., 2],
             np.broadcast_to(p[..., 3], shape), c[..., 3], np.broadcast_to(p[..., 4], shape), c[..., 4],
@@ -140,6 +163,9 @@ class Starts:
             doc.style_id[queries][:, None] == doc.style_id[held], doc.loose_id[queries][:, None] == doc.loose_id[held],
             np.abs(p[..., 0] - c[..., 0]) < 0.012, np.clip(doc.loose_id[queries][:, None] - doc.loose_id[held], -10, 10) / 5.0,
             *kinds,
+            numbered, np.where(numbered, np.clip(doc.family_rank[queries][:, None] - doc.family_rank[held], -3, 3) / 3.0, 0.0),
+            # A parallel translation's units fall under units of their own language.
+            doc.language[queries][:, None] * doc.language[held], np.abs(doc.language[queries][:, None] - doc.language[held]),
         ], axis=-1).astype(np.float32)
         features[~valid] = 0.0
         self.queries = queries
@@ -147,6 +173,9 @@ class Starts:
         self.query = torch.as_tensor(queries, device=device)
         self.candidate = torch.as_tensor(candidates, device=device)
         self.pair = torch.as_tensor(features, device=device)
+        self.rows = torch.as_tensor(rows, device=device)
+        self.query_rank = torch.as_tensor(query_rank, device=device)
+        self.candidate_rank = torch.as_tensor(candidate_rank, device=device)
 
     def target(self, parents):
         """Each query's gold parent as a column: its place among the candidates, or the last (none)."""
@@ -161,7 +190,7 @@ class Starts:
 
 
 class Tagger(nn.Module):
-    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, key=128):
+    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, key=128, attend=True, dropout=0.1, text_dropout=0.0):
         super().__init__()
         region_types, note_modes, families = vocabs
         self.char = nn.Embedding(2049, 24, padding_idx=0)
@@ -171,10 +200,12 @@ class Tagger(nn.Module):
         self.note_mode = nn.Embedding(len(note_modes), 4)
         self.family = nn.Embedding(len(families), 8)
         width = features + 64 + 8 * len(HEADS) + 8 + 4 + 8
-        self.project = nn.Sequential(nn.Linear(width, 2 * hidden), nn.GELU(), nn.Dropout(0.1))
+        self.project = nn.Sequential(nn.Linear(width, 2 * hidden), nn.GELU(), nn.Dropout(dropout))
+        # Hiding a piece's text at times keeps the encoder from leaning on remembered wording.
+        self.text_dropout = text_dropout
         self.kind = kind
         if kind == "gru":
-            self.encoder = nn.GRU(2 * hidden, hidden, num_layers=layers, batch_first=True, bidirectional=True, dropout=0.1)
+            self.encoder = nn.GRU(2 * hidden, hidden, num_layers=layers, batch_first=True, bidirectional=True, dropout=dropout)
         else:
             layer = nn.TransformerEncoderLayer(2 * hidden, 4, 4 * hidden, dropout=0.1, batch_first=True, norm_first=True)
             self.encoder = nn.TransformerEncoder(layer, layers)
@@ -184,8 +215,10 @@ class Tagger(nn.Module):
         self.keys = nn.Linear(2 * hidden, key)
         self.root = nn.Parameter(torch.zeros(key))
         self.root_bias = nn.Parameter(torch.zeros(1))
-        self.pair = nn.Sequential(nn.Linear(PAIR_FEATURES, 64), nn.GELU(), nn.Linear(64, 1))
+        self.pair = nn.Sequential(nn.Linear(PAIR_FEATURES + 3, 64), nn.GELU(), nn.Linear(64, 1))
         self.scale = 1.0 / math.sqrt(key)
+        # Without attention between states, parents rest on the pair's own evidence alone.
+        self.attend = attend
 
 
     def encode(self, features, tier0, text, reader, lengths):
@@ -193,6 +226,8 @@ class Tagger(nn.Module):
         b, t, _ = features.shape
         c = self.char(text.view(b * t, TEXT_CHARS)).transpose(1, 2)
         c = F.relu(self.conv(c)).max(dim=2).values.view(b, t, -1)
+        if self.training and self.text_dropout > 0:
+            c = c * (torch.rand(b, t, 1, device=c.device) >= self.text_dropout)
         parts = [features, c, self.region_type(reader[..., 0]), self.note_mode(reader[..., 1]), self.family(reader[..., 2])]
         parts += [embed(tier0[..., column].clamp(min=0, max=embed.num_embeddings - 1)) for embed, (_, column, _) in zip(self.tier0, HEADS)]
         x = self.project(torch.cat(parts, dim=-1))
@@ -211,10 +246,21 @@ class Tagger(nn.Module):
         return [head(states) for head in self.heads]
 
     def parents(self, states, starts):
-        """Scores of each query start's earlier units in reach; the last column is none."""
+        """Scores of each query start's earlier units in reach; the last column is none. Beside the
+        pair's evidence, the model's own reading of which units are headings: the candidate's and
+        the query's, and how many it reads between them."""
+        heading = torch.softmax(self.heads[0](states).float(), dim=-1)[:, REGIONS.index("heading")].detach()
+        own = heading[starts.rows]
+        before = torch.cat([own.new_zeros(1), own.cumsum(0)])
+        rank = starts.candidate_rank.clamp(min=0)
+        between = (before[starts.query_rank][:, None] - before[(rank + 1).clamp(max=len(own))]).clamp(min=0)
+        read = torch.stack([torch.log1p(between), own[rank], own[starts.query_rank][:, None].expand_as(between)], dim=-1)
         q = self.query(states[starts.query])
         attention = (q @ self.keys(states).T) * self.scale
-        scores = attention.gather(1, starts.candidate.clamp(min=0)) + self.pair(starts.pair).squeeze(-1)
+        pair = torch.cat([starts.pair, read], dim=-1)
+        scores = self.pair(pair).squeeze(-1)
+        if self.attend:
+            scores = scores + attention.gather(1, starts.candidate.clamp(min=0))
         scores = scores.masked_fill(starts.candidate < 0, float("-inf"))
         root = (q @ self.root) * self.scale + self.root_bias
         return torch.cat([scores, root[:, None]], dim=1)
@@ -358,6 +404,10 @@ def main():
     parser.add_argument("rows", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--model", choices=("gru", "transformer"), default="gru")
+    parser.add_argument("--pair-only", action="store_true", help="parents from the pair's evidence, no attention")
+    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--text-dropout", type=float, default=0.0)
+    parser.add_argument("--train-share", type=float, default=1.0, help="train on this share of the train documents")
     parser.add_argument("--epochs", type=int, default=16)
     parser.add_argument("--windows", type=int, default=16)
     parser.add_argument("--lr", type=float, default=2e-3)
@@ -368,6 +418,8 @@ def main():
     started = time.time()
     names = json.loads((args.rows / "features.json").read_text())
     train_raw, dev_raw = load(args.rows / "rows-train.jsonl"), load(args.rows / "rows-development.jsonl")
+    if args.train_share < 1.0:
+        train_raw = random.Random(args.seed).sample(train_raw, max(1, round(len(train_raw) * args.train_share)))
     vocabs = (Vocab(t[1] for d in train_raw for t in d["text"]), Vocab(t[2] for d in train_raw for t in d["text"]),
               Vocab(t[3] for d in train_raw for t in d["text"]))
     stacked = np.concatenate([np.asarray(d["features"], dtype=np.float32) for d in train_raw])
@@ -382,7 +434,8 @@ def main():
     w = (counts.sum() / counts) ** 0.5
     w = np.minimum(w, 8 * w.min())
     weights = {"start": torch.tensor(w / w.mean(), dtype=torch.float32, device=device)}
-    model = Tagger(train[0].features.shape[1], vocabs, kind=args.model).to(device)
+    model = Tagger(train[0].features.shape[1], vocabs, kind=args.model, attend=not args.pair_only, dropout=args.dropout,
+                   text_dropout=args.text_dropout).to(device)
     print(f"{args.model}: {sum(p.numel() for p in model.parameters()):,} parameters", flush=True)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     steps = args.epochs * len(batches(train, args.windows, random.Random(0)))
@@ -431,7 +484,7 @@ def main():
         if selected > best:
             best, best_state = selected, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     model.load_state_dict(best_state)
-    torch.save({"state": best_state, "model": args.model, "vocabs": [v.index for v in vocabs],
+    torch.save({"state": best_state, "model": args.model, "attend": not args.pair_only, "vocabs": [v.index for v in vocabs],
                 "mean": mean.tolist(), "std": std.tolist()}, args.out / f"tagger-{args.model}.pt")
     predictions, correct = predict(model, dev, device)
     note = REGIONS.index("note")

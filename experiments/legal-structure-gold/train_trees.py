@@ -81,7 +81,10 @@ def main():
                   categorical_feature=categorical, callbacks=[lgb.early_stopping(50, verbose=False)])
         predicted = model.predict(x_dev)
         predictions[column] = predicted
-        probabilities[name] = model.predict_proba(x_dev).astype(np.float32)
+        # Each class in its own column, a class the trees never saw left at zero.
+        full = np.zeros((len(x_dev), n), dtype=np.float32)
+        full[:, model.classes_] = model.predict_proba(x_dev)
+        probabilities[name] = full
         tier0 = x_dev[:, width + k].astype(np.int64)
         accuracy = lambda p: float(np.mean(p[keep_dev] == g_dev[keep_dev, column]))
         print(f"trees {name:9} n={int(keep_dev.sum()):7} accuracy tier0 {accuracy(tier0):.4f} model {accuracy(predicted):.4f}"
