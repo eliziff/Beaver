@@ -733,6 +733,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
 fn rows(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
     let all: Vec<Source> = sources(gold, manifest)?.into_iter().filter(|s| s.split != "test").collect();
     std::fs::create_dir_all(out).map_err(|e| e.to_string())?;
+    std::fs::write(out.join("features.json"), serde_json::to_string(&rows::FEATURES[..]).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     let started = Instant::now();
     let weight = |s: &Source| std::fs::metadata(inputs_dir(gold).join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
     let results = parallel(&all, weight, |source| -> Result<String, String> {

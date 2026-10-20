@@ -327,26 +327,34 @@ desktop GPU (character CNN, feature projection, two-layer BiGRU of width 128 or 
 transformer, five heads); `train_trees.py` trains LightGBM per head over each line and its two
 neighbours on each side. Development selects epochs and trees; test is not read.
 
-Development (381 documents), pooled F1. The hybrid takes the model's regions, starts and
-relations and keeps the parser's notes, references and document starts; tables do not survive
-label decoding yet (the parser's grids would stay in a Rust integration).
+Development (381 documents), pooled F1, on the parser with the marker extents and heading levels
+of 2026-10-20. The hybrid takes the model's regions, starts and relations and keeps the parser's
+notes, references and document starts. Rows add each line's place among the parser's ranked
+units: the unit before it and that unit's ancestors, compared by indentation, type, region and,
+through the engine's numbering grammar, the same family with the next ordinal. Tables do not
+survive label decoding yet (the parser's grids would stay in a Rust integration).
 
-| Layer | Parser | GRU hybrid | Trees hybrid | Gold labels (ceiling) |
-|---|---|---|---|---|
-| roles | 0.837 | 0.883 | 0.897 | 0.968 |
-| groups | 0.685 | 0.698 | 0.745 | 0.910 |
-| hierarchy_units | 0.772 | 0.843 | 0.873 | 0.987 |
-| hierarchy_roles | 0.550 | 0.710 | 0.741 | 0.987 |
-| hierarchy_relation | 0.442 | 0.567 | 0.578 | 0.866 |
-| hierarchy_parent | 0.203 | 0.346 | 0.345 | 0.713 |
-| continuations | 0.306 | 0.476 | 0.309 | 0.916 |
-| note / note_references | 0.498 / 0.554 | 0.497 / 0.554 | 0.497 / 0.554 | 0.655 / 0.743 |
+| Layer | Parser | Trees hybrid | Gold labels (ceiling) |
+|---|---|---|---|
+| roles | 0.837 | 0.895 | 0.968 |
+| groups | 0.686 | 0.743 | 0.910 |
+| hierarchy | 0.108 | 0.219 | 0.548 |
+| hierarchy_units | 0.773 | 0.872 | 0.987 |
+| hierarchy_roles | 0.551 | 0.767 | 0.987 |
+| hierarchy_relation | 0.443 | 0.591 | 0.866 |
+| hierarchy_parent | 0.206 | 0.360 | 0.713 |
+| note / note_references | 0.498 / 0.554 | 0.497 / 0.554 | 0.655 / 0.743 |
 
-Per-line development accuracy (tier 0 → GRU, 0.70M parameters → transformer, 1.42M → trees):
-region 0.688 → 0.777 → 0.719 → 0.801; start 0.895 → 0.947 → 0.939 → 0.966; relation 0.549 →
-0.687 → 0.608 → 0.678. The trees are the smallest and best on most layers and evaluate in pure
-Rust; the GRU's continuations show what wider context adds. Training takes about 2 minutes
-(trees, CPU) and 8 minutes (GRU, GPU).
+Per-line development accuracy, tier 0 → trees: region 0.688 → 0.827, start 0.896 → 0.969,
+relation 0.548 → 0.697. Earlier, without the unit context, the BiGRU (0.70M parameters) read
+region 0.777, start 0.947, relation 0.687 and the transformer (1.42M) 0.719, 0.939, 0.608; the
+trees were smallest and best on most layers, the GRU best on cross-page continuations. Trees
+train in about 4 minutes on the desktop CPU. Keeping the parser's units and regions and taking
+only the trees' relations already moves parents 0.205 → 0.292.
+
+Tried and set aside: `train_relations.py` reads each unit's relation against its own decided
+ancestor chain (0.770 when the chain is the gold's) but compounds its errors end to end (0.675;
+parents 0.365, relations 0.586), so the per-line trees stay.
 
 ## Notes (2026-10-20)
 
@@ -358,4 +366,7 @@ note_references 0.372 → 0.396 (29 better, 4 worse); the journal footnote gold
 R 0.9535). Still open: Westlaw printouts in books of authorities set their calls at 8⅓ points
 over 10 (0.833 of the line, above extraction's 0.82 superscript limit), and the pairer takes one
 label chain for the whole PDF, so each judgment's restarting end list is rejected as overlapping
-it; and statutes' source-history notes carry no label.
+it; and statutes' source-history notes carry no label. Splitting the label candidates into
+blocks at every note-region "1" after the numbering has run on (each block choosing its own
+runs) costs the journal gold dearly (label recall 0.9727 → 0.7000), so a compilation's judgments
+need a narrower boundary than a restart.
