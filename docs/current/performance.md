@@ -299,11 +299,11 @@ both versions. These are fresh-process, post-GC heap measurements, not peak memo
 or native/GPU measurements. Reproduce from `backend` with
 `node --expose-gc --import tsx scripts/measure-source-readings.mts`.
 
-Only the active document-backed source tab mounts its PDF/Word/spreadsheet reader;
+Only the active document-backed source tab mounts its PDF/Word reader;
 switching dock panels or collapsing the dock releases that reader too. Tabs and
 edit controls retain their state. PDF readers return to their page coordinates and
 zoom, Word readers return to their scroll position, and a new citation/edit target
-or document version clears the previous position. Research editors and running
+or document version clears the previous position. Spreadsheet/research editors and running
 workflow panels keep their existing lifetimes.
 Document highlight-capture text also loads only for the active reader; deactivation
 aborts the request, drops retained text and ignores late responses. Inactive legal

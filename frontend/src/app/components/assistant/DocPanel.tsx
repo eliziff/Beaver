@@ -118,7 +118,7 @@ export function DocPanel({
       <div ref={reader} data-highlighter={workspace?.highlight.armed || undefined}
         className={`flex min-h-0 flex-1 flex-col p-3 ${workspace?.highlight.armed ? "cursor-crosshair" : ""}`}>
         {filename.toLowerCase().endsWith(".research.md") ? <ResearchDocument
-          documentId={documentId} projectId={projectId} /> : active && <DocumentViewer
+          documentId={documentId} projectId={projectId} /> : (active || isSpreadsheetFilename(filename)) && <DocumentViewer
           documentId={documentId}
           kind={isDocxFilename(filename)
             ? "docx"
