@@ -847,7 +847,9 @@ export async function validateGroundedClaims(value: unknown, state: LegalEvidenc
     if (!text) errors.push(`claims[${index}].text is empty; give the supported text of the answer`);
     else if (text.length > (options.maxTextLength ?? Infinity))
       errors.push(`claims[${index}].text is ${text.length} characters and the limit is ${options.maxTextLength}; split it into concise support units with their own evidence_ids`);
-    if (!uniqueIds.length || uniqueIds.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0))
+    if (!Array.isArray(rawIds) || !rawIds.length)
+      errors.push(`claims[${index}] cites no passage; every claim needs the passage that supports it: cite lines a read returned, Read the passage first, or leave out text no passage supports`);
+    else if (!uniqueIds.length || uniqueIds.length > 4 || ids.length !== rawIds.length)
       errors.push(`claims[${index}].evidence_ids must contain 1 to 4 unique handles`);
     for (const id of uniqueIds) {
       const receipt = legalEvidenceEntry(state.evidence, id)?.receipt;
@@ -993,7 +995,6 @@ const claimSchema = {
     },
     evidence_ids: {
       type: "array",
-      minItems: 1,
       items: { type: "string" },
       description: EVIDENCE_IDS_DESCRIPTION,
     },
@@ -1022,7 +1023,7 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
   ].join(" "),
   inputSchema: objectSchema({
     claims: { type: ["array", "null"], minItems: 1, items: claimSchema },
-    replace: { type: ["array", "null"], minItems: 1, items: replacementSchema },
+    replace: { type: ["array", "null"], items: replacementSchema },
   }, ["claims", "replace"]),
 };
 
