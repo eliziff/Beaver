@@ -6,7 +6,7 @@ import path from "node:path";
 import { rm, stat, writeFile } from "node:fs/promises";
 import { briefHtml, fixtureA2aj, LONG_STATUTE, longBrief, longStatuteRecord, NAVIGATION_ACT,
   navigationSubsection } from "../fixtures.mjs";
-import { attach, build, chooseCard, dock, downloads, importBrief, outputOptions, row, setOption, step, tick } from "../flows.mjs";
+import { attach, build, dock, downloads, importBrief, outputOptions, row, setOption, step, tick } from "../flows.mjs";
 import { BUDGETS } from "../harness.mjs";
 import { checkPdf, inspectPdf } from "../outputs.mjs";
 import { loadHar } from "../network.mjs";
@@ -299,20 +299,17 @@ export const STRESS_CASES = [{
   },
 }, {
   name: "scans",
-  title: "Four scans recognized at once: progress, pause, cancel and resume, a reload while they are read, and their marks",
+  title: "Four scans recognized at once: progress, pause and resume, a reload while they are read, and their marks",
   async run({ open, fixtures, record, renderer }) {
     const app = await open({});
     await app.load();
-    await app.page.getByRole("tab", { name: "Manual" }).click();
-    await app.page.getByRole("textbox").first().fill("Scanned decisions");
+    await importBrief(app, fixtures.scanBrief, { sourceMode: 'manual', scanned: 'full' });
+    await step(app, "Sources", { via: "next" });
     const files = fixtures.scans.map(({ file }) => file);
-    const started = await app.now();
-    await app.pick(() => app.button("Add files").click(), files);
+    const startedAt = Date.now(), started = await app.now();
+    for (const item of fixtures.scans) await attach(app, item.name, item.file);
     await app.page.waitForFunction((count) => document.querySelectorAll("[aria-label='Authority tab slots'] > [role=listitem]").length === count,
       files.length, { timeout: 60_000 });
-    await app.button("Source settings").click();
-    await chooseCard(app, app.page.getByRole("group", { name: "Scanned PDFs" }), "Recognize every page");
-    await app.button("Source settings").click();
     // Several read at once: one recognizing, the rest waiting their turn, every row keeping its height.
     const status = () => app.page.getByRole("list", { name: "Authority tab slots" }).getByRole("status").allInnerTexts();
     await app.page.waitForFunction(() => [...document.querySelectorAll("[aria-label='Authority tab slots'] [role=status]")]
@@ -326,15 +323,17 @@ export const STRESS_CASES = [{
       await app.interact("resume it", () => app.page.getByRole("button", { name: /^Resume text recognition for/u }).first().click());
     }
     // A reload while the scans are read: the draft comes back and recognition goes on.
+    await app.backgroundTasks(started, "recognition before reload");
     await app.reload({ until: () => app.page.getByRole("list", { name: "Authority tab slots" }).waitFor({ timeout: 60_000 }) });
+    const resumed = await app.now();
     const regions = { list: "[aria-label='Authority tab slots']" };
     await app.interact("wait for every scan to be read", () => app.page.waitForFunction((count) =>
       [...document.querySelectorAll("[aria-label='Authority tab slots'] [role=status]")].filter((item) => /complete|Recognized/u.test(item.textContent)).length === count ||
       ![...document.querySelectorAll("[aria-label='Authority tab slots'] [role=status]")].some((item) => /Recogniz|Waiting|Paused/u.test(item.textContent)),
     files.length, { timeout: 180_000, polling: 250 }), { regions, budget: 1000 });
-    record.note("all scans read", await app.now() - started);
+    record.note("all scans read", Date.now() - startedAt);
     record.check(!(await status()).some((text) => /failed|could not/iu.test(text)), "every scan is read", await status());
-    await app.backgroundTasks(started, "recognition");
+    await app.backgroundTasks(resumed, "recognition after reload");
     await app.shots("scans-read");
     await step(app, "Highlights", { via: "next" });
     await app.button("Edit in PDF").click();

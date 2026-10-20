@@ -15,7 +15,7 @@ import type { AuthoritiesAction, AuthoritiesBookSupplement, AuthoritiesDraft, Au
   AuthorityIdentity, AuthorityOccurrence } from "./types";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesSourceIssue } from "./host";
 import { SourceOcrInline } from "./AuthoritiesHighlightEditor";
-import type { SourceOcrPanel } from "./sourceOcr";
+import type { SourceOcrPanel, SourceOcrStatus } from "./sourceOcr";
 import type { SourceCopy } from "./sourceCopies";
 import canliiLogo from "./canlii.ico";
 
@@ -103,7 +103,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       edit: () => { const authority = live.current.authorities.find((item) => item.id === id); if (authority) live.current.onEditIdentity(authority); } });
     return row;
   };
-  const recognition = useMemo(() => ocr && { get tracked() { return live.current.ocr?.tracked ?? {}; },
+  const recognition = useMemo(() => ocr && {
     begin: (...args: Parameters<SourceOcrPanel["begin"]>) => live.current.ocr!.begin(...args),
     stop: (...args: Parameters<SourceOcrPanel["stop"]>) => live.current.ocr!.stop(...args) }, [!!ocr]); // eslint-disable-line react-hooks/exhaustive-deps
   const orderKey = authorities.map(({ id }) => id).join("\0");
@@ -175,7 +175,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           onAttach={callsFor(authority.id).attach} onRelink={calls.relink}
           onOpen={onOpenSource ? calls.open : undefined} onRetry={onRetrySource ? callsFor(authority.id).retry : undefined}
           onEditIdentity={callsFor(authority.id).edit} ocr={recognition}
-          recognizing={recognitionKey(authority, ocr)} /></Fragment>)}
+          recognition={sourceRecognition(authority, ocr)} /></Fragment>)}
         {drawn >= authorities.length && <>{headed && !!others?.parts.length && <p className={GROUP}>Documents</p>}
         {others?.parts.map(({ part, tab }) => <OtherPdfRow key={part.id} part={part} tab={tab} busy={busy}
           issue={sourceIssues[part.bindingRole]} files={others} sourceLabel={sourceLabel} choose={calls.choose}
@@ -195,13 +195,14 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 }
 
 type RowCalls = { pick: () => void; library: () => void; attach: (file?: File) => void; retry: () => void; edit: () => void };
-/** What a row's sources are being recognized as, so the row is drawn again as that changes, and only then. */
-const recognitionKey = (authority: AuthorityIdentity, ocr?: SourceOcrPanel) => !ocr || authority.source.kind !== "attached" ? ""
-  : JSON.stringify(authority.source.sources.map(({ bindingRole }) => ocr.tracked[bindingRole] ?? null));
+/** The unfinished source of a bilingual pair reports in its row. Finished jobs leave the citation visible. */
+const sourceRecognition = (authority: AuthorityIdentity, ocr?: SourceOcrPanel) =>
+  (authority.source.kind === "attached" ? authority.source.sources : [])
+    .flatMap(({ bindingRole }) => ocr?.tracked[bindingRole] ?? []).find(({ state }) => state !== "done");
 const AuthorityRow = memo(Row);
 function Row({ authority, tab, citationLine, italicName, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, copy, choosing, finding = false, citedIn, caseWarning }: {
+  onRelink, onOpen, onRetry, onEditIdentity, order, ocr, recognition, copy, choosing, finding = false, citedIn, caseWarning }: {
   order: string[]; copy?: SourceCopy; choosing: boolean; finding?: boolean; citedIn?: string;
   caseWarning?: AuthorityIdentity["citedCase"];
   authority: AuthorityIdentity; tab?: string; citationLine: string; busy: boolean; needsPdf: boolean;
@@ -213,9 +214,8 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
   onAttach: (file?: File) => void; onRelink: (role: string) => void;
   onOpen?: (role: string) => void; onEditIdentity: () => void;
   onRetry?: () => void;
-  ocr?: SourceOcrPanel;
-  /** Changes when the row's recognition does: the row's own `ocr` stays the same object. */
-  recognizing?: string;
+  ocr?: Omit<SourceOcrPanel, "tracked">;
+  recognition?: SourceOcrStatus;
 }) {
   const name = authority.displayName || authority.name || "";
   const nameLabel = authority.kind === "case" ? "Style of cause" : "Title";
@@ -268,11 +268,6 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
         : `Built from source text${publisher ? `. ${publisherReason(authority)}` : ""}` }
     : loaded ? { Icon: FileCheck2, tone: "text-green-700",
       label: sources.map(({ filename }) => filename).join("\n") || "PDF loaded" } : null;
-  // A scan being recognized reports in the citation's slot (on the actions line where the row is
-  // narrow), so the row never grows. The one still running speaks for a bilingual pair.
-  const recognitions = sources.flatMap(({ bindingRole }) => ocr?.tracked[bindingRole] ?? []);
-  // Once every scan is recognized, the slot goes back to the citation: a finished job says nothing more.
-  const recognition = recognitions.find(({ state }) => state !== "done");
   const edit = () => setEditing(true);
   // The citation beside the name; a row without one gives the name both columns.
   const subline = recognition ? "" : [name ? citationLine : "", citedIn && `Cited in ${citedIn}`].filter(Boolean).join(" · ");

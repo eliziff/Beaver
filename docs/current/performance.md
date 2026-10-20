@@ -232,6 +232,12 @@ ordered pass for location labels. Selecting another citation does not rescan eve
 preceding occurrence against every unit. The loaded list still renders in full;
 this improvement does not establish a latency or memory bound for larger ledgers.
 
+Authorities source rows receive their current OCR status as data and keep action
+callbacks stable. They no longer serialize statuses into an unused render key or
+read them through a mutable getter that React Compiler can keep stale. Progress
+and pause/resume controls update as recognition changes, without repainting rows
+whose displayed status is unchanged.
+
 Chat history, Projects, Library files/templates, project directories, shared pickers and tabular
 collections reuse one paged-collection engine. Resource, account/project/Library
 scope, query, filters and page size define identity. Sources' manually loaded,
