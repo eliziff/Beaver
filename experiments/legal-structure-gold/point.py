@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from train_tagger import CHUNK, REACH, REGIONS, Document, Starts, Tagger, Vocab, Windows, load
+from train_tagger import CHUNK, EXTRA_FEATURES, REACH, REGIONS, Document, Starts, Tagger, Vocab, Windows, load
 
 
 def main():
@@ -40,7 +40,7 @@ def main():
     names = json.loads((args.rows / "features.json").read_text())
     mean, std = np.asarray(saved["mean"], dtype=np.float32), np.asarray(saved["std"], dtype=np.float32)
     dev_raw = load(args.rows / "rows-development.jsonl")
-    model = Tagger(len(names), vocabs, kind=saved["model"]).to(device)
+    model = Tagger(len(names) + EXTRA_FEATURES, vocabs, kind=saved["model"]).to(device)
     model.load_state_dict(saved["state"])
     model.eval()
     given = {}

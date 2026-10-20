@@ -406,6 +406,22 @@ roles 0.551 → 0.758, units 0.773 → 0.866, roles 0.837 → 0.892, groups 0.68
 pointer finds 0.578 of parents (the parser 0.265); restricting it to the right frontier of the
 gold tree would only reach 0.596, so its errors are levels, not reach.
 
+On the parser with the changes above (parents 0.335 over the gold's unit starts), trees with the
+pointer's parents and the parser's notes: development parents 0.496, hierarchy 0.282, units
+0.874, roles 0.895, groups 0.743, references 0.654. Every variant of the pointer lands at 0.573
+to 0.578 over the gold's unit starts: the style ladder and same-type siblings, the order the
+document opens its numbering families, the model's own reading of headings between, the
+piece's language, dropout 0.3 with the text hidden half the time. Without attention between
+states it falls to 0.497; LightGBM ranking over the same pair evidence reaches 0.542 (0.466 end
+to end); the depth reading (nearest earlier unit one level up) reaches only 0.666 even with the
+gold's own depths, the columns of a parallel text interleaving. The pointer reads the train
+split at 0.930 and development at 0.575, and on half the train documents development falls to
+0.519 (regions 0.825 → 0.794, starts 0.953 → 0.941): it is limited by the gold's breadth, about
+5.6 points of parents per doubling, not by its features.
+
+Codex's numbering-stack rule (`codex/parser-iteration` `0cec5ab`, newly opened families nest)
+adds to these parser changes: together, development parents 0.295 and hierarchy 0.150.
+
 ## Notes (2026-10-20)
 
 A bare or bracketed number opening a body-zone line in body type with prose beside it is a
