@@ -30,8 +30,11 @@ export async function inspectPdf(file) {
     const text = [], annotations = [];
     for (let number = 1; number <= document.numPages; number += 1) {
       const page = await document.getPage(number);
-      text.push((await page.getTextContent()).items.map((item) => `${item.str}${item.hasEOL ? "\n" : ""}`).join(""));
-      for (const annotation of await page.getAnnotations()) annotations.push({ page: number, subtype: annotation.subtype,
+      const pageAnnotations = await page.getAnnotations();
+      text.push([(await page.getTextContent()).items.map((item) => `${item.str}${item.hasEOL ? "\n" : ""}`).join(""),
+        ...pageAnnotations.filter(({ subtype, fieldType }) => subtype === "Widget" && fieldType === "Tx")
+          .map(({ fieldValue }) => fieldValue ?? "")].join("\n"));
+      for (const annotation of pageAnnotations) annotations.push({ page: number, subtype: annotation.subtype,
         url: annotation.url ?? null, destinationPage: annotation.dest ? await target(annotation.dest) : null,
         color: annotation.color ? [...annotation.color] : null, rect: annotation.rect,
         note: [annotation.titleObj?.str, annotation.contentsObj?.str].filter(Boolean).join(" — ") });
@@ -127,8 +130,9 @@ export async function pdfRenderer(browser) {
 }
 
 /** Word's running processes, by id. */
-export const wordProcesses = () => execFileSync("tasklist", ["/FI", "IMAGENAME eq WINWORD.EXE", "/FO", "CSV", "/NH"], { encoding: "utf8" })
-  .split(/\r?\n/u).flatMap((line) => /^"WINWORD\.EXE","(\d+)"/iu.exec(line)?.[1] ?? []).map(Number);
+export const wordProcesses = () => execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+  "Get-Process WINWORD -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }; exit 0"], { encoding: "utf8", windowsHide: true })
+  .split(/\r?\n/u).map(Number).filter(Boolean);
 /** Opens every Word document in invisible Word, unchanged; returns what Word showed, in order. A
  *  document Word does not finish opening within `stall` ms (a dialog it shows unseen) is recorded as
  *  such, the Word started for it is stopped, and the rest are opened in a new one. Only the Word
@@ -142,7 +146,7 @@ export async function openInWord(items, dir, { stall = 45_000 } = {}) {
     await writeFile(manifest, JSON.stringify(rest.map(({ file, pdf }) => ({ file: path.resolve(file), pdf: pdf && path.resolve(pdf) }))));
     await writeFile(results, "");
     const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
-      path.join(import.meta.dirname, "word.ps1"), "-Manifest", manifest, "-Results", results, "-PidFile", pids], { stdio: "inherit" });
+      path.join(import.meta.dirname, "word.ps1"), "-Manifest", manifest, "-Results", results, "-PidFile", pids], { stdio: "inherit", windowsHide: true });
     const exited = new Promise((resolve) => child.on("exit", resolve));
     const read = async () => (await readFile(results, "utf8")).split(/\r?\n/u).map((line) => line.replace(/^﻿/u, "").trim())
       .filter(Boolean).map((line) => JSON.parse(line));

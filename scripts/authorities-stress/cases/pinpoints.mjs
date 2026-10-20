@@ -64,7 +64,8 @@ export const PINPOINT_CASES = [{
     await select(app, "the guidance note", GUIDANCE.cited);
     await app.interact("Add citation", () => app.button("Add citation").click(), { shiftsOk: listChange });
     record.check(await selectedRow(app) === GUIDANCE.cited, "the selection becomes the selected citation", await selectedRow(app));
-    record.check(!await page.locator(".citation-authority-trigger").count(), "a full citation is not asked what it refers to");
+    record.check((await page.locator(".citation-authority-trigger").innerText()).includes("Riverbend"),
+      "the hand-added full citation is associated with its authority");
     await app.shots("hand-added");
     // Each control of the bar leaves the keys with the review: Ctrl+Z right after Add citation takes
     // it back, and Ctrl+Y makes it again.

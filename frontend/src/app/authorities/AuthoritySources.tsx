@@ -150,7 +150,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
       {/* A list whose sources go in as excerpts or whole keeps room for Excerpt and Whole beside the actions on every row. */}
       <div role="list" aria-label="Authority tab slots"
-        className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 overflow-hidden rounded-lg border border-gray-300 bg-white @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_2.5rem_minmax(8rem,max-content)] @min-[44rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_5.625rem_minmax(16rem,max-content)]">
+        className="grid grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)] gap-x-3 overflow-hidden rounded-lg border border-gray-300 bg-white @min-[30rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_2.5rem_minmax(8rem,max-content)] @min-[44rem]/sources:grid-cols-[fit-content(8rem)_1rem_minmax(0,1fr)_5.625rem_minmax(17rem,max-content)]">
         {/* The tab column is as wide as the longest tab of the whole list from the first frame, not of the rows
             drawn so far: "Tab 100" drawn after "Tab 13" would move every row. */}
         <span aria-hidden className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-nowrap pl-3 text-[0.8125rem] font-medium tabular-nums">

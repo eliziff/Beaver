@@ -1175,12 +1175,10 @@ async function prepareAuthorityBook(
           if (seen.has(key)) return []; seen.add(key);
           return [{ title: locatorLabel(target.locatorKind, target.locator), pageIndex: pageNumber - 1 }];
         }) : []) ?? []).concat(source.rebuiltBookmarks ?? []).sort((left, right) => left.pageIndex - right.pageIndex);
-      // A scan's text where only cited pages are read: those pages, or every page an excerpt keeps.
-      const cited = source.excerpt ? new Set(source.pageIndices) : source.authority ? citedSourcePages(draft,
-        source.authority.id, source.pageTextByPage ?? [], undefined, source.pageIndices.length, source.passageGeometry,
-        !!requirePrinted) : new Set<number>();
-      const ocrTextByPage = source.authority ? source.ocrTextByPage?.map((text, index) =>
-        bookScanPolicy(draft) === "full" || bookScanPolicy(draft) === "cited-pages" && cited.has(index)
+      // Preparation already selects OCR pages, including a whole-scan fallback for an unlocated pinpoint.
+      // Keep that layer even when the pinpoint could not be placed after recognition.
+      const ocrTextByPage = source.authority ? source.ocrTextByPage?.map((text) =>
+        bookScanPolicy(draft) !== "page-margin"
           ? pdfNormalized(text).replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?") : "") : undefined;
       // An excerpt that leaves out the page saying how current the statute is says it atop its first page.
       const currency = source.excerpt && source.authority?.kind === "legislation"

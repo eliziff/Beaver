@@ -31,7 +31,7 @@ const opfs = (app, action, args) => app.page.evaluate(async ([action, args]) => 
 
 export const FILE_CASES = [{
   name: "file-access",
-  title: "Chrome asks again after a restart: the File access dialog, Not now, a row's Allow file access, and Allow access",
+  title: "Chrome asks again for the connected brief after a restart; retained authority PDFs remain available",
   async run({ open, fixtures, record }) {
     const app = await open({ mode: "http", network: { a2aj: fixtureA2aj() }, init: [askAgain] });
     await app.load();
@@ -44,20 +44,25 @@ export const FILE_CASES = [{
     const dialog = app.page.getByRole("dialog", { name: "File access" });
     await dialog.waitFor({ timeout: 30_000 });
     const listed = await dialog.locator("li").allInnerTexts();
-    record.check(listed.includes("harbour-factum.docx") && listed.includes("waterways-licensing-act.pdf"), "the dialog names every file to allow", listed);
+    record.check(listed.length === 1 && listed.includes("harbour-factum.docx"), "only the connected brief needs file access; PDFs are retained copies", listed);
     await app.shots("file-access");
     await app.interact("Not now", () => app.button("Not now", dialog).click());
     const statute = row(app, "Waterways Licensing Act");
-    await statute.getByRole("button", { name: "Allow file access" }).waitFor();
-    await app.shots("allow-file-access-rows");
-    await app.interact("a row's Allow file access", () => statute.getByRole("button", { name: "Allow file access" }).click(),
-      { wait: () => statute.getByRole("button", { name: /^View PDF for/u }).waitFor({ timeout: 30_000 }) });
-    record.check(!await app.page.getByRole("button", { name: "Allow file access" }).count(), "one allow lets every kept file be read again");
+    record.check(await statute.getByRole("button", { name: /^View PDF for/u }).isEnabled(), "retained PDFs remain readable without file access");
+    await app.page.getByRole("tab", { name: "Citations", exact: true }).click();
+    const allow = app.page.getByRole("button", { name: /^Allow file access/u });
+    await allow.waitFor();
+    await app.shots("allow-file-access-review");
+    await app.interact("the brief's Allow file access", () => allow.click(),
+      { wait: () => app.page.locator(".citation-document .docx-view-container").waitFor({ timeout: 30_000 }),
+        shiftsOk: ({ sources }) => sources.every(({ node }) => /p\.flex\.items-center/u.test(node ?? "")) });
+    record.check(!await allow.count(), "allowing access reopens the connected brief");
     // Again, through the dialog's Allow access.
     await app.page.reload();
     await dialog.waitFor({ timeout: 30_000 });
     await app.interact("Allow access", () => app.button("Allow access", dialog).click(),
       { wait: () => dialog.waitFor({ state: "detached", timeout: 30_000 }) });
+    await step(app, "Sources", { via: "next" });
     await statute.getByRole("button", { name: /^View PDF for/u }).waitFor({ timeout: 30_000 });
     await step(app, "Highlights", { via: "next" });
     await step(app, "Build book", { via: "next" });
@@ -66,7 +71,7 @@ export const FILE_CASES = [{
   },
 }, {
   name: "relink",
-  title: "A kept PDF changed in place is picked up; one moved away is found missing and added again; a moved brief",
+  title: "Retained PDFs survive changes and moves of their originals; a moved connected brief is reconnected",
   async run({ open, fixtures, record, renderer }) {
     const app = await open({ mode: "http", network: { a2aj: fixtureA2aj() } });
     await app.load();
@@ -76,28 +81,28 @@ export const FILE_CASES = [{
     await attach(app, "Lakeshore", fixtures.scans[1].file);
     const listed = await opfs(app, "list");
     record.note("kept files", listed);
-    // The statute saved again with other bytes, where it was: the draft follows it without asking.
+    // Saving other bytes to the picked file must not replace the retained PDF.
     const changed = (await readFile(fixtures.decisionPdfs[0])).toString("base64");
     await opfs(app, "write", { name: path.basename(fixtures.statute), base64: changed });
     await app.page.reload();
     await app.page.getByRole("list", { name: "Authority tab slots" }).waitFor();
     await app.idle(); await app.page.waitForTimeout(800); await app.idle();
     const statute = row(app, "Waterways Licensing Act");
-    record.check(await statute.getByRole("button", { name: /^View PDF for/u }).isEnabled(), "a PDF changed in place stays attached",
+    record.check(await statute.getByRole("button", { name: /^View PDF for/u }).isEnabled(), "the retained PDF stays attached after its original changes",
       await statute.getByRole("img").first().getAttribute("aria-label"));
-    // The scan moved away: its row says so and takes it again from where it is now.
+    // Moving the original leaves the retained copy available.
     await opfs(app, "remove", { name: path.basename(fixtures.scans[1].file) });
     await app.page.reload();
     const scan = row(app, "Lakeshore");
-    await scan.getByRole("img", { name: /could not be found/u }).waitFor({ timeout: 30_000 });
+    await scan.getByRole("button", { name: /^View PDF for/u }).waitFor({ timeout: 30_000 });
+    record.check(!await scan.getByRole("img", { name: /could not be found/u }).count(), "moving the original does not lose its retained PDF");
     await app.shots("moved-pdf");
     const moved = path.join(path.dirname(fixtures.scans[1].file), "moved-lakeshore-scan.pdf");
     await copyFile(fixtures.scans[1].file, moved);
-    await app.pick(async () => {
-      await scan.getByRole("button", { name: /^(?:Upload|Replace) for/u }).click();
-      await app.page.getByRole("menuitem", { name: "Upload from computer" }).click();
-    }, [moved]);
+    await attach(app, "Lakeshore", moved);
     await scan.getByRole("button", { name: /^View PDF for/u }).waitFor({ timeout: 30_000 });
+    await app.idle();
+    await opfs(app, "remove", { name: path.basename(moved) });
     record.check(!await scan.getByRole("img", { name: /could not be found/u }).count(), "the moved PDF is attached again");
     // The brief itself moved away: the review says what to do, and offers it.
     await opfs(app, "remove", { name: path.basename(fixtures.briefPdf) });
@@ -124,7 +129,14 @@ export const FILE_CASES = [{
     await step(app, "Build book", { via: "next" });
     await build(app, "after moves", { budget: 4000 });
     const book = pick(await downloads(app, "book"), /book-of-authorities\.pdf$/u);
-    if (book) { await checkPdf(record, "book", book, { tabs: 5 }); await renderer.sheet(book, path.join(record.out, "book.jpg"), { first: 3, last: 3 }); }
+    if (book) {
+      const pdf = await checkPdf(record, "book", book, { tabs: 5 });
+      const act = pdf.tabs.find(({ title }) => /Waterways/u.test(title));
+      const text = act && pdf.text.slice(act.page - 1, (pdf.tabs.find(({ page }) => page > act.page)?.page ?? pdf.pages + 1) - 1).join(" ");
+      record.check(act && /The notice must state the reasons for the proposed refusal/u.test(text),
+        "the book keeps the originally uploaded statute after its picked file changes", text?.slice(0, 300));
+      await renderer.sheet(book, path.join(record.out, "book.jpg"), { first: 3, last: 3 });
+    }
     await app.close();
   },
 }, {
@@ -143,7 +155,7 @@ export const FILE_CASES = [{
       return { status: 403, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({
         error: "Automatic download blocked.", code: "verification_required", verificationUrl: `${new URL(source).origin}/robocop/captcha/en/query.do` }) };
     };
-    const brief = path.join(record.out, "permit-brief.pdf");
+    const brief = path.join(path.dirname(fixtures.briefPdf), "permit-brief.pdf");
     const page = await browser.newPage();
     await page.setContent(`<!doctype html><meta charset="utf-8"><style>@page{size:Letter;margin:1in}body{font:12pt/1.6 serif}</style>
       <h1>Memorandum of the Applicant</h1>${decisions.map((item, index) => `<p>${index + 1}. The board must give reasons: ${item.name.replace(" v. ", " v ")}, ${item.citation} at para ${index + 2}.</p>`).join("")}`);

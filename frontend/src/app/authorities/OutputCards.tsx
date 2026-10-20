@@ -5,7 +5,7 @@ import { Button } from "@/app/components/ui/button";
 import type { AuthoritiesBuildReceipt, AuthoritiesProduct } from "./types";
 
 type Output = AuthoritiesProduct["outputs"][string];
-/** One output: what it makes, said in one sentence, whether it is made (the book always is), the
+/** One output: what it makes, said in one sentence, whether it is made, the
  *  button that opens its choices, and the files its builds made. */
 export type OutputRow = { key: string; title: string; sentence: ReactNode; roles: string[];
   /** Whether it is made, where that is a choice. */
@@ -93,7 +93,7 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
       }
     });
   }, [versions, building, draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const built = rows.filter(({ roles }) => roles.some((role) => outputs[role]));
+  const built = rows.filter(({ roles, made }) => made !== false && roles.some((role) => outputs[role]));
   // Every file the outputs made, the ones turned off left out.
   const everything = rows.flatMap(({ roles, made }) => made === false ? [] : roles.flatMap((role) => outputs[role] ? [outputs[role]] : []));
   const status = building ? progress || "Building…" : note

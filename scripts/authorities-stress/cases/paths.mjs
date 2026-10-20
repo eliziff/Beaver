@@ -61,7 +61,7 @@ export const PATH_CASES = [{
     await build(app, "book", { missing: 1 });
     await app.reload({ until: () => dock(app).getByRole("button", { name: /^Download / }).first().waitFor({ timeout: 60_000 }) });
     record.check(await selectedTab(app) === "Build book", "the draft resumes on Build", await selectedTab(app));
-    const labels = await dock(app).getByRole("button", { name: /^Download / }).evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")));
+    const labels = await dock(app).getByRole("button", { name: /^Download / }).evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label") || button.title || button.textContent));
     record.check(labels.length && labels.every((label) => !label.startsWith("Download previous")), "built outputs are current after a reload", labels);
     await app.shots("resumed-build");
     await app.close();
@@ -88,7 +88,7 @@ export const PATH_CASES = [{
     const view = ({ sources }) => sources.every(({ node }) => /#authorities-panel/u.test(node ?? ""));
     await app.interact("open Drafts", () => app.page.getByRole("tab", { name: "Drafts" }).click(), { shiftsOk: view });
     const list = app.page.locator("#authorities-panel section").filter({ hasText: "Saved drafts" });
-    const titles = () => list.locator("button span.truncate").allInnerTexts();
+    const titles = () => list.locator("button span.truncate.text-sm").allInnerTexts();
     record.check((await titles()).length === 8 && await list.getByText("Page 1 of 2").count() === 1, "the list shows eight drafts a page, on two pages",
       await titles());
     await app.shots("drafts");

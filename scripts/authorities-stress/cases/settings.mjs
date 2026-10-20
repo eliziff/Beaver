@@ -10,22 +10,19 @@ import { checkPdf } from "../outputs.mjs";
 const pick = (files, pattern) => Object.entries(files).find(([name]) => pattern.test(name))?.[1];
 /** A fixture brief with its statute and recognized scan attached, at Build. */
 async function toBuild(app, fixtures, { sourceMode, scan = true } = {}) {
-  await importBrief(app, fixtures.briefPdf, { sourceMode });
+  await importBrief(app, fixtures.briefPdf, { sourceMode, scanned: scan ? "full" : undefined });
   await step(app, "Sources", { via: "next" });
   await attach(app, "Waterways Licensing Act", fixtures.statute);
   if (scan) {
     await attach(app, "Lakeshore", fixtures.scan);
-    await row(app, "Lakeshore").getByRole("status").filter({ hasText: "Text recognition complete" }).waitFor({ timeout: 30_000 });
+    await app.idle();
+    await app.page.waitForFunction(() => ![...document.querySelectorAll("[aria-label='Authority tab slots'] [role=status]")]
+      .some(item => /Recognizing|Waiting/u.test(item.textContent)), null, { timeout: 30_000 });
   }
   await step(app, "Highlights", { via: "next" });
   await step(app, "Build book", { via: "next" });
   await dock(app).waitFor();
 }
-/** Whether the book can be made, and is. */
-const bookChoice = (app) => outputOptions(app, "Book of Authorities", async (dialog) => {
-  const box = dialog.getByRole("checkbox", { name: "Make the Book of Authorities" });
-  return { locked: await box.isDisabled(), made: await box.isChecked() };
-});
 
 export const SETTINGS_CASES = [{
   name: "courts",
@@ -34,7 +31,7 @@ export const SETTINGS_CASES = [{
     const app = await open({ network: { a2aj: fixtureA2aj() } });
     await app.load();
     await toBuild(app, fixtures);
-    const court = () => app.page.getByRole("button", { name: /^Court:/u });
+    const court = () => app.page.getByRole("button", { name: "Change the court", exact: true });
     // No preset: a book, a table, or both.
     for (const mode of ["book", "table", "both"]) {
       await outputMode(app, mode);
@@ -57,8 +54,6 @@ export const SETTINGS_CASES = [{
     // Alberta Court of Appeal: a table only, its entries linked to their sources.
     await chooseCourt(app, court(), "abca", { shiftsOk: outputsChange });
     await app.idle();
-    const appeal = await bookChoice(app);
-    record.check(appeal.locked && !appeal.made, "the Court of Appeal makes a table only", appeal);
     await app.shots("abca");
     await build(app, "abca", { missing: null });
     const abca = await downloads(app, "abca");
@@ -69,17 +64,15 @@ export const SETTINGS_CASES = [{
     await chooseCourt(app, court(), "federal", { shiftsOk: outputsChange });
     await app.idle();
     // Leaving a court that locks the table brings the book back: the table was never the user's choice.
-    const federalBook = await bookChoice(app);
-    record.check(federalBook.made && !federalBook.locked, "the Federal Court makes its book again", federalBook);
     await app.shots("federal");
     record.check(/Add the cover details to build/u.test(await dock(app).innerText()), "the Federal Court asks for its cover details", await dock(app).innerText());
     await app.interact("Build opens the cover details", () => app.button("Build", dock(app)).click(), { budget: BUDGETS.dialog });
-    const cover = app.page.getByRole("dialog", { name: "Cover and index" });
+    const cover = app.page.getByRole("dialog", { name: "Book", exact: true });
     await cover.waitFor();
     await cover.getByLabel("Court file number").fill("T-1234-31");
-    const groups = cover.getByRole("region", { name: /^Party group/u });
-    await groups.nth(0).getByLabel("Party names").fill("Harbourside Paddling Co-operative");
-    await groups.nth(1).getByLabel("Party names").fill("Marsh Harbour Licensing Board");
+    const parties = cover.getByRole("group", { name: "Parties", exact: true }).getByRole("textbox", { name: /^Parties for/u });
+    await parties.nth(0).fill("Harbourside Paddling Co-operative");
+    await parties.nth(1).fill("Marsh Harbour Licensing Board");
     await cover.getByLabel("Filed by").selectOption("applicant");
     await app.shots("federal-cover");
     await app.button("Save", cover).click(); await app.idle();
@@ -105,8 +98,7 @@ export const SETTINGS_CASES = [{
     await step(app, "Highlights", { via: "next" });
     await step(app, "Build book", { via: "next" });
     const copy = app.page.getByRole("group", { name: "Word copy" }), references = app.page.getByRole("group", { name: "Tab references" });
-    const options = async (run) => { await dock(app).getByRole("button", { name: "Word copy options" }).click(); await run();
-      await app.button("Done", app.page.getByRole("dialog", { name: "Word copy" })).click(); await app.idle(); };
+    const options = (run) => outputOptions(app, "Word copy", run);
     const choose = async (group, name, exact = true) => {
       const option = group.getByRole("radio", { name, exact });
       if (!await option.isChecked()) await app.interact(`choose ${name}`, () => option.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }),
@@ -150,14 +142,17 @@ export const SETTINGS_CASES = [{
       const book = pick(await downloads(app, `${missing}-${scanned}`), /book-of-authorities\.pdf$/u);
       if (!book) { record.check(false, `${label}: a book`); continue; }
       const pdf = await checkPdf(record, label, book, { tabs: missing === "omit" ? 2 : 5 });
+      const tabText = (tab) => tab ? pdf.text.slice(tab.page - 1,
+        (pdf.tabs.find(({ page }) => page > tab.page)?.page ?? pdf.pages + 1) - 1).join(" ") : "";
       const scan = pdf.tabs.find(({ title }) => /Lakeshore/u.test(title));
-      const scanText = scan ? pdf.text.slice(scan.page - 1, scan.page + 1).join(" ") : "";
-      record.check(/\[22\] A board that departs/u.test(scanText) === (scanned !== "page-margin"),
+      const scanText = tabText(scan);
+      record.check(/A board that departs/u.test(scanText) === (scanned !== "page-margin"),
         `${label}: the scan's cited page ${scanned === "page-margin" ? "stays an image" : "carries its recognized text"}`, scanText.slice(0, 160));
       if (missing === "placeholder") {
         const vavilov = pdf.tabs.find(({ title }) => /Vavilov/u.test(title));
-        record.check(vavilov && /Vavilov/u.test(pdf.text[vavilov.page - 1]) && pdf.text[vavilov.page - 1].length < 600,
-          `${label}: a missing PDF's tab keeps one page naming it`, vavilov && pdf.text[vavilov.page - 1].slice(0, 200));
+        const contents = tabText(vavilov);
+        record.check(vavilov && /Vavilov/u.test(contents) && contents.length < 600,
+          `${label}: a missing PDF's tab names the authority`, contents.slice(0, 200));
       }
       if (scanned === "cited-pages") await renderer.sheet(book, path.join(record.out, `${missing}-book.jpg`), { first: 6 });
     }

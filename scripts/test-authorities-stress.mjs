@@ -62,7 +62,7 @@ function localFixtures() {
 }
 
 const word = [], records = [];
-const fixtureDir = path.join(out, "fixtures");
+const fixtureDir = path.join(localDir, "generated");
 try {
 const fixtures = await (async () => {
   const browser = await launch();
@@ -137,6 +137,8 @@ if (word.length && !args["no-word"]) {
     if (result.insertedPdf && existsSync(result.insertedPdf))
       await renderer.sheet(result.insertedPdf, path.join(record.out, "word", `${named(index)}.inserted-table.jpg`), { last: 2 });
   }
+  } catch (error) {
+    for (const record of new Set(word.map(({ record }) => record))) record.check(false, "Word verification stopped", error.message);
   } finally { await browser.close(); }
   console.log(`  opened in ${Math.round((Date.now() - from) / 1000)} s`);
 }
@@ -159,7 +161,6 @@ if (failed.length) {
 // What was delivered has been read back and rendered; the books and documents themselves go, so a
 // run keeps its report, screenshots and page sheets only (--keep-outputs keeps them all).
 if (!args["keep-outputs"] && !args.out) {
-  await rm(fixtureDir, { recursive: true, force: true });
   for (const { out: dir } of records) {
     await rm(path.join(dir, "downloads"), { recursive: true, force: true });
     for (const file of await readdir(path.join(dir, "word")).catch(() => []))

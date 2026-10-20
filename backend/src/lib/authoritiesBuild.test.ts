@@ -4,6 +4,7 @@ import { Document as WordDocument, FootnoteReferenceRun, Packer, Paragraph, Text
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName,
   PDFNumber, PDFRawStream, PDFRef, PDFString, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests, authorityPassageTargets,
   buildAuthorities, renderAuthoritySourcePdf, statuteExcerptSummary } from "./authoritiesBuild";
@@ -24,6 +25,16 @@ const createAuthoritiesDraft = (...input: Parameters<typeof createDraft>) => {
   Object.assign(draft.settings, { tabPages: false, indexShows: "tabs-and-pages" });
   return draft;
 };
+
+async function pdfText(bytes: Uint8Array) {
+  const task = getDocument({ data: new Uint8Array(bytes), useSystemFonts: false, disableFontFace: true, verbosity: 0 });
+  try {
+    const document = await task.promise, pages: string[] = [];
+    for (let page = 1; page <= document.numPages; page++)
+      pages.push((await (await document.getPage(page)).getTextContent()).items.flatMap(item => "str" in item ? [item.str] : []).join(" "));
+    return pages.join(" ");
+  } finally { await task.destroy(); }
+}
 
 async function sourcePdf(label: string, sizes: Array<[number, number]>) {
   const pdf = await PDFDocument.create();
@@ -568,6 +579,25 @@ function draft(
 }
 
 describe("Authorities output builder", () => {
+  it("keeps prepared OCR text when a cited pinpoint cannot be placed", async () => {
+    const bytes = await sourcePdf("Invented scan", [[400, 500]]);
+    const binding = { kind: "local-file" as const, handleId: "scan", lastSeen: {
+      name: "permit.pdf", size: bytes.length, modified: 1, sha256: sha256(bytes) } };
+    const state = createAuthoritiesDraft({ kind: "document", bindingRole: "source",
+      filename: "submission.pdf", fileType: "pdf", snapshot: null }, { source: binding });
+    state.bindings.scan = binding;
+    state.settings.scannedPdfPolicy = "cited-pages";
+    state.authorities.permit = attached("permit", "case", "2034 ABKB 63", "Fenwick v Permit Board", "scan", bytes);
+    state.authorities.permit.locators = [{ kind: "paragraph", label: "999" }];
+    state.authorityOrder = ["permit"];
+    const recognized = "A permit remains effective until the board gives written notice.";
+    const input = { draft: state, title: "Permits", workProduct: { id: "ocr-export", revision: 1 },
+      sources: { source: { bytes }, scan: { bytes, pageTextByPage: [recognized], ocrTextByPage: [recognized] } } };
+    expect(await pdfText((await buildAuthorities(input)).artifacts.book!.bytes)).toContain(recognized);
+    state.settings.scannedPdfPolicy = "page-margin";
+    expect(await pdfText((await buildAuthorities(input)).artifacts.book!.bytes)).not.toContain(recognized);
+  });
+
   it("renders reconstructed Markdown as styled searchable text without losing literal characters", async () => {
     const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: "Example Act",
       citation: "SC 2026, c 1", date: null, sourceUrl: null,

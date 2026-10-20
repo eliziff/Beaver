@@ -3,7 +3,6 @@
 import path from "node:path";
 import { fixtureA2aj, VARIETY } from "../fixtures.mjs";
 import { attach, build, chooseCard, dock, downloads, importBrief, outputMode, outputOptions, step } from "../flows.mjs";
-import { BUDGETS } from "../harness.mjs";
 import { checkPdf } from "../outputs.mjs";
 import { rows, walkReview } from "../review.mjs";
 
@@ -12,24 +11,22 @@ const pick = (files, pattern) => Object.entries(files).find(([name]) => pattern.
 
 /** The Final PDF dialog's links, chosen, then built. */
 async function finalPdf(app, { brief = null, shot = "final-pdf" } = {}) {
-  await app.interact("open the Final PDF dialog", () => dock(app).getByRole("button", { name: "Final PDF options" }).click(),
-    { budget: BUDGETS.dialog });
-  const dialog = app.page.getByRole("dialog", { name: "Final PDF" });
-  await dialog.waitFor();
-  for (const name of ["Make the final PDF", "Citations to their tabs", "Pinpoints to the passage"]) {
-    const box = dialog.getByRole("checkbox", { name });
-    if (!await box.isChecked()) await app.interact(`tick ${name}`, () => box.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }));
-  }
-  if (brief) {
-    // Without the brief saved as PDF its card says so calmly, and the final PDF waits for it.
-    app.record.check(/needs your brief saved as PDF/u.test(await dock(app).locator("[data-output=final]").innerText()),
-      `${app.label}: the final PDF waits for the brief PDF, and says so`);
-    await app.shots(`${shot}-without-brief`);
-    await app.pick(() => app.button("Upload the brief PDF", dialog).click(), [brief]);
-    await app.button("Replace the brief PDF", dialog).waitFor();
-  }
-  await app.shots(shot);
-  await app.button("Done", dialog).click(); await app.idle();
+  await dock(app).locator("[data-output=final]").getByRole("switch").check();
+  await outputOptions(app, "Final PDF", async dialog => {
+    for (const name of ["Citations to their tabs", "Pinpoints to the passage"]) {
+      const box = dialog.getByRole("checkbox", { name });
+      if (!await box.isChecked()) await app.interact(`tick ${name}`, () => box.locator("xpath=ancestor::label[1]").click({ position: { x: 6, y: 6 } }));
+    }
+    if (brief) {
+      // Without the brief saved as PDF its card says so calmly, and the final PDF waits for it.
+      app.record.check(/upload your brief as a PDF/u.test(await dock(app).locator("[data-output=final]").innerText()),
+        `${app.label}: the final PDF waits for the brief PDF, and says so`);
+      await app.shots(`${shot}-without-brief`);
+      await app.pick(() => app.button("Upload the brief PDF", dialog).click(), [brief]);
+      await app.button("Replace the brief PDF", dialog).waitFor();
+    }
+    await app.shots(shot);
+  });
 }
 
 export const IMPORT_CASES = [{
@@ -127,17 +124,20 @@ export const IMPORT_CASES = [{
     for (const [file, kind] of inputs) {
       if (await app.button("New").isEnabled()) await app.button("New").click();
       await app.pick(() => app.button("Add file").click(), [file]);
-      const setup = app.page.getByRole("dialog", { name: "Import options" });
+      const setup = app.page.getByRole("dialog", { name: "Import" });
       await setup.waitFor();
+      await setup.getByRole("list", { name: "Steps", exact: true }).getByRole("button", { name: "Marking", exact: true }).click();
+      const terminal = setup.getByRole("status").filter({ hasText: /\S/u, hasNotText: /^Finding citations$/u });
       const started = await app.now();
-      await app.button("Import and review").click();
+      try { await setup.getByRole("button", { name: "Next", exact: true }).click({ timeout: 1000 }); }
+      catch (error) { if (!await terminal.isVisible()) throw error; }
       // A review, a review that found no citation, or the dialog saying why it could not import.
       const outcome = await Promise.race([
         app.page.locator(".citation-document .citation-band[data-active]").first().waitFor({ timeout: 30_000 }).then(() => "review"),
-        app.page.getByText("No citations found.").waitFor({ timeout: 30_000 }).then(() => "no citations"),
-        setup.getByRole("status").filter({ hasText: /\w/u }).waitFor({ timeout: 30_000 }).then(() => "message"),
+        app.page.locator(".citation-none").waitFor({ timeout: 30_000 }).then(() => "no citations"),
+        terminal.waitFor({ timeout: 30_000 }).then(() => "message"),
       ]).catch(() => "nothing");
-      const said = outcome === "message" ? await setup.getByRole("status").filter({ hasText: /\w/u }).innerText() : "";
+      const said = outcome === "message" ? await terminal.innerText() : "";
       record.note(path.basename(file), { outcome, ms: Math.round(await app.now() - started), said, citations: outcome === "review" ? await rows(app).count() : 0 });
       record.check(outcome !== "nothing", `${path.basename(file)}: the import ends in a review or a message`);
       if (kind === "damaged") record.check(outcome === "message" && /invalid|corrupt|readable/iu.test(said),
