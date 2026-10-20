@@ -1,7 +1,6 @@
 """Export existing Indra weights for GPU execution and measure matched CUDA inputs."""
 
 import argparse
-import copy
 import json
 import statistics
 import time
@@ -10,7 +9,6 @@ from pathlib import Path
 
 import numpy as np
 import onnx
-from onnx import helper
 import onnxruntime as ort
 from onnxruntime.transformers.float16 import DEFAULT_OP_BLOCK_LIST, convert_float_to_float16
 from onnxruntime.transformers.onnx_model import OnnxModel
@@ -20,26 +18,7 @@ from evaluate import Export, feed
 from indra import IndraSpatial
 from optimize_indra import stage, with_ids
 from screen import Adapter, batches, digest, distance, read_rows, write_json
-
-
-def webgpu_activations(model):
-    """ORT Web 1.22 supports HardSigmoid/Mul, but has no HardSwish GPU kernel."""
-    nodes = []
-    changed = 0
-    for node in model.graph.node:
-        if node.op_type != 'HardSwish':
-            nodes.append(copy.deepcopy(node))
-            continue
-        gate = node.output[0] + '_gpu_gate'
-        nodes.extend([
-            helper.make_node('HardSigmoid', [node.input[0]], [gate], alpha=1 / 6, beta=.5),
-            helper.make_node('Mul', [node.input[0], gate], list(node.output)),
-        ])
-        changed += 1
-    del model.graph.node[:]
-    model.graph.node.extend(nodes)
-    onnx.checker.check_model(model)
-    return changed
+from gpu_graphs import webgpu_activations
 
 
 def cuda_session(path, profile=None):

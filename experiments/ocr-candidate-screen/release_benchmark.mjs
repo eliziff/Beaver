@@ -54,7 +54,12 @@ const result = { origin: 'machine_test', run_id: randomUUID(), rounds, hardware:
   archive_sha256: hash(readFileSync(resolve(dist, 'legal-browser-ocr-runtime.tar.gz'))), models: {} };
 const save = () => writeFileSync(resolve(output, 'results.json'), JSON.stringify(result, null, 2) + '\n');
 async function ready(page) { await page.waitForFunction(() => /Model (ready|failed)/.test(document.querySelector('#status')?.textContent || ''), null, { timeout: 180000 }); assert.match(await page.locator('#status').textContent(), /Model ready/); }
-async function upload(page, path) { await page.setInputFiles('#file', path); await page.waitForFunction(() => document.querySelector('#status').textContent === 'Page 1 ready.', null, { timeout: 120000 }); }
+async function upload(page, path) {
+  await page.setInputFiles('#file',[]);
+  await page.setInputFiles('#file', path);
+  await page.waitForFunction(() => /^(Page 1 ready\.|Could not load file:)/.test(document.querySelector('#status').textContent), null, { timeout: 120000 });
+  const status=await page.locator('#status').textContent();assert.ok(status==='Page 1 ready.',status.slice(0,600));
+}
 async function recognize(page) {
   const started = performance.now(); await page.locator('#all').click();
   await page.waitForFunction(() => !document.querySelector('#all').disabled, null, { timeout: 300000 });
@@ -81,12 +86,25 @@ try {
     assert.equal(await page.locator('#mode').inputValue(), entry.tier);
     assert.equal(await page.locator('#mode option').count(), 5);
     console.log(`${entry.key}: ready in ${value.startup_seconds.toFixed(2)}s`);
-    await upload(page, pdfPath); const warmup = await recognize(page); value.first_document_seconds = warmup.seconds;
+    if(value.configuration.backend==='webgpu')value.requested_webgpu_adapter=await page.evaluate(async()=>{
+      const adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'}),info=adapter?.info;
+      return {vendor:info?.vendor,architecture:info?.architecture,device:info?.device,description:info?.description,
+        fallback:info?.isFallbackAdapter??adapter?.isFallbackAdapter,jspi:typeof WebAssembly.Suspending};
+    });
+    await upload(page, pdfPath); value.document_configuration=await page.evaluate(()=>window.legalOcrConfiguration());
+    if(value.document_configuration.explicitPdfPort)assert.equal(value.document_configuration.pdfWorkerActive,true);
+    const warmup = await recognize(page); value.first_document_seconds = warmup.seconds;
     value.first_document_stages=warmup.stages;
     console.log(`${entry.key}: first document ${(manifest.pages.length / warmup.seconds).toFixed(3)} pages/s`);
     assert.equal(warmup.texts.length, manifest.pages.length);
     for (let round = 0; round < rounds; round++) {
-      const run = await recognize(page); assert.deepEqual(run.texts, warmup.texts, 'OCR changed between warm passes'); value.runs.push(run);
+      const run = await recognize(page); value.runs.push(run);
+      const changed=run.texts.flatMap((text,index)=>text===warmup.texts[index]?[]:[index+1]);
+      if(changed.length){
+        value.stability={passed:false,changed_pages:changed};value.first_document_texts=warmup.texts;
+        result.models[entry.key]=value;save();
+      }
+      assert.equal(hash(Buffer.from(JSON.stringify(run.texts))),hash(Buffer.from(JSON.stringify(warmup.texts))),'OCR changed between warm passes; private receipt retains the affected page numbers');
       console.log(`${entry.key}: round ${round + 1}: ${(manifest.pages.length / run.seconds).toFixed(3)} pages/s`);
     }
     value.median_seconds = value.runs.map(run => run.seconds).sort((a, b) => a - b)[Math.floor(rounds / 2)];
@@ -95,6 +113,7 @@ try {
     value.characters = manifest.pages.reduce((sum, page) => sum + Array.from(page.gold).length, 0); value.cer = value.edits / value.characters;
     value.text_sha256 = hash(Buffer.from(JSON.stringify(warmup.texts)));
     value.lines_sha256 = hash(Buffer.from(JSON.stringify(await page.evaluate(() => window.legalOcrLastDocumentLines))));
+    result.models[entry.key]=value;save();
     assert.equal(await page.locator('#document img').count(), 0);
     assert.equal(await page.locator('#page').evaluate(canvas => canvas.width > 10 && canvas.height > 10), true);
     await page.screenshot({ path: resolve(output, entry.key + '.png') });
@@ -111,6 +130,12 @@ try {
       assert.ok((await pixels(exported)).equals(originalPixels), 'Original page pixels changed');
     } finally { await exported.destroy(); }
     value.pdf_gate = { text_pages: manifest.pages.length, first_page_pixels_identical: true, sha256: hash(readFileSync(exportedPath)) };
+    save();
+    if(value.document_configuration.explicitPdfPort){
+      await upload(page,pdfPath);
+      assert.equal((await page.evaluate(()=>window.legalOcrConfiguration())).pdfWorkerActive,true);
+      value.pdf_gate.reopened_with_module_worker=true;
+    }
     assert.deepEqual(errors, []);
     const cpu = result.models[entry.tier + '-cpu'];
     if (value.configuration.backend === 'webgpu' && cpu) assert.ok(value.cer <= cpu.cer + .0005, `${entry.key}: GPU exceeded +0.05 percentage point CER gate`);
@@ -122,14 +147,16 @@ try {
     const cpu = result.models[value.tier + '-cpu'];
     if (cpu) assert.ok(value.cer <= cpu.cer + .0005, `${value.key}: GPU exceeded +0.05 percentage point CER gate`);
   }
+  result.hosted_png_smoke_skipped=process.env.OCR_BENCH_SKIP_HOSTED==='1';
   result.hosted_png_source={source:'frozen_pdf_first_page',dpi:144,sha256:hash(firstPagePng)};
   result.hosted_png_smoke={};
-  for(const backend of ['cpu','auto']) {
+  save();
+  for(const backend of result.hosted_png_smoke_skipped?[]:['cpu','auto']) {
     const context = await browser.newContext({ acceptDownloads: true }); const page = await context.newPage();
     await page.goto(`http://127.0.0.1:${server.address().port}/legal-browser-ocr-runtime/index.html?backend=${backend}`); await ready(page);
     await upload(page, {name:'benchmark-page.png',mimeType:'image/png',buffer:firstPagePng});
     result.hosted_png_smoke[backend] = { configuration:await page.evaluate(()=>window.legalOcrConfiguration()), characters: (await recognize(page)).texts[0].length };
-    for (const tier of ['extreme', 'quality', 'balanced']) {
+    for (const tier of ['extreme', 'quality', 'fast', 'turbo', 'balanced']) {
       await page.locator('#mode').selectOption(tier); await page.waitForFunction(() => !document.querySelector('#mode').disabled);
       assert.equal(await page.locator('#download').isEnabled(), false, 'Tier change must invalidate the previous export');
       assert.equal((await page.evaluate(() => window.legalOcrConfiguration())).tier, tier);
