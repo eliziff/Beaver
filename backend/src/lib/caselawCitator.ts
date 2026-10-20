@@ -1,15 +1,14 @@
 import { createHash } from "node:crypto";
-import os from "node:os";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { courtLevel } from "./courtLevels";
-import { inSqliteRun, onSqliteRunEnd, withReadonlySqlite } from "./legalDataPath";
+import { inSqliteRun, legalProviderDatabase, onSqliteRunEnd, withReadonlySqlite } from "./legalDataPath";
 import { structureNative } from "./structureNative";
 import { a2ajCitationAliasGroups, type CitationAliasGroup } from "./a2ajLocalBulk";
 
 /**
  * Read surface for the Stage 1 citator note-up graph built by
- * scripts/build_citator_graph.py over the local A2AJ case corpus
+ * scripts/build-citator-graph.ts from the installed A2AJ store
  * (docs/citator-good-law-research.md, "Stage 1 - exact note-up graph").
  * Every edge is a literal citation occurrence in a citing case's text with
  * its paragraph number, offset, cited-side pinpoints, and a bounded excerpt.
@@ -89,10 +88,7 @@ let defaultAuthorityMetricsAvailable: boolean | undefined;
 
 function citatorDatabasePath() {
   const configured = process.env.MIKE_CITATOR_DB?.trim();
-  if (configured) return path.resolve(configured);
-  const localAppData =
-    process.env.LOCALAPPDATA?.trim() || path.join(os.homedir(), "AppData", "Local");
-  return path.join(localAppData, "ALR Quote Verifier", "citator", "noteup.sqlite");
+  return configured ? path.resolve(configured) : legalProviderDatabase("a2aj", "noteup.sqlite");
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {

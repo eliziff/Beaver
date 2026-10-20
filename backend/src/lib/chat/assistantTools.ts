@@ -1753,7 +1753,10 @@ export function assistantTools<Context extends {
             registerLegalEvidence(legalEvidenceState, saved);
         legalEvidenceEntry(legalEvidenceState.evidence, id);
         const entry = readPriorLegalEvidence(legalEvidenceState, id);
-        return entry && inScope({ resource: legalEvidenceResourceReference(entry.receipt) ?? "", evidence: [entry.receipt] })
+        if (!entry) return fail(parseEvidenceHandle(id)
+          ? `No passage read in this conversation holds ${id}; Read the source itself for those lines`
+          : `No passage read in this conversation has evidence_id ${id}`);
+        return inScope({ resource: legalEvidenceResourceReference(entry.receipt) ?? "", evidence: [entry.receipt] })
           ? { ...result(modelEvidencePassage(entry.receipt)), evidence: [entry.receipt] } : fail("Evidence unavailable in the selected scope");
       }
 
