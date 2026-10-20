@@ -25,7 +25,7 @@ const ocrMessage = (status: SourceOcrStatus, total = status.textlessPages.length
 const ocrTone = (status: SourceOcrStatus) => status.state === 'failed' ? 'text-red-800' : 'text-gray-600';
 
 /** Pause (or Resume) and Cancel for one recognition, in slots that stay put whatever its state. */
-function OcrControls({ status, ocr, className, label }: { status: SourceOcrStatus; ocr: SourceOcrPanel; className: string; label: string }) {
+function OcrControls({ status, ocr, className, label }: { status: SourceOcrStatus; ocr: Omit<SourceOcrPanel, 'tracked'>; className: string; label: string }) {
   const pending = status.state === 'running' || status.state === 'paused';
   const resumable = ['paused', 'failed', 'cancelled'].includes(status.state);
   return <>
@@ -65,7 +65,7 @@ function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: Sour
  * of progress under it and two icon buttons, so the row keeps its height from start to finish.
  * The full sentence is what assistive technology announces.
  */
-export function SourceOcrInline({ status, ocr, className }: { status: SourceOcrStatus; ocr: SourceOcrPanel; className?: string }) {
+export function SourceOcrInline({ status, ocr, className }: { status: SourceOcrStatus; ocr: Omit<SourceOcrPanel, 'tracked'>; className?: string }) {
   const total = status.textlessPages.length;
   const pending = status.state === 'running' || status.state === 'paused';
   const word = status.state === 'done' ? 'Recognized' : status.state === 'failed' ? 'Failed'

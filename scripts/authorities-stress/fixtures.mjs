@@ -294,6 +294,9 @@ export async function writeStressFixtures(browser, directory, { longCount = 120 
       await writeFile(file(`scan-${index + 1}.pdf`), await scan.save());
       files.scans.push({ ...item, file: file(`scan-${index + 1}.pdf`) });
     }
+    files.scanBrief = await pdf(briefHtml({ title: 'Orchard Path Inspection', paragraphs: files.scans.map((item, index) => ({
+      text: `${index + 1}. The orchard paths were inspected before sunrise.`, note: `${item.name}, ${item.citation} at para 2.`,
+    })) }), 'scan-brief.pdf');
     return files;
   } finally { await page.close(); }
 }
