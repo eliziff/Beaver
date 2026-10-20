@@ -14,6 +14,7 @@ legal-structure = { path = "../../../legal-structure" }
 legal-structure-model = { path = "../../../legal-structure/model" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "0.10"
 
 [patch.crates-io]
 hayro-jpeg2000 = { git = "https://github.com/LaurenzV/hayro.git", rev = "ff7e2e407f6b9c429b44dc29a851180727892b6c" }

@@ -11,7 +11,11 @@
 //!       scores only its exports, and never selects them by gold line IDs.
 //!   structure-gold explain GOLD_DIR MANIFEST SHA_PREFIX [--exports | --candidates FILE] [--layers a,b] [--limit N]
 //!       one document's missed (-) and spurious (+) items per layer, as text.
+//!   structure-gold paragraph-data GOLD_DIR MANIFEST OUT_DIR
+//!       exports Rust boundary features and fixed-gold targets, excluding test.
 mod alignment;
+mod paragraph_data;
+mod paragraph_features;
 mod score;
 mod state;
 mod text_diff;
@@ -720,6 +724,9 @@ fn main() {
         }
         [command, gold, manifest] if command == "inputs" => {
             inputs(Path::new(gold), Path::new(manifest))
+        }
+        [command, gold, manifest, out] if command == "paragraph-data" => {
+            paragraph_data::export(Path::new(gold), Path::new(manifest), Path::new(out))
         }
         [command, gold, manifest, prefix, options @ ..] if command == "explain" => {
             explain(Path::new(gold), Path::new(manifest), prefix, options)
