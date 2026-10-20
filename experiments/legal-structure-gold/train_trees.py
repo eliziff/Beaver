@@ -20,14 +20,15 @@ from train_tagger import HEADS, REGIONS, Vocab, load
 LAGS = (-2, -1, 1, 2)
 
 
-def matrix(docs, region_types, note_modes):
+def matrix(docs, region_types, note_modes, families):
     """Each line's features, tier-0 labels and reader codes, with its neighbours' beside them."""
     blocks, golds = [], []
     for d in docs:
         own = np.concatenate([
             np.asarray(d["features"], dtype=np.float32),
             np.asarray(d["tier0"], dtype=np.float32),
-            np.asarray([[region_types(t[1]), note_modes(t[2])] for t in d["text"]], dtype=np.float32),
+            np.asarray([[region_types(t[1]), note_modes(t[2]), families(t[3] if len(t) > 3 else "")] for t in d["text"]],
+                       dtype=np.float32),
         ], axis=1)
         n = len(own)
         parts = [own]
@@ -52,11 +53,12 @@ def main():
     train_raw, dev_raw = load(args.rows / "rows-train.jsonl"), load(args.rows / "rows-development.jsonl")
     region_types = Vocab(t[1] for d in train_raw for t in d["text"])
     note_modes = Vocab(t[2] for d in train_raw for t in d["text"])
-    x_train, g_train = matrix(train_raw, region_types, note_modes)
-    x_dev, g_dev = matrix(dev_raw, region_types, note_modes)
+    families = Vocab(t[3] if len(t) > 3 else "" for d in train_raw for t in d["text"])
+    x_train, g_train = matrix(train_raw, region_types, note_modes, families)
+    x_dev, g_dev = matrix(dev_raw, region_types, note_modes, families)
     width = len(train_raw[0]["features"][0])
-    categorical = [width + k for k in range(7)]
-    categorical = [c + block * (width + 7) for block in range(1 + len(LAGS)) for c in categorical]
+    categorical = [width + k for k in range(8)]
+    categorical = [c + block * (width + 8) for block in range(1 + len(LAGS)) for c in categorical]
     print(f"{x_train.shape[0]} train / {x_dev.shape[0]} development lines, {x_train.shape[1]} columns, "
           f"loaded in {time.time() - started:.0f}s", flush=True)
     predictions = {}
