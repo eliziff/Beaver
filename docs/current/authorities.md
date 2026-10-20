@@ -36,7 +36,9 @@ reappear closed at Sources and Highlights and as the cover and index at Build.
 Build lists three outputs: the Book of
 Authorities, the Word copy (for a PDF brief, the Table of Authorities), and the final
 PDF. The book can be turned off for a table-only build; Manual mode always makes
-a book and court presets retain their required output locks. Original input bytes
+a book and court presets retain their required output locks. Final PDF keeps the
+cover and index editable and checks required cover details even when the separate
+book download is off. Original input bytes
 remain unchanged. Source acquisition starts when
 the imported citations enter review, before the user advances to Sources, and
 reconciles changed citations and newly linked references. Attached scans begin OCR

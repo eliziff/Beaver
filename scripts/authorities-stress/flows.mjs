@@ -14,7 +14,7 @@ export const SOURCE_MODES = { automatic: "Automatic sources",
 const REGIONS = { header: "header[data-workspace-header]", steps: "[role=tablist][aria-label='Book steps']", panel: "#authorities-step" };
 
 /** A choice that changes what is made changes what the Build step and its Outputs dock list. */
-export const outputsChange = ({ sources }) => sources.every(({ node }) => /\/build|\[Book\]|ul\.grid\.gap-3|section\.min-w-0 > div\.mt-/u.test(node ?? ""));
+export const outputsChange = ({ sources }) => sources.every(({ node }) => /\/build|\[Book\]|ul\.grid\.gap-3|section\.min-w-0 > div\.mt-|dialog\.m-auto|div\.modal-scroll-body/u.test(node ?? ""));
 /** Picks a court in the court chooser that `opener` opens: its jurisdiction, then the court. */
 export async function chooseCourt(app, opener, court, { shiftsOk } = {}) {
   const id = PROFILE_IDS[court];

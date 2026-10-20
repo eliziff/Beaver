@@ -1625,7 +1625,8 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   const manual = state.import.kind === "manual";
   const wordDocument = state.import.kind === "document" && state.import.fileType === "docx";
   const book = state.outputMode !== "table", table = state.outputMode !== "book";
-  const generatedFederalCover = book && coverForm(settings.profileId) === "federal" && !state.bookParts.cover;
+  const bookContents = book || !!settings.finalPdf;
+  const generatedFederalCover = bookContents && coverForm(settings.profileId) === "federal" && !state.bookParts.cover;
   const coverDetailsReady = !generatedFederalCover || completeFederalCover(state.cover);
   const filingRoleReady = !generatedFederalCover || !!settings.bookRole;
   const indexShows = settings.indexShows ?? "tabs";
@@ -1680,7 +1681,7 @@ function BuildPanel({ host, draft, busy, building, progress, jurisdictionOrder, 
   // The book on the left, the outputs and Build on the right, one above the other where narrow.
   return <section className="@container/build mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
     <div className="grid items-start gap-6 @min-[46rem]/build:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
-      <BookRows draft={draft} busy={busy} book={book} lockedMode={lockedMode} pdfs={pdfs} onFront={setFront}
+      <BookRows draft={draft} busy={busy} book={bookContents} lockedMode={lockedMode} pdfs={pdfs} onFront={setFront}
         jurisdictionOrder={jurisdictionOrder} onCourt={(profileId) => courtActions(state, profileId).forEach((action) => onAction(action))}
         coverDetail={generatedFederalCover && !(coverDetailsReady && filingRoleReady) ? "Details required"
           : `Generated${state.cover.title ? ` · ${state.cover.title}` : ""}`}

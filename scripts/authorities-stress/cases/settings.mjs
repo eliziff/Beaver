@@ -63,7 +63,13 @@ export const SETTINGS_CASES = [{
     // Federal Court: its cover needs the court file and the parties, and who files.
     await chooseCourt(app, court(), "federal", { shiftsOk: outputsChange });
     await app.idle();
-    // Leaving a court that locks the table brings the book back: the table was never the user's choice.
+    await outputMode(app, "table");
+    const finalSwitch = dock(app).locator("[data-output=final]").getByRole("switch");
+    await finalSwitch.check(); await app.idle();
+    const coverEditable = await app.button("Change the cover").isEnabled();
+    record.check(coverEditable, "Final PDF keeps cover editing available when the separate book is off");
+    if (!coverEditable) { await app.close(); return; }
+    // The combined PDF still needs the book's cover, even without a separate book download.
     await app.shots("federal");
     record.check(/Add the cover details to build/u.test(await dock(app).innerText()), "the Federal Court asks for its cover details", await dock(app).innerText());
     await app.interact("Build opens the cover details", () => app.button("Build", dock(app)).click(), { budget: BUDGETS.dialog });
@@ -77,12 +83,23 @@ export const SETTINGS_CASES = [{
     await app.shots("federal-cover");
     await app.button("Save", cover).click(); await app.idle();
     record.check(!/Add the cover details|Choose who is filing/u.test(await dock(app).innerText()), "the cover's details let it build", await dock(app).innerText());
+    await finalSwitch.uncheck(); await outputMode(app, "book");
     await build(app, "federal", { missing: null });
     const federal = pick(await downloads(app, "federal"), /\.pdf$/u);
     if (federal) {
       const pdf = await checkPdf(record, "federal", federal);
       record.check(/T-1234-31/u.test(pdf.text[0]) && /Harbourside Paddling Co-operative/u.test(pdf.text[0]), "the federal cover names the file and the parties", pdf.text[0].slice(0, 400));
       await renderer.sheet(federal, path.join(record.out, "federal-book.jpg"), { first: 3, width: 420 });
+    }
+    await outputMode(app, "table"); await finalSwitch.check(); await app.idle();
+    await build(app, "federal final without separate book", { missing: null });
+    const combined = await downloads(app, "federal-final-only"), final = pick(combined, /\.final\.pdf$/u);
+    record.check(!!final && !!pick(combined, /table-of-authorities\.docx$/u) && !pick(combined, /book-of-authorities\.pdf$/u),
+      "Final PDF and table build without a separate book download", Object.keys(combined));
+    if (final) {
+      const pdf = await checkPdf(record, "federal final without separate book", final, { tabs: 5 });
+      record.check(pdf.text.some(text => /T-1234-31/u.test(text) && /Harbourside Paddling Co-operative/u.test(text)),
+        "Final PDF includes the completed Federal cover");
     }
     await app.close();
   },

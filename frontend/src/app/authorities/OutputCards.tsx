@@ -102,7 +102,7 @@ export function OutputDock({ draft, rows, busy, building, progress, note, linkWa
     <BuildHeading id={`${id}-outputs`} title={heading.title} detail={heading.detail} />
     <ul ref={list} className="grid gap-3">
       {rows.map((row) => {
-        const files = row.roles.flatMap((role) => outputs[role] ? [[role, outputs[role]] as [string, Output]] : []);
+        const files = row.made === false ? [] : row.roles.flatMap((role) => outputs[role] ? [[role, outputs[role]] as [string, Output]] : []);
         const titleId = `${id}-${row.key}`, off = row.made === false;
         return <li key={row.key} data-output={row.key} data-roles={row.roles.join(" ")}
           className={cn("rounded-lg border bg-white px-3 pb-3 pt-3", off ? "border-gray-300" : "border-gray-400")}>
