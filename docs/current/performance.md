@@ -609,6 +609,23 @@ Word outputs in an isolated invisible Word instance. Generated benchmark inputs
 live in `benchmarks/local-data/authorities-stress/generated/`; reports and previews
 overwrite `.tmp/authorities-e2e/`. The optional article/HAR remains a separate gate.
 
+The exact [Authorities v0.3.16](https://github.com/eliziff/AuthoritiesHelper/releases/tag/authorities-v0.3.16)
+download (38,326,372 bytes; SHA256
+`dca157d8a072b16e332ed31e73a52514a1e7c4b78f0ff02e4796f6ae0c130efc`)
+completed all 19 available functional browser flows and all 13 Word output checks
+in 8 min 39 s. This includes retained copies after source moves/changes, permission
+recovery, pinpoint undo/redo, output settings, the Final PDF without a separate
+book, large excerpts, scans and reloads. PDF readback and rendered inspection
+covered links, bookmarks, editable marks and filled covers; Word checked opening,
+fields, tables, formatting and Word's own inserted tables of authorities.
+The strict performance gate stayed red: 18 timing failures across five cases,
+including a 6.20 s cold import, a 120 ms interaction and a 174 ms step task. The
+optional article and public Criminal Code HAR were absent. Private receipts are
+`benchmarks/local-data/authorities-stress/published-release.json` and its adjacent
+report/Word results. Frontend type checking and the focused OCR-export/persistence
+checks passed; the broader backend gates retain the failures recorded in the
+[work-product plan](../roadmap/legal-work-products.md).
+
 Removing the PDF worker's one-time warm-up was rejected after three alternating
 fresh-browser comparisons per input. The invented brief's cold median improved
 from 2.93 to 2.42 seconds, but the public judgment regressed from 4.93 to 5.43
