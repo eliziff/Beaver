@@ -384,3 +384,36 @@ it; and statutes' source-history notes carry no label. Splitting the label candi
 blocks at every note-region "1" after the numbering has run on (each block choosing its own
 runs) costs the journal gold dearly (label recall 0.9727 → 0.7000), so a compilation's judgments
 need a narrower boundary than a restart.
+
+## Numbering-family nesting (2026-10-20)
+
+The PDF outline assembler now follows the shared text parser's existing numbering-stack rule:
+a different family opening at its first value nests under the open numbered item. For example,
+`4. ? (a) ? (i)` nests without requiring a colon; an existing family resumes as a sibling and
+closes its descendants. Headings and document/quotation contexts retain their boundaries.
+
+Measured with the corrected gold projection in Beaver `5fc8f7438`, including Claude's committed
+note correction and current cached-input reader. Both candidates use the same 1,092 train and
+development sources. The gold self-check scores 1.0 on every layer; all 1,092 gold and input
+hashes match the frozen paragraph dataset.
+
+| Development F1 | Before | After |
+| --- | --- | --- |
+| Complete hierarchy assignment | 0.10819 | 0.12438 |
+| Parent links | 0.20600 | 0.22382 |
+| Relations | 0.44281 | 0.45227 |
+
+Train parent F1 improves 0.20521?0.21330. Development parents improve for digital-born sources
+(0.21260?0.23190) and OCR sources (0.13824?0.14086). Across both splits, parent F1 improves in
+85 documents and worsens in three; complete hierarchy improves in 76 and worsens in two.
+Other scored layers are unchanged. Review of the regressions shows upstream unit/role mistakes
+can still turn standalone heading markers, split section markers or numbered notes into parents.
+
+The owning crate's metadata checks and both outline behavior tests pass, including nested
+Roman/alphabetic counts, sibling resets, noninitial counts, headings and document separation.
+The file already fails rustfmt at the baseline; its surrounding formatting is retained.
+Private receipts live in `score/codex-numbering/` beside the gold: `before.json`, `after.json`,
+`comparison.json`, input-hash verification and check logs. The tested binary SHA-256 is
+`e50b1da2beeb28f758f0056295f5d395027b8b5118e285b7a4f37f677820b9e9`.
+The final replay and grading takes 17.0 seconds, with zero errors. This excludes extraction/OCR;
+held-out evaluation and addon delivery remain pending.
