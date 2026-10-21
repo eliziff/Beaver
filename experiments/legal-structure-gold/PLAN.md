@@ -535,6 +535,11 @@ physical page identities survive the views, and separators follow page slots rat
 assuming zero-based physical indices. Missing pages close continuation histories. When a page
 holds more than one document, contents evidence follows the owning lines instead of excluding
 the other document's text. Known source notes, tables and furniture cannot open constituents.
+Furniture and detached-reference inference now use two passes for compound PDFs. Discovery
+retains the prior filters; final repetition, folio, type and host evidence is recomputed within
+each detected document from the original source fields. Provisional exclusions and appended
+references are discarded first. Single-document PDFs reuse discovery's decisions. Detached
+references respect existing exclusions, and their separators follow page slots too.
 
 Short titles set apart by bold or capitals can now reach the existing heading reader without
 requiring a font-size change. This adapts the existing type proposals from Claude's parser work,
@@ -576,11 +581,11 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `418e08b` and structure commit `07e7b33` pass affected-crate
+Parser commits through `3854004` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
 remains unmeasured.
-Compound openings still rely on the existing lexical detector. Repeated-furniture detection
-and detached-reference association still run before constituent scopes.
+Compound openings still rely on the existing lexical detector. Initial note-band inference
+combines the sides of parallel texts before later correction and pairing use language views.
