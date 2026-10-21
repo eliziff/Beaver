@@ -621,6 +621,11 @@ accepted reading at that position. Exclusions and established paragraph/provisio
 retain precedence across overlapping grammars. Model list labels remain features. The role
 conventions follow [W3C PDF21](https://www.w3.org/WAI/WCAG22/Techniques/pdf/PDF21).
 
+Candidate aliases retain the selected source unit's kind before list assembly and paragraph
+boundary calculation. Numbering enriches anonymous physical units without relabelling document
+containers or overwriting existing locators. Contents and translation scope survive enrichment;
+a paired note label supplies neither a paragraph nor a list boundary.
+
 Native PDF heading roles now reach the reader too. Extraction walks the existing Inspector
 structure-tree view and retains enclosing `H`/`Hn` roles through inline spans and links, keeping
 the direct inline roles intact. A heading claim must cover the complete line with exact source
@@ -638,8 +643,15 @@ recover enclosing heading and list roles or conflicting claims an older extracto
 Refreshed native extraction supplies that evidence; independent gold stays fixed and recognition
 caches remain separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `c9448fc` and structure commit `0ad099c` pass affected-crate
-`cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
+Cached reader state now keys the supplied engine's layout services as well as local reader code
+and input pages. The shared engine identity covers its layout contract, citation grammar,
+registries and enabled features, using [Cargo's input tracking](https://doc.rust-lang.org/cargo/reference/build-scripts.html#rerun-if-changed).
+An engine edit can therefore recompute semantic readers while reusing extraction and recognition.
+Build outputs confirm the extraction, OCR and layout fingerprints are unchanged by this fix.
+Witness compositions remain outside the reader cache key.
+
+Affected-crate metadata checks and full-feature addon compilation pass for parser `1de6c30`
+and structure `531b603`. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
