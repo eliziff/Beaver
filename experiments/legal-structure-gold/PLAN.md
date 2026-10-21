@@ -504,6 +504,13 @@ page identity into each view. Table-owned content and confirmed contents body ro
 profile or promotion evidence. Original source flags are restored after the pass.
 Rejected or immutable text closes the rerouting chain. New footnote claims also carry the mode
 flag the pairer uses to recognize page-local numbering restarts.
+Final note-mode inference, recognition label repair and reference pairing now use those same
+contexts. Pairing results merge with unique PDF-wide pair and sequence ids while retaining
+source anchors, physical page numbers and reading-order display occurrences. Cross-note links,
+unmatched-reference evidence and carried proposition text use the owning document and language;
+ambiguous links remain unresolved. Physical page gaps close final note-mode history. The shared
+engine's existing introductory-symbol rules count from the input document's first page, so an
+embedded document retains those witnesses without renumbering its physical pages.
 
 Font-based heading claims now calibrate against long native prose on the current page before
 using that document's estimate. The existing paragraph geometry algorithm supplies read-only
@@ -563,11 +570,11 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `b7dfe2b` and structure commit `478b464` pass affected-crate
+Parser commits through `8fb9c89` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
 remains unmeasured.
-Remaining context work includes undiscovered compound boundaries, initial endnote classification
-and reference pairing across constituents.
+Remaining context work includes undiscovered compound boundaries and initial page classification,
+whose endnote, table and contents continuation histories precede the constituent scopes.
