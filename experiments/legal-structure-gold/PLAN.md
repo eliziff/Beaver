@@ -686,3 +686,42 @@ The existing desktop receipts are `score/runs/codex-development-actualtext.json`
 under `score/parser-checks/codex-development-native.json`. This comparison omits OCR and the
 seven newly added native contract development sources. Compound openings still rely on the
 existing lexical detector.
+
+Contents entries now retain column reading order, join detached markers and wrapped titles,
+and stop at the next printed entry or closing page locator. The heading reader rechecks contents
+exclusions after classification. Contents titles and larger internal subheadings remain headings;
+internal subheadings use the list's own typography rather than the prose's body size. The printed
+outline reader consumes the same row bands and keeps headings out of destination-title matches.
+
+Parser `604bf16`, structure `531b603`, addon
+`95a9beb57af347c6fd7dea878c5a8ba75bf251337fac135e255219a66fd4ee24` passes affected-crate
+compilation and the optimized build. The same frozen 266 native development documents complete
+with no runtime errors: grouping F1 0.721962 to 0.723092 (seven better, none worse), roles
+0.887637 to 0.888665, parent F1 0.339579 to 0.340390 and complete hierarchy 0.176083 to 0.176599.
+Inspection confirms separate entries across columns and retained wrapped titles in both languages.
+The receipt is `score/runs/codex-development-contents.json` with its candidate manifest.
+
+Hierarchy remains weak. The existing composition projection treats contents-grammar text as
+ranked text, although the gold omits contents from hierarchy. Correctly separating those entries
+can therefore add false hierarchy rows; parent F1 worsens in one document and relation F1 falls
+0.530151 to 0.529112 across the selection. Neither the scorer nor the independent gold was changed.
+The next inspected failure is smaller bold provision headings rejected by the heading-size floor,
+allowing earlier list parents to carry into later provisions. No tests were written or run.
+
+The heading-size floor now admits a smaller bold title when a numbered provision follows close
+below it in the same column. Existing text, citation, source-role and quotation checks still apply.
+Parser `fa5774d`, structure `531b603`, addon
+`9d827d4164225a7763647a7c32fd52ea691d5d392d0c6e1a3fa82392fffb5577` passes the affected-crate
+check and optimized build. No tests were written or run; existing formatting outside the edits
+was retained.
+
+Against the contents candidate on the same 266 frozen native development documents, this recovers
+53 correct role assignments and 72 correct parent links. Three documents improve and none worsen
+on roles, parents or complete hierarchy. In the inspected statute, 33 genuine headings return,
+correct parents rise from 28 to 68, and parent F1 rises from 0.146982 to 0.356955. A second statute's
+correct parents rise from 39 to 66. Pooled parent F1 rises from 0.340390 to 0.341983 and complete
+hierarchy from 0.176599 to 0.177108. Relative relations improve overall from 0.529112 to 0.530816,
+but lose eight previously correct assignments across four bilingual documents; those documents'
+unit, role and parent F1 are unchanged. This remains a local failure-class fix, not acceptable
+overall hierarchy quality. The receipt and manifest are `score/runs/codex-development-small-type`.
+Wrapped titles and relative parent relations remain concrete follow-up errors.
