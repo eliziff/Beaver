@@ -473,3 +473,16 @@ is retained. The one-class experimental detector is not a replacement for the fu
 provider. Training performs no evaluation or test runs, per the user's instruction; its quality
 is unmeasured. Dataset provenance, initialization and training artifacts live under private
 `heading-layout-training/` beside the gold.
+
+The Rust heading reader no longer requires complete external layout labels before reading
+numbering and capitals. The existing grammar and prose-flow rules now run for unlabelled
+inputs too. Complete source label maps retain their vetoes; detected tables, notes, contents
+and translations are excluded in either case. A positive heading label also survives
+classification when another line has no source label. The typography reader previously
+accumulated only font spans, leaving recognized lines with zero characters and empty geometry.
+It now reads their text and boxes, using measured glyph height as the available size witness
+without inferring a font face or bold/italic styles. Wrapped titles can use matching measured
+line heights without font spans. The existing source fingerprint invalidates the reader cache.
+Parser commit `c10f504` passes the owning-crate `cargo quick` check and optimized native-addon
+compilation. No tests or candidate scoring are run under the user's current instruction;
+quality remains unmeasured.
