@@ -504,9 +504,27 @@ broken alignment stops it. Clause syntax has its own observation and resolution 
 support short or noninitial lists where the existing paragraph/provision rules leave the role
 unresolved. Siblings with different parents no longer supply each other's alignment witness.
 
-Parser commit `a5ca372` and structure commit `478b464` pass the affected-crate `cargo quick`
-checks. The most recently linked optimized addon remains `c10f504`; the later source-label,
-numbering and document-context changes await the next combined addon build. New code follows
+Native PDF heading roles now reach the reader too. Extraction walks the existing Inspector
+structure-tree view and retains enclosing `H`/`Hn` roles through inline spans and links, keeping
+the direct inline roles intact. A heading claim must cover the complete line with exact source
+span anchors; mixed or untagged prose cannot inherit a run-in title's role. Conflicting MCID
+claims supply no heading evidence. Raw source labels retain standard PDF `Hn` levels, while
+final line roles remain canonical `heading`. PPDoc preserves these native labels, the region
+reader accepts them, and the style reader retains their explicit levels instead of re-inferring
+them. Wrapped-title grouping respects differing tagged levels. Existing furniture, table and
+translation handling retains its precedence. The role convention follows the
+[PDF Association's standard structure elements](https://pdfa.org/download-area/cheat-sheets/StandardStructureElements.pdf).
+
+Frozen extraction inputs can exercise direct tags already retained in font spans, but cannot
+recover enclosing heading roles that an older extractor discarded. That coverage requires
+refreshed native extraction; the independent gold stays fixed and recognition caches remain
+separate. The extraction and reader fingerprints cover these source changes.
+
+Parser commits `a5ca372` and `31503f9` and structure commit `478b464` pass affected-crate
+`cargo quick` checks. A metadata check of the native addon with its full feature set also
+passes. The most recently linked optimized addon remains `c10f504`; the later source-label,
+numbering, document-context and native-tag changes await the next combined addon build.
+New code follows
 rustfmt; existing formatting differences elsewhere in the touched files are retained. No tests
 or candidate scoring are run under the user's current instruction; quality remains unmeasured.
 Document/style segmentation in compound PDFs remains a context-scoping concern: a whole-file
