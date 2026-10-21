@@ -446,8 +446,8 @@ coverage, not accuracy. Recognition and extraction are hard-linked from the exis
 The structure reader also discarded explicit layout heading labels while reclassifying text
 by font size. Recognized lines have no font spans. The parser now retains `paragraph_title`,
 `doc_title` and `heading` evidence before that fallback, while its existing table, running-text
-and false-heading handling remains in place. Native-addon delivery and end-to-end measurement
-of this change remain outstanding. A reconstructed replay failed native-output parity and is
+and false-heading handling remains in place. Native-addon compilation passes; end-to-end
+measurement remains outstanding. A reconstructed replay failed native-output parity and is
 not accepted as candidate evidence.
 
 `train_heading_layout.py` prepares standard COCO heading boxes from fixed gold and its
@@ -472,17 +472,21 @@ epochs, cosine decay and the existing desktop GPU. Only the latest resumable epo
 is retained. The one-class experimental detector is not a replacement for the full layout
 provider. Training performs no evaluation or test runs, per the user's instruction; its quality
 is unmeasured. Dataset provenance, initialization and training artifacts live under private
-`heading-layout-training/` beside the gold.
+`heading-layout-training/` beside the gold. The first five-epoch run completed in 48 minutes
+with resumable `checkpoint-2395`; its receipt confirms no evaluation or test run.
 
 The Rust heading reader no longer requires complete external layout labels before reading
 numbering and capitals. The existing grammar and prose-flow rules now run for unlabelled
-inputs too. Complete source label maps retain their vetoes; detected tables, notes, contents
-and translations are excluded in either case. A positive heading label also survives
-classification when another line has no source label. The typography reader previously
-accumulated only font spans, leaving recognized lines with zero characters and empty geometry.
+inputs too. Known source labels are retained per line, so an unknown peer no longer removes
+heading, note or table evidence. Unknown labels are omitted, preserving the witness reader's
+per-line `layout_known` meaning. Completeness is checked separately for the body-font estimate.
+Detected tables, notes, contents and translations remain excluded from headings. The typography
+reader previously accumulated only font spans, leaving recognized lines with zero characters
+and empty geometry.
 It now reads their text and boxes, using measured glyph height as the available size witness
 without inferring a font face or bold/italic styles. Wrapped titles can use matching measured
 line heights without font spans. The existing source fingerprint invalidates the reader cache.
 Parser commit `c10f504` passes the owning-crate `cargo quick` check and optimized native-addon
-compilation. No tests or candidate scoring are run under the user's current instruction;
-quality remains unmeasured.
+compilation. The subsequent per-line source-label change in `bfdda0c` passes `cargo quick`;
+it is awaiting the next combined addon build. No tests or candidate scoring are run under the
+user's current instruction; quality remains unmeasured.
