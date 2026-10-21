@@ -501,14 +501,22 @@ native font-size baseline. Its separator, label-sequence and continuation witnes
 force.
 
 Font-based heading claims now calibrate against long native prose on the current page before
-using the document-wide estimate. The existing paragraph geometry algorithm supplies read-only
-paragraph assignments before classification and the final paragraph groups afterward. Paragraphs
+using that document's estimate. The existing paragraph geometry algorithm supplies read-only
+paragraph assignments before font-heading claims and the final paragraph groups afterward. Paragraphs
 longer than the existing font-heading length limit establish local body type through the same
 character-mass estimator; sparse pages retain the document prior. Both plain font promotion and
 numbered-heading visual decisions use that baseline, and known non-heading source roles veto
 the font fallback. Fontless OCR skips this extra geometry pass. This targets the compound-file
 failure where a constituent's larger body font was read as a heading on every prose line; the
 reported document has not been rescored for this candidate.
+
+The existing lexical constituent openings now scope heading inference before final hierarchy
+assembly. The same openings drive the final constituent nodes, per-document/language font
+priors, numbering, typography, paragraph segmentation and bookmark frames. The existing readers
+run on page views containing one context's lines, then restore physical order and keep block
+groups distinct between contexts. Text, line ids, anchors and geometry are retained. Ordinary
+monolingual documents without another constituent use the direct path. Font-only candidates
+retain the classifier's note, table, paragraph and source-role vetoes and are not cached.
 
 Short titles set apart by bold or capitals can now reach the existing heading reader without
 requiring a font-size change. This adapts the existing type proposals from Claude's parser work,
@@ -530,7 +538,8 @@ semicolons and trailing `and`/`or` to aligned, consecutive sibling markers with 
 A recognized lead-in carries over the sibling sequence across page breaks; an ended item or
 broken alignment stops it. Clause syntax has its own observation and resolution proof, and can
 support short or noninitial lists where the existing paragraph/provision rules leave the role
-unresolved. Siblings with different parents no longer supply each other's alignment witness.
+unresolved. Siblings with different parents or document contexts no longer supply each other's
+alignment or lead-in witnesses.
 
 Native PDF heading roles now reach the reader too. Extraction walks the existing Inspector
 structure-tree view and retains enclosing `H`/`Hn` roles through inline spans and links, keeping
@@ -549,11 +558,11 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `e09314d` and structure commit `478b464` pass affected-crate
+Parser commits through `bac24b2` and structure commit `478b464` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
 remains unmeasured.
-Document/style segmentation in compound PDFs remains a context-scoping concern: a whole-file
-prior must not become authority across unrelated embedded documents.
+Remaining context work includes undiscovered compound boundaries and note-role profiles across
+constituents.
