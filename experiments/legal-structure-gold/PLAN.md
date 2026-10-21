@@ -422,6 +422,42 @@ split at 0.930 and development at 0.575, and on half the train documents develop
 Codex's numbering-stack rule (`codex/parser-iteration` `0cec5ab`, newly opened families nest)
 adds to these parser changes: together, development parents 0.295 and hierarchy 0.150.
 
+The tagger never read the words: with its text input off at training and evaluation alike it
+scores the same (parents 0.5755, regions 0.820, starts 0.953). The gold's hierarchy pass gave the
+author one row per unit (page, region, the unit's first 80 characters) with the page images, and
+asked which row each falls under (`prompts.py`, `hierarchy.py`), so a local reproduction needs the
+unit's opening words read as language; rows now carry each piece's first 80 characters.
+
+How the tree decomposes (development's gold units). In the gold's own reading order, a unit's
+parent is the nearest earlier ranked unit one level up for a median document's 0.933 (quartiles
+0.712 / 0.933 / 1.000); in the parser's order 0.912 (pooled 0.666, the parallel texts interleaving).
+But depths are hard to predict: a depth head reads 0.461 of them, and the parents they give by
+that rule fall to a 0.467 median (0.333 pooled), below the pointer's. A within-document type ladder
+with the gold's regions reaches a 0.591 median; with lead-ins, numbering stacks, quotations and
+statute sections (`structure-gold assemble`) 0.629 (0.469 pooled). The pointer and that assembler
+are right together on 0.353 of units and on either on 0.704: the assembler alone finds 0.121.
+
+The yardstick from here leaves out the 31 documents that print English and French in parallel
+(the federal statutes and bilingual judgments are all in development, 56% of its pooled units;
+train has only small bilingual forms) and reads per-document medians by mode. Development
+without them, median / pooled:
+
+| | parser before | parser now | trees + pointer |
+|---|---|---|---|
+| born-digital (255) parents | 0.303 / 0.304 | 0.323 / 0.338 | 0.604 / 0.636 |
+| born-digital roles, groups | 0.857, 0.602 / 0.654 | 0.857, 0.602 / 0.654 | 0.923, 0.696 / 0.752 |
+| born-digital notes | 0.927 / 0.797 | 0.927 / 0.797 | (the parser's) |
+| scans (114) parents | 0.103 / 0.139 | 0.103 / 0.137 | 0.486 / 0.448 |
+| scans roles, groups | 0.695, 0.340 / 0.324 | 0.695, 0.340 / 0.324 | 0.794, 0.417 / 0.385 |
+| scans notes | 0.133 / 0.125 | 0.133 / 0.125 | (the parser's) |
+
+The corpus is many small families (forms, notices, affidavits, exhibits, judgments, statutes,
+emails), the family split holding whole jurisdictions' templates back; judgments are 142
+documents (mostly scans), contracts about 20 of 1,207. A2AJ's case grammar
+(`legal-structure/src/case_outline.rs`: numbered paragraphs as the spine, headings between them
+by enumerator or sentence grammar, levels by numbering family, front matter apart) reads
+structure from text alone, which a scan's OCR is.
+
 ## Notes (2026-10-20)
 
 A bare or bracketed number opening a body-zone line in body type with prose beside it is a

@@ -226,7 +226,9 @@ class Tagger(nn.Module):
         b, t, _ = features.shape
         c = self.char(text.view(b * t, TEXT_CHARS)).transpose(1, 2)
         c = F.relu(self.conv(c)).max(dim=2).values.view(b, t, -1)
-        if self.training and self.text_dropout > 0:
+        if self.text_dropout >= 1.0:
+            c = torch.zeros_like(c)
+        elif self.training and self.text_dropout > 0:
             c = c * (torch.rand(b, t, 1, device=c.device) >= self.text_dropout)
         parts = [features, c, self.region_type(reader[..., 0]), self.note_mode(reader[..., 1]), self.family(reader[..., 2])]
         parts += [embed(tier0[..., column].clamp(min=0, max=embed.num_embeddings - 1)) for embed, (_, column, _) in zip(self.tier0, HEADS)]
