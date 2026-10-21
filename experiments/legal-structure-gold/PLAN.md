@@ -748,3 +748,31 @@ The next inspected hierarchy failure is a compound authorities bundle with 28 go
 openings and no constituent nodes. Its native extraction already includes tab bookmarks aimed
 at the attached decisions' opening pages. Those anchors are available to the existing document
 context reader; ordinary chapter bookmarks must remain within their document.
+
+
+Native outline families with repeated package labels now supply constituent opening pages before
+classification. The existing bookmark validator and package vocabulary are reused; visible
+lexical openings retain precedence, including exhibit certificates on preceding cover pages.
+Running furniture painted before an opening belongs to the document on that page, allowing the
+existing order reader to place its footer after its body. Heading wrapping retains normal leading
+when a short constituent's body profile is tighter. The reader cache now includes native outline
+inputs, while extraction and recognition retain their separate identities.
+
+Parser `76bc531`, structure `531b603`, addon
+`ae76abeb306448493ef625947f06cefca2e7840f723c6c8fc38def3be15640ec` passes affected-crate
+compilation and the optimized build. Sixteen focused desktop native PDFs finish without runtime
+errors. In the inspected authorities bundle, 26 of 27 additional gold document openings are now
+present, compared with none before; every added opening matches the independent gold. Parent
+links crossing those gold document boundaries fall from 134 to 14. The missing mid-page appendix
+remains within its preceding decision's context. The exhibit certificate control retains all
+three correct openings. Ordinary chapter-bookmark controls gain no constituent boundaries.
+
+Native extraction and every source line's text are unchanged in all 16 PDFs. Fourteen retain
+identical structure nodes. The other two change the bundle hierarchy and correct running-furniture
+placement, including an annex whose footer previously appeared before its title. Four newly joined
+headings stay within gold unit boundaries; no previously correct heading join is lost. No tests,
+model work or corpus scoring were run. These focused observations are not pooled accuracy scores.
+The private receipt is `score/parser-checks/codex-document-context-native.json`.
+
+Concrete remaining boundary errors are the mid-page appendix and a second authorities bundle's
+eight unprefixed numbered bookmarks. The latter's structure remains unchanged by this batch.
