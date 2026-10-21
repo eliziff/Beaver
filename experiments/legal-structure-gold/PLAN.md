@@ -896,9 +896,38 @@ nodes relative to `c762cec`. The private receipts are
 `score/parser-checks/codex-quotation-heading-native.json` for `c762cec` and
 `score/parser-checks/codex-quotation-label-native.json` for `933f7b6`.
 
-The next inspected list error is inserted letter numbering: 65 printed markers in two native
-gold documents remain plain prose, including parenthesised and closing-parenthesis forms.
-The existing instrument reader recognises this syntax; the PDF candidate/numbering path does
-not. The private source-anchored examples and frozen gold hashes are in
-`score/parser-checks/codex-list-native-errors.json`. No tests, OCR, models or corpus scoring
-were run; the earlier pooled scores still describe `fa5774d`, not this parser.
+Inserted letter markers now continue their base letter or Roman counter across the grammar,
+PDF candidates, numbering witnesses and outline. Ambiguous insertions follow the innermost
+open count. A hierarchy claim consumes its own markers without discarding the rest of a
+witnessed sequence. Bare period markers still yield to the existing prose and citation
+evidence; a lexically introduced list retains its continuations. Incomplete numbered clauses,
+lexical lead-ins and styled definition terms can own a new list count. Quotation ownership
+closes those introductions before the enclosing outline resumes.
+
+Parser `dd1e56b`, structure `4d49f2e`, addon
+`0a6aa8b11009d7a03a9106d477834cba6778c2baaf307ffdf6c33c3507ca3260` passes affected-crate
+compilation and the optimized build. The same 16 focused desktop native PDFs finish without
+runtime errors. The original 65 missed insertions were a subset of 186 source-anchored targets.
+All 186 now have exact list-marker spans, versus zero before; all 156 with explicit gold
+parents attach correctly. Across the printed gold lists, 788 previously incorrect parent
+assignments now match. No previously correct list, list parent or heading parent is lost;
+all 1,204 previously correct heading-parent assignments remain correct.
+
+Thirty inserted targets have gold root parents and keep source-informed nested native parents.
+One inserted statutory clause gains a list locator on text labelled quote by the gold; its
+ordinary neighbouring clauses already have list readings, and its primary role remains text.
+Those disagreements are recorded separately; the independent gold is unchanged. The original
+examples are retained in `score/parser-checks/codex-list-native-errors.json`; the frozen
+baseline, candidate output and reviewed observations are in
+`score/parser-checks/codex-list-insertions-native.json`.
+
+Source extraction, complete text, every source line and body reading order stay unchanged.
+Caption roles, native tables, note bodies and reference assignments remain intact. The bundles
+retain all 35 additional gold openings and zero cross-document parent links. All 42 quotation
+containers have introducing owners, with no containment leaks or parent cycles. No tests, OCR,
+models or corpus scoring were run; the earlier pooled scores still describe `fa5774d`.
+
+Next inspect opinion-level ownership: an author heading is recognised, but its following
+section headings are left as roots. The private source-anchored heading-parent inventory,
+including expected parents and frozen gold hashes, is
+`score/parser-checks/codex-heading-parent-native-errors.json`.
