@@ -529,6 +529,12 @@ run on page views containing one context's lines, then restore physical order an
 groups distinct between contexts. Text, line ids, anchors and geometry are retained. Ordinary
 monolingual documents without another constituent use the direct path. Font-only candidates
 retain the classifier's note, table, paragraph and source-role vetoes and are not cached.
+Initial page classification now uses those boundaries too: endnote, table, contents and
+language evidence is read independently for each detected document. Painted table rules and
+physical page identities survive the views, and separators follow page slots rather than
+assuming zero-based physical indices. Missing pages close continuation histories. When a page
+holds more than one document, contents evidence follows the owning lines instead of excluding
+the other document's text. Known source notes, tables and furniture cannot open constituents.
 
 Short titles set apart by bold or capitals can now reach the existing heading reader without
 requiring a font-size change. This adapts the existing type proposals from Claude's parser work,
@@ -570,11 +576,11 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `8fb9c89` and structure commit `07e7b33` pass affected-crate
+Parser commits through `418e08b` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
 remains unmeasured.
-Remaining context work includes undiscovered compound boundaries and initial page classification,
-whose endnote, table and contents continuation histories precede the constituent scopes.
+Compound openings still rely on the existing lexical detector. Repeated-furniture detection
+and detached-reference association still run before constituent scopes.
