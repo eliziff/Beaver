@@ -611,6 +611,16 @@ support short or noninitial lists where the existing paragraph/provision rules l
 unresolved. Siblings with different parents or document contexts no longer supply each other's
 alignment or lead-in witnesses.
 
+Native PDF `LI` evidence now survives `Lbl`, `LBody`, paragraph and inline children with
+exact anchored source coverage. A generic `L` or a standalone label supplies no item claim.
+Heading and list claims reuse one source-role validator; conflicting marked-content claims
+cannot reappear through the direct span role. PPDoc retains native `LI`, witnesses expose it
+through the existing tag features, and new typography proposals respect it. For marker
+candidates, the resolver applies the source-list fallback only where no grammar has an
+accepted reading at that position. Exclusions and established paragraph/provision decisions
+retain precedence across overlapping grammars. Model list labels remain features. The role
+conventions follow [W3C PDF21](https://www.w3.org/WAI/WCAG22/Techniques/pdf/PDF21).
+
 Native PDF heading roles now reach the reader too. Extraction walks the existing Inspector
 structure-tree view and retains enclosing `H`/`Hn` roles through inline spans and links, keeping
 the direct inline roles intact. A heading claim must cover the complete line with exact source
@@ -624,11 +634,11 @@ follows the
 [PDF Association's standard structure elements](https://pdfa.org/download-area/cheat-sheets/StandardStructureElements.pdf).
 
 Frozen extraction inputs can exercise direct tags already retained in font spans, but cannot
-recover enclosing heading roles that an older extractor discarded. That coverage requires
-refreshed native extraction; the independent gold stays fixed and recognition caches remain
-separate. The extraction and reader fingerprints cover these source changes.
+recover enclosing heading and list roles or conflicting claims an older extractor discarded.
+Refreshed native extraction supplies that evidence; independent gold stays fixed and recognition
+caches remain separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `d0c2f41` and structure commit `07e7b33` pass affected-crate
+Parser commits through `c9448fc` and structure commit `0ad099c` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
