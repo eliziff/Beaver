@@ -555,6 +555,10 @@ tail per context and one first passage per context on each page. Intervening par
 no longer interrupts the other language's continuation. Mixed regions split at context
 boundaries before the existing text, source-span and note-anchor renderer runs. Numbered
 paragraph candidates consume that same assembler without a second group-splitting pass.
+Display quotation inference also uses borrowed row/page views per retained context. Row
+assembly, margins, typography and carried blocks stay within the document and language;
+contents and table-owned notes do not train its body profile. Introductions and continuation
+require the same or next physical page. Scope ids retain the original first-line identity.
 
 Short titles set apart by bold or capitals can now reach the existing heading reader without
 requiring a font-size change. This adapts the existing type proposals from Claude's parser work,
@@ -596,12 +600,12 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `df20d01` and structure commit `07e7b33` pass affected-crate
+Parser commits through `a7af452` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
 remains unmeasured.
 Compound openings still rely on the existing lexical detector.
-Quotation detection still pools rows, type profiles and carried blocks across the PDF;
-using the retained document/language contexts there remains pending.
+The initial grammar-candidate pass still sees the whole PDF stream before context-specific
+refinement.
