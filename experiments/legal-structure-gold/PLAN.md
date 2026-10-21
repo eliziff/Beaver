@@ -829,3 +829,37 @@ and six gold text lines now receive caption roles. None of the existing native t
 lost. Those field-layout disagreements remain to inspect; the independent gold is unchanged.
 No tests, model work or corpus scoring were run, so the earlier pooled scores still describe
 `fa5774d` rather than this candidate.
+
+
+Printed Footnotes sections now open the existing note reader just as Notes and Endnotes do.
+Resolved headings suppress note-label inference without suppressing their inline references.
+The note list, structure graph and audit counts share the same positive-evidence policy;
+absence of a competing paragraph reading no longer makes a number a note. Label-only notes
+retain the established note-region/sequence evidence. Native raised calls remain candidates
+where a lexical citation span runs over them. A body-sized numeric label needs citation wording
+at its opening, rather than somewhere in its prose, so paragraph numbers cannot steal endnote
+calls. Explicit endnote modes take precedence over the long-run heuristic for short lists.
+
+Parser `3863ab3`, structure `ede0c1e`, addon
+`764b03b370c79f51b22b1909d95b766eba055b5ed2566eb752dce370eab82186` passes affected-crate
+compilation and the optimized build. The same 16 focused desktop native PDFs finish without
+runtime errors. Twelve gold note-section headings return; 25 newly recognised note bodies
+cover their complete gold source-line units. Fifty-four false notes disappear: 47 cover gold
+text, five cover list items, one covers a heading and one a quotation. No gold note label is
+lost, and no existing gold note body's source-line coverage worsens.
+
+In the inspected authorities bundle, correct source-anchored reference assignments rise from
+99 to 131 of 143. No previously correct reference assignment is lost across the 16 PDFs;
+new or reassigned reference anchors introduce no gold disagreement. Twelve reference
+assignments in that bundle remain unresolved. The private receipt is
+`score/parser-checks/codex-note-heading-native.json`.
+
+Native extraction, complete source text, every source line and body reading order stay
+unchanged in all 16 PDFs. Previously correct headings, heading joins and native table lines
+remain intact. The two bundles retain all 35 additional gold openings and zero cross-document
+parent links. No tests, models or corpus scoring were run. These are focused source-anchored
+observations; the earlier pooled scores still describe `fa5774d`.
+
+The next inspected heading error is bold titles inside indented quoted passages. The styled
+heading reader vetoes them as quoted material. Their titles need a quotation context so they
+can structure the quoted passage without entering the enclosing decision's heading stack.
