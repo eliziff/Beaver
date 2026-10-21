@@ -517,6 +517,10 @@ that stronger type evidence. Explicit native heading levels retain their authori
 Parallel English and French texts retain both heading sequences. The restart-aware numbering
 reader, body-font calibration, wrapped titles, page caps and final parent stacks keep the two
 sequences separate. Document, quotation, note and table-cell boundaries remain in force.
+Bookmark title anchors, parent stacks, duplicate-title counts and frame backfill now use the
+same sequence boundary. Unanchored entries guide the primary frame only; explicit native Hn
+levels survive bookmark backfill. The style reader gives accepted headings and inner ladder
+steps separate blocks before region assembly, retaining wrapped lines at one level together.
 A section that opens with its first subsection in one unit now holds later sibling subsections
 and their marginal notes. This adapts Claude's existing section fix, using the shared numbering
 grammar and one open section per context in a linear pass. A heading or later section closes it.
@@ -545,11 +549,11 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `a3a8dc7` and structure commit `478b464` pass affected-crate
-`cargo quick` checks. The current candidate also passes a full-feature native-addon metadata
-check. The most recently linked optimized addon remains `c10f504`; subsequent source changes
-await the next combined addon build. New code follows rustfmt; existing formatting differences
-elsewhere in the touched files are retained. No tests
-or candidate scoring are run under the user's current instruction; quality remains unmeasured.
+Parser commits through `e09314d` and structure commit `478b464` pass affected-crate
+`cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
+from this candidate using `npm run native:build -- --release` in the canonical target directory.
+New code follows rustfmt; existing formatting differences elsewhere in the touched files are
+retained. No tests or candidate scoring were run under the user's current instruction; quality
+remains unmeasured.
 Document/style segmentation in compound PDFs remains a context-scoping concern: a whole-file
 prior must not become authority across unrelated embedded documents.
