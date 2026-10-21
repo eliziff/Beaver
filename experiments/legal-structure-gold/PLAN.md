@@ -863,3 +863,33 @@ observations; the earlier pooled scores still describe `fa5774d`.
 The next inspected heading error is bold titles inside indented quoted passages. The styled
 heading reader vetoes them as quoted material. Their titles need a quotation context so they
 can structure the quoted passage without entering the enclosing decision's heading stack.
+
+
+Display quotations now use the existing Quote container and keep their own reading contexts.
+The reader sees the complete introducing paragraph, including a citation on an earlier line,
+and descends into nested insets. Styled headings, numbering runs, paragraph membership and
+outline stacks share those contexts. A quotation belongs to its introducing unit; the
+surrounding outline resumes after it. Quoted titles cannot anchor the enclosing document's
+bookmarks or contents. This uses the embedded-text pattern described by
+[TEI floatingText](https://www.tei-c.org/release/doc/tei-p5-doc/en/html/ref-floatingText.html).
+
+Parser `c762cec`, structure `ede0c1e`, addon
+`f5b67d1ab734a465190dbee090c8e7a34ba4813764179e25ec7a05925eac4063` passes affected-crate
+compilation and the optimized build. The same 16 focused desktop native PDFs finish without
+runtime errors. Seven of eleven inspected missed quoted headings return, each attached to its
+gold introducing unit through the transparent quotation container. Twelve heading-parent
+assignments become correct, with no previously correct assignment lost in this inspected
+family. All 41 quotation containers have introducing owners; no parent cycle or descendant
+outside its quotation is found.
+
+Native extraction, complete source text, source-line text and body order remain unchanged in
+all 16 PDFs. No previously correct heading or heading join is lost, and every added heading
+line has an exclusive gold heading label. Earlier caption roles, native tables, note bodies
+and reference assignments remain intact. The two bundles retain all 35 additional gold
+openings and zero cross-document parent links. Thirteen documents retain identical structure
+nodes. The private receipt is `score/parser-checks/codex-quotation-heading-native.json`.
+
+Four inspected heading cases remain: two bold provision labels that resemble citations, a
+title on the introducing paragraph's own line, and an italic title inside a detected quotation.
+These are the next concrete heading errors. No tests, OCR, models or corpus scoring were run;
+the earlier pooled scores still describe `fa5774d`, not this parser.
