@@ -559,6 +559,12 @@ Display quotation inference also uses borrowed row/page views per retained conte
 assembly, margins, typography and carried blocks stay within the document and language;
 contents and table-owned notes do not train its body profile. Introductions and continuation
 require the same or next physical page. Scope ids retain the original first-line identity.
+Grammar and citation readers now use one retained context at a time. Their temporary text
+views preserve scalar positions and line boundaries, so anchors project to the original index.
+Candidate and parent ids remain unique across views. Paragraph stops, body measures, lexical
+lead-ins, prose witnesses and citation projections use the same context. Final units intersect
+envelope ranges with owned line fragments and scoped marker fragments before outline assembly,
+keeping explicit source membership through interleaved columns.
 
 Short titles set apart by bold or capitals can now reach the existing heading reader without
 requiring a font-size change. This adapts the existing type proposals from Claude's parser work,
@@ -600,12 +606,12 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `a7af452` and structure commit `07e7b33` pass affected-crate
+Parser commits through `d65b0c8` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
 remains unmeasured.
 Compound openings still rely on the existing lexical detector.
-The initial grammar-candidate pass still sees the whole PDF stream before context-specific
-refinement.
+Candidate witness typography/repetition profiles and the final outline body-size baseline
+still pool input pages.
