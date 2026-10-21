@@ -776,3 +776,30 @@ The private receipt is `score/parser-checks/codex-document-context-native.json`.
 
 Concrete remaining boundary errors are the mid-page appendix and a second authorities bundle's
 eight unprefixed numbered bookmarks. The latter's structure remains unchanged by this batch.
+
+
+Mid-page appendix titles now open a constituent when followed by a fresh court caption with a
+date and docket or registry fields. A PDF identifying itself as a book or bundle of authorities
+can use numbered bookmarks at that same level for its attachments; the existing numbering
+service supplies the marker reading. Alphanumeric version stamps no longer stand in for an
+opening title word. The existing physical header/footer ordering is shared with the document
+merge, after classification has consumed its positional table evidence, preserving body order
+when a decision and appendix share a page.
+
+Parser `144ebcf`, structure `531b603`, addon
+`aaa63943c9da4c12cae62551c37a42494abdf29800bcd73bfa98839c9fd89918` passes affected-crate
+compilation and the optimized build. The same 16 focused desktop native PDFs finish without
+runtime errors. The two authorities bundles now contain all 27 and eight additional gold
+openings respectively, with no false openings added. Their cross-document parent links fall
+from 14 and 12 to zero. The shared-page appendix's footer remains after both documents' text.
+The exhibit control retains its three correct certificate openings, and ordinary chapter
+bookmarks gain no document boundaries.
+
+All source line text and body reading order remain unchanged across the 16 PDFs; 14 retain
+identical structure nodes. No previously correct heading joins are lost. No tests, models or
+corpus scoring were run, so these are focused observations, not new pooled accuracy scores.
+The private receipt is `score/parser-checks/codex-embedded-document-native.json`.
+
+The next inspected hierarchy error is case-caption text promoted to headings: 99 and 36 source
+lines in these two bundles have that disagreement with exclusive gold caption labels. Those
+false headings still distort internal hierarchy after document boundaries are corrected.
