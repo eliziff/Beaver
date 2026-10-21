@@ -484,9 +484,11 @@ Detected tables, notes and contents remain excluded from headings. The typograph
 reader previously accumulated only font spans, leaving recognized lines with zero characters
 and empty geometry.
 It now reads their text and boxes, using measured glyph height as the available size witness
-without inferring a font face or bold/italic styles. Wrapped titles can use matching measured
-line heights without font spans. Numbered blocks the ladder did not accept can now face the
-existing typography checks instead of being excluded by their number alone; prose, spacing
+without inferring a font face or bold/italic styles. Wrapped numbered titles and accepted
+headings in capitals can use matching measured line heights without font spans. Joins retain
+the existing alignment, spacing, language and numbering constraints. Numbered blocks the
+ladder did not accept can now face the existing typography checks instead of being excluded
+by their number alone; prose, spacing
 and repeated-style filters still apply. The existing source fingerprint invalidates the
 reader cache.
 Document-level context must inform local heading, footnote and list decisions. Heading
@@ -529,6 +531,9 @@ run on page views containing one context's lines, then restore physical order an
 groups distinct between contexts. Text, line ids, anchors and geometry are retained. Ordinary
 monolingual documents without another constituent use the direct path. Font-only candidates
 retain the classifier's note, table, paragraph and source-role vetoes and are not cached.
+Openings are ordered and deduplicated by source-line position before either consumer uses
+them. An exhibit certificate moved back to its caption cannot create backwards or duplicate
+constituent extents.
 Initial page classification now uses those boundaries too: endnote, table, contents and
 language evidence is read independently for each detected document. Painted table rules and
 physical page identities survive the views, and separators follow page slots rather than
@@ -617,7 +622,7 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `73f5df6` and structure commit `07e7b33` pass affected-crate
+Parser commits through `3b657cd` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
