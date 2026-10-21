@@ -725,3 +725,26 @@ but lose eight previously correct assignments across four bilingual documents; t
 unit, role and parent F1 are unchanged. This remains a local failure-class fix, not acceptable
 overall hierarchy quality. The receipt and manifest are `score/runs/codex-development-small-type`.
 Wrapped titles and relative parent relations remain concrete follow-up errors.
+
+
+Wrapped heading grouping now uses the existing normalized glyph geometry and the document's
+line leading. Mixed-case titles and parenthetical qualifiers can wrap, including existing form
+headings inside captions. Each line is evaluated separately; a drawing block can no longer pull
+a later independent title across the end of a qualifier. Source exclusions, numbering starts,
+language contexts and explicit native levels retain their boundaries. Grouping runs again after
+style classification and carries the first line's level through its continuation.
+
+Parser `cbc06f1`, structure `531b603`, addon
+`b0834d2739fe84fb2a565e84039518a64458db0f668563747efef7906a63f1d3` passes the affected-crate
+check and optimized build. Focused desktop native parses of 12 development PDFs finish without
+runtime errors. Nine inspected split headings now join and one incorrect title merge separates.
+All 37 newly grouped headings stay within the independent gold's unit boundaries; no previously
+correct heading joins are lost in these documents. Native extraction and complete output text
+are unchanged in all 12. No tests or corpus scoring were run for this batch, so the pooled scores
+above still describe `fa5774d`. The private receipt is
+`score/parser-checks/codex-wrapped-heading-native.json`.
+
+The next inspected hierarchy failure is a compound authorities bundle with 28 gold document
+openings and no constituent nodes. Its native extraction already includes tab bookmarks aimed
+at the attached decisions' opening pages. Those anchors are available to the existing document
+context reader; ordinary chapter bookmarks must remain within their document.
