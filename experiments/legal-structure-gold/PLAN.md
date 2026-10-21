@@ -489,13 +489,26 @@ line heights without font spans. Numbered blocks the ladder did not accept can n
 existing typography checks instead of being excluded by their number alone; prose, spacing
 and repeated-style filters still apply. The existing source fingerprint invalidates the
 reader cache.
-Document-level context must inform local heading, footnote and list decisions. The heading
-reader's page/document statistics now exclude known notes, furniture, captions, tables, contents
-and translations. Its existing document style and numbering readers remain the heading context.
+Document-level context must inform local heading, footnote and list decisions. Heading
+statistics, blocks, wrapped joins and body/neighbor/style context now use one inclusion mask,
+excluding known notes, furniture, captions, tables, contents and translations. An excluded line
+parts a source block instead of invalidating eligible text beside it. Native italic flags survive
+into the style reader even when an embedded font's name gives no style. Existing document style
+and numbering readers remain the heading context.
 The note reader learns separate document profiles for native font sizes and recognized glyph
 heights; OCR can now contribute to the existing note-type strand reader without borrowing a
 native font-size baseline. Its separator, label-sequence and continuation witnesses remain in
 force.
+
+Font-based heading claims now calibrate against long native prose on the current page before
+using the document-wide estimate. The existing paragraph geometry algorithm supplies read-only
+paragraph assignments before classification and the final paragraph groups afterward. Paragraphs
+longer than the existing font-heading length limit establish local body type through the same
+character-mass estimator; sparse pages retain the document prior. Both plain font promotion and
+numbered-heading visual decisions use that baseline, and known non-heading source roles veto
+the font fallback. Fontless OCR skips this extra geometry pass. This targets the compound-file
+failure where a constituent's larger body font was read as a heading on every prose line; the
+reported document has not been rescored for this candidate.
 
 List evidence reuses the existing lead-in lexicon, adding lowercase clause openings, commas,
 semicolons and trailing `and`/`or` to aligned, consecutive sibling markers with a shared parent.
@@ -520,12 +533,11 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits `a5ca372` and `31503f9` and structure commit `478b464` pass affected-crate
-`cargo quick` checks. A metadata check of the native addon with its full feature set also
-passes. The most recently linked optimized addon remains `c10f504`; the later source-label,
-numbering, document-context and native-tag changes await the next combined addon build.
-New code follows
-rustfmt; existing formatting differences elsewhere in the touched files are retained. No tests
+Parser commits through `5c8b889` and structure commit `478b464` pass affected-crate
+`cargo quick` checks. The current candidate also passes a full-feature native-addon metadata
+check. The most recently linked optimized addon remains `c10f504`; subsequent source changes
+await the next combined addon build. New code follows rustfmt; existing formatting differences
+elsewhere in the touched files are retained. No tests
 or candidate scoring are run under the user's current instruction; quality remains unmeasured.
 Document/style segmentation in compound PDFs remains a context-scoping concern: a whole-file
 prior must not become authority across unrelated embedded documents.
