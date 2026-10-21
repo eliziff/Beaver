@@ -565,6 +565,13 @@ Candidate and parent ids remain unique across views. Paragraph stops, body measu
 lead-ins, prose witnesses and citation projections use the same context. Final units intersect
 envelope ranges with owned line fragments and scoped marker fragments before outline assembly,
 keeping explicit source membership through interleaved columns.
+Candidate witness profiles now use that map for type, geometry, style ladders, repetition,
+numbering coverage and neighbours. Page fractions use the context's page positions; physical
+row ids/order and feature names are retained. Native line boxes and recognized glyph boxes
+calibrate separately. Final outline body sizes use distinct claimed lines within each outline
+context, with separate native-font and glyph-height baselines. Fontless units can now contribute
+size ratios, while native spans retain their bold/italic evidence. A detached marker no longer
+supplies the style when the unit's content starts on a later line.
 
 Short titles set apart by bold or capitals can now reach the existing heading reader without
 requiring a font-size change. This adapts the existing type proposals from Claude's parser work,
@@ -606,12 +613,11 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `d65b0c8` and structure commit `07e7b33` pass affected-crate
+Parser commits through `762afe1` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
 remains unmeasured.
 Compound openings still rely on the existing lexical detector.
-Candidate witness typography/repetition profiles and the final outline body-size baseline
-still pool input pages.
+Quotation detection still returns no findings when its context has no native font spans.
