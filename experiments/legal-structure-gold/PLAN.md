@@ -656,10 +656,33 @@ The reader cache fix retains extraction, OCR and layout identities; native extra
 changes refresh native evidence separately.
 Witness compositions remain outside the reader cache key.
 
-Affected-crate metadata checks and full-feature addon compilation pass for parser `b1cf12e`
-and structure `531b603`. The optimized addon is rebuilt
-from this candidate using `npm run native:build -- --release` in the canonical target directory.
-New code follows rustfmt; existing formatting differences elsewhere in the touched files are
-retained. No tests or candidate scoring were run under the user's current instruction; quality
-remains unmeasured.
-Compound openings still rely on the existing lexical detector.
+ActualText fidelity now uses the font and size captured when its glyphs were painted,
+rather than the graphics state restored before EMC. In two development judgments, malformed
+114pt soft-hyphen spans inside 9.5pt prose distorted line geometry. Correcting them preserves
+all non-whitespace extraction on 94 pages and reduces one source from 2,705 hierarchy units
+to 742 (gold 632). Restored Unicode whitespace exposes a source-alignment limitation; no
+pooled accuracy delta is claimed for this extraction change. The gold remains independent.
+
+Native Hn claims are checked against long prose using the existing paragraph reader within
+each constituent and language. The dominant tag/font style of those prose blocks also weakens
+claims on shorter paragraphs in the same context. Genuine heading styles keep their native
+levels, raw tags remain witness features, and furniture/table exclusions retain precedence.
+A coherent numbering family can supply heading evidence despite an unrelated family's errors.
+
+Affected-crate checks and the optimized addon build pass for parser `1b41ba4` and structure
+`531b603`. The addon SHA-256 is
+`33e2b3ae8cabe742ae70f47067b532ec606eb07c4af8fb3467ca05fdef886c2d`.
+No tests were written or run. Existing formatting differences outside the edits are retained.
+
+Desktop runs on the same 266 completed native development golds (2,372 pages), with fixed
+reference hashes and corrected extraction on both sides, measure parent F1 0.335 to 0.340
+and complete hierarchy 0.173 to 0.176. Six documents improve and none worsen on those layers;
+no document-level regression appears on any scored layer. In two affected briefs, false
+headings fall 256 to 10 and 114 to 21, preserving every previously correct heading; parent F1
+rises 0.224 to 0.799 and 0.264 to 0.587. A bilingual judgment recovers six true headings without
+new false headings. These are recurring-error fixes, not an overall quality breakthrough.
+The existing desktop receipts are `score/runs/codex-development-actualtext.json` and
+`score/runs/codex-development-parser.json`, with candidate manifests and a hashed selection
+under `score/parser-checks/codex-development-native.json`. This comparison omits OCR and the
+seven newly added native contract development sources. Compound openings still rely on the
+existing lexical detector.
