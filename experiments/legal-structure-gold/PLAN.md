@@ -803,3 +803,29 @@ The private receipt is `score/parser-checks/codex-embedded-document-native.json`
 The next inspected hierarchy error is case-caption text promoted to headings: 99 and 36 source
 lines in these two bundles have that disagreement with exclusive gold caption labels. Those
 false headings still distort internal hierarchy after document boundaries are corrected.
+
+
+Case-caption fields now retain the existing caption role instead of entering the heading tree.
+The reader runs within each constituent and language after table, contents and furniture
+classification. Dated case metadata and aligned filing labels supply the opening context;
+label/value columns, centred wrapping and the next printed field delimit their contents.
+Bench and hearing fields after counsel are handled separately. Official titles and genuine
+judgment headings remain headings, and recognised tables retain ownership of their lines.
+
+Parser `dde8a28`, structure `531b603`, addon
+`4c1f8312587bfef0c34633f8ea444459a8584a53a405aff59f39ca13a97b4d1a` passes affected-crate
+compilation and the optimized build. The same 16 focused desktop native PDFs finish without
+runtime errors. In the two authorities bundles, caption source lines falsely treated as headings
+fall from 99 and 36 to zero; 358 and 170 gold caption lines now receive the caption role. No
+previously correct headings or heading joins are lost in these PDFs. Fourteen documents retain
+identical structure nodes. Source extraction, every source line's text and body order stay
+unchanged in all 16. The 35 additional gold openings in the two bundles remain intact, with
+zero cross-document parent links. Note bodies and reference assignments are identical; note IDs
+are renumbered in one bundle. The private receipt is
+`score/parser-checks/codex-caption-native.json`.
+
+This fixes a recurring heading error, not all caption/table distinctions: 26 gold table lines
+and six gold text lines now receive caption roles. None of the existing native table lines is
+lost. Those field-layout disagreements remain to inspect; the independent gold is unchanged.
+No tests, model work or corpus scoring were run, so the earlier pooled scores still describe
+`fa5774d` rather than this candidate.
