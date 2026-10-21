@@ -559,6 +559,10 @@ Display quotation inference also uses borrowed row/page views per retained conte
 assembly, margins, typography and carried blocks stay within the document and language;
 contents and table-owned notes do not train its body profile. Introductions and continuation
 require the same or next physical page. Scope ids retain the original first-line identity.
+The body profile now learns native font sizes and recognized glyph heights separately.
+Fontless contexts can reach the existing quotation-mark, introduction and layout rules;
+geometry and size contrast use the matching profile without inventing italic evidence.
+Closing guillemets use the same closing-mark and defined-term handling as other quotes.
 Grammar and citation readers now use one retained context at a time. Their temporary text
 views preserve scalar positions and line boundaries, so anchors project to the original index.
 Candidate and parent ids remain unique across views. Paragraph stops, body measures, lexical
@@ -613,11 +617,10 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `762afe1` and structure commit `07e7b33` pass affected-crate
+Parser commits through `73f5df6` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
 remains unmeasured.
 Compound openings still rely on the existing lexical detector.
-Quotation detection still returns no findings when its context has no native font spans.
