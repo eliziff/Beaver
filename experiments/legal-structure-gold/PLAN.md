@@ -489,7 +489,25 @@ line heights without font spans. Numbered blocks the ladder did not accept can n
 existing typography checks instead of being excluded by their number alone; prose, spacing
 and repeated-style filters still apply. The existing source fingerprint invalidates the
 reader cache.
-Parser commit `c10f504` passes the owning-crate `cargo quick` check and optimized native-addon
-compilation. The subsequent source-label change in `bfdda0c` and numbering fallback in
-`d7667e4` pass owning-crate `cargo quick`; both await the next combined addon build. No tests
+Document-level context must inform local heading, footnote and list decisions. The heading
+reader's page/document statistics now exclude known notes, furniture, captions, tables, contents
+and translations. Its existing document style and numbering readers remain the heading context.
+The note reader learns separate document profiles for native font sizes and recognized glyph
+heights; OCR can now contribute to the existing note-type strand reader without borrowing a
+native font-size baseline. Its separator, label-sequence and continuation witnesses remain in
+force.
+
+List evidence reuses the existing lead-in lexicon, adding lowercase clause openings, commas,
+semicolons and trailing `and`/`or` to aligned, consecutive sibling markers with a shared parent.
+A recognized lead-in carries over the sibling sequence across page breaks; an ended item or
+broken alignment stops it. Clause syntax has its own observation and resolution proof, and can
+support short or noninitial lists where the existing paragraph/provision rules leave the role
+unresolved. Siblings with different parents no longer supply each other's alignment witness.
+
+Parser commit `a5ca372` and structure commit `478b464` pass the affected-crate `cargo quick`
+checks. The most recently linked optimized addon remains `c10f504`; the later source-label,
+numbering and document-context changes await the next combined addon build. New code follows
+rustfmt; existing formatting differences elsewhere in the touched files are retained. No tests
 or candidate scoring are run under the user's current instruction; quality remains unmeasured.
+Document/style segmentation in compound PDFs remains a context-scoping concern: a whole-file
+prior must not become authority across unrelated embedded documents.
