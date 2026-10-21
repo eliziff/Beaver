@@ -480,7 +480,7 @@ numbering and capitals. The existing grammar and prose-flow rules now run for un
 inputs too. Known source labels are retained per line, so an unknown peer no longer removes
 heading, note or table evidence. Unknown labels are omitted, preserving the witness reader's
 per-line `layout_known` meaning. Completeness is checked separately for the body-font estimate.
-Detected tables, notes, contents and translations remain excluded from headings. The typography
+Detected tables, notes and contents remain excluded from headings. The typography
 reader previously accumulated only font spans, leaving recognized lines with zero characters
 and empty geometry.
 It now reads their text and boxes, using measured glyph height as the available size witness
@@ -491,7 +491,7 @@ and repeated-style filters still apply. The existing source fingerprint invalida
 reader cache.
 Document-level context must inform local heading, footnote and list decisions. Heading
 statistics, blocks, wrapped joins and body/neighbor/style context now use one inclusion mask,
-excluding known notes, furniture, captions, tables, contents and translations. An excluded line
+excluding known notes, furniture, captions, tables and contents. An excluded line
 parts a source block instead of invalidating eligible text beside it. Native italic flags survive
 into the style reader even when an embedded font's name gives no style. Existing document style
 and numbering readers remain the heading context.
@@ -510,6 +510,17 @@ the font fallback. Fontless OCR skips this extra geometry pass. This targets the
 failure where a constituent's larger body font was read as a heading on every prose line; the
 reported document has not been rescored for this candidate.
 
+Short titles set apart by bold or capitals can now reach the existing heading reader without
+requiring a font-size change. This adapts the existing type proposals from Claude's parser work,
+retaining source exclusions, prose-flow, layout and citation checks. A colon-ending title needs
+that stronger type evidence. Explicit native heading levels retain their authority.
+Parallel English and French texts retain both heading sequences. The restart-aware numbering
+reader, body-font calibration, wrapped titles, page caps and final parent stacks keep the two
+sequences separate. Document, quotation, note and table-cell boundaries remain in force.
+A section that opens with its first subsection in one unit now holds later sibling subsections
+and their marginal notes. This adapts Claude's existing section fix, using the shared numbering
+grammar and one open section per context in a linear pass. A heading or later section closes it.
+
 List evidence reuses the existing lead-in lexicon, adding lowercase clause openings, commas,
 semicolons and trailing `and`/`or` to aligned, consecutive sibling markers with a shared parent.
 A recognized lead-in carries over the sibling sequence across page breaks; an ended item or
@@ -524,8 +535,9 @@ span anchors; mixed or untagged prose cannot inherit a run-in title's role. Conf
 claims supply no heading evidence. Raw source labels retain standard PDF `Hn` levels, while
 final line roles remain canonical `heading`. PPDoc preserves these native labels, the region
 reader accepts them, and the style reader retains their explicit levels instead of re-inferring
-them. Wrapped-title grouping respects differing tagged levels. Existing furniture, table and
-translation handling retains its precedence. The role convention follows the
+them. Wrapped-title grouping respects differing tagged levels. Existing furniture and table
+handling retains its precedence; parallel text has its own heading context. The role convention
+follows the
 [PDF Association's standard structure elements](https://pdfa.org/download-area/cheat-sheets/StandardStructureElements.pdf).
 
 Frozen extraction inputs can exercise direct tags already retained in font spans, but cannot
@@ -533,7 +545,7 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `5c8b889` and structure commit `478b464` pass affected-crate
+Parser commits through `a3a8dc7` and structure commit `478b464` pass affected-crate
 `cargo quick` checks. The current candidate also passes a full-feature native-addon metadata
 check. The most recently linked optimized addon remains `c10f504`; subsequent source changes
 await the next combined addon build. New code follows rustfmt; existing formatting differences
