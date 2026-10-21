@@ -20,6 +20,7 @@
 //!   structure-gold paragraph-data GOLD_DIR MANIFEST OUT_DIR
 //!       exports Rust boundary features and fixed-gold targets, excluding test.
 mod alignment;
+mod assemble;
 mod labels;
 mod paragraph_data;
 mod paragraph_features;
@@ -975,6 +976,9 @@ fn main() {
         }
         [command, gold, manifest, prefix, options @ ..] if command == "explain" => {
             explain(Path::new(gold), Path::new(manifest), prefix, options)
+        }
+        [command, _, _, rows_dir, split, options @ ..] if command == "assemble" => {
+            assemble::run(Path::new(rows_dir), split, options)
         }
         _ => Err(
             "usage: structure-gold inputs|grade|rows|explain GOLD_DIR MANIFEST [SHA|OUT_DIR] [options]".into(),
