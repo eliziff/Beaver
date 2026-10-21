@@ -417,3 +417,59 @@ Private receipts live in `score/codex-numbering/` beside the gold: `before.json`
 `e50b1da2beeb28f758f0056295f5d395027b8b5118e285b7a4f37f677820b9e9`.
 The final replay and grading takes 17.0 seconds, with zero errors. This excludes extraction/OCR;
 held-out evaluation and addon delivery remain pending.
+
+## Heading detection first (2026-10-20)
+
+Establish which text is a heading before further level or parent tuning. The previous
+numbering-family gain does not address missed headings. `heading_detection.py` measures this
+over all aligned parser pieces in the existing Rust row export, using the complete 711-document
+train and 381-document development splits. It excludes unit-stack and outline-level features.
+The fitted models are line-feature baselines, not trained visual layout models.
+
+| Development aligned-piece heading F1 | Existing reader | Line features and neighbours |
+| --- | --- | --- |
+| Digital-born | 0.72245 | 0.83172 |
+| OCR | 0.18040 | 0.58221 |
+
+The word/character TF-IDF branch and its mean ensemble do not improve the OCR result. These
+scores omit unknown alignments and do not measure complete heading spans or recognition
+misses. They are diagnostic evidence, not sufficient parser quality. The immutable input
+hashes, model weights and results are private under `heading-detection/` beside the gold.
+
+The installed layout pack is `docling-layout-heron-int8-stock`; it has not been fine-tuned on
+this cohort. An earlier development layout attempt completed only 14 of 114 documents, with
+100 runtime errors, so its aggregate is not a complete layout result. A corrected cache pass
+uses the same ONNX Runtime library for OCR and layout and the Indra-capable addon: all 115
+completed development OCR documents, 386 pages, finish without errors. This establishes cache
+coverage, not accuracy. Recognition and extraction are hard-linked from the existing cache.
+
+The structure reader also discarded explicit layout heading labels while reclassifying text
+by font size. Recognized lines have no font spans. The parser now retains `paragraph_title`,
+`doc_title` and `heading` evidence before that fallback, while its existing table, running-text
+and false-heading handling remains in place. Native-addon delivery and end-to-end measurement
+of this change remain outstanding. A reconstructed replay failed native-output parity and is
+not accepted as candidate evidence.
+
+`train_heading_layout.py` prepares standard COCO heading boxes from fixed gold and its
+authoring geometry, referencing the existing pinned page images. Run:
+
+```sh
+python train_heading_layout.py prepare --gold GOLD_DIR --inputs FROZEN_INPUTS --out PRIVATE_MODEL_DIR
+python train_heading_layout.py train --gold GOLD_DIR --out PRIVATE_MODEL_DIR
+```
+
+Of 711 completed training documents, 698 contribute 3,826 pages and 5,224 heading boxes.
+Ninety-eight pages have a gold heading without usable source geometry and are excluded rather
+than labelled as negative; 13 documents consequently contribute no page. The projection records
+each exclusion and source gold/geometry hashes. It does not regenerate gold or read development
+or test documents. Pages without headings remain in training.
+
+The visual model follows the [Transformers object-detection training pattern](https://huggingface.co/docs/transformers/tasks/object_detection),
+starting from [Docling Heron](https://huggingface.co/docling-project/docling-layout-heron).
+It retains the pretrained backbone, transformer and section-header classifier channel, including
+the denoising embedding; all tensors load strictly. Training uses AdamW, mixed precision, five
+epochs, cosine decay and the existing desktop GPU. Only the latest resumable epoch checkpoint
+is retained. The one-class experimental detector is not a replacement for the full layout
+provider. Training performs no evaluation or test runs, per the user's instruction; its quality
+is unmeasured. Dataset provenance, initialization and training artifacts live under private
+`heading-layout-training/` beside the gold.
