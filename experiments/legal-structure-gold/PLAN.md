@@ -545,6 +545,11 @@ band reader. Body/note type, label ladders, reference witnesses, suppression and
 history stay within the language. Table inference still sees the full page; physical reading
 order and table ordering run after the language views are restored. One column's earlier note
 band therefore no longer supplies the cutoff for the other column's body text.
+Printed-paragraph candidates now use the retained document/language contexts for numbering
+sequences, margin bounds, paragraph groups and marker selection. Repeated numbers in another
+constituent no longer force the ambiguous-occurrence fallback. Candidate ids remain PDF-wide;
+empty page views preserve gaps without borrowing another context's text. Body paragraph joins
+also require adjacent physical pages.
 
 Short titles set apart by bold or capitals can now reach the existing heading reader without
 requiring a font-size change. This adapts the existing type proposals from Claude's parser work,
@@ -586,10 +591,12 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `da819ef` and structure commit `07e7b33` pass affected-crate
+Parser commits through `1e69afc` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
 retained. No tests or candidate scoring were run under the user's current instruction; quality
 remains unmeasured.
 Compound openings still rely on the existing lexical detector.
+Paragraph rendering still redetects openings and keeps one cross-page continuation tail;
+using retained contexts there remains pending.
