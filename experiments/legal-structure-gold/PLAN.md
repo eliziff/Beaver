@@ -497,6 +497,12 @@ excluding known notes, furniture, captions, tables and contents. An excluded lin
 parts a source block instead of invalidating eligible text beside it. Native italic flags survive
 into the style reader even when an embedded font's name gives no style. Existing document style
 and numbering readers remain the heading context.
+Separate page and document profiles now learn from native font spans and recognized glyph
+boxes, including mixed pages, using the existing weighted percentiles and inclusion mask.
+Body size, line spacing, width, coverage and body styles stay within that population.
+Neighbour size checks and the common heading comparison use the respective body-size ratios.
+Source geometry stays fixed. Fontless styles supply no regular, bold or italic contrast;
+style cliques retain the measurement kind, and font-distance rejection uses named fonts only.
 The note reader learns separate document profiles for native font sizes and recognized glyph
 heights; OCR can now contribute to the existing note-type strand reader without borrowing a
 native font-size baseline. Its separator, label-sequence and continuation witnesses remain in
@@ -622,7 +628,7 @@ recover enclosing heading roles that an older extractor discarded. That coverage
 refreshed native extraction; the independent gold stays fixed and recognition caches remain
 separate. The extraction and reader fingerprints cover these source changes.
 
-Parser commits through `3b657cd` and structure commit `07e7b33` pass affected-crate
+Parser commits through `d0c2f41` and structure commit `07e7b33` pass affected-crate
 `cargo quick` checks. Full-feature addon compilation also passes. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
