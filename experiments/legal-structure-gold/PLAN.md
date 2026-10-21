@@ -485,8 +485,11 @@ reader previously accumulated only font spans, leaving recognized lines with zer
 and empty geometry.
 It now reads their text and boxes, using measured glyph height as the available size witness
 without inferring a font face or bold/italic styles. Wrapped titles can use matching measured
-line heights without font spans. The existing source fingerprint invalidates the reader cache.
+line heights without font spans. Numbered blocks the ladder did not accept can now face the
+existing typography checks instead of being excluded by their number alone; prose, spacing
+and repeated-style filters still apply. The existing source fingerprint invalidates the
+reader cache.
 Parser commit `c10f504` passes the owning-crate `cargo quick` check and optimized native-addon
-compilation. The subsequent per-line source-label change in `bfdda0c` passes `cargo quick`;
-it is awaiting the next combined addon build. No tests or candidate scoring are run under the
-user's current instruction; quality remains unmeasured.
+compilation. The subsequent source-label change in `bfdda0c` and numbering fallback in
+`d7667e4` pass owning-crate `cargo quick`; both await the next combined addon build. No tests
+or candidate scoring are run under the user's current instruction; quality remains unmeasured.
