@@ -377,10 +377,15 @@ section, subsection or paragraph number, not a note's label, unless its text rea
 citation (an endnote list). 1,092 train/development documents: note 0.330 → 0.348,
 note_references 0.372 → 0.396 (29 better, 4 worse); the journal footnote gold
 (`olj_pairing`, 95 articles) is unchanged (labels P 0.9885 R 0.9727, references P 0.9931
-R 0.9535). Still open: Westlaw printouts in books of authorities set their calls at 8⅓ points
-over 10 (0.833 of the line, above extraction's 0.82 superscript limit), and the pairer takes one
-label chain for the whole PDF, so each judgment's restarting end list is rejected as overlapping
-it; and statutes' source-history notes carry no label. Splitting the label candidates into
+R 0.9535).
+
+The initial diagnostics found raised calls set close to body size and one label chain spanning
+an entire compilation. Pairing now uses the detected document and language contexts described
+below. Native script evidence follows [PyMuPDF's baseline displacement rule](https://github.com/pymupdf/PyMuPDF/blob/main/src/__init__.py#L21598):
+a raised inline span needs no particular font-size reduction. The adapter resolves script state
+before merging spans, retaining normal and raised boundaries. Citation protection and the document's
+note-label sequences still decide whether a script is a note reference.
+Statutes' unlabelled source-history notes remain open. Splitting the label candidates into
 blocks at every note-region "1" after the numbering has run on (each block choosing its own
 runs) costs the journal gold dearly (label recall 0.9727 → 0.7000), so a compilation's judgments
 need a narrower boundary than a restart.
@@ -647,10 +652,11 @@ Cached reader state now keys the supplied engine's layout services as well as lo
 and input pages. The shared engine identity covers its layout contract, citation grammar,
 registries and enabled features, using [Cargo's input tracking](https://doc.rust-lang.org/cargo/reference/build-scripts.html#rerun-if-changed).
 An engine edit can therefore recompute semantic readers while reusing extraction and recognition.
-Build outputs confirm the extraction, OCR and layout fingerprints are unchanged by this fix.
+The reader cache fix retains extraction, OCR and layout identities; native extraction
+changes refresh native evidence separately.
 Witness compositions remain outside the reader cache key.
 
-Affected-crate metadata checks and full-feature addon compilation pass for parser `1de6c30`
+Affected-crate metadata checks and full-feature addon compilation pass for parser `b1cf12e`
 and structure `531b603`. The optimized addon is rebuilt
 from this candidate using `npm run native:build -- --release` in the canonical target directory.
 New code follows rustfmt; existing formatting differences elsewhere in the touched files are
