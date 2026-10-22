@@ -145,6 +145,27 @@ pub struct NotePair {
     pub note: Option<usize>,
 }
 
+/// The gold's convention for a numbered unit of the parser's: enumerated clauses and items
+/// ("1.", "2.1", "(3)", "(a)", "iv.", bullets) are list items; a bracketed paragraph number
+/// ("[12]") or a bare statute section number ("12", before its "(1)") opens running text.
+pub fn parser_list_item(state: &State, block: &CompositionBlock) -> bool {
+    let locator = block.attributes.get("locator_kind").and_then(Value::as_str);
+    if locator == Some("list_item") {
+        return true;
+    }
+    if !matches!(locator, Some("paragraph" | "section" | "clause" | "subclause")) {
+        return false;
+    }
+    let spans: Vec<SourceSpan> =
+        serde_json::from_value(block.attributes.get("marker").cloned().unwrap_or_default()).unwrap_or_default();
+    let Some(first) = spans.first() else { return false };
+    let Some(&n) = state.index.get(&first.line_id) else { return false };
+    let chars = &state.lines[n].text;
+    let text: String = chars[first.start.min(chars.len())..first.end.min(chars.len())].iter().collect();
+    let marker = text.trim();
+    !(marker.is_empty() || marker.starts_with('[') || marker.chars().all(|c| c.is_ascii_digit()))
+}
+
 pub const V4: &str = "legal-structure-gold.v4";
 
 /// The scorer's kinds for typed regions; the rest are running text (block quotes, notes and

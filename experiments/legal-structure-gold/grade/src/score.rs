@@ -399,7 +399,10 @@ fn features<'a>(
         if inside(block, &tables) {
             return "table".into();
         }
-        if kind == "text"
+        if kind == "text" && side.candidate && crate::state::parser_list_item(state, block) {
+            return "list_item".into();
+        }
+        if kind == "text" && !side.candidate
             && block.attributes.get("locator_kind").and_then(Value::as_str) == Some("list_item")
         {
             return "list_item".into();
@@ -498,7 +501,7 @@ fn features<'a>(
                 found.extend(span_pieces(s)?);
             }
             result.joins.extend(found.windows(2).map(|w| (w[0], w[1])));
-            result.units_kind.push((kind.clone(), found.clone()));
+            result.units_kind.push((role(g), found.clone()));
             result.groups.push(found);
         }
     }
