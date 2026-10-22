@@ -39,7 +39,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
 
-const GROUP_FIELDS: [&str; 4] = ["language_layout", "genre_group", "country", "yardstick"];
+const GROUP_FIELDS: [&str; 5] = ["language_layout", "genre_group", "country", "yardstick", "label_source"];
 
 struct Source {
     sha256: String,
@@ -703,7 +703,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
                 rows.push(json!({
                     "run": format!("v4/{}", source.sha256), "source_sha256": source.sha256, "mode": source.mode, "split": source.split,
                     "language_layout": source.groups["language_layout"], "genre_group": source.groups["genre_group"],
-                    "country": source.groups["country"], "yardstick": source.groups["yardstick"],
+                    "country": source.groups["country"], "yardstick": source.groups["yardstick"], "label_source": source.groups["label_source"],
                     "parse_ms": graded.parse_ms.round(),
                     "alignment": s.alignment,
                     "text": s.text, "metrics": metrics_json(&metrics),

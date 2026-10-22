@@ -5,9 +5,10 @@ carried in the cohort manifest so the scorer reports each group on its own.
   python groups.py detect GOLD_DIR PROVENANCE.json --out groups.json     where the gold files are
   python groups.py apply groups.json MANIFEST.json [--sqlite]             write manifest fields (and the store)
 
-`detect` reads v4/<sha>/gold.json.gz for language and provenance.json for the rest. `apply`
-rewrites the manifest's documents in place with language_layout, genre_group, country and
-yardstick, and with --sqlite upserts corpus.sqlite's gold_source_groups.
+`detect` reads v4/<sha>/gold.json.gz for language and label source (`label_source` in the gold:
+"a2aj-silver" for silver labelled from A2AJ's text, else "model") and provenance.json for the rest.
+`apply` rewrites the manifest's documents in place with language_layout, genre_group, country,
+yardstick and label_source, and with --sqlite upserts corpus.sqlite's gold_source_groups.
 """
 import argparse
 import gzip
@@ -115,19 +116,24 @@ def detect(args):
         group = genre_group(r.get("genre"), r.get("source_family"))
         country = (r.get("country") or "unknown").lower()
         out[sha] = {"language_layout": layout, "genre_group": group, "country": country,
-                    "yardstick": yardstick(country, layout, group), "genre": r.get("genre"),
+                    "yardstick": yardstick(country, layout, group), "label_source": label_source(gold), "genre": r.get("genre"),
                     "source_family": r.get("source_family"), "mode": gold.get("mode"), "split": r.get("split")}
     Path(args.out).write_text(json.dumps({"detected_at": time.time(), "sources": out}, indent=1), encoding="utf-8")
     from collections import Counter
     print(f"{len(out)} sources ({missing} without provenance) -> {args.out}")
-    for field in ("yardstick", "language_layout", "genre_group", "country"):
+    for field in ("yardstick", "language_layout", "genre_group", "country", "label_source"):
         print(f"  {field}: {dict(Counter(v[field] for v in out.values()).most_common())}")
     print("  main by genre_group:", dict(Counter(v["genre_group"] for v in out.values() if v["yardstick"] == "main").most_common()))
     print("  main by mode:", dict(Counter(v["mode"] for v in out.values() if v["yardstick"] == "main").most_common()))
     print("  main by split:", dict(Counter(v["split"] for v in out.values() if v["yardstick"] == "main").most_common()))
 
 
-FIELDS = ("language_layout", "genre_group", "country", "yardstick")
+FIELDS = ("language_layout", "genre_group", "country", "yardstick", "label_source")
+
+
+def label_source(gold):
+    """Where the gold's labels come from: "a2aj-silver" (aligned from A2AJ's text) or "model"."""
+    return gold.get("label_source") or gold.get("authoring", {}).get("label_source") or "model"
 
 
 def apply(args):
@@ -141,7 +147,7 @@ def apply(args):
             absent += 1
             continue
         for field in FIELDS:
-            if row.get(field) != g[field]:
+            if field in g and row.get(field) != g[field]:
                 row[field] = g[field]
                 changed += 1
     manifest_path.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
@@ -154,11 +160,14 @@ def apply(args):
             dataset text, sha256 text references files(sha256), language_layout text, genre_group text,
             country text, yardstick text, genre text, source_family text, recorded_at text,
             primary key(dataset, sha256))""")
+        if "label_source" not in {row[1] for row in db.execute("pragma table_info(gold_source_groups)")}:
+            db.execute("alter table gold_source_groups add column label_source text")
         now = time.strftime("%Y-%m-%dT%H:%M:%S")
         for sha, g in groups.items():
-            db.execute("insert or replace into gold_source_groups values(?,?,?,?,?,?,?,?,?)",
+            db.execute("""insert or replace into gold_source_groups(dataset, sha256, language_layout, genre_group, country,
+                yardstick, genre, source_family, recorded_at, label_source) values(?,?,?,?,?,?,?,?,?,?)""",
                        (args.dataset, sha, g["language_layout"], g["genre_group"], g["country"], g["yardstick"],
-                        g.get("genre"), g.get("source_family"), now))
+                        g.get("genre"), g.get("source_family"), now, g.get("label_source", "model")))
         db.commit()
         print(f"gold_source_groups: {len(groups)} rows for dataset {args.dataset}")
 
