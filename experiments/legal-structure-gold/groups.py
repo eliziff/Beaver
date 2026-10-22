@@ -5,8 +5,9 @@ carried in the cohort manifest so the scorer reports each group on its own.
   python groups.py detect GOLD_DIR PROVENANCE.json --out groups.json     where the gold files are
   python groups.py apply groups.json MANIFEST.json [--sqlite]             write manifest fields (and the store)
 
-`detect` reads v4/<sha>/gold.json.gz for language and label source (`label_source` in the gold:
-"a2aj-silver" for silver labelled from A2AJ's text, else "model") and provenance.json for the rest.
+`detect` reads v4/<sha>/gold.json.gz for language, label source (`label_source` in the gold:
+"a2aj-silver" for silver labelled from A2AJ's text, else "model") and blank form fields, and
+provenance.json for the rest.
 `apply` rewrites the manifest's documents in place with language_layout, genre_group, country,
 yardstick and label_source, and with --sqlite upserts corpus.sqlite's gold_source_groups.
 """
@@ -63,6 +64,15 @@ def genre_group(genre, source_family=None):
     return "other"
 
 
+def blank_form(gold):
+    """A document whose lines carry a blank to fill in ("DATED ____", "CACV ________") on every
+    page on average, four or more of them: a form, whatever the collection called it."""
+    lines = gold.get("lines", [])
+    pages = max((line.get("page", 0) for line in lines), default=0) + 1
+    blanks = sum(1 for line in lines if "____" in line.get("text", ""))
+    return blanks >= 4 and blanks >= pages
+
+
 def language_layout(gold):
     units = [t for t in gold["typed"] if t.get("start") and t["region"] in RANKED]
     fr = en = 0
@@ -114,6 +124,8 @@ def detect(args):
         r = r or {}
         layout = language_layout(gold)
         group = genre_group(r.get("genre"), r.get("source_family"))
+        if blank_form(gold):
+            group = "court-form"
         country = (r.get("country") or "unknown").lower()
         out[sha] = {"language_layout": layout, "genre_group": group, "country": country,
                     "yardstick": yardstick(country, layout, group), "label_source": label_source(gold), "genre": r.get("genre"),
