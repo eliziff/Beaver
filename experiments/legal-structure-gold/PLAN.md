@@ -953,9 +953,35 @@ The frozen baseline and reviewed observations are in
 `score/parser-checks/codex-opinion-parent-native-errors.json`. No tests, OCR, models or corpus
 scoring were run; the earlier pooled scores still describe `fa5774d`.
 
-The four remaining opinion-heading targets are an isolated Roman heading with no native owner,
-two styled headings retained as prose, and an existing heading attached beneath a merged parent.
-Seven concluding text units still belong to the last subsection rather than the opinion.
-Inspect those source-backed cases next; their exact spans, native owners and frozen gold hashes
-are in `score/parser-checks/codex-opinion-residual-native-errors.json`. The earlier caption/table,
-note-reference and inserted-marker annotation disagreements remain recorded above.
+Strong styled titles can contain section references: the reader now distinguishes title words
+from recognized citations instead of vetoing every title with a citation cue. Sentence endings,
+amending instructions and citation-only lines retain their existing exclusions. A change between
+bold and bold italic also separates adjacent headings before paragraph assembly. A less prominent
+marginal title followed by a later subsection retains its enclosing section title; confirmed
+navigation parents remain authoritative.
+
+Parser `1ca3a33`, structure `4d49f2e`, addon
+`f6e70126cf32512b74d120d8cbed812a03c511bdaf5ea60eadc6f5219bbc5fd2` passes affected-crate
+compilation and the optimized build. The same 16 desktop native PDFs finish without runtime
+errors. The independently inspected reference-title family improves from 5 to 38 of 49 headings:
+33 missed titles return, spanning 37 gold heading lines. No new heading line has another gold
+role. Sixteen heading-parent assignments become correct; no previously correct explicit or root
+heading parent is lost. The inspected false join between adjacent headings is resolved, with
+no previously correct heading join lost. Twelve documents retain identical structure nodes.
+
+All 186 inserted markers and their 156 explicit parents remain correct. Source extraction,
+complete text, source-line text, body order, native tables, note bodies and reference assignments
+remain intact. The two bundles retain all 35 additional gold openings and zero cross-document
+parents. All 42 quotation containers have introducing owners, with no leaks or parent cycles.
+The frozen title errors are in `score/parser-checks/codex-reference-heading-native-errors.json`;
+the accepted outputs and observations are in `score/parser-checks/codex-reference-style-native.json`.
+No tests, OCR, models, corpus scoring or full-stack timing were run; the earlier pooled scores
+still describe `fa5774d`.
+
+Eleven reference-title targets remain missed. Opinion-heading parents remain 78 of 82: two prior
+prose titles now have heading roles, but their opinion parents, another existing heading's parent
+and the isolated Roman title remain unresolved. Seven concluding text units still belong to the
+last subsection rather than the opinion. Their original spans, native owners and frozen gold
+hashes remain in `score/parser-checks/codex-opinion-residual-native-errors.json`. Inspect the Roman
+title's footer classification and the remaining opinion-parent decisions next. The earlier
+caption/table, note-reference and inserted-marker annotation disagreements remain recorded above.
