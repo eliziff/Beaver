@@ -21,6 +21,8 @@ The lines pass types every printed line. The disputed boundaries, and the ruling
 | a cell of a table, including header cells | `table` | heading |
 | a contents entry with a locator | `contents` | heading |
 | a title line: short, set apart by type, position or numbering, naming the part that follows | `heading` | |
+| an enumerated clause or item: "1.", "2.1", "(3)", "(a)", "iv.", a bullet | `list_item` | text |
+| a bracketed paragraph number "[12]", or a statute section's bare number before "(1)" | `text` with a marker | list_item |
 
 A heading is a title. It names the stretch of document that follows it. It is never a sentence of
 running prose, never a field label with a value beside it, and never furniture. The same words can
