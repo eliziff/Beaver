@@ -512,29 +512,42 @@ fn totals_json(rows: &[&Value]) -> Value {
     }).collect())
 }
 
+/// The layers the apps read, first and by name; every other layer follows.
+const KEY_LAYERS: [(&str, &str); 10] = [
+    ("units_heading", "headings"),
+    ("markers_text", "numbered paragraphs, sections"),
+    ("units_text", "paragraphs"),
+    ("units_list_item", "list items"),
+    ("markers_list_item", "list markers"),
+    ("note_references", "footnote references"),
+    ("note", "footnote pairs"),
+    ("hierarchy_parent", "parents"),
+    ("order", "reading order"),
+    ("coverage", "text coverage"),
+];
+
 fn table(title: &str, totals: &BTreeMap<String, score::Metric>) {
-    println!("\n{title}");
+    println!("
+{title}");
     println!(
-        "{:22} {:>8} {:>8} {:>6} {:>6} {:>6}",
+        "{:34} {:>8} {:>8} {:>6} {:>6} {:>6}",
         "layer", "exp", "pred", "P", "R", "F1"
     );
+    let row = |name: &str, m: &score::Metric| {
+        let p = if m.predicted > 0 { m.correct as f64 / m.predicted as f64 } else { 1.0 };
+        let r = if m.expected > 0 { m.correct as f64 / m.expected as f64 } else { 1.0 };
+        println!("{name:34} {:8} {:8} {p:6.3} {r:6.3} {:6.3}", m.expected, m.predicted, m.f1());
+    };
+    for (layer, label) in KEY_LAYERS {
+        if let Some(m) = totals.get(layer) {
+            row(&format!("{label} [{layer}]"), m);
+        }
+    }
+    println!("{:34} {:>8}", "  other layers", "");
     for (name, m) in totals {
-        let p = if m.predicted > 0 {
-            m.correct as f64 / m.predicted as f64
-        } else {
-            1.0
-        };
-        let r = if m.expected > 0 {
-            m.correct as f64 / m.expected as f64
-        } else {
-            1.0
-        };
-        println!(
-            "{name:22} {:8} {:8} {p:6.3} {r:6.3} {:6.3}",
-            m.expected,
-            m.predicted,
-            m.f1()
-        );
+        if !KEY_LAYERS.iter().any(|(layer, _)| layer == name) {
+            row(name, m);
+        }
     }
 }
 
