@@ -10,13 +10,13 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 /// Names of the numeric features, in row order.
-pub const FEATURES: [&str; 81] = [
+pub const FEATURES: [&str; 83] = [
     "x0", "y0", "x1", "y1", "height", "gap_above", "gap_below", "indent", "right_gap", "width", "centre",
     "size", "bold", "italic", "superscript", "monospace", "size_change", "font_change", "underlined",
     "length", "upper", "digits", "punctuation", "spaces", "starts_digit", "starts_upper", "starts_lower",
     "starts_open", "starts_mark", "ends_period", "ends_colon", "ends_comma", "ends_hyphen", "ends_digit",
     "ocr", "confidence", "page_quality", "page_position", "line_position", "first_on_page", "last_on_page",
-    "excluded", "label_candidate", "note_mode", "piece_start", "piece_share",
+    "excluded", "label_candidate", "note_mode", "piece_start", "piece_share", "page_offgrid", "page_measured",
     "marker", "ordinal", "prefix_depth",
     "u0_exists", "u0_indent", "u0_size", "u0_bold", "u0_family", "u0_next", "u0_region", "u0_distance",
     "u1_exists", "u1_indent", "u1_size", "u1_bold", "u1_family", "u1_next", "u1_region", "u1_distance",
@@ -55,6 +55,28 @@ fn dominant(line: &legalpdf::Line) -> Option<(&str, f64)> {
         *weight.entry((span.font.as_str(), span.size.to_bits())).or_default() += span.text.chars().count();
     }
     weight.into_iter().max_by_key(|(_, n)| *n).map(|((font, size), _)| (font, f64::from_bits(size)))
+}
+
+/// How many distinct line sizes within [0.8, 1.25] of the page's median fall off the half-point
+/// grid: a recognizer's box heights spread over many, a typeset page's sizes sit on it. Five or
+/// more is the parser's recognized-layer test (main dev: 46 of 227 recognized pages, 1 of 435 typeset).
+fn off_grid_sizes(page: &legalpdf::Page) -> usize {
+    let mut characters: HashMap<i64, usize> = HashMap::new();
+    for line in page.lines.iter().filter(|line| !line.exclude_from_body) {
+        let count = line.text.trim().chars().count();
+        if let Some((_, size)) = dominant(line).filter(|(_, size)| *size > 0.0 && count > 0) {
+            *characters.entry((size * 10.0).round() as i64).or_default() += count;
+        }
+    }
+    let total: usize = characters.values().sum();
+    if total < 200 {
+        return 0;
+    }
+    let mut sizes: Vec<i64> = characters.keys().copied().collect();
+    sizes.sort_unstable();
+    let mut seen = 0;
+    let median = sizes.iter().find(|size| { seen += characters[*size]; seen * 2 >= total }).copied().unwrap_or(0);
+    sizes.iter().filter(|&&size| size * 100 >= median * 80 && size * 100 <= median * 125 && size % 5 != 0).count()
 }
 
 fn text_shape(text: &str) -> [f64; 15] {
@@ -224,6 +246,7 @@ pub fn document(pages: &[Page], candidate: &State, pieces: &[Piece], tier0: &[La
         Some((line.bbox[0], dominant(line).map_or(0.0, |d| d.1), pages[p].width.max(1.0), flagged(line, 16) > 0.5))
     };
     let (context, families) = unit_context(candidate, pieces, tier0, &geometry);
+    let off_grid: Vec<usize> = pages.iter().map(off_grid_sizes).collect();
     for &k in &kept {
         let piece = &pieces[k];
         let line = &candidate.lines[piece.line];
@@ -269,6 +292,8 @@ pub fn document(pages: &[Page], candidate: &State, pieces: &[Piece], tier0: &[La
             f64::from(u8::from(!own.note_region_mode.is_empty())),
             piece.start as f64 / length,
             (piece.end - piece.start) as f64 / length,
+            (off_grid[p] as f64 / 10.0).min(2.0),
+            f64::from(u8::from(off_grid[p] >= 5)),
         ]);
         values.extend(context[k].iter().copied());
         debug_assert_eq!(values.len(), FEATURES.len());

@@ -76,8 +76,9 @@ manifest, and the scorer reports every layer per group without being asked:
   notices, orders, motions, submissions, pleadings, certificates, summonses), `contract`
   (agreements, leases), `transcript`, `publication` (reports, briefing notes, policy documents,
   monographs), `compilation` (books of authorities, case records, exhibits bundles),
-  `court-form` (blank or instructional forms), `administrative` (agendas, emails,
-  correspondence, presentations), `other`.
+  `court-form` (blank or instructional forms: also any document with a blank to fill in on every
+  page on average, four or more lines of four underscores, whatever its collection called it),
+  `administrative` (agendas, emails, correspondence, presentations), `other`.
 - `country`: ISO code from provenance (`ca`, `us`, `au`, …).
 - `yardstick`: `main` (Canadian, `language_layout` en or fr, genre_group among judgment,
   legislation, court-rules, filing, contract, transcript, publication, compilation);
