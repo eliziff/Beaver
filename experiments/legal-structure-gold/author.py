@@ -218,20 +218,28 @@ def image_tokens(path):
 
 
 def author_hierarchy(typed, groups, images, job, args):
-    """Each unit with its parent (0-based unit index or None) and whether it starts or ends one of
-    the file's documents."""
+    """Each unit with its parent (0-based unit index or None), its heading level where it is a
+    heading, and whether it starts or ends one of the file's documents. The model gives heading
+    levels and document boundaries; parents follow by the rules in conventions.py."""
     schema = job / "calls" / "hierarchy-schema.json"
     write_json(schema, prompts.HIERARCHY_SCHEMA)
     scope = hierarchy.ranked(typed, groups)
     rows = [hierarchy.row(typed, groups[u]) for u in scope]
     def ask(shown, pages):
         return call(prompts.hierarchy_prompt(rows, shown, pages), schema, [images[p] for p in pages],
-                    job / "calls" / f"hierarchy-{shown[0]:05}", args, hierarchy.checked(shown), policy=POLICY)
-    parents, starts, ends = hierarchy.decide(rows, ask, {p: image_tokens(path) for p, path in images.items()})
+                    job / "calls" / f"hierarchy-{shown[0]:05}", args, hierarchy.checked(shown, rows), policy=POLICY)
+    levels, starts, ends = hierarchy.decide(rows, ask, {p: image_tokens(path) for p, path in images.items()})
     starts, ends = hierarchy.documents(starts, ends, len(rows))
     units = [{"lines": members, "parent": None, "starts_document": False, "ends_document": False} for members in groups]
     for n, u in enumerate(scope):
-        units[u].update(parent=scope[parents[n] - 1] if parents[n] else None, starts_document=n in starts, ends_document=n in ends)
+        units[u].update(starts_document=n in starts, ends_document=n in ends)
+        if levels[n] is not None: units[u]["level"] = levels[n]
+    regions = [typed[members[0]]["region"] for members in groups]
+    texts = [" ".join(typed[members[0]]["text"].split()) for members in groups]
+    unit_levels = [None] * len(groups)
+    for n, u in enumerate(scope): unit_levels[u] = levels[n]
+    parents = hierarchy.assemble(regions, texts, unit_levels, [unit["starts_document"] for unit in units])
+    for u, parent in enumerate(parents): units[u]["parent"] = parent
     return units
 
 

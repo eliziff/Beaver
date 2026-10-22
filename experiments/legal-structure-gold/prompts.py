@@ -19,11 +19,11 @@ NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["p
     "type": "object", "additionalProperties": False, "required": ["page", "line", "mark", "note"], "properties": {
         "page": {"type": "integer"}, "line": {"type": "integer"}, "mark": {"type": "string"}, "note": {"type": "integer"}}}}}}
 
-HIERARCHY = """For each row that falls under another row (its heading, provision, paragraph or list item), give [row, that row]; rows under none are left out.
+HIERARCHY = """For each heading row give [row, level]: 1 for the outermost headings of its document, 2 for headings under those, and so on. Headings of one kind (same numbering, same type) share a level.
 If the file holds several documents, such as a judgment and its exhibits, give starts and ends: the rows that begin and end each one; otherwise leave them empty."""
 _NUMBERS = {"type": "array", "items": {"type": "integer"}}
-HIERARCHY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["parents", "starts", "ends"],
-                    "properties": {"parents": {"type": "array", "items": _NUMBERS}, "starts": _NUMBERS, "ends": _NUMBERS}}
+HIERARCHY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["levels", "starts", "ends"],
+                    "properties": {"levels": {"type": "array", "items": _NUMBERS}, "starts": _NUMBERS, "ends": _NUMBERS}}
 
 
 def images(pages):
