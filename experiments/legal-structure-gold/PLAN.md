@@ -927,7 +927,35 @@ retain all 35 additional gold openings and zero cross-document parent links. All
 containers have introducing owners, with no containment leaks or parent cycles. No tests, OCR,
 models or corpus scoring were run; the earlier pooled scores still describe `fa5774d`.
 
-Next inspect opinion-level ownership: an author heading is recognised, but its following
-section headings are left as roots. The private source-anchored heading-parent inventory,
-including expected parents and frozen gold hashes, is
-`score/parser-checks/codex-heading-parent-native-errors.json`.
+Judicial bylines now own their opinion's section headings even when both use the same type.
+A later byline starts a peer opinion. Package divisions close the opinion before their own
+outline resumes, including a tab title whose printed number is a separate source unit.
+Bookmarks and opinion boundaries use one package-word vocabulary. This applies the semantic
+distinction made by [Akoma Ntoso's opinion element](https://docs.oasis-open.org/legaldocml/akn-core/v1.0/os/part1-vocabulary/akn-core-v1.0-os-part1-vocabulary.html)
+through the existing outline, document and quotation contexts.
+
+Parser `acf9967`, structure `4d49f2e`, addon
+`2e894cf3cb48c0ca1e88c4a2ca1a8a72a1153733accfba283096d34c16c4cc94` passes affected-crate
+compilation and the optimized build. All 16 focused desktop native PDFs finish without runtime
+errors. The inspected gold has 24 named author headings and 82 heading children: correct direct
+parents rise from 2 to 78. All 76 gains are existing headings receiving their correct opinion
+parent. No previously correct explicit heading parent or root heading is lost. Only parent
+links and derived hierarchy fields change; source membership, roles and markers are unchanged.
+Fifteen documents retain identical structure nodes.
+
+All 186 inserted markers and their 156 explicit parent links remain correct, and no previously
+correct list or list-parent link is lost. Source extraction, complete text, every source line,
+body order, caption roles, native tables, note bodies and reference assignments remain intact.
+The bundles retain all 35 additional gold openings and zero cross-document parent links. All
+42 quotation containers have introducing owners, with no containment leaks or parent cycles.
+The frozen baseline and reviewed observations are in
+`score/parser-checks/codex-opinion-owner-native.json`; the initial opinion errors are in
+`score/parser-checks/codex-opinion-parent-native-errors.json`. No tests, OCR, models or corpus
+scoring were run; the earlier pooled scores still describe `fa5774d`.
+
+The four remaining opinion-heading targets are an isolated Roman heading with no native owner,
+two styled headings retained as prose, and an existing heading attached beneath a merged parent.
+Seven concluding text units still belong to the last subsection rather than the opinion.
+Inspect those source-backed cases next; their exact spans, native owners and frozen gold hashes
+are in `score/parser-checks/codex-opinion-residual-native-errors.json`. The earlier caption/table,
+note-reference and inserted-marker annotation disagreements remain recorded above.
