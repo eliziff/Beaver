@@ -513,7 +513,7 @@ fn totals_json(rows: &[&Value]) -> Value {
 }
 
 /// The layers the apps read, first and by name; every other layer follows.
-const KEY_LAYERS: [(&str, &str); 10] = [
+const KEY_LAYERS: [(&str, &str); 11] = [
     ("units_heading", "headings"),
     ("markers_text", "numbered paragraphs, sections"),
     ("units_text", "paragraphs"),
@@ -524,6 +524,7 @@ const KEY_LAYERS: [(&str, &str); 10] = [
     ("hierarchy_parent", "parents"),
     ("order", "reading order"),
     ("coverage", "text coverage"),
+    ("transcription", "transcription (characters matched)"),
 ];
 
 fn table(title: &str, totals: &BTreeMap<String, score::Metric>) {
@@ -693,13 +694,19 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
                 parse_ms += graded.parse_ms;
                 score_ms += graded.score_ms;
                 let s = &graded.score;
+                // Transcription stands beside the structure layers: gold characters the parser's
+                // text reproduces, so recognition quality is read on its own row.
+                let mut metrics = s.metrics.clone();
+                metrics.insert("transcription", score::Metric {
+                    expected: s.text.characters, predicted: s.text.characters, correct: s.text.matched_characters,
+                });
                 rows.push(json!({
                     "run": format!("v4/{}", source.sha256), "source_sha256": source.sha256, "mode": source.mode, "split": source.split,
                     "language_layout": source.groups["language_layout"], "genre_group": source.groups["genre_group"],
                     "country": source.groups["country"], "yardstick": source.groups["yardstick"],
                     "parse_ms": graded.parse_ms.round(),
                     "alignment": s.alignment,
-                    "text": s.text, "metrics": metrics_json(&s.metrics),
+                    "text": s.text, "metrics": metrics_json(&metrics),
                 }));
             }
             Err(error) => {
