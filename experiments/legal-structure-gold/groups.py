@@ -48,6 +48,9 @@ MAIN_GENRES = {"judgment", "legislation", "court-rules", "filing", "contract", "
 
 def genre_group(genre, source_family=None):
     g = (genre or "").strip().lower().replace(" ", "_").replace("-", "_")
+    # A court-forms collection is forms whatever the form was filled in as.
+    if "form" in (source_family or "").lower() and g not in {"judgment", "ruling", "decision", "statute_compilation", "court-rules", "court_rules"}:
+        return "court-form"
     for group, names in GENRE_GROUPS.items():
         if g in {n.replace("-", "_") for n in names}:
             return group
