@@ -220,7 +220,7 @@ def image_tokens(path):
 def author_hierarchy(typed, groups, images, job, args):
     """Each unit with its parent (0-based unit index or None), its heading level where it is a
     heading, and whether it starts or ends one of the file's documents. The model gives heading
-    levels and document boundaries; parents follow by the rules in conventions.py."""
+    levels and document boundaries; parents follow by hierarchy.assemble."""
     schema = job / "calls" / "hierarchy-schema.json"
     write_json(schema, prompts.HIERARCHY_SCHEMA)
     scope = hierarchy.ranked(typed, groups)
