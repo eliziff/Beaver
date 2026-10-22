@@ -127,6 +127,12 @@ impl<'a> Side<'a> {
         result
     }
 
+    /// Candidate text with no gold counterpart that is only whitespace: a space the parser put
+    /// between two gold lines it joined. It is no piece of any unit.
+    fn blank(&self, line: usize, a: usize, b: usize) -> bool {
+        self.state.lines[line].text[a.min(b)..b].iter().all(|c| c.is_whitespace())
+    }
+
     fn project_candidate(&self, line: usize, start: usize, end: usize) -> Vec<Piece> {
         let own = CANDIDATE | line as Origin;
         let spans = &self.alignment.mappings[line];
@@ -150,13 +156,13 @@ impl<'a> Side<'a> {
             if a >= b {
                 continue;
             }
-            if cursor < a {
+            if cursor < a && !self.blank(line, cursor, a) {
                 result.push((own, cursor, a));
             }
             result.push((target as Origin, edge(a, false), edge(b, true)));
             cursor = b;
         }
-        if cursor < end {
+        if cursor < end && !self.blank(line, cursor, end) {
             result.push((own, cursor, end));
         }
         if start == end {
