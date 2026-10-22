@@ -2,7 +2,6 @@ import crypto from "node:crypto";
 import { statSync } from "node:fs";
 import { cachedContent } from "../contentCache";
 import { a2ajLocalBulkPath, searchLocalA2AJ, useA2AJStore } from "../a2ajLocalBulk";
-import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
 import { guardedRemoteFetch, networkFailure, RETRY_WAITS_MS, wait } from "../remoteUrlSafety";
@@ -493,7 +492,7 @@ async function document(args: {
   const english = docType === "cases"
     ? citation.replace(/\bR\.?\s?C\.?\s?S\.?(?=\s+\d)/gu, "S.C.R.") : citation;
   const requested = [...new Set([citation, english, ...core])];
-  const inventory = docType === "cases" ? citationAliasGroups(requested) : [];
+  const inventory = docType === "cases" ? structureNative().a2ajAliasGroups(a2ajLocalBulkPath(), requested) : [];
   if (!sourceUrl && inventory.some(({ ambiguous }) => ambiguous)) return null;
   const aliases = [...new Set(inventory.flatMap(({ keys }) => keys))];
   const forms = [...new Set([...requested, ...inventory.flatMap(({ forms }) => forms)])].slice(0, 12);
@@ -722,7 +721,7 @@ function reference(document: A2AJDocument | A2AJCompiledDocument,
 }
 
 function rankCases(rows: LegalSourceSearchHit[], mode: "relevance" | "most_cited" | "most_discussed") {
-  const metrics = citationAuthorityMetricsBatch(rows.map((row) => row.citation ?? ""));
+  const metrics = structureNative().citatorMetrics(a2ajLocalBulkPath(), rows.map((row) => row.citation ?? "")) ?? [];
   const authority = rows.map((_, index) => index)
     .filter((index) => (metrics[index]?.citingCases ?? 0) > 0)
     .sort((a, b) => (metrics[b]?.distinctCitingParagraphs ?? 0) -

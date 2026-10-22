@@ -20,10 +20,27 @@ export type NativeTextFragmentPlan = {
   paintedWords: number;
 };
 
-type CitatorExcerptClassification = {
-  kind: "prose" | "mixed" | "authority_list" | "insufficient";
-  citeTokens: number; citeRuns: number; citeCharCoverage: number;
-  functionWords: number; proseWindow: string | null; rule: string;
+/** A passage saying what a cited decision stands for: a citing decision's prose, or a journal author's sentence
+ *  whose footnote cites it. */
+export type CitatorPassage = {
+  sourceKind: "case" | "commentary"; journalName: string | null; text: string; excerptKind: "prose" | "mixed";
+  citingCitation: string | null; citingName: string | null; citingCourt: string | null; citingLevel: number | null;
+  citingDate: string | null; language?: "en" | "fr"; paragraph: number | null; pageLabel: string | null;
+  spanSha256: string; sourceArticleId: string | null; citingUrl: string | null;
+};
+export type CitatorNoteUpEntry = {
+  citation: string | null; name: string | null; court: string | null; date: string | null; language: "en" | "fr";
+  url: string | null; paragraph: number | null; occurrences: number; distinctParagraphs: number;
+  courtLevel: number | null; citedAs: string; pinpoints: string | null; excerpt: string;
+};
+export type CitatorNoteUp = {
+  /** Every citing decision matched, not just the page returned. */
+  total: number; entries: CitatorNoteUpEntry[];
+  provider: { citingInCorpus: number; citingReported: string[] } | null;
+  totalCiters: number; judicialDiscussion: CitatorPassage[];
+  /** null where no journal commentary is built. */
+  journalAnalysis: CitatorPassage[] | null;
+  excerptsConsidered: number; excerptsRejected: { authorityList: number; insufficient: number };
 };
 
 export type A2AJStoreLookup = { citation: string; docType?: "cases" | "laws"; language?: "en" | "fr";
@@ -293,8 +310,6 @@ type StructureAddon = {
   authorityReferencesInText(text: string): NativeAuthorityReferenceOccurrence[];
   caselawCitationLookupKey(text: string): string;
   hasCitationInText(text: string): boolean;
-  classifyCitatorExcerpt(text: string): CitatorExcerptClassification;
-  classifyCitatorExcerpts(texts: string[]): CitatorExcerptClassification[];
   groundedProseErrors(text: string, citedEvidenceIds: readonly string[],
     visibleEvidence: unknown): string[];
   quoteRepairSuggestion(claim: string, spans: string[]): string | null;
@@ -329,9 +344,17 @@ type StructureAddon = {
   a2ajSection(store: string, lookup: A2AJStoreLookup, section: string, excerpt: { citation: string;
     url: string | null; alternateCitation: string | null; dataset: string; name: string | null }):
     Promise<{ native: NativeDocument | null } | null>;
-  /** Each citation's exact aliases and authored forms in the store's inventory; null where there is no store. */
-  a2ajAliasGroups(store: string, citations: string[]):
-    Array<{ keys: string[]; forms: string[]; ambiguous: boolean }> | null;
+  /** Each citation's exact aliases and authored forms in the store's inventory; its own key alone where there is
+   *  no store. */
+  a2ajAliasGroups(store: string, citations: string[]): Array<{ keys: string[]; forms: string[]; ambiguous: boolean }>;
+  /** The decisions citing a decision and what they and journal authors say it stands for, from the graph beside
+   *  the A2AJ store at `store` (which gives the decision's keys); null where no graph is built. */
+  citatorNoteUp(store: string, request: { citation: string; citedParagraph?: number; size?: number;
+    courtScope?: "all" | "scc" | "appellate" | "trial" | "tribunal"; courtCode?: string; sort?: "newest" | "most_discussed" }):
+    CitatorNoteUp | null;
+  /** How much each citation is cited, by the graph beside the store at `store`; null where none is built. */
+  citatorMetrics(store: string, citations: string[]):
+    Array<{ citingCases: number; distinctCitingParagraphs: number; occurrences: number } | null> | null;
   readDocumentRange(document: NativeDocument, kind: NativeDocumentBlock["kind"], from: string,
     to: string, contextBlocks: number): {
       selected: NativeDocumentBlock[];

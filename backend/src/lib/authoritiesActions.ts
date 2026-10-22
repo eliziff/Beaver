@@ -7,7 +7,7 @@ import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForm
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
 import { nativeOccurrenceSpans, nativeReferenceSpans, pinpointValues } from "./authoritiesImport";
 import { authorityPdfText } from "./authorityPdfText";
-import { citationAliasKeysBatch } from "./caselawCitator";
+import { a2ajLocalBulkPath } from "./a2ajLocalBulk";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { structureNative, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
@@ -188,7 +188,7 @@ export async function authorityPdfCaption(draft: AuthoritiesDraft, authorityId: 
   if (!authority || authority.kind !== "case") return draft;
   const pages = (await authorityPdfText({ bytes, maxPages: 2 })).pageTextByPage;
   const other = openingOtherCase(draft, authority, pages);
-  const name = other ? null : captionStyleOfCause(pages[0] ?? "", citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat());
+  const name = other ? null : captionStyleOfCause(pages[0] ?? "", structureNative().a2ajAliasGroups(a2ajLocalBulkPath(), authorityCitationForms(draft, authorityId)).flatMap(({ keys }) => keys));
   if (!other && !name) return draft;
   const mismatch = other ? { id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, other.citation, other.name]),
     ...other, named: null } : caseNameMismatch(authority, { citation: authority.citation, name, searchText: () => pages.join("\n") });

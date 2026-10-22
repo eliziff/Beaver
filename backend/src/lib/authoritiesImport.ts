@@ -24,7 +24,7 @@ import { sha256 } from "./hash";
 import { structureNative, type NativeAuthorityReferenceOccurrence, type NativeAuthorityTextUnit,
   type NativeCitationOccurrence, type NativeReferencePart } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
-import { citationAliasKeysBatch } from "./caselawCitator";
+import { a2ajLocalBulkPath } from "./a2ajLocalBulk";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
 import { mapBounded } from "./mapBounded";
 import { registerWorkExtents } from "mike/shared/work-extents.mjs";
@@ -259,7 +259,7 @@ async function scanReview(
   }
   const cases = extracted.citations.filter(({ form, authority, key }) =>
     form === "full" && key && (authority === "case" || authority === "unknown"));
-  const closures = citationAliasKeysBatch(cases.map(({ span }) => span.text));
+  const closures = structureNative().a2ajAliasGroups(a2ajLocalBulkPath(), cases.map(({ span }) => span.text)).map(({ keys }) => keys);
   const parsed = ranges.map(({ unit }) => ({ unit, items: [] as Array<{ index: number; start: number }> }));
   let unitIndex = 0;
   for (const citation of [...extracted.citations].sort((left, right) =>

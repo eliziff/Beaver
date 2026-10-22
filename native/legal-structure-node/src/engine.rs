@@ -4,7 +4,7 @@
 use legal_structure::{
     analyze_instrument, analyze_native_markup, authority_references_in_text,
     caselaw_citation_lookup_key, citation_lookup_key, citation_occurrences_in_text,
-    classify_citator_excerpt, document_fingerprint, docx_structure_lint, grounded_prose_errors,
+    document_fingerprint, docx_structure_lint, grounded_prose_errors,
     has_citation_in_text, journal_document_structure, journal_text_document_structure,
     marked_quote_spans, provider_citations_in_text, provider_text_document_structure,
     quote_repair_suggestion, utf16_prefix_ceil, AuthoritativeTableCell,
@@ -375,17 +375,6 @@ pub fn caselaw_lookup_key(text: &str) -> CoreResult<String> {
 
 pub fn has_citation(text: &str) -> CoreResult<bool> {
     has_citation_in_text(text).map_err(|error| error.to_string())
-}
-
-pub fn citator_excerpt(text: &str) -> impl Serialize {
-    classify_citator_excerpt(text)
-}
-
-pub fn citator_excerpts(texts: &[String]) -> impl Serialize {
-    texts
-        .iter()
-        .map(|text| classify_citator_excerpt(text))
-        .collect::<Vec<_>>()
 }
 
 pub fn prose_errors(

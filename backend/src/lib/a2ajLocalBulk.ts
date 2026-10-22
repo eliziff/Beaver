@@ -1,10 +1,9 @@
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
-import { structureNative } from "./structureNative";
 import { boundedSize, sqliteText as string } from "./sqliteSearch";
 import { hasSearchOperators, searchFts5 } from "./searchQuery";
-import { legalProviderDatabase, storeExists, withSearchReadonlySqlite,
+import { legalProviderDatabase, withSearchReadonlySqlite,
   withReadonlySqlite } from "./legalDataPath";
 
 type Row = Record<string, unknown>;
@@ -45,14 +44,6 @@ export function a2ajStoreCourts(filename = a2ajLocalBulkPath()): A2AJStoreCourt[
         revision: file ? String(file.revision) : null };
     });
   });
-}
-
-export type CitationAliasGroup = { keys: string[]; forms: string[]; ambiguous: boolean };
-
-/** Exact aliases and their authored forms from the installed provider inventory. */
-export function a2ajCitationAliasGroups(citations: string[]): CitationAliasGroup[] | null {
-  const store = a2ajLocalBulkPath();
-  return storeExists(store) ? structureNative().a2ajAliasGroups(store, citations) : null;
 }
 
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
