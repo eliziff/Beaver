@@ -133,43 +133,63 @@ impl<'a> Side<'a> {
         self.state.lines[line].text[a.min(b)..b].iter().all(|c| c.is_whitespace())
     }
 
+    /// A candidate interval in the frame of gold lines: on each gold line it reaches, the runs of
+    /// gold characters it owns. A transcription difference inside a line is no boundary, so a
+    /// unit matches when its edges match, whatever the recognizer read. Candidate text that owns
+    /// no gold character at all stays in its own frame; a blank one is nothing.
     fn project_candidate(&self, line: usize, start: usize, end: usize) -> Vec<Piece> {
         let own = CANDIDATE | line as Origin;
         let spans = &self.alignment.mappings[line];
-        let mut result = Vec::new();
-        let mut cursor = start;
-        for &(lo, hi, target, offset, limit) in spans {
-            let edge = |at: usize, right: bool| {
-                offset
-                    + if hi - lo == limit - offset {
-                        at - lo
-                    } else if right || at == hi {
-                        limit - offset
-                    } else {
-                        0
-                    }
-            };
-            if start == end && lo <= start && start < hi {
-                return vec![(target as Origin, edge(start, false), edge(start, false))];
-            }
-            let (a, b) = (start.max(lo), end.min(hi));
-            if a >= b {
-                continue;
-            }
-            if cursor < a && !self.blank(line, cursor, a) {
-                result.push((own, cursor, a));
-            }
-            result.push((target as Origin, edge(a, false), edge(b, true)));
-            cursor = b;
-        }
-        if cursor < end && !self.blank(line, cursor, end) {
-            result.push((own, cursor, end));
-        }
+        let owners = &self.alignment.owners;
+        let mine = |owner: &Option<(usize, usize)>, from: usize, to: usize| {
+            matches!(owner, Some((c, p)) if *c == line && from <= *p && *p < to)
+        };
         if start == end {
-            return match spans.iter().rev().find(|span| span.1 == start) {
-                Some(&(_, _, target, _, limit)) => vec![(target as Origin, limit, limit)],
-                None => vec![(own, start, end)],
+            // A point: the first gold character owned by the candidate line from here on.
+            let mut best: Option<(usize, usize)> = None;
+            for &(_, _, r, _, _) in spans {
+                if let Some(at) = owners[r].iter().position(|o| mine(o, start, usize::MAX)) {
+                    if best.is_none_or(|b| (r, at) < b) {
+                        best = Some((r, at));
+                    }
+                }
+            }
+            return match (best, spans.last()) {
+                (Some((r, at)), _) => vec![(r as Origin, at, at)],
+                (None, Some(&(_, _, r, _, limit))) => vec![(r as Origin, limit, limit)],
+                (None, None) => vec![(own, start, end)],
             };
+        }
+        let mut targets: Vec<usize> = spans
+            .iter()
+            .filter(|&&(lo, hi, _, _, _)| lo < end && start < hi)
+            .map(|&(_, _, r, _, _)| r)
+            .collect();
+        targets.sort_unstable();
+        targets.dedup();
+        if targets.is_empty() {
+            return if self.blank(line, start, end) {
+                Vec::new()
+            } else {
+                vec![(own, start, end)]
+            };
+        }
+        let mut result = Vec::new();
+        for r in targets {
+            let mut run: Option<usize> = None;
+            for (at, owner) in owners[r].iter().enumerate() {
+                match (mine(owner, start, end), run) {
+                    (true, None) => run = Some(at),
+                    (false, Some(from)) => {
+                        result.push((r as Origin, from, at));
+                        run = None;
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(from) = run {
+                result.push((r as Origin, from, owners[r].len()));
+            }
         }
         result
     }

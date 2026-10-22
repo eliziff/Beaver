@@ -9,6 +9,11 @@ type Mapping = (usize, usize, usize, usize, usize);
 pub struct Alignment {
     /// Candidate start/end, reference line, reference start/end (Unicode scalar coordinates).
     pub mappings: Vec<Vec<Mapping>>,
+    /// For each reference character, the candidate line and position that own it. A mapped
+    /// character is owned by its counterpart; an unmapped one (a transcription difference) by the
+    /// mapped character before it, or after it at the start of a line. A line nothing maps to
+    /// has no owners.
+    pub owners: Vec<Vec<Option<(usize, usize)>>>,
     pub stats: Stats,
 }
 
@@ -133,6 +138,28 @@ pub fn align(reference: &State, candidate: &State) -> Result<Alignment, String> 
             true
         });
     }
+    let mut owners: Vec<Vec<Option<(usize, usize)>>> =
+        reference.lines.iter().map(|l| vec![None; l.text.len()]).collect();
+    for (c, spans) in mappings.iter().enumerate() {
+        for &(lo, hi, r, offset, _) in spans {
+            for k in 0..hi - lo {
+                owners[r][offset + k] = Some((c, lo + k));
+            }
+        }
+    }
+    for line in &mut owners {
+        let mut last = None;
+        for slot in line.iter_mut() {
+            match slot {
+                Some(owner) => last = Some(*owner),
+                None => *slot = last,
+            }
+        }
+        if let Some(first) = line.iter().position(Option::is_some) {
+            let owner = line[first];
+            line[..first].fill(owner);
+        }
+    }
     let mut targets = vec![HashSet::new(); reference.lines.len()];
     let mut covered = vec![Vec::new(); reference.lines.len()];
     for (c, spans) in mappings.iter().enumerate() {
@@ -179,5 +206,5 @@ pub fn align(reference: &State, candidate: &State) -> Result<Alignment, String> 
             candidate.lines.iter().map(|l| l.text.len()).sum(),
         ),
     };
-    Ok(Alignment { mappings, stats })
+    Ok(Alignment { mappings, owners, stats })
 }
