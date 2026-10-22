@@ -185,8 +185,6 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "authorityReferencesInText" => done(value(engine::authority_references(&call.get::<String>("text")?))),
         "caselawCitationLookupKey" => done(engine::caselaw_lookup_key(&call.get::<String>("text")?).and_then(value)),
         "hasCitationInText" => done(engine::has_citation(&call.get::<String>("text")?).and_then(value)),
-        "classifyCitatorExcerpt" => done(value(engine::citator_excerpt(&call.get::<String>("text")?))),
-        "classifyCitatorExcerpts" => done(value(engine::citator_excerpts(&call.get::<Vec<String>>("texts")?))),
         "groundedProseErrors" => done(engine::prose_errors(
             &call.get::<String>("text")?, &call.get::<Vec<String>>("citedEvidenceIds")?,
             call.get("visibleEvidence")?).and_then(value)),
@@ -215,6 +213,15 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             .map(|found| found.map_or(Value::Null, |native| json!({ "native": native.map(share) })))),
         "a2ajAliasGroups" => done(a2aj::alias_groups(&call.get::<PathBuf>("store")?,
             &call.get::<Vec<String>>("citations")?).and_then(value)),
+        "citatorNoteUp" => {
+            let mut request: legal_structure::citator_graph::NoteUpRequest = call.get("request")?;
+            let store = call.get::<PathBuf>("store")?;
+            request.keys = a2aj::alias_keys(&store, &request.citation)?;
+            done(legal_structure::citator_graph::note_up(&store, &request)
+                .map_err(|error| error.to_string()).and_then(value))
+        }
+        "citatorMetrics" => done(legal_structure::citator_graph::authority_metrics(&call.get::<PathBuf>("store")?,
+            &call.get::<Vec<String>>("citations")?).map_err(|error| error.to_string()).and_then(value)),
         "readDocumentRange" => done(with_document(doc()?, |d| engine::read_document_range(
             d, &call.get::<String>("kind")?, &call.get::<String>("from")?, &call.get::<String>("to")?,
             call.get("contextBlocks")?).and_then(value))),

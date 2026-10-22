@@ -1,10 +1,5 @@
-import {
-  noteUpAnalysis,
-  noteUpCitations,
-  type NoteUpCourtScope,
-  type NoteUpSort,
-  type StandsForCandidate,
-} from "../../caselawCitator";
+import { a2ajLocalBulkPath } from "../../a2ajLocalBulk";
+import { structureNative, type CitatorPassage } from "../../structureNative";
 import type { Tool } from "../../llm";
 import { trimmedText } from "../../value";
 import { safeErrorLog } from "../../safeError";
@@ -71,7 +66,7 @@ export type CitatorToolExecution = {
 };
 
 const mapPassage = (
-  passage: StandsForCandidate,
+  passage: CitatorPassage,
   evidence: LegalEvidenceReceipt,
 ) => ({
   source_citation: passage.citingCitation,
@@ -98,10 +93,8 @@ export function executeCitatorTool(
   if (name !== NOTE_UP_TOOL_NAME) return null;
   const citation = trimmedText(args.citation);
   if (!citation) return { payload: { ok: false, error: "citation is required" } };
-  const courtScope = (["all", "scc", "appellate", "trial", "tribunal"] as const)
-    .includes(args.court_scope as NoteUpCourtScope)
-    ? args.court_scope as NoteUpCourtScope
-    : "all";
+  const scopes = ["all", "scc", "appellate", "trial", "tribunal"] as const;
+  const courtScope = scopes.find((scope) => scope === args.court_scope) ?? "all";
   const courtCode = typeof args.court_code === "string"
     ? args.court_code.trim().toUpperCase()
     : "";
@@ -117,26 +110,11 @@ export function executeCitatorTool(
     ? Math.trunc(args.cited_paragraph)
     : undefined;
   const size = typeof args.size === "number" ? args.size : undefined;
-  const sort: NoteUpSort = args.sort === "most_discussed"
-    ? "most_discussed"
-    : "newest";
+  const sort = args.sort === "most_discussed" ? "most_discussed" as const : "newest" as const;
   try {
-    const citations = noteUpCitations({
-      citation,
-      citedParagraph,
-      size,
-      courtScope,
-      courtCode: courtCode || undefined,
-      sort,
-    });
-    const analysis = noteUpAnalysis({
-      citation,
-      citedParagraph,
-      size,
-      courtScope,
-      courtCode: courtCode || undefined,
-    });
-    if (!citations || !analysis) {
+    const noteUp = structureNative().citatorNoteUp(a2ajLocalBulkPath(),
+      { citation, citedParagraph, size, courtScope, courtCode: courtCode || undefined, sort });
+    if (!noteUp) {
       return {
         payload: {
           ok: false,
@@ -145,11 +123,11 @@ export function executeCitatorTool(
         },
       };
     }
-    const citingEvidence = citations.entries.map((entry) =>
+    const citingEvidence = noteUp.entries.map((entry) =>
       citatorNoteUpReceipt({ citedCitation: citation, entry }));
-    const judicialEvidence = analysis.judicialDiscussion.map((passage) =>
+    const judicialEvidence = noteUp.judicialDiscussion.map((passage) =>
       attestedPassageReceipt({ citedCitation: citation, passage }));
-    const journalEvidence = (analysis.journalAnalysis ?? []).map((passage) =>
+    const journalEvidence = (noteUp.journalAnalysis ?? []).map((passage) =>
       attestedPassageReceipt({ citedCitation: citation, passage }));
     return {
       evidences: [...citingEvidence, ...judicialEvidence, ...journalEvidence],
@@ -157,8 +135,8 @@ export function executeCitatorTool(
         ok: true,
         target: citation,
         cited_paragraph: citedParagraph ?? null,
-        citing_decisions_total: citations.total,
-        citing_decisions: citations.entries.map((entry, index) => ({
+        citing_decisions_total: noteUp.total,
+        citing_decisions: noteUp.entries.map((entry, index) => ({
           citation: entry.citation,
           ...(entry.citation ? { resource: legalSourceResource({ provider: "a2aj", kind: "case",
             id: entry.citation, language: entry.language ?? "en" }) } : {}),
@@ -173,10 +151,10 @@ export function executeCitatorTool(
           passage: entry.excerpt,
           evidence_id: citingEvidence[index].evidence_id,
         })),
-        judicial_discussion: analysis.judicialDiscussion.map((passage, index) =>
+        judicial_discussion: noteUp.judicialDiscussion.map((passage, index) =>
           mapPassage(passage, judicialEvidence[index])),
-        journal_analysis_available: analysis.journalAnalysis !== null,
-        journal_analysis: (analysis.journalAnalysis ?? []).map((passage, index) =>
+        journal_analysis_available: noteUp.journalAnalysis !== null,
+        journal_analysis: (noteUp.journalAnalysis ?? []).map((passage, index) =>
           mapPassage(passage, journalEvidence[index])),
       },
     };

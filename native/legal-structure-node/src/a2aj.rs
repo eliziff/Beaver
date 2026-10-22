@@ -410,9 +410,19 @@ pub struct AliasGroup {
     ambiguous: bool,
 }
 
-/// Each citation's exact aliases and authored forms in the store's inventory; None where there is no store.
-pub fn alias_groups(path: &Path, citations: &[String]) -> CoreResult<Option<Vec<AliasGroup>>> {
-    with_store(path, |connection, _| {
+/// A citation's keys for a note-up: every key of the one decision the store holds under it, else its own key.
+pub fn alias_keys(path: &Path, citation: &str) -> CoreResult<Vec<String>> {
+    let key = legal_structure::caselaw_citation_lookup_key(citation).map_err(str::to_owned)?;
+    Ok(match alias_groups(path, &[citation.to_owned()])?.into_iter().next() {
+        Some(group) if !group.ambiguous && !group.keys.is_empty() => group.keys,
+        _ => vec![key],
+    })
+}
+
+/// Each citation's exact aliases and authored forms in the store's inventory; its own key alone where no store is
+/// installed.
+pub fn alias_groups(path: &Path, citations: &[String]) -> CoreResult<Vec<AliasGroup>> {
+    let found = with_store(path, |connection, _| {
         let mut targets = connection.prepare_cached("SELECT DISTINCT document_id FROM citation_lookup WHERE citation_key = ?")
             .map_err(sql)?;
         let mut aliases = connection.prepare_cached("SELECT citation_key FROM citation_lookup WHERE document_id = ?")
@@ -447,5 +457,9 @@ pub fn alias_groups(path: &Path, citations: &[String]) -> CoreResult<Option<Vec<
             };
             Ok(AliasGroup { keys, forms, ambiguous: false })
         }).collect()
-    })
+    })?;
+    Ok(found.unwrap_or_else(|| citations.iter().map(|citation| {
+        let key = citation_lookup_key(citation);
+        AliasGroup { keys: if key.is_empty() { Vec::new() } else { vec![key] }, forms: Vec::new(), ambiguous: false }
+    }).collect()))
 }

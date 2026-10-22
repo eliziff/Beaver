@@ -41,7 +41,6 @@ export const SIGNATURES = {
   documentReadingOrder: ["request"],
   citationOccurrencesInText: ["text"], authorityReferencesInText: ["text"],
   caselawCitationLookupKey: ["text"], hasCitationInText: ["text"],
-  classifyCitatorExcerpt: ["text"], classifyCitatorExcerpts: ["texts"],
   groundedProseErrors: ["text", "citedEvidenceIds", "visibleEvidence"],
   quoteRepairSuggestion: ["claim", "spans"], markedQuoteSpans: ["text"], textUnits: ["text", "sentences"],
   quoteComparison: ["authored", "source"],
@@ -61,6 +60,8 @@ export const SIGNATURES = {
   // The local A2AJ store at `store`, read by the engine.
   a2ajDocument: ["store", "lookup"], a2ajSection: ["store", "lookup", "section", "excerpt"],
   a2ajAliasGroups: ["store", "citations"],
+  // The citator's graph, read beside the A2AJ store at `store`, which also gives a note-up its keys.
+  citatorNoteUp: ["store", "request"], citatorMetrics: ["store", "citations"],
 };
 // Readings of text alone, which an operation's stages repeat: a request asked before is answered with the reply it
 // had, read afresh, from the latest this many.

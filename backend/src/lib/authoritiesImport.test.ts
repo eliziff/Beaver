@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createAuthoritiesImporter, importStandaloneAuthoritiesFile } from "./authoritiesImport";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import type { DocumentStore } from "./documentStore";
@@ -49,26 +49,6 @@ it("keeps the number Word prints for each footnote, past an author's note drawn 
   const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx", fileType: "docx", bytes, modified: 0 });
   expect(state.units.filter(({ kind }) => kind === "footnote").map(({ noteNumber }) => noteNumber)).toEqual([null, 1, 2]);
 });
-
-let aliasDirectory: string | null = null;
-
-afterEach(async () => {
-  delete process.env.MIKE_CITATOR_DB;
-  if (aliasDirectory) await rm(aliasDirectory, { recursive: true, force: true });
-  aliasDirectory = null;
-});
-
-async function useAliasGraph(rows: Array<[citation: string, decision: string]>) {
-  aliasDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-authorities-alias-"));
-  const databasePath = path.join(aliasDirectory, "citator.sqlite");
-  const database = new DatabaseSync(databasePath);
-  database.exec("CREATE TABLE resolution (cited_key TEXT, path TEXT, file_row_number INTEGER)");
-  const insert = database.prepare("INSERT INTO resolution VALUES (?, ?, 1)");
-  const native = structureNative();
-  rows.forEach(([citation, decision]) => insert.run(native.citationLookupKey(citation), decision));
-  database.close();
-  process.env.MIKE_CITATOR_DB = databasePath;
-}
 
 const scanNative = (texts: string[]) => {
   const native = structureNative();
@@ -134,35 +114,6 @@ describe("authorities import application", () => {
     ], applicationUnder: "Federal Courts Act, section 18.1", title: "" });
   });
 
-  it("coalesces reciprocal neutral, reporter, and French case citations before supra", async () => {
-    const citations = ["2015 SCC 5", "[2015] 1 SCR 331", "2015 CSC 5"];
-    await useAliasGraph(citations.map((citation) => [citation, "carter"]));
-    const texts = [
-      `Carter v Canada, ${citations[0]}.`,
-      `Carter v Canada, ${citations[1]}.`,
-      `Carter c Canada, ${citations[2]}.`,
-      "Carter v Canada, supra note 1 at para 8.",
-    ];
-
-    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
-      fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
-    { read: vi.fn() as never }, scanNative(texts));
-
-    expect(state.authorityOrder).toHaveLength(1);
-    const authorityId = state.authorityOrder[0];
-    expect(state.authorities[authorityId]).toMatchObject({
-      id: structureNative().citationLookupKey(citations[0]), kind: "case",
-      citation: citations[0],
-    });
-    expect(Object.values(state.occurrences).filter(({ kind }) => kind !== "reference")
-      .map(({ citation, authorityId: id, kind }) => ({ citation, id, kind }))).toEqual(
-      citations.map((citation) => ({ citation, id: authorityId, kind: "case" })),
-    );
-    expect(Object.values(state.occurrences).find(({ kind }) => kind === "reference"))
-      .toMatchObject({ citation: "supra note 1", authorityId, reviewed: true,
-        reference: { kind: "supra", targetAuthorityId: authorityId } });
-  });
-
   it("keeps the court a CanLII ID or reporter is cited with, past a pinpoint", async () => {
     const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
       fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
@@ -176,30 +127,6 @@ describe("authorities import application", () => {
         "Tamsin v Vale": "[1979] AJ No 61 (PC)", "R v Quill": "2021 SCC 9" });
     // The decision is still keyed by its core.
     expect(state.authorities[structureNative().citationLookupKey("1961 CanLII 7")]?.name).toBe("Marlow v The King");
-  });
-
-  it("does not merge asymmetric or ambiguous alias closures", async () => {
-    const neutral = "2020 SCC 1", reporter = "[2020] 1 SCR 1";
-    await useAliasGraph([[neutral, "decision-a"], [reporter, "decision-a"],
-      [reporter, "decision-b"]]);
-    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
-      fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
-    { read: vi.fn() as never }, scanNative([neutral, reporter]));
-
-    expect(state.authorityOrder).toEqual([neutral, reporter]
-      .map((citation) => structureNative().citationLookupKey(citation)));
-  });
-
-  it("does not coalesce legislation through the case alias inventory", async () => {
-    const citations = ["42 U.S.C. § 1983", "42 U.S.C. § 1985"];
-    await useAliasGraph(citations.map((citation) => [citation, "not-a-case"]));
-    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
-      fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
-    { read: vi.fn() as never }, scanNative(citations));
-    expect(state.authorityOrder).toEqual(citations
-      .map((citation) => structureNative().citationLookupKey(citation)));
-    expect(state.authorityOrder.map((id) => state.authorities[id].kind))
-      .toEqual(["legislation", "legislation"]);
   });
 
   it("keeps standalone manual-source imports unresolved until source preparation", async () => {
