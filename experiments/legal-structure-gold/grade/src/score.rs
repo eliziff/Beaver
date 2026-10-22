@@ -223,6 +223,9 @@ struct Features {
     document: Vec<Document>,
     document_ownership: Vec<(Piece, Document)>,
     continuations: Vec<(Option<Point>, Option<Point>, String)>,
+    /// Units and printed markers by what the unit is, for the headline table.
+    units_kind: Vec<(String, Vec<Piece>)>,
+    markers_kind: Vec<(String, Option<Point>, Segments)>,
 }
 
 fn merged(values: impl IntoIterator<Item = Piece>) -> Segments {
@@ -495,6 +498,7 @@ fn features<'a>(
                 found.extend(span_pieces(s)?);
             }
             result.joins.extend(found.windows(2).map(|w| (w[0], w[1])));
+            result.units_kind.push((kind.clone(), found.clone()));
             result.groups.push(found);
         }
     }
@@ -513,6 +517,9 @@ fn features<'a>(
             marker_spans.clone(),
         ));
         result.hierarchy_units.push(unit);
+        if !marker.is_empty() {
+            result.markers_kind.push((kind.clone(), unit, marker_spans.clone()));
+        }
         result.hierarchy_roles.push((unit, kind));
         result
             .hierarchy_relation
@@ -957,6 +964,21 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
         "continuations",
         prf(&wanted.continuations, &got.continuations),
     );
+    // The headline layers: what the apps read, by kind of unit.
+    const KINDS: [(&str, &str, &str); 6] = [
+        ("heading", "units_heading", "markers_heading"),
+        ("text", "units_text", "markers_text"),
+        ("list_item", "units_list_item", "markers_list_item"),
+        ("note", "units_note", "markers_note"),
+        ("quote", "units_quote", "markers_quote"),
+        ("table", "units_table", "markers_table"),
+    ];
+    for (kind, units_name, markers_name) in KINDS {
+        let units = |f: &Features| f.units_kind.iter().filter(|(k, _)| k == kind).map(|(_, p)| p.clone()).collect::<Vec<_>>();
+        metrics.insert(units_name, prf(&units(&wanted), &units(&got)));
+        let marks = |f: &Features| f.markers_kind.iter().filter(|(k, _, _)| k == kind).map(|(_, u, s)| (*u, s.clone())).collect::<Vec<_>>();
+        metrics.insert(markers_name, prf(&marks(&wanted), &marks(&got)));
+    }
     let text = recognition(reference, predicted, &alignment)?;
     Ok(Score {
         metrics,
