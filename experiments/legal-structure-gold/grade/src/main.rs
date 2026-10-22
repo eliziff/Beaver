@@ -3,7 +3,7 @@
 //!   structure-gold inputs GOLD_DIR MANIFEST    each gold's extraction with its cached readings
 //!                                              recognized into it: GOLD_DIR/inputs/<sha>.json.gz
 //!   structure-gold grade GOLD_DIR MANIFEST [--exports | --candidates FILE] [--split S] [--runs PREFIX..]
-//!                        [--out FILE] [--against FILE] [--show]
+//!                        [--group FIELD=VALUE]... [--out FILE] [--against FILE] [--show]
 //!       replays the structure stage over GOLD_DIR/inputs and scores it (or, with --exports, the
 //!       parser exports cached under GOLD_DIR/parsed); writes GOLD_DIR/score/grade.json unless
 //!       --out names another file. Totals are pooled per split; test is left out unless asked.
@@ -11,6 +11,7 @@
 //!       scores only its exports, and never selects them by gold line IDs.
 //!       --labels FILE decodes a tagger's per-line labels ({sha256, ids, labels} rows) over the
 //!       replayed parser, which supplies markers, references and note pairs, and scores them.
+//!       --group FIELD=VALUE keeps matching manifest groups; repeat to require every match.
 //!   structure-gold rows GOLD_DIR MANIFEST OUT_DIR
 //!       the tier-1 tagger's training rows, train and development only: each line's evidence
 //!       with the replayed parser's labels and the gold's, one JSON document per line of
@@ -38,10 +39,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
 
+const GROUP_FIELDS: [&str; 4] = ["language_layout", "genre_group", "country", "yardstick"];
+
 struct Source {
     sha256: String,
     mode: String,
     split: String,
+    groups: BTreeMap<String, String>,
     pdf: PathBuf,
 }
 
@@ -92,6 +96,9 @@ fn sources(gold: &Path, manifest: &Path) -> Result<Vec<Source>, String> {
         found.push(Source {
             mode: receipt["mode"].as_str().unwrap_or_default().to_owned(),
             split: row["split"].as_str().unwrap_or("unsplit").to_owned(),
+            groups: GROUP_FIELDS.iter().map(|&field| (
+                field.to_owned(), row[field].as_str().unwrap_or("unknown").to_owned(),
+            )).collect(),
             pdf: local(row["path"].as_str().ok_or("Manifest row without path")?),
             sha256,
         });
@@ -497,6 +504,14 @@ fn pooled(rows: &[&Value]) -> BTreeMap<String, score::Metric> {
     totals
 }
 
+fn totals_json(rows: &[&Value]) -> Value {
+    Value::Object(pooled(rows).into_iter().map(|(name, m)| {
+        let p = if m.predicted > 0 { m.correct as f64 / m.predicted as f64 } else { 1.0 };
+        let r = if m.expected > 0 { m.correct as f64 / m.expected as f64 } else { 1.0 };
+        (name, json!({"expected": m.expected, "predicted": m.predicted, "correct": m.correct, "precision": p, "recall": r, "f1": m.f1()}))
+    }).collect())
+}
+
 fn table(title: &str, totals: &BTreeMap<String, score::Metric>) {
     println!("\n{title}");
     println!(
@@ -536,6 +551,15 @@ fn against(before: &Value, after: &[&Value]) {
         .iter()
         .filter_map(|row| Some((*earlier.get(row["source_sha256"].as_str()?)?, *row)))
         .collect();
+    delta_table("against the earlier summary", &common);
+    let main: Vec<(&Value, &Value)> = common.into_iter()
+        .filter(|(b, a)| b["yardstick"] == "main" && a["yardstick"] == "main").collect();
+    if !main.is_empty() {
+        delta_table("against the earlier summary / yardstick=main", &main);
+    }
+}
+
+fn delta_table(title: &str, common: &[(&Value, &Value)]) {
     let f1 = |m: &Value| {
         let field = |key: &str| m[key].as_u64().unwrap_or(0) as f64;
         let (e, p, c) = (field("expected"), field("predicted"), field("correct"));
@@ -548,7 +572,7 @@ fn against(before: &Value, after: &[&Value]) {
     let (left, right): (Vec<&Value>, Vec<&Value>) = common.iter().copied().unzip();
     let (pooled_before, pooled_after) = (pooled(&left), pooled(&right));
     println!(
-        "\nagainst the earlier summary: {} runs in common",
+        "\n{title}: {} runs in common",
         common.len()
     );
     println!(
@@ -557,7 +581,7 @@ fn against(before: &Value, after: &[&Value]) {
     );
     for (name, m) in &pooled_after {
         let (mut better, mut worse) = (0, 0);
-        for (b, a) in &common {
+        for (b, a) in common {
             let (Some(x), Some(y)) = (b["metrics"].get(name), a["metrics"].get(name)) else {
                 continue;
             };
@@ -594,6 +618,13 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     let selected = candidates(inventory.as_deref())?;
     let labelled = label_file(value("--labels").as_deref())?;
     let split = value("--split");
+    let mut groups = Vec::new();
+    for (n, option) in options.iter().enumerate().filter(|(_, o)| *o == "--group") {
+        let (field, value) = options.get(n + 1).and_then(|v| v.split_once('='))
+            .filter(|(field, value)| GROUP_FIELDS.contains(field) && !value.is_empty())
+            .ok_or_else(|| format!("{option} requires FIELD=VALUE; fields: {}", GROUP_FIELDS.join(", ")))?;
+        groups.push((field, value));
+    }
     let prefixes: Vec<&String> = options
         .iter()
         .skip_while(|o| *o != "--runs")
@@ -610,6 +641,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
         .into_iter()
         .filter(|s| inventory.is_none() || selected.contains_key(&s.sha256))
         .filter(|s| labelled.is_none() || labelled.as_ref().is_some_and(|l| l.contains_key(&s.sha256)))
+        .filter(|s| groups.iter().all(|(field, value)| s.groups[*field] == *value))
         .filter(|s| {
             split
                 .as_deref()
@@ -650,6 +682,8 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
                 let s = &graded.score;
                 rows.push(json!({
                     "run": format!("v4/{}", source.sha256), "source_sha256": source.sha256, "mode": source.mode, "split": source.split,
+                    "language_layout": source.groups["language_layout"], "genre_group": source.groups["genre_group"],
+                    "country": source.groups["country"], "yardstick": source.groups["yardstick"],
                     "parse_ms": graded.parse_ms.round(),
                     "alignment": s.alignment,
                     "text": s.text, "metrics": metrics_json(&s.metrics),
@@ -661,24 +695,38 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
         }
     }
     let refs: Vec<&Value> = rows.iter().collect();
-    let mut totals = Map::new();
-    for (name, m) in pooled(&refs) {
-        let p = if m.predicted > 0 {
-            m.correct as f64 / m.predicted as f64
-        } else {
-            1.0
-        };
-        let r = if m.expected > 0 {
-            m.correct as f64 / m.expected as f64
-        } else {
-            1.0
-        };
-        totals.insert(name, json!({"expected": m.expected, "predicted": m.predicted, "correct": m.correct, "precision": p, "recall": r, "f1": m.f1()}));
+    let totals = totals_json(&refs);
+    let mut totals_by = Map::new();
+    let mut splits: Vec<&str> = rows.iter().filter_map(|r| r["split"].as_str()).collect();
+    splits.sort_unstable();
+    splits.dedup();
+    splits.sort_by_key(|s| match *s { "train" => 0, "development" => 1, "test" => 2, _ => 3 });
+    for split in splits {
+        let chosen: Vec<&Value> = rows.iter().filter(|r| r["split"] == split).collect();
+        table(&format!("{split}: {} documents", chosen.len()), &pooled(&chosen));
+        let mut fields = Map::new();
+        for field in ["yardstick", "language_layout", "genre_group"] {
+            let mut grouped: BTreeMap<&str, Vec<&Value>> = BTreeMap::new();
+            for row in &chosen {
+                if field == "genre_group" && row["yardstick"] != "main" {
+                    continue;
+                }
+                grouped.entry(row[field].as_str().unwrap_or("unknown")).or_default().push(row);
+            }
+            let mut values = Map::new();
+            for (value, members) in grouped {
+                let scope = if field == "genre_group" { " / yardstick=main" } else { "" };
+                table(&format!("{split}{scope} / {field}={value}: {} documents", members.len()), &pooled(&members));
+                values.insert(value.to_owned(), totals_json(&members));
+            }
+            fields.insert(field.to_owned(), Value::Object(values));
+        }
+        totals_by.insert(split.to_owned(), Value::Object(fields));
     }
     let summary = json!({
         "source": if inventory.is_some() { "candidates" } else if exports { "exports" } else { "replay" },
         "candidates": inventory, "elapsed_seconds": elapsed, "runs": rows.len() + errors.len(), "errors": errors,
-        "totals": totals, "per_run": rows,
+        "totals": totals, "totals_by": totals_by, "per_run": rows,
     });
     let out = value("--out")
         .map(PathBuf::from)
@@ -691,15 +739,6 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
         serde_json::to_vec(&summary).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
-    for split in ["train", "development", "test"] {
-        let chosen: Vec<&Value> = rows.iter().filter(|r| r["split"] == split).collect();
-        if !chosen.is_empty() {
-            table(
-                &format!("{split}: {} documents", chosen.len()),
-                &pooled(&chosen),
-            );
-        }
-    }
     if flag("--show") {
         for row in &rows {
             let layers = row["metrics"]
