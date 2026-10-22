@@ -83,15 +83,14 @@ manifest, and the scorer reports every layer per group without being asked:
   parallel); `other` (administrative, other, unknown). Headline numbers are `main`; the other
   groups are reported beside it, never pooled into it.
 
-These are assignments from provenance and the gold's own text, recomputed by
-`groups.py`; they are data, not memory.
+These are assignments from provenance and the gold's own text, recomputed by `groups.py`.
 
 ## 5. Post-corrections
 
 | name | ruling | module |
 |---|---|---|
 | `running_heads` | section 1, furniture | `postcorrect.py` |
-| `hierarchy_from_headings` | section 2 and 3 | `conventions.py` |
+| `hierarchy_from_headings` | section 2 and 3 | `hierarchy.py` |
 
 A post-correction is applied by the runner to new gold and by its module's command to existing
 gold; the gold file records `{"name", "module_sha256", "changes"}` per correction.

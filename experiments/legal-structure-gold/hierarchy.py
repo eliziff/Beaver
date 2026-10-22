@@ -1,11 +1,26 @@
-"""Units of typed lines, and the pass that gives each unit its parent.
+"""Units of typed lines, the pass that gives headings their levels, and the parents that follow.
 
 A unit is a paragraph, heading, list item, note, table row or other block: a typed line the model
 marked as a start, with the lines after it that continue it, on its page or the next. Running
 headers, footers and page numbers are units of their own.
+
+The model decides only heading levels (1 the outermost in its document) and document boundaries.
+Parents are computed: a heading falls under the nearest earlier heading of a smaller level; text,
+tables, captions and headnotes under the nearest earlier heading; a list item continues its
+numbering family's open list or falls under the unit before it; a quote under the unit before it;
+notes, marginal notes, contents and furniture stay outside. A document boundary resets everything.
+
+  python hierarchy.py GOLD_DIR [--sha PREFIX] [--dry-run]
+
+rebuilds the parents of existing gold from its heading ancestry (a heading's level is one plus its
+number of heading ancestors), recorded under `postcorrections` as hierarchy_from_headings.
 """
+import re
+
 OWN = {"furniture", "page_label"}
 UNRANKED = OWN | {"marginal_note", "note", "contents"}
+RANKED = {"text", "list_item", "heading", "quote", "table", "caption", "headnote"}
+UNDER_HEADING = {"text", "table", "caption", "headnote"}
 # Input tokens of one hierarchy call: gpt-6.1-sol's 500k context, less its instructions, reasoning
 # and answer. A whole document fits up to about 100 pages at the 2,048-pixel long side; a longer one
 # goes in windows.
@@ -51,17 +66,18 @@ def row_tokens(row):
 
 
 def decide(rows, ask, page_tokens):
-    """Parent row numbers (1-based, 0 for top level) for every row, from the model's [row, parent]
-    pairs, and the rows that start and end
-    a document: the whole document in one call when it fits the budget and image count, otherwise
-    windows that each fill them, carrying the still-open ancestors of the window before."""
-    parents, starts, ends, start = [0] * len(rows), set(), set(), 0
+    """Heading levels (None for rows that are not headings) for every row, from the model's
+    [row, level] pairs, and the rows that start and end a document: the whole document in one call
+    when it fits the budget and image count, otherwise windows that each fill them, carrying the
+    five rows before the window and the last heading seen at each open level."""
+    levels, starts, ends, start = [None] * len(rows), set(), set(), 0
     while start < len(rows):
-        context = set()
-        for at in range(max(0, start - 5), start):
-            context.add(at)
-            while parents[at]:
-                at = parents[at] - 1; context.add(at)
+        context, stack = set(range(max(0, start - 5), start)), {}
+        for at in range(start):
+            if levels[at] is not None:
+                stack = {k: v for k, v in stack.items() if k < levels[at]}
+                stack[levels[at]] = at
+        context |= set(stack.values())
         pages = {rows[n][0] for n in context}
         cost = sum(page_tokens[p] for p in pages) + sum(row_tokens(rows[n]) for n in context)
         end = start
@@ -71,12 +87,14 @@ def decide(rows, ask, page_tokens):
             cost += extra; pages.add(rows[end][0]); end += 1
         shown = sorted(context) + list(range(start, end))
         answer = ask(shown, sorted(pages))
-        for row, parent in answer["parents"]:
-            if row - 1 >= start: parents[row - 1] = parent
+        for row_number, level in answer["levels"]:
+            if row_number - 1 >= start and rows[row_number - 1][1] == "heading": levels[row_number - 1] = level
         starts |= {n - 1 for n in answer["starts"] if n - 1 >= start}
         ends |= {n - 1 for n in answer["ends"] if n - 1 >= start}
         start = end
-    return parents, starts, ends
+    for n, r in enumerate(rows):
+        if r[1] == "heading" and levels[n] is None: levels[n] = 1
+    return levels, starts, ends
 
 
 def documents(starts, ends, rows):
@@ -94,15 +112,162 @@ def documents(starts, ends, rows):
     return set(starts) | {0}, ends
 
 
-def checked(shown):
+def checked(shown, rows):
     numbered = {n + 1 for n in shown}
+    headings = {n + 1 for n in shown if rows[n][1] == "heading"}
     def validate(response):
-        parents = response["parents"]
-        if not all(len(pair) == 2 for pair in parents): raise ValueError("Each parent is [row, the row it falls under]")
-        if len({row for row, _ in parents}) != len(parents): raise ValueError("A row has one parent")
-        if not all(row in numbered and (parent == 0 or parent in numbered and parent < row) for row, parent in parents):
-            raise ValueError("A row's parent must be an earlier shown row")
-        if not set(response["starts"]) | set(response["ends"]) <= {n + 1 for n in shown}:
-            raise ValueError("starts and ends must number shown rows")
+        levels = response["levels"]
+        if not all(len(pair) == 2 for pair in levels): raise ValueError("Each entry is [row, level]")
+        if len({r for r, _ in levels}) != len(levels): raise ValueError("A row has one level")
+        if not all(r in numbered and 1 <= level <= 9 for r, level in levels): raise ValueError("Levels number shown rows, 1 to 9")
+        if not headings <= {r for r, _ in levels}: raise ValueError("Every heading row needs a level")
+        if not set(response["starts"]) | set(response["ends"]) <= numbered: raise ValueError("starts and ends must number shown rows")
         return response
     return validate
+
+
+# Numbering families a unit can open with, for list nesting.
+_WORD_OUTER = re.compile(r"^(PART|PARTIE|BOOK|LIVRE|TITLE|TITRE|VOLUME)\b", re.I)
+_WORD_INNER = re.compile(r"^(ARTICLE|CHAPTER|CHAPITRE|DIVISION|SECTION|SCHEDULE|ANNEX|ANNEXE|APPENDIX|TAB|RULE|R[ÈE]GLE|CLAUSE|FORM|FORMULE)\b", re.I)
+_SEC = re.compile(r"^(\d+(?:\.\d+)?)\s*\(\d+\)")
+_DOTTED = re.compile(r"^(\d+(?:\.\d+)+)\.?(?=\s|$)")
+_NUM = re.compile(r"^(?:\(|\[)?(\d+)(?:[.)\]:]|(?=\s))(?=\s|$)")
+_ROMAN = re.compile(r"^\(?([IVXLCivxlc]{1,6})[.)\]:](?=\s|$)")
+_ALPHA = re.compile(r"^\(?([A-Za-z]{1,2})[.)\]](?=\s|$)")
+_BULLET = re.compile(r"^[•·▪–—\-*●○■□►]\s")
+_ROMANS = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii",
+           "xviii", "xix", "xx", "xxi", "xxii", "xxiii", "xxiv", "xxv", "xxx", "xl", "l"}
+
+
+def numbering(text, open_letter=None):
+    """The numbering family a unit opens with ('' for none); `open_letter` is the last letter of an
+    open lower-case letter list, so 'i' after 'h' reads as a letter, not a numeral."""
+    t = text.lstrip()
+    if _WORD_OUTER.match(t): return "word_outer"
+    if _WORD_INNER.match(t): return "word_inner"
+    if _SEC.match(t): return "sec"
+    m = _DOTTED.match(t)
+    if m: return f"dec{min(m.group(1).count('.') + 1, 4)}"
+    if _NUM.match(t): return "num"
+    m = _ROMAN.match(t)
+    if m:
+        token = m.group(1); lower = token.islower()
+        if len(token) == 1 and token.lower() in "ivxlc":
+            if open_letter == chr(ord(token.lower()) - 1): return "al" if lower else "AU"
+            return "rl" if lower else "RU"
+        if token.lower() in _ROMANS: return "rl" if lower else "RU"
+    m = _ALPHA.match(t)
+    if m:
+        token = m.group(1)
+        if len(token) == 2 and token[0] != token[1]: return ""
+        return "al" if token.islower() else "AU"
+    if _BULLET.match(t): return "bullet"
+    return ""
+
+
+def assemble(regions, texts, levels, starts_document):
+    """Parents for units in reading order, from each unit's region and first-line text, heading
+    levels (None off headings) and document starts. Returns [parent unit index or None]."""
+    parents = [None] * len(regions)
+    heading_stack, list_stack, prev, open_letter = [], [], None, None  # (level, unit); (family, unit, parent)
+    for u, region in enumerate(regions):
+        if region not in RANKED: continue
+        if starts_document[u]: heading_stack, list_stack, prev, open_letter = [], [], None, None
+        if region == "heading":
+            level = levels[u] if levels[u] is not None else 1
+            while heading_stack and heading_stack[-1][0] >= level: heading_stack.pop()
+            parent = heading_stack[-1][1] if heading_stack else None
+            heading_stack.append((level, u)); list_stack, open_letter = [], None
+        elif region in UNDER_HEADING:
+            parent = heading_stack[-1][1] if heading_stack else None
+            if region == "text": list_stack, open_letter = [], None
+        elif region == "list_item":
+            fam = numbering(texts[u], open_letter)
+            found = next((k for k in range(len(list_stack) - 1, -1, -1) if fam and list_stack[k][0] == fam), None)
+            if found is not None:
+                parent = list_stack[found][2]; del list_stack[found + 1:]; list_stack[found] = (fam, u, parent)
+            elif not fam and list_stack:
+                parent = list_stack[-1][2]; list_stack[-1] = (list_stack[-1][0], u, parent)
+            else:
+                parent = prev if prev is not None else (heading_stack[-1][1] if heading_stack else None)
+                list_stack.append((fam, u, parent))
+            if fam == "al":
+                m = _ALPHA.match(texts[u].lstrip()); open_letter = m.group(1).lower() if m else None
+        else:  # quote
+            parent = parents[prev] if prev is not None and regions[prev] == "quote" else prev
+        parents[u] = parent; prev = u
+    return parents
+
+
+def unit_fields(gold):
+    """Each unit's region and first-line text, from a gold file."""
+    typed = gold["typed"]
+    firsts = [typed[unit["lines"][0]] for unit in gold["units"]]
+    return [f["region"] for f in firsts], [" ".join(f.get("text", "").split()) for f in firsts]
+
+
+def levels_from_ancestry(units, regions):
+    """For gold authored before levels existed: a heading's level is one plus its heading ancestors."""
+    levels = [None] * len(units)
+    for u, unit in enumerate(units):
+        if regions[u] != "heading": continue
+        count, at, seen = 0, unit.get("parent"), set()
+        while at is not None and at not in seen and at < len(units):
+            seen.add(at); count += regions[at] == "heading"; at = units[at].get("parent")
+        levels[u] = count + 1
+    return levels
+
+
+def from_headings(gold, module_sha256):
+    """Rebuild every unit's parent from heading levels; returns the postcorrection record."""
+    regions, texts = unit_fields(gold)
+    units = gold["units"]
+    levels = [u.get("level") if regions[k] == "heading" else None for k, u in enumerate(units)]
+    if all(level is None for level in levels) or any(regions[k] == "heading" and levels[k] is None for k in range(len(units))):
+        levels = levels_from_ancestry(units, regions)
+    parents = assemble(regions, texts, levels, [bool(u.get("starts_document")) for u in units])
+    changes = []
+    for u, unit in enumerate(units):
+        if regions[u] in RANKED and unit.get("parent") != parents[u]:
+            changes.append([u, unit.get("parent"), parents[u]]); unit["parent"] = parents[u]
+        if regions[u] == "heading": unit["level"] = levels[u]
+    return {"name": "hierarchy_from_headings", "module_sha256": module_sha256, "changes": changes, "units": len(units)}
+
+
+def main():
+    import argparse, gzip, hashlib, json
+    from collections import Counter
+    from pathlib import Path
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("gold", type=Path)
+    p.add_argument("--sha")
+    p.add_argument("--dry-run", action="store_true")
+    a = p.parse_args()
+    module_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    read = changed = 0; census = Counter()
+    for job in sorted(a.gold.joinpath("v4").iterdir()):
+        if a.sha and not job.name.startswith(a.sha): continue
+        path = job / "gold.json.gz"
+        if not path.is_file(): continue
+        with gzip.open(path, "rt", encoding="utf-8") as stream: gold = json.load(stream)
+        if any(c.get("name") == "hierarchy_from_headings" for c in gold.get("postcorrections", [])): continue
+        read += 1
+        regions, _ = unit_fields(gold)
+        record = from_headings(gold, module_sha)
+        gold.setdefault("postcorrections", []).append(record)
+        if record["changes"]:
+            changed += 1
+            for u, _, _ in record["changes"]: census[regions[u]] += 1
+        if a.dry_run: continue
+        data = json.dumps(gold, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        with open(path, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as stream: stream.write(data)
+        receipt_path = job / "receipt.json"
+        if receipt_path.is_file():
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
+            receipt.update(gold_sha256=hashlib.sha256(path.read_bytes()).hexdigest(), postcorrections=len(gold["postcorrections"]))
+            receipt_path.write_text(json.dumps(receipt, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"{read} golds read, {changed} with parent changes{' (dry run)' if a.dry_run else ''}; by unit region: {dict(census.most_common())}")
+
+
+if __name__ == "__main__":
+    main()
