@@ -270,7 +270,7 @@ export class TurnToolRegistry<Context> {
         outcome: tool.onInvalidInput(call.input, checked.errorMessage ?? "Invalid arguments") };
       // Rejected arguments never reach the tool, so log them here or the failure is invisible.
       console.error("[assistant-tool] rejected arguments",
-        { tool: call.name, detail: checked.errorMessage?.slice(0, 500) });
+        { tool: call.name, detail: checked.errorMessage?.slice(0, 500), arguments: Object.keys(call.input ?? {}) });
       return { call, outcome: failedOutcome("invalid_arguments", checked.errorMessage) };
     }
     // A valid call to an in-scope specialist is its own load: clients that already
