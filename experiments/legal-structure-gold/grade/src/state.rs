@@ -434,9 +434,15 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
         let mut pages: Vec<(usize, Vec<Vec<Vec<SourceSpan>>>)> = Vec::new();
         for u in rows {
             let mut cells: BTreeMap<usize, Vec<SourceSpan>> = BTreeMap::new();
+            // A typed line of the row with one cell where the row's first line had several is a
+            // value wrapped onto the next line: it goes on in the row's last column, not column 0.
+            let columns = units[u].lines.first().and_then(|&n| typed[n].cells.as_ref()).map_or(0, Vec::len);
             for &n in &units[u].lines {
-                for (c, spans) in typed[n].cells.iter().flatten().enumerate() {
-                    cells.entry(c).or_default().extend(spans.iter().cloned());
+                let line_cells = typed[n].cells.iter().flatten().collect::<Vec<_>>();
+                let wrapped = columns >= 2 && line_cells.len() == 1;
+                for (c, spans) in line_cells.into_iter().enumerate() {
+                    let column = if wrapped { columns - 1 } else { c };
+                    cells.entry(column).or_default().extend(spans.iter().cloned());
                 }
             }
             // A cell's text in reading order.

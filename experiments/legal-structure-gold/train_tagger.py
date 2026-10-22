@@ -498,6 +498,8 @@ def main():
             notes = (tier0[:, 0] == note) | (labels[:, 0] == note)
             mixed[notes, :2] = tier0[notes, :2]
             mixed[notes, 5:] = tier0[notes, 5:]
+            # Note references are tier 0's as well: their pairs belong to its notes.
+            mixed[:, 4] = tier0[:, 4]
             mixed[:, 3] = tier0[:, 3]
             hybrid.write(json.dumps({"sha256": raw["sha256"], "ids": raw["ids"], "labels": mixed.tolist()}) + "\n")
     for l in report(dev, predictions, correct, "best"):
