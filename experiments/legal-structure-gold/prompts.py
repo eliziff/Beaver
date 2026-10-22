@@ -19,7 +19,7 @@ NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["p
     "type": "object", "additionalProperties": False, "required": ["page", "line", "mark", "note"], "properties": {
         "page": {"type": "integer"}, "line": {"type": "integer"}, "mark": {"type": "string"}, "note": {"type": "integer"}}}}}}
 
-HIERARCHY = """Give each heading its outline level: 1 for the document's top-level headings, 2 for a heading inside a level-1 part, and so on.
+HIERARCHY = """For each heading row give [row, level]: 1 for the outermost headings of its document, 2 for headings under those, and so on. Headings of one kind (same numbering, same type) share a level.
 If the file holds several documents, such as a judgment and its exhibits, give starts and ends: the rows that begin and end each one; otherwise leave them empty."""
 _NUMBERS = {"type": "array", "items": {"type": "integer"}}
 HIERARCHY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["levels", "starts", "ends"],
