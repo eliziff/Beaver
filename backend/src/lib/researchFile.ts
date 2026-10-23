@@ -318,15 +318,6 @@ const applyLabel = (state: ResearchFileState, action: Extract<PublicResearchFile
   return id;
 };
 
-export async function saveResearchFile(documents: DocumentStore, scope: ApplicationScope,
-  documentId: string, expectedVersionId: string, expectedWorkingRevision: number,
-  action: ResearchFileAction, assistant?: { turnVersionId?: string; turnId?: string },
-  context?: ResearchOperationContext) {
-  const current = await readResearchFile(documents, scope, documentId);
-  return !current || current.versionId !== expectedVersionId ||
-    current.workingRevision !== expectedWorkingRevision ? null
-    : commitResearchFile(documents, scope, current, action, assistant, context);
-}
 
 export async function commitResearchFile(documents: DocumentStore, scope: ApplicationScope,
   current: ResearchFile, raw: ResearchFileAction,

@@ -45,7 +45,7 @@ const sourcesPath = file("passage-sources.jsonl");
 if (process.argv.includes("--assemble")) assemble(argument("--assemble"));
 else await choose(Number(argument("--documents") ?? 320));
 
-// builder-candidate.ts sourceUrl's address rewrites (the engine's statute_page): the page a statute's A2AJ address opens.
+// The product's sourceUrl address rewrites (the engine's statute_page): the page a statute's A2AJ address opens.
 function pageOf(address) {
   let url;
   try { url = new URL(address); } catch { return null; }

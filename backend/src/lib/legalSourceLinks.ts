@@ -124,10 +124,6 @@ export function buildLegalSourcePinpoint(
   return link && target ? { target, plan: link.plan } : null;
 }
 
-export function buildLegalSourcePinpointUrl(evidence: LegalSourceEvidence, quotes: string[]) {
-  return buildLegalSourcePinpoint(evidence, quotes)?.target ?? null;
-}
-
 /** Add complete source-anchored text fragments beside the existing paragraph or provision anchor. A provision link
  *  paints the part of the provision its citation pinpoints ("sec16(3)", "sec445(1)(a)") where the document has it,
  *  else the provision's opening block. Each plan runs off the JavaScript thread, so a workbook plans its links at once. */

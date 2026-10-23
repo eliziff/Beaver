@@ -41,7 +41,7 @@ const { legalSourceOperations } = await import(lib + "legalSourceApplication.ts"
 const { importStandaloneAuthoritiesFile } = await import(lib + "authoritiesImport.ts");
 const { splitQuoteChecks, citedSourceReader, quoteScopes } = await import(lib + "quoteCheck.ts");
 const { splitQuoteCitationUnits } = await import(lib + "quoteCitationSplit.ts");
-const { sourceUrl } = await import(new URL("./builder-candidate.ts", import.meta.url).href);
+const { sourceUrl } = await import(lib + "legalSourceLinks.ts");
 keepLookupsLocal(true);
 
 const argument = (name: string) => { const at = process.argv.indexOf(name); return at > 0 ? process.argv[at + 1] : undefined; };
@@ -61,7 +61,7 @@ const byKey = db.prepare(`SELECT d.id, d.doc_type, d.dataset, d.citation_en, d.c
   FROM citation_lookup c JOIN document d ON d.id = c.document_id WHERE c.citation_key = ?`);
 const docKey = (citation: string) => citation.replace(/[^\w.-]+/gu, "_");
 
-// 1. The cached sources: A2AJ documents whose publisher page (builder-candidate's sourceUrl of the A2AJ address) is in
+// 1. The cached sources: A2AJ documents whose publisher page (the product's sourceUrl of the A2AJ address) is in
 // the provider page cache, or whose CanLII page is in the Pinpointer corpus (by the citation its title opens with).
 type Source = { id: number; docType: string; dataset: string; citation: string; citation2: string | null;
   name: string | null; url: string; pages: string[]; citing: number; citers: number[] };

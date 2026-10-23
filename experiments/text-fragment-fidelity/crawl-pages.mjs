@@ -29,10 +29,10 @@ fs.mkdirSync(browserTextDir, { recursive: true });
 // The crawl must fetch the page the builder actually navigates to, not the raw
 // seed URL: the builder rewrites ontario.ca e-laws API -> HTML, laws-lois
 // justice XML -> FullText.html, canlii PDF -> HTML, and adds Decisia
-// iframe/mobile params. Reuse the builder's own sourceUrl so the two can never
+// iframe/mobile params. Reuse the product's sourceUrl (the engine's) so the two can never
 // drift again (the earlier API/XML cache-miss gap came from replicating only
 // part of that transform here).
-const { sourceUrl } = await import(pathToFileURL(path.join(here, "builder-candidate.ts")).href);
+const { sourceUrl } = await import(pathToFileURL(path.join(here, "../../backend/src/lib/legalSourceLinks.ts")).href);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const ownedChromeQuery = String.raw`

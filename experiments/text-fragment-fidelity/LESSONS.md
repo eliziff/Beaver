@@ -116,7 +116,7 @@ The planner's `BrowserReplay` and `browser_key` in legal-structure `text_fragmen
   - A2AJ gives XML feeds, API endpoints or PDFs: laws-lois `/eng/XML/*.xml`, bclaws `…/xml`, ontario.ca
     `/laws/api/v2/…`.
   - `crawl-pages.mjs` caches their HTML pages (`FullText.html`, bclaws without `/xml`, `/laws/statute/…`) via
-    `builder-candidate.ts` `sourceUrl`.
+    the product's `sourceUrl` (the engine's `source_url`, whose `statute_page` makes these rewrites).
   - Production dropped those rewrites when legislation started linking to CanLII (d2f020f48d), so a publisher-form
     legislation target still names the XML or API address.
 

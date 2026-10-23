@@ -16,8 +16,7 @@ import { closeRelationalDatabase, relationalDatabase, sql } from "../relationalD
 import type { DocumentScope } from "../documentStore";
 import { createFilesystemObjectStorage, createS3ObjectStorage, documentBlobKey, readS3Configuration,
   scopeObjectStorage, type ObjectStorage } from "../storage";
-import { createResearchFileState, readResearchFile, researchFileMarkdown,
-  saveResearchFile } from "../researchFile";
+import { createResearchFileState, readResearchFile, researchFileMarkdown } from "../researchFile";
 import { applyTextOpsToDocx } from "../docxTextOps";
 
 const docx = (text: string) => new JSZip().file("word/document.xml", text, {
@@ -261,23 +260,6 @@ describe("shared document application", () => {
     expect((await documents.versions(scope, created.id))?.versions).toHaveLength(3);
     expect((await documents.read(scope, created.id, null, false))?.bytes.toString()).toBe("five");
     await documents.deleteDocument(scope, created.id);
-  });
-
-  it("rejects a stale same-version research autosave", async () => {
-    const documents = createDocumentApplication(repository,
-      createFilesystemObjectStorage(root)), scope = { userId: "research-human" };
-    const created = await documents.create(scope, { filename: "Cases.research.md",
-      fileType: "md", bytes: Buffer.from(researchFileMarkdown(
-        "Cases", createResearchFileState())) });
-    const opened = await readResearchFile(documents, scope, created.id);
-    expect(opened).not.toBeNull();
-    expect(await saveResearchFile(documents, scope, created.id, opened!.versionId,
-      opened!.workingRevision, { type: "note", markdown: "first" }))
-      .toMatchObject({ versionId: opened!.versionId, workingRevision: 1 });
-    expect(await saveResearchFile(documents, scope, created.id, opened!.versionId,
-      opened!.workingRevision, { type: "note", markdown: "stale" })).toBeNull();
-    expect((await readResearchFile(documents, scope, created.id))?.state.note).toBe("first");
-    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(1);
   });
 
   it("retains provenance through revisions, checkpoints and restores, but not uploaded replacement", async () => {

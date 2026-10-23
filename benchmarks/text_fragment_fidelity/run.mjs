@@ -34,7 +34,7 @@ if (arg("--tier", "smoke") === "cache") {
   process.exit(0);
 }
 
-const { buildLegalSourcePinpointUrl } = await import(
+const { buildLegalSourcePinpoint } = await import(
   pathToFileURL(path.join(root, "backend/src/lib/legalSourceLinks.ts")).href
 );
 
@@ -60,7 +60,7 @@ function manualUrl(seed) {
 
 function buildTarget(seed) {
   if (seed.manualDirective) return manualUrl(seed);
-  return buildLegalSourcePinpointUrl(
+  return buildLegalSourcePinpoint(
     {
       url: seed.url,
       ...(seed.anchor ? { anchor: seed.anchor } : {}),
@@ -68,7 +68,7 @@ function buildTarget(seed) {
       ...(seed.documentText ? { documentText: seed.documentText } : {}),
     },
     seed.quotes ?? [],
-  );
+  )?.target ?? null;
 }
 
 async function measure(page, target) {

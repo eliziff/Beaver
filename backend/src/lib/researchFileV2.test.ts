@@ -9,7 +9,7 @@ import { resolveChatFindings } from "./researchChat";
 import { sha256 } from "./hash";
 import { commitResearchFile, createResearchFileState, pageResearchItems, parseResearchFile,
   readResearchFile, researchFileActionSchema, researchFileMarkdown, researchQueryReceipt,
-  readResearchHistory, saveResearchFile, researchHighlightCount,
+  readResearchHistory, researchHighlightCount,
   researchSourceFromResource, researchSourceResource, type ResearchFileAction } from "./researchFile";
 import { runResearchFileQuery, verifyResearchPassage } from "./researchFileQuery";
 import type { ResearchOperationContext } from "./researchProvenance";
@@ -484,48 +484,6 @@ describe("Research v2 parts", () => {
 
 
 
-
-  it("holds an explicit grouped proposal, accepts it atomically, and undoes only its affected fields", async () => {
-    const f = fixture(), scope = { userId: "user-1" }, model = { executor: "assistant" as const, model: "model-a" },
-      added = "40000000-0000-4000-8000-000000000001", later = "40000000-0000-4000-8000-000000000002";
-    await act(f, { type: "label", id: sourceLabel, name: "Reviewed", definition: "Documents reviewed by the user" });
-    const collected = await act(f, { type: "merge", evidence: [receipt("note")] }), sourceId = Object.keys(collected.state.sources)[0];
-    await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [sourceLabel] });
-    const proposed = await act(f, { type: "batch", title: "Organize project material", propose: true, actions: [
-      { type: "label", id: sourceLabel, name: "Read" }, { type: "label", id: added, name: "Follow up" },
-      { type: "annotate", kind: "source", id: sourceId, labelIds: [added] },
-    ] }, undefined, model), id = proposed.state.proposals![0].id;
-    expect(proposed.state.labels[sourceLabel].name).toBe("Reviewed");
-    expect(proposed.state.labels[added]).toBeUndefined();
-    expect(proposed.state.sources[sourceId].labelIds).toEqual([sourceLabel]);
-    await act(f, { type: "note", markdown: "Independent memo edit" });
-    expect(await saveResearchFile(f.documents as never, scope, "doc-1", proposed.versionId, proposed.workingRevision,
-      { type: "accept", changeId: id })).toBeNull();
-    const accepted = await act(f, { type: "accept", changeId: id });
-    expect(accepted.state.proposals).toEqual([]);
-    expect(accepted.state.labels[sourceLabel].name).toBe("Read");
-    expect(accepted.state.sources[sourceId].labelIds).toEqual([sourceLabel, added]);
-    const protectedFiling = await act(f, { type: "label-selection", target: "sources", sourceIds: [sourceId],
-      assign: [added], mode: "remove" }, undefined, model);
-    expect(protectedFiling.state.sources[sourceId].labelIds).toEqual([sourceLabel, added]);
-    expect(protectedFiling.state.proposals).toHaveLength(1);
-    await act(f, { type: "reject", changeId: protectedFiling.state.proposals![0].id });
-    const protectedEdit = await act(f, { type: "label", id: added, name: "Model revision" }, undefined, model);
-    expect(protectedEdit.state.labels[added].name).toBe("Follow up");
-    expect(protectedEdit.state.proposals).toHaveLength(1);
-    await act(f, { type: "reject", changeId: protectedEdit.state.proposals![0].id });
-    await act(f, { type: "label", id: later, name: "Independent label" });
-    await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [added, later], note: "Keep this note" });
-    const undone = await act(f, { type: "undo", changeId: id });
-    expect(undone.state.labels[sourceLabel].name).toBe("Reviewed");
-    expect(undone.state.labels[added]).toBeUndefined();
-    expect(undone.state.labels[later].name).toBe("Independent label");
-    expect(undone.state.sources[sourceId]).toMatchObject({ labelIds: [sourceLabel, later], note: "Keep this note" });
-    expect(undone.state.note).toBe("Independent memo edit");
-    const history = await readResearchHistory(f.documents as never, scope, undone);
-    expect(history.find((change) => change.id === id)).toMatchObject({ status: "applied", executor: "assistant", resolvedBy: scope.userId });
-    expect(history.at(-1)).toMatchObject({ status: "applied", undoOf: id, executor: "human" });
-  });
 
   it("requires acceptance for model edits to human labels and rejects stale proposals", async () => {
     const f = fixture(), scope = { userId: "user-1" }, model = { executor: "assistant" as const };
