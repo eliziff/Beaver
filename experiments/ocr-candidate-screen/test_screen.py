@@ -13,9 +13,42 @@ import torch
 
 from screen import Adapter, audit_sources, normalized
 from indra import Indra, IndraSpatial, distillation_loss, select_channels
+from margin_jitter import jitter_margins
 
 
 class ScreenTests(unittest.TestCase):
+    def test_margin_augmentation_retains_all_glyph_pixels_including_pale_edges(self):
+        image = np.full((12, 28), 255, np.uint8)
+        image[3:8, 4:20] = 70
+        image[2, 22] = 254
+        augmented = jitter_margins(image, [-.75, .75, .5, -.5])
+        def ink(value):
+            yy, xx = np.where(value < 255)
+            return value[yy.min():yy.max() + 1, xx.min():xx.max() + 1]
+        np.testing.assert_array_equal(ink(image), ink(augmented))
+        blank = np.full_like(image, 255)
+        np.testing.assert_array_equal(jitter_margins(blank, [1, -1, .5, -.5]), blank)
+
+    def test_augmented_batches_keep_ctc_sizing_and_restore_from_torch_rng(self):
+        adapter = object.__new__(Adapter)
+        adapter.name, adapter.height, adapter.maximum, adapter.minimum = 'indra', 32, 4096, 8
+        adapter.meta = {}
+        image = np.full((32, 40), 255, np.uint8)
+        image[8:24, 8:32] = 0
+        encoded = cv2.imencode('.png', image)[1].tobytes()
+        prepared, _ = adapter.prepare([{'text': 'o' * 80, 'im': encoded}], training=True)
+        torch.manual_seed(149)
+        state = torch.get_rng_state()
+        first = adapter.batch(prepared, [0] * 8, 'cpu', margin_jitter=.75)
+        self.assertTrue(torch.all(first[1] // 4 >= 160))
+        torch.set_rng_state(state)
+        second = adapter.batch(prepared, [0] * 8, 'cpu', margin_jitter=.75)
+        torch.testing.assert_close(first[0], second[0], rtol=0, atol=0)
+        torch.testing.assert_close(first[1], second[1], rtol=0, atol=0)
+        state = torch.get_rng_state()
+        adapter.batch(prepared, [0], 'cpu')
+        torch.testing.assert_close(torch.get_rng_state(), state, rtol=0, atol=0)
+
     def test_channel_pruning_preserves_the_network_when_discarded_features_are_zero(self):
         # Independently disable features in a tiny full graph, then remove them.
         model = Indra.__new__(Indra)

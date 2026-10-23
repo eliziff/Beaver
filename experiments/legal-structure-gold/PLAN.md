@@ -56,6 +56,10 @@ letter page at the 2,048-pixel long side costs about 3,800, so about 100 pages) 
 still-open ancestors of the window before. Furniture, page
 labels, marginal notes, notes and contents stay out of the outline.
 
+Parents may follow their children because of column or attachment ordering. The authoring validator
+requires shown rows and an acyclic parent graph; it does not impose an earlier-row
+parent constraint. The scorer preserves these forward links.
+
 A v4 file holds `images` [{page, bbox, fraction}] (the images the PDF places on its pages, read
 from the file, never asked of the model: figures, stamps, scanned inserts), `lines` [{id, page,
 text (extracted), corrected?}], `typed` [{page, region, text,
@@ -155,10 +159,17 @@ python experiments/legal-structure-gold/evaluate.py --gold <gold.json.gz> --cand
 ```
 
 `score_all.py` parses every completed `<out>/v4/*` source again with the most recently built
-addon and micro-averages each layer into `score/latest.json`. PDFs come from the corpus, or from
+addon and micro-averages each layer into `score/latest.json`. It shares the authoring cache in
+`parsed/`, so unchanged extraction and OCR are reused. PDFs come from the corpus, or from
 the authoring manifest. Copy that summary aside before a parser change; `--against` reports the
 change over the runs both scored. `--tag`, `--replay` and `--rescore` keep a run's engine inputs
 for replay or rescoring without parsing.
+
+`--workers` controls metric workers; `--parse-workers` can bound PDF parsing separately
+(otherwise it uses `--workers`). `score/progress.json` reports completed metric documents,
+errors and elapsed time, including results that finish ahead of a slower document.
+Each metric worker keeps one native helper loaded for its composition operations rather than
+starting Node and loading the addon for every call.
 
 `evaluate.projected` puts a v4 gold in the scorer's frame, so source alignment and feature
 extraction read gold and parser export alike. Each unit becomes one block per fragment, with its
@@ -978,10 +989,44 @@ the accepted outputs and observations are in `score/parser-checks/codex-referenc
 No tests, OCR, models, corpus scoring or full-stack timing were run; the earlier pooled scores
 still describe `fa5774d`.
 
-Eleven reference-title targets remain missed. Opinion-heading parents remain 78 of 82: two prior
-prose titles now have heading roles, but their opinion parents, another existing heading's parent
-and the isolated Roman title remain unresolved. Seven concluding text units still belong to the
-last subsection rather than the opinion. Their original spans, native owners and frozen gold
-hashes remain in `score/parser-checks/codex-opinion-residual-native-errors.json`. Inspect the Roman
-title's footer classification and the remaining opinion-parent decisions next. The earlier
-caption/table, note-reference and inserted-marker annotation disagreements remain recorded above.
+Parser `44f70b5` also reads bold bare Roman titles through the existing counter ladder, requiring
+a coherent sequence. An unconfirmed folio must sit beyond the remaining body text; confirmed
+running furniture and folio sequences retain their authority. This recovers the inspected three
+Roman headings and their 24 text-unit parents. The earlier 16-document figures above are historical
+diagnostics. They do not establish corpus-wide quality or acceptance.
+
+Candidate evaluation now covers every completed gold document, without sampled source or mode
+filters. The current full corpus is 1,158 documents: 705 native-text and 453 OCR, including all
+711 train, 381 development and 66 test documents at the user's direction. Keep the original split
+labels in reports. Gold and cached recognition stay fixed. Run the existing Rust grader over
+all partitions, pool its counts, and use the corpus-wide errors to choose work.
+
+The matched full comparison uses baseline parser `acf9967`, candidate `44f70b5` and structure
+`4d49f2e`, with the same grader source, gold and cached structure inputs. Both cover all 1,158
+documents with zero errors; all gold and input hashes remain unchanged. Loading, structure replay
+and grading take 28.0 and 30.0 seconds respectively. PDF extraction, OCR and model training are
+excluded. Private reports, executable identities and hashes are in
+`score/parser-checks/full-corpus/`, especially `comparison.json`, `provenance.json` and
+`verification.json`.
+
+| Full-corpus F1 | Baseline | Candidate |
+| --- | --- | --- |
+| Complete hierarchy assignment | 0.187325 | 0.189445 |
+| Parent links | 0.315058 | 0.318004 |
+| Grouping | 0.558827 | 0.558814 |
+| Reading order | 0.709647 | 0.709452 |
+| Region roles | 0.780101 | 0.780394 |
+
+These are small gains with regressions. Parent-link F1 improves in 60 documents and worsens in
+32; complete hierarchy improves in 43 and worsens in 25. There are 321 more correct parent
+features and 230 more complete hierarchy features, but ten fewer correct groups and 88 fewer
+correct reading-order adjacencies. Notes, references and tables are unchanged. This candidate
+does not establish the substantial overall improvement still required. No tests were written or run.
+
+The full result identifies larger failures than isolated titles. OCR parent-link F1 is 0.121252
+and grouping F1 is 0.248648, versus 0.400448 and 0.684422 for native-text sources. The 185 compound
+documents have ownership F1 of 0.234177, versus 0.924650 for single-document sources. The parser
+predicts 130,352 hierarchy units against 82,639 gold units. Inspect the bulk grouping, parent and
+document-ownership errors ranked in `error-families.json`, then fix their shared Rust causes.
+Every subsequent candidate requires the full-corpus run. Earlier annotation disagreements remain
+recorded above; do not rewrite gold to erase parser errors.

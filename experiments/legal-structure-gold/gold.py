@@ -5,6 +5,14 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
+import threading
+from multiprocessing.util import Finalize
+
+_native = None
+_native_errors = None
+_native_owner = None
+_native_lock = threading.Lock()
 
 
 def require(value, message):
@@ -25,12 +33,52 @@ def low_priority():
         os.nice(10)
 
 
+def close_native():
+    global _native, _native_errors
+    if _native is None: return
+    try:
+        _native.stdin.close()
+        try: _native.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _native.kill(); _native.wait()
+    finally:
+        _native.stdout.close()
+        _native_errors.close()
+        _native = _native_errors = None
+
+
 def native(command, request):
-    """One shared native operation through extract.mjs."""
-    operation = subprocess.run(["node", str(Path(__file__).with_name("extract.mjs")), command],
-        input=json.dumps(request, ensure_ascii=False), capture_output=True, encoding="utf-8")
-    require(operation.returncode == 0, operation.stderr.strip())
-    return json.loads(operation.stdout)
+    """Share one loaded native addon for all operations in this Python worker."""
+    global _native, _native_errors, _native_owner
+    with _native_lock:
+        if _native_owner != os.getpid():
+            _native = _native_errors = None
+        if _native is None:
+            _native_errors = tempfile.TemporaryFile(mode='w+t', encoding='utf-8')
+            try:
+                _native = subprocess.Popen(['node', str(Path(__file__).with_name('extract.mjs')), '--operations'],
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=_native_errors,
+                    text=True, encoding='utf-8')
+            except BaseException:
+                _native_errors.close(); _native_errors = None
+                raise
+            _native_owner = os.getpid()
+            Finalize(None, close_native, exitpriority=10)
+        try:
+            _native.stdin.write(json.dumps({'command': command, 'request': request}, ensure_ascii=False) + '\n')
+            _native.stdin.flush()
+            line = _native.stdout.readline()
+        except (BrokenPipeError, OSError):
+            close_native()
+            raise
+        if not line:
+            _native_errors.seek(0)
+            error = _native_errors.read().strip()
+            close_native()
+            raise ValueError(error or 'Native operation helper exited without a response')
+        response = json.loads(line)
+        require(response['ok'], response.get('error', 'Native operation failed'))
+        return response['value']
 
 
 def source_lines(structure):

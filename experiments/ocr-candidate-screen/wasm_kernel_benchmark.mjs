@@ -17,8 +17,10 @@ const manifestPath=resolve(manifestArg),inputs=dirname(manifestPath),output=reso
 const ort=resolve(owner,'node_modules/onnxruntime-web/dist'),runtime=runtimeArg?resolve(runtimeArg):ort;
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const manifest=JSON.parse(readFileSync(manifestPath));
-const component=manifest.head?resolve(owner,manifest.head.model):null;
-assert.ok(!component||component.startsWith(resolve(owner,'assets/indra-kernels')+sep));
+assert.ok(!(manifest.head&&manifest.detector));
+const component=manifest.head?resolve(owner,manifest.head.model):manifest.detector?resolve(owner,manifest.detector.model):null;
+assert.ok(!component||component.startsWith(resolve(owner,manifest.detector?'assets/detectors':'assets/indra-kernels')+sep));
+if(manifest.detector)assert.equal(hash(readFileSync(component)),manifest.detector.model_sha256);
 const cases=casesArg.split(',').map(value=>{
   const [name,scale,variant]=value.split(':');
   assert.match(name,/^[a-z0-9]+$/);assert.ok(['1','0.76','.76'].includes(scale));
@@ -109,11 +111,11 @@ try{
         }});
         continue;
       }
-      const session=await ort.InferenceSession.create(await(await fetch(manifest.head?'/component/model.onnx':'/assets/'+entry.name+'/model.onnx')).arrayBuffer(),{
-        executionProviders:['wasm'],graphOptimizationLevel:'all',enableCpuMemArena:false,enableMemPattern:false,
+      const session=await ort.InferenceSession.create(await(await fetch(manifest.head||manifest.detector?'/component/model.onnx':'/assets/'+entry.name+'/model.onnx')).arrayBuffer(),{
+        executionProviders:['wasm'],graphOptimizationLevel:'all',...(!manifest.detector&&{enableCpuMemArena:false,enableMemPattern:false}),
       });
-      const fetches=session.outputNames.includes('class_ids')?['class_ids','lengths']:['logits','lengths'];
-      sessions.push({entry,run:feed=>session.run(feed,fetches)});
+      const fetches=manifest.detector?session.outputNames:session.outputNames.includes('class_ids')?['class_ids','lengths']:['logits','lengths'];
+      sessions.push({entry,run:feed=>session.run(manifest.detector?{[session.inputNames[0]]:feed.image}:feed,fetches)});
     }
     async function run(value,inspect=false){
       const ids=[];let lines=0;
@@ -121,7 +123,11 @@ try{
       for(const feed of inputs[value.entry.scale]){
         const out=await value.run(feed);
         lines+=feed.widths.dims[0];
-        if(inspect){
+        if(inspect&&manifest.detector){
+          const tensor=Object.values(out)[0],data=tensor.data;
+          if(!data.every(Number.isFinite))throw Error('Non-finite detector output');
+          for(const value of new Uint32Array(data.buffer,data.byteOffset,data.length))ids.push(value);
+        }else if(inspect){
           const count=out.lengths.data;
           if(out.class_ids){
             const steps=out.class_ids.dims[1];
@@ -155,10 +161,12 @@ try{
   for(const entry of Object.values(result.models)){
     assert.equal(entry.lines,manifest.lines);assert.equal(entry.seconds.length,profileOnly?0:7);
     if(goldHead)assert.equal(entry.greedy_ids_sha256,goldHead,entry.key+': classifier changed IDs');
+    if(manifest.detector){entry.detector_frames=entry.lines;entry.output_bits_sha256=entry.greedy_ids_sha256;delete entry.greedy_ids_sha256;}
     if(profileOnly)continue;
     entry.median_seconds=[...entry.seconds].sort((a,b)=>a-b)[3];
     entry.lines_per_second=entry.lines/entry.median_seconds;
-    console.log(`${entry.key}: ${entry.lines_per_second.toFixed(2)} prepared lines/s`);
+    if(manifest.detector){entry.detector_inferences_per_second=entry.lines_per_second;delete entry.lines_per_second;}
+    console.log(`${entry.key}: ${(entry.lines_per_second||entry.detector_inferences_per_second).toFixed(2)} ${manifest.detector?'detector inferences':'prepared lines'}/s`);
   }
   const client=await page.context().newCDPSession(page);
   await client.send('Profiler.enable');await client.send('Profiler.setSamplingInterval',{interval:200});await client.send('Profiler.start');
@@ -169,6 +177,7 @@ try{
   const counts=new Map();for(const id of profile.samples||[]){const name=nodes.get(id).callFrame.functionName||'(anonymous)';counts.set(name,(counts.get(name)||0)+1);}
   result.profile_top_functions=[...counts].sort((a,b)=>b[1]-a[1]).slice(0,25).map(([name,samples])=>({name,samples}));
   result.protocol={origin:'machine_test',run_id:randomUUID(),scope:profileOnly?'CPU sampling only; no latency claim':'prepared tensors, single-thread CPU WASM only; excludes crop preparation, decoding and document work',rounds:profileOnly?0:7,order:'rotate starting model each round',warmup:'all 128 development sample lines per model; warmup greedy output fingerprint recorded',profile:'separate sampling after timing; first listed model'};
+  if(manifest.detector){result.protocol.scope='Retained native page-input tensor, single-thread CPU detector inference only; no document-speed claim';result.protocol.warmup='One retained page tensor; output bits fingerprinted before separate CPU sampling';}
   result.hardware={cpu:cpus()[0].model,logical_cpus:cpus().length};
   result.background_before=background;
   result.input_manifest_sha256=hash(readFileSync(manifestPath));

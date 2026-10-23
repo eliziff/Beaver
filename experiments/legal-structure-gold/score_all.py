@@ -2,9 +2,10 @@
 
 Each gold PDF is parsed again with the app's PDF profile, as its gold was, by a pinned addon
 (LEGAL_STRUCTURE_ADDON) or the most recently built: shards of runs in parallel, each loading the
-addon once (extract.mjs --batch), long PDFs first, with earlier builds' OCR and extraction carried
-forward. Runs are then scored in parallel against their gold. Totals are micro-averaged over all
-runs. PDFs come from the corpus, or from an authoring manifest (--manifest, as author.py takes).
+addon once (extract.mjs --batch), long PDFs first, sharing the authoring cache in parsed/ and
+carrying earlier builds' OCR and extraction forward. Runs are then scored in parallel against
+their gold. Totals are micro-averaged over all runs. PDFs come from the corpus, or from an
+authoring manifest (--manifest, as author.py takes).
 
   --mode / --runs     score a subset (written to subset.json unless --tag)
   --tag NAME          write score/runs/NAME.json and NAME.manifest.json (each run's candidate,
@@ -25,7 +26,7 @@ import shutil
 import statistics
 import tempfile
 import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 import json
 from pathlib import Path
 import subprocess
@@ -113,7 +114,7 @@ def carry(cache, sha, binary):
 def extract_all(items, out, workers, pdfs, env=None):
     """Parse every run's PDF with the addon loaded once per shard: shards in parallel, long PDFs
     first. Returns {run: (candidate file, engine dump or None)} and {run: error}."""
-    cache, binary = out / 'score' / 'candidates', addon_sha256()
+    cache, binary = out / 'parsed', addon_sha256()
     jobs, runs = [], {}
     for mode, job, receipt in items:
         pdf = pdf_path(receipt['source_sha256'], pdfs)
@@ -178,6 +179,31 @@ def score_one(item):
         return {'run': run, 'error': str(error)[-600:]}
 
 
+def score_sources(sources, out, workers):
+    """Report completed documents even when an earlier, longer document is still running."""
+    started = time.time()
+    finished, errors = {}, 0
+    progress = out / 'score' / 'progress.json'
+    def report():
+        try:
+            write_json(progress, {'stage': 'metrics', 'completed': len(finished), 'total': len(sources),
+                                  'errors': errors, 'started_at': started, 'updated_at': time.time()})
+        except PermissionError:
+            # A Windows reader can briefly prevent replacement; progress must not discard scores.
+            pass
+    report()
+    with ProcessPoolExecutor(workers) as pool:
+        futures = [pool.submit(score_one, (run, str(out), candidate, structure))
+                   for run, (candidate, structure) in sources.items()]
+        for future in as_completed(futures):
+            result = future.result()
+            finished[result['run']] = result
+            errors += 'error' in result
+            report()
+            print(f"Scored {len(finished)}/{len(sources)} ({errors} errors)", flush=True)
+    return [finished[run] for run in sources]
+
+
 def aggregate(rows):
     totals = {}
     for row in rows:
@@ -240,6 +266,7 @@ def main():
     parser.add_argument('--out', type=Path, default=ROOT / 'benchmarks/local-data/legal-structure-gold')
     parser.add_argument('--against', type=Path, help='Earlier summary to compare with')
     parser.add_argument('--workers', type=int, default=os.cpu_count() or 8)
+    parser.add_argument('--parse-workers', type=int, help='PDF parsing processes (default: --workers)')
     parser.add_argument('--show', action='store_true', help='Print per-run F1 for each layer')
     parser.add_argument('--runs', nargs='*', default=[], help='Score only runs whose source SHA256 starts with one of these')
     parser.add_argument('--mode', choices=('digitalborn', 'ocr'), help='Score only runs of this mode')
@@ -269,12 +296,11 @@ def main():
     elif args.replay:
         sources = {run: files for run, files in replay_all(args.replay, args.out).items()}
     else:
-        produced, errors = extract_all(items, args.out, args.workers, pdfs) if items else ({}, {})
+        produced, errors = extract_all(items, args.out, args.parse_workers or args.workers, pdfs) if items else ({}, {})
         sources = {run: (file, None) for run, (file, _, _) in produced.items()}
         dumps = {run: (dump, witnesses) for run, (_, dump, witnesses) in produced.items() if dump and Path(dump).is_file()}
     parsed = time.time()
-    with ProcessPoolExecutor(args.workers) as pool:
-        results = list(pool.map(score_one, [(run, str(args.out), c, s) for run, (c, s) in sources.items()], chunksize=4))
+    results = score_sources(sources, args.out, args.workers)
     results += [{'run': run, 'error': error} for run, error in errors.items()]
     scored = [r for r in results if 'metrics' in r]
     summary = {'source': 'rescore' if args.rescore else 'replay' if args.replay else 'addon', 'runs': len(results),

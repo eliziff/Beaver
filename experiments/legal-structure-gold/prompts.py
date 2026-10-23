@@ -20,6 +20,7 @@ NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["p
         "page": {"type": "integer"}, "line": {"type": "integer"}, "mark": {"type": "string"}, "note": {"type": "integer"}}}}}}
 
 HIERARCHY = """For each row that falls under another row (its heading, provision, paragraph or list item), give [row, that row]; rows under none are left out.
+Use the shown row numbers. A parent can appear later in reading order; parent links must not form cycles.
 If the file holds several documents, such as a judgment and its exhibits, give starts and ends: the rows that begin and end each one; otherwise leave them empty."""
 _NUMBERS = {"type": "array", "items": {"type": "integer"}}
 HIERARCHY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["parents", "starts", "ends"],

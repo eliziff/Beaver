@@ -65,6 +65,11 @@ def prepare(args):
         'gpu8': args.root / 'speed-followup/student8',
         'gpu6': args.root / 'speed-followup/student6',
         'gpu64': args.root / 'speed-frontier/channel64',
+        'gpu96': args.root / 'speed-frontier/channel96',
+        'gpu64crop': args.root / 'speed-frontier/crop-robust64',
+        'gpu64control': args.root / 'speed-frontier/crop-control64',
+        'gpu8crop': args.root / 'speed-frontier/crop-robust128',
+        'gpu8control': args.root / 'speed-frontier/crop-control128',
     }
     result = {'origin': 'machine_test', 'run_id': str(uuid.uuid4()), 'models': {},
               'protocol': 'Existing weights only; full width; FP16 selected on development human transcripts.'}
