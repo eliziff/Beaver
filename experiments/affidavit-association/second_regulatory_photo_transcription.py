@@ -1,0 +1,15 @@
+"""Literal visually checked intrinsic sign lettering; no captions or inferred identities."""
+from pathlib import Path
+import json,hashlib
+O=Path('benchmarks/local-data/affidavit-association/expansion-2/regulatory');S='2bd17fc49e5a38c1022d91652f25e480f2d4b542a39b0dfe579d01e59cd68fdc';sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+# Partial/occluded words are left partial; no completion from a neighbouring photograph.
+T={307:'END FOSSIL FUEL\nNOW!\nEND FOSSIL FUEL\nNOW!\nEND FOSSIL FUEL\nNOW!\nEND FOSSIL FUEL\n',308:'GAS IS PAST!\nHEAT PUMPS are the FUTURE\nHELP!\nWE’RE ON FIRE!\nEND FOSSIL FUELS\nWAKE UP\nTime\nCELEBRATE\nEARTH\nEND FOSSIL FUEL\n',309:'CLIMATE CHANGE\nOUR GRANDCHILDREN\nPAY THE PRICE\nGAS IS PAST!\nHEAT PUMPS\n',310:'DON’T BE FOSSIL FOOLED\nEND FOSSIL FUELS\n',311:'END FOSSIL FUEL\nNOW!\nEND FOSSIL FUEL\nNOW!\nGAS heats the EARTH\nHEAT PUMPS COOL\n',312:'GAS IS PAST!\nHEAT PUMPS are the FUTURE\nEND FOSSIL FUELS\nWE LOVE HEAT PUMPS!!!\nEND FOSSIL FUEL\n',313:'NO NEW FOSSIL “NATURAL” GAS\nA GOOD PLANET IS HARD TO FIND\nHEAT PUMPS $AVE\nWE ONLY\nONE\n',314:'GAS IS PAST!\nHEAT PUMPS are the FUTURE\nHELP!\nWE’RE ON FIRE\nEND\nFOSS\n',315:'NO\nFOSSIL\nEXPANS\nWE LOVE HEAT PUMPS!!!\n',316:'OIL FREE\nLIVE FREE\n',317:'WE LOVE HEAT PUMPS!!!\nCAP OIL & GAS EMISSIONS NOW!\n',318:'CELEBRATE\nEARTH\nEND FOSSIL\n'}
+def main():
+ d=O/'source-text'/S;rows=[]
+ for n,txt in T.items():
+  p=d/f'{n:04}.visual-transcription.txt';p.write_text(txt,encoding='utf-8');body=(d/f'{n:04}.native.txt').read_text(encoding='utf-8')+(d/f'{n:04}.ocr.txt').read_text(encoding='utf-8')+(d/f'{n:04}.sparse.ocr.txt').read_text(encoding='utf-8')+txt;dest=d/f'{n:04}.txt';dest.write_text(body,encoding='utf-8');rows.append(dict(source_sha256=S,source_page=n,source_image_file=f'source-text/{S}/{n:04}.png',source_image_sha256=sha(d/f'{n:04}.png'),transcription_file=p.relative_to(O).as_posix(),transcription_sha256=sha(p),text_sha256=sha(dest),method='codex_collaboration original image visual transcription of clearly legible intrinsic sign lettering, alongside full raw installed OCR',job_id='44137270-8c26-487f-b5a0-086b66a65cfc',runner_call=False,limitations='No inferred names, dates or captions. Partly occluded lettering left partial; tiny illegible background/vehicle lettering not guessed. All original photographic pixels remain in canonical PDF.'))
+ meta=json.loads((O/'source-text'/f'{S}.json').read_text(encoding='utf-8'))
+ for p in meta['pages']:
+  if p['source_page'] in T:p['intrinsic_visual_transcription']=next(r for r in rows if r['source_page']==p['source_page']);p['text_sha256']=sha(O/p['text_file'])
+ full=O/'source-text'/f'{S}.txt';full.write_text('\f'.join((O/p['text_file']).read_text(encoding='utf-8') for p in meta['pages']),encoding='utf-8');meta['text_sha256']=sha(full);(O/'source-text'/f'{S}.json').write_text(json.dumps(meta,ensure_ascii=False,indent=2)+'\n',encoding='utf-8');(O/'brandum-photo-transcription-audit.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+if __name__=='__main__':main()

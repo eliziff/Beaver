@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync, statSync, existsSync } from 'node:fs';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import path from 'node:path';
+import { createInterface } from 'node:readline';
 import { defaultNativeAddon, nativeAddonFile } from '../../shared/nativeAddonFile.mjs';
 import { structureEngineAddon } from '../../shared/structure-engine.mjs';
 
@@ -97,7 +98,22 @@ async function extract(pdf, output, mode, requestFile) {
   return { file: filename, dump, witnesses, parseMs: Math.round(parseMs) };
 }
 
-if (process.argv[2] === '--structure-blocks') {
+if (process.argv[2] === '--operations') {
+  const operations = {
+    '--structure-blocks': request => parser.structureCompositionBlocks(request),
+    '--resolve-annotations': request => parser.resolveCompositionAnnotations(request),
+    '--compose-structure': request => parser.applyStructureComposition(request),
+  };
+  for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
+    try {
+      const { command, request } = JSON.parse(line);
+      if (!Object.hasOwn(operations, command)) throw new Error(`Unknown native operation: ${command}`);
+      console.log(JSON.stringify({ ok: true, value: operations[command](request) }));
+    } catch (error) {
+      console.log(JSON.stringify({ ok: false, error: error.message }));
+    }
+  }
+} else if (process.argv[2] === '--structure-blocks') {
   try { console.log(JSON.stringify(parser.structureCompositionBlocks(JSON.parse(readFileSync(0, 'utf8'))))); }
   catch (error) { console.error(error.message); process.exitCode = 1; }
 } else if (process.argv[2] === '--resolve-annotations') {

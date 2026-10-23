@@ -100,8 +100,18 @@ def checked(shown):
         parents = response["parents"]
         if not all(len(pair) == 2 for pair in parents): raise ValueError("Each parent is [row, the row it falls under]")
         if len({row for row, _ in parents}) != len(parents): raise ValueError("A row has one parent")
-        if not all(row in numbered and (parent == 0 or parent in numbered and parent < row) for row, parent in parents):
-            raise ValueError("A row's parent must be an earlier shown row")
+        if not all(row in numbered and (parent == 0 or parent in numbered and parent != row) for row, parent in parents):
+            raise ValueError("A row's parent must be 0 or another shown row")
+        # Adjacent columns can put a child before its heading in reading order.
+        links, resolved = dict(parents), set()
+        for row in links:
+            chain, at = set(), row
+            while at in links and at not in resolved:
+                if at in chain:
+                    raise ValueError(f"Parent links form a cycle at row {at}")
+                chain.add(at)
+                at = links[at]
+            resolved.update(chain)
         if not set(response["starts"]) | set(response["ends"]) <= {n + 1 for n in shown}:
             raise ValueError("starts and ends must number shown rows")
         return response

@@ -52,8 +52,32 @@ POLICY = CallPolicy(INSTRUCTIONS, CONFIG, lambda prompt, error, previous: prompt
                     retry_error, "No valid answer after bounded retries: ")
 
 
-def extract(pdf, mode, out, timeout):
-    """The installed parser's source lines, page by page in reading order, with their extracted text."""
+def witnessed_lines(value, source, pages):
+    """Bind a separately recorded extraction to the original PDF, never to model text."""
+    gold.require(value.get('schema_version') == 'legal-structure-gold.extraction.v1', 'Unknown extraction witness schema')
+    gold.require(value.get('source_sha256') == source, 'Extraction witness belongs to another PDF')
+    gold.require(value.get('page_count') == pages and len(value['pages']) == pages, 'Extraction witness page count differs')
+    gold.require(isinstance(value.get('method'), dict) and value['method'].get('provider'), 'Extraction witness method missing')
+    lines, seen = [], set()
+    for number, page in enumerate(value['pages'], 1):
+        gold.require(page['page'] == number, 'Extraction witness pages must cover the PDF in order')
+        for line in page['lines']:
+            gold.require(isinstance(line.get('id'), str) and line['id'] and line['id'] not in seen,
+                         'Extraction witness line IDs must be unique')
+            gold.require(isinstance(line.get('text'), str) and line['text'].strip(), 'Extraction witness line text missing')
+            seen.add(line['id']); lines.append({'id': line['id'], 'page': number, 'text': line['text']})
+    return lines
+
+
+def extract(pdf, mode, out, timeout, witness=None):
+    """Source lines from the pinned parser or a separately recorded, source-bound extraction."""
+    if witness is not None:
+        import fitz
+        value = read_json(witness)
+        with fitz.open(pdf) as document:
+            lines = witnessed_lines(value, digest(pdf), len(document))
+        return lines, {'binary_sha256': None, 'extraction_sha256': digest(witness),
+                       'extraction_method': value['method'], 'source_sha256': value['source_sha256']}
     process = subprocess.Popen(["node", str(HERE / "extract.mjs"), str(pdf), str(out / "parsed"), mode],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
                                creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == "nt" else 0)
@@ -235,7 +259,7 @@ def author_hierarchy(typed, groups, images, job, args):
     return units
 
 
-def author(pdf, mode, args):
+def author(pdf, mode, args, extraction=None):
     pdf, source = Path(pdf), digest(Path(pdf))
     job = args.out / "v4" / source
     if (job / "gold.json.gz").is_file() and read_json(job / "receipt.json").get("status") == "complete":
@@ -246,7 +270,9 @@ def author(pdf, mode, args):
                "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py")}}
     write_json(job / "receipt.json", receipt)
     try:
-        lines, parser = extract(pdf, mode, args.out, args.timeout)
+        lines, parser = extract(pdf, mode, args.out, args.timeout, extraction)
+        if extraction is not None:
+            receipt['extraction_witness_sha256'] = parser['extraction_sha256']
         import fitz
         with fitz.open(pdf) as document: pages = list(range(1, len(document) + 1))
         images = render(pdf, pages, job / "images", args.dpi)
@@ -280,6 +306,7 @@ def main():
     source.add_argument("--pdf", type=Path)
     source.add_argument("--manifest", type=Path, help="JSON with documents: [{path, mode}]")
     p.add_argument("--mode", choices=("digitalborn", "ocr"))
+    p.add_argument("--extraction", type=Path, help="Independent extraction witness tied to --pdf's original SHA and pages")
     p.add_argument("--root", type=Path, help="Base for manifest paths")
     p.add_argument("--out", type=Path, default=ROOT / "benchmarks/local-data/legal-structure-gold")
     p.add_argument("--limit", type=int, default=1, help="0 selects every manifest row")
@@ -296,13 +323,15 @@ def main():
                            dpi=a.dpi, parallel=a.parallel, out=a.out.resolve())
     if a.pdf:
         gold.require(a.mode, "--pdf needs --mode")
-        print(author(a.pdf, a.mode, args)); return
+        print(author(a.pdf, a.mode, args, a.extraction)); return
+    gold.require(a.extraction is None, '--extraction requires --pdf; manifests use extraction_witness per row')
     rows = read_json(a.manifest)["documents"]
     k, n = map(int, a.shard.split("/"))
     rows = rows[k::n][: a.limit or None]
     base = a.root or a.manifest.parent
     for row in rows:
-        try: print(author(base / row["path"], row["mode"], args), flush=True)
+        try: print(author(base / row["path"], row["mode"], args,
+                          base / row['extraction_witness'] if row.get('extraction_witness') else None), flush=True)
         except Exception as exc: print(json.dumps({"path": row["path"], "error": str(exc)[-500:]}), flush=True)
 
 

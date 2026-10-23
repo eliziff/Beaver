@@ -1,0 +1,17 @@
+"""Full New Brunswick criminal merits instruments, exact own-case originals."""
+import fitz
+from third_atlantic_sources import s,O
+ap='2479378b0ccb02b083e9982d773745732f4f812a56cf010920d37b8b28402718';re='5dde869d770038898aa849994e42a8dadcba096fac82c442810318601ee782c0';ca='0afbd5fabee7fdbec7c85b092ddb3a4df498d22eaca4f5116ff8612597b9b4bd';mm='411b1dba41eaa58007c67fbd0b1995b5ebc321d41fb41517f5b3f554bcaa8bca';reply='192022484af6f0c480c1a8070c7bd5101865875d8cb8c644a57aa5680bcb5a64'
+rows=[(ap,29,[1,5,27,29],'Complete appellant29-page merits factum, datedMay24,2022; distinct from earlier22-page leave memorandum, despite repeated passages.'),(re,35,[1,5,7,8,32,33,34,35],'Complete amended Crown35-page merits factum. Preserve actual amendment/date/source version; no assumed equivalence to an unacquired earlier unamended factum.'),(ca,117,[1,2,3,22,23,55,56,79,117],'Complete exact117-page official bilingual2021NBCA50 own-case decision. English majority3–22, dissent23–55; complete French versions56–117. All original filed/public pages, not just English or majority.'),(mm,22,[1,3,17,20,22],'Complete applicant22-page leave memorandum datedDecember21,2021, printed90–110plus cover. Earlier procedural version, never silently identical to merits factum.'),(reply,3,[1,2,3],'Complete substantive CrownJanuary12,2022leave response, actual distinct instrument. It acknowledges importance but opposes timing; not consent to appeal or merits concession.')]
+sources=[]
+for sh,n,pg,role in rows:
+ r=s.source(sh);folder=s.views_folder(r)
+ with fitz.open(r['original_path'])as d:
+  for p in pg:
+   f=folder/f'page-{p:04}.png'
+   if not f.exists():d[p-1].get_pixmap(matrix=fitz.Matrix(1.5,1.5)).save(f)
+ sources.append(dict(sha256=sh,role=role,pages=list(range(1,n+1)),image_pages=pg))
+for side,sh,n in [('appellant',ap,29),('respondent-amended',re,35)]:
+ rid='an3-nb-basque-'+side+'-factum'
+ s.dump(O/'specs'/(rid+'.json'),dict(record_id=rid,lane='atlantic-north',jurisdiction='nb',body_sha256=sh,body_pages=list(range(1,n+1)),sources=sources,source_cautions='Author complete '+side+' merits factum in actual Canadian New Brunswick criminal SCC39997, origin59-20-CA/MCA-7-2019. Complete own-case appeal judgment2021NBCA50 is a factual/procedural target, not generic caselaw padding. Keep all actual lower sentencing/reasons/orders/undertaking and other factual references with complete scope and honest unavailable status, not inventedExA. Original sentencingAugust12,2019McCarroll and summaryappealJuly15,2020Dysart2020NBQB130 not separately acquired; no substitution from summaries. OfficialSCCcasepage wrongly listsJuly15,2019for2020judgment, while actualNBCAoriginalfront gives2020; source facts control, preserve conflicting metadata separately. All complete original117target pages including dissent and translation supplied. Crown requests stay notwithstanding stricter legal interpretation; no unqualified additional-year punishment claim. Keep pretrialundertakingNov30,2017, guiltypleaOct22,2018, sentencingAug12,2019, chargeOct7,2017 as primary account where supported; do not confuse alcoholtesting offence date with procedural date if source differs. All paragraphs/complete available instruments, no preview caps. Hypotheticals/other-case fact patterns not real Basque events. Full source inventory and narrative Gold independent of modelview fidelity. Max3new per actualcase including already directly authored Crown leave response; earlier leave applicant not an extra fourth record.'))
+print('two Basque complete merits specs prepared')

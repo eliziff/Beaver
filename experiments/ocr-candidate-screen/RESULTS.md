@@ -13,6 +13,469 @@ They do not establish converged accuracy or rank the architectures' final
 quality. The follow-up trains Indra and CRNN for longer: they were the only two
 candidates already faster than the installed Kraken in the CPU screen.
 
+## v0.2.5 publication
+
+[v0.2.5](https://github.com/eliziff/legal-browser-ocr/releases/tag/v0.2.5) publishes
+the portable full/compact packages and an optional two-batch GPU edition. All
+nine uploaded digests and sizes match the local release. The execution assets
+and application module in all four HTML packages match the tested v0.2.4 builds
+exactly; their notices differ only in version. Standard defaults remain unchanged.
+The native ZIP and kernel-source archive are byte-identical to v0.2.4. Source
+checks pass 56/56; four fresh Chromium queue cases pass offline CPU, hosted GPU
+and injected initialization/execution failure recovery. Earlier eleven-case
+Chromium/Firefox queue checks still describe the identical execution code;
+Firefox currently fails to open a blank automation page before OCR loads.
+Receipts belong to `browser/packaging/v025/latest/`.
+
+## v0.2.4 delivery candidate
+
+The final full browser package promotes the crop-robust standard and light
+recognizers, GPU crop preparation/ArgMax/command replay, eight cached shapes
+with the existing 256 MiB owned-buffer cap, guarded scan-image reuse, fused
+SIMD128 HardSwish and the exact-order detector decoder. Automatic GPU failure
+replays on CPU. Native model packs retain ordinary width-input GPU graphs.
+The shared embedding API consumes the same browser execution policy and assets.
+
+The final package uses no speed URL overrides. On the i3-1315U / Intel UHD,
+Chromium 149, the frozen 55-page / 145,475-character human-gold PDF measured:
+
+| Full browser tier | CPU pages/s | CPU CER | WebGPU pages/s | WebGPU CER |
+| --- | ---: | ---: | ---: | ---: |
+| Quality | 3.94 | 2.018% | 6.68 | 2.022% |
+| Balanced | 3.70 | 2.211% | 7.03 | 2.213% |
+| Fast | 4.61 | 2.328% | 7.74 | 2.332% |
+| Turbo | 5.66 | 2.834% | 11.47 | 2.833% |
+| Extreme | 9.06 | 3.962% | 12.94 | 3.954% |
+
+All ten cases pass stable text across three warm passes, all-page PDF text,
+original first-page pixels and reopening with the module worker. Model startup,
+input opening and export are excluded from warm throughput. There is substantial
+between-case timing drift; this does not establish a weights-only speedup or
+consistent ordering between neighboring tiers.
+
+Desktop Ryzen 5 2600X / RTX 3080 Ti, Chromium 151, measures Balanced CPU
+9.48 pages/s / 2.296% CER, Quality CPU 8.86 / 2.015%, Balanced WebGPU
+18.25 / 2.302%, Quality WebGPU 14.81 / 2.011%, and Extreme WebGPU
+23.52 / 3.941%. Each has three warm passes and the PDF gates. A first desktop
+sweep exhausted available disk space while saving Turbo's exported PDF; its
+19.21 / 2.832% result is incomplete and is excluded from released throughput
+tables. Subsequent completed desktop cases used fresh browser processes.
+
+The new rounded compact CPU edition is 5,393,198 bytes (3,707,269 gzip),
+Balanced 5.40 pages/s / 2.209% CER and Quality 4.98 / 2.022%. Compact Extreme
+is 3,832,841 bytes (2,536,153 gzip), 8.30 / 3.966%. The full HTML is
+22,840,084 bytes (16,837,946 gzip). All include PDF input/export. Compact
+precision has its own development accuracy gate; computation remains FP32.
+
+Source tests pass 53/53. The full package passes 14 Chromium/Firefox scenarios;
+three further embedding checks read the actual packaged archive's assets.
+Both small packages pass five Chromium/Firefox offline/hosted/JavaScript
+inflation cases. Hosted PNG recognition and all five tier switches pass for
+CPU and automatic GPU. The initial sandboxed Firefox attempt could not start
+content processes; normal process permissions pass. Apple Safari is untested.
+
+Native ZIP refresh preserves the verified executable, DLLs, source identities
+and notices byte-for-byte, updates model inventory/checksums, and records the
+base ZIP hash. Its extracted first-page CPU, DirectML and Extreme CPU smokes
+pass; they are compatibility checks, not new full-document native performance
+claims. The private receipts and independent gold remain in their owning stores.
+
+### Post-release GPU width/cold-start experiment
+
+v0.2.4 is published at [GitHub](https://github.com/eliziff/legal-browser-ocr/releases/tag/v0.2.4).
+All eight uploaded asset digests match local SHA256SUMS; GitHub Pages serves
+the exact released HTML (SHA-256 `dfbde9cb01afc3b2e015a6bc01b9ffd85454f8e7fb4b2aaff01d8adb4380d91e`).
+Source CI passes. The local PDF parser has the new native model pack;
+standalone Authorities was rebuilt to 38,360,255 bytes. Its 13 embedded OCR
+assets match the released archive after offline browser inflation, its initial
+screen is inspected, and its six focused asset/cache tests pass. This verifies
+OCR delivery, not unrelated Rust structure or court-output readiness.
+
+Coarser 512px GPU width buckets reduce first-document new shapes from three to
+one, but raise executed recognition pixels from 49,020,928 to 58,982,400
+(+20.3%). Before/candidate/after, three warm passes per configuration:
+
+| Host | Default before pages/s | 512px pages/s | Default after pages/s | First-document seconds before / candidate / after |
+| --- | ---: | ---: | ---: | --- |
+| Laptop Intel UHD | 10.58 | 9.35 | 9.97 | 9.47 / 9.52 / 8.99 |
+| Desktop RTX 3080 Ti | 20.28 | 19.97 | 20.19 | 7.07 / 6.96 / 6.67 |
+
+Initialization is another 1.78/1.80/1.98 seconds on the laptop and
+2.30/2.34/2.31 on the desktop. Text, positioned lines and exported PDF bytes
+are exact within each host. Fewer sessions do not establish a cold-start win:
+the saved session-creation work is only about 0.10-0.16 seconds, while the
+coarser padding increases compute. Keep the released 256px setting; preserve
+these results on the speed/accuracy/size curve. Later controls being faster
+also demonstrates why the release's earlier laptop 7.03 pages/s is not a
+hardware ceiling or a reason to silently replace its measured table.
+
+### Independent seven-pass laptop repeat
+
+The requested repeat uses the exact published v0.2.4 HTML and Balanced WebGPU
+in Chromium 149.0.7827.55 on the i3-1315U / Intel UHD laptop. Two independent
+fresh browser launches each run one first document followed by seven timed
+whole-document passes. No source, model, worker or runtime flags change.
+
+| Fresh launch | Median warm pages/s | Warm range | Median 55-page seconds | First document seconds | Initialization seconds |
+| --- | ---: | --- | ---: | ---: | ---: |
+| First | 6.35 | 5.26?7.31 | 8.66 | 15.45 | 2.27 |
+| Second | 4.37 | 4.01?5.12 | 12.59 | 17.22 | 2.84 |
+
+Both score 3,220 edits / 145,475 characters, **2.213439% CER**. The two new
+receipts and the earlier 9.97/10.58 controls have exact text, positioned-line
+and exported-PDF hashes. Every warm pass reexecutes 156 recognition batches
+and 49,020,928 pixels; scan reuse applies to 54 pages and there are zero new
+GPU sessions in warm passes. Offline recognition, all-page exported text,
+original first-page pixels and module-worker reopening pass.
+
+CPU detection-model summed time rises from about 5.2?5.6 seconds in the earlier
+controls to 8.17/14.90 seconds; recognition-model time rises from 4.06?4.38 to
+6.57/7.79 seconds. These are overlapping stage sums, not additive wall times.
+The laptop is on AC at full battery, Windows Balanced power plan, battery saver
+off. The available observations do not establish the cause of variability.
+This repeat does **not** reproduce ten pages/s as a dependable sustained rate.
+Public README now records these repeats beside the release measurements.
+Private outputs stay under `laptop/v024-repeat/`; no private text is published.
+
+### Detector input and queued GPU follow-up
+
+The October 20 input-preparation screen tests reuse of one canvas/tensor per
+detector worker, medium/low resize filters, CPU-backed document canvases,
+eight-page groups and GPU batch sizes 8/32. Three warm passes per case retain
+2.213% CER except the low filter, which increases it to 2.360% (213 extra edits).
+Before/after controls measure 7.09/7.56 pages/s; reuse, medium and low measure
+6.81/6.87/6.13. A later screen measures CPU-backed pages 5.19, eight-page groups
+5.51, batch 32 5.63, batch 8 5.85 and its following control 5.95. These initial
+screens are not mirrored speed proofs. None establishes a gain. Most measured
+detector preparation time is charged to pixel readback (about 2.8 seconds summed
+over the document); grayscale conversion accounts for about 0.28 seconds. The
+readback measurement includes deferred drawing, not just memory transfer.
+
+A separate prototype overlaps GPU inference with class-ID download instead of
+waiting for every batch's readback before submitting the next. The same queue
+orders inference, reduction and ID copy before a retained logits buffer can be
+reused. Only two or four batches' packed inputs may remain live. Model weights,
+shader arithmetic, detection and CTC decoding remain unchanged.
+
+For each depth on each machine, eight fresh browser trials run in order
+control/candidate/candidate/control/candidate/control/control/candidate. Every
+trial includes its first document and three warm 55-page passes: four matched
+pairs, two in each order, twelve warm passes per configuration. Both depths on
+both machines total 5,280 timed pages plus 1,760 first-document pages.
+
+| Browser WebGPU | Queue depth | Pooled control pages/s | Pooled candidate pages/s | Paired change | CER |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Laptop i3-1315U / Intel UHD | 2 | 5.82 | 6.59 | +11.1% | 2.213% |
+| Laptop i3-1315U / Intel UHD | 4 | 5.49 | 5.31 | -6.2% | 2.213% |
+| Desktop Ryzen 2600X / RTX 3080 Ti | 2 | 16.83 | 18.29 | +8.1% | 2.302% |
+| Desktop Ryzen 2600X / RTX 3080 Ti | 4 | 18.13 | 20.75 | +11.0% | 2.302% |
+
+Pooled rates use twelve warm document times per configuration; paired changes
+are geometric means of the four neighboring candidate/control ratios. All four
+desktop pairs favor either depth: depth 2 ranges +5.1% to +11.8%, depth 4 +7.5%
+to +20.5%. Laptop depth 2 wins three pairs, ranging -6.6% to +32.2%; depth 4 wins
+one, ranging -22.0% to +17.7%. Two queued batches are the stronger cross-device
+candidate, but the laptop benefit remains variable. Four are not a shared default.
+
+Every mirrored trial retains exact per-host text, positioned lines and exported
+PDF bytes, with 156 model batches, 49,020,928 recognition pixels and zero new GPU
+sessions in each warm pass. CER is unchanged from the matching control. These
+are browser measurements; startup, input opening, export and native performance
+are separate. Prototypes add 1,432 HTML bytes and remain experimental while the
+released default is unchanged. All 55 source checks pass, including retained-input
+bounds, restored line order and allocation/model-failure cleanup. Raw receipts
+stay in `frontier/queued-mirrored/` and `frontier/queued-two-mirrored/` on each host.
+The two-batch prototype also passes eleven Chromium/Firefox compatibility cases.
+Quality and Extreme each pass one additional warm 55-page check after their first
+document, retaining exact released text, geometry, exported PDFs and respectively
+2.022% / 3.954% CER. These two checks cover both recognizer sizes; they are not
+mirrored throughput comparisons or new accuracy claims.
+
+### Same-session queued GPU verification
+
+The follow-up uses one switchable HTML per host, keeping browser, workers,
+models and GPU sessions alive while only the queue mode changes. Each of two
+browser sessions executes six alternating ABBA/BAAB blocks of full 55-page
+passes; the second session reverses the starting order. Both modes receive
+untimed warmups before measurement. This adds 48 timed passes per host (24 per
+mode): 5,280 timed pages and 660 untimed first/warmup pages across both machines.
+Every pass is retained. The raw family is `frontier/queued-interleaved/`.
+
+| Balanced browser WebGPU | Control pages/s | Two queued batches pages/s | Block-matched change | Blocks faster | CER |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Laptop i3-1315U / Intel UHD | 6.93 | 7.06 | +1.9% | 7/12 | 2.213% |
+| Desktop Ryzen 2600X / RTX 3080 Ti | 18.11 | 19.08 | +5.2% | 10/12 | 2.302% |
+
+Rates are total timed pages divided by elapsed time per mode. Block changes
+compare the two control and two candidate durations, then take the geometric
+mean across twelve blocks. Laptop session changes are -0.03% and +3.93%; its
+block range is -8.1% to +16.8%, with +3.47% for ABBA and +0.42% for BAAB. This
+does **not** establish a dependable laptop gain. The earlier +11.1% fresh-process
+estimate is superseded. Desktop session changes are +6.31% and +4.17%; its range
+is -8.9% to +14.0%, with +7.06% for ABBA and +3.44% for BAAB. The tighter repeats
+support a modest desktop benefit, rather than a reliable shared-device default.
+ABBA/BAAB reduces launch differences and linear drift; short-term contention
+remains visible. Blocks are not independent samples of hardware populations.
+
+The recognizer worker's summed model/ID-wait wall-time medians fall from 6.209
+to 5.247 seconds on the laptop and 0.988 to 0.627 on the desktop. These counters
+include command submission and mapping waits, not pure GPU execution. Concurrent
+layout/render stages also vary, so the stage counters do not isolate the cause
+of the remaining whole-document limits or prove a memory-bandwidth explanation.
+
+All 96 timed passes retain exact released per-host text, positioned lines and
+CER, with 156 model batches, 49,020,928 recognition pixels and zero new GPU
+sessions. Worker counters verify 0 versus 156 queued batches and the requested
+depth. Each session's exported PDF matches the released bytes. All 55 source
+tests pass. The switchable HTML adds 1,592 bytes; the released HTML is unchanged.
+The builder and private receipt verifier reproduce the mode/work checks. These
+are browser GPU timings excluding startup, PDF opening, warmups and export;
+native speed and new hardware/browser coverage were not measured in this repeat.
+The prototype remains experimental; release assets and defaults are unchanged.
+
+### Classifier, detector and cascade follow-up
+
+This follow-up tests the remaining levers as separate artifacts. It retains the
+entire 1,679-class alphabet and the existing recognition weights. All page scores
+use the same 55-page PDF and 145,475 human-gold characters on the Intel UHD laptop.
+These are browser WebGPU recognition measurements with CPU detection, excluding
+startup, input opening, warmups and export; no native or desktop timing is added.
+The released HTML and model inventory are unchanged.
+
+Each completed candidate runs two browser sessions, with control/candidate
+switching inside warmed workers and the starting order reversed. Both paths
+receive full-document warmups. The integer variants have one ABBA and one BAAB
+block (four warm passes per mode); classifier and cascade screens have two of
+each (eight per mode). All passes are retained. Per-mode text and positioned
+geometry are stable, and both modes pass all-page PDF text and original-pixel
+gates. Worker counters prove which path ran. No timed pass builds a GPU session.
+
+| Candidate | Block-matched page throughput | Page CER | Finding |
+| --- | ---: | ---: | --- |
+| Signed INT8 detector | -15.5% | 1.923% | Accuracy tradeoff; slower in both orders |
+| Unsigned INT8 detector | -28.0% | 2.016% | Dominated by signed INT8 in these screens |
+| Small recognizer / selective teacher | +3.2% versus Balanced | 2.845% | Also dominated by Fast in a separate comparison |
+| GPU classifier / ArgMax fusion | -0.7% in longer confirmation | 2.216% | No dependable speed gain |
+| GPU classifier / packed weights | +0.7% in longer confirmation | 2.216% | Opposite session changes; no dependable gain |
+| GPU classifier / reuse + packing | +6.3% versus Balanced | 2.216% | Both sessions faster; 8/8 paired blocks |
+| GPU classifier / reuse only | +4.8% versus Extreme | 3.949% | Both sessions faster; 7/8 paired blocks |
+| Conv / HardSwish epilogue | Unmeasured | Unmeasured | Runtime build incomplete |
+
+Balanced controls score 2.213% CER / 3,220 edits. Signed INT8 has 2,797 edits,
+unsigned 2,933, the custom GPU head 3,223 and the cascade 4,139. The test set has
+been examined in earlier experiments; these are candidate diagnostics rather
+than a fresh holdout or evidence of broad hardware generalization.
+
+**Detector INT8:** static per-channel QDQ convolution exports use 24 fixed,
+uniformly spaced training pages from the existing detector cache. Four development
+tensors check finite output and geometry changes; they are teacher outputs, not
+human box gold. Integer calibration does not use transcripts or test pages.
+The signed/unsigned models are 251,566 / 251,210 bytes. Both use the installed
+stock full ORT 1.22 WASM engine, alongside a float control through that same
+engine. This differs from the release's custom four-row/HardSwish CPU engine;
+absolute page rates must not be compared across those builds as an INT8-only gain.
+
+Signed control/candidate pooled rates are 5.65/4.87 pages/s; its session ratios
+are 0.920/0.777. Unsigned rates are 5.14/3.72; ratios 0.777/0.668. Signed detection
+returns 2,446 recognized lines versus 2,424 control, with 157 versus 156 batches
+and the same 49,020,928 recognition pixels. Unsigned returns 2,442 lines,
+157 batches and 49,283,072 pixels. Both return more lines than the float control.
+Signed remains on the accuracy/size shortlist;
+neither integer variant establishes a speed improvement.
+
+**GPU classifier fusion:** separate feature graphs expose the tensor before the
+last 1x1 classifier. A WGSL kernel computes the full classifier and reduces eight
+timesteps in registers. A second variant splits classes into 64-lane partitions,
+then combines their winners. Scores round to FP16 as in the original model.
+Eight independent checks cover 64/128 channels, class/time tails, lowest-index
+ties and optional top-two margins. The prepared 128-line screen uses complete
+original graphs versus feature graphs plus the custom head. Classifier extraction
+alone preserves every timestep ID; custom arithmetic changes 11/16,448 IDs on
+identical real features. Full-page recognition changes only three character edits.
+Both head screens retain exact raw detector boxes, 156 batches and 49,020,928
+recognition pixels. The initial two-session screen disagrees (-3.0% / +15.1%),
+and its apparent +5.7% aggregate does not survive the longer confirmation.
+Two further browser sessions each run 24 passes, producing twelve ABBA/BAAB
+blocks and 24 warm passes per mode. Pooled control/candidate rates are 9.93/9.85
+pages/s; the matched change is -0.7%. Session changes are -2.74% / +1.33%; blocks
+range -10.1% to +6.9%, with four wins. Raw boxes and inference work remain exact,
+and no timed pass creates a session. This establishes no dependable laptop speed
+gain. These high absolute rates belong to this matched run; they are not a speedup
+caused by the new head. The owning family is `frontier2/head-confirmation/`;
+the initial screen remains in `frontier2/head/`.
+
+These timings use the frozen `runtime-frontier-head-measured.html`. The current
+`runtime-frontier-head.html` adds an eight-byte CPU fallback selection guard and
+has the same GPU computation. That rebuilt artifact receives the compatibility
+checks below; throughput is attributed only to the measured artifact.
+
+**Classifier workspace reuse:** two further laptop development sessions use
+opposite starting orders and identical feature graphs/classifier arithmetic.
+Each model has eight ABBA/BAAB blocks and sixteen timed passes per mode. Reuse
+eliminates all 512 timed workspace allocations per model and retains 444,448
+bytes under a 16 MiB cap. Sixteen numeric/tie/margin/resource checks per session
+include growing/shrinking batches and concurrent calls. Both models preserve all
+16,448 development IDs. The standard matched change is +0.07%, with session
+changes -0.8% / +0.9% and five winning blocks. Light measures -1.25%, with changes
++0.3% / -2.8% and three wins. No dependable speed improvement is established.
+Reuse remains optional and disabled by default. These are prepared-line results;
+no additional full-page CER or speed is attributed to the reused workspace.
+Receipts live in `browser/frontier2/fused-head-reuse/latest/`.
+
+**Packed classifier weights:** the new shader stores pairs of existing FP16
+weights in `u32` words and unpacks them into the same FP32 arithmetic. It uses
+core WGSL packing operations, without a vendor feature or FP16 arithmetic
+requirement. The custom standard head's weight allocation decreases from 859,648
+to 429,824 bytes; light decreases from 429,824 to 214,912. These compare custom
+head buffers, not total GPU memory or the released native FP16 classifier.
+The HTML retains comparison models and makes no package-size reduction claim.
+
+Two reversed-order development sessions each pass 32 numeric/tie/margin/resource
+checks. Packed and unpacked heads return identical IDs on all 16,448 development
+timesteps for both models. Standard prepared-line throughput improves 3.7%
+(+4.7% / +2.7%, six winning blocks of eight). Light decreases 1.7%
+(-2.2% / -1.2%, two wins). Workspace reuse is disabled in this comparison so
+packing is the only changed lever. These dynamic four-line batches differ from
+the page runtime's captured sixteen-line batches.
+
+The standard page prototype first runs 32 warm passes, sixteen per mode in eight
+ABBA/BAAB blocks, measuring 9.21 control versus 9.54 packed pages/s (+3.6%). A
+longer confirmation adds 48 passes, 24 per mode in twelve blocks: 9.68 versus
+9.74 (+0.7%). Session changes disagree (-2.3% / +3.7%); block changes range from
+-3.9% to +6.8%, with six wins. All 80 timed page passes are retained. The initial
+gain does not establish a dependable page-speed improvement. Both families keep
+exact raw detector boxes, 156 batches, 49,020,928 recognition pixels and zero new
+timed GPU sessions. Packed text and positioned output match the earlier fused
+head, retaining 3,223 edits / 2.216% CER versus control's 3,220 / 2.213%.
+Both modes pass full PDF text and original-pixel gates. The packed HTML also
+passes four Chromium compatibility/fallback cases. No defaults are changed.
+Prepared receipts live in `browser/frontier2/fused-head-packed/latest/`; page
+families are `frontier2/head-packed/` and `frontier2/head-packed-confirmation/`.
+
+**Captured-batch factorial follow-up:** broader component trials use the released
+fixed batch of sixteen, 256px width grid, captured GPU sessions, GPU-resident
+input and eight-shape/256 MiB owned-buffer budget. Two browser sessions reverse
+model, profile and comparison order; each comparison has four ABBA/BAAB blocks.
+Fresh buffers, buffer reuse, packed weights and both are checked separately on
+the same feature graph, then the combined head is compared with the original
+captured model. All fused variants preserve exact timestep IDs throughout timing.
+
+| Recognition-component workload | Combined standard vs released | Combined light vs released |
+| --- | ---: | ---: |
+| 128 real development lines in width buckets | -0.01% | -6.34% |
+| Sixteen narrow lines | -5.89% | -13.43% |
+| Sixteen real lines padded to 2048px | +2.26% | -11.08% |
+| Sixteen real lines padded to 4096px | +3.32% | -5.80% |
+| Three valid lines in a fixed-sixteen body batch | +25.51% | +27.63% |
+| Seven-width cache-pressure padding stress | 3.37 times | 3.43 times |
+
+The padding profiles are diagnostic stress cases, not new human gold or page
+speed. Timings exclude detection, input upload, PDF work and decoding. Ordinary
+document batches do not establish a standard-head win. Light buffer reuse alone
+is +4.59% versus the fresh custom head in four winning blocks; packing slows that
+model. Full-page follow-ups therefore test light reuse and standard combined
+separately rather than discarding both from the combined light result.
+
+The six-width owned-buffer inventory falls from 251,789,312 bytes original to
+35,790,848 standard / 26,877,952 light feature graphs. This excludes weights,
+scratch, ORT intermediates and page textures. In the seven-width stress, original
+captured sessions rebuild while the feature working set remains resident. Both
+sessions confirm that cause; this does not establish 3.4 times page throughput.
+Classifier scratch stays under its separate 16 MiB retention cap. Original/custom
+arithmetic differences remain distinct from reuse/packing, which add no changed
+IDs. Receipts, source snapshots and all profiles belong to
+`browser/frontier2/captured-heads/latest/`.
+
+**Full-page reuse/packing follow-up:** component findings motivate separate
+standard combined and light reuse-only configurations. Each runs two fresh
+browser sessions with sixteen timed 55-page passes and inverted starting orders:
+eight paired blocks, sixteen passes per mode, with no discarded passes.
+
+| Laptop browser WebGPU | Control pages/s | Candidate pages/s | Matched change | Wins | Control / candidate CER |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Balanced, reuse + packing | 9.50 | 10.10 | +6.30% | 8/8 | 2.213% / 2.216% |
+| Extreme, reuse without packing | 11.73 | 12.30 | +4.80% | 7/8 | 3.954% / 3.949% |
+
+Balanced's two session ratios are 1.06432 / 1.06159, with block ratios
+1.03699-1.11200. Extreme's are 1.06639 / 1.02983, with blocks 0.98936-1.10261.
+Both modes retain exact raw detector boxes and per-tier inference work:
+156 / 157 batches and 49,020,928 / 49,283,072 pixels respectively, with zero new
+timed GPU sessions. Per-mode text and positions are stable. Standard fused
+outputs match the earlier fused text/positions, retaining three extra character
+edits; light has seven fewer edits than released FP16. Reuse/packing preserve
+all development timestep IDs. All PDF text,
+original first-page pixels and module-worker reopening gates pass.
+
+The first Extreme screen completes its sixteen timed passes and PDF gates before
+a separate hosted PNG check encounters a harness assumption that PNG exposes PDF
+document-line metrics. Those completed passes stay included. The harness now
+collects document geometry only for PDF calls; subsequent hosted PNG/tier checks
+pass. This is distinct from the measured OCR path. Owning page families are
+`frontier2/head-combined/` and `frontier2/head-reused-extreme/`.
+
+These results support keeping both configurations on the shortlist. They do not
+establish other-device speed, a native improvement or a universal ten-page rate.
+No released default is changed. Earlier fresh-head and packed-only confirmations
+remain preserved alongside these new combined/reuse configurations.
+Each configuration additionally passes four Chromium compatibility cases: CPU
+offline, hosted GPU and injected GPU initialization/run failures recovering on
+CPU. The light cases explicitly select Extreme, and GPU work counters confirm
+that the candidate head actually runs.
+
+**Recognition cascade:** a GPU top-two-margin reduction is independently checked
+against full-alphabet numeric/tie expectations. The small model runs first; a
+frozen lower-quartile emitted-character margin rule retries selected lines with
+the accurate model. Both model passes, packing, metadata readback, decoding and
+routing are charged. The gate is selected only on the existing 128-line ordinal
+development sample, using its human transcripts. Those crops originate from
+automatic Kraken geometry; no claim of gold line boxes is made.
+
+On 7,561 development characters, the teacher scores 1.759% CER (133 edits),
+small 2.328% (176), and the chosen policy 1.653% (125), retrying 15/128 lines.
+The fixed threshold is 3.1875; both tested development accuracy allowances select
+the same rule. Prepared-line elapsed means are 0.244 seconds for the teacher and
+0.188-0.193 for the cascade, with both execution orders. This is not a page rate.
+
+On full pages it retries 263/2,424 lines, adding 24 teacher batches to 156 small
+batches and executing 56,492,032 total input pixels. It wins all four matched
+page blocks, but only by 1.3-6.1%, with session gains of 2.8%/3.7%. Pooled page
+rates are 8.00/8.28. CER rises by 919 edits to 2.845%, so the development gate
+does not qualify for Balanced. It needs more representative development
+calibration before any accuracy claim. The prototype reuses the already-packaged
+models and adds 3,802 HTML bytes; it introduces an additional GPU model cache.
+
+A separate Pareto comparison switches the control to the existing Fast tier,
+retaining the same captured recognizer sessions. It has eight warm passes per
+mode, four ABBA/BAAB blocks and 880 timed pages across two browser sessions.
+Fast scores 2.332% CER (3,393 edits) at 10.356 pages/s; the Balanced cascade
+retains 2.845% CER (4,139 edits) at 10.339. Matched throughput differs by -0.1%,
+with session changes +2.5% / -2.7% and two winning blocks. Fast offers equivalent
+speed with better accuracy in this laptop case, so the frozen cascade is
+dominated rather than a useful new tier. This comparison intentionally changes
+detector resolution with the tier; raw boxes are not expected to match across
+the two modes. Both retain stable per-mode output and pass PDF gates. The owning
+family is `frontier2/cascade-versus-fast/`.
+
+**Conv/HardSwish fusion:** the graph combines 31 one-consumer Conv/HardSwish pairs
+without changing initializer values. The custom MLAS activation combines bias
+addition with HardSwish in one epilogue, retaining separate float multiply/add
+rounding. Its source patch and expanded operator inventory are prepared, and the
+one-job cached build was interrupted before linking. Temporary source patches
+were reversed. No completed runtime, independent tensor parity, page timing or
+CER is claimed for this candidate.
+
+The owning private family is `browser/full-test/latest/laptop/frontier2/`; kernel
+and development receipts live under `browser/frontier2/`. All 56 browser source
+tests and experiment syntax checks pass. The rebuilt head passes four Chromium
+cases: offline CPU, hosted GPU and CPU recovery from injected GPU initialization
+and run failures. Each exports both pages with original pixels and OCR text.
+Three Firefox cases fail in automation while opening a page, before loading OCR;
+they provide no Firefox runtime result. Cascade portability was not run after
+that failure. A separate blank-page prerequisite check reproduces the Firefox
+failure both with and without an injected initialization script. Wider
+browser/device coverage remains open. No release or
+hosted-demo update follows these screens.
+
 ## Five-tier release and native integration
 
 The browser/model packages are published in
@@ -279,8 +742,497 @@ capture after removing CPU data fallbacks, and a guarded single-image PDF fast
 path. [ORT documents GPU input tensors and preallocated outputs](https://onnxruntime.ai/docs/tutorials/web/ep-webgpu.html);
 its [graph capture guidance](https://onnxruntime.ai/docs/tutorials/web/performance-diagnosis.html)
 requires static shapes and GPU-supported computing kernels. Our current dynamic
-width graph is not eligible merely by setting a flag. None of these future
-changes has a measured full-document gain yet.
+width graph is not eligible merely by setting a flag. These were unmeasured at
+v0.2.3; the next section records their subsequent trials.
+
+## Scan-PDF, GPU preparation and graph-capture experiments
+
+All four proposed levers were tried using the same 55-page PDF, full recognition
+width and human transcripts (145,475 normalized characters). These remain
+experimental; v0.2.3 and the hosted application have not been replaced by these
+results. The self-contained candidate uses stock line detection and the existing
+fine-tuned recognizers. No test page or transcript selected detector weights.
+
+| Experimental WebGPU candidate | Warm pages/s | Page CER | First 55-page document | Initialization |
+| --- | ---: | ---: | ---: | ---: |
+| Laptop Balanced | 8.653 | 2.498% | 10.398 s | 2.274 s |
+| Laptop Quality | 6.313 | 2.237% | 15.067 s | 2.564 s |
+| Desktop Balanced | 18.022 | 2.598% | 7.275 s | 3.049 s |
+| Desktop Quality | 15.411 | 2.251% | 7.474 s | 3.017 s |
+
+These are medians of three warm passes: laptop Balanced 8.982 / 8.653 / 8.064,
+desktop Balanced 18.230 / 18.022 / 17.892, and desktop Quality 15.411 / 15.254 /
+15.443 pages/s. Laptop Quality varied substantially: 5.585 / 7.262 / 6.313.
+They include rendering, detection, preparation, inference and
+text assembly, excluding input opening and PDF export. Initialization is also
+excluded from the first-document column. First-document throughput is only
+5.29 / 3.65 / 7.56 / 7.36 pages/s in table order: lazy shape-session setup is a real
+cost, so warm throughput alone does not describe first use.
+
+The frozen v0.2.3 laptop control measured 5.921 pages/s in an earlier screen and
+5.810 over three later passes, at 2.512% CER. The desktop frozen control with
+four CPU detectors measured 15.880 / 2.606%, with a 6.572-second first document.
+The combined candidate improves warm throughput but makes this desktop first
+document slower. Comparisons with the older released 6.05 / 12.73 GPU figures
+also include different worker settings and session conditions; do not attribute
+that entire difference to one kernel.
+
+The mechanisms and ablations were:
+
+- **Scan-page image path:** inspect PDF.js's operator list and use its decoded
+  image for a single full-page scan with ordinary transforms. Text overlays,
+  annotations, clipping, masks, multiple images and unsupported transforms use
+  normal PDF.js rendering. Tests compare exact rendered pixels for rotations,
+  odd dimensions, UserUnit and staged downscaling. The real document used the
+  fast path on 54 pages, retaining identical text and line geometry on the
+  laptop. Scan-only measured 6.702 laptop pages/s in a three-pass repeat and
+  15.317 on the desktop with four detectors. A later desktop control reached
+  15.880, so an isolated desktop throughput gain is not established. CPU-only
+  laptop recognition remained about 4.40 pages/s.
+- **Detector worker sweep:** three/four CPU detectors measured 5.056 / 5.641
+  laptop pages/s, below its two-worker control. On the 12-thread desktop,
+  three/four measured 14.272 / 14.782 in screens, and the four-worker repeated
+  control reached 15.880. All retained per-machine text and CER. A core-bounded
+  limit of four merits integration; hardcoding four for every laptop does not.
+- **Static shapes and graph capture:** a copied browser GPU graph accepts an
+  external floating-point mask instead of calculating it from integer widths.
+  Original and modified CPU logits were array-exact at three independent
+  shapes; the shared native GPU graph is untouched. Fixed batches of 16,
+  widths padded to 256, persistent GPU buffers, graph capture and the custom
+  128-lane GPU ArgMax measured 7.728 laptop pages/s with CPU preparation. A
+  static-buffer screen without capture measured 7.157. Desktop CPU-prepared
+  capture measured 15.628, essentially its 15.880 control. The bounded cache
+  keeps at most four shapes and 256 MiB of owned input/mask/output buffers;
+  ORT intermediates, model weights and page textures are additional memory.
+- **GPU preparation:** WGSL scans ink bounds, resizes, converts to grayscale and
+  packs normalized tensors without downloading page pixels. Only line metadata
+  and final class IDs return to the CPU. Preparation fell to about 0.7 seconds
+  summed over the document, but using it without static capture slowed the
+  laptop to 5.286 pages/s. With capture, repeated medians were 8.078 laptop /
+  17.931 desktop, followed by the bounded-candidate results in the table. One
+  earlier desktop pass dropped to 8.042; the later three-pass repeat was
+  18.035 / 17.931 / 17.327. GPU and Canvas fractional resampling differ: integer
+  test pixels are exact; the independent fractional fixture has mean normalized
+  pixel delta 0.003252 and maximum 0.109804. Full-page CER improves by only
+  20 laptop and 12 desktop edits; this is not evidence from a fresh holdout.
+
+A separate **8,115-parameter detector student** was distilled from stock Indra
+predictions on the existing 538 training and 68 development pages, never the
+55 test pages. Page and article overlap are zero. It stopped after 25 epochs
+with six non-improving development epochs, selecting epoch 19. Its 45,054-byte
+ONNX export passed PyTorch parity at two dynamic shapes. Human transcripts
+then exposed unacceptable page CER: **5.203% laptop / 5.220% desktop**, versus
+about 2.5-2.6% with stock detection. Desktop speed reached 20.524 pages/s in a
+screen, but laptop speed fell to 7.676. It is not promoted to a default tier;
+its size, accuracy and speed remain recorded for Pareto comparisons. Its targets
+are teacher predictions, not human geometry gold; the older Kraken boxes were
+not promoted to gold or used as the detector target.
+
+All completed page tests passed stable repeated text, offline recognition,
+all 55 exported text pages, original first-page pixel preservation and PDF
+reopening. The current browser source suite passed all 44 tests, including GPU
+allocation failure cleanup and the shared embedding pools. These measurements cover Chromium 149/151 on the
+two existing machines. Actual GPU-init/device-loss recovery and Firefox/WebKit
+validation remain separate portability gates. Keep the WASM baseline and
+capability-based optional acceleration; a successful adapter query alone does
+not prove that a model can run. ORT documents its
+[WASM browser baseline](https://onnxruntime.ai/docs/get-started/with-javascript/web.html)
+and [cross-origin isolation requirement for threads](https://onnxruntime.ai/docs/tutorials/web/env-flags-and-session-options.html).
+
+The initial frozen candidate is `dist/runtime-speed-gpu-capture-control.html`, SHA-256
+`c3e7e048a289e00e9130475f71b88e9ecd8fc1b219d604be62f8696468699d9f`,
+using `scanPages=1&gpuCapture=1&gpuPrep=1` and `layoutWorkers=4` on the desktop.
+It is an HTML-only prototype; the older archive digest in the desktop receipt
+does not identify a newly built runtime archive. Private receipts live under
+`browser/full-test/latest/{laptop,desktop}/frontier/`; detector training and its
+hash-bound derived cache live in `detector-student/`. Builder sidecars bind the
+copied models to their source hashes. Shared models and public packages retain
+their existing contracts and defaults.
+
+### A larger detector paired with the accurate recognizer
+
+The intended Extreme alternative retains the accurate eight-block recognizer
+and spends accuracy on faster line detection. Combining the original tiny
+detector with the smaller Extreme recognizer was a separate, unsuccessful
+control: about 11.3-11.4% CER, with no desktop speed advantage over stock Extreme.
+
+The middle detector increased channels from `[8,16,24,32]` to `[12,24,36,48]`:
+16,299 parameters and 77,800 ONNX bytes, trained at 768px. Thirty epochs selected
+epoch 28 on development loss. Its initial 6.0% page CER was still too high.
+Refinement from those weights used binary teacher core targets with BCE plus
+Dice overlap loss, keeping the distance regression target. This is a standard
+text-segmentation loss family; see
+[PaddleOCR's DB loss](https://github.com/PaddlePaddle/PaddleOCR/blob/main/ppocr/losses/det_db_loss.py).
+Ten further epochs selected epoch 4. Development-only threshold calibration
+maximized matched-box IoU against teacher predictions, folding the chosen
+threshold into the final core bias without adding operators. CER fell to
+3.349% desktop / 3.359% laptop, but speed was only 18.967 / 8.704 pages/s.
+
+Pruning the expensive stem and final high-resolution features to eight channels,
+while retaining the larger deeper features, produced `[8,24,36,48]`:
+**15,891 parameters / 76,166 ONNX bytes**. Twenty-five further epochs selected
+epoch 19. Its development-calibrated core threshold is 2.75. All training uses
+the same 538/68 pages, and cache hashes reject changed teacher inputs. Both
+dynamic-shape export parity and the calibrated bias equivalence checks pass.
+
+The new profiles exposed GPU shape-cache churn. With four cached shapes, the
+pruned middle model rebuilt ten GPU sessions per warm document on both machines.
+Allowing eight shapes, still capped at 256 MiB of owned buffers, reduced that
+to four laptop / zero desktop builds. Text and positioned-line hashes are exact
+between cache settings. At 768px, median throughput improved from an 8.181
+laptop / 18.980 desktop screen to **9.151 / 21.549** over three warm passes,
+with unchanged **3.580% / 3.583% CER**. A 128px tensor-width grid increased
+rebuilds to seven / six and reached 9.643 / 19.932; it is not a universal
+improvement. The final comparison retains 256px width buckets.
+
+At 736px, the trained detector reaches the intended accuracy range:
+
+| WebGPU profile, eight cached shapes | Desktop warm pages/s | Desktop CER | Laptop warm pages/s | Laptop CER |
+| --- | ---: | ---: | ---: | ---: |
+| Middle detector 736px + accurate recognizer | 22.221 before / 21.689 after | 4.521% | 11.644 | 4.595% |
+| Stock Extreme, 768px + smaller recognizer | 20.791 | 4.806% | 12.483 | 4.795% |
+| Stock Turbo, 768px + accurate recognizer | 20.716 | 3.121% | — | — |
+
+All rows use three warm passes, the same GPU capture/preparation/scan path and
+per-machine detector budgets. Desktop candidate passes before the controls were
+21.948 / 22.221 / 22.761, and after were 21.930 / 21.689 / 21.522; Extreme was
+20.698 / 20.791 / 20.855. This is a **modest 4.3-6.9% desktop speed gain** and
+0.285 percentage-point CER improvement over Extreme. The laptop candidate is
+6.7% slower, with a 0.201-point CER improvement. It is a desktop GPU candidate,
+not a justified replacement across machines. First-document times are 6.755 s
+desktop / 8.850 s laptop, plus 3.008 / 2.225 s initialization. Extreme takes
+7.007 / 8.598 s plus 2.733 / 2.080 s; desktop cold totals are essentially equal.
+
+A stock-detector 704px control with the accurate recognizer reached 3.772%
+desktop / 3.767% laptop CER, but its page rates drifted: desktop 19.614 and
+laptop 11.454 before / 9.716 after a control. A nearby laptop Extreme control
+also rose from 9.824 to 12.425. Those laptop sessions do not establish a speed
+win from the lower stock resolution. Inference using the pruned middle detector
+at 704px reached 18.251 / 5.459% on desktop, outside the target accuracy range.
+
+The frozen trained candidate is `dist/runtime-speed-detector-middle-fast-before-direct.html`
+with SHA-256 `54fc769881fd82eb6a9e314fee174eb79230dfd8b26f49658044277fac65a961`,
+using `tier=turbo&detectorSide=736&gpuCapture=1&gpuPrep=1&scanPages=1&gpuCache=8`
+and `layoutWorkers=4` on desktop. It intentionally uses the accurate recognizer;
+the Turbo label selects that recognizer rather than the smaller Extreme one.
+The matching stock-control HTML has SHA-256
+`f7ddec6d088427dbdb167ad9ee1bb80a852d5d57cc857d2319efce9377041bc3`.
+All selected page cases passed offline recognition, stable text and searchable-PDF
+text/pixel gates. The model and HTML remain experimental and unpublished.
+
+A mirrored laptop repeat (Extreme, middle 736px, stock 704px, then reverse order)
+helps distinguish the accuracy tradeoff from drifting speed. Pooled medians of
+six warm passes per setting were:
+
+| Laptop WebGPU setting | Warm pages/s | Range | Page CER |
+| --- | ---: | ---: | ---: |
+| Stock Extreme | 10.219 | 8.233–11.155 | 4.795% |
+| Middle 736px, accurate recognizer | 9.712 | 8.055–10.117 | 4.595% |
+| Stock 704px, accurate recognizer | 10.292 | 8.880–10.717 | 3.767% |
+
+The middle model trades about 5% throughput for 0.201 percentage points less
+error than Extreme in this repeat; speed ranges overlap. The stock 704px
+configuration is the stronger laptop Pareto candidate here. The middle model's
+desktop result remains useful evidence rather than a universal tier choice.
+Receipts live in `frontier/pareto-repeat/`; all original candidates are retained.
+
+### Direct GPU input, repeated with an identical build
+
+The input experiment writes crop tensors directly into the persistent captured
+session buffer instead of copying from a second GPU buffer. Direct and allocated
+preparation outputs match bit for bit on both machines. A before/after comparison
+using different builds had substantial drift, so it did not establish a regression.
+
+A same-build copy/direct/direct/copy sequence used frozen HTML SHA-256
+`6af4b32b1a770ba022704eca68659fdce9ed8584f1288f2d6af5234c6a4b81db`.
+Each case has three warm 55-page passes. Pooling six passes per setting gives
+about 16.26 copy versus 16.12 direct pages/s on desktop, and 6.24 versus 6.34 on
+laptop. The roughly 1–2% differences have overlapping ranges and opposite signs.
+Text and geometry match, with 2.598% desktop / 2.498% laptop CER. No general gain
+or regression is established; `gpuDirect=1` stays experimental. Fenced component
+latency includes queue synchronization and does not isolate GPU copy cost.
+
+### Browser portability and CPU thread allocation
+
+The current browser pool retries GPU initialization/device-loss failures through
+one shared CPU recovery, including pending page work and embedding hosts.
+The application retains a canvas replay callback so successful GPU recognition
+does not require cloning every bitmap. The embedding API retains a replay copy.
+Cancellation disposes recovery and workers. The app and embedding API retain
+their shared worker policy.
+
+Fourteen real Chromium 149 / Firefox 151 cases pass: offline recognition,
+hosted automatic selection, Extreme, GPU initialization/run failures, embedding,
+a two-core CPU budget, and JavaScript decompression fallback where applicable.
+All app cases retain recognized PDF text and original first-page pixels.
+These are invented compatibility fixtures, not accuracy measurements. Windows
+WebKit 26.5 lacks the required worker OffscreenCanvas path; Safari on Apple
+hardware is not validated. No claim of universal browser coverage is made.
+
+On hosted COOP/COEP pages, the app now passes requested inference threads into
+recognition workers. The laptop allocation sweep measured 4.408 before / 4.192
+after pages/s for four one-thread workers, versus 3.024 for two two-thread
+workers and 2.681 for one four-thread worker. All retain 2.513% CER and identical
+text/geometry. This supports keeping the existing one-thread-per-worker default
+on this machine; it does not select a global policy from one laptop.
+
+### Smaller standalone packages
+
+Self-contained assets are gzip-compressed individually and decoded lazily, using
+native decompression or the bundled existing pako fallback. File-loaded workers
+receive data URLs; hosted workers share revocable blob URLs. A blob app module
+also fixes ORT 1.22's invalid `file:` origin base on Firefox. Native base64
+decoding and FileReader avoid callback-per-byte decoding/re-encoding at startup.
+
+The CPU-only editions omit GPU runtime/models and optional Tesseract layout,
+retaining Indra detection and PDF input/export. Full keeps CPU/WebGPU and all
+five tiers. A separate minimal ORT 1.22 engine reduces WASM from 8,869,550 to
+1,514,068 bytes (83%); gzip is about 0.52 MB. It retains the custom four-row
+SIMD matrix kernel. Preoptimized portable ORT graphs use EXTENDED optimization,
+excluding architecture-specific level-3 layout transforms. Two generated dynamic
+shapes per model establish exact conversion output, followed by actual browsers.
+The original-weight compact package reproduces full-package 55-page text and
+positioned geometry hashes exactly.
+
+Rounding recognizer initializer values to FP16 or BF16 and storing them back in
+FP32 improves gzip compression without adding quantized operators or requiring
+FP16/BF16 CPU instructions. Detector values are unchanged. Conversion parity
+checks refer to each precision variant's graph; rounding itself is lossy and
+requires human-transcript accuracy checks. All 3,165 development lines score:
+
+| Recognizer | FP32 CER | FP16-rounded CER | BF16-rounded CER |
+| --- | ---: | ---: | ---: |
+| Accurate | 1.4023% | 1.4023% | 1.4023% |
+| Smaller | 2.3788% | 2.3788% | 2.3762% |
+
+The smaller BF16 packages qualified on development accuracy before full-page
+evaluation. The FP16 variants remain retained alternatives; only their development
+accuracy is measured. All computations and activations remain FP32.
+
+| HTML edition | Disk MB | Gzip MB | Capabilities |
+| --- | ---: | ---: | --- |
+| Previous full offline HTML | 58.93 | — | Released five-tier CPU/WebGPU |
+| Current full | 22.84 | 16.84 | Five-tier CPU/WebGPU |
+| CPU, unchanged precision, minimal engine | 8.15 | 5.79 | Four accurate tiers |
+| CPU, BF16-rounded, minimal engine | 5.39 | 3.71 | Four accurate tiers |
+| Lite, unchanged precision, minimal engine | 4.86 | 3.31 | Extreme |
+| Lite, BF16-rounded, minimal engine | 3.83 | 2.54 | Extreme |
+
+These are decimal MB. The matched installed Tesseract.js 7.0.0 payload is
+3,462,228 gzip bytes: API, worker, actual inline-WASM relaxed-SIMD LSTM core and
+Fast English data. Its separate `.wasm` is not double-counted. That reference
+excludes PDF.js, UI and PDF export, which are included in every OCR HTML edition.
+The inventory harness hashes every decoded asset against its canonical source.
+
+The 55-page laptop follow-up measured:
+
+| CPU package/tier | Warm pages/s | Page CER | Initialization |
+| --- | ---: | ---: | ---: |
+| Rounded accurate, Balanced | 4.312 | 2.511% | 0.963 s |
+| Rounded accurate, Quality | 4.087 | 2.253% | 0.708 s |
+| Rounded Lite, Extreme | 6.481 | 4.788% | 0.751 s |
+
+These are three warm document passes, with initialization/export separate.
+Original precision scores 2.513% Balanced, 2.251% Quality and 4.777% Extreme:
+the rounding changes -3, +3 and +16 character edits respectively, rather than
+having zero numerical/accuracy cost. Balanced ordinary CPU controls drifted
+from 3.195 to 3.953 pages/s around the earlier compact runs; no packaging-only
+document-speed gain is claimed. First document times for the rounded packages
+were 15.68 / 14.39 / 11.07 seconds, plus initialization. All cases preserve all
+55 pages of exported recognized text and original first-page pixels.
+
+Each rounded edition also passes five actual Chromium/Firefox cases covering
+offline/hosted operation and JavaScript decompression where applicable. Final
+packaging adds bundled upstream pako notices and batch-capacity counters;
+recognition model hashes match the measured builds. Measured HTML controls are
+retained under `dist/runtime-size-gold-*-control.html`. Package receipts are
+in `browser/packaging/`, full-document receipts in `frontier/packaging/` and
+compatibility receipts in `browser/portability/`. The release harness's old
+archive SHA is not a hash of these experimental standalone packages.
+
+The 96-channel student completes 38 epochs, stopping on development plateau
+and selecting epoch 28: 629,711 parameters, a 2,542,770-byte ONNX with compact
+IDs, 1.719% GPU development-line CER (1.716% native CPU) and 1.122% test-line
+CER. These are line-crop scores, not page error rates. The model retains the
+human-transcript and automatic-Kraken-box provenance. Its FP16 GPU export passes
+development accuracy. Full 55-page browser measurements follow:
+
+| 96-channel recognizer | Laptop pages/s | Laptop CER | Desktop pages/s | Desktop CER |
+| --- | ---: | ---: | ---: | ---: |
+| Balanced GPU | 6.744 | 3.085% | 17.467 | 3.156% |
+| Quality GPU | 5.770 | 2.779% | 14.806 | 2.792% |
+| Balanced CPU | 3.828 | 3.049% | 9.595 | 3.133% |
+
+These are three-pass warm medians. The full five-tier HTML shrinks to 19.82 MB
+from 22.84 MB. The laptop does not establish a speed advantage over the accurate
+128-channel model; the desktop CPU result remains a potentially useful size,
+accuracy and speed tradeoff, pending a matched control. Keep the candidate on
+that basis rather than discarding it for losing the accuracy axis.
+
+The working shared default now uses `min(4, max(1, floor(cores/3)))` CPU detectors
+in both CPU and GPU modes, retaining two on the eight-thread laptop and allowing
+four on the 12-thread desktop. The app and embedding API use the same policy.
+This follows the worker sweep; the published v0.2.3 assets remain unchanged.
+
+### Detector decoding and batch utilization
+
+The JavaScript detector decoder now thresholds with a tight loop and accumulates
+component statistics during its four-neighbor traversal. Traversal and floating
+point addition order stay unchanged. The existing native detector maps and three
+independently invented boundary masks retain exact output coordinates. Seven
+alternating groups of 100 decodes reduce median component time from 14.075 ms to
+0.945 ms, about 15 times faster. This is a decoder measurement, not page throughput.
+
+On the full laptop PDF, summed detector postprocessing falls from 0.654 seconds
+to 0.073 seconds, returning to 0.656 in the closing control. Text and positioned
+geometry match exactly. Overall rates are 7.964 / 7.597 / 7.091 pages/s for the
+before / candidate / after sequence; control drift prevents a whole-page speed
+claim. The accurate BF16 CPU package also retains exact text and geometry with
+the new decoder: 4.426 pages/s / 2.511% CER Balanced and 3.510 / 2.253% Quality.
+
+GPU counters now charge the full executed capacity of captured batches, including
+padded rows. On the laptop, batch 8 reduces executed input pixels by 4.7% and
+128px width buckets with a 16-shape cache reduce them by 8.3%, compared with
+batch 16 and 256px buckets. The corresponding rates are 6.063 before, 6.638 for
+batch 8, 6.933 for narrower buckets and 7.160 after, with identical 2.498% CER.
+The closing control is faster than both alternatives. Desktop controls drift
+from 10.435 to 18.300 pages/s around the same sweep, so neither machine establishes
+a general throughput gain. The cache still caps owned buffers at 256 MiB; this
+does not include all ORT, browser or page memory.
+
+A mirrored laptop detector-worker sweep (2, 3, 4, 4, 3, 2) gives pooled medians
+of 6.806, 6.919 and 6.915 pages/s. Their ranges overlap, and all retain 2.498% CER.
+The two-worker laptop default stays in place. Receipts live under
+`frontier/post-fused/` and `frontier/layout-allocation-mirrored/`; the component
+receipt is `browser/post-kernel/latest/results.json`.
+
+### Crop-robust recognition at the same inference cost
+
+The 64-channel continuation changes training crops, with the same ten blocks,
+373,199 parameters, full-width input and alphabet. Half the training crops
+vary existing blank margins by up to 75%, after finding all nonwhite
+pixels, including faint gray ink. Ink and human labels are retained. Evaluation
+does not augment crops or consume training RNG state. This is recognition
+augmentation, not corrected detector gold; the original boxes remain automatic
+Kraken output.
+
+Both the augmented run and a matched unaugmented continuation start at selected
+epoch 39 with fresh AdamW, learning rate 0.00005, a total 60-epoch cap, minimum
+epoch 50 and patience 8. The control stops at epoch 50 and keeps epoch 39; its
+exported CPU and GPU graph hashes remain identical to the original model. The
+augmented run uses all 21 additional epochs and selects epoch 60, still improving
+at the cap. Human development-line CER falls from 2.377% to 2.003%; reserved
+test-line CER falls from 1.536% to 1.333%. Line scores do not imply page scores.
+
+| Laptop, 55 pages, GPU Extreme | Warm pages/s | Page CER | Character edits |
+| --- | ---: | ---: | ---: |
+| Matched original, before | 9.548 | 4.795% | 6,976 |
+| Crop-robust, 768px detector | 9.710 | **3.954%** | **5,752** |
+| Crop-robust, 736px detector | 9.182 | 4.241% | 6,170 |
+| Matched original, after | 9.451 | 4.795% | 6,976 |
+
+Each rate is a median of three warm passes, with GPU preparation, scan-page
+reuse and an eight-shape capture cache. At 768px this removes 1,224 character
+edits, or 17.5%, without increasing inference work. The smaller detector side
+loses both speed and accuracy in this session; retain its result without
+promoting it. Offline recognition and all-page searchable-PDF character and
+first-page pixel gates pass. Training/checkpoint receipts live under
+`speed-frontier/crop-robust64/` and `crop-control64/`; full-page receipts are in
+`frontier/crop-robust/`. These remain unreleased experiments.
+
+The improvement also survives the small CPU package. With the original-precision
+crop-robust weights, Compact Extreme measures 6.692 pages/s / 3.962% CER.
+BF16-rounded storage measures 6.564 / 3.966%, or 5 extra character edits among
+145,475 gold characters. It retains the 3.83 MB offline / 2.54 MB gzip size,
+FP32 arithmetic and 0.775-second initialization. Its first full 55-page OCR
+pass takes 8.89 seconds after initialization and file opening. Original rounded
+weights score 4.788% at 6.511 / 6.104 pages/s in the surrounding controls; this
+supports an accuracy improvement at similar inference cost, rather than a
+training-induced speedup. Development rounding changes 3,800 edits to 3,810
+among 189,756 characters. Full-page receipts live in `frontier/crop-compact/`.
+
+A subsequent scan-image reuse comparison on this same 3.83 MB package measures
+**8.114 CPU pages/s**, versus 6.813 before and 6.108 after with ordinary PDF
+rendering. All keep 3.966% CER and exact text, raw detector boxes, positioned
+geometry and exported PDF bytes. This uses the existing guarded
+`scanPages=1` path; unsupported pages still use ordinary rendering. The control
+drift is visible, but the candidate exceeds both controls. This is a warm
+full-document rate, not startup or single-page latency. Receipts live in
+`frontier/crop-compact-scan/`; the combined raw-geometry/output audit is
+`browser/full-test/latest/laptop/frontier-verification.json`.
+
+### Fused portable SIMD activation kernel
+
+The stock detector contains 31 HardSwish activations. The pinned ORT 1.22 CPU
+provider has no native HardSwish registration, so these expand to HardSigmoid
+and multiplication. A new float32 SIMD128 kernel performs the same arithmetic
+in one pass, using ORT's normal thread scheduler. It requires neither relaxed
+SIMD nor FMA and changes no model weights. The existing four-row matrix kernel
+is retained.
+
+The standalone WASM check passes 38 cases on desktop and laptop: random float32
+bit patterns, activation boundaries, infinities, NaNs, subnormals, short tails,
+guard writes and in-place use. Finite results and signed zero are exact; NaN
+payloads are unconstrained. On the retained real detector tensor, the complete
+float32 output hash matches the old engine exactly. A separate CPU profile
+confirms the native HardSwish function runs instead of the expanded operations;
+sampling counts are not a precise time breakdown.
+
+Laptop Balanced CPU measures 5.009 pages/s, with controls of 4.517 before and
+4.844 after, with identical 2.513% CER, text and positioned geometry. That is
+3.4% faster than the closing control, with visible drift. GPU Balanced measures
+9.023 versus 9.179 / 8.913 controls, so it establishes no GPU throughput gain.
+The same kernel with crop-robust Extreme measures **11.952 pages/s / 3.954% CER**
+between 11.060 and 11.258 controls, a 6.2% gain over the closing control. Text and
+positioned geometry remain exact. This accelerates the CPU detector alongside
+GPU recognition; the GPU runtime binary itself is unchanged. Source patches,
+operator configuration, compiler/runtime hashes and validation receipts are
+retained in the owning custom-kernel directory. Upstream source patches are
+removed in the build's exit trap.
+
+Fourteen Chromium/Firefox cases pass for the full HTML with the fused CPU
+runtime, including offline use, hosted selection, GPU failures and PDF export.
+Both new compact crop variants pass five cases each, including Firefox
+offline/hosted use and Chromium's JavaScript decompression fallback. Ordinary
+full-package embedding cases exercise the shared API; captured alternate input
+graphs are separately exercised through explicit WebGPU in the full-page gate.
+Apple Safari remains untested. New desktop kernel/crop timings are deferred
+because unrelated desktop work saturates the CPU; earlier desktop numbers above
+are not attributed to this kernel.
+
+### Crop-robust Balanced and Quality recognizer
+
+Balanced and Quality share the eight-block, 128-channel recognizer. A separate
+crop-robust continuation retains its 1,035,663 parameters, full-width inference
+and alphabet. Both this run and its unaugmented control initialize from the
+selected epoch-19 checkpoint, using fresh AdamW at 0.00005, total epoch cap 60,
+minimum epoch 35, patience 8 and learning-rate patience 2. The crop variation
+is the same blank-margin-only augmentation as the 64-channel experiment.
+Checkpoint selection uses the unchanged development split, without page-test
+selection.
+
+The augmented run completes 40 additional epochs and stops at epoch 59 on
+development plateau, selecting epoch 51. GPU development-line CER falls from
+1.401% to 1.193% (2,658 to 2,263 edits in 189,756 characters). The unaugmented
+control completes 16 additional epochs, stops at epoch 35 and retains the
+original epoch 19. Thus extra continuation alone does not reproduce the gain.
+The actual epoch counts differ under the same stopping and selection rules.
+
+The selected CPU export retains the parameter count and scores 1.192% on
+development lines, versus 1.402% originally. On the previously examined reserved
+line-crop split it improves from 0.883% to 0.739% CER: 1,265 to 1,059 edits in
+143,308 characters. These are human-transcript line scores; full-page results
+include detection and reading order. Training, control and export receipts live
+in `speed-frontier/crop-robust128/` and `crop-control128/`.
+
+The scan-image fast path now returns control to ordinary PDF rendering if the
+optimization throws. A real-PDF pixel test injects an accelerated image-draw
+failure and verifies that normal rendering recovers the exact original pixels.
+All 53 source tests and 14 Chromium/Firefox cases pass. The unchanged standard
+recognizer also retains exact full-page text, raw boxes, positioned geometry
+and PDF bytes on CPU and GPU after the source change. Exact pre-change compiled
+controls are retained under `dist/controls/standard-crop/`; the new source-parity
+receipt is `frontier/standard-crop/source-parity.json`.
 
 ## Data and training
 
@@ -1218,32 +2170,29 @@ Select Quality and use
 `?detector=indra&detectorSide=896&pool=6&layoutWorkers=4`.
 Receipts live under `browser/full-test/latest/desktop/speed-pipeline/`.
 
-The larger unmeasured options are crop-robust student training, a 96-channel
-middle point, a small-model/teacher recognition cascade, detector distillation,
-a low-rank full-alphabet classifier, and different CPU thread/session allocation. Crop-robust training can reuse the
-existing human transcripts with conservative crop perturbations or
-geometrically matched training-page detections; it does not require treating
-Kraken geometry as independent detector gold. The 64-channel model's native
-line CER versus browser-page CER motivates this experiment, but the difference
-also includes detection and reading-order errors, so it does not measure the
-recoverable fraction. A cascade needs development-calibrated error detection
-and must charge both passes. Simple confidence alone can miss confident errors.
+The later experiments above cover crop-robust training, a 96-channel middle
+point and CPU thread/session allocation. Larger unmeasured options include a
+small-model/teacher recognition cascade and a low-rank full-alphabet classifier.
+A cascade needs development-calibrated error detection and must charge both
+passes. Simple confidence alone can miss confident errors. Crop-robust training
+uses the existing human transcripts without treating Kraken geometry as gold;
+the gap between line and page CER also includes detection and reading order,
+so it does not measure the recoverable fraction.
 
-The current recognition pool hardcodes one inference thread per worker; changing
-only the main-thread `threads` query does not test fewer multi-threaded sessions.
+The shared recognition pool now passes requested threads through to workers.
 [ORT's web guidance](https://onnxruntime.ai/docs/tutorials/web/env-flags-and-session-options.html)
-requires cross-origin isolation for WASM threading. That experiment would be a
-hosted configuration rather than the direct-from-disk offline package measured
-here. Earlier worker-count and batch sweeps do not cover it.
+requires cross-origin isolation for WASM threading. The hosted two-by-two and
+one-by-four allocation experiment above measures this separately from offline
+single-thread workers; neither beats four single-thread workers on the laptop.
 
-A scanned-PDF image fast path could reduce PDF render/composite overhead on
-simple scans. This remains unmeasured: inspect the
+A scanned-PDF image fast path can reduce PDF render/composite work on simple
+scans; the later scan-PDF experiments above measure it using the
 [PDF.js operator list](https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib-PDFPageProxy.html)
 and reuse a simple page's image where geometry and appearance can be proven,
 with normal rendering for unsupported pages. Rotated, clipped, masked,
-composited and vector pages prevent a generic direct-image assumption. Moving
-preview creation off the main thread, fusing crop/gray/tensor passes and
-trying another CPU backend also remain unmeasured. None has a pages/s estimate.
+composited and vector pages prevent a generic direct-image assumption. The same
+follow-up measures fused GPU crop/gray/tensor preparation. Moving preview
+creation off the main thread and trying another CPU backend remain unmeasured.
 
 ## Reproduction
 

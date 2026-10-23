@@ -27,6 +27,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from indra import Indra, check_parity, select_blocks, select_channels, distillation_loss
+from margin_jitter import jitter_margins
 
 
 def normalized(text):
@@ -256,8 +257,18 @@ class Adapter:
             self.meta['ctc_expanded_train_lines'] = expanded
         return prepared, capped
 
-    def batch(self, prepared, indices, device):
-        widths = [prepared[i][0].shape[1] for i in indices]
+    def batch(self, prepared, indices, device, margin_jitter=0.0):
+        images = [prepared[i][0] for i in indices]
+        if margin_jitter:
+            for j, i in enumerate(indices):
+                if torch.rand(()).item() < .5:
+                    continue
+                image = jitter_margins(images[j], ((torch.rand(4) * 2 - 1) * margin_jitter).tolist())
+                text = prepared[i][1]
+                required = 4 * (len(text) + sum(a == b for a, b in zip(text, text[1:])) + 1)
+                width = max(8, required, round(image.shape[1] * self.height / image.shape[0]))
+                images[j] = cv2.resize(image, (width, self.height), interpolation=cv2.INTER_AREA if image.shape[0] > self.height else cv2.INTER_LINEAR)
+        widths = [image.shape[1] for image in images]
         width = math.ceil(max(self.minimum, max(widths)) / 8) * 8
         channels = 1 if self.name == 'indra' else 3
         x = np.zeros((len(indices), channels, self.height, width), dtype=np.float32)
@@ -266,7 +277,7 @@ class Adapter:
             std = np.asarray(self.model.cfg['std'], dtype=np.float32)[:, None, None]
             x[:] = -mean / std
         for j, i in enumerate(indices):
-            image = prepared[i][0].astype(np.float32) / 255
+            image = images[j].astype(np.float32) / 255
             if self.name == 'crnn':
                 image = (image[None] - mean) / std
             else:
@@ -399,6 +410,11 @@ def train_one(adapter, train_rows, dev_rows, args, output):
     optimizer = torch.optim.AdamW(adapter.model.parameters(), lr=args.lr, weight_decay=1e-5)
     if args.width_scale != 1:
         result['protocol']['input_width_scale'] = args.width_scale
+    if args.margin_jitter:
+        adapter.meta['margin_jitter'] = {'strength': args.margin_jitter, 'probability': .5,
+                                         'pixels': 'retain all nonwhite pixels; jitter existing blank margins after ink trimming',
+                                         'labels': 'unchanged human transcripts; training-only CTC sizing'}
+        result['protocol']['margin_jitter'] = adapter.meta['margin_jitter']
     if teacher:
         result['protocol'].update(student_blocks=args.student_blocks, distillation_weight=.25, distillation_temperature=2.0)
         if args.student_channels:
@@ -441,7 +457,7 @@ def train_one(adapter, train_rows, dev_rows, args, output):
         schedule = batches(train, args.batch_size, args.seed + epoch)
         for batch_number, indices in enumerate(schedule, 1):
             optimizer.zero_grad(set_to_none=True)
-            inputs = adapter.batch(train, indices, 'cuda')
+            inputs = adapter.batch(train, indices, 'cuda', margin_jitter=args.margin_jitter)
             logits, lengths = adapter.raw(*inputs)
             texts = [train[i][1] for i in indices]
             labels = [[adapter.mapping[c] for c in text] for text in texts]
@@ -508,8 +524,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-root', type=Path, required=True)
     parser.add_argument('--source-bundle', type=Path, required=True)
-    parser.add_argument('--openocr', type=Path, required=True)
-    parser.add_argument('--rep-weights', type=Path, required=True)
+    parser.add_argument('--openocr', type=Path)
+    parser.add_argument('--rep-weights', type=Path)
     parser.add_argument('--crnn-weights', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--models', nargs='+', choices=['indra', 'ppocr', 'repsvtr', 'crnn'], default=['indra', 'ppocr', 'repsvtr'])
@@ -523,16 +539,21 @@ def main():
     parser.add_argument('--batch-size', type=int, default=16)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--width-scale', type=float, default=1.0, help='Recognition input width relative to Quality; evaluation never expands from labels')
+    parser.add_argument('--margin-jitter', type=float, default=0.0, help='Training-only blank-margin variation in [0, 1]; all glyph pixels remain')
     parser.add_argument('--seed', type=int, default=714)
     parser.add_argument('--student-blocks', type=int, choices=[6, 8], help='Distill a smaller full-width Indra from the warm-start teacher')
     parser.add_argument('--student-channels', type=int, choices=[64, 96], help='Physically prune Indra channels and distill from the full warm-start teacher')
     args = parser.parse_args()
+    if 'repsvtr' in args.models and (args.openocr is None or args.rep_weights is None):
+        parser.error('--openocr and --rep-weights are required for the RepSVTR candidate')
     if 'crnn' in args.models and args.crnn_weights is None:
         parser.error('--crnn-weights is required for the CRNN candidate')
     if args.epochs < 1 or args.patience < 0 or args.min_epochs < 1 or args.lr_patience < 0 or args.min_delta < 0:
         parser.error('Invalid epoch, patience or development threshold')
     if not 0 < args.width_scale <= 1:
         parser.error('--width-scale must be in (0, 1]')
+    if not 0 <= args.margin_jitter <= 1 or args.margin_jitter and args.models != ['indra']:
+        parser.error('--margin-jitter must be in [0, 1] and is supported only for Indra')
     if args.warm_start and args.warm_start.resolve() == args.output.resolve():
         parser.error('A warm start must use a separate output root to preserve its checkpoints')
     if (args.student_blocks or args.student_channels) and (args.models != ['indra'] or not args.warm_start or args.width_scale != 1):

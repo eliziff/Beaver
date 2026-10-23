@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 from pathlib import Path
 import shutil
 
@@ -199,7 +200,7 @@ def student(args):
     write_json(args.source_root / 'evaluation.json', result)
     codec = folder / 'codec.json'
     write_json(codec, {c: [i] for i, c in enumerate(adapter.chars) if i})
-    name = student_name(adapter)
+    name = args.pack_name or student_name(adapter)
     stage(folder / 'recognizer.onnx', codec, args.assets_root, name,
           {'source': adapter.meta, 'checkpoint_sha256': result['checkpoint_sha256'], 'selected_epoch': checkpoint['epoch'], 'input_width_scale': 1})
     print(json.dumps(result), flush=True)
@@ -229,7 +230,7 @@ def compact(args):
               'bytes': target.stat().st_size, 'parity_batches': 4,
               'dev_arrow_sha256': digest(args.data_root / 'eval.arrow'),
               'evaluation_sha256': digest(args.source_root / 'evaluation.json')}
-    name = student_name(adapter) + 'ids'
+    name = (args.pack_name or student_name(adapter)) + 'ids'
     stage(target, folder / 'codec.json', args.assets_root, name,
           {'source': adapter.meta, **result, 'input_width_scale': 1,
            'greedy_output': 'class_ids; optional logits retained'})
@@ -244,7 +245,10 @@ def main():
     parser.add_argument('--source-root', type=Path, required=True)
     parser.add_argument('--assets-root', type=Path, required=True)
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--pack-name', help='Distinct asset name for a student continuation; existing packs are preserved')
     args = parser.parse_args()
+    if args.pack_name and (args.action == 'quantize' or not re.fullmatch('[a-z0-9-]+', args.pack_name)):
+        parser.error('--pack-name requires a student export and a lowercase asset name')
     if args.action == 'quantize' and not args.output:
         parser.error('quantize requires --output')
     torch.set_num_threads(2)

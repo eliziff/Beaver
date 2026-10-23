@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shortforms</title>
+<style>
+  :root { color-scheme:light; font:18px/1.5 system-ui,sans-serif; color:#202c35; background:white; }
+  * { box-sizing:border-box; }
+  body { margin:0; }
+  main { width:min(100%,720px); margin:36px auto; padding:0 24px; }
+  label { display:block; font-size:14px; margin-bottom:8px; }
+  textarea { display:block; width:100%; min-height:100px; padding:12px; border:1px solid #89959b; border-radius:4px; resize:vertical; font:inherit; color:inherit; background:white; }
+  textarea:focus-visible { outline:2px solid #086c68; outline-offset:3px; }
+  #status { font-size:14px; color:#52616a; margin:12px 0; }
+  #status:empty { margin:0; }
+  #status.error { color:#9a2828; }
+  ol { margin:24px 0; padding-left:28px; }
+  li { padding:5px 0 5px 4px; overflow-wrap:anywhere; }
+  li:first-child { font-weight:600; }
+  @media(max-width:500px) { main { margin:20px auto; padding:0 16px; } }
+  @media(forced-colors:active) { textarea:focus-visible { outline-color:Highlight; } }
+</style>
+<main>
+  <label for="name">Name or case title</label>
+  <textarea id="name" name="name" rows="2" maxlength="1000" spellcheck="false" autocomplete="off" aria-describedby="status" autofocus></textarea>
+  <p id="status" role="status">Loading model…</p>
+  <ol id="names" aria-label="Suggested shortforms" aria-busy="false"></ol>
+</main>
+<script id="model-bundle" type="application/octet-stream">__MODEL_BUNDLE__</script>
+<script id="worker-code" type="text/plain">
+// shortcut: 0.28.3 supports classic blob workers from file URLs; module-only runtimes need another loading strategy.
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js");
+let python;
+self.onmessage = async ({data}) => {
+  try {
+    if (data.type === "init") {
+      python = await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.28.3/full/"});
+      python.globals.set("_packed", data.payload);
+      python.runPython(`
+import base64, json, sys, types, zlib
+_bundle = json.loads(zlib.decompress(base64.b64decode(_packed)))
+for _name, _source in _bundle["modules"].items():
+    _module = types.ModuleType(_name)
+    sys.modules[_name] = _module
+    exec(compile(_source, _name + ".py", "exec"), _module.__dict__)
+import playground_runtime
+playground_runtime.initialize(_bundle["model"], _bundle["party_names"])
+del _bundle, _packed, _source
+`);
+      self.postMessage({type:"ready"});
+    } else {
+      python.globals.set("_request", data.request);
+      const result=JSON.parse(python.runPython("playground_runtime.rank_json(_request)"));
+      self.postMessage({type:"result", id:data.id, ...result});
+    }
+  } catch (error) { self.postMessage({type:"error", id:data.id, error:error.message}); }
+};
+</script>
+<script>
+const input=document.getElementById("name"), list=document.getElementById("names"), status=document.getElementById("status");
+let ready=false, busy=false, revision=0, timer;
+function message(text,error=false) {
+  status.textContent=text; status.classList.toggle("error",error);
+  input.setAttribute("aria-invalid",String(error));
+}
+function rank() {
+  if(!ready || busy)return;
+  const text=input.value.trim();
+  if(!text){message("");return;}
+  busy=true; list.setAttribute("aria-busy","true");
+  worker.postMessage({type:"rank",id:revision,request:JSON.stringify({text})});
+}
+const workerURL=URL.createObjectURL(new Blob([document.getElementById("worker-code").textContent],{type:"text/javascript"}));
+const worker=new Worker(workerURL);
+worker.onmessage=({data})=>{
+  if(data.type==="ready") { ready=true; URL.revokeObjectURL(workerURL); message(""); rank(); return; }
+  busy=false; list.setAttribute("aria-busy","false");
+  if(data.id!==undefined && data.id!==revision) { clearTimeout(timer); timer=setTimeout(rank,200); return; }
+  if(data.error) { message(data.error,true); return; }
+  list.replaceChildren(...data.names.map(name=>{const li=document.createElement("li");li.textContent=name;return li;}));
+  message(data.names.length?"":"No shortforms found.");
+};
+worker.onerror=()=>{ready=false;busy=false;list.setAttribute("aria-busy","false");message("Could not load the model. Check your internet connection and reload.",true);};
+worker.postMessage({type:"init",payload:document.getElementById("model-bundle").textContent.trim()});
+input.addEventListener("input",()=>{
+  revision++; clearTimeout(timer); list.replaceChildren();
+  if(ready)message("");
+  timer=setTimeout(rank,250);
+});
+</script>
+</html>
