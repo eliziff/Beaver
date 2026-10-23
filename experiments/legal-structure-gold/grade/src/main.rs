@@ -1,7 +1,7 @@
 //! Grade fixed gold against explicit cached predictions or a replay of the structure stage.
 //!
 //!   structure-gold inputs GOLD_DIR MANIFEST    each gold's extraction with its cached readings
-//!   structure-gold synthesize GOLD_DIR MANIFEST --model-pack DIR --runtime DLL [--dpi N] [--limit N] [--genre GROUP]
+//!   structure-gold synthesize GOLD_DIR MANIFEST --model-pack DIR --runtime DLL [--dpi N] [--limit N] [--genre GROUP] [--only SHA_PREFIX] [--keep-pdf DIR] [--rendered DIR]
 //!       scans made of the main train split's digital golds: rendered, degraded, recognized; gold copied
 //!                                              recognized into it: GOLD_DIR/inputs/<sha>.json.gz
 //!   structure-gold grade GOLD_DIR MANIFEST [--exports | --candidates FILE] [--split S] [--runs PREFIX..]
@@ -19,6 +19,7 @@
 //!       with the replayed parser's labels and the gold's, one JSON document per line of
 //!       OUT_DIR/rows-<split>.jsonl.
 //!   structure-gold explain GOLD_DIR MANIFEST SHA_PREFIX [--exports | --candidates FILE] [--layers a,b] [--limit N]
+//!       --tagger DIR [--pure]: the engine's tagger over the parse; --pure takes its notes, references and document starts too
 //!       one document's missed (-) and spurious (+) items per layer, as text.
 //!   structure-gold paragraph-data GOLD_DIR MANIFEST OUT_DIR
 //!       exports Rust boundary features and fixed-gold targets, excluding test.
@@ -301,6 +302,14 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
     let dpi: f64 = value("--dpi").and_then(|v| v.parse().ok()).unwrap_or(200.0);
     let limit: usize = value("--limit").and_then(|v| v.parse().ok()).unwrap_or(usize::MAX);
     let genre = value("--genre");
+    let only = value("--only");
+    let keep = value("--keep-pdf").map(PathBuf::from);
+    // --rendered DIR: synthetic PDFs rendered and degraded elsewhere (render_synthetic.py with pdfium, which draws
+    // the text hayro leaves blank on some documents), one DIR/<sha>.pdf per original; originals without one wait.
+    let rendered = value("--rendered").map(PathBuf::from);
+    if let Some(dir) = &keep {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
     let model_pack = value("--model-pack").ok_or("--model-pack DIR")?;
     let runtime_library = value("--runtime").ok_or("--runtime DLL")?;
     let ocr = legalpdf::OcrOptions::Indra(legalpdf::IndraOptions {
@@ -325,29 +334,48 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
         .into_iter()
         .filter(|s| s.split == "train" && s.mode != "ocr" && s.groups.get("yardstick").is_some_and(|y| y == "main")
             && s.groups.get("genre_group").is_none_or(|g| g != "transcript") && !done.contains(&s.sha256)
-            && genre.as_deref().is_none_or(|wanted| s.groups.get("genre_group").is_some_and(|g| g == wanted)))
+            && genre.as_deref().is_none_or(|wanted| s.groups.get("genre_group").is_some_and(|g| g == wanted))
+            && only.as_deref().is_none_or(|prefix| s.sha256.starts_with(prefix)))
         .collect();
     eprintln!("{} digital main train documents to synthesize ({} already done)", chosen.len(), done.len());
     let started = Instant::now();
     for (n, source) in chosen.iter().take(limit).enumerate() {
-        let pdf = match std::fs::read(&source.pdf) {
-            Ok(bytes) => bytes,
-            Err(e) => {
-                eprintln!("SKIP {} {}: {e}", source.sha256, source.pdf.display());
+        let (synthetic, page_count) = if let Some(dir) = &rendered {
+            let path = dir.join(format!("{}.pdf", source.sha256));
+            match std::fs::read(&path) {
+                Ok(bytes) => {
+                    let count = legalpdf::render_gray_pages(&bytes, 10.0).len();
+                    (bytes, count)
+                }
+                Err(_) => {
+                    eprintln!("WAIT {}: no rendered PDF at {}", &source.sha256[..12], path.display());
+                    continue;
+                }
+            }
+        } else {
+            let pdf = match std::fs::read(&source.pdf) {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    eprintln!("SKIP {} {}: {e}", source.sha256, source.pdf.display());
+                    continue;
+                }
+            };
+            let pages = legalpdf::render_gray_pages(&pdf, dpi);
+            if pages.is_empty() {
+                eprintln!("SKIP {}: nothing rendered", source.sha256);
                 continue;
             }
+            let seed = u64::from_str_radix(&source.sha256[..16], 16).unwrap_or(1);
+            let degraded: Vec<(usize, usize, Vec<u8>)> = pages.iter().enumerate()
+                .map(|(k, (w, h, px))| (*w, *h, degrade(*w, *h, px, seed.wrapping_add(k as u64 * 7919))))
+                .collect();
+            let count = degraded.len();
+            (image_pdf(&degraded, dpi), count)
         };
-        let pages = legalpdf::render_gray_pages(&pdf, dpi);
-        if pages.is_empty() {
-            eprintln!("SKIP {}: nothing rendered", source.sha256);
-            continue;
-        }
-        let seed = u64::from_str_radix(&source.sha256[..16], 16).unwrap_or(1);
-        let degraded: Vec<(usize, usize, Vec<u8>)> = pages.iter().enumerate()
-            .map(|(k, (w, h, px))| (*w, *h, degrade(*w, *h, px, seed.wrapping_add(k as u64 * 7919))))
-            .collect();
-        let synthetic = image_pdf(&degraded, dpi);
         let sha = format!("{:x}", sha2::Sha256::digest(&synthetic));
+        if let Some(dir) = &keep {
+            std::fs::write(dir.join(format!("{}-{}.pdf", &source.sha256[..12], &sha[..12])), &synthetic).map_err(|e| e.to_string())?;
+        }
         let extracted = match legalpdf::gold_synthetic_inputs(&synthetic, &ocr, &mut runtime) {
             Ok(extracted) => extracted,
             Err(e) => {
@@ -357,6 +385,9 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
         };
         let recognized = extracted.pages.iter().filter(|p| p.source == "ocr").count();
         let lines: usize = extracted.pages.iter().map(|p| p.lines.len()).sum();
+        let routing = format!("scanned {} routed {} unresolved {}", extracted.metadata.scanned_pages_len,
+            extracted.metadata.ocr_routed_pages_len, extracted.metadata.pages_needing_ocr.len());
+        let pages_len = page_count.max(extracted.pages_len);
         let folder = gold.join("v4").join(&sha);
         std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
         legal_pdf_core::write_gzip_json(&inputs_dir(gold).join(format!("{sha}.json.gz")), &extracted).map_err(|e| e.to_string())?;
@@ -366,14 +397,14 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
         copy["synthetic_of"] = json!(source.sha256);
         legal_pdf_core::write_gzip_json(&folder.join("gold.json.gz"), &copy).map_err(|e| e.to_string())?;
         let receipt = json!({
-            "status": "complete", "source_sha256": sha, "mode": "ocr", "pages": pages.len(), "model": "synthetic-scan",
+            "status": "complete", "source_sha256": sha, "mode": "ocr", "pages": pages_len, "model": "synthetic-scan",
             "synthetic_of": source.sha256, "dpi": dpi, "recognized_pages": recognized, "lines": lines,
             "finished_at": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0),
         });
         std::fs::write(folder.join("receipt.json"), serde_json::to_string_pretty(&receipt).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let path = format!("synthetic/{sha}.pdf");
         if let Some(documents) = manifest_value["documents"].as_array_mut() {
-            documents.push(json!({"path": path, "mode": "ocr", "split": "train", "sha256": sha, "pages": pages.len(), "synthetic_of": source.sha256}));
+            documents.push(json!({"path": path, "mode": "ocr", "split": "train", "sha256": sha, "pages": pages_len, "synthetic_of": source.sha256}));
         }
         if let Some(records) = provenance["records"].as_array_mut() {
             let mut record = records.iter().find(|r| r["sha256"] == source.sha256).cloned().unwrap_or_else(|| json!({"genre": "unknown", "country": "ca"}));
@@ -381,7 +412,7 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
             record["mode"] = json!("ocr");
             record["split"] = json!("train");
             record["path"] = json!(path);
-            record["pages"] = json!(pages.len());
+            record["pages"] = json!(pages_len);
             record["collection"] = json!("synthetic-scan-2026-10-23");
             record["synthetic_of"] = json!(source.sha256);
             record["label_source"] = json!("model");
@@ -391,8 +422,8 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
         }
         std::fs::write(manifest, serde_json::to_string_pretty(&manifest_value).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         std::fs::write(&provenance_path, serde_json::to_string_pretty(&provenance).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-        eprintln!("{}/{} {} -> {} pages {} recognized {} lines {} in {:.0}s", n + 1, chosen.len().min(limit), &source.sha256[..12], &sha[..12],
-            pages.len(), recognized, lines, started.elapsed().as_secs_f64());
+        eprintln!("{}/{} {} -> {} pages {} recognized {} lines {} ({routing}) in {:.0}s", n + 1, chosen.len().min(limit), &source.sha256[..12], &sha[..12],
+            pages_len, recognized, lines, started.elapsed().as_secs_f64());
     }
     Ok(())
 }
@@ -674,6 +705,13 @@ fn grade_labels(gold: &Path, source: &Source, per_piece: &HashMap<String, labels
 /// The engine's tagger over one document: the parse replayed from the cached extraction, re-labelled
 /// by the model and decoded by the hierarchy rule, scored like a parse. One session serves every
 /// document in turn.
+/// --pure: the tagger's own notes, references and document starts (else tier 0's stay, "hybrid").
+static PURE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn hybrid() -> bool {
+    !PURE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 fn grade_tagged(gold: &Path, source: &Source, tagger: &Mutex<legal_structure_tagger::onnx::Tagger>) -> Result<Graded, String> {
     let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
     let started = Instant::now();
@@ -684,7 +722,7 @@ fn grade_tagged(gold: &Path, source: &Source, tagger: &Mutex<legal_structure_tag
     let parsed_at = Instant::now();
     // The product's path: the graph re-labelled in place, then read as any parse is.
     let mut structure = document.structure().clone();
-    tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.retag(&mut structure, &pages, &source.sha256, true)?;
+    tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.retag(&mut structure, &pages, &source.sha256, hybrid())?;
     let tagged_at = Instant::now();
     let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
         width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
@@ -843,6 +881,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     let labelled = label_file(value("--labels").as_deref())?;
     // --tagger DIR runs the engine's own tagger (tagger.onnx + tagger.json) over every document;
     // --onnx-runtime names the ONNX Runtime library (else LEGALPDF_ONNX_RUNTIME).
+    PURE.store(options.iter().any(|o| o == "--pure"), std::sync::atomic::Ordering::Relaxed);
     let tagger = match value("--tagger") {
         Some(dir) => {
             let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok())
@@ -1217,6 +1256,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
     }
     // --tagger DIR: the engine's tagger over the replayed parse, read back as the product reads it.
     if let Some(dir) = value("--tagger") {
+        PURE.store(options.iter().any(|o| o == "--pure"), std::sync::atomic::Ordering::Relaxed);
         let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok()).ok_or("--tagger needs --onnx-runtime PATH")?;
         legal_pdf_core::init_ort_runtime(Path::new(&runtime), None).map_err(|e| format!("ONNX Runtime: {e}"))?;
         let mut tagger = legal_structure_tagger::onnx::Tagger::load(Path::new(&dir), 4)?;
@@ -1224,7 +1264,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
         let mut pages = Vec::new();
         let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
         let mut structure = document.structure().clone();
-        tagger.retag(&mut structure, &pages, &source.sha256, true)?;
+        tagger.retag(&mut structure, &pages, &source.sha256, hybrid())?;
         let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
             width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
         }).collect();
