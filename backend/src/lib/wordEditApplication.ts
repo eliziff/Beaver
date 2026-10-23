@@ -1,10 +1,9 @@
-import { createHash } from "node:crypto";
+import { sha256 } from "./hash";
 import { runWordPython } from "./wordPython";
 import { parseResourceReference, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import type { DocumentContent, DocumentRecord, DocumentStore } from "./documentStore";
 
 const RECEIPT = "word-preview.json";
-const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 type Options = { documents: DocumentStore; userId: string; userEmail?: string; editAuthor?: string;
   matterId?: string | null; docIndex?: Record<string, { document_id: string; filename?: string; version_id?: string | null }>;
   allowedDocumentIds?: Set<string>; editMode?: "manual" | "auto"; turnId?: string;
@@ -65,9 +64,9 @@ export function createWordEditApplication(options: Options, execute = runWordPyt
       const raw = await receiptOf(preview);
       if (!raw) throw new Error("apply publishes a preview: pass the preview's artifact (draft-N) or resource as file_path");
       const source = await loaded(raw.source);
-      const sourceSha256 = hash(source.file.bytes);
+      const sourceSha256 = sha256(source.file.bytes);
       if (raw.workingRevision !== source.file.version.working_revision || raw.sourceSha256 !== sourceSha256 ||
-        raw.candidateSha256 !== hash(preview.file.bytes) || !record(raw.report) || raw.report.reopened !== true ||
+        raw.candidateSha256 !== sha256(preview.file.bytes) || !record(raw.report) || raw.report.reopened !== true ||
         !["tracked", "direct"].includes(String(raw.mode)) || raw.report.mode !== raw.mode + "-candidate")
         throw new Error("Preview receipt does not match these source and candidate versions");
       if (mode === "tracked" && (raw.mode !== "tracked" || raw.report.review_verified !== true))
@@ -94,7 +93,7 @@ export function createWordEditApplication(options: Options, execute = runWordPyt
       return outcome;
     }
     const source = await loaded(String(input.file_path));
-    const sourceSha256 = hash(source.file.bytes);
+    const sourceSha256 = sha256(source.file.bytes);
     if (!["inspect", "preview"].includes(String(input.action))) throw new Error("Unknown Word action");
     // A preview of a preview keeps revising the original document.
     let root: Pick<Receipt, "source" | "workingRevision" | "sourceSha256"> = { source: source.reference,
@@ -123,7 +122,7 @@ export function createWordEditApplication(options: Options, execute = runWordPyt
         mode === "tracked" && result.report.review_verified !== true)
       throw new Error("The engine did not verify the requested review mode");
     signal.throwIfAborted();
-    const receipt: Receipt = { schema: 2, ...root, mode, candidateSha256: hash(result.candidate), report: result.report };
+    const receipt: Receipt = { schema: 2, ...root, mode, candidateSha256: sha256(result.candidate), report: result.report };
     options.onMutationCommitted();
     const copy = await options.documents.create(scope, {
       filename: source.file.filename.replace(/(?: \(preview\))?\.docx$/iu, " (preview).docx"), fileType: "docx", bytes: result.candidate,

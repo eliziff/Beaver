@@ -1,4 +1,3 @@
-import type { ApplicationScope } from "./applicationError";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql,
   type RelationalDatabase, type SqlStatement } from "./relationalDatabase";
 import { searchFilter } from "./searchQuery";
@@ -6,7 +5,7 @@ import { tabularSubjectId, type TabularSelection } from "./tabularStore";
 
 export type Row = Record<string, any>;
 export const now = () => new Date().toISOString();
-export const email = (scope: ApplicationScope) => scope.userEmail?.trim().toLowerCase() || "";
+export { email } from "./resourceAccess";
 export const rows = async <T extends Row>(statement: SqlStatement, db?: RelationalDatabase) =>
   (await (db ?? await relationalDatabase()).query<T>(statement)).rows;
 export const one = async <T extends Row>(statement: SqlStatement, db?: RelationalDatabase) =>

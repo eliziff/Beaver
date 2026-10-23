@@ -7,13 +7,12 @@
 // and in each, a supra the engine leaves unresolved is given to the model to choose among the earlier parts.
 // Free mode never reaches this module. The model is Beaver's note split model (noteSplitModel.ts) over any model with
 // the structured contract: a model the person connected in an app, or Beaver's own.
-import type { StructuredLlm } from "../llm/keyConnection";
+import type { StructuredLlm } from "../llm/types";
 import { chooseReferenceTarget, splitNotesWithModel } from "../noteSplitModel";
 import { structureNative } from "../structureNative";
 import type { AlrCandidate, AlrModel, AlrModelNote } from "./checkedWorkbook";
 
 export type AlrRunMode = "high_accuracy" | "economy" | "ultra_economy";
-export const RUN_MODES: readonly AlrRunMode[] = ["high_accuracy", "economy", "ultra_economy"];
 
 const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, JSON.stringify(request)) as T;
 const isIbid = (text: string) => engine<{ kind: string }>("referenceInfo", { text }).kind === "ibid";

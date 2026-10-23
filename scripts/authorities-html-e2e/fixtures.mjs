@@ -26,7 +26,6 @@ export const BRIEF = {
     { text: "7. A board that departs from its own Launch Guidance Note 7 without explanation acts unreasonably.", note: "Lakeshore Rowing Club v Marsh Harbour Board, 2030 ABKB 417 at para 22." },
   ]],
 };
-export const NOTES = BRIEF.pages.flat().filter(({ note }) => note).map(({ note }) => note);
 
 /** What the stubbed A2AJ answers for each case it knows; anything else is not found. */
 export const A2AJ_CASES = [

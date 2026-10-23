@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "mike/shared/runtime/schema.mjs";
-import { ApplicationError, type ApplicationScope } from "./applicationError";
+import { ApplicationError, reject as fail, type ApplicationScope } from "./applicationError";
 import type { DocumentRepository } from "./documentRepository";
 import type { DocumentStore } from "./documentStore";
 import { documentFileType, contentTypeForDocumentType } from "./documentTypes";
@@ -27,7 +27,6 @@ type Session = z.infer<typeof upload> & { id: string; user_id: string; user_emai
   file_type: string; document_id: string; storage_path: string; status: string; job_id: string | null;
   error: string | null; result_version_id: string | null; expires_at: string; created_at: string; updated_at: string };
 const now = () => new Date().toISOString();
-const fail = (status: number, message: string): never => { throw new ApplicationError(status, message); };
 const destination = (row: Session | z.infer<typeof upload>) => ({ projectId: row.project_id,
   libraryKind: row.library_kind, folderId: row.folder_id, workflowId: row.workflow_id });
 

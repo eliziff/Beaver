@@ -1,6 +1,6 @@
 import { catalogEndpoint, createCatalogCache, fetchCatalogJson } from "../catalogCache";
 import { pickerModel, registerCatalogModels, type PickerModel } from "./models";
-import { tierFamily } from "./modelsDev";
+import { stringList, tierFamily } from "./modelsDev";
 
 // OpenRouter publishes its whole catalogue from one public listing. The lane
 // mirrors OpenCode Go: every live model appears, grouped by upstream vendor,
@@ -21,11 +21,6 @@ type OpenRouterModel = {
 type CatalogMetadata = { id: string; contextWindow?: number; imageInput?: boolean };
 export type OpenRouterCatalog = { source: "live" | "unavailable"; models: PickerModel[] };
 
-function stringList(value: unknown): string[] {
-    return Array.isArray(value)
-        ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-        : [];
-}
 
 function titleCase(value: string): string {
     return value.split(/[-_]/u).filter(Boolean)

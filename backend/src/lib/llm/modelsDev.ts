@@ -50,7 +50,7 @@ type CatalogMetadata = { id: string; contextWindow?: number; imageInput?: boolea
 type CloudEntry = PickerModel & { nameKey: string; releasedAt?: number; pinned?: boolean };
 export type ModelsDevCatalog = { source: "live" | "unavailable"; models: PickerModel[] };
 
-function stringList(value: unknown): string[] {
+export function stringList(value: unknown): string[] {
     return Array.isArray(value)
         ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
         : [];

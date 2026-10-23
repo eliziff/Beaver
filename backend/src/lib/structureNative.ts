@@ -507,14 +507,6 @@ export type NativeQuoteComparison = { matches: Array<{ start: number; end: numbe
   changes: Array<{ kind: "replace" | "delete" | "insert"; authored: string; source: string }> };
 
 let addon: StructureAddon | undefined;
-let host: { recognizePdf?: (...args: never[]) => Promise<unknown> } = {};
-
-/** What a program that runs the engine for its page supplies before the engine loads: the page's recognizer of
- *  scanned pages (`recognizePdf(bytes, sourceSha256, pages, signal, progress)`), in place of the engine's own. */
-export function structureNativeHost(supplied: typeof host) {
-  if (addon) throw new Error("The legal-structure engine is already loaded.");
-  host = supplied;
-}
 
 export function structureNative() {
   if (addon) return addon;
@@ -530,7 +522,6 @@ export function structureNative() {
   const loaded = module.exports as StructureAddon | StructureEngineTransport;
   addon = "callAsync" in loaded ? structureEngineAddon(loaded, {
     toBuffer: (bytes) => Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
-    recognizePdf: host.recognizePdf as ((...args: unknown[]) => Promise<unknown>) | undefined,
   }) as unknown as StructureAddon : loaded as StructureAddon;
   return addon;
 }

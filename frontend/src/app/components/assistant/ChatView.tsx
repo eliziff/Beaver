@@ -58,6 +58,7 @@ import type { ResearchSelection } from "@/app/lib/researchFiles";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
 import type { AssistantIntent } from "./assistantIntent";
 import { InitialDockPanel } from "./InitialDockPanel";
+import { without } from "@/app/lib/utils";
 interface Props {
     initialDraft?: import("@/app/lib/api/chat").ChatDraft | null;
     chatId?: string | null;
@@ -107,12 +108,6 @@ export interface ChatViewHandle {
     attachDocument: (document: Document) => void;
     closeDocument: (documentId: string) => void;
     openDocument: (document: Document) => void;
-}
-function without<T>(items: Set<T>, item: T) {
-    if (!items.has(item)) return items;
-    const next = new Set(items);
-    next.delete(item);
-    return next;
 }
 function isDocumentTab(
     tab: AssistantSidePanelTab,

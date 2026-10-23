@@ -1,5 +1,6 @@
+import { sha256 } from "./hash";
 import { execFile, spawn } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -14,7 +15,6 @@ export type WordResult = { report: Report; candidate?: Buffer };
 const SCRIPTS = path.resolve(__dirname, "../../scripts/word_python");
 const MAX_BYTES = 100 * 1024 * 1024;
 const windows = process.platform === "win32";
-const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const image = () => process.env.WORD_PYTHON_CONTAINER_IMAGE?.trim();
 const containerRuntime = () => process.env.WORD_PYTHON_CONTAINER_RUNTIME?.trim() || "docker";
 const containerEnv = () => isolatedProcessEnv(["DOCKER_HOST", "CONTAINER_HOST"]);
@@ -134,7 +134,7 @@ function render(dir: string, file: string, signal: AbortSignal): Promise<number>
 export async function runWordPython(bytes: Buffer, request: Record<string, unknown>, signal: AbortSignal): Promise<WordResult> {
   signal.throwIfAborted();
   if (!bytes.length || bytes.length > MAX_BYTES) throw new Error("Word input exceeds the worker limit");
-  const snapshot = hash(bytes);
+  const snapshot = sha256(bytes);
   const program = typeof request.program === "string" ? request.program : "";
   const author = typeof request.author === "string" && request.author.trim() ? request.author.trim().slice(0, 255) : "Beaver";
   const python = image() ? undefined : await checkPython(wordPython());
@@ -164,7 +164,7 @@ export async function runWordPython(bytes: Buffer, request: Record<string, unkno
     await writeFile(path.join(root, "checked.docx"), candidate, { flag: "wx" });
     const verified = reply(await run({ command: "python", python, args: [script("verify.py"), "verify", "source.docx", "checked.docx", mode],
       dir: root, timeoutMs: 60_000 }, signal));
-    if (verified.candidate_sha256 !== hash(candidate)) throw new Error("Verified bytes differ from the candidate");
+    if (verified.candidate_sha256 !== sha256(candidate)) throw new Error("Verified bytes differ from the candidate");
     const pages = await render(root, "checked.docx", signal);
     signal.throwIfAborted();
     return { report: { ok: true, snapshot, ...verified, libreoffice_opened: true, pages, ...output }, candidate };
