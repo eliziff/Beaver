@@ -4,12 +4,13 @@
 
 use crate::engine::{self, CoreResult, NativeDocument, StructureRequest};
 use legal_structure::{citation_lookup_key, ProviderTextInput, ProviderTextSourceKind};
+use regex::Regex;
 use rusqlite::{types::ValueRef, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard, Weak};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard, Weak};
 use std::time::SystemTime;
 
 /// Which copy of a store a connection or a document came from: a store replaced in its place is another copy.
@@ -320,6 +321,60 @@ fn folded(value: &str) -> String {
     let words = value.split(|character: char| !character.is_alphanumeric()).filter(|word| !word.is_empty())
         .map(str::to_lowercase).collect::<Vec<_>>();
     format!(" {} ", words.join(" "))
+}
+
+/// JavaScript's white space, as a regular expression's class holds it.
+const SPACE: &str = r"\t\n\x0B\x0C\r \u{A0}\u{1680}\u{2000}-\u{200A}\u{2028}\u{2029}\u{202F}\u{205F}\u{3000}\u{FEFF}";
+static INITIALS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"((?-u:\w))\.((?-u:\w))\.?").expect("initials"));
+static VERSUS: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"[{SPACE}]+[vV]\.?[{SPACE}]+")).expect("versus"));
+static JOINERS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[-\u{2010}-\u{2015}/]+").expect("joiners"));
+static MARKS: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"[^\p{{L}}\p{{N}}_{SPACE}]")).expect("marks"));
+
+/// A style of cause compared as its words, the key of the store's name_lookup and of CanLII's titles (the Python
+/// app's canlii_search.normalize_title): initials closed up ("R.B.C." as "RBC"), "v." as "v", dashes and slashes as
+/// spaces, other marks dropped, lowercase.
+pub fn name_key(value: &str) -> String {
+    let value = INITIALS.replace_all(value, "${1}${2}");
+    let value = VERSUS.replace_all(&value, " v ");
+    let value = JOINERS.replace_all(&value, " ");
+    let value = MARKS.replace_all(&value, "");
+    value.split(js_space).filter(|word| !word.is_empty()).collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
+/// A decision asked for by its style of cause, its year and the courts that may have decided it.
+#[derive(Deserialize)]
+pub struct Named {
+    name: String,
+    year: String,
+    #[serde(default)]
+    courts: Vec<String>,
+}
+
+/// The citation of the one decision the store holds under a style of cause, dated in the year asked for, of one of
+/// the courts asked for (of any where none is): how a decision cited by an identifier A2AJ does not carry ("1991
+/// CanLII 45 (SCC)") is found, as the Python app's identity_hints does. None where no decision answers, or several.
+pub fn named_case(path: &Path, named: &Named) -> CoreResult<Option<String>> {
+    let key = name_key(&named.name);
+    let year = js_trim(&named.year);
+    if key.is_empty() || year.len() != 4 || !year.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Ok(None);
+    }
+    Ok(with_store(path, |connection, _| {
+        let mut statement = connection.prepare_cached("SELECT document.dataset, document.document_date_en,
+             document.document_date_fr, document.citation_en, document.citation_fr FROM name_lookup
+             JOIN document ON document.id = name_lookup.document_id
+             WHERE name_lookup.name_key = ? AND document.doc_type = 'cases'").map_err(sql)?;
+        let rows = statement.query_map([&key], |row| {
+            let text = |at: usize| row.get_ref(at).map(cell);
+            Ok([text(0)?, text(1)?, text(2)?, text(3)?, text(4)?])
+        }).map_err(sql)?.collect::<Result<Vec<_>, _>>().map_err(sql)?;
+        let citations = rows.into_iter().filter(|[dataset, date_en, date_fr, _, _]| {
+            let court = named.courts.is_empty() || dataset.as_deref()
+                .is_some_and(|dataset| named.courts.iter().any(|court| court.eq_ignore_ascii_case(dataset)));
+            court && date_en.as_deref().or(date_fr.as_deref()).is_some_and(|date| date.starts_with(year))
+        }).filter_map(|[_, _, _, english, french]| english.or(french)).collect::<BTreeSet<_>>();
+        Ok((citations.len() == 1).then(|| citations.into_iter().next()).flatten())
+    })?.flatten())
 }
 
 /// A document the store holds under a citation, derived once while JavaScript holds it.

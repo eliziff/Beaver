@@ -230,7 +230,8 @@ type StructureAddon = {
   sourceLinks(document: NativeDocument, request: { url?: string; dataset: string; citation: string;
     alternateCitation?: string | null; language?: string; docType?: string;
     locator?: { kind: string; label: string } | null; blockText: string; quotes: string[];
-    verifiedPdf?: { url: string; pdfOnly?: boolean } | null })
+    /** A passage cited without a quotation is linked at the citation's pinpoints (`par12`, `sec6(1)(c)`). */
+    pinpoints?: string[]; verifiedPdf?: { url: string; pdfOnly?: boolean } | null })
     : { publisher: { target: string; plan: NativeTextFragmentPlan | null } | null;
         canlii: { target: string; plan: NativeTextFragmentPlan | null } | null; lawWeb: string | null; best: string | null };
   /** The passage on A2AJ Law Web's reader of the document; null where it cannot be planned whole there. */
@@ -347,6 +348,11 @@ type StructureAddon = {
   /** Each citation's exact aliases and authored forms in the store's inventory; its own key alone where there is
    *  no store. */
   a2ajAliasGroups(store: string, citations: string[]): Array<{ keys: string[]; forms: string[]; ambiguous: boolean }>;
+  /** The citation of the one decision the store holds under a style of cause, in a year, of one of `courts` (any
+   *  where none): a decision cited by an identifier A2AJ does not carry. Null where none answers, or several. */
+  a2ajNamedCase(store: string, named: { name: string; year: string; courts: string[] }): string | null;
+  /** Each style of cause compared as its words: the key of the store's names and of CanLII's titles. */
+  a2ajNameKeys(names: string[]): string[];
   /** The decisions citing a decision and what they and journal authors say it stands for, from the graph beside
    *  the A2AJ store at `store` (which gives the decision's keys); null where no graph is built. */
   citatorNoteUp(store: string, request: { citation: string; citedParagraph?: number; size?: number;

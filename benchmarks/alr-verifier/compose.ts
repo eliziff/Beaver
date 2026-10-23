@@ -70,7 +70,7 @@ void (async () => {
   if (args.includes("--local-only")) (await bundled("a2aj", path.join(REPO, "backend/src/lib/legalSources/a2aj.ts")))
     .useA2AJCorpus(null, { localOnly: true });
   useCanliiIndex((await bundled("canliiIndex",
-    path.join(config.alr_quote_verifier, "beaver_app/runtime/canliiIndex.ts"))).indexedCaseUrl);
+    path.join(config.alr_quote_verifier, "beaver_app/runtime/canliiIndex.ts"))).canliiIndex);
   const ops = createAuthoritiesOperations();
   const native = process.env.LEGAL_STRUCTURE_NATIVE ?? defaultNativeAddon(path.join(REPO, "native/legal-structure-node"));
   const runIdentity = { runtime_sha256: createHash("sha256").update(readFileSync(runtime)).digest("hex"),

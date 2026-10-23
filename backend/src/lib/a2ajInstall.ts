@@ -161,13 +161,6 @@ const SEARCHED = ["citation_en", "citation_fr", "citation2_en", "citation2_fr", 
 type Value = string | number | null;
 type Document = Record<(typeof COLUMNS)[number], Value>;
 
-/** A style of cause compared as its words (import_a2aj_bulk.py name_key). */
-export function a2ajNameKey(value: string) {
-  return value.replace(/(\w)\.(\w)\.?/gu, "$1$2").replace(/\s+v\.?\s+/giu, " v ")
-    .replace(/[-‐-―/]+/gu, " ").replace(/[^\p{L}\p{N}_\s]/gu, "")
-    .split(/\s+/u).filter(Boolean).join(" ").toLowerCase();
-}
-
 /** A Parquet value as the store keeps it: text as given, times as A2AJ's API gives them, lists as JSON. */
 function stored(value: unknown): Value {
   if (value === null || value === undefined) return null;
@@ -310,6 +303,9 @@ async function importCourt(database: DatabaseSync, filename: string, kind: A2AJK
       signal?.throwIfAborted();
       const rows = records.map((record) => documentOf(kind, court, record));
       const keys = citationKeys(rows);
+      // Each document's English and French names, keyed as the engine compares a style of cause.
+      const names = structureNative().a2ajNameKeys(rows.flatMap((row) => [row.name_en, row.name_fr]
+        .map((name) => typeof name === "string" ? name : "")));
       rows.forEach((row, index) => {
         const citations = [...new Set(keys.slice(index * 4, index * 4 + 4).filter(Boolean))];
         // A document without a citation cannot be looked up, as the former importer skipped it.
@@ -330,8 +326,7 @@ async function importCourt(database: DatabaseSync, filename: string, kind: A2AJK
         }
         kept.add(id);
         for (const key of citations) citationRow.run(key, id);
-        for (const name of new Set([row.name_en, row.name_fr].flatMap((value) => typeof value === "string" ? [a2ajNameKey(value)] : [])))
-          if (name) nameRow.run(name, id);
+        for (const name of new Set(names.slice(index * 2, index * 2 + 2))) if (name) nameRow.run(name, id);
         documents++;
       });
       report(documents);
