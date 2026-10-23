@@ -1907,6 +1907,7 @@ dependencies = [
  "legal-pdf-parser",
  "legal-structure",
  "legal-structure-model",
+ "regex",
  "serde",
  "serde_json",
  "sha2 0.10.9",
