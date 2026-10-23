@@ -425,6 +425,11 @@ fn features<'a>(
         if inside(block, &tables) {
             return "table".into();
         }
+        // A block inside a note annotation is a note unit, as a projected note unit's region says: a
+        // parser's footnote blocks are its notes, not running text.
+        if inside(block, &notes) {
+            return "note".into();
+        }
         // A projected or tagged state names each unit's region, which is its role as scored;
         // parser output is read through its kind and locator.
         if let Some(region) = block.attributes.get("region").and_then(Value::as_str) {
