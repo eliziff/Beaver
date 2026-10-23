@@ -10,6 +10,7 @@ await build({
   entryPoints: { operations: path.join(alr, "beaver_app/runtime/operations.ts"),
     canliiIndex: path.join(alr, "beaver_app/runtime/canliiIndex.ts"),
     canlii: path.join(import.meta.dirname, "../../backend/src/lib/legalSources/canlii.ts"),
+    a2aj: path.join(import.meta.dirname, "../../backend/src/lib/legalSources/a2aj.ts"),
     ai: path.join(import.meta.dirname, "../../backend/src/lib/quoteVerification/runModel.ts"),
     checkedWorkbook: path.join(import.meta.dirname, "../../backend/src/lib/quoteVerification/checkedWorkbook.ts"),
     codexArm: path.join(import.meta.dirname, "codexArm.ts") },

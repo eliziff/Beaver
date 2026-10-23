@@ -3,6 +3,10 @@
 //   tsx --tsconfig benchmarks/alr-verifier/tsconfig.json benchmarks/alr-verifier/compose.ts \
 //     --input <docx> [--input <docx> …] --out <dir> [--no-quotes] [--setting supra_linking=aggressive]
 //     [--llm <module whose default export is an llm> --setting run_mode=high_accuracy|economy|ultra_economy]
+//     [--local-only] [--links]
+// --local-only: A2AJ is read from the local store alone, through the product's own switch (useA2AJCorpus localOnly,
+// as the page's local stores set it); a document the store lacks is a miss. --links: also writes <stem>.links.json,
+// each citation part's links and each quotation check's links as the product makes them.
 // A2AJ answers come from the local store, then from the recorded answers in
 // benchmarks/local-data/alr-verifier/a2aj-http-cache; new live lookups are off unless --a2aj-live <n>, and an A2AJ
 // lookup not recorded fails the run. Nothing else leaves the computer, as in the Python app's local-only run: every
@@ -63,6 +67,8 @@ void (async () => {
   const bundled = (name: string, source: string) =>
     import(pathToFileURL(process.env.ALR_RUNTIME_BUNDLE ? path.join(path.dirname(runtime), `${name}.mjs`) : source).href);
   const { useCanliiIndex } = await bundled("canlii", path.join(REPO, "backend/src/lib/legalSources/canlii.ts"));
+  if (args.includes("--local-only")) (await bundled("a2aj", path.join(REPO, "backend/src/lib/legalSources/a2aj.ts")))
+    .useA2AJCorpus(null, { localOnly: true });
   useCanliiIndex((await bundled("canliiIndex",
     path.join(config.alr_quote_verifier, "beaver_app/runtime/canliiIndex.ts"))).indexedCaseUrl);
   const ops = createAuthoritiesOperations();
@@ -100,7 +106,7 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
   step("quotes");
   const options = { exportDetail: "diagnostic-hidden", footnotes: settings.fn_filter ?? "" };
   // An AI run mode: the page's run mode over the given llm (the page gives it a model the person connected).
-  let workbook: { filename: string; bytes: Uint8Array }, modelCalls: unknown = null;
+  let workbook: { filename: string; bytes: Uint8Array }, modelCalls: unknown = null, linkRows: any[] | null = null;
   if (option("--llm") && settings.run_mode && settings.run_mode !== "free") {
     const llm = (await import(pathToFileURL(path.resolve(option("--llm")!)).href)).default;
     const module = (name: string) => pathToFileURL(process.env.ALR_RUNTIME_BUNDLE
@@ -112,6 +118,14 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
     const made = await alrCheckedWorkbook(draft.import.filename, draft, check, options, run.model, signal);
     workbook = { filename: made.name, bytes: made.workbook };
     modelCalls = run.stats;
+  } else if (args.includes("--links")) {
+    // The workbook as verify-workbook writes it (alrCheckedWorkbook), whose rows carry each part's links.
+    const { alrCheckedWorkbook } = await import(pathToFileURL(process.env.ALR_RUNTIME_BUNDLE
+      ? path.join(path.dirname(process.env.ALR_RUNTIME_BUNDLE), "checkedWorkbook.mjs")
+      : path.join(REPO, "backend/src/lib/quoteVerification/checkedWorkbook.ts")).href);
+    const made = await alrCheckedWorkbook(draft.import.filename, draft, check, options, undefined, signal);
+    workbook = { filename: made.name, bytes: made.workbook };
+    linkRows = made.rows;
   } else {
     const written = await ops["verify-workbook"]({ draft, check, options }, { signal });
     workbook = written.files.find((item: { role: string }) => item.role === "workbook");
@@ -144,6 +158,7 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
         receipt: item.receipt ? {
           source: item.receipt.source, sourceSha256: item.receipt.sourceSha256,
           passageSha256: item.receipt.passageSha256, locator: item.receipt.locator, link: item.receipt.link,
+          ...item.receipt.links && { links: item.receipt.links },
           errors: item.receipt.errors.map((error: string) => error.split(" source window:")[0]),
           match: (({ text, region, cited, ...match }: any) => ({ ...match,
             region_utf16_length: region.length,
@@ -156,6 +171,14 @@ async function composeOne(ops: any, input: string, out: string, runIdentity: { r
   writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".quotes.json")), JSON.stringify(quoteOutput));
   writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".quotation-results.json")), JSON.stringify({
     units: quoteOutput.units, quotes: quoteOutput.quotes,
+  }));
+  if (linkRows) writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".links.json")), JSON.stringify({
+    parts: linkRows.map((row: any) => ({ footnote_id: row.footnote_id, citation_part_index: row.citation_part_index,
+      citation_part_kind: row.citation_part_kind, citation_part_text: row.citation_part_text,
+      pinpoint_fragments: row.pinpoint_fragments, citation_part_link: row.citation_part_link,
+      citation_part_anchor_text: row.citation_part_anchor_text, quote_match_link: row.quote_match_link,
+      matched_source_fragment: row.matched_source_fragment, quote_ids: row._quote_ids ?? [], links: row._links ?? null })),
+    quotes: quoteOutput.quotes,
   }));
   writeFileSync(path.join(out, workbook.filename.replace(/\.xlsx$/u, ".run.json")), JSON.stringify({
     document: file.filename, settings, seconds: (performance.now() - started) / 1000, steps, summary: check.counts, modelCalls }, null, 2));
