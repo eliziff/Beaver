@@ -820,10 +820,10 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
           words beside the source's. */}
       {(review || finding) && <button type="button" className="citation-quote" disabled={!finding}
         aria-label={!finding ? 'No quote issue' : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong'
-          : finding.kind === 'quote_unlocated' ? 'Quote not found in source' : finding.kind === 'different_case'
+          : finding.kind === 'different_case'
             ? 'Citation names a different case' : 'Quote differs from source'}
         title={!finding ? 'No quote issue' : finding.kind === 'wrong_pinpoint' ? 'Pinpoint may be wrong: open it'
-          : finding.kind === 'quote_unlocated' ? 'Quote not found in source: open it' : finding.kind === 'different_case'
+          : finding.kind === 'different_case'
             ? 'Citation names a different case: open it' : 'Quote differs from source: open it'}
         onClick={() => finding && onReview(finding.id)}><TextQuote aria-hidden="true" /></button>}
       <span className="citation-label" data-row="2" aria-hidden="true">Pinpoints</span>

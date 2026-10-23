@@ -188,7 +188,7 @@ export function quoteTextComparison(authored: string, source: string) {
 export function authoritiesDiscrepancyCorrection(
   draft: ReviewDraft, finding: AuthoritiesDiscrepancy, action: AuthoritiesDiscrepancyAction,
 ): AuthoritiesDiscrepancyCorrection | null {
-  if (action === "ignore" || finding.kind === "quote_unlocated" || !finding.actions.includes(action)) return null;
+  if (action === "ignore" || !finding.actions.includes(action)) return null;
   if ((action === "pinpoint" || action === "pinpoint_extend") && finding.kind === "wrong_pinpoint") {
     const occurrence = draft.occurrences[finding.occurrenceId];
     const change = occurrence && pinpointCorrection(occurrence, finding.found.locator.label, action === "pinpoint_extend");

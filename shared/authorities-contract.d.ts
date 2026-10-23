@@ -443,7 +443,6 @@ export type AuthoritiesDiscrepancy<Evidence = unknown> = {
 } & (
   | { kind: "quote_mismatch"; found: AuthoritiesSourcePassage | null }
   | { kind: "wrong_pinpoint"; found: AuthoritiesSourcePassage; /** The pinpoint each change writes: the quotation's alone, or the cited range extended to it. */ pinpoint?: string; extended?: string }
-  | { kind: "quote_unlocated"; found: null }
 );
 
 /** One book PDF per volume, so a split book numbers its parts after the first. */
