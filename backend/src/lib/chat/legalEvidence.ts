@@ -360,9 +360,6 @@ export function createDirectSourceEvidence(
   });
 }
 
-export const createTnaEvidence = (args: DirectSourceEvidenceArgs) =>
-  createDirectSourceEvidence("tna", args);
-
 export function createLibraryEvidence(args: PassageSpanArgs & {
   documentId: string;
   versionId: string;

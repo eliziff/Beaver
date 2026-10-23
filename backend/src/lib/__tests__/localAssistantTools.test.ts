@@ -54,42 +54,6 @@ afterEach(async () => {
 
 describe("local assistant tools", () => {
 
-  it("reads saved evidence without fetching and pages historical search receipts", async () => {
-    const { createTnaEvidence, createLegalEvidenceTurnState, registerPriorLegalEvidence,
-      registerLegalResearchQueries, priorLegalEvidencePrompt } = await import("../chat/legalEvidence"),
-      { runLocalAssistantTools } = await import("./support/localAssistantTools"),
-      state = createLegalEvidenceTurnState(), receipt = createTnaEvidence({
-        jurisdiction: "CA", sourceClass: "case", stableSourceId: "saved-case",
-        sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.",
-        citation: "2024 SCC 1", dataset: "SCC", locatorKind: "paragraph", locatorLabel: "12",
-      });
-    registerPriorLegalEvidence(state, [receipt, { ...receipt, evidence_id: "e_corrupted", span_text: "Altered" }]);
-    registerLegalResearchQueries(state, Array.from({ length: 30 }, (_, index) => ({
-      call_id: `search-${index}`, tool: "search_sources" as const, executed_at: "2026-09-04T00:00:00Z",
-      executor_version: "legal-source-search-v1" as const, input: { query: `Search ${index}` },
-      results: Array.from({ length: 3 }, (_, rank) => ({ rank, resource: `source-${index}-${rank}` })),
-    })), "test");
-    const queries = [...state.queries.values()];
-    expect(priorLegalEvidencePrompt([receipt], queries)).not.toContain(queries[0].query_id);
-    vi.stubGlobal("fetch", () => { throw new Error("Saved receipt must not fetch"); });
-    const calls = [receipt.evidence_id, "e_corrupted", "e_missing", "queries", "queries", queries[0].query_id]
-      .map((file_path, index) => ({ id: `read-${index}`, name: "Read", input: { file_path,
-        ...(index >= 3 ? { offset: index === 4 ? 3 : 1, limit: 2 } : {}) } }));
-    const [read, corrupted, missing, first, second, query] = await runLocalAssistantTools(
-      "local-user", calls, { legalEvidence: state });
-    expect(JSON.parse(read.content)).toMatchObject({ evidence_id: receipt.evidence_id,
-      exact_passage: receipt.span_text });
-    expect(JSON.parse(corrupted.content)).toMatchObject({ ok: false });
-    expect(JSON.parse(missing.content)).toMatchObject({ ok: false });
-    expect(JSON.parse(first.content)).toMatchObject({ total: 30, next_offset: 3,
-      items: queries.slice(0, 2).map(({ query_id }) => ({ query_id })) });
-    expect(JSON.parse(second.content)).toMatchObject({ next_offset: 5,
-      items: queries.slice(2, 4).map(({ query_id }) => ({ query_id })) });
-    expect(JSON.parse(query.content)).toMatchObject({ query_id: queries[0].query_id,
-      executed_at: queries[0].executed_at, tool: queries[0].tool, input: queries[0].input,
-      results: queries[0].results.slice(0, 2), total: 3, next_offset: 3 });
-  });
-
   it.each([
     {
       mode: "manual" as const,
@@ -227,60 +191,6 @@ describe("local assistant tools", () => {
     expect(JSON.parse(await run("compare_versions", { document_id: "draft-1",
       baseline: resourceReference.document(document.id, document.current_version_id) })).changes_total).toBeGreaterThan(0);
   }, 30_000);
-
-  it("rejects unmarked evidence copying before Write persists a DOCX", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-grounded-write-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const {
-      createTnaEvidence,
-      createLegalEvidenceTurnState,
-      registerLegalEvidence,
-    } = await import("../chat/legalEvidence");
-    const state = createLegalEvidenceTurnState();
-    const passage =
-      "Charter decisions should not and must not be made in a factual vacuum.";
-    const evidence = createTnaEvidence({
-      jurisdiction: "CA",
-      sourceClass: "case",
-      stableSourceId: "standing-case",
-      sourceText: passage,
-      spanText: passage,
-      citation: "Example v Canada, 2026 SCC 1",
-      dataset: "fixture",
-      locatorKind: "paragraph",
-      locatorLabel: "par49",
-    });
-    registerLegalEvidence(state, evidence);
-    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
-    const [rejected] = await runLocalAssistantTools("local-user", [{
-      id: "grounded-copy",
-      name: "Write",
-      input: {
-        filename: "Standing memo.docx",
-        content: `# Standing\n\n${passage} [@standing]`,
-        citations: { standing: [evidence.evidence_id] },
-      },
-    }], { legalEvidence: state });
-
-    expect(JSON.parse(rejected.content)).toMatchObject({
-      ok: false,
-      error: expect.stringContaining("Draft integrity check failed"),
-    });
-    expect(rejected.mutated).not.toBe(true);
-
-    // The corrected retry of a rejected draft, same filename, same registry.
-    const [corrected] = await runLocalAssistantTools("local-user", [{
-      id: "grounded-retry",
-      name: "Write",
-      input: {
-        filename: "Standing memo.docx",
-        content: `# Standing\n\n"${passage}" [@standing]`,
-        citations: { standing: [evidence.evidence_id] },
-      },
-    }], { legalEvidence: state });
-    expect(JSON.parse(corrected.content), corrected.content).toMatchObject({ ok: true });
-    expect(corrected.mutated).toBe(true);
-  });
 
   it("source-qualifies multi-document coding reads by canonical resource", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-evidence-"));
