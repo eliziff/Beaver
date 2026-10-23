@@ -1,7 +1,7 @@
 //! Grade fixed gold against explicit cached predictions or a replay of the structure stage.
 //!
 //!   structure-gold inputs GOLD_DIR MANIFEST    each gold's extraction with its cached readings
-//!   structure-gold synthesize GOLD_DIR MANIFEST --model-pack DIR --runtime DLL [--dpi N] [--limit N]
+//!   structure-gold synthesize GOLD_DIR MANIFEST --model-pack DIR --runtime DLL [--dpi N] [--limit N] [--genre GROUP]
 //!       scans made of the main train split's digital golds: rendered, degraded, recognized; gold copied
 //!                                              recognized into it: GOLD_DIR/inputs/<sha>.json.gz
 //!   structure-gold grade GOLD_DIR MANIFEST [--exports | --candidates FILE] [--split S] [--runs PREFIX..]
@@ -300,6 +300,7 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
     let value = |name: &str| options.iter().position(|o| o == name).and_then(|n| options.get(n + 1)).cloned();
     let dpi: f64 = value("--dpi").and_then(|v| v.parse().ok()).unwrap_or(200.0);
     let limit: usize = value("--limit").and_then(|v| v.parse().ok()).unwrap_or(usize::MAX);
+    let genre = value("--genre");
     let model_pack = value("--model-pack").ok_or("--model-pack DIR")?;
     let runtime_library = value("--runtime").ok_or("--runtime DLL")?;
     let ocr = legalpdf::OcrOptions::Indra(legalpdf::IndraOptions {
@@ -323,7 +324,8 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
     let chosen: Vec<Source> = sources(gold, manifest)?
         .into_iter()
         .filter(|s| s.split == "train" && s.mode != "ocr" && s.groups.get("yardstick").is_some_and(|y| y == "main")
-            && s.groups.get("genre_group").is_none_or(|g| g != "transcript") && !done.contains(&s.sha256))
+            && s.groups.get("genre_group").is_none_or(|g| g != "transcript") && !done.contains(&s.sha256)
+            && genre.as_deref().is_none_or(|wanted| s.groups.get("genre_group").is_some_and(|g| g == wanted)))
         .collect();
     eprintln!("{} digital main train documents to synthesize ({} already done)", chosen.len(), done.len());
     let started = Instant::now();
