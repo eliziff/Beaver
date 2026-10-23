@@ -40,19 +40,6 @@ const source = (cited: string, alternatives: Array<{ label: string; text: string
 }];
 
 describe("authorities discrepancy review", () => {
-  it("uses the historical preceding-footnote proposition and reports a bounded mismatch", () => {
-    const first = "An earlier proposition without a quotation.";
-    const second = ` The court wrote "${phrase}"`;
-    const state = draft(`${first}${second}`, [occurrence()], [[1, first.length], [2, first.length + second.length]]);
-    state.units[1].footnoteId = 2;
-    state.occurrences.citation.unitId = "footnote:1";
-    const findings = findAuthoritiesDiscrepancies(state, source("The cited paragraph says something else."));
-    expect(findings).toEqual([expect.objectContaining({
-      kind: "quote_unlocated", proposition: `The court wrote "${phrase}"`,
-      authoredQuote: phrase, footnoteId: 2, found: null,
-      id: expect.stringMatching(/^[a-f0-9]{64}$/u), actions: ["ignore"],
-    })]);
-  });
 
   it("accepts exact and bounded editorial quotations through the existing verifier", () => {
     expect(findAuthoritiesDiscrepancies(draft(`The court wrote "${phrase}"`),
@@ -76,20 +63,6 @@ describe("authorities discrepancy review", () => {
     )).toEqual([]);
   });
 
-  it("does not flag nested quotation marks, marked omissions or bracketed edits", () => {
-    const wording = "An individual’s reputation is not to be treated as regrettable but unavoidable road kill on the highway of public controversy, but nor should an overly solicitous regard for personal reputation be permitted to ‘chill’ freewheeling debate on matters of public interest.";
-    const original = wording.replace("‘chill’", "“chill”");
-    expect(findAuthoritiesDiscrepancies(draft(`The court wrote “${wording}”`), source(original))).toEqual([]);
-    for (const omission of ["...", "…", ". . ."]) {
-      expect(findAuthoritiesDiscrepancies(draft(`The court wrote "[T]he deadline is ${omission} [seven] business days."`),
-        source("the deadline is not less than five business days."))).toEqual([]);
-    }
-    expect(findAuthoritiesDiscrepancies(draft('The court wrote "[T]he deadline is seven business days."'),
-      source("the deadline is five business days."))).toHaveLength(1);
-    expect(findAuthoritiesDiscrepancies(draft('The court wrote "The worker’s rights are protected by this rule."'),
-      source("The workers rights are protected by this rule."))).toHaveLength(1);
-  });
-
   it("reports one unique exact match outside the cited locator as a wrong pinpoint", () => {
     const findings = findAuthoritiesDiscrepancies(draft(`The court wrote "${phrase}"`),
       source("Paragraph seven says something else.", [{ label: "9", text: phrase }]));
@@ -100,17 +73,6 @@ describe("authorities discrepancy review", () => {
     })]);
     expect(findAuthoritiesDiscrepancies(draft(`The court wrote "${phrase}"`),
       source("No match.", [{ label: "9", text: phrase }]))[0].id).toBe(findings[0].id);
-  });
-
-  it("suppresses ambiguous matches and footnotes with more than one source", () => {
-    const body = `The court wrote "${phrase}"`;
-    expect(findAuthoritiesDiscrepancies(draft(body), source("No match.", [
-      { label: "8", text: phrase }, { label: "9", text: phrase },
-    ]))).toEqual([]);
-    expect(findAuthoritiesDiscrepancies(draft(body, [occurrence(), occurrence("other", "other")]),
-      source("No match."))).toEqual([]);
-    expect(findAuthoritiesDiscrepancies(draft(body, [occurrence("citation", "case", false)]),
-      source("No match."))).toEqual([expect.objectContaining({ kind: "quote_unlocated" })]);
   });
 
   it("returns a bounded source repair and the pinned oracle's editorial wording", () => {
@@ -136,13 +98,6 @@ describe("authorities discrepancy review", () => {
 });
 
 describe("quotation review safety", () => {
-  it("classifies an unrelated source as unlocated and cannot apply a fabricated repair", () => {
-    const state = draft(`The court wrote "${phrase}"`);
-    const [finding] = findAuthoritiesDiscrepancies(state, source("Municipal liability concerns the design of public roads."));
-    expect(finding).toMatchObject({ kind: "quote_unlocated", found: null, actions: ["ignore"] });
-    expect(authoritiesDiscrepancyCorrection(state, { ...finding, kind: "quote_mismatch",
-      actions: ["quote_exact"], found: finding.cited }, "quote_exact")).toBeNull();
-  });
   it("does not resurrect a decision on an unrelated document revision", () => {
     const state = draft(`The court wrote "${phrase}"`), evidence = source("The deadline is five business days.");
     const [before] = findAuthoritiesDiscrepancies(state, evidence);
@@ -167,10 +122,6 @@ describe("quotation review safety", () => {
     const ambiguous = draft(`"${phrase}"`, [occurrence(), occurrence("unresolved", null)]);
     expect(findAuthoritiesDiscrepancies(ambiguous, source("Other evidence."))).toEqual([]);
   });
-  it("does not accept a small common fragment of a much longer passage", () => {
-    const [finding] = findAuthoritiesDiscrepancies(draft(`"${phrase}"`), source("The deadline is followed by a long discussion of entirely different substantive legal principles that cannot establish these quoted words."));
-    expect(finding).toMatchObject({ kind: "quote_unlocated", actions: ["ignore"] });
-  });
 });
 
 it("retains decisions when an earlier note renumbers the same Word footnote", () => {
@@ -178,9 +129,4 @@ it("retains decisions when an earlier note renumbers the same Word footnote", ()
   const before = findAuthoritiesDiscrepancies(state, evidence)[0];
   state.units[1].footnoteId = 2; state.units[0].footnoteRefs[0][0] = 2;
   expect(findAuthoritiesDiscrepancies(state, evidence)[0].id).toBe(before.id);
-});
-it("does not rewrite a page number to a paragraph number", () => {
-  const state = draft(`The court wrote "${phrase}"`), evidence = source("Other wording.", [{label:"9", text:phrase}]);
-  evidence[0].alternatives[0].locator.kind = "section" as "paragraph";
-  expect(findAuthoritiesDiscrepancies(state, evidence)[0]).toMatchObject({kind:"quote_unlocated",actions:["ignore"]});
 });

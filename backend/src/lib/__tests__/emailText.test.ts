@@ -62,9 +62,6 @@ describe("parseEmail", () => {
   });
 });
 
-describe("extractEmailText", () => {
-  
-});
 
 describe("email documents in the library", () => {
   let home: string | null = null;

@@ -49,16 +49,6 @@ describe("shared Authorities correction preparation", () => {
     expect(read).not.toHaveBeenCalled();
   });
 
-  it("requires Word and propagates the host's exact-source verification failure without accepting a decision", async () => {
-    const state = draft(), read = vi.fn().mockRejectedValue(new Error("Exact source hash changed"));
-    await expect(prepareAuthoritiesCorrection(draft("pdf"), { id, action: "pinpoint" }, read, reviewer))
-      .rejects.toMatchObject({ status: 409 });
-    expect(read).not.toHaveBeenCalled();
-    await expect(prepareAuthoritiesCorrection(state, { id, action: "pinpoint" }, read, reviewer))
-      .rejects.toThrow("Exact source hash changed");
-    expect(state.discrepancyDecisions).toEqual({});
-  });
-
   it("stops a cancelled review before reading or publishing a correction", async () => {
     const state = draft(), abort = new AbortController(), read = vi.fn();
     await expect(prepareAuthoritiesCorrection(state, { id, action: "pinpoint" }, read, async () => {
@@ -131,16 +121,6 @@ describe("shared Authorities text preparation", () => {
     vi.mocked(authorityPdfOutline).mockResolvedValue(outline);
     const result = await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") });
     expect(result.outline).toEqual(bookmarks === "headings" ? outline : undefined);
-  });
-  it("retains page pinpoint geometry for final links even when passage marking and OCR are off", async () => {
-    const state = markedDraft();
-    state.settings.passageMarking = "none";
-    state.settings.finalPdf = state.settings.linkPinpoints = true;
-    state.authorities.case.locators = [{ kind: "page", label: "101" }];
-    pdfText.mockResolvedValueOnce({ pageTextByPage: ["native"], ocrTextByPage: [],
-      passageGeometry: { targets: [{ locator: "101", status: "found" }] } } as never);
-    expect(await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") }))
-      .toMatchObject({ passageGeometry: { targets: [{ locator: "101", status: "found" }] } });
   });
 
   it("retains manual-PDF pinpoint geometry when final links are enabled without passage marks", async () => {

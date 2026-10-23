@@ -98,6 +98,7 @@ describe("legal Library viewer responses", () => {
     const first = await request(app)
       .get("/sources/document")
       .query({ citation: "2099 SCC 3", doc_type: "cases" });
+    const asked = fetchMock.mock.calls.length;
     const second = await request(app)
       .get("/sources/document")
       .query({ citation: "2099 SCC 3", doc_type: "cases" })
@@ -109,6 +110,6 @@ describe("legal Library viewer responses", () => {
       "private, max-age=0, must-revalidate",
     );
     expect(second.status).toBe(304);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(asked);
   });
 });

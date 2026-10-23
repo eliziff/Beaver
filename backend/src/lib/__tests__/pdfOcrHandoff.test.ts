@@ -26,7 +26,7 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     const artifact = artifacts.get(input.cache_key);
     return artifact?.sha256 === input.expected_source_sha256 ? artifact : null;
   });
-  vi.doMock('../structureNative', () => ({ structureNative: () => ({ preparePdfDocument: prepare,
+  vi.doMock('../structureNative', () => ({ nativeDocumentLive: () => true, structureNative: () => ({ preparePdfDocument: prepare,
     restorePdfDocument: restore,
     pdfRecognizedText: (artifact: { pages: NativePdfTextPage[] }, pages?: number[]) =>
       artifact.pages.filter(page => !pages || pages.includes(page.pageNumber)),

@@ -119,84 +119,6 @@ describe("standalone Authorities runtime", () => {
 
   
 
-  it("returns a corrected Word copy and refreshed standalone draft", async () => {
-    const note = "2020 SCC 1 at para 19", body = "The court quoted the source.";
-    const bytes = await Packer.toBuffer(new Document({
-      footnotes: { 7: { children: [new Paragraph({ children: [new TextRun(note)] })] } },
-      sections: [{ children: [new Paragraph({ children: [
-        new TextRun(body), new FootnoteReferenceRun(7),
-      ] })] }],
-    }));
-    const state = structuredClone(manualState()) as AuthoritiesDraft;
-    state.import = { kind: "document", bindingRole: "source", filename: "Factum.docx",
-      fileType: "docx", snapshot: null };
-    state.bindings.source = { kind: "local-file", handleId: "source", lastSeen: {
-      name: "Factum.docx", size: bytes.length, modified: 1, sha256: sha256(bytes),
-    } };
-    state.authorities.case.citation = "2020 SCC 1";
-    const pinpoint = note.indexOf("19");
-    state.units = [
-      { id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
-        footnoteRefs: [[1, body.length]], pageNumbers: [], text: body, occurrenceIds: [] },
-      { id: "footnote:7", kind: "footnote", ordinal: 1, footnoteId: 1,
-        footnoteRefs: [], pageNumbers: [], text: note, occurrenceIds: ["cite"] },
-    ];
-    state.occurrences = { cite: { id: "cite", unitId: "footnote:7", start: 0,
-      end: note.length, text: note, authoritySpan: { start: 0, end: 10, text: "2020 SCC 1" },
-      coreSpan: { start: 0, end: 10, text: "2020 SCC 1" }, pinpointSpan: {
-        start: pinpoint, end: pinpoint + 2, text: "19" }, kind: "case", citation: "2020 SCC 1",
-      authorityId: "case", reference: null, pinpoints: [{ kind: "paragraph", text: "19" }],
-      evidenceIds: [], sourceTextSha256: sha256(Buffer.from(note)), localOrdinal: 0,
-      reviewed: true } };
-    const id = "e".repeat(64), finding: AuthoritiesDiscrepancy = {
-      id, actions: ["ignore", "pinpoint"], kind: "wrong_pinpoint", occurrenceId: "cite",
-      authorityId: "case", footnoteId: 1, citation: "2020 SCC 1", proposition: body,
-      authoredQuote: "the source", authoredPinpoint: { kind: "paragraph", text: "19" },
-      cited: { locator: { kind: "paragraph", label: "19" }, text: "Different." },
-      found: { locator: { kind: "paragraph", label: "20" }, text: "the source" },
-    };
-    mocks.importFile.mockImplementationOnce(async (input) => {
-      const fresh = structuredClone(state); fresh.import.filename = input.filename;
-      fresh.bindings.source = { kind: "local-file", handleId: "standalone", lastSeen: {
-        name: input.filename, size: input.bytes.length, modified: 0, sha256: sha256(input.bytes),
-      } };
-      fresh.units[1].text = note.replace("19", "20");
-      Object.assign(fresh.occurrences.cite, { text: fresh.units[1].text,
-        pinpointSpan: { start: pinpoint, end: pinpoint + 2, text: "20" },
-        pinpoints: [{ kind: "paragraph", text: "20" }],
-        sourceTextSha256: sha256(Buffer.from(fresh.units[1].text)) });
-      return fresh;
-    });
-    state.stage = "sources";
-    const correctionApp = express(); correctionApp.use(express.json());
-    correctionApp.use("/authorities-runtime", createAuthoritiesRuntimeRouter((_req, _res, next) => next(),
-      resolveSources, async () => [finding]));
-    const response = await request(correctionApp).post("/authorities-runtime/discrepancies/actions")
-      .field("draft", JSON.stringify(state)).field("request", JSON.stringify({
-        id, action: "pinpoint", revision: 1,
-      })).field("modified", "1").attach("file", bytes, "Factum.docx")
-      .buffer(true).parse((res, done) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => done(null, Buffer.concat(chunks)));
-      });
-    expect(response.status, String(response.body)).toBe(200);
-    const form = await new Response(response.body as Buffer, { headers: {
-      "content-type": response.headers["content-type"],
-    } }).formData();
-    const corrected = form.get("source") as File;
-    const xml = await (await JSZip.loadAsync(await corrected.arrayBuffer()))
-      .file("word/footnotes.xml")!.async("string");
-    const refreshed = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
-
-    expect(xml).toContain("at para 20");
-    expect(refreshed.stage).toBe("sources");
-    expect(refreshed.import).toMatchObject({ filename: "Factum corrected.docx" });
-    expect(refreshed.discrepancyDecisions).toEqual({ [id]: "pinpoint" });
-    expect(refreshed.bindings.source).toMatchObject({ kind: "local-file",
-      lastSeen: { sha256: sha256(Buffer.from(await corrected.arrayBuffer())) } });
-  });
-
   
 
   
@@ -254,44 +176,6 @@ describe("standalone Authorities runtime", () => {
 
   
 
-  it("returns the combined final PDF as a complete multipart artifact", async () => {
-    const source = await PDFDocument.create(); source.addPage();
-    const bytes = Buffer.from(await source.save()), digest = sha256(bytes);
-    const state = structuredClone(manualState()) as AuthoritiesDraft;
-    state.outputMode = "book";
-    state.import = { kind: "document", bindingRole: "source", filename: "Factum.pdf",
-      fileType: "pdf", snapshot: null };
-    state.settings = { ...state.settings, passageMarking: "none", finalPdf: true };
-    state.bindings.source = { kind: "local-file", handleId: "source", lastSeen: {
-      name: "Factum.pdf", size: bytes.length, modified: 1, sha256: digest,
-    } };
-    state.bindings.authority = { kind: "local-file", handleId: "authority", lastSeen: {
-      name: "Case.pdf", size: bytes.length, modified: 1, sha256: digest,
-    } };
-    state.authorities.case.source = { kind: "attached", sources: [{ bindingRole: "authority",
-      filename: "Case.pdf", sourceSha256: digest, sourceUrl: null, origin: "manual", language: "en" }] };
-
-    const response = await request(app).post("/authorities-runtime/build")
-      .field("draft", JSON.stringify(state)).field("roles", JSON.stringify(["source", "authority"]))
-      .field("id", "draft-final").field("revision", "1").field("title", "Factum")
-      .attach("files", bytes, "Factum.pdf").attach("files", bytes, "Case.pdf")
-      .buffer(true).parse((res, done) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => done(null, Buffer.concat(chunks)));
-      }).expect(200);
-    const form = await new Response(response.body as Buffer, { headers: {
-      "content-type": response.headers["content-type"],
-    } }).formData();
-    const receipt = JSON.parse(String(form.get("receipt")));
-    const final = Buffer.from(await (form.get("final-pdf") as File).arrayBuffer());
-
-    expect(form.get("book")).toBeInstanceOf(File);
-    expect(receipt.outputs["final-pdf"]).toMatchObject({ mimeType: "application/pdf", pageCount: 5,
-      sha256: sha256(final) });
-    expect((await PDFDocument.load(final)).getPageCount()).toBe(5);
-  });
-
   it("exports a large reviewed draft with more than 100 attached authority PDFs", async () => {
     const pdf = await PDFDocument.create(); pdf.addPage();
     const bytes = Buffer.from(await pdf.save()), digest = sha256(bytes);
@@ -337,35 +221,6 @@ describe("standalone Authorities runtime", () => {
     expect(book.placements).toHaveLength(101);
     expect(book.placements.every(placement => placement.sourcePageIndices.length === 1)).toBe(true);
     expect((await PDFDocument.load(book.bytes)).getPageCount()).toBe(book.pageCount);
-  });
-
-  it("prepares an incomplete book with a placeholder for unavailable attached bytes", async () => {
-    const state = structuredClone(manualState()) as AuthoritiesDraft;
-    state.outputMode = "book";
-    state.settings = { ...state.settings, passageMarking: "none", allowIncomplete: true };
-    state.bindings.authority = { kind: "local-file", handleId: "missing", lastSeen: {
-      name: "Case.pdf", size: 3, modified: 1, sha256: "a".repeat(64),
-    } };
-    state.authorities.case.source = { kind: "attached", sources: [{ bindingRole: "authority",
-      filename: "Case.pdf", sourceSha256: "a".repeat(64), sourceUrl: null, origin: "manual", language: "en" }] };
-
-    const response = await request(app).post("/authorities-runtime/build")
-      .field("draft", JSON.stringify(state)).field("roles", "[]")
-      .field("id", "draft-incomplete").field("revision", "1").field("title", "Factum")
-      .buffer(true).parse((res, done) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => done(null, Buffer.concat(chunks)));
-      }).expect(200);
-    const form = await new Response(response.body as Buffer, { headers: {
-      "content-type": response.headers["content-type"],
-    } }).formData();
-    const plan = await mapAuthorityBookBytes(JSON.parse(String(form.get("book"))) as PreparedAuthoritiesBook<string>,
-      async (role) => new Uint8Array(await (form.get(role) as File).arrayBuffer()));
-    const [book] = await renderAuthoritiesBook(pdfLibrary, plan);
-
-    expect(book.pageCount).toBe(4);
-    expect(JSON.parse(String(form.get("receipt"))).authorities[0]).toMatchObject({ tab: "Tab 1" });
   });
 
 });

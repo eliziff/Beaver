@@ -41,11 +41,11 @@ function receipt(
 describe("DOCX evidence citations", () => {
   it("projects short evidence ids into one authority with narrow pinpoints", () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("e_paragraph_5", "par5"));
-    registerLegalEvidence(state, receipt("e_paragraph_9", "par9"));
+    registerLegalEvidence(state, receipt("abcdef0#L5", "par5"));
+    registerLegalEvidence(state, receipt("abcdef0#L9", "par9"));
 
     const resolved = resolveDocxEvidenceCitations(state, {
-      rule: ["e_paragraph_5", "e_paragraph_9"],
+      rule: ["abcdef0#L5", "abcdef0#L9"],
     });
 
     expect(resolved.citations.rule.sources).toHaveLength(1);
@@ -55,7 +55,7 @@ describe("DOCX evidence citations", () => {
       pinpoints: [{ text: "para 5" }, { text: "para 9" }],
     });
     expect(resolved.bindings[0]).toMatchObject({
-      evidenceIds: ["e_paragraph_5", "e_paragraph_9"],
+      evidenceIds: ["abcdef0#L5", "abcdef0#L9"],
       sourceSha256s: ["sha256:source"],
       locators: ["para 5", "para 9"],
     });
@@ -63,49 +63,49 @@ describe("DOCX evidence citations", () => {
       status: "passed",
       claims: [],
       evidence: [
-        { evidence_id: "e_paragraph_5" },
-        { evidence_id: "e_paragraph_9" },
+        { evidence_id: "abcdef0#L5" },
+        { evidence_id: "abcdef0#L9" },
       ],
     });
   });
 
   it("rejects stale ids and document-level receipts", () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("e_whole_document", "document", {
+    registerLegalEvidence(state, receipt("abcdef0#L1-L99", "document", {
       scope: "document",
       span_text: null,
       locator: { kind: "document", label: "document" },
     }));
 
     expect(() => resolveDocxEvidenceCitations(state, {
-      missing: ["e_not_registered"],
+      missing: ["fedcba9#L1"],
     })).toThrow("unknown evidence_id");
     expect(() => resolveDocxEvidenceCitations(state, {
-      broad: ["e_whole_document"],
+      broad: ["abcdef0#L1-L99"],
     })).toThrow("requires exact passage evidence");
   });
 
   it("rejects malformed citation maps, duplicate ids and excessive evidence", () => {
     const state = createLegalEvidenceTurnState();
-    for (const citations of [[], [{ id: "rule", evidence_ids: ["e_paragraph_5"] }],
-      { rule: { citation: "Model-authored text", evidence_ids: ["e_paragraph_5"] } },
+    for (const citations of [[], [{ id: "rule", evidence_ids: ["abcdef0#L5"] }],
+      { rule: { citation: "Model-authored text", evidence_ids: ["abcdef0#L5"] } },
       { rule: ["mike-evidence:v1:forged"] }, { rule: [] },
-      { rule: ["e_paragraph_5", "e_paragraph_5"] },
-      { rule: ["e_paragraph_5"], " rule ": ["e_paragraph_9"] },
-      Object.fromEntries(Array.from({ length: 101 }, (_, i) => [`rule_${i}`, ["e_paragraph_5"]])),
-      { rule: Array.from({ length: 17 }, (_, i) => `e_paragraph_${i}`) },
+      { rule: ["abcdef0#L5", "abcdef0#L5"] },
+      { rule: ["abcdef0#L5"], " rule ": ["abcdef0#L9"] },
+      Object.fromEntries(Array.from({ length: 101 }, (_, i) => [`rule_${i}`, ["abcdef0#L5"]])),
+      { rule: Array.from({ length: 17 }, (_, i) => `abcdef0#L${i + 1}`) },
       Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`rule_${i}`,
-        Array.from({ length: 16 }, (_, j) => `e_paragraph_${j}`)]))]) {
+        Array.from({ length: 16 }, (_, j) => `abcdef0#L${j + 1}`)]))]) {
       expect(() => resolveDocxEvidenceCitations(state, citations)).toThrow("DOCX citation");
     }
   });
 
   it("records exact rendered citation markers without reparsing them later", async () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", {
+    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", {
       source_sha256: "a".repeat(64),
     }));
-    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["abcdef0#L5"] });
     const appearances: DocxCitationAppearance[] = [];
     const bytes = await renderDocxMarkdown("The rule applies.[@rule]", {
       citations: resolved.citations }, [], appearances);
@@ -113,20 +113,20 @@ describe("DOCX evidence citations", () => {
 
     expect(ledger).toMatchObject({
       schemaVersion: "beaver.authority-ledger.v1",
-      seeds: [{ key: "3:neutral:2026:scc:1", evidenceIds: ["e_paragraph_5"] }],
+      seeds: [{ key: "3:neutral:2026:scc:1", evidenceIds: ["abcdef0#L5"] }],
       occurrences: [{ markerId: "rule", authorityKey: "3:neutral:2026:scc:1",
         unit: { id: "body:0", text: "The rule applies. Example v State, 2026 SCC 1 at para 5" },
         text: "Example v State, 2026 SCC 1 at para 5", displayedForm: "full",
-        evidenceIds: ["e_paragraph_5"] }],
+        evidenceIds: ["abcdef0#L5"] }],
     });
   });
 
   it("omits the ledger when rendered citation text is ambiguous", async () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", {
+    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", {
       source_sha256: "a".repeat(64),
     }));
-    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["abcdef0#L5"] });
     const citation = "Example v State, 2026 SCC 1 at para 5";
     const appearances: DocxCitationAppearance[] = [];
     const bytes = await renderDocxMarkdown(`Unrelated prose: ${citation}. Claim.[@rule]`, {
@@ -136,13 +136,13 @@ describe("DOCX evidence citations", () => {
 
   it("binds actual full, ibid, supra, grouped and authored-note appearances by note identity", async () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", { source_sha256: "a".repeat(64) }));
-    registerLegalEvidence(state, receipt("e_other_para5", "par5", {
+    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", { source_sha256: "a".repeat(64) }));
+    registerLegalEvidence(state, receipt("1234567#L5", "par5", {
       stable_source_id: "case:other", citation: "2026 SCC 2", name: "Other v State",
       source_sha256: "b".repeat(64),
     }));
-    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"],
-      other: ["e_other_para5"], both: ["e_paragraph_5", "e_other_para5"] });
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["abcdef0#L5"],
+      other: ["1234567#L5"], both: ["abcdef0#L5", "1234567#L5"] });
     const appearances: DocxCitationAppearance[] = [];
     const bytes = await renderDocxMarkdown(
       "Author.[^note]\n\nFirst.[@rule]\n\nAgain.[@rule]\n\nOther.[@other]\n\nLater.[@rule]\n\nBoth.[@both]\n\n[^note]: Authored.[@rule]",
@@ -156,8 +156,8 @@ describe("DOCX evidence citations", () => {
 
   it.each(["inline", "after-paragraph", "none"] as const)("binds only emitted %s markers", async (citationPlacement) => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", { source_sha256: "a".repeat(64) }));
-    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
+    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", { source_sha256: "a".repeat(64) }));
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["abcdef0#L5"] });
     const appearances: DocxCitationAppearance[] = [];
     const bytes = await renderDocxMarkdown("Claim.[@rule][@rule]", {
       citations: resolved.citations, citationPlacement }, [], appearances);
@@ -167,12 +167,12 @@ describe("DOCX evidence citations", () => {
 
   it.each(["inline", "after-paragraph", "footnotes"] as const)("binds grouped and individual %s markers without assigning unrelated prose", async (citationPlacement) => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", { source_sha256: "a".repeat(64) }));
-    registerLegalEvidence(state, receipt("e_other_para9", "par9", {
+    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", { source_sha256: "a".repeat(64) }));
+    registerLegalEvidence(state, receipt("1234567#L9", "par9", {
       stable_source_id: "case:other", citation: "2026 SCC 2", name: "Other v State", source_sha256: "b".repeat(64),
     }));
     const resolved = resolveDocxEvidenceCitations(state, {
-      rule: ["e_paragraph_5"], other: ["e_other_para9"], both: ["e_paragraph_5", "e_other_para9"],
+      rule: ["abcdef0#L5"], other: ["1234567#L9"], both: ["abcdef0#L5", "1234567#L9"],
     });
     const markdown = "First.[@rule]\n\nAgain.[@rule]\n\nAuthored.[^note]\n\nOther.[@other]\n\nLater.[@rule]\n\nBoth.[@both]\n\n[^note]: Authored note.";
     const appearances: DocxCitationAppearance[] = [];
@@ -180,7 +180,7 @@ describe("DOCX evidence citations", () => {
     const ledger = await createDocxAuthorityLedger(state, bytes, resolved, appearances);
     expect(ledger?.occurrences.map(({ markerId, evidenceIds, pinpoints }) => [markerId, evidenceIds, pinpoints]))
       .toEqual([...["rule", "rule", "other", "rule"], "both", "both"].map((marker, index) =>
-        [marker, [index === 2 || index === 5 ? "e_other_para9" : "e_paragraph_5"],
+        [marker, [index === 2 || index === 5 ? "1234567#L9" : "abcdef0#L5"],
           [{ kind: "paragraph", text: index === 2 || index === 5 ? "para 9" : "para 5" }]]));
     for (const occurrence of ledger!.occurrences)
       expect(occurrence.unit.text.slice(occurrence.start, occurrence.end)).toBe(occurrence.text);
@@ -196,8 +196,8 @@ describe("DOCX evidence citations", () => {
 
   it("abstains instead of spinning when an appearance renders no citation text", async () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", { source_sha256: "a".repeat(64) }));
-    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
+    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", { source_sha256: "a".repeat(64) }));
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["abcdef0#L5"] });
     const appearances: DocxCitationAppearance[] = [];
     const bytes = await renderDocxMarkdown("The rule applies.[@rule]", {
       citations: resolved.citations }, [], appearances);

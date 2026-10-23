@@ -51,7 +51,7 @@ describe("quote verification", () => {
     expect(errors("The busybody … before the hearing continues.")).toEqual([]);
     expect(errors(`The busybody ${"… ".repeat(5)}before the hearing continues.`))
       .toHaveLength(1);
-    expect(errors(available, `${"x".repeat(50_001)}${available}`)).toEqual([]);
+    expect(errors(available, `${"x".repeat(50_001)} ${available}`)).toEqual([]);
     for (const changed of [
       "the busybody must decide 12 motions, promptly, before the hearing continues.",
       "The busybody may decide 12 motions, promptly, before the hearing continues.",

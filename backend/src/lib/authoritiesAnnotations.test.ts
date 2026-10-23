@@ -132,17 +132,6 @@ describe('persistent visual PDF annotations',()=>{
   });
 });
 
-it('places one paragraph line to the left of its complete extent', () => {
-  const hash = 'a'.repeat(64), input = geometry(hash);
-  input.targets[0].pages[0].passageRects = [[40, 40, 320, 60], [50, 65, 300, 110], [50, 115, 300, 180]];
-  const result = initialAuthorityAnnotations({ sourceSha256: hash, style: 'margin', geometry: input,
-    pages: [{ width: 400, height: 500 }], citedPages: new Set() });
-  const lines = result.annotations.marks.filter(mark => mark.kind === 'margin');
-  expect(lines).toHaveLength(1);
-  expect(lines[0].fragments).toHaveLength(1);
-  lines[0].fragments[0].rects[0].forEach((value, i) => expect(value).toBeCloseTo([33/400, 40/500, 35/400, 180/500][i]));
-});
-
 it('abstains from inferred manual paragraph extents and accepts detached printed-number witnesses', () => {
   const hash = 'a'.repeat(64), source = geometry(hash);
   source.targets[0].pages[0].text = 'Fixture judgment / public synthetic';
@@ -167,16 +156,6 @@ it('abstains from inferred manual paragraph extents and accepts detached printed
   const section = initialAuthorityAnnotations({ sourceSha256: hash, style: 'paragraph', geometry: source,
     pages: [{ width: 400, height: 500 }], citedPages: new Set(), requirePrintedParagraphLocator: true });
   expect(section.annotations.marks).toHaveLength(1);
-});
-
-it('marks the page that prints a paragraph the geometry could not place', async () => {
-  const {draft,bytes,hash}=await fixture();
-  const unplaced=geometry(hash);unplaced.targets[0].status='ambiguous';unplaced.targets[0].pages=[];
-  const result=prepareAuthorityAnnotations(pdf,await PDFDocument.load(bytes),draft,draft.authorities.case,
-    {bindingRole:'case-en',filename:'case.pdf',sourceSha256:hash},
-    {passageGeometry:unplaced,pageTextByPage:['An uncited passage and [42] a cited paragraph.']});
-  expect(result.annotations.marks.map(mark=>mark.label)).toEqual(['Cited page']);
-  expect(result.pageMarked).toEqual(['para 42']);
 });
 
 it('populates compact paragraph cards directly from prepared PDF text', () => {

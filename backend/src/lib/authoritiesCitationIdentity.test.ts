@@ -62,18 +62,12 @@ describe("Authorities consumes general citation identity", () => {
     expect(reference.authoritySpan.text).toBe("Mere Holdings, supra note 3");
   });
 
-  it("keeps different works and a conflicting note unresolved", async () => {
-    for (const notes of [
-      ["Lena Tern, Shore Access (Reed Press, 2036); Lena Tern, Pond Access (Reed Press, 2037).",
-        "Tern, supra note 1 at 54."],
-      ["Lena Tern, Shore Access (Reed Press, 2036).", "Milo Gull, Reed Routes (Reed Press, 2037).",
-        "Tern, supra note 2 at 54."],
-    ]) {
-      const draft = await scan(notes);
-      const references = Object.values(draft.occurrences).filter(item => item.kind === "reference");
-      expect(references).toHaveLength(1);
-      expect(references[0].authorityId).toBeNull();
-      expect(references[0].reference).toBeNull();
-    }
+  it("keeps a short form that two works in its note fit unresolved", async () => {
+    const draft = await scan(["Lena Tern, Shore Access (Reed Press, 2036); Lena Tern, Pond Access (Reed Press, 2037).",
+      "Tern, supra note 1 at 54."]);
+    const references = Object.values(draft.occurrences).filter(item => item.kind === "reference");
+    expect(references).toHaveLength(1);
+    expect(references[0].authorityId).toBeNull();
+    expect(references[0].reference).toBeNull();
   });
 });

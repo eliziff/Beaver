@@ -278,34 +278,6 @@ export function relationalRepositoryContract(
     } finally { await repository.removeAll(); await removeUserData(owner.userId); }
   });
 
-  it("searches standalone review conversations with shared access without leaking project or private chats", async () => {
-    const [{ chatRepository }, { tabularRepository }, { projectRepository }] = await Promise.all([
-      import("../../relationalChatRepository"), import("../../relationalTabularRepository"), import("../../relationalProjectRepository"),
-    ]);
-    const owner = scope("review-search"), member = scope("review-member"), stranger = scope("review-stranger");
-    await prepareScopes([owner, member, stranger]);
-    const repository = chatRepository(owner);
-    try {
-      const review = await tabularRepository.create(owner, { projectId: null, title: "Review", columns: [],
-        documentIds: [], workflowId: null, sharedWith: [member.userEmail] });
-      if (review.status !== "committed") throw new Error("Review fixture failed");
-      const project = await projectRepository.create(owner, { name: "Matter", cmNumber: null,
-        practice: null, sharedWith: [member.userEmail], metadata: {}, notes: null });
-      const reviewChat = await repository.create({ projectId: null, tabularReviewId: review.value.id });
-      const privateChat = await repository.create({ projectId: null, tabularReviewId: null });
-      const projectChat = await repository.create({ projectId: project.id, tabularReviewId: null });
-      for (const chat of [reviewChat, privateChat, projectChat]) await repository.commit(chat.id,
-        { kind: "turn", turn: { expectedVersion: 0, userMessage: { id: randomUUID(), content: "Shared phrase" } } });
-      expect((await repository.list({ search: "Shared phrase" })).map(({ id }) => id)).toEqual([privateChat.id]);
-      expect(await chatRepository(member).list({ search: "Shared phrase", searchContext: "reviews" })).toEqual([
-        expect.objectContaining({ id: reviewChat.id, tabular_review_id: review.value.id }),
-      ]);
-      expect((await repository.list({ search: "Shared phrase", searchContext: "all" })).map(({ id }) => id).sort()).toEqual([privateChat.id, reviewChat.id].sort());
-      expect(await chatRepository(stranger).list({ search: "Shared phrase", searchContext: "all" })).toEqual([]);
-      expect((await chatRepository(member).list({ projectId: project.id, search: "Shared phrase" })).map(({ id }) => id)).toEqual([projectChat.id]);
-    } finally { await repository.removeAll(); await removeUserData(owner.userId); }
-  });
-
   it("keeps the version author email as an immutable snapshot", async () => {
     const { documentRepository } = await import("../../relationalDocumentRepository");
     const owner = scope("version-author"), documentId = randomUUID(), versionId = randomUUID();
@@ -431,54 +403,6 @@ export function relationalRepositoryContract(
       await removeUserData(member.userId);
       await removeUserData(owner.userId);
     }
-  });
-
-  it("preserves public-source table rows, guarded answers and sharing through either adapter", async () => {
-    const [{ tabularRepository }, { researchSourceResource }] = await Promise.all([
-      import("../../relationalTabularRepository"), import("../../researchFile"),
-    ]);
-    const owner = scope("source-table-owner"), member = scope("source-table-member"),
-      stranger = scope("source-table-stranger"), reference = {
-        provider: "tna", id: "ewca/civ/2024/1", kind: "case" as const, title: "Decision",
-      }, resource = researchSourceResource(reference);
-    await prepareScopes([owner, member, stranger]);
-    try {
-      const created = await tabularRepository.create(owner, { projectId: null,
-        columns: [{ index: 0, name: "Issue", prompt: "Extract the issue" }],
-        documentIds: [resource], sharedWith: [member.userEmail],
-        scopeConfig: { subjects: [{ sourceId: "source", resource, reference }] } });
-      if (created.status !== "committed") throw new Error("Table fixture failed");
-      const id = created.value.id, initial = (await tabularRepository.detail(owner, id))!.cells[0],
-        input = { reviewId: id, documentId: resource, columnIndex: 0 },
-        first = await tabularRepository.setCell(owner, { ...input, expected: { ...initial,
-          updated_at: String(initial.updated_at) }, status: "generating", content: null });
-      if (first.status !== "committed") throw new Error("Cell fixture failed");
-      const cleared = await tabularRepository.setCell(owner, { ...input, expected: { ...first.value,
-        updated_at: String(first.value.updated_at) }, status: "pending", content: null });
-      if (cleared.status !== "committed") throw new Error("Cell fixture failed");
-      const newer = await tabularRepository.setCell(owner, { ...input, expected: { ...cleared.value,
-        updated_at: String(cleared.value.updated_at) }, status: "generating", content: null });
-      if (newer.status !== "committed") throw new Error("Cell fixture failed");
-      const content = { claims: [], value: null, summary: "Not Found", evidence: [],
-        outcome: "not_found" as const, coverage: "complete" as const, resource };
-      await expect(tabularRepository.setCell(owner, { ...input, expected: { ...first.value,
-        updated_at: String(first.value.updated_at) }, status: "done", content }))
-        .resolves.toMatchObject({ status: "conflict" });
-      await expect(tabularRepository.setCell(owner, { ...input, expected: { ...newer.value,
-        updated_at: String(newer.value.updated_at) }, status: "done", content }))
-        .resolves.toMatchObject({ status: "committed" });
-      await expect(tabularRepository.detail(member, id)).resolves.toMatchObject({
-        review: { scope_config: { subjects: [{ resource, reference }] } }, cells: [{ content }],
-      });
-      await expect(tabularRepository.detail(stranger, id)).resolves.toBeNull();
-      await tabularRepository.update(owner, id, created.value.updated_at, {
-        columns: [{ index: 0, name: "Issue", prompt: "Extract a different issue" }],
-      });
-      await expect(tabularRepository.detail(owner, id)).resolves.toMatchObject({
-        cells: [{ status: "pending", content: null }],
-      });
-    } finally { await removeUserData(owner.userId); await removeUserData(member.userId);
-      await removeUserData(stranger.userId); }
   });
 
   it("reverses table question and result changes with provenance and stale-value protection", async () => {

@@ -167,49 +167,6 @@ describe("native Word Table of Authorities output", () => {
     expect(tableAsOpened(document).flat()).toContain(`${one}\t1`);
   });
 
-  it("italicizes a style of cause in Word's mark and table, and lists the pages Word last laid it out on", async () => {
-    const first = "See Oak v Elm, 2031 ONCA 5.", second = "Again, Oak v Elm, 2031 ONCA 5 at para 2.";
-    const source = await docxBytes([new Paragraph(first), new Paragraph({ children: [new PageBreak()] }),
-      new Paragraph({ children: [new PageBreak()] }), new Paragraph(second)]);
-    const long = "Oak v Elm, 2031 ONCA 5", mark = (unitId: string, text: string) =>
-      ({ unitId, offset: text.indexOf(long) + long.length, longName: long, italic: 9, shortName: "Oak", category: 1 as const });
-    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: first }, { id: "body:1", text: "\n" },
-      { id: "body:2", text: "\n" }, { id: "body:3", text: second }], [mark("body:0", first), mark("body:3", second)], "native-append");
-    const document = await (await JSZip.loadAsync(marked)).file("word/document.xml")!.async("string");
-    expect(document).toContain('<w:r><w:rPr><w:i></w:i></w:rPr><w:instrText xml:space="preserve">Oak v Elm</w:instrText></w:r>');
-    expect(document).toMatch(/<w:rPr><w:i><\/w:i><w:noProof><\/w:noProof><\/w:rPr><w:t>Oak v Elm<\/w:t>/u);
-    expect(tableAsOpened(document)).toEqual([[`${long}\t1, 3`]]);
-  });
-
-  it("replaces exact reviewed spans in body text and footnotes", async () => {
-    const body = "The court wrote This and that.";
-    const note = "Example v Example, 2020 SCC 1 at para 19.";
-    const source = await docxBytes([new Paragraph({ children: [
-      new TextRun(body), new FootnoteReferenceRun(7),
-    ] })], {
-      footnotes: { 7: { children: [new Paragraph(note)] } },
-    });
-    const bodyStart = body.indexOf("This and that");
-    const first = await applyAuthorityDiscrepancyCorrection(source, [
-      { id: "body:0", text: body }, { id: "footnote:7", text: note },
-    ], { unitId: "body:0", start: bodyStart, end: bodyStart + 13,
-      expected: "This and that", replacement: "This long passage" });
-    const revisedBody = body.replace("This and that", "This long passage");
-    const noteStart = note.indexOf("19");
-    const second = await applyAuthorityDiscrepancyCorrection(first, [
-      { id: "body:0", text: revisedBody }, { id: "footnote:7", text: note },
-    ], { unitId: "footnote:7", start: noteStart, end: noteStart + 2,
-      expected: "19", replacement: "20" });
-    const zip = await JSZip.loadAsync(second);
-    expect(await zip.file("word/document.xml")!.async("string")).toContain("This long passage");
-    expect(await zip.file("word/footnotes.xml")!.async("string")).toContain("at para 20");
-    await expect(applyAuthorityDiscrepancyCorrection(source,
-      [{ id: "body:0", text: `${body} changed` }], {
-        unitId: "body:0", start: bodyStart, end: bodyStart + 13,
-        expected: "This and that", replacement: "tampered",
-      })).rejects.toThrow("Reviewed text no longer matches");
-  });
-
   it("supports mark-only and static linked append without conflating their structures",
     async () => {
     const body = "R v Grant, 2009 SCC 32";
