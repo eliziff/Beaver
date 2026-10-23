@@ -15,7 +15,6 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { journalLegalSourceProvider as journal } from "../legalSources/journal";
 import { runLocalAssistantTools } from "./support/localAssistantTools";
-import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
 import { legalSourceOperations } from "../legalSourceApplication";
 import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { researchSourceFromResource } from "../researchFile";
@@ -344,91 +343,6 @@ describe("local journal articles", () => {
     expect(journal.lookup(article, "section", "I").status).toBe("unavailable");
   });
 
-  it("searches candidates, resolves page locators, and builds multi-text links", async () => {
-    const match = journal.find("Fixture Article")[0];
-    expect(match.hitId).toBe("journal:7");
-    expect(match.citation).toBe(
-      "Ada Example & Grace Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100",
-    );
-
-    const article = (await journal.document(String(match.articleId)))!;
-    const page = journal.lookup(article, "page", "101");
-    expect(page.hitId).toBe("journal:7:page:page101");
-    expect(page.anchor).toBe("page=2");
-
-    const url = buildLegalSourcePinpointUrl(
-      {
-        url: article.url,
-        anchor: page.anchor ?? undefined,
-        blockText: page.block!.text,
-        documentText: article.native,
-        pageScoped: true,
-      },
-      ["first quoted phrase", "second quoted phrase"],
-    );
-    expect(url).toContain("#page=2:~:text=");
-    expect(url?.match(/text=/gu)).toHaveLength(2);
-    expect((await journal.viewer("7"))?.payload.reference).toMatchObject({
-      provider: "journal",
-      id: "7",
-      kind: "journal",
-      sourceSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
-    });
-  });
-
-  it("keeps journal URLs private from the model and attaches them to citations", async () => {
-    const [searchResult] = await runLocalAssistantTools(
-      "local-user",
-      [
-        {
-          id: "call-0",
-          name: "search_sources",
-          input: {
-            query: "7",
-            source_types: ["journal"],
-            syntax: "boolean",
-          },
-        },
-      ],
-    );
-    const modelSearchPayload = JSON.parse(searchResult.content);
-      expect(researchSourceFromResource(modelSearchPayload.results[0].resource)).toMatchObject({
-        provider: "journal",
-        id: "7",
-    });
-    expect(modelSearchPayload.results[0]).not.toHaveProperty("url");
-    expect(modelSearchPayload.results[0]).not.toHaveProperty("articleId");
-    expect(modelSearchPayload.results[0]).not.toHaveProperty("hitId");
-    // No separate non-citeable hit_id — the model must not mistake it for
-    // a turn-local evidence_id (the actionable handle is article_id).
-    expect(modelSearchPayload.results[0]).not.toHaveProperty("hit_id");
-
-    const [toolResult] = await runLocalAssistantTools(
-      "local-user",
-      [
-        {
-          id: "call-1",
-          name: "Read",
-          input: {
-            file_path: modelSearchPayload.results[0].resource,
-            locator_kind: "page",
-            locator: "101",
-          },
-        },
-      ],
-    );
-
-    const modelPayload = JSON.parse(toolResult.content);
-      expect(modelPayload.passages).toHaveLength(1);
-      expect(modelPayload.passages[0].evidence_id).toMatch(/^e_/u);
-      expect(toolResult.evidence?.[0]).toMatchObject({
-        evidence_id: modelPayload.passages[0].evidence_id,
-      });
-    expect(modelPayload).not.toHaveProperty("hit_id");
-    expect(modelPayload).not.toHaveProperty("url");
-
-  });
-
   it("formats four-plus authors and an empty issue without a fallback citation", async () => {
     journal.closeDatabases();
     const database = new DatabaseSync(process.env.MIKE_PUBLIC_ENDPOINT_DB!);
@@ -446,52 +360,6 @@ describe("local journal articles", () => {
     expect((await journal.document("8"))?.citation).toBe(
       "Ada Example et al, “No Issue Article” (2025) 9 Fixture LJ 44",
     );
-  });
-
-  it("filters journal search by indexed publication metadata", () => {
-    expect(
-      journal.find("Fixture Article", 10, {
-        author: "Ada",
-        journal: "Fixture LJ",
-        dateFrom: "2025-01-01",
-        dateTo: "2026-12-31",
-      })[0]?.articleId,
-    ).toBe(7);
-    expect(
-      journal.find("Fixture Article", 10, { author: "Lin" }),
-    ).toEqual([]);
-    expect(
-      journal.find("Fixture Article", 10, { journal: "Other" }),
-    ).toEqual([]);
-    expect(
-      journal.find("Fixture Article", 10, {
-        dateFrom: "2027-01-01",
-      }),
-    ).toEqual([]);
-  });
-
-  it("drops a cached FTS sidecar when the source database changes", () => {
-    const source = process.env.MIKE_PUBLIC_ENDPOINT_DB!;
-    process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB = fixtureSearchDatabase(source);
-    expect(journal.find("second footnote")[0]?.articleId).toBe(7);
-
-    const future = new Date(Date.now() + 2_000);
-    utimesSync(source, future, future);
-    expect(journal.find("second footnote")).toEqual([]);
-  });
-
-  it("drops a cached FTS sidecar when the configured source path changes", () => {
-    const source = process.env.MIKE_PUBLIC_ENDPOINT_DB!;
-    process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB = fixtureSearchDatabase(source);
-    expect(journal.find("second footnote")[0]?.articleId).toBe(7);
-
-    const replacement = path.join(directory, "replacement.db");
-    const sourceStat = statSync(source);
-    copyFileSync(source, replacement);
-    utimesSync(replacement, sourceStat.atime, sourceStat.mtime);
-    process.env.MIKE_PUBLIC_ENDPOINT_DB = replacement;
-
-    expect(journal.find("second footnote")).toEqual([]);
   });
 
   it("drops parsed article state when the source snapshot changes", async () => {

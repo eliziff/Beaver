@@ -1,1 +1,0 @@
-import { parentPort } from 'node:worker_threads'; import { selectedCandidates } from '../runner.ts'; const c = selectedCandidates(1, 3, 'SCC'); parentPort.postMessage(c.map(x => x.citation).join(','));
