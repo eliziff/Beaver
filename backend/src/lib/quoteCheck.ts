@@ -212,7 +212,9 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
         detail: "No citation follows this quotation." });
       const quote: QuoteResult = { ...rows[index], checks: checks as QuoteCheck[] };
       quotes[index] = quote;
-      progress?.(++completed, rows.length, quote, unitReceipts);
+      // Counted whether or not anyone listens: an optional call skips its arguments, and the loop with them.
+      completed += 1;
+      progress?.(completed, rows.length, quote, unitReceipts);
     }
   };
   emit();
