@@ -529,6 +529,7 @@ export async function renderAuthoritySourcePdf(input: {
       x += run.font.widthOfTextAtSize(run.text, size);
     }
   };
+  const markdown = { extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()] };
   const statute = input.kind === "legislation" ? structureNative().statuteOutline(input.text) : [];
   // A judgment whose paragraphs the structure layer does not number is laid out from its Markdown.
   const read = input.kind === "case" ? structureNative().caseOutline(input.text) : [];
@@ -626,8 +627,16 @@ export async function renderAuthoritySourcePdf(input: {
       if (!provision(entry.kind)) {
         // A heading keeps a marginal note and a few lines of what it heads with it.
         if (y - 110 < bottom + 18) { current = page(); y = height - top; }
-        placing = { start: entry.start, heading: entry.level + 2, title: [entry.label, entry.title ?? entry.text].filter(Boolean).join(" ") };
+        placing = { start: entry.start, heading: entry.level + 2, title: [entry.label, entry.title].filter(Boolean).join(" ") };
         draw([{ text: placing.title!, font: bold }], 0, [13, 12, 11][Math.min(entry.level, 2)], true);
+        // What a heading heads before its first provision (a schedule's table, a form) is laid out
+        // from its Markdown; its blocks are no part of the statute's outline.
+        if (entry.text) {
+          const next = statute[index + 1], end = next && next.start < entry.end ? next.start : entry.end;
+          const kept = placed.length;
+          block(fromMarkdown(input.text.slice(input.text.indexOf("\n", entry.start) + 1, end), markdown));
+          placed.length = kept; placing = null;
+        }
         continue;
       }
       const opens = ["section", "article"].includes(entry.kind);
@@ -689,7 +698,7 @@ export async function renderAuthoritySourcePdf(input: {
         { runs: [{ text: entry.label, font: serif }], x: 36 + 22 * (entry.level - 1) });
       else draw([{ text: entry.text, font: serif }], entry.level ? 36 : 0);
     }
-  } else block(fromMarkdown(input.text, { extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()] }));
+  } else block(fromMarkdown(input.text, markdown));
   // Headings below the title, then each top-level section titled with its marginal note.
   let headingLevel = 0;
   const outline = judgment.length ? nestedOutline(placed.filter((item) => item.heading)
