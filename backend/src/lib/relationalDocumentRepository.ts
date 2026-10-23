@@ -163,7 +163,8 @@ async function addVersion(
     ${version.fileType},${version.sizeBytes},${version.pageCount},${version.sourceSha256},
     ${version.blobKey},${version.pdfBlobKey},${version.pdfProfile ? encode(version.pdfProfile) : null},
     ${version.provenance ? encode(version.provenance) : null})`, db);
-  if (version.fileType === "pdf" && !version.pdfProfile) await enqueuePdfPreparation({
+  // A built output is a product, not a source: nothing reads its parse, and a book is reparsed whole on every build.
+  if (version.fileType === "pdf" && !version.pdfProfile && version.provenance?.action !== "built") await enqueuePdfPreparation({
     userId,
     documentId: version.documentId,
     versionId: version.id,
