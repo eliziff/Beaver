@@ -481,6 +481,23 @@ fn grade_labels(gold: &Path, source: &Source, per_piece: &HashMap<String, labels
     Ok(Graded { score, parse_ms: (parsed_at - started).as_secs_f64() * 1e3, score_ms: parsed_at.elapsed().as_secs_f64() * 1e3 })
 }
 
+/// The engine's tagger over one document: the parse replayed from the cached extraction, re-labelled
+/// by the model and decoded by the hierarchy rule, scored like a parse. One session serves every
+/// document in turn.
+fn grade_tagged(gold: &Path, source: &Source, tagger: &Mutex<legal_structure_tagger::onnx::Tagger>) -> Result<Graded, String> {
+    let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+    let started = Instant::now();
+    let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256)))
+        .map_err(|e| format!("{}: {e}", source.sha256))?;
+    let mut pages = Vec::new();
+    let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
+    let parsed_at = Instant::now();
+    let decoded = tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.tag(&pages, document.structure(), &source.sha256, true)?;
+    let tagged_at = Instant::now();
+    let score = score::compare(&state::projected(&expected)?, &state::projected(&decoded)?)?;
+    Ok(Graded { score, parse_ms: (tagged_at - started).as_secs_f64() * 1e3, score_ms: tagged_at.elapsed().as_secs_f64() * 1e3 })
+}
+
 fn metrics_json(metrics: &BTreeMap<&'static str, score::Metric>) -> Value {
     Value::Object(metrics.iter().map(|(name, m)| (name.to_string(), json!({
         "expected": m.expected, "predicted": m.predicted, "correct": m.correct, "f1": m.f1(),
@@ -629,6 +646,17 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     }
     let selected = candidates(inventory.as_deref())?;
     let labelled = label_file(value("--labels").as_deref())?;
+    // --tagger DIR runs the engine's own tagger (tagger.onnx + tagger.json) over every document;
+    // --onnx-runtime names the ONNX Runtime library (else LEGALPDF_ONNX_RUNTIME).
+    let tagger = match value("--tagger") {
+        Some(dir) => {
+            let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok())
+                .ok_or("--tagger needs --onnx-runtime PATH or LEGALPDF_ONNX_RUNTIME")?;
+            legal_pdf_core::init_ort_runtime(Path::new(&runtime), None).map_err(|e| format!("ONNX Runtime: {e}"))?;
+            Some(Mutex::new(legal_structure_tagger::onnx::Tagger::load(Path::new(&dir), 4)?))
+        }
+        None => None,
+    };
     let split = value("--split");
     let mut groups = Vec::new();
     for (n, option) in options.iter().enumerate().filter(|(_, o)| *o == "--group") {
@@ -673,9 +701,10 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     };
     let results = parallel(&all, weight, |source| {
         let began = Instant::now();
-        let result = match &labelled {
-            Some(labelled) => grade_labels(gold, source, &labelled[&source.sha256]),
-            None => grade_one(gold, source, exports, selected.get(&source.sha256)),
+        let result = match (&labelled, &tagger) {
+            (_, Some(tagger)) => grade_tagged(gold, source, tagger),
+            (Some(labelled), None) => grade_labels(gold, source, &labelled[&source.sha256]),
+            (None, None) => grade_one(gold, source, exports, selected.get(&source.sha256)),
         };
         if began.elapsed().as_secs() >= 10 {
             eprintln!("slow: {} took {:.0}s", source.sha256, began.elapsed().as_secs_f64());

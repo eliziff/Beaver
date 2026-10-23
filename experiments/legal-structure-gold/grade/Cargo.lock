@@ -1135,6 +1135,7 @@ dependencies = [
  "legal-pdf-parser",
  "legal-structure",
  "legal-structure-model",
+ "ort",
  "regex",
  "serde",
  "serde_json",
