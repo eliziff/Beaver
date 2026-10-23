@@ -1,6 +1,8 @@
 //! Grade fixed gold against explicit cached predictions or a replay of the structure stage.
 //!
 //!   structure-gold inputs GOLD_DIR MANIFEST    each gold's extraction with its cached readings
+//!   structure-gold synthesize GOLD_DIR MANIFEST --model-pack DIR --runtime DLL [--dpi N] [--limit N]
+//!       scans made of the main train split's digital golds: rendered, degraded, recognized; gold copied
 //!                                              recognized into it: GOLD_DIR/inputs/<sha>.json.gz
 //!   structure-gold grade GOLD_DIR MANIFEST [--exports | --candidates FILE] [--split S] [--runs PREFIX..]
 //!                        [--group FIELD=VALUE]... [--out FILE] [--against FILE] [--show]
@@ -28,6 +30,7 @@ use legal_structure_tagger::{alignment, labels, rows, state, text_diff};
 
 use legal_pdf_core::{read_gzip_json, write_gzip_json};
 use legal_structure_model::DocumentStructure;
+use sha2::Digest as _;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -205,6 +208,191 @@ fn parallel<T: Send>(
         .into_iter()
         .map(Option::unwrap)
         .collect()
+}
+
+/// A grey page degraded as a scan degrades it: a 3x3 box blur, a contrast stretch, deterministic
+/// speckle from the seed, 16 grey levels.
+fn degrade(width: usize, height: usize, pixels: &[u8], seed: u64) -> Vec<u8> {
+    let at = |x: usize, y: usize| usize::from(pixels[y * width + x]);
+    let mut state = seed | 1;
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+    let mut out = vec![0u8; width * height];
+    for y in 0..height {
+        for x in 0..width {
+            let (x0, x1) = (x.saturating_sub(1), (x + 1).min(width - 1));
+            let (y0, y1) = (y.saturating_sub(1), (y + 1).min(height - 1));
+            let mut sum = 0;
+            let mut n = 0;
+            for yy in y0..=y1 {
+                for xx in x0..=x1 {
+                    sum += at(xx, yy);
+                    n += 1;
+                }
+            }
+            let mean = sum as f64 / n as f64;
+            let r = next();
+            let noise = (r % 25) as f64 - 12.0;
+            let mut v = (mean - 128.0) * 1.15 + 128.0 + noise;
+            if r % 1000 < 2 {
+                v = 40.0;
+            }
+            let q = (v.clamp(0.0, 255.0) / 16.0).round() * 16.0;
+            out[y * width + x] = q.min(255.0) as u8;
+        }
+    }
+    out
+}
+
+/// An image-only PDF of grey pages at `dpi`: one DeviceGray FlateDecode image per page.
+fn image_pdf(pages: &[(usize, usize, Vec<u8>)], dpi: f64) -> Vec<u8> {
+    use std::io::Write;
+    let mut out: Vec<u8> = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n".to_vec();
+    let mut offsets: Vec<usize> = Vec::new();
+    let object = |out: &mut Vec<u8>, offsets: &mut Vec<usize>, body: &[u8]| {
+        offsets.push(out.len());
+        let _ = write!(out, "{} 0 obj\n", offsets.len());
+        out.extend_from_slice(body);
+        out.extend_from_slice(b"\nendobj\n");
+    };
+    object(&mut out, &mut offsets, b"<< /Type /Catalog /Pages 2 0 R >>");
+    let kids: Vec<String> = (0..pages.len()).map(|i| format!("{} 0 R", 3 + 3 * i)).collect();
+    object(&mut out, &mut offsets, format!("<< /Type /Pages /Kids [{}] /Count {} >>", kids.join(" "), pages.len()).as_bytes());
+    for (i, (width, height, pixels)) in pages.iter().enumerate() {
+        let (w, h) = (*width as f64 * 72.0 / dpi, *height as f64 * 72.0 / dpi);
+        let (page, content, image) = (3 + 3 * i, 4 + 3 * i, 5 + 3 * i);
+        object(&mut out, &mut offsets, format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w:.2} {h:.2}] /Resources << /XObject << /Im0 {image} 0 R >> >> /Contents {content} 0 R >>"
+        ).as_bytes());
+        let _ = page;
+        let stream = format!("q {w:.2} 0 0 {h:.2} 0 0 cm /Im0 Do Q");
+        object(&mut out, &mut offsets, format!("<< /Length {} >>\nstream\n{stream}\nendstream", stream.len()).as_bytes());
+        let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::new(6));
+        let _ = encoder.write_all(pixels);
+        let data = encoder.finish().unwrap_or_default();
+        let mut body = format!(
+            "<< /Type /XObject /Subtype /Image /Width {width} /Height {height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length {} >>\nstream\n",
+            data.len()
+        ).into_bytes();
+        body.extend_from_slice(&data);
+        body.extend_from_slice(b"\nendstream");
+        object(&mut out, &mut offsets, &body);
+    }
+    let xref = out.len();
+    let _ = write!(out, "xref\n0 {}\n0000000000 65535 f \n", offsets.len() + 1);
+    for offset in &offsets {
+        let _ = write!(out, "{offset:010} 00000 n \n");
+    }
+    let _ = write!(out, "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", offsets.len() + 1);
+    out
+}
+
+/// Synthetic scans of the main train split's digital golds: each PDF rendered at --dpi (200), degraded,
+/// wrapped as an image-only PDF, recognized by Indra through the engine; the gold copied under the
+/// synthetic PDF's sha (mode ocr, `synthetic_of` the original), its inputs written, a manifest row
+/// and a provenance record added (collection synthetic-scan). Resumable: an original already
+/// synthesized is skipped. Transcripts are left out.
+fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String> {
+    let value = |name: &str| options.iter().position(|o| o == name).and_then(|n| options.get(n + 1)).cloned();
+    let dpi: f64 = value("--dpi").and_then(|v| v.parse().ok()).unwrap_or(200.0);
+    let limit: usize = value("--limit").and_then(|v| v.parse().ok()).unwrap_or(usize::MAX);
+    let model_pack = value("--model-pack").ok_or("--model-pack DIR")?;
+    let runtime_library = value("--runtime").ok_or("--runtime DLL")?;
+    let ocr = legalpdf::OcrOptions::Indra(legalpdf::IndraOptions {
+        model_pack: Some(PathBuf::from(model_pack)),
+        runtime: Some(PathBuf::from(runtime_library)),
+        ..Default::default()
+    });
+    let mut runtime: Option<legalpdf::OcrProvider> = None;
+    let mut done: HashSet<String> = HashSet::new();
+    for entry in std::fs::read_dir(gold.join("v4")).map_err(|e| e.to_string())? {
+        let job = entry.map_err(|e| e.to_string())?.path();
+        if let Ok(receipt) = read_json(&job.join("receipt.json")) {
+            if let Some(original) = receipt["synthetic_of"].as_str() {
+                done.insert(original.to_owned());
+            }
+        }
+    }
+    let provenance_path = gold.join("provenance.json");
+    let mut provenance = read_json(&provenance_path)?;
+    let mut manifest_value = read_json(manifest)?;
+    let chosen: Vec<Source> = sources(gold, manifest)?
+        .into_iter()
+        .filter(|s| s.split == "train" && s.mode != "ocr" && s.groups.get("yardstick").is_some_and(|y| y == "main")
+            && s.groups.get("genre_group").is_none_or(|g| g != "transcript") && !done.contains(&s.sha256))
+        .collect();
+    eprintln!("{} digital main train documents to synthesize ({} already done)", chosen.len(), done.len());
+    let started = Instant::now();
+    for (n, source) in chosen.iter().take(limit).enumerate() {
+        let pdf = match std::fs::read(&source.pdf) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                eprintln!("SKIP {} {}: {e}", source.sha256, source.pdf.display());
+                continue;
+            }
+        };
+        let pages = legalpdf::render_gray_pages(&pdf, dpi);
+        if pages.is_empty() {
+            eprintln!("SKIP {}: nothing rendered", source.sha256);
+            continue;
+        }
+        let seed = u64::from_str_radix(&source.sha256[..16], 16).unwrap_or(1);
+        let degraded: Vec<(usize, usize, Vec<u8>)> = pages.iter().enumerate()
+            .map(|(k, (w, h, px))| (*w, *h, degrade(*w, *h, px, seed.wrapping_add(k as u64 * 7919))))
+            .collect();
+        let synthetic = image_pdf(&degraded, dpi);
+        let sha = format!("{:x}", sha2::Sha256::digest(&synthetic));
+        let extracted = match legalpdf::gold_synthetic_inputs(&synthetic, &ocr, &mut runtime) {
+            Ok(extracted) => extracted,
+            Err(e) => {
+                eprintln!("FAIL {}: {e}", source.sha256);
+                continue;
+            }
+        };
+        let recognized = extracted.pages.iter().filter(|p| p.source == "ocr").count();
+        let lines: usize = extracted.pages.iter().map(|p| p.lines.len()).sum();
+        let folder = gold.join("v4").join(&sha);
+        std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+        legal_pdf_core::write_gzip_json(&inputs_dir(gold).join(format!("{sha}.json.gz")), &extracted).map_err(|e| e.to_string())?;
+        let mut copy: Value = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+        copy["source_sha256"] = json!(sha);
+        copy["mode"] = json!("ocr");
+        copy["synthetic_of"] = json!(source.sha256);
+        legal_pdf_core::write_gzip_json(&folder.join("gold.json.gz"), &copy).map_err(|e| e.to_string())?;
+        let receipt = json!({
+            "status": "complete", "source_sha256": sha, "mode": "ocr", "pages": pages.len(), "model": "synthetic-scan",
+            "synthetic_of": source.sha256, "dpi": dpi, "recognized_pages": recognized, "lines": lines,
+            "finished_at": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0),
+        });
+        std::fs::write(folder.join("receipt.json"), serde_json::to_string_pretty(&receipt).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        let path = format!("synthetic/{sha}.pdf");
+        if let Some(documents) = manifest_value["documents"].as_array_mut() {
+            documents.push(json!({"path": path, "mode": "ocr", "split": "train", "sha256": sha, "pages": pages.len(), "synthetic_of": source.sha256}));
+        }
+        if let Some(records) = provenance["records"].as_array_mut() {
+            let mut record = records.iter().find(|r| r["sha256"] == source.sha256).cloned().unwrap_or_else(|| json!({"genre": "unknown", "country": "ca"}));
+            record["sha256"] = json!(sha);
+            record["mode"] = json!("ocr");
+            record["split"] = json!("train");
+            record["path"] = json!(path);
+            record["pages"] = json!(pages.len());
+            record["collection"] = json!("synthetic-scan-2026-10-23");
+            record["synthetic_of"] = json!(source.sha256);
+            record["label_source"] = json!("model");
+            record["source_family"] = json!(format!("{} synthetic", record["source_family"].as_str().unwrap_or("unknown")));
+            record["authoring"] = json!({"model": "synthetic-scan", "status": "complete", "dpi": dpi});
+            records.push(record);
+        }
+        std::fs::write(manifest, serde_json::to_string_pretty(&manifest_value).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        std::fs::write(&provenance_path, serde_json::to_string_pretty(&provenance).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        eprintln!("{}/{} {} -> {} pages {} recognized {} lines {} in {:.0}s", n + 1, chosen.len().min(limit), &source.sha256[..12], &sha[..12],
+            pages.len(), recognized, lines, started.elapsed().as_secs_f64());
+    }
+    Ok(())
 }
 
 fn inputs(gold: &Path, manifest: &Path) -> Result<(), String> {
@@ -1063,6 +1251,9 @@ fn main() {
     let result = match arguments.as_slice() {
         [command, gold, manifest, options @ ..] if command == "grade" => {
             grade(Path::new(gold), Path::new(manifest), options)
+        }
+        [command, gold, manifest, options @ ..] if command == "synthesize" => {
+            synthesize(Path::new(gold), Path::new(manifest), options)
         }
         [command, gold, manifest] if command == "inputs" => {
             inputs(Path::new(gold), Path::new(manifest))

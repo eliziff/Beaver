@@ -102,6 +102,8 @@ def yardstick(country, layout, group, source_family=None):
         return "foreign"
     if "canadiana" in (source_family or "").lower():
         return "microfiche"
+    if "synthetic" in (source_family or "").lower():
+        return "synthetic"
     if group == "transcript":
         return "transcript"
     if group in MAIN_GENRES and layout in ("en", "fr"):
