@@ -137,9 +137,8 @@ function view(finding: Finding, note: (footnoteId: number | string) => string, s
   const pinpoint = readableLocator(finding.authoredPinpoint.kind, finding.authoredPinpoint.text);
   const quote = (inner: ReactNode) => <><span className="text-gray-400">{context.before}</span>{inner}
     <span className="text-gray-400">{context.after}</span></>;
-  const what = finding.kind === "quote_unlocated" ? "Quotation not found in the passage cited" : "Quotation differs from the source";
   return {
-    what, where: `footnote ${note(finding.footnoteId)} · ${finding.citation} at ${pinpoint}`,
+    what: "Quotation differs from the source", where: `footnote ${note(finding.footnoteId)} · ${finding.citation} at ${pinpoint}`,
     yours: quote(finding.kind === "quote_mismatch" && diff ? <Diff pieces={diff.authored} /> : <>{finding.authoredQuote}</>),
     yoursNow: (action: Action) => quote(action === "quote_exact" && source ? <>{source.text}</> : <>{finding.authoredQuote}</>),
     // The source by its name and citation, not the brief's "Ibid" or short form.
@@ -184,10 +183,9 @@ export function QuotationReview({ items, checked, note = String, sourceName = ()
   const shown = finding && view(finding, note, sourceName);
   const done = decided && finding && decided.finding.id === finding.id ? decided.action : undefined;
   const action = choice?.id === finding?.id ? choice?.action : undefined;
-  const counts = { wording: list.filter(item => !isCase(item) && item.kind !== "quote_unlocated").length,
-    citation: list.filter(isCase).length, missing: list.filter(item => !isCase(item) && item.kind === "quote_unlocated").length };
+  const counts = { wording: list.filter(item => !isCase(item)).length, citation: list.filter(isCase).length };
   const summary = list.length ? `${plural(list.length, "to review", "to review")}: ${[counts.wording && plural(counts.wording, "quotation"),
-    counts.citation && plural(counts.citation, "citation"), counts.missing && `${counts.missing} not found`].filter(Boolean).join(", ")}`
+    counts.citation && plural(counts.citation, "citation")].filter(Boolean).join(", ")}`
     : "Nothing left to review";
   const section = useRef<HTMLElement>(null);
   // The card comes into view when a finding opens, and stays put while it is decided.
