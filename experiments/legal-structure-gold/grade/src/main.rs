@@ -1,7 +1,7 @@
 //! Grade fixed gold against explicit cached predictions or a replay of the structure stage.
 //!
 //!   structure-gold inputs GOLD_DIR MANIFEST    each gold's extraction with its cached readings
-//!   structure-gold synthesize GOLD_DIR MANIFEST --model-pack DIR --runtime DLL [--dpi N] [--limit N] [--genre GROUP] [--only SHA_PREFIX] [--keep-pdf DIR] [--rendered DIR]
+//!   structure-gold synthesize GOLD_DIR MANIFEST --model-pack DIR --runtime DLL [--dpi N] [--limit N] [--genre GROUP] [--only SHA_PREFIX] [--keep-pdf DIR] [--rendered DIR] [--inputs-only]
 //!       scans made of the main train split's digital golds: rendered, degraded, recognized; gold copied
 //!                                              recognized into it: GOLD_DIR/inputs/<sha>.json.gz
 //!   structure-gold grade GOLD_DIR MANIFEST [--exports | --candidates FILE] [--split S] [--runs PREFIX..]
@@ -307,6 +307,10 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
     // --rendered DIR: synthetic PDFs rendered and degraded elsewhere (render_synthetic.py with pdfium, which draws
     // the text hayro leaves blank on some documents), one DIR/<sha>.pdf per original; originals without one wait.
     let rendered = value("--rendered").map(PathBuf::from);
+    // --inputs-only: the recognized inputs alone, for every chosen original (done or not), into the
+    // inputs directory; no gold copy, manifest row or provenance record. A second reading of the same
+    // synthetic scans under other settings (LEGALPDF_PARAGRAPH_RECOVERY=off) for a paired comparison.
+    let inputs_only = options.iter().any(|o| o == "--inputs-only");
     if let Some(dir) = &keep {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
@@ -333,7 +337,7 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
     let chosen: Vec<Source> = sources(gold, manifest)?
         .into_iter()
         .filter(|s| s.split == "train" && s.mode != "ocr" && s.groups.get("yardstick").is_some_and(|y| y == "main")
-            && s.groups.get("genre_group").is_none_or(|g| g != "transcript") && !done.contains(&s.sha256)
+            && s.groups.get("genre_group").is_none_or(|g| g != "transcript") && (inputs_only || !done.contains(&s.sha256))
             && genre.as_deref().is_none_or(|wanted| s.groups.get("genre_group").is_some_and(|g| g == wanted))
             && only.as_deref().is_none_or(|prefix| s.sha256.starts_with(prefix)))
         .collect();
@@ -385,12 +389,17 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
         };
         let recognized = extracted.pages.iter().filter(|p| p.source == "ocr").count();
         let lines: usize = extracted.pages.iter().map(|p| p.lines.len()).sum();
-        let routing = format!("scanned {} routed {} unresolved {}", extracted.metadata.scanned_pages_len,
-            extracted.metadata.ocr_routed_pages_len, extracted.metadata.pages_needing_ocr.len());
-        let pages_len = page_count.max(extracted.pages_len);
+        let routing = format!("scanned {} routed {} unresolved {}", extracted.metadata.scanned_pages.len(),
+            extracted.metadata.ocr_routed_pages.len(), extracted.metadata.pages_needing_ocr.len());
+        let pages_len = page_count.max(extracted.pages.len());
+        legal_pdf_core::write_gzip_json(&inputs_dir(gold).join(format!("{sha}.json.gz")), &extracted).map_err(|e| e.to_string())?;
+        if inputs_only {
+            eprintln!("{}/{} {} -> {} inputs only: pages {} recognized {} lines {} ({routing}) in {:.0}s", n + 1, chosen.len().min(limit), &source.sha256[..12], &sha[..12],
+                pages_len, recognized, lines, started.elapsed().as_secs_f64());
+            continue;
+        }
         let folder = gold.join("v4").join(&sha);
         std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
-        legal_pdf_core::write_gzip_json(&inputs_dir(gold).join(format!("{sha}.json.gz")), &extracted).map_err(|e| e.to_string())?;
         let mut copy: Value = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
         copy["source_sha256"] = json!(sha);
         copy["mode"] = json!("ocr");
