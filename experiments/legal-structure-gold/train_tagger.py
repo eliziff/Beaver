@@ -291,6 +291,7 @@ def main():
                 states = Windows(docs, device).states(model)
                 outputs = model.tag(states)
             tagged = tag_loss(outputs, gold, weights)
+            tagged.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step(); schedule.step()
             total += float(tagged.detach()); count += 1
