@@ -213,6 +213,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             .map(|found| found.map_or(Value::Null, |native| json!({ "native": native.map(share) })))),
         "a2ajAliasGroups" => done(a2aj::alias_groups(&call.get::<PathBuf>("store")?,
             &call.get::<Vec<String>>("citations")?).and_then(value)),
+        "a2ajNamedCase" => done(a2aj::named_case(&call.get::<PathBuf>("store")?, &call.get("named")?).and_then(value)),
+        "a2ajNameKeys" => done(value(call.get::<Vec<String>>("names")?.iter().map(|name| a2aj::name_key(name))
+            .collect::<Vec<_>>())),
         "citatorNoteUp" => {
             let mut request: legal_structure::citator_graph::NoteUpRequest = call.get("request")?;
             let store = call.get::<PathBuf>("store")?;

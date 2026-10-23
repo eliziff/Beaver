@@ -12,6 +12,7 @@ import { nativeDocumentLive, structureNative, type A2AJStoreDocument, type A2AJS
   type NativeDocument } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
+import { indexedNumberedCase } from "./canlii";
 import { isUnitedStatesSearch, keepLookupsLocal, lookupsLeaveComputer } from ".";
 import type { LegalSourceProvider, LegalSourceReference, LegalSourceResolveRequest, LegalSourceSearchRequest } from ".";
 import type { LegalSourceSearchHit } from "mike/shared/runtime/clientContracts.mjs";
@@ -537,7 +538,7 @@ async function document(args: {
     if (source) break;
   }
   const found = local ?? source;
-  if (!found) return null;
+  if (!found) return docType === "cases" ? numberedCase(args, citation, language) : null;
   const verifiedPdf = args.discoverPdf === false || !lookupsLeaveComputer() ? null : await decisiaPdf(found.url, args.signal);
   let result: A2AJCompiledDocument;
   if (local) {
@@ -552,6 +553,35 @@ async function document(args: {
   if (documents.size > 32) documents.delete(documents.keys().next().value!);
   return result;
 }
+
+/** A decision cited by a CanLII number, which A2AJ never carries ("1991 CanLII 45 (SCC)"): the one decision A2AJ holds
+ *  under the title the host's CanLII index gives the number, in its year, of its database's courts, as the Python
+ *  app's identity_hints finds it. Null without an index, or where no one decision answers. */
+async function numberedCase(args: Parameters<typeof document>[0], citation: string, language: Language) {
+  const named = indexedNumberedCase(citation);
+  if (!named) return null;
+  const key = JSON.stringify([language, citation]);
+  let canonical = numbered.get(key);
+  if (canonical === undefined) {
+    const store = a2ajLocalBulkPath();
+    canonical = storeExists(store) ? structureNative().a2ajNamedCase(store, named) : null;
+    if (!canonical && lookupsLeaveComputer()) {
+      const searched = await request("/search", { query: named.name, doc_type: "cases", search_type: "name",
+        search_language: language, size: 10 }, args.signal);
+      const results = (Array.isArray(searched.results) ? searched.results : [])
+        .map((item) => searchResult(item, language)).filter((item): item is A2AJSearchResult => !!item);
+      const [wanted, ...names] = structureNative().a2ajNameKeys([named.name, ...results.map(({ name }) => name ?? "")]);
+      const citations = new Set(results.filter(({ date, dataset }, index) => names[index] === wanted &&
+        !!date?.startsWith(named.year) && (!named.courts.length || named.courts.some((court) => court.toUpperCase() === dataset.toUpperCase())))
+        .map((result) => result.citation));
+      canonical = citations.size === 1 ? [...citations][0] : null;
+    }
+    numbered.set(key, canonical);
+  }
+  return canonical ? document({ ...args, citation: canonical }) : null;
+}
+// Each CanLII number's decision, found once: a workbook cites a decision in many notes, and A2AJ limits its requests.
+const numbered = new Map<string, string | null>();
 
 function searchResult(value: unknown, language: Language) {
   const record = object(value);

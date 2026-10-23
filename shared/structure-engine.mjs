@@ -59,7 +59,7 @@ export const SIGNATURES = {
   documentHasOrigin: ["document", "origin"],
   // The local A2AJ store at `store`, read by the engine.
   a2ajDocument: ["store", "lookup"], a2ajSection: ["store", "lookup", "section", "excerpt"],
-  a2ajAliasGroups: ["store", "citations"],
+  a2ajAliasGroups: ["store", "citations"], a2ajNamedCase: ["store", "named"], a2ajNameKeys: ["names"],
   // The citator's graph, read beside the A2AJ store at `store`, which also gives a note-up its keys.
   citatorNoteUp: ["store", "request"], citatorMetrics: ["store", "citations"],
 };
@@ -213,8 +213,21 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
   for (const name of Object.keys(SIGNATURES)) addon[name] = ASYNC.has(name)
     ? (...positional) => invokeAsync(name, positional)
     : (...positional) => invoke(name, positional);
-  // Where the host has threads, the citation engine builds its grammars and tables off this one as the engine starts,
-  // so the first document read waits for none; without them each is built on first use.
-  if (transport.callAsync) void invokeOff("citationEngineCall", ["warm", "{}"]).catch(() => {});
+  // Where the host has threads, the citation engine reads a sample of the citations documents hold off this one as the
+  // engine starts, building the grammars and tables they need, so the first document read waits for little; without
+  // them each is built on first use. Building every grammar ("warm") held about 80 MiB more for 80 ms less on the first
+  // document (2026-10-23).
+  if (transport.callAsync) void invokeOff("citationEngineCall", ["extract", WARM_SAMPLE]).catch(() => {});
   return addon;
 }
+
+// Citations of the common kinds, Canadian, US and UK, with a reference of each kind.
+const WARM_SAMPLE = JSON.stringify({ options: { resolve: true }, text: [
+  "1 R v Jordan, 2016 SCC 27 at para 5.",
+  "2 Hunter v Southam Inc, [1984] 2 SCR 145 at 160; Smith v Jones (1999), 169 DLR (4th) 385 (SCC).",
+  "3 Criminal Code, RSC 1985, c C-46, s 8(1); Alta Reg 133/2019, s 3.",
+  "4 Jane Doe, \"Policing\" (2010) 48:2 Alta L Rev 1 at 5; Peter W Hogg, Constitutional Law of Canada, 5th ed (Toronto: Carswell, 2007) at 10.",
+  "5 Ibid at para 7.",
+  "6 Jordan, supra note 1 at para 9.",
+  "7 Roe v Wade, 410 US 113 (1973); R (Miller) v Secretary of State, [2017] UKSC 5.",
+].join("\n") });
