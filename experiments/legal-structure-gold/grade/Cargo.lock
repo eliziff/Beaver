@@ -1127,6 +1127,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "legal-structure-tagger"
+version = "0.1.0"
+dependencies = [
+ "diff-match-patch-rs 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "legal-pdf-core",
+ "legal-pdf-parser",
+ "legal-structure",
+ "legal-structure-model",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1907,6 +1921,7 @@ dependencies = [
  "legal-pdf-parser",
  "legal-structure",
  "legal-structure-model",
+ "legal-structure-tagger",
  "regex",
  "serde",
  "serde_json",
