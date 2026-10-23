@@ -354,6 +354,8 @@ export function createFilesystemObjectStorage(root: string): ObjectStorage {
       signal.throwIfAborted();
       if (await verifyExisting(target, size, options.expectedSha256, signal)) return "exists";
       await prepare();
+      // The staging directory is cleared once per process; one removed since (a cleaned data directory) is made again.
+      await mkdir(staging, { recursive: true, mode: 0o700 });
       await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
       const temporary = path.join(staging, randomUUID());
       try {

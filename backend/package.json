@@ -28,7 +28,7 @@
     "@ai-sdk/google": "^4.0.68",
     "@ai-sdk/openai": "^4.0.66",
     "@ai-sdk/openai-compatible": "^3.0.48",
-    "@aws-sdk/client-s3": "^3.787.0",
+    "@aws-sdk/client-s3": "^3.1156.0",
     "@aws-sdk/s3-request-presigner": "^3.787.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/ssr": "^0.12.5",

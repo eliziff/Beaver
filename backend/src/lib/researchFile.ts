@@ -572,7 +572,8 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   const applyField = (change: ResearchChangeField, value: unknown) => {
     const field = change.field;
     if ((change.target === "label" || change.target === "source") && !uuid.safeParse(change.id).success ||
-        change.target === "passage" && (!isEvidenceId(change.id) || !uuid.safeParse(change.sourceId).success))
+        // A highlight's id is its passage's evidence id and a suffix of its own ("e_…:<uuid>").
+        change.target === "passage" && (!isEvidenceId(change.id.split(":", 1)[0]) || !uuid.safeParse(change.sourceId).success))
       throw new ApplicationError(400, "Invalid research change target");
     if (change.target === "workspace") {
       if (field === "note" && typeof value === "string") { state.note = value; return; }

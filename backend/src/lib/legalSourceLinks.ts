@@ -1,6 +1,5 @@
 import { type A2AJCompiledDocument, type A2AJLocatorKind } from "./legalSources/a2aj";
-import { structureNative, type NativeDocument,
-  type NativeTextFragmentPlan } from "./structureNative";
+import { structureNative, type NativeDocument } from "./structureNative";
 import type { VerifiedPdfEvidence } from "./legalSourcePresentation";
 
 /**
