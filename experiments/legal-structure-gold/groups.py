@@ -89,13 +89,21 @@ def language_layout(gold):
     return "en" if fr / n < 0.1 else "mixed"
 
 
-def yardstick(country, layout, group):
+def yardstick(country, layout, group, source_family=None):
+    """The main yardstick is Canadian contracts, judgments, filings, legislation, court rules, publications and
+    compilations in one language. Transcripts (one 291-page questioning holds a third of the development set's
+    parent pairs) and microfiche scans (the Canadiana legal monographs, whose recognition is unreadable) are
+    reported as groups of their own, so the main number describes the documents the parser is for."""
     if layout == "parallel":
         return "bilingual"
     if group == "court-form":
         return "forms"
     if country != "ca":
         return "foreign"
+    if "canadiana" in (source_family or "").lower():
+        return "microfiche"
+    if group == "transcript":
+        return "transcript"
     if group in MAIN_GENRES and layout in ("en", "fr"):
         return "main"
     return "other"
@@ -128,7 +136,7 @@ def detect(args):
             group = "court-form"
         country = (r.get("country") or "unknown").lower()
         out[sha] = {"language_layout": layout, "genre_group": group, "country": country,
-                    "yardstick": yardstick(country, layout, group), "label_source": label_source(gold), "genre": r.get("genre"),
+                    "yardstick": yardstick(country, layout, group, r.get("source_family")), "label_source": label_source(gold), "genre": r.get("genre"),
                     "source_family": r.get("source_family"), "mode": gold.get("mode"), "split": r.get("split")}
     Path(args.out).write_text(json.dumps({"detected_at": time.time(), "sources": out}, indent=1), encoding="utf-8")
     from collections import Counter
