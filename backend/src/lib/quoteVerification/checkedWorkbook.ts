@@ -277,15 +277,16 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   }));
   const documents = read_.map((found) => found?.document ?? null);
   // A passage of an A2AJ source is linked where the engine routes it best: the publisher's page where it prints an
-  // anchor for the passage, else CanLII's (legal-structure source_links).
+  // anchor for the passage, else CanLII's (legal-structure source_links). Cited without a quotation, it is linked at
+  // the citation's pinpoints, its paragraph or provision painted as a citation's pinpoint is.
   const routed = async (index: number, locator: { kind: string; label: string } | null, blockText: string,
-    quotes: string[]) => {
+    quotes: string[], pinpoints: string[] = []) => {
     const found = read_[index], source = found?.source;
-    if (!found || !source || source.provider !== "a2aj" || !source.citation || !blockText) return null;
+    if (!found || !source || source.provider !== "a2aj" || !source.citation || !blockText && !pinpoints.length) return null;
     const links = await structureNative().offThread("sourceLinks", found.document, {
       ...source.url && { url: source.url }, dataset: source.collection ?? "", citation: source.citation,
       alternateCitation: source.alternateCitation ?? null, language: source.language ?? "en",
-      docType: source.kind === "legislation" ? "laws" : "cases", locator, blockText, quotes });
+      docType: source.kind === "legislation" ? "laws" : "cases", locator, blockText, quotes, pinpoints });
     return links.best;
   };
   const locatorOf = (pinpoint: string) => pinpoint.startsWith("par") ? { kind: "paragraph" as const, label: pinpoint }
@@ -312,9 +313,10 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     if (!made) passageLinks.set(document, made = new Map());
     const key = JSON.stringify([link, pinpoints]);
     let found = made.get(key);
-    const pinpoint = pinpoints[0];
+    // At the link's own anchor ("sec6subsec1" for "s 6(1)(c)"), else the pinpoint's.
+    const pinpoint = pinpoints[0], anchor = /#((?:par|sec)[^:&#?]*)/u.exec(link)?.[1] ?? pinpoint;
     if (found === undefined) made.set(key, found = (pinpoint && read_[index]?.source
-      ? routed(index, locatorOf(pinpoint), blockOf(index, pinpoint), [])
+      ? routed(index, locatorOf(anchor), blockOf(index, pinpoint), [], pinpoints)
       : citedPassageLink(link, document, pinpoints)).then((made) => made ?? link));
     return found;
   };
