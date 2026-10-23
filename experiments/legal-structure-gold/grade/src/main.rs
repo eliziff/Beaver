@@ -1273,11 +1273,55 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
         let mut pages = Vec::new();
         let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
         let mut structure = document.structure().clone();
+        // --labels-out FILE: the engine's own per-piece labels, in the trainer's predictions format, so
+        // they can be set beside a predictions file piece by piece.
+        if let Some(path) = value("--labels-out") {
+            let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
+                width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
+            }).collect();
+            let frame = state::parsed(&structure, &boxes)?;
+            let regions = labels::parsed_regions(&frame);
+            let (pieces, tier0) = labels::labels(&frame, &|p| regions.of(p))?;
+            let predicted = tagger.predict(&pages, &frame, &pieces, &tier0, hybrid())?;
+            let row_of: HashMap<String, usize> = pieces.iter().enumerate().map(|(k, p)| (labels::anchor(&frame, p), k)).collect();
+            let ids: Vec<String> = pieces.iter().map(|p| labels::anchor(&frame, p)).collect();
+            let rows: Vec<Vec<i64>> = predicted.iter().map(|l| vec![l.region as i64, l.start as i64, i64::from(l.document), i64::from(l.reference),
+                l.level as i64, i64::from(l.marker), l.continues.as_deref().and_then(|a| row_of.get(a)).map_or(-1, |&r| r as i64)]).collect();
+            std::fs::write(&path, serde_json::to_string(&json!({"sha256": source.sha256, "ids": ids, "labels": rows})).map_err(|e| e.to_string())? + "
+").map_err(|e| e.to_string())?;
+            eprintln!("engine labels for {} pieces -> {path}", pieces.len());
+        }
+        // --units-out FILE: the decoded units (region, typed spans) beside the blocks the composition makes
+        // of the re-labelled graph (native_id, spans), unit by unit, to see where the two frames part.
+        let units_out = value("--units-out");
+        let decoded = units_out.as_ref().map(|_| {
+            let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
+                width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
+            }).collect();
+            state::parsed(&structure, &boxes).and_then(|frame| {
+                let regions = labels::parsed_regions(&frame);
+                let (pieces, tier0) = labels::labels(&frame, &|p| regions.of(p))?;
+                let predicted = tagger.predict(&pages, &frame, &pieces, &tier0, hybrid())?;
+                Ok(labels::decode(&frame, &pieces, &predicted, &source.sha256))
+            })
+        }).transpose()?;
         tagger.retag(&mut structure, &pages, &source.sha256, hybrid())?;
         let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
             width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
         }).collect();
         candidate_state = state::parsed(&structure, &boxes)?;
+        if let (Some(path), Some(gold)) = (units_out, decoded) {
+            let units: Vec<Value> = gold.units.iter().enumerate().map(|(u, unit)| json!({
+                "unit": u, "node": format!("tag-{:06}", u + 1), "region": gold.typed[unit.lines[0]].region,
+                "spans": unit.lines.iter().flat_map(|&t| gold.typed[t].spans.iter().map(|s| format!("{}[{}:{}]", s.line_id, s.start, s.end))).collect::<Vec<_>>(),
+            })).collect();
+            let blocks: Vec<Value> = candidate_state.groups.iter().map(|g| json!({
+                "native_id": g.attributes.get("native_id").cloned().unwrap_or(Value::Null), "kind": g.kind,
+                "spans": g.spans.iter().map(|s| format!("{}[{}:{}]", s.line_id, s.start, s.end)).collect::<Vec<_>>(),
+            })).collect();
+            std::fs::write(&path, serde_json::to_string_pretty(&json!({"units": units, "blocks": blocks})).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+            eprintln!("{} decoded units, {} composition blocks -> {path}", gold.units.len(), candidate_state.groups.len());
+        }
     }
     if let Some(labelled) = label_file(value("--labels").as_deref())? {
         let per_piece = labelled.get(&source.sha256).ok_or("No labels for this source")?;
