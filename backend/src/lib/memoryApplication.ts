@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ApplicationError, type ApplicationScope } from "./applicationError";
+import { ApplicationError, reject as fail, type ApplicationScope } from "./applicationError";
 import { sql, type RelationalDatabase } from "./relational";
 import { chatAccess, projectAccess, reviewAccess, workProductAccess } from "./resourceAccess";
 import { enqueueJob, DeferredJobError, type JobHandler, type Json } from "./jobQueue";
@@ -13,7 +13,6 @@ export type MemoryTurn = { message: { role: "user"; content: string } | null;
   key: string; policy: string; targets: MemorySnapshot[]; shared: boolean; projectId: string | null };
 type Curator = (input: { scope: "app" | "project"; content: string; input: string;
   actorId: string; signal: AbortSignal }) => Promise<string>;
-const fail = (status: number, message: string): never => { throw new ApplicationError(status, message); };
 const timestamp = () => new Date().toISOString();
 const snapshot = (target: MemoryTarget, row?: Record<string, unknown>): MemorySnapshot => ({ ...target,
   enabled: Number(row?.enabled) === 1, content: String(row?.content ?? ""),

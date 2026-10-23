@@ -215,3 +215,12 @@ export type StreamChatResult = {
   /** Content-free per-request receipts for diagnosing tool-loop context cost. */
   contextRounds?: LlmContextRoundReceipt[];
 };
+
+/** The contract structured callers (the note splitter, ALR's run modes) take a model through. */
+export type StructuredMessage = { role: "system" | "user" | "assistant"; content: string };
+export type StructuredUsage = { input_tokens: number; cached_input_tokens: number; output_tokens: number;
+  reasoning_tokens: number };
+export type StructuredLlm = {
+  complete(messages: StructuredMessage[], options?: { schema?: Record<string, unknown>; name?: string;
+    signal?: AbortSignal }): Promise<{ text: string; usage: StructuredUsage }>;
+};

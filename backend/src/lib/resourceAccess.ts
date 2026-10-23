@@ -5,7 +5,7 @@ export type ResourceRole = "viewer" | "editor" | "owner";
 export type AccessLevel = "view" | "edit" | "owner";
 export const roleFromRank = (rank: unknown): ResourceRole | null =>
   Number(rank) === 3 ? "owner" : Number(rank) === 2 ? "editor" : Number(rank) === 1 ? "viewer" : null;
-const email = (scope: ApplicationScope) => scope.userEmail?.trim().toLowerCase() || "";
+export const email = (scope: ApplicationScope) => scope.userEmail?.trim().toLowerCase() || "";
 const rank = (column: ReturnType<typeof sql>) => sql`CASE ${column}
   WHEN 'owner' THEN 3 WHEN 'editor' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END`;
 const threshold = (level: AccessLevel) => ({ view: 1, edit: 2, owner: 3 })[level];

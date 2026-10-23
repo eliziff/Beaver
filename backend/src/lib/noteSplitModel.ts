@@ -8,7 +8,7 @@
 // references resolved by the engine, not taken from the model; the fields that only fed the model's own links
 // are not asked for. A part the model returns that cannot be placed losslessly on its note makes the whole note
 // unusable, so its caller keeps the engine's parts.
-import type { StructuredLlm, StructuredUsage } from "./llm/keyConnection";
+import type { StructuredLlm, StructuredUsage } from "./llm/types";
 import { structureNative } from "./structureNative";
 
 export type ModelPartFields = { corrected: string; kind: string; pinpoint_fragments: string[]; page_pinpoints: number[];

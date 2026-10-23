@@ -2,6 +2,7 @@ import { z } from "mike/shared/runtime/schema.mjs";
 import { textField } from "mike/shared/runtime/textField.mjs";
 import { ApplicationError } from "../applicationError";
 import { sha256 } from "../hash";
+import { clip } from "../text";
 import { researchLabelPath, researchSourceResource, type ResearchEvidence, type ResearchFile } from "../researchFile";
 import { legalEvidenceResourceReference } from "../chat/legalEvidence";
 import type { ResearchFinding } from "../researchChat";
@@ -33,7 +34,6 @@ export const researchImportDesignSchema = z.object({
     itemIds: z.array(id).min(1).max(500) }).strict()).max(50_000),
 }).strict();
 export type ResearchImportDesign = z.infer<typeof researchImportDesignSchema>;
-const clip = (value: string, max = 200) => value.replace(/\s+/gu, " ").trim().slice(0, max);
 const key = (value: unknown) => sha256(JSON.stringify(value)).slice(0, 24);
 
 export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubject[],

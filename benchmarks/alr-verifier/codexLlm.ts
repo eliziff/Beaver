@@ -97,10 +97,6 @@ function emptyUsage(): LlmUsage {
   return { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0, reasoning_tokens: 0 };
 }
 
-export function cacheAdjustedTokens(usage: LlmUsage): number {
-  return usage.input_tokens - usage.cached_input_tokens + 0.1 * usage.cached_input_tokens + usage.output_tokens;
-}
-
 export function createCodexLlm(options: {
   arm: CodexArm;
   workDir: string;

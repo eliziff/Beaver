@@ -1,6 +1,7 @@
 import { z } from "mike/shared/runtime/schema.mjs";
 import { randomUUID } from "node:crypto";
 import { ApplicationError } from "./applicationError";
+import { clip } from "./text";
 import { researchLabelPath, type PublicResearchFileAction, type ResearchFile, type ResearchLabel } from "./researchFile";
 import type { ResearchImportCatalog } from "./tabular/researchImport";
 import { textField } from "mike/shared/runtime/textField.mjs";
@@ -23,7 +24,6 @@ export type ResearchLabelPlan = {
   actions: BatchActions;
 };
 const PALETTE = ["#d6b85a", "#7ba7d6", "#8fbf8f", "#d68f8f", "#b08fd6", "#d6a87b", "#7bc7c7", "#c7c77b"];
-const clip = (value: string, max = 200) => value.replace(/\s+/gu, " ").trim().slice(0, max);
 export const researchConceptKey = (name: string) => name.normalize("NFKC").toLowerCase().trim()
   .replace(/\banalyses\b/gu, "analysis").replace(/\bcriteria\b/gu, "criterion")
   .replace(/ies\b/gu, "y").replace(/(ch|sh|x|z)es\b/gu, "$1").replace(/(?<![sui])s\b/gu, "")

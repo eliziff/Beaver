@@ -4,6 +4,14 @@ export function cn(...inputs: ClassNameValue[]) {
     return twMerge(...inputs);
 }
 
+/** `items` without `item`: the same set where it held none. */
+export function without<T>(items: Set<T>, item: T) {
+    if (!items.has(item)) return items;
+    const next = new Set(items);
+    next.delete(item);
+    return next;
+}
+
 export function formatBytes(bytes: number | null | undefined): string | null {
     if (bytes == null) return null;
     if (bytes < 1024) return `${bytes} B`;

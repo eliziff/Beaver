@@ -22,6 +22,7 @@ import { AssistantMessage } from "./AssistantMessage";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { CHAT_COLUMN_CLASS } from "./chatLayout";
 import { UserMessage } from "./UserMessage";
+import { without } from "@/app/lib/utils";
 
 type OpenDocument = (args: { documentId: string; filename: string; versionId: string | null;
     versionNumber: number | null }) => void;
@@ -53,12 +54,6 @@ interface Props {
     onLoadEarlier?: () => Promise<void> | void;
     messageActions?: (messageId: string) => ReactNode;
     afterMessages?: ReactNode;
-}
-
-function without<T>(items: Set<T>, item: T) {
-    if (!items.has(item)) return items;
-    const next = new Set(items);
-    next.delete(item); return next;
 }
 
 /** How many messages mount at once: the latest when a chat opens, and each batch above them. */

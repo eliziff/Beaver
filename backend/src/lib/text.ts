@@ -6,6 +6,9 @@ export function normalizeWhitespace(text: string): string {
   return text.trim().replace(/[ \t\r\n\f\v]+/gu, " ");
 }
 
+/** A value on one line, at most `max` characters. */
+export const clip = (value: string, max = 200) => value.replace(/\s+/gu, " ").trim().slice(0, max);
+
 /** Decode the XML entities OOXML uses. `&amp;` is decoded last so encoded entities never double-decode. */
 export function decodeXmlText(value: string): string {
   return value
