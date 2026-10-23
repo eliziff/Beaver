@@ -698,10 +698,13 @@ pub fn decode(candidate: &State, pieces: &[Piece], labels: &[Label], source_sha2
         });
     }
     let regions: Vec<&str> = unit_region.iter().map(|&r| REGIONS[r]).collect();
-    let texts: Vec<String> = head.iter().map(|&k| {
-        let (piece, line) = (&pieces[k], &candidate.lines[pieces[k].line]);
-        line.text[piece.start.min(line.text.len())..piece.end.min(line.text.len())].iter().collect()
-    }).collect();
+    // A unit's opening text for the numbering grammar: its first pieces joined, since a marker often
+    // sits in a piece of its own ("1." | "The hearing ...", "•" | "Item").
+    let texts: Vec<String> = units.iter().map(|unit| unit.lines.iter().take(3).map(|&t| {
+        let span = &typed[t].spans[0];
+        let line = &candidate.lines[candidate.index[&span.line_id]];
+        line.text[span.start.min(line.text.len())..span.end.min(line.text.len())].iter().collect::<String>()
+    }).collect::<Vec<_>>().join(" ")).collect();
     let levels: Vec<usize> = head.iter().map(|&k| labels[k].level).collect();
     let starts: Vec<bool> = units.iter().map(|unit| unit.starts_document).collect();
     for (u, parent) in assemble(&regions, &texts, &levels, &starts).into_iter().enumerate() {
