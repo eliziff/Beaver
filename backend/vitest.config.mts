@@ -23,7 +23,8 @@ export default defineConfig({
         environment: "node",
         include: wordIntegration ? wordRuntimeTests : selectedTests(),
         setupFiles: ["./vitest.setup.ts"],
-        pool: "threads",
+        // Each file in its own process: the native engine does not survive files sharing one (0xC0000005).
+        pool: "forks",
         env: {
             AUTH_MODE: "cloud",
             MIKE_PDF_LAYOUT_PROVIDER: "none",
@@ -34,5 +35,7 @@ export default defineConfig({
         silent: "passed-only",
         testTimeout: process.env.CI ? 20000 : 60000,
         hookTimeout: process.env.CI ? 20000 : 60000,
+        // Transformed modules kept on disk, so a run does not compile the source again in every process.
+        experimental: { fsModuleCache: true },
     },
 });

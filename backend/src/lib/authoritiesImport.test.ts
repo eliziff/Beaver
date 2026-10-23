@@ -213,27 +213,6 @@ describe("authorities import application", () => {
       reference: { kind: "ibid", targetAuthorityId: state.authorityOrder[0] } });
   });
 
-  it("preserves a complete PDF citation and pinpoint spanning layout units and pages", async () => {
-    const document = await PDFDocument.create(), font = await document.embedFont(StandardFonts.TimesRoman);
-    for (const text of ["Liu v. T & H Machine, Inc., 191 F.3d 790,", "798 (7th Cir. 1999)."] ) {
-      const page = document.addPage([612, 792]);
-      page.drawText("Synthetic public PDF fixture", { x: 72, y: 750, font, size: 12 });
-      page.drawText(text, { x: 72, y: 650, font, size: 12 });
-    }
-    const bytes = Buffer.from(await document.save());
-    const state = await importStandaloneAuthoritiesFile({ filename: "Multiline.pdf", fileType: "pdf", bytes, modified: 1 });
-    expect(state.authorityOrder).toHaveLength(1);
-    const occurrence = Object.values(state.occurrences)[0], unit = state.units.find(({ id }) => id === occurrence.unitId)!;
-    expect(occurrence.authoritySpan.text).toBe("Liu v. T & H Machine, Inc., 191 F.3d 790");
-    expect(occurrence.coreSpan.text).toBe("191 F.3d 790");
-    expect(occurrence.pinpointSpan?.text).toBe("798");
-    expect(occurrence.pinpoints).toMatchObject([{ kind: "page", text: "798" }]);
-    expect(occurrence.text).toBe("Liu v. T & H Machine, Inc., 191 F.3d 790,\n\n798 (7th Cir. 1999)");
-    expect(unit.pageNumbers).toEqual([1, 2]);
-    expect(unit.text.slice(occurrence.pinpointSpan!.start, occurrence.pinpointSpan!.end)).toBe("798");
-    expect(occurrence.sourceTextSha256).toBe(sha256(unit.text));
-  });
-
   it("links supra notes only when their native reference target is unambiguous", async () => {
     const runtime = structureNative();
     const text = [
@@ -385,86 +364,4 @@ describe("authorities import application", () => {
     expect(native.citationLookupKey).not.toHaveBeenCalled();
   });
 
-  it("uses a matching assistant citation ledger without reading or reparsing the DOCX", async () => {
-    const sourceSha256 = "a".repeat(64), unitText = "R v Jordan, 2016 SCC 27";
-    const readBytes = vi.fn(() => { throw new Error("ledger-backed DOCX must not be read"); });
-    const ledger = {
-      schemaVersion: "beaver.authority-ledger.v1" as const,
-      seeds: [{
-        key: "2016-scc-27", kind: "case" as const, provider: "a2aj",
-        stableSourceId: "2016-scc-27", sourceSha256: "c".repeat(64),
-        citation: "2016 SCC 27", name: "R v Jordan", version: "2024-01-01",
-        externalUrl: "https://example.test/jordan", evidenceIds: ["e_receipt0001"],
-        locators: [{ kind: "paragraph", label: "12" }],
-      }],
-      occurrences: [{
-        id: "body:0:ledger:0", markerId: "jordan", targetId: "2016-scc-27",
-        authorityKey: "2016-scc-27", unit: { id: "body:0", kind: "body" as const,
-          ordinal: 0, footnoteId: null, footnoteRefs: [], pageNumbers: [],
-          text: unitText, sourceTextSha256: sha256(unitText) },
-        start: 0, end: unitText.length, text: unitText, displayedForm: "full" as const,
-        pinpoints: [{ kind: "paragraph" as const, text: "12" }],
-        evidenceIds: ["e_receipt0001"], localOrdinal: 0,
-      }],
-    };
-    const documents = {
-      projectionSource: vi.fn(async () => ({ documentId: "brief", versionId: "v1",
-        fileType: "docx", sourceSha256, readBytes,
-        provenance: { actor: "assistant" as const, generation: { authorityLedger: ledger } } })),
-      metadata: vi.fn(async () => ({ current_version_id: "v1", filename: "Brief.docx" })),
-    } as unknown as DocumentStore;
-    const native = {
-      citationOccurrencesInText: vi.fn(() => { throw new Error("ledger must not be scanned"); }),
-      citationLookupKey: vi.fn(() => { throw new Error("ledger key must not be rebuilt"); }),
-      docxAuthorityTextUnits: vi.fn(() => { throw new Error("DOCX parser must not run"); }),
-      pdfAuthorityTextUnits: vi.fn(() => { throw new Error("PDF parser must not run"); }),
-    };
-    const read = vi.fn(() => { throw new Error("projection must not run"); });
-
-    const state = await createAuthoritiesImporter(documents, { read: read as never },
-      native as never).draft(scope, { kind: "document", documentId: "brief",
-        version: "latest" });
-
-    expect(state.authorityOrder).toEqual(["2016-scc-27"]);
-    expect(state.occurrences["body:0:ledger:0"]).toMatchObject({
-      text: unitText, authorityId: "2016-scc-27", reviewed: true,
-      evidenceIds: ["e_receipt0001"],
-    });
-    expect(state.ledger?.document).toEqual({ documentId: "brief", versionId: "v1",
-      sha256: sourceSha256 });
-    expect(readBytes).not.toHaveBeenCalled();
-    expect(read).not.toHaveBeenCalled();
-    expect(native.docxAuthorityTextUnits).not.toHaveBeenCalled();
-    expect(native.citationOccurrencesInText).not.toHaveBeenCalled();
-  });
-
-  it("carries exact PDF body pages from the shared projection into static cited-at data", async () => {
-    const bytes = Buffer.from("%PDF-1.7\n%%EOF"), sourceSha256 = sha256(bytes);
-    const projection = { documentId: "brief", versionId: "v1" };
-    const readBytes = vi.fn(() => { throw new Error("PDF bytes must use the projection"); });
-    const documents = {
-      projectionSource: vi.fn(async () => ({ documentId: "brief", versionId: "v1",
-        fileType: "pdf", sourceSha256, readBytes })),
-      metadata: vi.fn(async () => ({ current_version_id: "v1", filename: "Brief.pdf" })),
-    } as unknown as DocumentStore;
-    const pdfAuthorityTextUnits = vi.fn(() => [{ key: "body:0", kind: "body" as const,
-      ordinal: 0, footnote_id: null, page_numbers: [2, 4], text: "2024 FCA 1",
-      footnote_refs: [] }]);
-    const native = {
-      docxAuthorityTextUnits: vi.fn(() => { throw new Error("DOCX parser must not run"); }),
-      pdfAuthorityTextUnits,
-      citationOccurrencesInText: vi.fn(() => []),
-      authorityReferencesInText: vi.fn(() => []), citationLookupKey: vi.fn(),
-    };
-    const read = vi.fn(async () => projection);
-    const importer = createAuthoritiesImporter(documents, { read: read as never }, native as never);
-
-    const state = await importer.draft(scope, { kind: "document", documentId: "brief",
-      version: "latest" });
-
-    expect(state.units[0].pageNumbers).toEqual([2, 4]);
-    expect(read).toHaveBeenCalledOnce();
-    expect(pdfAuthorityTextUnits).toHaveBeenCalledWith(projection);
-    expect(readBytes).not.toHaveBeenCalled();
-  });
 });

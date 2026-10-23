@@ -78,8 +78,10 @@ async function waitForReview(
 }
 
 async function submitFixture(params: Parameters<typeof import("../../lib/llm").streamChatWithTools>[0]) {
-  const evidenceId = /e_[A-Za-z0-9_-]{18}/u.exec(JSON.stringify(params.messages))?.[0];
-  if (!evidenceId) throw new Error("Extraction did not receive original evidence");
+  // A passage is cited as its document's key and the numbered line it is on: "81c2428#L1".
+  const read = /\\n([0-9a-f]{7}) [\s\S]*?\\nL([1-9]\d*) /u.exec(JSON.stringify(params.messages));
+  if (!read) throw new Error("Extraction did not receive original evidence");
+  const evidenceId = `${read[1]}#L${read[2]}`;
   await params.runTools([{
     id: "result", name: "submit_extraction", input: { column_index: 0,
       value: "Alberta", flag: "green", outcome: "answered",

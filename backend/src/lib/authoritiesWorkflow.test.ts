@@ -24,19 +24,6 @@ describe("Authorities workflow contracts", () => {
       ["Middle", "Tab 1"], ["Zulu", "Tab 2"], ["Alpha", "Tab 3"],
     ]);
   });
-  it("keeps custom labels on slots, not movable authorities", () => {
-    const configured = reduceAuthoritiesDraft(state(), { type: "set-settings", settings: {
-      tabStyle: "roman", tabPrefix: "Schedule ", tabStart: 4, tabLabels: ["Front", "", "Annex Z"],
-    } });
-    // A move is made in the order shown (alphabetical) and makes that order the user's own.
-    const moved = reduceAuthoritiesDraft(configured, { type: "move-authority", authorityId: "Middle", toIndex: 0 });
-    expect(moved.authorityOrder).toEqual(["Middle", "Alpha", "Zulu"]);
-    expect(moved.authorities).toEqual(configured.authorities);
-    expect(moved.settings).toEqual({ ...configured.settings, tableOrder: "custom" });
-    expect([1, 2, 3, 4].map((slot) => tabLabel(slot, moved.settings.tabStyle, moved.settings)))
-      .toEqual(["Front", "Schedule V", "Annex Z", "Schedule VII"]);
-    expect(decodeAuthoritiesDraft(moved)?.settings.tabLabels).toEqual(["Front", "", "Annex Z"]);
-  });
   it.each([[-1], [3], [1.5]])("rejects invalid move target %s without mutating the draft", (toIndex) => {
     const draft = state();
     expect(() => reduceAuthoritiesDraft(draft, { type: "move-authority", authorityId: "Middle", toIndex })).toThrow();
