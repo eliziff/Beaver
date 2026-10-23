@@ -71,13 +71,28 @@ def language(text):
     return (french - english) / max(french + english, 1)
 
 
+def witness_scores(path):
+    """Per piece p(heading) from a witness file ({sha256, ids, p_heading} rows), by sha and piece id."""
+    scores = {}
+    if path:
+        for line in open(path, encoding="utf-8"):
+            d = json.loads(line)
+            scores[d["sha256"]] = dict(zip(d["ids"], d["p_heading"]))
+    return scores
+
+
 class Document:
     """One document's tensors: normalized evidence, tier 0, text, reader codes, gold."""
 
-    def __init__(self, raw, names, vocabs, mean, std):
+    def __init__(self, raw, names, vocabs, mean, std, witness=None):
         values = np.asarray(raw["features"], dtype=np.float32)
         self.language = np.asarray([language(t[0]) for t in raw["text"]], dtype=np.float32)
-        self.features = np.concatenate([(values - mean) / std, self.language[:, None]], axis=1).astype(np.float32)
+        extra = [self.language[:, None]]
+        if witness is not None:
+            # The lexical witness's p(heading) per piece, 0 where it has none.
+            own = witness.get(raw["sha256"], {})
+            extra.append(np.asarray([own.get(i, 0.0) for i in raw["ids"]], dtype=np.float32)[:, None])
+        self.features = np.concatenate([(values - mean) / std] + extra, axis=1).astype(np.float32)
         self.tier0 = np.asarray(raw["tier0"], dtype=np.int64)
         self.text = np.asarray([chars(t[0]) for t in raw["text"]], dtype=np.int64)
         region_types, note_modes, families = vocabs
@@ -250,6 +265,7 @@ def main():
     parser.add_argument("--windows", type=int, default=16)
     parser.add_argument("--lr", type=float, default=2e-3)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--witness", nargs=2, metavar=("TRAIN", "DEV"), help="lexical witness scores for the train and development rows, one more feature")
     args = parser.parse_args()
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -262,8 +278,9 @@ def main():
               Vocab(t[3] for d in train_raw for t in d["text"]))
     stacked = np.concatenate([np.asarray(d["features"], dtype=np.float32) for d in train_raw])
     mean, std = stacked.mean(axis=0), stacked.std(axis=0) + 1e-6
-    train = [Document(d, names, vocabs, mean, std) for d in train_raw]
-    dev = [Document(d, names, vocabs, mean, std) for d in dev_raw]
+    witness_train, witness_dev = (witness_scores(args.witness[0]), witness_scores(args.witness[1])) if args.witness else (None, None)
+    train = [Document(d, names, vocabs, mean, std, witness_train) for d in train_raw]
+    dev = [Document(d, names, vocabs, mean, std, witness_dev) for d in dev_raw]
     print(f"loaded {len(train)} train / {len(dev)} development documents, {sum(d.length for d in train)} / "
           f"{sum(d.length for d in dev)} pieces in {time.time() - started:.1f}s", flush=True)
     # Starts weigh each class by the inverse square root of its frequency, at most 8:1.

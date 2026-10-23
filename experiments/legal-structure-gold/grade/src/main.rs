@@ -492,9 +492,14 @@ fn grade_tagged(gold: &Path, source: &Source, tagger: &Mutex<legal_structure_tag
     let mut pages = Vec::new();
     let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
     let parsed_at = Instant::now();
-    let decoded = tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.tag(&pages, document.structure(), &source.sha256, true)?;
+    // The product's path: the graph re-labelled in place, then read as any parse is.
+    let mut structure = document.structure().clone();
+    tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.retag(&mut structure, &pages, &source.sha256, true)?;
     let tagged_at = Instant::now();
-    let score = score::compare(&state::projected(&expected)?, &state::projected(&decoded)?)?;
+    let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
+        width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
+    }).collect();
+    let score = score::compare(&state::projected(&expected)?, &state::parsed(&structure, &boxes)?)?;
     Ok(Graded { score, parse_ms: (tagged_at - started).as_secs_f64() * 1e3, score_ms: tagged_at.elapsed().as_secs_f64() * 1e3 })
 }
 
@@ -1019,6 +1024,21 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
     let mut candidate_state = state::parsed(&structure, &pages)?;
     if options.iter().any(|o| o == "--roundtrip") {
         candidate_state = roundtrip(&expected, &state::projected(&expected)?)?;
+    }
+    // --tagger DIR: the engine's tagger over the replayed parse, read back as the product reads it.
+    if let Some(dir) = value("--tagger") {
+        let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok()).ok_or("--tagger needs --onnx-runtime PATH")?;
+        legal_pdf_core::init_ort_runtime(Path::new(&runtime), None).map_err(|e| format!("ONNX Runtime: {e}"))?;
+        let mut tagger = legal_structure_tagger::onnx::Tagger::load(Path::new(&dir), 4)?;
+        let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256))).map_err(|e| format!("{}: {e}", source.sha256))?;
+        let mut pages = Vec::new();
+        let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
+        let mut structure = document.structure().clone();
+        tagger.retag(&mut structure, &pages, &source.sha256, true)?;
+        let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
+            width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
+        }).collect();
+        candidate_state = state::parsed(&structure, &boxes)?;
     }
     if let Some(labelled) = label_file(value("--labels").as_deref())? {
         let per_piece = labelled.get(&source.sha256).ok_or("No labels for this source")?;
