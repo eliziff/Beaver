@@ -35,6 +35,8 @@ export type AssistantActivity = {
   action?: { type: "reader"; readerId: string };
   read?: import("mike/shared/runtime/assistantWire.mjs").ToolActivity["read"];
   callCount?: number;
+  /** A search split across courts or dates: each split's scope. */
+  searchParts?: string[];
 };
 
 export type AssistantReaderRun = {
@@ -338,7 +340,10 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
       activities: event.reader.activities.reduce((items, activity) =>
         upsertById(items, activity, ASSISTANT_LIMITS.activities), previous.activities),
     } : event.reader;
-    const task = reader.task.replace(/\s+/gu, " ").trim().slice(0, 100);
+    // A reader's task is "scope: instructions"; the row names the agent and its scope, never the instructions.
+    const slot = /:(\d+)$/u.exec(reader.id)?.[1];
+    const scope = reader.task.replace(/\s+/gu, " ").trim().split(": ")[0].slice(0, 80);
+    const task = slot ? `Agent ${slot} (${scope})` : scope;
     const activity: AssistantActivity = {
       id: `reader:${reader.id}`, tool: "subagent_run",
       label: reader.status === "running" ? `Waiting for reading agent: ${task}` : reader.status === "error" ? "Reading agent failed" : reader.status === "interrupted" ? `Reading agent interrupted: ${task}` : `Reading agent completed: ${task}`,

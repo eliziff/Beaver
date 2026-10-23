@@ -284,6 +284,10 @@ export async function runChatTurn(options: {
     throwIfAborted(providerSignal);
     if (!capability.available) return refuse(capability.reason);
     const childEvidence = createLegalEvidenceTurnState("citation_structure");
+    // A later round's reader may be pointed at an earlier reader's findings by its ID.
+    childEvidence.readerResults = evidence.readerResults;
+    // Evidence the conversation already holds is the reader's to read and cite, not to fetch again.
+    for (const [, entry] of evidence.evidence) registerLegalEvidence(childEvidence, entry.receipt, entry, false);
     const inheritReads = (grounding: LegalEvidenceReceiptEvent) => {
       for (const receipt of grounding.evidence) registerLegalEvidence(evidence, receipt,
         childEvidence.evidence.get(receipt.evidence_id), false);
