@@ -24,6 +24,10 @@ pub struct State {
     pub lines: Vec<Line>,
     pub index: HashMap<String, usize>,
     pub reading_order: Vec<usize>,
+    /// Each typed span's reading rank by (line, start) when the state is a gold's: side-by-side
+    /// columns share source lines, so reading order is finer than line order. A parser's state
+    /// has none and reads in line order.
+    pub span_rank: HashMap<(usize, usize), usize>,
     pub groups: Vec<CompositionBlock>,
     pub annotations: Vec<CompositionAnnotation>,
     pub continuations: CompositionLinks,
@@ -115,6 +119,8 @@ pub struct GoldLine {
 pub struct Typed {
     pub region: String,
     #[serde(default)]
+    pub text: String,
+    #[serde(default)]
     pub spans: Vec<SourceSpan>,
     #[serde(default)]
     pub markers: Vec<Vec<SourceSpan>>,
@@ -134,6 +140,8 @@ pub struct Reference {
 pub struct Unit {
     pub lines: Vec<usize>,
     pub parent: Option<usize>,
+    #[serde(default)]
+    pub level: Option<usize>,
     #[serde(default)]
     pub starts_document: bool,
 }
@@ -204,10 +212,15 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
     // before it in the extraction.
     let mut typed_order = Vec::new();
     let mut seen = HashSet::new();
+    let mut span_rank: HashMap<(usize, usize), usize> = HashMap::new();
     for item in &gold.typed {
         for span in &item.spans {
             if seen.insert(span.line_id.as_str()) {
                 typed_order.push(span.line_id.as_str());
+            }
+            if let Some(&n) = index.get(&span.line_id) {
+                let rank = span_rank.len();
+                span_rank.entry((n, span.start)).or_insert(rank);
             }
         }
     }
@@ -246,6 +259,15 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
         })
         .collect();
     let at = |span: &SourceSpan| (position[index[&span.line_id]], span.start);
+    // Reading rank of a span: its typed rank, finer than its line's position when columns or a
+    // marginal note share a line with the unit.
+    let rank_key = |span: &SourceSpan| {
+        let n = index[&span.line_id];
+        match span_rank.get(&(n, span.start)) {
+            Some(&rank) => (0, rank, 0),
+            None => (1, position[n], span.start),
+        }
+    };
     let page_of = |span: &SourceSpan| gold.lines[index[&span.line_id]].page;
     let typed = &gold.typed;
     let units = &gold.units;
@@ -257,7 +279,7 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
         .flat_map(|(u, unit)| unit.lines.iter().flat_map(move |&n| typed[n].spans.iter().map(move |s| (u, s))))
         .map(|(u, s)| (at(s), u, s))
         .collect();
-    placed.sort_by_key(|&(position, u, _)| (position, u));
+    placed.sort_by_key(|&(_, u, span)| (rank_key(span), u));
     // Lines some unit holds text on, counted up to each reading position.
     let mut held = vec![false; gold.lines.len()];
     for &((line, _), _, _) in &placed {
@@ -272,8 +294,12 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
     for &((line, _), u, span) in &placed {
         let split = match last[u] {
             None => true,
+            // A part's spans run forward in line position: the composition engine orders a block's
+            // spans by position and names it by the first, so a unit that reads backwards through
+            // the extraction (a second column, a marginal note typed first) takes a new part there.
             Some((previous, prior)) => {
                 page_of(prior) != page_of(span) || line > previous + 1 && before[line] > before[previous + 1]
+                    || (line, span.start) < (previous, prior.start)
             }
         };
         if split {
@@ -286,21 +312,56 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
         .iter()
         .map(|u| typed[u.lines[0]].region.as_str())
         .collect();
+    // The gold's parents are the hierarchy rule's own (CONVENTIONS section 2). A gold written
+    // before the rule, or by another one, is refused here rather than rescored or converted.
+    {
+        let texts: Vec<String> = units.iter().map(|u| typed[u.lines[0]].text.split_whitespace().collect::<Vec<_>>().join(" ")).collect();
+        let levels: Vec<usize> = units.iter().map(|u| u.level.unwrap_or(0)).collect();
+        let starts: Vec<bool> = units.iter().map(|u| u.starts_document).collect();
+        let expected = crate::labels::assemble(&region, &texts, &levels, &starts);
+        let differing = units.iter().zip(&expected).filter(|(u, e)| crate::labels::ranked(typed[u.lines[0]].region.as_str()) && u.parent != **e).count();
+        if differing > 0 {
+            return Err(format!("{differing} unit parents do not follow the hierarchy rule: the gold needs author.py's hierarchy pass"));
+        }
+    }
     let heads: Vec<Option<String>> = parts
         .iter()
         .map(|found| found.first().map(|spans| anchor(&spans[0])))
         .collect();
+    // The scored hierarchy is the rule over the units the source shows: a typed unit without a
+    // span (a line the OCR layer never produced) cannot be named by any parser, so the units
+    // under it fall where the rule puts them without it.
+    let shown: Vec<usize> = (0..units.len()).filter(|&u| heads[u].is_some()).collect();
+    let scored_parent: Vec<Option<usize>> = {
+        let regions: Vec<&str> = shown.iter().map(|&u| region[u]).collect();
+        // The opening text as the source shows it (the decoder reads the same): the first three
+        // spans of the unit's typed lines, joined.
+        let texts: Vec<String> = shown.iter().map(|&u| units[u].lines.iter().flat_map(|&t| typed[t].spans.iter()).take(3).map(|span| {
+            let text = &lines[index[&span.line_id]].text;
+            text[span.start.min(text.len())..span.end.min(text.len())].iter().collect::<String>()
+        }).collect::<Vec<_>>().join(" ")).collect();
+        let levels: Vec<usize> = shown.iter().map(|&u| units[u].level.unwrap_or(0)).collect();
+        let starts: Vec<bool> = shown.iter().map(|&u| units[u].starts_document).collect();
+        let parents = crate::labels::assemble(&regions, &texts, &levels, &starts);
+        let mut result = vec![None; units.len()];
+        for (i, &u) in shown.iter().enumerate() {
+            result[u] = parents[i].map(|p| shown[p]);
+        }
+        result
+    };
     let mut groups = Vec::new();
     let mut annotations = Vec::new();
     let mut continuations = CompositionLinks::new();
     let mut notes: HashMap<usize, usize> = HashMap::new();
+    let trace = std::env::var("LEGALPDF_ASSEMBLE_TRACE").is_ok_and(|p| gold.source_sha256.starts_with(&p));
     for (u, unit) in units.iter().enumerate() {
         let first = &typed[unit.lines[0]];
         let marker: Vec<SourceSpan> = first.markers.iter().flatten().cloned().collect();
-        let parent = match unit.parent {
-            Some(p) => heads.get(p).cloned().flatten(),
-            None => None,
-        };
+        if trace {
+            eprintln!("projected u{u} {} parts={} heads={:?} marker={}", region[u], parts[u].len(),
+                parts[u].iter().map(|p| anchor(&p[0])).collect::<Vec<_>>(), marker.first().map_or(String::new(), anchor));
+        }
+        let parent = scored_parent[u].and_then(|p| heads[p].clone());
         for (k, spans) in parts[u].iter().enumerate() {
             let mut attrs = Map::new();
             attrs.insert("region".into(), json!(region[u]));
@@ -424,7 +485,7 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
     let mut tables: Vec<Vec<usize>> = Vec::new();
     let mut current = false;
     let mut in_order: Vec<usize> = (0..units.len()).filter(|&u| !parts[u].is_empty()).collect();
-    in_order.sort_by_key(|&u| (at(&parts[u][0][0]), u));
+    in_order.sort_by_key(|&u| (rank_key(&parts[u][0][0]), u));
     for u in in_order {
         if region[u] == "table" {
             if !current {
@@ -508,6 +569,7 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
         lines,
         index,
         reading_order: order,
+        span_rank,
         groups,
         annotations,
         continuations,
@@ -703,6 +765,7 @@ pub fn parsed(
         lines,
         index,
         reading_order,
+        span_rank: HashMap::new(),
         groups,
         annotations,
         continuations: prepared.continuations,

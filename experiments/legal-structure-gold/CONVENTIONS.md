@@ -93,7 +93,7 @@ These are assignments from provenance and the gold's own text, recomputed by `gr
 | name | ruling | module |
 |---|---|---|
 | `running_heads` | section 1, furniture | `postcorrect.py` |
-| `hierarchy_from_headings` | section 2 and 3 | `hierarchy.py` |
+| `hierarchy_from_headings` | section 2 and 3; a historical record on golds rebuilt before the writer applied the rule. author.py writes parents with `assemble`, and the grader refuses a gold whose parents differ from it: there is no converter. | `author.py` |
 
 A post-correction is applied by the runner to new gold and by its module's command to existing
 gold; the gold file records `{"name", "module_sha256", "changes"}` per correction.
