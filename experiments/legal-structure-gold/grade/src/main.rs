@@ -20,14 +20,11 @@
 //!       one document's missed (-) and spurious (+) items per layer, as text.
 //!   structure-gold paragraph-data GOLD_DIR MANIFEST OUT_DIR
 //!       exports Rust boundary features and fixed-gold targets, excluding test.
-mod alignment;
-mod labels;
 mod paragraph_data;
 mod paragraph_features;
-mod rows;
 mod score;
-mod state;
-mod text_diff;
+
+use legal_structure_tagger::{alignment, labels, rows, state, text_diff};
 
 use legal_pdf_core::{read_gzip_json, write_gzip_json};
 use legal_structure_model::DocumentStructure;
