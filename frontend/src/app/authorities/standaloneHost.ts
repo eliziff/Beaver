@@ -495,3 +495,13 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   filingContact: { get: getStandaloneFilingContact, save: setStandaloneFilingContact },
 };
 
+
+/** Local legal data for a page whose runtime reads it (built with the localStores option, as the ALR
+ *  Quote Verifier is): the file goes to the runtime Worker as it is, read there in place, never copied.
+ *  Authorities' own page is built without it and has no such port. */
+export const standaloneLocalStores: NonNullable<AuthoritiesHost["localStores"]> = {
+  async mount(store, file, options) {
+    await globalThis.AUTHORITIES_OPERATIONS!("mount-store" as AuthoritiesOperation,
+      { store, file, localOnly: !!options?.localOnly });
+  },
+};
