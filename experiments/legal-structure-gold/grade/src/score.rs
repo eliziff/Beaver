@@ -425,14 +425,13 @@ fn features<'a>(
         if inside(block, &tables) {
             return "table".into();
         }
-        if kind == "text" {
-            // A projected state names each unit's region; parser output is read through its locator.
-            if let Some(region) = block.attributes.get("region").and_then(Value::as_str) {
-                return if region == "list_item" { "list_item" } else { "text" }.into();
-            }
-            if side.candidate && crate::state::parser_list_item(state, block) {
-                return "list_item".into();
-            }
+        // A projected or tagged state names each unit's region, which is its role as scored;
+        // parser output is read through its kind and locator.
+        if let Some(region) = block.attributes.get("region").and_then(Value::as_str) {
+            return match region { "none" => "text", other => other }.to_owned();
+        }
+        if kind == "text" && side.candidate && crate::state::parser_list_item(state, block) {
+            return "list_item".into();
         }
         kind.to_owned()
     };
