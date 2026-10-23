@@ -28,9 +28,9 @@ import torch.nn.functional as F
 REGIONS = ["none", "text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote",
            "marginal_note", "furniture", "page_label"]
 STARTS = ["inside", "unit", "resume"]
-# Label columns: region, start, document, reference, heading level, resumed row.
-LABELS = 6
-HEADS = [("region", 0, len(REGIONS)), ("start", 1, len(STARTS)), ("document", 2, 2), ("reference", 3, 2), ("level", 4, 10)]
+# Label columns: region, start, document, reference, heading level, marker, resumed row.
+LABELS = 7
+HEADS = [("region", 0, len(REGIONS)), ("start", 1, len(STARTS)), ("document", 2, 2), ("reference", 3, 2), ("level", 4, 10), ("marker", 5, 2)]
 UNRANKED = {0, 5, 7, 10, 11, 12}
 TEXT_CHARS = 32
 
@@ -209,14 +209,15 @@ def predict(model, docs, device):
         labels = np.zeros((doc.length, LABELS), dtype=np.int64)
         for output, (_, column, _) in zip(model.tag(states), HEADS):
             labels[:, column] = output.float().argmax(dim=-1).cpu().numpy()
-        labels[:, 5] = -1
+        labels[:, 6] = -1
         labels[labels[:, 0] == 0, 1] = 0
         labels[(labels[:, 0] != heading) | (labels[:, 1] != 1), 4] = 0
+        labels[labels[:, 1] != 1, 5] = 0
         latest = {}
         for n in range(doc.length):
             if labels[n, 1] == 2:
-                labels[n, 5] = latest.get(int(labels[n, 0]), -1)
-                if labels[n, 5] < 0:
+                labels[n, 6] = latest.get(int(labels[n, 0]), -1)
+                if labels[n, 6] < 0:
                     labels[n, 1] = 1
             if labels[n, 1] == 1:
                 latest[int(labels[n, 0])] = n

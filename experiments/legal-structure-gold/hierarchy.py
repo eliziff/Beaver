@@ -10,10 +10,8 @@ tables, captions and headnotes under the nearest earlier heading; a list item co
 numbering family's open list or falls under the unit before it; a quote under the unit before it;
 notes, marginal notes, contents and furniture stay outside. A document boundary resets everything.
 
-  python hierarchy.py GOLD_DIR [--sha PREFIX] [--dry-run]
-
-rebuilds the parents of existing gold from its heading ancestry (a heading's level is one plus its
-number of heading ancestors), recorded under `postcorrections` as hierarchy_from_headings.
+author.py writes every gold's parents with `assemble`, and the grader refuses a gold whose parents
+differ from it, so no gold is ever converted after the fact.
 """
 import re
 
@@ -197,77 +195,3 @@ def assemble(regions, texts, levels, starts_document):
             parent = parents[prev] if prev is not None and regions[prev] == "quote" else prev
         parents[u] = parent; prev = u
     return parents
-
-
-def unit_fields(gold):
-    """Each unit's region and first-line text, from a gold file."""
-    typed = gold["typed"]
-    firsts = [typed[unit["lines"][0]] for unit in gold["units"]]
-    return [f["region"] for f in firsts], [" ".join(f.get("text", "").split()) for f in firsts]
-
-
-def levels_from_ancestry(units, regions):
-    """For gold authored before levels existed: a heading's level is one plus its heading ancestors."""
-    levels = [None] * len(units)
-    for u, unit in enumerate(units):
-        if regions[u] != "heading": continue
-        count, at, seen = 0, unit.get("parent"), set()
-        while at is not None and at not in seen and at < len(units):
-            seen.add(at); count += regions[at] == "heading"; at = units[at].get("parent")
-        levels[u] = count + 1
-    return levels
-
-
-def from_headings(gold, module_sha256):
-    """Rebuild every unit's parent from heading levels; returns the postcorrection record."""
-    regions, texts = unit_fields(gold)
-    units = gold["units"]
-    levels = [u.get("level") if regions[k] == "heading" else None for k, u in enumerate(units)]
-    if all(level is None for level in levels) or any(regions[k] == "heading" and levels[k] is None for k in range(len(units))):
-        levels = levels_from_ancestry(units, regions)
-    parents = assemble(regions, texts, levels, [bool(u.get("starts_document")) for u in units])
-    changes = []
-    for u, unit in enumerate(units):
-        if regions[u] in RANKED and unit.get("parent") != parents[u]:
-            changes.append([u, unit.get("parent"), parents[u]]); unit["parent"] = parents[u]
-        if regions[u] == "heading": unit["level"] = levels[u]
-    return {"name": "hierarchy_from_headings", "module_sha256": module_sha256, "changes": changes, "units": len(units)}
-
-
-def main():
-    import argparse, gzip, hashlib, json
-    from collections import Counter
-    from pathlib import Path
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("gold", type=Path)
-    p.add_argument("--sha")
-    p.add_argument("--dry-run", action="store_true")
-    a = p.parse_args()
-    module_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-    read = changed = 0; census = Counter()
-    for job in sorted(a.gold.joinpath("v4").iterdir()):
-        if a.sha and not job.name.startswith(a.sha): continue
-        path = job / "gold.json.gz"
-        if not path.is_file(): continue
-        with gzip.open(path, "rt", encoding="utf-8") as stream: gold = json.load(stream)
-        if any(c.get("name") == "hierarchy_from_headings" for c in gold.get("postcorrections", [])): continue
-        read += 1
-        regions, _ = unit_fields(gold)
-        record = from_headings(gold, module_sha)
-        gold.setdefault("postcorrections", []).append(record)
-        if record["changes"]:
-            changed += 1
-            for u, _, _ in record["changes"]: census[regions[u]] += 1
-        if a.dry_run: continue
-        data = json.dumps(gold, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        with open(path, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as stream: stream.write(data)
-        receipt_path = job / "receipt.json"
-        if receipt_path.is_file():
-            receipt = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
-            receipt.update(gold_sha256=hashlib.sha256(path.read_bytes()).hexdigest(), postcorrections=len(gold["postcorrections"]))
-            receipt_path.write_text(json.dumps(receipt, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"{read} golds read, {changed} with parent changes{' (dry run)' if a.dry_run else ''}; by unit region: {dict(census.most_common())}")
-
-
-if __name__ == "__main__":
-    main()

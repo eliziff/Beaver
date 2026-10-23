@@ -442,12 +442,13 @@ fn features<'a>(
         .enumerate()
         .map(|(k, &n)| (state.lines[n].id.as_str(), k))
         .collect();
-    let order = |id: &str| -> (usize, usize) {
+    let order = |id: &str| -> (usize, usize, usize) {
         let (line, at) = id.split_once('@').unwrap_or((id, ""));
-        (
-            position.get(line).copied().unwrap_or(position.len()),
-            at.parse().unwrap_or(0),
-        )
+        let at: usize = at.parse().unwrap_or(0);
+        match state.index.get(line).and_then(|&n| state.span_rank.get(&(n, at))) {
+            Some(&rank) => (0, rank, 0),
+            None => (1, position.get(line).copied().unwrap_or(position.len()), at),
+        }
     };
     let mut units: Vec<&str> = keys
         .iter()

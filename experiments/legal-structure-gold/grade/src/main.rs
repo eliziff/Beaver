@@ -90,9 +90,10 @@ fn sources(gold: &Path, manifest: &Path) -> Result<Vec<Source>, String> {
             .as_str()
             .ok_or("Receipt without source")?
             .to_owned();
-        let row = rows
-            .get(sha256.as_str())
-            .ok_or_else(|| format!("{sha256} is not in the manifest"))?;
+        // A gold still being authored into the store has no manifest row yet: it waits.
+        let Some(row) = rows.get(sha256.as_str()) else {
+            continue;
+        };
         found.push(Source {
             mode: receipt["mode"].as_str().unwrap_or_default().to_owned(),
             split: row["split"].as_str().unwrap_or("unsplit").to_owned(),
@@ -440,7 +441,7 @@ fn grade_one(
 
 /// Per document, each piece's labels from a tagger's predictions file: {sha256, ids, labels}, ids
 /// naming pieces (line@offset) and each label [region, start, document, reference, heading level,
-/// resumed row], the row being that of the piece it resumes, or -1.
+/// marker, resumed row], the row being that of the piece it resumes, or -1.
 fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<String, labels::Label>>>, String> {
     let Some(path) = path else { return Ok(None) };
     let text = std::fs::read_to_string(local(path)).map_err(|e| format!("{path}: {e}"))?;
@@ -457,7 +458,7 @@ fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<Stri
                 .and_then(|row| ids.get(row as usize)).and_then(Value::as_str).map(str::to_owned);
             per_piece.insert(id.as_str().unwrap_or_default().to_owned(), labels::Label {
                 region: field(0), start: field(1), document: field(2) == 1, reference: field(3) == 1, level: field(4),
-                continues: pointer(5),
+                marker: field(5) == 1, continues: pointer(6),
             });
         }
         found.insert(sha, per_piece);
@@ -901,10 +902,10 @@ fn selfcheck(gold: &Path, manifest: &Path, mode: &str, options: &[String]) -> Re
     });
     let mut totals: BTreeMap<&str, score::Metric> = BTreeMap::new();
     let mut errors = 0;
-    for result in &results {
+    for (source, result) in all.iter().zip(&results) {
         match result {
             Ok(score) => for (name, m) in &score.metrics { totals.entry(name).or_default().add(m); },
-            Err(error) => { errors += 1; eprintln!("ERROR {error}"); }
+            Err(error) => { errors += 1; eprintln!("ERROR {} {error}", &source.sha256[..12]); }
         }
     }
     println!("{mode}: {} documents, {errors} errors", all.len());

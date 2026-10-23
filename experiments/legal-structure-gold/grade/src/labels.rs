@@ -36,6 +36,8 @@ pub struct Label {
     /// On a heading's first piece, its level, 1 the outermost in its document; 0 elsewhere. Parents
     /// are not labelled: they follow from regions and levels by the hierarchy rule (`assemble`).
     pub level: usize,
+    /// On a unit's first piece: the unit opens with an enumerator the gold marks.
+    pub marker: bool,
     pub document: bool,
     pub reference: bool,
 }
@@ -85,13 +87,19 @@ pub fn pieces(state: &State) -> Vec<Piece> {
         }
     }
     let mut result = Vec::new();
-    for &n in &state.reading_order {
+    for (rank, &n) in state.reading_order.iter().enumerate() {
         let found = &mut cuts[n];
         found.sort_unstable();
         found.dedup();
-        result.extend(found.windows(2).map(|w| Piece { line: n, start: w[0], end: w[1] }));
+        result.extend(found.windows(2).map(|w| (rank, Piece { line: n, start: w[0], end: w[1] })));
     }
-    result
+    // Reading order at the span level where the state has one: columns sharing a source line
+    // read column by column, as the gold typed them, not interleaved by offset.
+    result.sort_by_key(|(rank, piece)| match state.span_rank.get(&(piece.line, piece.start)) {
+        Some(&span) => (0, span, 0),
+        None => (1, *rank, piece.start),
+    });
+    result.into_iter().map(|(_, piece)| piece).collect()
 }
 
 /// The piece holding a point of a line, by line.
@@ -160,7 +168,7 @@ pub fn labels(state: &State, region: &dyn Fn(&Piece) -> usize) -> Result<(Vec<Pi
             }
         }
     }
-    // A unit is a block with the fragments its continuations and logical blocks join to it.
+    // A unit is a block with the fragments its continuations join to it.
     let mut joined: Vec<usize> = (0..state.groups.len()).collect();
     let link = |a: &str, b: &str, joined: &mut Vec<usize>| {
         if let (Some(&a), Some(&b)) = (key_of.get(a), key_of.get(b)) {
@@ -184,15 +192,6 @@ pub fn labels(state: &State, region: &dyn Fn(&Piece) -> usize) -> Result<(Vec<Pi
             spans: vec![SourceSpan { line_id: first.id.clone(), start: 0, end: first.text.len() }],
             attributes: serde_json::json!({"parent": null}).as_object().unwrap().clone(),
         });
-    }
-    let composed = legal_structure::apply_structure_composition(legal_structure::CompositionRequest {
-        lines: state.composition_lines(), groups: state.groups.clone(), annotations: annotations.clone(),
-        reading_order: state.order_ids(), continuations: state.continuations.clone(),
-    })?;
-    for parts in composed.logical_blocks.values() {
-        for pair in parts.windows(2) {
-            link(&pair[0], &pair[1], &mut joined);
-        }
     }
     let unit: Vec<Option<usize>> = holder.iter().map(|h| h.map(|g| find(&mut joined, g))).collect();
     let mut first: HashMap<usize, usize> = HashMap::new();
@@ -219,6 +218,12 @@ pub fn labels(state: &State, region: &dyn Fn(&Piece) -> usize) -> Result<(Vec<Pi
             result[k].continues = Some(anchor(state, &pieces[first[&u]]));
         }
         open[s] = Some(u);
+    }
+    // Markers: the unit's first block carries one.
+    for (&u, &k) in &first {
+        let _ = u;
+        result[k].marker = holder[k].is_some_and(|g| state.groups[g].attributes.get("marker")
+            .and_then(Value::as_array).is_some_and(|m| !m.is_empty()));
     }
     // Parents: the unit holding the block a unit's first block names.
     let mut parent_of: HashMap<usize, usize> = HashMap::new();
@@ -358,6 +363,7 @@ pub fn carry(reference: &State, gold_pieces: &[Piece], gold: &[Label], candidate
             label.start = source.start;
             label.continues = source.continues.as_deref().and_then(moved);
             label.level = source.level;
+            label.marker = source.marker;
             label.document = source.document;
         }
         // A paired reference anywhere in the gold this piece covers.
@@ -477,7 +483,11 @@ fn numbering(text: &str, open_letter: Option<char>) -> String {
 /// under the nearest earlier heading of a smaller level; text, tables, captions and headnotes
 /// under the nearest earlier heading; a list item continues its numbering family's open list or
 /// falls under the unit before it; a quote under the unit before it; a document start resets all.
-fn assemble(regions: &[&str], texts: &[String], levels: &[usize], starts_document: &[bool]) -> Vec<Option<usize>> {
+pub(crate) fn ranked(region: &str) -> bool {
+    RANKED.contains(&region)
+}
+
+pub(crate) fn assemble(regions: &[&str], texts: &[String], levels: &[usize], starts_document: &[bool]) -> Vec<Option<usize>> {
     let mut parents = vec![None; regions.len()];
     let mut heading_stack: Vec<(usize, usize)> = Vec::new();
     let mut list_stack: Vec<(String, usize, Option<usize>)> = Vec::new();
@@ -595,12 +605,19 @@ pub fn decode(candidate: &State, pieces: &[Piece], labels: &[Label], source_sha2
     use crate::state::{GoldLine, NotePair, Reference, Typed, Unit, V4};
     let locate = Locator::new(pieces);
     let piece_at = |span: &SourceSpan| candidate.index.get(&span.line_id).and_then(|&n| locate.at(n, span.start));
+    // A block's marker, reachable from every piece the block holds: the decoded unit opens on
+    // whichever of them reads first.
     let mut markers: HashMap<usize, Vec<SourceSpan>> = HashMap::new();
     for group in &candidate.groups {
         let found = span_list(group.attributes.get("marker"));
-        let start = spans_of(candidate, &group.spans, &group.line_ids).into_iter().next();
-        if let (false, Some(k)) = (found.is_empty(), start.as_ref().and_then(piece_at)) {
-            markers.entry(k).or_insert(found);
+        if found.is_empty() {
+            continue;
+        }
+        for span in spans_of(candidate, &group.spans, &group.line_ids) {
+            let Some(&n) = candidate.index.get(&span.line_id) else { continue };
+            for k in locate.within(n, span.start, span.end).collect::<Vec<_>>() {
+                markers.entry(k).or_insert_with(|| found.clone());
+            }
         }
     }
     let mut note_labels: HashMap<usize, Vec<SourceSpan>> = HashMap::new();
@@ -651,7 +668,7 @@ pub fn decode(candidate: &State, pieces: &[Piece], labels: &[Label], source_sha2
             (2, Some(u), _) => u,
             (0 | 2, _, Some(u)) if unit_region[u] == label.region => u,
             _ => {
-                units.push(Unit { lines: Vec::new(), parent: None, starts_document: label.document });
+                units.push(Unit { lines: Vec::new(), parent: None, level: (label.level > 0).then_some(label.level), starts_document: label.document });
                 unit_region.push(label.region);
                 head.push(k);
                 unit_at.insert(anchor(candidate, piece), units.len() - 1);
@@ -671,7 +688,7 @@ pub fn decode(candidate: &State, pieces: &[Piece], labels: &[Label], source_sha2
         } else if region == "note" {
             note_labels.get(&k).cloned()
         } else {
-            markers.get(&k).cloned().or_else(|| matches!(region, "text" | "list_item").then(read_marker).flatten())
+            markers.get(&k).cloned().or_else(|| (label.marker && matches!(region, "text" | "list_item")).then(read_marker).flatten())
         };
         let mut own_references: Vec<SourceSpan> = if label.reference {
             references.get(&k).into_iter().flatten().filter(|s| own(s)).cloned().collect()
@@ -691,6 +708,7 @@ pub fn decode(candidate: &State, pieces: &[Piece], labels: &[Label], source_sha2
         units[u].lines.push(typed.len());
         typed.push(Typed {
             region: region.to_owned(),
+            text: String::new(),
             spans: vec![SourceSpan { line_id: line.id.clone(), start: piece.start, end: piece.end }],
             markers: marker.map(|m| vec![m]).unwrap_or_default(),
             references: own_references.into_iter().map(|s| Reference { spans: vec![s] }).collect(),
@@ -705,6 +723,9 @@ pub fn decode(candidate: &State, pieces: &[Piece], labels: &[Label], source_sha2
         let line = &candidate.lines[candidate.index[&span.line_id]];
         line.text[span.start.min(line.text.len())..span.end.min(line.text.len())].iter().collect::<String>()
     }).collect::<Vec<_>>().join(" ")).collect();
+    for (u, text) in texts.iter().enumerate() {
+        typed[units[u].lines[0]].text = text.clone();
+    }
     let levels: Vec<usize> = head.iter().map(|&k| labels[k].level).collect();
     let starts: Vec<bool> = units.iter().map(|unit| unit.starts_document).collect();
     for (u, parent) in assemble(&regions, &texts, &levels, &starts).into_iter().enumerate() {
@@ -713,8 +734,11 @@ pub fn decode(candidate: &State, pieces: &[Piece], labels: &[Label], source_sha2
     if std::env::var("LEGALPDF_ASSEMBLE_TRACE").is_ok_and(|prefix| source_sha256.starts_with(&prefix)) {
         eprintln!("assemble-units {} pieces {} labelled {}", units.len(), pieces.len(), labels.iter().filter(|l| l.region != 0).count());
         for u in 0..units.len() {
-            eprintln!("assemble {u} {} {} {} {:?} {:?} start={} doc={}", regions[u], levels[u], numbering(&texts[u], None), units[u].parent,
-                texts[u].chars().take(30).collect::<String>(), labels[head[u]].start, units[u].starts_document);
+            let piece = &pieces[head[u]];
+            eprintln!("assemble {u} {} {} {} {:?} {:?} start={} doc={} head={}@{} marker_label={} block_marker={} typed_markers={}",
+                regions[u], levels[u], numbering(&texts[u], None), units[u].parent, texts[u].chars().take(30).collect::<String>(),
+                labels[head[u]].start, units[u].starts_document, candidate.lines[piece.line].id, piece.start, labels[head[u]].marker,
+                markers.contains_key(&head[u]), typed[units[u].lines[0]].markers.len());
         }
     }
     // Note pairs: each frame note's references, to the unit holding the note's first piece.
