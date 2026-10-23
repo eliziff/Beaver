@@ -63,7 +63,7 @@ export const READ_SUBAGENT_TOOL: Tool = {
   description:
     "Delegate independent legal research assignments with distinct scopes. Compare each reader's findings and exact evidence before answering. Assess misses as research gaps, not proof of absence; keep small lookups in the main turn.",
   inputSchema: objectSchema({
-    assignments: { type: "array", minItems: 2, maxItems: 4, items: assignmentSchema },
+    assignments: { type: "array", minItems: 2, maxItems: 8, items: assignmentSchema },
   }, ["assignments"]),
 };
 
@@ -71,7 +71,7 @@ export const RESUME_SUBAGENT_TOOL: Tool = {
   name: RESUME_SUBAGENT_TOOL_NAME,
   description: "Resume unfinished or failed readers in their existing sessions by run ID.",
   inputSchema: objectSchema({
-    ids: { type: "array", minItems: 1, maxItems: 4, uniqueItems: true,
+    ids: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true,
       items: { type: "string", minLength: 1, maxLength: 200 } },
   }, ["ids"]),
 };
@@ -165,7 +165,7 @@ export function readSubagentAssignment(call: NormalizedToolCall): ReadSubagentAs
 }
 
 export function createReadSubagentAdmission(
-  maxAgents = 4,
+  maxAgents = 8,
   allowed = new Set<ReadSubagentRegion>(["CA"]),
 ) {
   const prior = new Set<string>();
@@ -218,10 +218,10 @@ function prepareReadSubagentRound(
     name: READ_SUBAGENT_TOOL_NAME,
     input: record(input)!,
   }] : []);
-  if (assignments.length < 2 || assignments.length > 4) return {
+  if (assignments.length < 2 || assignments.length > 8) return {
     parent: null,
     assignments: [],
-    rejected: [readerError(parent, "delegate_read requires two to four assignments.")],
+    rejected: [readerError(parent, "delegate_read requires two to eight assignments.")],
   };
   const admitted = admit(assignments);
   return admitted.rejected.length ? {

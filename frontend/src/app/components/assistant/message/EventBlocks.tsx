@@ -118,6 +118,7 @@ export function ActivityDisclosure({
 const LOCATOR_NOUNS = new Set(["para", "paras", "page", "pages", "s", "ss", "n", "nn",
     "section", "sections", "line", "lines"]);
 const READ_LABEL = /^Reading (\S+) (.+) of (.+)$/u;
+const SEARCH_LABEL = /^Searching (.+?) for “(.+)”(.*)$/u;
 
 const activitySource = (activity: AssistantActivity) => {
     const citation = activity.citations?.[0];
@@ -139,8 +140,28 @@ export function collapseActivities(activities: readonly AssistantActivity[]): As
                 label: count ? `${activity.label} — ${count} citing source${count === 1 ? "" : "s"}` : activity.label });
             continue;
         }
+        // One query split across courts or dates is one search: a row with its splits, not a row per split.
+        const search = activity.tool === "search_sources" ? SEARCH_LABEL.exec(activity.label) : null;
+        if (search) {
+            const [, scope, query, span] = search, part = `${scope}${span}`, index = groups.get(`search:${query}`);
+            const previous = index === undefined ? undefined : rows[index];
+            if (!previous) {
+                groups.set(`search:${query}`, rows.length);
+                rows.push({ ...activity, searchParts: [part] });
+                continue;
+            }
+            const parts = [...new Set([...(previous.searchParts ?? []), part])];
+            const statuses = [previous.status, activity.status];
+            rows[index!] = { ...previous, searchParts: parts, callCount: (previous.callCount ?? 1) + 1,
+                status: statuses.includes("running") ? "running" : statuses.includes("error") ? "error"
+                    : statuses.includes("interrupted") ? "interrupted" : "completed",
+                label: `Searching for “${query}” in ${parts.length === 1 ? parts[0] : `${parts.length} scopes: ${parts.join("; ")}`}` };
+            continue;
+        }
+        // The same words looked for in several sources are one search: a row with a chip per source.
         const key = activity.tool === "Read" ? activity.read
-            ? `${activity.read.queries?.length ? "search" : "read"}:${activity.read.resource}`
+            ? activity.read.queries?.length ? `search:${[...activity.read.queries].sort().join("\n")}`
+                : `read:${activity.read.resource}`
             : activitySource(activity) : activity.id;
         const index = groups.get(key), previous = index === undefined ? undefined : rows[index];
         if (!previous) {
@@ -157,7 +178,9 @@ export function collapseActivities(activities: readonly AssistantActivity[]): As
                     ...(activity.read.queries ? { queries: [...new Set([
                         ...(previous.read.queries ?? []), ...activity.read.queries])] }
                         : { ranges: [...new Set([...(previous.read.ranges ?? []), ...(activity.read.ranges ?? [])])] }) },
-                citations: previous.citations?.length ? previous.citations : activity.citations };
+                citations: !activity.read.queries ? previous.citations?.length ? previous.citations : activity.citations
+                    : [...(previous.citations ?? []), ...(activity.citations ?? [])].filter((citation, at, all) =>
+                        all.findIndex((other) => citationSourceKey(other) === citationSourceKey(citation)) === at) };
             continue;
         }
         const before = READ_LABEL.exec(previous.label), next = READ_LABEL.exec(activity.label);
