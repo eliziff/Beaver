@@ -425,13 +425,14 @@ fn features<'a>(
         if inside(block, &tables) {
             return "table".into();
         }
-        if kind == "text" && side.candidate && crate::state::parser_list_item(state, block) {
-            return "list_item".into();
-        }
-        if kind == "text" && !side.candidate
-            && block.attributes.get("locator_kind").and_then(Value::as_str) == Some("list_item")
-        {
-            return "list_item".into();
+        if kind == "text" {
+            // A projected state names each unit's region; parser output is read through its locator.
+            if let Some(region) = block.attributes.get("region").and_then(Value::as_str) {
+                return if region == "list_item" { "list_item" } else { "text" }.into();
+            }
+            if side.candidate && crate::state::parser_list_item(state, block) {
+                return "list_item".into();
+            }
         }
         kind.to_owned()
     };

@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 /// Names of the numeric features, in row order.
-pub const FEATURES: [&str; 83] = [
+pub const FEATURES: [&str; 51] = [
     "x0", "y0", "x1", "y1", "height", "gap_above", "gap_below", "indent", "right_gap", "width", "centre",
     "size", "bold", "italic", "superscript", "monospace", "size_change", "font_change", "underlined",
     "length", "upper", "digits", "punctuation", "spaces", "starts_digit", "starts_upper", "starts_lower",
@@ -18,10 +18,6 @@ pub const FEATURES: [&str; 83] = [
     "ocr", "confidence", "page_quality", "page_position", "line_position", "first_on_page", "last_on_page",
     "excluded", "label_candidate", "note_mode", "piece_start", "piece_share", "page_offgrid", "page_measured",
     "marker", "ordinal", "prefix_depth",
-    "u0_exists", "u0_indent", "u0_size", "u0_bold", "u0_family", "u0_next", "u0_region", "u0_distance",
-    "u1_exists", "u1_indent", "u1_size", "u1_bold", "u1_family", "u1_next", "u1_region", "u1_distance",
-    "u2_exists", "u2_indent", "u2_size", "u2_bold", "u2_family", "u2_next", "u2_region", "u2_distance",
-    "u3_exists", "u3_indent", "u3_size", "u3_bold", "u3_family", "u3_next", "u3_region", "u3_distance",
 ];
 
 fn median(mut values: Vec<f64>) -> f64 {
@@ -105,32 +101,14 @@ fn text_shape(text: &str) -> [f64; 15] {
     ]
 }
 
-const CHAIN: usize = 4;
-
-/// Each piece's place among the parser's ranked units: the unit before it in reading order and that
-/// unit's ancestors as the parser assembled them, each compared with the piece by indentation,
-/// type and the engine's numbering grammar (same family, the next ordinal). Per candidate piece.
-fn unit_context(candidate: &State, pieces: &[Piece], tier0: &[Label], geometry: &dyn Fn(usize) -> Option<(f64, f64, f64, bool)>)
-    -> (Vec<Vec<f64>>, Vec<String>) {
+/// Each piece's own marker as the engine's numbering grammar reads the parser block opening on it:
+/// whether it has one, its ordinal and prefix depth, and its family name. Per candidate piece.
+fn markers(candidate: &State, pieces: &[Piece], tier0: &[Label]) -> (Vec<[f64; 3]>, Vec<String>) {
     use legal_structure::LayoutAnalysis;
     let locate = Locator::new(pieces);
-    let ranked = |k: usize| tier0[k].start == 1 && !matches!(tier0[k].region, 0 | 5 | 7 | 10 | 11 | 12);
-    let start_of = |group: &legal_structure::CompositionBlock| group.spans.first()
-        .and_then(|s| candidate.index.get(&s.line_id).and_then(|&n| locate.at(n, s.start)));
-    // The parser's blocks by the piece they start on, their markers and their parents' pieces.
-    let mut block_start: HashMap<String, usize> = HashMap::new();
-    for group in &candidate.groups {
-        if let Some(k) = start_of(group) {
-            block_start.insert(crate::state::block_id(group), k);
-        }
-    }
-    let mut parent_of: HashMap<usize, usize> = HashMap::new();
     let mut marker_of: HashMap<usize, legal_structure::layout::NumberingMarker> = HashMap::new();
     for group in &candidate.groups {
-        let Some(k) = start_of(group) else { continue };
-        if let Some(parent) = group.attributes.get("parent").and_then(Value::as_str).and_then(|a| block_start.get(a)) {
-            parent_of.entry(k).or_insert(*parent);
-        }
+        let Some(k) = group.spans.first().and_then(|s| candidate.index.get(&s.line_id).and_then(|&n| locate.at(n, s.start))) else { continue };
         let spans: Vec<legal_structure::SourceSpan> = serde_json::from_value(group.attributes.get("marker").cloned().unwrap_or_default()).unwrap_or_default();
         let text: String = spans.iter().filter_map(|s| candidate.index.get(&s.line_id).map(|&m| {
             let chars = &candidate.lines[m].text;
@@ -142,57 +120,11 @@ fn unit_context(candidate: &State, pieces: &[Piece], tier0: &[Label], geometry: 
             }
         }
     }
-    let mut rows = vec![Vec::new(); pieces.len()];
-    let mut families = vec![String::new(); pieces.len()];
-    let mut previous: Option<usize> = None;
-    for k in 0..pieces.len() {
+    (0..pieces.len()).map(|k| {
         let own = marker_of.get(&k).filter(|_| tier0[k].start == 1);
-        let mut values = vec![
-            f64::from(u8::from(own.is_some())),
-            own.map_or(0.0, |m| (1.0 + f64::from(m.ordinal)).ln() / 5.0),
-            own.map_or(0.0, |m| m.prefix.len().min(3) as f64 / 3.0),
-        ];
-        families[k] = own.map(|m| m.family.clone()).unwrap_or_default();
-        let mut chain = Vec::new();
-        let mut at = previous;
-        while let Some(unit) = at.filter(|u| chain.len() < CHAIN && !chain.contains(u)) {
-            chain.push(unit);
-            at = parent_of.get(&unit).copied();
-        }
-        let here = geometry(k);
-        for slot in 0..CHAIN {
-            let Some(&unit) = chain.get(slot) else {
-                values.extend([0.0; 8]);
-                continue;
-            };
-            let there = geometry(unit);
-            let theirs = marker_of.get(&unit);
-            let (indent, size, bold) = match (here, there) {
-                (Some((x, s, w, b)), Some((x2, s2, _, b2))) => (
-                    ((x - x2) / w).clamp(-1.0, 1.0),
-                    if s2 > 0.0 && s > 0.0 { (s / s2).min(4.0) } else { 1.0 },
-                    f64::from(u8::from(b == b2)),
-                ),
-                _ => (0.0, 1.0, 0.0),
-            };
-            let family = match (own, theirs) {
-                (Some(a), Some(b)) => f64::from(u8::from(a.family == b.family)),
-                _ => -1.0,
-            };
-            let next = match (own, theirs) {
-                (Some(a), Some(b)) => f64::from(u8::from(a.family == b.family && a.ordinal == b.ordinal + 1)),
-                _ => 0.0,
-            };
-            let distance = k.saturating_sub(unit) as f64;
-            values.extend([1.0, indent, size, bold, family, next, f64::from(u8::from(tier0[k].region == tier0[unit].region)),
-                (1.0 + distance).ln() / 8.0]);
-        }
-        rows[k] = values;
-        if ranked(k) {
-            previous = Some(k);
-        }
-    }
-    (rows, families)
+        ([f64::from(u8::from(own.is_some())), own.map_or(0.0, |m| (1.0 + f64::from(m.ordinal)).ln() / 5.0),
+          own.map_or(0.0, |m| m.prefix.len().min(3) as f64 / 3.0)], own.map(|m| m.family.clone()).unwrap_or_default())
+    }).unzip()
 }
 
 /// One document's rows, over the candidate's pieces in its reading order; `gold` holds the gold's
@@ -238,14 +170,9 @@ pub fn document(pages: &[Page], candidate: &State, pieces: &[Piece], tier0: &[La
     let kept: Vec<usize> = (0..pieces.len()).filter(|&k| by_id.contains_key(candidate.lines[pieces[k].line].id.as_str())).collect();
     let row_of: HashMap<String, i64> = kept.iter().enumerate().map(|(row, &k)| (anchor(candidate, &pieces[k]), row as i64)).collect();
     let pointer = |name: &Option<String>| name.as_deref().and_then(|a| row_of.get(a)).copied().unwrap_or(-1);
-    let row = |label: &Label| json!([label.region, label.start, label.relation, u8::from(label.document), u8::from(label.reference),
-        pointer(&label.parent), pointer(&label.continues)]);
-    let geometry = |k: usize| -> Option<(f64, f64, f64, bool)> {
-        let &(p, n) = by_id.get(candidate.lines[pieces[k].line].id.as_str())?;
-        let line = &pages[p].lines[n];
-        Some((line.bbox[0], dominant(line).map_or(0.0, |d| d.1), pages[p].width.max(1.0), flagged(line, 16) > 0.5))
-    };
-    let (context, families) = unit_context(candidate, pieces, tier0, &geometry);
+    let row = |label: &Label| json!([label.region, label.start, u8::from(label.document), u8::from(label.reference),
+        label.level, pointer(&label.continues)]);
+    let (markers, families) = markers(candidate, pieces, tier0);
     let off_grid: Vec<usize> = pages.iter().map(off_grid_sizes).collect();
     for &k in &kept {
         let piece = &pieces[k];
@@ -295,7 +222,7 @@ pub fn document(pages: &[Page], candidate: &State, pieces: &[Piece], tier0: &[La
             (off_grid[p] as f64 / 10.0).min(2.0),
             f64::from(u8::from(off_grid[p] >= 5)),
         ]);
-        values.extend(context[k].iter().copied());
+        values.extend(markers[k]);
         debug_assert_eq!(values.len(), FEATURES.len());
         ids.push(anchor(candidate, piece));
         page_of.push(p);

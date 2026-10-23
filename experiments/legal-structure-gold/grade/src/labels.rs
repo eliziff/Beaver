@@ -6,16 +6,17 @@
 //! gold's own labels decode to the gold: `selfcheck labels` must read 1.0 on every layer.
 use crate::alignment::Alignment;
 use crate::state::{block_id, Gold, State};
-use legal_structure::SourceSpan;
+use legal_structure::{LayoutAnalysis, SourceSpan};
+use regex::Regex;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
 pub const REGIONS: [&str; 13] = [
     "none", "text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote", "marginal_note",
     "furniture", "page_label",
 ];
 pub const STARTS: [&str; 3] = ["inside", "unit", "resume"];
-pub const RELATIONS: [&str; 10] = ["none", "first", "child", "sibling", "up 1", "up 2", "up 3", "up 4", "up 5", "other"];
 
 /// Characters [start, end) of one line of a frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -32,11 +33,9 @@ pub struct Label {
     pub start: usize,
     /// On a resuming piece, the first piece (line@offset) of the unit it resumes.
     pub continues: Option<String>,
-    /// On a unit's first piece, the first piece of the unit it falls under.
-    pub parent: Option<String>,
-    /// On a ranked unit's first piece, its relation to the ranked unit before it, read from parents
-    /// as the scorer reads them.
-    pub relation: usize,
+    /// On a heading's first piece, its level, 1 the outermost in its document; 0 elsewhere. Parents
+    /// are not labelled: they follow from regions and levels by the hierarchy rule (`assemble`).
+    pub level: usize,
     pub document: bool,
     pub reference: bool,
 }
@@ -47,14 +46,6 @@ pub fn anchor(state: &State, piece: &Piece) -> String {
 
 fn index_of(values: &[&str], value: &str) -> usize {
     values.iter().position(|v| *v == value).unwrap_or(0)
-}
-
-fn relation_index(relation: &str) -> usize {
-    match RELATIONS.iter().position(|v| *v == relation) {
-        Some(n) => n,
-        None if relation.starts_with("up ") => RELATIONS.len() - 1,
-        None => 0,
-    }
 }
 
 /// Units of one stream run on past the units of the others that interrupt them.
@@ -171,7 +162,7 @@ pub fn labels(state: &State, region: &dyn Fn(&Piece) -> usize) -> Result<(Vec<Pi
     }
     // A unit is a block with the fragments its continuations and logical blocks join to it.
     let mut joined: Vec<usize> = (0..state.groups.len()).collect();
-    let mut link = |a: &str, b: &str, joined: &mut Vec<usize>| {
+    let link = |a: &str, b: &str, joined: &mut Vec<usize>| {
         if let (Some(&a), Some(&b)) = (key_of.get(a), key_of.get(b)) {
             let (a, b) = (find(joined, a), find(joined, b));
             joined[a.max(b)] = a.min(b);
@@ -235,41 +226,21 @@ pub fn labels(state: &State, region: &dyn Fn(&Piece) -> usize) -> Result<(Vec<Pi
         let Some(name) = holder[k].and_then(|g| state.groups[g].attributes.get("parent")).and_then(Value::as_str) else { continue };
         let target = key_of.get(name).copied().or_else(|| point(state, name).and_then(|(n, at)| locate.at(n, at)).and_then(|k| holder[k]));
         let Some(p) = target.map(|g| find(&mut joined, g)).filter(|&p| p != u) else { continue };
-        if let Some(&pk) = first.get(&p) {
-            result[k].parent = Some(anchor(state, &pieces[pk]));
+        if first.contains_key(&p) {
             parent_of.insert(u, p);
         }
     }
-    // Relations, as the scorer reads them over ranked units in reading order.
-    let tables: Vec<SourceSpan> = annotations.iter().filter(|a| a.kind == "table").flat_map(|a| spans_of(state, &a.spans, &a.line_ids)).collect();
-    let notes: Vec<SourceSpan> = annotations.iter().filter(|a| a.kind == "note").flat_map(|a| spans_of(state, &a.spans, &a.line_ids)).collect();
-    let holds = |extents: &[SourceSpan], k: usize| {
-        let p = &pieces[k];
-        extents.iter().any(|s| state.index.get(&s.line_id) == Some(&p.line) && s.start <= p.start && p.start < s.end)
-    };
-    let mut ranked: Vec<(usize, usize)> = first.iter().map(|(&u, &k)| (k, u))
-        .filter(|&(k, u)| !matches!(REGIONS[region_of[&u]], "furniture" | "page_label" | "marginal_note" | "contents") || holds(&tables, k))
-        .filter(|&(k, _)| !holds(&notes, k))
-        .collect();
-    ranked.sort_unstable();
-    for (n, &(k, u)) in ranked.iter().enumerate() {
-        let relation = if n == 0 {
-            "first".to_owned()
-        } else {
-            let (previous, parent) = (ranked[n - 1].1, parent_of.get(&u).copied());
-            if parent == Some(previous) {
-                "child".to_owned()
-            } else {
-                let (mut chain, mut at, mut seen) = (Vec::new(), Some(previous), HashSet::new());
-                while let Some(current) = at.filter(|a| seen.insert(*a)) {
-                    chain.push(current);
-                    at = parent_of.get(&current).copied();
-                }
-                chain.iter().enumerate().find(|(_, a)| parent_of.get(a).copied() == parent)
-                    .map_or("other".to_owned(), |(k, _)| if k == 0 { "sibling".to_owned() } else { format!("up {k}") })
-            }
-        };
-        result[k].relation = relation_index(&relation);
+    // Heading levels: one plus the heading ancestors (the gold's levels rebuilt its parents).
+    for (&u, &k) in &first {
+        if REGIONS[region_of[&u]] != "heading" {
+            continue;
+        }
+        let (mut level, mut at, mut seen) = (1, parent_of.get(&u).copied(), HashSet::new());
+        while let Some(p) = at.filter(|p| seen.insert(*p)) {
+            level += usize::from(REGIONS[region_of[&p]] == "heading");
+            at = parent_of.get(&p).copied();
+        }
+        result[k].level = level.min(9);
     }
     for a in &annotations {
         // A document under another opens on its first piece; the source's own needs no label.
@@ -386,8 +357,7 @@ pub fn carry(reference: &State, gold_pieces: &[Piece], gold: &[Label], candidate
         if at == gold_pieces[g].start {
             label.start = source.start;
             label.continues = source.continues.as_deref().and_then(moved);
-            label.parent = source.parent.as_deref().and_then(moved);
-            label.relation = source.relation;
+            label.level = source.level;
             label.document = source.document;
         }
         // A paired reference anywhere in the gold this piece covers.
@@ -396,6 +366,225 @@ pub fn carry(reference: &State, gold_pieces: &[Piece], gold: &[Label], candidate
         });
         Some(label)
     }).collect()
+}
+
+/// The units the hierarchy orders (CONVENTIONS section 2); notes, marginal notes, contents and
+/// furniture stay outside it.
+const RANKED: [&str; 7] = ["text", "list_item", "heading", "quote", "table", "caption", "headnote"];
+const WORD_OUTER: [&str; 7] = ["PART", "PARTIE", "BOOK", "LIVRE", "TITLE", "TITRE", "VOLUME"];
+const WORD_INNER: [&str; 16] = ["ARTICLE", "CHAPTER", "CHAPITRE", "DIVISION", "SECTION", "SCHEDULE", "ANNEX", "ANNEXE",
+    "APPENDIX", "TAB", "RULE", "RÈGLE", "REGLE", "CLAUSE", "FORM", "FORMULE"];
+const ROMANS: [&str; 28] = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv",
+    "xvi", "xvii", "xviii", "xix", "xx", "xxi", "xxii", "xxiii", "xxiv", "xxv", "xxx", "xl", "l"];
+
+struct Patterns {
+    sec: Regex,
+    dotted: Regex,
+    num: Regex,
+    roman: Regex,
+    alpha: Regex,
+    bullet: Regex,
+}
+
+fn patterns() -> &'static Patterns {
+    static P: OnceLock<Patterns> = OnceLock::new();
+    P.get_or_init(|| Patterns {
+        sec: Regex::new(r"^\d+(?:\.\d+)?\s*\(\d+\)").unwrap(),
+        dotted: Regex::new(r"^(\d+(?:\.\d+)+)\.?").unwrap(),
+        num: Regex::new(r"^[(\[]?\d+([.)\]:])?").unwrap(),
+        roman: Regex::new(r"^\(?([IVXLCivxlc]{1,6})[.)\]:]").unwrap(),
+        alpha: Regex::new(r"^\(?([A-Za-z]{1,2})[.)\]]").unwrap(),
+        bullet: Regex::new(r"^[•·▪–—\-*●○■□►]\s").unwrap(),
+    })
+}
+
+/// Whether `text` opens with one of `words` as a whole word, case apart.
+fn opens_with_word(text: &str, words: &[&str]) -> bool {
+    let upper: String = text.chars().take(12).collect::<String>().to_uppercase();
+    words.iter().any(|w| upper.starts_with(w) && !upper[w.len()..].chars().next().is_some_and(char::is_alphanumeric))
+}
+
+/// Whether the token ending at `end` is followed by whitespace or the end of the text.
+fn followed(text: &str, end: usize) -> bool {
+    text[end..].chars().next().map_or(true, char::is_whitespace)
+}
+
+/// The lower-case letter a letter list item opens with, for reading "i" after "h" as a letter.
+fn alpha_token(text: &str) -> Option<char> {
+    let t = text.trim_start();
+    let m = patterns().alpha.captures(t).filter(|m| followed(t, m.get(0).unwrap().end()))?;
+    let mut letters = m[1].chars();
+    match (letters.next(), letters.next()) {
+        (Some(c), None) => c.to_lowercase().next(),
+        _ => None,
+    }
+}
+
+/// The numbering family a unit opens with ("" for none), hierarchy.py's `numbering`: `open_letter`
+/// is the last letter of an open lower-case letter list, so "i" after "h" reads as a letter.
+fn numbering(text: &str, open_letter: Option<char>) -> String {
+    let t = text.trim_start();
+    let p = patterns();
+    if opens_with_word(t, &WORD_OUTER) {
+        return "word_outer".into();
+    }
+    if opens_with_word(t, &WORD_INNER) {
+        return "word_inner".into();
+    }
+    if p.sec.is_match(t) {
+        return "sec".into();
+    }
+    if let Some(m) = p.dotted.captures(t).filter(|m| followed(t, m.get(0).unwrap().end())) {
+        return format!("dec{}", (m[1].matches('.').count() + 1).min(4));
+    }
+    if let Some(m) = p.num.captures(t) {
+        let end = m.get(0).unwrap().end();
+        if m.get(1).map_or_else(|| t[end..].starts_with(char::is_whitespace), |_| followed(t, end)) {
+            return "num".into();
+        }
+    }
+    if let Some(m) = p.roman.captures(t).filter(|m| followed(t, m.get(0).unwrap().end())) {
+        let token = &m[1];
+        let lower = token.chars().all(char::is_lowercase);
+        let low = token.to_lowercase();
+        let (letter, numeral) = if lower { ("al", "rl") } else { ("AU", "RU") };
+        if token.chars().count() == 1 && "ivxlc".contains(low.as_str()) {
+            let first = low.chars().next().unwrap() as u32;
+            if open_letter.is_some_and(|o| o as u32 + 1 == first) {
+                return letter.into();
+            }
+            return numeral.into();
+        }
+        if ROMANS.contains(&low.as_str()) {
+            return numeral.into();
+        }
+    }
+    if let Some(m) = p.alpha.captures(t).filter(|m| followed(t, m.get(0).unwrap().end())) {
+        let letters: Vec<char> = m[1].chars().collect();
+        if letters.len() == 2 && letters[0] != letters[1] {
+            return String::new();
+        }
+        return if letters.iter().all(|c| c.is_lowercase()) { "al" } else { "AU" }.into();
+    }
+    if p.bullet.is_match(t) {
+        return "bullet".into();
+    }
+    String::new()
+}
+
+/// Parents of units in reading order from each unit's region, first-line text, heading level (0 off
+/// headings) and document start: hierarchy.py's `assemble`, CONVENTIONS section 2. A heading falls
+/// under the nearest earlier heading of a smaller level; text, tables, captions and headnotes
+/// under the nearest earlier heading; a list item continues its numbering family's open list or
+/// falls under the unit before it; a quote under the unit before it; a document start resets all.
+fn assemble(regions: &[&str], texts: &[String], levels: &[usize], starts_document: &[bool]) -> Vec<Option<usize>> {
+    let mut parents = vec![None; regions.len()];
+    let mut heading_stack: Vec<(usize, usize)> = Vec::new();
+    let mut list_stack: Vec<(String, usize, Option<usize>)> = Vec::new();
+    let (mut prev, mut open_letter): (Option<usize>, Option<char>) = (None, None);
+    for u in 0..regions.len() {
+        let region = regions[u];
+        if !RANKED.contains(&region) {
+            continue;
+        }
+        if starts_document[u] {
+            heading_stack.clear();
+            list_stack.clear();
+            prev = None;
+            open_letter = None;
+        }
+        let top = heading_stack.last().map(|&(_, h)| h);
+        let parent = match region {
+            "heading" => {
+                let level = levels[u].max(1);
+                while heading_stack.last().is_some_and(|&(l, _)| l >= level) {
+                    heading_stack.pop();
+                }
+                let parent = heading_stack.last().map(|&(_, h)| h);
+                heading_stack.push((level, u));
+                list_stack.clear();
+                open_letter = None;
+                parent
+            }
+            "text" | "table" | "caption" | "headnote" => {
+                if region == "text" {
+                    list_stack.clear();
+                    open_letter = None;
+                }
+                top
+            }
+            "list_item" => {
+                let fam = numbering(&texts[u], open_letter);
+                let found = if fam.is_empty() { None } else { list_stack.iter().rposition(|(f, _, _)| *f == fam) };
+                let parent = if let Some(k) = found {
+                    let parent = list_stack[k].2;
+                    list_stack.truncate(k + 1);
+                    list_stack[k] = (fam.clone(), u, parent);
+                    parent
+                } else if fam.is_empty() && !list_stack.is_empty() {
+                    let last = list_stack.len() - 1;
+                    let parent = list_stack[last].2;
+                    list_stack[last].1 = u;
+                    parent
+                } else {
+                    let parent = prev.or(top);
+                    list_stack.push((fam.clone(), u, parent));
+                    parent
+                };
+                if fam == "al" {
+                    open_letter = alpha_token(&texts[u]);
+                }
+                parent
+            }
+            _ => match prev {
+                Some(p) if regions[p] == "quote" => parents[p],
+                other => other,
+            },
+        };
+        parents[u] = parent;
+        prev = Some(u);
+    }
+    parents
+}
+
+/// The enumerator a piece opens with ("12.", "[12]", "(a)", "1.2.3", "iv)"), as the gold marks a
+/// unit's marker: its character range within the piece, when the engine's numbering grammar reads
+/// the token. A bare number ("12 persons") is no marker.
+fn leading_marker(text: &[char]) -> Option<(usize, usize)> {
+    let n = text.len();
+    let mut i = 0;
+    while i < n && text[i].is_whitespace() {
+        i += 1;
+    }
+    let start = i;
+    let open = i < n && (text[i] == '(' || text[i] == '[');
+    if open {
+        i += 1;
+    }
+    let body = i;
+    while i < n && (text[i].is_alphanumeric() || (text[i] == '.' && i + 1 < n && text[i + 1].is_alphanumeric())) {
+        i += 1;
+    }
+    if i == body || i - body > 12 {
+        return None;
+    }
+    if open {
+        let close = if text[start] == '(' { ')' } else { ']' };
+        if i < n && text[i] == close {
+            i += 1;
+        } else {
+            return None;
+        }
+    } else if i < n && (text[i] == '.' || text[i] == ')') {
+        i += 1;
+    } else if !text[body..i].contains(&'.') {
+        return None;
+    }
+    if i < n && !text[i].is_whitespace() {
+        return None;
+    }
+    let token: String = text[start..i].iter().collect();
+    legal_structure::STRUCTURE_ANALYSIS.numbering_marker(token.trim(), None).map(|_| (start, i))
 }
 
 /// Labels decoded into the gold's own form over a frame's pieces in its reading order. A piece that
@@ -473,7 +662,17 @@ pub fn decode(candidate: &State, pieces: &[Piece], labels: &[Label], source_sha2
         let region = REGIONS[unit_region[u]];
         let line = &candidate.lines[piece.line];
         let own = |s: &SourceSpan| piece_at(s) == Some(k);
-        let marker = if head[u] != k { None } else if region == "note" { note_labels.get(&k) } else { markers.get(&k) };
+        let read_marker = || {
+            let chars = &line.text[piece.start.min(line.text.len())..piece.end.min(line.text.len())];
+            leading_marker(chars).map(|(a, b)| vec![SourceSpan { line_id: line.id.clone(), start: piece.start + a, end: piece.start + b }])
+        };
+        let marker: Option<Vec<SourceSpan>> = if head[u] != k {
+            None
+        } else if region == "note" {
+            note_labels.get(&k).cloned()
+        } else {
+            markers.get(&k).cloned().or_else(|| matches!(region, "text" | "list_item").then(read_marker).flatten())
+        };
         let mut own_references: Vec<SourceSpan> = if label.reference {
             references.get(&k).into_iter().flatten().filter(|s| own(s)).cloned().collect()
         } else {
@@ -493,13 +692,27 @@ pub fn decode(candidate: &State, pieces: &[Piece], labels: &[Label], source_sha2
         typed.push(Typed {
             region: region.to_owned(),
             spans: vec![SourceSpan { line_id: line.id.clone(), start: piece.start, end: piece.end }],
-            markers: marker.map(|m| vec![m.clone()]).unwrap_or_default(),
+            markers: marker.map(|m| vec![m]).unwrap_or_default(),
             references: own_references.into_iter().map(|s| Reference { spans: vec![s] }).collect(),
             cells: row_cells,
         });
     }
-    for u in 0..units.len() {
-        units[u].parent = labels[head[u]].parent.as_deref().and_then(|a| unit_at.get(a).copied()).filter(|&p| p != u);
+    let regions: Vec<&str> = unit_region.iter().map(|&r| REGIONS[r]).collect();
+    let texts: Vec<String> = head.iter().map(|&k| {
+        let (piece, line) = (&pieces[k], &candidate.lines[pieces[k].line]);
+        line.text[piece.start.min(line.text.len())..piece.end.min(line.text.len())].iter().collect()
+    }).collect();
+    let levels: Vec<usize> = head.iter().map(|&k| labels[k].level).collect();
+    let starts: Vec<bool> = units.iter().map(|unit| unit.starts_document).collect();
+    for (u, parent) in assemble(&regions, &texts, &levels, &starts).into_iter().enumerate() {
+        units[u].parent = parent;
+    }
+    if std::env::var("LEGALPDF_ASSEMBLE_TRACE").is_ok_and(|prefix| source_sha256.starts_with(&prefix)) {
+        eprintln!("assemble-units {} pieces {} labelled {}", units.len(), pieces.len(), labels.iter().filter(|l| l.region != 0).count());
+        for u in 0..units.len() {
+            eprintln!("assemble {u} {} {} {} {:?} {:?} start={} doc={}", regions[u], levels[u], numbering(&texts[u], None), units[u].parent,
+                texts[u].chars().take(30).collect::<String>(), labels[head[u]].start, units[u].starts_document);
+        }
     }
     // Note pairs: each frame note's references, to the unit holding the note's first piece.
     let mut notes: Vec<NotePair> = Vec::new();

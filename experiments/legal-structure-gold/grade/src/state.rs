@@ -146,8 +146,9 @@ pub struct NotePair {
 }
 
 /// The gold's convention for a numbered unit of the parser's: enumerated clauses and items
-/// ("1.", "2.1", "(3)", "(a)", "iv.", bullets) are list items; a bracketed paragraph number
-/// ("[12]") or a bare statute section number ("12", before its "(1)") opens running text.
+/// ("1.", "2.1", "(a)", "iv.", bullets) are list items; a bracketed paragraph number ("[12]"), a
+/// bare statute section number ("12", before its "(1)") or a parenthesized subsection number
+/// ("(2)", "(1.1)") opens running text.
 pub fn parser_list_item(state: &State, block: &CompositionBlock) -> bool {
     let locator = block.attributes.get("locator_kind").and_then(Value::as_str);
     if locator == Some("list_item") {
@@ -163,7 +164,11 @@ pub fn parser_list_item(state: &State, block: &CompositionBlock) -> bool {
     let chars = &state.lines[n].text;
     let text: String = chars[first.start.min(chars.len())..first.end.min(chars.len())].iter().collect();
     let marker = text.trim();
-    !(marker.is_empty() || marker.starts_with('[') || marker.chars().all(|c| c.is_ascii_digit()))
+    let inner = marker.trim_start_matches(['(', '[']).trim_end_matches([')', ']']);
+    let digits = !inner.is_empty() && inner.chars().all(|c| c.is_ascii_digit() || c == '.') && !inner.ends_with('.');
+    let bare = digits && !inner.contains('.') && !marker.starts_with('(') && !marker.ends_with('.');
+    let subsection = digits && marker.starts_with('(') && marker.ends_with(')') && inner.matches('.').count() <= 1;
+    !(marker.is_empty() || marker.starts_with('[') || bare || subsection)
 }
 
 pub const V4: &str = "legal-structure-gold.v4";
@@ -298,6 +303,7 @@ pub fn projected(gold: &Gold) -> Result<State, String> {
         };
         for (k, spans) in parts[u].iter().enumerate() {
             let mut attrs = Map::new();
+            attrs.insert("region".into(), json!(region[u]));
             attrs.insert(
                 "parent".into(),
                 parent.clone().map_or(Value::Null, Value::String),

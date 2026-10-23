@@ -439,8 +439,8 @@ fn grade_one(
 }
 
 /// Per document, each piece's labels from a tagger's predictions file: {sha256, ids, labels}, ids
-/// naming pieces (line@offset) and each label [region, start, relation, document, reference,
-/// parent row, resumed row], a pointer being the row of the piece it names, or -1.
+/// naming pieces (line@offset) and each label [region, start, document, reference, heading level,
+/// resumed row], the row being that of the piece it resumes, or -1.
 fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<String, labels::Label>>>, String> {
     let Some(path) = path else { return Ok(None) };
     let text = std::fs::read_to_string(local(path)).map_err(|e| format!("{path}: {e}"))?;
@@ -456,8 +456,8 @@ fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<Stri
             let pointer = |k: usize| label.get(k).and_then(Value::as_i64).filter(|&row| row >= 0)
                 .and_then(|row| ids.get(row as usize)).and_then(Value::as_str).map(str::to_owned);
             per_piece.insert(id.as_str().unwrap_or_default().to_owned(), labels::Label {
-                region: field(0), start: field(1), relation: field(2), document: field(3) == 1, reference: field(4) == 1,
-                parent: pointer(5), continues: pointer(6),
+                region: field(0), start: field(1), document: field(2) == 1, reference: field(3) == 1, level: field(4),
+                continues: pointer(5),
             });
         }
         found.insert(sha, per_piece);
