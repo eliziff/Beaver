@@ -287,8 +287,15 @@ export type ResearchRead = BeaverOutcome & { coverage: {
   scope?: "section_content" | "resolved_reference_content" | "research_context_content";
   complete: boolean; next: ResearchReadCursor[] } };
 
+// The most of one line a window shows; a longer line is shown in parts.
+const fitsRow = (text: string) => JSON.stringify(text).length <= 28_000;
+/** A passage cited by the numbered lines it covers, unless they run past what a window shows of a line. */
+const numberedWithinRow = (receipt: LegalEvidenceReceipt, document: NativeDocument) => {
+  const whole = numberedReceipt(receipt, document);
+  return fitsRow(whole.span_text ?? "") ? whole : receipt;
+};
 const boundedRow = (row: ReturnType<ReturnType<typeof structureNative>["readDocumentTextWindow"]>["rows"][number]) => {
-  const text = JSON.stringify(row.text).length > 28_000 ? utf16PrefixCeil(row.text, 4_000) : row.text;
+  const text = fitsRow(row.text) ? row.text : utf16PrefixCeil(row.text, 4_000);
   return { ...row, text, span: [row.span[0], row.span[0] + text.length] as [number, number],
     truncatedEnd: row.truncatedEnd || text.length < row.text.length };
 };
@@ -667,12 +674,13 @@ async function readLegalSource(
           located = block && ["paragraph", "page", "section", "footnote"].includes(kind),
           whole = located && block.text === row.text ? block : null,
           start = row.span[0], end = row.span[1],
-          receipt = numbered(whole ? legalSourceEvidence({ ...passage, role: "selected", text: whole.text,
+          evidence = whole ? legalSourceEvidence({ ...passage, role: "selected", text: whole.text,
             blockArtifact: whole, locator: { requested: { kind: kind as "paragraph" | "page" | "section" | "footnote",
               value: whole.label }, label: whole.label } })
             : legalSourceEvidence(passage, { text: row.text, start, end,
             ...(block ? { blockId: `${block.kind}:${block.label}:${start}:${end}`,
-              ...(located ? { locator: { kind, label: block.label } } : {}) } : {}) }), passage);
+              ...(located ? { locator: { kind, label: block.label } } : {}) } : {}) }),
+          receipt = evidence && numberedWithinRow(evidence, artifact);
         if (!receipt) throw new Error("The source cannot provide exact passage evidence");
         const size = JSON.stringify(modelLegalPassage(receipt)).length;
         if (!remaining || chars + size > 32_000) {
@@ -968,7 +976,7 @@ function renderLibraryRead(input: LibraryWindowInput, lines: LibraryReadLine[],
   let heading = "";
   const content = lines.map(({ rendered, span, locator, receipt: prepared }) => {
     if (!span || span[0] === span[1]) return rendered;
-    const receipt = numberedReceipt(prepared ?? createLibraryEvidence({ documentId: input.documentId,
+    const receipt = numberedWithinRow(prepared ?? createLibraryEvidence({ documentId: input.documentId,
       versionId: input.versionId, filename: input.filename, sourceSha256, start: span[0], end: span[1],
       spanText: text.slice(span[0], span[1]), locator }), input.document), numbered = numberedLines(receipt);
     receipts.set(receipt.evidence_id, receipt);
