@@ -689,8 +689,10 @@ fn grade_one(
             })).collect()
         };
         let lines: Vec<serde_json::Value> = predicted.lines.iter().map(|l| serde_json::json!([l.id, l.page, l.text.iter().collect::<String>()])).collect();
+        let fragments: Vec<&str> = structure.source_fragments.iter().map(|f| f.id.as_str()).collect();
+        let extraction: Vec<&str> = pages.iter().flat_map(|p| p.lines.iter().map(|(id, _)| id.as_str())).collect();
         let _ = std::fs::write(dir.join(format!("{}.json", source.sha256)),
-            serde_json::to_vec(&serde_json::json!({"gold": dump(&reference), "parser": dump(&predicted), "lines": lines})).unwrap_or_default());
+            serde_json::to_vec(&serde_json::json!({"gold": dump(&reference), "parser": dump(&predicted), "lines": lines, "fragments": fragments, "extraction": extraction})).unwrap_or_default());
     }
     let compared_at = Instant::now();
     let score = score::compare(&reference, &predicted)?;

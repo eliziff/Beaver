@@ -222,6 +222,9 @@ const UNRANKED: [&str; 4] = ["furniture", "page_label", "marginal_note", "conten
 fn alias(kind: &str) -> &str {
     match kind {
         "prose" => "text",
+        // A caption (a judgment's style of cause block, a form's field label) is running text for
+        // the parser's purposes: no layer scores it apart.
+        "caption" => "text",
         "header" | "footer" => "furniture",
         other => other,
     }
@@ -433,7 +436,7 @@ fn features<'a>(
         // A projected or tagged state names each unit's region, which is its role as scored;
         // parser output is read through its kind and locator.
         if let Some(region) = block.attributes.get("region").and_then(Value::as_str) {
-            return match region { "none" => "text", other => other }.to_owned();
+            return match region { "none" | "caption" => "text", other => other }.to_owned();
         }
         if kind == "text" && side.candidate && crate::state::parser_list_item(state, block) {
             return "list_item".into();
