@@ -1,13 +1,17 @@
-"""PDF structure gold in three passes, each with the page images.
+"""PDF structure gold in four passes.
 
-Lines: the model corrects each page's extracted lines and gives them as units, each a region and
-its lines. Notes: the model pairs every note reference with its note's number.
-Hierarchy: the model sees the document's units, numbered, and gives each its parent and where each
-of the file's documents starts and ends. The runner aligns the typed lines to the extracted ones
-and writes one gold file per source.
+Lines (page images, three pages a call): the model corrects each page's extracted lines and gives
+them as units, each a region and its lines, with their printed markers. Notes (page images): the
+model pairs every note reference with its note's number. Numbering (text, the whole document in one
+call): the model says what each of the document's numbered runs is (numbering.py), which the pages
+alone cannot show. Hierarchy (page images, the whole document): the model gives heading levels and
+where each of the file's documents starts and ends; parents follow by rule. The runner aligns the
+typed lines to the extracted ones and writes one gold file per source.
 
   python experiments/legal-structure-gold/author.py --pdf FILE --mode digitalborn|ocr [--out DIR]
   python experiments/legal-structure-gold/author.py --manifest FILE [--root DIR] [--limit 0] [--shard k/n]
+  python experiments/legal-structure-gold/author.py --manifest FILE --renumber   (the numbering pass
+      over existing golds, parents rebuilt, recorded under postcorrections)
 """
 import argparse
 import gzip
@@ -30,6 +34,7 @@ from codex_runner.transport import terminate  # noqa: E402
 import blocks  # noqa: E402
 import gold  # noqa: E402
 import hierarchy  # noqa: E402
+import numbering  # noqa: E402
 import prompts  # noqa: E402
 
 VERSION = "legal-structure-gold.v4"
@@ -210,6 +215,50 @@ def author_notes(typed, groups, images, job, args):
     return pairs
 
 
+def author_numbering(typed, groups, job, args):
+    """Each numbered run's kind written onto its units' regions and markers; returns the changes.
+    Runs the convention fixes are decided by rule; the model decides the rest in one call."""
+    found = numbering.runs(numbering.numbered(typed, groups))
+    kinds = [numbering.by_rule(typed, groups, run) for run in found]
+    asked = [k for k, kind in enumerate(kinds) if kind is None]
+    if asked:
+        schema = job / "calls" / "numbering-schema.json"
+        write_json(schema, prompts.NUMBERING_SCHEMA)
+        def valid(response):
+            answers = {a["run"]: a["kind"] for a in response["runs"]}
+            gold.require(len(answers) == len(response["runs"]), "A run has one answer")
+            missing = sorted({k + 1 for k in asked} - set(answers))
+            gold.require(not missing, f"Answer every run without a decided kind; missing R{', R'.join(map(str, missing[:20]))}")
+            return answers
+        answers = call(prompts.numbering_prompt(numbering.listing(typed, groups, found, set(asked))), schema, [],
+                       job / "calls" / "numbering", args, valid, policy=POLICY)
+        for k in asked:
+            kinds[k] = answers[k + 1]
+    return numbering.apply(typed, groups, found, kinds)
+
+
+def renumber(job, args):
+    """The numbering pass over an existing gold, its parents rebuilt by hierarchy.assemble."""
+    path = job / "gold.json.gz"
+    value = numbering.load(path)
+    if any(p["name"] == "numbering" for p in value.get("postcorrections", [])):
+        return job
+    typed, units = value["typed"], value["units"]
+    groups = [unit["lines"] for unit in units]
+    changes = author_numbering(typed, groups, job, args)
+    parents = hierarchy.assemble([typed[g[0]]["region"] for g in groups], [" ".join(typed[g[0]]["text"].split()) for g in groups],
+                                 [unit.get("level") for unit in units], [unit.get("starts_document", False) for unit in units])
+    for unit, parent in zip(units, parents):
+        unit["parent"] = parent
+    value.setdefault("postcorrections", []).append({"name": "numbering", "module_sha256": digest(HERE / "numbering.py"),
+                                                    "prompt": prompts.NUMBERING, "changes": changes})
+    write_json(path, value)
+    receipt = read_json(job / "receipt.json")
+    receipt["gold_sha256"] = digest(path)
+    write_json(job / "receipt.json", receipt)
+    return job
+
+
 def image_tokens(path):
     """Input tokens of a page image, from its PNG size (measured: about 2,400 for a letter page at
     144 dpi)."""
@@ -251,7 +300,7 @@ def author(pdf, mode, args):
     job.mkdir(parents=True, exist_ok=True)
     started = time.time()
     receipt = {"source_sha256": source, "mode": mode, "model": args.model, "effort": args.effort, "status": "running",
-               "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py")}}
+               "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py", HERE / "numbering.py")}}
     write_json(job / "receipt.json", receipt)
     try:
         lines, parser = extract(pdf, mode, args.out, args.timeout)
@@ -264,11 +313,13 @@ def author(pdf, mode, args):
         gold_lines, typed, edits, report = assemble(lines, authored, mode)
         groups = hierarchy.units(typed)
         notes = author_notes(typed, groups, images, job, args)
+        author_numbering(typed, groups, job, args)
         units = author_hierarchy(typed, groups, images, job, args)
         value = {"schema_version": VERSION, "source_sha256": source, "mode": mode, "page_count": len(pages), "parser": parser,
                  "images": embedded_images(pdf),
                  "authoring": {"model": args.model, "effort": args.effort, "long_side": LONG_SIDE, "dpi_cap": args.dpi, "chunk_pages": CHUNK_PAGES,
-                               "prompts": {"lines": prompts.LINES, "notes": prompts.NOTES, "hierarchy": prompts.HIERARCHY}},
+                               "prompts": {"lines": prompts.LINES, "notes": prompts.NOTES, "numbering": prompts.NUMBERING,
+                                           "hierarchy": prompts.HIERARCHY}},
                  "lines": gold_lines, "typed": typed, "units": units, "notes": notes, "text_edits": edits, "report": report}
         write_json(job / "gold.json.gz", value)
         receipt.update(status="complete", gold_sha256=digest(job / "gold.json.gz"), pages=len(pages), units=len(units),
@@ -298,6 +349,7 @@ def main():
     p.add_argument("--timeout", type=int, default=900)
     p.add_argument("--attempts", type=int, default=3)
     p.add_argument("--parallel", type=int, default=4, help="Concurrent model calls per source")
+    p.add_argument("--renumber", action="store_true", help="Run only the numbering pass over the manifest's existing golds")
     a = p.parse_args()
     gold.low_priority()
     args = SimpleNamespace(model=a.model, effort=a.effort, attempts=a.attempts, max_calls=None, timeout=a.timeout,
@@ -309,6 +361,16 @@ def main():
     k, n = map(int, a.shard.split("/"))
     rows = rows[k::n][: a.limit or None]
     base = a.root or a.manifest.parent
+    if a.renumber:
+        def one(row):
+            job = args.out / "v4" / row["sha256"]
+            if not (job / "gold.json.gz").is_file(): return None
+            try: return str(renumber(job, args))
+            except Exception as exc: return json.dumps({"sha256": row["sha256"], "error": str(exc)[-500:]})
+        with ThreadPoolExecutor(args.parallel) as pool:
+            for line in pool.map(one, rows):
+                if line: print(line, flush=True)
+        return
     for row in rows:
         try: print(author(base / row["path"], row["mode"], args), flush=True)
         except Exception as exc: print(json.dumps({"path": row["path"], "error": str(exc)[-500:]}), flush=True)

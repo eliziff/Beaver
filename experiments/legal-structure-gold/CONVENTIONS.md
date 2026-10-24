@@ -17,12 +17,10 @@ The lines pass types every printed line. The disputed boundaries, and the ruling
 | catchlines and syllabus lines of a law report ("Evidence.—Public documents.") | `headnote` | heading |
 | statute side notes printed in the margin or above a section in smaller type | `marginal_note` | heading |
 | a sentence that ends in a colon and introduces what follows ("Your password must include:") | `text` | heading |
-| a numbered or lettered item whose body follows on the same line or below it | `list_item` | heading |
 | a cell of a table, including header cells | `table` | heading |
 | a contents entry with a locator | `contents` | heading |
 | a title line: short, set apart by type, position or numbering, naming the part that follows | `heading` | |
-| an enumerated clause or item: "1.", "2.1", "(3)", "(a)", "iv.", a bullet | `list_item` | text |
-| a bracketed paragraph number "[12]", or a statute section's bare number before "(1)" | `text` with a marker | list_item |
+| a numbered body unit | `text` or `list_item` by section 6, decided for the whole document | decided per page |
 
 A heading is a title. It names the stretch of document that follows it. It is never a sentence of
 running prose, never a field label with a value beside it, and never furniture. The same words can
@@ -94,6 +92,39 @@ These are assignments from provenance and the gold's own text, recomputed by `gr
 |---|---|---|
 | `running_heads` | section 1, furniture | `postcorrect.py` |
 | `hierarchy_from_headings` | section 2 and 3; a historical record on golds rebuilt before the writer applied the rule. author.py writes parents with `assemble`, and the grader refuses a gold whose parents differ from it: there is no converter. | `author.py` |
+| `numbering` | section 6, on golds authored before the numbering pass: `author.py --renumber` runs the pass alone and rebuilds parents | `numbering.py` |
 
 A post-correction is applied by the runner to new gold and by its module's command to existing
 gold; the gold file records `{"name", "module_sha256", "changes"}` per correction.
+
+## 6. Numbering
+
+A **marker** is a printed number, letter, roman numeral or bullet that counts or enumerates. A
+speaker label (Q., A., MR. SMITH:), a transcript's line number, a checkbox and a field label (TO:,
+cc., RE:) are not markers; they stay in their unit's text.
+
+What a numbered unit is depends on the whole document's numbering, never on its page, so the lines
+pass only transcribes the marker and the **numbering pass** decides, once per document. A **run** is
+the units of one numbering family whose count continues, wherever they fall: paragraph 18 resumes
+paragraphs 1 to 17 after a list of its own 1 to 6. Every unit of a run gets the run's kind:
+
+| kind | what it is | region | marker |
+|---|---|---|---|
+| paragraph | the document's own numbered paragraphs, clauses, sections or recitals, however numbered: an affidavit's "1. I am", a judgment's "[12]", a factum's "23.", a contract's "2.03" and "A." recitals, a statute's "12 (1)" and "(2)" | `text` | kept |
+| list | the items of a list inside or after a paragraph: (a), i., bullets, a statute's paragraphs and subparagraphs, issues, the items of a prayer for relief, a count restarting after a lead-in ("the Court refused:" then 1. 2. 3.) | `list_item` | kept |
+| plain | not numbering after all (speaker labels, line numbers, field labels the lines pass marked) | `text` | removed |
+| option | a form's checkbox options | `list_item` | removed |
+
+A letter, roman or bullet run that a lead-in ending in a colon opens at its first value is a list by
+rule; the model decides every other run, seeing all of the document's runs at once.
+
+## 7. Checks
+
+- **Self-check** (`structure-gold selfcheck STORE MANIFEST labels|self`): the scorer reads the gold
+  back at 1.0 on every layer. It proves the scorer, not the gold.
+- **Consistency census** (`numbered_census.py STORE GROUPS`): no run is labelled both ways inside a
+  document, and each pattern of run (family, what introduces it, whether it starts its count) has
+  one label across documents. A split pattern is a convention not yet written here.
+- **Agreement** (`structure-gold selfcheck STORE_A MANIFEST agree --other STORE_B`): the same
+  documents authored twice, independently, scored against each other. Two authorings that disagree
+  on a layer mean the convention for that layer is not pinned down, whatever either one scores.
