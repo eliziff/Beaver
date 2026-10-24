@@ -61,15 +61,13 @@ function fromEngine(linked: string | null, local: boolean) {
   return url.origin === LOCAL ? `${url.pathname}${url.search}${url.hash}` : null;
 }
 
-/** Every link a passage of an A2AJ document can take, from the engine: on the publisher's page A2AJ names
- *  (`publisher`), on the document's CanLII page (`canlii`), on A2AJ Law Web (`lawWeb`), and the one routed best
- *  (`best`: the publisher's where its page prints an anchor for the pinpoint, else CanLII's). A consumer takes the
- *  one it wants; each page link carries its plan, so it can also ask whether the fragments plan whole. */
-export function a2ajDocumentLinks(
+/** The link a passage of an A2AJ document is routed to, from the engine: on the publisher's page A2AJ names where it
+ *  prints an anchor for the pinpoint, else on the document's CanLII page, else on A2AJ Law Web. */
+export function a2ajDocumentLink(
   source: A2AJCompiledDocument, locator: { kind: A2AJLocatorKind; label: string } | null,
   blockText: string, quotes: string[],
 ) {
-  return structureNative().sourceLinks(source.searchNative, {
+  return structureNative().sourceLink(source.searchNative, {
     ...source.url && { url: source.url }, dataset: source.dataset, citation: source.citation,
     alternateCitation: source.alternateCitation, language: source.language, docType: source.docType ?? "cases",
     locator, blockText, quotes,

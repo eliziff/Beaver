@@ -1,4 +1,4 @@
-import { a2ajDocumentLinks,
+import { a2ajDocumentLink,
   buildLegalSourcePinpoint, legalSourceLocatorAnchor } from "../legalSourceLinks";
 import { plainInlineText } from "../legalSourcePresentation";
 import type { RegisteredEvidence } from "./legalEvidence";
@@ -106,7 +106,7 @@ export function presentLegalEvidence(
   let passageUrl = citationUrl;
   if (bounded && fragmentSourceUrl && blockText && source) {
     if (receipt.provider === "a2aj" && document && a2ajLocator) {
-      passageUrl = a2ajDocumentLinks(document, a2ajLocator, blockText, quotes).best ?? citationUrl;
+      passageUrl = a2ajDocumentLink(document, a2ajLocator, blockText, quotes) ?? citationUrl;
     } else {
       const planned = buildLegalSourcePinpoint(
           {

@@ -49,7 +49,7 @@ export const SIGNATURES = {
   readDocumentRange: ["document", "kind", "from", "to", "contextBlocks"],
   canliiCaseUrl: ["citations", "language", "court"], canliiLawUrl: ["text", "language", "consolidated"], canliiCourtRoute: ["court"],
   passageLink: ["document", "request"], citedPassageLink: ["document", "url", "pinpoints"],
-  sourceLinks: ["document", "request"],
+  sourceLink: ["document", "request"],
   lawWebLink: ["document", "citation", "docType", "blockText", "quotes"],
   smallestContainingDocumentBlock: ["document", "start", "end"],
   lookupStructureBlock: ["document", "locator", "contextBlocks"],

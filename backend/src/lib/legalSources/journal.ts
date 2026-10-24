@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { inSqliteRun, legalDataHome, legalProviderDatabase, onSqliteRunEnd, storeExists } from "../legalDataPath";
+import { inSqliteRun, legalDataHome, legalProviderDatabase, onSqliteRunEnd, storeExists, storeStat } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
 import { sqliteText as string } from "../sqliteSearch";
 import { searchFts5, searchTerms } from "../searchQuery";
@@ -82,9 +82,10 @@ function closeDatabases() {
   validated = {};
   documents.clear();
   namedArticles.clear();
+  named.clear();
 }
 
-function snapshotSignature(filename: string, source = statSync(filename)) {
+function snapshotSignature(filename: string, source = storeStat(filename) ?? statSync(filename)) {
   return `${path.resolve(filename)}:${source.size}:${Math.trunc(source.mtimeMs)}`;
 }
 
@@ -179,7 +180,7 @@ function openSearchDatabase() {
   const sourcePath = path.resolve(journalDatabasePath());
   let source: ReturnType<typeof statSync>;
   try {
-    source = statSync(sourcePath);
+    source = storeStat(sourcePath) ?? statSync(sourcePath);
   } catch {
     return null;
   }
@@ -473,26 +474,35 @@ function journalReference(document: JournalArticleDocument) {
   } satisfies LegalSourceReference;
 }
 
-/** Python difflib's ratio of two titles, by character, after folding case and punctuation. */
+// The article each citation names in a journals database, as its documents are kept: finding sources and checking
+// quotations read the same citations.
+const named = new Map<string, number | null>();
+
+/** The article a citation names: one whose citation or name it is, else the one its words find whose citation or
+ *  name it is, else the one its title finds (titledArticle). */
+async function namedArticle(candidates: string[]) {
+  for (const candidate of candidates) {
+    const article = await document(candidate);
+    if (article) return article.articleId;
+  }
+  // A citation is matched by its words, each taken literally, not read as a search expression.
+  const words = candidates[0].normalize("NFKC").match(/[\p{L}\p{N}]+/gu)
+    ?.filter((word) => word.length > 1).slice(0, 8).map((word) => `"${word}"`).join(" ") ?? "";
+  const matches = !words ? [] : findArticles(words, 10, { names: true }).filter((match) =>
+    candidates.some((candidate) =>
+      exactJournalIdentity(candidate) === exactJournalIdentity(match.citation) ||
+      exactJournalIdentity(candidate) === exactJournalIdentity(match.name)));
+  const titled = matches.length ? null : titledArticle(candidates[0]);
+  return matches.length === 1 ? matches[0].articleId : titled;
+}
+
 /** The article a citation names by the title it quotes: the closest title the search finds for it,
  *  when close enough. After ALR-Quote-Verifier journal_search.py search_by_title (difflib ratio of at least
  *  0.7 between normalized titles, among articles of the cited year or the years beside it), with candidates
  *  from this database's index of names: of those years, the names sharing the most of the title's words, the
  *  cited journal, volume and first page, so a word spelled or inflected otherwise does not lose the article.
  *  A citation without a year takes only names holding every word of the title. */
-// The articles journal citations name in a journals database, as its documents are kept: finding sources, checking
-// quotations and writing the workbook read the same citations.
-const titled = new Map<string, number | null>();
 function titledArticle(citation: string) {
-  const key = `${journalDatabasePath()}:${citation}`;
-  if (titled.has(key)) return titled.get(key)!;
-  const found = findTitledArticle(citation);
-  titled.set(key, found);
-  if (titled.size > 4096) titled.delete(titled.keys().next().value!);
-  return found;
-}
-
-function findTitledArticle(citation: string) {
   // The engine says what to search for and which found name is the title's; the index is searched here.
   const engine = structureNative();
   return engine.journalTitleChoice(engine.journalTitleSearches(citation).flatMap(({ title, query }) =>
@@ -539,20 +549,13 @@ const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
       .map((value) => value.trim().replace(/\s+/gu, " "))
       .filter(Boolean);
     if (!candidates.length) return [];
-    for (const candidate of candidates) {
-      const article = await document(candidate);
-      if (article) return [journalReference(article)];
+    const key = `${journalDatabasePath()}:${candidates.join("\n")}`;
+    let articleId = named.get(key);
+    if (articleId === undefined) {
+      named.set(key, articleId = await namedArticle(candidates));
+      if (named.size > 4096) named.delete(named.keys().next().value!);
     }
-    // A citation is matched by its words, each taken literally, not read as a search expression.
-    const words = (candidates[0] ?? request.text).normalize("NFKC").match(/[\p{L}\p{N}]+/gu)
-      ?.filter((word) => word.length > 1).slice(0, 8).map((word) => `"${word}"`).join(" ") ?? "";
-    const matches = !words ? [] : findArticles(words, 10, { names: true }).filter((match) =>
-      candidates.some((candidate) =>
-        exactJournalIdentity(candidate) === exactJournalIdentity(match.citation) ||
-        exactJournalIdentity(candidate) === exactJournalIdentity(match.name)));
-    const titled = matches.length ? null : titledArticle(candidates[0] ?? request.text);
-    if (matches.length !== 1 && !titled) return [];
-    const article = await document(String(titled ?? matches[0].articleId));
+    const article = articleId === null ? null : await document(String(articleId));
     return article ? [journalReference(article)] : [];
   },
   // In a search of several kinds, filters journals do not index (a court, a collection, the US) leave journals out.

@@ -388,13 +388,19 @@ export async function resolveAuthoritiesSources(
   }
   // Commentary the journals database holds: its article, and the article's link. An article is
   // found by its title, which the whole citation part carries and the authority's citation may not.
-  for (const id of draft.authorityOrder) {
+  const articles = draft.authorityOrder.flatMap((id) => {
     const authority = draft.authorities[id];
-    if (authority?.kind !== "commentary" || authority.sourceIdentity || (retrying && !retrying.has(id))) continue;
-    signal?.throwIfAborted();
+    if (authority?.kind !== "commentary" || authority.sourceIdentity || (retrying && !retrying.has(id))) return [];
     const occurrence = Object.values(draft.occurrences).find((item) => item.authorityId === id);
-    const unit = occurrence && draft.units.find((item) => item.id === occurrence.unitId);
-    const [split] = unit ? await splitQuoteCitationUnits([unit.text], signal) : [];
+    return [{ id, occurrence, unit: occurrence && draft.units.find((item) => item.id === occurrence.unitId) }];
+  });
+  // The notes citing them, split at once, off this thread.
+  const splits = await splitQuoteCitationUnits(articles.flatMap(({ unit }) => unit ? [unit.text] : []), signal);
+  let splitAt = 0;
+  for (const { id, occurrence, unit } of articles) {
+    const authority = draft.authorities[id];
+    signal?.throwIfAborted();
+    const split = unit ? splits[splitAt++] : undefined;
     const part = split?.parts.find((item) => occurrence!.start >= item.start && occurrence!.start < item.end);
     let article: Awaited<ReturnType<SourceServices["resolveJournal"]>>;
     try { article = await sources.resolveJournal(part?.text ?? authority.citation, signal); }
