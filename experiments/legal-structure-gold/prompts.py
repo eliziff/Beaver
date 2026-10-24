@@ -1,10 +1,10 @@
 """The structure-gold calls. Every call sees the page images."""
 
 REGIONS = ("text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote",
-           "marginal_note", "furniture", "page_label")
+           "marginal_note", "furniture", "page_label", "line_label")
 
-LINES = """Correct each page's extracted lines against its image. Give the page's units in reading order, each as its region and its printed lines: text, list_item, heading, quote (block quotation, numbered or not), note (footnote or endnote), table (one row; cells joined by " | "), contents (table of contents or index entry), caption (case caption), headnote, marginal_note, furniture (running header or footer) or page_label. A unit is a paragraph, heading, item, note, row, running header or page number.
-Put a tab after each leading printed marker: a number, letter, roman numeral or bullet that counts or enumerates ("12\t(1)\tThe Minister"). A speaker label (Q., A., MR. SMITH:), a transcript's line number, a checkbox or a field label (TO:, cc., RE:) is not a marker. Write note references as [^mark], the mark as printed, brackets included.
+LINES = """Correct each page's extracted lines against its image. Give the page's units in reading order, each as its region and its printed lines: text, list_item, heading, quote (block quotation, numbered or not), note (footnote or endnote), table (one row; cells joined by " | "), contents (table of contents or index entry), caption (case caption), headnote, marginal_note, furniture (running header or footer), page_label or line_label (a transcript's printed line number, its own unit even where it is printed on the line it numbers). A unit is a paragraph, heading, item, note, row, running header, page number or line number.
+Put a tab after each leading printed marker: a number, letter, roman numeral or bullet that counts or enumerates ("12\t(1)\tThe Minister"). A speaker label (Q., A., MR. SMITH:), a checkbox or a field label (TO:, cc., RE:) is not a marker. Write note references as [^mark], the mark as printed, brackets included.
 continues: true when the page's first unit continues the unit before it on the page before."""
 
 _UNIT = {"type": "object", "additionalProperties": False, "required": ["region", "lines"], "properties": {
@@ -22,9 +22,9 @@ NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["p
 HIERARCHY = """For each heading row give [row, level]: 1 for the outermost headings of its document, 2 for headings under those, and so on. Headings of one kind (same numbering, same type) share a level.
 If the file holds several documents, such as a judgment and its exhibits, give starts and ends: the rows that begin and end each one; otherwise leave them empty."""
 NUMBERING = """These are the numbered runs of one document in reading order. A run is the units whose numbers continue one count, so a run may resume after other material. Say what each run is:
-paragraph: the document's own numbered paragraphs, clauses, sections or recitals, however numbered ("1. I am", "[12]", "2.03 The Employer shall", "12 (1)", "(2) Notwithstanding", "A. The Borrower").
+paragraph: the document's own numbered paragraphs, clauses, sections, recitals or examination questions, however numbered ("1. I am", "[12]", "2.03 The Employer shall", "12 (1)", "(2) Notwithstanding", "A. The Borrower", "62 Q. Are you aware").
 list: items of a list inside or after a paragraph, such as (a), i., bullets, or a count restarting after a lead-in ("the Court refused:" then 1. 2. 3.).
-plain: not numbering: speaker labels (Q., A., MR. SMITH:), transcript line numbers, field labels (TO:, cc., RE:).
+plain: not numbering: speaker labels (Q., A., MR. SMITH:), field labels (TO:, cc., RE:).
 option: a form's checkbox options."""
 NUMBERING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["runs"], "properties": {"runs": {"type": "array", "items": {
     "type": "object", "additionalProperties": False, "required": ["run", "kind"], "properties": {

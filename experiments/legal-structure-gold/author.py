@@ -12,6 +12,8 @@ typed lines to the extracted ones and writes one gold file per source.
   python experiments/legal-structure-gold/author.py --manifest FILE [--root DIR] [--limit 0] [--shard k/n]
   python experiments/legal-structure-gold/author.py --manifest FILE --renumber   (the numbering pass
       over existing golds, parents rebuilt, recorded under postcorrections)
+  python experiments/legal-structure-gold/author.py --manifest FILE --again   (complete golds authored
+      again under changed conventions)
 """
 import argparse
 import gzip
@@ -295,7 +297,7 @@ def author_hierarchy(typed, groups, images, job, args):
 def author(pdf, mode, args):
     pdf, source = Path(pdf), digest(Path(pdf))
     job = args.out / "v4" / source
-    if (job / "gold.json.gz").is_file() and read_json(job / "receipt.json").get("status") == "complete":
+    if not args.again and (job / "gold.json.gz").is_file() and read_json(job / "receipt.json").get("status") == "complete":
         return job
     job.mkdir(parents=True, exist_ok=True)
     started = time.time()
@@ -350,10 +352,11 @@ def main():
     p.add_argument("--attempts", type=int, default=3)
     p.add_argument("--parallel", type=int, default=4, help="Concurrent model calls per source")
     p.add_argument("--renumber", action="store_true", help="Run only the numbering pass over the manifest's existing golds")
+    p.add_argument("--again", action="store_true", help="Author complete golds again, under the current prompts; earlier calls stay cached")
     a = p.parse_args()
     gold.low_priority()
     args = SimpleNamespace(model=a.model, effort=a.effort, attempts=a.attempts, max_calls=None, timeout=a.timeout,
-                           dpi=a.dpi, parallel=a.parallel, out=a.out.resolve())
+                           dpi=a.dpi, parallel=a.parallel, out=a.out.resolve(), again=a.again)
     if a.pdf:
         gold.require(a.mode, "--pdf needs --mode")
         print(author(a.pdf, a.mode, args)); return

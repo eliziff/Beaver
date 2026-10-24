@@ -13,6 +13,7 @@ The lines pass types every printed line. The disputed boundaries, and the ruling
 | what the page shows | region | not |
 |---|---|---|
 | running head or foot repeated across pages, folio numbers | `furniture`, `page_label` | heading |
+| a transcript's printed line number, in its own column or printed on the line it numbers | `line_label`, a unit of its own | part of the line's text, a marker |
 | court name, docket, "BETWEEN", party and counsel blocks, judge and date lines, form field labels, signature blocks | `caption` | heading |
 | catchlines and syllabus lines of a law report ("Evidence.—Public documents.") | `headnote` | heading |
 | statute side notes printed in the margin or above a section in smaller type | `marginal_note` | heading |
@@ -28,6 +29,10 @@ running prose, never a field label with a value beside it, and never furniture. 
 be a heading in one place and a caption in another (a court name on a cover page is caption; a court
 name printed as the title of a reasons section is heading); the ruling is about the role on the
 page, not the words.
+
+A transcript's line numbers locate its text: a page label and a line label together pinpoint any
+line ("p. 451, l. 12"). Each printed line number is its own `line_label` unit, beside the line it
+numbers, so the gold and the parser both carry them and a reader can cite by page and line.
 
 ## 2. Hierarchy
 
@@ -46,8 +51,8 @@ else follows by rule, in reading order, within each document:
    item); an unmarked item continues the innermost open list. A text unit or heading closes all
    open lists.
 4. A **quote** falls under the unit before it; a quote after a quote shares its parent.
-5. **Notes**, **marginal notes**, **contents**, **furniture** and **page labels** are outside the
-   hierarchy.
+5. **Notes**, **marginal notes**, **contents**, **furniture**, **page labels** and **line labels**
+   are outside the hierarchy.
 6. A **document boundary** (a judgment followed by its exhibits, a book of articles) resets the
    stack: the first unit of each document is a root.
 
@@ -101,8 +106,9 @@ gold; the gold file records `{"name", "module_sha256", "changes"}` per correctio
 ## 6. Numbering
 
 A **marker** is a printed number, letter, roman numeral or bullet that counts or enumerates. A
-speaker label (Q., A., MR. SMITH:), a transcript's line number, a checkbox and a field label (TO:,
-cc., RE:) are not markers; they stay in their unit's text.
+speaker label (Q., A., MR. SMITH:), a checkbox and a field label (TO:, cc., RE:) are not markers;
+they stay in their unit's text. A transcript's line number is not a marker either: it is a
+`line_label` (section 1).
 
 What a numbered unit is depends on the whole document's numbering, never on its page, so the lines
 pass only transcribes the marker and the **numbering pass** decides, once per document. A **run** is
@@ -111,9 +117,9 @@ paragraphs 1 to 17 after a list of its own 1 to 6. Every unit of a run gets the 
 
 | kind | what it is | region | marker |
 |---|---|---|---|
-| paragraph | the document's own numbered paragraphs, clauses, sections or recitals, however numbered: an affidavit's "1. I am", a judgment's "[12]", a factum's "23.", a contract's "2.03" and "A." recitals, a statute's "12 (1)" and "(2)" | `text` | kept |
+| paragraph | the document's own numbered paragraphs, clauses, sections or recitals, however numbered: an affidavit's "1. I am", a judgment's "[12]", a factum's "23.", a contract's "2.03" and "A." recitals, a statute's "12 (1)" and "(2)", an examination's numbered questions ("62 Q.", cited as "Q. 62" in refusals and undertakings charts) | `text` | kept |
 | list | the items of a list inside or after a paragraph: (a), i., bullets, a statute's paragraphs and subparagraphs, issues, the items of a prayer for relief, a count restarting after a lead-in ("the Court refused:" then 1. 2. 3.) | `list_item` | kept |
-| plain | not numbering after all (speaker labels, line numbers, field labels the lines pass marked) | `text` | removed |
+| plain | not numbering after all (speaker labels, field labels the lines pass marked) | `text` | removed |
 | option | a form's checkbox options | `list_item` | removed |
 
 Two kinds are fixed by rule: decimal numbering ("3.1", "11.2") is the document's own addressable
