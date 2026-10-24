@@ -277,17 +277,16 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   }));
   const documents = read_.map((found) => found?.document ?? null);
   // A passage of an A2AJ source is linked where the engine routes it best: the publisher's page where it prints an
-  // anchor for the passage, else CanLII's (legal-structure source_links). Cited without a quotation, it is linked at
+  // anchor for the passage, else CanLII's (legal-structure source_link). Cited without a quotation, it is linked at
   // the citation's pinpoints, its paragraph or provision painted as a citation's pinpoint is.
   const routed = async (index: number, locator: { kind: string; label: string } | null, blockText: string,
     quotes: string[], pinpoints: string[] = []) => {
     const found = read_[index], source = found?.source;
     if (!found || !source || source.provider !== "a2aj" || !source.citation || !blockText && !pinpoints.length) return null;
-    const links = await structureNative().offThread("sourceLinks", found.document, {
+    return await structureNative().offThread("sourceLink", found.document, {
       ...source.url && { url: source.url }, dataset: source.collection ?? "", citation: source.citation,
       alternateCitation: source.alternateCitation ?? null, language: source.language ?? "en",
       docType: source.kind === "legislation" ? "laws" : "cases", locator, blockText, quotes, pinpoints });
-    return links.best;
   };
   const locatorOf = (pinpoint: string) => pinpoint.startsWith("par") ? { kind: "paragraph" as const, label: pinpoint }
     : pinpoint.startsWith("sec") ? { kind: "section" as const, label: pinpoint.slice(3) } : null;

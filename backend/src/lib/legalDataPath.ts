@@ -1,5 +1,5 @@
 import os from "node:os";
-import { existsSync } from "node:fs";
+import { existsSync, statSync, type Stats } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 
@@ -63,6 +63,7 @@ export async function withSqliteRun<T>(work: () => Promise<T>): Promise<T> {
       for (const { database } of held.values()) database.close();
       held.clear();
       there.clear();
+      stats.clear();
       for (const end of runEnds) end();
     }
   }
@@ -78,6 +79,17 @@ export function storeExists(filename: string) {
   if (known !== undefined) return known;
   const found = existsSync(filename);
   if (runs) there.set(filename, found);
+  return found;
+}
+
+// Each store's size and times an operation asked for, which say which snapshot its lookups read: asked of the disk once
+// while it runs, as whether the store is there is.
+const stats = new Map<string, Stats | undefined>();
+/** A store's file status (undefined where there is none), asked once while an operation runs. */
+export function storeStat(filename: string) {
+  if (stats.has(filename)) return stats.get(filename);
+  const found = statSync(filename, { throwIfNoEntry: false });
+  if (runs) stats.set(filename, found);
   return found;
 }
 

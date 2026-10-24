@@ -1,11 +1,10 @@
 import crypto from "node:crypto";
-import { statSync } from "node:fs";
 import { cachedContent } from "../contentCache";
 import { a2ajLocalBulkPath, searchLocalA2AJ, useA2AJStore } from "../a2ajLocalBulk";
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
 import { guardedRemoteFetch, networkFailure, RETRY_WAITS_MS, wait } from "../remoteUrlSafety";
-import { inSqliteRun, onSqliteRunEnd, storeExists } from "../legalDataPath";
+import { inSqliteRun, onSqliteRunEnd, storeExists, storeStat } from "../legalDataPath";
 import { normalizeWhitespace } from "../text";
 import { searchLucene } from "../searchQuery";
 import { nativeDocumentLive, structureNative, type A2AJStoreDocument, type A2AJStoreLookup,
@@ -57,6 +56,8 @@ const TRIBUNALS = new Set([
   "PSDPT", "RAD", "RLLR", "RPD", "SCT", "SST", "TATC",
 ]);
 const documents = new Map<string, { expires: number; value: A2AJCompiledDocument }>();
+// When each citation neither the store nor A2AJ holds may be asked for again: every step of a run cites it again.
+const missing = new Map<string, number>();
 
 async function deriveA2AJDocument(
   input: {
@@ -161,7 +162,7 @@ export type A2AJCorpusInput = string;
  */
 export function useA2AJCorpus(input: A2AJCorpusInput | null | undefined, options: { localOnly?: boolean } = {}) {
   useA2AJStore(typeof input === "string" && input ? input : null);
-  if (lookupsLeaveComputer() === !!options.localOnly) documents.clear();
+  if (lookupsLeaveComputer() === !!options.localOnly) { documents.clear(); missing.clear(); }
   keepLookupsLocal(!!options.localOnly);
 }
 // A limit A2AJ sets (429, or a 503 that names a Retry-After) holds every lookup until it passes.
@@ -444,7 +445,7 @@ async function document(args: {
   args.signal?.throwIfAborted();
   const docType = args.docType ?? "cases";
   const language = args.language === "fr" ? "fr" : "en";
-  const snapshot = storeExists(a2ajLocalBulkPath()) ? statSync(a2ajLocalBulkPath(), { throwIfNoEntry: false }) : undefined;
+  const snapshot = storeExists(a2ajLocalBulkPath()) ? storeStat(a2ajLocalBulkPath()) : undefined;
   const cacheKey = (sourceUrl: string) => JSON.stringify([
     snapshot && [snapshot.ino, snapshot.size, snapshot.mtimeMs],
     docType, language, args.dataset?.trim().toLowerCase() ?? "",
@@ -486,6 +487,8 @@ async function document(args: {
     documents.set(key, { expires: Date.now() + 60 * 60_000, value: result });
     return result;
   }
+  // A decision cited by a CanLII number is found by the index each time: the index can change between runs.
+  if ((missing.get(key) ?? 0) > Date.now()) return docType === "cases" ? numberedCase(args, citation, language) : null;
   const native = structureNative();
   const core = docType === "cases" ? native.citationOccurrencesInText(citation)
     .filter(({ kind }) => kind === "case").map(({ coreCitation }) => coreCitation.text) : [];
@@ -538,7 +541,11 @@ async function document(args: {
     if (source) break;
   }
   const found = local ?? source;
-  if (!found) return docType === "cases" ? numberedCase(args, citation, language) : null;
+  if (!found) {
+    missing.set(key, Date.now() + (docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000));
+    if (missing.size > 4096) missing.delete(missing.keys().next().value!);
+    return docType === "cases" ? numberedCase(args, citation, language) : null;
+  }
   const verifiedPdf = args.discoverPdf === false || !lookupsLeaveComputer() ? null : await decisiaPdf(found.url, args.signal);
   let result: A2AJCompiledDocument;
   if (local) {
@@ -560,7 +567,7 @@ async function document(args: {
 async function numberedCase(args: Parameters<typeof document>[0], citation: string, language: Language) {
   const named = indexedNumberedCase(citation);
   if (!named) return null;
-  const store = a2ajLocalBulkPath(), snapshot = storeExists(store) ? statSync(store, { throwIfNoEntry: false }) : undefined;
+  const store = a2ajLocalBulkPath(), snapshot = storeExists(store) ? storeStat(store) : undefined;
   const key = JSON.stringify([named, language, store, snapshot?.size, snapshot?.mtimeMs]);
   let canonical = numbered.get(key);
   if (canonical === undefined) {
@@ -832,5 +839,5 @@ export const a2ajLegalSourceProvider = Object.assign(provider, {
   document,
   viewer,
   coverage,
-  clearCache: () => { documents.clear(); numbered.clear(); paused = { until: 0, reason: "rate-limited", named: false }; sent.length = 0; },
+  clearCache: () => { documents.clear(); missing.clear(); numbered.clear(); paused = { until: 0, reason: "rate-limited", named: false }; sent.length = 0; },
 });

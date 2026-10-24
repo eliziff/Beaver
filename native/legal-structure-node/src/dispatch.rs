@@ -174,9 +174,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             &d.query, d.structure(), &call.get::<legal_structure::PassageLinkRequest>("request")?)))),
         "citedPassageLink" => done(with_document(doc()?, |d| value(legal_structure::cited_passage_link(
             &d.query, d.structure(), &call.get::<String>("url")?, &call.get::<Vec<String>>("pinpoints")?)))),
-        // Every link a passage of an A2AJ document can take, and the one routed best.
-        "sourceLinks" => done(with_document(doc()?, |d| value(legal_structure::source_links(
-            &d.query, d.structure(), &call.get::<legal_structure::SourceLinksRequest>("request")?)))),
+        // The link a passage of an A2AJ document is routed to.
+        "sourceLink" => done(with_document(doc()?, |d| value(legal_structure::source_link(
+            &d.query, d.structure(), &call.get::<legal_structure::SourceLinkRequest>("request")?)))),
         "lawWebLink" => done(with_document(doc()?, |d| value(legal_structure::law_web_link(&d.query, d.structure(),
             &call.get::<String>("citation")?, &call.get::<String>("docType")?, &call.get::<String>("blockText")?,
             &call.get::<Vec<String>>("quotes")?)))),
