@@ -36,7 +36,7 @@ const GROUNDED_CLAIM_GRANULARITY =
     ? "When naming a paragraph, choose that paragraph's own evidence_id, not a neighbour's or a range's; a run read returns one per paragraph."
     : "Cite the numbered lines that support the claim, as reads return them: one line as key#L12, or consecutive lines of one passage as key#L12-L14, with the key from the source's heading. When naming a paragraph, cite its own lines, not a neighbour's.");
 /** What a claim's evidence_ids hold. */
-const EVIDENCE_IDS_DESCRIPTION = citationUnits() === "json"
+export const EVIDENCE_IDS_DESCRIPTION = citationUnits() === "json"
   ? "Returned passage IDs supporting this claim, one to four of them. Prefer one; use several when they jointly support the proposition."
   : "The passages supporting this claim, one to four: numbered lines a read returned (key#L12, or key#L12-L14 within one passage), or the evidence_id of a passage returned without numbered lines. Prefer one; use several when they jointly support the proposition.";
 const GROUNDED_QUOTATION_POLICY =
@@ -820,6 +820,10 @@ export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt
   ].join("\n");
 }
 
+/** A handle a read in this conversation returned, to show a model the form a citation takes. */
+const handleExample = (state: LegalEvidenceTurnState) =>
+  [...state.evidence.keys()].find((id) => parseEvidenceHandle(id));
+
 export async function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnState,
   options: { maxClaims?: number; maxTextLength?: number; allowUnquotedCopies?: boolean } = {}) {
   if (!Array.isArray(value) || !value.length || value.length > (options.maxClaims ?? Infinity))
@@ -852,7 +856,9 @@ export async function validateGroundedClaims(value: unknown, state: LegalEvidenc
       const receipt = legalEvidenceEntry(state.evidence, id)?.receipt;
       if (!receipt) errors.push(parseEvidenceHandle(id)
         ? `claims[${index}] cites ${id}, which no passage read in this conversation covers; cite lines a read returned, within one passage`
-        : `claims[${index}] has unknown evidence_id: ${id}`);
+        : `claims[${index}] has unknown evidence_id: ${id}${citationUnits() === "json" ? ""
+          : `; cite the numbered lines a read returned as key#L12 or key#L12-L14, with the key from the source's heading${
+            handleExample(state) ? ` (one passage read here is ${handleExample(state)})` : ""}`}`);
       else if (receipt.scope !== "passage") errors.push(`claims[${index}] requires passage evidence for ${id}`);
       else if (!receipt.span_text) errors.push(`claims[${index}] requires exact passage text for ${id}`);
       else if (!readPriorLegalEvidence(state, id)) errors.push(`claims[${index}] has damaged passage evidence: ${id}`);
