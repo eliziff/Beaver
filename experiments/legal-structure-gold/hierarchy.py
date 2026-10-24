@@ -2,7 +2,7 @@
 
 A unit is a paragraph, heading, list item, note, table row or other block: a typed line the model
 marked as a start, with the lines after it that continue it, on its page or the next. Running
-headers, footers and page numbers are units of their own.
+headers, footers, page numbers and a transcript's line numbers are units of their own.
 
 The model decides only heading levels (1 the outermost in its document) and document boundaries.
 Parents are computed: a heading falls under the nearest earlier heading of a smaller level; text,
@@ -15,7 +15,7 @@ differ from it, so no gold is ever converted after the fact.
 """
 import re
 
-OWN = {"furniture", "page_label"}
+OWN = {"furniture", "page_label", "line_label"}
 UNRANKED = OWN | {"marginal_note", "note", "contents"}
 RANKED = {"text", "list_item", "heading", "quote", "table", "caption", "headnote"}
 UNDER_HEADING = {"text", "table", "caption", "headnote"}
