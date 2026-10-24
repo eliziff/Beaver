@@ -2,14 +2,13 @@ import { z } from "zod/v4";
 import { createHash } from "node:crypto";
 import type { LegalEvidenceReceipt } from "../chat/legalEvidence";
 import type { TabularColumn } from "../tabularStore";
+import { jsonRecord as record } from "../value";
 
 const JEV_POLICY = "tabular-judgment-v3", JEV_MODEL = "jev-1.13.0";
 export const JEV_LIMITS = { passages: 160, stateBytes: 96_000, requestBytes: 192_000,
   questions: 256, answerCalls: 8, calls: 24, concurrency: 2, responseBytes: 2_000_000 } as const;
 const ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const record = (value: unknown): Record<string, unknown> | null =>
-  value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const probability = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
 const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value));

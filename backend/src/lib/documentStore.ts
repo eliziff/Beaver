@@ -3,6 +3,7 @@ import type { EditDiffSegment } from "./docxTrackedChanges";
 import type { ApplicationScope } from "./applicationError";
 import type { WorkProductBuildReceipt } from "./workProduct";
 import type { AuthorityCitationLedger } from "./authoritiesDomain";
+import { jsonRecord } from "./value";
 
 export type DocumentScope = ApplicationScope;
 export type LegalPdfOcrProvider = "indra" | "tesseract";
@@ -17,32 +18,14 @@ export type PdfProfileSelection = {
   /** One-based pages mapped to immutable prepared OCR artifacts; the root profile stays whole-document. */
   textLayerPages?: Record<string, string>;
 };
+/** A selection as stored or handed back by a page. Its cache keys name prepared artifacts, so they are what is checked. */
 export function decodePdfProfileSelection(value: unknown): PdfProfileSelection | undefined {
-  const record = value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : null;
-  const profile = record?.profile && typeof record.profile === "object" &&
-    !Array.isArray(record.profile) ? record.profile as Record<string, unknown> : null;
-  const setting = (value: unknown, provider: string | readonly string[]) => {
-    if (value === undefined) return true;
-    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-    const entry = value as Record<string, unknown>;
-    const providers = typeof provider === "string" ? [provider] : provider;
-    return typeof entry.provider === "string" && providers.includes(entry.provider) &&
-      !!entry.settings && typeof entry.settings === "object" && !Array.isArray(entry.settings);
-  };
-  const layers = record?.textLayerPages;
-  const validLayers = layers === undefined || !!layers && typeof layers === "object" &&
-    !Array.isArray(layers) && Object.keys(layers).length <= 5_000 &&
-    Object.entries(layers).every(([page, key]) => /^[1-9]\d*$/u.test(page) &&
-      Number(page) <= 5_000 && typeof key === "string" && /^[a-f0-9]{64}$/u.test(key));
-  return validLayers && record && profile && typeof record.cacheKey === "string" &&
-    /^[a-f0-9]{64}$/u.test(record.cacheKey) &&
-    (record.status === "ready" || record.status === "degraded") &&
-    Object.keys(profile).every((key) => key === "ocr" || key === "layout") &&
-    setting(profile.ocr, ["tesseract", "indra"]) &&
-    setting(profile.layout, "ppdoc")
-    ? { cacheKey: record.cacheKey, profile: profile as LegalPdfProfile,
-      status: record.status, ...(layers ? { textLayerPages: { ...layers as Record<string, string> } } : {}) }
+  const record = jsonRecord(value), profile = jsonRecord(record?.profile), layers = jsonRecord(record?.textLayerPages);
+  const key = (value: unknown) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
+  return record && profile && key(record.cacheKey) && (record.status === "ready" || record.status === "degraded") &&
+    (record.textLayerPages === undefined || layers && Object.values(layers).every(key))
+    ? { cacheKey: record.cacheKey as string, profile: profile as LegalPdfProfile, status: record.status,
+      ...(layers ? { textLayerPages: { ...layers as Record<string, string> } } : {}) }
     : undefined;
 }
 export type DocumentParseState = {

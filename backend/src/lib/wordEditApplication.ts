@@ -1,4 +1,5 @@
 import { sha256 } from "./hash";
+import { isJsonRecord as record } from "./value";
 import { runWordPython } from "./wordPython";
 import { parseResourceReference, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import type { DocumentContent, DocumentRecord, DocumentStore } from "./documentStore";
@@ -14,7 +15,6 @@ type Receipt = { schema: 2; source: string; workingRevision: number;
   sourceSha256: string; candidateSha256: string; mode: "tracked" | "direct"; report: Record<string, unknown> };
 export type WordEditResult = { report: Record<string, unknown>;
   publication?: { id: string; version: string; number: number; filename: string; action: "created" | "edited" } };
-const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** Existing document ports own access and CAS publication; the engine produces
  * frozen candidates. The user's edit-mode setting, never a model argument, owns review policy. */

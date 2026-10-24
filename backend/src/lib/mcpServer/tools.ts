@@ -11,6 +11,7 @@ import { createLegalEvidenceTurnState, LEGAL_EVIDENCE_SUBMIT_TOOL, legalEvidence
   renderLegalEvidenceAnswer, restorePriorLegalEvidence, storedLegalEvidenceReceipt, submitLegalEvidenceAnswer,
   type RegisteredEvidence } from "../chat/legalEvidence";
 import { mikeLocalDataHome } from "../legalDataPath";
+import { trimmedText as text } from "../value";
 import type { LegalEvidenceReceipt } from "mike/shared/contracts/researchContract.mjs";
 import { createLegalEvidenceCitations, createLegalEvidenceCitationsFromEntries, legalEvidenceDocumentLink } from "../chat/citations";
 import { legalEvidenceAuthority, legalEvidenceLocatorText } from "../chat/citationPresentation";
@@ -47,7 +48,6 @@ const MAX_EVIDENCE = 5_000;
 // The answer's claims as last submitted: a correction replaces only the claims Beaver rejected.
 let draft: unknown[] | null = null;
 
-const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const json = (value: unknown, isError = false) => toolText(value, isError);
 const withUi = (value: Record<string, unknown>, summary: string): CallToolResult => ({
   content: [{ type: "text", text: summary }], structuredContent: value,
