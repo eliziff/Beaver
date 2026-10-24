@@ -440,7 +440,12 @@ fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), St
 }
 
 fn inputs(gold: &Path, manifest: &Path) -> Result<(), String> {
-    let all = sources(gold, manifest)?;
+    let mut all = sources(gold, manifest)?;
+    // STRUCTURE_GOLD_INPUTS_ONLY: comma-separated sha prefixes, for a slice.
+    if let Ok(only) = std::env::var("STRUCTURE_GOLD_INPUTS_ONLY") {
+        let prefixes: Vec<&str> = only.split(',').map(str::trim).filter(|p| !p.is_empty()).collect();
+        all.retain(|s| prefixes.iter().any(|p| s.sha256.starts_with(p)));
+    }
     let destination = inputs_dir(gold);
     std::fs::create_dir_all(&destination).map_err(|e| e.to_string())?;
     let started = Instant::now();
@@ -667,6 +672,26 @@ fn grade_one(
     }
     let reference = state::projected(&expected)?;
     let predicted = state::parsed(&structure, &pages)?;
+    // STRUCTURE_GOLD_BLOCKS_DIR: both frames' blocks (kind, lines, locator, marker) per document, for
+    // censuses of how the parser's units differ from the gold's.
+    if let Some(dir) = std::env::var_os("STRUCTURE_GOLD_BLOCKS_DIR") {
+        let dir = PathBuf::from(dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let dump = |state: &state::State| -> Vec<serde_json::Value> {
+            state.groups.iter().map(|g| serde_json::json!({
+                "kind": g.kind,
+                "lines": g.line_ids,
+                "spans": g.spans.iter().map(|s| serde_json::json!([s.line_id, s.start, s.end])).collect::<Vec<_>>(),
+                "region": g.attributes.get("region"),
+                "locator": g.attributes.get("locator_kind"),
+                "marker": g.attributes.get("marker").map(|m| !m.is_null() && m.as_array().is_some_and(|a| !a.is_empty())).unwrap_or(false),
+                "parent": g.attributes.get("parent"),
+            })).collect()
+        };
+        let lines: Vec<serde_json::Value> = predicted.lines.iter().map(|l| serde_json::json!([l.id, l.page, l.text.iter().collect::<String>()])).collect();
+        let _ = std::fs::write(dir.join(format!("{}.json", source.sha256)),
+            serde_json::to_vec(&serde_json::json!({"gold": dump(&reference), "parser": dump(&predicted), "lines": lines})).unwrap_or_default());
+    }
     let compared_at = Instant::now();
     let score = score::compare(&reference, &predicted)?;
     if std::env::var_os("STRUCTURE_GOLD_TIMING").is_some() {
