@@ -230,7 +230,7 @@ def author_numbering(typed, groups, job, args):
             missing = sorted({k + 1 for k in asked} - set(answers))
             gold.require(not missing, f"Answer every run without a decided kind; missing R{', R'.join(map(str, missing[:20]))}")
             return answers
-        answers = call(prompts.numbering_prompt(numbering.listing(typed, groups, found, set(asked))), schema, [],
+        answers = call(prompts.numbering_prompt(numbering.listing(typed, groups, found, set(asked), kinds)), schema, [],
                        job / "calls" / "numbering", args, valid, policy=POLICY)
         for k in asked:
             kinds[k] = answers[k + 1]

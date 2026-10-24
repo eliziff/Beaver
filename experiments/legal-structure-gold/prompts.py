@@ -3,7 +3,7 @@
 REGIONS = ("text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote",
            "marginal_note", "furniture", "page_label")
 
-LINES = """Correct each page's extracted lines against its image. Give the page's units in reading order, each as its region and its printed lines: text, list_item, heading, quote (block quotation), note (footnote or endnote), table (one row; cells joined by " | "), contents (table of contents or index entry), caption (case caption), headnote, marginal_note, furniture (running header or footer) or page_label. A unit is a paragraph, heading, item, note, row, running header or page number.
+LINES = """Correct each page's extracted lines against its image. Give the page's units in reading order, each as its region and its printed lines: text, list_item, heading, quote (block quotation, numbered or not), note (footnote or endnote), table (one row; cells joined by " | "), contents (table of contents or index entry), caption (case caption), headnote, marginal_note, furniture (running header or footer) or page_label. A unit is a paragraph, heading, item, note, row, running header or page number.
 Put a tab after each leading printed marker: a number, letter, roman numeral or bullet that counts or enumerates ("12\t(1)\tThe Minister"). A speaker label (Q., A., MR. SMITH:), a transcript's line number, a checkbox or a field label (TO:, cc., RE:) is not a marker. Write note references as [^mark], the mark as printed, brackets included.
 continues: true when the page's first unit continues the unit before it on the page before."""
 

@@ -10,9 +10,9 @@ the document's numbered runs over all of its body units and says what each run i
   option     a form's checkbox options: list_item, unmarked
 
 A run is the units of one numbering family whose count continues, wherever they fall: paragraph 18
-continues paragraph 17's run across the (a) to (c) list between them. A letter, roman or bullet run
-that a lead-in ending in a colon opens at its first value is a list by rule; the numbering pass
-decides every other run, one answer per run (author.py author_numbering).
+continues paragraph 17's run across the (a) to (c) list between them. Decimal runs are paragraphs
+and colon-led letter, roman or bullet runs are lists by rule (by_rule); the numbering pass decides
+every other run, one answer per run (author.py author_numbering).
 """
 import gzip
 import json
@@ -109,23 +109,28 @@ def lead(typed, groups, unit):
 
 
 def by_rule(typed, groups, run):
-    """A run's kind where the convention fixes it without judgement, else None."""
+    """A run's kind where the convention fixes it without judgement, else None: decimal numbering
+    ("3.1", "11.2") is the document's own addressable numbering; a letter, roman or bullet run that a
+    lead-in ending in a colon opens at its first value is a list."""
     unit, family, marker = run[0][:3]
+    if family.startswith("dec"):
+        return "paragraph"
     first = count(marker, family)
     opens = family == "bullet" or (family in ("al", "AU", "rl", "RU") and first in ((1,), (ord("a"),)))
     before = lead(typed, groups, unit)
     return "list" if opens and before and before[0] == "body" and LEAD.search(before[1]) else None
 
 
-def listing(typed, groups, found_runs, asked):
-    """The prompt's view of the runs the pass decides, with the rule-decided ones as context."""
+def listing(typed, groups, found_runs, asked, decided):
+    """The prompt's view of the runs the pass decides, with the rule-decided ones (their kinds in
+    `decided`) as context."""
     out = []
     for k, run in enumerate(found_runs, 1):
         unit = run[0][0]
         pages = typed[groups[unit][0]]["page"], typed[groups[run[-1][0]][0]]["page"]
         head = f"R{k} | {len(run)} units | pages {pages[0]}-{pages[1]} | {run[0][2]} .. {run[-1][2]}"
         if k - 1 not in asked:
-            out.append(head + " | list (decided)")
+            out.append(head + f" | {decided[k - 1]} (decided)")
             continue
         out.append(head)
         before = lead(typed, groups, unit)

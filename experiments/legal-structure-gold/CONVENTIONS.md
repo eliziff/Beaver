@@ -20,6 +20,7 @@ The lines pass types every printed line. The disputed boundaries, and the ruling
 | a cell of a table, including header cells | `table` | heading |
 | a contents entry with a locator | `contents` | heading |
 | a title line: short, set apart by type, position or numbering, naming the part that follows | `heading` | |
+| a block quotation, numbered or not (a quoted order's "1." and "(a)") | `quote` | text, list_item |
 | a numbered body unit | `text` or `list_item` by section 6, decided for the whole document | decided per page |
 
 A heading is a title. It names the stretch of document that follows it. It is never a sentence of
@@ -115,8 +116,17 @@ paragraphs 1 to 17 after a list of its own 1 to 6. Every unit of a run gets the 
 | plain | not numbering after all (speaker labels, line numbers, field labels the lines pass marked) | `text` | removed |
 | option | a form's checkbox options | `list_item` | removed |
 
-A letter, roman or bullet run that a lead-in ending in a colon opens at its first value is a list by
-rule; the model decides every other run, seeing all of the document's runs at once.
+Two kinds are fixed by rule: decimal numbering ("3.1", "11.2") is the document's own addressable
+numbering, so a paragraph; a letter, roman or bullet run that a lead-in ending in a colon opens at
+its first value is a list. The model decides every other run, seeing all of the document's runs at
+once.
+
+What the agreement test showed (2026-10-24, 36 documents authored twice): headings 0.989, numbered
+paragraphs 0.987, list items 0.984, notes 0.989, note references 1.000. Two authorings split on
+quoted numbered items and on decimal subclauses after a lead-in, the two rulings above. Signature
+blocks (table or text), exhibit page stamps (furniture or page label), unmarked notices (text or
+note) and affidavit cover lines (headnote or text) also split; they are left unruled, as edge cases
+of layers that are not headline.
 
 ## 7. Checks
 
