@@ -131,7 +131,15 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
       jurisdiction: page.jurisdiction, name, core }];
   });
   if (!candidates.length) return parts;
-  const queries = [...new Map(candidates.map(({ dataset, name, language }) =>
+  // The statute A2AJ holds under the citation itself is checked first, a lookup by citation as finding its source later
+  // makes (and keeps); its name is searched for only where that holds no statute that passes.
+  const held = await mapBounded(candidates, async (candidate) => {
+    const found = await a2ajLegalSourceProvider.document({ citation: candidate.citation.span.text, docType: "laws",
+      language: candidate.language, dataset: candidate.dataset }).catch(() => null);
+    return found ? statuteUrls(candidate, [{ collection: found.dataset, title: found.name, citation: found.citation }]) : [];
+  });
+  const searched = candidates.filter((_, at) => !held[at].length);
+  const queries = [...new Map(searched.map(({ dataset, name, language }) =>
     [`${dataset}:${language}:${sourceName(name)}`, { dataset, name, language }])).values()];
   const hits = new Map((await mapBounded(queries, async ({ dataset, name, language }) => {
     try {
@@ -143,9 +151,19 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
     } catch { return [`${dataset}:${language}:${sourceName(name)}`, []] as const; }
   })).map(([key, results]) => [key, results]));
   return parts.map((part, index) => {
-    const candidate = candidates.find(({ partIndex }) => partIndex === index);
+    const at = candidates.findIndex(({ partIndex }) => partIndex === index), candidate = candidates[at];
     if (!candidate) return part;
-    const matches = (hits.get(`${candidate.dataset}:${candidate.language}:${sourceName(candidate.name)}`) ?? [])
+    const urls = held[at].length ? held[at]
+      : statuteUrls(candidate, hits.get(`${candidate.dataset}:${candidate.language}:${sourceName(candidate.name)}`) ?? []);
+    return urls.length === 1 && urls[0] !== candidate.url
+      ? { ...part, resolvedUrl: urls[0] } : part;
+  });
+
+  /** The CanLII statute pages of the found statutes a candidate's part names, at its anchor: one A2AJ statute of the
+   *  cited jurisdiction and chapter whose title the part writes. */
+  function statuteUrls(candidate: (typeof candidates)[number],
+    found: ReadonlyArray<{ collection?: string | null; title?: string | null; citation?: string | null }>) {
+    const matches = found
       .filter((hit) => hit.collection?.toUpperCase() === candidate.dataset && hit.title &&
         sourceName(candidate.part.text).includes(sourceName(hit.title)))
       .flatMap((hit) => {
@@ -162,10 +180,8 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
         const fragment = new URL(candidate.url).hash;
         return [base!.split("#")[0] + fragment];
       });
-    const urls = [...new Set(matches)];
-    return urls.length === 1 && urls[0] !== candidate.url
-      ? { ...part, resolvedUrl: urls[0] } : part;
-  });
+    return [...new Set(matches)];
+  }
 }
 
 /** `supraLinking`: the citation engine's splitting tier its references are resolved at (the draft setting). */
