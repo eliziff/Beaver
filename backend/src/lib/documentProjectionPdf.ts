@@ -51,44 +51,11 @@ function evidenceViewPath(documentId: string, versionId: string, handle: string)
     `?version_id=${encodeURIComponent(versionId)}&evidence=${encodeURIComponent(handle)}`;
 }
 
-function evidenceReceipt(value: unknown): PdfEvidenceReceipt {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("Invalid PDF evidence receipt");
-  }
-  const receipt = value as Partial<PdfEvidenceReceipt>;
-  const { source, lookup, evidence } = receipt;
-  if (
-    receipt.schema_version !== EVIDENCE_SCHEMA ||
-    typeof receipt.handle !== "string" ||
-    !EVIDENCE_HANDLE.test(receipt.handle) ||
-    !source ||
-    typeof source.document_id !== "string" ||
-    typeof source.version_id !== "string" ||
-    typeof source.source_sha256 !== "string" ||
-    typeof source.parser_version !== "string" ||
-    typeof source.cache_key !== "string" || !/^[a-f0-9]{64}$/u.test(source.cache_key) ||
-    !lookup ||
-    !RESOURCE_LOCATOR_KINDS.includes(lookup.locatorKind) ||
-    typeof lookup.locator !== "string" ||
-    !evidence ||
-    typeof evidence.payload_sha256 !== "string" ||
-    !Array.isArray(evidence.page_numbers) ||
-    !evidence.page_numbers.every((number) => Number.isInteger(number) && number > 0) ||
-    typeof evidence.page_text_sha256 !== "string"
-  ) {
-    throw new Error("Invalid PDF evidence receipt");
-  }
-  const parsed = receipt as PdfEvidenceReceipt;
-  const { handle, ...identity } = parsed;
-  if (handle !== evidenceHandle(identity)) {
-    throw new Error("Invalid PDF evidence receipt");
-  }
-  return parsed;
-}
-
+/** A receipt is addressed by its content's hash: one whose content hashes to its handle is the one written. */
 export async function readPdfEvidenceReceipt(handle: string) {
-  const receipt = evidenceReceipt(JSON.parse(await readFile(evidencePath(handle), "utf8")));
-  if (receipt.handle !== handle) {
+  const receipt = JSON.parse(await readFile(evidencePath(handle), "utf8")) as PdfEvidenceReceipt;
+  const { handle: stored, ...identity } = receipt;
+  if (stored !== handle || evidenceHandle(identity) !== handle) {
     throw new Error("PDF evidence receipt handle does not match its content");
   }
   return receipt;
