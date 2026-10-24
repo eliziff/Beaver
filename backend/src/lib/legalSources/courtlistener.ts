@@ -5,7 +5,7 @@ import type { LegalSourceProvider, LegalSourceReference } from ".";
 import { structureNative, type NativeDocument } from "../structureNative";
 import { searchLucene } from "../searchQuery";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
-import { jsonRecord, nonemptyString as asString, trimmedText } from "../value";
+import { isJsonRecord, jsonRecord, nonemptyString as asString, trimmedText } from "../value";
 import { courtlistenerLocalBulkAvailable, getLocalCourtlistenerCase,
   lookupLocalCourtlistenerCitation, searchLocalCourtlistenerCases,
   type LocalCourtlistenerCluster } from "../courtlistenerLocalBulk";
@@ -210,8 +210,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
     const data = await courtlistenerFetch<JsonRecord>(
       nextUrl, { signal: args.signal }, args.apiToken);
     const results = Array.isArray(data?.results) ? data.results : [];
-    const pageOpinions = results.filter((opinion): opinion is JsonRecord =>
-      !!opinion && typeof opinion === "object" && !Array.isArray(opinion));
+    const pageOpinions = results.filter(isJsonRecord);
     for (const opinion of pageOpinions.filter((opinion) =>
       args.opinionId === undefined || opinionIdentifier(opinion) === args.opinionId)) {
       opinions.push(await compactOpinion(opinion, pageCitations));
