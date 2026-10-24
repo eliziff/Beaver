@@ -59,13 +59,11 @@ pub struct NativeDocument {
     pub(crate) query: DocumentQuery,
     /// A PDF's body read by the instrument grammar, once, when a section is asked for.
     instrument: std::sync::OnceLock<Option<PrintedStatute>>,
-    /// What locating quotations has read of the document, for every quotation located in it after.
-    quotes: std::sync::Mutex<legal_structure::QuoteLocator>,
 }
 
 impl NativeDocument {
     fn new(product: NativeProduct) -> Self {
-        Self { product, query: DocumentQuery::new(), instrument: std::sync::OnceLock::new(), quotes: Default::default() }
+        Self { product, query: DocumentQuery::new(), instrument: std::sync::OnceLock::new() }
     }
 
     fn instrument(&self) -> Option<&PrintedStatute> {
@@ -341,9 +339,7 @@ pub fn quote_locate_document(
     let provisions = (source == legal_structure::QuoteSource::Legislation)
         .then(|| document.instrument().map(legal_structure::PrintedStatute::quote_blocks)).flatten();
     let blocks = legal_structure::document_quote_blocks(document.structure(), &document.query, source, provisions);
-    let located = legal_structure::locate_source_quotes_kept(
-        &mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()), source, text, &blocks, quotes, compare);
-    Ok(located.into_iter().zip(quotes).map(|(located, item)| {
+    Ok(legal_structure::locate_source_quotes(source, text, &blocks, quotes, compare).into_iter().zip(quotes).map(|(located, item)| {
         if !compare {
             return serde_json::to_value(&located).expect("a located quotation serializes");
         }
