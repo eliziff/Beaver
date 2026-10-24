@@ -133,7 +133,7 @@ function publisherUrl(record: JsonObject, language: Language) {
  *  publisher's, else the page CanLII publishes for a decision's citation. */
 function sourceUrl(record: JsonObject, language: Language) {
   const dataset = string(record.dataset) ?? "";
-  return structureNative().canliiA2ajLawUrl(dataset, languageText(record, "citation", language) ?? "", language) ??
+  return structureNative().canliiLawUrl(languageText(record, "citation", language) ?? "", language, true) ??
     publisherUrl(record, language) ?? structureNative().canliiCaseUrl([languageText(record, "citation", language),
       languageText(record, "citation2", language)].filter((value): value is string => !!value), language, dataset);
 }

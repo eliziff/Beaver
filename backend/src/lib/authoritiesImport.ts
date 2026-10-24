@@ -173,7 +173,7 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
         const statutes = parsed.citations.filter((citation) => citation.form === "full" &&
           citation.authority === "statute");
         if (statutes.length !== 1 || statuteCore(statutes[0]) !== candidate.core) return [];
-        const base = structureNative().canliiA2ajLawUrl(hit.collection ?? "", hit.citation ?? "", candidate.language);
+        const base = structureNative().canliiLawUrl(hit.citation ?? "", candidate.language, true);
         const route = canliiStatute(base, native);
         if (!route || route.language !== candidate.language ||
           route.jurisdiction !== candidate.jurisdiction) return [];
