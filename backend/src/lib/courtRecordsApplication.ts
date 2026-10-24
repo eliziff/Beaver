@@ -11,7 +11,6 @@ import { decodeCourtRecordDraftState, decodeCourtRecordPartyContact,
 import type { CasePartyGroup, CourtRecordDraftEntry, CoverTextFieldId,
   CoverValues } from "mike/shared/court-record-contract.d.ts";
 import type { FileSnapshot } from "mike/shared/work-products.mjs";
-import { documentProjectionService } from "./documentProjectionService";
 import type { DocumentFile, DocumentStore } from "./documentStore";
 import { decodeWorkProductBuildReceipt, type WorkProductInput } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
@@ -22,7 +21,6 @@ import { sourceExhibitLabels } from "mike/shared/court-record-exhibits.mjs";
 import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
 import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
 
-type ProjectionReader = Pick<typeof documentProjectionService, "lookupPdf" | "preparePdf">;
 export const MAX_COURT_BUILD_OUTPUTS = 500;
 
 type EntryPatch = { slotId: string; replaceEntryId?: string;
@@ -33,8 +31,6 @@ export function createCourtRecordsApplication(
   documents: DocumentStore,
   files: WorkflowFiles,
   workProducts: Pick<WorkProductApplication, "get" | "save">,
-  projection: ProjectionReader = documentProjectionService,
-  convert: (bytes: Buffer) => Promise<Buffer> = docxToPdf,
 ) {
   return Object.freeze({
     async saveFile(scope: ApplicationScope, file: Parameters<WorkflowFiles["create"]>[2],
@@ -253,7 +249,7 @@ export function createCourtRecordsApplication(
           const attached = entries.find(({ id }) => id === entryId)!;
           delete attached.sourceFields;
           const prepared = format === "pdf"
-            ? await readPreparedPageText(documents, projection, scope,
+            ? await readPreparedPageText(documents, scope,
               patch.document.documentId, patch.document.versionId, version).catch(() => null)
             : null;
           if (prepared) attached.sourceFields = sourceDocumentFields(
@@ -288,24 +284,24 @@ export function createCourtRecordsApplication(
         revision: input.revision, state: nextState,
       }) };
     },
-    prepareUploadedPdf: (file: DocumentFile, pages: unknown) => prepareCourtRecordPdf(file, pages, projection),
+    prepareUploadedPdf: (file: DocumentFile, pages: unknown) => prepareCourtRecordPdf(file, pages),
     async preparedPageText(
       scope: ApplicationScope,
       documentId: string,
       versionId: string | null,
     ) {
-      return readPreparedPageText(documents, projection, scope, documentId, versionId);
+      return readPreparedPageText(documents, scope, documentId, versionId);
     },
     async pdfRendition(file: DocumentFile) {
       if (file.fileType !== "docx") {
         throw new ApplicationError(400, "A Word (.docx) file is required");
       }
-      return convert("bytes" in file ? file.bytes : await readFile(file.path));
+      return docxToPdf("bytes" in file ? file.bytes : await readFile(file.path));
     },
   });
 }
 
-async function readPreparedPageText(documents: DocumentStore, projection: ProjectionReader,
+async function readPreparedPageText(documents: DocumentStore,
   scope: ApplicationScope, documentId: string, versionId: string | null,
   knownMetadata?: Awaited<ReturnType<DocumentStore["metadata"]>>) {
   const [metadata, source] = await Promise.all([
@@ -323,7 +319,7 @@ async function readPreparedPageText(documents: DocumentStore, projection: Projec
   if (!Number.isSafeInteger(pageCount) || pageCount < 1 || pageCount > 2_000) {
     throw new ApplicationError(409, "Prepare this PDF before using it in a court record");
   }
-  const pages = await courtRecordPageText(source.readBytes, pageCount, projection, {
+  const pages = await courtRecordPageText(source.readBytes, pageCount, {
     persistEvidence: false, documentId, versionId: source.versionId,
     sourceSha256: source.sourceSha256, pdfProfile: source.pdfProfile,
   });

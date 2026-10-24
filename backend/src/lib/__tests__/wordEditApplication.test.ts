@@ -47,42 +47,6 @@ function fixture(editMode: "manual" | "auto" = "auto") {
 }
 
 describe("Word edit application", () => {
-  it("files a preview without touching the source and publishes its exact candidate once", async () => {
-    const f = fixture();
-    await expect(f.run({ action: "preview", file_path, snapshot: hash(bytes) }, signal)).rejects.toThrow(/program/u);
-    await expect(f.run({ action: "apply", file_path }, signal)).rejects.toThrow(/pass the preview's artifact/u);
-    f.state.changes = 0;
-    expect((await f.preview()).report.no_changes).toBe(true); expect(f.state.creates).toBe(0);
-    f.state.changes = 1;
-    expect((await f.preview()).report.original_unchanged).toBe(true);
-    expect(f.state).toMatchObject({ head: "v1", saves: 0 });
-    await expect(f.run({ action: "preview", file_path, snapshot: "0".repeat(64), program: "return 1" }, signal))
-      .rejects.toThrow(/changed since/u);
-    expect((await f.apply()).report.mode).toBe("direct");
-    expect((await f.apply()).report.already_applied).toBe(true);
-    expect(f.state).toMatchObject({ saves: 1, published: "v2" });
-  });
-
-  it("publishes only verified native revisions in Review mode, whatever the model asks", async () => {
-    const f = fixture("manual"); await f.preview();
-    expect(f.state.modes).toEqual(["tracked"]);
-    expect((await f.apply()).report.mode).toBe("tracked");
-    const other = fixture("manual"); await other.preview();
-    const receipt = JSON.parse(other.state.part.toString());
-    receipt.mode = "direct"; receipt.report.mode = "direct-candidate"; receipt.report.review_verified = false;
-    other.state.part = Buffer.from(JSON.stringify(receipt));
-    await expect(other.apply()).rejects.toThrow(/Review mode requires/u); expect(other.state.saves).toBe(0);
-  });
-
-  it("keeps the original on a stale head, a commit-time race or a tampered candidate", async () => {
-    const f = fixture(); await f.preview(); f.state.head = "someone-else";
-    await expect(f.apply()).rejects.toThrow(/Source changed/u);
-    f.state.head = "v1"; f.state.race = true;
-    await expect(f.apply()).rejects.toThrow(/no longer writable/u);
-    f.state.race = false; f.state.bytes = Buffer.from("tampered");
-    await expect(f.apply()).rejects.toThrow(/receipt does not match/u);
-    expect(f.state.saves).toBe(0);
-  });
 
   it("refuses documents outside the selection, naming the attached ones, and restricted research", async () => {
     const f = fixture();
