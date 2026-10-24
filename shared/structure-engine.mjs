@@ -108,10 +108,12 @@ function engineReply(reply) {
 export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, recognizePdf, parser } = {}) {
   // A trapped engine restarts; documents belong to the engine that made them.
   let generation = 1;
+  // A released document is freed off this thread where the host can: freeing a large one holds up whatever runs here.
   const released = new FinalizationRegistry(({ handle, generation: owner }) => {
     if (owner !== generation) return;
-    try { engineReply(transport.call(engineRequest("releaseDocument", { document: handle }, new Uint8Array()))); }
-    catch { /* engine already reset */ }
+    const request = engineRequest("releaseDocument", { document: handle }, new Uint8Array());
+    if (transport.callAsync) void transport.callAsync(request).catch(() => { /* engine already reset */ });
+    else try { engineReply(transport.call(request)); } catch { /* engine already reset */ }
   });
   function trapped(error, op) {
     if (error instanceof EngineError) return new Error(error.message);
