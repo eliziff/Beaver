@@ -36,7 +36,7 @@ GENRE_GROUPS = {
     "contract": {"contract", "lease", "agreement", "licence", "license", "deed", "mortgage", "guarantee",
                  "indenture", "offer", "settlement"},
     "transcript": {"transcript", "questioning", "examination", "deposition", "cross_examination"},
-    "publication": {"evaluation_report", "briefing_note", "policy_document", "report", "monograph", "article",
+    "publication": {"evaluation_report", "briefing_note", "policy_document", "report", "monograph", "article", "journal_article",
                     "guide", "manual", "handbook", "paper", "study", "review", "annual_report", "commission_report",
                     "legal_monograph"},
     "compilation": {"book-of-authorities", "case_record", "evidence_record", "exhibit", "court-record-exhibit",
