@@ -59,11 +59,15 @@ pub struct NativeDocument {
     pub(crate) query: DocumentQuery,
     /// A PDF's body read by the instrument grammar, once, when a section is asked for.
     instrument: std::sync::OnceLock<Option<PrintedStatute>>,
+    /// What locating quotations has read of the document, kept for the quotations located in it after where the
+    /// caller asks (`keep`): a quicker check of each later quotation for the memory the readings hold (some 250 MiB
+    /// for the Criminal Code).
+    quotes: std::sync::Mutex<legal_structure::QuoteLocator>,
 }
 
 impl NativeDocument {
     fn new(product: NativeProduct) -> Self {
-        Self { product, query: DocumentQuery::new(), instrument: std::sync::OnceLock::new() }
+        Self { product, query: DocumentQuery::new(), instrument: std::sync::OnceLock::new(), quotes: Default::default() }
     }
 
     fn instrument(&self) -> Option<&PrintedStatute> {
@@ -334,12 +338,19 @@ pub fn quote_locate_document(
     source: legal_structure::QuoteSource,
     quotes: &[legal_structure::QuoteToLocate],
     compare: bool,
+    keep: bool,
 ) -> CoreResult<Vec<serde_json::Value>> {
     let text = document_text(document, None);
     let provisions = (source == legal_structure::QuoteSource::Legislation)
         .then(|| document.instrument().map(legal_structure::PrintedStatute::quote_blocks)).flatten();
     let blocks = legal_structure::document_quote_blocks(document.structure(), &document.query, source, provisions);
-    Ok(legal_structure::locate_source_quotes(source, text, &blocks, quotes, compare).into_iter().zip(quotes).map(|(located, item)| {
+    let located = if keep {
+        legal_structure::locate_source_quotes_kept(&mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()),
+            source, text, &blocks, quotes, compare)
+    } else {
+        legal_structure::locate_source_quotes(source, text, &blocks, quotes, compare)
+    };
+    Ok(located.into_iter().zip(quotes).map(|(located, item)| {
         if !compare {
             return serde_json::to_value(&located).expect("a located quotation serializes");
         }

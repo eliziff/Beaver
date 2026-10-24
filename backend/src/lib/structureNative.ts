@@ -323,7 +323,9 @@ type StructureAddon = {
     /** A provider's text; a PDF, read by the locators it prints; a statute's PDF, its provisions as its print reads them. */
     source: "text" | "pdf" | "legislation",
     quotes: Array<{ quote: string; scopes: { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
-      id?: string }>, compare?: boolean):
+      id?: string }>, compare?: boolean,
+    /** Keep what was read of the document for the quotations located in it after: quicker, for the memory it holds. */
+    keep?: boolean):
     Promise<Array<{ match: NativeQuoteLocation; comparison: NativeQuoteComparison | null; errors?: string[] }>>;
   /** Where a quotation's words are in a source passage, the passage it is compared with, and what differs. */
   quoteComparison(authored: string, source: string): NativeQuoteComparison;
