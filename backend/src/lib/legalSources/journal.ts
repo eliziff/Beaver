@@ -480,14 +480,15 @@ function journalReference(document: JournalArticleDocument) {
  *  from this database's index of names: of those years, the names sharing the most of the title's words, the
  *  cited journal, volume and first page, so a word spelled or inflected otherwise does not lose the article.
  *  A citation without a year takes only names holding every word of the title. */
-// The articles an operation's journal citations name, kept while it runs: finding sources and checking quotations
-// read the same citations.
+// The articles journal citations name in a journals database, as its documents are kept: finding sources, checking
+// quotations and writing the workbook read the same citations.
 const titled = new Map<string, number | null>();
 function titledArticle(citation: string) {
-  if (!inSqliteRun()) titled.clear();
-  if (titled.has(citation)) return titled.get(citation)!;
+  const key = `${journalDatabasePath()}:${citation}`;
+  if (titled.has(key)) return titled.get(key)!;
   const found = findTitledArticle(citation);
-  if (inSqliteRun()) titled.set(citation, found);
+  titled.set(key, found);
+  if (titled.size > 4096) titled.delete(titled.keys().next().value!);
   return found;
 }
 

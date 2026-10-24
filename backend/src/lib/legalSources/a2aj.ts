@@ -560,11 +560,11 @@ async function document(args: {
 async function numberedCase(args: Parameters<typeof document>[0], citation: string, language: Language) {
   const named = indexedNumberedCase(citation);
   if (!named) return null;
-  const key = JSON.stringify([language, citation]);
+  const store = a2ajLocalBulkPath(), snapshot = storeExists(store) ? statSync(store, { throwIfNoEntry: false }) : undefined;
+  const key = JSON.stringify([named, language, store, snapshot?.size, snapshot?.mtimeMs]);
   let canonical = numbered.get(key);
   if (canonical === undefined) {
-    const store = a2ajLocalBulkPath();
-    canonical = storeExists(store) ? structureNative().a2ajNamedCase(store, named) : null;
+    canonical = snapshot ? structureNative().a2ajNamedCase(store, named) : null;
     if (!canonical && lookupsLeaveComputer()) {
       const searched = await request("/search", { query: named.name, doc_type: "cases", search_type: "name",
         search_language: language, size: 10 }, args.signal);
@@ -577,6 +577,7 @@ async function numberedCase(args: Parameters<typeof document>[0], citation: stri
       canonical = citations.size === 1 ? [...citations][0] : null;
     }
     numbered.set(key, canonical);
+    if (numbered.size > 4096) numbered.delete(numbered.keys().next().value!);
   }
   return canonical ? document({ ...args, citation: canonical }) : null;
 }
@@ -831,5 +832,5 @@ export const a2ajLegalSourceProvider = Object.assign(provider, {
   document,
   viewer,
   coverage,
-  clearCache: () => { documents.clear(); paused = { until: 0, reason: "rate-limited", named: false }; sent.length = 0; },
+  clearCache: () => { documents.clear(); numbered.clear(); paused = { until: 0, reason: "rate-limited", named: false }; sent.length = 0; },
 });

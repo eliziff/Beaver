@@ -168,6 +168,33 @@ const SEARCH_COLUMNS = `document.id, document.doc_type, document.dataset,
                 document.name_en, document.name_fr,
                 document.document_date_en, document.document_date_fr,
                 document.url_en, document.url_fr`;
+const NAMED_COLUMNS = ["name_en", "name_fr", "citation_en", "citation_fr", "citation2_en", "citation2_fr"];
+const rowNameWords = (row: Row) => NAMED_COLUMNS.flatMap((column) => nameWords(string(row, column) ?? ""));
+// A collection's documents and, for each word of their names and citations, the documents holding it, read once: a
+// brief's statutes are each looked for by name in the same few collections.
+const namedIndexes = new Map<string, { rows: Row[]; holding: Map<string, number[]> }>();
+/** The collection's documents whose names and citations hold every word, in the collection's order. */
+function namedIn(database: DatabaseSync, dataset: string, docType: DocType, words: string[]) {
+  const key = JSON.stringify([a2ajLocalBulkPath(), dataset, docType]);
+  let index = namedIndexes.get(key);
+  if (!index) {
+    const rows = database.prepare(`SELECT ${SEARCH_COLUMNS} FROM document WHERE document.dataset = ?
+      AND document.doc_type = ?`).all(dataset, docType) as Row[];
+    const holding = new Map<string, number[]>();
+    rows.forEach((row, at) => {
+      for (const word of new Set(rowNameWords(row))) {
+        const list = holding.get(word);
+        if (list) list.push(at); else holding.set(word, [at]);
+      }
+    });
+    namedIndexes.set(key, index = { rows, holding });
+    if (namedIndexes.size > 16) namedIndexes.delete(namedIndexes.keys().next().value!);
+  }
+  if (!words.length) return index.rows;
+  const lists = words.map((word) => index!.holding.get(word) ?? []).sort((left, right) => left.length - right.length);
+  const rest = lists.slice(1).map((list) => new Set(list));
+  return lists[0].filter((at) => rest.every((list) => list.has(at))).map((at) => index!.rows[at]);
+}
 const storeDatasets = new Map<string, string[]>();
 /** The store's collections, read down their index one name at a time. */
 function datasets(database: DatabaseSync) {
@@ -216,13 +243,14 @@ export function searchLocalA2AJ(args: {
     if (args.ordered === false && args.searchType === "name" && args.dataset?.trim() && !hasSearchOperators(query)) {
       const asked = new Set(args.dataset.split(",").map((name) => name.trim().toLowerCase()).filter(Boolean));
       const names = datasets(database).filter((name) => asked.has(name.toLowerCase()));
-      const rows = names.length ? (database.prepare(`SELECT ${SEARCH_COLUMNS} FROM document
+      const dated = !!args.startDate?.trim() || !!args.endDate?.trim();
+      const rows = !names.length ? [] : !dated ? names.flatMap((name) => namedIn(database, name, docType, words))
+        : (database.prepare(`SELECT ${SEARCH_COLUMNS} FROM document
         WHERE document.dataset IN (${names.map(() => "?").join(", ")}) AND ${filters.join(" AND ")}`)
         .all(...names, ...values) as Row[]).filter((row) => {
-        const held = new Set(["name_en", "name_fr", "citation_en", "citation_fr", "citation2_en", "citation2_fr"]
-          .flatMap((column) => nameWords(string(row, column) ?? "")));
-        return words.every((word) => held.has(word));
-      }) : [];
+          const held = new Set(rowNameWords(row));
+          return words.every((word) => held.has(word));
+        });
       if (rows.length <= wanted) return rows.flatMap((row) => {
         const metadata = documentMetadata(row, language);
         return metadata ? [{ ...metadata, snippet: null }] : [];
