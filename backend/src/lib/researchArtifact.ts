@@ -1,60 +1,23 @@
-import { z } from "mike/shared/runtime/schema.mjs";
-import { researchSourceReferenceSchema as source, researchChangeSummarySchema,
-  type ResearchFileState } from "mike/shared/runtime/researchContract.mjs";
+import type { ResearchFileState, ResearchLabel } from "mike/shared/runtime/researchContract.mjs";
 import { jsonRecord as record } from "./value";
-const uuid = z.string().uuid();
 export const RESEARCH_MANIFEST_PART = "research.json";
 export const validResearchIds = (value: unknown, prefix = "") => Array.isArray(value) && value.length <= 10_000 &&
   new Set(value).size === value.length && value.every((id) =>
     typeof id === "string" && id.startsWith(prefix));
-const validPart = (value: unknown, max: number) => { const item = record(value); return !!item &&
-  Number.isInteger(item.count) && Number(item.count) > 0 && Number(item.count) <= max &&
-  typeof item.sha256 === "string" && /^[a-f0-9]{64}$/u.test(item.sha256); };
-const validPassages = (value: unknown, labels: Record<string, unknown>) => { const item = record(value),
-  counts = record(item?.labelCounts), count = Number(item?.count); return validPart(value, 100_000) &&
-    !!counts && Object.keys(counts).length <= 10_000 && Object.entries(counts).every(([id, value]) =>
-      uuid.safeParse(id).success && record(labels[id])?.scope === "highlight" &&
-      Number.isInteger(value) && Number(value) > 0 && Number(value) <= count) &&
-    Number.isInteger(item?.unlabelledCount) && Number(item?.unlabelledCount) >= 0 &&
-    Number(item?.unlabelledCount) <= count; };
+/** The state as this application writes it. A file can come back edited by hand, so the label tree, which
+ *  everything walks, must still be one: every parent present, in its child's scope, and no cycle. */
 export function decodeResearchFileState(value: unknown): ResearchFileState | null {
-  const state = record(value), labels = record(state?.labels), sources = record(state?.sources);
-  if (state?.schemaVersion !== "beaver.research.v2" || !labels || !sources ||
-      !(state.queries === null || validPart(state.queries, 10_000)) ||
-      (state.tables !== undefined && !validResearchIds(state.tables)) ||
-      (state.chats !== undefined && !validResearchIds(state.chats)) ||
-      (state.history !== undefined && !validPart(state.history, 10_000)) ||
-      (state.proposals !== undefined && !researchChangeSummarySchema.array().max(100).safeParse(state.proposals).success) ||
-      typeof state.note !== "string" || state.note.length > 250_000 ||
-      Object.keys(labels).length > 10_000 || Object.keys(sources).length > 10_000) return null;
-  const validLabels = (value: unknown) => validResearchIds(value) &&
-    (value as string[]).every((id) => uuid.safeParse(id).success && labels[id]);
-  if (Object.entries(labels).some(([id, value]) => { const item = record(value); return !item ||
-      item.id !== id || !uuid.safeParse(id).success || typeof item.name !== "string" ||
-      !item.name || item.name.length > 200 || !(item.parentId === null ||
-        typeof item.parentId === "string" && uuid.safeParse(item.parentId).success) ||
-      !(item.color === null || typeof item.color === "string" && /^#[a-f0-9]{6}$/iu.test(item.color)) ||
-      !Number.isInteger(item.order) || Number(item.order) < 0 || Number(item.order) > 1_000_000 ||
-      (item.definition !== undefined && (typeof item.definition !== "string" || item.definition.length > 20_000)) ||
-      (item.scope !== "source" && item.scope !== "highlight"); })) return null;
-  if (Object.values(labels).some((value) => { const parent = record(value)?.parentId;
-    return typeof parent === "string" && (!labels[parent] ||
-      record(labels[parent])?.scope !== record(value)?.scope); })) return null;
-  const visitedLabels = new Set<string>();
-  for (const id of Object.keys(labels)) { const seen = new Set<string>(); let next: string | null = id;
-    while (next && !visitedLabels.has(next)) { if (seen.has(next)) return null; seen.add(next);
-      next = record(labels[next])?.parentId as string | null; }
-    seen.forEach((labelId) => visitedLabels.add(labelId)); }
-  if (Object.entries(sources).some(([id, value]) => { const item = record(value); return !item ||
-      item.id !== id || !uuid.safeParse(id).success || !source.safeParse(item.reference).success ||
-      (item.collected !== undefined && typeof item.collected !== "boolean") ||
-      !validLabels(item.labelIds) || (item.labelIds as string[]).some((labelId) =>
-        record(labels[labelId])?.scope !== "source") || typeof item.note !== "string" ||
-      item.note.length > 50_000 ||
-      !(item.passages === null || validPassages(item.passages, labels));
-    })) return null;
-  if (Object.values(sources).reduce<number>((sum, value) =>
-    sum + Number(record(record(value)?.passages)?.count ?? 0), 0) > 100_000) return null;
+  const state = record(value), labels = record(state?.labels) as Record<string, ResearchLabel> | null;
+  if (state?.schemaVersion !== "beaver.research.v2" || !labels || !record(state.sources) ||
+      typeof state.note !== "string") return null;
+  for (const label of Object.values(labels)) {
+    const seen = new Set<string>();
+    for (let at: ResearchLabel | undefined = label; at?.parentId; at = labels[at.parentId]) {
+      const parent = labels[at.parentId];
+      if (!parent || parent.scope !== label.scope || seen.has(at.parentId)) return null;
+      seen.add(at.parentId);
+    }
+  }
   return state as ResearchFileState;
 }
 
