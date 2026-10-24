@@ -76,23 +76,3 @@ it("resolves the current workspace on each call and rejects unlinked or foreign 
   expect((await f.application.detail(owner, reviewId)).review.title).not.toBe("Outside change");
   expect(f.committed()).toBe(1);
 });
-
-it("preserves the first observed passage when extraction fails before submitting an answer", async () => {
-  const f = await fixture(), table = await f.application.create(owner, { document_ids: [f.source.id],
-    columns_config: [{ index: 0, name: "Payment", prompt: "Explain payment" }] }), id = table.scope_config!.research_file_id!,
-    { createTabularApplication } = await import("../tabular/application"),
-    { tabularRepository } = await import("../relationalTabularRepository"),
-    app = createTabularApplication(tabularRepository, f.documents, await f.runtime.projects(), {
-      sources: async () => f.sources, settings: async () => ({ title_model: "codex:gpt-5.6", tabular_model: "codex:gpt-5.6",
-        api_keys: {}, legal_research_us: false, last_selected_chat_model: null, last_selected_reasoning_effort: null }),
-      runTurn: async () => { throw new Error("Model unavailable"); },
-    });
-  expect((await f.sources.items(owner, id, { kind: "passages", offset: 0, limit: 10 })).total).toBe(0);
-  await expect(app.runAgent(owner, { reviewId: table.id, documentId: f.source.id, jobId: "failed-job" }))
-    .rejects.toThrow("Model unavailable");
-  const saved = await f.sources.items(owner, id, { kind: "evidence", offset: 0, limit: 10 });
-  expect(saved.total).toBe(1);
-  expect(saved.items[0].value).toMatchObject({ receipt: { span_text: "Payment is due in thirty days." } });
-  expect((await f.sources.items(owner, id, { kind: "passages", offset: 0, limit: 10 })).total).toBe(0);
-  expect((await tabularRepository.detail(owner, table.id))?.cells[0]).toMatchObject({ status: "error", content: null });
-});

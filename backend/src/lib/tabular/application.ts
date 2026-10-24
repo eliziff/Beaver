@@ -129,10 +129,8 @@ export const tabularDtos = {
 };
 
 type Dependencies = {
-  agents?: TabularAgents;
-  runTurn?: typeof runChatTurn;
-  stream?: typeof streamChatWithTools;
-  audit?: AuditStore["record"];
+  agents: TabularAgents;
+  audit: AuditStore["record"];
   settings: (userId: string) => Promise<UserModelSettings>;
   sources(): Promise<SourceWorkspaceApplication>;
 };
@@ -187,22 +185,20 @@ export function createTabularApplication(
   projects: ProjectStore,
   dependencies: Dependencies,
 ) {
-  const turn: typeof runChatTurn = dependencies.runTurn ?? (async options =>
-    (await import("../chat/turnEngine")).runChatTurn(options));
+  const turn: typeof runChatTurn = async options => (await import("../chat/turnEngine")).runChatTurn(options);
   const settings = dependencies.settings;
   const prepareColumns = async (scope: TabularScope, columns: TabularColumn[], previous?: TabularSelection["jevRouting"]) => {
     const user = await settings(scope.userId);
     return prepareTabularRouting({ columns, previous, model: user.tabular_model, apiKeys: user.api_keys, runTurn: turn });
   };
   const running = (review: { id: string; user_id: string }) =>
-    dependencies.agents?.active(review.id, review.user_id) ?? Promise.resolve(false);
+    dependencies.agents.active(review.id, review.user_id);
   const assertIdle = async (review: { id: string; user_id: string }) => {
     if (await running(review)) throw new ApplicationError(
       409, "Stop the running review first.", { code: "review_running" });
   };
   const enqueue = async (scope: TabularScope, review: TabularReview,
     input: z.infer<typeof tabularDtos.generate>, assignments: { documentId: string; columnIndex?: number }[]) => {
-    if (!dependencies.agents) return fail(503, "Tabular agents are unavailable");
     const user = await settings(scope.userId), model = input.model ?? user.tabular_model;
     modelKey(model, user.api_keys);
     if (assignments.length) {
@@ -371,7 +367,7 @@ export function createTabularApplication(
   async function modelText(input: { model: string; system: string; user: string;
     apiKeys: UserApiKeys; reasoningEffort?: string; signal?: AbortSignal; onContentDelta?: (delta: string) => void }) {
     throwIfAborted(input.signal);
-    const result = await (dependencies.stream ?? streamChatWithTools)({ model: input.model, systemPrompt: input.system,
+    const result = await streamChatWithTools({ model: input.model, systemPrompt: input.system,
       messages: [{ role: "user", content: input.user }], tools: [], maxIterations: 1,
       apiKeys: input.apiKeys, reasoningEffort: input.reasoningEffort,
       callbacks: { onContentDelta: input.onContentDelta }, abortSignal: input.signal,
@@ -471,7 +467,7 @@ export function createTabularApplication(
           throwIfAborted(signal);
           const changed = await cellWrite(scope, current, "done", result, reviewVersion, operation(current));
           cells.set(key, changed);
-          await dependencies.audit?.({ userId: scope.userId, userEmail: scope.userEmail,
+          await dependencies.audit({ userId: scope.userId, userEmail: scope.userEmail,
             action: "tabular.cell", surface: "tabular", reviewId: current.review_id, model,
             detail: { initiator_user_id: scope.userId, executor: "assistant", job_id: jobId,
               column_index: index, resource: result.resource, question_revision: reviewVersion,
@@ -810,9 +806,7 @@ ${inventory}`,
     async stop(scope: TabularScope, reviewId: string) {
       const detail = await store.detail(scope, reviewId);
       if (!detail) return fail(404, "Review not found");
-      return { stopped: await dependencies.agents?.cancel(
-        reviewId, detail.review.user_id,
-      ) ?? false };
+      return { stopped: await dependencies.agents.cancel(reviewId, detail.review.user_id) };
     },
   };
 }
