@@ -1202,16 +1202,27 @@ fn pairing(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
 /// The gold against itself through the scorer (must be 1.0 everywhere), and the gold's own labels
 /// decoded over the gold's own lines, order, markers and notes (any shortfall is the label
 /// encoding or the decoder, never the gold): `selfcheck GOLD MANIFEST self|labels`.
+/// `self`: the gold against itself; `labels`: the gold's own labels decoded; `agree --other STORE`:
+/// the gold against the same document's gold authored independently into another store, which is
+/// how far two authorings agree.
 fn selfcheck(gold: &Path, manifest: &Path, mode: &str, options: &[String]) -> Result<(), String> {
     let value = |name: &str| options.iter().position(|o| o == name).and_then(|n| options.get(n + 1)).cloned();
     let split = value("--split");
+    let other = value("--other").map(PathBuf::from);
+    if mode == "agree" && other.is_none() {
+        return Err("agree needs --other STORE".into());
+    }
     let all: Vec<Source> = sources(gold, manifest)?.into_iter()
         .filter(|s| split.as_deref().map_or(s.split != "test", |want| s.split == want)).collect();
     let results = parallel(&all, |_| 0, |source| -> Result<score::Score, String> {
-        let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+        let read = |store: &Path| -> Result<state::Gold, String> {
+            read_gzip_json(&store.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())
+        };
+        let expected = read(gold)?;
         let reference = state::projected(&expected)?;
         let candidate = match mode {
             "self" => state::projected(&expected)?,
+            "agree" => state::projected(&read(other.as_deref().expect("checked above"))?)?,
             _ => roundtrip(&expected, &reference)?,
         };
         score::compare(&reference, &candidate)
