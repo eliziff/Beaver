@@ -151,8 +151,11 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   /** firstCitationOnly: check a quotation only against the citation linked to it, else its note's first.
    *  quoteContext: "sentence" checks only the quotations in the sentence a note's marker ends or stands in.
    *  textOnly: checks the text's quotations alone, none a note holds.
-   *  compare: false leaves out each receipt's comparison and errors, for a caller that reads only where the quotation is. */
-  options: { firstCitationOnly?: boolean; quoteContext?: QuoteContext; textOnly?: boolean; compare?: boolean } = {}) {
+   *  compare: false leaves out each receipt's comparison and errors, for a caller that reads only where the quotation is.
+   *  keepSourceReadings: each source's readings are kept for the quotations checked in it later, a quicker check for the
+   *  memory they hold (some 250 MiB for the Criminal Code). */
+  options: { firstCitationOnly?: boolean; quoteContext?: QuoteContext; textOnly?: boolean; compare?: boolean;
+    keepSourceReadings?: boolean } = {}) {
   const citationUnits = await splitQuoteCitationUnits(draft.units.map(({ text }) => text), signal);
   const unitReceipts = citationUnits.map((split, index) => ({ unitId: draft.units[index].id, ...split }));
   const all = splitQuoteChecks(draft, links, citationUnits, options.quoteContext, options.textOnly);
@@ -230,7 +233,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     const located = await engine.quoteLocateDocument(document,
       provider !== "attached" ? "text" : kind === "legislation" ? "legislation" : "pdf",
       items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints), id: row.id })),
-      options.compare !== false);
+      options.compare !== false, options.keepSourceReadings);
     // Each found quotation's link, its text fragments planned off this thread.
     const passages = items.map((item, index) => linkedPassage(item, located[index].match));
     await planLegalSourcePinpoints(document, passages.flatMap((passage) => passage ? [passage] : []));
