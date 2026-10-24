@@ -122,20 +122,10 @@ const recordPath = (key: string) => path.join(
   mikeLocalDataHome(), "projections", "v1", "source-pdf", `${key}.json`,
 );
 
+// Written only by writeRecord, from a request already made safe, under that request's hash.
 async function readRecord(key: string) {
-  try {
-    const value = JSON.parse(await readFile(recordPath(key), "utf8")) as PdfRecord;
-    const request = safeRequest(value);
-    if (value.schema_version !== 1 || request.requestKey !== key ||
-        !["queued", "downloaded", "failed"].includes(value.status) ||
-        (value.source_sha256 && !/^[a-f0-9]{64}$/u.test(value.source_sha256)) ||
-        (value.parse_status && !["parsing", "ready", "degraded", "failed"].includes(
-          value.parse_status))) return null;
-    const profile = value.pdf_profile === undefined
-      ? undefined : decodePdfProfileSelection(value.pdf_profile);
-    if (value.pdf_profile !== undefined && !profile) return null;
-    return { ...value, ...request, ...(profile ? { pdf_profile: profile } : {}) };
-  } catch { return null; }
+  try { return JSON.parse(await readFile(recordPath(key), "utf8")) as PdfRecord; }
+  catch { return null; }
 }
 
 async function writeRecord(request: SafeRequest, status: PdfRecord["status"], digest?: string,
