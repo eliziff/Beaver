@@ -51,9 +51,7 @@ export function getRuntimeConfig(): RuntimeConfig {
     return state.__beaverRuntimeConfig;
 }
 
-export async function initializeRuntimeConfig(
-    request: typeof fetch = fetch,
-): Promise<RuntimeConfig> {
+export async function initializeRuntimeConfig(): Promise<RuntimeConfig> {
     const embedded = typeof document === "undefined" ? null
         : document.querySelector<HTMLMetaElement>('meta[name="beaver-runtime-config"]')?.content;
     if (embedded && embedded !== EMBEDDED_CONFIG) {
@@ -66,7 +64,7 @@ export async function initializeRuntimeConfig(
             throw error;
         }
     }
-    const response = await request("/api/config", {
+    const response = await fetch("/api/config", {
         cache: "no-store",
         headers: { Accept: "application/json" },
     });
