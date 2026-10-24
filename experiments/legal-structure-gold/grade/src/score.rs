@@ -438,7 +438,7 @@ fn features<'a>(
         if let Some(region) = block.attributes.get("region").and_then(Value::as_str) {
             return match region { "none" | "caption" => "text", other => other }.to_owned();
         }
-        if kind == "text" && side.candidate && crate::state::parser_list_item(state, block) {
+        if kind == "text" && side.candidate && crate::state::parser_list_item(block) {
             return "list_item".into();
         }
         kind.to_owned()

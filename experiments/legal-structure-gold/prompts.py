@@ -4,6 +4,7 @@ REGIONS = ("text", "list_item", "heading", "quote", "note", "table", "contents",
            "marginal_note", "furniture", "page_label")
 
 LINES = """Correct each page's extracted lines against its image. Give the page's units in reading order, each as its region and its printed lines: text, list_item, heading, quote (block quotation), note (footnote or endnote), table (one row; cells joined by " | "), contents (table of contents or index entry), caption (case caption), headnote, marginal_note, furniture (running header or footer) or page_label. A unit is a paragraph, heading, item, note, row, running header or page number.
+A paragraph numbered in the document's own running sequence is text, however its number is written: an affidavit's "1. I am", a judgment's "[12]", a contract's "2.03", a statute's "(2)". A list_item is one item of a list inside or after a paragraph, such as (a), (b), i. or a bullet.
 Put a tab after each leading printed marker. Write note references as [^mark], the mark as printed, brackets included.
 continues: true when the page's first unit continues the unit before it on the page before."""
 
