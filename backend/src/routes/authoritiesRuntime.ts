@@ -4,8 +4,6 @@ import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { ApplicationError } from "../lib/applicationError";
 import { createAuthoritiesOperations, assertAuthoritiesBuildUploadSize } from "../lib/authoritiesOperations";
-import { resolveAuthoritiesSources } from "../lib/authoritiesSourceResolution";
-import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
 import { asyncRoute } from "../lib/asyncRoute";
 import { followedRoute } from "../lib/followedRoute";
 import { multipleFileUpload, singleFileUpload } from "../lib/upload";
@@ -53,11 +51,9 @@ async function sendResult(res: Response, operation: AuthoritiesOperation, result
   if (result.files) return sendMultipart(res, result.data as Record<string, unknown>, result.files);
   res.json(result.data);
 }
-export function createAuthoritiesRuntimeRouter(authenticate: RequestHandler,
-  resolveSources: typeof resolveAuthoritiesSources = resolveAuthoritiesSources,
-  reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies) {
+export function createAuthoritiesRuntimeRouter(authenticate: RequestHandler) {
   const router = Router(); router.use(authenticate);
-  const operations = createAuthoritiesOperations(resolveSources, reviewDiscrepancies);
+  const operations = createAuthoritiesOperations();
   router.get("/capabilities", asyncRoute(async (_req, res) => { res.json((await operations.capabilities()).data); }));
   // A quote check sends the PDFs attached for its authorities: their quotations are read from them.
   router.post("/quote-check", multipleFileUpload("files", 500, 16 * 1024 * 1024), asyncRoute(async (req, res) => {
