@@ -381,6 +381,58 @@ Tried and set aside: `train_relations.py` reads each unit's relation against its
 ancestor chain (0.770 when the chain is the gold's) but compounds its errors end to end (0.675;
 parents 0.365, relations 0.586), so the per-line trees stay.
 
+Where the parser's parents go wrong (development, 41,924 gold ranked units, 25.6% right): 15.6%
+sit under a heading in the gold but under a paragraph in the parser, 13.4% under the wrong
+heading, 9.0% under a paragraph in the gold but a heading in the parser, and 52.6% of the gold's
+heading starts are text to the parser (mostly bold body-size lines in born-digital sources, many
+of them bilingual statutes' section headings). The outline assembler keeps a lead-in (a unit
+ending in a colon) open for every later unit; closing it after its numbered items and the unit
+right after it moves parents 0.206 → 0.199 on development and 0.205 → 0.195 on train, because
+the true parent is then a heading the parser never found, so it was reverted.
+
+What the models say about the Rust code (2026-10-20). A depth-3 decision tree over the gold's
+unit starts reads headings at development F1 0.852 against the parser's 0.569: bold all through
+(unless mostly punctuation, or mostly figures before more than a short line), or in capitals
+(`heading_rules.py`). The heading reader now proposes such blocks too (kind 12, set apart by
+type). Its trace showed the parser had excluded a parallel translation's lines from headings since
+"Read the English column of a parallel English and French text": the gold structures the French
+column of a federal statute as its own outline (French units under French headings and lead-ins,
+about 28% of development's hierarchy units). The French column now reads headings on a ladder
+and page cap of its own and nests its units in an outline context of its own, so neither column
+restarts the other. 1,092 documents against the parser before: hierarchy parents 0.206 → 0.245
+(development 0.206 → 0.263), heading roles 0.475 → 0.503, notes 0.348 → 0.356, references
+0.396 → 0.407; six bilingual judgments lose 24 to 54 parents each where English front matter
+("INDEXED AS:", "ON APPEAL FROM") now heads the lines after it, which the gold keeps at the root.
+For body text, a shallow tree reads unit starts no better than the parser (accuracy 0.913 against
+0.912), so the trees' start gain lies elsewhere. Next by size: the gold nests a statute section's
+later subsections (their marginal notes and "(2)", "(3)") under the section's own first unit
+("19.013 (1) In this section…"); the parser puts them beside it under the section's heading.
+
+Pointer tagger (`train_tagger.py`, BiGRU over windows of 768 pieces with 128 of context, a
+pointer head over the 384 unit starts before each one, scored with attention and the pair's
+evidence; trees for regions and starts, `point.py` to combine), development through the scorer
+on the parser before the changes above: parents 0.206 → 0.475, hierarchy 0.108 → 0.266, heading
+roles 0.551 → 0.758, units 0.773 → 0.866, roles 0.837 → 0.892, groups 0.686 → 0.731, references
+0.554 → 0.637, keeping the parser's notes and document starts. Over the gold's own unit starts the
+pointer finds 0.578 of parents (the parser 0.265); restricting it to the right frontier of the
+gold tree would only reach 0.596, so its errors are levels, not reach.
+
+On the parser with the changes above (parents 0.335 over the gold's unit starts), trees with the
+pointer's parents and the parser's notes: development parents 0.496, hierarchy 0.282, units
+0.874, roles 0.895, groups 0.743, references 0.654. Every variant of the pointer lands at 0.573
+to 0.578 over the gold's unit starts: the style ladder and same-type siblings, the order the
+document opens its numbering families, the model's own reading of headings between, the
+piece's language, dropout 0.3 with the text hidden half the time. Without attention between
+states it falls to 0.497; LightGBM ranking over the same pair evidence reaches 0.542 (0.466 end
+to end); the depth reading (nearest earlier unit one level up) reaches only 0.666 even with the
+gold's own depths, the columns of a parallel text interleaving. The pointer reads the train
+split at 0.930 and development at 0.575, and on half the train documents development falls to
+0.519 (regions 0.825 → 0.794, starts 0.953 → 0.941): it is limited by the gold's breadth, about
+5.6 points of parents per doubling, not by its features.
+
+Codex's numbering-stack rule (`codex/parser-iteration` `0cec5ab`, newly opened families nest)
+adds to these parser changes: together, development parents 0.295 and hierarchy 0.150.
+
 ## Notes (2026-10-20)
 
 A bare or bracketed number opening a body-zone line in body type with prose beside it is a

@@ -925,9 +925,9 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
             let range = node.heading_range.as_ref().unwrap_or(&node.range);
             let end = range.end.min(range.start + 70).min(text.len());
             let snippet = String::from_utf16_lossy(&text[range.start.min(end)..end]).replace('\n', " / ");
-            println!("{}{:?} {:?} {} {} [{}] {snippet:?}", "  ".repeat(depth), node.kind, node.role,
+            println!("{}{:?} {:?} {} {} [{}] {}..{} {} {snippet:?}", "  ".repeat(depth), node.kind, node.role,
                 node.grammar.as_deref().unwrap_or("-"), node.label.as_deref().unwrap_or("-"),
-                node.line_ids.first().map(String::as_str).unwrap_or("-"));
+                node.line_ids.first().map(String::as_str).unwrap_or("-"), node.range.start, node.range.end, node.origin_id);
         }
     }
     let mut candidate_state = state::parsed(&structure, &pages)?;
