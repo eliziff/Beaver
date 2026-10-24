@@ -244,6 +244,7 @@ async function fail(job: ApplicationJob, workerId: string, error: unknown) {
   const exhausted = !deferred && (error instanceof PermanentJobError || job.attempts >= job.maxAttempts);
   const delay = Math.min(60_000, 2_000 * (2 ** Math.max(0, job.attempts - 1)));
   const category = errorCategory(error);
+  if (!deferred) console.warn("[job] attempt failed", { job: job.id, kind: job.kind, attempt: job.attempts, error: category, exhausted });
   await db.query(sql`UPDATE application_jobs SET status=${exhausted ? "failed" : "queued"},
     run_at=${later(deferred ? Math.max(1000, Math.min(error.delayMilliseconds, 3_600_000)) : delay)},
     attempts=attempts-${deferred ? 1 : 0},last_error=${deferred ? null : category},locked_by=NULL,locked_until=NULL,

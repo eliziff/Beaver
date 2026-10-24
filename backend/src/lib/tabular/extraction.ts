@@ -8,7 +8,7 @@ import type { runChatTurn, ChatToolContext } from "../chat/turnEngine";
 import { createLegalEvidenceTurnState, legalEvidenceReceiptEvent, modelEvidencePreview,
   registerLegalEvidence, registerLegalResearchQueries,
   registerPriorLegalEvidence, registerPriorLegalResearchQueries,
-  validateGroundedClaims, type LegalEvidenceReceipt } from "../chat/legalEvidence";
+  validateGroundedClaims, EVIDENCE_IDS_DESCRIPTION, type LegalEvidenceReceipt } from "../chat/legalEvidence";
 import { toolText, type BeaverTool, type BeaverOutcome } from "../chat/toolRegistry";
 import { presentLegalEvidence } from "../chat/citationPresentation";
 import { readResearchContext, researchReadCursors, researchReadReceipt,
@@ -179,7 +179,8 @@ export async function extractTabularAnswers(input: {
       const evidenceIds = new Set(claims.flatMap(({ evidence_ids }) => evidence_ids)), fromRead = [...evidenceIds].some(id => readEvidence.has(id));
       // Preserve search provenance when publishing reused support, without delaying the first model call.
       if ([...evidenceIds].some(id => state.priorEvidenceIds.has(id))) await loadHistory();
-      content = { value, claims, summary: display, flag: args.flag as TabularCellContent["flag"], outcome: missing ? "not_found" : "answered",
+      // A cell the model leaves unflagged is unassessed: grey, as a decided value is.
+      content = { value, claims, summary: display, flag: (args.flag ?? "grey") as TabularCellContent["flag"], outcome: missing ? "not_found" : "answered",
         coverage: next().length === 0 ? "complete" : "partial", resource: input.subject.resource,
         query_ids: [...state.queries.values()].filter(({ query_id, results }) => query_id === queryId ? fromRead || missing
           : observedQueries.has(query_id) ? query_id === judgmentId
@@ -311,14 +312,14 @@ export async function extractTabularAnswers(input: {
               inputSchema: { type: "object", properties: {
                 column_index: { type: "integer", enum: columns.map(column => column.index) },
                 value: {}, outcome: { type: "string", enum: ["answered", "not_found"] },
-                flag: { type: "string", enum: ["green", "grey", "yellow", "red"] },
+                flag: { type: "string", enum: ["green", "grey", "yellow", "red"], description: "Omit when you have no assessment (grey)." },
                 claims: { type: "array", maxItems: 100, items: { type: "object", properties: {
                   text: { type: "string", minLength: 1, maxLength: 16_000,
                     description: "Supporting explanation, which may reuse source wording without quotation marks. Explicit quotations must match their cited passages. No reader handles or reference markers." },
                   evidence_ids: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 4, uniqueItems: true,
-                    description: "One to four unique returned passage IDs supporting this claim, including the exact source of any quoted words." },
+                    description: `${EVIDENCE_IDS_DESCRIPTION} Include the exact source of any quoted words.` },
                 }, required: ["text", "evidence_ids"], additionalProperties: false } },
-              }, required: ["column_index", "value", "outcome", "flag", "claims"], additionalProperties: false,
+              }, required: ["column_index", "value", "outcome", "claims"], additionalProperties: false,
               oneOf: [
                 ...columns.map(column => ({ properties: { column_index: { const: column.index },
                   outcome: { const: "answered" }, value: valueSchema(column), claims: { minItems: 1 } } })),
