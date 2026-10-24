@@ -190,7 +190,9 @@ fn parallel<T: Send>(
 ) -> Vec<T> {
     let mut order: Vec<usize> = (0..sources.len()).collect();
     order.sort_by_key(|&n| std::cmp::Reverse(weight(&sources[n])));
-    let threads = std::thread::available_parallelism().map_or(8, |n| n.get());
+    // STRUCTURE_GOLD_THREADS caps the documents graded at once (a shared machine's memory).
+    let threads = std::env::var("STRUCTURE_GOLD_THREADS").ok().and_then(|v| v.parse::<usize>().ok()).filter(|n| *n > 0)
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(8, |n| n.get()));
     let next = AtomicUsize::new(0);
     let results: Mutex<Vec<Option<T>>> = Mutex::new((0..sources.len()).map(|_| None).collect());
     std::thread::scope(|scope| {
@@ -612,6 +614,7 @@ fn candidate(
             .collect();
         return Ok((export.structure, pages));
     }
+    let read_at = Instant::now();
     let extracted: legalpdf::ExtractedPdf = read_gzip_json(
         &inputs_dir(gold)
             .join(format!("{}.json.gz", source.sha256)),
@@ -626,8 +629,13 @@ fn candidate(
             lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
         })
         .collect();
+    let structure_at = Instant::now();
     let document = legalpdf::gold_structure_document(extracted, &source.sha256, None)
         .map_err(|e| format!("{}: {e}", source.sha256))?;
+    if std::env::var_os("STRUCTURE_GOLD_TIMING").is_some() {
+        eprintln!("timing	{}	inputs_ms	{:.1}	structure_ms	{:.1}", &source.sha256[..12],
+            (structure_at - read_at).as_secs_f64() * 1e3, structure_at.elapsed().as_secs_f64() * 1e3);
+    }
     Ok((document.structure().clone(), pages))
 }
 
@@ -643,6 +651,7 @@ fn grade_one(
     exports: bool,
     selected: Option<&PathBuf>,
 ) -> Result<Graded, String> {
+    let gold_at = Instant::now();
     let expected: state::Gold =
         read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz"))
             .map_err(|e| e.to_string())?;
@@ -658,7 +667,13 @@ fn grade_one(
     }
     let reference = state::projected(&expected)?;
     let predicted = state::parsed(&structure, &pages)?;
+    let compared_at = Instant::now();
     let score = score::compare(&reference, &predicted)?;
+    if std::env::var_os("STRUCTURE_GOLD_TIMING").is_some() {
+        eprintln!("timing	{}	parsed_ms	{:.1}	compare_ms	{:.1}	gold_ms	{:.1}", &source.sha256[..12],
+            (compared_at - parsed_at).as_secs_f64() * 1e3, compared_at.elapsed().as_secs_f64() * 1e3,
+            (started - gold_at).as_secs_f64() * 1e3);
+    }
     Ok(Graded {
         score,
         parse_ms: (parsed_at - started).as_secs_f64() * 1e3,
@@ -870,6 +885,11 @@ fn delta_table(title: &str, common: &[(&Value, &Value)]) {
 }
 
 fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String> {
+    // The citation grammar's tables and regexes compile on first use; pay that once, outside
+    // any document's timing.
+    legal_pdf_core::profile::measure("warmup.citations", || {
+        let _ = legal_pdf_core::layout_analysis().citations("R. v. White, 2020 NSCA 33, [2008] 2 S.C.R. 3, para. 12.");
+    });
     let flag = |name: &str| options.iter().any(|o| o == name);
     let value = |name: &str| {
         options
