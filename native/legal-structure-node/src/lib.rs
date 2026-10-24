@@ -3,6 +3,7 @@
 //! call for Node-API and `wasi` for the browser's WebAssembly runtime.
 
 mod a2aj;
+mod a2aj_lookup;
 mod dispatch;
 pub mod engine;
 #[cfg(not(target_arch = "wasm32"))]
