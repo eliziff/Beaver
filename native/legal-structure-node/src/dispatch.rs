@@ -166,9 +166,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "providerCitationsInText" => done(value(engine::provider_citations(&call.get::<String>("text")?))),
         "canliiCaseUrl" => done(value(legal_structure::canlii_case_url(&call.get::<Vec<String>>("citations")?,
             &call.get::<Option<String>>("language")?.unwrap_or_default(), call.get::<Option<String>>("court")?.as_deref()))),
-        "canliiLawUrl" => done(value(legal_structure::canlii_law_url(&call.get::<String>("text")?))),
-        "canliiA2ajLawUrl" => done(value(legal_structure::citations::url::canlii_a2aj_law_url(
-            &call.get::<String>("dataset")?, &call.get::<String>("citation")?, &call.get::<String>("language")?))),
+        "canliiLawUrl" => done(value(legal_structure::canlii_law_url(&call.get::<String>("text")?,
+            &call.get::<Option<String>>("language")?.unwrap_or_default(),
+            call.get::<Option<bool>>("consolidated")?.unwrap_or(false)))),
         // A passage's links on a source's page, planned against the document (legal-structure passage_links).
         "passageLink" => done(with_document(doc()?, |d| value(legal_structure::passage_link(
             &d.query, d.structure(), &call.get::<legal_structure::PassageLinkRequest>("request")?)))),

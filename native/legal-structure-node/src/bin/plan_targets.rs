@@ -14,7 +14,7 @@
 //! citation's pinpoint is linked (`cited_passage_link`, the pinpoint's part passed as the citation's pinpoint), its
 //! anchor then the one that publisher's page prints for it (`provider_anchor`), or none where it prints none.
 
-use legal_structure::citations::url::{canlii_a2aj_law_url, source_anchor};
+use legal_structure::citations::url::source_anchor;
 use legal_structure::{
     canlii_case_url, cited_passage_link, law_web_link, passage_link, DocumentQuery, DocumentStructure,
     PassageLinkRequest,
@@ -111,7 +111,7 @@ fn plan_seed(query: &DocumentQuery, structure: &DocumentStructure, source: &Valu
     if let Some(Value::Object(plan)) = provider.and_then(|link| link.plan).map(|plan| json!(plan)) {
         row.extend(plan);
     }
-    let canlii = if laws { canlii_a2aj_law_url(dataset, citation, "en") } else { canlii_case_url(&[citation.to_owned()], "en", Some(dataset)) };
+    let canlii = if laws { legal_structure::canlii_law_url(citation, "en", true) } else { canlii_case_url(&[citation.to_owned()], "en", Some(dataset)) };
     if let Some(canlii) = canlii {
         let (kind, label) = match anchor {
             Some(anchor) if anchor.starts_with("par") => (Some("paragraph"), anchor),

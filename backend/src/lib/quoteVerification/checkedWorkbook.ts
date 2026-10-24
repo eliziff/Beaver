@@ -469,7 +469,7 @@ function partLink(draft: AuthoritiesDraft, part: PlacedPart, field: Fields, own 
     const [, language, dataset] = identity.stableSourceId.split(":");
     const lang = language === "fr" ? "fr" : "en";
     const canlii = authority.kind === "legislation"
-      ? structureNative().canliiA2ajLawUrl(dataset, authority.citation, lang)
+      ? structureNative().canliiLawUrl(authority.citation, lang, true)
       : structureNative().canliiCaseUrl([authority.citation, ...identity.citationForms ?? []], lang, dataset);
     if (canlii) return canlii;
   }

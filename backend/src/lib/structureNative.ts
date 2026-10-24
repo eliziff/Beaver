@@ -236,7 +236,6 @@ type StructureAddon = {
         canlii: { target: string; plan: NativeTextFragmentPlan | null } | null; lawWeb: string | null; best: string | null };
   /** The passage on A2AJ Law Web's reader of the document; null where it cannot be planned whole there. */
   lawWebLink(document: NativeDocument, citation: string, docType: string, blockText: string, quotes: string[]): string | null;
-  canliiA2ajLawUrl(dataset: string, citation: string, language: string): string | null;
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   deriveDocxDocument(bytes: Buffer, id: string, drafting?: boolean): Promise<NativeDocument>;
   docxText(bytes: Buffer, drafting?: boolean, limit?: number): Promise<string>;
@@ -303,8 +302,9 @@ type StructureAddon = {
   /** The CanLII page of the first decision the citations name by a neutral or CanLII citation with its court written,
    *  of `court` where given and routed; null where none. */
   canliiCaseUrl(citations: readonly string[], language: "en" | "fr", court: string | null): string | null;
-  /** The CanLII page of the first statute or regulation the text cites; null where none. */
-  canliiLawUrl(text: string): string | null;
+  /** The CanLII page, in `language` (English by default), of the first statute or regulation the text cites; null
+   *  where none. `consolidated` where it is a statute in force as consolidated (an A2AJ legislation record). */
+  canliiLawUrl(text: string, language?: string, consolidated?: boolean): string | null;
   /** Whether the engine's registry routes a court code to CanLII. */
   canliiCourtRoute(court: string): boolean;
   citationOccurrencesInText(text: string): NativeCitationOccurrence[];
