@@ -18,7 +18,7 @@ export type WordEditResult = { report: Record<string, unknown>;
 
 /** Existing document ports own access and CAS publication; the engine produces
  * frozen candidates. The user's edit-mode setting, never a model argument, owns review policy. */
-export function createWordEditApplication(options: Options, execute = runWordPython) {
+export function createWordEditApplication(options: Options) {
   const scope = { userId: options.userId, userEmail: options.userEmail };
   const created = new Set<string>(), published = new Map<string, WordEditResult>();
   const mode = options.editMode === "auto" ? "direct" : "tracked";
@@ -113,7 +113,7 @@ export function createWordEditApplication(options: Options, execute = runWordPyt
     }
     const { file_path: _path, ...request } = input;
     // Tracked changes carry the reader's name; the model cannot choose it.
-    const result = await execute(source.file.bytes, { ...request, mode, author: options.editAuthor || "Beaver",
+    const result = await runWordPython(source.file.bytes, { ...request, mode, author: options.editAuthor || "Beaver",
       ...(input.program !== undefined ? { snapshot: sourceSha256 } : {}) }, signal);
     if (!result.candidate) return { report: result.report };
     // A program that changed nothing leaves nothing to apply; do not file a copy.

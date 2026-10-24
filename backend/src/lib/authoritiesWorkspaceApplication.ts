@@ -17,12 +17,12 @@ import { attachedAuthoritySources, decodeAuthoritiesDraft,
   type AuthoritiesAction, type AuthoritiesDraft,
   type AuthoritySourceLanguage } from "./authoritiesDomain";
 import type { AuthoritiesDiscrepancyRequest } from "mike/shared/authorities-contract.d.ts";
-import { createAuthoritiesImporter, type AuthoritiesImporter, type AuthoritiesImportSource,
+import { createAuthoritiesImporter, type AuthoritiesImportSource,
   type GroundedReceiptSeed } from "./authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
-import { authorityReferenceText, authorityStatuteText, authoritySourceServices, resolveAuthoritiesSources,
-  type SourceServices } from "./authoritiesSourceResolution";
+import { authorityReferenceText, authorityStatuteText, authoritySourceServices, resolveAuthoritiesSources }
+  from "./authoritiesSourceResolution";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { canonicalJsonSha256, sha256 } from "./hash";
@@ -87,11 +87,8 @@ export function createAuthoritiesWorkspaceApplication(
   documents: DocumentStore,
   workProducts: WorkProductApplication,
   files: WorkflowFiles,
-  builder: typeof buildAuthorities = buildAuthorities,
-  importer: AuthoritiesImporter = createAuthoritiesImporter(documents),
-  sources: SourceServices = authoritySourceServices,
-  discrepancyReviewer: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
 ) {
+  const importer = createAuthoritiesImporter(documents), sources = authoritySourceServices;
   // What each source was read to, kept across builds as the standalone app keeps it: a rebuild reads again only
   // a source whose bytes or reading changed.
   const readings = sourceReadings();
@@ -210,7 +207,7 @@ export function createAuthoritiesWorkspaceApplication(
   }
 
   async function pendingDiscrepancies(draft: AuthoritiesDraft, signal?: AbortSignal) {
-    return (await discrepancyReviewer(draft, signal))
+    return (await reviewAuthoritiesDiscrepancies(draft, signal))
       .filter(({ id }) => !draft.discrepancyDecisions?.[id]);
   }
 
@@ -319,7 +316,7 @@ export function createAuthoritiesWorkspaceApplication(
           throw new ApplicationError(409, "The imported Word document changed. Refresh first.");
         }
         return { ...source, binding, snapshot };
-      }, discrepancyReviewer, signal);
+      }, reviewAuthoritiesDiscrepancies, signal);
       if (prepared.kind === "ignored") {
         return workProducts.save(scope, id, { revision: input.revision, state: prepared.draft });
       }
@@ -536,7 +533,7 @@ export function createAuthoritiesWorkspaceApplication(
       try {
         const { files, unread } = await buildFiles(scope, draft, signal);
         ({ built } = await buildAuthoritiesDraft(draft, { title: product.title, workProduct: { id, revision },
-          files, unread, builder, readings, signal: signal ?? new AbortController().signal, progress,
+          files, unread, builder: buildAuthorities, readings, signal: signal ?? new AbortController().signal, progress,
           statuteText: (authority, abort) => authorityStatuteText(draft, authority, sources, abort),
           ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
         }));

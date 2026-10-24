@@ -5,15 +5,13 @@ import { reporterStartPages, resolvePrintedPages } from "./pdfPagination";
 import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
 import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
-type Projection = Pick<typeof documentProjectionService, "preparePdf" | "pdfPageTexts"> &
-  Partial<Pick<typeof documentProjectionService, "pdfPassageGeometry" | "pdfPagination" | "pdfOutline">>;
+const projection = documentProjectionService;
 
 /** The authority's own headings, and a statute's sections, read from the PDF it is reproduced from. */
 export async function authorityPdfOutline(input: {
   bytes: Buffer; legislation: boolean; documentId?: string; versionId?: string; sourceSha256?: string;
   pdfProfile?: PdfProfileSelection; signal?: AbortSignal;
-}, projection: Projection = documentProjectionService) {
-  if (!projection.pdfOutline) return [];
+}) {
   const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
   const reference = { documentId: input.documentId ?? `standalone-authority:${sourceSha256}`,
     versionId: input.versionId ?? sourceSha256, sourceSha256 };
@@ -41,7 +39,7 @@ export async function authorityPdfText(input: {
   /** Pages recognized so far, of those this pass reads. */
   progress?: (recognized: number, total: number) => void;
   signal?: AbortSignal;
-}, projection: Projection = documentProjectionService) {
+}) {
   const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
   const documentId = input.documentId ?? `standalone-authority:${sourceSha256}`;
   const versionId = input.versionId ?? sourceSha256;
@@ -57,7 +55,7 @@ export async function authorityPdfText(input: {
     ...(input.progress && { progress: (step: PdfPreparationProgress) => {
       if (step.phase === "recognizing") input.progress!(step.recognized, step.total);
     } }) };
-  const selectedProfile = (prepared: Awaited<ReturnType<Projection["preparePdf"]>>) => ({
+  const selectedProfile = (prepared: Awaited<ReturnType<typeof projection.preparePdf>>) => ({
     cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status,
   });
   // Inspection never opts a newly uploaded source into recognition. Existing OCR
@@ -70,7 +68,6 @@ export async function authorityPdfText(input: {
   let recognized = native;
   let recognizedPages: Set<number> | undefined;
   const geometry = async (targets: NativePdfPassageTarget[], prepared = recognized) => {
-    if (!projection.pdfPassageGeometry) throw new Error("PDF passage geometry is unavailable.");
     let result: NativePdfPassageGeometry | undefined;
     for (let offset = 0; offset < targets.length; offset += 100) {
       input.signal?.throwIfAborted();
@@ -87,7 +84,6 @@ export async function authorityPdfText(input: {
   } else if (policy === "cited-pages") {
     if (targets.length && targets.every(({ locatorKind }) => locatorKind === "page")) {
       const locate = async (prepared: typeof native) => {
-        if (!projection.pdfPagination) throw new Error("PDF pagination is unavailable.");
         const labels = await projection.pdfPagination({ ...reference, fileType: "pdf",
           readBytes: () => input.bytes, pdfProfile: selectedProfile(prepared),
           reporterOriginal: input.reporterOriginal }, input.citations);
@@ -134,7 +130,7 @@ export async function authorityPdfText(input: {
   const passageTargets = typeof input.passageTargets === "function"
     ? input.passageTargets(pageTextByPage) : input.passageTargets;
   const passageGeometry = passageTargets?.length ? await geometry(passageTargets) : undefined;
-  const pageBindings = await projection.pdfPagination?.({ ...reference, fileType: "pdf",
+  const pageBindings = await projection.pdfPagination({ ...reference, fileType: "pdf",
     readBytes: () => input.bytes, pdfProfile: selectedProfile(recognized),
     reporterOriginal: input.reporterOriginal }, input.citations);
   return { pageTextByPage, ...(pageBindings ? { pageBindings, pageLabels: pageBindings.map(page => page.label) } : {}),

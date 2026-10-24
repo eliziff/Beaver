@@ -42,8 +42,6 @@ type LedgerSource = {
     separator?: " at " | ", " }>;
 };
 
-type LedgerNative = Pick<ReturnType<typeof structureNative>,
-  "citationLookupKey" | "docxAuthorityTextUnits">;
 
 function citationInputs(raw: unknown): CitationInput[] {
   if (raw === undefined) return [];
@@ -165,7 +163,7 @@ export function resolveDocxEvidenceCitations(
 }
 
 function ledgerInputs(state: LegalEvidenceTurnState,
-  resolved: ResolvedDocxEvidenceCitations, native: LedgerNative) {
+  resolved: ResolvedDocxEvidenceCitations) {
   const receipts = new Map<string, LegalEvidenceReceipt[]>();
   const sources = new Map<string, LedgerSource[]>();
   try {
@@ -179,7 +177,7 @@ function ledgerInputs(state: LegalEvidenceTurnState,
       const markerSources = resolved.citations[binding.id].sources.map((source) => {
         const grouped = bySource.get(source.stableId);
         if (!grouped?.length) throw new Error("Citation source is unavailable");
-        const key = native.citationLookupKey(grouped[0].receipt.citation);
+        const key = structureNative().citationLookupKey(grouped[0].receipt.citation);
         if (!key) throw new Error("Citation identity is unavailable");
         const known = receipts.get(key) ?? [];
         for (const { receipt } of grouped) {
@@ -228,13 +226,12 @@ function textPositions(units: NativeAuthorityTextUnit[], kind: "body" | "footnot
 
 /** Builds a version-bound ledger from verified renderer markers, or abstains on ambiguity. */
 export async function createDocxAuthorityLedger(state: LegalEvidenceTurnState | undefined,
-  bytes: Buffer, resolved: ResolvedDocxEvidenceCitations, appearances: readonly DocxCitationAppearance[],
-  native: LedgerNative = structureNative()):
+  bytes: Buffer, resolved: ResolvedDocxEvidenceCitations, appearances: readonly DocxCitationAppearance[]):
   Promise<Omit<AuthorityCitationLedger, "document"> | undefined> {
   if (!state || !resolved.bindings.length) return undefined;
-  const input = ledgerInputs(state, resolved, native);
+  const input = ledgerInputs(state, resolved);
   if (!input) return undefined;
-  const units = await native.docxAuthorityTextUnits(bytes);
+  const units = await structureNative().docxAuthorityTextUnits(bytes);
   const expected = new Map<string, number>();
   for (const appearance of appearances) {
     const text = appearance.sources.map((source) => source.text).join("; ");
