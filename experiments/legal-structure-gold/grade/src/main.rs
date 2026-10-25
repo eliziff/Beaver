@@ -708,7 +708,7 @@ fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<Stri
                 .and_then(|row| ids.get(row as usize)).and_then(Value::as_str).map(str::to_owned);
             per_piece.insert(id.as_str().unwrap_or_default().to_owned(), labels::Label {
                 region: field(0), start: field(1), document: field(2) == 1, reference: field(3) == 1, level: field(4),
-                marker: field(5) == 1, continues: pointer(6),
+                marker: field(5) == 1, continues: pointer(6), depth: field(7),
             });
         }
         found.insert(sha, per_piece);
@@ -1321,7 +1321,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
             let row_of: HashMap<String, usize> = pieces.iter().enumerate().map(|(k, p)| (labels::anchor(&frame, p), k)).collect();
             let ids: Vec<String> = pieces.iter().map(|p| labels::anchor(&frame, p)).collect();
             let rows: Vec<Vec<i64>> = predicted.iter().map(|l| vec![l.region as i64, l.start as i64, i64::from(l.document), i64::from(l.reference),
-                l.level as i64, i64::from(l.marker), l.continues.as_deref().and_then(|a| row_of.get(a)).map_or(-1, |&r| r as i64)]).collect();
+                l.level as i64, i64::from(l.marker), l.continues.as_deref().and_then(|a| row_of.get(a)).map_or(-1, |&r| r as i64), l.depth as i64]).collect();
             std::fs::write(&path, serde_json::to_string(&json!({"sha256": source.sha256, "ids": ids, "labels": rows})).map_err(|e| e.to_string())? + "
 ").map_err(|e| e.to_string())?;
             eprintln!("engine labels for {} pieces -> {path}", pieces.len());
