@@ -24,9 +24,9 @@ Rules:
 - A printed line the extracted text missed is line 0, with its text (printed text only, never a signature, handwriting or a picture).
 
 Regions:
-- text: the document's own prose: its argument, discussion, narrative, quotations worked into the paragraph, and continuation lines; its paragraphs, clauses and sections, however numbered; cover lines, parties, counsel, signature blocks and form fields, one unit per party, counsel entry with the party it acts for, or signatory. Use text even when a line is short, indented, numbered, dense, or visually similar to surrounding note text, unless the local text clearly belongs to a more specific region.
-- list_item: an item of a list in the document's own text: (a), (i), bullets, or a count opening after a colon inside a paragraph.
-- heading: the document's title, and section or paragraph headings.
+- text: the document's own prose: its argument, discussion, narrative, quotations worked into the paragraph, and continuation lines; its paragraphs, clauses, sections and subclauses, however numbered, each with its own caption, run in or on a line of its own; cover lines, the issuing court or body, parties, counsel, signature blocks, form fields and their labels (TO:, BEFORE:, APPEARANCES:), one unit per party, counsel entry with the party it acts for, or signatory. Use text even when a line is short, indented, numbered, dense, or visually similar to surrounding note text, unless the local text clearly belongs to a more specific region.
+- list_item: an item of a list that carries on a lead-in ending in a colon: (a), (i), bullets or a count. A numbered or lettered provision that stands on its own is text.
+- heading: the document's title (what the document is called), and the headings of its divisions: parts, articles, chapters, and unnumbered headings over the text that follows. Not a numbered clause's or section's own caption, nor a label.
 - quote: a quoted passage set apart from normal prose as an indented or narrower display block: a block quotation, an excerpt of legislation, a judgment or another document, its own lists and headings included.
 - note: footnote or endnote text: bottom-of-page notes separated from the main body prose, or the entries of a notes section; its own number or mark included. A body line with a note marker is still text.
 - table: a table row. contents: table-of-contents or index entries only.

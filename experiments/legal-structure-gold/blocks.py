@@ -32,11 +32,6 @@ def fold(text):
     return "".join(one(c) for c in text)
 
 
-def same(a, b):
-    """Two texts that read alike: case, compatibility forms, quote and dash styles and spacing aside."""
-    return " ".join(fold(a).split()) == " ".join(fold(b).split())
-
-
 def numbered(by_page, targets):
     """{call line number: (page, line id, text)} for the target pages' extracted lines, numbered
     1.. in page and reading order across the call."""
@@ -108,7 +103,8 @@ def read(lines, targets, response):
             for piece in ([p for cell in unit["cells"] for p in cell] if unit["region"] == "table" else unit["lines"]):
                 if piece["line"]: piece_of[piece["line"]] = piece
     report["uncovered_lines"] = [texts[n] for n in texts if n not in piece_of]
-    corrected = {n: p["text"].strip() for n, p in piece_of.items() if p["text"] is not None and not same(p["text"], texts[n])}
+    # A line given otherwise, by as little as a letter's case or a dash, is corrected to it.
+    corrected = {n: p["text"].strip() for n, p in piece_of.items() if p["text"] is not None and p["text"].strip() != texts[n].strip()}
     final = {n: corrected.get(n, texts[n]) for n in texts}
     typed = []
     for page, found in zip(targets, grouped):
