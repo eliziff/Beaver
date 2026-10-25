@@ -132,7 +132,8 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke
                 raise ValueError("Model-call limit reached")
             budget["calls"] += 1
         work = directory / f"attempt-{len(receipt['attempts']) + 1}"
-        work.mkdir()
+        # A folder no receipt records is a killed call's, made before its receipt was written.
+        work.mkdir(exist_ok=True)
         actual_prompt = policy.retry_prompt(prompt, error, previous)
         atomic_write(work / "prompt.txt.gz", gzip.compress(actual_prompt.encode(), mtime=0))
         extra = ["--ignore-rules", "-c", "model_instructions_file=" + json.dumps(instructions.resolve().as_posix())]
