@@ -25,7 +25,7 @@ Rules:
 
 Regions:
 - text: the document's own prose: its argument, discussion, narrative, quotations worked into the paragraph, and continuation lines; its paragraphs, clauses, sections and subclauses, however numbered, each with its own caption, run in or on a line of its own; cover lines, the issuing court or body, parties, counsel, signature blocks, form fields and their labels (TO:, BEFORE:, APPEARANCES:), one unit per party, counsel entry with the party it acts for, or signatory. Use text even when a line is short, indented, numbered, dense, or visually similar to surrounding note text, unless the local text clearly belongs to a more specific region.
-- list_item: an item of a list set out in the text, such as bullets or an enumeration of things. A numbered or lettered paragraph, clause, section or subclause is text, however it is introduced.
+- list_item: an item of a list.
 - title: the document's title: what the document is called.
 - heading: the heading of one of the document's divisions: a part, article or chapter, or an unnumbered heading over the text that follows. Not a numbered clause's or section's own caption, nor a label.
 - quote: a quoted passage set apart from normal prose as an indented or narrower display block: a block quotation, an excerpt of legislation, a judgment or another document, its own lists and headings included.
