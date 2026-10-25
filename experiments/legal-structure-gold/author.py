@@ -52,7 +52,7 @@ CONFIG = {"project_doc_max_bytes": 0, "skills.include_instructions": False,
 # The structure parser's note pairer over pages of lines (native/legal-structure-node/src/bin/note_pairs.rs).
 NOTE_PAIRS = Path(os.environ.get("NOTE_PAIRS", ROOT / "native/legal-structure-node/target/release/note_pairs.exe"))
 # The pairer's names for the regions it reads: notes, page numbers, running heads, tables.
-PAIRER_REGION = {"note": "footnote", "page_label": "page_number", "line_label": "number", "furniture": "header", "table": "table"}
+PAIRER_REGION = {"note": "footnote", "note_quote": "footnote", "page_label": "page_number", "line_label": "number", "furniture": "header", "table": "table"}
 
 
 def retry_error(exc, response):
