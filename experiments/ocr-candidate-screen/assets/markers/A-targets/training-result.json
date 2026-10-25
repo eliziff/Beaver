@@ -1,0 +1,763 @@
+{
+  "checkpoint": "C:\\Users\\elias\\Desktop\\MikeOSS Fork\\benchmarks\\local-data\\ocr-candidate-screen\\speed-followup\\student8\\indra\\best.pt",
+  "checkpoint_sha256": "c2434e147467b48fbfdbed20f9f62aff2bb98d2cb52e8f78c22ea3dc30bfacf2",
+  "gold": {
+    "usable": 26011,
+    "targets": 3450,
+    "reference_lines": 244,
+    "others": 3450,
+    "ref_repeat": 4
+  },
+  "arrow_train_lines": 26981,
+  "train_lines": 34613,
+  "width_capped": 0,
+  "added_characters": [
+    "☐",
+    "☒",
+    "🇸",
+    "🇺",
+    "😧",
+    "😰"
+  ],
+  "protocol": {
+    "lr": 5e-05,
+    "epochs": 12,
+    "batch_size": 16,
+    "seed": 714,
+    "patience": 4,
+    "selection": "mean of Arrow-dev CER and gold-dev marker/reference-line CER",
+    "batch_norm": "frozen",
+    "test_used_for_selection": false
+  },
+  "baseline": {
+    "arrow_dev": {
+      "cer": 0.01400746221463353,
+      "edits": 2658,
+      "characters": 189756,
+      "exact_line_rate": 0.753870458135861,
+      "lines": 3165,
+      "seconds": 2.159740699993563,
+      "lines_per_second": 1465.4537000712323
+    },
+    "gold_dev": {
+      "chars": 31994,
+      "edits": 1263,
+      "lines": 541,
+      "exact": 209,
+      "cer": 0.03947615177845846,
+      "exact_line_rate": 0.38632162661737524,
+      "markers": {
+        "spans": 494,
+        "errors": 194,
+        "error_rate": 0.39271255060728744,
+        "substituted": 156,
+        "dropped": 38
+      },
+      "markers_by_kind": {
+        "letter": {
+          "spans": 94,
+          "errors": 24,
+          "error_rate": 0.2553191489361702,
+          "substituted": 24
+        },
+        "numeric": {
+          "spans": 314,
+          "errors": 123,
+          "error_rate": 0.39171974522292996,
+          "substituted": 106,
+          "dropped": 17
+        },
+        "other": {
+          "spans": 51,
+          "errors": 26,
+          "error_rate": 0.5098039215686274,
+          "dropped": 15,
+          "substituted": 11
+        },
+        "roman": {
+          "spans": 11,
+          "errors": 4,
+          "error_rate": 0.36363636363636365,
+          "substituted": 4
+        },
+        "symbol": {
+          "spans": 24,
+          "errors": 17,
+          "error_rate": 0.7083333333333334,
+          "substituted": 11,
+          "dropped": 6
+        }
+      },
+      "references": {
+        "spans": 53,
+        "errors": 19,
+        "error_rate": 0.3584905660377358,
+        "substituted": 14,
+        "dropped": 5
+      }
+    },
+    "objective": 0.026741806996545995
+  },
+  "epochs": [
+    {
+      "epoch": 1,
+      "loss": 0.07474253549971192,
+      "lr": 5e-05,
+      "arrow_dev": {
+        "cer": 0.014075971247285988,
+        "edits": 2671,
+        "characters": 189756,
+        "exact_line_rate": 0.7601895734597156,
+        "lines": 3165,
+        "seconds": 1.589718699993682,
+        "lines_per_second": 1990.9182674976262
+      },
+      "gold_dev": {
+        "chars": 31994,
+        "edits": 948,
+        "lines": 541,
+        "exact": 284,
+        "cer": 0.029630555729199225,
+        "exact_line_rate": 0.5249537892791127,
+        "markers": {
+          "spans": 494,
+          "errors": 123,
+          "error_rate": 0.24898785425101214,
+          "substituted": 83,
+          "dropped": 40
+        },
+        "markers_by_kind": {
+          "letter": {
+            "spans": 94,
+            "errors": 9,
+            "error_rate": 0.09574468085106383,
+            "substituted": 9
+          },
+          "numeric": {
+            "spans": 314,
+            "errors": 70,
+            "error_rate": 0.2229299363057325,
+            "substituted": 52,
+            "dropped": 18
+          },
+          "other": {
+            "spans": 51,
+            "errors": 27,
+            "error_rate": 0.5294117647058824,
+            "dropped": 16,
+            "substituted": 11
+          },
+          "roman": {
+            "spans": 11,
+            "errors": 4,
+            "error_rate": 0.36363636363636365,
+            "substituted": 4
+          },
+          "symbol": {
+            "spans": 24,
+            "errors": 13,
+            "error_rate": 0.5416666666666666,
+            "dropped": 6,
+            "substituted": 7
+          }
+        },
+        "references": {
+          "spans": 53,
+          "errors": 19,
+          "error_rate": 0.3584905660377358,
+          "substituted": 14,
+          "dropped": 5
+        }
+      },
+      "objective": 0.021853263488242607,
+      "seconds": 55.7
+    },
+    {
+      "epoch": 2,
+      "loss": 0.052265557312842784,
+      "lr": 5e-05,
+      "arrow_dev": {
+        "cer": 0.014202449461413604,
+        "edits": 2695,
+        "characters": 189756,
+        "exact_line_rate": 0.7576619273301738,
+        "lines": 3165,
+        "seconds": 1.611962200011476,
+        "lines_per_second": 1963.4455448009064
+      },
+      "gold_dev": {
+        "chars": 31994,
+        "edits": 861,
+        "lines": 541,
+        "exact": 308,
+        "cer": 0.026911295867975246,
+        "exact_line_rate": 0.5693160813308688,
+        "markers": {
+          "spans": 494,
+          "errors": 111,
+          "error_rate": 0.22469635627530365,
+          "dropped": 37,
+          "substituted": 74
+        },
+        "markers_by_kind": {
+          "letter": {
+            "spans": 94,
+            "errors": 7,
+            "error_rate": 0.07446808510638298,
+            "substituted": 7
+          },
+          "numeric": {
+            "spans": 314,
+            "errors": 60,
+            "error_rate": 0.1910828025477707,
+            "dropped": 16,
+            "substituted": 44
+          },
+          "other": {
+            "spans": 51,
+            "errors": 27,
+            "error_rate": 0.5294117647058824,
+            "dropped": 16,
+            "substituted": 11
+          },
+          "roman": {
+            "spans": 11,
+            "errors": 4,
+            "error_rate": 0.36363636363636365,
+            "substituted": 4
+          },
+          "symbol": {
+            "spans": 24,
+            "errors": 13,
+            "error_rate": 0.5416666666666666,
+            "substituted": 8,
+            "dropped": 5
+          }
+        },
+        "references": {
+          "spans": 53,
+          "errors": 15,
+          "error_rate": 0.2830188679245283,
+          "substituted": 11,
+          "dropped": 4
+        }
+      },
+      "objective": 0.020556872664694425,
+      "seconds": 109.0
+    },
+    {
+      "epoch": 3,
+      "loss": 0.04300362629929621,
+      "lr": 5e-05,
+      "arrow_dev": {
+        "cer": 0.014202449461413604,
+        "edits": 2695,
+        "characters": 189756,
+        "exact_line_rate": 0.7570300157977883,
+        "lines": 3165,
+        "seconds": 1.5457165999978315,
+        "lines_per_second": 2047.5939768030182
+      },
+      "gold_dev": {
+        "chars": 31994,
+        "edits": 881,
+        "lines": 541,
+        "exact": 307,
+        "cer": 0.027536413077452023,
+        "exact_line_rate": 0.5674676524953789,
+        "markers": {
+          "spans": 494,
+          "errors": 114,
+          "error_rate": 0.23076923076923078,
+          "dropped": 38,
+          "substituted": 76
+        },
+        "markers_by_kind": {
+          "letter": {
+            "spans": 94,
+            "errors": 7,
+            "error_rate": 0.07446808510638298,
+            "substituted": 7
+          },
+          "numeric": {
+            "spans": 314,
+            "errors": 62,
+            "error_rate": 0.19745222929936307,
+            "dropped": 16,
+            "substituted": 46
+          },
+          "other": {
+            "spans": 51,
+            "errors": 28,
+            "error_rate": 0.5490196078431373,
+            "dropped": 16,
+            "substituted": 12
+          },
+          "roman": {
+            "spans": 11,
+            "errors": 4,
+            "error_rate": 0.36363636363636365,
+            "substituted": 4
+          },
+          "symbol": {
+            "spans": 24,
+            "errors": 13,
+            "error_rate": 0.5416666666666666,
+            "dropped": 6,
+            "substituted": 7
+          }
+        },
+        "references": {
+          "spans": 53,
+          "errors": 18,
+          "error_rate": 0.33962264150943394,
+          "substituted": 13,
+          "dropped": 5
+        }
+      },
+      "objective": 0.020869431269432814,
+      "seconds": 162.6
+    },
+    {
+      "epoch": 4,
+      "loss": 0.036559315129034244,
+      "lr": 5e-05,
+      "arrow_dev": {
+        "cer": 0.013944223107569721,
+        "edits": 2646,
+        "characters": 189756,
+        "exact_line_rate": 0.7592417061611374,
+        "lines": 3165,
+        "seconds": 1.6322788999968907,
+        "lines_per_second": 1939.0068694792471
+      },
+      "gold_dev": {
+        "chars": 31994,
+        "edits": 847,
+        "lines": 541,
+        "exact": 305,
+        "cer": 0.0264737138213415,
+        "exact_line_rate": 0.5637707948243993,
+        "markers": {
+          "spans": 494,
+          "errors": 113,
+          "error_rate": 0.22874493927125505,
+          "dropped": 41,
+          "substituted": 72
+        },
+        "markers_by_kind": {
+          "letter": {
+            "spans": 94,
+            "errors": 7,
+            "error_rate": 0.07446808510638298,
+            "substituted": 7
+          },
+          "numeric": {
+            "spans": 314,
+            "errors": 63,
+            "error_rate": 0.20063694267515925,
+            "dropped": 18,
+            "substituted": 45
+          },
+          "other": {
+            "spans": 51,
+            "errors": 26,
+            "error_rate": 0.5098039215686274,
+            "dropped": 16,
+            "substituted": 10
+          },
+          "roman": {
+            "spans": 11,
+            "errors": 4,
+            "error_rate": 0.36363636363636365,
+            "substituted": 4
+          },
+          "symbol": {
+            "spans": 24,
+            "errors": 13,
+            "error_rate": 0.5416666666666666,
+            "dropped": 7,
+            "substituted": 6
+          }
+        },
+        "references": {
+          "spans": 53,
+          "errors": 14,
+          "error_rate": 0.2641509433962264,
+          "substituted": 8,
+          "dropped": 6
+        }
+      },
+      "objective": 0.02020896846445561,
+      "seconds": 218.0
+    },
+    {
+      "epoch": 5,
+      "loss": 0.032498017199664,
+      "lr": 5e-05,
+      "arrow_dev": {
+        "cer": 0.013844094521385358,
+        "edits": 2627,
+        "characters": 189756,
+        "exact_line_rate": 0.7522906793048973,
+        "lines": 3165,
+        "seconds": 1.5959185999963665,
+        "lines_per_second": 1983.183854118378
+      },
+      "gold_dev": {
+        "chars": 31994,
+        "edits": 827,
+        "lines": 541,
+        "exact": 312,
+        "cer": 0.025848596611864724,
+        "exact_line_rate": 0.5767097966728281,
+        "markers": {
+          "spans": 494,
+          "errors": 109,
+          "error_rate": 0.22064777327935223,
+          "dropped": 37,
+          "substituted": 72
+        },
+        "markers_by_kind": {
+          "letter": {
+            "spans": 94,
+            "errors": 7,
+            "error_rate": 0.07446808510638298,
+            "substituted": 7
+          },
+          "numeric": {
+            "spans": 314,
+            "errors": 58,
+            "error_rate": 0.18471337579617833,
+            "dropped": 15,
+            "substituted": 43
+          },
+          "other": {
+            "spans": 51,
+            "errors": 27,
+            "error_rate": 0.5294117647058824,
+            "dropped": 15,
+            "substituted": 12
+          },
+          "roman": {
+            "spans": 11,
+            "errors": 4,
+            "error_rate": 0.36363636363636365,
+            "substituted": 4
+          },
+          "symbol": {
+            "spans": 24,
+            "errors": 13,
+            "error_rate": 0.5416666666666666,
+            "dropped": 7,
+            "substituted": 6
+          }
+        },
+        "references": {
+          "spans": 53,
+          "errors": 18,
+          "error_rate": 0.33962264150943394,
+          "substituted": 13,
+          "dropped": 5
+        }
+      },
+      "objective": 0.01984634556662504,
+      "seconds": 272.1
+    },
+    {
+      "epoch": 6,
+      "loss": 0.028969814828030533,
+      "lr": 5e-05,
+      "arrow_dev": {
+        "cer": 0.014465945740846139,
+        "edits": 2745,
+        "characters": 189756,
+        "exact_line_rate": 0.7466034755134281,
+        "lines": 3165,
+        "seconds": 1.5563494000089122,
+        "lines_per_second": 2033.6050503710003
+      },
+      "gold_dev": {
+        "chars": 31994,
+        "edits": 838,
+        "lines": 541,
+        "exact": 313,
+        "cer": 0.02619241107707695,
+        "exact_line_rate": 0.5785582255083179,
+        "markers": {
+          "spans": 494,
+          "errors": 113,
+          "error_rate": 0.22874493927125505,
+          "dropped": 35,
+          "substituted": 78
+        },
+        "markers_by_kind": {
+          "letter": {
+            "spans": 94,
+            "errors": 11,
+            "error_rate": 0.11702127659574468,
+            "substituted": 11
+          },
+          "numeric": {
+            "spans": 314,
+            "errors": 58,
+            "error_rate": 0.18471337579617833,
+            "dropped": 15,
+            "substituted": 43
+          },
+          "other": {
+            "spans": 51,
+            "errors": 27,
+            "error_rate": 0.5294117647058824,
+            "dropped": 16,
+            "substituted": 11
+          },
+          "roman": {
+            "spans": 11,
+            "errors": 4,
+            "error_rate": 0.36363636363636365,
+            "substituted": 4
+          },
+          "symbol": {
+            "spans": 24,
+            "errors": 13,
+            "error_rate": 0.5416666666666666,
+            "substituted": 9,
+            "dropped": 4
+          }
+        },
+        "references": {
+          "spans": 53,
+          "errors": 16,
+          "error_rate": 0.3018867924528302,
+          "substituted": 11,
+          "dropped": 5
+        }
+      },
+      "objective": 0.020329178408961545,
+      "seconds": 325.3
+    },
+    {
+      "epoch": 7,
+      "loss": 0.026416726128689352,
+      "lr": 5e-05,
+      "arrow_dev": {
+        "cer": 0.014128670503172494,
+        "edits": 2681,
+        "characters": 189756,
+        "exact_line_rate": 0.7507109004739336,
+        "lines": 3165,
+        "seconds": 1.540012099998421,
+        "lines_per_second": 2055.1786573646045
+      },
+      "gold_dev": {
+        "chars": 31994,
+        "edits": 849,
+        "lines": 541,
+        "exact": 309,
+        "cer": 0.02653622554228918,
+        "exact_line_rate": 0.5711645101663586,
+        "markers": {
+          "spans": 494,
+          "errors": 115,
+          "error_rate": 0.23279352226720648,
+          "dropped": 42,
+          "substituted": 73
+        },
+        "markers_by_kind": {
+          "letter": {
+            "spans": 94,
+            "errors": 8,
+            "error_rate": 0.0851063829787234,
+            "substituted": 8
+          },
+          "numeric": {
+            "spans": 314,
+            "errors": 64,
+            "error_rate": 0.20382165605095542,
+            "dropped": 19,
+            "substituted": 45
+          },
+          "other": {
+            "spans": 51,
+            "errors": 26,
+            "error_rate": 0.5098039215686274,
+            "dropped": 16,
+            "substituted": 10
+          },
+          "roman": {
+            "spans": 11,
+            "errors": 4,
+            "error_rate": 0.36363636363636365,
+            "substituted": 4
+          },
+          "symbol": {
+            "spans": 24,
+            "errors": 13,
+            "error_rate": 0.5416666666666666,
+            "substituted": 6,
+            "dropped": 7
+          }
+        },
+        "references": {
+          "spans": 53,
+          "errors": 16,
+          "error_rate": 0.3018867924528302,
+          "substituted": 10,
+          "dropped": 6
+        }
+      },
+      "objective": 0.020332448022730838,
+      "seconds": 381.7
+    },
+    {
+      "epoch": 8,
+      "loss": 0.021966355791212793,
+      "lr": 2.5e-05,
+      "arrow_dev": {
+        "cer": 0.014186639684647652,
+        "edits": 2692,
+        "characters": 189756,
+        "exact_line_rate": 0.7494470774091627,
+        "lines": 3165,
+        "seconds": 1.637346899995464,
+        "lines_per_second": 1933.0051560904828
+      },
+      "gold_dev": {
+        "chars": 31994,
+        "edits": 823,
+        "lines": 541,
+        "exact": 316,
+        "cer": 0.025723573169969368,
+        "exact_line_rate": 0.5841035120147874,
+        "markers": {
+          "spans": 494,
+          "errors": 112,
+          "error_rate": 0.22672064777327935,
+          "dropped": 39,
+          "substituted": 73
+        },
+        "markers_by_kind": {
+          "letter": {
+            "spans": 94,
+            "errors": 8,
+            "error_rate": 0.0851063829787234,
+            "substituted": 8
+          },
+          "numeric": {
+            "spans": 314,
+            "errors": 61,
+            "error_rate": 0.1942675159235669,
+            "dropped": 17,
+            "substituted": 44
+          },
+          "other": {
+            "spans": 51,
+            "errors": 26,
+            "error_rate": 0.5098039215686274,
+            "dropped": 16,
+            "substituted": 10
+          },
+          "roman": {
+            "spans": 11,
+            "errors": 4,
+            "error_rate": 0.36363636363636365,
+            "substituted": 4
+          },
+          "symbol": {
+            "spans": 24,
+            "errors": 13,
+            "error_rate": 0.5416666666666666,
+            "substituted": 7,
+            "dropped": 6
+          }
+        },
+        "references": {
+          "spans": 53,
+          "errors": 16,
+          "error_rate": 0.3018867924528302,
+          "substituted": 11,
+          "dropped": 5
+        }
+      },
+      "objective": 0.019955106427308508,
+      "seconds": 435.4
+    },
+    {
+      "epoch": 9,
+      "loss": 0.019739205591848552,
+      "lr": 2.5e-05,
+      "arrow_dev": {
+        "cer": 0.014186639684647652,
+        "edits": 2692,
+        "characters": 189756,
+        "exact_line_rate": 0.7488151658767772,
+        "lines": 3165,
+        "seconds": 1.6011246999987634,
+        "lines_per_second": 1976.7354785061054
+      },
+      "gold_dev": {
+        "chars": 31994,
+        "edits": 828,
+        "lines": 541,
+        "exact": 306,
+        "cer": 0.025879852472338562,
+        "exact_line_rate": 0.5656192236598891,
+        "markers": {
+          "spans": 494,
+          "errors": 117,
+          "error_rate": 0.23684210526315788,
+          "dropped": 37,
+          "substituted": 80
+        },
+        "markers_by_kind": {
+          "letter": {
+            "spans": 94,
+            "errors": 8,
+            "error_rate": 0.0851063829787234,
+            "substituted": 8
+          },
+          "numeric": {
+            "spans": 314,
+            "errors": 66,
+            "error_rate": 0.21019108280254778,
+            "dropped": 18,
+            "substituted": 48
+          },
+          "other": {
+            "spans": 51,
+            "errors": 26,
+            "error_rate": 0.5098039215686274,
+            "dropped": 15,
+            "substituted": 11
+          },
+          "roman": {
+            "spans": 11,
+            "errors": 4,
+            "error_rate": 0.36363636363636365,
+            "substituted": 4
+          },
+          "symbol": {
+            "spans": 24,
+            "errors": 13,
+            "error_rate": 0.5416666666666666,
+            "substituted": 9,
+            "dropped": 4
+          }
+        },
+        "references": {
+          "spans": 53,
+          "errors": 18,
+          "error_rate": 0.33962264150943394,
+          "substituted": 13,
+          "dropped": 5
+        }
+      },
+      "objective": 0.020033246078493105,
+      "seconds": 490.9
+    }
+  ],
+  "best_epoch": 5,
+  "training_seconds": 490.9312723000039,
+  "completed": true
+}

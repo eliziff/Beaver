@@ -1,4 +1,4 @@
-"""Data groups for every gold source (CONVENTIONS.md section 4): language layout read from the
+"""Data groups for every gold source: language layout read from the
 gold's own typed text, genre group and yardstick from provenance. Recorded in the corpus store and
 carried in the cohort manifest so the scorer reports each group on its own.
 

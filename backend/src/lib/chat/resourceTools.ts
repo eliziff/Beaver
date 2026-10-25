@@ -110,7 +110,7 @@ export const RESOURCE_TOOLS = [
       locator_kind: {
         type: "string",
         enum: [...RESOURCE_LOCATOR_KINDS],
-        description: "Use paragraph or section for legal text. Use page only for a known physical PDF page or an existing reporter-page label.",
+        description: "Use paragraph or section for legal text. Use page only for a known physical PDF page or an existing reporter-page label. Use line, with page, for a transcript's printed line numbers (p. 451, l. 12: page 451, locator 12; the page as printed).",
       },
       locator: {
         type: "string",

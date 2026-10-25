@@ -14,10 +14,49 @@ levels (numbering family, else type style; a kind first seen after a heading nes
 from collections import Counter, defaultdict
 import gzip
 import json
+import re
 import unicodedata
 
 import align
-import hierarchy
+
+# Numbering families a unit can open with.
+_WORD_OUTER = re.compile(r"^(PART|PARTIE|BOOK|LIVRE|TITLE|TITRE|VOLUME)\b", re.I)
+_WORD_INNER = re.compile(r"^(ARTICLE|CHAPTER|CHAPITRE|DIVISION|SECTION|SCHEDULE|ANNEX|ANNEXE|APPENDIX|TAB|RULE|R[ÈE]GLE|CLAUSE|FORM|FORMULE)\b", re.I)
+_SEC = re.compile(r"^(\d+(?:\.\d+)?)\s*\(\d+\)")
+_DOTTED = re.compile(r"^(\d+(?:\.\d+)+)\.?(?=\s|$)")
+_NUM = re.compile(r"^(?:\(|\[)?(\d+)(?:[.)\]:]|(?=\s))(?=\s|$)")
+_ROMAN = re.compile(r"^\(?([IVXLCivxlc]{1,6})[.)\]:](?=\s|$)")
+_ALPHA = re.compile(r"^\(?([A-Za-z]{1,2})[.)\]](?=\s|$)")
+_BULLET = re.compile(r"^[•·▪–—\-*●○■□►]\s")
+_ROMANS = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii",
+           "xviii", "xix", "xx", "xxi", "xxii", "xxiii", "xxiv", "xxv", "xxx", "xl", "l"}
+
+
+def family(text, open_letter=None):
+    """The numbering family a unit opens with ('' for none); `open_letter` is the last letter of an
+    open lower-case letter list, so 'i' after 'h' reads as a letter, not a numeral."""
+    t = text.lstrip()
+    if _WORD_OUTER.match(t): return "word_outer"
+    if _WORD_INNER.match(t): return "word_inner"
+    if _SEC.match(t): return "sec"
+    m = _DOTTED.match(t)
+    if m: return f"dec{min(m.group(1).count('.') + 1, 4)}"
+    if _NUM.match(t): return "num"
+    m = _ROMAN.match(t)
+    if m:
+        token = m.group(1); lower = token.islower()
+        if len(token) == 1 and token.lower() in "ivxlc":
+            if open_letter == chr(ord(token.lower()) - 1): return "al" if lower else "AU"
+            return "rl" if lower else "RU"
+        if token.lower() in _ROMANS: return "rl" if lower else "RU"
+    m = _ALPHA.match(t)
+    if m:
+        token = m.group(1)
+        if len(token) == 2 and token[0] != token[1]: return ""
+        return "al" if token.islower() else "AU"
+    if _BULLET.match(t): return "bullet"
+    return ""
+
 
 FRONT, PARAGRAPH, HEADING, INNER, ITEM, TAIL, NOTE = "front", "paragraph", "heading", "inner", "item", "tail", "note"
 BODY = {PARAGRAPH, HEADING, INNER, ITEM}
@@ -201,7 +240,7 @@ def enumerator(text):
     """A line that is only a printed marker: a bullet glyph or an enumerator ("iii.", "(b)", "2.")."""
     text = text.strip()
     if text[:1] == "[": return False  # a bracketed number is a paragraph's, never an item's
-    return bullet(text) or (0 < len(text) <= 6 and " " not in text and bool(hierarchy.numbering(text + " x")))
+    return bullet(text) or (0 < len(text) <= 6 and " " not in text and bool(family(text + " x")))
 
 
 def extend(text, a, b):
@@ -610,7 +649,7 @@ def heading_levels(doc, typed, units):
     for u, unit in enumerate(units):
         first = typed[unit["lines"][0]]
         if first["region"] != "heading": continue
-        family = hierarchy.numbering(" ".join(first["text"].split()))
+        family = family(" ".join(first["text"].split()))
         if family:
             kind = ("numbered", family)
         else:

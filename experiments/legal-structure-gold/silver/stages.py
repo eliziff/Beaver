@@ -27,7 +27,7 @@ def selected(gold):
 def export_one(gold, r):
     import author
     try:
-        lines, parser = author.extract(Path(r["path"]), r["mode"], gold, 1800)
+        lines, _, parser = author.extract(Path(r["path"]), r["mode"], gold, 1800)
         return {"sha256": r["sha256"], "lines": len(lines), "parser": parser}
     except Exception as exc:
         return {"sha256": r["sha256"], "error": str(exc)[-500:]}
@@ -60,19 +60,15 @@ def build(gold, r, text, listing, outline, started):
     import author
     import hierarchy
     import label
-    lines, parser = author.extract(Path(r["path"]), r["mode"], gold, 1800)
+    lines, _, parser = author.extract(Path(r["path"]), r["mode"], gold, 1800)
     found = [p for p in (gold / "parsed" / r["sha256"] / parser["binary_sha256"]).glob(f"*/{r['mode']}.json.gz")
              if not p.parent.name.endswith("-layout")]
     geo, pages = label.geometry(max(found, key=lambda p: p.stat().st_mtime))
     doc = label.Labelled(lines, geo, pages, text, listing, outline)
     typed, unit_seg = doc.typed()
-    units = [{"lines": members, "parent": None, "starts_document": False, "ends_document": False} for members in hierarchy.units(typed)]
+    units = [{"lines": members, "starts_document": False} for members in hierarchy.units(typed)]
     levels, kinds = label.heading_levels(doc, typed, units)
     for u, level in levels.items(): units[u]["level"] = level
-    regions = [typed[unit["lines"][0]]["region"] for unit in units]
-    texts = [" ".join(typed[unit["lines"][0]]["text"].split()) for unit in units]
-    parents = hierarchy.assemble(regions, texts, [levels.get(u) for u in range(len(units))], [False] * len(units))
-    for unit, parent in zip(units, parents): unit["parent"] = parent
     unit_of = {t: u for u, unit in enumerate(units) for t in unit["lines"]}
     first_typed = {}
     for t, s in unit_seg.items():
@@ -91,12 +87,12 @@ def build(gold, r, text, listing, outline, started):
                  "headings": regions.count("heading"), "notes_paired": len(notes), "lines_without_typed_text": len(doc.unfilled),
                  "regions": {x: regions.count(x) for x in sorted(set(regions))}}
     value = {"schema_version": "legal-structure-gold.v4", "source_sha256": r["sha256"], "mode": r["mode"],
-             "page_count": r["pages"], "parser": parser, "images": author.embedded_images(Path(r["path"])),
+             "page_count": r["pages"], "parser": parser,
              "authoring": {"label_source": "a2aj-silver", "a2aj_document_id": a2aj["document_id"], "language": a2aj["language"],
                            "citation": a2aj["citation"], "dataset": a2aj["dataset"], "listing": LISTING.name, "code": code_hashes()},
              "label_source": "a2aj-silver",
              "lines": [{"id": line["id"], "page": line["page"], "text": line["text"]} for line in lines],
-             "typed": typed, "units": units, "notes": notes, "text_edits": [], "report": report}
+             "typed": typed, "units": units, "notes": notes, "report": report}
     receipt = {"source_sha256": r["sha256"], "mode": r["mode"], "status": "complete", "label_source": "a2aj-silver",
                "a2aj": {"document_id": a2aj["document_id"], "language": a2aj["language"], "citation": a2aj["citation"],
                         "dataset": a2aj["dataset"], "name": a2aj["name"]},
