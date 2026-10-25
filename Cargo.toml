@@ -1,0 +1,44 @@
+# The native consumers of the parser stack build as one workspace: one Cargo.lock resolves every
+# third-party crate once, so the addon, the grader, the tagger and the OCR experiment share each
+# dependency's build in the one target folder (.cargo/config.toml) and never link one another's.
+# The parser (legal-pdf-parser), legal-structure and common-law-cite stay workspaces of their own,
+# path dependencies here; their own test builds go to their own target folders.
+[workspace]
+resolver = "2"
+members = [
+    "native/legal-structure-node",
+    "experiments/legal-structure-gold/grade",
+    "experiments/ocr-structure-attribution",
+    "legal-structure/tagger",
+]
+# The workspaces these depend on stay their own (cargo would otherwise take any path dependency in
+# this folder as a member; the tagger, listed above, stays one); Rust packages of other products
+# and the benchmark owners' copies build on their own.
+exclude = ["legal-pdf-parser", "legal-structure", "common-law-cite", "AuthoritiesHelper", "benchmarks", "legal-pinpointer"]
+
+[patch.crates-io]
+hayro-jpeg2000 = { git = "https://github.com/LaurenzV/hayro.git", rev = "ff7e2e407f6b9c429b44dc29a851180727892b6c" }
+
+[profile.dev]
+debug = 0
+
+# Debug SIMD raster compositing took minutes per page in a live stack sample: the renderer is
+# optimised even in development builds.
+[profile.dev.package.vello_cpu]
+opt-level = 3
+
+[profile.dev.package.fearless_simd]
+opt-level = 3
+
+[profile.dev.package.hayro]
+opt-level = 3
+
+[profile.release]
+debug = 0
+strip = true
+incremental = true
+
+[profile.profiling]
+inherits = "release"
+debug = 1
+strip = false

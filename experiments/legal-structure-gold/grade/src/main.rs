@@ -14,6 +14,8 @@
 //!       --labels FILE decodes a tagger's per-line labels ({sha256, ids, labels} rows) over the
 //!       replayed parser, which supplies markers, references and note pairs, and scores them.
 //!       --group FIELD=VALUE keeps matching manifest groups; repeat to require every match.
+//!       --parts grades each document of a packet on its own (run v4/<sha>#k): the gold cut at its
+//!       document starts, the parser replayed on that document's lines alone.
 //!   structure-gold rows GOLD_DIR MANIFEST OUT_DIR
 //!       the tier-1 tagger's training rows, train and development only: each line's evidence
 //!       with the replayed parser's labels and the gold's, one JSON document per line of
@@ -653,18 +655,135 @@ struct Graded {
     score_ms: f64,
 }
 
+static PARTS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// A packet's gold cut at its document starts: each part is the units from one start to the
+/// next, the typed lines they hold (one no unit holds goes with the typed line before it), the
+/// extraction's lines those name (one none names goes with the line before it), and the note
+/// pairs within it. Units and note pairs point into the typed lines, which corrections can split
+/// or merge, so the typed lines are cut first. A gold of one document is its own only part.
+fn gold_parts(gold: &Value) -> Result<Vec<Value>, String> {
+    let units = gold["units"].as_array().ok_or("A gold without units")?;
+    let lines = gold["lines"].as_array().ok_or("A gold without lines")?;
+    let typed = gold["typed"].as_array().ok_or("A gold without typed lines")?;
+    let starts: Vec<usize> = (0..units.len()).filter(|&u| u == 0 || units[u]["starts_document"] == true).collect();
+    if starts.len() < 2 {
+        return Ok(vec![gold.clone()]);
+    }
+    let unit_typed = |u: usize| units[u]["lines"].as_array().into_iter().flatten().filter_map(Value::as_u64).map(|n| n as usize);
+    let part_of_unit: Vec<usize> = (0..units.len()).map(|u| starts.partition_point(|&s| s <= u) - 1).collect();
+    let carry = |held: Vec<Option<usize>>| {
+        let mut parts: Vec<usize> = Vec::with_capacity(held.len());
+        for found in held {
+            parts.push(found.or(parts.last().copied()).unwrap_or(0));
+        }
+        parts
+    };
+    let mut held: Vec<Option<usize>> = vec![None; typed.len()];
+    for u in 0..units.len() {
+        for t in unit_typed(u).filter(|&t| t < typed.len()) {
+            held[t].get_or_insert(part_of_unit[u]);
+        }
+    }
+    let typed_part = carry(held);
+    // The extraction's lines each typed line's spans name.
+    let index: HashMap<&str, usize> = lines.iter().enumerate().filter_map(|(n, line)| Some((line["id"].as_str()?, n))).collect();
+    let named = |t: usize| -> Vec<usize> {
+        typed[t]["spans"].as_array().into_iter().flatten()
+            .filter_map(|span| index.get(span["line_id"].as_str()?).copied()).collect()
+    };
+    let mut held: Vec<Option<usize>> = vec![None; lines.len()];
+    for t in 0..typed.len() {
+        for n in named(t) {
+            held[n].get_or_insert(typed_part[t]);
+        }
+    }
+    let line_part = carry(held);
+    Ok((0..starts.len()).map(|p| {
+        let kept_typed: Vec<usize> = (0..typed.len()).filter(|&t| typed_part[t] == p).collect();
+        let new_typed: HashMap<usize, usize> = kept_typed.iter().enumerate().map(|(i, &t)| (t, i)).collect();
+        // Its own lines, and any line of another part its typed lines also name.
+        let named_here: HashSet<usize> = kept_typed.iter().flat_map(|&t| named(t)).collect();
+        let kept_lines: Vec<usize> = (0..lines.len()).filter(|&n| line_part[n] == p || named_here.contains(&n)).collect();
+        let mut new_unit = HashMap::new();
+        let mut part_units = Vec::new();
+        for u in (0..units.len()).filter(|&u| part_of_unit[u] == p) {
+            let own: Vec<usize> = unit_typed(u).filter_map(|t| new_typed.get(&t).copied()).collect();
+            if own.is_empty() {
+                continue;
+            }
+            let mut unit = units[u].clone();
+            unit["lines"] = json!(own);
+            // The part is a document of its own: nothing in it starts another.
+            unit["starts_document"] = json!(false);
+            new_unit.insert(u, part_units.len());
+            part_units.push(unit);
+        }
+        let notes: Vec<Value> = gold["notes"].as_array().into_iter().flatten().filter_map(|pair| {
+            let line = new_typed.get(&(pair["line"].as_u64()? as usize))?;
+            let note = pair["note"].as_u64().and_then(|n| new_unit.get(&(n as usize)));
+            Some(json!({"line": line, "reference": pair["reference"], "note": note}))
+        }).collect();
+        let mut part = gold.clone();
+        part["lines"] = json!(kept_lines.iter().map(|&n| &lines[n]).collect::<Vec<_>>());
+        part["typed"] = json!(kept_typed.iter().map(|&t| &typed[t]).collect::<Vec<_>>());
+        part["units"] = json!(part_units);
+        part["notes"] = json!(notes);
+        part
+    }).collect())
+}
+
+/// The parser's input for one part: every page kept (per-page tables index pages by position),
+/// holding only that part's lines and the regions over them.
+fn input_part(mut extracted: legalpdf::ExtractedPdf, ids: &HashSet<&str>) -> legalpdf::ExtractedPdf {
+    for page in &mut extracted.pages {
+        page.lines.retain(|line| ids.contains(line.id.as_str()));
+        page.regions.retain_mut(|region| {
+            let had = !region.line_ids.is_empty();
+            region.line_ids.retain(|id| ids.contains(id.as_str()));
+            !had || !region.line_ids.is_empty()
+        });
+    }
+    extracted
+}
+
+/// A source's grades: one, or with --parts one per document of a packet.
 fn grade_one(
     gold: &Path,
     source: &Source,
     exports: bool,
     selected: Option<&PathBuf>,
-) -> Result<Graded, String> {
+) -> Result<Vec<(Option<usize>, Graded)>, String> {
     let gold_at = Instant::now();
-    let expected: state::Gold =
-        read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz"))
-            .map_err(|e| e.to_string())?;
-    let started = Instant::now();
-    let structure = candidate(gold, source, &expected, exports, selected)?;
+    let raw: Value = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+    let parts = if PARTS.load(Ordering::Relaxed) && !exports && selected.is_none() { gold_parts(&raw)? } else { vec![raw] };
+    if parts.len() == 1 {
+        let expected: state::Gold = serde_json::from_value(parts.into_iter().next().unwrap_or_default()).map_err(|e| e.to_string())?;
+        let started = Instant::now();
+        let structure = candidate(gold, source, &expected, exports, selected)?;
+        return Ok(vec![(None, score_structure(source, &expected, &structure, gold_at, started)?)]);
+    }
+    let mut graded = Vec::new();
+    for (k, part) in parts.into_iter().enumerate() {
+        let expected: state::Gold = serde_json::from_value(part).map_err(|e| format!("part {}: {e}", k + 1))?;
+        let started = Instant::now();
+        let ids: HashSet<&str> = expected.lines.iter().map(|l| l.id.as_str()).collect();
+        let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256)))
+            .map_err(|e| format!("{}: {e}", source.sha256))?;
+        let document = legalpdf::gold_structure_document(input_part(extracted, &ids), &source.sha256, None)
+            .map_err(|e| format!("{} part {}: {e}", source.sha256, k + 1))?;
+        graded.push((Some(k + 1), score_structure(source, &expected, document.structure(), gold_at, started)?));
+    }
+    Ok(graded)
+}
+
+fn score_structure(
+    source: &Source,
+    expected: &state::Gold,
+    structure: &DocumentStructure,
+    gold_at: Instant,
+    started: Instant,
+) -> Result<Graded, String> {
     let parsed_at = Instant::now();
     if structure
         .source_sha256
@@ -673,8 +792,8 @@ fn grade_one(
     {
         return Err("Candidate belongs to another PDF".into());
     }
-    let reference = state::projected(&expected)?;
-    let predicted = state::parsed(&structure)?;
+    let reference = state::projected(expected)?;
+    let predicted = state::parsed(structure)?;
     // STRUCTURE_GOLD_BLOCKS_DIR: both frames' blocks (kind, lines, locator, marker) per document, for
     // censuses of how the parser's units differ from the gold's.
     if let Some(dir) = std::env::var_os("STRUCTURE_GOLD_BLOCKS_DIR") {
@@ -955,6 +1074,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     // --tagger DIR runs the engine's own tagger (tagger.onnx + tagger.json) over every document;
     // --onnx-runtime names the ONNX Runtime library (else LEGALPDF_ONNX_RUNTIME).
     PURE.store(options.iter().any(|o| o == "--pure"), std::sync::atomic::Ordering::Relaxed);
+    PARTS.store(flag("--parts"), Ordering::Relaxed);
     let tagger = match value("--tagger") {
         Some(dir) => {
             let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok())
@@ -1011,8 +1131,8 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     let results = parallel(&all, weight, |source| {
         let began = Instant::now();
         let result = match (&labelled, &tagger) {
-            (_, Some(tagger)) => grade_tagged(gold, source, tagger),
-            (Some(labelled), None) => grade_labels(gold, source, &labelled[&source.sha256]),
+            (_, Some(tagger)) => grade_tagged(gold, source, tagger).map(|graded| vec![(None, graded)]),
+            (Some(labelled), None) => grade_labels(gold, source, &labelled[&source.sha256]).map(|graded| vec![(None, graded)]),
             (None, None) => grade_one(gold, source, exports, selected.get(&source.sha256)),
         };
         if began.elapsed().as_secs() >= 10 {
@@ -1026,7 +1146,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     let (mut parse_ms, mut score_ms) = (0.0, 0.0);
     for (source, result) in all.iter().zip(results) {
         match result {
-            Ok(graded) => {
+            Ok(parts) => for (part, graded) in parts {
                 parse_ms += graded.parse_ms;
                 score_ms += graded.score_ms;
                 let s = &graded.score;
@@ -1036,8 +1156,9 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
                 metrics.insert("transcription", score::Metric {
                     expected: s.text.characters, predicted: s.text.characters, correct: s.text.matched_characters,
                 });
+                let run = part.map_or_else(|| format!("v4/{}", source.sha256), |k| format!("v4/{}#{k}", source.sha256));
                 rows.push(json!({
-                    "run": format!("v4/{}", source.sha256), "source_sha256": source.sha256, "mode": source.mode, "split": source.split,
+                    "run": run, "part": part, "source_sha256": source.sha256, "mode": source.mode, "split": source.split,
                     "language_layout": source.groups["language_layout"], "genre_group": source.groups["genre_group"],
                     "country": source.groups["country"], "yardstick": source.groups["yardstick"], "label_source": source.groups["label_source"],
                     "parse_ms": graded.parse_ms.round(),
