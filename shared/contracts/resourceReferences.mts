@@ -9,6 +9,8 @@ export type ResourceReference =
 
 export const RESOURCE_LOCATOR_KINDS = [
   "page",
+  // A transcript's printed line number, read with the page it is on.
+  "line",
   "paragraph",
   "footnote",
   "section",

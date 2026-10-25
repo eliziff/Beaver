@@ -1,0 +1,28 @@
+{
+  "checkpoint_sha256": "1ce70bd0fd8d10d733996d22aac5aa3365613f1190627ddec81d54117488da2f",
+  "selected_epoch": 5,
+  "onnx": {
+    "cases": 2,
+    "max_logit_delta": 7.82012939453125e-05,
+    "repvit_fused": false,
+    "sha256": "706aefe49a2924c4ef940e276ab72d2a100db942326807348df786bca5ebaab0",
+    "bytes": 4169889
+  },
+  "compact_sha256": "734e2f7695ee325120e7e8e005d88b2cc78b6e8d03bdee7023730c8ce777dc50",
+  "compact_parity_batches": 4,
+  "classes": 1685,
+  "arrow_dev_cpu": {
+    "cer": 0.013844094521385358,
+    "edits": 2627,
+    "characters": 189756,
+    "exact_line_rate": 0.7522906793048973,
+    "lines": 3165
+  },
+  "arrow_test_cpu": {
+    "cer": 0.008673626036229658,
+    "edits": 1243,
+    "characters": 143308,
+    "exact_line_rate": 0.8050706566916043,
+    "lines": 2406
+  }
+}
