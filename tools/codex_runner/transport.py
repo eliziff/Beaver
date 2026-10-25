@@ -54,6 +54,12 @@ def invoke(
     executable = os.environ.get("CODEX_EXEC_COMMAND", "").strip() or shutil.which("codex")
     if not executable:
         raise RuntimeError("codex executable was not found on PATH")
+    if os.name == "nt" and not os.environ.get("CODEX_EXEC_COMMAND") and Path(executable).suffix.lower() in (".cmd", ".bat"):
+        # Invoke the bundled CLI directly so timeout/cancellation owns the model process.
+        package = Path(executable).parent / "node_modules/@openai/codex"
+        native = list(package.glob("node_modules/@openai/codex-win32-*/vendor/*/bin/codex.exe"))
+        if len(native) == 1:
+            executable = str(native[0])
     output_path = work_dir / "last-message.json"
     output_path.unlink(missing_ok=True)
     arguments = [

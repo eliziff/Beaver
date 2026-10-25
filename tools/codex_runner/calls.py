@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import gzip
 import hashlib
 import json
+import os
 import time
 from typing import Any, Callable
 
@@ -44,18 +45,48 @@ def event_usage(path):
     return totals
 
 
+def _inputs(prompt, schema, images, args, policy):
+    return {"prompt": prompt, "schema": schema, "instructions": policy.instructions, "config": policy.config,
+            "images": [digest(p) for p in images], "model": args.model, "effort": args.effort}
+
+
 def call_key(prompt, schema, images, args, policy):
     """The exact identity used for a cached task call."""
-    return fingerprint({"prompt": prompt, "schema": schema, "instructions": policy.instructions, "config": policy.config,
-                        "images": [digest(p) for p in images], "model": args.model, "effort": args.effort})
+    return fingerprint(_inputs(prompt, schema, images, args, policy))
+
+
+def prepare_call(prompt, schema_path, images, directory, args, *, policy):
+    """Retain a reviewable request without invoking Codex or spending a call budget.
+
+    Images remain task-owned files, referenced relative to the request directory.
+    Calling ``call`` with the same inputs consumes the same content-addressed job.
+    """
+    schema = read_json(schema_path)
+    inputs = _inputs(prompt, schema, images, args, policy)
+    key = fingerprint(inputs)
+    directory = directory / key[:16]
+    request_path = directory / "request.json"
+    for owner in (request_path, directory / "receipt.json"):
+        if owner.is_file() and read_json(owner)["key"] != key:
+            raise ValueError("Call-cache hash collision")
+    atomic_json(directory / "schema.json", schema)
+    atomic_write(directory / "prompt.txt.gz", gzip.compress(prompt.encode(), mtime=0))
+    atomic_write(directory / "instructions.md", policy.instructions.encode())
+    atomic_json(request_path, {
+        "key": key, "model": args.model, "effort": args.effort, "config": policy.config,
+        "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+        "schema_sha256": digest(directory / "schema.json"),
+        "images": [{"path": os.path.relpath(p.resolve(), directory.resolve()).replace("\\", "/"),
+                    "sha256": sha} for p, sha in zip(images, inputs["images"])],
+    })
+    return directory
 
 
 def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke, budget=None, *, policy, reuse=True):
-    schema_path = schema_path.resolve()
+    directory = prepare_call(prompt, schema_path, images, directory, args, policy=policy)
+    schema_path = (directory / "schema.json").resolve()
     schema = read_json(schema_path)
-    key = call_key(prompt, schema, images, args, policy)
-    directory = directory / key[:16]
-    directory.mkdir(parents=True, exist_ok=True)
+    key = read_json(directory / "request.json")["key"]
     receipt_path = directory / "receipt.json"
     receipt = read_json(receipt_path) if receipt_path.is_file() else {"key": key, "attempts": []}
     if receipt["key"] != key:
@@ -84,7 +115,6 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke
                 "response_sha256": digest(response_path), "error": error, "rejected_at": time.time()})
             atomic_json(receipt_path, receipt)
     instructions = directory / "instructions.md"
-    instructions.write_text(policy.instructions, encoding="utf-8")
     # A failure its policy would not retry (for example a defect another operation must fix)
     # is not feedback for the next prompt.
     if reuse and receipt["attempts"] and not cached_rejected and receipt["attempts"][-1].get("retryable", True):
@@ -96,7 +126,7 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke
                 previous = read_json(rejected)
             except ValueError:
                 pass
-    for _ in range(args.attempts):
+    for attempt_index in range(args.attempts):
         if budget is not None:
             if args.max_calls is not None and budget["calls"] >= args.max_calls:
                 raise ValueError("Model-call limit reached")
@@ -137,15 +167,22 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke
             attempt.update(status="failed", error=str(exc))
             raise
         finally:
-            attempt["usage"] = event_usage(work / "events.jsonl")
+            try:
+                attempt["usage"] = event_usage(work / "events.jsonl")
+            except OSError as exc:
+                attempt["usage_read_error"] = str(exc)
             attempt.update(usage_reported=bool(attempt["usage"]), seconds=round(time.perf_counter() - started, 4))
             for name in ("events.jsonl", "stderr.log"):
                 path = work / name
                 if path.is_file():
-                    atomic_write(work / (name + ".gz"), gzip.compress(path.read_bytes(), mtime=0))
-                    path.unlink()
+                    try:
+                        atomic_write(work / (name + ".gz"), gzip.compress(path.read_bytes(), mtime=0))
+                        path.unlink()
+                    except OSError as exc:
+                        attempt.setdefault("artifact_errors", {})[name] = str(exc)
             atomic_json(receipt_path, receipt)
-        print("Retrying rejected output: " + error, flush=True)
+        if attempt_index + 1 < args.attempts:
+            print("Retrying rejected output: " + error, flush=True)
     raise AttemptsExhausted(policy.failure_message, error)
 
 
