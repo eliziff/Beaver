@@ -5,12 +5,16 @@
 Each row is one piece of the parser's lines (a line cut at the parser's block boundaries) in its
 reading order, with its evidence, the parser's labels (tier 0) and the gold's. The tagger reads a
 whole document and predicts, per piece, its region, what starts there (inside, a unit, a resumed
-unit), a document start, a note reference and, on a heading's first piece, the heading's level
-(1 the outermost in its document). Parents are not predicted: the decoder derives them from
-regions and levels by the hierarchy rule. A resumed piece resumes the
-latest earlier unit of its region. Development selects the epoch; test is never read. Predictions
-for development go to OUT_DIR/predictions-development-<model>.jsonl as {sha256, ids, labels} for
-`grade --labels`.
+unit), a document start, a note reference and, on a heading's first piece, the heading's step from
+the heading before it in its document (first, same, down or up some; `step` in the tagger's labels),
+so a heading read one level off costs one step, not every level below it. Parents are not
+predicted: the decoder derives them from regions and the levels the steps rebuild by the hierarchy
+rule (CONVENTIONS section 2). A resumed piece resumes the latest earlier unit of its region. Each
+piece's whole text is read. Development selects the epoch; test is never read. Predictions
+for development go to OUT_DIR/predictions-development-<model>.jsonl as {sha256, ids, labels, p_heading,
+level_p} for `grade --labels` and for a second stage (p_heading: p(region heading) x p(unit start) per piece;
+level_p: the step distribution of pieces with p_heading >= 0.02, by piece index). --fold k/n trains without
+the train documents of fold k (index modulo n) and writes their predictions to OUT_DIR/crossfit-k.jsonl.
 """
 import argparse
 import json
@@ -25,14 +29,32 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# The tagger's regions, in the order `structure-gold rows` numbers them (the tagger's REGIONS).
 REGIONS = ["none", "text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote",
-           "marginal_note", "furniture", "page_label"]
+           "marginal_note", "furniture", "page_label", "line_label", "title", "note_quote", "provision"]
 STARTS = ["inside", "unit", "resume"]
-# Label columns: region, start, document, reference, heading level, marker, resumed row.
+# Label columns: region, start, document, reference, heading step, marker, resumed row.
 LABELS = 7
 HEADS = [("region", 0, len(REGIONS)), ("start", 1, len(STARTS)), ("document", 2, 2), ("reference", 3, 2), ("level", 4, 10), ("marker", 5, 2)]
-UNRANKED = {0, 5, 7, 10, 11, 12}
-TEXT_CHARS = 32
+UNRANKED = {0, 5, 7, 10, 11, 12, 13, 14, 15}
+
+
+def fnv1a(token):
+    h = 0x811C9DC5
+    for byte in token.encode("utf-8"):
+        h = ((h ^ byte) * 0x01000193) & 0xFFFFFFFF
+    return h
+
+
+def padded(rows):
+    """Rows of codes padded with 0 to the longest (at least one column)."""
+    width = max([len(r) for r in rows] + [1])
+    return np.asarray([r + [0] * (width - len(r)) for r in rows], dtype=np.int64)
+
+
+def words(texts):
+    """--text wide: each piece's every word hashed (FNV-1a over the lowercase token's UTF-8 bytes, 16,383 buckets)."""
+    return padded([[fnv1a(t) % 16383 + 1 for t in re.split(r"[^0-9A-Za-z\u00C0-\u024F]+", text.lower()) if t] for text in texts])
 
 
 def load(path):
@@ -54,9 +76,9 @@ class Vocab:
         return len(self.index) + 1
 
 
-def chars(text):
-    codes = [min(ord(c), 0x2FFF) % 2048 + 1 for c in text[:TEXT_CHARS]]
-    return codes + [0] * (TEXT_CHARS - len(codes))
+def chars(texts):
+    """Each piece's whole text as codes in 1..2048."""
+    return padded([[min(ord(c), 0x2FFF) % 2048 + 1 for c in text] for text in texts])
 
 
 FRENCH = re.compile(r"\b(le|la|les|des|du|une|est|sont|aux|dans|pour|qui|sur|par|au|ou|et|de)\b|[éèêàçùâîô]", re.I)
@@ -94,27 +116,33 @@ class Document:
             extra.append(np.asarray([own.get(i, 0.0) for i in raw["ids"]], dtype=np.float32)[:, None])
         self.features = np.concatenate([(values - mean) / std] + extra, axis=1).astype(np.float32)
         self.tier0 = np.asarray(raw["tier0"], dtype=np.int64)
-        self.text = np.asarray([chars(t[0]) for t in raw["text"]], dtype=np.int64)
+        self.text = chars([t[0] for t in raw["text"]])
+        self.words = words([t[0] for t in raw["text"]])
         region_types, note_modes, families = vocabs
         self.reader = np.asarray([[region_types(t[1]), note_modes(t[2]), families(t[3])] for t in raw["text"]], dtype=np.int64)
         self.gold = np.asarray([g if g is not None else [-100] * LABELS for g in raw["gold"]], dtype=np.int64)
-        # The level is learned on heading starts; elsewhere the column is no target.
+        # The step is learned on heading starts; elsewhere the column is no target.
         heading = REGIONS.index("heading")
         self.gold[(self.gold[:, 0] != heading) | (self.gold[:, 1] != 1), 4] = -100
         self.length = len(values)
 
 
 class Tagger(nn.Module):
-    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, dropout=0.1, text_dropout=0.0):
+    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, dropout=0.1, text_dropout=0.0, wide=False):
         super().__init__()
         region_types, note_modes, families = vocabs
+        self.wide = wide
         self.char = nn.Embedding(2049, 24, padding_idx=0)
         self.conv = nn.Conv1d(24, 64, 3, padding=1)
+        if wide:
+            self.conv5 = nn.Conv1d(24, 64, 5, padding=2)
+            self.word = nn.Embedding(16384, 32, padding_idx=0)
+        text_width = 64 + (64 + 32 if wide else 0)
         self.tier0 = nn.ModuleList([nn.Embedding(n, 8) for _, _, n in HEADS])
         self.region_type = nn.Embedding(len(region_types), 8)
         self.note_mode = nn.Embedding(len(note_modes), 4)
         self.family = nn.Embedding(len(families), 8)
-        width = features + 64 + 8 * len(HEADS) + 8 + 4 + 8
+        width = features + text_width + 8 * len(HEADS) + 8 + 4 + 8
         self.project = nn.Sequential(nn.Linear(width, 2 * hidden), nn.GELU(), nn.Dropout(dropout))
         # Hiding a piece's text at times keeps the encoder from leaning on remembered wording.
         self.text_dropout = text_dropout
@@ -128,14 +156,19 @@ class Tagger(nn.Module):
         self.heads = nn.ModuleList([nn.Linear(2 * hidden, n) for _, _, n in HEADS])
 
 
-    def encode(self, features, tier0, text, reader, lengths):
+    def encode(self, features, tier0, text, reader, words, lengths):
         """Each window's pieces' states: (windows, length, 2 * hidden)."""
         b, t, _ = features.shape
-        c = self.char(text.view(b * t, TEXT_CHARS)).transpose(1, 2)
-        c = F.relu(self.conv(c)).max(dim=2).values.view(b, t, -1)
-        if self.text_dropout >= 1.0:
-            c = torch.zeros_like(c)
-        elif self.training and self.text_dropout > 0:
+        e = self.char(text.reshape(b * t, text.shape[-1])).transpose(1, 2)
+        c = F.relu(self.conv(e)).max(dim=2).values
+        if self.wide:
+            c5 = F.relu(self.conv5(e)).max(dim=2).values
+            w = words.reshape(b * t, words.shape[-1])
+            mask = (w > 0).unsqueeze(-1).float()
+            wm = (self.word(w) * mask).sum(1) / mask.sum(1).clamp(min=1)
+            c = torch.cat([c, c5, wm], dim=-1)
+        c = c.view(b, t, -1)
+        if self.training and self.text_dropout > 0:
             c = c * (torch.rand(b, t, 1, device=c.device) >= self.text_dropout)
         parts = [features, c, self.region_type(reader[..., 0]), self.note_mode(reader[..., 1]), self.family(reader[..., 2])]
         parts += [embed(tier0[..., column].clamp(min=0, max=embed.num_embeddings - 1)) for embed, (_, column, _) in zip(self.tier0, HEADS)]
@@ -168,18 +201,21 @@ class Windows:
         length = max(hi - lo for _, lo, hi, _, _ in spans)
         f = torch.zeros(len(spans), length, docs[0].features.shape[1])
         t0 = torch.zeros(len(spans), length, LABELS, dtype=torch.long)
-        tx = torch.zeros(len(spans), length, TEXT_CHARS, dtype=torch.long)
+        # Text and words padded to the longest piece's in the batch.
+        tx = torch.zeros(len(spans), length, max(d.text.shape[1] for d in docs), dtype=torch.long)
         rd = torch.zeros(len(spans), length, 3, dtype=torch.long)
+        wd = torch.zeros(len(spans), length, max(d.words.shape[1] for d in docs), dtype=torch.long)
         index = [np.zeros(d.length, dtype=np.int64) for d in docs]
         for w, (k, lo, hi, a, b) in enumerate(spans):
             d = docs[k]
             f[w, :hi - lo] = torch.from_numpy(d.features[lo:hi])
             t0[w, :hi - lo] = torch.from_numpy(d.tier0[lo:hi])
-            tx[w, :hi - lo] = torch.from_numpy(d.text[lo:hi])
+            tx[w, :hi - lo, :d.text.shape[1]] = torch.from_numpy(d.text[lo:hi])
             rd[w, :hi - lo] = torch.from_numpy(d.reader[lo:hi])
+            wd[w, :hi - lo, :d.words.shape[1]] = torch.from_numpy(d.words[lo:hi])
             index[k][a:b] = w * length + np.arange(a - lo, b - lo)
         lengths = torch.as_tensor([hi - lo for _, lo, hi, _, _ in spans])
-        self.inputs = [x.to(device) for x in (f, t0, tx, rd)] + [lengths.to(device)]
+        self.inputs = [x.to(device) for x in (f, t0, tx, rd, wd)] + [lengths.to(device)]
         self.index = [torch.as_tensor(i, device=device) for i in index]
 
     def states(self, model):
@@ -207,25 +243,32 @@ def batches(docs, windows, rng):
 
 
 def tag_loss(outputs, gold, weights):
+    """The heads' cross-entropies summed; a head with no target in the batch (silver rows carry region and start only)
+    adds nothing rather than NaN."""
     total = 0.0
     for output, (name, column, n) in zip(outputs, HEADS):
+        if not bool((gold[:, column] >= 0).any()):
+            continue
         total = total + F.cross_entropy(output.float(), gold[:, column], weight=weights.get(name), ignore_index=-100)
     return total
 
 
 @torch.no_grad()
 def predict(model, docs, device):
-    """Per document: each head's prediction; the level stays on heading starts, and a resumed piece
+    """Per document: each head's prediction; the step stays on heading starts, and a resumed piece
     resumes the latest earlier unit of its region. Parents are not predicted: the decoder derives
-    them from regions and levels by the hierarchy rule."""
+    them from regions and the levels the steps rebuild by the hierarchy rule."""
     model.eval()
     results = []
     heading = REGIONS.index("heading")
     for doc in docs:
         states = Windows([doc], device).states(model).float()
         labels = np.zeros((doc.length, LABELS), dtype=np.int64)
-        for output, (_, column, _) in zip(model.tag(states), HEADS):
+        outputs = model.tag(states)
+        for output, (_, column, _) in zip(outputs, HEADS):
             labels[:, column] = output.float().argmax(dim=-1).cpu().numpy()
+        p_heading = (torch.softmax(outputs[0].float(), dim=-1)[:, heading] * torch.softmax(outputs[1].float(), dim=-1)[:, 1]).cpu().numpy()
+        level_p = torch.softmax(outputs[4].float(), dim=-1).cpu().numpy()
         labels[:, 6] = -1
         labels[labels[:, 0] == 0, 1] = 0
         labels[(labels[:, 0] != heading) | (labels[:, 1] != 1), 4] = 0
@@ -238,7 +281,7 @@ def predict(model, docs, device):
                     labels[n, 1] = 1
             if labels[n, 1] == 1:
                 latest[int(labels[n, 0])] = n
-        results.append(labels)
+        results.append((labels, p_heading, level_p))
     return results
 
 
@@ -247,12 +290,21 @@ def report(docs, predictions, label):
     lines = []
     for name, column, _ in HEADS:
         gold = np.concatenate([d.gold[:, column] for d in docs])
-        mine = np.concatenate([p[:, column] for p in predictions])
+        mine = np.concatenate([p[0][:, column] for p in predictions])
         tier0 = np.concatenate([d.tier0[:, column] for d in docs])
         keep = gold != -100
         lines.append(f"{label} {name:9} n={int(keep.sum()):7} accuracy tier0 {np.mean(tier0[keep] == gold[keep]):.4f}"
                      f" model {np.mean(mine[keep] == gold[keep]):.4f}")
     return lines
+
+
+def write_predictions(path, raws, predictions):
+    """{sha256, ids, labels, p_heading, level_p} per document."""
+    with open(path, "w", encoding="utf-8") as out:
+        for raw, (labels, p_heading, level_p) in zip(raws, predictions):
+            candidates = {int(n): [round(float(v), 3) for v in level_p[n]] for n in np.flatnonzero(p_heading >= 0.02)}
+            out.write(json.dumps({"sha256": raw["sha256"], "ids": raw["ids"], "labels": labels.tolist(),
+                                  "p_heading": [round(float(v), 4) for v in p_heading], "level_p": candidates}) + "\n")
 
 
 def main():
@@ -268,6 +320,14 @@ def main():
     parser.add_argument("--lr", type=float, default=2e-3)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--witness", nargs=2, metavar=("TRAIN", "DEV"), help="lexical witness scores for the train and development rows, one more feature")
+    parser.add_argument("--text", choices=("narrow", "wide"), default="narrow", help="wide: a 5-wide conv beside the 3-wide, and the hashed words")
+    parser.add_argument("--hidden", type=int, default=128)
+    parser.add_argument("--layers", type=int, default=2)
+    parser.add_argument("--predict-train", action="store_true", help="also write predictions-train-<model>.jsonl (train fit)")
+    parser.add_argument("--fold", help="k/n: hold out the train documents with index k modulo n and write their predictions to OUT/crossfit-k.jsonl")
+    parser.add_argument("--pretrain", type=Path, help="silver rows directory (rows-train.jsonl of text-only units): region/start pretraining before the gold epochs")
+    parser.add_argument("--pretrain-epochs", type=int, default=2)
+    parser.add_argument("--pretrain-docs", type=int, default=0, help="at most this many silver documents (0 = all)")
     args = parser.parse_args()
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -276,6 +336,12 @@ def main():
     train_raw, dev_raw = load(args.rows / "rows-train.jsonl"), load(args.rows / "rows-development.jsonl")
     if args.train_share < 1.0:
         train_raw = random.Random(args.seed).sample(train_raw, max(1, round(len(train_raw) * args.train_share)))
+    held_raw = []
+    if args.fold:
+        k, n = (int(x) for x in args.fold.split("/"))
+        held_raw = [d for i, d in enumerate(train_raw) if i % n == k]
+        train_raw = [d for i, d in enumerate(train_raw) if i % n != k]
+        print(f"fold {k}/{n}: {len(train_raw)} train documents, {len(held_raw)} held out", flush=True)
     vocabs = (Vocab(t[1] for d in train_raw for t in d["text"]), Vocab(t[2] for d in train_raw for t in d["text"]),
               Vocab(t[3] for d in train_raw for t in d["text"]))
     stacked = np.concatenate([np.asarray(d["features"], dtype=np.float32) for d in train_raw])
@@ -291,9 +357,51 @@ def main():
     w = (counts.sum() / counts) ** 0.5
     w = np.minimum(w, 8 * w.min())
     weights = {"start": torch.tensor(w / w.mean(), dtype=torch.float32, device=device)}
-    model = Tagger(train[0].features.shape[1], vocabs, kind=args.model, dropout=args.dropout,
-                   text_dropout=args.text_dropout).to(device)
+    model = Tagger(train[0].features.shape[1], vocabs, kind=args.model, hidden=args.hidden, layers=args.layers,
+                   dropout=args.dropout, text_dropout=args.text_dropout, wide=args.text == "wide").to(device)
     print(f"{args.model}: {sum(p.numel() for p in model.parameters()):,} parameters", flush=True)
+    if args.pretrain:
+        # The text prior: silver units carry text and text-shape features only. Every other feature is
+        # set to the gold's mean (0 after normalization), tier 0 reads none, the reader vocabularies 0;
+        # the loss is the region and start heads'. Fresh optimizer and schedule for the gold epochs after.
+        silver_raw = load(args.pretrain / "rows-train.jsonl")
+        if args.pretrain_docs:
+            silver_raw = random.Random(args.seed).sample(silver_raw, min(args.pretrain_docs, len(silver_raw)))
+        shape_columns = {names.index(n) for n in ("length", "upper", "digits", "punctuation", "spaces", "starts_digit", "starts_upper",
+                         "starts_lower", "starts_open", "starts_mark", "ends_period", "ends_colon", "ends_comma", "ends_hyphen", "ends_digit") if n in names}
+        keep = np.asarray([k in shape_columns for k in range(len(names))])
+        for d in silver_raw:
+            values = np.asarray(d["features"], dtype=np.float32)
+            values[:, ~keep] = mean[~keep]
+            d["features"] = values.tolist()
+        silver = [Document(d, names, vocabs, mean, std) for d in silver_raw]
+        for d in silver:
+            d.gold[:, 2:] = -100
+        print(f"pretraining on {len(silver)} silver documents, {sum(d.length for d in silver)} units, {args.pretrain_epochs} epochs", flush=True)
+        pre_optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
+        pre_steps = args.pretrain_epochs * len(batches(silver, args.windows, random.Random(0)))
+        pre_schedule = torch.optim.lr_scheduler.OneCycleLR(pre_optimizer, max_lr=args.lr, total_steps=pre_steps, pct_start=0.1)
+        pre_rng = random.Random(args.seed)
+        for epoch in range(args.pretrain_epochs):
+            model.train()
+            began, total, count = time.time(), 0.0, 0
+            for group in batches(silver, args.windows, pre_rng):
+                docs = [silver[n] for n in group]
+                gold = torch.as_tensor(np.concatenate([d.gold for d in docs]), device=device)
+                pre_optimizer.zero_grad(set_to_none=True)
+                with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
+                    states = Windows(docs, device).states(model)
+                    outputs = model.tag(states)
+                loss = tag_loss(outputs, gold, weights)
+                loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                pre_optimizer.step(); pre_schedule.step()
+                total += float(loss.detach()); count += 1
+            lines = report(dev, predict(model, dev, device), f"pretrain {epoch + 1}")
+            print(f"pretrain epoch {epoch + 1} loss {total / max(count, 1):.4f} in {time.time() - began:.1f}s", flush=True)
+            for l in lines[:2]:
+                print("  " + l, flush=True)
+        del silver, silver_raw
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     steps = args.epochs * len(batches(train, args.windows, random.Random(0)))
     schedule = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=args.lr, total_steps=steps, pct_start=0.1)
@@ -325,14 +433,18 @@ def main():
         if selected > best:
             best, best_state = selected, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     model.load_state_dict(best_state)
-    torch.save({"state": best_state, "model": args.model, "vocabs": [v.index for v in vocabs],
+    torch.save({"state": best_state, "model": args.model, "hidden": args.hidden, "layers": args.layers, "text": args.text, "vocabs": [v.index for v in vocabs],
                 "mean": mean.tolist(), "std": std.tolist()}, args.out / f"tagger-{args.model}.pt")
     predictions = predict(model, dev, device)
+    if args.fold:
+        held = [Document(d, names, vocabs, mean, std, witness_train) for d in held_raw]
+        write_predictions(args.out / f"crossfit-{args.fold.split('/')[0]}.jsonl", held_raw, predict(model, held, device))
+    write_predictions(args.out / f"predictions-development-{args.model}.jsonl", dev_raw, predictions)
+    if args.predict_train:
+        write_predictions(args.out / f"predictions-train-{args.model}.jsonl", train_raw, predict(model, train, device))
     note = REGIONS.index("note")
-    with open(args.out / f"predictions-development-{args.model}.jsonl", "w", encoding="utf-8") as pure, \
-            open(args.out / f"predictions-development-{args.model}-hybrid.jsonl", "w", encoding="utf-8") as hybrid:
-        for raw, labels in zip(dev_raw, predictions):
-            pure.write(json.dumps({"sha256": raw["sha256"], "ids": raw["ids"], "labels": labels.tolist()}) + "\n")
+    with open(args.out / f"predictions-development-{args.model}-hybrid.jsonl", "w", encoding="utf-8") as hybrid:
+        for raw, (labels, _, _) in zip(dev_raw, predictions):
             # Tier 0 keeps its notes (their pairs are its own) and its document starts.
             tier0 = np.asarray(raw["tier0"], dtype=np.int64)
             mixed = labels.copy()
