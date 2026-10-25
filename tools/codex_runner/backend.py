@@ -109,7 +109,11 @@ def respond(*, instructions, content, schema, model, effort, cache_key, timeout_
                         completed = event["response"]
                         log.write(json.dumps({"type": "turn.completed", "usage": usage(completed), "response_id": completed.get("id")}) + "\n")
                         return "".join(answer)
-                    elif kind in ("response.failed", "response.incomplete", "error"):
+                    elif kind == "response.incomplete":
+                        cut = event["response"]
+                        log.write(json.dumps({"type": "turn.completed", "usage": usage(cut), "response_id": cut.get("id")}) + "\n")
+                        raise ValueError(f"the answer was cut off ({(cut.get('incomplete_details') or {}).get('reason')})")
+                    elif kind in ("response.failed", "error"):
                         raise RuntimeError(f"backend stream ended with {kind}: {json.dumps(event)[:2000]}")
                 log.write(json.dumps({"type": "stream.retry", "reason": "ended without response.completed"}) + "\n")
         except httpx.TransportError as exc:
