@@ -816,7 +816,7 @@ fn totals_json(rows: &[&Value]) -> Value {
 /// items apart.
 const BODY_LAYERS: [(&str, &str); 2] = [("units_body", "body units"), ("markers_body", "body markers")];
 const FINE_LAYERS: [&str; 6] = ["markers_text", "units_text", "markers_provision", "units_provision", "units_list_item", "markers_list_item"];
-const KEY_LAYERS: [(&str, &str); 16] = [
+const KEY_LAYERS: [(&str, &str); 17] = [
     ("units_heading", "headings"),
     ("markers_text", "numbered paragraphs"),
     ("units_text", "paragraphs"),
@@ -828,6 +828,7 @@ const KEY_LAYERS: [(&str, &str); 16] = [
     ("note", "footnote pairs"),
     ("heading_steps", "heading levels"),
     ("depth_steps", "body depths"),
+    ("sequence_steps", "numbered sequences"),
     ("line_numbers", "transcript line numbers"),
     ("speakers", "speaker turns"),
     ("order", "reading order"),
