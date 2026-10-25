@@ -285,7 +285,8 @@ def author_hierarchy(typed, groups, texts, indents, images, job, args, whole=Fal
     rows = [hierarchy.row(typed, members, texts, indents) for members in groups]
     counts = {n + 1: len(r[3]) for n, r in enumerate(rows)}
     def ask(shown, pages):
-        schema = schema_file(job, f"hierarchy-{shown[0]:05}", prompts.hierarchy_schema([n + 1 for n in shown], hierarchy.answered(shown, rows), counts, args.hierarchy, whole))
+        schema = schema_file(job, f"hierarchy-{shown[0]:05}", prompts.hierarchy_schema([n + 1 for n in shown], hierarchy.answered(shown, rows), counts, args.hierarchy, whole,
+                                                                                        [n + 1 for n in shown if rows[n][1] == "provision"]))
         return call(prompts.hierarchy_prompt(rows, shown, pages, args.hierarchy, whole), schema, [images[p] for p in pages],
                     job / "calls" / f"hierarchy-{shown[0]:05}", args, hierarchy.checked(shown, rows), policy=POLICY)
     levels, depths, starts = hierarchy.decide(rows, ask, {p: image_tokens(path) for p, path in images.items()})

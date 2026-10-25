@@ -84,18 +84,19 @@ Answer each row the answer names, once, with its depths:
 """}
 
 
-def hierarchy_schema(rows, answered, counts, form, whole=False):
+def hierarchy_schema(rows, answered, counts, form, whole=False, provisions=()):
     """The document pass's schema for one call: an answer for each row that takes one (a heading
-    level or depths, or depths alone in the one-depth form), one depth per printed marker, and
-    document starts on any of its rows, or, for a document split from its packet (`whole`), what it
-    is. counts: {row: printed markers}."""
+    level or depths, or depths alone in the one-depth form and for a provision, which is never a
+    heading), one depth per printed marker, and document starts on any of its rows, or, for a
+    document split from its packet (`whole`), what it is. counts: {row: printed markers};
+    provisions: the provision rows."""
     def depths(row):
         k = max(1, counts[row])
         return {"type": "object", "additionalProperties": False, "required": ["depths"], "properties": {
             "depths": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 9}, "minItems": k, "maxItems": k}}}
     level = {"type": "object", "additionalProperties": False, "required": ["level"],
              "properties": {"level": {"type": "integer", "minimum": 1, "maximum": 9}}}
-    answers = {str(r): {"anyOf": [level, depths(r)]} if form == "two" else depths(r) for r in answered}
+    answers = {str(r): {"anyOf": [level, depths(r)]} if form == "two" and r not in provisions else depths(r) for r in answered}
     kind = {"type": "string", "enum": list(DOCUMENT_TYPES)}
     documents = {"type": kind} if whole else {"starts": {"type": "array", "items": {
         "type": "object", "additionalProperties": False, "required": ["row", "type"],
