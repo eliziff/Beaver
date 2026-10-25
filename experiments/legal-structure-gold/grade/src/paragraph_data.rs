@@ -68,19 +68,7 @@ fn records(
     pages: &[Page],
     structure: &legal_structure_model::DocumentStructure,
 ) -> Result<Value, String> {
-    let extraction = pages
-        .iter()
-        .map(|p| state::ExtractionPage {
-            width: p.width,
-            height: p.height,
-            lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
-        })
-        .collect::<Vec<_>>();
-    let owners = owners(
-        gold,
-        &state::projected(gold)?,
-        &state::parsed(structure, &extraction)?,
-    )?;
+    let owners = owners(gold, &state::projected(gold)?, &state::parsed(structure)?)?;
     let prose = |u: usize| {
         matches!(
             gold.typed[gold.units[u].lines[0]].region.as_str(),

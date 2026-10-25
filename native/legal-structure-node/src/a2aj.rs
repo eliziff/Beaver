@@ -2,13 +2,14 @@
 //! is found by its citation key, read and derived here, and JavaScript is given its metadata and documents, never its
 //! text.
 
+use crate::a2aj_lookup::{self, cell, js_trim, sql};
 use crate::engine::{self, CoreResult, NativeDocument, StructureRequest};
 use legal_structure::{citation_lookup_key, ProviderTextInput, ProviderTextSourceKind};
 use regex::Regex;
 use rusqlite::{types::ValueRef, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard, Weak};
 use std::time::SystemTime;
@@ -27,10 +28,6 @@ static CONNECTIONS: Mutex<Vec<(PathBuf, Stamp, Connection)>> = Mutex::new(Vec::n
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-fn sql(error: rusqlite::Error) -> String {
-    error.to_string()
 }
 
 /// Runs `work` on a read-only connection to the store; None where there is no store.
@@ -86,16 +83,6 @@ fn keep(key: (PathBuf, Stamp, String), found: &Found) {
         native: Arc::downgrade(&found.native),
         search: found.search.as_ref().map(Arc::downgrade),
     }));
-}
-
-/// JavaScript's white space and line terminators, which `String.prototype.trim` removes.
-fn js_space(character: char) -> bool {
-    matches!(character, '\u{9}' | '\u{a}' | '\u{b}' | '\u{c}' | '\u{d}' | ' ' | '\u{a0}' | '\u{1680}'
-        | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
-}
-
-fn js_trim(value: &str) -> &str {
-    value.trim_matches(js_space)
 }
 
 /// A GLOB that a text matches when it holds a character other than JavaScript's white space.
@@ -205,17 +192,6 @@ impl<'a> Row<'a> {
     }
 }
 
-/// A cell's text, trimmed; None where it is not text or only white space.
-fn cell(value: ValueRef) -> Option<String> {
-    match value {
-        ValueRef::Text(bytes) => {
-            let value = js_trim(&String::from_utf8_lossy(bytes)).to_owned();
-            (!value.is_empty()).then_some(value)
-        }
-        _ => None,
-    }
-}
-
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
@@ -269,58 +245,10 @@ pub struct Lookup {
     source_url: Option<String>,
 }
 
-/// The one document the store holds under a citation's key, among the collections and at the address asked for.
+/// The one document the store holds under a citation, among the collections and at the address asked for.
 fn find(connection: &Connection, lookup: &Lookup) -> CoreResult<Option<i64>> {
-    let citation = js_trim(&lookup.citation);
-    if citation.is_empty() {
-        return Err("citation is required".to_owned());
-    }
-    let key = citation_lookup_key(citation);
-    if key.is_empty() {
-        return Ok(None);
-    }
-    let mut filters = vec!["document.id IN (SELECT document_id FROM citation_lookup WHERE citation_key = ?)",
-        "document.doc_type = ?"].into_iter().map(str::to_owned).collect::<Vec<_>>();
-    let mut values = vec![key, lookup.doc_type.clone().unwrap_or_else(|| "cases".to_owned())];
-    let mut seen = BTreeSet::new();
-    let datasets: Vec<String> = lookup.dataset.as_deref().unwrap_or_default().split(',').map(js_trim)
-        .filter(|name| !name.is_empty() && seen.insert(*name)).take(50).map(str::to_owned).collect();
-    if !datasets.is_empty() {
-        filters.push(format!("LOWER(document.dataset) IN ({})", vec!["LOWER(?)"; datasets.len()].join(", ")));
-        values.extend(datasets);
-    }
-    if let Some(url) = lookup.source_url.as_deref().map(js_trim).filter(|url| !url.is_empty()) {
-        filters.push("(document.url_en = ? OR document.url_fr = ?)".to_owned());
-        values.extend([url.to_owned(), url.to_owned()]);
-    }
-    let mut statement = connection.prepare_cached(&format!(
-        "SELECT document.id, document.name_en, document.name_fr, document.citation_en, document.citation2_en,
-         document.citation_fr, document.citation2_fr FROM document WHERE {} ORDER BY document.id LIMIT 16",
-        filters.join(" AND "))).map_err(sql)?;
-    let rows = statement.query_map(rusqlite::params_from_iter(values.iter()), |row| {
-        let text = |at: usize| row.get_ref(at).map(cell);
-        Ok((row.get::<_, i64>(0)?, [text(1)?, text(2)?], [text(3)?, text(4)?, text(5)?, text(6)?]))
-    }).map_err(sql)?.collect::<Result<Vec<_>, _>>().map_err(sql)?;
-    if rows.len() == 1 {
-        return Ok(Some(rows[0].0));
-    }
-    // Several documents under one key ("RSC 1985, c 1" is a statute and its supplements' chapters 1): the one whose
-    // own citation the citation is ("RSC 1985, c 1 (2nd Supp)"), else the one whose name it writes ("Customs Act,
-    // RSC 1985, c 1").
-    let written = folded(citation);
-    let only = |chosen: Vec<i64>| (chosen.len() == 1).then(|| chosen[0]);
-    let cited = rows.iter().filter(|(_, _, citations)| citations.iter().flatten().any(|own| folded(own) == written))
-        .map(|(id, _, _)| *id).collect::<Vec<_>>();
-    let named = rows.iter().filter(|(_, names, _)| names.iter().flatten()
-        .any(|name| folded(name).len() > 3 && written.contains(&folded(name)))).map(|(id, _, _)| *id).collect::<Vec<_>>();
-    Ok(only(cited).or_else(|| only(named)))
-}
-
-/// Lowercase words, each set apart by one space: a name compared as written in a citation.
-fn folded(value: &str) -> String {
-    let words = value.split(|character: char| !character.is_alphanumeric()).filter(|word| !word.is_empty())
-        .map(str::to_lowercase).collect::<Vec<_>>();
-    format!(" {} ", words.join(" "))
+    a2aj_lookup::find(connection, &lookup.citation, lookup.doc_type.as_deref(), lookup.dataset.as_deref(),
+        lookup.source_url.as_deref())
 }
 
 /// JavaScript's white space, as a regular expression's class holds it.

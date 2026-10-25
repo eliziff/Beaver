@@ -1,0 +1,1077 @@
+{
+ "source": "C:\\Users\\elias\\Desktop\\MikeOSS Fork\\benchmarks\\local-data\\olj-manual-gold\\pagexml-661-20260810\\remote_bundle",
+ "skipped": [
+  "JL-SOC-POLY:14609",
+  "MCGILL-LJ-ERUDIT:13411 (pages differ)",
+  "DALHOUSIE-J-LEG-STUD:12383",
+  "JL-SOC-POLY:14681",
+  "CAN-US-LJ:13387",
+  "DALHOUSIE-J-LEG-STUD:12484",
+  "DALHOUSIE-LJ:15327",
+  "JL-SOC-POLY:14896",
+  "OSGOODE-HALL-LJ:24271"
+ ],
+ "documents": [
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\77a3394583e67156e7802afe5e0f9aa2223e61d628b7445caab1bd603d6efbf4.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "77a3394583e67156e7802afe5e0f9aa2223e61d628b7445caab1bd603d6efbf4",
+   "pages": 6,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "ALTA-L-REV:21082",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "eval",
+     "xml": "001_ALTA-L-REV_article-21082_pdf-page-1.xml",
+     "corpus_text_agreement": 0.96,
+     "image_agreement": 0.995
+    },
+    {
+     "page": 2,
+     "split": "eval",
+     "xml": "002_ALTA-L-REV_article-21082_pdf-page-2.xml",
+     "corpus_text_agreement": 0.957,
+     "image_agreement": 0.989
+    },
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "003_ALTA-L-REV_article-21082_pdf-page-3.xml",
+     "corpus_text_agreement": 0.815,
+     "image_agreement": 0.993
+    },
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "004_ALTA-L-REV_article-21082_pdf-page-4.xml",
+     "corpus_text_agreement": 0.857,
+     "image_agreement": 0.994
+    },
+    {
+     "page": 5,
+     "split": "eval",
+     "xml": "005_ALTA-L-REV_article-21082_pdf-page-5.xml",
+     "corpus_text_agreement": 0.952,
+     "image_agreement": 0.995
+    },
+    {
+     "page": 6,
+     "split": "eval",
+     "xml": "006_ALTA-L-REV_article-21082_pdf-page-6.xml",
+     "corpus_text_agreement": 0.802,
+     "image_agreement": 1.0
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\d51361805f8f819c39e2948f36db9ba96c1d6d683609673e2eec85e9e85c0a67.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "d51361805f8f819c39e2948f36db9ba96c1d6d683609673e2eec85e9e85c0a67",
+   "pages": 6,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "APPEAL:10077",
+   "pdf_type": "image_only_scan",
+   "truth_pages": [
+    {
+     "page": 4,
+     "split": "test",
+     "xml": "006_APPEAL_article-10077_pdf-page-4.xml",
+     "corpus_text_agreement": 0.0,
+     "image_agreement": 0.994
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\66e5db2e06731f83ccd0172a16296d5abfb4df0872517412b28e91c54efdaaf1.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "66e5db2e06731f83ccd0172a16296d5abfb4df0872517412b28e91c54efdaaf1",
+   "pages": 8,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "ASPER-REV:8797",
+   "pdf_type": "image_only_scan",
+   "truth_pages": [
+    {
+     "page": 5,
+     "split": "eval",
+     "xml": "005_ASPER-REV_article-8797_pdf-page-5.xml",
+     "corpus_text_agreement": 0.0,
+     "image_agreement": 0.998
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\60d674cc124847c252e7df48a6f93cc89b74a67204e5f26159e19d4bc33b8712.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "60d674cc124847c252e7df48a6f93cc89b74a67204e5f26159e19d4bc33b8712",
+   "pages": 5,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "CAN-BAR-REV:22222",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "test",
+     "xml": "078_CAN-BAR-REV_article-22222_pdf-page-1.xml",
+     "corpus_text_agreement": 0.985,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 2,
+     "split": "test",
+     "xml": "079_CAN-BAR-REV_article-22222_pdf-page-2.xml",
+     "corpus_text_agreement": 0.994,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 3,
+     "split": "test",
+     "xml": "080_CAN-BAR-REV_article-22222_pdf-page-3.xml",
+     "corpus_text_agreement": 0.989,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 4,
+     "split": "test",
+     "xml": "081_CAN-BAR-REV_article-22222_pdf-page-4.xml",
+     "corpus_text_agreement": 0.987,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 5,
+     "split": "test",
+     "xml": "082_CAN-BAR-REV_article-22222_pdf-page-5.xml",
+     "corpus_text_agreement": 0.991,
+     "image_agreement": 0.999
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\caefe15f2b97cfc9a2e45647fcfe9c91bf3b9bb2a64b53632b85ce207f2d804e.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "caefe15f2b97cfc9a2e45647fcfe9c91bf3b9bb2a64b53632b85ce207f2d804e",
+   "pages": 5,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "CAN-US-LJ:13377",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 2,
+     "split": "test",
+     "xml": "016_CAN-US-LJ_article-13377_pdf-page-2.xml",
+     "corpus_text_agreement": 0.993,
+     "image_agreement": 0.998
+    },
+    {
+     "page": 3,
+     "split": "test",
+     "xml": "017_CAN-US-LJ_article-13377_pdf-page-3.xml",
+     "corpus_text_agreement": 0.986,
+     "image_agreement": 0.998
+    },
+    {
+     "page": 4,
+     "split": "test",
+     "xml": "018_CAN-US-LJ_article-13377_pdf-page-4.xml",
+     "corpus_text_agreement": 0.993,
+     "image_agreement": 1.0
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\cb5f4a10118d285b884eb063a80c3586db70b0d50c089690f5da4547d9a82550.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "cb5f4a10118d285b884eb063a80c3586db70b0d50c089690f5da4547d9a82550",
+   "pages": 8,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "CONST-FORUM:10100",
+   "pdf_type": "image_only_scan",
+   "truth_pages": [
+    {
+     "page": 5,
+     "split": "test",
+     "xml": "010_CONST-FORUM_article-10100_pdf-page-5.xml",
+     "corpus_text_agreement": 0.0,
+     "image_agreement": 0.998
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\50b481b7ddebffe6210816047aa3a4270f2aa257d5ec3692e3b85db94ea06b25.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "50b481b7ddebffe6210816047aa3a4270f2aa257d5ec3692e3b85db94ea06b25",
+   "pages": 6,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "DALHOUSIE-J-LEG-STUD:13024",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 2,
+     "split": "eval",
+     "xml": "041_DALHOUSIE-J-LEG-STUD_article-13024_pdf-page-2.xml",
+     "corpus_text_agreement": 0.99,
+     "image_agreement": 0.995
+    },
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "042_DALHOUSIE-J-LEG-STUD_article-13024_pdf-page-3.xml",
+     "corpus_text_agreement": 0.994,
+     "image_agreement": 0.99
+    },
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "043_DALHOUSIE-J-LEG-STUD_article-13024_pdf-page-4.xml",
+     "corpus_text_agreement": 0.992,
+     "image_agreement": 0.993
+    },
+    {
+     "page": 5,
+     "split": "eval",
+     "xml": "044_DALHOUSIE-J-LEG-STUD_article-13024_pdf-page-5.xml",
+     "corpus_text_agreement": 0.994,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 6,
+     "split": "eval",
+     "xml": "045_DALHOUSIE-J-LEG-STUD_article-13024_pdf-page-6.xml",
+     "corpus_text_agreement": 0.996,
+     "image_agreement": 0.998
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\6048d21049895550b3c76eeba5a3fb31b297b7990757fa743f1cc7e89fdeb9bb.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "6048d21049895550b3c76eeba5a3fb31b297b7990757fa743f1cc7e89fdeb9bb",
+   "pages": 12,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "DALHOUSIE-LJ:16072",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 9,
+     "split": "test",
+     "xml": "019_DALHOUSIE-LJ_article-16072_pdf-page-9.xml",
+     "corpus_text_agreement": 0.996,
+     "image_agreement": 1.0
+    },
+    {
+     "page": 10,
+     "split": "test",
+     "xml": "020_DALHOUSIE-LJ_article-16072_pdf-page-10.xml",
+     "corpus_text_agreement": 0.993,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 11,
+     "split": "test",
+     "xml": "021_DALHOUSIE-LJ_article-16072_pdf-page-11.xml",
+     "corpus_text_agreement": 0.993,
+     "image_agreement": 1.0
+    },
+    {
+     "page": 12,
+     "split": "test",
+     "xml": "022_DALHOUSIE-LJ_article-16072_pdf-page-12.xml",
+     "corpus_text_agreement": 1.0,
+     "image_agreement": 1.0
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\83be8c208d0a399cd926e0e0a58f0966100589927f75a7932a89c28b0181ad3c.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "83be8c208d0a399cd926e0e0a58f0966100589927f75a7932a89c28b0181ad3c",
+   "pages": 12,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "MAN-LJ:17952",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 3,
+     "split": "test",
+     "xml": "043_MAN-LJ_article-17952_pdf-page-3.xml",
+     "corpus_text_agreement": 0.973,
+     "image_agreement": 0.997
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\8bd0e53c7533967330fd1ca6fbc21ca846d5a6cb23bce081256a0586d67877d8.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "8bd0e53c7533967330fd1ca6fbc21ca846d5a6cb23bce081256a0586d67877d8",
+   "pages": 5,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "MCGILL-LJ-BACKCAT:26909",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "test",
+     "xml": "042_MCGILL-LJ-BACKCAT_article-26909_pdf-page-1.xml",
+     "corpus_text_agreement": 0.995,
+     "image_agreement": 0.999
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\6e51ea489d1330ba6b2753fadc9f48ae372689ecad8d47f4f4f043f363afb12a.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "6e51ea489d1330ba6b2753fadc9f48ae372689ecad8d47f4f4f043f363afb12a",
+   "pages": 4,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "OSGOODE-HALL-LJ:25293",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "021_OSGOODE-HALL-LJ_article-25293_pdf-page-3.xml",
+     "corpus_text_agreement": 0.996,
+     "image_agreement": 0.99
+    },
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "022_OSGOODE-HALL-LJ_article-25293_pdf-page-4.xml",
+     "corpus_text_agreement": 0.994,
+     "image_agreement": 0.997
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\bfcbc08f70d2aeb70fb276d5e0e5128e4027961ae93b63bf0dea64fdd802015c.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "bfcbc08f70d2aeb70fb276d5e0e5128e4027961ae93b63bf0dea64fdd802015c",
+   "pages": 18,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "OTTAWA-L-REV:12624",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 10,
+     "split": "eval",
+     "xml": "016_OTTAWA-L-REV_article-12624_pdf-page-10.xml",
+     "corpus_text_agreement": 0.989,
+     "image_agreement": 0.998
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\70a2b0e3cab21e4d98455866096d245ab7398f261e983b36793b6af85b2921b3.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "70a2b0e3cab21e4d98455866096d245ab7398f261e983b36793b6af85b2921b3",
+   "pages": 7,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "UBC-L-REV:7508",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 2,
+     "split": "eval",
+     "xml": "020_UBC-L-REV_article-7508_pdf-page-2.xml",
+     "corpus_text_agreement": 0.968,
+     "image_agreement": 0.951
+    },
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "021_UBC-L-REV_article-7508_pdf-page-3.xml",
+     "corpus_text_agreement": 0.968,
+     "image_agreement": 0.943
+    },
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "022_UBC-L-REV_article-7508_pdf-page-4.xml",
+     "corpus_text_agreement": 0.973,
+     "image_agreement": 0.953
+    },
+    {
+     "page": 5,
+     "split": "eval",
+     "xml": "023_UBC-L-REV_article-7508_pdf-page-5.xml",
+     "corpus_text_agreement": 0.969,
+     "image_agreement": 0.94
+    },
+    {
+     "page": 6,
+     "split": "eval",
+     "xml": "024_UBC-L-REV_article-7508_pdf-page-6.xml",
+     "corpus_text_agreement": 0.97,
+     "image_agreement": 0.951
+    },
+    {
+     "page": 7,
+     "split": "eval",
+     "xml": "025_UBC-L-REV_article-7508_pdf-page-7.xml",
+     "corpus_text_agreement": 0.966,
+     "image_agreement": 0.937
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\b8b8b2263dd6896911edccfa0498003d1a389962e234208d77dab361fd212568.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "b8b8b2263dd6896911edccfa0498003d1a389962e234208d77dab361fd212568",
+   "pages": 8,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "UNB-LJ:26433",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "eval",
+     "xml": "023_UNB-LJ_article-26433_pdf-page-1.xml",
+     "corpus_text_agreement": 0.975,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 2,
+     "split": "eval",
+     "xml": "024_UNB-LJ_article-26433_pdf-page-2.xml",
+     "corpus_text_agreement": 0.862,
+     "image_agreement": 0.996
+    },
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "025_UNB-LJ_article-26433_pdf-page-3.xml",
+     "corpus_text_agreement": 0.986,
+     "image_agreement": 0.995
+    },
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "026_UNB-LJ_article-26433_pdf-page-4.xml",
+     "corpus_text_agreement": 0.803,
+     "image_agreement": 0.996
+    },
+    {
+     "page": 5,
+     "split": "eval",
+     "xml": "027_UNB-LJ_article-26433_pdf-page-5.xml",
+     "corpus_text_agreement": 0.99,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 6,
+     "split": "eval",
+     "xml": "028_UNB-LJ_article-26433_pdf-page-6.xml",
+     "corpus_text_agreement": 0.801,
+     "image_agreement": 0.996
+    },
+    {
+     "page": 7,
+     "split": "eval",
+     "xml": "029_UNB-LJ_article-26433_pdf-page-7.xml",
+     "corpus_text_agreement": 0.96,
+     "image_agreement": 0.996
+    },
+    {
+     "page": 8,
+     "split": "eval",
+     "xml": "030_UNB-LJ_article-26433_pdf-page-8.xml",
+     "corpus_text_agreement": 0.906,
+     "image_agreement": 0.999
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\056ee28de6b669bc0ae91c23c4a4d906ec4255f85116e06e0da50374cbf64292.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "056ee28de6b669bc0ae91c23c4a4d906ec4255f85116e06e0da50374cbf64292",
+   "pages": 5,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "ALTA-L-REV:21096",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "test",
+     "xml": "017_ALTA-L-REV_article-21096_pdf-page-1.xml",
+     "corpus_text_agreement": 0.96,
+     "image_agreement": 0.998
+    },
+    {
+     "page": 2,
+     "split": "test",
+     "xml": "018_ALTA-L-REV_article-21096_pdf-page-2.xml",
+     "corpus_text_agreement": 0.925,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 3,
+     "split": "test",
+     "xml": "019_ALTA-L-REV_article-21096_pdf-page-3.xml",
+     "corpus_text_agreement": 0.873,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 4,
+     "split": "test",
+     "xml": "020_ALTA-L-REV_article-21096_pdf-page-4.xml",
+     "corpus_text_agreement": 0.91,
+     "image_agreement": 0.995
+    },
+    {
+     "page": 5,
+     "split": "test",
+     "xml": "021_ALTA-L-REV_article-21096_pdf-page-5.xml",
+     "corpus_text_agreement": 0.931,
+     "image_agreement": 0.997
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\d52f7f478702649dc1adefe0335a7f3d95114294bd2bf7aecbdb79e329d2b110.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "d52f7f478702649dc1adefe0335a7f3d95114294bd2bf7aecbdb79e329d2b110",
+   "pages": 10,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "APPEAL:10079",
+   "pdf_type": "image_only_scan",
+   "truth_pages": [
+    {
+     "page": 6,
+     "split": "eval",
+     "xml": "017_APPEAL_article-10079_pdf-page-6.xml",
+     "corpus_text_agreement": 0.0,
+     "image_agreement": 0.99
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\d8765e8371f3b0d64e5025f5a278b215ff322dddd0e6b61b0f03aa8e1599a39f.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "d8765e8371f3b0d64e5025f5a278b215ff322dddd0e6b61b0f03aa8e1599a39f",
+   "pages": 4,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "CAN-BAR-REV:22109",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "eval",
+     "xml": "056_CAN-BAR-REV_article-22109_pdf-page-1.xml",
+     "corpus_text_agreement": 0.965,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 2,
+     "split": "eval",
+     "xml": "057_CAN-BAR-REV_article-22109_pdf-page-2.xml",
+     "corpus_text_agreement": 0.987,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "058_CAN-BAR-REV_article-22109_pdf-page-3.xml",
+     "corpus_text_agreement": 0.975,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "059_CAN-BAR-REV_article-22109_pdf-page-4.xml",
+     "corpus_text_agreement": 0.98,
+     "image_agreement": 0.999
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\60a664762df32031e639faa6076a8a29ebd461b08c70a315209954c971e7d745.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "60a664762df32031e639faa6076a8a29ebd461b08c70a315209954c971e7d745",
+   "pages": 5,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "CAN-US-LJ:13532",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 2,
+     "split": "test",
+     "xml": "013_CAN-US-LJ_article-13532_pdf-page-2.xml",
+     "corpus_text_agreement": 0.993,
+     "image_agreement": 0.998
+    },
+    {
+     "page": 3,
+     "split": "test",
+     "xml": "014_CAN-US-LJ_article-13532_pdf-page-3.xml",
+     "corpus_text_agreement": 0.989,
+     "image_agreement": 0.998
+    },
+    {
+     "page": 4,
+     "split": "test",
+     "xml": "015_CAN-US-LJ_article-13532_pdf-page-4.xml",
+     "corpus_text_agreement": 0.991,
+     "image_agreement": 1.0
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\e530ae90dd47e44f761f8951fdd45103b7c195d2f4cdff1940ed40aa72519873.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "e530ae90dd47e44f761f8951fdd45103b7c195d2f4cdff1940ed40aa72519873",
+   "pages": 6,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "CONST-FORUM:14508",
+   "pdf_type": "image_only_scan",
+   "truth_pages": [
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "011_CONST-FORUM_article-14508_pdf-page-4.xml",
+     "corpus_text_agreement": 0.0,
+     "image_agreement": 1.0
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\336118e85c7fe0f9ffeccb93b3ddbc08035ed60342bd1d12adda4749c9bcfa74.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "336118e85c7fe0f9ffeccb93b3ddbc08035ed60342bd1d12adda4749c9bcfa74",
+   "pages": 2,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "DALHOUSIE-LJ:14087",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 2,
+     "split": "eval",
+     "xml": "015_DALHOUSIE-LJ_article-14087_pdf-page-2.xml",
+     "corpus_text_agreement": 0.999,
+     "image_agreement": 1.0
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\3bf7853b65a3e4f28da63cfcd5ddb4b35f374ffd5d66314c500788c1f356d33c.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "3bf7853b65a3e4f28da63cfcd5ddb4b35f374ffd5d66314c500788c1f356d33c",
+   "pages": 8,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "OSGOODE-HALL-LJ:23813",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 3,
+     "split": "test",
+     "xml": "040_OSGOODE-HALL-LJ_article-23813_pdf-page-3.xml",
+     "corpus_text_agreement": 0.989,
+     "image_agreement": 0.998
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\e23884d3d3004551176fe97670d26706008a5f73857e9eab1a1b1f0d25d2dc31.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "e23884d3d3004551176fe97670d26706008a5f73857e9eab1a1b1f0d25d2dc31",
+   "pages": 40,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "OTTAWA-L-REV:12827",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 22,
+     "split": "eval",
+     "xml": "046_OTTAWA-L-REV_article-12827_pdf-page-22.xml",
+     "corpus_text_agreement": 0.934,
+     "image_agreement": 0.998
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\d38e5fb9937065441c25c5f26f81cc1cf585f59ea742ddbd9c88c0ac4c264d06.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "d38e5fb9937065441c25c5f26f81cc1cf585f59ea742ddbd9c88c0ac4c264d06",
+   "pages": 4,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "UBC-L-REV:7658",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 2,
+     "split": "eval",
+     "xml": "022_UBC-L-REV_article-7658_pdf-page-2.xml",
+     "corpus_text_agreement": 0.977,
+     "image_agreement": 0.97
+    },
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "023_UBC-L-REV_article-7658_pdf-page-3.xml",
+     "corpus_text_agreement": 0.962,
+     "image_agreement": 0.968
+    },
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "024_UBC-L-REV_article-7658_pdf-page-4.xml",
+     "corpus_text_agreement": 0.954,
+     "image_agreement": 0.953
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\064cc99ac2cab082a0b13a99400321cd707f2e9204c139f3c5314cb4e3a3b62c.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "064cc99ac2cab082a0b13a99400321cd707f2e9204c139f3c5314cb4e3a3b62c",
+   "pages": 5,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "UNB-LJ:26414",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "test",
+     "xml": "022_UNB-LJ_article-26414_pdf-page-1.xml",
+     "corpus_text_agreement": 0.977,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 2,
+     "split": "test",
+     "xml": "023_UNB-LJ_article-26414_pdf-page-2.xml",
+     "corpus_text_agreement": 0.971,
+     "image_agreement": 0.996
+    },
+    {
+     "page": 3,
+     "split": "test",
+     "xml": "024_UNB-LJ_article-26414_pdf-page-3.xml",
+     "corpus_text_agreement": 0.971,
+     "image_agreement": 0.996
+    },
+    {
+     "page": 4,
+     "split": "test",
+     "xml": "025_UNB-LJ_article-26414_pdf-page-4.xml",
+     "corpus_text_agreement": 0.942,
+     "image_agreement": 0.997
+    },
+    {
+     "page": 5,
+     "split": "test",
+     "xml": "026_UNB-LJ_article-26414_pdf-page-5.xml",
+     "corpus_text_agreement": 0.938,
+     "image_agreement": 0.999
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\e7d406a80e3122b3df31a585ac87b0225ca3c8d3b608f1a9f37bebdb77e9f633.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "e7d406a80e3122b3df31a585ac87b0225ca3c8d3b608f1a9f37bebdb77e9f633",
+   "pages": 13,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "ALTA-L-REV:21099",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "test",
+     "xml": "031_ALTA-L-REV_article-21099_pdf-page-1.xml",
+     "corpus_text_agreement": 0.908,
+     "image_agreement": 0.996
+    },
+    {
+     "page": 3,
+     "split": "test",
+     "xml": "014_ALTA-L-REV_article-21099_pdf-page-3.xml",
+     "corpus_text_agreement": 0.768,
+     "image_agreement": 0.999
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\89b2fe2c1913dbf7c242c29ed051fd59f4a5a82ffa779eb69e4d25d4682a26f2.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "89b2fe2c1913dbf7c242c29ed051fd59f4a5a82ffa779eb69e4d25d4682a26f2",
+   "pages": 10,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "APPEAL:10080",
+   "pdf_type": "image_only_scan",
+   "truth_pages": [
+    {
+     "page": 6,
+     "split": "eval",
+     "xml": "014_APPEAL_article-10080_pdf-page-6.xml",
+     "corpus_text_agreement": 0.0,
+     "image_agreement": 0.99
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\563323c6beca316dd4caae465aaca44fc9923afa5cba380d95b4585fecb9e2c5.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "563323c6beca316dd4caae465aaca44fc9923afa5cba380d95b4585fecb9e2c5",
+   "pages": 4,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "CAN-BAR-REV:22218",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "eval",
+     "xml": "070_CAN-BAR-REV_article-22218_pdf-page-1.xml",
+     "corpus_text_agreement": 0.966,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 2,
+     "split": "eval",
+     "xml": "071_CAN-BAR-REV_article-22218_pdf-page-2.xml",
+     "corpus_text_agreement": 0.986,
+     "image_agreement": 0.999
+    },
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "072_CAN-BAR-REV_article-22218_pdf-page-3.xml",
+     "corpus_text_agreement": 0.984,
+     "image_agreement": 0.998
+    },
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "073_CAN-BAR-REV_article-22218_pdf-page-4.xml",
+     "corpus_text_agreement": 0.974,
+     "image_agreement": 0.999
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\fc425b011fc0d5467fc0d9db3959501f596024ac363674376875bdd0ff8fa957.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "fc425b011fc0d5467fc0d9db3959501f596024ac363674376875bdd0ff8fa957",
+   "pages": 5,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "CONST-FORUM:14539",
+   "pdf_type": "image_only_scan",
+   "truth_pages": [
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "022_CONST-FORUM_article-14539_pdf-page-3.xml",
+     "corpus_text_agreement": 0.0,
+     "image_agreement": 0.999
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\b2fe4d9303825f4e8359aee1ec882433edbfc222523fc5cd05ba9b49d300b7e2.pdf",
+   "mode": "ocr",
+   "split": "test",
+   "sha256": "b2fe4d9303825f4e8359aee1ec882433edbfc222523fc5cd05ba9b49d300b7e2",
+   "pages": 31,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "OTTAWA-L-REV:181",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 17,
+     "split": "test",
+     "xml": "015_OTTAWA-L-REV_article-181_pdf-page-17.xml",
+     "corpus_text_agreement": 0.993,
+     "image_agreement": 0.999
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\elias\\AppData\\Local\\OpenLegalData\\corpus\\journals\\ca\\journal-article\\6f731cac637b1d5b07ca509154c970eea90123894cc7905679d04d9f63542d07.pdf",
+   "mode": "ocr",
+   "split": "eval",
+   "sha256": "6f731cac637b1d5b07ca509154c970eea90123894cc7905679d04d9f63542d07",
+   "pages": 4,
+   "language_layout": "en",
+   "genre_group": "publication",
+   "country": "ca",
+   "yardstick": "main",
+   "label_source": "model",
+   "article": "UNB-LJ:26503",
+   "pdf_type": "scanned_ocr",
+   "truth_pages": [
+    {
+     "page": 1,
+     "split": "eval",
+     "xml": "027_UNB-LJ_article-26503_pdf-page-1.xml",
+     "corpus_text_agreement": 0.998,
+     "image_agreement": 0.996
+    },
+    {
+     "page": 2,
+     "split": "eval",
+     "xml": "028_UNB-LJ_article-26503_pdf-page-2.xml",
+     "corpus_text_agreement": 0.998,
+     "image_agreement": 0.995
+    },
+    {
+     "page": 3,
+     "split": "eval",
+     "xml": "029_UNB-LJ_article-26503_pdf-page-3.xml",
+     "corpus_text_agreement": 0.998,
+     "image_agreement": 1.0
+    },
+    {
+     "page": 4,
+     "split": "eval",
+     "xml": "030_UNB-LJ_article-26503_pdf-page-4.xml",
+     "corpus_text_agreement": 0.997,
+     "image_agreement": 1.0
+    }
+   ]
+  }
+ ]
+}
