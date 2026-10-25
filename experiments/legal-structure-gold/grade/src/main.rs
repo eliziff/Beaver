@@ -17,10 +17,13 @@
 //!       OUT_DIR/rows-<split>.jsonl.
 //!   structure-gold explain GOLD_DIR MANIFEST SHA_PREFIX [--exports | --candidates FILE] [--layers a,b] [--limit N]
 //!       one document's missed (-) and spurious (+) items per layer, as text.
+//!   structure-gold case GOLD_DIR MANIFEST --out FILE [--split S] [--genre FOLDER] [--units parser|gold] [--regions]
+//!       the A2AJ case grammar's outline over each source's units, as labels for grade --labels.
 //!   structure-gold paragraph-data GOLD_DIR MANIFEST OUT_DIR
 //!       exports Rust boundary features and fixed-gold targets, excluding test.
 mod alignment;
 mod assemble;
+mod case;
 mod labels;
 mod paragraph_data;
 mod paragraph_features;
@@ -28,6 +31,7 @@ mod rows;
 mod score;
 mod state;
 mod text_diff;
+mod tree;
 
 use legal_pdf_core::{read_gzip_json, write_gzip_json};
 use legal_structure_model::DocumentStructure;
@@ -744,7 +748,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
 fn rows(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
     let all: Vec<Source> = sources(gold, manifest)?.into_iter().filter(|s| s.split != "test").collect();
     std::fs::create_dir_all(out).map_err(|e| e.to_string())?;
-    std::fs::write(out.join("features.json"), serde_json::to_string(&rows::FEATURES[..]).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    std::fs::write(out.join("features.json"), serde_json::to_string(&rows::feature_names()).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     let started = Instant::now();
     let weight = |s: &Source| std::fs::metadata(inputs_dir(gold).join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
     let results = parallel(&all, weight, |source| -> Result<String, String> {
@@ -752,7 +756,11 @@ fn rows(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
         let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256)))
             .map_err(|e| format!("{}: {e}", source.sha256))?;
         let mut pages = Vec::new();
-        let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
+        // The parser's witnesses of every counted line, as its decisions read them in this replay.
+        let (document, captured) = legal_pdf_witnesses::capture(|| legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)));
+        let document = document.map_err(|e| format!("{}: {e}", source.sha256))?;
+        let legal_pdf_witnesses::Captured { witnesses: witnessed, navigation, heading_levels } = captured;
+        let witnesses: HashMap<String, Vec<f32>> = witnessed.into_iter().map(|(_, row)| (row.id, row.values)).collect();
         let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
             width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
         }).collect();
@@ -764,7 +772,7 @@ fn rows(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
         let (gold_pieces, wanted) = labels::labels(&reference, &|p| gold_regions.of(p))?;
         let alignment = alignment::align(&reference, &candidate)?;
         let carried = labels::carry(&reference, &gold_pieces, &wanted, &candidate, &pieces, &alignment);
-        let mut row = rows::document(&pages, &candidate, &pieces, &tier0, &carried);
+        let mut row = rows::document(&pages, &candidate, &pieces, &tier0, &carried, &witnesses, &navigation, &heading_levels);
         row["sha256"] = json!(source.sha256);
         row["split"] = json!(source.split);
         row["mode"] = json!(source.mode);
@@ -979,6 +987,12 @@ fn main() {
         }
         [command, _, _, rows_dir, split, options @ ..] if command == "assemble" => {
             assemble::run(Path::new(rows_dir), split, options)
+        }
+        [command, _, _, rows_dir, split, options @ ..] if command == "tree" => {
+            tree::run(Path::new(rows_dir), split, options)
+        }
+        [command, gold, manifest, options @ ..] if command == "case" => {
+            case::run(Path::new(gold), Path::new(manifest), options)
         }
         _ => Err(
             "usage: structure-gold inputs|grade|rows|explain GOLD_DIR MANIFEST [SHA|OUT_DIR] [options]".into(),

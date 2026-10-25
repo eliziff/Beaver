@@ -173,9 +173,22 @@ fn unit_context(candidate: &State, pieces: &[Piece], tier0: &[Label], geometry: 
     (rows, families)
 }
 
+/// Every row's feature names: the evidence above, then whether the parser counted the piece's line
+/// among its witnessed lines and that line's witnesses as its decisions read them.
+pub fn feature_names() -> Vec<String> {
+    FEATURES.iter().map(|f| f.to_string()).chain(std::iter::once("w_counted".to_owned()))
+        .chain(legal_pdf_witnesses::NAMES.iter().map(|n| format!("w_{n}")))
+        .chain(["o_level", "o_nav", "o_nav_root"].map(str::to_owned)).collect()
+}
+
 /// One document's rows, over the candidate's pieces in its reading order; `gold` holds the gold's
-/// labels carried onto each piece.
-pub fn document(pages: &[Page], candidate: &State, pieces: &[Piece], tier0: &[Label], gold: &[Option<Label>]) -> Value {
+/// labels carried onto each piece, `witnesses` the parser's witnesses of each counted line by id,
+/// `navigation` each bookmarked heading line's parent line and `levels` each heading line's level
+/// on the parser's ladder.
+#[allow(clippy::too_many_arguments)]
+pub fn document(pages: &[Page], candidate: &State, pieces: &[Piece], tier0: &[Label], gold: &[Option<Label>],
+                witnesses: &HashMap<String, Vec<f32>>, navigation: &HashMap<String, Option<String>>,
+                levels: &HashMap<String, usize>) -> Value {
     let mut by_id: HashMap<&str, (usize, usize)> = HashMap::new();
     for (p, page) in pages.iter().enumerate() {
         for (n, line) in page.lines.iter().enumerate() {
@@ -224,6 +237,12 @@ pub fn document(pages: &[Page], candidate: &State, pieces: &[Piece], tier0: &[La
         Some((line.bbox[0], dominant(line).map_or(0.0, |d| d.1), pages[p].width.max(1.0), flagged(line, 16) > 0.5))
     };
     let (context, families) = unit_context(candidate, pieces, tier0, &geometry);
+    // Each line's first row, for a bookmark's parent line.
+    let mut first_row: HashMap<&str, i64> = HashMap::new();
+    for (row, &k) in kept.iter().enumerate() {
+        first_row.entry(candidate.lines[pieces[k].line].id.as_str()).or_insert(row as i64);
+    }
+    let mut navigation_rows: Vec<i64> = Vec::new();
     for &k in &kept {
         let piece = &pieces[k];
         let line = &candidate.lines[piece.line];
@@ -272,6 +291,17 @@ pub fn document(pages: &[Page], candidate: &State, pieces: &[Piece], tier0: &[La
         ]);
         values.extend(context[k].iter().copied());
         debug_assert_eq!(values.len(), FEATURES.len());
+        match witnesses.get(&line.id) {
+            Some(own) => {
+                values.push(1.0);
+                values.extend(own.iter().map(|&v| f64::from(v)));
+            }
+            None => values.extend(std::iter::repeat_n(0.0, legal_pdf_witnesses::NAMES.len() + 1)),
+        }
+        let claim = navigation.get(&line.id);
+        values.extend([levels.get(&line.id).map_or(0.0, |&l| l as f64), f64::from(u8::from(claim.is_some())),
+            f64::from(u8::from(claim.is_some_and(Option::is_none)))]);
+        navigation_rows.push(claim.and_then(|parent| parent.as_deref()).and_then(|parent| first_row.get(parent)).copied().unwrap_or(-1));
         ids.push(anchor(candidate, piece));
         page_of.push(p);
         features.push(values.into_iter().map(|v| (v * 1e4).round() / 1e4).collect::<Vec<f64>>());
@@ -279,5 +309,6 @@ pub fn document(pages: &[Page], candidate: &State, pieces: &[Piece], tier0: &[La
         tier0_rows.push(row(&tier0[k]));
         gold_rows.push(gold[k].as_ref().map_or(json!(null), row));
     }
-    json!({"ids": ids, "pages": page_of, "features": features, "text": texts, "tier0": tier0_rows, "gold": gold_rows})
+    json!({"ids": ids, "pages": page_of, "features": features, "text": texts, "tier0": tier0_rows, "gold": gold_rows,
+           "navigation": navigation_rows})
 }
