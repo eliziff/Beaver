@@ -33,9 +33,14 @@ import torch.nn.functional as F
 REGIONS = ["none", "text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote",
            "marginal_note", "furniture", "page_label", "line_label", "title", "note_quote", "provision"]
 STARTS = ["inside", "unit", "resume"]
-# Label columns: region, start, document, reference, heading step, marker, resumed row.
-LABELS = 7
-HEADS = [("region", 0, len(REGIONS)), ("start", 1, len(STARTS)), ("document", 2, 2), ("reference", 3, 2), ("level", 4, 10), ("marker", 5, 2)]
+# Label columns: region, start, document, reference, heading step, marker, resumed row, body depth step.
+LABELS = 8
+# A step is one of 19 classes (the tagger's `step`: 0 none, 10 plus the change).
+STEPS = 19
+HEADS = [("region", 0, len(REGIONS)), ("start", 1, len(STARTS)), ("document", 2, 2), ("reference", 3, 2), ("level", 4, STEPS), ("marker", 5, 2),
+         ("depth", 7, STEPS)]
+# The body regions that take a depth (the tagger's RANKED, headings aside).
+BODY = [REGIONS.index(r) for r in ("text", "provision", "list_item", "quote", "table", "caption", "headnote")]
 UNRANKED = {0, 5, 7, 10, 11, 12, 13, 14, 15}
 
 
@@ -121,9 +126,10 @@ class Document:
         region_types, note_modes, families = vocabs
         self.reader = np.asarray([[region_types(t[1]), note_modes(t[2]), families(t[3])] for t in raw["text"]], dtype=np.int64)
         self.gold = np.asarray([g if g is not None else [-100] * LABELS for g in raw["gold"]], dtype=np.int64)
-        # The step is learned on heading starts; elsewhere the column is no target.
+        # The steps are learned on heading starts and body unit starts; elsewhere the columns are no target.
         heading = REGIONS.index("heading")
         self.gold[(self.gold[:, 0] != heading) | (self.gold[:, 1] != 1), 4] = -100
+        self.gold[~np.isin(self.gold[:, 0], BODY) | (self.gold[:, 1] != 1), 7] = -100
         self.length = len(values)
 
 
@@ -272,6 +278,7 @@ def predict(model, docs, device):
         labels[:, 6] = -1
         labels[labels[:, 0] == 0, 1] = 0
         labels[(labels[:, 0] != heading) | (labels[:, 1] != 1), 4] = 0
+        labels[~np.isin(labels[:, 0], BODY) | (labels[:, 1] != 1), 7] = 0
         labels[labels[:, 1] != 1, 5] = 0
         latest = {}
         for n in range(doc.length):
@@ -425,8 +432,9 @@ def main():
             total += float(tagged.detach()); count += 1
         predictions = predict(model, dev, device)
         lines = report(dev, predictions, f"epoch {epoch + 1:2}")
-        # Selection: region, start and level accuracy on development, alike.
-        selected = float(np.mean([float(l.split("model ")[1].split()[0]) for l in (lines[0], lines[1], lines[-1])]))
+        # Selection: region, start and marker accuracy on development, alike.
+        named = {name: l for (name, _, _), l in zip(HEADS, lines)}
+        selected = float(np.mean([float(named[h].split("model ")[1].split()[0]) for h in ("region", "start", "marker")]))
         print(f"epoch {epoch + 1:2} loss {total / max(count, 1):.4f} in {time.time() - began:.1f}s; selection {selected:.4f}", flush=True)
         for l in lines:
             print("  " + l, flush=True)
