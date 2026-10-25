@@ -246,6 +246,8 @@ struct Features {
     heading_steps: Vec<(Option<Point>, String)>,
     /// Each body unit's step in depth from the body unit before it.
     depth_steps: Vec<(Option<Point>, String)>,
+    /// The depth steps of the numbered body units alone.
+    sequence_steps: Vec<(Option<Point>, String)>,
     /// The state gives depths (a gold the document pass has read); a parse's are read off its tree.
     depth_given: bool,
     hierarchy_marker: Vec<(Option<Point>, Segments)>,
@@ -515,6 +517,10 @@ fn features<'a>(
     };
     result.depth_given = units.iter().any(|first| groups[*first].attributes.contains_key("depth"));
     let mut steps: HashMap<&str, String> = HashMap::new();
+    // A numbered body unit's step from the numbered body unit before it: where its numbering's
+    // sequence goes, on, in, or back out.
+    let mut sequence: HashMap<&str, String> = HashMap::new();
+    let mut numbered_before = None;
     let (mut heading_before, mut depth_before) = (None, None);
     // Each document's levels are its own: the first unit of a document steps from nothing.
     let document_starts: HashSet<&str> = annotations.iter().filter(|a| a.kind == "document").map(|a| a.line_ids[0].as_str()).collect();
@@ -522,7 +528,7 @@ fn features<'a>(
         let g = groups[first];
         let line = g.spans.first().map_or_else(|| g.line_ids[0].as_str(), |s| s.line_id.as_str());
         if document_starts.contains(line) {
-            (heading_before, depth_before) = (None, None);
+            (heading_before, depth_before, numbered_before) = (None, None, None);
         }
         if role(groups[first]) == "heading" {
             let at = level(first, true);
@@ -532,6 +538,10 @@ fn features<'a>(
             let at = level(first, false);
             steps.insert(first, format!("depth {}", step(depth_before, at)));
             depth_before = Some(at);
+            if g.attributes.get("marker").and_then(Value::as_array).is_some_and(|m| !m.is_empty()) {
+                sequence.insert(first, step(numbered_before, at));
+                numbered_before = Some(at);
+            }
         }
     }
     for first in &keys {
@@ -591,6 +601,9 @@ fn features<'a>(
         }
         if let Some(found) = at.strip_prefix("depth ") {
             result.depth_steps.push((unit, found.to_owned()));
+        }
+        if let Some(found) = sequence.get(first) {
+            result.sequence_steps.push((unit, found.clone()));
         }
         if !marker.is_empty() {
             result.hierarchy_marker.push((unit, marker_spans));
@@ -883,6 +896,10 @@ pub fn explain(
         depth_steps,
         |(u, at): &(Option<Point>, String)| format!("{at} {}", render.point(*u))
     );
+    layer!(
+        sequence_steps,
+        |(u, at): &(Option<Point>, String)| format!("{at} {}", render.point(*u))
+    );
     layer!(hierarchy_marker, |(u, marker): &(
         Option<Point>,
         Segments
@@ -1003,6 +1020,7 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
     // A gold without depths (machine silver) scores none.
     if wanted.depth_given {
         metrics.insert("depth_steps", prf(&wanted.depth_steps, &got.depth_steps));
+        metrics.insert("sequence_steps", prf(&wanted.sequence_steps, &got.sequence_steps));
     }
     metrics.insert(
         "hierarchy_marker",
