@@ -123,7 +123,7 @@ def lines_prompt(numbered, target, count, before=None, after=None, shared=False)
         "", f"TARGET_PAGE: page {target} of {count}",
         *(["This page also holds part of another document: the target lines are this document's part of it."] if shared else []),
         "", "TARGET_LINES:",
-        *[f"{n} | {text if text.strip() else '[no text extracted]'}" for n, (_, _, text) in numbered.items()],
+        *[f"{n} | {text}" for n, (_, _, text) in numbered.items()],
         "", "OTHER_DOCUMENT_CONTEXT:", "\n---\n".join(context) or "[none]"])
 
 
