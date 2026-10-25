@@ -3,7 +3,7 @@ pages either side as context) and the document pass (the whole document: heading
 documents)."""
 import json
 
-REGIONS = ("text", "list_item", "heading", "quote", "note", "table", "contents", "headnote", "marginal_note", "furniture",
+REGIONS = ("text", "list_item", "title", "heading", "quote", "note", "note_quote", "table", "contents", "headnote", "marginal_note", "furniture",
            "page_label", "line_label")
 MARKER_KINDS = ("number", "line_number", "speaker")
 LINES ="""You are correcting OCR text, assigning document-layout regions, and choosing final reading order for one legal document page.
@@ -25,10 +25,12 @@ Rules:
 
 Regions:
 - text: the document's own prose: its argument, discussion, narrative, quotations worked into the paragraph, and continuation lines; its paragraphs, clauses, sections and subclauses, however numbered, each with its own caption, run in or on a line of its own; cover lines, the issuing court or body, parties, counsel, signature blocks, form fields and their labels (TO:, BEFORE:, APPEARANCES:), one unit per party, counsel entry with the party it acts for, or signatory. Use text even when a line is short, indented, numbered, dense, or visually similar to surrounding note text, unless the local text clearly belongs to a more specific region.
-- list_item: an item of a list that carries on a lead-in ending in a colon: (a), (i), bullets or a count. A numbered or lettered provision that stands on its own is text.
-- heading: the document's title (what the document is called), and the headings of its divisions: parts, articles, chapters, and unnumbered headings over the text that follows. Not a numbered clause's or section's own caption, nor a label.
+- list_item: an item of a list set out in the text, such as bullets or an enumeration of things. A numbered or lettered paragraph, clause, section or subclause is text, however it is introduced.
+- title: the document's title: what the document is called.
+- heading: the heading of one of the document's divisions: a part, article or chapter, or an unnumbered heading over the text that follows. Not a numbered clause's or section's own caption, nor a label.
 - quote: a quoted passage set apart from normal prose as an indented or narrower display block: a block quotation, an excerpt of legislation, a judgment or another document, its own lists and headings included.
 - note: footnote or endnote text: bottom-of-page notes separated from the main body prose, or the entries of a notes section; its own number or mark included. A body line with a note marker is still text.
+- note_quote: a block quotation set inside a note.
 - table: a table row. contents: table-of-contents or index entries only.
 - headnote: a law report's editorial text, not the court's words: catchlines, headnote, syllabus, the reporter's summary and lists of counsel and of cases cited.
 - marginal_note: a statute's side note.
@@ -73,8 +75,8 @@ _TYPE = "- type: what the document is."
 # depth per row, headings included ("one").
 HIERARCHY = {"two": _ROWS + """
 Answer each row the answer names, once, with a heading level or with depths:
-- level: a heading's level: 1 for the outermost headings of its document, 2 for headings under those, and so on. Headings of one kind (same numbering, same type) share a level. A row of another region that is a title is a heading too: give it a level.
-- depths: any other row's depth in the document's body: 1 for a unit standing directly under the headings, 2 for a unit inside a unit of depth 1 (a section's subsections, a paragraph's list or block quotation, words that carry on a section after its list), and so on; one depth per printed marker, in order ("6 (1)": 1, 2), the row's depth being its last marker's. A heading row that is no title (a party's name, a signature line, a field label, a sentence) gets depths, as text.
+- level: a heading's level: 1 for the outermost headings of its document, 2 for headings under those, and so on. Headings of one kind (same numbering, same type) share a level. A row of another region that heads a division is a heading too: give it a level.
+- depths: how far each other row is nested below the heading above it. A row directly under a heading is 1. A row inside another row is one deeper: a subsection in its section, an (a) in its clause, a block quotation in its paragraph. Text that resumes a section after its list returns to the section's depth. Give one depth per printed marker, in order: "6 (1)" is 1, 2. A heading row that heads no division (a party's name, a signature line, a field label, a sentence) gets depths, as text.
 """, "one": _ROWS + """
 Answer each row the answer names, once, with its depths:
 - depths: the row's depth in its document: 1 for the outermost units, and a unit inside another one deeper than it: headings under a heading, the paragraphs under a heading, a section's subsections, a paragraph's list or block quotation, words that carry on a section after its list. One depth per printed marker, in order ("6 (1)" under a heading of depth 1: 2, 3), the row's depth being its last marker's.

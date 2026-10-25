@@ -14,7 +14,7 @@ heading before it.
 """
 OWN = {"furniture", "page_label", "line_label"}
 # Units the document pass shows but gives no level or depth.
-UNLEVELLED = OWN | {"note", "marginal_note", "contents"}
+UNLEVELLED = OWN | {"note", "note_quote", "marginal_note", "contents", "title"}
 # Input tokens of one hierarchy call: gpt-6.1-sol's 500k context, less its instructions, reasoning
 # and answer. A whole document fits up to about 100 pages at the 2,048-pixel long side; a longer one
 # goes in windows.
