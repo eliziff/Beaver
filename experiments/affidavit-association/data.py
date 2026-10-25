@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import sys
 import uuid
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 BENCH = ROOT / 'benchmarks/court-record-exhibits'
@@ -23,6 +24,15 @@ def read(path):
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def public_source_url(value):
+    if not isinstance(value, str): return False
+    try:
+        parsed = urlsplit(value)
+        return parsed.scheme in ('http', 'https') and bool(parsed.hostname)
+    except ValueError:
+        return False
 
 
 def accepted_gold(expansion, artifact='gold.json', with_directories=False, lanes=None):
@@ -77,6 +87,8 @@ def source_mapping(source, part):
     if part.get('cover_page') is not None:
         item['cover_pages'] = [part['cover_page']]
         item['pages'] = sorted(set(item['pages']) | {part['cover_page']})
+    if 'document_starts' in part:
+        item['document_starts'] = list(part['document_starts'])
     return item
 
 
@@ -216,7 +228,7 @@ def distractor_views(directory):
         if (not file.is_relative_to(directory.resolve()) or not text.is_relative_to(directory.resolve())
                 or item.get('review_status') != 'accepted'):
             raise ValueError('Unreviewed or nonlocal distractor: ' + item['file'])
-        if not item.get('source_sha256') or not item.get('source_url', '').startswith('https://'):
+        if not item.get('source_sha256') or not public_source_url(item.get('source_url')):
             raise ValueError('Missing distractor source provenance: ' + item['file'])
         if not isinstance(item.get('same_proceeding'), bool):
             raise ValueError('Missing distractor proceeding relationship: ' + item['file'])

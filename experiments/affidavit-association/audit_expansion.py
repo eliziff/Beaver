@@ -10,7 +10,7 @@ import re
 import sqlite3
 import sys
 
-from data import ROOT, PRIVATE, RECORDS, read, digest, visible_text, accepted_gold, association_views, source_mapping, distractor_views
+from data import ROOT, PRIVATE, RECORDS, read, digest, visible_text, accepted_gold, association_views, source_mapping, distractor_views, public_source_url
 
 
 def referring_key(text):
@@ -34,7 +34,8 @@ def source_parts(item):
              'pages': item.get('pages') or item.get('source_pages'),
              'cover_pages': item.get('cover_pages') or item.get('source_cover_pages')
                             or ([item.get('source_cover_page') or item['cover_page']]
-                                if item.get('source_cover_page') or item.get('cover_page') else [])}]
+                                if item.get('source_cover_page') or item.get('cover_page') else []),
+             **({'document_starts': list(item['document_starts'])} if 'document_starts' in item else {})}]
 
 
 def referring_parts(gold):
@@ -69,7 +70,7 @@ def original_source_errors(parts, files, checked):
     errors = []
     for part in parts:
         sha, pages = part.get('sha256'), part.get('pages')
-        if not re.fullmatch(r'[a-f0-9]{64}', sha or '') or not part.get('url', '').startswith('https://'):
+        if not re.fullmatch(r'[a-f0-9]{64}', sha or '') or not public_source_url(part.get('url')):
             errors.append('Invalid original source hash/URL'); continue
         if sha not in files:
             errors.append('Original source missing from corpus index: ' + sha); continue
