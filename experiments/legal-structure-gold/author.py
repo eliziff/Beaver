@@ -311,8 +311,9 @@ def author_hierarchy(typed, groups, texts, indents, images, job, args, whole=Fal
 
 def split(lines, starts):
     """The file's extracted lines, in reading order, cut into its documents at the given starts: a
-    page (the document starts at the page's first line) or {"page", "line_id"} (it starts at that
-    line, partway down the page). No starts: the file is one document."""
+    page (the document starts at the page's first line) or {"page", "line_id", "text"} (it starts at
+    that line, partway down the page; the line must still read that text, so a start named on another
+    extraction cannot cut at the wrong line). No starts: the file is one document."""
     index = {l["id"]: n for n, l in enumerate(lines)}
     first = {}
     for n, line in enumerate(lines): first.setdefault(line["page"], n)
@@ -321,6 +322,8 @@ def split(lines, starts):
         line_id = start.get("line_id") if isinstance(start, dict) else None
         page = start["page"] if isinstance(start, dict) else start
         gold.require(line_id in index if line_id else page in first, f"Document start {start} is not on the file's extracted lines")
+        gold.require(not line_id or "text" not in start or lines[index[line_id]]["text"] == start["text"],
+                     f"Document start {start} names a line that now reads otherwise: {lines[index[line_id]]['text']!r}" if line_id in index else "")
         cuts.add(index[line_id] if line_id else first[page])
     bounds = [0, *sorted(cuts - {0}), len(lines)]
     return [lines[a:b] for a, b in zip(bounds, bounds[1:])]
