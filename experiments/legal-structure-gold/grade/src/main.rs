@@ -182,6 +182,28 @@ fn files(directory: &Path) -> Vec<PathBuf> {
     found
 }
 
+/// A source's cached page readings, one per page. The OCR cache is kept across parser builds, so a
+/// page another build read differently has two; the gold's is the one whose lines read as the
+/// gold's extracted lines of that page read.
+fn readings(folder: &Path, expected: &state::Gold) -> Result<Vec<PathBuf>, String> {
+    let mut pages: BTreeMap<u64, Vec<(PathBuf, Vec<String>)>> = BTreeMap::new();
+    for path in files(folder) {
+        let reading: Value = read_gzip_json(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let page = reading["page"]["page_index"].as_u64().ok_or_else(|| format!("{}: no page index", path.display()))?;
+        let lines = reading["page"]["lines"].as_array().into_iter().flatten()
+            .filter_map(|l| l["text"].as_str().map(str::to_owned)).collect();
+        pages.entry(page).or_default().push((path, lines));
+    }
+    Ok(pages.into_iter().map(|(page, mut found)| {
+        if found.len() > 1 {
+            let gold: HashSet<&str> = expected.lines.iter()
+                .filter(|l| l.page as u64 == page + 1).map(|l| l.text.as_str()).collect();
+            found.sort_by_key(|(_, lines)| std::cmp::Reverse(lines.iter().filter(|t| gold.contains(t.as_str())).count()));
+        }
+        found.swap_remove(0).0
+    }).collect())
+}
+
 /// Run `work` over the sources on every core, longest first, keeping each result in place.
 fn parallel<T: Send>(
     sources: &[Source],
@@ -473,7 +495,7 @@ fn inputs(gold: &Path, manifest: &Path) -> Result<(), String> {
                         extractions.len()
                     ));
                 };
-                let readings = files(&gold.join("parsed").join(&source.sha256).join("ocr/recognition"));
+                let readings = readings(&gold.join("parsed").join(&source.sha256).join("ocr/recognition"), &expected)?;
                 candidates.push(
                     legalpdf::gold_structure_inputs(&pdf, extraction, &readings, std::env::var_os("STRUCTURE_GOLD_FRESH").is_some())
                         .map_err(|e| format!("{}: {e}", source.sha256))?,
@@ -789,7 +811,11 @@ fn totals_json(rows: &[&Value]) -> Value {
     }).collect())
 }
 
-/// The layers the apps read, first and by name; every other layer follows.
+/// The layers the apps read, first and by name; every other layer follows. A parse alone is read
+/// for its body units as one kind (BODY_LAYERS); a tagger's for paragraphs, provisions and list
+/// items apart.
+const BODY_LAYERS: [(&str, &str); 2] = [("units_body", "body units"), ("markers_body", "body markers")];
+const FINE_LAYERS: [&str; 6] = ["markers_text", "units_text", "markers_provision", "units_provision", "units_list_item", "markers_list_item"];
 const KEY_LAYERS: [(&str, &str); 16] = [
     ("units_heading", "headings"),
     ("markers_text", "numbered paragraphs"),
@@ -809,7 +835,7 @@ const KEY_LAYERS: [(&str, &str); 16] = [
     ("transcription", "transcription (characters matched)"),
 ];
 
-fn table(title: &str, totals: &BTreeMap<String, score::Metric>) {
+fn table(title: &str, totals: &BTreeMap<String, score::Metric>, fine: bool) {
     println!("
 {title}");
     println!(
@@ -821,14 +847,21 @@ fn table(title: &str, totals: &BTreeMap<String, score::Metric>) {
         let r = if m.expected > 0 { m.correct as f64 / m.expected as f64 } else { 1.0 };
         println!("{name:34} {:8} {:8} {p:6.3} {r:6.3} {:6.3}", m.expected, m.predicted, m.f1());
     };
-    for (layer, label) in KEY_LAYERS {
-        if let Some(m) = totals.get(layer) {
+    let shown: Vec<(&str, &str)> = if fine {
+        KEY_LAYERS.into_iter().collect()
+    } else {
+        BODY_LAYERS.into_iter().chain(KEY_LAYERS.into_iter().filter(|(layer, _)| !FINE_LAYERS.contains(layer))).collect()
+    };
+    for (layer, label) in &shown {
+        if let Some(m) = totals.get(*layer) {
             row(&format!("{label} [{layer}]"), m);
         }
     }
     println!("{:34} {:>8}", "  other layers", "");
     for (name, m) in totals {
-        if !KEY_LAYERS.iter().any(|(layer, _)| layer == name) {
+        // The other reading's body layers stay out of the table (they remain in the summary).
+        let other_reading = if fine { BODY_LAYERS.iter().any(|(layer, _)| layer == name) } else { FINE_LAYERS.contains(&name.as_str()) };
+        if !shown.iter().any(|(layer, _)| layer == name) && !other_reading {
             row(name, m);
         }
     }
@@ -930,6 +963,8 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
         }
         None => None,
     };
+    // A tagger's labels are read for paragraphs, provisions and list items apart; a parse alone, not.
+    let fine = tagger.is_some() || labelled.is_some();
     let split = value("--split");
     let mut groups = Vec::new();
     for (n, option) in options.iter().enumerate().filter(|(_, o)| *o == "--group") {
@@ -1023,7 +1058,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     splits.sort_by_key(|s| match *s { "train" => 0, "development" => 1, "test" => 2, _ => 3 });
     for split in splits {
         let chosen: Vec<&Value> = rows.iter().filter(|r| r["split"] == split).collect();
-        table(&format!("{split}: {} documents", chosen.len()), &pooled(&chosen));
+        table(&format!("{split}: {} documents", chosen.len()), &pooled(&chosen), fine);
         let mut fields = Map::new();
         for field in ["yardstick", "language_layout", "genre_group"] {
             let mut grouped: BTreeMap<&str, Vec<&Value>> = BTreeMap::new();
@@ -1036,7 +1071,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
             let mut values = Map::new();
             for (value, members) in grouped {
                 let scope = if field == "genre_group" { " / yardstick=main" } else { "" };
-                table(&format!("{split}{scope} / {field}={value}: {} documents", members.len()), &pooled(&members));
+                table(&format!("{split}{scope} / {field}={value}: {} documents", members.len()), &pooled(&members), fine);
                 values.insert(value.to_owned(), totals_json(&members));
             }
             fields.insert(field.to_owned(), Value::Object(values));

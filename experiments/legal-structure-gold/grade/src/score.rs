@@ -1042,6 +1042,13 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
         let marks = |f: &Features| f.markers_kind.iter().filter(|(k, _, _)| k == kind).map(|(_, u, s)| (*u, s.clone())).collect::<Vec<_>>();
         metrics.insert(markers_name, prf(&marks(&wanted), &marks(&got)));
     }
+    // Whether a numbered body unit is a paragraph, a list item or a provision turns on what the
+    // document is, which a parse alone does not know: its body units are scored as one kind too.
+    const BODY: [&str; 3] = ["text", "provision", "list_item"];
+    let body = |f: &Features| f.units_kind.iter().filter(|(k, _)| BODY.contains(&k.as_str())).map(|(_, p)| p.clone()).collect::<Vec<_>>();
+    metrics.insert("units_body", prf(&body(&wanted), &body(&got)));
+    let body_marks = |f: &Features| f.markers_kind.iter().filter(|(k, _, _)| BODY.contains(&k.as_str())).map(|(_, u, s)| (*u, s.clone())).collect::<Vec<_>>();
+    metrics.insert("markers_body", prf(&body_marks(&wanted), &body_marks(&got)));
     let text = recognition(reference, predicted, &alignment)?;
     Ok(Score {
         metrics,
