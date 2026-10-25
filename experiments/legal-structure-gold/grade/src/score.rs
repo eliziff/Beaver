@@ -1067,6 +1067,10 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
     metrics.insert("units_body", prf(&body(&wanted), &body(&got)));
     let body_marks = |f: &Features| f.markers_kind.iter().filter(|(k, _, _)| BODY.contains(&k.as_str())).map(|(_, u, s)| (*u, s.clone())).collect::<Vec<_>>();
     metrics.insert("markers_body", prf(&body_marks(&wanted), &body_marks(&got)));
+    // Contents read piece by piece: every reader cuts a list into entries its own way; which of the
+    // source's lines are the list's is what an app reads.
+    let contents = |f: &Features| f.units_kind.iter().filter(|(k, _)| k == "contents").flat_map(|(_, p)| p.iter().map(|piece| vec![piece.clone()])).collect::<Vec<_>>();
+    metrics.insert("contents_lines", prf(&contents(&wanted), &contents(&got)));
     let text = recognition(reference, predicted, &alignment)?;
     Ok(Score {
         metrics,
