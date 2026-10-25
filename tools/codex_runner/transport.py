@@ -29,7 +29,7 @@ def execute(arguments, *, prompt, timeout_seconds, work_dir=None, env=None,
         process = subprocess.Popen(
             arguments, stdin=subprocess.PIPE, stdout=stdout, stderr=stderr,
             text=True, encoding="utf-8", errors=encoding_errors, cwd=work_dir, env=env,
-            creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS if low_priority and os.name == "nt" else 0,
+            creationflags=subprocess.IDLE_PRIORITY_CLASS if low_priority and os.name == "nt" else 0,
             start_new_session=os.name != "nt",
         )
         try:

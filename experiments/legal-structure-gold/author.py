@@ -121,7 +121,7 @@ def extract(pdf, mode, out, timeout, witness=None):
 def extract_unlocked(pdf, mode, out, timeout):
     process = subprocess.Popen(["node", str(HERE / "extract.mjs"), str(pdf), str(out / "parsed"), mode],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
-                               creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == "nt" else 0)
+                               creationflags=subprocess.IDLE_PRIORITY_CLASS if os.name == "nt" else 0)
     try: stdout, stderr = process.communicate(timeout=timeout)
     except BaseException:
         terminate(process); raise

@@ -20,7 +20,7 @@ def require(value, message):
 
 
 def low_priority():
-    """Run this process and its children below normal priority, with UTF-8 output."""
+    """Run this process and its children at idle priority, so the machine stays usable, with UTF-8 output."""
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"): stream.reconfigure(encoding="utf-8")
     if os.name == "nt":
@@ -28,9 +28,9 @@ def low_priority():
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel.GetCurrentProcess.restype = ctypes.c_void_p
         kernel.SetPriorityClass.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
-        if not kernel.SetPriorityClass(kernel.GetCurrentProcess(), 0x4000): raise ctypes.WinError(ctypes.get_last_error())
+        if not kernel.SetPriorityClass(kernel.GetCurrentProcess(), subprocess.IDLE_PRIORITY_CLASS): raise ctypes.WinError(ctypes.get_last_error())
     else:
-        os.nice(10)
+        os.nice(19)
 
 
 def close_native():
