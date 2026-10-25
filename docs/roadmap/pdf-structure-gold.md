@@ -71,6 +71,15 @@ of 457 gold pairs).
 `experiments/legal-structure-gold/score_all.py` scores a parser build against the gold, feature by
 feature. The journal footnote gold (`experiments/footnote-gold`) scores footnote pairing.
 
+The [page-stream experiment](../../experiments/page-stream-segmentation/README.md)
+prepares page-boundary labels from existing v4 document flags and original
+affidavit/medical source maps. It stages bounded Codex image requests, preserves
+unknown gaps, exports family-partitioned examples and measures boundary and
+packet accuracy. A CPU tree baseline consumes existing Rust feature rows.
+Within-page starts retain their span gold; no page boundary is inferred from them.
+Real-data training, independent quality/calibration and end-to-end timing remain
+gates before a boundary model enters the parser's tier 1.
+
 ## Out of scope
 
 Court-record classification, affidavit processing and exhibit association keep their own runner.
