@@ -51,7 +51,7 @@ class AssociationTests(unittest.TestCase):
             text.write_text('Complete revised bridge survey.', encoding='utf-8')
             counterpart = {'file': 'counterpart.pdf', 'text_file': text.name, 'text_sha256': digest(text),
                            'source_sha256': 'e' * 64, 'sha256': 'f' * 64, 'source_pages': [8, 9],
-                           'source_url': 'https://example.org/invented-survey-record.pdf',
+                           'source_url': 'http://example.org/invented-survey-record.pdf',
                            'same_proceeding': True, 'review_status': 'accepted'}
             (directory / 'distractors.json').write_text(json.dumps([counterpart]), encoding='utf-8')
             gold = {'record_id': 'invented-survey', 'exhibits': [{'label': 'A', 'source_sha256': 'e' * 64, 'source_pages': [4]}]}

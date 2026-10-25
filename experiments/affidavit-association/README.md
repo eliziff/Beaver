@@ -38,6 +38,14 @@ damaged export never invalidates correct source gold. Direct source text project
 can preserve evidence that a PDF redaction would damage. Full empty text views of
 photographs remain hard targets and reveal the text model's modality limit.
 
+An original source part can optionally carry `document_starts: [physical_page, ...]`
+for constituent splits *inside* its `pages` scope. Omitted means unreviewed; `[]`
+means reviewed with no internal splits. The first selected page is implicit and
+must not be listed. Source-map adapters preserve this field. Exhibit membership
+alone does not establish all internal splits. The
+[page-stream experiment](../page-stream-segmentation/README.md) documents the
+shared minimal format and prepares original-page training examples from it.
+
 Separate Codex sub-inference calls author and review annotations. Both receive
 source evidence; the review also checks the materialized files. These are model
 reviews, not human certification. Source and output page mappings, original hashes,
