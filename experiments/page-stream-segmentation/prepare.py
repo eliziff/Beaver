@@ -13,8 +13,15 @@ from boundary_data import (ROOT, DEFAULT_OUT, annotation_labels, atomic_json, ch
                            structure_labels, validate_pages, validate_sha)
 from freeze_corpus import read_catalogue
 from partitions import validate_partitions
-from score_all import completed
 from codex_runner.artifacts import atomic_write
+
+
+def completed(out):
+    """Completed v4 structure golds as (mode, run directory, receipt)."""
+    for receipt in sorted(out.glob("v4/*/receipt.json")):
+        value = read_json(receipt)
+        if value.get("status") == "complete" and (receipt.parent / "gold.json.gz").is_file():
+            yield value["mode"], receipt.parent, value
 
 
 class Families:
