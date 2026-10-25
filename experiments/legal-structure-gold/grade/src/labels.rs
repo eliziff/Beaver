@@ -58,7 +58,7 @@ fn relation_index(relation: &str) -> usize {
 }
 
 /// Units of one stream run on past the units of the others that interrupt them.
-fn stream(region: usize) -> usize {
+pub(crate) fn stream(region: usize) -> usize {
     match REGIONS[region] {
         "note" => 1,
         "marginal_note" => 2,
