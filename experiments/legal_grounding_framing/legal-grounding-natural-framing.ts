@@ -12,7 +12,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-import { fetchLocalA2AJDocument } from "../../backend/src/lib/a2ajLocalBulk";
+import { a2ajStorePath } from "../../backend/src/lib/legalDataPath";
 import { structureNative } from "../../backend/src/lib/structureNative";
 import { contentWordCount, lintLegalClaim } from "./legalClaimLint";
 import {
@@ -244,12 +244,9 @@ function sourceContext(row: FrozenRow, windowChars: number): SourceContext {
   if (row.cited.provider !== "a2aj") {
     throw new Error(`unsupported source provider: ${row.cited.provider}`);
   }
-  const document = fetchLocalA2AJDocument({
-    citation: row.cited.citation,
-    docType: "cases",
-    dataset: row.cited.dataset,
-    maxChars: Number.MAX_SAFE_INTEGER,
-  });
+  const store = a2ajStorePath();
+  const id = structureNative().a2ajFind(store, { citation: row.cited.citation, docType: "cases", dataset: row.cited.dataset });
+  const document = id === null ? null : structureNative().a2ajReads(store, [id], "cases")?.[0] ?? null;
   if (!document) throw new Error(`local source missing: ${row.cited.citation}`);
   const documentSha256 = sha256(document.text);
   if (documentSha256 !== row.cited.sourceSha256) {

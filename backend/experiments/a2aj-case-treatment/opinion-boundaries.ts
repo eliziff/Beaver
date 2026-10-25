@@ -7,15 +7,14 @@ import { DatabaseSync } from "node:sqlite";
 import { deflateSync, inflateSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
 import { defaultNativeAddon } from "mike/shared/nativeAddonFile.mjs";
-import { a2ajLocalBulkPath, fetchLocalA2AJDocumentsByIds } from "../../src/lib/a2ajLocalBulk";
-import type { A2AJDocument } from "../../src/lib/legalSources/a2aj";
-import { structureNative } from "../../src/lib/structureNative";
+import { a2ajStorePath } from "../../src/lib/legalDataPath";
+import { structureNative, type A2AJStoreDocument } from "../../src/lib/structureNative";
 import { streamChatWithTools } from "../../src/lib/llm";
 import { beaverCodexHome, shutdownCodexAppServers } from "../../src/lib/llm/codexAppServer";
 import { getCodexModelCatalog } from "../../src/lib/codexCatalog";
 import { analyzeTextOpinionStructure } from "../a2aj-decision-roster/legalOpinionBoundaries";
 import { modelSourceLines } from "../a2aj-decision-roster/caseTargetMvpReduced";
-import { deriveCaseSource } from "./caseMaterial";
+import { storeDocuments } from "./caseMaterial";
 import { compileStructure, compareStructureMechanics, sameJudicialNames, paragraphCoverageEnd, type AnchoredSpan, type CaseMaterial, type StructureCompilation } from "./contract";
 import { compileProductDecisionStructure, type ProductGoldRecord } from "./productGold";
 import { parseJson } from "./jsonPatch";
@@ -109,8 +108,8 @@ function canonical(material: CaseMaterial, spans: Span[]): Span[] {
   catch { return []; }
 }
 
-async function inputFor(id: number, document: A2AJDocument): Promise<Input> {
-  const source = await deriveCaseSource(document);
+function inputFor(id: number, document: A2AJStoreDocument): Input {
+  const source = document.native;
   const text = structureNative().documentText(source);
   const paragraphs = structureNative().documentAnchors(source).filter(({ kind }) => kind === "paragraph").map(({ label, start, end }) => ({ label, start, end }));
   const material: CaseMaterial = { document_id: id, citation: document.citation, name: document.name,
@@ -175,7 +174,7 @@ async function calibrate(db: DatabaseSync, goldFile: string): Promise<Calibratio
     selected.document_ids.forEach((id: number) => fresh.add(id));
   }
   const datasets = new Map<number, string>();
-  const source = new DatabaseSync(a2ajLocalBulkPath(), { readOnly: true });
+  const source = new DatabaseSync(a2ajStorePath(), { readOnly: true });
   try { for (const row of source.prepare("SELECT id,dataset FROM document WHERE doc_type='cases'").all() as { id: number; dataset: string }[]) datasets.set(row.id, row.dataset); }
   finally { source.close(); }
   const strata = new Map<string, ProductGoldRecord[]>();
@@ -188,7 +187,7 @@ async function calibrate(db: DatabaseSync, goldFile: string): Promise<Calibratio
   putMeta(db, "holdout_ids", [...holdout].sort((a, b) => a - b));
   const evaluations: Evaluation[] = [];
   for (let offset = 0; offset < gold.length; offset += 20) {
-    const rows = gold.slice(offset, offset + 20), documents = fetchLocalA2AJDocumentsByIds({ ids: rows.map(({ document_id }) => document_id), maxChars: Number.MAX_SAFE_INTEGER });
+    const rows = gold.slice(offset, offset + 20), documents = await storeDocuments(rows.map(({ document_id }) => document_id));
     for (const row of rows) {
       const document = documents.get(row.document_id);
       if (!document) throw new Error(`gold source unavailable: ${row.document_id}`);
@@ -357,7 +356,7 @@ async function main() {
     const previous = meta<typeof identity>(db, "identity");
     if (previous && JSON.stringify(previous) !== JSON.stringify(identity) && (meta(db, "holdout_ids") || db.prepare("SELECT 1 FROM r LIMIT 1").get())) throw new Error("checkpoint identity changed; use a different durable --db file");
     putMeta(db, "identity", identity);
-    const source = new DatabaseSync(a2ajLocalBulkPath(), { readOnly: true });
+    const source = new DatabaseSync(a2ajStorePath(), { readOnly: true });
     try {
       const sourceFiles = source.prepare("SELECT 1 FROM sqlite_master WHERE name='source_file'").get()
         ? source.prepare("SELECT doc_type,dataset,sha256,revision FROM source_file WHERE doc_type='cases' ORDER BY dataset").all()
@@ -384,7 +383,7 @@ async function main() {
     if (command === "run" && !(db.prepare("SELECT 1 FROM r WHERE c=1 LIMIT 1").get())) {
       const goldIds = new Set(calibration.evaluations.map(({ id }) => id));
       const courts = new Set(calibration.evaluations.map(({ cohort }) => cohort.split("/")[0]));
-      const store = new DatabaseSync(a2ajLocalBulkPath(), { readOnly: true });
+      const store = new DatabaseSync(a2ajStorePath(), { readOnly: true });
       let eligible: Array<{ id: number; dataset: string }>;
       try { eligible = (store.prepare("SELECT id,dataset FROM document WHERE doc_type='cases' AND (length(unofficial_text_en)>0 OR length(unofficial_text_fr)>0)").all() as Array<{ id: number; dataset: string }>).filter(({ id, dataset }) => courts.has(dataset) && !goldIds.has(id)); }
       finally { store.close(); }
@@ -411,17 +410,18 @@ async function main() {
       rss_mb: Math.round(process.memoryUsage().rss / 1048576) })), 30000);
     try {
       let next = 0, documentEnd = 0;
-      let documents = new Map<number, A2AJDocument>();
+      let documents = Promise.resolve(new Map<number, A2AJStoreDocument>());
       const settled = await Promise.allSettled(Array.from({ length: workers }, async () => {
         try {
           while (next < pending.length && !abort.signal.aborted) {
             const index = next++;
             if (index >= documentEnd) {
               documentEnd = Math.min(pending.length, index + Math.max(20, workers * 2));
-              documents = fetchLocalA2AJDocumentsByIds({ ids: pending.slice(index, documentEnd).map(({ id }) => id), maxChars: Number.MAX_SAFE_INTEGER });
+              // Workers waiting on the next window wait on the same read.
+              documents = storeDocuments(pending.slice(index, documentEnd).map(({ id }) => id));
               global.gc?.();
             }
-            const row = pending[index], document = documents.get(row.id);
+            const row = pending[index], document = (await documents).get(row.id);
             if (!document) { save(db, row.id, null, { state: 5, spans: [], note: "source unavailable" }, intern); completed++; continue; }
             let input: Input;
             try { input = await inputFor(row.id, document); }

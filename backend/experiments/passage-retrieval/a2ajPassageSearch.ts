@@ -1,7 +1,7 @@
 /**
  * Product passage lane over the local A2AJ bulk store: the entry point
  * that puts `passageRetrieval` on the search path without touching the
- * document-level lane (`searchLocalA2AJ` is unchanged).
+ * document-level lane (the engine's `a2ajSearch` is unchanged).
  *
  * Two lanes, deterministic first. A citation short-circuit resolves
  * citation-shaped substrings of the query through `citation_lookup` —
@@ -23,7 +23,7 @@
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
-import { a2ajLocalBulkPath } from "../../src/lib/a2ajLocalBulk";
+import { a2ajStorePath } from "../../src/lib/legalDataPath";
 import { citationAliasKeysBatch } from "../../src/lib/caselawCitator";
 import { structureNative } from "../../src/lib/structureNative";
 import { withReadonlySqlite } from "../../src/lib/legalDataPath";
@@ -84,7 +84,7 @@ function buildCommand(sourceDb: string, docType?: DocType, mode?: ChunkMode) {
 
 function indexOptionsFor(args?: { docType?: DocType; mode?: ChunkMode }) {
   return {
-    sourceDb: a2ajLocalBulkPath(),
+    sourceDb: a2ajStorePath(),
     target: A2AJ_PASSAGE_TARGET,
     overlap: A2AJ_PASSAGE_OVERLAP,
     docType: args?.docType,
@@ -231,7 +231,7 @@ export async function searchLocalA2AJPassages(args: {
 }): Promise<A2AJPassageResult[]> {
   const query = args.query.trim();
   if (!query) throw new Error("query is required");
-  const sourceDb = a2ajLocalBulkPath();
+  const sourceDb = a2ajStorePath();
   if (!existsSync(sourceDb))
     throw new Error(`A2AJ bulk database not found at ${sourceDb}`);
   const language = args.language === "fr" ? "fr" : "en";

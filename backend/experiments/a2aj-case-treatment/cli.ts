@@ -7,7 +7,7 @@ import { createReadStream } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
-import { a2ajLocalBulkPath } from "../../src/lib/a2ajLocalBulk";
+import { a2ajStorePath } from "../../src/lib/legalDataPath";
 import type { StreamChatParams } from "../../src/lib/llm";
 import { withReadonlySqlite } from "../../src/lib/legalDataPath";
 import { setBelowNormalProcessPriority } from "../../src/lib/processPriority";
@@ -213,7 +213,7 @@ async function forEachMaterial(
 ) {
   for (let offset = 0; offset < ids.length; offset += 256) {
     const batch = ids.slice(offset, offset + 256);
-    const materials = await materialsFor(batch, documentsFor(batch));
+    const materials = await materialsFor(batch, await documentsFor(batch));
     await workerPool(batch, workers, (id, index, worker) => work(materials.get(id)!, offset + index, worker));
   }
 }
@@ -228,7 +228,7 @@ function materialLoader(ids: readonly number[], batchSize: number) {
       const batch = ids.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize);
       entry = {
         remaining: batch.length,
-        promise: Promise.resolve().then(() => materialsFor(batch, documentsFor(batch))),
+        promise: Promise.resolve().then(async () => materialsFor(batch, await documentsFor(batch))),
       };
       batches.set(batchIndex, entry);
     }
@@ -319,7 +319,7 @@ async function selectCases(flags: Flags) {
     ...(flag(flags, "exclude-document-ids") ? parseIds(flag(flags, "exclude-document-ids")) : []),
     ...(flag(flags, "exclude-file") ? await idsFromFile(flag(flags, "exclude-file")) : []),
   ]);
-  const selection = withReadonlySqlite(a2ajLocalBulkPath(), (database) => {
+  const selection = withReadonlySqlite(a2ajStorePath(), (database) => {
     const filters = ["doc_type='cases'"];
     const values: string[] = [];
     if (scope !== "ALL") { filters.push("UPPER(dataset)=?"); values.push(scope); }
@@ -418,7 +418,7 @@ function candidatePacket(material: CaseMaterial) {
 
 async function showCase(flags: Flags) {
   const [id] = await selectedIds(flags);
-  const document = documentsFor([id]).get(id)!;
+  const document = (await documentsFor([id])).get(id)!;
   console.log(candidatePacket(await materialFor(id, document)));
 }
 
@@ -1104,7 +1104,7 @@ async function runInference(flags: Flags) {
   const existing = new Map([...priorReceipts].filter(([, receipt]) => receipt.status === "accepted"));
   if (existing.size) {
     const existingIds = ids.filter((id) => existing.has(id));
-    const existingMaterials = await materialsFor(existingIds, documentsFor(existingIds));
+    const existingMaterials = await materialsFor(existingIds, await documentsFor(existingIds));
     for (const documentId of existingIds) {
       const receipt = existing.get(documentId)!;
       const material = existingMaterials.get(documentId)!;
@@ -2777,7 +2777,7 @@ async function exportGold(flags: Flags) {
 
 async function showPrompt(flags: Flags) {
   const [id] = await selectedIds(flags);
-  const material = await materialFor(id, documentsFor([id]).get(id)!);
+  const material = await materialFor(id, (await documentsFor([id])).get(id)!);
   const stage = flag(flags, "stage", "structure");
   const analysisContract = flag(flags, "analysis-contract", "self-check") as AnalysisContract;
   if (!ANALYSIS_CONTRACTS.includes(analysisContract)) throw new Error("invalid --analysis-contract");
@@ -2799,7 +2799,7 @@ async function showPrompt(flags: Flags) {
 
 async function showSchema(flags: Flags) {
   const [id] = await selectedIds(flags);
-  const material = await materialFor(id, documentsFor([id]).get(id)!);
+  const material = await materialFor(id, (await documentsFor([id])).get(id)!);
   const stage = flag(flags, "stage", "one-stage");
   const analysisContract = flag(flags, "analysis-contract", "self-check") as AnalysisContract;
   if (!ANALYSIS_CONTRACTS.includes(analysisContract)) throw new Error("invalid --analysis-contract");

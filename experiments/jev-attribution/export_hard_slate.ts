@@ -2,15 +2,14 @@
 // convention, then emit packets in the same form the Jev runner consumes, plus
 // gold character spans for overlap scoring. Offline; no model calls.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { fetchLocalA2AJDocumentsByIds } from '../../backend/src/lib/a2ajLocalBulk';
+import { a2ajStorePath } from '../../backend/src/lib/legalDataPath';
+import { structureNative } from '../../backend/src/lib/structureNative';
 import { modelSourceLines } from '../../backend/experiments/a2aj-decision-roster/caseTargetMvpReduced';
 
 const file = 'backend/experiments/a2aj-case-treatment/gold/gold-structure-30-v6.jsonl';
 const records = readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
 const structure = (record: any) => record.annotation?.structure ?? record.structure;
-const docs = fetchLocalA2AJDocumentsByIds({
-  ids: records.map((r: any) => r.document_id), maxChars: Number.MAX_SAFE_INTEGER,
-});
+const docs = new Map((structureNative().a2ajReads(a2ajStorePath(), records.map((r: any) => r.document_id)) ?? []).map((doc) => [doc.id, doc]));
 
 const packets: any[] = [];
 const diagnostics: any[] = [];

@@ -24,7 +24,7 @@ import { sha256 } from "./hash";
 import { structureNative, type NativeAuthorityReferenceOccurrence, type NativeAuthorityTextUnit,
   type NativeCitationOccurrence, type NativeReferencePart } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
-import { a2ajLocalBulkPath } from "./a2ajLocalBulk";
+import { a2ajStorePath } from "./legalDataPath";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
 import { mapBounded } from "./mapBounded";
 import { registerWorkExtents } from "mike/shared/work-extents.mjs";
@@ -141,7 +141,7 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
       return [
         `${dataset}:${language}:${sourceName(name)}`,
         await a2ajLegalSourceProvider.search!({ text: name, kinds: ["legislation"],
-          searchType: "name", collection: dataset, language, limit: 50, ordered: false }),
+          searchType: "name", collection: dataset, language, limit: 50 }),
       ] as const;
     } catch { return [`${dataset}:${language}:${sourceName(name)}`, []] as const; }
   })).map(([key, results]) => [key, results]));
@@ -270,7 +270,7 @@ async function scanReview(
   }
   const cases = extracted.citations.filter(({ form, authority, key }) =>
     form === "full" && key && (authority === "case" || authority === "unknown"));
-  const closures = structureNative().a2ajAliasGroups(a2ajLocalBulkPath(), cases.map(({ span }) => span.text)).map(({ keys }) => keys);
+  const closures = structureNative().a2ajAliasGroups(a2ajStorePath(), cases.map(({ span }) => span.text)).map(({ keys }) => keys);
   const parsed = ranges.map(({ unit }) => ({ unit, items: [] as Array<{ index: number; start: number }> }));
   let unitIndex = 0;
   for (const citation of [...extracted.citations].sort((left, right) =>

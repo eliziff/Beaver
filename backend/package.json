@@ -21,7 +21,7 @@
     "build:journals-fts": "python scripts/build_journal_search_index.py",
     "test": "node --import ../scripts/background-work.mjs ../scripts/focused-tests.mjs",
     "test:stack": "bash scripts/test-stack.sh",
-    "test:experiments": "node ../packages/legal-grammar-tables/check.mjs && vitest run --config experiments/vitest.config.mts"
+    "test:experiments": "vitest run --config experiments/vitest.config.mts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.53",

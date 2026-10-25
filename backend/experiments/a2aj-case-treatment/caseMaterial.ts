@@ -1,6 +1,5 @@
-import { fetchLocalA2AJDocumentsByIds } from "../../src/lib/a2ajLocalBulk";
-import type { A2AJDocument } from "../../src/lib/legalSources/a2aj";
-import { structureNative, type NativeDocument } from "../../src/lib/structureNative";
+import { a2ajStorePath } from "../../src/lib/legalDataPath";
+import { structureNative, type A2AJStoreDocument, type NativeDocument } from "../../src/lib/structureNative";
 import { decisionCitationInventory } from "../a2aj-decision-roster/caseDecisionMvp";
 import { modelSourceLines } from "../a2aj-decision-roster/caseTargetMvpReduced";
 import { analyzeTextOpinionStructure } from "../a2aj-decision-roster/legalOpinionBoundaries";
@@ -35,25 +34,8 @@ function coverage(
   return { status: spans.length ? "asserted" : "not_asserted", spans };
 }
 
-export async function deriveCaseSource(document: A2AJDocument) {
-  return structureNative().deriveDocumentStructure({
-    kind: "provider_text",
-    input: {
-      provider: "a2aj",
-      citation: document.citation,
-      source_kind: document.docType ?? "cases",
-      text: document.sectionMap ? "" : document.text,
-      url: document.url,
-      alternate_citation: document.alternateCitation,
-      dataset: document.dataset,
-      require_report_start: document.docType === "cases" && document.dataset?.toUpperCase() === "SCC",
-      name: document.name,
-      section_map: document.sectionMap ? Object.entries(document.sectionMap) : undefined,
-    },
-  });
-}
-
-function materialFromSource(documentId: number, document: A2AJDocument, source: NativeDocument): CaseMaterial {
+function materialFromSource(documentId: number, document: A2AJStoreDocument): CaseMaterial {
+  const source = document.native;
   const text = structureNative().documentText(source);
   const paragraphs = structureNative().documentAnchors(source).filter(({ kind }) => kind === "paragraph");
   const deterministic = analyzeTextOpinionStructure({
@@ -104,18 +86,22 @@ function materialFromSource(documentId: number, document: A2AJDocument, source: 
   };
 }
 
-export async function materialFor(documentId: number, document: A2AJDocument) {
-  return materialFromSource(documentId, document, await deriveCaseSource(document));
+export function materialFor(documentId: number, document: A2AJStoreDocument) {
+  return materialFromSource(documentId, document);
 }
 
-export async function materialsFor(ids: readonly number[], documents: Map<number, A2AJDocument>) {
-  const selected = ids.map((id) => documents.get(id)!);
-  const sources = await Promise.all(selected.map(deriveCaseSource));
-  return new Map(ids.map((id, index) => [id, materialFromSource(id, selected[index], sources[index])]));
+export function materialsFor(ids: readonly number[], documents: Map<number, A2AJStoreDocument>) {
+  return new Map(ids.map((id) => [id, materialFromSource(id, documents.get(id)!)]));
 }
 
-export function documentsFor(ids: readonly number[]) {
-  const documents = fetchLocalA2AJDocumentsByIds({ ids: [...ids], docType: "cases", language: "en", maxChars: Number.MAX_SAFE_INTEGER });
+/** The store's decisions with these ids, read and derived by the engine; one the store lacks is left out. */
+export async function storeDocuments(ids: readonly number[]) {
+  return new Map((await structureNative().a2ajStoreDocuments(a2ajStorePath(), [...ids], "cases", "en") ?? [])
+    .map((document) => [document.id, document]));
+}
+
+export async function documentsFor(ids: readonly number[]) {
+  const documents = await storeDocuments(ids);
   const missing = ids.filter((id) => !documents.has(id));
   if (missing.length) throw new Error(`A2AJ decisions unavailable: ${missing.join(", ")}`);
   return documents;

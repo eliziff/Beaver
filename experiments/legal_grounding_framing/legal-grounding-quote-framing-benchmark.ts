@@ -24,7 +24,7 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import JSZip from "jszip";
-import { a2ajLocalBulkPath } from "../../backend/src/lib/a2ajLocalBulk";
+import { a2ajStorePath } from "../../backend/src/lib/legalDataPath";
 import {
   standsForProfile,
   type StandsForCandidate,
@@ -707,7 +707,7 @@ function rowText(row: Record<string, unknown>, field: string): string | null {
 }
 
 function openA2ajQuoteResolver(): A2ajQuoteResolver {
-  const filename = a2ajLocalBulkPath();
+  const filename = a2ajStorePath();
   if (!existsSync(filename)) throw new Error("missing local source: " + filename);
   const database = new DatabaseSync(filename, { readOnly: true });
   const lookup = database.prepare(
@@ -2264,7 +2264,7 @@ async function prepare(dryRun: boolean): Promise<void> {
   const sources = [
     citatorPath(),
     journalCommentaryPath(),
-    a2ajLocalBulkPath(),
+    a2ajStorePath(),
     legalProviderDatabase("courtlistener", "courtlistener.sqlite"),
     path.join(
       localAppData(),

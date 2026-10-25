@@ -4,7 +4,6 @@
     "scripts": {
         "native:build": "node scripts/native-build.mjs",
         "native:build:release": "node scripts/native-build.mjs --release",
-        "check:grammar": "node packages/legal-grammar-tables/check.mjs",
         "audit:court-output-sources": "node scripts/audit-court-output-sources.mjs",
         "test:court-output-audit": "node --test scripts/audit-court-output-sources.test.mjs",
         "test:authorities:highlights": "node scripts/test-authorities-highlights.mjs",

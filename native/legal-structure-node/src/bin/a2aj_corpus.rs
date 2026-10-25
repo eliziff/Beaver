@@ -1,7 +1,7 @@
 #![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
 //! The structure engine's reading of every document in Beaver's local A2AJ store (a2aj.sqlite), read
 //! as production reads it, and what changed between two readings. Built with the addon, by the same
-//! build: it reads each document's engine input as `src/a2aj.rs` builds it.
+//! build: it reads each document's engine input as the engine does (legal_structure::a2aj).
 //!
 //!   a2aj-corpus run  --label NAME [--against NAME] [--kind cases|laws|all] [--lang en|fr] [--threads N] [--every N]
 //!   a2aj-corpus diff BASE NEW [--examples N]
@@ -11,10 +11,11 @@
 //! The store is `%LOCALAPPDATA%/OpenLegalData/providers/a2aj/a2aj.sqlite` unless `--store` names another;
 //! readings go to `%LOCALAPPDATA%/OpenLegalData/experiments/a2aj-structure` unless `--out` names another.
 
+use legal_structure::a2aj::{self, Document, Language, Source, StoreRow};
 use legal_structure::{
     provider_text_document_structure, DocumentStructure, NodeKind, ProviderTextInput, ProviderTextSourceKind,
 };
-use rusqlite::{types::ValueRef, Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
@@ -28,53 +29,10 @@ use std::time::Instant;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
-/// JavaScript's white space and line terminators, which the store's reader trims (a2aj.rs).
-fn js_space(character: char) -> bool {
-    matches!(character, '\u{9}' | '\u{a}' | '\u{b}' | '\u{c}' | '\u{d}' | ' ' | '\u{a0}' | '\u{1680}'
-        | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
-}
-
-fn cell(value: ValueRef) -> Option<String> {
-    match value {
-        ValueRef::Text(bytes) => {
-            let value = String::from_utf8_lossy(bytes).trim_matches(js_space).to_owned();
-            (!value.is_empty()).then_some(value)
-        }
-        _ => None,
-    }
-}
-
-const COLUMNS: [&str; 15] = ["id", "doc_type", "dataset", "citation_en", "citation_fr", "citation2_en", "citation2_fr",
+/// What the census reads of a document: what the engine derives it from.
+const COLUMNS: [&str; 14] = ["doc_type", "dataset", "citation_en", "citation_fr", "citation2_en", "citation2_fr",
     "name_en", "name_fr", "url_en", "url_fr", "unofficial_text_en", "unofficial_text_fr",
     "unofficial_sections_en", "unofficial_sections_fr"];
-
-struct Row {
-    id: i64,
-    fields: HashMap<&'static str, String>,
-}
-
-impl Row {
-    fn get(&self, column: &str) -> Option<&String> {
-        self.fields.get(column)
-    }
-    /// A field in a language, else in the other (a2aj.rs `language_field`).
-    fn language_field(&self, field: &str, language: &str) -> Option<String> {
-        let other = if language == "en" { "fr" } else { "en" };
-        self.get(&format!("{field}_{language}")).or_else(|| self.get(&format!("{field}_{other}"))).cloned()
-    }
-    /// The provisions in the order JavaScript gives an object's keys (a2aj.rs `sections`).
-    fn sections(&self, language: &str) -> Option<Vec<(String, String)>> {
-        let Ok(Value::Object(parsed)) = serde_json::from_str::<Value>(&self.language_field("unofficial_sections", language)?)
-            else { return None };
-        let index = |key: &str| (key == "0" || (!key.starts_with('0') && key.bytes().all(|byte| byte.is_ascii_digit())))
-            .then(|| key.parse::<u64>().ok()).flatten().filter(|value| *value < u32::MAX as u64);
-        let mut entries: Vec<(String, String)> = parsed.into_iter()
-            .filter_map(|(key, value)| match value { Value::String(text) => Some((key, text)), _ => None })
-            .collect();
-        entries.sort_by_key(|(key, _)| index(key).map_or((1, 0), |value| (0, value)));
-        (!entries.is_empty()).then_some(entries)
-    }
-}
 
 /// One engine input: a document in one language, read from its provisions or from its text.
 struct Job {
@@ -83,41 +41,26 @@ struct Job {
     input: ProviderTextInput,
 }
 
-/// The inputs production derives from a row in each language it has text in (a2aj.rs `document` and `derive`).
-fn jobs(row: &Row) -> Vec<Job> {
-    let laws = row.get("doc_type").map(String::as_str) == Some("laws");
-    let dataset = row.get("dataset").cloned().unwrap_or_default();
+/// The inputs production derives from a document (legal_structure::a2aj's reading), in each language it has text in.
+fn jobs(id: i64, row: &StoreRow) -> rusqlite::Result<Vec<Job>> {
+    let document = Document::new(row, Source::Store);
+    let doc_type = a2aj::doc_type(document.field("doc_type")?.as_deref().unwrap_or_default());
     let mut jobs = Vec::new();
-    for language in ["en", "fr"] {
-        let Some(text) = row.get(&format!("unofficial_text_{language}")) else { continue };
-        let Some(citation) = row.language_field("citation", language).or_else(|| row.language_field("citation2", language))
-            else { continue };
-        let input = |text: String, sections: Option<Vec<(String, String)>>| ProviderTextInput {
-            provider: Some("a2aj".to_owned()),
-            citation: citation.clone(),
-            source_kind: if laws { ProviderTextSourceKind::Laws } else { ProviderTextSourceKind::Cases },
-            text,
-            id: None,
-            url: row.language_field("url", language),
-            dataset: (!dataset.is_empty()).then(|| dataset.clone()),
-            name: row.language_field("name", language),
-            alternate_citation: row.language_field("citation2", language),
-            section_map: sections,
-            excerpt_of: None,
-            require_report_start: !laws && dataset.eq_ignore_ascii_case("SCC"),
-        };
-        let key = format!("{}:{language}", row.id);
-        match row.sections(language) {
-            Some(sections) => {
-                jobs.push(Job { key: format!("{key}:sections"), dataset: dataset.clone(), input: input(String::new(), Some(sections)) });
-                jobs.push(Job { key: format!("{key}:text"), dataset: dataset.clone(), input: input(text.clone(), None) });
+    for language in [Language::En, Language::Fr] {
+        if document.text_language(language)? != language { continue }
+        let Some(read) = document.read(language, doc_type)? else { continue };
+        let dataset = read.metadata.dataset.clone();
+        let key = format!("{id}:{}", language.code());
+        match read.inputs() {
+            (sections, Some(text)) => {
+                jobs.push(Job { key: format!("{key}:sections"), dataset: dataset.clone(), input: sections });
+                jobs.push(Job { key: format!("{key}:text"), dataset, input: text });
             }
-            None => jobs.push(Job { key, dataset: dataset.clone(), input: input(text.clone(), None) }),
+            (input, None) => jobs.push(Job { key, dataset, input }),
         }
     }
-    jobs
+    Ok(jobs)
 }
-
 #[derive(Serialize, Deserialize, Default)]
 struct Record {
     key: String,
@@ -365,12 +308,8 @@ fn open(store: &Path) -> Result<Connection> {
     Ok(connection)
 }
 
-fn read_row(row: &rusqlite::Row) -> rusqlite::Result<Row> {
-    let mut fields = HashMap::new();
-    for (at, column) in COLUMNS.iter().enumerate().skip(1) {
-        if let Some(value) = cell(row.get_ref(at)?) { fields.insert(*column, value); }
-    }
-    Ok(Row { id: row.get(0)?, fields })
+fn read_row(row: &rusqlite::Row) -> rusqlite::Result<(i64, StoreRow)> {
+    Ok((row.get(0)?, StoreRow::from_query(row, 1, &COLUMNS)?))
 }
 
 #[cfg(windows)]
@@ -401,7 +340,7 @@ fn run(options: &Options) -> Result<()> {
     // The store is read in id order: an index on doc_type would sort every row's text instead.
     let filter = match kind { "cases" | "laws" => format!("WHERE +doc_type = '{kind}'"), _ => String::new() };
     let sampled = if every > 1 { format!("{} id % {every} = 0", if filter.is_empty() { "WHERE" } else { " AND" }) } else { String::new() };
-    let sql = format!("SELECT {} FROM document {filter}{sampled} ORDER BY id", COLUMNS.join(", "));
+    let sql = format!("SELECT id, {} FROM document {filter}{sampled} ORDER BY id", COLUMNS.join(", "));
     let started = Instant::now();
     let (send_jobs, receive_jobs) = mpsc::sync_channel::<Job>(threads * 4);
     let (send_records, receive_records) = mpsc::sync_channel::<Record>(threads * 4);
@@ -414,7 +353,8 @@ fn run(options: &Options) -> Result<()> {
             let mut statement = connection.prepare(&sql).map_err(|error| error.to_string())?;
             let rows = statement.query_map([], read_row).map_err(|error| error.to_string())?;
             for row in rows {
-                for job in jobs(&row.map_err(|error| error.to_string())?)
+                let (id, row) = row.map_err(|error| error.to_string())?;
+                for job in jobs(id, &row).map_err(|error| error.to_string())?
                     .into_iter()
                     .filter(|job| language.as_deref().is_none_or(|language| job.key.split(':').nth(1) == Some(language)))
                 {
@@ -572,9 +512,9 @@ fn show(options: &Options) -> Result<()> {
     let language = options.named.get("lang").map_or("en", String::as_str);
     let store = options.named.get("store").map(PathBuf::from).unwrap_or_else(|| local("providers/a2aj/a2aj.sqlite"));
     let connection = open(&store)?;
-    let row = connection.query_row(&format!("SELECT {} FROM document WHERE id = ?", COLUMNS.join(", ")), [id], read_row)?;
+    let (id, row) = connection.query_row(&format!("SELECT id, {} FROM document WHERE id = ?", COLUMNS.join(", ")), [id], read_row)?;
     let wanted = options.flags.iter().any(|flag| flag == "text");
-    for job in jobs(&row).into_iter().filter(|job| job.key.split(':').nth(1) == Some(language)
+    for job in jobs(id, &row)?.into_iter().filter(|job| job.key.split(':').nth(1) == Some(language)
         && (!job.key.ends_with(":sections") || !wanted)) {
         println!("== {} {} ({})", job.key, job.input.citation, job.dataset);
         let structure = provider_text_document_structure(job.input)?;

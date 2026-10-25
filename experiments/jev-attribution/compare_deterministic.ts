@@ -1,7 +1,8 @@
 // Deterministic engine vs the same gold and the same line units Jev was scored on.
 // Offline only: calls the repository's deterministic boundary extractor. No model.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { fetchLocalA2AJDocumentsByIds } from '../../backend/src/lib/a2ajLocalBulk';
+import { a2ajStorePath } from '../../backend/src/lib/legalDataPath';
+import { structureNative } from '../../backend/src/lib/structureNative';
 import { modelSourceLines } from '../../backend/experiments/a2aj-decision-roster/caseTargetMvpReduced';
 import { deriveTextOpinionStructure } from '../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries';
 
@@ -10,7 +11,7 @@ const gold = new Map<number, any[]>(
   JSON.parse(readFileSync(base + 'boundaries.json', 'utf8'))
     .map((p: any) => [p.document_id, p.gold.opinions.map((o: any) => ({ start: o.boundary.start_line, end: o.boundary.end_line }))]));
 
-const docs = fetchLocalA2AJDocumentsByIds({ ids: [...gold.keys()], maxChars: Number.MAX_SAFE_INTEGER });
+const docs = new Map((structureNative().a2ajReads(a2ajStorePath(), [...gold.keys()]) ?? []).map((doc) => [doc.id, doc]));
 const rows: any[] = [];
 for (const [documentId, expected] of gold) {
   const doc = docs.get(documentId);

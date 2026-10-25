@@ -2,7 +2,7 @@
  * Passage-level retrieval over the local legal bulk stores.
  *
  * Replaces the four measured defects of the document-level path
- * (`searchLocalA2AJ`) that the LegalBench-RAG bed exposed (Stage 14/15,
+ * (the engine's `a2ajSearch`) that the LegalBench-RAG bed exposed (Stage 14/15,
  * docs/legal-grounding-experiments-2026-07-30.md): a 12-token query cap
  * that discarded the question, AND-conjunction that zeroed a document
  * for one absent token, whole-document bm25 with no passage ranking,

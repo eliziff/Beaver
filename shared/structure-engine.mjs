@@ -5,7 +5,7 @@
 const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
   "fixDocxSupraCrossReferences", "deriveDocxDocument", "docxText",
   "docxAuthorityTextUnits", "derivePdfDocument", "preparePdfDocument", "restorePdfDocument",
-  "pdfPassageGeometryPages", "quoteLocateDocument", "a2ajDocument", "a2ajSection",
+  "pdfPassageGeometryPages", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments",
   "citationEngineCallAsync"]);
 // Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes;
 // "document" is a handle.
@@ -58,7 +58,10 @@ export const SIGNATURES = {
   documentHasOrigin: ["document", "origin"],
   // The local A2AJ store at `store`, read by the engine.
   a2ajDocument: ["store", "lookup"], a2ajSection: ["store", "lookup", "section", "excerpt"],
+  a2ajRecord: ["record", "language", "docType"], a2ajRecordProvision: ["records", "lookup", "excerpt"],
+  a2ajRecordListing: ["record", "language"], a2ajRecordMatches: ["records", "query"],
   a2ajAliasGroups: ["store", "citations"], a2ajNamedCase: ["store", "named"], a2ajNameKeys: ["names"],
+  a2ajSearch: ["store", "search"], a2ajCourts: ["store"], a2ajFind: ["store", "lookup"], a2ajStoreDocuments: ["store", "ids", "docType", "language"], a2ajReads: ["store", "ids", "docType", "language"],
   // The citator's graph, read beside the A2AJ store at `store`, which also gives a note-up its keys.
   citatorNoteUp: ["store", "request"], citatorMetrics: ["store", "citations"],
 };
@@ -144,11 +147,14 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
   function result(name, { value, bytes }) {
     if (DOCUMENT_RESULTS.has(name)) return handle(value);
     // A store's document: its full text's document is its provisions' where the engine names none.
-    if (name === "a2ajDocument" && value) {
+    const storeDocument = (value) => {
       const native = handle(value.native);
       return { ...value.metadata, native, searchNative: handle(value.searchNative) ?? native };
-    }
+    };
+    if ((name === "a2ajDocument" || name === "a2ajRecord") && value) return storeDocument(value);
+    if (name === "a2ajStoreDocuments" && value) return value.map((found) => ({ id: found.id, ...storeDocument(found) }));
     if (name === "a2ajSection" && value) return { native: handle(value.native) };
+    if (name === "a2ajRecordProvision") return handle(value);
     if (name === "fixDocxSupraCrossReferences") return { ...value, bytes: toBuffer(bytes.slice()) };
     return value;
   }

@@ -80,7 +80,7 @@ function searchHit(row: Row): HansardSearchHit | null {
 
 /**
  * Returns null when no Hansard database has been imported, mirroring
- * searchLocalA2AJ, so callers can distinguish "not installed" from "no hits".
+ * the A2AJ store's search, so callers can distinguish "not installed" from "no hits".
  */
 export function searchLocalHansard(args: {
   query: string; size?: number; speaker?: string; startDate?: string; endDate?: string;

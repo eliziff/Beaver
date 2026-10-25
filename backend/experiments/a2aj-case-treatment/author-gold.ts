@@ -604,7 +604,7 @@ async function main() {
   const options = parsed;
   setBelowNormalProcessPriority();
   const ids = await selectionIds(options.caseFile);
-  const materials = await materialsFor(ids, documentsFor(ids));
+  const materials = await materialsFor(ids, await documentsFor(ids));
   await mkdir(options.runDir, { recursive: true });
   const manifest = {
     format: "a2aj-gold-author-codex-v1",

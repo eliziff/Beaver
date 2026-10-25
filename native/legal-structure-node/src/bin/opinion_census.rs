@@ -14,7 +14,8 @@
 //! Frames decode through a node child (zstd-frames.mjs), one per thread. Each frame writes out/frames/NNNNNN.json
 //! (its aggregate) and, with --rows, out/rows/NNNNNN.jsonl, atomically, so a run resumes where it stopped.
 
-use legal_structure::{analyze_native_markup, document_outline, DocumentStructure, NativeMarkupInput, NodeKind, PrimaryRole};
+use legal_structure::{analyze_native_markup, document_outline, javascript_whitespace as is_js_space,
+    trim_javascript_whitespace as js_trim, utf16_len as utf16, DocumentStructure, NativeMarkupInput, NodeKind, PrimaryRole, JS_WHITESPACE_CLASS};
 use regex::Regex;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap};
@@ -32,17 +33,10 @@ type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 // ---- JavaScript string semantics -----------------------------------------------------------------
 
 // JavaScript's \s (white space and line terminators), in which the census patterns were written.
-const JS: &str = r"\t\n\x0B\x0C\r \x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}";
 fn js(pattern: &str) -> String {
-    pattern.replace(r"\S", &format!("[^{JS}]")).replace(r"\s", &format!("[{JS}]"))
+    pattern.replace(r"\S", &format!("[^{JS_WHITESPACE_CLASS}]")).replace(r"\s", JS_WHITESPACE_CLASS)
         .replace(r"\w", "[A-Za-z0-9_]").replace(r"\d", "[0-9]").replace(r"\b", r"(?-u:\b)")
 }
-fn is_js_space(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\x0B' | '\x0C' | '\r' | ' ' | '\u{A0}' | '\u{1680}' | '\u{2000}'..='\u{200A}'
-        | '\u{2028}' | '\u{2029}' | '\u{202F}' | '\u{205F}' | '\u{3000}' | '\u{FEFF}')
-}
-fn js_trim(s: &str) -> &str { s.trim_matches(is_js_space) }
-fn utf16(s: &str) -> usize { s.chars().map(char::len_utf16).sum() }
 /// JavaScript's value.slice(0, n): the first n UTF-16 units (a split pair is left out).
 fn js_prefix(s: &str, n: usize) -> &str {
     let mut units = 0;

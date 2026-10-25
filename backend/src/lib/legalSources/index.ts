@@ -33,8 +33,6 @@ export type LegalSourceSearchRequest = {
   dateFrom?: string;
   dateTo?: string;
   sort?: "relevance" | "most_cited" | "most_discussed" | "newest" | "oldest";
-  /** False: the results are wanted in any order. */
-  ordered?: boolean;
   limit?: number;
   perProviderLimit?: number;
   signal?: AbortSignal;

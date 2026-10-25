@@ -14,7 +14,7 @@
  * chars|clause. --doc-type and --mode are part of the sidecar identity:
  * each build is a SEPARATE sidecar — query with the same flags.
  */
-import { a2ajLocalBulkPath } from "../../src/lib/a2ajLocalBulk";
+import { a2ajStorePath } from "../../src/lib/legalDataPath";
 import {
   A2AJ_PASSAGE_OVERLAP,
   A2AJ_PASSAGE_TARGET,
@@ -39,7 +39,7 @@ if (modeFlag && modeFlag !== "chars" && modeFlag !== "clause") {
 }
 
 const options = {
-  sourceDb: flag("db") ?? a2ajLocalBulkPath(),
+  sourceDb: flag("db") ?? a2ajStorePath(),
   target: Number(flag("target") ?? A2AJ_PASSAGE_TARGET),
   overlap: Number(flag("overlap") ?? A2AJ_PASSAGE_OVERLAP),
   docType: docTypeFlag as "cases" | "laws" | undefined,

@@ -53,7 +53,10 @@ describe("A2AJ client", () => {
       expect(url.pathname).toBe("/search");
       expect(url.searchParams.get("doc_type")).toBe(kind === "case" ? "cases" : "laws");
       expect(url.searchParams.get("query")).toBe('"privacy"');
-    } finally { rmSync(folder, { recursive: true }); }
+    } finally {
+      // The engine keeps a store open while that copy of it is current, so Windows may not let the folder go yet.
+      try { rmSync(folder, { recursive: true }); } catch { /* left for the system's temp cleanup */ }
+    }
   });
 
   it("maps live coverage dimensions without a reduced jurisdiction list", async () => {
