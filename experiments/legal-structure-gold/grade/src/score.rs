@@ -217,7 +217,7 @@ fn spans_of(value: Option<&Value>) -> Result<Vec<SourceSpan>, String> {
     }
 }
 
-const UNRANKED: [&str; 5] = ["furniture", "page_label", "line_label", "marginal_note", "contents"];
+const UNRANKED: [&str; 6] = ["title", "furniture", "page_label", "line_label", "marginal_note", "contents"];
 
 fn alias(kind: &str) -> &str {
     match kind {
