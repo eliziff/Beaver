@@ -30,6 +30,7 @@ from codex_runner.transport import terminate  # noqa: E402
 import blocks  # noqa: E402
 import gold  # noqa: E402
 import hierarchy  # noqa: E402
+import postcorrect  # noqa: E402
 import prompts  # noqa: E402
 
 VERSION = "legal-structure-gold.v4"
@@ -77,7 +78,7 @@ def extract(pdf, mode, out, timeout, witness=None):
         with fitz.open(pdf) as document:
             lines = witnessed_lines(value, digest(pdf), len(document))
         return lines, {'binary_sha256': None, 'extraction_sha256': digest(witness),
-                       'extraction_method': value['method'], 'source_sha256': value['source_sha256']}
+                       'extraction_method': value['method'], 'source_sha256': value['source_sha256']}, None
     process = subprocess.Popen(["node", str(HERE / "extract.mjs"), str(pdf), str(out / "parsed"), mode],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
                                creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == "nt" else 0)
@@ -93,7 +94,10 @@ def extract(pdf, mode, out, timeout, witness=None):
                  for page in document.get("extraction", document)["pages"] for line in page["lines"]}
     lines = [{"id": ident, "page": line["page"], "text": extracted[ident]}
              for ident, line in gold.source_lines(structure).items()]
-    return lines, {"binary_sha256": exported.get("parser", {}).get("binary_sha256"), "structure_sha256": fingerprint(structure)}
+    # Each page's line boxes, for the post-corrections that read a line's place on its page.
+    geometry = [{"lines": [{"id": line["id"], "bbox": line["bbox"]} for line in page["lines"]]}
+                for page in document.get("extraction", document)["pages"]]
+    return lines, {"binary_sha256": exported.get("parser", {}).get("binary_sha256"), "structure_sha256": fingerprint(structure)}, geometry
 
 
 # The model receives an image scaled to fit 2,048 pixels on its long side (measured on gpt-6.1-sol:
@@ -267,10 +271,10 @@ def author(pdf, mode, args, extraction=None):
     job.mkdir(parents=True, exist_ok=True)
     started = time.time()
     receipt = {"source_sha256": source, "mode": mode, "model": args.model, "effort": args.effort, "status": "running",
-               "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py")}}
+               "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py", HERE / "postcorrect.py")}}
     write_json(job / "receipt.json", receipt)
     try:
-        lines, parser = extract(pdf, mode, args.out, args.timeout, extraction)
+        lines, parser, geometry = extract(pdf, mode, args.out, args.timeout, extraction)
         if extraction is not None:
             receipt['extraction_witness_sha256'] = parser['extraction_sha256']
         import fitz
@@ -288,6 +292,9 @@ def author(pdf, mode, args, extraction=None):
                  "authoring": {"model": args.model, "effort": args.effort, "long_side": LONG_SIDE, "dpi_cap": args.dpi, "chunk_pages": CHUNK_PAGES,
                                "prompts": {"lines": prompts.LINES, "notes": prompts.NOTES, "hierarchy": prompts.HIERARCHY}},
                  "lines": gold_lines, "typed": typed, "units": units, "notes": notes, "text_edits": edits, "report": report}
+        # A witness's lines carry no boxes for the corrections to read.
+        if geometry is not None:
+            postcorrect.apply(value, geometry)
         write_json(job / "gold.json.gz", value)
         receipt.update(status="complete", gold_sha256=digest(job / "gold.json.gz"), pages=len(pages), units=len(units),
                        typed_lines=len(typed), notes=len(notes),
