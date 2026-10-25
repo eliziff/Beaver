@@ -50,7 +50,11 @@ def invoke(
     work_dir: Path,
     timeout_seconds: int,
     extra_args: Sequence[str] = (),
+    instructions: str = "",
+    cache_key: str | None = None,
 ) -> dict[str, Any]:
+    # codex exec takes its instructions from extra_args and keys its cache by its own session, so
+    # instructions and cache_key have no use here.
     executable = os.environ.get("CODEX_EXEC_COMMAND", "").strip() or shutil.which("codex")
     if not executable:
         raise RuntimeError("codex executable was not found on PATH")

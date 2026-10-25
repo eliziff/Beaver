@@ -35,6 +35,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path[:0] = [str(HERE), str(ROOT / "tools")]
 from codex_runner.artifacts import atomic_json as write_json, digest, fingerprint, read_json  # noqa: E402
+from codex_runner import backend  # noqa: E402
 from codex_runner.calls import CallPolicy, call  # noqa: E402
 from codex_runner.transport import terminate  # noqa: E402
 import blocks  # noqa: E402
@@ -202,7 +203,8 @@ def author_lines(lines, pages, images, job, args, count=None, shared=()):
         check = blocks.validator(numbered, [page])
         response = call(prompts.lines_prompt(numbered, page, count or len(pages), prior, later, page in shared),
                         schema_file(job, f"lines-{page:06}", prompts.lines_schema(list(numbered), [page])), pictures,
-                        job / "calls" / f"lines-{page:06}", args, lambda r: (check(r), blocks.read(numbered, [page], r))[0], policy=POLICY)
+                        job / "calls" / f"lines-{page:06}", args, lambda r: (check(r), blocks.read(numbered, [page], r))[0],
+                        backend.invoke, policy=POLICY, cache_key=job.name)
         done[page] = blocks.read(numbered, [page], response)
     return [done[page] for page in pages]
 
@@ -288,7 +290,8 @@ def author_hierarchy(typed, groups, texts, indents, images, job, args, whole=Fal
         schema = schema_file(job, f"hierarchy-{shown[0]:05}", prompts.hierarchy_schema([n + 1 for n in shown], hierarchy.answered(shown, rows), counts, args.hierarchy, whole,
                                                                                         [n + 1 for n in shown if rows[n][1] == "provision"]))
         return call(prompts.hierarchy_prompt(rows, shown, pages, args.hierarchy, whole), schema, [images[p] for p in pages],
-                    job / "calls" / f"hierarchy-{shown[0]:05}", args, hierarchy.checked(shown, rows), policy=POLICY)
+                    job / "calls" / f"hierarchy-{shown[0]:05}", args, hierarchy.checked(shown, rows), backend.invoke,
+                    policy=POLICY, cache_key=job.name)
     levels, depths, starts = hierarchy.decide(rows, ask, {p: image_tokens(path) for p, path in images.items()})
     units, changes = [{"lines": members, "starts_document": False} for members in groups], []
     for u, members in enumerate(groups):
