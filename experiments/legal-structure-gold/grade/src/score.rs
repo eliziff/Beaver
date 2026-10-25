@@ -1027,9 +1027,10 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
         prf(&wanted.continuations, &got.continuations),
     );
     // The headline layers: what the apps read, by kind of unit.
-    const KINDS: [(&str, &str, &str); 6] = [
+    const KINDS: [(&str, &str, &str); 7] = [
         ("heading", "units_heading", "markers_heading"),
         ("text", "units_text", "markers_text"),
+        ("provision", "units_provision", "markers_provision"),
         ("list_item", "units_list_item", "markers_list_item"),
         ("note", "units_note", "markers_note"),
         ("quote", "units_quote", "markers_quote"),

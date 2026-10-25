@@ -790,10 +790,12 @@ fn totals_json(rows: &[&Value]) -> Value {
 }
 
 /// The layers the apps read, first and by name; every other layer follows.
-const KEY_LAYERS: [(&str, &str); 14] = [
+const KEY_LAYERS: [(&str, &str); 16] = [
     ("units_heading", "headings"),
-    ("markers_text", "numbered paragraphs, sections"),
+    ("markers_text", "numbered paragraphs"),
     ("units_text", "paragraphs"),
+    ("markers_provision", "numbered sections, clauses"),
+    ("units_provision", "provisions"),
     ("units_list_item", "list items"),
     ("markers_list_item", "list markers"),
     ("note_references", "footnote references"),

@@ -72,7 +72,7 @@ fn records(
     let prose = |u: usize| {
         matches!(
             gold.typed[gold.units[u].lines[0]].region.as_str(),
-            "text" | "quote" | "list_item"
+            "text" | "provision" | "quote" | "list_item"
         )
     };
     let (mut pairs, mut x, mut y, mut baseline) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
