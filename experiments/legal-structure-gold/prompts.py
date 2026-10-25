@@ -3,7 +3,7 @@ pages either side as context) and the document pass (the whole document: heading
 documents)."""
 import json
 
-REGIONS = ("text", "list_item", "title", "heading", "quote", "note", "note_quote", "table", "contents", "headnote", "marginal_note", "furniture",
+REGIONS = ("text", "provision", "list_item", "title", "heading", "quote", "note", "note_quote", "table", "contents", "headnote", "marginal_note", "furniture",
            "page_label", "line_label")
 MARKER_KINDS = ("number", "line_number", "speaker")
 LINES ="""You are correcting OCR text, assigning document-layout regions, and choosing final reading order for one legal document page.
@@ -24,10 +24,11 @@ Rules:
 - A printed line the extracted text missed is line 0, with its text (printed text only, never a signature, handwriting or a picture).
 
 Regions:
-- text: the document's own prose: its argument, discussion, narrative, quotations worked into the paragraph, and continuation lines; its paragraphs, clauses, sections and subclauses, however numbered, each with its own caption, run in or on a line of its own; cover lines, the issuing court or body, parties, counsel, signature blocks, form fields and their labels (TO:, BEFORE:, APPEARANCES:), one unit per party, counsel entry with the party it acts for, or signatory. Use text even when a line is short, indented, numbered, dense, or visually similar to surrounding note text, unless the local text clearly belongs to a more specific region.
-- list_item: an item of a list. A clause's or section's own lettered or numbered subclauses are text.
+- text: the document's own prose: its argument, discussion, narrative, quotations worked into the paragraph, and continuation lines; its paragraphs, numbered or not; cover lines, the issuing court or body, parties, counsel, signature blocks, form fields and their labels (TO:, BEFORE:, APPEARANCES:), one unit per party, counsel entry with the party it acts for, or signatory. Use text even when a line is short, indented, dense, or visually similar to surrounding note text, unless the local text clearly belongs to a more specific region.
+- provision: a section, clause, subsection or subclause of an instrument (a statute, regulation, rules, or a contract or other agreement), with its own caption, run in or on a line of its own.
+- list_item: an item of a list.
 - title: the document's title: what the document is called.
-- heading: the heading of one of the document's divisions: a part, article or chapter, or an unnumbered heading over the text that follows. Not a numbered clause's or section's own caption, nor a label.
+- heading: the heading of one of the document's divisions: a part, article or chapter, or an unnumbered heading over the text that follows. Not a provision's own caption, nor a label.
 - quote: a quoted passage set apart from normal prose as an indented or narrower display block: a block quotation, an excerpt of legislation, a judgment or another document, its own lists and headings included.
 - note: footnote or endnote text: bottom-of-page notes separated from the main body prose, or the entries of a notes section; its own number or mark included. A body line with a note marker is still text.
 - note_quote: a block quotation set inside a note.

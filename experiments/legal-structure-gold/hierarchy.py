@@ -25,7 +25,7 @@ IMAGES = 150
 
 
 def family(region):
-    return "body" if region in ("text", "list_item") else region
+    return "body" if region in ("text", "provision", "list_item") else region
 
 
 def units(lines):
