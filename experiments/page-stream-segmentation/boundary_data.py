@@ -11,7 +11,7 @@ DEFAULT_OUT = ROOT / "benchmarks/local-data/page-stream-segmentation"
 sys.path[:0] = [str(ROOT / "tools"), str(ROOT / "experiments/legal-structure-gold"), str(ROOT / "experiments/legal_pdf_corpus")]
 from codex_runner.artifacts import atomic_json, digest, fingerprint, read_json
 from corpus_store import HOME
-from hierarchy import UNRANKED
+from hierarchy import UNLEVELLED as UNRANKED
 
 
 def corpus_home():
@@ -43,7 +43,11 @@ def validate_sha(sha):
 
 
 def annotation_decisions(part, page_count):
-    """Validate source parts without converting internal line starts to page edges."""
+    """Validate source parts without converting internal line starts to page edges.
+
+    A decision on page p covers its top edge and its lines, so a line start, like a
+    page start, needs page p - 1 in the scope; only physical page 1 has no top edge.
+    """
     pages = validate_pages(part["pages"], page_count)
     selected = set(pages)
     gaps = {p for p in selected if p - 1 in selected}
@@ -60,12 +64,12 @@ def annotation_decisions(part, page_count):
         if type(start) is int:
             page, key = start, (start, None)
         elif (isinstance(start, dict) and set(start) == {"page", "line_id", "text"}
-              and type(start["page"]) is int and start["page"] in selected
+              and type(start["page"]) is int and (start["page"] in gaps or start["page"] == 1 and 1 in selected)
               and isinstance(start["line_id"], str) and start["line_id"]
               and isinstance(start["text"], str)):
             page, key = start["page"], (start["page"], start["line_id"])
         else:
-            raise ValueError("A line start must name a selected page, packet line_id and its text")
+            raise ValueError("A line start must name page 1 or a page whose preceding page is selected, a packet line_id and its text")
         if key in seen:
             raise ValueError("Repeated document start")
         seen.add(key)
