@@ -30,11 +30,13 @@ fn column(name: &str) -> usize {
 pub struct Rows {
     pub sha256: String,
     pub ids: Vec<Value>,
-    features: Vec<Vec<f64>>,
-    text: Vec<String>,
-    family: Vec<String>,
+    pub(crate) features: Vec<Vec<f64>>,
+    pub(crate) text: Vec<String>,
+    pub(crate) family: Vec<String>,
     pub gold: Vec<Option<Vec<i64>>>,
     pub tier0: Vec<Vec<i64>>,
+    /// Each row's bookmark parent: the first row of the heading line its bookmark nests under, or -1.
+    pub navigation: Vec<i64>,
 }
 
 impl Rows {
@@ -50,10 +52,11 @@ impl Rows {
             family: row["text"].as_array().into_iter().flatten().map(|t| t[3].as_str().unwrap_or_default().to_owned()).collect(),
             gold: row["gold"].as_array().into_iter().flatten().map(labels).collect(),
             tier0: row["tier0"].as_array().into_iter().flatten().map(|v| labels(v).unwrap_or_default()).collect(),
+            navigation: row["navigation"].as_array().map(|a| a.iter().map(|x| x.as_i64().unwrap_or(-1)).collect()).unwrap_or_default(),
         })
     }
 
-    fn f(&self, row: usize, name: &str) -> f64 {
+    pub(crate) fn f(&self, row: usize, name: &str) -> f64 {
         self.features[row][column(name)]
     }
 }

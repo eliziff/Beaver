@@ -30,6 +30,7 @@ from codex_runner.transport import terminate  # noqa: E402
 import blocks  # noqa: E402
 import gold  # noqa: E402
 import hierarchy  # noqa: E402
+import postcorrect  # noqa: E402
 import prompts  # noqa: E402
 
 VERSION = "legal-structure-gold.v4"
@@ -69,7 +70,10 @@ def extract(pdf, mode, out, timeout):
                  for page in document.get("extraction", document)["pages"] for line in page["lines"]}
     lines = [{"id": ident, "page": line["page"], "text": extracted[ident]}
              for ident, line in gold.source_lines(structure).items()]
-    return lines, {"binary_sha256": exported.get("parser", {}).get("binary_sha256"), "structure_sha256": fingerprint(structure)}
+    # Each page's line boxes, for the post-corrections that read a line's place on its page.
+    geometry = [{"lines": [{"id": line["id"], "bbox": line["bbox"]} for line in page["lines"]]}
+                for page in document.get("extraction", document)["pages"]]
+    return lines, {"binary_sha256": exported.get("parser", {}).get("binary_sha256"), "structure_sha256": fingerprint(structure)}, geometry
 
 
 # The model receives an image scaled to fit 2,048 pixels on its long side (measured on gpt-6.1-sol:
@@ -243,10 +247,10 @@ def author(pdf, mode, args):
     job.mkdir(parents=True, exist_ok=True)
     started = time.time()
     receipt = {"source_sha256": source, "mode": mode, "model": args.model, "effort": args.effort, "status": "running",
-               "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py")}}
+               "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py", HERE / "postcorrect.py")}}
     write_json(job / "receipt.json", receipt)
     try:
-        lines, parser = extract(pdf, mode, args.out, args.timeout)
+        lines, parser, geometry = extract(pdf, mode, args.out, args.timeout)
         import fitz
         with fitz.open(pdf) as document: pages = list(range(1, len(document) + 1))
         images = render(pdf, pages, job / "images", args.dpi)
@@ -262,6 +266,7 @@ def author(pdf, mode, args):
                  "authoring": {"model": args.model, "effort": args.effort, "long_side": LONG_SIDE, "dpi_cap": args.dpi, "chunk_pages": CHUNK_PAGES,
                                "prompts": {"lines": prompts.LINES, "notes": prompts.NOTES, "hierarchy": prompts.HIERARCHY}},
                  "lines": gold_lines, "typed": typed, "units": units, "notes": notes, "text_edits": edits, "report": report}
+        postcorrect.apply(value, geometry)
         write_json(job / "gold.json.gz", value)
         receipt.update(status="complete", gold_sha256=digest(job / "gold.json.gz"), pages=len(pages), units=len(units),
                        typed_lines=len(typed), notes=len(notes),
