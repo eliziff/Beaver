@@ -572,15 +572,15 @@ fn candidates(path: Option<&str>) -> Result<BTreeMap<String, PathBuf>, String> {
     Ok(selected)
 }
 
-/// The parser's structure for a source and its pages' line boxes: replayed from the gold's
-/// inputs, or read from the authoring parse's export.
+/// The parser's structure for a source: replayed from the gold's inputs, or read from the
+/// authoring parse's export.
 fn candidate(
     gold: &Path,
     source: &Source,
     expected: &state::Gold,
     exports: bool,
     selected: Option<&PathBuf>,
-) -> Result<(DocumentStructure, Vec<state::ExtractionPage>), String> {
+) -> Result<DocumentStructure, String> {
     if exports || selected.is_some() {
         let export = if let Some(path) = selected {
             read_gzip_json::<Export>(path).map_err(|e| format!("{}: {e}", path.display()))?
@@ -607,17 +607,7 @@ fn candidate(
         if export.extraction.source_sha256 != source.sha256 {
             return Err("Candidate extraction belongs to another PDF".into());
         }
-        let pages = export
-            .extraction
-            .pages
-            .into_iter()
-            .map(|p| state::ExtractionPage {
-                width: p.width,
-                height: p.height,
-                lines: p.lines.into_iter().map(|l| (l.id, l.bbox)).collect(),
-            })
-            .collect();
-        return Ok((export.structure, pages));
+        return Ok(export.structure);
     }
     let read_at = Instant::now();
     let extracted: legalpdf::ExtractedPdf = read_gzip_json(
@@ -625,15 +615,6 @@ fn candidate(
             .join(format!("{}.json.gz", source.sha256)),
     )
     .map_err(|e| format!("{}: {e}", source.sha256))?;
-    let pages = extracted
-        .pages
-        .iter()
-        .map(|p| state::ExtractionPage {
-            width: p.width,
-            height: p.height,
-            lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
-        })
-        .collect();
     let structure_at = Instant::now();
     let document = legalpdf::gold_structure_document(extracted, &source.sha256, None)
         .map_err(|e| format!("{}: {e}", source.sha256))?;
@@ -641,7 +622,7 @@ fn candidate(
         eprintln!("timing	{}	inputs_ms	{:.1}	structure_ms	{:.1}", &source.sha256[..12],
             (structure_at - read_at).as_secs_f64() * 1e3, structure_at.elapsed().as_secs_f64() * 1e3);
     }
-    Ok((document.structure().clone(), pages))
+    Ok(document.structure().clone())
 }
 
 struct Graded {
@@ -661,7 +642,7 @@ fn grade_one(
         read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz"))
             .map_err(|e| e.to_string())?;
     let started = Instant::now();
-    let (structure, pages) = candidate(gold, source, &expected, exports, selected)?;
+    let structure = candidate(gold, source, &expected, exports, selected)?;
     let parsed_at = Instant::now();
     if structure
         .source_sha256
@@ -671,7 +652,7 @@ fn grade_one(
         return Err("Candidate belongs to another PDF".into());
     }
     let reference = state::projected(&expected)?;
-    let predicted = state::parsed(&structure, &pages)?;
+    let predicted = state::parsed(&structure)?;
     // STRUCTURE_GOLD_BLOCKS_DIR: both frames' blocks (kind, lines, locator, marker) per document, for
     // censuses of how the parser's units differ from the gold's.
     if let Some(dir) = std::env::var_os("STRUCTURE_GOLD_BLOCKS_DIR") {
@@ -685,14 +666,14 @@ fn grade_one(
                 "region": g.attributes.get("region"),
                 "locator": g.attributes.get("locator_kind"),
                 "marker": g.attributes.get("marker").map(|m| !m.is_null() && m.as_array().is_some_and(|a| !a.is_empty())).unwrap_or(false),
-                "parent": g.attributes.get("parent"),
+                "heading_level": g.attributes.get("heading_level"),
+                "depth": g.attributes.get("depth"),
             })).collect()
         };
         let lines: Vec<serde_json::Value> = predicted.lines.iter().map(|l| serde_json::json!([l.id, l.page, l.text.iter().collect::<String>()])).collect();
         let fragments: Vec<&str> = structure.source_fragments.iter().map(|f| f.id.as_str()).collect();
-        let extraction: Vec<&str> = pages.iter().flat_map(|p| p.lines.iter().map(|(id, _)| id.as_str())).collect();
         let _ = std::fs::write(dir.join(format!("{}.json", source.sha256)),
-            serde_json::to_vec(&serde_json::json!({"gold": dump(&reference), "parser": dump(&predicted), "lines": lines, "fragments": fragments, "extraction": extraction})).unwrap_or_default());
+            serde_json::to_vec(&serde_json::json!({"gold": dump(&reference), "parser": dump(&predicted), "lines": lines, "fragments": fragments})).unwrap_or_default());
     }
     let compared_at = Instant::now();
     let score = score::compare(&reference, &predicted)?;
@@ -746,9 +727,9 @@ fn decode_labels(frame: &state::State, per_piece: &HashMap<String, labels::Label
 fn grade_labels(gold: &Path, source: &Source, per_piece: &HashMap<String, labels::Label>) -> Result<Graded, String> {
     let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
     let started = Instant::now();
-    let (structure, pages) = candidate(gold, source, &expected, false, None)?;
+    let structure = candidate(gold, source, &expected, false, None)?;
     let parsed_at = Instant::now();
-    let decoded = decode_labels(&state::parsed(&structure, &pages)?, per_piece, &source.sha256)?;
+    let decoded = decode_labels(&state::parsed(&structure)?, per_piece, &source.sha256)?;
     let score = score::compare(&state::projected(&expected)?, &decoded)?;
     Ok(Graded { score, parse_ms: (parsed_at - started).as_secs_f64() * 1e3, score_ms: parsed_at.elapsed().as_secs_f64() * 1e3 })
 }
@@ -775,10 +756,7 @@ fn grade_tagged(gold: &Path, source: &Source, tagger: &Mutex<legal_structure_tag
     let mut structure = document.structure().clone();
     tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.retag(&mut structure, &pages, &source.sha256, hybrid())?;
     let tagged_at = Instant::now();
-    let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
-        width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
-    }).collect();
-    let score = score::compare(&state::projected(&expected)?, &state::parsed(&structure, &boxes)?)?;
+    let score = score::compare(&state::projected(&expected)?, &state::parsed(&structure)?)?;
     Ok(Graded { score, parse_ms: (tagged_at - started).as_secs_f64() * 1e3, score_ms: tagged_at.elapsed().as_secs_f64() * 1e3 })
 }
 
@@ -812,7 +790,7 @@ fn totals_json(rows: &[&Value]) -> Value {
 }
 
 /// The layers the apps read, first and by name; every other layer follows.
-const KEY_LAYERS: [(&str, &str); 11] = [
+const KEY_LAYERS: [(&str, &str); 14] = [
     ("units_heading", "headings"),
     ("markers_text", "numbered paragraphs, sections"),
     ("units_text", "paragraphs"),
@@ -820,7 +798,10 @@ const KEY_LAYERS: [(&str, &str); 11] = [
     ("markers_list_item", "list markers"),
     ("note_references", "footnote references"),
     ("note", "footnote pairs"),
-    ("hierarchy_parent", "parents"),
+    ("heading_steps", "heading levels"),
+    ("depth_steps", "body depths"),
+    ("line_numbers", "transcript line numbers"),
+    ("speakers", "speaker turns"),
     ("order", "reading order"),
     ("coverage", "text coverage"),
     ("transcription", "transcription (characters matched)"),
@@ -1128,10 +1109,7 @@ fn rows(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
             .map_err(|e| format!("{}: {e}", source.sha256))?;
         let mut pages = Vec::new();
         let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
-        let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
-            width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
-        }).collect();
-        let candidate = state::parsed(document.structure(), &boxes)?;
+        let candidate = state::parsed(document.structure())?;
         let reference = state::projected(&expected)?;
         let parsed_regions = labels::parsed_regions(&candidate);
         let (pieces, tier0) = labels::labels(&candidate, &|p| parsed_regions.of(p))?;
@@ -1290,7 +1268,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
     if inventory.is_some() && !selected.contains_key(&source.sha256) {
         return Err("No candidate selected for this source".into());
     }
-    let (structure, pages) = candidate(
+    let structure = candidate(
         gold,
         &source,
         &expected,
@@ -1317,7 +1295,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
                 node.line_ids.first().map(String::as_str).unwrap_or("-"), node.range.start, node.range.end, node.origin_id);
         }
     }
-    let mut candidate_state = state::parsed(&structure, &pages)?;
+    let mut candidate_state = state::parsed(&structure)?;
     if options.iter().any(|o| o == "--roundtrip") {
         candidate_state = roundtrip(&expected, &state::projected(&expected)?)?;
     }
@@ -1334,10 +1312,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
         // --labels-out FILE: the engine's own per-piece labels, in the trainer's predictions format, so
         // they can be set beside a predictions file piece by piece.
         if let Some(path) = value("--labels-out") {
-            let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
-                width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
-            }).collect();
-            let frame = state::parsed(&structure, &boxes)?;
+            let frame = state::parsed(&structure)?;
             let regions = labels::parsed_regions(&frame);
             let (pieces, tier0) = labels::labels(&frame, &|p| regions.of(p))?;
             let predicted = tagger.predict(&pages, &frame, &pieces, &tier0, hybrid())?;
@@ -1353,10 +1328,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
         // of the re-labelled graph (native_id, spans), unit by unit, to see where the two frames part.
         let units_out = value("--units-out");
         let decoded = units_out.as_ref().map(|_| {
-            let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
-                width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
-            }).collect();
-            state::parsed(&structure, &boxes).and_then(|frame| {
+            state::parsed(&structure).and_then(|frame| {
                 let regions = labels::parsed_regions(&frame);
                 let (pieces, tier0) = labels::labels(&frame, &|p| regions.of(p))?;
                 let predicted = tagger.predict(&pages, &frame, &pieces, &tier0, hybrid())?;
@@ -1364,10 +1336,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
             })
         }).transpose()?;
         tagger.retag(&mut structure, &pages, &source.sha256, hybrid())?;
-        let boxes: Vec<state::ExtractionPage> = pages.iter().map(|p| state::ExtractionPage {
-            width: p.width, height: p.height, lines: p.lines.iter().map(|l| (l.id.clone(), l.bbox)).collect(),
-        }).collect();
-        candidate_state = state::parsed(&structure, &boxes)?;
+        candidate_state = state::parsed(&structure)?;
         if let (Some(path), Some(gold)) = (units_out, decoded) {
             let units: Vec<Value> = gold.units.iter().enumerate().map(|(u, unit)| json!({
                 "unit": u, "node": format!("tag-{:06}", u + 1), "region": gold.typed[unit.lines[0]].region,

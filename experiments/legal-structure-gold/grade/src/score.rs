@@ -239,11 +239,15 @@ struct Features {
     roles: Vec<(Piece, String)>,
     groups: Vec<Vec<Piece>>,
     joins: Vec<(Piece, Piece)>,
-    hierarchy: Vec<(Option<Point>, String, String, Option<Point>, Segments)>,
+    hierarchy: Vec<(Option<Point>, String, String, Segments)>,
     hierarchy_units: Vec<Option<Point>>,
     hierarchy_roles: Vec<(Option<Point>, String)>,
-    hierarchy_relation: Vec<(Option<Point>, String)>,
-    hierarchy_parent: Vec<(Option<Point>, Option<Point>)>,
+    /// Each heading's step from the heading before it: deeper, the same level, or up k levels.
+    heading_steps: Vec<(Option<Point>, String)>,
+    /// Each body unit's step in depth from the body unit before it.
+    depth_steps: Vec<(Option<Point>, String)>,
+    /// The state gives depths (a gold the document pass has read); a parse's are read off its tree.
+    depth_given: bool,
     hierarchy_marker: Vec<(Option<Point>, Segments)>,
     table: Vec<(Segments, usize, usize)>,
     table_cells: Vec<(Option<Point>, usize, usize, Option<Segments>)>,
@@ -255,6 +259,10 @@ struct Features {
     /// Units and printed markers by what the unit is, for the headline table.
     units_kind: Vec<(String, Vec<Piece>)>,
     markers_kind: Vec<(String, Option<Point>, Segments)>,
+    /// A transcript's printed line numbers: a line_label line, or the number printed on the line it numbers.
+    line_numbers: Vec<Segments>,
+    /// The labels that open a speaker's turn ("Q.", "MR. SMITH:").
+    speakers: Vec<Segments>,
 }
 
 fn merged(values: impl IntoIterator<Item = Piece>) -> Segments {
@@ -479,36 +487,52 @@ fn features<'a>(
             )
         })
         .collect();
-    // A unit's structure is scored relative to the unit before it in reading order (its child,
-    // its sibling, a sibling of its k-th ancestor), never by absolute depth.
-    let mut relation: HashMap<&str, String> = HashMap::new();
-    for (n, first) in units.iter().enumerate() {
-        if n == 0 {
-            relation.insert(first, "first".into());
-            continue;
+    // Levels: a gold gives each heading's level and each body unit's depth, as the model set them;
+    // a parse's are read off its tree, one more than the headings above a heading, or than the
+    // body units above a body unit.
+    let level = |first: &str, heading: bool| -> usize {
+        let key = if heading { "heading_level" } else { "depth" };
+        if let Some(given) = groups[first].attributes.get(key).and_then(Value::as_u64) {
+            return given as usize;
         }
-        let (previous, parent) = (units[n - 1], parent_of[first]);
-        if parent == Some(previous) {
-            relation.insert(first, "child".into());
-            continue;
+        let (mut depth, mut at, mut seen) = (1, parent_of.get(first).copied().flatten(), HashSet::new());
+        while let Some(ancestor) = at.filter(|a| seen.insert(*a)) {
+            let Some(&g) = groups.get(ancestor) else { break };
+            if (role(g) == "heading") == heading {
+                depth += 1;
+            }
+            at = parent_of.get(ancestor).copied().flatten();
         }
-        let (mut chain, mut at, mut seen) = (Vec::new(), Some(previous), HashSet::new());
-        while let Some(current) = at.filter(|a| seen.insert(*a)) {
-            chain.push(current);
-            at = parent_of.get(current).copied().flatten();
+        depth
+    };
+    // A level is scored relative to the one before it of its kind (deeper, the same, up k),
+    // never absolutely: two readings that nest alike agree however they number their depths.
+    let step = |previous: Option<usize>, level: usize| match previous {
+        None => "first".to_owned(),
+        Some(p) if level > p => format!("down {}", level - p),
+        Some(p) if level == p => "same".to_owned(),
+        Some(p) => format!("up {}", p - level),
+    };
+    result.depth_given = units.iter().any(|first| groups[*first].attributes.contains_key("depth"));
+    let mut steps: HashMap<&str, String> = HashMap::new();
+    let (mut heading_before, mut depth_before) = (None, None);
+    // Each document's levels are its own: the first unit of a document steps from nothing.
+    let document_starts: HashSet<&str> = annotations.iter().filter(|a| a.kind == "document").map(|a| a.line_ids[0].as_str()).collect();
+    for &first in &units {
+        let g = groups[first];
+        let line = g.spans.first().map_or_else(|| g.line_ids[0].as_str(), |s| s.line_id.as_str());
+        if document_starts.contains(line) {
+            (heading_before, depth_before) = (None, None);
         }
-        let found = chain
-            .iter()
-            .enumerate()
-            .find(|(_, a)| parent_of.get(**a).copied().flatten() == parent)
-            .map(|(k, _)| {
-                if k == 0 {
-                    "sibling".to_owned()
-                } else {
-                    format!("up {k}")
-                }
-            });
-        relation.insert(first, found.unwrap_or_else(|| "other".into()));
+        if role(groups[first]) == "heading" {
+            let at = level(first, true);
+            steps.insert(first, format!("heading {}", step(heading_before, at)));
+            heading_before = Some(at);
+        } else {
+            let at = level(first, false);
+            steps.insert(first, format!("depth {}", step(depth_before, at)));
+            depth_before = Some(at);
+        }
     }
     for first in &keys {
         let g = groups[first.as_str()];
@@ -518,6 +542,15 @@ fn features<'a>(
             result
                 .roles
                 .extend(span_pieces(s)?.into_iter().map(|p| (p, kind.clone())));
+        }
+        if role(g) == "line_label" {
+            result.line_numbers.push(spans(&own)?);
+        }
+        for s in spans_of(g.attributes.get("line_number"))? {
+            result.line_numbers.push(spans(std::slice::from_ref(&s))?);
+        }
+        for s in spans_of(g.attributes.get("speaker"))? {
+            result.speakers.push(spans(std::slice::from_ref(&s))?);
         }
         if !incoming.contains(first.as_str()) {
             let mut parts = own;
@@ -544,25 +577,21 @@ fn features<'a>(
         let g = groups[*first];
         let unit = Some(point(first)?);
         let kind = role(g);
-        let parent = anchor_of(parent_of[first])?;
         let marker = spans_of(g.attributes.get("marker"))?;
         let marker_spans = spans(&marker)?;
-        result.hierarchy.push((
-            unit,
-            kind.clone(),
-            relation[first].clone(),
-            parent,
-            marker_spans.clone(),
-        ));
+        let at = steps.get(first).cloned().unwrap_or_default();
+        result.hierarchy.push((unit, kind.clone(), at.clone(), marker_spans.clone()));
         result.hierarchy_units.push(unit);
         if !marker.is_empty() {
             result.markers_kind.push((kind.clone(), unit, marker_spans.clone()));
         }
         result.hierarchy_roles.push((unit, kind));
-        result
-            .hierarchy_relation
-            .push((unit, relation[first].clone()));
-        result.hierarchy_parent.push((unit, parent));
+        if let Some(found) = at.strip_prefix("heading ") {
+            result.heading_steps.push((unit, found.to_owned()));
+        }
+        if let Some(found) = at.strip_prefix("depth ") {
+            result.depth_steps.push((unit, found.to_owned()));
+        }
         if !marker.is_empty() {
             result.hierarchy_marker.push((unit, marker_spans));
         }
@@ -847,17 +876,13 @@ pub fn explain(
         |(u, kind): &(Option<Point>, String)| format!("{kind} {}", render.point(*u))
     );
     layer!(
-        hierarchy_relation,
-        |(u, rel): &(Option<Point>, String)| format!("{rel} {}", render.point(*u))
+        heading_steps,
+        |(u, at): &(Option<Point>, String)| format!("{at} {}", render.point(*u))
     );
-    layer!(hierarchy_parent, |(u, parent): &(
-        Option<Point>,
-        Option<Point>
-    )| format!(
-        "{} under {}",
-        render.point(*u),
-        render.point(*parent)
-    ));
+    layer!(
+        depth_steps,
+        |(u, at): &(Option<Point>, String)| format!("{at} {}", render.point(*u))
+    );
     layer!(hierarchy_marker, |(u, marker): &(
         Option<Point>,
         Segments
@@ -974,14 +999,11 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
         "hierarchy_roles",
         prf(&wanted.hierarchy_roles, &got.hierarchy_roles),
     );
-    metrics.insert(
-        "hierarchy_relation",
-        prf(&wanted.hierarchy_relation, &got.hierarchy_relation),
-    );
-    metrics.insert(
-        "hierarchy_parent",
-        prf(&wanted.hierarchy_parent, &got.hierarchy_parent),
-    );
+    metrics.insert("heading_steps", prf(&wanted.heading_steps, &got.heading_steps));
+    // A gold without depths (machine silver) scores none.
+    if wanted.depth_given {
+        metrics.insert("depth_steps", prf(&wanted.depth_steps, &got.depth_steps));
+    }
     metrics.insert(
         "hierarchy_marker",
         prf(&wanted.hierarchy_marker, &got.hierarchy_marker),
@@ -993,6 +1015,8 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
         "note_references",
         prf(&wanted.note_references, &got.note_references),
     );
+    metrics.insert("line_numbers", prf(&wanted.line_numbers, &got.line_numbers));
+    metrics.insert("speakers", prf(&wanted.speakers, &got.speakers));
     metrics.insert("document", prf(&wanted.document, &got.document));
     metrics.insert(
         "document_ownership",
@@ -1108,7 +1132,6 @@ mod tests {
                 page,
                 text: text.chars().collect(),
                 spatial: (page, n as f64, 0.0),
-                page_band: None,
             })
             .collect();
         let blocks = groups

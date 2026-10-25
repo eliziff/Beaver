@@ -6,7 +6,7 @@ aligned word by word with A2AJ's text, and A2AJ's structure reading labels them:
 listing (numbered paragraphs, quotations, lists, headings, notes and their references) and the
 engine's case outline (heading labels, headings in the front matter, lines no node reads); the PDF
 decides furniture, page numbers, set-apart quotations, bullets and heading levels (label.py).
-Parents come from hierarchy.assemble. A document is refused when under 90 percent of its body
+Its units carry heading levels and no numbering levels, so no numbering levels are scored on it. A document is refused when under 90 percent of its body
 lines are covered by A2AJ text, any numbered paragraph is not found, four or more consecutive body
 lines are not in A2AJ, the PDF prints paragraph numbers A2AJ's text lacks, or A2AJ folds long end
 matter (formal judgment, counsel, notes) into the last paragraph.

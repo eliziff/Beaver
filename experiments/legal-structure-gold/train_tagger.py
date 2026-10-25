@@ -7,7 +7,7 @@ reading order, with its evidence, the parser's labels (tier 0) and the gold's. T
 whole document and predicts, per piece, its region, what starts there (inside, a unit, a resumed
 unit), a document start, a note reference and, on a heading's first piece, the heading's level
 (1 the outermost in its document). Parents are not predicted: the decoder derives them from
-regions and levels by the hierarchy rule (CONVENTIONS section 2). A resumed piece resumes the
+regions and levels by the hierarchy rule. A resumed piece resumes the
 latest earlier unit of its region. Development selects the epoch; test is never read. Predictions
 for development go to OUT_DIR/predictions-development-<model>.jsonl as {sha256, ids, labels} for
 `grade --labels`.

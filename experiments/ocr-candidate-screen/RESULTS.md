@@ -1297,3 +1297,224 @@ Model checkpoints and exported inference models remain private in
 model revisions, software versions and aggregate receipts. The source page
 corpus was neither copied nor modified. Indra's model licence still applies
 to its derived weights; this experiment does not decide redistribution.
+
+## Markers and footnote glyphs (2026-10-22)
+
+Experiment only; no release package or `legal-browser-ocr` file changed. Plan, gold encoding
+and the parser's consumption of OCR text are in [MARKERS-PLAN.md](MARKERS-PLAN.md).
+Targets keep superscript note calls as plain characters, as the gold and the parser do.
+
+**Gold.** Structure gold v4 OCR documents (desktop `lsg-v4` store): corrected line =
+`lines[].text` plus `text_edits`; list markers are gold `typed[].markers` spans at line
+start, note calls are gold `typed[].references` spans. Splits follow the cohort manifest:
+train 238 documents / 931 OCR pages, development 60 / 248 (with test 25 documents). The
+gold's authoring extraction is mostly scans' own text layers, not our recognizer, so every
+measurement below runs the shipped native `legalocr.exe` (v0.2.0 pack, Hayro 144 dpi render,
+Quality tier, detector side 1024) on PDFs holding only the gold OCR pages. All recognized lines
+inside a gold line's box are joined left to right (the detector often boxes a tab-separated
+marker on its own). A span counts as correct only if every gold character aligns equal.
+Lines are usable when non-empty, free of U+FFFD and within 0.5 CER of the authoring text.
+
+**Instrument checks.** The student8 checkpoint re-exported by this harness reproduced the
+shipped pack exactly through `legalocr --model-pack` (identical scores on all 5,246 matched
+development lines), and the CPU and DirectML backends agreed (development targets CER
+6.456% both). Training crops come from pypdfium2 renders because Hayro is not exposed to
+Python. The two renders read differently (3.1% CER between them, 64% identical lines) but
+score alike against gold (other-line CER 13.5% Hayro, 13.9% pdfium; marker errors 208 vs
+203 of 534), and on pdfium crops the stock model's development marker error (39.3%) matched
+its native rate (39.1%).
+
+**Training data.** Native Quality boxes on the train documents, paired with usable gold
+lines when one recognized line lies inside the gold box at IoU >= 0.5 (25,487 lines), plus
+262 lines where the detector split a narrow line-start marker from its body (marker crop
+labelled with the gold marker, body with the rest). Usable pairs: 26,011, of which 3,450 are
+marker/reference lines (244 with note calls). No synthetic rendering. Both arms add the full
+Arrow train split (26,981 lines) and repeat note-call lines four times.
+
+| Arm | Gold lines added | Train lines | Epochs run / selected | Wall time (incl. dev checks) |
+| --- | ---: | ---: | ---: | ---: |
+| A: marker/reference lines + equal other gold lines | 7,632 | 34,613 | 9 / 5 | 8.2 min |
+| B: all usable gold-train lines | 26,743 | 53,724 | 7 / 3 | 9.7 min |
+
+Both start from the shipped student8 weights (8 blocks, epoch 19), AdamW 5e-5 halving on
+plateau, frozen batch-normalization statistics, batch 16, seed 714, patience 4, 12-epoch cap.
+Selection, fixed before training: lowest mean of Arrow-development CER and the
+development marker/reference-line crop CER. B had the lower objective (0.01926 vs 0.01985).
+Test was scored once, after both checkpoints were selected; it selected nothing.
+New output classes from gold text: 6 (A) / 7 (B), all noise characters (emoji, flags, a
+lone surrogate left out of the codec).
+
+**Arrow corpus (no regression).** ONNX CPU, all lines:
+
+| Model | Arrow dev CER | Arrow test CER (edits / 143,308) |
+| --- | ---: | ---: |
+| Shipped student8 | 1.402% | 0.883% (1,265) |
+| A | 1.384% | 0.867% (1,243) |
+| B | 1.371% | 0.845% (1,211) |
+
+ONNX exports matched PyTorch at two batch/width shapes (max logit delta 7.8e-5 / 3.7e-5);
+the compact class-ID graphs reproduced argmax and lengths exactly on four development batches.
+
+**Crop level** (pypdfium2 crops on native boxes, PyTorch GPU; development was used for
+selection):
+
+| Model | Dev marker/ref lines CER | Dev marker errors | Dev note-call errors | Test marker/ref lines CER | Test marker errors | Dev other CER | Test other CER |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Shipped | 3.94% | 194/494 | 19/53 | 2.44% | 49/408 | 6.37% | 2.16% |
+| A | 2.58% | 109/494 | 18/53 | 1.85% | 15/408 | 4.84% | 1.80% |
+| B | 2.48% | 117/494 | 16/53 | 2.07% | 15/408 | 4.17% | 1.58% |
+
+**Native end to end** (`legalocr --model-pack`, Quality, CPU, Hayro render; same detector
+so the same boxes; 5,226 development and 2,856 test gold lines matched in every arm):
+
+| Split / model | Marker/ref lines CER | Exact lines | Marker errors | Note-call errors | Other lines CER |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Dev, shipped | 6.46% | 37.9% | 209/535 (39.1%) | 22/54 (40.7%) | 13.42% |
+| Dev, A | 5.33% | 55.2% | 123/535 (23.0%) | 16/54 (29.6%) | 11.82% |
+| Dev, B | 5.27% | 53.7% | 139/535 (26.0%) | 16/54 (29.6%) | 11.04% |
+| Test, shipped | 2.40% | 65.8% | 45/419 (10.7%) | 1/2 | 4.94% |
+| Test, A | 1.90% | 83.6% | 17/419 (4.1%) | 1/2 | 4.57% |
+| Test, B | 2.23% | 77.2% | 18/419 (4.3%) | 1/2 | 4.29% |
+
+Paired span outcomes against the shipped model (exact two-sided sign test on spans that
+changed): test markers A 34 fixed / 6 broken (p = 8e-6), B 34 / 7 (p = 3e-5); development
+markers A 96 / 10, B 87 / 17. Note calls: development A 8 / 2 (p = 0.11), B 6 / 0
+(p = 0.03), but development chose the checkpoint, and the test split holds only 2 matched
+note calls, so note-call recognition has no held-out evidence either way.
+
+The 300-line development sample in the plan (all 54 note-call lines plus 246 marker lines)
+moved from 95/254 marker and 22/54 note-call errors (5.77% CER) to 56/254 and 16/54
+(4.76%) with A, and 63/254 and 16/54 (4.73%) with B.
+
+Remaining development errors are bracket and parenthesis confusions (`[4]` -> `14`,
+`(b)` -> `(5)`, `(iii)` -> `(ii)`) and markers with nothing read inside the gold box (39 of
+535 shipped, 39 for A, 44 for B: check marks, column codes such as `C6`, far-left numbers).
+Retraining the recognizer did not touch the latter; they are detector or line-grouping misses
+and are now about a third of A's remaining marker errors. The detector was not fine-tuned:
+there is no corrected box gold (README), and these misses are a minority.
+
+**Not measured.** Parser-level structure scores (an `extract.mjs` run with a `model_pack`
+setting would fill a separate cache entry; not run), browser packages, and speed. The graph
+is unchanged apart from 6-7 extra classifier rows (1,679 -> 1,685/1,686 classes), so no speed
+claim is made. The olj-db footnote gold has page images and marker rows, but it comes from
+the same journal family as the Arrow corpus and its article partition was not reconciled
+with the Arrow split, so it was not used.
+
+**Recommendation: needs more data for note calls; for list markers, worth carrying into a
+tier after a parser-level check.** Training on our own detector's boxes with corrected
+court-scan lines cut held-out marker errors by 60% (10.7% to 4.1-4.3% on test), improved
+whole-line CER on court scans, and also slightly improved the Arrow test set. Superscript note
+calls are too rare in the OCR gold (244 training lines, 2 test spans) to claim anything. A
+targets the brief best on test and B generalizes better to other court-scan lines; neither
+dominates. Next: gather note-call crops (scanned factums/affidavits with footnotes, or the
+olj-db pages once their partition is reconciled), run the parser-level structure A/B on the
+development cohort, and look at the detector for the dropped-marker class.
+
+Artifacts: `assets/markers/{A-targets,B-all}/` (compact class-ID `model.onnx`, `codec.json`,
+export and training receipts, the copied pack manifest). Model SHA-256: A
+`734e2f7695ee325120e7e8e005d88b2cc78b6e8d03bdee7023730c8ce777dc50`, B
+`641aab4702772e43aa4bad1f9e4e6b7f8942bcd6a369c870910557e5032d4cc9`. The harness is in
+`markers/`; copy it beside `screen.py`, `indra.py` and `evaluate.py` into one desktop work
+directory (`C:\Users\elias\beaver-train\markers`; paths to the gold store and `legalocr.exe`
+are fixed in the scripts). `markers.py` pins Indra revision
+`ed345c7f158eddbc7dee0c6a7269afb75a94f7e8`. Upstream has published a new `rec.onnx`
+(height 96); an unpinned load fetched it and moved the desktop cache's `refs/main`, which was
+restored to the pinned revision. Commands, run in that directory:
+
+```bat
+python -I census.py lines.jsonl.gz
+python -I make_subset.py lines.jsonl.gz subset development,test
+python -I make_subset.py lines.jsonl.gz subset train
+py.cmd ocr_ab.py run --split train --tier quality --backend auto --out ocrout\stock-train-quality-auto
+py.cmd ocr_ab.py run --split development --tier quality --backend auto --out ocrout\stock-dev-quality-auto
+py.cmd ocr_ab.py run --split test --tier quality --backend auto --out ocrout\stock-test-quality-auto
+py.cmd build_pairs.py train ocrout\stock-train-quality-auto pairs\train.arrow
+py.cmd build_pairs.py development ocrout\stock-dev-quality-auto pairs\development.arrow
+py.cmd build_pairs.py test ocrout\stock-test-quality-auto pairs\test.arrow
+run.cmd train --checkpoint STUDENT8\best.pt --crops pairs --data-root DATA --output runs\A-targets --other-ratio 1 --ref-repeat 4
+run.cmd train --checkpoint STUDENT8\best.pt --crops pairs --data-root DATA --output runs\B-all --other-ratio 100 --ref-repeat 4
+run.cmd export --checkpoint runs/A-targets/best.pt --data-root DATA --stock-pack PACK --out export/A-targets
+run.cmd export --checkpoint runs/B-all/best.pt --data-root DATA --stock-pack PACK --out export/B-all
+py.cmd ocr_ab.py run --split development --tier quality --backend cpu --out ocrout\stock-dev-quality-cpu
+py.cmd ocr_ab.py run --split development --tier quality --backend cpu --pack export\A-targets\pack --out ocrout\A-dev-quality-cpu
+py.cmd ocr_ab.py score --split development --out ocrout\stock-dev-quality-cpu --out ocrout\A-dev-quality-cpu --out ocrout\B-dev-quality-cpu --report ab-dev.json
+run.cmd final --baseline STUDENT8\best.pt --checkpoint runs/B-all/best.pt --crops pairs --data-root DATA --out final-B.json
+py.cmd paired.py test ocrout\stock-test-quality-cpu ocrout\A-test-quality-cpu
+```
+
+(The test-split commands mirror the development ones. `STUDENT8` =
+`benchmarks/local-data/ocr-candidate-screen/speed-followup/student8/indra`, `DATA` = the
+existing `kraken-student-data/binary`, `PACK` = the desktop `lsg-v4` dist
+`runtime/indra`.) `build_crops.py` and `parity.py` produced the crop and render-parity checks.
+Crops, transcripts and per-line receipts stay on the desktop in that work directory.
+
+### Parser-level structure A/B: shipped Quality pack vs pack A
+
+Each arm re-read and re-parsed whole documents through `extract.mjs --batch` (desktop `lsg-v4`
+checkout, pinned addon `867a0f8e…`, request `{ocr: indra, model_pack, tier: quality, backend:
+cpu}`). Each arm wrote to its own output directory under the desktop work directory, so the
+recognition cache (keyed by the OCR identity, which includes the model hash) is separate per
+arm. The store's `parsed/` cache was neither read nor written. The parser's own exports were
+graded with `structure-gold-r10.exe grade STORE cohort-manifest.json --candidates
+<arm>-<split>.inventory.json --split <split> --group yardstick=main` and compared with
+`compare_group.py … groups.json yardstick=main markers_list_item 10`.
+
+Documents: yardstick=main, mode ocr, and at least 90% of the shipped export's lines read by our
+recognizer (not a kept text layer). Only 6 development documents qualify (15 pages), so I added
+the 22 qualifying train documents (88 pages) and the 4 qualifying test documents (11 pages): 32
+documents, 114 pages, 111 of them read by our OCR in both arms. **Pack A was trained on the
+gold OCR pages of those train documents**, so the train rows are not held out; the held-out
+set is development + test (10 documents, 26 pages).
+
+| Layer (pooled F1) | Held-out, expected | Shipped | Pack A | Delta | Docs better / worse |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| List markers (`markers_list_item`) | 64 | 0.432 | 0.554 | +0.121 | 1 / 0 |
+| List items (`units_list_item`) | 64 | 0.703 | 0.877 | +0.174 | 2 / 1 |
+| Numbered paragraphs (`markers_text`) | 8 | 0.000 | 0.000 | 0 | 0 / 1 |
+| Note references | 9 | 0.143 | 0.000 | -0.143 | 1 / 1 |
+| Notes | 10 | 0.111 | 0.125 | +0.014 | 2 / 0 |
+| Transcription (characters) | 50,926 | 0.917 | 0.928 | +0.011 | 8 / 2 |
+| Text units | 138 | 0.319 | 0.315 | -0.005 | 4 / 2 |
+| Hierarchy parent | 239 | 0.281 | 0.305 | +0.025 | 4 / 3 |
+| Order | 982 | 0.757 | 0.756 | -0.001 | 4 / 5 |
+| Coverage | 992 | 0.957 | 0.954 | -0.004 | 4 / 5 |
+
+| Layer (pooled F1) | Dev only (6 docs) | Train (22, not held out) | All 32 |
+| --- | ---: | ---: | ---: |
+| List markers | 0.000 -> 0.000 (20 expected) | 0.153 -> 0.251 | 0.224 -> 0.333 |
+| List items | 0.571 -> 0.732 | 0.368 -> 0.451 | 0.448 -> 0.560 |
+| Numbered paragraphs | 0 -> 0 | 0 -> 0 | 0 -> 0 |
+| Note references | 0 -> 0 (7 expected) | 0 -> 0 (4 expected) | 0.051 -> 0.000 |
+| Transcription | 0.939 -> 0.947 | 0.772 -> 0.803 | 0.797 -> 0.824 |
+| Order | 0.818 -> 0.823 | 0.724 -> 0.717 | 0.730 -> 0.724 |
+
+Per document (held-out): the list-marker gain is one document, `30d13dbad4` (test,
+38 of the 64 expected markers, 0.774 -> 0.947; its list items 0.74 -> 0.95). `4dcd1be6c1`
+(dev) list items went 0.62 -> 1.00 and `367bba729d` (dev) 0.71 -> 0.67. In both of those dev
+documents the parser recovers none of the 20 gold list markers in either arm, so better
+recognition did not reach the marker layer there; that loss is downstream of OCR. The
+note-reference change is one hit: `30d13dbad4` 0.50 -> 0.00 (2 expected). One spurious
+numbered paragraph appeared in `7e5dfb4afb`. Transcription improved in 8 of 10 held-out
+documents (largest `7e5dfb4afb` 0.66 -> 0.73, `1aee9290dd` 0.61 -> 0.66). On train, list
+markers improved in 7 documents and worsened in 1 (`9e225cddc5`, a spurious marker with 0
+expected); order worsened in 13 of 22 documents by small amounts.
+
+OCR cost: whole-document parse wall time on CPU (render, detection, recognition and structure,
+fresh caches, 32 documents, 114 pages) was 40.0 s for the shipped pack (351 ms/page) and
+39.5 s for pack A in each of two runs (347 and 346 ms/page). There is no measurable difference.
+
+Verdict for this step: **ship A as the Quality recognizer — yes on the evidence available,
+with a thin margin.** No structure layer regresses beyond single-document noise. Transcription
+and list items improve on held-out documents, it costs nothing, and the line-level held-out
+marker gain is strong (p = 8e-6). But the parser-level list-marker gain rests on one held-out
+document, and numbered paragraphs and note references show no gain. Quality and
+Balanced/Fast/Turbo share the `standard` model in the shipped manifest; shipping A only for
+Quality needs its own model entry. The A pack used here pointed every model key at A,
+Extreme's `light` model included, and only the Quality tier was exercised.
+
+Commands (desktop work directory): `structure_jobs.py` (selection and requests),
+`extract_arm.cmd jobs-shipped.json` / `jobs-packA.json` (plus the fresh `…T` timing passes from
+`structure_inventory.py timing`), `structure_inventory.py inventories`, `grade_arms.cmd`,
+`structure_report.py`, then `compare_group.py merged-shipped-<set>.json merged-packA-<set>.json
+C:\Users\elias\fable\groups.json yardstick=main markers_list_item 10`. `qualify.py` produced
+the selection census.
