@@ -82,7 +82,7 @@ def prepare_call(prompt, schema_path, images, directory, args, *, policy):
     return directory
 
 
-def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke, budget=None, *, policy, reuse=True):
+def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke, budget=None, *, policy, reuse=True, cache_key=None):
     directory = prepare_call(prompt, schema_path, images, directory, args, policy=policy)
     schema_path = (directory / "schema.json").resolve()
     schema = read_json(schema_path)
@@ -149,7 +149,7 @@ def call(prompt, schema_path, images, directory, args, validate, dispatch=invoke
         try:
             response = dispatch(prompt=actual_prompt, schema_path=schema_path, image_paths=images,
                                 model=args.model, effort=args.effort, work_dir=work.resolve(),
-                                timeout_seconds=args.timeout, extra_args=extra)
+                                timeout_seconds=args.timeout, extra_args=extra, instructions=policy.instructions, cache_key=cache_key)
             previous = response
             if validator is not None:
                 validator.validate(response)
