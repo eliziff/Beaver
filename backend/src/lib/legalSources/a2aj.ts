@@ -1,15 +1,14 @@
 import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
-import { a2ajLocalBulkPath, searchLocalA2AJ, useA2AJStore } from "../a2ajLocalBulk";
 import { decisiaIndexUrl, verifiedDecisiaPdf,
   type VerifiedPdfEvidence } from "../legalSourcePresentation";
 import { guardedRemoteFetch, networkFailure, RETRY_WAITS_MS, wait } from "../remoteUrlSafety";
-import { inSqliteRun, onSqliteRunEnd, storeExists, storeStat } from "../legalDataPath";
+import { a2ajStorePath, inSqliteRun, onSqliteRunEnd, storeExists, storeStat, useA2AJStore } from "../legalDataPath";
 import { normalizeWhitespace } from "../text";
-import { searchLucene } from "../searchQuery";
+import { hasSearchOperators, searchFts5, searchLucene } from "../searchQuery";
 import { nativeDocumentLive, structureNative, type A2AJStoreDocument, type A2AJStoreLookup,
   type NativeDocument } from "../structureNative";
-import { objectValue as object, type JsonObject } from "./remoteProvider";
+import { objectValue as object } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { indexedNumberedCase } from "./canlii";
 import { isUnitedStatesSearch, keepLookupsLocal, lookupsLeaveComputer } from ".";
@@ -59,85 +58,12 @@ const documents = new Map<string, { expires: number; value: A2AJCompiledDocument
 // When each citation neither the store nor A2AJ holds may be asked for again: every step of a run cites it again.
 const missing = new Map<string, number>();
 
-async function deriveA2AJDocument(
-  input: {
-    citation: string; docType: DocType; text: string; id?: string;
-    url?: string | null; dataset?: string | null; name?: string | null;
-    alternateCitation?: string | null; sectionMap?: Record<string, string> | null;
-  },
-  scope: { kind: "complete" | "excerpt"; excerptOf?: string } = { kind: "complete" },
-) {
-  // The stages of an operation read the same decisions, each asking for them in its own form: a text's structure is
-  // derived once, kept while an operation runs and the latest 32 otherwise.
-  const { text, ...rest } = input;
-  const key = JSON.stringify([rest, scope, crypto.createHash("sha256").update(text).digest("base64")]);
-  const kept = derived.get(key);
-  if (kept) {
-    derived.delete(key); derived.set(key, kept);
-    const found = await kept.catch(() => null);
-    if (found && nativeDocumentLive(found)) return found;
-    derived.delete(key);
-  }
-  const deriving = deriveUncached(input, scope);
-  derived.set(key, deriving);
-  deriving.catch(() => derived.delete(key));
-  if (!inSqliteRun()) for (const old of [...derived.keys()].slice(0, Math.max(0, derived.size - 32))) derived.delete(old);
-  return deriving;
-}
-const derived = new Map<string, Promise<NativeDocument>>();
-
-function deriveUncached(input: Parameters<typeof deriveA2AJDocument>[0], scope: Parameters<typeof deriveA2AJDocument>[1] & object) {
-  return structureNative().deriveDocumentStructure({
-    kind: "provider_text",
-    input: {
-      provider: "a2aj",
-      citation: input.citation,
-      source_kind: input.docType,
-      text: input.text,
-      ...(input.id ? { id: input.id } : {}),
-      ...(input.url ? { url: input.url } : {}),
-      ...(input.dataset ? { dataset: input.dataset } : {}),
-      require_report_start: input.docType === "cases" && input.dataset?.toUpperCase() === "SCC",
-      ...(input.name ? { name: input.name } : {}),
-      ...(input.alternateCitation ? { alternate_citation: input.alternateCitation } : {}),
-      ...(input.sectionMap ? { section_map: Object.entries(input.sectionMap) } : {}),
-      ...(scope.kind === "excerpt" && scope.excerptOf ? { excerpt_of: scope.excerptOf } : {}),
-    },
-  });
-}
-
 // Some A2AJ texts carry Windows-1252 punctuation read as Latin-1 control characters ("\u0096" for "–"):
 // the characters Windows-1252 puts at 0x80–0x9F, the five it leaves undefined kept as they are.
 const WINDOWS_1252 = "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ";
 const string = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value.trim().replace(/[\u0080-\u009f]/gu,
     (character) => WINDOWS_1252[character.charCodeAt(0) - 0x80]) : null;
-const languageText = (record: JsonObject, field: string, language: Language) =>
-  string(record[`${field}_${language}`]) ??
-  string(record[`${field}_${language === "en" ? "fr" : "en"}`]) ??
-  string(record[field]);
-
-function webUrl(value: string | null) {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return (url.protocol === "http:" || url.protocol === "https:") &&
-        !url.username && !url.password ? url.toString() : null;
-  } catch { return null; }
-}
-
-function publisherUrl(record: JsonObject, language: Language) {
-  return webUrl(languageText(record, "source_url", language)) ??
-    webUrl(languageText(record, "url", language));
-}
-/** A record's public page: CanLII's for legislation (its publishers' own links are feeds), else the
- *  publisher's, else the page CanLII publishes for a decision's citation. */
-function sourceUrl(record: JsonObject, language: Language) {
-  const dataset = string(record.dataset) ?? "";
-  return structureNative().canliiLawUrl(languageText(record, "citation", language) ?? "", language, true) ??
-    publisherUrl(record, language) ?? structureNative().canliiCaseUrl([languageText(record, "citation", language),
-      languageText(record, "citation2", language)].filter((value): value is string => !!value), language, dataset);
-}
 
 export type A2AJFailureReason = "rate-limited" | "error" | "timeout" | "unreachable" | "local-only";
 /** A2AJ did not answer a lookup: the authority was not checked, which is not the same as not found. `transient`: no
@@ -153,7 +79,7 @@ export class A2AJUnavailable extends Error {
   }
 }
 
-/** The A2AJ store a run's lookups read: a path to an a2aj.sqlite (a2ajLocalBulk.ts), or nothing for
+/** The A2AJ store a run's lookups read: a path to an a2aj.sqlite (legalDataPath's a2ajStorePath), or nothing for
  *  the configured one. */
 export type A2AJCorpusInput = string;
 /**
@@ -322,83 +248,19 @@ async function request(
   return value;
 }
 
-function sectionMap(record: JsonObject, language: Language) {
-  let value = record[`unofficial_sections_${language}`] ??
-    record[`unofficial_sections_${language === "en" ? "fr" : "en"}`];
-  if (typeof value === "string") {
-    try { value = JSON.parse(value); } catch { return null; }
-  }
-  const mapped = object(value);
-  if (!mapped) return null;
-  const entries = Object.entries(mapped)
-    .filter((entry): entry is [string, string] => typeof entry[1] === "string");
-  return entries.length ? Object.fromEntries(entries) : null;
-}
-
-function mapDocument(
-  value: unknown, language: Language, docType: DocType,
-): A2AJDocument | null {
-  const record = object(value);
-  if (!record) return null;
-  const actualLanguage = string(record[`unofficial_text_${language}`])
-    ? language : language === "en" ? "fr" : "en";
-  const text = languageText(record, "unofficial_text", actualLanguage);
-  const citation = languageText(record, "citation", actualLanguage) ??
-    languageText(record, "citation2", actualLanguage);
-  if (!text || !citation) return null;
-  return {
-    docType, dataset: string(record.dataset) ?? "", citation,
-    alternateCitation: languageText(record, "citation2", actualLanguage),
-    name: languageText(record, "name", actualLanguage),
-    date: languageText(record, "document_date", actualLanguage),
-    url: sourceUrl(record, actualLanguage), publisherUrl: publisherUrl(record, actualLanguage),
-    verifiedPdf: null, text, language: actualLanguage,
-    upstreamLicense: string(record.upstream_license),
-    sectionMap: sectionMap(record, actualLanguage) ?? undefined,
-  };
-}
-
 const citationKey = (value: string) => {
   try { return structureNative().citationLookupKey(value); } catch { return ""; }
 };
+// The records A2AJ's API answers with are read by the engine, as the store's rows are: the one answering a citation,
+// the document it holds, a statute's provision, a search's listing.
 const exactCitationRows = (results: unknown, citation: string, dataset?: string,
   expectedUrl?: string | null, aliases: string[] = []) => {
-  const keys = new Set([citationKey(citation), ...aliases].filter(Boolean));
-  const title = !keys.size && expectedUrl?.trim()
-    ? normalizeWhitespace(citation).toLowerCase() : "";
-  if (!keys.size && !title) return [];
-  return (Array.isArray(results) ? results : []).filter((value) => {
-    const record = object(value);
-    return record && (!dataset?.trim() || string(record.dataset)?.toLowerCase() ===
-      dataset.trim().toLowerCase()) && (!expectedUrl?.trim() ||
-        [sourceUrl(record, "en"), sourceUrl(record, "fr"), publisherUrl(record, "en"), publisherUrl(record, "fr")].includes(expectedUrl.trim())) && ["citation_en", "citation2_en", "citation_fr",
-      "citation2_fr"].some((field) => {
-        const candidate = string(record[field]);
-        return candidate && (keys.has(citationKey(candidate)) ||
-          (title && normalizeWhitespace(candidate).toLowerCase() === title));
-      });
-  });
+  const records = Array.isArray(results) ? results : [];
+  return structureNative().a2ajRecordMatches(records, { citation, dataset, sourceUrl: expectedUrl, aliases })
+    .map((at) => records[at]);
 };
-
-async function compileDocument(document: A2AJDocument): Promise<A2AJCompiledDocument> {
-  const shared = {
-    citation: document.citation,
-    docType: document.docType ?? "cases",
-    url: document.url,
-    alternateCitation: document.alternateCitation,
-    dataset: document.dataset,
-    name: document.name,
-  };
-  // The section map compiles the structured read; the search coordinates always
-  // come from the provider's own full text.
-  const native = await deriveA2AJDocument({ ...shared, sectionMap: document.sectionMap,
-    text: document.sectionMap ? "" : document.text });
-  const searchNative = document.sectionMap
-    ? await deriveA2AJDocument({ ...shared, text: document.text })
-    : native;
-  const { text: _text, sectionMap: _sectionMap, ...metadata } = document;
-  return compiled(metadata, native, searchNative);
-}
+const recordDocument = (record: unknown, language: Language, docType: DocType) =>
+  record ? structureNative().a2ajRecord(record, language, docType) : Promise.resolve(null);
 
 const compiled = (metadata: Omit<A2AJCompiledDocument, "native" | "searchNative" | "searchText">,
   native: NativeDocument, searchNative: NativeDocument): A2AJCompiledDocument =>
@@ -410,11 +272,11 @@ const running = new Set<A2AJCompiledDocument>();
 const lookups = new Map<string, Promise<A2AJStoreDocument | null>>();
 onSqliteRunEnd(() => { running.clear(); lookups.clear(); });
 async function storeDocument(lookup: A2AJStoreLookup) {
-  if (!storeExists(a2ajLocalBulkPath())) return null;
-  if (!inSqliteRun()) return structureNative().a2ajDocument(a2ajLocalBulkPath(), lookup);
-  const key = JSON.stringify([a2ajLocalBulkPath(), lookup]);
+  if (!storeExists(a2ajStorePath())) return null;
+  if (!inSqliteRun()) return structureNative().a2ajDocument(a2ajStorePath(), lookup);
+  const key = JSON.stringify([a2ajStorePath(), lookup]);
   const ask = () => {
-    const asked = structureNative().a2ajDocument(a2ajLocalBulkPath(), lookup);
+    const asked = structureNative().a2ajDocument(a2ajStorePath(), lookup);
     lookups.set(key, asked);
     return asked;
   };
@@ -423,16 +285,6 @@ async function storeDocument(lookup: A2AJStoreLookup) {
   const found = await kept;
   // A document is lost with the engine that held it.
   return !found || nativeDocumentLive(found.native) ? found : ask();
-}
-
-async function scopedDocument(document: A2AJCompiledDocument, requested: string, text: string) {
-  if (!requested.trim() || !text.trim()) return document;
-  const native = await deriveA2AJDocument({
-    citation: document.citation, docType: "laws", text, id: document.citation,
-    url: document.url, alternateCitation: document.alternateCitation,
-    dataset: document.dataset, name: document.name, sectionMap: { [requested]: text },
-  }, { kind: "excerpt", excerptOf: document.citation });
-  return { ...document, native };
 }
 
 async function document(args: {
@@ -445,7 +297,7 @@ async function document(args: {
   args.signal?.throwIfAborted();
   const docType = args.docType ?? "cases";
   const language = args.language === "fr" ? "fr" : "en";
-  const snapshot = storeExists(a2ajLocalBulkPath()) ? storeStat(a2ajLocalBulkPath()) : undefined;
+  const snapshot = storeExists(a2ajStorePath()) ? storeStat(a2ajStorePath()) : undefined;
   const cacheKey = (sourceUrl: string) => JSON.stringify([
     snapshot && [snapshot.ino, snapshot.size, snapshot.mtimeMs],
     docType, language, args.dataset?.trim().toLowerCase() ?? "",
@@ -465,24 +317,20 @@ async function document(args: {
     const full = await document({ ...args, section: undefined });
     if (!full) return null;
     // The store keeps each statute's sections; A2AJ is asked for one only when the store lacks the statute.
-    const local = await structureNative().a2ajSection(a2ajLocalBulkPath(),
+    const local = await structureNative().a2ajSection(a2ajStorePath(),
       { citation: full.citation, docType, language, dataset: full.dataset }, section, { citation: full.citation,
         url: full.url, alternateCitation: full.alternateCitation, dataset: full.dataset, name: full.name });
-    let scoped: Pick<A2AJDocument, "text"> | undefined;
+    let provision: NativeDocument | null = null;
     if (!local && lookupsLeaveComputer()) {
       const payload = await request("/fetch", {
         citation, doc_type: docType, output_language: language, section,
       }, args.signal);
-      const candidates = (Array.isArray(payload.results) ? payload.results : [])
-        .map((item) => mapDocument(item, language, docType))
-        .filter((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
-          item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()));
-      scoped = args.sourceUrl?.trim()
-        ? candidates.find((item) => [item.url, item.publisherUrl].includes(args.sourceUrl!.trim()))
-        : candidates[0];
+      provision = await structureNative().a2ajRecordProvision(Array.isArray(payload.results) ? payload.results : [],
+        { language, docType, dataset: args.dataset, sourceUrl: args.sourceUrl, section }, { citation: full.citation,
+          url: full.url, alternateCitation: full.alternateCitation, dataset: full.dataset, name: full.name });
     }
     const result = local ? local.native ? { ...full, native: local.native } : full
-      : await scopedDocument(full, section, scoped?.text ?? "");
+      : provision ? { ...full, native: provision } : full;
     if (inSqliteRun()) running.add(result);
     documents.set(key, { expires: Date.now() + 60 * 60_000, value: result });
     return result;
@@ -496,7 +344,7 @@ async function document(args: {
   const english = docType === "cases"
     ? citation.replace(/\bR\.?\s?C\.?\s?S\.?(?=\s+\d)/gu, "S.C.R.") : citation;
   const requested = [...new Set([citation, english, ...core])];
-  const inventory = docType === "cases" ? structureNative().a2ajAliasGroups(a2ajLocalBulkPath(), requested) : [];
+  const inventory = docType === "cases" ? structureNative().a2ajAliasGroups(a2ajStorePath(), requested) : [];
   if (!sourceUrl && inventory.some(({ ambiguous }) => ambiguous)) return null;
   const aliases = [...new Set(inventory.flatMap(({ keys }) => keys))];
   const forms = [...new Set([...requested, ...inventory.flatMap(({ forms }) => forms)])].slice(0, 12);
@@ -505,7 +353,7 @@ async function document(args: {
     // Distinct provider records with the same citation require an explicit URL.
     return matches.length === 1 ? matches[0] : null;
   };
-  let local: A2AJStoreDocument | null = null, source: A2AJDocument | null = null;
+  let local: A2AJStoreDocument | null = null, source: A2AJStoreDocument | null = null;
   for (const form of forms) {
     local = await storeDocument({ citation: form, docType, language, dataset: args.dataset,
       sourceUrl: args.sourceUrl ?? undefined });
@@ -519,8 +367,7 @@ async function document(args: {
   if (!source) for (const form of asked) {
     args.signal?.throwIfAborted();
     const payload = await request("/fetch", { citation: form, doc_type: docType, output_language: language }, args.signal);
-    const accepted = accept(payload.results, form);
-    source = accepted ? mapDocument(accepted, language, docType) : null;
+    source = await recordDocument(accept(payload.results, form), language, docType);
     if (source) break;
   }
   if (!source) for (const form of asked.slice(0, 1)) {
@@ -528,14 +375,13 @@ async function document(args: {
       search_type: "full_text", search_language: language, size: 10, dataset: args.dataset?.trim() }, args.signal);
     const accepted = accept(searched.results, form);
     if (!accepted) continue;
-    source = mapDocument(accepted, language, docType);
+    source = await recordDocument(accepted, language, docType);
     if (!source) {
-      const record = object(accepted);
-      const canonical = record && (languageText(record, "citation", language) ?? languageText(record, "citation2", language));
+      const canonical = structureNative().a2ajRecordListing(accepted, language)?.citation;
       if (canonical) {
         const retried = await request("/fetch", { citation: canonical, doc_type: docType, output_language: language }, args.signal);
-        const matched = accept(retried.results, canonical, [...aliases, citationKey(canonical)]);
-        source = matched ? mapDocument(matched, language, docType) : null;
+        source = await recordDocument(accept(retried.results, canonical, [...aliases, citationKey(canonical)]), language,
+          docType);
       }
     }
     if (source) break;
@@ -551,7 +397,13 @@ async function document(args: {
   if (local) {
     const { native: provisions, searchNative, ...metadata } = local;
     result = compiled({ ...metadata, verifiedPdf }, provisions, searchNative);
-  } else result = await compileDocument({ ...source!, verifiedPdf });
+  } else {
+    // An answer's document gives its fields in this order, its PDF after its addresses.
+    const { docType: kind, dataset, citation: cited, alternateCitation, name, date, url, publisherUrl, language: read,
+      upstreamLicense, native: provisions, searchNative } = source!;
+    result = compiled({ docType: kind, dataset, citation: cited, alternateCitation, name, date, url, publisherUrl,
+      verifiedPdf, language: read, upstreamLicense }, provisions, searchNative);
+  }
   if (inSqliteRun()) running.add(result);
   documents.set(key, {
     expires: Date.now() + (docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000),
@@ -567,7 +419,7 @@ async function document(args: {
 async function numberedCase(args: Parameters<typeof document>[0], citation: string, language: Language) {
   const named = indexedNumberedCase(citation);
   if (!named) return null;
-  const store = a2ajLocalBulkPath(), snapshot = storeExists(store) ? storeStat(store) : undefined;
+  const store = a2ajStorePath(), snapshot = storeExists(store) ? storeStat(store) : undefined;
   const key = JSON.stringify([named, language, store, snapshot?.size, snapshot?.mtimeMs]);
   let canonical = numbered.get(key);
   if (canonical === undefined) {
@@ -592,20 +444,8 @@ async function numberedCase(args: Parameters<typeof document>[0], citation: stri
 const numbered = new Map<string, string | null>();
 
 function searchResult(value: unknown, language: Language) {
-  const record = object(value);
-  const citation = record && (languageText(record, "citation", language) ??
-    languageText(record, "citation2", language));
-  if (!record || !citation) return null;
-  const snippet = languageText(record, "snippet", language) ??
-    languageText(record, "highlight", language) ??
-    languageText(record, "unofficial_text", language);
-  return {
-    dataset: string(record.dataset) ?? "", citation,
-    alternateCitation: languageText(record, "citation2", language),
-    name: languageText(record, "name", language),
-    date: languageText(record, "document_date", language),
-    url: sourceUrl(record, language), snippet: snippet?.slice(0, 1200) ?? null,
-  };
+  const listing = structureNative().a2ajRecordListing(value, language);
+  return listing && { ...listing, snippet: listing.snippet?.slice(0, 1200) ?? null };
 }
 
 export type A2AJSearchResult = NonNullable<ReturnType<typeof searchResult>>;
@@ -617,9 +457,9 @@ async function search(input: LegalSourceSearchRequest, docType: DocType) {
   const size = input.perProviderLimit ?? input.limit;
   const sortResults = input.sort === "newest" ? "newest_first" as const
     : input.sort === "oldest" ? "oldest_first" as const : "default" as const;
-  const local = searchLocalA2AJ({ query, docType, language, size, sortResults,
-    searchType: input.searchType, dataset: input.collection,
-    startDate: input.dateFrom, endDate: input.dateTo, ordered: input.ordered });
+  const local = structureNative().a2ajSearch(a2ajStorePath(), { query, docType, language, size, sortResults,
+    searchType: input.searchType, dataset: input.collection, startDate: input.dateFrom, endDate: input.dateTo,
+    match: searchFts5(query), operators: hasSearchOperators(query) });
   if (local !== null) return local;
   const payload = await request("/search", {
     query: searchLucene(query), doc_type: docType, search_type: input.searchType ?? "full_text",
@@ -759,7 +599,7 @@ function reference(document: A2AJDocument | A2AJCompiledDocument,
 }
 
 function rankCases(rows: LegalSourceSearchHit[], mode: "relevance" | "most_cited" | "most_discussed") {
-  const metrics = structureNative().citatorMetrics(a2ajLocalBulkPath(), rows.map((row) => row.citation ?? "")) ?? [];
+  const metrics = structureNative().citatorMetrics(a2ajStorePath(), rows.map((row) => row.citation ?? "")) ?? [];
   const authority = rows.map((_, index) => index)
     .filter((index) => (metrics[index]?.citingCases ?? 0) > 0)
     .sort((a, b) => (metrics[b]?.distinctCitingParagraphs ?? 0) -

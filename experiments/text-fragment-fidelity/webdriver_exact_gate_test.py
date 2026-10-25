@@ -70,8 +70,8 @@ selected = [
 assert all(gate.spans_cover(island, selected) for island in islands)
 assert not gate.spans_cover(islands[0], selected[1:])
 
-punctuated = gate.search_normalized('before words â€œtarget wordsâ€ after words')
-wanted = gate.quote_islands([punctuated], 'â€œtarget wordsâ€', 'â€œtarget wordsâ€')[0]
+punctuated = gate.search_normalized('before words “target words” after words')
+wanted = gate.quote_islands([punctuated], '“target words”', '“target words”')[0]
 painted = (0, wanted[1] - 1, wanted[2] + 1)
 assert gate.span_stays_within_words(painted, wanted, punctuated)
 assert not gate.span_stays_within_words((0, 0, wanted[2]), wanted, punctuated)

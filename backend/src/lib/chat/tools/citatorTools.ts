@@ -1,4 +1,4 @@
-import { a2ajLocalBulkPath } from "../../a2ajLocalBulk";
+import { a2ajStorePath } from "../../legalDataPath";
 import { structureNative, type CitatorPassage } from "../../structureNative";
 import type { Tool } from "../../llm";
 import { trimmedText } from "../../value";
@@ -112,7 +112,7 @@ export function executeCitatorTool(
   const size = typeof args.size === "number" ? args.size : undefined;
   const sort = args.sort === "most_discussed" ? "most_discussed" as const : "newest" as const;
   try {
-    const noteUp = structureNative().citatorNoteUp(a2ajLocalBulkPath(),
+    const noteUp = structureNative().citatorNoteUp(a2ajStorePath(),
       { citation, citedParagraph, size, courtScope, courtCode: courtCode || undefined, sort });
     if (!noteUp) {
       return {

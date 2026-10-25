@@ -390,7 +390,7 @@ def main() -> None:
             if before in short_by_full and after in short_by_full
         }
 
-    corpus_path = REPO / "legal-structure" / "data" / "grammar-corpus.json"
+    corpus_path = REPO / "common-law-cite" / "crates" / "legal-grammar" / "data" / "grammar-corpus.json"
     corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
     candidate = copy.deepcopy(corpus)
     citations_table = candidate["tables"]["citations"]

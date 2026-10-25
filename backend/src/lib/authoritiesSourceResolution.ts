@@ -89,7 +89,7 @@ export const authoritySourceServices = {
   /** Decisions of a court (an A2AJ dataset) between two dates whose names hold the words given. */
   findCases: async (words: string, dataset: string | null, from: string, to: string, signal?: AbortSignal) =>
     await a2ajLegalSourceProvider.search!({ text: words, kinds: ["case"], searchType: "name", collection: dataset ?? undefined,
-      dateFrom: from, dateTo: to, limit: 20, ordered: false, signal }),
+      dateFrom: from, dateTo: to, limit: 20, signal }),
   /** The journal article a commentary citation names, by its citation or quoted title. */
   resolveJournal: async (citation: string, signal?: AbortSignal) =>
     journalLegalSourceProvider.canResolve!({ text: citation, kind: "journal" })

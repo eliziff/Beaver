@@ -594,7 +594,7 @@ def main() -> int:
         or provider_directory("a2aj") / "source"
     ).resolve()
     canlii = args.canlii.resolve()
-    corpus_path = REPO / "legal-structure" / "data" / "grammar-corpus.json"
+    corpus_path = REPO / "common-law-cite" / "crates" / "legal-grammar" / "data" / "grammar-corpus.json"
     harvested = REPO / "benchmarks" / "grammar_vectors" / "harvested.jsonl"
     scorer_sha = sha256_file(Path(__file__))
     baseline, candidate, grammar = load_patterns(corpus_path, args.candidate)

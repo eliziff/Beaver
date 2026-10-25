@@ -2,7 +2,8 @@
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { fetchLocalA2AJDocumentsByIds } from '../../backend/src/lib/a2ajLocalBulk';
+import { a2ajStorePath } from '../../backend/src/lib/legalDataPath';
+import { structureNative } from '../../backend/src/lib/structureNative';
 import { modelSourceLines } from '../../backend/experiments/a2aj-decision-roster/caseTargetMvpReduced';
 import { compareDecisionStructure } from '../../backend/experiments/a2aj-decision-roster/caseDecisionBenchmark';
 
@@ -32,7 +33,7 @@ if (process.argv.includes('--score')) {
   const old = JSON.parse(readFileSync('experiments/a2aj_decision_roster_qwen/manual-case-decision-gold-v1.json', 'utf8')).filter((r: any) => r.annotation.structure.opinions.length > 1);
   const fresh = readFileSync('experiments/a2aj_decision_roster_qwen/case-decision-gold-v2.jsonl', 'utf8').trim().split('\n').map(line => JSON.parse(line));
   const rows = [...old.map((r: any) => ({ ...r, cohort: 'earlier-multi-opinion' })), ...fresh.map((r: any) => ({ ...r, cohort: 'fresh-v2' }))];
-  const docs = fetchLocalA2AJDocumentsByIds({ ids: rows.map(r => r.document_id), maxChars: Number.MAX_SAFE_INTEGER });
+  const docs = new Map((structureNative().a2ajReads(a2ajStorePath(), rows.map(r => r.document_id)) ?? []).map((doc) => [doc.id, doc]));
   const packets = rows.map(r => {
     const doc = docs.get(r.document_id);
     if (!doc) throw new Error(`Missing source ${r.document_id}`);

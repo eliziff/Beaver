@@ -345,6 +345,22 @@ type StructureAddon = {
   a2ajSection(store: string, lookup: A2AJStoreLookup, section: string, excerpt: { citation: string;
     url: string | null; alternateCitation: string | null; dataset: string; name: string | null }):
     Promise<{ native: NativeDocument | null } | null>;
+  /** The document a record A2AJ's API answered with holds, read and derived as a store's row is; null for a record
+   *  without a text or a citation. */
+  a2ajRecord(record: unknown, language: "en" | "fr", docType: "cases" | "laws"): Promise<A2AJStoreDocument | null>;
+  /** One provision of a statute, from the records A2AJ's API answered a lookup of it with, as an excerpt of the
+   *  document `excerpt` describes; null where no record of the collection and address asked for holds its text. */
+  a2ajRecordProvision(records: unknown[], lookup: { language: "en" | "fr"; docType: "cases" | "laws"; dataset?: string;
+    sourceUrl?: string | null; section: string }, excerpt: { citation: string; url: string | null;
+    alternateCitation: string | null; dataset: string; name: string | null }): Promise<NativeDocument | null>;
+  /** A record A2AJ's API answered with, as a search lists it; null for one without a citation. */
+  a2ajRecordListing(record: unknown, language: "en" | "fr"): { dataset: string; citation: string;
+    alternateCitation: string | null; name: string | null; date: string | null; url: string | null;
+    snippet: string | null } | null;
+  /** The places, among records A2AJ's API answered with, of those answering a citation (by its key or one of
+   *  `aliases`), of the collection and at the address asked for. */
+  a2ajRecordMatches(records: unknown[], query: { citation: string; dataset?: string; sourceUrl?: string | null;
+    aliases?: string[] }): number[];
   /** Each citation's exact aliases and authored forms in the store's inventory; its own key alone where there is
    *  no store. */
   a2ajAliasGroups(store: string, citations: string[]): Array<{ keys: string[]; forms: string[]; ambiguous: boolean }>;
@@ -353,6 +369,26 @@ type StructureAddon = {
   a2ajNamedCase(store: string, named: { name: string; year: string; courts: string[] }): string | null;
   /** Each style of cause compared as its words: the key of the store's names and of CanLII's titles. */
   a2ajNameKeys(names: string[]): string[];
+  /** The store's documents answering a search, as a search lists them (never their text); null where there is no
+   *  store or it has no full-text indexes. `match` is the query in FTS5's syntax; `operators` whether it uses FTS5's
+   *  operators (a plain name search matches every word of `query` in any order). */
+  a2ajSearch(store: string, search: { query: string; docType?: "cases" | "laws"; searchType?: "full_text" | "name";
+    language?: "en" | "fr"; size?: number; dataset?: string; startDate?: string; endDate?: string;
+    sortResults?: "default" | "newest_first" | "oldest_first"; match: string; operators: boolean }): Array<{ dataset: string; citation: string; alternateCitation: string | null; name: string | null;
+    date: string | null; url: string | null; snippet: null }> | null;
+  /** The id of the one document the store holds under a citation; null where none, or no store. */
+  a2ajFind(store: string, lookup: A2AJStoreLookup): number | null;
+  /** Every court and jurisdiction in the store, with how many documents each has and the file it was installed
+   *  from where the installer recorded it; null where there is no store. */
+  a2ajCourts(store: string): Array<{ docType: "cases" | "laws"; court: string; documents: number; sha256: string | null;
+    size: number | null; revision: string | null }> | null;
+  /** The store's documents with these ids, of a kind, each in the language asked for where it has text in it, else
+   *  the other, derived as a2ajDocument derives one: what experiments sample the store by. */
+  a2ajStoreDocuments(store: string, ids: number[], docType?: "cases" | "laws", language?: "en" | "fr"):
+    Promise<Array<A2AJStoreDocument & { id: number }> | null>;
+  /** The same documents' text and provisions as the store holds them, for experiments that read the text itself. */
+  a2ajReads(store: string, ids: number[], docType?: "cases" | "laws", language?: "en" | "fr"):
+    Array<Omit<A2AJStoreDocument, "native" | "searchNative"> & { id: number; text: string; provisions: Array<[string, string]> | null }> | null;
   /** The decisions citing a decision and what they and journal authors say it stands for, from the graph beside
    *  the A2AJ store at `store` (which gives the decision's keys); null where no graph is built. */
   citatorNoteUp(store: string, request: { citation: string; citedParagraph?: number; size?: number;

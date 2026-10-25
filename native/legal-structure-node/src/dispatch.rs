@@ -28,6 +28,12 @@ fn store(document: NativeDocument) -> Value {
     share(Arc::new(document))
 }
 
+/// An A2AJ document as JavaScript is given it: its metadata and a handle to each of its readings.
+fn found(found: Option<a2aj::Found>) -> Value {
+    found.map_or(Value::Null, |found| json!({ "metadata": found.metadata, "native": share(found.native),
+        "searchNative": found.search.map(share) }))
+}
+
 /// A handle of its own to a document the engine keeps elsewhere too.
 fn share(document: Arc<NativeDocument>) -> Value {
     let mut documents = documents();
@@ -206,9 +212,16 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             d, call.get::<legal_structure::QuoteSource>("source")?,
             &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true),
             call.get::<Option<bool>>("keep")?.unwrap_or(false)).and_then(value))),
-        "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?)
-            .map(|found| found.map_or(Value::Null, |found| json!({ "metadata": found.metadata,
-                "native": share(found.native), "searchNative": found.search.map(share) })))),
+        "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?).map(found)),
+        // The same of a record A2AJ's API answered with, and its other readings: a provision, a listing, the records
+        // that answer a citation.
+        "a2ajRecord" => done(a2aj::record(&call.get::<Value>("record")?, call.get::<Option<legal_structure::a2aj::Language>>("language")?
+            .unwrap_or(legal_structure::a2aj::Language::En), &call.get::<String>("docType")?).map(found)),
+        "a2ajRecordProvision" => done(a2aj::record_provision(&call.get::<Vec<Value>>("records")?, &call.get("lookup")?,
+            call.get("excerpt")?).map(|native| native.map_or(Value::Null, share))),
+        "a2ajRecordListing" => done(value(a2aj::record_listing(&call.get::<Value>("record")?,
+            call.get::<Option<legal_structure::a2aj::Language>>("language")?.unwrap_or(legal_structure::a2aj::Language::En)))),
+        "a2ajRecordMatches" => done(value(a2aj::record_matches(&call.get::<Vec<Value>>("records")?, &call.get("query")?))),
         "a2ajSection" => done(a2aj::section(&call.get::<PathBuf>("store")?, &call.get("lookup")?,
             &call.get::<String>("section")?, call.get("excerpt")?)
             .map(|found| found.map_or(Value::Null, |native| json!({ "native": native.map(share) })))),
@@ -217,6 +230,18 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "a2ajNamedCase" => done(a2aj::named_case(&call.get::<PathBuf>("store")?, &call.get("named")?).and_then(value)),
         "a2ajNameKeys" => done(value(call.get::<Vec<String>>("names")?.iter().map(|name| a2aj::name_key(name))
             .collect::<Vec<_>>())),
+        // The store's search, its inventory of courts, and its documents read by id (experiments read them so).
+        "a2ajSearch" => done(a2aj::search(&call.get::<PathBuf>("store")?, &call.get("search")?).and_then(value)),
+        "a2ajFind" => done(a2aj::find_id(&call.get::<PathBuf>("store")?, &call.get("lookup")?).and_then(value)),
+        "a2ajCourts" => done(a2aj::courts(&call.get::<PathBuf>("store")?).and_then(value)),
+        "a2ajStoreDocuments" => done(a2aj::documents(&call.get::<PathBuf>("store")?, &call.get::<Vec<i64>>("ids")?,
+            &call.get::<Option<String>>("docType")?.unwrap_or_else(|| "cases".to_owned()),
+            call.get::<Option<legal_structure::a2aj::Language>>("language")?.unwrap_or(legal_structure::a2aj::Language::En))
+            .map(|found| found.map_or(Value::Null, |found| Value::Array(found.into_iter()
+                .map(|(id, document)| { let mut value = self::found(Some(document)); value["id"] = id.into(); value }).collect())))),
+        "a2ajReads" => done(a2aj::reads(&call.get::<PathBuf>("store")?, &call.get::<Vec<i64>>("ids")?,
+            &call.get::<Option<String>>("docType")?.unwrap_or_else(|| "cases".to_owned()),
+            call.get::<Option<legal_structure::a2aj::Language>>("language")?.unwrap_or(legal_structure::a2aj::Language::En)).and_then(value)),
         "citatorNoteUp" => {
             let mut request: legal_structure::citator_graph::NoteUpRequest = call.get("request")?;
             let store = call.get::<PathBuf>("store")?;

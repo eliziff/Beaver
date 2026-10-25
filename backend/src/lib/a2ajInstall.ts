@@ -1,4 +1,4 @@
-// Installs and updates Beaver's local A2AJ store (a2aj.sqlite, read by a2ajLocalBulk.ts) from the
+// Installs and updates Beaver's local A2AJ store (a2aj.sqlite, read by the engine) from the
 // Parquet files A2AJ publishes on Hugging Face (a2aj/canadian-case-law, a2aj/canadian-laws), one court
 // or jurisdiction at a time. A court's file is downloaded beside the store (a stopped download resumes),
 // verified by its SHA-256, read into the store in one transaction and then deleted; the store records
@@ -17,7 +17,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parquetMetadataAsync, parquetReadObjects, type AsyncBuffer, type FileMetaData } from "hyparquet";
 import { deserializeTCompactProtocol } from "hyparquet/src/thrift.js";
-import { a2ajLocalBulkPath, a2ajStoreCourts } from "./a2ajLocalBulk";
+import { a2ajStorePath } from "./legalDataPath";
 import { structureNative } from "./structureNative";
 
 export type A2AJKind = "cases" | "laws";
@@ -60,8 +60,8 @@ const sizeOf = (file: string) => stat(file).then((info) => info.size, () => 0);
 
 /** Every court the store or the snapshots have: what is installed, what is current, what is partly downloaded. */
 export async function a2ajStoreStatus(snapshots: Partial<Record<A2AJKind, A2AJSnapshot>> = {},
-  store = a2ajLocalBulkPath()): Promise<A2AJCourtStatus[]> {
-  const installed = new Map((a2ajStoreCourts(store) ?? []).map((court) => [`${court.docType}/${court.court}`, court]));
+  store = a2ajStorePath()): Promise<A2AJCourtStatus[]> {
+  const installed = new Map((structureNative().a2ajCourts(store) ?? []).map((court) => [`${court.docType}/${court.court}`, court]));
   const remote = new Map<string, A2AJRemoteFile>(A2AJ_KINDS.flatMap((kind) => snapshots[kind]?.files.map((file) => [`${kind}/${file.court}`, file] as const) ?? []));
   const keys = [...new Set([...installed.keys(), ...remote.keys()])].sort();
   return Promise.all(keys.map(async (key) => {
@@ -151,13 +151,31 @@ CREATE INDEX IF NOT EXISTS document_date_fr_idx ON document(document_date_fr);
 CREATE INDEX IF NOT EXISTS citation_lookup_document_idx ON citation_lookup(document_id);
 CREATE INDEX IF NOT EXISTS name_lookup_document_idx ON name_lookup(document_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS document_search USING fts5(citation_en, citation_fr, citation2_en, citation2_fr,
-  name_en, name_fr, unofficial_text_en, unofficial_text_fr, content='document', content_rowid='id');`;
+  name_en, name_fr, unofficial_text_en, unofficial_text_fr, content='document', content_rowid='id');
+CREATE VIRTUAL TABLE IF NOT EXISTS name_search USING fts5(citation_en, citation_fr, citation2_en, citation2_fr,
+  name_en, name_fr, content='document', content_rowid='id');`;
 const COLUMNS = ["doc_type", "dataset", "citation_en", "citation_fr", "citation2_en", "citation2_fr", "name_en", "name_fr",
   "document_date_en", "document_date_fr", "url_en", "url_fr", "unofficial_text_en", "unofficial_text_fr",
   "unofficial_sections_en", "unofficial_sections_fr", "cases_cited_en", "cases_cited_fr", "cases_citing_en",
   "cases_citing_fr", "citing_cases_count", "upstream_license"] as const;
 const SEARCHED = ["citation_en", "citation_fr", "citation2_en", "citation2_fr", "name_en", "name_fr",
   "unofficial_text_en", "unofficial_text_fr"] as const;
+/** The full-text indexes and the columns each holds: every column searched, and the names and citations alone, so a
+ *  name search ranks among names, not whole decisions. */
+const SEARCH_INDEXES = [["document_search", SEARCHED], ["name_search", SEARCHED.slice(0, 6)]] as const;
+
+/** Adds a document to the full-text indexes, or takes it out of them. */
+function searchIndexes(database: DatabaseSync) {
+  const indexes = SEARCH_INDEXES.map(([table, columns]) => {
+    const marks = columns.map(() => "?").join(", ");
+    return { columns, add: database.prepare(`INSERT INTO ${table}(rowid, ${columns.join(", ")}) VALUES (?, ${marks})`),
+      drop: database.prepare(`INSERT INTO ${table}(${table}, rowid, ${columns.join(", ")}) VALUES ('delete', ?, ${marks})`) };
+  });
+  const run = (statement: "add" | "drop") => (id: number, row: Record<string, unknown>) => {
+    for (const index of indexes) index[statement].run(id, ...index.columns.map((column) => row[column] as Value));
+  };
+  return { add: run("add"), drop: run("drop") };
+}
 type Value = string | number | null;
 type Document = Record<(typeof COLUMNS)[number], Value>;
 
@@ -239,10 +257,12 @@ function openStore(store: string) {
   const database = new DatabaseSync(store);
   database.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-262144; ${SCHEMA}`);
   database.prepare("INSERT OR IGNORE INTO meta VALUES ('schema_version', '3')").run();
+  // A store installed before its names had an index of their own: the index is built from its documents.
+  const empty = (table: string) => !database.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
+  if (empty("name_search_docsize") && !empty("document")) database.exec("INSERT INTO name_search(name_search) VALUES ('rebuild')");
   return database;
 }
 
-const ftsValues = (row: Record<string, unknown>) => SEARCHED.map((column) => row[column] as Value);
 const citationKeys = (rows: Array<Record<string, unknown>>) => structureNative().citationLookupKeys(rows.flatMap((row) =>
   [row.citation_en, row.citation_fr, row.citation2_en, row.citation2_fr].map((value) => typeof value === "string" ? value : "")));
 
@@ -284,9 +304,7 @@ async function importCourt(database: DatabaseSync, filename: string, kind: A2AJK
     const key = identity(row);
     existing.set(key, [...existing.get(key) ?? [], Number(row.id)]);
   }
-  const marks = SEARCHED.map(() => "?").join(", ");
-  const ftsDelete = database.prepare(`INSERT INTO document_search(document_search, rowid, ${SEARCHED.join(", ")}) VALUES ('delete', ?, ${marks})`);
-  const ftsInsert = database.prepare(`INSERT INTO document_search(rowid, ${SEARCHED.join(", ")}) VALUES (?, ${marks})`);
+  const search = searchIndexes(database);
   const select = database.prepare(`SELECT ${COLUMNS.join(", ")} FROM document WHERE id = ?`);
   const insert = database.prepare(`INSERT INTO document (${COLUMNS.join(", ")}) VALUES (${COLUMNS.map(() => "?").join(", ")})`);
   const update = database.prepare(`UPDATE document SET ${COLUMNS.map((column) => `${column} = ?`).join(", ")} WHERE id = ?`);
@@ -315,13 +333,13 @@ async function importCourt(database: DatabaseSync, filename: string, kind: A2AJK
         let id = claimed;
         if (id === undefined) {
           id = Number(insert.run(...values).lastInsertRowid);
-          ftsInsert.run(id, ...ftsValues(row));
+          search.add(id, row);
         } else {
           const before = select.get(id) as Record<string, unknown>;
           if (COLUMNS.some((column) => before[column] !== row[column])) {
-            ftsDelete.run(id, ...ftsValues(before));
+            search.drop(id, before);
             update.run(...values, id);
-            ftsInsert.run(id, ...ftsValues(row));
+            search.add(id, row);
           }
         }
         kept.add(id);
@@ -333,7 +351,7 @@ async function importCourt(database: DatabaseSync, filename: string, kind: A2AJK
     }
     for (const ids of existing.values()) for (const id of ids) {
       if (kept.has(id)) continue;
-      ftsDelete.run(id, ...ftsValues(select.get(id) as Record<string, unknown>));
+      search.drop(id, select.get(id) as Record<string, unknown>);
       remove.run(id);
     }
     database.exec("COMMIT");
@@ -347,8 +365,9 @@ async function importCourt(database: DatabaseSync, filename: string, kind: A2AJK
 function removeCourt(database: DatabaseSync, kind: A2AJKind, court: string) {
   database.exec("BEGIN IMMEDIATE");
   try {
-    database.prepare(`INSERT INTO document_search(document_search, rowid, ${SEARCHED.join(", ")})
-      SELECT 'delete', id, ${SEARCHED.join(", ")} FROM document WHERE doc_type = ? AND dataset = ?`).run(kind, court);
+    for (const [table, columns] of SEARCH_INDEXES)
+      database.prepare(`INSERT INTO ${table}(${table}, rowid, ${columns.join(", ")})
+        SELECT 'delete', id, ${columns.join(", ")} FROM document WHERE doc_type = ? AND dataset = ?`).run(kind, court);
     for (const table of ["citation_lookup", "name_lookup"])
       database.prepare(`DELETE FROM ${table} WHERE document_id IN (SELECT id FROM document WHERE doc_type = ? AND dataset = ?)`).run(kind, court);
     database.prepare("DELETE FROM document WHERE doc_type = ? AND dataset = ?").run(kind, court);
@@ -368,7 +387,7 @@ function removeCourt(database: DatabaseSync, kind: A2AJKind, court: string) {
 export async function installA2AJCourts(snapshots: Partial<Record<A2AJKind, A2AJSnapshot>>, courts: Iterable<string>,
   options: { remove?: Iterable<string>; store?: string; signal?: AbortSignal;
     progress?: (progress: A2AJInstallProgress) => void } = {}) {
-  const store = options.store ?? a2ajLocalBulkPath(), wanted = new Set(courts), removing = new Set(options.remove ?? []);
+  const store = options.store ?? a2ajStorePath(), wanted = new Set(courts), removing = new Set(options.remove ?? []);
   await mkdir(path.dirname(store), { recursive: true });
   const status = await a2ajStoreStatus(snapshots, store);
   const toDownload = a2ajBytesToDownload(status, wanted);

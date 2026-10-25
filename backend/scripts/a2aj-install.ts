@@ -9,7 +9,7 @@
 //   npm run a2aj --prefix backend -- --remove cases/SST
 //
 // The store is MIKE_A2AJ_BULK_DB, else OpenLegalData's providers/a2aj/a2aj.sqlite.
-import { a2ajLocalBulkPath } from "../src/lib/a2ajLocalBulk";
+import { a2ajStorePath } from "../src/lib/legalDataPath";
 import { A2AJ_KINDS, a2ajBytesToDownload, a2ajCourtStale, a2ajStoreStatus, fetchA2AJSnapshot,
   installA2AJCourts } from "../src/lib/a2ajInstall";
 
@@ -27,11 +27,11 @@ async function main() {
 
   const gb = (bytes: number) => `${(bytes / 1e9).toFixed(2)} GB`;
   if (!wanted.length && !removing.length && !args.includes("--update")) {
-    console.log(a2ajLocalBulkPath());
+    console.log(a2ajStorePath());
     for (const court of status) console.log(`${key(court).padEnd(26)} ${court.installed ? `${court.installed.documents} documents` : "not installed"}${
       a2ajCourtStale(court) ? `, update available (${gb(court.remote!.size)})` : ""}`);
   } else {
-    console.log(`Installing into ${a2ajLocalBulkPath()}: ${gb(a2ajBytesToDownload(status, wanted))} to download.`);
+    console.log(`Installing into ${a2ajStorePath()}: ${gb(a2ajBytesToDownload(status, wanted))} to download.`);
     const started = Date.now();
     let shown = "";
     await installA2AJCourts(snapshots, wanted, { remove: removing, progress: ({ kind, court, phase, downloaded, toDownload, documents }) => {

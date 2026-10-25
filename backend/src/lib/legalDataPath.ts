@@ -42,6 +42,18 @@ export function legalProviderDatabase(provider: string, filename: string) {
   return path.join(legalDataHome(), "providers", provider, filename);
 }
 
+// Beaver's one local A2AJ store, a2aj.sqlite: installed and updated by a2ajInstall.ts, read by the engine (structureNative's
+// a2aj operations). A browser runtime reads a store file the user picked.
+let chosenA2AJStore: string | null = null;
+/** Reads the A2AJ store at this path instead of the configured one; null returns to the configured one. */
+export function useA2AJStore(filename: string | null) { chosenA2AJStore = filename; }
+
+export function a2ajStorePath() {
+  if (chosenA2AJStore) return chosenA2AJStore;
+  const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
+  return configured ? path.resolve(configured) : legalProviderDatabase("a2aj", "a2aj.sqlite");
+}
+
 // Read-only handles an operation keeps for its length (`withSqliteRun`), closed when its last run ends; outside a run
 // each query opens and closes its own, so a validated snapshot can replace the live file between operations.
 let runs = 0;

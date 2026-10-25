@@ -14,6 +14,7 @@
 #[path = "../a2aj_lookup.rs"]
 mod a2aj_lookup;
 
+use legal_structure::a2aj::{Document, Source, StoreRow};
 use legal_structure::citations::{extract, Authority, Form, Format, Options};
 use legal_structure::{canlii_case_url, citation_lookup_key, reporter_decision};
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
@@ -77,11 +78,12 @@ fn main() -> Result<()> {
             count(&format!("  found by {route}"));
             let mut row = ("".to_owned(), "".to_owned(), "".to_owned(), "".to_owned(), "".to_owned());
             if let Some(id) = by_key.or(by_form) {
-                let (dataset, english, alternate, url) = connection.query_row(
-                    "SELECT dataset, citation_en, citation2_en, url_en FROM document WHERE id = ?", [id],
-                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?, row.get::<_, Option<String>>(2)?,
-                        row.get::<_, Option<String>>(3)?)))?;
-                let forms = [english.clone(), alternate].into_iter().flatten().collect::<Vec<_>>();
+                const COLUMNS: [&str; 4] = ["dataset", "citation_en", "citation2_en", "url_en"];
+                let found = connection.query_row(&format!("SELECT {} FROM document WHERE id = ?", COLUMNS.join(", ")), [id],
+                    |row| StoreRow::from_query(row, 0, &COLUMNS))?;
+                let found = Document::new(&found, Source::Store);
+                let (dataset, english, url) = (found.field("dataset")?.unwrap_or_default(), found.field("citation_en")?, found.field("url_en")?);
+                let forms = [english.clone(), found.field("citation2_en")?].into_iter().flatten().collect::<Vec<_>>();
                 let canlii = canlii_case_url(&forms, "en", Some(&dataset));
                 count(&format!("  found by {route}: CanLII link {}", if canlii.is_some() { "made" } else { "not made" }));
                 if url.is_some() { count(&format!("  found by {route}: publisher link")); }
