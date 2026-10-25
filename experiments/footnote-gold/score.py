@@ -68,22 +68,14 @@ def addon_sha256() -> str:
 
 
 def parse(pdf: Path, cache: Path, sha: str, binary: str) -> dict:
-    # Carry an earlier binary's OCR forward: its cache key names the OCR code,
-    # so recognition is reused while extraction and structure run again.
-    previous = sorted((cache / sha).glob("*/*/parse-v1"))
-    if previous and not (cache / sha / binary).exists():
-        target = cache / sha / binary / previous[-1].parent.name / "parse-v1"
-        if (previous[-1] / "recognition").is_dir():
-            target.mkdir(parents=True, exist_ok=True)
-            shutil.move(previous[-1] / "recognition", target / "recognition")
     process = subprocess.run(["node", str(EXTRACT), str(pdf), str(cache), "ocr"], capture_output=True, text=True,
                              encoding="utf-8", creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS if sys.platform == "win32" else 0)
     if process.returncode:
         raise RuntimeError(process.stderr[-1500:])
     output = Path(process.stdout.strip().splitlines()[-1])
-    # Keep only this binary's parse of the PDF: one latest candidate per source.
+    # Keep only this binary's parse of the PDF, one latest candidate per source, and the source's OCR.
     for stale in output.parents[2].iterdir():
-        if stale != output.parents[1]:
+        if stale != output.parents[1] and stale.name != "ocr":
             shutil.rmtree(stale, ignore_errors=True)
     with gzip.open(output) as stream:
         return json.load(stream)

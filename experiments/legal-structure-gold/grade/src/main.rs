@@ -473,7 +473,7 @@ fn inputs(gold: &Path, manifest: &Path) -> Result<(), String> {
                         extractions.len()
                     ));
                 };
-                let readings = files(&parse.join("parse-v1/recognition"));
+                let readings = files(&gold.join("parsed").join(&source.sha256).join("ocr/recognition"));
                 candidates.push(
                     legalpdf::gold_structure_inputs(&pdf, extraction, &readings, std::env::var_os("STRUCTURE_GOLD_FRESH").is_some())
                         .map_err(|e| format!("{}: {e}", source.sha256))?,

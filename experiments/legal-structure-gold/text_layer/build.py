@@ -121,7 +121,7 @@ def extract(pdf, sha):
     if result.returncode:
         raise RuntimeError(result.stderr[-800:])
     path = Path(result.stdout.strip().splitlines()[-1])
-    shutil.rmtree(path.parent / "parse-v1/raster", ignore_errors=True)
+    shutil.rmtree(path.parents[2] / "ocr/raster", ignore_errors=True)
     return path
 
 

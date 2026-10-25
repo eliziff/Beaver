@@ -7,7 +7,7 @@
 // ppdoc layout provider, cached beside the plain request. Each document's structure-engine inputs
 // and witnesses are filed with its cached document, for engine replay and the composition search.
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync, statSync, existsSync, linkSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync, statSync, existsSync } from 'node:fs';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
@@ -26,27 +26,6 @@ process.dlopen(module, nativeAddonFile(binary, addonRoot));
 const parser = structureEngineAddon(module.exports, { toBuffer: bytes => Buffer.from(bytes) });
 const readGzip = filename => JSON.parse(gunzipSync(readFileSync(filename)));
 
-// A build's cache is its own, but a page's OCR is not: the parser names each recognized page (and
-// each scanner raster) by the OCR code, its settings and the page, and reads only a file whose key
-// matches. So every earlier build's recognition and raster files are linked into this build's cache
-// (hard links, no copies) before it parses, and a rebuild never OCRs a page its OCR code has read.
-function seedRecognition(source, destination) {
-  for (const kind of ['recognition', 'raster']) {
-    const own = path.join(destination, 'parse-v1', kind);
-    mkdirSync(own, { recursive: true });
-    for (const build of readdirSync(source, { withFileTypes: true }).filter(entry => entry.isDirectory())) {
-      for (const request of readdirSync(path.join(source, build.name), { withFileTypes: true }).filter(entry => entry.isDirectory())) {
-        const earlier = path.join(source, build.name, request.name, 'parse-v1', kind);
-        if (earlier === own || !existsSync(earlier)) continue;
-        for (const name of readdirSync(earlier)) {
-          const target = path.join(own, name);
-          if (!existsSync(target)) try { linkSync(path.join(earlier, name), target); } catch { /* another process linked it */ }
-        }
-      }
-    }
-  }
-}
-
 async function extract(pdf, output, mode, requestFile) {
   if (!['digitalborn', 'ocr'].includes(mode)) throw new Error(`Unknown mode ${mode}`);
   const bytes = readFileSync(pdf), sha256 = hash(bytes);
@@ -57,7 +36,6 @@ async function extract(pdf, output, mode, requestFile) {
     hash(JSON.stringify(request)).slice(0, 16) + (layout ? '-layout' : ''));
   if (layout) request.layout = { provider: 'ppdoc', settings: { model_pack: layout, runtime: process.env.LAYOUT_RUNTIME, backend: 'cpu', threads: 2 } };
   mkdirSync(destination, { recursive: true });
-  seedRecognition(path.resolve(output, sha256), destination);
   // The parse's engine inputs and witnesses, written as the structure stage runs and filed with
   // the document it derives, so a cached document keeps them.
   const fresh = { dump: path.join(destination, `resolver-${mode}.json`), witnesses: path.join(destination, `witnesses-${mode}.jsonl`) };
@@ -73,8 +51,10 @@ async function extract(pdf, output, mode, requestFile) {
     delete process.env.LEGALPDF_WITNESS_DUMP;
   }
   const parseStart = performance.now();
+  // A build's parse cache is its own; the source's OCR is cached once beside them all, so no
+  // rebuild OCRs a page again.
   const summary = await parser.preparePdfDocument(bytes, {
-    ...request, cache_dir: destination, expected_source_sha256: sha256,
+    ...request, cache_dir: destination, ocr_cache_dir: path.resolve(output, sha256, 'ocr'), expected_source_sha256: sha256,
   });
   const parseMs = performance.now() - parseStart;
   const documents = path.join(destination, 'parse-v1/documents');
