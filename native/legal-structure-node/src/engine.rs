@@ -1,7 +1,7 @@
 //! Target-neutral engine operations. The Node addon (`node.rs`) and the browser
 //! WebAssembly module (`wasi.rs`) are thin bindings over these functions.
 
-use legal_structure::{analyze_instrument, analyze_native_markup, authority_references_in_text, caselaw_citation_lookup_key, citation_lookup_key, citation_occurrences_in_text, document_fingerprint, docx_structure_lint, has_citation_in_text, journal_document_structure, journal_text_document_structure, provider_citations_in_text, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, ProviderTextInput};
+use legal_structure::{analyze_instrument, analyze_native_markup, authority_references_in_text, citation_lookup_key, citation_occurrences_in_text, document_fingerprint, docx_structure_lint, has_citation_in_text, journal_document_structure, journal_text_document_structure, provider_citations_in_text, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, ProviderTextInput};
 use legal_structure_features::{grounded_prose_errors, marked_quote_spans, quote_repair_suggestion, OutlineEntry, PrintedStatute, VisibleEvidenceText};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -284,24 +284,6 @@ pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<Out
         document.instrument().filter(|_| pdf && legislation))
 }
 
-/// Complete source elements and their original parent relationships and provenance.
-pub fn source_markup(document: &NativeDocument) -> legal_structure::SourceMarkup<'_> {
-    document.query.source_markup(document.structure())
-}
-
-pub fn source_paragraph_markers(document: &NativeDocument) -> legal_structure::SourceParagraphMarkers<'_> {
-    document.query.source_paragraph_markers(document.structure())
-}
-
-pub fn source_paragraph_marker(document: &NativeDocument, markup_start: usize) -> Option<legal_structure::SourceParagraphMarker<'_>> {
-    document.query.source_paragraph_marker(document.structure(), markup_start)
-}
-
-/// Actual source opinion components and author declarations, without inferred boundaries.
-pub fn source_opinion_components(document: &NativeDocument) -> legal_structure::SourceOpinionComponents<'_> {
-    document.query.source_opinion_components(document.structure())
-}
-
 pub fn document_table_cells(document: &NativeDocument) -> impl Serialize + '_ {
     document.query.table_cells(document.structure())
 }
@@ -369,10 +351,6 @@ pub fn citation_occurrences(text: &str) -> impl Serialize {
 
 pub fn authority_references(text: &str) -> impl Serialize {
     authority_references_in_text(text)
-}
-
-pub fn caselaw_lookup_key(text: &str) -> CoreResult<String> {
-    caselaw_citation_lookup_key(text).map_err(|error| error.to_string())
 }
 
 pub fn has_citation(text: &str) -> CoreResult<bool> {
@@ -517,11 +495,6 @@ mod pdf {
 
     pub fn fix_docx_supra_cross_references(bytes: &[u8]) -> CoreResult<legalpdf::DocxSupraCleanup> {
         legalpdf::fix_docx_supra_cross_references(docx_supra_bytes(bytes)?)
-            .map_err(|error| error.to_string())
-    }
-
-    pub fn has_docx_supra_references(bytes: &[u8]) -> CoreResult<bool> {
-        legalpdf::has_docx_supra_references(docx_supra_bytes(bytes)?)
             .map_err(|error| error.to_string())
     }
 

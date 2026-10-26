@@ -31,8 +31,6 @@ export const SIGNATURES = {
   readDocumentTextRange: ["document", "start", "end", "offset", "limit", "startChar"],
   documentFingerprint: ["document"], documentAnchors: ["document", "end"],
   documentOutline: ["document", "legislation"],
-  sourceMarkup: ["document"], sourceOpinionComponents: ["document"],
-  sourceParagraphMarkers: ["document"], sourceParagraphMarker: ["document", "markupStart"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   statuteOutline: ["text", "articles"], caseOutline: ["text"], documentCaseOutline: ["document"], statuteProvisionSpans: ["text", "labels"],
   statuteCurrency: ["pages"], filingCover: ["opening", "title"],
@@ -40,7 +38,7 @@ export const SIGNATURES = {
   citationEngineCall: ["method", "request"], citationEngineCallAsync: ["method", "request"],
   documentReadingOrder: ["request"],
   citationOccurrencesInText: ["text"], authorityReferencesInText: ["text"],
-  caselawCitationLookupKey: ["text"], hasCitationInText: ["text"],
+  hasCitationInText: ["text"],
   groundedProseErrors: ["text", "citedEvidenceIds", "visibleEvidence"],
   quoteRepairSuggestion: ["claim", "spans"], markedQuoteSpans: ["text"], textUnits: ["text", "sentences"],
   quoteComparison: ["authored", "source"],
@@ -50,7 +48,6 @@ export const SIGNATURES = {
   canliiCaseUrl: ["citations", "language", "court"], canliiLawUrl: ["text", "language", "consolidated"], canliiCourtRoute: ["court"],
   passageLink: ["document", "request"], citedPassageLink: ["document", "url", "pinpoints"],
   sourceLink: ["document", "request"],
-  lawWebLink: ["document", "citation", "docType", "blockText", "quotes"],
   smallestContainingDocumentBlock: ["document", "start", "end"],
   lookupStructureBlock: ["document", "locator", "contextBlocks"],
   resolveDocumentAddressSpans: ["document", "spec", "follow", "depth"],
@@ -68,7 +65,7 @@ export const SIGNATURES = {
 // Readings of text alone, which an operation's stages repeat: a request asked before is answered with the reply it
 // had, read afresh, from the latest this many.
 const PURE = new Set(["providerCitationsInText", "citationOccurrencesInText", "citationLookupKey", "citationLookupKeys",
-  "caselawCitationLookupKey", "canliiCaseUrl", "canliiLawUrl"]);
+  "canliiCaseUrl", "canliiLawUrl"]);
 const PURE_KEPT = 4096;
 const DOCUMENT_RESULTS = new Set(["deriveDocumentStructure", "deriveDocxDocument",
   "derivePdfDocument", "restorePdfDocument"]);
