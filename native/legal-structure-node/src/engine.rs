@@ -33,10 +33,6 @@ pub enum StructureRequest {
         #[serde(default)]
         page_rows: Vec<JournalPageLabel>,
     },
-    /// A structure derived earlier and stored as JSON (the store_documents bin), read back as it is.
-    Stored {
-        path: String,
-    },
 }
 
 pub(crate) enum NativeProduct {
@@ -172,8 +168,6 @@ pub fn derive_document_structure(request: StructureRequest) -> CoreResult<Native
             return Err("journal request requires filename or text".to_owned());
         }
         .map_err(native_error)?,
-        StructureRequest::Stored { path } => serde_json::from_reader(BufReader::new(File::open(&path)
-            .map_err(|error| format!("{path}: {error}"))?)).map_err(|error| format!("{path}: {error}"))?,
     };
     Ok(NativeDocument::new(NativeProduct::Structure(structure)))
 }
