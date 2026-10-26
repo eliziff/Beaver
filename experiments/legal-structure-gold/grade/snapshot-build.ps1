@@ -60,7 +60,7 @@ Set-Location `$(if (`$workspace) { '$Mirror' } else { '$Mirror\native\legal-stru
 `$build = Start-Process cargo -ArgumentList 'build', '--release', '-p', 'legal-structure-node', '--lib' -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
 `$null = `$build.Handle; `$build.WaitForExit()
 "snapshot build: exit `$(`$build.ExitCode), {0:N0}s" -f ((Get-Date) - `$started).TotalSeconds
-if (`$build.ExitCode) { Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 10 | ForEach-Object { `$_.Line; `$_.Context.PostContext } | Select-Object -First 30 }
+if (`$build.ExitCode) { Remove-Item -ErrorAction SilentlyContinue '$Mirror\native\legal-structure-node\target\release\legal_structure_node.dll'; Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 10 | ForEach-Object { `$_.Line; `$_.Context.PostContext } | Select-Object -First 30 }
 "@
 scp -q "${Desktop}:$($Mirror -replace '\\', '/')/native/legal-structure-node/target/release/legal_structure_node.dll" $Out
 if (Test-Path $Out) { "addon at $Out" }
