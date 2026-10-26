@@ -14,7 +14,7 @@
 #[path = "../a2aj_lookup.rs"]
 mod a2aj_lookup;
 
-use legal_structure::a2aj::{Document, Source, StoreRow};
+use legal_structure_features::a2aj::{Document, Source, StoreRow};
 use legal_structure::citations::{extract, Authority, Form, Format, Options};
 use legal_structure::{canlii_case_url, citation_lookup_key, reporter_decision};
 use rusqlite::{Connection, OpenFlags, OptionalExtension};

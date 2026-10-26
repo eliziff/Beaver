@@ -7,8 +7,10 @@ publish = false
 [dependencies]
 diff-match-patch-rs = "0.5.1"
 legalpdf = { package = "legal-pdf-parser", path = "../../../legal-pdf-parser", features = ["ocr", "ppdoc-full"] }
-legal-pdf-core = { path = "../../../legal-pdf-parser/legal-pdf-core", features = ["structure-analysis", "ort-runtime"] }
-legal-structure = { path = "../../../legal-structure" }
+legal-pdf-core = { path = "../../../legal-pdf-parser/legal-pdf-core", features = ["ort-runtime"] }
+# The engine the grader installs into the parser at start: the parser crates build without it.
+legal-structure = { path = "../../../legal-structure", features = ["structure-inference"] }
+legal-structure-features = { path = "../../../legal-structure/features" }
 legal-structure-model = { path = "../../../legal-structure/model" }
 legal-structure-tagger = { path = "../../../legal-structure/tagger", features = ["onnx"] }
 serde = { version = "1.0", features = ["derive"] }

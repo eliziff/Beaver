@@ -1,7 +1,7 @@
 #![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
 //! The structure engine's reading of every document in Beaver's local A2AJ store (a2aj.sqlite), read
 //! as production reads it, and what changed between two readings. Built with the addon, by the same
-//! build: it reads each document's engine input as the engine does (legal_structure::a2aj).
+//! build: it reads each document's engine input as the engine does (legal_structure_features::a2aj).
 //!
 //!   a2aj-corpus run  --label NAME [--against NAME] [--kind cases|laws|all] [--lang en|fr] [--threads N] [--every N]
 //!   a2aj-corpus diff BASE NEW [--examples N]
@@ -11,7 +11,7 @@
 //! The store is `%LOCALAPPDATA%/OpenLegalData/providers/a2aj/a2aj.sqlite` unless `--store` names another;
 //! readings go to `%LOCALAPPDATA%/OpenLegalData/experiments/a2aj-structure` unless `--out` names another.
 
-use legal_structure::a2aj::{self, Document, Language, Source, StoreRow};
+use legal_structure_features::a2aj::{self, Document, Language, Source, StoreRow};
 use legal_structure::{
     provider_text_document_structure, DocumentStructure, NodeKind, ProviderTextInput, ProviderTextSourceKind,
 };
@@ -41,7 +41,7 @@ struct Job {
     input: ProviderTextInput,
 }
 
-/// The inputs production derives from a document (legal_structure::a2aj's reading), in each language it has text in.
+/// The inputs production derives from a document (legal_structure_features::a2aj's reading), in each language it has text in.
 fn jobs(id: i64, row: &StoreRow) -> rusqlite::Result<Vec<Job>> {
     let document = Document::new(row, Source::Store);
     let doc_type = a2aj::doc_type(document.field("doc_type")?.as_deref().unwrap_or_default());

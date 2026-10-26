@@ -4,7 +4,7 @@
 //! then linked by the decision's neutral citation. Only a name the store keys exactly, in one decision of that court
 //! and year, finds it. The engine (a2aj.rs) and the store's census bins read the store through these.
 
-use legal_structure::a2aj::{Document, Source, StoreRow};
+use legal_structure_features::a2aj::{Document, Source, StoreRow};
 use legal_structure::{citation_lookup_key, javascript_whitespace, reporter_decision, trim_javascript_whitespace as js_trim,
     ReporterDecision, JS_WHITESPACE_CLASS};
 use regex::Regex;

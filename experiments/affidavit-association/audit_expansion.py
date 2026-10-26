@@ -176,6 +176,8 @@ def main():
             seen_originals[identity] = rid
         failures += original_source_errors(referring + [part for exhibit in g['exhibits'] for part in source_parts(exhibit)], files, source_hashes)
         missing = [e for e in g['exhibits'] if not source_parts(e)]
+        if len(missing) == len(g['exhibits']):
+            failures.append('No complete available substantive target is source-bound')
         if missing:
             unavailable_sources[rid] = [{'label': e['label'], 'availability': e.get('availability') or e.get('status')}
                                          for e in missing]

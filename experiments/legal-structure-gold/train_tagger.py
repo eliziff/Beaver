@@ -28,6 +28,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint
 
 # The tagger's regions, in the order `structure-gold rows` numbers them (the tagger's REGIONS).
 REGIONS = ["none", "text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote",
@@ -108,10 +109,26 @@ def witness_scores(path):
     return scores
 
 
-class Document:
-    """One document's tensors: normalized evidence, tier 0, text, reader codes, gold."""
+def sight(raw, vision):
+    """--vision: each piece's visual evidence (`vision_features.py`): its box pooled from its page,
+    its page, and the pages before and after it, (pieces, 4 x 256); zeros where a page has no render."""
+    if vision is None:
+        return np.zeros((len(raw["ids"]), 0), dtype=np.float32)
+    path = vision / f"{raw['sha256']}.npz"
+    if not path.exists():
+        return np.zeros((len(raw["ids"]), 4 * 256), dtype=np.float32)
+    stored = np.load(path)
+    piece, page = stored["piece"].astype(np.float32), stored["page"].astype(np.float32)
+    slots = np.asarray(raw["pages"], dtype=np.int64)
+    padded = np.concatenate([np.zeros((1, page.shape[1]), np.float32), page, np.zeros((1, page.shape[1]), np.float32)])
+    return np.concatenate([piece, padded[slots + 1], padded[slots], padded[slots + 2]], axis=1)
 
-    def __init__(self, raw, names, vocabs, mean, std, witness=None):
+
+class Document:
+    """One document's tensors: normalized evidence, tier 0, text, reader codes, gold, sight."""
+
+    def __init__(self, raw, names, vocabs, mean, std, witness=None, vision=None):
+        self.sight = sight(raw, vision)
         values = np.asarray(raw["features"], dtype=np.float32)
         self.language = np.asarray([language(t[0]) for t in raw["text"]], dtype=np.float32)
         extra = [self.language[:, None]]
@@ -134,10 +151,12 @@ class Document:
 
 
 class Tagger(nn.Module):
-    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, dropout=0.1, text_dropout=0.0, wide=False):
+    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, dropout=0.1, text_dropout=0.0, wide=False, vision=0):
         super().__init__()
         region_types, note_modes, families = vocabs
         self.wide = wide
+        # The visual evidence, read down to 64 values a piece.
+        self.see = nn.Sequential(nn.LayerNorm(vision), nn.Linear(vision, 64), nn.GELU()) if vision else None
         self.char = nn.Embedding(2049, 24, padding_idx=0)
         self.conv = nn.Conv1d(24, 64, 3, padding=1)
         if wide:
@@ -148,7 +167,7 @@ class Tagger(nn.Module):
         self.region_type = nn.Embedding(len(region_types), 8)
         self.note_mode = nn.Embedding(len(note_modes), 4)
         self.family = nn.Embedding(len(families), 8)
-        width = features + text_width + 8 * len(HEADS) + 8 + 4 + 8
+        width = features + text_width + 8 * len(HEADS) + 8 + 4 + 8 + (64 if vision else 0)
         self.project = nn.Sequential(nn.Linear(width, 2 * hidden), nn.GELU(), nn.Dropout(dropout))
         # Hiding a piece's text at times keeps the encoder from leaning on remembered wording.
         self.text_dropout = text_dropout
@@ -162,22 +181,42 @@ class Tagger(nn.Module):
         self.heads = nn.ModuleList([nn.Linear(2 * hidden, n) for _, _, n in HEADS])
 
 
-    def encode(self, features, tier0, text, reader, words, lengths):
+    def encode(self, features, tier0, text, reader, words, sight, lengths):
         """Each window's pieces' states: (windows, length, 2 * hidden)."""
         b, t, _ = features.shape
-        e = self.char(text.reshape(b * t, text.shape[-1])).transpose(1, 2)
-        c = F.relu(self.conv(e)).max(dim=2).values
-        if self.wide:
-            c5 = F.relu(self.conv5(e)).max(dim=2).values
-            w = words.reshape(b * t, words.shape[-1])
-            mask = (w > 0).unsqueeze(-1).float()
-            wm = (self.word(w) * mask).sum(1) / mask.sum(1).clamp(min=1)
-            c = torch.cat([c, c5, wm], dim=-1)
-        c = c.view(b, t, -1)
+        flat_text, flat_words = text.reshape(b * t, text.shape[-1]), words.reshape(b * t, words.shape[-1])
+
+        def read(lo, hi):
+            # Pieces lo..hi, each text read whole: padded only to the longest text among them.
+            chunk = flat_text[lo:hi]
+            chunk = chunk[:, :max(1, int((chunk > 0).sum(dim=1).max()))]
+            e = self.char(chunk).transpose(1, 2)
+            c = F.relu(self.conv(e)).max(dim=2).values
+            if self.wide:
+                c5 = F.relu(self.conv5(e)).max(dim=2).values
+                w = flat_words[lo:hi]
+                mask = (w > 0).unsqueeze(-1).float()
+                wm = (self.word(w) * mask).sum(1) / mask.sum(1).clamp(min=1)
+                c = torch.cat([c, c5, wm], dim=-1)
+            return c
+
+        # Each piece's text is read on its own, so reading the pieces in chunks changes nothing but
+        # memory; while training, a chunk's activations are recomputed for the backward pass.
+        step = 2048
+        chunks = []
+        for lo in range(0, b * t, step):
+            hi = min(b * t, lo + step)
+            if self.training:
+                chunks.append(torch.utils.checkpoint.checkpoint(read, lo, hi, use_reentrant=False))
+            else:
+                chunks.append(read(lo, hi))
+        c = torch.cat(chunks).view(b, t, -1)
         if self.training and self.text_dropout > 0:
             c = c * (torch.rand(b, t, 1, device=c.device) >= self.text_dropout)
         parts = [features, c, self.region_type(reader[..., 0]), self.note_mode(reader[..., 1]), self.family(reader[..., 2])]
         parts += [embed(tier0[..., column].clamp(min=0, max=embed.num_embeddings - 1)) for embed, (_, column, _) in zip(self.tier0, HEADS)]
+        if self.see is not None:
+            parts.append(self.see(sight))
         x = self.project(torch.cat(parts, dim=-1))
         if self.kind == "gru":
             # cuDNN's recurrence, in single precision.
@@ -195,15 +234,22 @@ class Tagger(nn.Module):
 
 
 WINDOW, CONTEXT = 768, 128
+# --whole: each document read in one pass (the GRU's, with no window); a batch holds documents up to
+# this many pieces together, one longer document alone.
+WHOLE, BUDGET = False, 768 * 16
 
 
 class Windows:
     """Documents cut into windows of WINDOW pieces with CONTEXT more on each side, stacked for the
-    encoder; each piece's state is read from the window that holds it in its core."""
+    encoder; each piece's state is read from the window that holds it in its core. With --whole, a
+    document is one window."""
 
     def __init__(self, docs, device):
-        spans = [(k, max(0, core - CONTEXT), min(d.length, core + WINDOW + CONTEXT), core, min(d.length, core + WINDOW))
-                 for k, d in enumerate(docs) for core in range(0, d.length, WINDOW)]
+        if WHOLE:
+            spans = [(k, 0, d.length, 0, d.length) for k, d in enumerate(docs)]
+        else:
+            spans = [(k, max(0, core - CONTEXT), min(d.length, core + WINDOW + CONTEXT), core, min(d.length, core + WINDOW))
+                     for k, d in enumerate(docs) for core in range(0, d.length, WINDOW)]
         length = max(hi - lo for _, lo, hi, _, _ in spans)
         f = torch.zeros(len(spans), length, docs[0].features.shape[1])
         t0 = torch.zeros(len(spans), length, LABELS, dtype=torch.long)
@@ -211,6 +257,7 @@ class Windows:
         tx = torch.zeros(len(spans), length, max(d.text.shape[1] for d in docs), dtype=torch.long)
         rd = torch.zeros(len(spans), length, 3, dtype=torch.long)
         wd = torch.zeros(len(spans), length, max(d.words.shape[1] for d in docs), dtype=torch.long)
+        sg = torch.zeros(len(spans), length, docs[0].sight.shape[1])
         index = [np.zeros(d.length, dtype=np.int64) for d in docs]
         for w, (k, lo, hi, a, b) in enumerate(spans):
             d = docs[k]
@@ -219,9 +266,10 @@ class Windows:
             tx[w, :hi - lo, :d.text.shape[1]] = torch.from_numpy(d.text[lo:hi])
             rd[w, :hi - lo] = torch.from_numpy(d.reader[lo:hi])
             wd[w, :hi - lo, :d.words.shape[1]] = torch.from_numpy(d.words[lo:hi])
+            sg[w, :hi - lo] = torch.from_numpy(d.sight[lo:hi])
             index[k][a:b] = w * length + np.arange(a - lo, b - lo)
         lengths = torch.as_tensor([hi - lo for _, lo, hi, _, _ in spans])
-        self.inputs = [x.to(device) for x in (f, t0, tx, rd, wd)] + [lengths.to(device)]
+        self.inputs = [x.to(device) for x in (f, t0, tx, rd, wd, sg)] + [lengths.to(device)]
         self.index = [torch.as_tensor(i, device=device) for i in index]
 
     def states(self, model):
@@ -236,8 +284,8 @@ def batches(docs, windows, rng):
     order = sorted(range(len(docs)), key=lambda n: docs[n].length + rng.random() * 50)
     groups, current, used = [], [], 0
     for n in order:
-        need = -(-docs[n].length // WINDOW)
-        if current and used + need > windows:
+        need = docs[n].length if WHOLE else -(-docs[n].length // WINDOW)
+        if current and used + need > (BUDGET if WHOLE else windows):
             groups.append(current)
             current, used = [], 0
         current.append(n)
@@ -335,7 +383,14 @@ def main():
     parser.add_argument("--pretrain", type=Path, help="silver rows directory (rows-train.jsonl of text-only units): region/start pretraining before the gold epochs")
     parser.add_argument("--pretrain-epochs", type=int, default=2)
     parser.add_argument("--pretrain-docs", type=int, default=0, help="at most this many silver documents (0 = all)")
+    parser.add_argument("--whole", action="store_true", help="the GRU reads each document whole, with no window")
+    parser.add_argument("--vision", type=Path, help="vision_features.py output: each piece's box, page and neighbouring pages, seen")
     args = parser.parse_args()
+    if args.whole:
+        if args.model != "gru":
+            parser.error("--whole reads with the GRU")
+        global WHOLE
+        WHOLE = True
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.time()
@@ -354,8 +409,8 @@ def main():
     stacked = np.concatenate([np.asarray(d["features"], dtype=np.float32) for d in train_raw])
     mean, std = stacked.mean(axis=0), stacked.std(axis=0) + 1e-6
     witness_train, witness_dev = (witness_scores(args.witness[0]), witness_scores(args.witness[1])) if args.witness else (None, None)
-    train = [Document(d, names, vocabs, mean, std, witness_train) for d in train_raw]
-    dev = [Document(d, names, vocabs, mean, std, witness_dev) for d in dev_raw]
+    train = [Document(d, names, vocabs, mean, std, witness_train, args.vision) for d in train_raw]
+    dev = [Document(d, names, vocabs, mean, std, witness_dev, args.vision) for d in dev_raw]
     print(f"loaded {len(train)} train / {len(dev)} development documents, {sum(d.length for d in train)} / "
           f"{sum(d.length for d in dev)} pieces in {time.time() - started:.1f}s", flush=True)
     # Starts weigh each class by the inverse square root of its frequency, at most 8:1.
@@ -365,7 +420,7 @@ def main():
     w = np.minimum(w, 8 * w.min())
     weights = {"start": torch.tensor(w / w.mean(), dtype=torch.float32, device=device)}
     model = Tagger(train[0].features.shape[1], vocabs, kind=args.model, hidden=args.hidden, layers=args.layers,
-                   dropout=args.dropout, text_dropout=args.text_dropout, wide=args.text == "wide").to(device)
+                   dropout=args.dropout, text_dropout=args.text_dropout, wide=args.text == "wide", vision=train[0].sight.shape[1]).to(device)
     print(f"{args.model}: {sum(p.numel() for p in model.parameters()):,} parameters", flush=True)
     if args.pretrain:
         # The text prior: silver units carry text and text-shape features only. Every other feature is
@@ -381,7 +436,7 @@ def main():
             values = np.asarray(d["features"], dtype=np.float32)
             values[:, ~keep] = mean[~keep]
             d["features"] = values.tolist()
-        silver = [Document(d, names, vocabs, mean, std) for d in silver_raw]
+        silver = [Document(d, names, vocabs, mean, std, vision=args.vision) for d in silver_raw]
         for d in silver:
             d.gold[:, 2:] = -100
         print(f"pretraining on {len(silver)} silver documents, {sum(d.length for d in silver)} units, {args.pretrain_epochs} epochs", flush=True)
@@ -441,11 +496,11 @@ def main():
         if selected > best:
             best, best_state = selected, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     model.load_state_dict(best_state)
-    torch.save({"state": best_state, "model": args.model, "hidden": args.hidden, "layers": args.layers, "text": args.text, "vocabs": [v.index for v in vocabs],
+    torch.save({"state": best_state, "model": args.model, "hidden": args.hidden, "layers": args.layers, "text": args.text, "vocabs": [v.index for v in vocabs], "vision": train[0].sight.shape[1], "whole": args.whole,
                 "mean": mean.tolist(), "std": std.tolist()}, args.out / f"tagger-{args.model}.pt")
     predictions = predict(model, dev, device)
     if args.fold:
-        held = [Document(d, names, vocabs, mean, std, witness_train) for d in held_raw]
+        held = [Document(d, names, vocabs, mean, std, witness_train, args.vision) for d in held_raw]
         write_predictions(args.out / f"crossfit-{args.fold.split('/')[0]}.jsonl", held_raw, predict(model, held, device))
     write_predictions(args.out / f"predictions-development-{args.model}.jsonl", dev_raw, predictions)
     if args.predict_train:

@@ -1,17 +1,8 @@
 //! Target-neutral engine operations. The Node addon (`node.rs`) and the browser
 //! WebAssembly module (`wasi.rs`) are thin bindings over these functions.
 
-use legal_structure::{
-    analyze_instrument, analyze_native_markup, authority_references_in_text,
-    caselaw_citation_lookup_key, citation_lookup_key, citation_occurrences_in_text,
-    document_fingerprint, docx_structure_lint, grounded_prose_errors,
-    has_citation_in_text, journal_document_structure, journal_text_document_structure,
-    marked_quote_spans, provider_citations_in_text, provider_text_document_structure,
-    quote_repair_suggestion, utf16_prefix_ceil, AuthoritativeTableCell,
-    DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure,
-    FollowDirection, JournalPageLabel, NativeMarkupInput, OutlineEntry, PrintedStatute,
-    ProviderTextInput, VisibleEvidenceText,
-};
+use legal_structure::{analyze_instrument, analyze_native_markup, authority_references_in_text, caselaw_citation_lookup_key, citation_lookup_key, citation_occurrences_in_text, document_fingerprint, docx_structure_lint, has_citation_in_text, journal_document_structure, journal_text_document_structure, provider_citations_in_text, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, ProviderTextInput};
+use legal_structure_features::{grounded_prose_errors, marked_quote_spans, quote_repair_suggestion, OutlineEntry, PrintedStatute, VisibleEvidenceText};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
@@ -62,7 +53,7 @@ pub struct NativeDocument {
     /// What locating quotations has read of the document, kept for the quotations located in it after where the
     /// caller asks (`keep`): a quicker check of each later quotation for the memory the readings hold (some 250 MiB
     /// for the Criminal Code).
-    quotes: std::sync::Mutex<legal_structure::QuoteLocator>,
+    quotes: std::sync::Mutex<legal_structure_features::QuoteLocator>,
 }
 
 impl NativeDocument {
@@ -90,7 +81,7 @@ impl NativeDocument {
         let NativeProduct::Pdf(pdf) = &self.product else { return None };
         let pages = pdf.passage_pages();
         let lines = pages.iter().flat_map(|page| page.lines.iter().map(move |line| (line.id.as_str(),
-            legal_structure::PrintedLine { id: &line.id, text: &line.text, rect: line.rect, page: page.page_number })))
+            legal_structure_features::PrintedLine { id: &line.id, text: &line.text, rect: line.rect, page: page.page_number })))
             .collect::<std::collections::HashMap<_, _>>();
         match instrument {
             Some(instrument) => PrintedStatute::read_within(pdf.structure(), &lines, pages.len(), instrument),
@@ -289,7 +280,7 @@ pub fn case_outline(text: &str) -> CoreResult<Vec<legal_structure::CaseOutlineEn
 /// A PDF's numbered sections come from the reading of its body as a statute, for legislation.
 pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<OutlineEntry> {
     let pdf = !matches!(document.product, NativeProduct::Structure(_));
-    legal_structure::document_outline(document.structure(), pdf,
+    legal_structure_features::document_outline(document.structure(), pdf,
         document.instrument().filter(|_| pdf && legislation))
 }
 
@@ -320,9 +311,9 @@ pub fn citation_lookup_key_of(text: &str) -> String {
 }
 
 pub fn document_reading_order(request: &str) -> Result<Vec<(usize, usize)>, String> {
-    let units = serde_json::from_str::<Vec<legal_structure::ReadingOrderUnit>>(request)
+    let units = serde_json::from_str::<Vec<legal_structure_features::ReadingOrderUnit>>(request)
         .map_err(|error| error.to_string())?;
-    Ok(legal_structure::document_reading_order(&units))
+    Ok(legal_structure_features::document_reading_order(&units))
 }
 
 pub fn citation_engine_call(method: &str, request: &str) -> Result<serde_json::Value, String> {
@@ -335,20 +326,20 @@ pub fn citation_engine_call(method: &str, request: &str) -> Result<serde_json::V
 /// its id.
 pub fn quote_locate_document(
     document: &NativeDocument,
-    source: legal_structure::QuoteSource,
-    quotes: &[legal_structure::QuoteToLocate],
+    source: legal_structure_features::QuoteSource,
+    quotes: &[legal_structure_features::QuoteToLocate],
     compare: bool,
     keep: bool,
 ) -> CoreResult<Vec<serde_json::Value>> {
     let text = document_text(document, None);
-    let provisions = (source == legal_structure::QuoteSource::Legislation)
-        .then(|| document.instrument().map(legal_structure::PrintedStatute::quote_blocks)).flatten();
-    let blocks = legal_structure::document_quote_blocks(document.structure(), &document.query, source, provisions);
+    let provisions = (source == legal_structure_features::QuoteSource::Legislation)
+        .then(|| document.instrument().map(legal_structure_features::PrintedStatute::quote_blocks)).flatten();
+    let blocks = legal_structure_features::document_quote_blocks(document.structure(), &document.query, source, provisions);
     let located = if keep {
-        legal_structure::locate_source_quotes_kept(&mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()),
+        legal_structure_features::locate_source_quotes_kept(&mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()),
             source, text, &blocks, quotes, compare)
     } else {
-        legal_structure::locate_source_quotes(source, text, &blocks, quotes, compare)
+        legal_structure_features::locate_source_quotes(source, text, &blocks, quotes, compare)
     };
     Ok(located.into_iter().zip(quotes).map(|(located, item)| {
         if !compare {
@@ -633,8 +624,8 @@ mod pdf {
     ) -> Option<(legalpdf::PdfLookupStatus, Vec<legal_structure::ScalarRange>, Vec<u32>)> {
         use legalpdf::PdfLookupStatus as Status;
         Some(match within.or_else(|| native.instrument())?.provision(native.structure(), kind, locator)? {
-            legal_structure::ProvisionPlacement::Found { ranges, pages } => (Status::Found, ranges, pages),
-            legal_structure::ProvisionPlacement::Ambiguous => (Status::Ambiguous, Vec::new(), Vec::new()),
+            legal_structure_features::ProvisionPlacement::Found { ranges, pages } => (Status::Found, ranges, pages),
+            legal_structure_features::ProvisionPlacement::Ambiguous => (Status::Ambiguous, Vec::new(), Vec::new()),
         })
     }
 
@@ -715,7 +706,7 @@ mod pdf {
                     pages.clear();
                 }
                 // A statute's provisions are placed by the reading of its body as a statute.
-                if legal_structure::PrintedStatute::places(&target.locator_kind) {
+                if legal_structure_features::PrintedStatute::places(&target.locator_kind) {
                     let within = target.instrument.as_ref().and_then(|instrument| readings.entry(instrument.clone())
                         .or_insert_with(|| native.instrument_within(instrument)).as_ref());
                     if let Some((found, found_ranges, found_pages)) = instrument_section(native, within, &target.locator_kind, &target.locator) {
