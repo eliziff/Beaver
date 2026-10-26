@@ -232,8 +232,6 @@ type StructureAddon = {
     locator?: { kind: string; label: string } | null; blockText: string; quotes: string[];
     /** A passage cited without a quotation is linked at the citation's pinpoints (`par12`, `sec6(1)(c)`). */
     pinpoints?: string[]; verifiedPdf?: { url: string; pdfOnly?: boolean } | null }): string | null;
-  /** The passage on A2AJ Law Web's reader of the document; null where it cannot be planned whole there. */
-  lawWebLink(document: NativeDocument, citation: string, docType: string, blockText: string, quotes: string[]): string | null;
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   deriveDocxDocument(bytes: Buffer, id: string, drafting?: boolean): Promise<NativeDocument>;
   docxText(bytes: Buffer, drafting?: boolean, limit?: number): Promise<string>;
@@ -307,7 +305,6 @@ type StructureAddon = {
   canliiCourtRoute(court: string): boolean;
   citationOccurrencesInText(text: string): NativeCitationOccurrence[];
   authorityReferencesInText(text: string): NativeAuthorityReferenceOccurrence[];
-  caselawCitationLookupKey(text: string): string;
   hasCitationInText(text: string): boolean;
   groundedProseErrors(text: string, citedEvidenceIds: readonly string[],
     visibleEvidence: unknown): string[];

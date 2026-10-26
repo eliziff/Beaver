@@ -93,8 +93,6 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             }), result.bytes))
         }
         #[cfg(feature = "legalpdf")]
-        "hasDocxSupraReferences" => done(engine::has_docx_supra_references(bytes).and_then(value)),
-        #[cfg(feature = "legalpdf")]
         "deriveDocxDocument" => done(engine::derive_docx_document(
             bytes, call.get("id")?, call.get::<Option<bool>>("drafting")?.unwrap_or(false)).map(store)),
         #[cfg(feature = "legalpdf")]
@@ -158,10 +156,6 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             engine::case_outline(engine::document_text(d, None)).and_then(value))),
         "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(
             d, call.get::<Option<bool>>("legislation")?.unwrap_or(false))))),
-        "sourceMarkup" => done(with_document(doc()?, |d| value(engine::source_markup(d)))),
-        "sourceParagraphMarkers" => done(with_document(doc()?, |d| value(engine::source_paragraph_markers(d)))),
-        "sourceParagraphMarker" => done(with_document(doc()?, |d| value(engine::source_paragraph_marker(d, call.get("markupStart")?)))),
-        "sourceOpinionComponents" => done(with_document(doc()?, |d| value(engine::source_opinion_components(d)))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),
         "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),
         // The same call, which JavaScript runs off its thread.
@@ -183,13 +177,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         // The link a passage of an A2AJ document is routed to.
         "sourceLink" => done(with_document(doc()?, |d| value(legal_structure_features::source_link(
             &d.query, d.structure(), &call.get::<legal_structure_features::SourceLinkRequest>("request")?)))),
-        "lawWebLink" => done(with_document(doc()?, |d| value(legal_structure_features::law_web_link(&d.query, d.structure(),
-            &call.get::<String>("citation")?, &call.get::<String>("docType")?, &call.get::<String>("blockText")?,
-            &call.get::<Vec<String>>("quotes")?)))),
         "canliiCourtRoute" => done(value(legal_structure::canlii_court_route(&call.get::<String>("court")?))),
         "citationOccurrencesInText" => done(value(engine::citation_occurrences(&call.get::<String>("text")?))),
         "authorityReferencesInText" => done(value(engine::authority_references(&call.get::<String>("text")?))),
-        "caselawCitationLookupKey" => done(engine::caselaw_lookup_key(&call.get::<String>("text")?).and_then(value)),
         "hasCitationInText" => done(engine::has_citation(&call.get::<String>("text")?).and_then(value)),
         "groundedProseErrors" => done(engine::prose_errors(
             &call.get::<String>("text")?, &call.get::<Vec<String>>("citedEvidenceIds")?,
