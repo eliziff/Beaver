@@ -62,6 +62,8 @@ fn main() {
     let verified = gold.iter().map(|key| (key.0.clone(), key.1.clone())).collect::<HashSet<_>>();
     articles.retain(|article, _| verified.contains(article));
     let mut predicted = HashSet::new();
+    // A third argument writes the predicted markers as JSONL, for the goldset's own scorer.
+    let mut written = args.get(3).map(|path| std::io::BufWriter::new(std::fs::File::create(path).expect(path)));
     let citations = BTreeMap::new();
     for ((dataset, article_id), rows) in &articles {
         let mut pages = BTreeMap::<u64, Vec<Line>>::new();
@@ -92,11 +94,14 @@ fn main() {
                 .expect("goldset page")
             })
             .collect::<Vec<_>>();
-        let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &citations, true);
-        for marker in output.pairing_audit.map(|audit| audit.markers).unwrap_or_default() {
+        let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &citations, true);        for marker in output.pairing_audit.map(|audit| audit.markers).unwrap_or_default() {
             let mut marker = marker;
             marker["dataset"] = json!(dataset);
             marker["article_id"] = json!(article_id);
+            if let Some(out) = written.as_mut() {
+                use std::io::Write;
+                writeln!(out, "{marker}").expect("markers out");
+            }
             predicted.insert(key(&marker));
         }
     }
