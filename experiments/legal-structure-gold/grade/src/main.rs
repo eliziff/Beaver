@@ -808,7 +808,6 @@ fn grade_tagged(gold: &Path, source: &Source, tagger: &Mutex<legal_structure_tag
         .map_err(|e| format!("{}: {e}", source.sha256))?;
     let mut pages = Vec::new();
     let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
-    let parsed_at = Instant::now();
     // The product's path: the graph re-labelled in place, then read as any parse is.
     let mut structure = document.structure().clone();
     tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.retag(&mut structure, &pages, &source.sha256, hybrid())?;
