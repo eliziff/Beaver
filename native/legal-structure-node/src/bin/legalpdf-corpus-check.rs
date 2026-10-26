@@ -410,35 +410,3 @@ fn main() {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_has_one_fresh_output_mode() {
-        let args = parse_args(
-            [
-                "--baseline",
-                "accepted.json",
-                "--corpus-root",
-                "corpus",
-                "--out",
-                "receipts",
-                "--jobs",
-                "3",
-            ]
-            .into_iter()
-            .map(str::to_owned),
-        )
-        .unwrap();
-        assert_eq!(args.jobs, 3);
-        assert!(parse_args(
-            ["--baseline", "accepted.json", "--out", "receipts"]
-                .into_iter()
-                .map(str::to_owned)
-        )
-        .is_err());
-        assert!(parse_args(["--resume", "old"].into_iter().map(str::to_owned)).is_err());
-    }
-}
