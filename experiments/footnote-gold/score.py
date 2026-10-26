@@ -185,6 +185,10 @@ def main():
         os.environ["LEGAL_STRUCTURE_ADDON"] = str(args.addon.resolve())
     results, binary = [], addon_sha256()
     for sha, rel, gold_path in gold_records(args.limit, args.stride):
+        # A catalogued record whose gold file is not on this machine is left out, and said so.
+        if not Path(gold_path).is_file():
+            print(f"{sha[:12]}: no gold file at {gold_path}; skipped")
+            continue
         gold = json.loads(Path(gold_path).read_text(encoding="utf-8"))
         name = f"{gold['dataset']}:{gold['article_id']}"
         try:
