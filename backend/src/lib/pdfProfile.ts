@@ -90,28 +90,23 @@ function configuredLegalPdfProfile(env: NodeJS.ProcessEnv = process.env): LegalP
   const requestedLayout = env.MIKE_PDF_LAYOUT_PROVIDER?.trim();
   if (requestedLayout && requestedLayout !== "none" && requestedLayout !== "ppdoc")
     throw new Error("MIKE_PDF_LAYOUT_PROVIDER must be none or ppdoc");
-  const backend = env.LEGALPDF_PPDOC_BACKEND?.trim() || "openvino";
   const modelPack = path.resolve(root,
     env.LEGALPDF_PPDOC_MODEL_PACK?.trim() || "runtime/layout/heron-int8");
   const runtime = path.resolve(root, env.LEGALPDF_PPDOC_RUNTIME?.trim() ||
-    `runtime/${backend === "openvino"
-      ? openVinoLibraryName(platform) : `onnx/${nativeLibraryNames(platform)[0]}`}`);
+    `runtime/${openVinoLibraryName(platform)}`);
   if (requestedLayout === "ppdoc" || (!requestedLayout &&
       existsSync(path.join(modelPack, "manifest.json")) && existsSync(runtime))) {
     profile.layout = { provider: "ppdoc", settings: {
       model_pack: configuredPath(env, root, "LEGALPDF_PPDOC_MODEL_PACK",
         "runtime/layout/heron-int8", "manifest.json"),
       runtime: configuredPath(env, root, "LEGALPDF_PPDOC_RUNTIME",
-        `runtime/${backend === "openvino"
-          ? openVinoLibraryName(platform) : `onnx/${nativeLibraryNames(platform)[0]}`}`),
-      backend,
+        `runtime/${openVinoLibraryName(platform)}`),
       ...numericSettings(env, [
         ["threads", "LEGALPDF_PPDOC_THREADS"], ["threshold", "LEGALPDF_PPDOC_THRESHOLD"],
         ["render_dpi", "LEGALPDF_PPDOC_DPI"],
       ]),
       ...(env.LEGALPDF_PPDOC_DEVICE?.trim()
         ? { device: env.LEGALPDF_PPDOC_DEVICE.trim() } : {}),
-      ...(env.LEGALPDF_PPDOC_CPU_FALLBACK === "1" ? { cpu_fallback: true } : {}),
     } };
   }
   return profile;
