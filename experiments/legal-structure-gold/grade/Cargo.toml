@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 diff-match-patch-rs = "0.5.1"
-legalpdf = { package = "legal-pdf-parser", path = "../../../legal-pdf-parser", features = ["ocr", "ppdoc-full"] }
+legalpdf = { package = "legal-pdf-parser", path = "../../../legal-pdf-parser", features = ["ocr", "ppdoc"] }
 legal-pdf-core = { path = "../../../legal-pdf-parser/legal-pdf-core", features = ["ort-runtime"] }
 # The engine the grader installs into the parser at start: the parser crates build without it.
 legal-structure = { path = "../../../legal-structure", features = ["structure-inference"] }
