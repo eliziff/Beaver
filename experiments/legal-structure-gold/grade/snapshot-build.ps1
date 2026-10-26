@@ -32,13 +32,19 @@ New-Item -ItemType Directory $stage | Out-Null
 foreach ($part in $parts) {
   $repo = "$root\$($part.Repo)"
   $revision = if ($Revisions.ContainsKey($part.Repo)) { $Revisions[$part.Repo] } else { git -C $repo rev-list -1 "--before=$Before" HEAD }
-  "{0,-18} {1}" -f $part.Repo, (git -C $repo log -1 --format='%h %ad %s' --date=format:'%m-%d %H:%M' $revision).Substring(0, 60)
+  $subject = git -C $repo log -1 --format='%h %ad %s' --date=format:'%m-%d %H:%M' $revision
+  "{0,-18} {1}" -f $part.Repo, $subject.Substring(0, [Math]::Min(60, $subject.Length))
   $target = if ($part.Repo -eq '.') { $stage } else { "$stage\$($part.Repo)" }
   New-Item -ItemType Directory -Force $target | Out-Null
   $existing = @($part.Paths | Where-Object { git -C $repo ls-tree --name-only $revision -- $_ })
   git -C $repo archive --format=tar -o "$stage\part.tar" $revision -- @($existing)
   tar -xf "$stage\part.tar" -C $target
   Remove-Item "$stage\part.tar"
+}
+# A workspace member the moment did not track (an experiment still untracked then) leaves the list.
+if (Test-Path "$stage\Cargo.toml") {
+  $manifest = [IO.File]::ReadAllLines("$stage\Cargo.toml") | Where-Object { $_ -notmatch '^\s*"([^"]+)",\s*$' -or (Test-Path "$stage\$($Matches[1])") }
+  [IO.File]::WriteAllLines("$stage\Cargo.toml", [string[]]$manifest, (New-Object Text.UTF8Encoding $false))
 }
 Push-Location $stage; tar -cf "$env:TEMP\snapshot.tar" --exclude='*/experiments/*' --exclude='*/benchmarks/*' *; Pop-Location
 "packed {0:N1} MB" -f ((Get-Item "$env:TEMP\snapshot.tar").Length / 1MB)
