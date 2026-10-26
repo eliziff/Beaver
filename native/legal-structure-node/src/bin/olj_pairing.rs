@@ -75,7 +75,7 @@ fn main() {
                 "id": row["line_id"], "page_index": number - 1, "page_number": number, "source_index": index,
                 "reading_order": field(row, "reading_order_index").parse::<u64>().unwrap_or(index as u64),
                 "block_index": 0, "text": text, "bbox": bbox(&row["line_bbox_px"]),
-                "region_type": row["region_type"].as_str().unwrap_or("unknown"), "source": "ocr",
+                "region_type": row["region_type"].as_str().unwrap_or("unknown"), "region_id": field(row, "region_id"), "source": "ocr",
             });
             pages.entry(number).or_default().push(serde_json::from_value(line).expect("goldset line"));
         }

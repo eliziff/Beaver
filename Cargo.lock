@@ -1112,15 +1112,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "legal-pdf-extraction"
-version = "0.1.0"
-dependencies = [
- "legal-pdf-core",
- "legal-pdf-extraction-processor",
- "pdf-inspector",
-]
-
-[[package]]
 name = "legal-pdf-extraction-processor"
 version = "0.1.0"
 dependencies = [
@@ -1130,15 +1121,6 @@ dependencies = [
  "regex",
  "serde",
  "thiserror",
-]
-
-[[package]]
-name = "legal-pdf-headings"
-version = "0.1.0"
-dependencies = [
- "legal-pdf-core",
- "regex",
- "unicode-properties",
 ]
 
 [[package]]
@@ -1176,7 +1158,7 @@ name = "legal-pdf-parser"
 version = "0.1.0"
 dependencies = [
  "legal-pdf-core",
- "legal-pdf-extraction",
+ "legal-pdf-extraction-processor",
  "legal-pdf-language",
  "legal-pdf-ocr",
  "legal-pdf-structure",
@@ -1194,7 +1176,6 @@ name = "legal-pdf-structure"
 version = "0.1.0"
 dependencies = [
  "legal-pdf-core",
- "legal-pdf-headings",
  "legal-pdf-support",
  "legal-pdf-tables",
  "legal-pdf-witnesses",
@@ -1214,7 +1195,6 @@ dependencies = [
  "legal-pdf-core",
  "legal-structure-model",
  "libloading 0.8.9",
- "ort",
  "pdf-inspector",
  "regex",
  "serde",
