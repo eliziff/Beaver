@@ -71,6 +71,24 @@ of 457 gold pairs).
 `experiments/legal-structure-gold/score_all.py` scores a parser build against the gold, feature by
 feature. The journal footnote gold (`experiments/footnote-gold`) scores footnote pairing.
 
+The [OCR attribution experiment](../../experiments/ocr-structure-attribution/README.md)
+analyzes all 359 completed sources from saved gold, without rerendering or OCR.
+It reports errors by marker/reference kind, label shape and glyph confusion.
+Separate optional native probes cover routing, proposals/filtering, crops,
+resolution, CTC decoding and structural effects of transcription corrections;
+five sources completed before that replay was stopped. Corrected text supports
+recognition training; inherited line rectangles still need visual correction
+before they become detector gold. Findings and retained receipts are linked from
+the experiment.
+
+Its crop-only A/B reused saved 144-dpi pixels. A corrected core-based glyph audit
+reduced character errors from 85 to 62 on 232 scorable marker characters; the
+subsequent 20%-to-10% white-margin test worsened errors from 63 to 67 on its paired
+set of 234 characters. These are selected-page recognition results. The cached structure replay covered only five changed
+lines and showed a small strict-metric regression; production linking improvement
+is unproven. The strict note-reference metric also requires exact target-note
+boundaries, so it is not isolated pairing accuracy or an OCR ceiling.
+
 The [page-stream experiment](../../experiments/page-stream-segmentation/README.md)
 prepares page-boundary labels from existing v4 document flags and original
 affidavit/medical source maps. It stages bounded Codex image requests, preserves

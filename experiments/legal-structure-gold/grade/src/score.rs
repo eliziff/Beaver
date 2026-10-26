@@ -4,7 +4,7 @@
 use crate::alignment::{align, Stats};
 use crate::state::{anchor, block_id, State};
 use crate::text_diff;
-use legal_structure::{CompositionAnnotation, CompositionBlock, SourceSpan};
+use legal_structure_features::{CompositionAnnotation, CompositionBlock, SourceSpan};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -389,7 +389,7 @@ fn features<'a>(
         }
     }
     let composed =
-        legal_structure::apply_structure_composition(legal_structure::CompositionRequest {
+        legal_structure_features::apply_structure_composition(legal_structure_features::CompositionRequest {
             lines: state.composition_lines(),
             groups: state.groups.clone(),
             annotations: annotations.clone(),
@@ -609,8 +609,8 @@ fn features<'a>(
             result.hierarchy_marker.push((unit, marker_spans));
         }
     }
-    let logical = legal_structure::resolve_composition_annotations(
-        legal_structure::CompositionAnnotationsRequest {
+    let logical = legal_structure_features::resolve_composition_annotations(
+        legal_structure_features::CompositionAnnotationsRequest {
             lines: state.composition_lines(),
             reading_order: state.order_ids(),
             annotations: annotations.clone(),
@@ -1189,6 +1189,7 @@ mod tests {
                 .map(|(n, l)| (l.id.clone(), n))
                 .collect(),
             reading_order: (0..lines.len()).collect(),
+            span_rank: HashMap::new(),
             lines,
             groups: blocks,
             annotations: Vec::new(),
@@ -1253,17 +1254,18 @@ mod tests {
     }
 
     #[test]
-    fn missing_and_duplicate_text_remain_errors_and_pages_do_not_cross_match() {
+    fn transcription_errors_are_separate_from_source_coverage_and_page_identity() {
         let r = sample("gold", &[("Orchard yield: 42 pears.", 0)], &[&[0]]);
-        for rows in [
-            vec![("Orchard yield:", 0)],
-            vec![("Orchard yield: 42 pears.", 0), ("42 pears.", 0)],
-            vec![("Orchard yield: 42 pears.", 1)],
+        for (rows, coverage_error) in [
+            // Lost characters inside a retained line affect transcription, not its unit edges.
+            (vec![("Orchard yield:", 0)], false),
+            (vec![("Orchard yield: 42 pears.", 0), ("42 pears.", 0)], true),
+            (vec![("Orchard yield: 42 pears.", 1)], true),
         ] {
             let c = sample("ocr", &rows, &[&[0]]);
             let score = compare(&r, &c).unwrap();
             assert!(score.text.matched_characters < score.text.characters);
-            assert!(score.metrics["coverage"].f1() < 1.0);
+            assert_eq!(score.metrics["coverage"].f1() < 1.0, coverage_error);
         }
     }
 

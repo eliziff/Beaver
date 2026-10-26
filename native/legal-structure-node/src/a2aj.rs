@@ -1,11 +1,11 @@
 //! A2AJ's documents, read by the engine: Beaver's local A2AJ store (a2aj.sqlite, which a2ajInstall.ts installs), found
 //! by citation key, searched and inventoried, and the records A2AJ's API answers with. Each document is read by
-//! legal_structure::a2aj and derived here; JavaScript is given its metadata and documents, never its text.
+//! legal_structure_features::a2aj and derived here; JavaScript is given its metadata and documents, never its text.
 
 pub use crate::a2aj_lookup::name_key;
 use crate::a2aj_lookup::{self, datasets, sql};
 use crate::engine::{self, CoreResult, NativeDocument, StructureRequest};
-use legal_structure::a2aj::{self, Answering, Columns, Document, Excerpt, Language, LazyRow, Listing, Metadata, Query, Read,
+use legal_structure_features::a2aj::{self, Answering, Columns, Document, Excerpt, Language, LazyRow, Listing, Metadata, Query, Read,
     Source, StoreRow};
 use legal_structure::{citation_lookup_key, trim_javascript_whitespace as js_trim, ProviderTextInput};
 use regex::Regex;
@@ -316,7 +316,7 @@ pub fn search(path: &Path, search: &Search) -> CoreResult<Option<Vec<Listing>>> 
         // How often each match is cited: the higher of A2AJ's count and the citator's, where its graph is built beside the
         // store (through the store's keys for the document). Each misses citers the other finds: A2AJ has no count for most
         // of the Supreme Court's older decisions.
-        let graph = legal_structure::citator_graph::graph_path(path);
+        let graph = legal_structure_features::citator_graph::graph_path(path);
         let counted = ranked && graph.exists() && connection.execute("ATTACH DATABASE ? AS graph", [graph.to_string_lossy()]).is_ok();
         let cited = if counted {
             "MAX(COALESCE(document.citing_cases_count, 0), COALESCE((SELECT MAX(metric.citing_cases) FROM citation_lookup AS lookup

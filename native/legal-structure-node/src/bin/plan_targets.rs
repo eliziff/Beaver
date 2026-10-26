@@ -15,10 +15,8 @@
 //! anchor then the one that publisher's page prints for it (`provider_anchor`), or none where it prints none.
 
 use legal_structure::citations::url::source_anchor;
-use legal_structure::{
-    canlii_case_url, cited_passage_link, law_web_link, passage_link, DocumentQuery, DocumentStructure,
-    PassageLinkRequest,
-};
+use legal_structure::{canlii_case_url, DocumentQuery, DocumentStructure};
+use legal_structure_features::{cited_passage_link, law_web_link, passage_link, PassageLinkRequest};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;

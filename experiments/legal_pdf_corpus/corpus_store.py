@@ -49,6 +49,16 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
            "Accept": "application/pdf,text/html;q=0.9,*/*;q=0.5", "Accept-Language": "en-CA,en;q=0.9"}
 DELAY, RETRIES, MAX_BYTES = 2.0, 2, 100_000_000
 LINK = re.compile(r"""<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\1[^>]*>(.*?)</a>""", re.S | re.I)
+OCR_GOLD_SCHEMA = """
+create table if not exists ocr_gold_inventory(
+  artifact_sha256 text primary key, ocr_sha256 text, source_sha256 text,
+  collection text not null, kind text not null, authority text not null,
+  qualification text not null, text_contract text not null,
+  gold_locator text not null, geometry_locator text, pixel_locator text,
+  partition text, page_count integer, line_count integer,
+  corrected_line_count integer, geometry_line_count integer,
+  notes text not null, evidence_sha256 text not null, recorded_at text not null);
+"""
 SCHEMA = """
 create table if not exists files(sha256 text primary key, path text, bytes integer, content_type text, pages integer,
   text_sha256 text, indexed_at text);
@@ -90,7 +100,7 @@ create table if not exists gold_artifacts(run_id text references gold_runs(run_i
 create table if not exists gold_memberships(dataset text, record_id text, sha256 text references files(sha256),
   owner_sha256 text references files(sha256), primary key(dataset, record_id, sha256));
 create index if not exists gold_memberships_source on gold_memberships(dataset, sha256);
-"""
+""" + OCR_GOLD_SCHEMA
 _last_hit: dict[str, float] = {}
 
 
@@ -166,6 +176,26 @@ def register_gold_sources(dataset: str, rows: list[dict]) -> None:
             db.execute("insert into gold_records(dataset,sha256,mode,pages) values (?,?,?,?)"
                        " on conflict(dataset,sha256) do nothing",
                        (dataset, row["sha256"], row.get("mode"), source[0]))
+
+
+def record_ocr_gold_inventory(db: sqlite3.Connection, rows: list[dict]) -> None:
+    """Record OCR suitability separately from a gold's current structure selection.
+
+    One row identifies one immutable artifact. Portable locators reference the
+    private repository or verified release members; no document bytes are copied
+    into the catalogue. The caller owns the transaction.
+    """
+    fields = ("artifact_sha256", "ocr_sha256", "source_sha256", "collection", "kind", "authority",
+              "qualification", "text_contract", "gold_locator", "geometry_locator", "pixel_locator",
+              "partition", "page_count", "line_count", "corrected_line_count", "geometry_line_count",
+              "notes", "evidence_sha256", "recorded_at")
+    sql = ("insert into ocr_gold_inventory (" + ",".join(fields) + ") values (" +
+           ",".join("?" for _ in fields) + ") on conflict(artifact_sha256) do update set " +
+           ",".join(f"{field}=excluded.{field}" for field in fields[1:]))
+    encoded = {"gold_locator", "geometry_locator", "pixel_locator", "notes"}
+    db.executemany(sql, [tuple(json.dumps(row[field], ensure_ascii=False, sort_keys=True)
+                              if field in encoded and row.get(field) is not None else row.get(field)
+                              for field in fields) for row in rows])
 
 
 def gold_artifact_paths(receipt: dict) -> dict:

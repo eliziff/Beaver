@@ -126,6 +126,17 @@ save the gold itself, without a separate historical representation. Consumer vie
 derive from that file; replay reuses the existing accepted-response records.
 Older originals and pilot history artifacts stay indexed while the format is
 validated, but are not dependencies of new gold or its exports.
+The same SQLite catalogue also has `ocr_gold_inventory`: immutable OCR artifact
+identities, transcript authority, source and geometry locators, partitions and
+qualification. It is independent of which structure annotation is selected.
+`ocr_sha256` fingerprints the corrected transcript and matching line geometry,
+so a changed structure judgment does not become an additional OCR example.
+Human line gold, image-annotated model transcripts, supplementary marker labels
+and excluded display derivatives have distinct qualifications. Counts of runs,
+artifact versions and unique source PDFs are not interchangeable.
+The private repository's `ocr-gold/` entry point owns the portable SQLite snapshot,
+restore locators and coverage gaps. Its referenced artifacts remain in their
+existing owners or hash-verified private release assets.
 Packages reference the dated form-observation keys and metadata hashes in this
 index rather than creating another authority catalogue.
 The annotation workflow is automated and has no human review queue.

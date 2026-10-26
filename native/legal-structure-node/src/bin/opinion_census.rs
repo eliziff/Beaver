@@ -14,8 +14,8 @@
 //! Frames decode through a node child (zstd-frames.mjs), one per thread. Each frame writes out/frames/NNNNNN.json
 //! (its aggregate) and, with --rows, out/rows/NNNNNN.jsonl, atomically, so a run resumes where it stopped.
 
-use legal_structure::{analyze_native_markup, document_outline, javascript_whitespace as is_js_space,
-    trim_javascript_whitespace as js_trim, utf16_len as utf16, DocumentStructure, NativeMarkupInput, NodeKind, PrimaryRole, JS_WHITESPACE_CLASS};
+use legal_structure::{analyze_native_markup, javascript_whitespace as is_js_space, trim_javascript_whitespace as js_trim, utf16_len as utf16, DocumentStructure, NativeMarkupInput, NodeKind, PrimaryRole, JS_WHITESPACE_CLASS};
+use legal_structure_features::{document_outline};
 use regex::Regex;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap};

@@ -494,9 +494,9 @@ checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
 name = "fancy-regex"
-version = "0.19.0"
+version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "476de73bddf2ef8490aa4ee8f1cf40b430bf1d56c48c22080e5186952cd580e6"
+checksum = "d301f5bf187b3c295fce6468d3875037a0bccc5f6b151c63cac2f85babf21912"
 dependencies = [
  "bit-set",
  "regex-automata",
@@ -1199,6 +1199,7 @@ dependencies = [
  "legal-pdf-tables",
  "legal-pdf-witnesses",
  "legal-structure-model",
+ "pdf-inspector",
  "regex",
  "serde",
  "serde_json",
@@ -1214,6 +1215,7 @@ dependencies = [
  "legal-structure-model",
  "libloading 0.8.9",
  "ort",
+ "pdf-inspector",
  "regex",
  "serde",
  "serde_json",
@@ -1251,6 +1253,20 @@ dependencies = [
  "legal-document-query",
  "legal-structure-model",
  "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "legal-structure-features"
+version = "0.1.0"
+dependencies = [
+ "legal-citations",
+ "legal-document-query",
+ "legal-structure",
+ "legal-structure-model",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1279,6 +1295,7 @@ dependencies = [
  "legal-pdf-parser",
  "legal-pdf-support",
  "legal-structure",
+ "legal-structure-features",
  "napi",
  "napi-build",
  "napi-derive",
@@ -1296,6 +1313,7 @@ dependencies = [
  "diff-match-patch-rs 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "legal-pdf-core",
  "legal-structure",
+ "legal-structure-features",
  "legal-structure-model",
  "ort",
  "regex",
@@ -2236,6 +2254,7 @@ dependencies = [
  "legal-pdf-core",
  "legal-pdf-parser",
  "legal-structure",
+ "legal-structure-features",
  "legal-structure-model",
  "legal-structure-tagger",
  "regex",

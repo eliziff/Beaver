@@ -71,9 +71,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
     let doc = || call.document();
     match op {
         "nativeBuildFeatures" => done(value(engine::native_build_features())),
-        "structureCompositionBlocks" => done(legal_structure::structure_composition_blocks(call.get("request")?).and_then(value)),
-        "applyStructureComposition" => done(legal_structure::apply_structure_composition(call.get("request")?).and_then(value)),
-        "resolveCompositionAnnotations" => done(legal_structure::resolve_composition_annotations(call.get("request")?).and_then(value)),
+        "structureCompositionBlocks" => done(legal_structure_features::structure_composition_blocks(call.get("request")?).and_then(value)),
+        "applyStructureComposition" => done(legal_structure_features::apply_structure_composition(call.get("request")?).and_then(value)),
+        "resolveCompositionAnnotations" => done(legal_structure_features::resolve_composition_annotations(call.get("request")?).and_then(value)),
         "releaseDocument" => {
             let handle = doc()?;
             documents().1.remove(&handle);
@@ -151,7 +151,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "caseOutline" => done(engine::case_outline(&call.get::<String>("text")?).and_then(value)),
         "statuteProvisionSpans" => done(legal_structure::statute_provision_spans(&call.get::<String>("text")?,
             &call.get::<Vec<String>>("labels")?).map_err(|error| error.to_string()).and_then(value)),
-        "statuteCurrency" => done(value(legal_structure::statute_currency(&call.get::<Vec<String>>("pages")?))),
+        "statuteCurrency" => done(value(legal_structure_features::statute_currency(&call.get::<Vec<String>>("pages")?))),
         "filingCover" => done(value(legal_structure::filing_cover(&call.get::<String>("opening")?,
             call.get::<Option<String>>("title")?.as_deref()))),
         "documentCaseOutline" => done(with_document(doc()?, |d|
@@ -176,14 +176,14 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             &call.get::<Option<String>>("language")?.unwrap_or_default(),
             call.get::<Option<bool>>("consolidated")?.unwrap_or(false)))),
         // A passage's links on a source's page, planned against the document (legal-structure passage_links).
-        "passageLink" => done(with_document(doc()?, |d| value(legal_structure::passage_link(
-            &d.query, d.structure(), &call.get::<legal_structure::PassageLinkRequest>("request")?)))),
-        "citedPassageLink" => done(with_document(doc()?, |d| value(legal_structure::cited_passage_link(
+        "passageLink" => done(with_document(doc()?, |d| value(legal_structure_features::passage_link(
+            &d.query, d.structure(), &call.get::<legal_structure_features::PassageLinkRequest>("request")?)))),
+        "citedPassageLink" => done(with_document(doc()?, |d| value(legal_structure_features::cited_passage_link(
             &d.query, d.structure(), &call.get::<String>("url")?, &call.get::<Vec<String>>("pinpoints")?)))),
         // The link a passage of an A2AJ document is routed to.
-        "sourceLink" => done(with_document(doc()?, |d| value(legal_structure::source_link(
-            &d.query, d.structure(), &call.get::<legal_structure::SourceLinkRequest>("request")?)))),
-        "lawWebLink" => done(with_document(doc()?, |d| value(legal_structure::law_web_link(&d.query, d.structure(),
+        "sourceLink" => done(with_document(doc()?, |d| value(legal_structure_features::source_link(
+            &d.query, d.structure(), &call.get::<legal_structure_features::SourceLinkRequest>("request")?)))),
+        "lawWebLink" => done(with_document(doc()?, |d| value(legal_structure_features::law_web_link(&d.query, d.structure(),
             &call.get::<String>("citation")?, &call.get::<String>("docType")?, &call.get::<String>("blockText")?,
             &call.get::<Vec<String>>("quotes")?)))),
         "canliiCourtRoute" => done(value(legal_structure::canlii_court_route(&call.get::<String>("court")?))),
@@ -199,28 +199,28 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "markedQuoteSpans" => done(value(engine::quote_spans(&call.get::<String>("text")?))),
         "textUnits" => done(value(legal_structure::text_units(&call.get::<String>("text")?,
             call.get::<bool>("sentences")?))),
-        "journalTitleSearches" => done(value(legal_structure::journal_title_searches(&call.get::<String>("citation")?))),
-        "journalTitleChoice" => done(value(legal_structure::journal_title_choice(
-            &call.get::<Vec<legal_structure::JournalTitleHit>>("hits")?))),
-        "quoteComparison" => done(value(legal_structure::quote_text_comparison(
+        "journalTitleSearches" => done(value(legal_structure_features::journal_title_searches(&call.get::<String>("citation")?))),
+        "journalTitleChoice" => done(value(legal_structure_features::journal_title_choice(
+            &call.get::<Vec<legal_structure_features::JournalTitleHit>>("hits")?))),
+        "quoteComparison" => done(value(legal_structure_features::quote_text_comparison(
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
-        "editorialQuote" => done(value(legal_structure::editorial_quote(
+        "editorialQuote" => done(value(legal_structure_features::editorial_quote(
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
-        "verbatimRepair" => done(value(legal_structure::verbatim_repair(
+        "verbatimRepair" => done(value(legal_structure_features::verbatim_repair(
             &call.get::<String>("authored")?, &call.get::<String>("source")?))),
         "quoteLocateDocument" => done(with_document(doc()?, |d| engine::quote_locate_document(
-            d, call.get::<legal_structure::QuoteSource>("source")?,
-            &call.get::<Vec<legal_structure::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true),
+            d, call.get::<legal_structure_features::QuoteSource>("source")?,
+            &call.get::<Vec<legal_structure_features::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true),
             call.get::<Option<bool>>("keep")?.unwrap_or(false)).and_then(value))),
         "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?).map(found)),
         // The same of a record A2AJ's API answered with, and its other readings: a provision, a listing, the records
         // that answer a citation.
-        "a2ajRecord" => done(a2aj::record(&call.get::<Value>("record")?, call.get::<Option<legal_structure::a2aj::Language>>("language")?
-            .unwrap_or(legal_structure::a2aj::Language::En), &call.get::<String>("docType")?).map(found)),
+        "a2ajRecord" => done(a2aj::record(&call.get::<Value>("record")?, call.get::<Option<legal_structure_features::a2aj::Language>>("language")?
+            .unwrap_or(legal_structure_features::a2aj::Language::En), &call.get::<String>("docType")?).map(found)),
         "a2ajRecordProvision" => done(a2aj::record_provision(&call.get::<Vec<Value>>("records")?, &call.get("lookup")?,
             call.get("excerpt")?).map(|native| native.map_or(Value::Null, share))),
         "a2ajRecordListing" => done(value(a2aj::record_listing(&call.get::<Value>("record")?,
-            call.get::<Option<legal_structure::a2aj::Language>>("language")?.unwrap_or(legal_structure::a2aj::Language::En)))),
+            call.get::<Option<legal_structure_features::a2aj::Language>>("language")?.unwrap_or(legal_structure_features::a2aj::Language::En)))),
         "a2ajRecordMatches" => done(value(a2aj::record_matches(&call.get::<Vec<Value>>("records")?, &call.get("query")?))),
         "a2ajSection" => done(a2aj::section(&call.get::<PathBuf>("store")?, &call.get("lookup")?,
             &call.get::<String>("section")?, call.get("excerpt")?)
@@ -236,20 +236,20 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "a2ajCourts" => done(a2aj::courts(&call.get::<PathBuf>("store")?).and_then(value)),
         "a2ajStoreDocuments" => done(a2aj::documents(&call.get::<PathBuf>("store")?, &call.get::<Vec<i64>>("ids")?,
             &call.get::<Option<String>>("docType")?.unwrap_or_else(|| "cases".to_owned()),
-            call.get::<Option<legal_structure::a2aj::Language>>("language")?.unwrap_or(legal_structure::a2aj::Language::En))
+            call.get::<Option<legal_structure_features::a2aj::Language>>("language")?.unwrap_or(legal_structure_features::a2aj::Language::En))
             .map(|found| found.map_or(Value::Null, |found| Value::Array(found.into_iter()
                 .map(|(id, document)| { let mut value = self::found(Some(document)); value["id"] = id.into(); value }).collect())))),
         "a2ajReads" => done(a2aj::reads(&call.get::<PathBuf>("store")?, &call.get::<Vec<i64>>("ids")?,
             &call.get::<Option<String>>("docType")?.unwrap_or_else(|| "cases".to_owned()),
-            call.get::<Option<legal_structure::a2aj::Language>>("language")?.unwrap_or(legal_structure::a2aj::Language::En)).and_then(value)),
+            call.get::<Option<legal_structure_features::a2aj::Language>>("language")?.unwrap_or(legal_structure_features::a2aj::Language::En)).and_then(value)),
         "citatorNoteUp" => {
-            let mut request: legal_structure::citator_graph::NoteUpRequest = call.get("request")?;
+            let mut request: legal_structure_features::citator_graph::NoteUpRequest = call.get("request")?;
             let store = call.get::<PathBuf>("store")?;
             request.keys = a2aj::alias_keys(&store, &request.citation)?;
-            done(legal_structure::citator_graph::note_up(&store, &request)
+            done(legal_structure_features::citator_graph::note_up(&store, &request)
                 .map_err(|error| error.to_string()).and_then(value))
         }
-        "citatorMetrics" => done(legal_structure::citator_graph::authority_metrics(&call.get::<PathBuf>("store")?,
+        "citatorMetrics" => done(legal_structure_features::citator_graph::authority_metrics(&call.get::<PathBuf>("store")?,
             &call.get::<Vec<String>>("citations")?).map_err(|error| error.to_string()).and_then(value)),
         "readDocumentRange" => done(with_document(doc()?, |d| engine::read_document_range(
             d, &call.get::<String>("kind")?, &call.get::<String>("from")?, &call.get::<String>("to")?,
