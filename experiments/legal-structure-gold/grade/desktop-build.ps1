@@ -39,7 +39,17 @@ Push-Location $root; tar -cf $tar -T $list; Pop-Location
 "packed {0} files, {1:N1} MB" -f $files.Count, ((Get-Item $tar).Length / 1MB)
 Remote "New-Item -ItemType Directory -Force '$Mirror' | Out-Null" | Out-Null
 scp -q $tar "${Desktop}:$($Mirror -replace '\\', '/').tar"
-Remote "New-Item -ItemType Directory -Force '$Mirror' | Out-Null; tar -xf '$Mirror.tar' -C '$Mirror'; Remove-Item '$Mirror.tar'"
+scp -q $list "${Desktop}:$($Mirror -replace '\\', '/').list"
+# A file the working trees no longer hold leaves the mirror too (a module turned folder would
+# otherwise build twice); the build's target folders stay.
+Remote @"
+New-Item -ItemType Directory -Force '$Mirror' | Out-Null; tar -xf '$Mirror.tar' -C '$Mirror'; Remove-Item '$Mirror.tar'
+`$keep = [System.Collections.Generic.HashSet[string]]::new([string[]](Get-Content '$Mirror.list' | ForEach-Object { `$_.Replace('/', '\').ToLowerInvariant() }))
+Get-ChildItem '$Mirror' -Recurse -File | Where-Object { `$_.FullName -notmatch '\\target\\' -and `$_.Name -ne 'build.err' } | ForEach-Object {
+  if (-not `$keep.Contains(`$_.FullName.Substring('$Mirror'.Length + 1).ToLowerInvariant())) { Remove-Item `$_.FullName -Force }
+}
+Remove-Item '$Mirror.list'
+"@ | Out-Null
 $arguments = ($Packages | ForEach-Object { "'$_'" }) -join ','
 Remote @"
 `$env:Path = "`$env:USERPROFILE\.cargo\bin;`$env:Path"
