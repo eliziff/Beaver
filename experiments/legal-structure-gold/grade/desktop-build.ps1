@@ -55,7 +55,9 @@ Remote @"
 `$env:Path = "`$env:USERPROFILE\.cargo\bin;`$env:Path"
 Set-Location '$Mirror'
 `$started = Get-Date
-`$build = Start-Process cargo -ArgumentList (@('build', '--release') + @($arguments)) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
+`# Light on the desktop: four jobs, below normal priority.
+$build = Start-Process cargo -ArgumentList (@('build', '--release', '-j', '4') + @($arguments)) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
+$null = $build.Handle; try { $build.PriorityClass = 'BelowNormal' } catch {}
 `$null = `$build.Handle; `$build.WaitForExit()
 "desktop build: exit `$(`$build.ExitCode), {0:N0}s" -f ((Get-Date) - `$started).TotalSeconds
 if (`$build.ExitCode) { Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 12 | ForEach-Object { `$_.Line; `$_.Context.PostContext } }

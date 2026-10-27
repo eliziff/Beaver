@@ -67,7 +67,7 @@ $store = 'C:\Users\elias\Desktop\oajd_compute\lsg-v4\benchmarks\local-data\legal
 $runtime = 'C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime'
 $env:LEGALPDF_INDRA_MODEL_PACK = "$runtime\indra"
 $env:LEGALPDF_ONNXRUNTIME = "$runtime\onnx\onnxruntime.dll"
-$env:STRUCTURE_GOLD_THREADS = '4'
+$env:STRUCTURE_GOLD_THREADS = '2'
 $env:LEGALPDF_RECOGNITION_TRACE = '1'
 foreach ($name in $Variables.Keys) { Set-Item "env:$name" $Variables[$name] }
 $runs = @(@{ Batch = 'b5' }, @{ Batch = 'b6' }, @{ Batch = 'b7' }, @{ Batch = 'b7'; Parts = $true })
