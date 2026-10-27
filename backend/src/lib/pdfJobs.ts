@@ -34,8 +34,7 @@ function documentPayload(job: ApplicationJob) {
 
 function reprocessPayload(job: ApplicationJob) {
   const base = documentPayload(job), value = job.payload as Record<string, unknown>;
-  if (value.ocrProvider !== undefined && value.ocrProvider !== null &&
-      value.ocrProvider !== "tesseract" && value.ocrProvider !== "indra") {
+  if (value.ocrProvider !== undefined && value.ocrProvider !== null && value.ocrProvider !== "indra") {
     throw new Error("InvalidPdfJob");
   }
   const ocrProvider = value.ocrProvider as PdfOcrProvider | null | undefined;

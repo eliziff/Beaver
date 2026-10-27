@@ -6,7 +6,7 @@ import type { AuthorityCitationLedger } from "./authoritiesDomain";
 import { jsonRecord } from "./value";
 
 export type DocumentScope = ApplicationScope;
-export type LegalPdfOcrProvider = "indra" | "tesseract";
+export type LegalPdfOcrProvider = "indra";
 export type LegalPdfProfile = {
   ocr?: { provider: LegalPdfOcrProvider; settings: Record<string, unknown> };
   layout?: { provider: "ppdoc"; settings: Record<string, unknown> };

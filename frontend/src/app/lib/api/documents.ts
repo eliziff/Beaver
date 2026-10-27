@@ -256,7 +256,7 @@ export function directoryResource(scope: DirectoryScope) {
 export const retryLibraryPdfParse = (
   kind: LibraryKind,
   documentId: string,
-  options: { ocr_provider?: "indra" | "tesseract"; version_id?: string } = {},
+  options: { ocr_provider?: "indra"; version_id?: string } = {},
 ) =>
   post<{ status: string }>(
     `/library/${kind}/documents/${segment(documentId)}/actions/retry-pdf-parse`,

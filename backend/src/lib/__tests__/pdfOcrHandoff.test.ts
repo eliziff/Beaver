@@ -49,7 +49,7 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     for (const page of [2, 1]) {
       const job = await enqueuePdfReprocess({ userId: scope.userId, documentId: file.id,
         versionId: file.current_version_id, sourceSha256: file.source_sha256,
-        ocrProvider: 'tesseract', layout: false, pages: [page] });
+        ocrProvider: 'indra', layout: false, pages: [page] });
       await vi.waitFor(async () => expect((await queue.getJob(job.id, scope.userId))?.status).toBe('succeeded'),
         { timeout: 10_000 });
     }
