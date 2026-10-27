@@ -56,9 +56,9 @@ Remote @"
 Set-Location '$Mirror'
 `$started = Get-Date
 `# Light on the desktop: four jobs, below normal priority.
-$build = Start-Process cargo -ArgumentList (@('build', '--release', '-j', '4') + @($arguments)) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
-$null = $build.Handle; try { $build.PriorityClass = 'BelowNormal' } catch {}
-`$null = `$build.Handle; `$build.WaitForExit()
+`$build = Start-Process cargo -ArgumentList (@('build', '--release', '-j', '4') + @($arguments)) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
+`$null = `$build.Handle; try { `$build.PriorityClass = 'BelowNormal' } catch {}
+`$build.WaitForExit()
 "desktop build: exit `$(`$build.ExitCode), {0:N0}s" -f ((Get-Date) - `$started).TotalSeconds
 if (`$build.ExitCode) { Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 12 | ForEach-Object { `$_.Line; `$_.Context.PostContext } }
 else {
