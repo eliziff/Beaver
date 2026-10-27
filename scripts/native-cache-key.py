@@ -15,7 +15,7 @@ INPUTS = {
                         'crates/legal-grammar/src', 'crates/legal-grammar/data'],
     'legal-pdf-parser': ['Cargo.toml', 'build.rs', 'vendor/pdf-inspector/Cargo.toml',
                          'vendor/pdf-inspector/src',
-                         'vendor/pdf-inspector/external/bcmaps', 'rust/native/tesseract_layout.c',
+                         'vendor/pdf-inspector/external/bcmaps',
                          *[f'rust/src/{module}.rs' for module in
                            ('lib', 'contract', 'engine', 'structure_engine', 'supplied_ocr')],
                          *[f'legal-pdf-{crate}/{path}' for crate in

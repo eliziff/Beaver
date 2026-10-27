@@ -123,12 +123,7 @@ export function createLibraryStore(
         if (layout !== undefined) throw new ApplicationError(503,
           "PDF layout analysis could not start. Check the local runtime and model files.");
         if (!ocrProvider) throw error;
-        const message = error instanceof Error ? error.message : "";
-        throw new ApplicationError(503, ocrProvider === "tesseract" && message.startsWith("Tesseract was not found")
-          ? "Tesseract was not found. Install it or configure its executable."
-          : ocrProvider === "tesseract"
-            ? "OCR could not start. Check the local Tesseract installation and retry."
-            : "OCR could not start. Check the local Indra runtime and retry.");
+        throw new ApplicationError(503, "OCR could not start. Check the local Indra runtime and retry.");
       }
     },
     async moveDocument(scope, id, folderId) {

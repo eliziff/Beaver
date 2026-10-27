@@ -101,7 +101,6 @@ function safeParserError(error: unknown) {
   if (/invalid file trailer|couldn't parse input|PDF parsing failed|source bytes are invalid/iu.test(message))
     return safe("PDF is invalid or corrupt");
   if (/timed out|ETIMEDOUT/iu.test(message)) return safe("PDF structural parsing timed out");
-  if (/Tesseract/iu.test(message)) return safe("Tesseract OCR could not start");
   if (/Indra|LEGALPDF_INDRA|ONNX/iu.test(message))
     return safe("Indra OCR could not start; check its local runtime assets");
   if (/layout|PPdoc|OpenVINO/iu.test(message))

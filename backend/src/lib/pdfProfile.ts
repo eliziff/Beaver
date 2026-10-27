@@ -7,10 +7,9 @@ function pdfEngineRoot(env: NodeJS.ProcessEnv) {
     path.join(__dirname, "../../../legal-pdf-parser"));
 }
 
-function nativeLibraryNames(platform: NodeJS.Platform) {
-  if (platform === "win32") return ["onnxruntime.dll", "legalpdf_tesseract_layout.dll"];
-  const extension = platform === "darwin" ? "dylib" : "so";
-  return [`libonnxruntime.${extension}`, `liblegalpdf_tesseract_layout.${extension}`];
+function onnxRuntimeLibraryName(platform: NodeJS.Platform) {
+  if (platform === "win32") return "onnxruntime.dll";
+  return `libonnxruntime.${platform === "darwin" ? "dylib" : "so"}`;
 }
 
 function openVinoLibraryName(platform: NodeJS.Platform) {
@@ -45,36 +44,25 @@ function configuredLegalPdfOcrProvider(env: NodeJS.ProcessEnv, root: string) {
   const requested = env.MIKE_PDF_OCR_PROVIDER?.trim();
   if (requested) {
     if (requested === "none") return null;
-    if (requested === "indra" || requested === "tesseract") return requested;
-    throw new Error("MIKE_PDF_OCR_PROVIDER must be none, indra, or tesseract");
+    if (requested === "indra") return requested;
+    throw new Error("MIKE_PDF_OCR_PROVIDER must be none or indra");
   }
-  const [runtime] = nativeLibraryNames(process.platform);
   return existsSync(path.resolve(root, env.LEGALPDF_INDRA_MODEL_PACK?.trim() || "runtime/indra", "manifest.json")) &&
-    existsSync(path.resolve(root, env.LEGALPDF_ONNX_RUNTIME?.trim() || `runtime/onnx/${runtime}`)) ? "indra" : null;
+    existsSync(path.resolve(root, env.LEGALPDF_ONNX_RUNTIME?.trim() ||
+      `runtime/onnx/${onnxRuntimeLibraryName(process.platform)}`)) ? "indra" : null;
 }
 
 function configuredLegalPdfProfile(env: NodeJS.ProcessEnv = process.env): LegalPdfProfile {
   const root = pdfEngineRoot(env), platform = process.platform;
   const profile: LegalPdfProfile = {};
   const ocr = configuredLegalPdfOcrProvider(env, root);
-  if (ocr === "tesseract") {
-    profile.ocr = { provider: ocr, settings: {
-      ...(env.LEGALPDF_OCR_LANGUAGE?.trim() ? { language: env.LEGALPDF_OCR_LANGUAGE.trim() } : {}),
-      ...numericSettings(env, [["dpi", "LEGALPDF_OCR_DPI"], ["psm", "LEGALPDF_OCR_PSM"]]),
-    } };
-  } else if (ocr === "indra") {
-    const layout = env.LEGALPDF_INDRA_LAYOUT?.trim();
-    if (layout && layout !== "indra" && layout !== "tesseract")
-      throw new Error("LEGALPDF_INDRA_LAYOUT must be indra or tesseract");
-    const [runtime, tesseractLibrary] = nativeLibraryNames(platform);
+  if (ocr === "indra") {
     const backend = env.LEGALPDF_INDRA_BACKEND?.trim();
     profile.ocr = { provider: ocr, settings: {
-      ...(layout ? { layout } : {}),
       ...(backend && backend !== "auto" ? { backend } : {}),
       ...(env.LEGALPDF_INDRA_TIER?.trim() ? { tier: env.LEGALPDF_INDRA_TIER.trim() } : {}),
       model_pack: configuredPath(env, root, "LEGALPDF_INDRA_MODEL_PACK", "runtime/indra", "manifest.json"),
-      runtime: configuredPath(env, root, "LEGALPDF_ONNX_RUNTIME", `runtime/onnx/${runtime}`),
-      ...(layout === "tesseract" ? {tesseract_library: configuredPath(env, root, "LEGALPDF_INDRA_TESSERACT_LIBRARY", `runtime/${tesseractLibrary}`)} : {}),
+      runtime: configuredPath(env, root, "LEGALPDF_ONNX_RUNTIME", `runtime/onnx/${onnxRuntimeLibraryName(platform)}`),
       ...numericSettings(env, [
         ["dpi", "LEGALPDF_OCR_DPI"],
         ["threads", "LEGALPDF_INDRA_THREADS"], ["workers", "LEGALPDF_INDRA_WORKERS"],

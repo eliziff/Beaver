@@ -32,20 +32,11 @@ describe("installed native OCR profiles", () => {
     } });
     expect(profileFor(null, false)).toEqual({});
   });
-  it("preserves explicit execution overrides and requires assets for alternative layout", () => {
+  it("preserves explicit execution overrides", () => {
     vi.stubEnv("LEGALPDF_INDRA_BACKEND", "cpu");
     vi.stubEnv("LEGALPDF_INDRA_THREADS", "2");
     vi.stubEnv("LEGALPDF_INDRA_TIER", "quality");
     vi.stubEnv("LEGALPDF_OCR_DPI", "192");
     expect(profileFor("indra", false).ocr?.settings).toMatchObject({ backend: "cpu", threads: 2, tier: "quality", dpi: 192 });
-    vi.stubEnv("LEGALPDF_INDRA_LAYOUT", "tesseract");
-    expect(() => profileFor("indra", false)).toThrow(/TESSERACT_LIBRARY/u);
-  });
-  it("also delegates Tesseract defaults while preserving explicit overrides", () => {
-    expect(profileFor("tesseract", false).ocr).toEqual({ provider: "tesseract", settings: {} });
-    vi.stubEnv("LEGALPDF_OCR_LANGUAGE", "fra");
-    vi.stubEnv("LEGALPDF_OCR_DPI", "200");
-    vi.stubEnv("LEGALPDF_OCR_PSM", "6");
-    expect(profileFor("tesseract", false).ocr?.settings).toEqual({ language: "fra", dpi: 200, psm: 6 });
   });
 });
