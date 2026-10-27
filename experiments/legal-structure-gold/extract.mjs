@@ -89,7 +89,7 @@ async function extract(pdf, output, mode, requestFile) {
   const filename = path.join(destination, `${mode}.json.gz`), temporary = `${filename}.${process.pid}.tmp`;
   try { writeFileSync(temporary, gzipSync(JSON.stringify(result))); renameSync(temporary, filename); }
   finally { rmSync(temporary, { force: true }); }
-  return { file: filename, dump, witnesses, parseMs: Math.round(parseMs) };
+  return { file: filename, witnesses, parseMs: Math.round(parseMs) };
 }
 
 if (process.argv[2] === '--operations') {
