@@ -70,6 +70,8 @@ $env:LEGALPDF_ONNXRUNTIME = "$runtime\onnx\onnxruntime.dll"
 $env:STRUCTURE_GOLD_THREADS = '2'
 $env:LEGALPDF_RECOGNITION_TRACE = '1'
 foreach ($name in $Variables.Keys) { Set-Item "env:$name" $Variables[$name] }
+# The layout model's OpenVINO runtime loads its libraries from beside it.
+if ($env:LEGALPDF_OPENVINO_RUNTIME) { $env:Path = "$(Split-Path $env:LEGALPDF_OPENVINO_RUNTIME);$env:Path" }
 $runs = @(@{ Batch = 'b5' }, @{ Batch = 'b6' }, @{ Batch = 'b7' }, @{ Batch = 'b7'; Parts = $true })
 foreach ($run in $runs) {
   $batch = $run.Batch
