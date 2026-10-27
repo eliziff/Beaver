@@ -11,8 +11,9 @@ param(
   [string]$Mirror = 'C:\Users\elias\build\snapshot',
   # A revision per repo ('.', 'legal-pdf-parser', ...) in place of the one -Before picks.
   [hashtable]$Revisions = @{},
-  # What to build and bring back: the addon by default, or a binary of the addon's package.
-  [string]$Binary
+  # What to build and bring back: the addon by default, or a binary of -Package.
+  [string]$Binary,
+  [string]$Package = 'legal-structure-node'
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..\..\..").Path
@@ -61,7 +62,7 @@ tar -xmf '$Mirror.tar' -C '$Mirror'; Remove-Item '$Mirror.tar'
 `$workspace = (Test-Path '$Mirror\Cargo.toml') -and (Select-String -Path '$Mirror\Cargo.toml' -Pattern '^\[workspace\]' -Quiet)
 Set-Location `$(if (`$workspace) { '$Mirror' } else { '$Mirror\native\legal-structure-node' })
 `$started = Get-Date
-`$build = Start-Process cargo -ArgumentList 'build', '--release', '-j', '4', '-p', 'legal-structure-node', $(if ($Binary) { "'--bin', '$Binary'" } else { "'--lib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
+`$build = Start-Process cargo -ArgumentList 'build', '--release', '-j', '4', '-p', '$Package', $(if ($Binary) { "'--bin', '$Binary'" } else { "'--lib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
 `$null = `$build.Handle; `$build.WaitForExit()
 "snapshot build: exit `$(`$build.ExitCode), {0:N0}s" -f ((Get-Date) - `$started).TotalSeconds
 if (`$build.ExitCode) { Remove-Item -ErrorAction SilentlyContinue '$Mirror\native\legal-structure-node\target\release\legal_structure_node.dll'; Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 10 | ForEach-Object { `$_.Line; `$_.Context.PostContext } | Select-Object -First 30 }

@@ -665,9 +665,10 @@ fn oracle_layout(mut extracted: legalpdf::ExtractedPdf, whole_gold: &state::Gold
     if std::env::var_os("STRUCTURE_GOLD_ORACLE_LAYOUT").is_none() {
         return Ok(extracted);
     }
-    let mut unit_of = vec![None; whole_gold.typed.len()];
+    let typed = whole_gold.typed.len();
+    let mut unit_of = vec![None; typed];
     for (u, unit) in whole_gold.units.iter().enumerate() {
-        for &t in unit.lines.iter().filter(|&&t| t < unit_of.len()) {
+        for &t in unit.lines.iter().filter(|&&t| t < typed) {
             unit_of[t].get_or_insert(u);
         }
     }
