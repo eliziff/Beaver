@@ -13,7 +13,9 @@ param(
   [hashtable]$Revisions = @{},
   # What to build and bring back: the addon by default, or a binary of -Package.
   [string]$Binary,
-  [string]$Package = 'legal-structure-node'
+  [string]$Package = 'legal-structure-node',
+  # A folder of files laid over the moment's (a later measuring tool patched into an earlier grader).
+  [string]$Overlay
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..\..\..").Path
@@ -49,6 +51,7 @@ if (Test-Path "$stage\Cargo.toml") {
   $manifest = [IO.File]::ReadAllLines("$stage\Cargo.toml") | Where-Object { $_ -notmatch '^\s*"([^"]+)",\s*$' -or (Test-Path "$stage\$($Matches[1])") }
   [IO.File]::WriteAllLines("$stage\Cargo.toml", [string[]]$manifest, (New-Object Text.UTF8Encoding $false))
 }
+if ($Overlay) { Copy-Item -Recurse -Force "$Overlay\*" $stage }
 Push-Location $stage; tar -cf "$env:TEMP\snapshot.tar" --exclude='*/experiments/*' --exclude='*/benchmarks/*' *; Pop-Location
 "packed {0:N1} MB" -f ((Get-Item "$env:TEMP\snapshot.tar").Length / 1MB)
 Remote "New-Item -ItemType Directory -Force '$Mirror' | Out-Null; Get-ChildItem '$Mirror' -Force | Where-Object { `$_.Name -ne 'native' } | Remove-Item -Recurse -Force; Get-ChildItem '$Mirror\native\legal-structure-node' -Force -ErrorAction SilentlyContinue | Where-Object { `$_.Name -ne 'target' } | Remove-Item -Recurse -Force" | Out-Null
