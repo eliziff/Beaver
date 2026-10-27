@@ -69,8 +69,9 @@ function ownOf(citation: any): Own {
 /** What one text gives: read on a worker. */
 async function harvest(job: Job): Promise<Harvest> {
   const native = structureNative();
+    // Each citation keyed as written: a report's pages are its own, whatever decision the alias table names it.
   const call = (text: string) => (native.citationEngineCall("extract", JSON.stringify({ text,
-    options: { resolve: true, parallel: true } })) as any).citations as any[];
+    options: { resolve: true, parallel: true, aliasKeys: false } })) as any).citations as any[];
   const own = job.own ? call(job.own).filter((citation) => citation.form === "full" && citation.key).map(ownOf) : [];
   const ownKeys = new Set(own.map((item) => item.key));
   let text = job.text, paragraphs: number | null = null, sections: Harvest["sections"] = null;
@@ -476,7 +477,8 @@ function indexVolumes(dir: string) {
     if (!pages.has(page)) pages.set(page, { citers: 0, own: false, pinHigh: 0, last: null });
     return pages.get(page)!;
   };
-  const paged = "(s.s LIKE '3:reporter:%' OR s.s LIKE '3:journal:%')";
+  const version = structureNative().citationLookupKey("2016 SCC 29").split(":")[0];
+  const paged = `(s.s LIKE '${version}:reporter:%' OR s.s LIKE '${version}:journal:%')`;
   for (const file of fs.readdirSync(dir).filter((name) => /^works-(?!index)\w+\.sqlite$/u.test(name))) {
     const store = new DatabaseSync(path.join(dir, file), { readOnly: true, timeout: 10_000 });
     for (const row of store.prepare(`SELECT s.s AS key, sum(c.works) AS citers, max(c.page_high) AS pin_high FROM cited c
