@@ -36,20 +36,14 @@ async function extract(pdf, output, mode, requestFile) {
     hash(JSON.stringify(request)).slice(0, 16) + (layout ? '-layout' : ''));
   if (layout) request.layout = { provider: 'ppdoc', settings: { model_pack: layout, runtime: process.env.LAYOUT_RUNTIME, backend: 'cpu', threads: 2 } };
   mkdirSync(destination, { recursive: true });
-  // The parse's engine inputs and witnesses, written as the structure stage runs and filed with
-  // the document it derives, so a cached document keeps them.
-  const fresh = { dump: path.join(destination, `resolver-${mode}.json`), witnesses: path.join(destination, `witnesses-${mode}.jsonl`) };
-  rmSync(fresh.dump, { force: true });
+  // The parse's witnesses, written as the structure stage runs and filed with the document it
+  // derives, so a cached document keeps them.
+  const fresh = { witnesses: path.join(destination, `witnesses-${mode}.jsonl`) };
   rmSync(fresh.witnesses, { force: true });
   // Dumps are written where asked (DUMP=1, the run a search starts from): every structure stage
   // pays for them otherwise.
-  if (process.env.DUMP === '1') {
-    process.env.LEGALPDF_RESOLVER_DUMP = fresh.dump;
-    process.env.LEGALPDF_WITNESS_DUMP = fresh.witnesses;
-  } else {
-    delete process.env.LEGALPDF_RESOLVER_DUMP;
-    delete process.env.LEGALPDF_WITNESS_DUMP;
-  }
+  if (process.env.DUMP === '1') process.env.LEGALPDF_WITNESS_DUMP = fresh.witnesses;
+  else delete process.env.LEGALPDF_WITNESS_DUMP;
   const parseStart = performance.now();
   // A build's parse cache is its own; the source's OCR is cached once beside them all, so no
   // rebuild OCRs a page again.
@@ -58,11 +52,9 @@ async function extract(pdf, output, mode, requestFile) {
   });
   const parseMs = performance.now() - parseStart;
   const documents = path.join(destination, 'parse-v1/documents');
-  const filed = { dump: path.join(documents, `${summary.cacheKey}.resolver.json`), witnesses: path.join(documents, `${summary.cacheKey}.witnesses.jsonl`) };
-  for (const key of ['dump', 'witnesses']) {
-    try { renameSync(fresh[key], filed[key]); } catch { /* a cached document: its dumps are filed already */ }
-  }
-  const dump = existsSync(filed.dump) ? filed.dump : null, witnesses = existsSync(filed.witnesses) ? filed.witnesses : null;
+  const filed = { witnesses: path.join(documents, `${summary.cacheKey}.witnesses.jsonl`) };
+  try { renameSync(fresh.witnesses, filed.witnesses); } catch { /* a cached document: its dump is filed already */ }
+  const witnesses = existsSync(filed.witnesses) ? filed.witnesses : null;
   const document = readGzip(path.join(documents, `${summary.cacheKey}.json.gz`));
   const extractionRoot = path.join(destination, 'parse-v1/extractions');
   // The extraction this parse used: an earlier build's, carried forward, may lie beside it under
