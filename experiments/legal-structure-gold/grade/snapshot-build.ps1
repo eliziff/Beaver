@@ -10,7 +10,9 @@ param(
   [string]$Desktop = 'oajd-desktop',
   [string]$Mirror = 'C:\Users\elias\build\snapshot',
   # A revision per repo ('.', 'legal-pdf-parser', ...) in place of the one -Before picks.
-  [hashtable]$Revisions = @{}
+  [hashtable]$Revisions = @{},
+  # What to build and bring back: the addon by default, or a binary of the addon's package.
+  [string]$Binary
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..\..\..").Path
@@ -52,15 +54,18 @@ Remote "New-Item -ItemType Directory -Force '$Mirror' | Out-Null; Get-ChildItem 
 scp -q "$env:TEMP\snapshot.tar" "${Desktop}:$($Mirror -replace '\\', '/').tar"
 Remote @"
 `$env:Path = "`$env:USERPROFILE\.cargo\bin;`$env:Path"
-tar -xf '$Mirror.tar' -C '$Mirror'; Remove-Item '$Mirror.tar'
+# Unpacked at today's time: git stamps a file with its commit's, older than what the kept target
+# built from another moment, which cargo would then take as fresh.
+tar -xmf '$Mirror.tar' -C '$Mirror'; Remove-Item '$Mirror.tar'
 # Before the consumers shared a workspace (2026-10-24) the addon built from its own folder.
 `$workspace = (Test-Path '$Mirror\Cargo.toml') -and (Select-String -Path '$Mirror\Cargo.toml' -Pattern '^\[workspace\]' -Quiet)
 Set-Location `$(if (`$workspace) { '$Mirror' } else { '$Mirror\native\legal-structure-node' })
 `$started = Get-Date
-`$build = Start-Process cargo -ArgumentList 'build', '--release', '-p', 'legal-structure-node', '--lib' -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
+`$build = Start-Process cargo -ArgumentList 'build', '--release', '-j', '4', '-p', 'legal-structure-node', $(if ($Binary) { "'--bin', '$Binary'" } else { "'--lib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
 `$null = `$build.Handle; `$build.WaitForExit()
 "snapshot build: exit `$(`$build.ExitCode), {0:N0}s" -f ((Get-Date) - `$started).TotalSeconds
 if (`$build.ExitCode) { Remove-Item -ErrorAction SilentlyContinue '$Mirror\native\legal-structure-node\target\release\legal_structure_node.dll'; Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 10 | ForEach-Object { `$_.Line; `$_.Context.PostContext } | Select-Object -First 30 }
 "@
-scp -q "${Desktop}:$($Mirror -replace '\\', '/')/native/legal-structure-node/target/release/legal_structure_node.dll" $Out
+$artifact = if ($Binary) { "$Binary.exe" } else { 'legal_structure_node.dll' }
+scp -q "${Desktop}:$($Mirror -replace '\\', '/')/native/legal-structure-node/target/release/$artifact" $Out
 if (Test-Path $Out) { "addon at $Out" }
