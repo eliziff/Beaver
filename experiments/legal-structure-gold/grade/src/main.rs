@@ -485,6 +485,12 @@ fn candidate(
             .join(format!("{}.json.gz", source.sha256)),
     )
     .map_err(|e| format!("{}: {e}", source.sha256))?;
+    let extracted = if std::env::var_os("STRUCTURE_GOLD_ORACLE_LAYOUT").is_some() {
+        let whole: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+        oracle_layout(extracted, &whole)?
+    } else {
+        extracted
+    };
     let structure_at = Instant::now();
     let document = legalpdf::gold_structure_document(extracted, &source.sha256, None)
         .map_err(|e| format!("{}: {e}", source.sha256))?;
@@ -587,17 +593,11 @@ fn gold_parts(gold: &Value) -> Result<(Vec<Value>, Vec<Vec<usize>>), String> {
     Ok((parts, line_parts))
 }
 
-/// Each extraction line's parts, read through the alignment of the extraction's lines, every one in
-/// extraction order, to the whole gold: the parts of the gold line that holds most of the line's
-/// characters. A line the gold erased (its correction empty: scan noise) is matched by the text it
-/// was read as, which is still the page's. A line the alignment leaves unmatched takes the part of
-/// the matched line before it on its page, else of the one after it on its page, else of the line
-/// before it.
-fn extraction_parts(
-    extracted: &legalpdf::ExtractedPdf,
-    whole_gold: &state::Gold,
-    line_parts: &[Vec<usize>],
-) -> Result<HashMap<String, Vec<usize>>, String> {
+/// Each extraction line (id, page) and the gold line that holds most of its characters, through the
+/// alignment of the extraction's lines, every one in extraction order, to the whole gold. A line the
+/// gold erased (its correction empty: scan noise) is matched by the text it was read as, which is
+/// still the page's.
+fn gold_lines_of(extracted: &legalpdf::ExtractedPdf, whole_gold: &state::Gold) -> Result<Vec<(String, usize, Option<usize>)>, String> {
     let mut reference = state::projected(whole_gold)?;
     for (line, gold_line) in reference.lines.iter_mut().zip(&whole_gold.lines) {
         if gold_line.corrected.as_deref() == Some("") {
@@ -620,29 +620,94 @@ fn extraction_parts(
         continuations: Default::default(),
     };
     let alignment = alignment::align(&reference, &whole)?;
-    let held: Vec<Option<&[usize]>> = alignment.mappings.iter().map(|mappings| {
+    Ok(alignment.mappings.iter().zip(whole.lines).map(|(mappings, line)| {
         let mut characters: BTreeMap<usize, usize> = BTreeMap::new();
         for &(start, end, r, _, _) in mappings {
             *characters.entry(r).or_default() += end - start;
         }
-        characters.iter().max_by_key(|(&r, &n)| (n, std::cmp::Reverse(r))).map(|(&r, _)| line_parts[r].as_slice())
-    }).collect();
-    let page = |c: usize| whole.lines[c].page;
+        (line.id, line.page, characters.iter().max_by_key(|(&r, &n)| (n, std::cmp::Reverse(r))).map(|(&r, _)| r))
+    }).collect())
+}
+
+/// Each extraction line's parts: those of its gold line (`gold_lines_of`). A line the alignment
+/// leaves unmatched takes the part of the matched line before it on its page, else of the one after
+/// it on its page, else of the line before it.
+fn extraction_parts(
+    extracted: &legalpdf::ExtractedPdf,
+    whole_gold: &state::Gold,
+    line_parts: &[Vec<usize>],
+) -> Result<HashMap<String, Vec<usize>>, String> {
+    let lines = gold_lines_of(extracted, whole_gold)?;
+    let held: Vec<Option<&[usize]>> = lines.iter().map(|(_, _, r)| r.map(|r| line_parts[r].as_slice())).collect();
+    let page = |c: usize| lines[c].1;
     let mut parts = HashMap::new();
     let mut last = 0;
-    for c in 0..whole.lines.len() {
+    for c in 0..lines.len() {
         let found = match held[c] {
             Some(found) => found.to_vec(),
             None => {
                 let before = (0..c).rev().take_while(|&k| page(k) == page(c)).find_map(|k| held[k]);
-                let after = (c + 1..whole.lines.len()).take_while(|&k| page(k) == page(c)).find_map(|k| held[k]);
+                let after = (c + 1..lines.len()).take_while(|&k| page(k) == page(c)).find_map(|k| held[k]);
                 vec![before.or(after).map_or(last, |found| found[0])]
             }
         };
         last = found[0];
-        parts.insert(whole.lines[c].id.clone(), found);
+        parts.insert(lines[c].0.clone(), found);
     }
     Ok(parts)
+}
+
+/// STRUCTURE_GOLD_ORACLE_LAYOUT: the gold's regions handed to the parser as a page layout model's
+/// labels would be (the product's model's vocabulary, each gold unit one model region), on the
+/// lines the model labels, so that the readers are measured as they read with a perfect layout
+/// model. A line the alignment leaves unmatched keeps the extraction's reading.
+fn oracle_layout(mut extracted: legalpdf::ExtractedPdf, whole_gold: &state::Gold) -> Result<legalpdf::ExtractedPdf, String> {
+    if std::env::var_os("STRUCTURE_GOLD_ORACLE_LAYOUT").is_none() {
+        return Ok(extracted);
+    }
+    let mut unit_of = vec![None; whole_gold.typed.len()];
+    for (u, unit) in whole_gold.units.iter().enumerate() {
+        for &t in unit.lines.iter().filter(|&&t| t < unit_of.len()) {
+            unit_of[t].get_or_insert(u);
+        }
+    }
+    // Each gold line's typed line: the one holding most of its characters.
+    let mut typed_of: HashMap<&str, (usize, usize)> = HashMap::new();
+    for (t, typed) in whole_gold.typed.iter().enumerate() {
+        for span in &typed.spans {
+            let held = typed_of.entry(span.line_id.as_str()).or_insert((0, t));
+            if span.end - span.start > held.0 {
+                *held = (span.end - span.start, t);
+            }
+        }
+    }
+    let matched: HashMap<String, Option<usize>> = gold_lines_of(&extracted, whole_gold)?.into_iter().map(|(id, _, r)| (id, r)).collect();
+    for page in &mut extracted.pages {
+        for line in &mut page.lines {
+            if line.exclude_from_body || line.text.trim().is_empty() || legal_pdf_core::is_heading_role(&line.region_type) || line.region_type == "LI" {
+                continue;
+            }
+            let Some(&(_, t)) = matched.get(&line.id).copied().flatten().and_then(|r| typed_of.get(whole_gold.lines[r].id.as_str())) else {
+                continue;
+            };
+            let top = line.bbox[1] + line.bbox[3] < page.height;
+            line.region_type = match whole_gold.typed[t].region.as_str() {
+                "none" => continue,
+                "heading" => "paragraph_title",
+                "title" => "doc_title",
+                "note" | "note_quote" => "footnote",
+                "table" => "table",
+                "contents" => "content",
+                "caption" => "figure_title",
+                "furniture" | "page_label" if top => "header",
+                "furniture" | "page_label" => "footer",
+                _ => "text",
+            }
+            .to_owned();
+            line.region_id = format!("{}-ppdoc-r{:04}", page.id, unit_of[t].unwrap_or(10_000 + t));
+        }
+    }
+    Ok(extracted)
 }
 
 /// The parser's input for one part: every page kept (per-page tables index pages by position),
@@ -678,8 +743,10 @@ fn grade_one(
     // the extraction aligned to the whole gold says.
     let started = Instant::now();
     let path = inputs_dir(gold).join(format!("{}.json.gz", source.sha256));
-    let read = || -> Result<legalpdf::ExtractedPdf, String> { read_gzip_json(&path).map_err(|e| format!("{}: {e}", source.sha256)) };
     let whole_gold: state::Gold = serde_json::from_value(raw).map_err(|e| e.to_string())?;
+    let read = || -> Result<legalpdf::ExtractedPdf, String> {
+        oracle_layout(read_gzip_json(&path).map_err(|e| format!("{}: {e}", source.sha256))?, &whole_gold)
+    };
     let parts_of = extraction_parts(&read()?, &whole_gold, &line_parts)?;
     let mut graded = Vec::new();
     for (k, part) in parts.into_iter().enumerate() {
