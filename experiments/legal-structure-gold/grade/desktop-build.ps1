@@ -51,7 +51,7 @@ Get-ChildItem '$Mirror' -Recurse -File | Where-Object { `$_.FullName -notmatch '
 Remove-Item '$Mirror.list'
 "@ | Out-Null
 $arguments = ($Packages | ForEach-Object { "'$_'" }) -join ','
-Remote @"
+$built = Remote @"
 `$env:Path = "`$env:USERPROFILE\.cargo\bin;`$env:Path"
 Set-Location '$Mirror'
 `$started = Get-Date
@@ -67,3 +67,6 @@ else {
   'grader.exe in place'
 }
 "@
+$built
+# A failed build leaves the previous grader in place: stop, so nothing grades with it unawares.
+if (-not ($built -match '^desktop build: exit 0,')) { throw 'desktop build failed' }
