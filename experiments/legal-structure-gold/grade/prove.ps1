@@ -20,6 +20,8 @@ param(
   [string]$Before,
   [hashtable]$Arms = @{ default = @{} },
   [switch]$NoBuild,
+  # Grade while the desktop runs other jobs (an authoring run that lasts days).
+  [switch]$Force,
   # Every batch again by part (each document of a packet parsed alone): the measure of document starts.
   [switch]$Parts,
   # The gold batches graded (b8: the 1,466 sources authored 2026-10-27).
@@ -59,7 +61,7 @@ if (-not $NoBuild) {
 
 # One desktop job at a time: wait while any other build, grader or Python job runs there.
 $busy = "@(Get-Process cargo, python, structure-gold*, grader* -ErrorAction SilentlyContinue).Count"
-while ([int](Remote $busy | Select-Object -Last 1) -gt 0) {
+while (-not $Force -and [int](Remote $busy | Select-Object -Last 1) -gt 0) {
   "desktop busy: " + ((Remote "Get-CimInstance Win32_Process | Where-Object { `$_.Name -match '^(cargo|python|structure-gold|grader)' } | ForEach-Object { `$_.CommandLine.Substring(0, [Math]::Min(100, `$_.CommandLine.Length)) }") -join ' | ')
   Start-Sleep 300
 }
