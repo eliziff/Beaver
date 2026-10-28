@@ -4,7 +4,7 @@
 use crate::alignment::{align, Stats};
 use crate::state::{anchor, block_id, State};
 use crate::text_diff;
-use legal_structure_features::{CompositionAnnotation, CompositionBlock, SourceSpan};
+use legal_structure_tagger::{FrameAnnotation, FrameBlock, SourceSpan};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -301,11 +301,11 @@ fn features<'a>(
     witness: &dyn Fn(Origin) -> &'a [char],
 ) -> Result<Features, String> {
     let state = side.state;
-    let mut annotations: Vec<CompositionAnnotation> = state.annotations.clone();
+    let mut annotations: Vec<FrameAnnotation> = state.annotations.clone();
     if !annotations.iter().any(|a| a.kind == "document") && !state.reading_order.is_empty() {
         // A source without declared documents is one document, as its projection states.
         let first = &state.lines[state.reading_order[0]];
-        annotations.push(CompositionAnnotation {
+        annotations.push(FrameAnnotation {
             id: "source".into(), kind: "document".into(), line_ids: vec![first.id.clone()],
             spans: vec![SourceSpan { line_id: first.id.clone(), start: 0, end: first.text.len() }],
             attributes: serde_json::json!({"kind": null, "parent": null, "relationship": null, "title": [], "facets": {}})
@@ -381,7 +381,7 @@ fn features<'a>(
     result.coverage = sequence;
     // Blocks are identified by their first source span (line@start), never by a line.
     let mut keys: Vec<String> = Vec::new();
-    let mut groups: HashMap<String, &CompositionBlock> = HashMap::new();
+    let mut groups: HashMap<String, &FrameBlock> = HashMap::new();
     for group in &state.groups {
         let id = block_id(group);
         if groups.insert(id.clone(), group).is_none() {
@@ -389,7 +389,7 @@ fn features<'a>(
         }
     }
     let composed =
-        legal_structure_features::apply_structure_composition(legal_structure_features::CompositionRequest {
+        legal_structure_tagger::assemble_frame(legal_structure_tagger::FrameRequest {
             lines: state.composition_lines(),
             groups: state.groups.clone(),
             annotations: annotations.clone(),
@@ -425,7 +425,7 @@ fn features<'a>(
                 .push((s.start, s.end));
         }
     }
-    let inside = |block: &CompositionBlock, extents: &HashMap<&str, Vec<(usize, usize)>>| {
+    let inside = |block: &FrameBlock, extents: &HashMap<&str, Vec<(usize, usize)>>| {
         let found = members(state, &block.spans, &block.line_ids);
         let first = &found[0];
         extents.get(first.line_id.as_str()).is_some_and(|all| {
@@ -433,7 +433,7 @@ fn features<'a>(
                 .any(|&(a, b)| a <= first.start && first.start < b)
         })
     };
-    let role = |block: &CompositionBlock| -> String {
+    let role = |block: &FrameBlock| -> String {
         let kind = alias(&block.kind);
         if inside(block, &tables) {
             return "table".into();
@@ -609,8 +609,8 @@ fn features<'a>(
             result.hierarchy_marker.push((unit, marker_spans));
         }
     }
-    let logical = legal_structure_features::resolve_composition_annotations(
-        legal_structure_features::CompositionAnnotationsRequest {
+    let logical = legal_structure_tagger::resolve_frame_annotations(
+        legal_structure_tagger::FrameAnnotationsRequest {
             lines: state.composition_lines(),
             reading_order: state.order_ids(),
             annotations: annotations.clone(),

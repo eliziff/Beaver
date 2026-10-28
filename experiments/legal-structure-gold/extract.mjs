@@ -92,31 +92,7 @@ async function extract(pdf, output, mode, requestFile) {
   return { file: filename, witnesses, parseMs: Math.round(parseMs) };
 }
 
-if (process.argv[2] === '--operations') {
-  const operations = {
-    '--structure-blocks': request => parser.structureCompositionBlocks(request),
-    '--resolve-annotations': request => parser.resolveCompositionAnnotations(request),
-    '--compose-structure': request => parser.applyStructureComposition(request),
-  };
-  for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
-    try {
-      const { command, request } = JSON.parse(line);
-      if (!Object.hasOwn(operations, command)) throw new Error(`Unknown native operation: ${command}`);
-      console.log(JSON.stringify({ ok: true, value: operations[command](request) }));
-    } catch (error) {
-      console.log(JSON.stringify({ ok: false, error: error.message }));
-    }
-  }
-} else if (process.argv[2] === '--structure-blocks') {
-  try { console.log(JSON.stringify(parser.structureCompositionBlocks(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--resolve-annotations') {
-  try { console.log(JSON.stringify(parser.resolveCompositionAnnotations(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--compose-structure') {
-  try { console.log(JSON.stringify(parser.applyStructureComposition(JSON.parse(readFileSync(0, 'utf8'))))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
-} else if (process.argv[2] === '--batch') {
+if (process.argv[2] === '--batch') {
   for (const { pdf, output, mode, requestFile } of JSON.parse(readFileSync(process.argv[3], 'utf8'))) {
     const began = performance.now();
     try {

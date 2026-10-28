@@ -71,9 +71,6 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
     let doc = || call.document();
     match op {
         "nativeBuildFeatures" => done(value(engine::native_build_features())),
-        "structureCompositionBlocks" => done(legal_structure_features::structure_composition_blocks(call.get("request")?).and_then(value)),
-        "applyStructureComposition" => done(legal_structure_features::apply_structure_composition(call.get("request")?).and_then(value)),
-        "resolveCompositionAnnotations" => done(legal_structure_features::resolve_composition_annotations(call.get("request")?).and_then(value)),
         "releaseDocument" => {
             let handle = doc()?;
             documents().1.remove(&handle);
