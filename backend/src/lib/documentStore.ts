@@ -10,6 +10,8 @@ export type LegalPdfOcrProvider = "indra";
 export type LegalPdfProfile = {
   ocr?: { provider: LegalPdfOcrProvider; settings: Record<string, unknown> };
   layout?: { provider: "ppdoc"; settings: Record<string, unknown> };
+  /** The structure tagger over the parse (the engine's fast ML tier): its model pack's folder. */
+  tagger?: { provider: "gru"; settings: Record<string, unknown> };
 };
 export type PdfProfileSelection = {
   cacheKey: string;
