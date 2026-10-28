@@ -34,7 +34,7 @@ def load(root, split):
         n = len(doc["text"])
         gold = doc["gold"]
         docs.append({
-            "sha": doc["sha256"], "mode": doc.get("mode", "?"), "pages": np.asarray(doc["pages"], dtype=np.int32),
+            "sha": doc["sha256"], "mode": doc.get("mode", "?"), "pages": np.asarray(doc["pages"], dtype=np.int32), "ids": doc["ids"],
             "X": np.asarray(doc["features"], dtype=np.float32),
             "text": [t[0] for t in doc["text"]], "region_type": [t[1] for t in doc["text"]],
             "family": [t[3] for t in doc["text"]], "trail": [t[4] for t in doc["text"]],

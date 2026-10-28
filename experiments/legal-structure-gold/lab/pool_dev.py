@@ -13,8 +13,10 @@ for split in ("development", "train"):
     print(f"\n== {split}")
     print(f"  {'layer':18} " + " ".join(f"{arm:>14}" for arm in arms))
     pooled = {}
+    medians = {}  # arm -> layer -> per-document F1 over documents with at least five expected units
     for arm in arms:
         totals = {l: [0, 0, 0] for l in layers}
+        per_doc = {l: [] for l in layers}
         docs = 0
         for b in ("b5", "b6", "b7", "b8"):
             try:
@@ -30,7 +32,15 @@ for split in ("development", "train"):
                     if m:
                         t = totals[l]
                         t[0] += m["expected"]; t[1] += m["predicted"]; t[2] += m["correct"]
+                        if m["expected"] >= 5:
+                            per_doc[l].append(2 * m["correct"] / max(m["expected"] + m["predicted"], 1))
         pooled[arm] = (docs, totals)
+        medians[arm] = {l: (sorted(v)[len(v) // 2] if v else float("nan"), len(v)) for l, v in per_doc.items()}
     print(f"  {'docs':18} " + " ".join(f"{pooled[arm][0]:>14}" for arm in arms))
     for l in layers:
         print(f"  {l:18} " + " ".join(f"{2 * pooled[arm][1][l][2] / max(pooled[arm][1][l][0] + pooled[arm][1][l][1], 1):>14.3f}" for arm in arms))
+    # The pooled F1 weighs a 300-page document as 300 pages; the median document says what a typical
+    # document gets (documents with at least five expected units, their count in brackets).
+    print(f"  {'-- median doc':18}")
+    for l in ("units_heading", "units_body", "units_list_item", "units_quote", "units_note", "units_table", "hierarchy"):
+        print(f"  {l:18} " + " ".join(f"{medians[arm][l][0]:>8.3f} [{medians[arm][l][1]:>3}]" for arm in arms))
