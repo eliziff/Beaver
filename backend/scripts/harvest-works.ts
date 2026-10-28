@@ -465,7 +465,7 @@ if (!isMainThread) {
  * pages are harvested works' own (A2AJ holds every report of a volume it covers, so a pinpoint past it is the
  * citer's mistake), and otherwise only where no citer has pinpointed past it. */
 function indexVolumes(dir: string) {
-  type Start = { citers: number; own: boolean; pinHigh: number; last: number | null };
+  type Start = { citers: number; owners: number; open: boolean; pinHigh: number; last: number | null };
   const volumes = new Map<string, Map<number, Start>>();
   const start = (key: string) => {
     const parts = key.split(":");
@@ -474,7 +474,7 @@ function indexVolumes(dir: string) {
     const volume = parts.slice(1).join(":");
     if (!volumes.has(volume)) volumes.set(volume, new Map());
     const pages = volumes.get(volume)!;
-    if (!pages.has(page)) pages.set(page, { citers: 0, own: false, pinHigh: 0, last: null });
+    if (!pages.has(page)) pages.set(page, { citers: 0, owners: 0, open: false, pinHigh: 0, last: null });
     return pages.get(page)!;
   };
   const version = structureNative().citationLookupKey("2016 SCC 29").split(":")[0];
@@ -486,10 +486,17 @@ function indexVolumes(dir: string) {
       const found = start(row.key);
       if (found) { found.citers += row.citers; found.pinHigh = Math.max(found.pinHigh, row.pin_high ?? 0); }
     }
-    for (const row of store.prepare(`SELECT s.s AS key, w.last_page AS last FROM own o JOIN str s ON s.id = o.key
-      JOIN work w ON w.id = o.work WHERE ${paged}`).iterate() as Iterable<{ key: string; last: number | null }>) {
+    // An article's last page is the journals database's, else its first page and page count's. Articles of different
+    // issues can share a first page ("(2010) 33:1 Dal LJ 1" and "33:2 Dal LJ 1"): the longest bounds the key, and one
+    // whose end is unknown leaves the key's unknown.
+    for (const row of store.prepare(`SELECT s.s AS key, coalesce(w.last_page, w.first_page + w.pages - 1) AS last
+      FROM own o JOIN str s ON s.id = o.key JOIN work w ON w.id = o.work WHERE ${paged}`)
+      .iterate() as Iterable<{ key: string; last: number | null }>) {
       const found = start(row.key);
-      if (found) { found.own = true; if (row.last) found.last = row.last; }
+      if (!found) continue;
+      found.owners++;
+      found.open ||= !row.last;
+      if (row.last) found.last = Math.max(found.last ?? 0, row.last);
     }
     store.close();
   }
@@ -503,16 +510,17 @@ function indexVolumes(dir: string) {
   db.exec("BEGIN");
   for (const [volume, pages] of volumes) {
     const order = [...pages.keys()].sort((a, b) => a - b);
-    const confirmed = order.filter((page) => pages.get(page)!.own || pages.get(page)!.citers >= 2);
+    const confirmed = order.filter((page) => pages.get(page)!.owners || pages.get(page)!.citers >= 2);
     for (const page of order) {
       const found = pages.get(page)!;
-      let last = found.last;
-      if (last === null) {
+      const shared = found.owners > 1 && found.open;
+      let last = shared ? null : found.last;
+      if (last === null && !shared) {
         const next = confirmed.find((other) => other > page);
-        const held = next !== undefined && found.own && pages.get(next)!.own;
+        const held = next !== undefined && found.owners > 0 && pages.get(next)!.owners > 0;
         if (next !== undefined && (held || found.pinHigh < next)) last = next - 1;
       }
-      insert.run(volume, page, found.citers, found.own ? 1 : 0, found.pinHigh || null, last);
+      insert.run(volume, page, found.citers, found.owners ? 1 : 0, found.pinHigh || null, last);
       reports++;
       if (last !== null) bounded++;
     }
@@ -529,8 +537,12 @@ function packExtents(dir: string) {
   const a2aj = new DatabaseSync(path.join(dir, "works-a2aj.sqlite"), { readOnly: true, timeout: 10_000 });
   const index = new DatabaseSync(path.join(dir, "works-index.sqlite"), { readOnly: true, timeout: 10_000 });
   const neutral = new Map<string, Array<[number, number]>>(), reported = new Map<string, number>();
+  // A decision's numbered paragraphs run under 250 words on average in 99% of A2AJ's; a count averaging over 1,000 is a
+  // numbered list's in a decision whose paragraphs are not numbered ("McKinney v University of Guelph, [1990] 3 SCR 229":
+  // 73,197 words, "5 paragraphs"), and gives no extent.
   for (const { key, paragraphs } of a2aj.prepare(`SELECT s.s AS key, w.paragraphs FROM own o JOIN str s ON s.id = o.key
-    JOIN work w ON w.id = o.work WHERE w.paragraphs IS NOT NULL`).iterate() as Iterable<{ key: string; paragraphs: number }>) {
+    JOIN work w ON w.id = o.work WHERE w.paragraphs IS NOT NULL AND w.words <= w.paragraphs * 1000`)
+    .iterate() as Iterable<{ key: string; paragraphs: number }>) {
     const parts = key.split(":");
     if (parts[1] === "neutral" && /^\d+$/u.test(parts[4] ?? "") && parts.length === 5) {
       const group = `${parts[3]}\t${parts[2]}`;
