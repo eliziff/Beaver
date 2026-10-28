@@ -89,10 +89,11 @@ export type AuthoritiesBuildSettings = {
   /** Whether the book prints each case's link at the top of the case's first page, as a clickable link (default false). */
   caseLinks?: boolean;
   /** How far the import links an ibid or a supra where the evidence is incomplete, the citation engine's splitting
-   *  tiers: "safe" (the default) links what a reference's own note and words support, "moderate" also reads a supra
-   *  by its name where the note it gives cites another work, "aggressive" also continues an ibid from the last source
-   *  of a note that cites several. Read at import; a refresh reads it again. */
-  supraLinking?: "safe" | "moderate" | "aggressive";
+   *  tiers: "safest" links the fewest references wrongly, "safe" (the default) links what a reference's own note and
+   *  words support, "moderate" also reads a supra by its name where the note it gives cites another work,
+   *  "aggressive" also continues an ibid from the last source of a note that cites several. Read at import; a
+   *  refresh reads it again. */
+  supraLinking?: "safest" | "safe" | "moderate" | "aggressive";
 };
 
 export type AuthoritiesSettings = AuthoritiesBuildSettings & {

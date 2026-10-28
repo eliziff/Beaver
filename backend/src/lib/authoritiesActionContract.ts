@@ -77,7 +77,7 @@ export const AUTHORITIES_SETTINGS_CHOICES = {
   caseCopy: ["whole", "excerpt"],
   otherCopy: ["whole", "excerpt"],
   legislationCopy: ["length", "whole", "excerpt"],
-  supraLinking: ["safe", "moderate", "aggressive"],
+  supraLinking: ["safest", "safe", "moderate", "aggressive"],
 } as const;
 
 export function decodeAuthoritiesInitialSettings(value: unknown): AuthoritiesInitialSettings {
