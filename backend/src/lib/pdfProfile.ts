@@ -97,6 +97,19 @@ function configuredLegalPdfProfile(env: NodeJS.ProcessEnv = process.env): LegalP
         ? { device: env.LEGALPDF_PPDOC_DEVICE.trim() } : {}),
     } };
   }
+
+  // The structure tagger: the model pack under the engine's runtime unless MIKE_PDF_TAGGER=none.
+  const requestedTagger = env.MIKE_PDF_TAGGER?.trim();
+  if (requestedTagger && requestedTagger !== "none" && requestedTagger !== "gru")
+    throw new Error("MIKE_PDF_TAGGER must be none or gru");
+  const taggerPack = path.resolve(root, env.LEGALPDF_TAGGER_MODEL_PACK?.trim() || "runtime/tagger");
+  if (requestedTagger === "gru" || (!requestedTagger && existsSync(path.join(taggerPack, "tagger.onnx")))) {
+    profile.tagger = { provider: "gru", settings: {
+      model_pack: configuredPath(env, root, "LEGALPDF_TAGGER_MODEL_PACK", "runtime/tagger", "tagger.onnx"),
+      runtime: configuredPath(env, root, "LEGALPDF_ONNX_RUNTIME", `runtime/onnx/${onnxRuntimeLibraryName(platform)}`),
+      ...numericSettings(env, [["threads", "LEGALPDF_TAGGER_THREADS"]]),
+    } };
+  }
   return profile;
 }
 
