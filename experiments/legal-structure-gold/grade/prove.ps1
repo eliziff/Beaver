@@ -1,6 +1,6 @@
 # The parser against the structure gold, start to finish: build the grader (release, root
 # workspace, below normal priority), ship it to the desktop that holds the gold, wait until the
-# desktop runs nothing else, grade batches 5-7 whole and batch 7 by part for each arm, and print
+# desktop runs nothing else, grade batches 5-7 for each arm (with -Parts, batch 7 again by part), and print
 # every layer that moved against a tagged earlier grade.
 #
 #   .\prove.ps1 -Tag pdfi -Before contents4
@@ -20,6 +20,10 @@ param(
   [string]$Before,
   [hashtable]$Arms = @{ default = @{} },
   [switch]$NoBuild,
+  # Batch 7 again by part (each document of a packet parsed alone): the measure of document starts.
+  [switch]$Parts,
+  # The gold batches graded (b8: the 1,466 sources authored 2026-10-27).
+  [string[]]$Batches = @('b5', 'b6', 'b7'),
   [string]$Desktop = 'oajd-desktop',
   [string]$Fable = 'C:\Users\elias\fable'
 )
@@ -60,9 +64,9 @@ while ([int](Remote $busy | Select-Object -Last 1) -gt 0) {
   Start-Sleep 300
 }
 
-# Grade each arm: inputs, then the grade, per batch; batch 7 again by part.
+# Grade each arm: inputs, then the grade, per batch.
 $grade = @'
-param($Fable, $Tag, $Arm, $Variables)
+param($Fable, $Tag, $Arm, $Variables, $Parts, $Batches)
 $store = 'C:\Users\elias\Desktop\oajd_compute\lsg-v4\benchmarks\local-data\legal-structure-gold'
 $runtime = 'C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime'
 $env:LEGALPDF_INDRA_MODEL_PACK = "$runtime\indra"
@@ -72,7 +76,7 @@ $env:LEGALPDF_RECOGNITION_TRACE = '1'
 foreach ($name in $Variables.Keys) { Set-Item "env:$name" $Variables[$name] }
 # The layout model's OpenVINO runtime loads its libraries from beside it.
 if ($env:LEGALPDF_OPENVINO_RUNTIME) { $env:Path = "$(Split-Path $env:LEGALPDF_OPENVINO_RUNTIME);$env:Path" }
-$runs = @(@{ Batch = 'b5' }, @{ Batch = 'b6' }, @{ Batch = 'b7' }, @{ Batch = 'b7'; Parts = $true })
+$runs = @($Batches -split ',' | ForEach-Object { @{ Batch = $_ } }) + @(if ($Parts -eq 'True') { @{ Batch = 'b7'; Parts = $true } })
 foreach ($run in $runs) {
   $batch = $run.Batch
   $gold = "$Fable\$batch\a"
@@ -96,13 +100,13 @@ foreach ($run in $runs) {
 '@
 foreach ($arm in $Arms.Keys) {
   $variables = ($Arms[$arm].GetEnumerator() | ForEach-Object { "'$($_.Key)' = '$($_.Value)'" }) -join '; '
-  Remote "& { $grade } -Fable '$Fable' -Tag '$Tag' -Arm '$arm' -Variables @{ $variables }"
+  Remote "& { $grade } -Fable '$Fable' -Tag '$Tag' -Arm '$arm' -Variables @{ $variables } -Parts '$Parts' -Batches '$($Batches -join ',')'"
 }
 
 # Every pooled layer (train split) that moved against the earlier grade.
 if ($Before) {
   $compare = @'
-param($Fable, $Before, $After)
+param($Fable, $Before, $After, $Batches)
 function Pooled($Path) {
   $grade = Get-Content $Path -Raw | ConvertFrom-Json
   $totals = @{}
@@ -121,7 +125,7 @@ function Pooled($Path) {
   }
   $f1
 }
-foreach ($batch in 'b5', 'b6', 'b7') {
+foreach ($batch in $Batches -split ',') {
   $earlier = "$Fable\$batch\a\grade-$Before.json"
   if (-not (Test-Path $earlier)) { "$batch has no grade-$Before.json"; continue }
   $a = Pooled $earlier; $b = Pooled "$Fable\$batch\a\grade-$After.json"
@@ -133,6 +137,6 @@ foreach ($batch in 'b5', 'b6', 'b7') {
 }
 '@
   foreach ($arm in $Arms.Keys) {
-    Remote "& { $compare } -Fable '$Fable' -Before '$Before' -After '$Tag-$arm'"
+    Remote "& { $compare } -Fable '$Fable' -Before '$Before' -After '$Tag-$arm' -Batches '$($Batches -join ',')'"
   }
 }
