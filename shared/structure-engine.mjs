@@ -11,9 +11,6 @@ const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
 // "document" is a handle.
 export const SIGNATURES = {
   nativeBuildFeatures: [],
-  structureCompositionBlocks: ["request"],
-  applyStructureComposition: ["request"],
-  resolveCompositionAnnotations: ["request"],
   deriveDocumentStructure: ["request"], deriveDocumentFingerprint: ["request"],
   fixDocxSupraCrossReferences: ["bytes"],
   deriveDocxDocument: ["bytes", "id", "drafting"], docxText: ["bytes", "drafting", "limit"],
