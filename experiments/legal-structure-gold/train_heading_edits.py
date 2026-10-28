@@ -360,7 +360,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=7)
-    parser.add_argument("--base", type=Path, help="labels ({sha256, ids, labels} rows) the development edits are made to, in place of the parser's")
+    parser.add_argument("--base", type=Path, nargs="+", help="labels ({sha256, ids, labels} rows) the edits are made to, in place of the parser's: a tagger's development predictions, and its out-of-fold train predictions (train_tagger.py --fold crossfit-k.jsonl) so the editor learns over the labels it will edit")
     parser.add_argument("--load", type=Path, help="a trained heading-editor.pt: no training, only the edits")
     parser.add_argument("--folds", type=int, default=0, help="cross-fit: K models, each trained without one K-th of train; thresholds chosen on their out-of-fold predictions over all of train, development read by the K models' mean")
     parser.add_argument("--fold-epochs", type=int, default=10)
@@ -373,11 +373,13 @@ def main():
     stacked = np.concatenate([np.asarray(d["features"], dtype=np.float32) for d in train_raw])
     mean, std = stacked.mean(axis=0), stacked.std(axis=0) + 1e-6
     bases = {}
-    if args.base:
-        for line in open(args.base, encoding="utf-8"):
+    for path in args.base or []:
+        for line in open(path, encoding="utf-8"):
             row = json.loads(line)
             bases[row["sha256"]] = row["labels"]
-    train = [Candidates(d, names, mean, std, args.vision, extraction_of(d["sha256"], args.inputs)) for d in train_raw]
+    train = [Candidates(d, names, mean, std, args.vision, extraction_of(d["sha256"], args.inputs), bases.get(d["sha256"])) for d in train_raw]
+    if bases:
+        print(f"bases: {sum(d['sha256'] in bases for d in train_raw)} train / {sum(d['sha256'] in bases for d in dev_raw)} development documents edited over the base labels", flush=True)
     dev = [Candidates(d, names, mean, std, args.vision, extraction_of(d["sha256"], args.inputs), bases.get(d["sha256"])) for d in dev_raw]
     for name, docs in (("train", train), ("development", dev)):
         print(f"{name}: {len(docs)} documents, {sum(len(d.picked) for d in docs)} candidates, {sum(len(d.gold_units) for d in docs)} gold heading units, "
