@@ -124,11 +124,24 @@ def sight(raw, vision):
     return np.concatenate([piece, padded[slots + 1], padded[slots], padded[slots + 2]], axis=1)
 
 
-class Document:
-    """One document's tensors: normalized evidence, tier 0, text, reader codes, gold, sight."""
+def document_types(path):
+    """--doctype: each document's type by sha256 (the gold's own, an oracle for what a document-type
+    signal would add), from {sha256: [[type, first_line, lines], ...]}: the type of the largest part.
+    Returns (sha256 -> code, codes) with 0 for a document the file does not name."""
+    if not path:
+        return {}, {}
+    parts = json.load(open(path, encoding="utf-8"))
+    dominant = {sha: max(own, key=lambda p: p[2])[0] for sha, own in parts.items() if own}
+    codes = {name: n + 1 for n, name in enumerate(sorted(set(dominant.values())))}
+    return {sha: codes[name] for sha, name in dominant.items()}, codes
 
-    def __init__(self, raw, names, vocabs, mean, std, witness=None, vision=None):
+
+class Document:
+    """One document's tensors: normalized evidence, tier 0, text, reader codes, gold, sight, type."""
+
+    def __init__(self, raw, names, vocabs, mean, std, witness=None, vision=None, doctype=None):
         self.sight = sight(raw, vision)
+        self.doctype = (doctype or {}).get(raw["sha256"], 0)
         values = np.asarray(raw["features"], dtype=np.float32)
         self.language = np.asarray([language(t[0]) for t in raw["text"]], dtype=np.float32)
         extra = [self.language[:, None]]
@@ -151,12 +164,14 @@ class Document:
 
 
 class Tagger(nn.Module):
-    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, dropout=0.1, text_dropout=0.0, wide=False, vision=0):
+    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, dropout=0.1, text_dropout=0.0, wide=False, vision=0, doctypes=0):
         super().__init__()
         region_types, note_modes, families = vocabs
         self.wide = wide
         # The visual evidence, read down to 64 values a piece.
         self.see = nn.Sequential(nn.LayerNorm(vision), nn.Linear(vision, 64), nn.GELU()) if vision else None
+        # The document's type (--doctype), one code for all its pieces.
+        self.doctype = nn.Embedding(doctypes + 1, 8) if doctypes else None
         self.char = nn.Embedding(2049, 24, padding_idx=0)
         self.conv = nn.Conv1d(24, 64, 3, padding=1)
         if wide:
@@ -167,7 +182,7 @@ class Tagger(nn.Module):
         self.region_type = nn.Embedding(len(region_types), 8)
         self.note_mode = nn.Embedding(len(note_modes), 4)
         self.family = nn.Embedding(len(families), 8)
-        width = features + text_width + 8 * len(HEADS) + 8 + 4 + 8 + (64 if vision else 0)
+        width = features + text_width + 8 * len(HEADS) + 8 + 4 + 8 + (64 if vision else 0) + (8 if doctypes else 0)
         self.project = nn.Sequential(nn.Linear(width, 2 * hidden), nn.GELU(), nn.Dropout(dropout))
         # Hiding a piece's text at times keeps the encoder from leaning on remembered wording.
         self.text_dropout = text_dropout
@@ -181,7 +196,7 @@ class Tagger(nn.Module):
         self.heads = nn.ModuleList([nn.Linear(2 * hidden, n) for _, _, n in HEADS])
 
 
-    def encode(self, features, tier0, text, reader, words, sight, lengths):
+    def encode(self, features, tier0, text, reader, words, sight, doctype, lengths):
         """Each window's pieces' states: (windows, length, 2 * hidden)."""
         b, t, _ = features.shape
         flat_text, flat_words = text.reshape(b * t, text.shape[-1]), words.reshape(b * t, words.shape[-1])
@@ -217,6 +232,8 @@ class Tagger(nn.Module):
         parts += [embed(tier0[..., column].clamp(min=0, max=embed.num_embeddings - 1)) for embed, (_, column, _) in zip(self.tier0, HEADS)]
         if self.see is not None:
             parts.append(self.see(sight))
+        if self.doctype is not None:
+            parts.append(self.doctype(doctype))
         x = self.project(torch.cat(parts, dim=-1))
         if self.kind == "gru":
             # cuDNN's recurrence, in single precision.
@@ -258,9 +275,11 @@ class Windows:
         rd = torch.zeros(len(spans), length, 3, dtype=torch.long)
         wd = torch.zeros(len(spans), length, max(d.words.shape[1] for d in docs), dtype=torch.long)
         sg = torch.zeros(len(spans), length, docs[0].sight.shape[1])
+        dt = torch.zeros(len(spans), length, dtype=torch.long)
         index = [np.zeros(d.length, dtype=np.int64) for d in docs]
         for w, (k, lo, hi, a, b) in enumerate(spans):
             d = docs[k]
+            dt[w, :hi - lo] = d.doctype
             f[w, :hi - lo] = torch.from_numpy(d.features[lo:hi])
             t0[w, :hi - lo] = torch.from_numpy(d.tier0[lo:hi])
             tx[w, :hi - lo, :d.text.shape[1]] = torch.from_numpy(d.text[lo:hi])
@@ -269,7 +288,7 @@ class Windows:
             sg[w, :hi - lo] = torch.from_numpy(d.sight[lo:hi])
             index[k][a:b] = w * length + np.arange(a - lo, b - lo)
         lengths = torch.as_tensor([hi - lo for _, lo, hi, _, _ in spans])
-        self.inputs = [x.to(device) for x in (f, t0, tx, rd, wd, sg)] + [lengths.to(device)]
+        self.inputs = [x.to(device) for x in (f, t0, tx, rd, wd, sg, dt)] + [lengths.to(device)]
         self.index = [torch.as_tensor(i, device=device) for i in index]
 
     def states(self, model):
@@ -385,6 +404,7 @@ def main():
     parser.add_argument("--pretrain-docs", type=int, default=0, help="at most this many silver documents (0 = all)")
     parser.add_argument("--whole", action="store_true", help="the GRU reads each document whole, with no window")
     parser.add_argument("--vision", type=Path, help="vision_features.py output: each piece's box, page and neighbouring pages, seen")
+    parser.add_argument("--doctype", type=Path, help="gold document types by sha256 ({sha: [[type, first_line, lines], ...]}): the oracle type as one more input")
     args = parser.parse_args()
     if args.whole:
         if args.model != "gru":
@@ -409,8 +429,11 @@ def main():
     stacked = np.concatenate([np.asarray(d["features"], dtype=np.float32) for d in train_raw])
     mean, std = stacked.mean(axis=0), stacked.std(axis=0) + 1e-6
     witness_train, witness_dev = (witness_scores(args.witness[0]), witness_scores(args.witness[1])) if args.witness else (None, None)
-    train = [Document(d, names, vocabs, mean, std, witness_train, args.vision) for d in train_raw]
-    dev = [Document(d, names, vocabs, mean, std, witness_dev, args.vision) for d in dev_raw]
+    doctype, doctype_codes = document_types(args.doctype)
+    train = [Document(d, names, vocabs, mean, std, witness_train, args.vision, doctype) for d in train_raw]
+    dev = [Document(d, names, vocabs, mean, std, witness_dev, args.vision, doctype) for d in dev_raw]
+    if args.doctype:
+        print(f"document types: {len(doctype_codes)} ({sum(d.doctype > 0 for d in train)} train / {sum(d.doctype > 0 for d in dev)} development documents typed)", flush=True)
     print(f"loaded {len(train)} train / {len(dev)} development documents, {sum(d.length for d in train)} / "
           f"{sum(d.length for d in dev)} pieces in {time.time() - started:.1f}s", flush=True)
     # Starts weigh each class by the inverse square root of its frequency, at most 8:1.
@@ -420,7 +443,7 @@ def main():
     w = np.minimum(w, 8 * w.min())
     weights = {"start": torch.tensor(w / w.mean(), dtype=torch.float32, device=device)}
     model = Tagger(train[0].features.shape[1], vocabs, kind=args.model, hidden=args.hidden, layers=args.layers,
-                   dropout=args.dropout, text_dropout=args.text_dropout, wide=args.text == "wide", vision=train[0].sight.shape[1]).to(device)
+                   dropout=args.dropout, text_dropout=args.text_dropout, wide=args.text == "wide", vision=train[0].sight.shape[1], doctypes=len(doctype_codes)).to(device)
     print(f"{args.model}: {sum(p.numel() for p in model.parameters()):,} parameters", flush=True)
     if args.pretrain:
         # The text prior: silver units carry text and text-shape features only. Every other feature is
@@ -496,11 +519,11 @@ def main():
         if selected > best:
             best, best_state = selected, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     model.load_state_dict(best_state)
-    torch.save({"state": best_state, "model": args.model, "hidden": args.hidden, "layers": args.layers, "text": args.text, "vocabs": [v.index for v in vocabs], "vision": train[0].sight.shape[1], "whole": args.whole,
+    torch.save({"state": best_state, "model": args.model, "hidden": args.hidden, "layers": args.layers, "text": args.text, "vocabs": [v.index for v in vocabs], "vision": train[0].sight.shape[1], "whole": args.whole, "doctypes": doctype_codes,
                 "mean": mean.tolist(), "std": std.tolist()}, args.out / f"tagger-{args.model}.pt")
     predictions = predict(model, dev, device)
     if args.fold:
-        held = [Document(d, names, vocabs, mean, std, witness_train, args.vision) for d in held_raw]
+        held = [Document(d, names, vocabs, mean, std, witness_train, args.vision, doctype) for d in held_raw]
         write_predictions(args.out / f"crossfit-{args.fold.split('/')[0]}.jsonl", held_raw, predict(model, held, device))
     write_predictions(args.out / f"predictions-development-{args.model}.jsonl", dev_raw, predictions)
     if args.predict_train:

@@ -2,7 +2,10 @@
 parser's reading of the same pieces, classed as exact, split, merged, split+merged, or read as another
 region; and the parser's own units no gold unit matches (false positives), by gold region and mode.
 
-  python census.py ROWS_DIR [split] [samples_per_class]
+  python census.py ROWS_DIR [split] [samples_per_class] [PREDICTIONS.jsonl]
+
+With a tagger's predictions file ({sha256, ids, labels} rows), the tagger's reading stands in for the
+parser's, with tier 0's contents lines and notes kept as the engine keeps them.
 """
 import collections
 import json
@@ -15,6 +18,25 @@ R = ["none", "text", "list_item", "heading", "quote", "note", "table", "contents
 root = sys.argv[1]
 split = sys.argv[2] if len(sys.argv) > 2 else "development"
 samples = int(sys.argv[3]) if len(sys.argv) > 3 else 8
+predicted = {}
+if len(sys.argv) > 4:
+    for line in open(sys.argv[4], encoding="utf-8"):
+        d = json.loads(line)
+        predicted[d["sha256"]] = dict(zip(d["ids"], d["labels"]))
+CONTENTS, NOTE = R.index("contents"), R.index("note")
+
+
+def tagged(doc):
+    """The tagger's (region, start) per piece, tier 0's contents and notes kept."""
+    own = predicted[doc["sha256"]]
+    out = []
+    for id_, t0 in zip(doc["ids"], doc["tier0"]):
+        lab = own.get(id_)
+        if lab is None or t0[0] == CONTENTS or t0[0] == NOTE or lab[0] == NOTE:
+            out.append(t0)
+        else:
+            out.append(lab)
+    return out
 
 
 def units(labels):
@@ -74,6 +96,10 @@ for line in open(rf"{root}\rows-{split}.jsonl", encoding="utf-8"):
     docs += 1
     mode = doc.get("mode", "?")
     text, t0, gold, pages = doc["text"], doc["tier0"], doc["gold"], doc["pages"]
+    if predicted:
+        if doc["sha256"] not in predicted:
+            continue
+        t0 = tagged(doc)
     gu, pu = units(gold), units(t0)
     pu_at = {}
     for u in pu:
