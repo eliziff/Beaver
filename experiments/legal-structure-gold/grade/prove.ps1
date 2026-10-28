@@ -1,6 +1,6 @@
 # The parser against the structure gold, start to finish: build the grader (release, root
 # workspace, below normal priority), ship it to the desktop that holds the gold, wait until the
-# desktop runs nothing else, grade batches 5-7 for each arm (with -Parts, batch 7 again by part), and print
+# desktop runs nothing else, grade batches 5-7 for each arm (with -Parts, each again by part), and print
 # every layer that moved against a tagged earlier grade.
 #
 #   .\prove.ps1 -Tag pdfi -Before contents4
@@ -20,7 +20,7 @@ param(
   [string]$Before,
   [hashtable]$Arms = @{ default = @{} },
   [switch]$NoBuild,
-  # Batch 7 again by part (each document of a packet parsed alone): the measure of document starts.
+  # Every batch again by part (each document of a packet parsed alone): the measure of document starts.
   [switch]$Parts,
   # The gold batches graded (b8: the 1,466 sources authored 2026-10-27).
   [string[]]$Batches = @('b5', 'b6', 'b7'),
@@ -76,7 +76,7 @@ $env:LEGALPDF_RECOGNITION_TRACE = '1'
 foreach ($name in $Variables.Keys) { Set-Item "env:$name" $Variables[$name] }
 # The layout model's OpenVINO runtime loads its libraries from beside it.
 if ($env:LEGALPDF_OPENVINO_RUNTIME) { $env:Path = "$(Split-Path $env:LEGALPDF_OPENVINO_RUNTIME);$env:Path" }
-$runs = @($Batches -split ',' | ForEach-Object { @{ Batch = $_ } }) + @(if ($Parts -eq 'True') { @{ Batch = 'b7'; Parts = $true } })
+$runs = @($Batches -split ',' | ForEach-Object { @{ Batch = $_ } }) + @(if ($Parts -eq 'True') { $Batches -split ',' | ForEach-Object { @{ Batch = $_; Parts = $true } } })
 foreach ($run in $runs) {
   $batch = $run.Batch
   $gold = "$Fable\$batch\a"
