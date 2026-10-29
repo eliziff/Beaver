@@ -43,6 +43,7 @@ import blocks  # noqa: E402
 import gold  # noqa: E402
 import gold_store  # noqa: E402
 import hierarchy  # noqa: E402
+import postcorrect  # noqa: E402
 import prompts  # noqa: E402
 
 VERSION = "legal-structure-gold.v4"
@@ -382,7 +383,7 @@ def author(pdf, mode, args, extraction=None):
     job.mkdir(parents=True, exist_ok=True)
     started = time.time()
     receipt = {"source_sha256": source, "mode": mode, "model": args.model, "effort": args.effort, "status": "running",
-               "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py")}}
+               "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py", HERE / "postcorrect.py")}}
     write_json(job / "receipt.json", receipt)
     try:
         lines, sizes, parser = extract(pdf, mode, args.parsed or args.out, args.timeout, extraction)
@@ -400,6 +401,7 @@ def author(pdf, mode, args, extraction=None):
                                "hierarchy": args.hierarchy, "document_starts": starts,
                                "prompts": {"lines": prompts.LINES, "hierarchy": prompts.HIERARCHY[args.hierarchy]}},
                  "lines": gold_lines, "typed": typed, "units": units, "notes": notes, "report": report}
+        postcorrect.apply(value, [{"lines": [l for l in lines if l["page"] == p], "height": sizes.get(p, (0, 0))[1]} for p in pages])
         write_json(job / "gold.json.gz", value)
         receipt.update(status="complete", gold_sha256=digest(job / "gold.json.gz"), pages=len(pages), units=len(units),
                        typed_lines=len(typed), notes=len(notes),
