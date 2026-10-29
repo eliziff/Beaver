@@ -7,16 +7,17 @@ page's extracted lines against its image, corrects the ones it reads otherwise, 
 line in reading order with its region, whether it starts a unit, its printed markers and its note
 reference marks. Notes are paired by the structure parser's pairer over the gold's corrected lines.
 Document (every unit's full text and every page image): the model gives each heading its level and
-every other body unit its depth, one per printed marker, and says where each of the file's
-documents starts and what it is.
+every other body unit its depth, one per printed marker, and says what the document is.
 
-  python experiments/legal-structure-gold/author.py --pdf FILE --mode digitalborn|ocr [--out DIR]
-  python experiments/legal-structure-gold/author.py --manifest FILE [--root DIR] [--limit 0] [--shard k/n]
-  python experiments/legal-structure-gold/author.py --manifest FILE --again   (complete golds authored
-      again under changed conventions)
-  ... --splits FILE   (page-stream segmentation gold: a file listed there is cut at its document
-      starts, a page or a line partway down one, and each document is authored alone, then the
-      documents' golds are joined into the file's)
+Where a file's documents start is decided once, by the page-stream splitter, never here: every file
+is authored from its split annotation (--splits; `document_starts: []` for a file of one document),
+cut at those starts, each document authored alone, and the documents' golds joined into the file's.
+A file the splitter has not annotated is refused. The gold records the starts it was cut at
+(authoring.document_starts); gold_checks.py holds the store to them.
+
+  python experiments/legal-structure-gold/author.py --pdf FILE --mode digitalborn|ocr --splits FILE [--out DIR]
+  python experiments/legal-structure-gold/author.py --manifest FILE --splits FILE [--root DIR] [--limit 0] [--shard k/n]
+  ... --again   (complete golds authored again under changed conventions or changed starts)
 """
 import argparse
 from contextlib import contextmanager
@@ -278,27 +279,25 @@ def image_tokens(path):
     return width * height // 700
 
 
-def author_hierarchy(typed, groups, texts, indents, images, job, args, whole=False):
-    """The document pass: each unit with its heading level where it is a heading, else its depth
-    (the depth of each printed marker it opens with too), and whether it starts one of the file's
-    documents, and what that is (`whole`: the units are one document split from its packet; only
-    what it is). A heading the model gives depths is text; a unit of another region it gives a
-    level is a heading. Returns (units, the region changes it made)."""
+def author_hierarchy(typed, groups, texts, indents, images, job, args):
+    """The document pass over one document: each unit with its heading level where it is a heading,
+    else its depth (the depth of each printed marker it opens with too), and what the document is,
+    on its first unit. A heading the model gives depths is text; a unit of another region it gives
+    a level is a heading. Returns (units, the region changes it made)."""
     rows = [hierarchy.row(typed, members, texts, indents) for members in groups]
     counts = {n + 1: len(r[3]) for n, r in enumerate(rows)}
     def ask(shown, pages):
-        schema = schema_file(job, f"hierarchy-{shown[0]:05}", prompts.hierarchy_schema([n + 1 for n in shown], hierarchy.answered(shown, rows), counts, args.hierarchy, whole,
+        schema = schema_file(job, f"hierarchy-{shown[0]:05}", prompts.hierarchy_schema(hierarchy.answered(shown, rows), counts, args.hierarchy,
                                                                                         [n + 1 for n in shown if rows[n][1] == "provision"]))
-        return call(prompts.hierarchy_prompt(rows, shown, pages, args.hierarchy, whole), schema, [images[p] for p in pages],
-                    job / "calls" / f"hierarchy-{shown[0]:05}", args, hierarchy.checked(shown, rows), backend.invoke,
+        return call(prompts.hierarchy_prompt(rows, shown, pages, args.hierarchy), schema, [images[p] for p in pages],
+                    job / "calls" / f"hierarchy-{shown[0]:05}", args, lambda response: response, backend.invoke,
                     policy=POLICY, cache_key=job.name)
-    levels, depths, starts = hierarchy.decide(rows, ask, {p: image_tokens(path) for p, path in images.items()})
+    levels, depths, kind = hierarchy.decide(rows, ask, {p: image_tokens(path) for p, path in images.items()})
     units, changes = [{"lines": members, "starts_document": False} for members in groups], []
+    if units:
+        # The document's first unit carries its type; the stitch marks where each later document starts.
+        units[0]["document_type"] = kind
     for u, members in enumerate(groups):
-        # The file's first row starts its first document; a file of one document records only its type.
-        if u in starts:
-            units[u]["document_type"] = starts[u]
-            units[u]["starts_document"] = u > 0 or len(starts) > 1
         before = typed[members[0]]["region"]
         if levels[u] is not None:
             units[u]["level"] = levels[u]
@@ -333,7 +332,7 @@ def split(lines, starts):
     return [lines[a:b] for a, b in zip(bounds, bounds[1:])]
 
 
-def author_document(lines, file_lines, sizes, mode, images, job, args, whole):
+def author_document(lines, file_lines, sizes, mode, images, job, args):
     """One document's gold over its own extracted lines (file_lines: the whole file's): the page
     pass on its pages, its notes, and the document pass. Returns (gold lines, typed lines, units,
     notes, report)."""
@@ -349,7 +348,7 @@ def author_document(lines, file_lines, sizes, mode, images, job, args, whole):
     # Each line's left edge as a percentage of its page's width, from the extraction's own box.
     indents = {l["id"]: round(100 * l["bbox"][0] / sizes[l["page"]][0]) if sizes.get(l["page"], (0, 0))[0] else None
                for l in gold_lines}
-    units, report["document_pass_changes"] = author_hierarchy(typed, groups, texts, indents, {p: images[p] for p in pages}, job, args, whole)
+    units, report["document_pass_changes"] = author_hierarchy(typed, groups, texts, indents, {p: images[p] for p in pages}, job, args)
     return gold_lines, typed, units, notes, report
 
 
@@ -373,6 +372,9 @@ def stitch(parts):
 def author(pdf, mode, args, extraction=None):
     pdf, source = Path(pdf), digest(Path(pdf))
     job = args.out / "v4" / source
+    starts = args.splits.get(source)
+    gold.require(starts is not None, f"{source} has no split annotation: the page-stream splitter decides where every file's "
+                                     "documents start (experiments/page-stream-segmentation), before authoring")
     if not args.again and (job / "gold.json.gz").is_file() and read_json(job / "receipt.json").get("status") == "complete":
         return job
     job.mkdir(parents=True, exist_ok=True)
@@ -387,11 +389,9 @@ def author(pdf, mode, args, extraction=None):
         import fitz
         with fitz.open(pdf) as document: pages = list(range(1, len(document) + 1))
         images = render(pdf, pages, job / "images", args.dpi)
-        # A file split into its documents before authoring is authored a document at a time, each in
-        # its own folder of calls; otherwise the document pass says where its documents start.
-        starts = args.splits.get(source)
-        parts = [author_document(own, lines, sizes, mode, images, job / f"document-{k + 1:03}" if starts is not None else job, args,
-                                 starts is not None) for k, own in enumerate(split(lines, starts))]
+        # The file is authored a document at a time, each in its own folder of calls.
+        parts = [author_document(own, lines, sizes, mode, images, job / f"document-{k + 1:03}", args)
+                 for k, own in enumerate(split(lines, starts))]
         gold_lines, typed, units, notes, report = stitch(parts)
         value = {"schema_version": VERSION, "source_sha256": source, "mode": mode, "page_count": len(pages), "parser": parser,
                  "authoring": {"model": args.model, "effort": args.effort, "long_side": LONG_SIDE, "dpi_cap": args.dpi,
@@ -430,12 +430,12 @@ def main():
     p.add_argument("--parsed", type=Path, help="Where the parser's extraction is cached (its parsed/ folder's parent); default --out")
     p.add_argument("--hierarchy", choices=("two", "one"), default="two",
                    help="Document pass form under trial: a heading level or depths per row, or one depth per row")
-    p.add_argument("--splits", type=Path, help="Page-stream segmentation gold, {sources: [{sha256, document_starts}]}: "
-                   "a file listed there is authored a document at a time")
+    p.add_argument("--splits", type=Path, required=True, help="Page-stream segmentation gold, {sources: [{sha256, document_starts}]}: "
+                   "every file is cut at its starts and authored a document at a time; a file not listed is refused")
     a = p.parse_args()
     gold.low_priority()
     splits = {}
-    for part in (read_json(a.splits)["sources"] if a.splits else []):
+    for part in read_json(a.splits)["sources"]:
         if "document_starts" in part:
             splits.setdefault(part["sha256"], []).extend(part["document_starts"])
     args = SimpleNamespace(model=a.model, effort=a.effort, attempts=a.attempts, max_calls=None, timeout=a.timeout,

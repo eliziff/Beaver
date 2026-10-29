@@ -4,13 +4,13 @@ A unit is a paragraph, heading, list item, note, table row or other block: a typ
 marked as a start, with the lines after it that continue it, on its page or the next. Running
 headers, footers, page numbers and a transcript's line numbers are units of their own.
 
-The document pass sees the whole document, every unit's full text and every page image, and gives
-each heading its level (1 the outermost in its document) and every other body unit its depth (1
-directly under the headings, 2 inside a unit of depth 1), one depth per printed marker where the
-unit opens with several; a heading that is no title takes depths, as text, and a title typed
-otherwise takes a level. It also gives where each of the file's documents starts. The gold keeps
-those as given: a unit sits inside the nearest unit before it of a smaller depth, under the nearest
-heading before it.
+The document pass sees one whole document (the splitter decides where a file's documents start; the
+pass never does), every unit's full text and every page image, and gives each heading its level (1
+the outermost in its document) and every other body unit its depth (1 directly under the headings,
+2 inside a unit of depth 1), one depth per printed marker where the unit opens with several; a
+heading that is no title takes depths, as text, and a title typed otherwise takes a level. It also
+says what the document is. The gold keeps those as given: a unit sits inside the nearest unit
+before it of a smaller depth, under the nearest heading before it.
 """
 OWN = {"furniture", "page_label", "line_label"}
 # Units the document pass shows but gives no level or depth.
@@ -60,11 +60,11 @@ def row_tokens(row):
 
 def decide(rows, ask, page_tokens):
     """Heading levels (None for rows given depths), depths ([one per printed marker, or one], None
-    for headings and the rows that take neither) and the rows that start a document ({row: its
-    type}): the whole document in one call when it fits the budget and image count, otherwise
+    for headings and the rows that take neither) and what the document is (the first window's
+    answer): the whole document in one call when it fits the budget and image count, otherwise
     windows that each fill them, carrying the five rows before the window and the last heading at
     each open level and the last row at each open depth."""
-    levels, depths, starts, start = [None] * len(rows), [None] * len(rows), {}, 0
+    levels, depths, kind, start = [None] * len(rows), [None] * len(rows), None, 0
     while start < len(rows):
         context = set(range(max(0, start - 5), start))
         for given in (levels, [d[-1] if d else None for d in depths]):
@@ -87,25 +87,11 @@ def decide(rows, ask, page_tokens):
             if int(row) - 1 >= start:
                 if "level" in given: levels[int(row) - 1] = given["level"]
                 else: depths[int(row) - 1] = given["depths"]
-        if "type" in answer:
-            starts.setdefault(0, answer["type"])
-        else:
-            starts.update({item["row"] - 1: item["type"] for item in answer["starts"] if item["row"] - 1 >= start})
+        kind = kind or answer["type"]
         start = end
-    return levels, depths, starts
+    return levels, depths, kind
 
 
 def answered(shown, rows):
     """The shown rows that take a heading level or depths, numbered from 1."""
     return [n + 1 for n in shown if rows[n][1] not in UNLEVELLED]
-
-
-def checked(shown, rows):
-    """The schema holds each answered row to one answer, one depth per printed marker; this asks
-    only that the file's first document start on row 1 (a document split from its packet names
-    only what it is)."""
-    def validate(response):
-        if "starts" in response and 0 in shown and 1 not in {item["row"] for item in response["starts"]}:
-            raise ValueError("The first document starts on row 1: give it with its type")
-        return response
-    return validate
