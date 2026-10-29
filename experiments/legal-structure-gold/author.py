@@ -430,12 +430,12 @@ def main():
     p.add_argument("--parsed", type=Path, help="Where the parser's extraction is cached (its parsed/ folder's parent); default --out")
     p.add_argument("--hierarchy", choices=("two", "one"), default="two",
                    help="Document pass form under trial: a heading level or depths per row, or one depth per row")
-    p.add_argument("--splits", type=Path, required=True, help="Page-stream segmentation gold, {sources: [{sha256, document_starts}]}: "
+    p.add_argument("--splits", required=True, help="Page-stream segmentation gold files, comma-separated, {sources: [{sha256, document_starts}]}: "
                    "every file is cut at its starts and authored a document at a time; a file not listed is refused")
     a = p.parse_args()
     gold.low_priority()
     splits = {}
-    for part in read_json(a.splits)["sources"]:
+    for part in (part for name in a.splits.split(",") for part in read_json(Path(name))["sources"]):
         if "document_starts" in part:
             splits.setdefault(part["sha256"], []).extend(part["document_starts"])
     args = SimpleNamespace(model=a.model, effort=a.effort, attempts=a.attempts, max_calls=None, timeout=a.timeout,

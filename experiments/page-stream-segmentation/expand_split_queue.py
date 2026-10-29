@@ -1,6 +1,8 @@
 """Run only the split prerequisite for an existing structure-authoring queue.
 
-Completed full-source split/structure gold is referenced, never authored twice.
+Completed full-source split gold is referenced, never authored twice. A structure gold's own
+document starts are not split gold: only the splitter decides where a file's documents start, so a
+file whose structure gold predates its split annotation is queued like any other.
 New annotations remain a separate cohort until family/exposure reconciliation.
 """
 import argparse
@@ -45,6 +47,7 @@ def main():
     p.add_argument('--workers', type=int, default=8)
     p.add_argument('--max-calls', type=int, default=10000)
     p.add_argument('--execute', action='store_true')
+    p.add_argument('--out', type=Path, help='the cohort folder (default ROOT/gold-expansion)')
     a = p.parse_args()
     if a.workers < 1 or a.max_calls < 1: p.error('Positive worker/call limits required')
     sys.path[:0] = [str(a.code_root/'experiments/page-stream-segmentation'),
@@ -53,7 +56,7 @@ def main():
     import annotate
     from boundary_data import atomic_json, digest, fingerprint
     from codex_runner.transport import invoke
-    out = a.root/'gold-expansion'
+    out = a.out or a.root/'gold-expansion'
     out.mkdir(exist_ok=True)
     index = json.loads((a.root/'gold-store/page-stream-gold/index.json').read_bytes())
     authority = a.existing_split_root/'authoring-splits.json'
@@ -66,7 +69,6 @@ def main():
     for s in full:
         reviewed.setdefault(s['sha256'],set()).update(s.get('pages',range(1,counts[s['sha256']]+1)))
     covered = {sha for sha,pages in reviewed.items() if pages == set(range(1,counts[sha]+1))}
-    covered.update(r['sha256'] for r in index['structure_gold_sources'])
     resolution=out/'source-resolution.json'
     locations=json.loads(resolution.read_bytes())['matches'] if resolution.exists() else {}
     input_rows=resolve_rows(json.loads(a.manifest.read_bytes())['documents'],
