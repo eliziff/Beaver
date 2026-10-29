@@ -266,11 +266,11 @@ function openStore(store: string) {
 const citationKeys = (rows: Array<Record<string, unknown>>) => structureNative().citationLookupKeys(rows.flatMap((row) =>
   [row.citation_en, row.citation_fr, row.citation2_en, row.citation2_fr].map((value) => typeof value === "string" ? value : "")));
 
-/** The version of Beaver's citation lookup keys ("3" in "3:neutral:2016:scc:29"): lookups find a
- *  document only through keys of the version the engine makes. */
-export const a2ajCitationKeyVersion = () => structureNative().citationLookupKey("2016 SCC 29").split(":")[0];
+/** What Beaver's citation lookup keys are made by, the key version and the alias table: lookups find a document only
+ *  through keys the engine makes. */
+export const a2ajCitationKeyVersion = () => structureNative().citationKeyVersion();
 
-/** Rebuilds every document's citation lookup keys when the store's were made by another key version. */
+/** Rebuilds every document's citation lookup keys when the store's were made by another key version or alias table. */
 function rekey(database: DatabaseSync) {
   const version = a2ajCitationKeyVersion();
   const stored = database.prepare("SELECT value FROM meta WHERE key = 'citation_key_version'").get() as { value: string } | undefined;

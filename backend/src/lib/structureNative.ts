@@ -287,6 +287,8 @@ type StructureAddon = {
   citationEngineCallAsync(method: string, request: string): Promise<unknown>;
   documentReadingOrder(request: string): Array<[number, number]>;
   citationLookupKeys(texts: string[]): string[];
+  /** What the lookup keys are made by: the key version and the alias table ("4:1a2b3c4d5e6f"). */
+  citationKeyVersion(): string;
   providerCitationsInText(text: string): Array<{
     text: string; start: number; end: number;
     family: "neutral" | "reporter" | "canlii" | "database" | "statute";

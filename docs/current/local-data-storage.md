@@ -22,8 +22,8 @@ against its published SHA-256, read into the store in one transaction and delete
 `source_file` table records each court's file hash and dataset revision, so `-- --update` fetches
 only courts whose file changed. A document keeps its ID across updates and is rewritten only when
 its content changed. `-- --update` also remakes the citation lookup keys when the citation engine's
-key version changed (`meta.citation_key_version`); lookups find nothing through keys of another
-version.
+key version or alias table changed (`meta.citation_key_version`, "4:" and the table's hash); lookups
+find nothing through keys of another version, and miss a decision through keys another table made.
 
 Readers open and close readonly connections per query and the store is in WAL mode, so an install
 can run while Beaver serves lookups. An install ends by checkpointing the log, which lets a browser
