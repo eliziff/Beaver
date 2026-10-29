@@ -6,6 +6,8 @@
   types       a document's type is missing or outside the document pass's types
   recurring   a line printed at the same place on three or more pages typed as different regions
   headings    the same short text typed as a heading in one place and as another body region elsewhere
+  captions    a legislation section's own caption typed as a heading (it is the section's marginal note;
+              section_captions.py retypes them)
 
   python gold_checks.py [--examples N] [--flagged OUT.json]
 
@@ -20,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "legal_pdf_corpus"))
 import gold_store  # noqa: E402
 from prompts import DOCUMENT_TYPES  # noqa: E402
+from section_captions import section_captions  # noqa: E402
 
 
 def recurring(lines):
@@ -88,6 +91,7 @@ def check(gold, split=None):
     # The same short text a heading in one place and a body unit in another.
     headed = {first[u] for u in range(len(units)) if region[u] == "heading" and len(first[u]) <= 80}
     flags["headings"] += sorted({first[u][:60] for u in range(len(units)) if region[u] in ("text", "list_item") and first[u] in headed})
+    flags["captions"] += [first[u][:60] for u in section_captions(gold)]
     return {name: items for name, items in flags.items() if items}
 
 
