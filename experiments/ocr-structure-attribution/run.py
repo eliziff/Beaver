@@ -67,11 +67,7 @@ def main():
     wait_for_cargo()
     if not args.skip_build:
         before=source_identity()
-        # Match the native owner's remapping convention and ordinary incremental target.
-        home=Path.home()
-        env['CARGO_ENCODED_RUSTFLAGS']='\x1f'.join(f'--remap-path-prefix={source}={target}' for source,target in [
-            (home,'/home'),(os.environ.get('RUSTUP_HOME',home/'.rustup'),'/rustup'),
-            (os.environ.get('CARGO_HOME',home/'.cargo'),'/cargo'),(ROOT,'/workspace')])
+        # scripts/cargo.mjs builds it as every root-workspace build is, into the ordinary incremental target.
         print('Building the experiment binary (development, one Cargo job).',flush=True)
         invoke(['node','scripts/cargo.mjs','build','--offline','--locked','-j','1','--manifest-path','experiments/ocr-structure-attribution/Cargo.toml'],args.out/'build.log',env)
         after=source_identity()

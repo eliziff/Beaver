@@ -17,10 +17,7 @@ def main():
             'pages':[{'number':p['page'],'readings':str(Path(p['output'])/'readings.json'),
                       'readings_sha256':digest(Path(p['output'])/'readings.json')} for p in pages if p['source_sha256']==sha]})
     write(output/'structure-jobs.json',jobs)
-    env=dict(os.environ);env.update(CARGO_BUILD_JOBS='1',RAYON_NUM_THREADS='1',RUST_TEST_THREADS='1');home=Path.home()
-    env['CARGO_ENCODED_RUSTFLAGS']='\x1f'.join(f'--remap-path-prefix={source}={target}' for source,target in [
-        (home,'/home'),(os.environ.get('RUSTUP_HOME',home/'.rustup'),'/rustup'),
-        (os.environ.get('CARGO_HOME',home/'.cargo'),'/cargo'),(ROOT,'/workspace')])
+    env=dict(os.environ);env.update(CARGO_BUILD_JOBS='1',RAYON_NUM_THREADS='1',RUST_TEST_THREADS='1')
     def sources():
         return {**source_identity(),**{p.relative_to(ROOT).as_posix():digest(p)
             for p in (ROOT/'experiments/ocr-structure-attribution/src/bin').glob('*.rs')}}
