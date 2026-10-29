@@ -78,6 +78,8 @@ the latter owns project priorities and remaining gates.
 
 - Measure behavior before changing it. Native grammar/profile changes require the
   appropriate independent corpus/gold result, not a self-regenerated baseline.
+- Build root-workspace Rust only through `node scripts/cargo.mjs <args>` (`npm run native:build` uses it); run a
+  sub-workspace's cargo from its own folder. A plain `cargo` at the root rebuilds every shared crate (CONTRIBUTING.md).
 - Iterate with affected-crate `cargo check` and focused behavior tests. Do not rebuild
   the workspace/addon/release binary or replay full corpora after each edit. Batch
   changes; run the narrow integration gate and then the required candidate gates.

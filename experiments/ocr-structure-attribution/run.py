@@ -73,7 +73,7 @@ def main():
             (home,'/home'),(os.environ.get('RUSTUP_HOME',home/'.rustup'),'/rustup'),
             (os.environ.get('CARGO_HOME',home/'.cargo'),'/cargo'),(ROOT,'/workspace')])
         print('Building the experiment binary (development, one Cargo job).',flush=True)
-        invoke(['cargo','build','--offline','--locked','-j','1','--manifest-path','experiments/ocr-structure-attribution/Cargo.toml'],args.out/'build.log',env)
+        invoke(['node','scripts/cargo.mjs','build','--offline','--locked','-j','1','--manifest-path','experiments/ocr-structure-attribution/Cargo.toml'],args.out/'build.log',env)
         after=source_identity()
         write(args.out/'build.json',{'binary_sha256':digest(binary),'source_files':after,
                                     'source_unchanged_during_build':before==after})

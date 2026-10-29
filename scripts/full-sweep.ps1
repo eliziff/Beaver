@@ -166,10 +166,10 @@ try {
         try { $listener.Start() } finally { $listener.Stop() }
     }
     Invoke-Step 'Native release build' {
-        Invoke-Checked cargo @(
-            'build', '--manifest-path',
+        Invoke-Checked node @(
+            (Join-Path $Repo 'scripts\cargo.mjs'), 'build', '--manifest-path',
             (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'),
-            '--release', '--locked', '--offline', '--quiet', '--jobs', '1'
+            '--release', '--locked', '--offline', '--quiet'
         )
     }
     Invoke-Step 'Shared PDF behavior' {

@@ -25,7 +25,7 @@ def main():
         return {**source_identity(),**{p.relative_to(ROOT).as_posix():digest(p)
             for p in (ROOT/'experiments/ocr-structure-attribution/src/bin').glob('*.rs')}}
     wait_for_cargo();before=sources()
-    invoke(['cargo','build','--offline','--locked','-j','1','--manifest-path',
+    invoke(['node','scripts/cargo.mjs','build','--offline','--locked','-j','1','--manifest-path',
         'experiments/ocr-structure-attribution/Cargo.toml','--bin','crop-structure'],output/'structure-build.log',env)
     after=sources();binary=ROOT/'native/legal-structure-node/target/debug/crop-structure.exe'
     write(output/'structure-build.json',{'source_files':after,'source_unchanged':before==after,'binary_sha256':digest(binary)})
