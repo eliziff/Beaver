@@ -9,14 +9,14 @@ reference marks. Notes are paired by the structure parser's pairer over the gold
 Document (every unit's full text and every page image): the model gives each heading its level and
 every other body unit its depth, one per printed marker, and says what the document is.
 
-Where a file's documents start is decided once, by the page-stream splitter, never here: every file
-is authored from its split annotation (--splits; `document_starts: []` for a file of one document),
-cut at those starts, each document authored alone, and the documents' golds joined into the file's.
-A file the splitter has not annotated is refused. The gold records the starts it was cut at
-(authoring.document_starts); gold_checks.py holds the store to them.
+Where a file's documents start is decided once, never here: every file is authored from its split
+annotation in the gold store (experiments/legal_pdf_corpus/gold_store.py: gold/<sha>/split.json;
+`document_starts: []` for a file of one document), cut at those starts, each document authored
+alone, and the documents' golds joined into the file's. A file the store holds no split annotation
+for is refused. The gold records the starts it was cut at (authoring.document_starts).
 
-  python experiments/legal-structure-gold/author.py --pdf FILE --mode digitalborn|ocr --splits FILE [--out DIR]
-  python experiments/legal-structure-gold/author.py --manifest FILE --splits FILE [--root DIR] [--limit 0] [--shard k/n]
+  python experiments/legal-structure-gold/author.py --pdf FILE --mode digitalborn|ocr [--out DIR]
+  python experiments/legal-structure-gold/author.py --manifest FILE [--root DIR] [--limit 0] [--shard k/n]
   ... --again   (complete golds authored again under changed conventions or changed starts)
 """
 import argparse
@@ -34,13 +34,14 @@ from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-sys.path[:0] = [str(HERE), str(ROOT / "tools")]
+sys.path[:0] = [str(HERE), str(ROOT / "tools"), str(ROOT / "experiments" / "legal_pdf_corpus")]
 from codex_runner.artifacts import atomic_json as write_json, digest, fingerprint, read_json  # noqa: E402
 from codex_runner import backend  # noqa: E402
 from codex_runner.calls import CallPolicy, call  # noqa: E402
 from codex_runner.transport import terminate  # noqa: E402
 import blocks  # noqa: E402
 import gold  # noqa: E402
+import gold_store  # noqa: E402
 import hierarchy  # noqa: E402
 import prompts  # noqa: E402
 
@@ -372,9 +373,10 @@ def stitch(parts):
 def author(pdf, mode, args, extraction=None):
     pdf, source = Path(pdf), digest(Path(pdf))
     job = args.out / "v4" / source
-    starts = args.splits.get(source)
-    gold.require(starts is not None, f"{source} has no split annotation: the page-stream splitter decides where every file's "
-                                     "documents start (experiments/page-stream-segmentation), before authoring")
+    split_annotation = gold_store.split_of(source)
+    gold.require(split_annotation is not None, f"{source} has no split annotation in the gold store ({gold_store.ROOT}): "
+                                               "where its documents start is decided before authoring")
+    starts = split_annotation["document_starts"]
     if not args.again and (job / "gold.json.gz").is_file() and read_json(job / "receipt.json").get("status") == "complete":
         return job
     job.mkdir(parents=True, exist_ok=True)
@@ -430,17 +432,11 @@ def main():
     p.add_argument("--parsed", type=Path, help="Where the parser's extraction is cached (its parsed/ folder's parent); default --out")
     p.add_argument("--hierarchy", choices=("two", "one"), default="two",
                    help="Document pass form under trial: a heading level or depths per row, or one depth per row")
-    p.add_argument("--splits", required=True, help="Page-stream segmentation gold files, comma-separated, {sources: [{sha256, document_starts}]}: "
-                   "every file is cut at its starts and authored a document at a time; a file not listed is refused")
     a = p.parse_args()
     gold.low_priority()
-    splits = {}
-    for part in (part for name in a.splits.split(",") for part in read_json(Path(name))["sources"]):
-        if "document_starts" in part:
-            splits.setdefault(part["sha256"], []).extend(part["document_starts"])
     args = SimpleNamespace(model=a.model, effort=a.effort, attempts=a.attempts, max_calls=None, timeout=a.timeout,
                            dpi=a.dpi, out=a.out.resolve(), again=a.again, parsed=a.parsed.resolve() if a.parsed else None,
-                           hierarchy=a.hierarchy, splits=splits)
+                           hierarchy=a.hierarchy)
     if a.pdf:
         gold.require(a.mode, "--pdf needs --mode")
         print(author(a.pdf, a.mode, args, a.extraction)); return

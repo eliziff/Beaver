@@ -9,14 +9,7 @@ from the page that opens its part stays a heading there when it holds the part's
 title, as a schedule's or a resolution's), unless a copy already stood on an earlier page. The unit
 becomes furniture; its children move to its parent; the correction keeps both, to be undone.
 
-Split annotations (--splits): a gold authored before every file was cut at the splitter's starts
-(its authoring.document_starts is null: the document pass decided them) whose documents start
-exactly where the splitter's annotation says (a page start: on that page; a line start: on that
-line; none for a file of one document) records the annotation as the starts it was cut at. One
-that differs is left for authoring again (gold_checks.py flags it).
-
   python postcorrect.py GOLD_DIR [--sha PREFIX] [--dry-run]   correct existing golds from their inputs
-  python postcorrect.py GOLD_DIR --splits SPLITS.json[,MORE.json] [--dry-run]   record split annotations
 """
 import argparse
 import collections
@@ -123,58 +116,12 @@ def apply(gold, pages):
     return done
 
 
-def split_recorded(gold, starts):
-    """The correction recording the splitter's starts on a gold cut by the document pass, when its
-    documents start where they say; None when they do not (or it already records its starts)."""
-    if gold.get("authoring", {}).get("document_starts") is not None:
-        return None
-    page_of = {line["id"]: line["page"] for line in gold["lines"]}
-    own = []
-    for u in gold["units"][1:]:
-        if u.get("starts_document"):
-            line = next((s["line_id"] for t in u["lines"] for s in gold["typed"][t]["spans"]), None)
-            own.append((page_of.get(line), line))
-    if len(own) != len(starts):
-        return None
-    for (page, line), start in zip(sorted(own, key=lambda s: (s[0] or 0, s[1] or "")), sorted(starts, key=lambda s: (s["page"], s["line_id"]) if isinstance(s, dict) else (s, ""))):
-        if page != (start["page"] if isinstance(start, dict) else start) or isinstance(start, dict) and line != start["line_id"]:
-            return None
-    gold["authoring"]["document_starts"] = starts
-    return {"rule": "split_recorded", "document_starts": starts}
-
-
-def record_splits(args):
-    splits = {}
-    for name in args.splits.split(","):
-        for part in json.load(open(name, encoding="utf-8"))["sources"]:
-            if "document_starts" in part:
-                splits.setdefault(part["sha256"], []).extend(part["document_starts"])
-    total = collections.Counter()
-    for job in sorted((args.gold / "v4").iterdir()):
-        path = job / "gold.json.gz"
-        if not path.is_file() or job.name not in splits:
-            continue
-        gold = json.load(gzip.open(path))
-        done = split_recorded(gold, splits[job.name])
-        total["recorded" if done else "left"] += 1
-        if done and not args.dry_run:
-            gold.setdefault("postcorrections", []).append(done)
-            write(path, gold)
-            receipt = json.loads((job / "receipt.json").read_text(encoding="utf-8-sig"))
-            receipt.update(gold_sha256=hashlib.sha256(path.read_bytes()).hexdigest(), postcorrections=len(gold["postcorrections"]))
-            write(job / "receipt.json", receipt)
-    print(dict(total), "(dry run)" if args.dry_run else "")
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("gold", type=Path)
     parser.add_argument("--sha", default="")
-    parser.add_argument("--splits", help="split annotation files, comma-separated: record them on golds cut where they say")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    if args.splits:
-        return record_splits(args)
     total = collections.Counter()
     for job in sorted((args.gold / "v4").iterdir()):
         path = job / "gold.json.gz"

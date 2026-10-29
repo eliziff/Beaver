@@ -50,15 +50,26 @@ Rules for the code:
 The gold is one store with one set of conventions. The batch a gold was authored in (b5, b8, ...)
 is provenance only: no convention, grade or pool depends on it.
 
+**Where it lives.** One folder, `benchmarks/local-data/gold` (the private gold repository,
+eliziff/benchmarks-private), holds one folder per source PDF, named by its sha256: its split
+annotation (`split.json`, where its documents start), what that came from (`split/`), and its
+structure golds (`structure/<batch>-<run>/`, run `a` current). One registry, the corpus SQLite
+(`corpus.sqlite`, which also indexes every source PDF), records it: `gold/structure` and
+`gold/split` rows with each file's hash. `experiments/legal_pdf_corpus/gold_store.py` registers the
+folder (`register`) and is the only way tools read it; git keeps every earlier version. A worker
+machine (the desktop GPU) works from a copy of the folder (`OPENLEGAL_GOLD`), and what it authors
+comes back into the folder and is registered.
+
 `experiments/legal-structure-gold/author.py` makes one gold file per source PDF
 (`legal-structure-gold.v4`). Each step has one decider, and no later step decides it again:
 
-1. **Documents (the splitter).** Where the file's documents start, at a page or at a line partway
-   down one, is decided before authoring by the page-stream splitter
-   ([page-stream segmentation](../../experiments/page-stream-segmentation/README.md), its split
-   annotation `{sha256, document_starts}`; `[]` for a file of one document). `author.py` requires
-   it (`--splits`) and refuses a file without one. The gold records the starts it was cut at
-   (`authoring.document_starts`).
+1. **Documents.** Where the file's documents start, at a page or at a line partway down one, is
+   the source's split annotation in the store (`gold/<sha>/split.json`; `[]` for a file of one
+   document): the page-stream splitter's
+   ([page-stream segmentation](../../experiments/page-stream-segmentation/README.md)) where it has
+   read the file, else the reviewed page-edge decisions or the structure gold's own starts it was
+   authored with. `author.py` reads it from the store and refuses a file without one. The gold
+   records the starts it was cut at (`authoring.document_starts`).
 2. **Lines (per page).** The model sees each page's image and extracted lines, with the pages
    either side as context, and gives every line in reading order with its region, whether it starts
    a unit, its printed markers (typed as printed) and its note reference marks, correcting misread
@@ -82,12 +93,10 @@ boxes) beside the gold. The authoring extraction is never redone for later work:
 follows extraction only. Prompts stay small: they state the task and fix broad misunderstandings,
 never edge cases. Model choice comes from measurement (gpt-6.1-sol at low effort).
 
-`experiments/legal-structure-gold/gold_checks.py` holds the store to these conventions and runs over
-the whole store at every integration (`--splits` with the splitter's annotations): `unsplit` (a gold
-authored without a split annotation), `starts` (cut at starts the splitter has since changed),
-`types` (a document type missing or outside the list), and within each gold the `recurring` and
-`headings` consistency checks. A flagged gold is authored again (`--splits --again`), never patched
-by hand. The grader (`experiments/legal-structure-gold/grade`) scores a parser build against the
+`experiments/legal-structure-gold/gold_checks.py` runs over every current gold in the store at each
+integration: `starts` (its documents start elsewhere than its split annotation says), `types` (a
+document type missing or outside the list), and within each gold the `recurring` and `headings`
+consistency checks. The grader (`experiments/legal-structure-gold/grade`) scores a parser build against the
 store; the journal footnote gold (`experiments/footnote-gold`) scores footnote pairing.
 
 The [OCR attribution experiment](../../experiments/ocr-structure-attribution/README.md)

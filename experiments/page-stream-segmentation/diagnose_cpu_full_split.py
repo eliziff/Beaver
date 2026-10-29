@@ -66,25 +66,20 @@ def diagnose(root):
     source_dir=out/'source'; source_dir.mkdir(exist_ok=True)
     hashes={}
     for name in ('train_cpu_full_split.py','train_cpu_split.py','train_doc_split.py','score_doc_split.py',
-        'prepare_cpu_full_gold.py','prepare_structure_split_gold.py','register_split_gold.py',
-        'index_structure_split_gold.py','corpus_store.py','run_full_training.py',
-        'validate_cpu_full_split.py','verify_full_gold_store.py',Path(__file__).name):
-        if name=='corpus_store.py':
-            from register_split_gold import corpus_store
-            source=Path(corpus_store.__file__)
+        'prepare_cpu_full_gold.py','prepare_structure_split_gold.py','corpus_store.py','gold_store.py',
+        'run_full_training.py','validate_cpu_full_split.py',Path(__file__).name):
+        if name in ('corpus_store.py','gold_store.py'):
+            source=Path(__file__).resolve().parents[1]/'legal_pdf_corpus'/name
         else: source=Path(__file__).parent/name
         shutil.copyfile(source,source_dir/name); hashes[name]=digest(source)
     assert hashes['train_cpu_full_split.py']==report['trainer_sha256']
-    coverage=json.loads((base/'private-gold-coverage.json').read_bytes())
-    assert coverage['edge_export_sha256']==report['dataset_sha256']
-    assert coverage['internal_export_sha256']==report['internal_gold_sha256']
     result=dict(origin='machine_test',run_id='cpu-full-fit-diagnostic',model_sha256=digest(out/'model.pt'),
         training_page_edges=edge_result,training_internal_anchors=line_result,
         training_localization=localization(pages,training_line_predictions,'train'),
         development_localization=localization([p for p in internal if p['split']=='development'],
             json.loads((out/'development-lines.json').read_bytes())),
         **geometry_result,
-        source_hashes=hashes,private_gold_coverage_verified=True,final_holdout_scored=False)
+        source_hashes=hashes,final_holdout_scored=False)
     write(out/'fit-diagnostic.json',result)
     print(json.dumps(result,indent=2))
 

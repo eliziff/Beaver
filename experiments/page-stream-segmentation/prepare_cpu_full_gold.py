@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import sys
 
 from PIL import Image
 import pymupdf
@@ -181,15 +182,13 @@ def partitions(current,test,family):
 
 
 def full(root,legal_root):
-    from register_split_gold import registered_sources
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'legal_pdf_corpus'))
+    import gold_store
     base=root/'teacher-data'
     current=read(base/'training.json'); test=read(base/'test.json')
     family=read(base/'family-map.json')
-    b7=registered_sources('b7'); b7_paths={r['path'].resolve() for r in b7}
-    if len(b7_paths)!=1: raise ValueError('B7 registrations must reference their authoritative shared gold')
-    final=read(next(iter(b7_paths)))
-    if {s['sha256'] for s in final['sources']}!={r['sha256'] for r in b7}:
-        raise ValueError('Gold source inventory and SQLite registrations differ')
+    # Batch 7's split annotations, as the gold store holds them.
+    final={'sources':[split for _,split,_,_ in gold_store.split_sources('b7-splitter')]}
     documents={d['sha256']:d for d in read(legal_root/'authoring-manifest-all.json')['documents']}
     addition=read(base/'additional-gold.json')
     find,split=partitions(current,test,family)
@@ -238,15 +237,14 @@ def full(root,legal_root):
         examples[case['sha256'],case['right_page']]=case
     for case in addition['edge_cases']:
         for page in case['targets']: examples.setdefault((case['sha256'],int(page)),case)
-    for record in registered_sources('references'):
-        sha=record['sha256']
+    for sha,_,folder,_ in gold_store.split_sources('reference'):
         if split(sha)=='test': continue
-        gold=read(record['path'])
+        path=folder/'split'/'reference.json'; gold=read(path)
         for page,label in gold['page_boundaries'].items():
             example=examples[sha,int(page)]
             add(dict(case_id=sha+'-registered-reference-'+page,sha256=sha,targets={page:label},
                 images=example['images'],gold_panel='registered-sparse-split-reference'))
-        source_artifacts[record['receipt']['configuration']['private_path']]=digest(record['path'])
+        source_artifacts['gold/'+sha+'/split/reference.json']=digest(path)
     existing={(p['sha256'],p['page']) for p in internal}
     for page in addition['internal_pages']:
         if split(page['sha256'])=='test' or (page['sha256'],page['page']) in existing: continue

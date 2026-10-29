@@ -15,9 +15,6 @@ def audit(root):
     torch.set_num_threads(1); torch.backends.cuda.matmul.allow_tf32=False; torch.backends.cudnn.allow_tf32=False
     base=root/'teacher-data'; out=root/'cpu-model/full-page-and-line'
     data=json.loads((base/'full-training.json').read_bytes()); internal=json.loads((base/'internal-training.json').read_bytes())['pages']
-    coverage=json.loads((base/'private-gold-coverage.json').read_bytes())
-    assert digest(base/'full-training.json')==coverage['edge_export_sha256']
-    assert digest(base/'internal-training.json')==coverage['internal_export_sha256']
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model=FullSplitModel().to(device).eval(); model.load_state_dict(torch.load(out/'model.pt',map_location=device,weights_only=True))
     result=dict(origin='machine_test',run_id='stopped-visual-objective-audit',training_resumed=False,

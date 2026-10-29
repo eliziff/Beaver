@@ -474,19 +474,13 @@ does not imply negative internal labels. Existing family partitions are retained
 reserved final families are excluded. Conflicting historical references are
 retained as provenance while the authoritative full-stream gold stays unchanged.
 
-Before fitting, `save_private_split_gold.py` reconciles the existing private gold
-store: existing full-stream labels remain in their owning records and additional
-decisions are stored once per source hash. The training job requires a verified
-private-save receipt. It does not copy source PDFs into that store.
-
-Gold discovery uses the existing corpus SQLite tables `gold_records`, `gold_runs`
-and `gold_artifacts`, under `page-stream-segmentation/`. Register the private
-catalogue with `register_split_gold.py`; `prepare_cpu_full_gold.py` reads its B7
-and sparse-reference registrations, and `prepare_structure_split_gold.py` reads
-the structure registrations. The latter reuses authored unit `starts_document`
-flags from older batches. Archived desktop revisions are indexed separately and
-are not extra training examples. The private store retains a portable,
-task-only `catalogue.sqlite`, per-source receipts and original source provenance.
+The split gold is the gold store's (`experiments/legal_pdf_corpus/gold_store.py`:
+one `split.json` per source in `benchmarks/local-data/gold/<sha>/`, registered as
+`gold/split` in the corpus SQLite). `prepare_cpu_full_gold.py` reads the batch-7
+splitter's annotations and the sparse reference decisions from it, and
+`prepare_structure_split_gold.py` the sources whose split annotation is their
+structure gold's own `starts_document` flags. Archived revisions are not extra
+training examples.
 
 The expanded export has 5,162 training page edges (240 starts), 68 internal
 starts, 1,729 development edges (109 starts), and 27 development internal starts.
