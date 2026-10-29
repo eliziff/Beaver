@@ -408,7 +408,7 @@ def mine(journals: Path, a2aj: Path, output: Path, every: int = 1, limit: int = 
             target.execute("PRAGMA journal_mode=OFF")
             target.execute("PRAGMA synchronous=OFF")
             key_version = dict(cases.execute("SELECT * FROM meta")).get("citation_key_version")
-            if key_version != engine.metadata["version"]["keyVersion"]:
+            if (key_version or "").split(":")[0] != engine.metadata["version"]["keyVersion"]:
                 raise ValueError("A2AJ lookup keys and the citation engine have different versions")
             by_key = defaultdict(set)
             for key, case_id in cases.execute("SELECT citation_key,document_id FROM citation_lookup"):

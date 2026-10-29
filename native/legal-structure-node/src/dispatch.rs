@@ -160,6 +160,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             &call.get::<String>("method")?, &call.get::<String>("request")?)),
         "documentReadingOrder" => done(engine::document_reading_order(&call.get::<String>("request")?).and_then(value)),
         "citationLookupKeys" => done(value(engine::citation_lookup_keys(&call.get::<Vec<String>>("texts")?))),
+        "citationKeyVersion" => done(value(engine::citation_key_version())),
         "providerCitationsInText" => done(value(engine::provider_citations(&call.get::<String>("text")?))),
         "canliiCaseUrl" => done(value(legal_structure::canlii_case_url(&call.get::<Vec<String>>("citations")?,
             &call.get::<Option<String>>("language")?.unwrap_or_default(), call.get::<Option<String>>("court")?.as_deref()))),

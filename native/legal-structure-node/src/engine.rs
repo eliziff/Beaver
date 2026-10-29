@@ -335,6 +335,14 @@ pub fn citation_lookup_keys(texts: &[String]) -> Vec<String> {
     texts.iter().map(|text| citation_lookup_key(text)).collect()
 }
 
+/// What the lookup keys are made by: the key version and the alias table, which keys a decision's every citation by
+/// one identity, so keys stored under another table are made again.
+pub fn citation_key_version() -> String {
+    use sha2::{Digest, Sha256};
+    let table = Sha256::digest(legal_structure::citations::aliases::DATA.as_bytes());
+    format!("{}:{}", legal_structure::citations::key::KEY_VERSION, table[..6].iter().map(|byte| format!("{byte:02x}")).collect::<String>())
+}
+
 pub fn provider_citations(text: &str) -> impl Serialize + '_ {
     provider_citations_in_text(text)
 }

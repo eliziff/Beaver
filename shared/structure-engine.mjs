@@ -31,7 +31,7 @@ export const SIGNATURES = {
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   statuteOutline: ["text", "articles"], caseOutline: ["text"], documentCaseOutline: ["document"], statuteProvisionSpans: ["text", "labels"],
   statuteCurrency: ["pages"], filingCover: ["opening", "title"],
-  citationLookupKey: ["text"], citationLookupKeys: ["texts"], providerCitationsInText: ["text"],
+  citationLookupKey: ["text"], citationLookupKeys: ["texts"], citationKeyVersion: [], providerCitationsInText: ["text"],
   citationEngineCall: ["method", "request"], citationEngineCallAsync: ["method", "request"],
   documentReadingOrder: ["request"],
   citationOccurrencesInText: ["text"], authorityReferencesInText: ["text"],
