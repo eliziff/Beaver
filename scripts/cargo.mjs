@@ -7,10 +7,11 @@ import { constants, homedir, setPriority } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const root = path.resolve(import.meta.dirname, "..");
+const checkout = path.resolve(import.meta.dirname, "..");
 
-/** The environment every build of the workspace runs in: one job, no flags of the caller's, paths remapped. */
-export function cargoEnv() {
+/** The environment every build of the workspace (this checkout's, or `root`'s) runs in: one job, no flags of the
+ * caller's, paths remapped. */
+export function cargoEnv(root = checkout) {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
         !key.startsWith("CARGO_PROFILE_") && !(key.startsWith("CARGO_TARGET_") && /_(RUSTFLAGS|LINKER)$/.test(key)) &&
         !["RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
@@ -27,7 +28,7 @@ export function cargoEnv() {
 
 /** Cargo with these arguments, from the workspace root, yielding to interactive work; its exit code becomes ours. */
 export function cargo(args) {
-    const child = spawn("cargo", args, { cwd: root, env: cargoEnv(), stdio: "inherit" });
+    const child = spawn("cargo", args, { cwd: checkout, env: cargoEnv(), stdio: "inherit" });
     child.once("spawn", () => setPriority(child.pid, constants.priority.PRIORITY_BELOW_NORMAL));
     child.once("error", error => { console.error(error.message); process.exitCode = 1; });
     child.once("exit", code => { process.exitCode = code ?? 1; });

@@ -135,10 +135,6 @@ def main():
     if not jobs: raise ValueError('No completed retained native pages')
     write(output/'jobs.json',jobs)
     env = dict(os.environ);env['CARGO_BUILD_JOBS']='1';env['RAYON_NUM_THREADS']='1';env['RUST_TEST_THREADS']='1'
-    home = Path.home()
-    env['CARGO_ENCODED_RUSTFLAGS']='\x1f'.join(f'--remap-path-prefix={source}={target}' for source,target in [
-        (home,'/home'),(os.environ.get('RUSTUP_HOME',home/'.rustup'),'/rustup'),
-        (os.environ.get('CARGO_HOME',home/'.cargo'),'/cargo'),(ROOT,'/workspace')])
     binary = ROOT/'native/legal-structure-node/target/debug/crop-ab.exe'
     wait_for_cargo()
     if not args.skip_build:
