@@ -11,3 +11,9 @@ incremental = true
 
 [env]
 RAYON_NUM_THREADS = { value = "1", force = false }
+
+# The repositories beside this one that others pin by revision build from these checkouts here, so a change in one is
+# built with the rest before it is pushed and pinned. Paths are relative to this folder's parent.
+[patch."https://github.com/eliziff/common-law-cite.git"]
+legal-citations = { path = "common-law-cite/crates/legal-citations" }
+legal-text = { path = "common-law-cite/crates/legal-text" }
