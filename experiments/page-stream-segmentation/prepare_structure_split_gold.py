@@ -1,32 +1,40 @@
-"""Add registered structure-unit split gold, preserving source-owned labels."""
+"""Add the structure gold's own document starts as split gold, for the sources whose split
+annotation is their structure gold's (gold store origin structure-gold), preserving source-owned labels."""
 import argparse
 import io
 import json
 from pathlib import Path
+import sys
 
 from PIL import Image
 import pymupdf
 
-from index_structure_split_gold import unit_starts
 from prepare_cpu_full_gold import digest,internal_pages,partitions,read,write
-from register_split_gold import registered_sources,read as read_gold
+
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'legal_pdf_corpus'))
+import gold_store
 
 
-def augment(root,fable):
+def unit_starts(gold):
+    """The line ids that open the gold's documents after its first."""
+    first=next(i for i,u in enumerate(gold['units']) if 'document_type' in u)
+    return {next(span['line_id'] for k in unit['lines'] for span in gold['typed'][k]['spans'])
+        for i,unit in enumerate(gold['units']) if i>first and unit['starts_document']}
+
+
+def augment(root):
     base=root/'teacher-data'; data=read(base/'full-training.json'); internal=read(base/'internal-training.json')
     find,split=partitions(data,read(base/'test.json'),read(base/'family-map.json'))
     data['cases']=[c for c in data['cases'] if c.get('gold_panel')!='registered-structure-unit-starts']
     internal['pages']=[p for p in internal['pages'] if p.get('gold_panel')!='registered-structure-unit-starts']
     labels={(c['sha256'],int(p)):v for c in data['cases'] for p,v in c['targets'].items()}
     existing_internal={(p['sha256'],p['page']) for p in internal['pages']}
-    sources=registered_sources('structure'); ambiguous=[]; conflicts=[]; additions=[]; new_internal=[]
-    manifests={b:{d['sha256']:d for d in read(fable/b/'cohort-manifest.json')['documents']} for b in ('b5','b6')}
-    for number,record in enumerate(sources,1):
-        sha=record['sha256']
+    sources=[(sha,path) for sha,_,_,path in gold_store.split_sources('structure-gold')]
+    ambiguous=[]; conflicts=[]; additions=[]; new_internal=[]
+    for number,(sha,gold_path) in enumerate(sources,1):
         if split(sha)=='test': continue
-        gold=read_gold(record['path'])
-        batch=record['receipt']['configuration']['private_path'].split('/')[1]
-        pdf_path=Path(manifests[batch][sha]['path'])
+        gold=gold_store.read(gold_path)
+        pdf_path=gold_store.pdf(sha)
         if digest(pdf_path)!=sha: raise ValueError('Registered structure PDF identity mismatch')
         lines=gold['lines']; by_id={l['id']:l for l in lines}; first={}
         for line in lines: first.setdefault(line['page'],line['id'])
@@ -84,13 +92,13 @@ def augment(root,fable):
             page['candidates']=[c for c in page['candidates'] if c['line_id'] not in uncertain]
             if not page['candidates']: continue
             new_internal.append(dict(sha256=sha,family_id=find(sha),split=split(sha),
-                frame_sha256=record['receipt']['gold_sha256'],image=images[page['page']-1],
+                frame_sha256=digest(gold_path),image=images[page['page']-1],
                 gold_panel='registered-structure-unit-starts',**page))
         if number%20==0: print(json.dumps(dict(processed_sources=number,total_sources=len(sources))),flush=True)
     data['cases'].extend(additions); internal['pages'].extend(new_internal)
     import hashlib
     data['source_artifacts']['registered_structure_catalogue']=hashlib.sha256(json.dumps(
-        [(s['sha256'],s['receipt']['gold_sha256']) for s in sources],sort_keys=True).encode()).hexdigest()
+        [(sha,digest(path)) for sha,path in sources],sort_keys=True).encode()).hexdigest()
     write(base/'full-training.json',data); write(base/'internal-training.json',internal)
     summary={}
     for name in ('train','development'):
@@ -99,12 +107,10 @@ def augment(root,fable):
             internal_starts=sum(c['label'] for p in pages for c in p['candidates']),line_candidates=sum(len(p['candidates']) for p in pages),
             families=len({c['family_id'] for c in cases}))
     write(base/'structure-gold-augmentation.json',dict(origin='machine_test',run_id='registered-structure-split-export',
-        registered_sources=len(sources),ambiguous_unit_starts=ambiguous,conflicting_page_labels=conflicts,splits=summary,
-        private_index_sha256=digest(base/'private-store-index.json')))
+        registered_sources=len(sources),ambiguous_unit_starts=ambiguous,conflicting_page_labels=conflicts,splits=summary))
     print(json.dumps(dict(splits=summary,ambiguous_unit_starts=len(ambiguous),conflicting_page_labels=len(conflicts))))
 
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--root',required=True,type=Path)
-    parser.add_argument('--fable',required=True,type=Path)
-    args=parser.parse_args(); augment(args.root,args.fable)
+    args=parser.parse_args(); augment(args.root)

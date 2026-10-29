@@ -43,7 +43,6 @@ def main():
     p.add_argument('--manifest', required=True, type=Path)
     p.add_argument('--code-root', required=True, type=Path)
     p.add_argument('--parsed', required=True, type=Path)
-    p.add_argument('--existing-split-root', required=True, type=Path)
     p.add_argument('--workers', type=int, default=8)
     p.add_argument('--max-calls', type=int, default=10000)
     p.add_argument('--execute', action='store_true')
@@ -58,17 +57,11 @@ def main():
     from codex_runner.transport import invoke
     out = a.out or a.root/'gold-expansion'
     out.mkdir(exist_ok=True)
-    index = json.loads((a.root/'gold-store/page-stream-gold/index.json').read_bytes())
-    authority = a.existing_split_root/'authoring-splits.json'
-    if digest(authority) != index['existing_gold_sha256']:
-        raise ValueError('Existing split gold differs from the private catalogue')
-    full = json.loads(authority.read_bytes())['sources']
-    documents = json.loads((authority.parent/'authoring-manifest-all.json').read_bytes())['documents']
-    counts = {d['sha256']:d['pages'] for d in documents}
-    reviewed = {}
-    for s in full:
-        reviewed.setdefault(s['sha256'],set()).update(s.get('pages',range(1,counts[s['sha256']]+1)))
-    covered = {sha for sha,pages in reviewed.items() if pages == set(range(1,counts[sha]+1))}
+    sys.path.insert(0, str(a.code_root/'experiments/legal_pdf_corpus'))
+    import gold_store
+    # A file the gold store holds a whole-file split annotation for is split already (a reference
+    # annotation decides only some of its page edges).
+    covered = {sha for sha, split in gold_store.splits().items() if split['origin'] != 'reference'}
     resolution=out/'source-resolution.json'
     locations=json.loads(resolution.read_bytes())['matches'] if resolution.exists() else {}
     input_rows=resolve_rows(json.loads(a.manifest.read_bytes())['documents'],

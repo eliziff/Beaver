@@ -11,9 +11,7 @@ def run(root,fable):
     out=root/'cpu-model/full-page-and-line'; out.mkdir(parents=True,exist_ok=True)
     status_path=out/'run-status.json'; began=time.time()
     commands=[
-        ('register-sqlite',['register_split_gold.py','--private-store',str(root/'gold-store'),'--desktop-fable',str(fable)]),
-        ('export-structure',['prepare_structure_split_gold.py','--root',str(root),'--fable',str(fable)]),
-        ('verify-private-gold',['verify_full_gold_store.py','--root',str(root),'--legal-split-root',str(fable/'b7/split')]),
+        ('export-structure',['prepare_structure_split_gold.py','--root',str(root)]),
         ('focused-tests',['-m','unittest','test_cpu_full_split']),
         ('gpu-training',['train_cpu_full_split.py','--root',str(root),'--epochs','8']),
         ('cpu-validation',['validate_cpu_full_split.py','--root',str(root)]),

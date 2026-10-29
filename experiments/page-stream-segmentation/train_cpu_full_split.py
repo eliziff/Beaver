@@ -204,13 +204,7 @@ def train(root,epochs,model_factory=FullSplitModel,output_name='full-page-and-li
     assert torch.cuda.is_available(), 'Desktop GPU is required for fitting'
     device=torch.device('cuda'); base=root/'teacher-data'; out=root/'cpu-model'/output_name
     out.mkdir(parents=True,exist_ok=True)
-    saved=json.loads((base/'private-gold-save.json').read_bytes())
-    assert saved['verified'] and saved['private'], 'Save gold privately before training'
-    coverage=json.loads((base/'private-gold-coverage.json').read_bytes())
-    assert coverage['all_exported_labels_match_private_store']
-    assert coverage['edge_export_sha256']==digest(base/'full-training.json')
     internal_path=internal_path or base/'internal-training.json'
-    assert coverage['internal_export_sha256']==digest(base/'internal-training.json')
     dataset=json.loads((base/'full-training.json').read_bytes())
     internal=json.loads(internal_path.read_bytes())
     assert all(c['split'] in ('train','development') for c in dataset['cases']+internal['pages'])
