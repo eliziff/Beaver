@@ -30,7 +30,7 @@ mod paragraph_data;
 mod paragraph_features;
 mod score;
 
-use legal_structure_tagger::{alignment, labels, rows, state, text_diff};
+use legal_pdf_tagger::{alignment, labels, rows, state, text_diff};
 
 use legal_pdf_core::{read_gzip_json, write_gzip_json};
 use legal_structure_model::DocumentStructure;
@@ -869,7 +869,7 @@ fn hybrid() -> bool {
     !PURE.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-fn grade_tagged(gold: &Path, source: &Source, tagger: &Mutex<legal_structure_tagger::onnx::Tagger>) -> Result<Graded, String> {
+fn grade_tagged(gold: &Path, source: &Source, tagger: &Mutex<legal_pdf_tagger::onnx::Tagger>) -> Result<Graded, String> {
     let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
     let started = Instant::now();
     let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256)))
@@ -1059,7 +1059,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
             let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok())
                 .ok_or("--tagger needs --onnx-runtime PATH or LEGALPDF_ONNX_RUNTIME")?;
             legal_pdf_core::init_ort_runtime(Path::new(&runtime), None).map_err(|e| format!("ONNX Runtime: {e}"))?;
-            Some(Mutex::new(legal_structure_tagger::onnx::Tagger::load(Path::new(&dir), 4)?))
+            Some(Mutex::new(legal_pdf_tagger::onnx::Tagger::load(Path::new(&dir), 4)?))
         }
         None => None,
     };
@@ -1437,7 +1437,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
         PURE.store(options.iter().any(|o| o == "--pure"), std::sync::atomic::Ordering::Relaxed);
         let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok()).ok_or("--tagger needs --onnx-runtime PATH")?;
         legal_pdf_core::init_ort_runtime(Path::new(&runtime), None).map_err(|e| format!("ONNX Runtime: {e}"))?;
-        let mut tagger = legal_structure_tagger::onnx::Tagger::load(Path::new(&dir), 4)?;
+        let mut tagger = legal_pdf_tagger::onnx::Tagger::load(Path::new(&dir), 4)?;
         let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256))).map_err(|e| format!("{}: {e}", source.sha256))?;
         let mut pages = Vec::new();
         let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;

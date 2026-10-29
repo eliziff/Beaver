@@ -9,7 +9,7 @@ legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", feat
 legal-pdf-core = { path = "../../legal-pdf-parser/legal-pdf-core", features = ["structure-analysis"] }
 legal-pdf-ocr = { path = "../../legal-pdf-parser/legal-pdf-ocr", features = ["attribution"] }
 legal-structure = { path = "../../legal-structure" }
-legal-structure-tagger = { path = "../../legal-structure/tagger" }
+legal-pdf-tagger = { path = "../../legal-pdf-parser/legal-pdf-tagger" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

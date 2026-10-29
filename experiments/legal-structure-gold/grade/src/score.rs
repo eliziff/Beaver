@@ -4,7 +4,7 @@
 use crate::alignment::{align, Stats};
 use crate::state::{anchor, block_id, State};
 use crate::text_diff;
-use legal_structure_tagger::{FrameAnnotation, FrameBlock, SourceSpan};
+use legal_pdf_tagger::{FrameAnnotation, FrameBlock, SourceSpan};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -389,7 +389,7 @@ fn features<'a>(
         }
     }
     let composed =
-        legal_structure_tagger::assemble_frame(legal_structure_tagger::FrameRequest {
+        legal_pdf_tagger::assemble_frame(legal_pdf_tagger::FrameRequest {
             lines: state.composition_lines(),
             groups: state.groups.clone(),
             annotations: annotations.clone(),
@@ -609,8 +609,8 @@ fn features<'a>(
             result.hierarchy_marker.push((unit, marker_spans));
         }
     }
-    let logical = legal_structure_tagger::resolve_frame_annotations(
-        legal_structure_tagger::FrameAnnotationsRequest {
+    let logical = legal_pdf_tagger::resolve_frame_annotations(
+        legal_pdf_tagger::FrameAnnotationsRequest {
             lines: state.composition_lines(),
             reading_order: state.order_ids(),
             annotations: annotations.clone(),

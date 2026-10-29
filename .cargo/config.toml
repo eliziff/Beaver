@@ -17,3 +17,9 @@ RAYON_NUM_THREADS = { value = "1", force = false }
 [patch."https://github.com/eliziff/common-law-cite.git"]
 legal-citations = { path = "common-law-cite/crates/legal-citations" }
 legal-text = { path = "common-law-cite/crates/legal-text" }
+
+[patch."https://github.com/eliziff/legal-structure-parser.git"]
+legal-structure = { path = "legal-structure" }
+legal-layout = { path = "legal-structure/layout" }
+legal-structure-model = { path = "legal-structure/model" }
+legal-structure-features = { path = "legal-structure/features" }

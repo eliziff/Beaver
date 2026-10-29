@@ -4,7 +4,7 @@
 mod replay;
 
 use legal_pdf_core::read_gzip_json;
-use legal_structure_tagger::{alignment, state, text_diff};
+use legal_pdf_tagger::{alignment, state, text_diff};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
