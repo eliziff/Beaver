@@ -376,7 +376,7 @@ Restore the [repository checkout](local-subrepositories.md), install root/backen
 frontend npm dependencies, and build the native addon for the current platform:
 
 ```sh
-cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
+npm run native:build:release
 npm run dev:authorities
 ```
 

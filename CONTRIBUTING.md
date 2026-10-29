@@ -79,12 +79,20 @@ Both commands use development defaults; add `-- --release` for delivery builds.
 Ordinary HTML assembly skips React Compiler/precompression and uses fast gzip;
 explicit delivery retains optimized engine selection and frontend transforms.
 
-For a Rust edit, check/test the owning crate first, not the addon or workspace:
+For a Rust edit, check/test the owning crate first, not the addon or workspace, from the crate's own folder: Cargo
+reads its configuration from the folder it runs in, and its own folder keeps its builds in its own target folder,
+apart from the addon's:
 
 ```sh
-cargo check --offline --manifest-path legal-structure/Cargo.toml -p legal-structure
-cargo test --offline --manifest-path legal-structure/Cargo.toml -p legal-structure --lib <test-name>
+cd legal-structure
+cargo check --offline -p legal-structure
+cargo test --offline -p legal-structure --lib <test-name>
 ```
+
+Anything built in the root workspace (the addon, the structure grader, the OCR experiment) goes through
+`node scripts/cargo.mjs <cargo arguments>`, as `npm run native:build` does: those builds share one target folder, and
+Cargo names a crate's build without its compiler flags, so one plain `cargo build` there with other flags replaces
+every shared crate's build and the next build recompiles them all.
 
 Rebuild the Node addon only when its Rust source changes. Use `npm run native:build`;
 this fixes the manifest, target directory, development profile and environment. UI, TypeScript

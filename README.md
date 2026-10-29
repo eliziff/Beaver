@@ -33,7 +33,7 @@ From the Beaver root:
 ```powershell
 if (!(Test-Path backend\.env)) { Copy-Item backend\.env.example backend\.env }
 npm ci
-cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
+npm run native:build:release
 npm run build --prefix backend
 npm run build:deploy --prefix frontend
 ```

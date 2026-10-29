@@ -144,7 +144,7 @@ def main():
     if not args.skip_build:
         before = source_files()
         print('Linking the cached-image crop probe once.',flush=True)
-        invoke(['cargo','build','--offline','--locked','-j','1','--manifest-path',
+        invoke(['node','scripts/cargo.mjs','build','--offline','--locked','-j','1','--manifest-path',
                 'experiments/ocr-structure-attribution/Cargo.toml','--bin','crop-ab'],output/'build.log',env)
         after = source_files()
         write(output/'build.json',{'binary_sha256':digest(binary),'source_files':after,'source_unchanged':before==after})

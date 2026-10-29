@@ -42,9 +42,9 @@ function Remote([string]$Script) {
 if (-not $NoBuild) {
   $log = "$env:TEMP\prove-build.err"
   $started = Get-Date
-  $build = Start-Process cargo -ArgumentList 'build', '--release', '-p', 'structure-gold' -WorkingDirectory $root -NoNewWindow -PassThru -RedirectStandardError $log
+  # Built as the addon is (scripts/cargo.mjs), or each build would replace the other's crates in the shared target.
+  $build = Start-Process node -ArgumentList 'scripts/cargo.mjs', 'build', '--release', '-p', 'structure-gold' -WorkingDirectory $root -NoNewWindow -PassThru -RedirectStandardError $log
   $null = $build.Handle  # held, so the exit code can be read after the process ends
-  Start-Sleep 2; try { $build.PriorityClass = 'BelowNormal' } catch {}
   $build.WaitForExit()
   $lines = Get-Content $log
   $ours = @($lines | Select-String -Pattern '^\s*Compiling \S+ v\S+ \(').Count
