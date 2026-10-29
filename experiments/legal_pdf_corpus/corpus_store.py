@@ -341,18 +341,21 @@ def page_texts(body: bytes) -> list[str]:
 
 
 def add_file(db, body: bytes, ctype: str, where: Path | None, text: bool = True) -> str:
-    """Record bytes once by sha256: at `where` when the file already lives under HOME, else copied into ROOT/`where`."""
+    """Record bytes once by sha256: at `where` when the file already lives under HOME or is a file on another drive
+    (recorded by its absolute path, so a collection too large for HOME's drive stays where it was saved), else copied
+    into ROOT/`where`."""
     sha = hashlib.sha256(body).hexdigest()
     if db.execute("select 1 from files where sha256=?", (sha,)).fetchone():
         return sha
     texts = page_texts(body) if text else []
-    if not where.is_relative_to(HOME):
+    elsewhere = where.is_absolute() and where.is_file() and not where.is_relative_to(HOME)
+    if not where.is_relative_to(HOME) and not elsewhere:
         ext = ".pdf" if body[:5] == b"%PDF-" else ".html" if body.lstrip()[:1] == b"<" else ".bin"
         where = ROOT / where / f"{sha}{ext}"
         where.parent.mkdir(parents=True, exist_ok=True)
         if not where.exists():
             where.write_bytes(body)
-    db.execute("insert into files values (?,?,?,?,?,?,?)", (sha, where.relative_to(HOME).as_posix(), len(body), ctype, len(texts) if text else None,
+    db.execute("insert into files values (?,?,?,?,?,?,?)", (sha, (where if elsewhere else where.relative_to(HOME)).as_posix(), len(body), ctype, len(texts) if text else None,
                                                           hashlib.sha256("\f".join(texts).encode()).hexdigest() if text else None, now()))
     db.executemany("insert into pages(sha256, page, text) values (?,?,?)", [(sha, i + 1, t) for i, t in enumerate(texts)])
     return sha
