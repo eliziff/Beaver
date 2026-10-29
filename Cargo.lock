@@ -1163,9 +1163,9 @@ dependencies = [
  "legal-pdf-ocr",
  "legal-pdf-structure",
  "legal-pdf-support",
+ "legal-pdf-tagger",
  "legal-pdf-witnesses",
  "legal-structure-model",
- "legal-structure-tagger",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1210,6 +1210,21 @@ dependencies = [
  "legal-pdf-core",
  "pdf-inspector",
  "serde",
+]
+
+[[package]]
+name = "legal-pdf-tagger"
+version = "0.1.0"
+dependencies = [
+ "diff-match-patch-rs 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "legal-pdf-core",
+ "legal-structure",
+ "legal-structure-features",
+ "legal-structure-model",
+ "ort",
+ "regex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1284,21 +1299,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
-]
-
-[[package]]
-name = "legal-structure-tagger"
-version = "0.1.0"
-dependencies = [
- "diff-match-patch-rs 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "legal-pdf-core",
- "legal-structure",
- "legal-structure-features",
- "legal-structure-model",
- "ort",
- "regex",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1595,8 +1595,8 @@ dependencies = [
  "legal-pdf-core",
  "legal-pdf-ocr",
  "legal-pdf-parser",
+ "legal-pdf-tagger",
  "legal-structure",
- "legal-structure-tagger",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -2233,10 +2233,10 @@ dependencies = [
  "flate2",
  "legal-pdf-core",
  "legal-pdf-parser",
+ "legal-pdf-tagger",
  "legal-structure",
  "legal-structure-features",
  "legal-structure-model",
- "legal-structure-tagger",
  "regex",
  "serde",
  "serde_json",
