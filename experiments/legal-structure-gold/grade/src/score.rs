@@ -256,6 +256,7 @@ struct Features {
     note: Vec<(Segments, Segments)>,
     note_references: Vec<(Segments, Segments)>,
     document: Vec<Document>,
+    document_parts: Vec<(Document, Option<Document>, String)>,
     document_ownership: Vec<(Piece, Document)>,
     continuations: Vec<(Option<Point>, Option<Point>, String)>,
     /// Units and printed markers by what the unit is, for the headline table.
@@ -617,6 +618,8 @@ fn features<'a>(
             continuations: state.continuations.clone(),
         },
     )?;
+    let rank: HashMap<usize, usize> = state.reading_order.iter().enumerate().map(|(i, &n)| (n, i)).collect();
+    let mut opened: Vec<(usize, Document, String)> = Vec::new();
     for a in &logical.annotations {
         let extent = spans(&members(state, &a.spans, &a.line_ids))?;
         match a.kind.as_str() {
@@ -655,10 +658,22 @@ fn features<'a>(
                         .push((extent.clone(), spans(std::slice::from_ref(&s))?));
                 }
             }
-            "document" => result.document.push(document(&a.line_ids[0])?),
+            "document" => {
+                let rank = rank.get(&line_of(&a.line_ids[0])?).copied().unwrap_or(usize::MAX);
+                let kind = a.attributes.get("kind").and_then(Value::as_str).unwrap_or_default().to_owned();
+                opened.push((rank, document(&a.line_ids[0])?, kind));
+            }
             _ => {}
         }
     }
+    // A source's own first document opens wherever reading begins, so it is no evidence of
+    // splitting: the starts scored are the internal ones. A part is right when its start, the next
+    // part's start (or the source's end) and its type all are.
+    opened.sort_by_key(|(rank, _, _)| *rank);
+    result.document = opened.iter().filter(|(_, d, _)| *d != Document::Root).map(|(_, d, _)| d.clone()).collect();
+    result.document_parts = opened.iter().enumerate()
+        .map(|(i, (_, d, kind))| (d.clone(), opened.get(i + 1).map(|(_, next, _)| next.clone()), kind.clone()))
+        .collect();
     // Text before the first declared document is the source's own: the root's.
     let ownership = || -> Result<Vec<(Piece, Document)>, String> {
         let owners: HashMap<&str, Option<&str>> = composed
@@ -1036,6 +1051,7 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
     metrics.insert("line_numbers", prf(&wanted.line_numbers, &got.line_numbers));
     metrics.insert("speakers", prf(&wanted.speakers, &got.speakers));
     metrics.insert("document", prf(&wanted.document, &got.document));
+    metrics.insert("document_parts", prf(&wanted.document_parts, &got.document_parts));
     metrics.insert(
         "document_ownership",
         prf(&wanted.document_ownership, &got.document_ownership),
