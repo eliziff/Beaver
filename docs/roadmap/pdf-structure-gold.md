@@ -47,29 +47,48 @@ Rules for the code:
 
 ## The gold
 
-`experiments/legal-structure-gold/author.py` makes one gold file per source
-(`legal-structure-gold.v4`) in three passes. Every pass sees the page images.
+The gold is one store with one set of conventions. The batch a gold was authored in (b5, b8, ...)
+is provenance only: no convention, grade or pool depends on it.
 
-1. **Lines:** the model sees each page and its extracted lines and gives the page's units, each a
-   region and its printed lines (correcting misread text), with a tab after each printed marker
-   and note references written with their printed mark as `[^mark]`; a flag says when a page's
-   first unit continues the page before.
-2. **Notes:** the model pairs every note reference with its note's number in the document's index.
-3. **Hierarchy:** over the whole document at once (in windows only past the model's context), the
-   model gives each unit that falls under another its parent, as row pairs, and, where the file holds several documents (a judgment with
-   exhibits, a book of articles), where each starts and ends.
+`experiments/legal-structure-gold/author.py` makes one gold file per source PDF
+(`legal-structure-gold.v4`). Each step has one decider, and no later step decides it again:
 
-The runner aligns the typed lines to the extracted ones and records the corrections, spans,
-markers, pairs, parents and the model's reading order, and keeps the authoring extraction (line
-and word boxes) beside the gold so OCR, layout and parser models can train from it. Its receipt
-counts recognition misses (typed lines matching no extracted line) and the engine's split and
-merged lines, for the OCR census; the gold corrects recognition, never segmentation. Prompts stay small: they state the task and fix broad
-misunderstandings, never edge cases. Model choice comes from measurement; gpt-6.1-sol at low
-effort was chosen on a 120-page probe (lines) and on the journal footnote gold (notes: every one
-of 457 gold pairs).
+1. **Documents (the splitter).** Where the file's documents start, at a page or at a line partway
+   down one, is decided before authoring by the page-stream splitter
+   ([page-stream segmentation](../../experiments/page-stream-segmentation/README.md), its split
+   annotation `{sha256, document_starts}`; `[]` for a file of one document). `author.py` requires
+   it (`--splits`) and refuses a file without one. The gold records the starts it was cut at
+   (`authoring.document_starts`).
+2. **Lines (per page).** The model sees each page's image and extracted lines, with the pages
+   either side as context, and gives every line in reading order with its region, whether it starts
+   a unit, its printed markers (typed as printed) and its note reference marks, correcting misread
+   text. Notes are paired by the parser's own pairer over the corrected lines.
+3. **Document (per document, as cut).** Each document is authored alone: the model sees all its
+   units and page images and gives each heading its level, every other body unit its depth (one per
+   printed marker), and what the document is (`document_type`, from `prompts.DOCUMENT_TYPES`).
+   The documents' golds are joined into the file's gold; each later document's first unit has
+   `starts_document`.
 
-`experiments/legal-structure-gold/score_all.py` scores a parser build against the gold, feature by
-feature. The journal footnote gold (`experiments/footnote-gold`) scores footnote pairing.
+What a document is, is read for parsing that document as cut: a schedule split off a contract is
+authored and typed on its own pages. Where it came from is provenance, kept apart: the packet it was
+cut from is its gold's file, and a source that is itself an excerpt of a larger PDF names that PDF
+(`parent_sha256`, from the collectors through `provenance.mjs`; parent and child are kept in one
+partition). A schedule, form or conditions of a contract is a contract (ruling of 2026-10-25): its
+numbered paragraphs are provisions.
+
+The runner aligns the typed lines to the extracted ones, records the corrections, spans, markers,
+note pairs, levels, depths and reading order, and keeps the authoring extraction (line and word
+boxes) beside the gold. The authoring extraction is never redone for later work: the inputs key
+follows extraction only. Prompts stay small: they state the task and fix broad misunderstandings,
+never edge cases. Model choice comes from measurement (gpt-6.1-sol at low effort).
+
+`experiments/legal-structure-gold/gold_checks.py` holds the store to these conventions and runs over
+the whole store at every integration (`--splits` with the splitter's annotations): `unsplit` (a gold
+authored without a split annotation), `starts` (cut at starts the splitter has since changed),
+`types` (a document type missing or outside the list), and within each gold the `recurring` and
+`headings` consistency checks. A flagged gold is authored again (`--splits --again`), never patched
+by hand. The grader (`experiments/legal-structure-gold/grade`) scores a parser build against the
+store; the journal footnote gold (`experiments/footnote-gold`) scores footnote pairing.
 
 The [OCR attribution experiment](../../experiments/ocr-structure-attribution/README.md)
 analyzes all 359 completed sources from saved gold, without rerendering or OCR.
@@ -90,13 +109,10 @@ is unproven. The strict note-reference metric also requires exact target-note
 boundaries, so it is not isolated pairing accuracy or an OCR ceiling.
 
 The [page-stream experiment](../../experiments/page-stream-segmentation/README.md)
-prepares page-boundary labels from existing v4 document flags and original
-affidavit/medical source maps. It stages bounded Codex image requests, preserves
-unknown gaps, exports family-partitioned examples and measures boundary and
-packet accuracy. A CPU tree baseline consumes existing Rust feature rows.
-Within-page starts retain their span gold; no page boundary is inferred from them.
-Real-data training, independent quality/calibration and end-to-end timing remain
-gates before a boundary model enters the parser's tier 1.
+is the splitter: it authors the split annotations every gold is cut at (Codex image requests over
+each file's pages, unknown gaps preserved) and measures boundary models against them. Real-data
+training, independent quality/calibration and end-to-end timing remain gates before a boundary
+model enters the parser's tier 1.
 
 ## Out of scope
 

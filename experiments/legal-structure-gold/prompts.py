@@ -1,6 +1,6 @@
 """The structure-gold calls, each seeing the page images: the lines pass (one target page, with the
-pages either side as context) and the document pass (the whole document: heading levels, depths,
-documents)."""
+pages either side as context) and the document pass (one whole document, as the splitter cut it:
+heading levels, depths, what the document is)."""
 import json
 
 REGIONS = ("text", "provision", "list_item", "title", "heading", "quote", "note", "note_quote", "table", "contents", "headnote", "marginal_note", "furniture",
@@ -69,8 +69,8 @@ def lines_schema(numbers, pages):
 
 
 _ROWS = "The rows are the document's units in reading order: each with its page, its region, its indent (its first line's left edge, as a percentage of the page's width), the printed markers it opens with, and its text."
-_STARTS = "- starts: the row each of the file's documents starts on, row 1 for the first, with what the document is; a file can hold several, such as an affidavit and its exhibits, each exhibit a document of its own."
-# A document split from its packet before authoring is one document: the pass names what it is.
+# Every file is split into its documents before authoring (the splitter decides where each starts),
+# so the pass sees one document and names what it is.
 _TYPE = "- type: what the document is."
 # The document pass's two forms, under trial: a heading level or body depths per row ("two"), or one
 # depth per row, headings included ("one").
@@ -84,12 +84,11 @@ Answer each row the answer names, once, with its depths:
 """}
 
 
-def hierarchy_schema(rows, answered, counts, form, whole=False, provisions=()):
+def hierarchy_schema(answered, counts, form, provisions=()):
     """The document pass's schema for one call: an answer for each row that takes one (a heading
     level or depths, or depths alone in the one-depth form and for a provision, which is never a
-    heading), one depth per printed marker, and document starts on any of its rows, or, for a
-    document split from its packet (`whole`), what it is. counts: {row: printed markers};
-    provisions: the provision rows."""
+    heading), one depth per printed marker, and what the document is. counts: {row: printed
+    markers}; provisions: the provision rows."""
     def depths(row):
         k = max(1, counts[row])
         return {"type": "object", "additionalProperties": False, "required": ["depths"], "properties": {
@@ -97,12 +96,9 @@ def hierarchy_schema(rows, answered, counts, form, whole=False, provisions=()):
     level = {"type": "object", "additionalProperties": False, "required": ["level"],
              "properties": {"level": {"type": "integer", "minimum": 1, "maximum": 9}}}
     answers = {str(r): {"anyOf": [level, depths(r)]} if form == "two" and r not in provisions else depths(r) for r in answered}
-    kind = {"type": "string", "enum": list(DOCUMENT_TYPES)}
-    documents = {"type": kind} if whole else {"starts": {"type": "array", "items": {
-        "type": "object", "additionalProperties": False, "required": ["row", "type"],
-        "properties": {"row": {"type": "integer", "enum": [*rows]}, "type": kind}}}}
-    return {"type": "object", "additionalProperties": False, "required": ["rows", *documents], "properties": {
-        "rows": {"type": "object", "additionalProperties": False, "required": list(answers), "properties": answers}, **documents}}
+    return {"type": "object", "additionalProperties": False, "required": ["rows", "type"], "properties": {
+        "rows": {"type": "object", "additionalProperties": False, "required": list(answers), "properties": answers},
+        "type": {"type": "string", "enum": list(DOCUMENT_TYPES)}}}
 
 
 DOCUMENT_TYPES = ("judgment", "order", "affidavit", "pleading", "submission", "notice", "contract", "correspondence",
@@ -131,11 +127,11 @@ def lines_prompt(numbered, target, count, before=None, after=None, shared=False)
         "", "OTHER_DOCUMENT_CONTEXT:", "\n---\n".join(context) or "[none]"])
 
 
-def hierarchy_prompt(rows, shown, pages, form, whole=False):
-    """rows: [(page, region, text, markers, indent)]; shown: the row indexes in this call; pages: the
-    imaged pages; whole: the rows are one document split from its packet."""
+def hierarchy_prompt(rows, shown, pages, form):
+    """rows: [(page, region, text, markers, indent)] of one document; shown: the row indexes in this
+    call; pages: the imaged pages."""
     more = "\n(More rows follow.)" if shown[-1] + 1 < len(rows) else ""
-    return (HIERARCHY[form] + (_TYPE if whole else _STARTS) + "\n" + images(pages) + "\nROWS (row | page | region | indent | markers | text)\n"
+    return (HIERARCHY[form] + _TYPE + "\n" + images(pages) + "\nROWS (row | page | region | indent | markers | text)\n"
             + "\n".join(f"{n + 1} | p{rows[n][0]} | {rows[n][1]} | {'-' if rows[n][4] is None else str(rows[n][4]) + '%'} | "
                         f"{json.dumps(rows[n][3], ensure_ascii=False) if rows[n][3] else '-'} | {rows[n][2]}"
                         for n in shown) + more)
