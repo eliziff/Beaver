@@ -7,8 +7,27 @@ use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi::{Env, Task};
 use napi_derive::napi;
 
+/// mimalloc, returning freed memory to the system at once (a purge delay of 0). On 24 digital-born
+/// documents a parse ran about 20% faster than on Windows' process heap at the same or lower peak
+/// memory; at mimalloc's default delay the extraction's peak rose by half. Allocation diagnostics
+/// count with an allocator of their own.
+#[cfg(not(feature = "allocation-diagnostics"))]
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+/// mimalloc's `mi_option_purge_delay` (its v2 `mi_option_e`, between `eager_commit_delay` 14 and
+/// `use_numa_nodes` 16), which libmimalloc-sys does not name.
+#[cfg(not(feature = "allocation-diagnostics"))]
+const MI_OPTION_PURGE_DELAY: libmimalloc_sys::mi_option_t = 15;
+
 #[napi_derive::module_init]
 fn init() {
+    // SAFETY: mimalloc's options are set before any other thread runs; the module loads on the JS
+    // thread.
+    #[cfg(not(feature = "allocation-diagnostics"))]
+    unsafe {
+        libmimalloc_sys::mi_option_set(MI_OPTION_PURGE_DELAY, 0);
+    }
     engine::install_structure_analysis();
 }
 
