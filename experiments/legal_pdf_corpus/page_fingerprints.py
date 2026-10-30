@@ -2,9 +2,10 @@
 
 From the workspace root (explicit source preparation, no OCR or model calls)::
 
-    python experiments/legal_pdf_corpus/page_fingerprints.py --selection benchmarks/local-data/legal-structure-gold/family-selection.json --prepare
+    python experiments/legal_pdf_corpus/page_fingerprints.py --store --prepare
 
-Use --sha SHA [SHA ...] instead for explicit corpus sources. Omit --prepare to
+--store takes every source of the gold store (gold_store.py); use --sha SHA [SHA ...] instead for
+explicit corpus sources. Omit --prepare to
 export already prepared evidence through a read-only corpus connection.
 
 The existing canonical corpus.sqlite owns page_visual_fingerprints, keyed by
@@ -27,8 +28,8 @@ missing/incomplete source coverage. Reruns do not erase earlier diagnostics.
 Private page-visual-candidates.json contains exact raster groups and unreviewed
 complete compact signature groups and neighbouring-signature relationships.
 Neither grouping writes family membership nor marks any review complete. The
-output remains inside benchmarks/local-data/legal-structure-gold and atomically
-replaces the prior candidate file; no page images or scratch receipts persist.
+output stays beside the corpus (corpus_store.ROOT) and atomically replaces the
+prior candidate file; no page images or scratch receipts persist.
 """
 from __future__ import annotations
 
@@ -44,20 +45,16 @@ import re
 import sqlite3
 
 import corpus_store
-
-PRIVATE = Path(__file__).resolve().parents[2] / "benchmarks/local-data/legal-structure-gold"
+import gold_store
 
 
 def encoded(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
-def sources(shas, selection):
-    if selection:
-        value = json.loads(selection.read_text(encoding="utf-8-sig"))
-        if value.get("schema_version") != "pdf-structure-gold-membership.v1":
-            raise ValueError("Expected prepared corpus membership selection")
-        shas = [member["sha256"] for member in value["members"]]
+def sources(shas, store):
+    if store:
+        shas = [p.name for p in gold_store.ROOT.iterdir() if re.fullmatch(r"[0-9a-f]{64}", p.name)]
     result = sorted(set(shas))
     if not result or any(not re.fullmatch(r"[0-9a-f]{64}", sha) for sha in result):
         raise ValueError("Select explicit corpus SHA256 identities")
@@ -235,17 +232,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     inputs = parser.add_mutually_exclusive_group(required=True)
     inputs.add_argument("--sha", nargs="+")
-    inputs.add_argument("--selection", type=Path)
+    inputs.add_argument("--store", action="store_true", help="Every source of the gold store")
     parser.add_argument("--prepare", action="store_true", help="Render missing pages and persist corpus evidence")
     parser.add_argument("--max-edge", type=int, default=256)
-    parser.add_argument("--output", type=Path, default=PRIVATE / "page-visual-candidates.json")
+    parser.add_argument("--output", type=Path, default=corpus_store.ROOT / "page-visual-candidates.json")
     args = parser.parse_args()
     if not 64 <= args.max_edge <= 1024:
         parser.error("max-edge must be 64..1024")
     output = args.output.resolve()
-    if not output.is_relative_to(PRIVATE.resolve()):
-        parser.error("Candidate export must remain in the private legal-structure-gold owner")
-    shas = sources(args.sha or [], args.selection)
+    if not output.is_relative_to(corpus_store.ROOT.resolve()):
+        parser.error("Candidate export must remain beside the corpus")
+    shas = sources(args.sha or [], args.store)
     config, config_sha = configuration(args.max_edge)
     if args.prepare:
         db = corpus_store.connect()

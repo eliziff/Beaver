@@ -7,7 +7,7 @@ import sys
 import time
 
 
-def run(root,fable):
+def run(root):
     out=root/'cpu-model/full-page-and-line'; out.mkdir(parents=True,exist_ok=True)
     status_path=out/'run-status.json'; began=time.time()
     commands=[
@@ -47,7 +47,7 @@ def status(root):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--root',required=True,type=Path)
-    parser.add_argument('--fable',type=Path); parser.add_argument('--status',action='store_true')
+    parser.add_argument('--status',action='store_true')
     args=parser.parse_args()
     if args.status: status(args.root)
-    else: raise SystemExit(run(args.root,args.fable))
+    else: raise SystemExit(run(args.root))

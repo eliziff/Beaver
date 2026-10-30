@@ -72,7 +72,6 @@ param($Fable, $Store, $Tag, $Arm, $Variables, $Parts)
 $runtime = 'C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime'
 $env:LEGALPDF_INDRA_MODEL_PACK = "$runtime\indra"
 $env:LEGALPDF_ONNXRUNTIME = "$runtime\onnx\onnxruntime.dll"
-$env:STRUCTURE_GOLD_THREADS = '2'
 $env:LEGALPDF_RECOGNITION_TRACE = '1'
 foreach ($name in $Variables.Keys) { Set-Item "env:$name" $Variables[$name] }
 # The layout model's OpenVINO runtime loads its libraries from beside it.
