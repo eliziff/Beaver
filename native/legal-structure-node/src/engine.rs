@@ -339,7 +339,7 @@ pub fn citation_lookup_keys(texts: &[String]) -> Vec<String> {
 /// one identity, so keys stored under another table are made again.
 pub fn citation_key_version() -> String {
     use sha2::{Digest, Sha256};
-    let table = Sha256::digest(legal_structure::citations::aliases::DATA.as_bytes());
+    let table = Sha256::digest(legal_structure::citations::aliases::COMPILED);
     format!("{}:{}", legal_structure::citations::key::KEY_VERSION, table[..6].iter().map(|byte| format!("{byte:02x}")).collect::<String>())
 }
 
