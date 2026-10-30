@@ -436,6 +436,11 @@ class DocxSessionImpl {
   }
 
   save() {
+    // A part the package stores uncompressed (a picture, as Word stores one) is written as it was read: deflating it
+    // again would cost most of a large document's save.
+    for (const entry of Object.values(this.zip.files))
+      if ((entry as { _data?: { compression?: { magic?: string } } })._data?.compression?.magic === "\x00\x00")
+        entry.options.compression = "STORE";
     return this.zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
   }
 }
