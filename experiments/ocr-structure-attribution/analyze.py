@@ -8,9 +8,8 @@ from collections import Counter, defaultdict
 import gzip
 import hashlib
 import json
-import os
 from pathlib import Path
-import sqlite3
+import sys
 import time
 import unicodedata
 
@@ -18,7 +17,9 @@ from rapidfuzz.distance import Levenshtein
 from rapidfuzz import fuzz
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATA = ROOT / "benchmarks/local-data/structure-gold"
+sys.path.insert(0, str(ROOT / "experiments/legal_pdf_corpus"))
+import gold_store  # noqa: E402
+
 DEFAULT_OUT = ROOT / "benchmarks/local-data/ocr-structure-attribution/latest"
 
 
@@ -112,39 +113,32 @@ def marks(gold):
             yield {'kind': kind, 'label': ''.join(labels), 'status': status, 'pieces': pieces}
 
 
-def sources(data):
-    seen = set()
-    for batch in ['b5', 'b6', 'b7']:
-        manifest = data / batch / 'cohort-manifest.json'
-        for row in read(manifest)['documents']:
-            sha = row['sha256']; folder = data / batch / 'a' / sha
-            if sha in seen or row.get('split') not in ('train', 'development'):
-                continue
-            path = folder / 'gold.json.gz'
-            if not path.is_file() or not (folder / 'receipt.json').is_file():
-                continue
-            receipt = read(folder / 'receipt.json')
-            if receipt['status'] != 'complete':
-                continue
-            gold = read(path)
-            if gold['schema_version'] != 'legal-structure-gold.v4' or gold['source_sha256'] != sha:
-                raise ValueError('Unexpected gold schema or source binding')
-            if 'text_edits' in gold:
-                raise ValueError('This experiment requires the current per-line corrected gold')
-            if digest(path) != receipt['gold_sha256']:
-                raise ValueError(f'Gold/receipt hash mismatch: {sha}')
-            seen.add(sha)
-            yield {**row, 'batch': batch, 'gold': str(path), 'gold_sha256': receipt['gold_sha256'],
-                   'manifest_sha256': digest(manifest)}, gold
+def sources():
+    """The gold store's current golds of train and development sources (gold_store.py)."""
+    for sha, path in gold_store.sources(gold_store.STRUCTURE):
+        split = gold_store.source(sha).get('partition')
+        if split not in ('train', 'development'):
+            continue
+        receipt = read(path.with_name('receipt.json'))
+        if receipt['status'] != 'complete':
+            continue
+        gold = read(path)
+        if gold['schema_version'] != 'legal-structure-gold.v4' or gold['source_sha256'] != sha:
+            raise ValueError('Unexpected gold schema or source binding')
+        if 'text_edits' in gold:
+            raise ValueError('This experiment requires the current per-line corrected gold')
+        if digest(path) != receipt['gold_sha256']:
+            raise ValueError(f'Gold/receipt hash mismatch: {sha}')
+        yield {'sha256': sha, 'mode': receipt['mode'], 'split': split, 'path': str(gold_store.pdf(sha)),
+               'run': path.parent.name, 'gold': str(path), 'gold_sha256': receipt['gold_sha256']}, gold
 
 
 def prepare(args):
     out = args.out; out.mkdir(parents=True, exist_ok=True)
     totals, groups, documents = Counter(), defaultdict(Counter), []
     candidates = []
-    corpus = Path(os.environ.get('OPEN_LEGAL_DATA_HOME', Path(os.environ['LOCALAPPDATA']) / 'OpenLegalData')) / 'corpus/corpus.sqlite'
-    with sqlite3.connect(corpus.as_uri() + '?mode=ro', uri=True) as db, gzip.open(out / 'gold-marks.jsonl.gz', 'wt', encoding='utf-8') as sink:
-        for row, gold in sources(args.data):
+    with gzip.open(out / 'gold-marks.jsonl.gz', 'wt', encoding='utf-8') as sink:
+        for row, gold in sources():
             rows = list(marks(gold)); page_marks = defaultdict(list)
             totals['documents'] += 1; totals['lines'] += len(gold['lines']); totals['pages'] += gold['page_count']
             report = gold.get('report', {})
@@ -158,9 +152,6 @@ def prepare(args):
             if row['mode'] != 'ocr' or gold['page_count'] > args.max_document_pages:
                 continue
             pdf = Path(row['path'])
-            if not pdf.is_file():
-                found = db.execute('select path from files where sha256=?', (row['sha256'],)).fetchone()
-                if found and Path(found[0]).is_file(): pdf = Path(found[0])
             if not pdf.is_file():
                 totals['probe_source_missing'] += 1; continue
             # Deliberately diagnostic: references first, then marker errors, with intact controls
@@ -189,7 +180,7 @@ def prepare(args):
         'documents': documents, 'script_sha256': digest(Path(__file__)),
         'limits': ['Mode is an authoring label, not evidence Indra read a line.',
                    'Unanchored printed lines have no mark positions and are not in anchored-span denominators.',
-                   'One run per source: b5/a, b6/a, b7/a; train/development only.']})
+                   'One run per source: its current gold in the gold store (run a); train/development only.']})
     write(out / 'jobs.json', {'schema': 'ocr-attribution.jobs.v1', 'documents': jobs,
         'selection': 'Exploratory: two reference-rich sources, then sources for text/list/provision/quote markers; errors first, bounded pages per source.'})
     print(json.dumps({'census': dict(totals), 'probe_documents': len(jobs), 'probe_pages': sum(len(r['pages']) for r in jobs)}))
@@ -381,7 +372,7 @@ def corpus(args):
 
 def main():
     parser=argparse.ArgumentParser(__doc__)
-    parser.add_argument('command',choices=['prepare','corpus','report']);parser.add_argument('--data',type=Path,default=DEFAULT_DATA)
+    parser.add_argument('command',choices=['prepare','corpus','report'])
     parser.add_argument('--out',type=Path,default=DEFAULT_OUT);parser.add_argument('--documents',type=int,default=6)
     parser.add_argument('--pages-per-document',type=int,default=2);parser.add_argument('--max-document-pages',type=int,default=30)
     args=parser.parse_args()

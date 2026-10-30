@@ -16,6 +16,9 @@ import sys
 from PIL import Image
 import pymupdf
 
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'legal_pdf_corpus'))
+import gold_store  # noqa: E402
+
 
 def read(path):
     return json.loads(path.read_bytes())
@@ -162,7 +165,9 @@ def extra(source_root,out):
         images=len({a['sha256'] for a in assets.values()}),internal_starts=sum(c['label'] for p in internals for c in p['candidates']))))
 
 
-def partitions(current,test,family):
+def partitions(family,*teacher):
+    """Each source's family (the family map, joined through the teacher cases' families) and its
+    partition: its source.json in the gold store, the one partition every model uses."""
     parent={}
     def find(key):
         parent.setdefault(key,key)
@@ -171,27 +176,19 @@ def partitions(current,test,family):
     def link(a,b):
         a,b=find(a),find(b); parent[max(a,b)]=min(a,b)
     for a,b in family.items(): link(a,b)
-    for case in current['cases']+test['cases']: link(case['sha256'],case['family_id'])
-    held={find(c['sha256']) for c in test['cases']}
-    splits={find(c['sha256']):c['split'] for c in current['cases']+test['cases']}
+    for data in teacher:
+        for case in data['cases']: link(case['sha256'],case['family_id'])
     def split(sha):
-        key=find(sha)
-        if key in held: return 'test'
-        return splits.get(key,'development' if int(hashlib.sha256(('cpu-full-gold:'+key).encode()).hexdigest(),16)%5==0 else 'train')
+        return gold_store.source(sha)['partition']
     return find,split
 
 
 def full(root,legal_root):
-    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'legal_pdf_corpus'))
-    import gold_store
     base=root/'teacher-data'
-    current=read(base/'training.json'); test=read(base/'test.json')
-    family=read(base/'family-map.json')
     # Batch 7's split annotations, as the gold store holds them.
-    final={'sources':[split for _,split,_,_ in gold_store.split_sources('b7-splitter')]}
-    documents={d['sha256']:d for d in read(legal_root/'authoring-manifest-all.json')['documents']}
+    final=gold_store.split_sources('b7-splitter')
     addition=read(base/'additional-gold.json')
-    find,split=partitions(current,test,family)
+    find,split=partitions(read(base/'family-map.json'),read(base/'teacher-training.json'),read(base/'teacher-test.json'))
     cases=[]; internal=[]; labels={}; source_artifacts={}; superseded=[]
     def add(case):
         sha=case['sha256']; partition=split(sha)
@@ -208,10 +205,10 @@ def full(root,legal_root):
                 targets[page]=label; labels[key]=label
         if targets:
             cases.append({**case,'targets':targets,'family_id':find(sha),'split':partition})
-    for source in final['sources']:
-        sha=source['sha256']; doc=documents[sha]; count=doc['pages']
+    for sha,source,folder,_ in final:
         if split(sha)=='test': continue
-        scope=set(source.get('pages',range(1,count+1)))
+        with pymupdf.open(gold_store.pdf(sha)) as pdf: count=len(pdf)
+        scope=set(source.get('pages') or range(1,count+1))
         starts={s for s in source['document_starts'] if type(s) is int}
         images=[]
         for page in range(1,count+1):
@@ -226,9 +223,9 @@ def full(root,legal_root):
         add(dict(case_id=sha+'-full-page-gold',sha256=sha,
             targets={str(p):int(p in starts) for p in scope if p>1 and p-1 in scope},images=images,
             gold_panel='full-legal-split-gold'))
-        frame_path=legal_root/'annotations'/sha/'packet-extraction.json'; frame=read(frame_path)
+        frame_path=folder/'split'/'b7-splitter'/'packet-extraction.json'; frame=read(frame_path)
         caches=list((legal_root.parent/'inputs').glob(sha+'.json.gz'))
-        boxes=line_boxes(frame,caches,Path(doc['path']))
+        boxes=line_boxes(frame,caches,gold_store.pdf(sha))
         for page in internal_pages(source,frame,boxes,scope):
             internal.append(dict(sha256=sha,family_id=find(sha),split=split(sha),frame_sha256=digest(frame_path),
                 image=images[page['page']-1],**page))
@@ -249,11 +246,11 @@ def full(root,legal_root):
     for page in addition['internal_pages']:
         if split(page['sha256'])=='test' or (page['sha256'],page['page']) in existing: continue
         internal.append({**page,'family_id':find(page['sha256']),'split':split(page['sha256'])})
-    for path in (legal_root/'authoring-splits.json',base/'teacher-training.json',base/'additional-gold.json'):
+    for path in (base/'teacher-training.json',base/'additional-gold.json'):
         source_artifacts[str(path)]=digest(path)
     write(base/'full-training.json',dict(schema_version='doc-split-teacher.v2',origin='machine_test',
         run_id='cpu-full-page-and-line-gold',source_artifacts=source_artifacts,cases=cases,
-        report=dict(partition_status='Existing families retain partitions; new families assigned by stable hash; final holdout relatives excluded.')))
+        report=dict(partition_status='Each source\'s partition in the gold store (source.json); test excluded.')))
     write(base/'internal-training.json',dict(schema_version='doc-split-internal.v1',origin='machine_test',
         run_id='cpu-full-page-and-line-gold',source_artifacts=source_artifacts,pages=internal))
     summary={}
@@ -265,7 +262,7 @@ def full(root,legal_root):
             internal_starts=sum(c['label'] for p in pages for c in p['candidates']),
             families=len({c['family_id'] for c in selected}))
     write(base/'full-gold-summary.json',dict(origin='machine_test',run_id='cpu-full-page-and-line-gold',
-        splits=summary,full_sources=len(final['sources']),additional_edge_records=len(addition['edge_cases']),
+        splits=summary,full_sources=len(final),additional_edge_records=len(addition['edge_cases']),
         superseded_historical_references=superseded,
         final_holdout_opened=False,preparer_sha256=digest(Path(__file__))))
     print(json.dumps(summary,indent=2))

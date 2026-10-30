@@ -1,7 +1,7 @@
 """Build exact text layers for scanned SCC judgments from (scanned PDF, A2AJ text) pairs.
 
   python build.py discover      list the local public SCC originals (the app's provider-PDF receipts) that
-                                are scans, at most 40 pages, not already in the gold's cohort, paired by
+                                are scans, at most 40 pages, not already in the gold store, paired by
                                 publisher item URL with the local A2AJ store -> DATA/candidates.json
   python build.py run [--only CITATION ...]
                                 for each candidate: verify the pair, parse it with the installed parser
@@ -27,12 +27,12 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path[:0] = [str(Path(__file__).resolve().parent), str(Path(__file__).resolve().parents[2] / "legal_pdf_corpus")]
 import align as al  # noqa: E402
+import gold_store  # noqa: E402
 
 BEAVER = Path(os.environ.get("BEAVER_ROOT", "C:/Users/elias/Desktop/MikeOSS Fork"))
-GOLD = BEAVER / "benchmarks/local-data/legal-structure-gold"
-DATA = GOLD / "text-layers-2026-10-20"
+DATA = BEAVER / "benchmarks/local-data/legal-structure-gold/text-layers-2026-10-20"
 ROOT = Path(os.environ["LOCALAPPDATA"]) / "OpenLegalData"
 MAX_PAGES = 40
 MARKERS = {"en": "Decision Content", "fr": "Contenu de la décision"}
@@ -70,7 +70,7 @@ def receipts():
 
 def discover():
     import fitz
-    used = {d["sha256"] for d in json.loads((GOLD / "cohort-manifest.json").read_text(encoding="utf-8"))["documents"]}
+    used = {sha for sha, _ in gold_store.sources(gold_store.STRUCTURE)}
     by_item = {}
     with a2aj() as db:
         for row in db.execute("select id,citation_en,citation_fr,name_en,document_date_en,url_en,url_fr,length(unofficial_text_fr) "
@@ -88,7 +88,7 @@ def discover():
             scan = len(first.get_text().strip()) < 50 and bool(first.get_images())
         ident, citation, citation_fr, name, date, url_en, _, fr_length = by_item[item]
         reason = ("born-digital" if not scan else "over 40 pages" if pages > MAX_PAGES else
-                  "already in the gold cohort" if digest in used else None)
+                  "already in the gold store" if digest in used else None)
         if reason:
             skipped[reason] += 1
             continue

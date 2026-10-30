@@ -1,11 +1,12 @@
 """Fine-tune pretrained Heron for heading detection, without heading levels or parents.
 
-prepare --gold GOLD_DIR --inputs FROZEN_INPUTS --out PRIVATE_MODEL_DIR
-train --gold GOLD_DIR --out PRIVATE_MODEL_DIR
+prepare --inputs FROZEN_INPUTS --out PRIVATE_MODEL_DIR [--work AUTHORING_WORK]
+train --out PRIVATE_MODEL_DIR [--work AUTHORING_WORK]
 
-Preparation projects fixed gold headings onto their authoring geometry and writes standard
-COCO boxes. Images stay in the gold store. Pages with unlocatable headings are excluded,
-not treated as negative examples. Only the existing train split is read.
+Preparation projects the gold store's current headings (experiments/legal_pdf_corpus/gold_store.py)
+onto their authoring geometry and writes standard COCO boxes. Images stay where author.py rendered
+them (its --work folder). Pages with unlocatable headings are excluded, not treated as negative
+examples. Only sources whose partition (source.json) is train are read.
 
 Training follows Transformers' object-detection recipe and retains Heron's pretrained
 section-header classifier channel. This experimental one-class detector is not a full
@@ -17,9 +18,12 @@ import gzip
 import hashlib
 import json
 import struct
+import sys
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "legal_pdf_corpus"))
+import gold_store  # noqa: E402
 
 MODEL = "docling-project/docling-layout-heron"
 
@@ -44,17 +48,13 @@ def heading_box(typed, lines):
 
 
 def prepare(args):
-    manifest = json.loads((args.gold / "cohort-manifest.json").read_text())
     images, annotations, sources, excluded = [], [], [], []
-    documents = sorted((row for row in manifest["documents"] if row["split"] == "train"),
-                       key=lambda row: row["sha256"])
-    for row in documents:
-        sha = row["sha256"]
-        directory = args.gold / "v4" / sha
-        receipt = directory / "receipt.json"
-        if not receipt.exists() or json.loads(receipt.read_text())["status"] != "complete":
+    for sha, reference in gold_store.sources(gold_store.STRUCTURE):
+        if gold_store.source(sha).get("partition") != "train":
             continue
-        reference = directory / "gold.json.gz"
+        receipt = json.loads(reference.with_name("receipt.json").read_text())
+        if receipt["status"] != "complete":
+            continue
         geometry = args.inputs / f"{sha}.json.gz"
         with gzip.open(reference, "rt", encoding="utf-8") as stream:
             gold = json.load(stream)
@@ -88,19 +88,19 @@ def prepare(args):
                 excluded.append({"source_sha256": sha, "page": number,
                                  "reason": "a gold heading has no source geometry"})
                 continue
-            found = list((directory / "images-pinned").glob(f"page-{number:06}-*.png"))
+            found = list((args.work / sha / "images").glob(f"page-{number:06}-*.png"))
             if len(found) != 1:
-                raise ValueError(f"Expected one pinned image for {sha}, page {number}: {len(found)}")
+                raise ValueError(f"Expected one authoring image for {sha}, page {number}: {len(found)}")
             image = found[0]
             with image.open("rb") as source:
                 header = source.read(24)
             if header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
-                raise ValueError(f"Expected a pinned PNG image: {image}")
+                raise ValueError(f"Expected a PNG image: {image}")
             width, height = struct.unpack(">II", header[16:24])
             image_id = len(images)
-            images.append({"id": image_id, "file_name": image.relative_to(args.gold).as_posix(),
+            images.append({"id": image_id, "file_name": image.relative_to(args.work).as_posix(),
                            "width": width, "height": height, "source_sha256": sha,
-                           "page": number, "mode": row["mode"]})
+                           "page": number, "mode": receipt["mode"]})
             for box in boxes_by_page[number]:
                 x0, y0, x1, y1 = [max(0.0, min(value / extent, 1.0)) * pixels
                                   for value, extent, pixels in zip(box,
@@ -124,15 +124,14 @@ def prepare(args):
                   "split": "train", "eligible_documents": len(sources),
                   "documents": sum(bool(source["pages"]) for source in sources), "pages": len(images),
                   "headings": len(annotations), "excluded_pages": excluded, "sources": sources,
-                  "cohort_manifest_sha256": digest(args.gold / "cohort-manifest.json"),
                   "dataset_sha256": digest(args.out / "train.coco.json")}
     (args.out / "dataset-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
     print(json.dumps({key: provenance[key] for key in ("documents", "pages", "headings")}), flush=True)
 
 
 class Pages:
-    def __init__(self, gold, data, processor):
-        self.gold, self.images, self.processor = gold, data["images"], processor
+    def __init__(self, root, data, processor):
+        self.root, self.images, self.processor = root, data["images"], processor
         self.annotations = defaultdict(list)
         for annotation in data["annotations"]:
             self.annotations[annotation["image_id"]].append(annotation)
@@ -143,7 +142,7 @@ class Pages:
     def __getitem__(self, index):
         from PIL import Image
         page = self.images[index]
-        with Image.open(self.gold / page["file_name"]) as image:
+        with Image.open(self.root / page["file_name"]) as image:
             inputs = self.processor(images=image.convert("RGB"), annotations={
                 "image_id": page["id"], "annotations": self.annotations[page["id"]]}, return_tensors="pt")
         return {"pixel_values": inputs["pixel_values"][0], "labels": inputs["labels"][0]}
@@ -210,7 +209,7 @@ def train(args):
         report_to=[], push_to_hub=False, seed=7, disable_tqdm=True,
     )
     trainer = Trainer(model=model, args=arguments, processing_class=processor,
-                      train_dataset=Pages(args.gold, json.loads(dataset.read_text()), processor),
+                      train_dataset=Pages(args.work, json.loads(dataset.read_text()), processor),
                       data_collator=collate)
     checkpoint = get_last_checkpoint(arguments.output_dir) if Path(arguments.output_dir).exists() else None
     result = trainer.train(resume_from_checkpoint=checkpoint)
@@ -224,7 +223,7 @@ def train(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("prepare", "train"))
-    parser.add_argument("--gold", type=Path, required=True)
+    parser.add_argument("--work", type=Path, default=gold_store.WORK, help="author.py's working folder, holding its page images")
     parser.add_argument("--inputs", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--epochs", type=int, default=5)

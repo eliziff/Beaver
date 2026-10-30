@@ -278,7 +278,7 @@ def evaluate(models_by_source, eval_sources, sources, offsets, edge, inside, sta
                 a[0] += int(((pred == 1) & (y == 1) & mask).sum()); a[1] += int(((pred == 1) & (y == 0) & mask).sum()); a[2] += int(((pred == 0) & (y == 1) & mask).sum())
             exact[('model', group)] += int(((pred == y) | ~mask).all())
             all_y.append(y[mask]); all_p.append(p[mask])
-            pf = parser_dir / s['batch'] / f"{s['sha256']}.txt"
+            pf = parser_dir / f"{s['sha256']}.txt"
             if pf.exists():
                 ppages, _, ok = parser_pages(pf, s)
                 pp = np.array([int(i + 2 in ppages) for i in range(n - 1)])
@@ -333,7 +333,7 @@ def existing_comparison(existing_dir, eval_sources, sources, offsets, edge, insi
             seq = np.arange(offsets[k], offsets[k] + n)
             y, mask = page_truth(seq, edge, inside, target)
             model = models_by_source[k]
-            pf = Path(PARSER_DIR) / s['batch'] / f"{s['sha256']}.txt"
+            pf = Path(PARSER_DIR) / f"{s['sha256']}.txt"
             ppages = parser_pages(pf, s)[0] if pf.exists() else set()
             for page_s, pr in prob[s['sha256']].items():
                 i = int(page_s) - 2

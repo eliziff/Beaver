@@ -83,8 +83,10 @@ comes back into the folder and is registered.
 What a document is, is read for parsing that document as cut: a schedule split off a contract is
 authored and typed on its own pages. Where it came from is provenance, kept apart: the packet it was
 cut from is its gold's file, and a source that is itself an excerpt of a larger PDF names that PDF
-(`parent_sha256`, from the collectors through `provenance.mjs`; parent and child are kept in one
-partition). A schedule, form or conditions of a contract is a contract (ruling of 2026-10-25): its
+(`parent_sha256`, recorded by the collectors in the corpus registry's `documents` provenance, with
+the parent membership in `gold_memberships`; parent and child are kept in one partition). The
+authoring batches' manifests are kept as provenance under `gold/batches/`, never read for a
+partition. A schedule, form or conditions of a contract is a contract (ruling of 2026-10-25): its
 numbered paragraphs are provisions.
 
 The runner aligns the typed lines to the extracted ones, records the corrections, spans, markers,

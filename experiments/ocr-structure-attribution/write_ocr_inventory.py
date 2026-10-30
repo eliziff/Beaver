@@ -17,6 +17,7 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent/'legal_pdf_corpus'))
 import corpus_store
+import gold_store
 from gold_inventory import corrected_lines, digest, geometry, normalized, page_number, read
 from pack_ocr_gold import json_bytes
 
@@ -28,10 +29,6 @@ def git_locator(root, path, signature):
 
 def recent_gold(root, manifest, pixels):
     rows = []
-    partitions = {}
-    for path in (root/'structure-gold').glob('*/cohort-manifest.json'):
-        for doc in read(path)['documents']:
-            partitions.setdefault(doc['sha256'], set()).add(doc['split'])
     for item in manifest:
         path = Path(item['path'])
         data = path.read_bytes()
@@ -60,7 +57,7 @@ def recent_gold(root, manifest, pixels):
             'text_contract': 'corrected_else_text', 'gold_locator': git_locator(root, path, signature),
             'geometry_locator': {'embedded_in_gold': True, 'units': 'pdf_points'},
             'pixel_locator': pixels.get(source, {'sha256': source, 'missing': True}),
-            'partition': next(iter(partitions[source])) if len(partitions.get(source, [])) == 1 else 'conflict',
+            'partition': gold_store.source(source).get('partition', 'unassigned'),
             'page_count': len(pages), 'line_count': counts['lines'],
             'corrected_line_count': counts['corrected'], 'geometry_line_count': counts['geometry'],
             'notes': {'source_owner': item['owner'], 'geometry_status': 'inherited_proposals',

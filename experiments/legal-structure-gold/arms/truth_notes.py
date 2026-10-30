@@ -2,8 +2,10 @@
 
 The truth is olj-footnote-gold.v1 (experiments/footnote-gold): scanned law-journal
 articles whose every note reference and note label was placed by hand on its printed
-glyph, one reference and one label per note. Each v4 gold (author.py) in a STORE whose
-source is a MANIFEST article with a truth record is compared with it:
+glyph, one reference and one label per note. Each gold of a RUN in the gold store
+(experiments/legal_pdf_corpus/gold_store.py: structure/<batch>-<run>/; run a is the current gold,
+other letters are model trials) whose source is a MANIFEST article with a truth record is
+compared with it:
 
   references   a model note reference on the truth reference's page, with its label,
                at its place on the line (strict); `references_page_label` drops the place
@@ -22,12 +24,10 @@ truth marker (ratio >= 0.75, the footnote-gold scorer's rule), or when either li
 no word around the mark. Labels are normalized as the
 footnote-gold scorer does. Totals are micro-averaged over the scored documents.
 
-  python experiments/legal-structure-gold/arms/truth_notes.py STORE [STORE ...] MANIFEST
+  python experiments/legal-structure-gold/arms/truth_notes.py MANIFEST [--runs a b ...]
          [--truth DIR] [--out FILE] [--show]
 
-STORE is an arm directory holding v4/<sha256>/gold.json.gz, that v4 directory, or a
-directory of arms (each subdirectory with a v4 store is scored as its own arm).
-Summary JSON: --out, default truth-notes.json beside the manifest.
+Each run is scored as its own arm. Summary JSON: --out, default truth-notes.json beside the manifest.
 """
 import argparse
 from collections import Counter
@@ -40,6 +40,8 @@ import sys
 import unicodedata
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "experiments/legal_pdf_corpus"))
+import gold_store  # noqa: E402
 TRUTH = ROOT / "benchmarks/local-data/olj-footnote-gold/gold"
 SYMBOLS = {"∗": "*", "": "*", "＊": "*"}
 LAYERS = ("references", "references_page_label", "notes", "pairs")
@@ -193,14 +195,19 @@ def aggregate(rows):
             "unresolved_pairs": sum(r["unresolved_pairs"] for r in rows)}
 
 
-def score_store(store: Path, rows: list, truth_dir: Path) -> dict:
-    v4 = store / "v4" if (store / "v4").is_dir() else store
+def run_gold(sha: str, run: str):
+    """The source's gold of one run in the gold store, or None."""
+    found = [p for p in gold_store.structure_runs(gold_store.ROOT / sha) if p.name.rsplit("-", 1)[1] == run]
+    return found[-1] / "gold.json.gz" if found else None
+
+
+def score_run(run: str, rows: list, truth_dir: Path) -> dict:
     per_document, absent = [], []
     for row in rows:
-        path, truth_path = v4 / row["sha256"] / "gold.json.gz", truth_dir / row["sha256"] / "gold.json"
+        path, truth_path = run_gold(row["sha256"], run), truth_dir / row["sha256"] / "gold.json"
         if not truth_path.is_file():
             continue
-        if not path.is_file():
+        if path is None:
             absent.append(row["sha256"]); continue
         truth = load(truth_path)
         try:
@@ -211,25 +218,21 @@ def score_store(store: Path, rows: list, truth_dir: Path) -> dict:
         per_document.append({"sha256": row["sha256"], "article": f"{truth['dataset']}:{truth['article_id']}",
                              "pages": truth["pages"], **result})
     scored = [r for r in per_document if "metrics" in r]
-    return {"store": str(store), "scored": len(scored), "not_authored": absent,
+    return {"run": run, "scored": len(scored), "not_authored": absent,
             "errors": [r for r in per_document if "error" in r], "totals": aggregate(scored), "per_document": scored}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("paths", nargs="+", type=Path, help="STORE [STORE ...] MANIFEST")
+    parser.add_argument("manifest", type=Path)
+    parser.add_argument("--runs", nargs="+", default=[gold_store.CURRENT_RUN], help="The gold store's runs to score (default: the current gold)")
     parser.add_argument("--truth", type=Path, default=TRUTH, help="olj-footnote-gold gold/ directory")
     parser.add_argument("--out", type=Path, help="Summary JSON (default: truth-notes.json beside the manifest)")
     parser.add_argument("--show", action="store_true", help="Print each false, misplaced and missed reference")
     args = parser.parse_args()
-    if len(args.paths) < 2:
-        parser.error("give at least one STORE and the MANIFEST")
-    *given, manifest = args.paths
+    manifest = args.manifest
     rows = load(manifest)["documents"]
-    # A directory of arms (C:/Users/elias/fable/arms) stands for each arm in it with a v4 store.
-    stores = [s for store in given for s in ([store] if (store / "v4").is_dir() or store.name == "v4"
-                                              else sorted(p for p in store.iterdir() if (p / "v4").is_dir()) or [store])]
-    results = {store.name if store.name != "v4" else store.parent.name: score_store(store, rows, args.truth) for store in stores}
+    results = {run: score_run(run, rows, args.truth) for run in args.runs}
     out = args.out or manifest.parent / "truth-notes.json"
     out.write_text(json.dumps({"manifest": str(manifest), "truth": str(args.truth), "place": "text context",
                                "arms": results}, ensure_ascii=False, indent=1), encoding="utf-8")

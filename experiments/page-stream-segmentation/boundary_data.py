@@ -3,6 +3,7 @@ from collections import Counter
 import os
 from pathlib import Path
 import re
+import sqlite3
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +17,18 @@ from hierarchy import UNLEVELLED as UNRANKED
 
 def corpus_home():
     return HOME.resolve()
+
+
+def read_catalogue(home):
+    """The corpus catalogue, read-only."""
+    path = home / "corpus" / "corpus.sqlite"
+    # Immutable avoids SQLite shared-memory writes; refuse an uncheckpointed WAL.
+    wal = path.with_name(path.name + "-wal")
+    if wal.exists() and wal.stat().st_size:
+        raise ValueError("Catalogue has an active WAL; use a checkpointed read-only snapshot")
+    db = sqlite3.connect(path.as_uri() + "?mode=ro&immutable=1", uri=True)
+    db.row_factory = sqlite3.Row
+    return db
 
 
 def source_path(source, home):

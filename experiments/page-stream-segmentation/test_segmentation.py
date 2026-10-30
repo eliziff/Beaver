@@ -7,11 +7,12 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 from boundary_data import (ROOT, annotation_labels, atomic_json, check_partitions, compact_scopes,
                            digest, fingerprint, measure, read_json, structure_labels)
 from annotate import consensus, run, validate_response, windows
-from prepare import prepare
+from prepare import gold_store, prepare
 from score import decisions
 
 
@@ -191,29 +192,28 @@ class PipelineTests(unittest.TestCase):
             (home / "corpus").mkdir()
             a, _ = pdf(home, "River basin observations")
             b, _ = pdf(home, "Orchard irrigation log")
+            c, _ = pdf(home / "synthetic", "Invented orchard appendix")
             with closing(sqlite3.connect(home / "corpus/corpus.sqlite")) as db, db:
                 db.executescript("create table files(sha256 text,path text,pages integer);"
                                  "create table documents(sha256 text,collection text);"
                                  "create table gold_memberships(dataset text,record_id text,sha256 text,owner_sha256 text);")
-                db.executemany("insert into files values(?,?,?)", [(a, f"known-remote-only/{a}.pdf", 4), (b, f"{b}.pdf", 0)])
+                db.executemany("insert into files values(?,?,?)", [(a, f"known-remote-only/{a}.pdf", 4), (b, f"{b}.pdf", 0),
+                                                                    (c, f"synthetic/{c}.pdf", 4)])
                 db.execute("insert into gold_memberships values('invented','one',?,?)", (a, b))
-            structure = home / "structure"
-            for sha in (a, b):
-                path = structure / "v4" / sha / "gold.json.gz"
+            store, golds = home / "gold", []
+            for sha, split in ((a, "train"), (b, "development")):
+                atomic_json(store / sha / "source.json", {"partition": split})
+                path = store / sha / "structure" / "invented-a" / "gold.json.gz"
                 atomic_json(path, gold(sha))
                 atomic_json(path.with_name("receipt.json"), {"status": "complete", "mode": "digitalborn", "source_sha256": sha,
                             "gold_sha256": digest(path) if sha == a else "0" * 64})
-            c, synthetic = pdf(structure / "synthetic", "Invented orchard appendix")
-            atomic_json(structure / "cohort-manifest.json", {"documents": [
-                {"sha256": c, "path": "synthetic/" + synthetic.name, "pages": 4}]})
-            atomic_json(structure / "provenance.json", {"records": [{"sha256": c, "synthetic_of": a}]})
-            partitions = home / "families.json"
-            atomic_json(partitions, {"families": [{"id": fingerprint([s]), "members": [s]} for s in (a, b)],
-                        "members": [{"sha256": s, "family_id": fingerprint([s]), "split": split}
-                                    for s, split in ((a, "train"), (b, "development"))],
-                        "family_evidence": [], "exposed_sources": []})
-            args = SimpleNamespace(home=home, out=home / "out", structure=structure, partitions=partitions,
-                                   association=[], legacy=home / "absent", medical=home / "absent.json", annotations=[])
+                golds.append((sha, path))
+            args = SimpleNamespace(home=home, out=home / "out", association=[], legacy=home / "absent",
+                                   medical=home / "absent.json", annotations=[])
+            # The registry's lookup of the store's current golds; source.json is read from the store's folder.
+            store_patch = mock.patch.multiple(gold_store, ROOT=store, sources=lambda kind: golds)
+            store_patch.start()
+            self.addCleanup(store_patch.stop)
             report = prepare(args)
             self.assertEqual(report["known_gaps"], 6)
             self.assertEqual(report["positive_gaps"], 2)

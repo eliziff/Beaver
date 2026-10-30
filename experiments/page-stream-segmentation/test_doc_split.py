@@ -5,8 +5,10 @@ import tempfile
 import unittest
 from PIL import Image
 
+from unittest import mock
+
 from train_doc_split import selection
-from merge_doc_split_gold import merge, page_edge_runs
+from merge_doc_split_gold import gold_store, merge, page_edge_runs
 
 
 class TeacherSelectionTests(unittest.TestCase):
@@ -28,10 +30,13 @@ class TeacherSelectionTests(unittest.TestCase):
                 gold/'authoring-splits.json': {'sources':[{'sha256':sha,'pages':list(range(1,11)),
                     'document_starts':[1,4,9,{'page':7,'line':8}]}]},
                 gold/'authoring-manifest-all.json': {'documents':[{'sha256':sha,'pages':10}]},
-                gold/'reviewed.json': {'decisions':[]}}
+                gold/'reviewed.json': {'decisions':[]},
+                root/'store'/sha/'source.json': {'partition':'train'}}
             for path, value in inputs.items():
+                path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(json.dumps(value))
-            merge(base,gold)
+            with mock.patch.object(gold_store, 'ROOT', root/'store'):
+                merge(base,gold)
             exported = selection(base/'training.json')
             self.assertEqual([[i['page'] for i in c['images']] for c in exported['cases']],[[1,2,3],[9,10]])
             self.assertEqual([c['targets'] for c in exported['cases']],[{'2':0,'3':0},{'10':0}])
