@@ -125,15 +125,28 @@ def sight(raw, vision):
 
 
 def document_types(path):
-    """--doctype: each document's type by sha256 (the gold's own, an oracle for what a document-type
-    signal would add), from {sha256: [[type, first_line, lines], ...]}: the type of the largest part.
-    Returns (sha256 -> code, codes) with 0 for a document the file does not name."""
+    """--doctype: the gold's parts by sha256 (the gold's own types, an oracle for what a document-type
+    signal would add), from {sha256: [[type, first_line, lines], ...]}. Returns (sha256 -> [(first
+    line id, code)], codes); each piece then reads its own part's code (piece_types)."""
     if not path:
         return {}, {}
     parts = json.load(open(path, encoding="utf-8"))
-    dominant = {sha: max(own, key=lambda p: p[2])[0] for sha, own in parts.items() if own}
-    codes = {name: n + 1 for n, name in enumerate(sorted(set(dominant.values())))}
-    return {sha: codes[name] for sha, name in dominant.items()}, codes
+    codes = {name: n + 1 for n, name in enumerate(sorted({p[0] for own in parts.values() for p in own}))}
+    return {sha: [(p[1], codes[p[0]]) for p in own] for sha, own in parts.items() if own}, codes
+
+
+def piece_types(raw, parts):
+    """Each piece's part type code: a part runs from the piece on its first line to the next part's;
+    0 for a document the types do not name."""
+    out = np.zeros(len(raw["ids"]), dtype=np.int64)
+    if not parts:
+        return out
+    opens = dict(parts)
+    code = parts[0][1]
+    for k, piece in enumerate(raw["ids"]):
+        code = opens.pop(piece.split("@")[0], code)
+        out[k] = code
+    return out
 
 
 class Document:
@@ -141,7 +154,7 @@ class Document:
 
     def __init__(self, raw, names, vocabs, mean, std, witness=None, vision=None, doctype=None):
         self.sight = sight(raw, vision)
-        self.doctype = (doctype or {}).get(raw["sha256"], 0)
+        self.doctype = piece_types(raw, (doctype or {}).get(raw["sha256"]))
         values = np.asarray(raw["features"], dtype=np.float32)
         self.language = np.asarray([language(t[0]) for t in raw["text"]], dtype=np.float32)
         extra = [self.language[:, None]]
@@ -164,14 +177,19 @@ class Document:
 
 
 class Tagger(nn.Module):
-    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, dropout=0.1, text_dropout=0.0, wide=False, vision=0, doctypes=0):
+    def __init__(self, features, vocabs, kind="gru", hidden=128, layers=2, dropout=0.1, text_dropout=0.0, wide=False, vision=0, doctypes=0, film=False):
         super().__init__()
         region_types, note_modes, families = vocabs
         self.wide = wide
         # The visual evidence, read down to 64 values a piece.
         self.see = nn.Sequential(nn.LayerNorm(vision), nn.Linear(vision, 64), nn.GELU()) if vision else None
-        # The document's type (--doctype), one code for all its pieces.
+        # Each piece's document type (--doctype), its part's code.
         self.doctype = nn.Embedding(doctypes + 1, 8) if doctypes else None
+        # --film: the type also scales and shifts each piece's state before the heads read it (zero at
+        # the start, so training begins from the unconditioned tagger).
+        self.film = nn.Embedding(doctypes + 1, 4 * hidden) if doctypes and film else None
+        if self.film is not None:
+            nn.init.zeros_(self.film.weight)
         self.char = nn.Embedding(2049, 24, padding_idx=0)
         self.conv = nn.Conv1d(24, 64, 3, padding=1)
         if wide:
@@ -241,10 +259,16 @@ class Tagger(nn.Module):
                 packed = nn.utils.rnn.pack_padded_sequence(x.float(), lengths.cpu(), batch_first=True, enforce_sorted=False)
                 x, _ = self.encoder(packed)
                 x, _ = nn.utils.rnn.pad_packed_sequence(x, batch_first=True, total_length=t)
-            return x
+            return self.condition(x, doctype)
         mask = torch.arange(t, device=x.device)[None] < lengths[:, None]
         x = x + self.position(torch.arange(t, device=x.device))[None]
-        return self.encoder(x, src_key_padding_mask=~mask)
+        return self.condition(self.encoder(x, src_key_padding_mask=~mask), doctype)
+
+    def condition(self, x, doctype):
+        if self.film is None:
+            return x
+        gamma, beta = self.film(doctype).chunk(2, dim=-1)
+        return x * (1 + gamma) + beta
 
     def tag(self, states):
         return [head(states) for head in self.heads]
@@ -279,7 +303,7 @@ class Windows:
         index = [np.zeros(d.length, dtype=np.int64) for d in docs]
         for w, (k, lo, hi, a, b) in enumerate(spans):
             d = docs[k]
-            dt[w, :hi - lo] = d.doctype
+            dt[w, :hi - lo] = torch.from_numpy(d.doctype[lo:hi])
             f[w, :hi - lo] = torch.from_numpy(d.features[lo:hi])
             t0[w, :hi - lo] = torch.from_numpy(d.tier0[lo:hi])
             tx[w, :hi - lo, :d.text.shape[1]] = torch.from_numpy(d.text[lo:hi])
@@ -404,7 +428,8 @@ def main():
     parser.add_argument("--pretrain-docs", type=int, default=0, help="at most this many silver documents (0 = all)")
     parser.add_argument("--whole", action="store_true", help="the GRU reads each document whole, with no window")
     parser.add_argument("--vision", type=Path, help="vision_features.py output: each piece's box, page and neighbouring pages, seen")
-    parser.add_argument("--doctype", type=Path, help="gold document types by sha256 ({sha: [[type, first_line, lines], ...]}): the oracle type as one more input")
+    parser.add_argument("--doctype", type=Path, help="gold document types by sha256 ({sha: [[type, first_line, lines], ...]}): each piece's part type as one more input")
+    parser.add_argument("--film", action="store_true", help="with --doctype: the type also scales and shifts each piece's state before the heads")
     args = parser.parse_args()
     if args.whole:
         if args.model != "gru":
@@ -433,7 +458,7 @@ def main():
     train = [Document(d, names, vocabs, mean, std, witness_train, args.vision, doctype) for d in train_raw]
     dev = [Document(d, names, vocabs, mean, std, witness_dev, args.vision, doctype) for d in dev_raw]
     if args.doctype:
-        print(f"document types: {len(doctype_codes)} ({sum(d.doctype > 0 for d in train)} train / {sum(d.doctype > 0 for d in dev)} development documents typed)", flush=True)
+        print(f"document types: {len(doctype_codes)} ({sum(d.doctype.any() for d in train)} train / {sum(d.doctype.any() for d in dev)} development documents typed)", flush=True)
     print(f"loaded {len(train)} train / {len(dev)} development documents, {sum(d.length for d in train)} / "
           f"{sum(d.length for d in dev)} pieces in {time.time() - started:.1f}s", flush=True)
     # Starts weigh each class by the inverse square root of its frequency, at most 8:1.
@@ -443,7 +468,7 @@ def main():
     w = np.minimum(w, 8 * w.min())
     weights = {"start": torch.tensor(w / w.mean(), dtype=torch.float32, device=device)}
     model = Tagger(train[0].features.shape[1], vocabs, kind=args.model, hidden=args.hidden, layers=args.layers,
-                   dropout=args.dropout, text_dropout=args.text_dropout, wide=args.text == "wide", vision=train[0].sight.shape[1], doctypes=len(doctype_codes)).to(device)
+                   dropout=args.dropout, text_dropout=args.text_dropout, wide=args.text == "wide", vision=train[0].sight.shape[1], doctypes=len(doctype_codes), film=args.film).to(device)
     print(f"{args.model}: {sum(p.numel() for p in model.parameters()):,} parameters", flush=True)
     if args.pretrain:
         # The text prior: silver units carry text and text-shape features only. Every other feature is
@@ -506,7 +531,10 @@ def main():
             tagged = tag_loss(outputs, gold, weights)
             tagged.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step(); schedule.step()
+            optimizer.step()
+            # An epoch's batch count varies with the grouping's jitter; the schedule is sized from one draw.
+            if schedule.last_epoch + 1 < schedule.total_steps:
+                schedule.step()
             total += float(tagged.detach()); count += 1
         predictions = predict(model, dev, device)
         lines = report(dev, predictions, f"epoch {epoch + 1:2}")
@@ -519,7 +547,7 @@ def main():
         if selected > best:
             best, best_state = selected, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     model.load_state_dict(best_state)
-    torch.save({"state": best_state, "model": args.model, "hidden": args.hidden, "layers": args.layers, "text": args.text, "vocabs": [v.index for v in vocabs], "vision": train[0].sight.shape[1], "whole": args.whole, "doctypes": doctype_codes,
+    torch.save({"state": best_state, "model": args.model, "hidden": args.hidden, "layers": args.layers, "text": args.text, "vocabs": [v.index for v in vocabs], "vision": train[0].sight.shape[1], "whole": args.whole, "doctypes": doctype_codes, "film": args.film,
                 "mean": mean.tolist(), "std": std.tolist()}, args.out / f"tagger-{args.model}.pt")
     predictions = predict(model, dev, device)
     if args.fold:

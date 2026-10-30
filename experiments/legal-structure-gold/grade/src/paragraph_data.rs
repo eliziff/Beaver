@@ -99,8 +99,8 @@ fn records(
     Ok(json!({"pairs": pairs, "features": x, "starts": y, "baseline_starts": baseline}))
 }
 
-pub fn export(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
-    let sources: Vec<_> = super::sources(gold, manifest)?
+pub fn export(store: &Path, out: &Path) -> Result<(), String> {
+    let sources: Vec<_> = super::sources(store)?
         .into_iter()
         .filter(|s| s.split != "test")
         .collect();
@@ -114,14 +114,12 @@ pub fn export(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
     let results = super::parallel(
         &sources,
         |s| {
-            std::fs::metadata(gold.join("inputs").join(format!("{}.json.gz", s.sha256)))
+            std::fs::metadata(super::inputs_dir().join(format!("{}.json.gz", s.sha256)))
                 .map_or(0, |m| m.len())
         },
         |source| -> Result<Value, String> {
-            let gold_path = gold.join("v4").join(&source.sha256).join("gold.json.gz");
-            let input = gold
-                .join("inputs")
-                .join(format!("{}.json.gz", source.sha256));
+            let gold_path = &source.gold;
+            let input = super::inputs_dir().join(format!("{}.json.gz", source.sha256));
             let expected: Gold = read_gzip_json(&gold_path).map_err(|e| e.to_string())?;
             let extracted = read_gzip_json(&input).map_err(|e| e.to_string())?;
             let mut pages = Vec::new();
