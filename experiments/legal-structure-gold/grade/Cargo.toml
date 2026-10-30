@@ -18,3 +18,6 @@ serde_json = "1.0"
 regex = "1"
 sha2 = "0.10"
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+# The grader's allocator (the parser's `fast-allocator`): every core parses at once, and Windows'
+# process heap serialized them on its lock.
+mimalloc = { version = "0.1.52", default-features = false }
