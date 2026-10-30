@@ -39,6 +39,12 @@ mod paragraph_data;
 mod paragraph_features;
 mod score;
 
+/// mimalloc, whose threads allocate from heaps of their own: on Windows' process heap the
+/// documents graded at once waited on its lock for 70% of their time (a stack sample of the
+/// whole store on twelve threads).
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use legal_pdf_tagger::{alignment, labels, rows, state, text_diff};
 
 use legal_pdf_core::{read_gzip_json, write_gzip_json};
@@ -565,9 +571,10 @@ fn grade_one(
 ) -> Result<Vec<(Option<usize>, Graded)>, String> {
     let gold_at = Instant::now();
     let raw: Value = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
-    let (parts, line_parts) = if PARTS.load(Ordering::Relaxed) && selected.is_none() { gold_parts(&raw)? } else { (vec![raw.clone()], Vec::new()) };
-    if parts.len() == 1 {
-        let expected: state::Gold = serde_json::from_value(parts.into_iter().next().unwrap_or_default()).map_err(|e| e.to_string())?;
+    // Without --parts the gold is its own only part.
+    let (parts, line_parts) = if PARTS.load(Ordering::Relaxed) && selected.is_none() { gold_parts(&raw)? } else { (Vec::new(), Vec::new()) };
+    if parts.len() <= 1 {
+        let expected: state::Gold = serde_json::from_value(parts.into_iter().next().unwrap_or(raw)).map_err(|e| e.to_string())?;
         let started = Instant::now();
         let structure = candidate(source, selected)?;
         return Ok(vec![(None, score_structure(source, &expected, &structure, gold_at, started)?)]);
