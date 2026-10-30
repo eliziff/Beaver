@@ -1,19 +1,16 @@
-"""Label a PDF's exported lines from A2AJ's reading of the same decision.
+"""Label a PDF's exported lines from A2AJ's reading of the same decision (gold of label source a2aj-align).
 
-A2AJ's text is cut into segments: the front matter before the first numbered paragraph (caption,
-one segment per A2AJ line; heading where A2AJ reads one), numbered paragraphs (text, their number
-the marker), headings, list items (their label the marker), the unnumbered lines inside a
-paragraph that A2AJ reads as quotations or leaves unread (one segment per A2AJ line), the matter
-after the reasons (caption) and notes (their label the marker, their references located). Each
-PDF line takes the segment its aligned words come from. The PDF decides only what A2AJ's flat
-text cannot show: whether an unnumbered line inside a paragraph is a block quotation (indented), a
-bulleted item, a heading (a short bold or capitalised line) or plain text; which lines are
-running heads and page numbers (in the page margins, repeated or a bare number); and heading
-levels (numbering family, else type style; a kind first seen after a heading nests under it).
+A2AJ's text is cut into segments: the front matter before the first numbered paragraph (one segment
+per A2AJ line: a report's headnote, the titles of its lists of authorities, else text), numbered
+paragraphs and its unnumbered ones (text, a printed number the marker), headings (no levels: A2AJ's
+tree is not the print's), the matter after the reasons (text) and notes (their label the marker,
+their references located). Each PDF line takes the segment its aligned words come from. What A2AJ
+cannot label is left unlabelled: the lines inside a paragraph that it reads as quotations or leaves
+unread, its list items, and the PDF lines it does not carry. The PDF decides only which lines are
+running heads and page numbers (in the page margins, repeated or a bare number).
 """
+from bisect import bisect_right
 from collections import Counter, defaultdict
-import gzip
-import json
 import re
 import unicodedata
 
@@ -62,6 +59,22 @@ FRONT, PARAGRAPH, HEADING, INNER, ITEM, TAIL, NOTE = "front", "paragraph", "head
 BODY = {PARAGRAPH, HEADING, INNER, ITEM}
 OWN = ("furniture", "page_label")
 BULLETS = set("•·▪▫◦●○■□►▶➢➤✓✔‣⁃-–—*o")
+# A report's front matter: the line naming the court appealed from, which the catchwords follow; the paragraph that
+# ends the headnote ("APPEAL from a judgment of ...", "POURVOI contre un arrêt de ..."); the titles of its lists of
+# authorities.
+OPENING = re.compile(r"(?i)(?:on|upon) (?:appeal|motion|application|reference|further appeal)s? (?:from|by|to|of)\b|en appel d|"
+                     r"sur (?:requête|renvoi|demande)\b")
+CLOSING = re.compile(r"(?:CROSS-)?(?:APPEALS?|POURVOIS?|MOTIONS?|REQU[ÊE]TES?|APPLICATIONS?|DEMANDES?|REFERENCES?|RENVOIS?|"
+                     r"APPEL(?:S|)|ACTIONS?)(?: (?:and|et|incident) (?:CROSS-APPEAL|POURVOI INCIDENT|incident))? "
+                     r"(?:from|contre|by|par|to|for|pour|de|du|d'|d’|à|in|on|en|concerning|relating|against|under)")
+CITED = re.compile(r"(?i)^(?:(?:cases|statutes|regulations|rules|authors|treaties|legislation|authorities|statutes and regulations|"
+                   r"statutes, regulations and rules|rules and regulations)(?: and \w+)* cited|jurisprudence(?: citée)?|"
+                   r"lois(?: et règlements)? cités?|lois, règlements et règles cités|règlements cités|règles citées|doctrine(?: citée)?|"
+                   r"traités cités|doctrine et autres documents cités)\.?$")
+# A2AJ reads as headings lines a judgment speaks, not titles: who gives the reasons, and the sentence that introduces
+# what follows ("The judgment of the Court was delivered by", "LAMER J. --", "... are as follows:").
+SPOKEN = re.compile(r"(?i)\b(?:delivered|given|rendered|read|written)(?: orally)? by:?$|\b(?:rendus?|prononcés?|lus?)(?: oralement)? par:?$|"
+                    r"[:\-–—]$")
 
 
 class Refused(Exception):
@@ -110,7 +123,9 @@ def lines_in(text, a, b):
 
 
 def segments(text, listing, outline):
-    """owner[code point] = segment index, and the segments."""
+    """owner[code point] = segment index, and the segments. The case outline (the engine's reading of A2AJ's text)
+    only marks what A2AJ's nodes leave in doubt: the lines inside the reasons it reads as set apart from their
+    paragraph (an item, a nested block) are inner lines, as is every line inside the reasons no node reads."""
     cp = code_points(text)
     found, notes = nodes(listing)
     segs, owner = [], [None] * len(text)
@@ -123,45 +138,43 @@ def segments(text, listing, outline):
     if not reasons: raise Refused("A2AJ reads no paragraphs")
     note_start = min((cp(label[0]) for label, _, _ in notes), default=len(text))
     start, end = reasons[0][0], max(b for _, b, _ in reasons)
-    heads = {}
-    for e in outline:
-        if e["kind"] == "heading": heads.setdefault(cp(e["start"]), e["label"])
-    for a, b in lines_in(text, 0, start):
-        if a in heads: paint(a, b, kind=HEADING, label=heads[a], outside=True)
-        else: paint(a, b, kind=FRONT)
-    for a, b in lines_in(text, end, note_start):
-        if a in heads: paint(a, b, kind=HEADING, label=heads[a], outside=True)
-        else: paint(a, b, kind=TAIL)
+    for a, b in lines_in(text, 0, start): paint(a, b, kind=FRONT)
+    for a, b in lines_in(text, end, note_start): paint(a, b, kind=TAIL)
     for a, b, number in reasons: paint(a, b, kind=PARAGRAPH, number=number)
     quoted = set()
     for kind, _, a, b, _ in found:
         if kind == "quote":
             quoted.update(range(cp(a), cp(b)))
             for x, y in lines_in(text, cp(a), cp(b)): paint(x, y, kind=INNER, quoted=True)
-    for e in outline:  # lines inside the reasons that no node reads, as the case outline reads them
+    for e in outline:
         a, b = cp(e["start"]), cp(e["end"])
         if not start <= a < end: continue
         owners = {segs[owner[i]]["kind"] if owner[i] is not None else None for i in range(a, b) if not text[i].isspace()}
-        if e["kind"] == "heading" and owners == {None}: paint(a, b, kind=HEADING, label=e["label"])
-        elif e["kind"] in ("text", "item") and (owners == {None} or owners == {PARAGRAPH} and e["level"] >= 1):
+        if owners == {None} or e["kind"] in ("text", "item") and owners == {PARAGRAPH} and e["level"] >= 1:
             for x, y in lines_in(text, a, b): paint(x, y, kind=INNER, quoted=False)
     for kind, label, a, b, _ in found:
         if kind == "list_item":
             paint(cp(a), cp(b), kind=ITEM, label=label, quoted=cp(a) in quoted)
     for kind, label, a, b, _ in found:
-        if kind == "heading": paint(cp(a), cp(b), kind=HEADING, label=heads.get(cp(a)))
+        if kind == "heading": paint(cp(a), cp(b), kind=HEADING, label=None)
     for label, body, refs in notes:
         paint(cp(label[0]), cp(body[1]), kind=NOTE, label_range=(cp(label[0]), cp(label[1])), refs=[cp(r) for r in refs])
+    for x, y in lines_in(text, start, end):
+        run = None
+        for i in range(x, y + 1):
+            free = i < y and owner[i] is None and not text[i].isspace()
+            if free and run is None: run = i
+            elif not free and run is not None and (i == y or owner[i] is not None):
+                paint(run, i, kind=INNER, quoted=False); run = None
     return segs, owner
 
 
 # ---------------------------------------------------------------- PDF side
 
-def geometry(path):
-    """{line id: {bbox, size, bold, italic}} and {page: (width, height)} from a parser export."""
-    with gzip.open(path, "rt", encoding="utf-8") as stream: exported = json.load(stream)
+def geometry(extraction_pages):
+    """{line id: {bbox, size, bold, italic}} and {page: (width, height)} from a reading's pages."""
     out, pages = {}, {}
-    for page in exported["extraction"]["pages"]:
+    for page in extraction_pages:
         pages[page["number"]] = (page.get("width") or 612, page.get("height") or 792)
         for line in page["lines"]:
             bold = italic = total = 0; sizes = Counter()
@@ -178,13 +191,13 @@ def geometry(path):
 
 def number_like(text):
     """A page number as printed: one or two numbers or short roman numerals, with at most the words page/of/p."""
-    ws = [w for w, _, _ in align.words(text)]
+    ws = [w for w, _, _ in align.words_of(text)]
     rest = [w for w in ws if w not in ("page", "of", "p", "pg")]
     return bool(rest) and len(rest) <= 2 and all(w.isdigit() or (len(w) <= 5 and set(w) <= set("ivxlc")) for w in rest)
 
 
 def masked(text):
-    return " ".join("#" if w.isdigit() else w for w, _, _ in align.words(text))
+    return " ".join("#" if w.isdigit() else w for w, _, _ in align.words_of(text))
 
 
 def margin(box, page):
@@ -204,14 +217,15 @@ def furniture(lines, geo, pages):
     for line in lines:
         box = (geo.get(line["id"]) or {}).get("bbox")
         if box and line["text"].strip(): place[line["id"]] = margin(box, pages.get(line["page"], (612, 792)))
-    seen = defaultdict(set)
+    seen, on_page = defaultdict(set), defaultdict(list)
     for line in lines:
+        on_page[line["page"]].append(line)
         if place.get(line["id"]): seen[masked(line["text"])].add(line["page"])
     out = {}
     for line in lines:
         where = place.get(line["id"])
         if not where: continue
-        if where == "head" and page_number(line, lines, geo): out[line["id"]] = "page_label"
+        if where == "head" and page_number(line, on_page[line["page"]], geo): out[line["id"]] = "page_label"
         elif not number_like(line["text"]) and masked(line["text"]) and len(seen[masked(line["text"])]) >= 2: out[line["id"]] = "furniture"
     return out
 
@@ -251,11 +265,16 @@ def extend(text, a, b):
 
 
 class Labelled:
-    def __init__(self, lines, geo, pages, text, listing, outline):
-        self.lines, self.geo, self.pages, self.text = lines, geo, pages, text
+    def __init__(self, lines, pages, text, listing, outline, words, fixed=None, begin=0):
+        """lines: an alignment record's lines (id, page, text, bbox and type style); words: its word pairs on
+        `text`, [line, start, end, text start, text end, kind]; fixed: {line id: 'furniture' | 'page_label'} where
+        the page furniture is already known (else found here); begin: where the decision begins in `text` (after
+        A2AJ's metadata)."""
+        self.lines, self.pages, self.text, self.begin = lines, pages, text, begin
+        self.geo = {line["id"]: line for line in lines}
         self.segs, self.owner = segments(text, listing, outline)
-        self.fixed = furniture(lines, geo, pages)
-        self.align()
+        self.fixed = furniture(lines, self.geo, pages) if fixed is None else fixed
+        self.align(words)
         self.cut()
         self.late_furniture()
         self.detached_bullets()
@@ -263,20 +282,23 @@ class Labelled:
         self.trailing()
         self.gate()
 
-    def align(self):
-        lines, segs = self.lines, self.segs
-        live = [n for n, line in enumerate(lines) if line["id"] not in self.fixed]
-        words = align.line_words([lines[n]["text"] for n in live])
-        self.pdf_words = [(w, [(live[k], a, b) for k, a, b in pieces]) for w, pieces in words]
-        self.a2aj_words = align.words(self.text)
-        self.seg_of = [self.owner[a] for _, a, _ in self.a2aj_words]
-        note = [s is not None and segs[s]["kind"] == NOTE for s in self.seg_of]
-        left, right = [w for w, _ in self.pdf_words], [w for w, _, _ in self.a2aj_words]
-        matches = align.match(left, right, right_free={j for j in range(len(right)) if not note[j]})
-        if any(note):
-            free = {i for i in range(len(left)) if i not in matches}
-            matches.update(align.match(left, right, left_free=free, right_free={j for j in range(len(right)) if note[j]}))
-        self.matches, self.to_pdf = matches, {j: i for i, j in matches.items()}
+    def align(self, words):
+        """Each PDF word (a word the print broke across two lines is one word in two pieces) and the A2AJ word
+        it stands for, from the record's pairs; a furniture line's words stand for none."""
+        self.a2aj_words = align.words_of(self.text)
+        starts = [a for _, a, _ in self.a2aj_words]
+        self.seg_of = [self.owner[a] for a in starts]
+        paired = {(n, a): bisect_right(starts, at) - 1 for n, a, _, at, _, _ in words if self.lines[n]["id"] not in self.fixed}
+        self.pdf_words, self.matches = [], {}
+        for n, line in enumerate(self.lines):
+            for word, a, b in align.words_of(line["text"]):
+                j = paired.get((n, a))
+                if j is not None and self.pdf_words and self.matches.get(len(self.pdf_words) - 1) == j:
+                    self.pdf_words[-1][1].append((n, a, b))
+                    continue
+                if j is not None: self.matches[len(self.pdf_words)] = j
+                self.pdf_words.append((word, [(n, a, b)]))
+        self.to_pdf = {j: i for i, j in self.matches.items()}
 
     def cut(self):
         """Pieces (line, start, end, segment | 'furniture' | 'page_label' | None) in reading order."""
@@ -341,6 +363,12 @@ class Labelled:
             if isinstance(s, int) and s not in opened and self.segs[s]["kind"] in (INNER, ITEM, HEADING) and row \
                     and self.lines[self.pieces[nxt][0]]["page"] == self.lines[p[0]]["page"]:
                 self.bullets.add(k); self.bullet_of[s] = k
+
+    def same_row(self, n, m):
+        """Whether two lines stand on one row of their page."""
+        here, there = (self.geo.get(self.lines[n]["id"]) or {}).get("bbox"), (self.geo.get(self.lines[m]["id"]) or {}).get("bbox")
+        return bool(here and there) and self.lines[n]["page"] == self.lines[m]["page"] and \
+            min(here[3], there[3]) - max(here[1], there[1]) > 0.3 * min(here[3] - here[1], there[3] - there[1])
 
     def kind(self, piece):
         s = piece[3]
@@ -451,7 +479,7 @@ class Labelled:
         """A2AJ reads the matter after the reasons (a signature block, the disposition and
         counsel, a formal judgment, an appendix) as lines of the last numbered paragraph. The
         lines after the last of that paragraph's own words, quotations (set apart in the PDF) and
-        list items are that matter: caption when they are a few short lines; when they are many,
+        list items are that matter: text when they are a few short lines; when they are many,
         long, or notes, the document is refused."""
         numbered = [seg for seg in self.segs if seg["kind"] == PARAGRAPH and seg.get("number")]
         if not numbered: return
@@ -478,37 +506,50 @@ class Labelled:
         for s in tail: self.segs[s].update(kind=TAIL, outside=True)
         self.tail_lines = len(tail)
 
+    def front(self):
+        """{segment: region} for a report's headnote, from its fixed wording, whatever A2AJ's nodes read there: the
+        catchwords and the headnote, after the line naming the court appealed from ("ON APPEAL FROM ...", "EN APPEL
+        DE ...") through the paragraph that opens "APPEAL from ..."/"POURVOI contre ...", are headnote, the titles of
+        its lists of authorities ("Cases Cited", "Jurisprudence") in it headings. The rest of the front matter
+        (parties, dates, coram, counsel) is text."""
+        found = lines_in(self.text, self.begin, len(self.text))
+        said = [" ".join(self.text[a:b].split()) for a, b in found]
+        opening = next((k for k, t in enumerate(said) if OPENING.match(t)), None)
+        closing = next((k for k, t in enumerate(said) if opening is not None and k > opening and CLOSING.match(t)), None)
+        out = {seg["index"]: "text" for seg in self.segs if seg["kind"] == FRONT}
+        if closing is None: return out
+        (court, head), tail = found[opening], found[closing][1]
+        for seg in self.segs:
+            if court <= seg["start"] < head and seg["kind"] != NOTE: out[seg["index"]] = "text"
+            if head < seg["start"] < tail and seg["kind"] != NOTE:
+                out[seg["index"]] = "heading" if CITED.match(" ".join(self.text[seg["start"]:seg["end"]].split())) else "headnote"
+        return out
+
     def typed(self):
-        """The gold's typed lines, notes and heading levels."""
+        """The gold's typed lines, and each one's segment. What A2AJ's reading cannot label is left out of them,
+        unlabelled (self.unlabelled: [line id, start, end]): the lines inside its paragraphs that it reads as
+        quotations or leaves unread, its list items, and the lines it does not carry."""
         lines, segs = self.lines, self.segs
         groups = defaultdict(list)  # segment -> its pieces in order
         for k, p in enumerate(self.pieces):
             if isinstance(p[3], int): groups[p[3]].append(k)
         region, marker = {}, {}
         decisions = Counter()
-        # Unnumbered lines inside paragraphs, and list items: what the PDF shows them to be.
-        later_paragraph = set()
-        seen_paragraph = False
-        for k in range(len(self.pieces) - 1, -1, -1):
-            if seen_paragraph: later_paragraph.add(k)
-            if self.kind(self.pieces[k]) == PARAGRAPH: seen_paragraph = True
+        front = self.front()
         for s, ks in groups.items():
             seg = segs[s]
-            members = [self.pieces[k] for k in ks]
-            if seg["kind"] == INNER:
-                found = "bullet" if s in self.bullet_of else self.evidence(members, seg["quoted"])
-                decisions[f"inner_{'quote' if seg['quoted'] else 'unread'}_{found}"] += 1
-                if found == "bullet":
-                    region[s] = "list_item"
-                elif found == "right":
-                    region[s] = "caption" if ks[0] not in later_paragraph else "text"
-                else:
-                    region[s] = found
-            elif seg["kind"] == ITEM:
-                region[s] = "quote" if seg["quoted"] and self.evidence(members, True) == "quote" else "list_item"
-                decisions[f"item_{region[s]}"] += 1
+            if s in front:
+                region[s] = front[s]
+            elif seg["kind"] in (INNER, ITEM):
+                region[s] = None
+            elif seg["kind"] == PARAGRAPH and not seg.get("number") and len({self.pieces[k][0] for k in ks}) >= 2 \
+                    and self.evidence([self.pieces[k] for k in ks], False) == "quote":
+                region[s] = None  # a block quotation A2AJ reads as an unnumbered paragraph: the print sets it apart
+            elif seg["kind"] == HEADING and SPOKEN.search(" ".join(self.text[seg["start"]:seg["end"]].split())):
+                region[s] = "text"  # "The judgment of the Court was delivered by", "LAMER J. --", "... as follows:"
             else:
-                region[s] = {FRONT: "caption", TAIL: "caption", PARAGRAPH: "text", HEADING: "heading", NOTE: "note"}[seg["kind"]]
+                region[s] = {TAIL: "text", PARAGRAPH: "text", HEADING: "heading", NOTE: "note"}[seg["kind"]]
+            decisions[f"{seg['kind']}_{region[s]}"] += 1
         # Bullets: a glyph extracted as its own line before the item, or opening its first line.
         for s, ks in groups.items():
             if s in self.bullet_of:
@@ -531,7 +572,7 @@ class Labelled:
             span = seg.get("label_range", (seg["start"], seg["end"])) if seg["kind"] == NOTE else (seg["start"], seg["end"])
             if seg["kind"] == NOTE: want = self.text[span[0]:span[1]]
             if not want or s in marker: continue
-            target = [w for w, _, _ in align.words(want)]
+            target = [w for w, _, _ in align.words_of(want)]
             j = next((j for j, (_, a, _) in enumerate(self.a2aj_words) if span[0] <= a < span[1]), None)
             if j is None or not target or self.a2aj_words[j][0] != target[0] or j not in self.to_pdf:
                 decisions[f"marker_missing_{seg['kind']}"] += 1; continue
@@ -539,6 +580,13 @@ class Labelled:
             n, a, b = pieces[0]
             first = self.pieces[ks[0]]
             before = lines[n]["text"][first[1]:a] if n == first[0] else None
+            # A number the margin prints beside the paragraph's first line, which the reader puts on a line of its own
+            # after it: the paragraph's marker all the same, the line its own as a detached bullet's is.
+            alone = next((k for k in ks[1:] if self.pieces[k][0] == n), None) if n != first[0] else None
+            if alone is not None and lines[n]["text"].strip("[](). \t") == want and self.same_row(n, first[0]):
+                self.bullets.add(alone); self.bullet_of[s] = alone
+                marker[s] = (n, *extend(lines[n]["text"], a, b))
+                decisions["marker_margin"] += 1; continue
             if before is None or before.strip("[( \t"):
                 decisions[f"marker_missing_{seg['kind']}"] += 1; continue
             if len(target) > 1 and len(pieces) == 1:  # "B.1": the label's further words
@@ -560,7 +608,9 @@ class Labelled:
                 refs[n].append((a, b, s))
                 decisions["reference"] += 1
         # Typed lines in reading order.
-        typed, fills, unit_seg = [], [], {}
+        typed, unit_seg = [], {}
+        self.unlabelled = []
+        opened = {k: s for s, k in self.bullet_of.items()}
         previous_region = previous_seg = None
         last_of = {}
         for k, (n, a, b, s) in enumerate(self.pieces):
@@ -571,15 +621,12 @@ class Labelled:
                 while a < b and text[a].isspace(): a += 1
                 while b > a and text[b - 1].isspace(): b -= 1
             entry = {"page": line["page"], "spans": [{"line_id": line["id"], "start": a, "end": b}], "markers": [], "references": []}
-            if k in self.bullets: continue
-            if s == "bullet": s = None
+            if k in self.bullets and region[opened[k]] is not None: continue  # its item's or heading's marker
+            if s == "bullet" or k in self.bullets: s = None
             if s in OWN:
                 entry.update(region=s, start=True)
-            elif s is None:
-                if self.first < k < self.last:
-                    fills.append((k, len(typed))); continue
-                start = not (typed and typed[-1]["region"] == "caption" and typed[-1].get("_free") and typed[-1]["page"] == line["page"])
-                entry.update(region="caption", start=start, _free=True)
+            elif s is None or region[s] is None:
+                self.unlabelled.append([line["id"], a, b]); continue
             else:
                 r = region[s]
                 opening = last_of.get(s) is None
@@ -605,17 +652,6 @@ class Labelled:
                 previous_region = entry["region"]; previous_seg = s
             typed.append(entry)
             unit_seg[len(typed) - 1] = s
-        # Lines inside the reasons that A2AJ does not carry join the typed line before them on
-        # their page (else the next), as the authoring runner fills lines the model did not type.
-        self.unfilled = []
-        for k, at in fills:
-            n = self.pieces[k][0]
-            page = lines[n]["page"]
-            near = [t for t in range(at - 1, -1, -1) if typed[t]["page"] == page and typed[t]["region"] not in OWN]
-            near = near or [t for t in range(at, len(typed)) if typed[t]["page"] == page and typed[t]["region"] not in OWN]
-            near = near or [t for t in range(at - 1, -1, -1) if typed[t]["region"] not in OWN]
-            typed[near[0]]["spans"].append({"line_id": lines[n]["id"], "start": 0, "end": len(lines[n]["text"])})
-            self.unfilled.append(lines[n]["text"])
         position = {line["id"]: k for k, line in enumerate(lines)}
         for entry in typed:
             entry["spans"].sort(key=lambda sp: (position[sp["line_id"]], sp["start"]))
@@ -642,21 +678,60 @@ class Labelled:
         return "".join(out)
 
 
-def heading_levels(doc, typed, units):
-    """Each heading unit's level: a kind of heading (its numbering family, else its type style)
-    keeps the level it was first given; a kind first seen nests under the heading before it."""
-    levels, kinds, previous = {}, {}, None
-    for u, unit in enumerate(units):
-        first = typed[unit["lines"][0]]
-        if first["region"] != "heading": continue
-        family = family(" ".join(first["text"].split()))
-        if family:
-            kind = ("numbered", family)
-        else:
-            line = next(k for k, l in enumerate(doc.lines) if l["id"] == first["spans"][0]["line_id"])
-            kind = ("style", doc.style(line))
-        if kind not in kinds:
-            kinds[kind] = min(9, (levels[previous] + 1) if previous is not None else 1)
-        levels[u] = kinds[kind]
-        previous = u
-    return levels, len(kinds)
+# The page matter the alignment finds among the lines A2AJ's text does not carry, as the gold's regions.
+FURNITURE = {"furniture": "furniture", "page_label": "page_label", "running_head": "furniture", "margin_letter": "line_label"}
+
+
+def gold(record, texts, begins, listings, outlines, order, gutter):
+    """An aligned record's structure gold: (typed lines, units, notes, report). Each language the PDF prints is
+    labelled from A2AJ's reading of it (Labelled, with the case outline of that text and where in it the decision
+    begins) over the lines the alignment gave that language; the page matter
+    the alignment found (folios, running heads, the gutter's line letters) is units of its own; every other line is
+    unlabelled, typed by no line. Units carry no levels or depths, and the first says the document is a judgment.
+    order: {line id: reading rank} (a page in columns read column by column); gutter: the ids of the lines in the
+    gutter of a page in columns (its line letters, however read: a "3" there is no folio). Raises Refused where a
+    language's labelling refuses."""
+    import hierarchy
+    lines = record["lines"]
+    pages = {int(p): tuple(s) for p, s in record["pages"].items()}
+    typed, groups, notes, report = [], [], [], {"labelled": {}}
+    for line in lines:
+        if line["status"] == "unmatched" and line.get("why") in FURNITURE:
+            region = "line_label" if line["id"] in gutter else FURNITURE[line["why"]]
+            if region == "line_label" and len(re.sub(r"\W", "", line["text"])) > 2: continue  # a word's end, not a line's letter
+            groups.append([len(typed)])
+            typed.append({"page": line["page"], "spans": [{"line_id": line["id"], "start": 0, "end": len(line["text"])}],
+                          "markers": [], "references": [], "region": region, "start": True, "text": line["text"]})
+    for language in sorted(texts):
+        own = [line for line in lines if line["lang"] == language]
+        doc = Labelled(own, pages, texts[language], listings[language], outlines[language],
+                       [[n, *w] for n, line in enumerate(own) for w in line["words"]], {}, begins[language])
+        found, unit_seg = doc.typed()
+        base, members = len(typed), hierarchy.units(found)
+        unit_of = {t: len(groups) + u for u, unit in enumerate(members) for t in unit}
+        first_typed = {}
+        for t, s in unit_seg.items():
+            if isinstance(s, int): first_typed.setdefault(s, t)
+        for t, entry in enumerate(found):
+            for k, ref in enumerate(entry["references"]):
+                note = first_typed.get(ref.pop("_note"))
+                if note is not None and found[note]["region"] == "note":
+                    notes.append({"line": base + t, "marker": ref["label"].strip("[]()"), "reference": k, "note": unit_of[note]})
+        typed += found
+        groups += [[base + t for t in unit] for unit in members]
+        report["labelled"][language] = {**doc.stats, "decisions": dict(doc.decisions), "unlabelled_pieces": len(doc.unlabelled)}
+    # Reading order: each typed line where its first line stands.
+    rank = sorted(range(len(typed)), key=lambda t: (order[typed[t]["spans"][0]["line_id"]], typed[t]["spans"][0]["start"]))
+    moved = {old: new for new, old in enumerate(rank)}
+    typed = [typed[old] for old in rank]
+    members = [sorted(moved[t] for t in unit) for unit in groups]
+    by_first = sorted(range(len(members)), key=lambda u: members[u][0])
+    unit_moved = {old: new for new, old in enumerate(by_first)}
+    units = [{"lines": members[old], "starts_document": False} for old in by_first]
+    if units: units[0]["document_type"] = "judgment"
+    notes = [{**pair, "line": moved[pair["line"]], "note": unit_moved[pair["note"]]} for pair in notes]
+    covered = {s["line_id"] for t in typed for s in t["spans"]}
+    report["unlabelled_lines"] = [line["id"] for line in lines if line["id"] not in covered]
+    return typed, units, notes, report
+
+
