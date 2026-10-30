@@ -26,9 +26,9 @@ and label shape, affected lines and printed-to-extracted glyph confusions. The
 If the saved observations are absent, `analyze.py prepare` makes them from the
 existing gold files, also without rendering PDFs or running OCR.
 
-`prepare --data PATH --out PATH` selects another existing gold store/output. Its
-default is `structure-gold/{b5,b6,b7}/a`, one completed, hash-bound answer per source,
-train/development only. The census reads all completed golds. The native probe
+`prepare --out PATH` selects another output. It reads the gold store's current golds
+(`experiments/legal_pdf_corpus/gold_store.py`; `OPENLEGAL_GOLD` names another copy), one
+completed, hash-bound answer per source, train/development only (each source's partition). The census reads all completed golds. The native probe
 selects six available OCR-mode documents of at most thirty pages, two pages each:
 two sources with reference errors and one each for text, list, provision and quote
 markers. Selection deliberately follows errors and retains intact marks on those

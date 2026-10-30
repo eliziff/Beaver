@@ -214,7 +214,7 @@ python -B experiments/page-stream-segmentation/prepare.py
 python -B experiments/page-stream-segmentation/annotate.py --limit 1 --windows 1
 ```
 
-Both commands are offline. Preparation imports completed structure gold,
+Both commands are offline. Preparation imports the gold store's completed current structure golds,
 accepted affidavit source inventories, legacy original-page maps and medical
 excerpt ranges. Medical ranges are expanded against the original **parent** PDF,
 not treated as evidence of starts at excerpt page one. Stripped association
@@ -226,9 +226,8 @@ Each exported row contains original `sha256`, `right_page`, binary `label`,
 Unknown gaps are absent from training rows and retained in the review queue.
 Current completed gold is authoritative. An authoring receipt's historical file
 hash can differ after corrections or reserialization; that difference is recorded
-without discarding labels. The export binds the current gold's hash. Original
-lookup also uses the authoring manifest, including generated scans linked to their
-parents. Missing catalogue page counts are read from the PDF. Local path lookup
+without discarding labels. The export binds the current gold's hash. Originals
+are looked up in the catalogue. Missing catalogue page counts are read from the PDF. Local path lookup
 problems affect image rendering, not the validity of already authored labels.
 Corpus collection junctions to other backing drives are preserved.
 
@@ -282,12 +281,11 @@ disagreements are withheld rather than silently overridden.
 
 ## Partitions, baseline and scoring
 
-Preparation reuses the existing structure family selection, catalogue gold
-memberships, association families and parent/excerpt relationships. Transitive
-families are indivisible. New families and conflicting inherited assignments
-remain `unassigned`; they cannot train the baseline. Supply an updated reviewed
-family selection with `--partitions FILE` through the existing structure-gold
-partition workflow. This exporter does not certify that old test data is unseen.
+Preparation joins catalogue gold memberships, association families and
+parent/excerpt relationships into families; transitive families are indivisible.
+A family takes the gold store's partition (`source.json`) of its sources there,
+the one partition every model uses. Families without one, and families whose
+sources disagree, remain `unassigned`; they cannot train the baseline.
 
 The baseline consumes existing `structure-gold rows` output: `features.json`,
 `rows-train.jsonl` and `rows-development.jsonl`. Generate those with the owning
@@ -470,8 +468,8 @@ recreates the sample without changing gold or opening the final holdout.
 The expanded page-and-line experiment uses `prepare_cpu_full_gold.py` and
 `train_cpu_full_split.py`. The exporter restores full reviewed page streams and
 preserves internal starts as exact source/page/line-ID targets. Page-only gold
-does not imply negative internal labels. Existing family partitions are retained;
-reserved final families are excluded. Conflicting historical references are
+does not imply negative internal labels. Each source's partition is its gold store
+`source.json` (as for `prepare_doc_split_teacher.py` and `merge_doc_split_gold.py`); test is excluded. Conflicting historical references are
 retained as provenance while the authoritative full-stream gold stays unchanged.
 
 The split gold is the gold store's (`experiments/legal_pdf_corpus/gold_store.py`:

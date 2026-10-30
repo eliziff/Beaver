@@ -1,19 +1,25 @@
-"""Collect page-level split data from structure gold v4 (b5-b7) and the parser's own extraction.
+"""Collect page-level split data from the gold store's current structure golds and the parser's own
+extraction (the grader's structure-stage inputs).
 
-For every gold source outside the test split: its pages as the parser reads them (lines with text,
-box, font size/weight, page size, printed label), its document starts from the gold units
-(`starts_document`, `document_type`), each start marked as a page-edge start (nothing but page
-furniture before it on its page) or a within-page start, and its source family and partition from
-the existing page-stream exports. Writes one pickle; reads no test-split row.
+For every gold source outside the test partition (source.json): its pages as the parser reads them
+(lines with text, box, font size/weight, page size, printed label), its document starts from the
+gold units (`starts_document`, `document_type`), each start marked as a page-edge start (nothing but
+page furniture before it on its page) or a within-page start, and its source family from the existing
+page-stream exports. Writes one pickle; reads no test row.
 
-  python docsplit_data.py --fable C:/Users/elias/fable --exports C:/Users/elias/beaver-train/page-stream-segmentation/teacher-data --out data.pkl
+  python docsplit_data.py --exports C:/Users/elias/beaver-train/page-stream-segmentation/teacher-data --out data.pkl [--inputs DIR]
 """
 import argparse
 import gzip
 import json
+import os
 import pickle
 import statistics
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'legal_pdf_corpus'))
+import gold_store  # noqa: E402
 
 INPUTS_KEY = '740b104eeae9bc39'
 OWN = {'furniture', 'page_label', 'line_label'}
@@ -85,43 +91,41 @@ def page_record(page, embedded_label):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--fable', type=Path, required=True)
+    ap.add_argument('--inputs', type=Path, default=Path(os.environ.get('STRUCTURE_GOLD_INPUTS') or gold_store.corpus_store.HOME / 'gold-inputs'),
+                    help="The grader's structure-stage inputs (STRUCTURE_GOLD_INPUTS, else gold-inputs in the data home)")
     ap.add_argument('--exports', type=Path, required=True)
     ap.add_argument('--out', type=Path, required=True)
     args = ap.parse_args()
     known = {}
     for c in json.loads((args.exports / 'full-training.json').read_text(encoding='utf-8'))['cases']:
-        known[c['sha256']] = (c['split'], c['family_id'])
+        known[c['sha256']] = c['family_id']
     for p in json.loads((args.exports / 'internal-training.json').read_text(encoding='utf-8'))['pages']:
-        known.setdefault(p['sha256'], (p['split'], p['family_id']))
+        known.setdefault(p['sha256'], p['family_id'])
     sources = []
     skipped = []
-    for batch in ('b5', 'b6', 'b7'):
-        manifest = {d['sha256']: d for d in json.loads((args.fable / batch / 'cohort-manifest.json').read_text(encoding='utf-8'))['documents']}
-        for job in sorted((args.fable / batch / 'a' / 'v4').iterdir()):
-            if not (job / 'gold.json.gz').exists():
-                continue
-            sha = json.loads((job / 'receipt.json').read_text(encoding='utf-8'))['source_sha256']
-            doc = manifest.get(sha)
-            if doc is None or doc.get('split') == 'test' or sha not in known or known[sha][0] == 'test':
-                skipped.append((batch, sha, 'not a train/development source'))
-                continue
-            extraction_path = args.fable / batch / 'inputs' / INPUTS_KEY / f'{sha}.json.gz'
-            if not extraction_path.exists():
-                skipped.append((batch, sha, 'no extraction'))
-                continue
-            gold = json.loads(gzip.decompress((job / 'gold.json.gz').read_bytes()))
-            extraction = json.loads(gzip.decompress(extraction_path.read_bytes()))
-            labels = (extraction.get('metadata') or {}).get('embedded_page_labels') or []
-            pages = [page_record(p, labels[i] if i < len(labels) else None) for i, p in enumerate(extraction['pages'])]
-            if len(pages) != gold['page_count']:
-                skipped.append((batch, sha, f'page count {len(pages)} != {gold["page_count"]}'))
-                continue
-            starts, first_type = gold_starts(gold)
-            sources.append(dict(sha256=sha, batch=batch, family=known[sha][1], split=known[sha][0],
-                                mode=doc.get('mode'), genre=doc.get('genre_group'), collection=Path(doc['path']).parent.name,
-                                pages=pages, starts=starts, first_type=first_type))
-            print(json.dumps(dict(batch=batch, sha=sha[:12], pages=len(pages), starts=len(starts))), flush=True)
+    for sha, path in gold_store.sources(gold_store.STRUCTURE):
+        batch = path.parent.name.rsplit('-', 1)[0]
+        source = gold_store.source(sha)
+        if source['partition'] == 'test' or sha not in known:
+            skipped.append((batch, sha, 'not a train/development source'))
+            continue
+        extraction_path = args.inputs / INPUTS_KEY / f'{sha}.json.gz'
+        if not extraction_path.exists():
+            skipped.append((batch, sha, 'no extraction'))
+            continue
+        gold = gold_store.read(path)
+        extraction = json.loads(gzip.decompress(extraction_path.read_bytes()))
+        labels = (extraction.get('metadata') or {}).get('embedded_page_labels') or []
+        pages = [page_record(p, labels[i] if i < len(labels) else None) for i, p in enumerate(extraction['pages'])]
+        if len(pages) != gold['page_count']:
+            skipped.append((batch, sha, f'page count {len(pages)} != {gold["page_count"]}'))
+            continue
+        starts, first_type = gold_starts(gold)
+        receipt = gold_store.read(path.with_name('receipt.json'))
+        sources.append(dict(sha256=sha, batch=batch, family=known[sha], split=source['partition'],
+                            mode=receipt.get('mode'), genre=source.get('genre_group'), collection=Path(source['pdf']).parent.name,
+                            pages=pages, starts=starts, first_type=first_type))
+        print(json.dumps(dict(batch=batch, sha=sha[:12], pages=len(pages), starts=len(starts))), flush=True)
     with open(args.out, 'wb') as f:
         pickle.dump(dict(sources=sources, skipped=skipped), f)
     print(json.dumps(dict(sources=len(sources), skipped=len(skipped), pages=sum(len(s['pages']) for s in sources),

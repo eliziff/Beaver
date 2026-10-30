@@ -9,19 +9,10 @@ import re
 import sys
 
 from boundary_data import (ROOT, DEFAULT_OUT, annotation_labels, atomic_json, check_partitions,
-                           combine_labels, corpus_home, digest, fingerprint, read_json,
+                           combine_labels, corpus_home, digest, fingerprint, read_catalogue, read_json,
                            structure_labels, validate_pages, validate_sha)
-from freeze_corpus import read_catalogue
-from partitions import validate_partitions
 from codex_runner.artifacts import atomic_write
-
-
-def completed(out):
-    """Completed v4 structure golds as (mode, run directory, receipt)."""
-    for receipt in sorted(out.glob("v4/*/receipt.json")):
-        value = read_json(receipt)
-        if value.get("status") == "complete" and (receipt.parent / "gold.json.gz").is_file():
-            yield value["mode"], receipt.parent, value
+import gold_store
 
 
 class Families:
@@ -78,25 +69,11 @@ def prepare(args):
             inputs[path] = {**location(path), "sha256": digest(path)}
         return inputs[path]
 
-    manifest_path = getattr(args, "source_manifest", None) or args.structure / "cohort-manifest.json"
-    if manifest_path.is_file():
-        evidence(manifest_path)
-        base = (getattr(args, "source_root", None) or manifest_path.parent).resolve()
-        for item in read_json(manifest_path)["documents"]:
-            sha = validate_sha(item["sha256"])
-            files.setdefault(sha, {"path": base / item["path"], "pages": item.get("pages")})
-    provenance_path = args.structure / "provenance.json"
-    if provenance_path.is_file():
-        evidence(provenance_path)
-        for item in read_json(provenance_path)["records"]:
-            if item.get("synthetic_of"):
-                families.connect((validate_sha(item["sha256"]), validate_sha(item["synthetic_of"])))
-
     def source(sha, kind, path, page_count=None):
         validate_sha(sha)
         row = files.get(sha)
         if row is None:
-            unresolved_paths[sha] = "No catalogue or authoring-manifest lookup entry"
+            unresolved_paths[sha] = "No catalogue lookup entry"
             return None
         pdf = Path(os.path.abspath(home / row["path"]))
         owner = location(pdf)
@@ -142,14 +119,11 @@ def prepare(args):
             row["review_gaps"].update(p + 1 for p in pages if p < row["page_count"])
         return sha
 
-    selection = read_json(args.partitions)
-    validate_partitions(selection)
-    evidence(args.partitions)
-    for family in selection["families"]:
-        families.connect(family["members"])
-
-    for _, directory, receipt in completed(args.structure):
-        receipt_path, gold_path = directory / "receipt.json", directory / "gold.json.gz"
+    for _, gold_path in gold_store.sources(gold_store.STRUCTURE):
+        receipt_path = gold_path.with_name("receipt.json")
+        receipt = read_json(receipt_path)
+        if receipt.get("status") != "complete":
+            continue
         gold = read_json(gold_path)
         if gold["source_sha256"] != receipt["source_sha256"]:
             raise ValueError("Structure gold source differs from its receipt")
@@ -195,7 +169,7 @@ def prepare(args):
             if sha in sources:
                 sources[sha]["evidence"].append(evidence(metadata))
 
-    if args.medical.is_file():
+    if args.medical and args.medical.is_file():
         manifest = read_json(args.medical)
         for item in manifest["documents"]:
             first, last = item["source_pages"]  # This manifest stores an inclusive range.
@@ -218,8 +192,11 @@ def prepare(args):
     for key in families.parent:
         if re.fullmatch(r"[0-9a-f]{64}", key):
             groups[families.find(key)].add(key)
-    for member in selection["members"]:
-        inherited[families.find(member["sha256"])].add(member["split"])
+    # A family takes the gold store's partition (source.json) of its sources there.
+    for key in families.parent:
+        partition = gold_store.source(key).get("partition") if re.fullmatch(r"[0-9a-f]{64}", key) else None
+        if partition:
+            inherited[families.find(key)].add(partition)
     conflicts = []
     for row in sources.values():
         root = families.find(row["sha256"])
@@ -246,8 +223,7 @@ def prepare(args):
               "unresolved_local_paths": unresolved_paths,
               "recovered_page_counts": recovered_page_counts,
               "partition_conflicts": sorted(set(conflicts)),
-              "partition_status": "provisional; inherited family/exposure review is not a certified holdout",
-              "inherited_blockers": selection.get("blockers", [])}
+              "partition_status": "the gold store's partition (source.json) of each family's sources; a family without one is unassigned"}
     result = {"schema_version": "page-stream-dataset.v1", "sources": ordered, "report": report,
               "inputs": sorted(inputs.values(), key=lambda v: (v["storage"], v["path"]))}
     atomic_json(args.out / "dataset.json", result)
@@ -264,22 +240,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", type=Path, default=corpus_home())
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
-    parser.add_argument("--structure", type=Path, default=ROOT / "benchmarks/local-data/legal-structure-gold")
-    parser.add_argument("--source-manifest", type=Path, help="Original/generation source lookup, as the structure-gold author uses")
-    parser.add_argument("--source-root", type=Path, help="Base for authoring-manifest paths")
-    parser.add_argument("--partitions", type=Path)
     parser.add_argument("--association", type=Path, nargs="*", default=[ROOT / ("benchmarks/local-data/affidavit-association/" + n)
                          for n in ("expansion", "expansion-2", "expansion-3")])
     parser.add_argument("--legacy", type=Path)
     parser.add_argument("--medical", type=Path)
     parser.add_argument("--annotations", type=Path, nargs="*", default=[])
     args = parser.parse_args()
-    args.partitions = args.partitions or args.structure / "family-selection.json"
-    args.medical = args.medical or args.structure / "medical-receipts/medical/manifest.json"
     args.legacy = args.legacy or args.home / "benchmarks/court-record-exhibits/records"
     report = prepare(args)
     summary = {k: v for k, v in report.items() if k not in {
-        "authoring_receipt_differences", "unresolved_local_paths", "recovered_page_counts", "partition_conflicts", "inherited_blockers"}}
+        "authoring_receipt_differences", "unresolved_local_paths", "recovered_page_counts", "partition_conflicts"}}
     summary.update(authoring_receipt_differences=len(report["authoring_receipt_differences"]),
                    unresolved_local_paths=len(report["unresolved_local_paths"]), recovered_page_counts=len(report["recovered_page_counts"]),
                    partition_conflict_families=len(report["partition_conflicts"]))

@@ -24,7 +24,7 @@ def unit_starts(gold):
 
 def augment(root):
     base=root/'teacher-data'; data=read(base/'full-training.json'); internal=read(base/'internal-training.json')
-    find,split=partitions(data,read(base/'test.json'),read(base/'family-map.json'))
+    find,split=partitions(read(base/'family-map.json'),read(base/'teacher-training.json'),read(base/'teacher-test.json'))
     data['cases']=[c for c in data['cases'] if c.get('gold_panel')!='registered-structure-unit-starts']
     internal['pages']=[p for p in internal['pages'] if p.get('gold_panel')!='registered-structure-unit-starts']
     labels={(c['sha256'],int(p)):v for c in data['cases'] for p,v in c['targets'].items()}

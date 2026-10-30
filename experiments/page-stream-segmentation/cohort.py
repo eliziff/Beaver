@@ -1,4 +1,5 @@
-"""Author economy splits for a structure-gold cohort, then flag candidates for correction."""
+"""Author economy splits for the files of an authoring manifest ({documents: [{sha256, path, pages,
+mode}]}), then flag candidates for correction. The manifest is a queue, never a partition."""
 import argparse
 from collections import Counter
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -150,11 +151,11 @@ def export(sources, args, records):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--manifest', type=Path, default=ROOT / 'benchmarks/local-data/legal-structure-gold/cohort-manifest.json')
+    parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--dataset', type=Path, default=DEFAULT_OUT / 'dataset.json')
     parser.add_argument('--out', type=Path, default=DEFAULT_OUT / 'structure-cohort')
     parser.add_argument('--home', type=Path, default=corpus_home())
-    parser.add_argument('--parsed', type=Path, default=ROOT / 'benchmarks/local-data/legal-structure-gold')
+    parser.add_argument('--parsed', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=64)
     parser.add_argument('--max-calls', type=int, default=6000)
     parser.add_argument('--execute', action='store_true')

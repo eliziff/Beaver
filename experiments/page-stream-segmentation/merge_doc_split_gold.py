@@ -1,7 +1,8 @@
 """Combine page-stream references with the desktop's reviewed legal-structure splits.
 
 Run on the desktop. Uses saved teacher images, never arbitrary corpus PDFs.
-Keep separate contiguous runs of complete documents with page-edge boundaries.
+Keep separate contiguous runs of complete documents with page-edge boundaries. Each case's partition
+is its source's in the gold store (source.json).
 """
 import argparse
 from collections import Counter
@@ -9,8 +10,12 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import sys
 
 from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'legal_pdf_corpus'))
+import gold_store  # noqa: E402
 
 
 def digest(path):
@@ -49,6 +54,9 @@ def merge(base, split_root):
     manifest = read(split_root / 'authoring-manifest-all.json')
     review = read(split_root / 'reviewed.json')
     rows = {r['sha256']: r for r in manifest['documents']}
+
+    def partition(sha):
+        return gold_store.source(sha)['partition']
     reviewed = {r['sha256'] for r in review['decisions']}
     parent = {}
 
@@ -70,7 +78,6 @@ def merge(base, split_root):
     legacy_targets = {(c['sha256'], c['right_page']): c['label'] for c in legacy['cases']}
     proposed, sources = {}, {}
     within_count = 0
-    partition_families = {find(c['sha256']) for c in legacy['cases'] if find(c['sha256']) not in heldout}
     for part in final['sources']:
         sha = part['sha256']
         row = rows[sha]
@@ -81,8 +88,6 @@ def merge(base, split_root):
         if scope != sorted(set(scope)) or any(not 1 <= p <= count for p in scope):
             raise ValueError('Invalid reviewed original-page inventory')
         targets, runs = page_edge_runs({**part, 'pages': scope}, count)
-        if any(p > 1 and p - 1 in scope for p in scope) and find(sha) not in heldout:
-            partition_families.add(find(sha))
         within_count += sum(isinstance(s, dict) for s in part['document_starts'])
         sources[sha] = {'sha256': sha, 'page_count': count, 'runs': runs, 'family_id': find(sha)}
         proposed.update({(sha, page): label for page, label in targets.items()})
@@ -94,11 +99,11 @@ def merge(base, split_root):
         source = sources.get(old['sha256'])
         run = next((r for r in source['runs'] if r[0] < old['right_page'] <= r[1]), None) if source else None
         if ((source is not None and run is None)
-                or key in conflict_set or (old['split'] != 'test' and key in proposed)):
+                or key in conflict_set or (partition(old['sha256']) != 'test' and key in proposed)):
             continue
         images = [image for image in old['images'] if run is None or run[0] <= image['page'] <= run[1]]
         cases.append({'case_id': old['case_id'], 'sha256': old['sha256'],
-            'family_id': find(old['sha256']), 'split': old['split'],
+            'family_id': find(old['sha256']), 'split': partition(old['sha256']),
             'targets': {str(old['right_page']): old['label']}, 'images': images,
             'gold_panel': old['gold_panel']})
     assets = {}
@@ -128,23 +133,16 @@ def merge(base, split_root):
                 images.append(assets[key])
             sequence_id = sha + '-pages-' + str(first) + '-' + str(last)
             cases.append({'case_id': sequence_id, 'sequence_id': sequence_id, 'sha256': sha,
-                'family_id': find(sha), 'split': 'pending', 'targets': targets, 'images': images,
+                'family_id': find(sha), 'split': partition(sha), 'targets': targets, 'images': images,
                 'gold_panel': 'reviewed-legal-structure-splits'})
         if position % 10 == 0:
             print(json.dumps({'legal_sources_staged': position, 'of': len(sources), 'images': len(assets)}), flush=True)
-    fitting_families = sorted(partition_families,
-        key=lambda f: hashlib.sha256(('doc-split-combined-v1:' + f).encode()).hexdigest())
-    development = set(fitting_families[:max(1, len(fitting_families)//5)])
-    cases = [c for c in cases if c['split'] == 'test' or c['family_id'] not in heldout]
-    for case in cases:
-        if case['split'] != 'test':
-            case['split'] = 'development' if case['family_id'] in development else 'train'
     common = {'schema_version': 'doc-split-teacher.v2', 'origin': 'machine_test',
         'run_id': 'doc-split-combined-teacher-v1', 'source_artifacts': inputs,
         'excluded_conflicting_seams': conflicts,
         'target_scope': 'Separate contiguous runs of complete documents; documents containing within-page starts omitted.',
         'valid_page_runs': {sha: source['runs'] for sha, source in sources.items()},
-        'report': {'partition_status': 'Frozen source-family-separated teacher-label experiment; not human-certified gold.'}}
+        'report': {'partition_status': 'The gold store\'s partitions (source.json); teacher-label experiment, not human-certified gold.'}}
     for name, chosen in [('training.json', [c for c in cases if c['split'] != 'test']),
                          ('test.json', [c for c in cases if c['split'] == 'test'])]:
         (base / name).write_text(json.dumps({**common, 'cases': chosen}, indent=2) + '\n', encoding='utf-8')

@@ -10,9 +10,9 @@ from types import SimpleNamespace
 
 from annotate import POLICY, TASK, response_schema, validate_response
 from author import render
-from boundary_data import DEFAULT_OUT, ROOT, atomic_json, compact_scopes, corpus_home, digest, fingerprint, read_json, source_path
+from boundary_data import (DEFAULT_OUT, ROOT, atomic_json, compact_scopes, corpus_home, digest, fingerprint,
+                           read_catalogue, read_json, source_path)
 from codex_runner.calls import call, prepare_call
-from freeze_corpus import read_catalogue
 from jsonschema import Draft202012Validator, ValidationError
 
 ARMS = {"luna-max": ("gpt-6-luna", "max"), "sol-low": ("gpt-6.1-sol", "low")}

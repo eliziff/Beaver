@@ -1,8 +1,8 @@
 """Freeze actual reviewed page-stream teacher seams and their saved image contexts.
 
 This deliberately does not use the general dataset.json gap labels or PDF pool.
-The 199 corrected economy-reference seams supply train/development; the separate
-24-seam independently authored panel is reserved for one final test comparison.
+The 199 corrected economy-reference seams and the separate 24-seam independently authored
+panel take their sources' partitions in the gold store (source.json); the panel is test.
 """
 import argparse
 from collections import Counter
@@ -10,10 +10,13 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
 
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'experiments/legal_pdf_corpus'))
+import gold_store  # noqa: E402
 DEFAULT = ROOT / 'benchmarks/local-data/page-stream-segmentation'
 
 
@@ -42,9 +45,6 @@ def build(root, out):
         if assignment['arm'] == 'eight-single':
             for case_id in assignment['focal_cases']:
                 contexts[case_id] = economy['jobs'][assignment['key']]['images']
-    families = sorted({c['family_id'] for c in economy['cases']},
-                      key=lambda f: hashlib.sha256(('doc-split-student-v1:' + f).encode()).hexdigest())
-    development = set(families[:len(families)//5])
     cases, excluded = [], []
     for case in economy['cases']:
         key = case['case_id']
@@ -53,7 +53,7 @@ def build(root, out):
             excluded.append(key)
             continue
         cases.append({**{k: case[k] for k in ('case_id', 'sha256', 'family_id', 'right_page')},
-                      'label': label, 'split': 'development' if case['family_id'] in development else 'train',
+                      'label': label, 'split': gold_store.source(case['sha256'])['partition'],
                       'teacher_images': contexts[key], 'gold_panel': 'corrected-economy-references'})
     for case in fresh['cases']:
         if case['panel'] != 'fresh':
@@ -67,7 +67,7 @@ def build(root, out):
             raise ValueError('Fresh reference is not backed by authored gold: ' + key)
         job = next(j for j in fresh['proposal_jobs'] if j['case_id'] == key and j['role'] == 'normal')
         cases.append({**{k: case[k] for k in ('case_id', 'sha256', 'family_id', 'right_page')},
-                      'label': case['expected'], 'split': 'test', 'teacher_images': job['images'],
+                      'label': case['expected'], 'split': gold_store.source(case['sha256'])['partition'], 'teacher_images': job['images'],
                       'gold_panel': 'independent-fresh-sol-max'})
     family_splits, source_splits, seen, assets = {}, {}, set(), {}
     out.mkdir(parents=True, exist_ok=True)
@@ -100,7 +100,7 @@ def build(root, out):
     common = {'schema_version': 'doc-split-teacher.v1', 'origin': 'machine_test',
         'run_id': 'doc-split-teacher-student-v1', 'source_artifacts': inputs,
         'excluded_unresolved': excluded, 'image_preprocessing': 'saved teacher RGB images resized to 512x512',
-        'report': {'partition_status': 'Teacher-reference experiment; family-separated student partitions. '
+        'report': {'partition_status': 'Teacher-reference experiment; the gold store\'s partitions (source.json). '
                    'Most reference agreements are model-authored and not independently visually audited.'}}
     for name, chosen in [('teacher-training.json', [c for c in cases if c['split'] != 'test']),
                          ('teacher-test.json', [c for c in cases if c['split'] == 'test'])]:

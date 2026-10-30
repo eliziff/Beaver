@@ -1,4 +1,4 @@
-"""The cohort manifest of journal PDFs whose pages the 661-page journal manual gold covers.
+"""The manifest of journal PDFs whose pages the 661-page journal manual gold covers.
 
 The manual gold (eScriptorium PageXML, one human-corrected page each) names its source in the file
 name: NNN_<dataset>_article-<id>_pdf-page-<n>.xml, n the physical PDF page. Each article's PDF is
@@ -6,7 +6,8 @@ found in the shared corpus by its Open Access Journals Database label ("<dataset
 experiments/footnote-gold/import_olj.py stores them) or, with --fetch, stored there from the
 database's pdf_url. Articles with eval or test pages come first, spread over journals; at most
 --count are kept. Each row records its truth pages and how well the corpus page text agrees with
-the human transcription (a check that the page numbering lines up).
+the human transcription (a check that the page numbering lines up). A source's partition and groups
+are its source.json in the gold store, never this manifest.
 
   python journal_manifest.py [--gold <remote_bundle>] [--fetch] [--count 30] [--out journal_manifest.json]
 """
@@ -127,12 +128,8 @@ def main() -> None:
         if any(t["page"] > count or max(t["corpus_text_agreement"], t["image_agreement"]) < 0.9 for t in truth):
             skipped.append(f"{dataset}:{article} (pages differ)")
             continue
-        splits = [t["split"] for t in truth if t["split"] != "train"]
         rows.append({"path": DESKTOP_HOME + "\\" + path.replace("/", "\\"),
-                     "mode": "digitalborn" if pdf_type == "digital_born" else "ocr",
-                     "split": max(set(splits), key=splits.count), "sha256": sha, "pages": count,
-                     "language_layout": language if language in ("en", "fr") else "en",
-                     "genre_group": "publication", "country": "ca", "yardstick": "main", "label_source": "model",
+                     "mode": "digitalborn" if pdf_type == "digital_born" else "ocr", "sha256": sha, "pages": count,
                      "article": f"{dataset}:{article}", "pdf_type": pdf_type, "truth_pages": truth})
     a.out.write_text(json.dumps({"source": str(a.gold), "skipped": skipped, "documents": rows}, indent=1, ensure_ascii=False),
                      encoding="utf-8")
