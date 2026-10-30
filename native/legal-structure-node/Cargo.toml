@@ -30,6 +30,9 @@ sha2 = "0.10"
 legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full"], optional = true }
 napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
 napi-derive = "3"
+# The addon's allocator, its freed memory returned at once (node.rs).
+mimalloc = { version = "0.1.52", default-features = false }
+libmimalloc-sys = { version = "0.1.49", features = ["extended"] }
 
 # The browser build (wasm32-wasip1) parses the same PDFs; recognition runs in the page.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
