@@ -13,10 +13,14 @@ Where a file's documents start is decided once, never here: every file is author
 annotation in the gold store (experiments/legal_pdf_corpus/gold_store.py: gold/<sha>/split.json;
 `document_starts: []` for a file of one document), cut at those starts, each document authored
 alone, and the documents' golds joined into the file's. A file the store holds no split annotation
-for is refused. The gold records the starts it was cut at (authoring.document_starts).
+for is refused. The gold records the starts it was cut at (authoring.document_starts). Its partition
+(source.json) is decided before authoring too.
 
-  python experiments/legal-structure-gold/author.py --pdf FILE --mode digitalborn|ocr [--out DIR]
-  python experiments/legal-structure-gold/author.py --manifest FILE [--root DIR] [--limit 0] [--shard k/n]
+The gold and its receipt are written into the store, at <sha>/structure/<batch>-<run>/ (run a is
+the source's current gold); the page images, calls and extraction caches stay in --work.
+
+  python experiments/legal-structure-gold/author.py --batch B --pdf FILE --mode digitalborn|ocr
+  python experiments/legal-structure-gold/author.py --batch B --manifest FILE [--root DIR] [--limit 0] [--shard k/n]
   ... --again   (complete golds authored again under changed conventions or changed starts)
 """
 import argparse
@@ -373,20 +377,23 @@ def stitch(parts):
 
 def author(pdf, mode, args, extraction=None):
     pdf, source = Path(pdf), digest(Path(pdf))
-    job = args.out / "v4" / source
+    run = gold_store.ROOT / source / "structure" / f"{args.batch}-{args.run}"
+    job = args.work / source
     split_annotation = gold_store.split_of(source)
     gold.require(split_annotation is not None, f"{source} has no split annotation in the gold store ({gold_store.ROOT}): "
                                                "where its documents start is decided before authoring")
+    gold.require(gold_store.source(source).get("partition") in gold_store.PARTITIONS,
+                 f"{source} has no partition in the gold store's source.json: its partition is decided before authoring")
     starts = split_annotation["document_starts"]
-    if not args.again and (job / "gold.json.gz").is_file() and read_json(job / "receipt.json").get("status") == "complete":
-        return job
+    if not args.again and (run / "gold.json.gz").is_file():
+        return run
     job.mkdir(parents=True, exist_ok=True)
     started = time.time()
     receipt = {"source_sha256": source, "mode": mode, "model": args.model, "effort": args.effort, "status": "running",
                "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py", HERE / "postcorrect.py")}}
     write_json(job / "receipt.json", receipt)
     try:
-        lines, sizes, parser = extract(pdf, mode, args.parsed or args.out, args.timeout, extraction)
+        lines, sizes, parser = extract(pdf, mode, args.work, args.timeout, extraction)
         if extraction is not None:
             receipt['extraction_witness_sha256'] = parser['extraction_sha256']
         import fitz
@@ -402,16 +409,19 @@ def author(pdf, mode, args, extraction=None):
                                "prompts": {"lines": prompts.LINES, "hierarchy": prompts.HIERARCHY[args.hierarchy]}},
                  "lines": gold_lines, "typed": typed, "units": units, "notes": notes, "report": report}
         postcorrect.apply(value, [{"lines": [l for l in lines if l["page"] == p], "height": sizes.get(p, (0, 0))[1]} for p in pages])
-        write_json(job / "gold.json.gz", value)
-        receipt.update(status="complete", gold_sha256=digest(job / "gold.json.gz"), pages=len(pages), units=len(units),
+        run.mkdir(parents=True, exist_ok=True)
+        write_json(run / "gold.json.gz", value)
+        receipt.update(status="complete", gold_sha256=digest(run / "gold.json.gz"), pages=len(pages), units=len(units),
                        typed_lines=len(typed), notes=len(notes),
                        report={key: len(item) if isinstance(item, list) else item for key, item in report.items()})
-        return job
+        return run
     except BaseException as exc:
         receipt.update(status="failed", error=str(exc)[-1000:]); raise
     finally:
         receipt.update(finished_at=time.time(), seconds=round(time.time() - started, 1))
         write_json(job / "receipt.json", receipt)
+        if receipt["status"] == "complete":
+            write_json(run / "receipt.json", receipt)
 
 
 def main():
@@ -422,7 +432,9 @@ def main():
     p.add_argument("--mode", choices=("digitalborn", "ocr"))
     p.add_argument("--extraction", type=Path, help="Independent extraction witness tied to --pdf's original SHA and pages")
     p.add_argument("--root", type=Path, help="Base for manifest paths")
-    p.add_argument("--out", type=Path, default=ROOT / "benchmarks/local-data/legal-structure-gold")
+    p.add_argument("--batch", required=True, help="The authoring batch's name: the store's run folder is structure/<batch>-<run>")
+    p.add_argument("--run", default=gold_store.CURRENT_RUN, help="The run's letter: a is the source's current gold, others trials")
+    p.add_argument("--work", type=Path, default=gold_store.WORK, help="This machine's working folder: page images, calls, extraction caches")
     p.add_argument("--limit", type=int, default=1, help="0 selects every manifest row")
     p.add_argument("--shard", default="0/1", help="k/n: every n-th manifest row from the k-th")
     p.add_argument("--model", default="gpt-6.1-sol")
@@ -431,14 +443,12 @@ def main():
     p.add_argument("--timeout", type=int, default=900)
     p.add_argument("--attempts", type=int, default=3)
     p.add_argument("--again", action="store_true", help="Author complete golds again, under the current prompts; earlier calls stay cached")
-    p.add_argument("--parsed", type=Path, help="Where the parser's extraction is cached (its parsed/ folder's parent); default --out")
     p.add_argument("--hierarchy", choices=("two", "one"), default="two",
                    help="Document pass form under trial: a heading level or depths per row, or one depth per row")
     a = p.parse_args()
     gold.low_priority()
     args = SimpleNamespace(model=a.model, effort=a.effort, attempts=a.attempts, max_calls=None, timeout=a.timeout,
-                           dpi=a.dpi, out=a.out.resolve(), again=a.again, parsed=a.parsed.resolve() if a.parsed else None,
-                           hierarchy=a.hierarchy)
+                           dpi=a.dpi, batch=a.batch, run=a.run, work=a.work.resolve(), again=a.again, hierarchy=a.hierarchy)
     if a.pdf:
         gold.require(a.mode, "--pdf needs --mode")
         print(author(a.pdf, a.mode, args, a.extraction)); return

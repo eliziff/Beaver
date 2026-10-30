@@ -1,7 +1,7 @@
 # The parser against the structure gold, start to finish: build the grader (release, root
-# workspace, below normal priority), ship it to the desktop that holds the gold, wait until the
-# desktop runs nothing else, grade batches 5-7 for each arm (with -Parts, each again by part), and print
-# every layer that moved against a tagged earlier grade.
+# workspace, below normal priority), ship it to the desktop, put the committed gold store there
+# (desktop-store.ps1), wait until the desktop runs nothing else, grade the whole store for each arm
+# (with -Parts, again by part), and print every layer that moved against a tagged earlier grade.
 #
 #   .\prove.ps1 -Tag pdfi -Before contents4
 #   .\prove.ps1 -Tag pdfi -Before contents4 -Arms @{ default = @{}; own_columns = @{ LEGALPDF_OWN_COLUMNS = '1' } }
@@ -10,10 +10,10 @@
 # The grader reads each PDF as a parse of this build reads it (extraction, recognition through the
 # product's recognition cache, layout), into inputs keyed by the build's identity, and aligns the
 # gold to whatever lines that reading has; so every arm measures the whole pipeline, extraction
-# included. Each batch prints how many pages the recognition cache held and how many it read.
+# included. The inputs print how many pages the recognition cache held and how many it read.
 #
 # An arm is a set of environment variables the parser reads (LEGALPDF_*); its grades are
-# grade-<Tag>-<arm>.json beside each batch's gold on the desktop. The previous grader is kept as
+# gold-grades\grade-<Tag>-<arm>.json in the desktop's data home. The previous grader is kept as
 # grader-prev.exe, and no other copy.
 param(
   [Parameter(Mandatory)] [string]$Tag,
@@ -22,10 +22,8 @@ param(
   [switch]$NoBuild,
   # Grade while the desktop runs other jobs (an authoring run that lasts days).
   [switch]$Force,
-  # Every batch again by part (each document of a packet parsed alone): the measure of document starts.
+  # The store again by part (each document of a packet parsed alone): the measure of document starts.
   [switch]$Parts,
-  # The gold batches graded (b8: the 1,466 sources authored 2026-10-27).
-  [string[]]$Batches = @('b5', 'b6', 'b7'),
   [string]$Desktop = 'oajd-desktop',
   [string]$Fable = 'C:\Users\elias\fable'
 )
@@ -58,6 +56,8 @@ if (-not $NoBuild) {
   scp -q $built "${Desktop}:$($Fable -replace '\\', '/')/grader.exe"
   'shipped grader.exe'
 }
+$store = (& "$PSScriptRoot\desktop-store.ps1" -Desktop $Desktop | Select-Object -Last 1) -replace ' at \w+$', ''
+"store: $store"
 
 # One desktop job at a time: wait while any other build, grader or Python job runs there.
 $busy = "@(Get-Process cargo, python, structure-gold*, grader* -ErrorAction SilentlyContinue).Count"
@@ -66,10 +66,9 @@ while (-not $Force -and [int](Remote $busy | Select-Object -Last 1) -gt 0) {
   Start-Sleep 300
 }
 
-# Grade each arm: inputs, then the grade, per batch.
+# Grade each arm: inputs, then the grade (and by part).
 $grade = @'
-param($Fable, $Tag, $Arm, $Variables, $Parts, $Batches)
-$store = 'C:\Users\elias\Desktop\oajd_compute\lsg-v4\benchmarks\local-data\legal-structure-gold'
+param($Fable, $Store, $Tag, $Arm, $Variables, $Parts)
 $runtime = 'C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime'
 $env:LEGALPDF_INDRA_MODEL_PACK = "$runtime\indra"
 $env:LEGALPDF_ONNXRUNTIME = "$runtime\onnx\onnxruntime.dll"
@@ -78,37 +77,29 @@ $env:LEGALPDF_RECOGNITION_TRACE = '1'
 foreach ($name in $Variables.Keys) { Set-Item "env:$name" $Variables[$name] }
 # The layout model's OpenVINO runtime loads its libraries from beside it.
 if ($env:LEGALPDF_OPENVINO_RUNTIME) { $env:Path = "$(Split-Path $env:LEGALPDF_OPENVINO_RUNTIME);$env:Path" }
-$runs = @($Batches -split ',' | ForEach-Object { @{ Batch = $_ } }) + @(if ($Parts -eq 'True') { $Batches -split ',' | ForEach-Object { @{ Batch = $_; Parts = $true } } })
+$grades = "$env:LOCALAPPDATA\OpenLegalData\gold-grades"
+New-Item -ItemType Directory -Force $grades | Out-Null
+$runs = @(@{ Name = "grade-$Tag-$Arm" }) + @(if ($Parts -eq 'True') { @{ Name = "grade-parts-$Tag-$Arm"; Parts = $true } })
+$p = Start-Process "$Fable\grader.exe" -ArgumentList 'inputs', $Store -WorkingDirectory $grades -NoNewWindow -PassThru -RedirectStandardOutput "$grades\inputs.txt" -RedirectStandardError "$grades\inputs.err"
+$p.WaitForExit()
+$read = Get-Content "$grades\inputs.err" | Where-Object { $_ -match '^recognition' } | ForEach-Object { $f = $_ -split "`t"; [pscustomobject]@{ Held = [int]($f[1] -split ' ')[0]; Read = [int]($f[2] -split ' ')[0] } }
+"inputs ($Arm): " + (Get-Content "$grades\inputs.err" -Tail 1) + "; recognition cache held $(($read | Measure-Object Held -Sum).Sum) pages, read $(($read | Measure-Object Read -Sum).Sum)"
 foreach ($run in $runs) {
-  $batch = $run.Batch
-  $gold = "$Fable\$batch\a"
-  $env:STRUCTURE_GOLD_INPUTS = "$Fable\$batch\inputs"
-  if (-not (Test-Path "$gold\parsed")) { cmd /c mklink /J "$gold\parsed" "$store\parsed" | Out-Null }
-  $manifest = "$Fable\$batch\cohort-manifest.json"
-  $out = if ($run.Parts) { "$gold\grade-parts-$Tag-$Arm.json" } else { "$gold\grade-$Tag-$Arm.json" }
-  $grading = @('grade', $gold, $manifest)
-  if ($run.Parts) { $grading += '--parts' }
-  $grading += @('--out', $out)
-  foreach ($arguments in @(, @('inputs', $gold, $manifest)) + @(, $grading)) {
-    $p = Start-Process "$Fable\grader.exe" -ArgumentList $arguments -WorkingDirectory $gold -NoNewWindow -PassThru -RedirectStandardOutput "$gold\$($arguments[0]).txt" -RedirectStandardError "$gold\$($arguments[0]).err"
-    $p.WaitForExit()
-  }
-  if (-not $run.Parts) {
-    $read = Get-Content "$gold\inputs.err" | Where-Object { $_ -match '^recognition' } | ForEach-Object { $f = $_ -split "`t"; [pscustomobject]@{ Held = [int]($f[1] -split ' ')[0]; Read = [int]($f[2] -split ' ')[0] } }
-    "$batch inputs ($Arm): " + (Get-Content "$gold\inputs.err" -Tail 1) + "; recognition cache held $(($read | Measure-Object Held -Sum).Sum) pages, read $(($read | Measure-Object Read -Sum).Sum)"
-  }
-  "$batch$(if ($run.Parts) { ' by part' }) ($Arm): " + (Get-Content "$gold\grade.err" -Tail 1)
+  $grading = @('grade', $Store) + @(if ($run.Parts) { '--parts' }) + @('--out', "$grades\$($run.Name).json")
+  $p = Start-Process "$Fable\grader.exe" -ArgumentList $grading -WorkingDirectory $grades -NoNewWindow -PassThru -RedirectStandardOutput "$grades\grade.txt" -RedirectStandardError "$grades\grade.err"
+  $p.WaitForExit()
+  "$($run.Name): " + (Get-Content "$grades\grade.err" -Tail 1)
 }
 '@
 foreach ($arm in $Arms.Keys) {
   $variables = ($Arms[$arm].GetEnumerator() | ForEach-Object { "'$($_.Key)' = '$($_.Value)'" }) -join '; '
-  Remote "& { $grade } -Fable '$Fable' -Tag '$Tag' -Arm '$arm' -Variables @{ $variables } -Parts '$Parts' -Batches '$($Batches -join ',')'"
+  Remote "& { $grade } -Fable '$Fable' -Store '$store' -Tag '$Tag' -Arm '$arm' -Variables @{ $variables } -Parts '$Parts'"
 }
 
 # Every pooled layer (train split) that moved against the earlier grade.
 if ($Before) {
   $compare = @'
-param($Fable, $Before, $After, $Batches)
+param($Before, $After)
 function Pooled($Path) {
   $grade = Get-Content $Path -Raw | ConvertFrom-Json
   $totals = @{}
@@ -127,18 +118,17 @@ function Pooled($Path) {
   }
   $f1
 }
-foreach ($batch in $Batches -split ',') {
-  $earlier = "$Fable\$batch\a\grade-$Before.json"
-  if (-not (Test-Path $earlier)) { "$batch has no grade-$Before.json"; continue }
-  $a = Pooled $earlier; $b = Pooled "$Fable\$batch\a\grade-$After.json"
-  "== $batch $Before -> $After"
-  foreach ($name in $b.Keys | Sort-Object) {
-    if ($a.ContainsKey($name) -and [Math]::Abs($b[$name] - $a[$name]) -ge 0.002) { "  {0,-22} {1:N3} -> {2:N3}  {3:+0.000;-0.000}" -f $name, $a[$name], $b[$name], ($b[$name] - $a[$name]) }
-    elseif (-not $a.ContainsKey($name)) { "  {0,-22} (new) {1:N3}" -f $name, $b[$name] }
-  }
+$grades = "$env:LOCALAPPDATA\OpenLegalData\gold-grades"
+$earlier = "$grades\grade-$Before.json"
+if (-not (Test-Path $earlier)) { "no grade-$Before.json"; return }
+$a = Pooled $earlier; $b = Pooled "$grades\grade-$After.json"
+"== $Before -> $After"
+foreach ($name in $b.Keys | Sort-Object) {
+  if ($a.ContainsKey($name) -and [Math]::Abs($b[$name] - $a[$name]) -ge 0.002) { "  {0,-22} {1:N3} -> {2:N3}  {3:+0.000;-0.000}" -f $name, $a[$name], $b[$name], ($b[$name] - $a[$name]) }
+  elseif (-not $a.ContainsKey($name)) { "  {0,-22} (new) {1:N3}" -f $name, $b[$name] }
 }
 '@
   foreach ($arm in $Arms.Keys) {
-    Remote "& { $compare } -Fable '$Fable' -Before '$Before' -After '$Tag-$arm' -Batches '$($Batches -join ',')'"
+    Remote "& { $compare } -Before '$Before' -After '$Tag-$arm'"
   }
 }

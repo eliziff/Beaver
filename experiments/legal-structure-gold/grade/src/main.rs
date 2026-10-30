@@ -1,30 +1,36 @@
 //! Grade fixed gold against explicit cached predictions or a replay of the structure stage.
 //!
-//!   structure-gold inputs GOLD_DIR MANIFEST    each gold's PDF read as a parse of this build reads it,
-//!       through the product's caches under GOLD_DIR/parsed, into GOLD_DIR/inputs/<build identity>/;
-//!       the gold is aligned to whatever lines this build reads, never chosen by them
-//!   structure-gold synthesize GOLD_DIR MANIFEST --model-pack DIR --runtime DLL [--dpi N] [--limit N] [--genre GROUP] [--only SHA_PREFIX] [--keep-pdf DIR] [--rendered DIR] [--inputs-only]
-//!       scans made of the main train split's digital golds: rendered, degraded, recognized; gold copied
-//!                                              recognized into it: GOLD_DIR/inputs/<sha>.json.gz
-//!   structure-gold grade GOLD_DIR MANIFEST [--candidates FILE] [--split S] [--runs PREFIX..]
+//! STORE is the gold store (benchmarks/local-data/gold, or a worker's checkout of the same repository;
+//! experiments/legal_pdf_corpus/gold_store.py): one folder per source, its current gold in
+//! structure/<batch>-a/gold.json.gz, its partition (--split) and groups in source.json. What a machine
+//! makes from the store stays on that machine, under the data home (OPEN_LEGAL_DATA_HOME, else
+//! %LOCALAPPDATA%/OpenLegalData): extraction caches in gold-parsed/, the structure-stage inputs in
+//! STRUCTURE_GOLD_INPUTS (else gold-inputs/), and grades.
+//!
+//!   structure-gold inputs STORE    each gold's PDF read as a parse of this build reads it, through
+//!       the product's caches, into the inputs folder under <build identity>/; the gold is aligned to
+//!       whatever lines this build reads, never chosen by them
+//!   structure-gold grade STORE [--candidates FILE] [--split S] [--runs PREFIX..]
 //!                        [--group FIELD=VALUE]... [--out FILE] [--against FILE] [--show]
 //!       replays the structure stage over this build's inputs and scores it; writes
-//!       GOLD_DIR/score/grade.json unless --out names another file. Totals are pooled per split; test is left out unless asked.
+//!       gold-grade.json in the data home unless --out names another file. Totals are pooled per split; test is left out unless asked.
 //!       --candidates reads the existing OCR cache manifest (inputs: source_sha256, candidate),
 //!       scores only its exports, and never selects them by gold line IDs.
 //!       --labels FILE decodes a tagger's per-line labels ({sha256, ids, labels} rows) over the
 //!       replayed parser, which supplies markers, references and note pairs, and scores them.
-//!       --group FIELD=VALUE keeps matching manifest groups; repeat to require every match.
-//!       --parts grades each document of a packet on its own (run v4/<sha>#k): the gold cut at its
+//!       --group FIELD=VALUE keeps matching source groups; repeat to require every match.
+//!       --parts grades each document of a packet on its own (run <sha>#k): the gold cut at its
 //!       document starts, the parser replayed on the extraction's lines that align to that document.
-//!   structure-gold rows GOLD_DIR MANIFEST OUT_DIR
+//!   structure-gold rows STORE OUT_DIR
 //!       the tier-1 tagger's training rows, train and development only: each line's evidence
 //!       with the replayed parser's labels and the gold's, one JSON document per line of
 //!       OUT_DIR/rows-<split>.jsonl.
-//!   structure-gold explain GOLD_DIR MANIFEST SHA_PREFIX [--candidates FILE] [--layers a,b] [--limit N]
+//!   structure-gold explain STORE SHA_PREFIX [--candidates FILE] [--layers a,b] [--limit N]
 //!       --tagger DIR [--pure]: the engine's tagger over the parse; --pure takes its notes, references and document starts too
 //!       one document's missed (-) and spurious (+) items per layer, as text.
-//!   structure-gold paragraph-data GOLD_DIR MANIFEST OUT_DIR
+//!   structure-gold selfcheck STORE self|labels|agree [--run R] [--split S] [--worst a,b]
+//!   structure-gold pairing STORE SHA_PREFIX [FIRST-LAST]
+//!   structure-gold paragraph-data STORE OUT_DIR
 //!       exports Rust boundary features and fixed-gold targets, excluding test.
 mod paragraph_data;
 mod paragraph_features;
@@ -34,7 +40,6 @@ use legal_pdf_tagger::{alignment, labels, rows, state, text_diff};
 
 use legal_pdf_core::{read_gzip_json, write_gzip_json};
 use legal_structure_model::DocumentStructure;
-use sha2::Digest as _;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -51,9 +56,21 @@ struct Source {
     split: String,
     groups: BTreeMap<String, String>,
     pdf: PathBuf,
+    /// The source's current gold: structure/<batch>-a/gold.json.gz.
+    gold: PathBuf,
 }
 
-/// A Windows path in the manifest, read from WSL where the grader runs there.
+/// Where this machine keeps what it makes from the store: OPEN_LEGAL_DATA_HOME, else
+/// %LOCALAPPDATA%/OpenLegalData (the corpus home's parent, as corpus_store.py has it).
+fn data_home() -> PathBuf {
+    std::env::var_os("OPEN_LEGAL_DATA_HOME").map(PathBuf::from).unwrap_or_else(|| {
+        std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join("AppData/Local")))
+            .unwrap_or_default().join("OpenLegalData")
+    })
+}
+
+/// A Windows path in a candidates inventory or labels file, read from WSL where the grader runs there.
 fn local(path: &str) -> PathBuf {
     if cfg!(windows) {
         return PathBuf::from(path);
@@ -72,39 +89,41 @@ fn read_json(path: &Path) -> Result<Value, String> {
     serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// Every completed gold, with its manifest split and PDF.
-fn sources(gold: &Path, manifest: &Path) -> Result<Vec<Source>, String> {
-    let manifest = read_json(manifest)?;
-    let rows: BTreeMap<&str, &Value> = manifest["documents"]
-        .as_array()
-        .ok_or("Manifest without documents")?
-        .iter()
-        .filter_map(|row| Some((row["sha256"].as_str()?, row)))
+/// A source folder's gold of one run (structure/<batch>-<run>/gold.json.gz), if it has one.
+fn run_gold(folder: &Path, run: &str) -> Option<PathBuf> {
+    let mut found: Vec<PathBuf> = std::fs::read_dir(folder.join("structure")).ok()?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.file_name().and_then(|n| n.to_str()).and_then(|n| n.rsplit_once('-')).is_some_and(|(_, r)| r == run))
+        .map(|p| p.join("gold.json.gz"))
+        .filter(|p| p.is_file())
         .collect();
+    found.sort();
+    found.pop()
+}
+
+/// Every source in the store with a current gold (run "a"), its partition and groups from its
+/// source.json, its mode from the gold's receipt.
+fn sources(store: &Path) -> Result<Vec<Source>, String> {
     let mut found = Vec::new();
-    for entry in std::fs::read_dir(gold.join("v4")).map_err(|e| e.to_string())? {
-        let job = entry.map_err(|e| e.to_string())?.path();
-        let Ok(receipt) = read_json(&job.join("receipt.json")) else {
+    for entry in std::fs::read_dir(store).map_err(|e| format!("{}: {e}", store.display()))? {
+        let folder = entry.map_err(|e| e.to_string())?.path();
+        let Some(sha256) = folder.file_name().and_then(|n| n.to_str()).filter(|n| n.len() == 64).map(str::to_owned) else {
             continue;
         };
-        if receipt["status"] != "complete" || !job.join("gold.json.gz").is_file() {
-            continue;
-        }
-        let sha256 = receipt["source_sha256"]
-            .as_str()
-            .ok_or("Receipt without source")?
-            .to_owned();
-        // A gold still being authored into the store has no manifest row yet: it waits.
-        let Some(row) = rows.get(sha256.as_str()) else {
+        let Some(gold) = run_gold(&folder, "a") else {
             continue;
         };
+        let source = read_json(&folder.join("source.json"))?;
+        let receipt = read_json(&gold.with_file_name("receipt.json"))?;
+        let pdf = local(source["pdf"].as_str().ok_or_else(|| format!("{sha256}: source.json without pdf"))?);
         found.push(Source {
             mode: receipt["mode"].as_str().unwrap_or_default().to_owned(),
-            split: row["split"].as_str().unwrap_or("unsplit").to_owned(),
+            split: source["partition"].as_str().ok_or_else(|| format!("{sha256}: source.json without partition"))?.to_owned(),
             groups: GROUP_FIELDS.iter().map(|&field| (
-                field.to_owned(), row[field].as_str().unwrap_or("unknown").to_owned(),
+                field.to_owned(), source[field].as_str().unwrap_or("unknown").to_owned(),
             )).collect(),
-            pdf: local(row["path"].as_str().ok_or("Manifest row without path")?),
+            pdf: if pdf.is_absolute() { pdf } else { data_home().join(pdf) },
+            gold,
             sha256,
         });
     }
@@ -114,10 +133,10 @@ fn sources(gold: &Path, manifest: &Path) -> Result<Vec<Source>, String> {
 
 /// The structure-stage inputs this build makes, under the identity of the code and models that make
 /// them (`legalpdf::gold_inputs_identity`), so a build never grades another build's pages: in
-/// STRUCTURE_GOLD_INPUTS where set, else the gold's own inputs/.
-fn inputs_dir(gold: &Path) -> PathBuf {
+/// STRUCTURE_GOLD_INPUTS where set, else gold-inputs/ in the data home.
+fn inputs_dir() -> PathBuf {
     std::env::var_os("STRUCTURE_GOLD_INPUTS")
-        .map_or_else(|| gold.join("inputs"), PathBuf::from)
+        .map_or_else(|| data_home().join("gold-inputs"), PathBuf::from)
         .join(legalpdf::gold_inputs_identity())
 }
 
@@ -152,240 +171,14 @@ fn parallel<T: Send>(
         .collect()
 }
 
-/// A grey page degraded as a scan degrades it: a 3x3 box blur, a contrast stretch, deterministic
-/// speckle from the seed, 16 grey levels.
-fn degrade(width: usize, height: usize, pixels: &[u8], seed: u64) -> Vec<u8> {
-    let at = |x: usize, y: usize| usize::from(pixels[y * width + x]);
-    let mut state = seed | 1;
-    let mut next = move || {
-        state ^= state << 13;
-        state ^= state >> 7;
-        state ^= state << 17;
-        state
-    };
-    let mut out = vec![0u8; width * height];
-    for y in 0..height {
-        for x in 0..width {
-            let (x0, x1) = (x.saturating_sub(1), (x + 1).min(width - 1));
-            let (y0, y1) = (y.saturating_sub(1), (y + 1).min(height - 1));
-            let mut sum = 0;
-            let mut n = 0;
-            for yy in y0..=y1 {
-                for xx in x0..=x1 {
-                    sum += at(xx, yy);
-                    n += 1;
-                }
-            }
-            let mean = sum as f64 / n as f64;
-            let r = next();
-            let noise = (r % 25) as f64 - 12.0;
-            let mut v = (mean - 128.0) * 1.15 + 128.0 + noise;
-            if r % 1000 < 2 {
-                v = 40.0;
-            }
-            let q = (v.clamp(0.0, 255.0) / 16.0).round() * 16.0;
-            out[y * width + x] = q.min(255.0) as u8;
-        }
-    }
-    out
-}
-
-/// An image-only PDF of grey pages at `dpi`: one DeviceGray FlateDecode image per page.
-fn image_pdf(pages: &[(usize, usize, Vec<u8>)], dpi: f64) -> Vec<u8> {
-    use std::io::Write;
-    let mut out: Vec<u8> = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n".to_vec();
-    let mut offsets: Vec<usize> = Vec::new();
-    let object = |out: &mut Vec<u8>, offsets: &mut Vec<usize>, body: &[u8]| {
-        offsets.push(out.len());
-        let _ = write!(out, "{} 0 obj\n", offsets.len());
-        out.extend_from_slice(body);
-        out.extend_from_slice(b"\nendobj\n");
-    };
-    object(&mut out, &mut offsets, b"<< /Type /Catalog /Pages 2 0 R >>");
-    let kids: Vec<String> = (0..pages.len()).map(|i| format!("{} 0 R", 3 + 3 * i)).collect();
-    object(&mut out, &mut offsets, format!("<< /Type /Pages /Kids [{}] /Count {} >>", kids.join(" "), pages.len()).as_bytes());
-    for (i, (width, height, pixels)) in pages.iter().enumerate() {
-        let (w, h) = (*width as f64 * 72.0 / dpi, *height as f64 * 72.0 / dpi);
-        let (page, content, image) = (3 + 3 * i, 4 + 3 * i, 5 + 3 * i);
-        object(&mut out, &mut offsets, format!(
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w:.2} {h:.2}] /Resources << /XObject << /Im0 {image} 0 R >> >> /Contents {content} 0 R >>"
-        ).as_bytes());
-        let _ = page;
-        let stream = format!("q {w:.2} 0 0 {h:.2} 0 0 cm /Im0 Do Q");
-        object(&mut out, &mut offsets, format!("<< /Length {} >>\nstream\n{stream}\nendstream", stream.len()).as_bytes());
-        let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::new(6));
-        let _ = encoder.write_all(pixels);
-        let data = encoder.finish().unwrap_or_default();
-        let mut body = format!(
-            "<< /Type /XObject /Subtype /Image /Width {width} /Height {height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length {} >>\nstream\n",
-            data.len()
-        ).into_bytes();
-        body.extend_from_slice(&data);
-        body.extend_from_slice(b"\nendstream");
-        object(&mut out, &mut offsets, &body);
-    }
-    let xref = out.len();
-    let _ = write!(out, "xref\n0 {}\n0000000000 65535 f \n", offsets.len() + 1);
-    for offset in &offsets {
-        let _ = write!(out, "{offset:010} 00000 n \n");
-    }
-    let _ = write!(out, "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", offsets.len() + 1);
-    out
-}
-
-/// Synthetic scans of the main train split's digital golds: each PDF rendered at --dpi (200), degraded,
-/// wrapped as an image-only PDF, recognized by Indra through the engine; the gold copied under the
-/// synthetic PDF's sha (mode ocr, `synthetic_of` the original), its inputs written, a manifest row
-/// and a provenance record added (collection synthetic-scan). Resumable: an original already
-/// synthesized is skipped. Transcripts are left out.
-fn synthesize(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String> {
-    let value = |name: &str| options.iter().position(|o| o == name).and_then(|n| options.get(n + 1)).cloned();
-    let dpi: f64 = value("--dpi").and_then(|v| v.parse().ok()).unwrap_or(200.0);
-    let limit: usize = value("--limit").and_then(|v| v.parse().ok()).unwrap_or(usize::MAX);
-    let genre = value("--genre");
-    let only = value("--only");
-    let keep = value("--keep-pdf").map(PathBuf::from);
-    // --rendered DIR: synthetic PDFs rendered and degraded elsewhere (render_synthetic.py with pdfium, which draws
-    // the text hayro leaves blank on some documents), one DIR/<sha>.pdf per original; originals without one wait.
-    let rendered = value("--rendered").map(PathBuf::from);
-    // --inputs-only: the recognized inputs alone, for every chosen original (done or not), into the
-    // inputs directory; no gold copy, manifest row or provenance record. A second reading of the same
-    // synthetic scans under other settings (LEGALPDF_PARAGRAPH_RECOVERY=off) for a paired comparison.
-    let inputs_only = options.iter().any(|o| o == "--inputs-only");
-    if let Some(dir) = &keep {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    let model_pack = value("--model-pack").ok_or("--model-pack DIR")?;
-    let runtime_library = value("--runtime").ok_or("--runtime DLL")?;
-    let ocr = legalpdf::OcrOptions::Indra(legalpdf::IndraOptions {
-        model_pack: Some(PathBuf::from(model_pack)),
-        runtime: Some(PathBuf::from(runtime_library)),
-        ..Default::default()
-    });
-    let mut runtime: Option<legalpdf::OcrProvider> = None;
-    let mut done: HashSet<String> = HashSet::new();
-    for entry in std::fs::read_dir(gold.join("v4")).map_err(|e| e.to_string())? {
-        let job = entry.map_err(|e| e.to_string())?.path();
-        if let Ok(receipt) = read_json(&job.join("receipt.json")) {
-            if let Some(original) = receipt["synthetic_of"].as_str() {
-                done.insert(original.to_owned());
-            }
-        }
-    }
-    let provenance_path = gold.join("provenance.json");
-    let mut provenance = read_json(&provenance_path)?;
-    let mut manifest_value = read_json(manifest)?;
-    let chosen: Vec<Source> = sources(gold, manifest)?
-        .into_iter()
-        .filter(|s| s.split == "train" && s.mode != "ocr" && s.groups.get("yardstick").is_some_and(|y| y == "main")
-            && s.groups.get("genre_group").is_none_or(|g| g != "transcript") && (inputs_only || !done.contains(&s.sha256))
-            && genre.as_deref().is_none_or(|wanted| s.groups.get("genre_group").is_some_and(|g| g == wanted))
-            && only.as_deref().is_none_or(|prefix| s.sha256.starts_with(prefix)))
-        .collect();
-    eprintln!("{} digital main train documents to synthesize ({} already done)", chosen.len(), done.len());
-    let started = Instant::now();
-    for (n, source) in chosen.iter().take(limit).enumerate() {
-        let (synthetic, page_count) = if let Some(dir) = &rendered {
-            let path = dir.join(format!("{}.pdf", source.sha256));
-            match std::fs::read(&path) {
-                Ok(bytes) => {
-                    let count = legalpdf::render_gray_pages(&bytes, 10.0).len();
-                    (bytes, count)
-                }
-                Err(_) => {
-                    eprintln!("WAIT {}: no rendered PDF at {}", &source.sha256[..12], path.display());
-                    continue;
-                }
-            }
-        } else {
-            let pdf = match std::fs::read(&source.pdf) {
-                Ok(bytes) => bytes,
-                Err(e) => {
-                    eprintln!("SKIP {} {}: {e}", source.sha256, source.pdf.display());
-                    continue;
-                }
-            };
-            let pages = legalpdf::render_gray_pages(&pdf, dpi);
-            if pages.is_empty() {
-                eprintln!("SKIP {}: nothing rendered", source.sha256);
-                continue;
-            }
-            let seed = u64::from_str_radix(&source.sha256[..16], 16).unwrap_or(1);
-            let degraded: Vec<(usize, usize, Vec<u8>)> = pages.iter().enumerate()
-                .map(|(k, (w, h, px))| (*w, *h, degrade(*w, *h, px, seed.wrapping_add(k as u64 * 7919))))
-                .collect();
-            let count = degraded.len();
-            (image_pdf(&degraded, dpi), count)
-        };
-        let sha = format!("{:x}", sha2::Sha256::digest(&synthetic));
-        if let Some(dir) = &keep {
-            std::fs::write(dir.join(format!("{}-{}.pdf", &source.sha256[..12], &sha[..12])), &synthetic).map_err(|e| e.to_string())?;
-        }
-        let extracted = match legalpdf::gold_synthetic_inputs(&synthetic, &ocr, &mut runtime) {
-            Ok(extracted) => extracted,
-            Err(e) => {
-                eprintln!("FAIL {}: {e}", source.sha256);
-                continue;
-            }
-        };
-        let recognized = extracted.pages.iter().filter(|p| p.source == "ocr").count();
-        let lines: usize = extracted.pages.iter().map(|p| p.lines.len()).sum();
-        let routing = format!("scanned {} routed {} unresolved {}", extracted.metadata.scanned_pages.len(),
-            extracted.metadata.ocr_routed_pages.len(), extracted.metadata.pages_needing_ocr.len());
-        let pages_len = page_count.max(extracted.pages.len());
-        legal_pdf_core::write_gzip_json(&inputs_dir(gold).join(format!("{sha}.json.gz")), &extracted).map_err(|e| e.to_string())?;
-        if inputs_only {
-            eprintln!("{}/{} {} -> {} inputs only: pages {} recognized {} lines {} ({routing}) in {:.0}s", n + 1, chosen.len().min(limit), &source.sha256[..12], &sha[..12],
-                pages_len, recognized, lines, started.elapsed().as_secs_f64());
-            continue;
-        }
-        let folder = gold.join("v4").join(&sha);
-        std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
-        let mut copy: Value = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
-        copy["source_sha256"] = json!(sha);
-        copy["mode"] = json!("ocr");
-        copy["synthetic_of"] = json!(source.sha256);
-        legal_pdf_core::write_gzip_json(&folder.join("gold.json.gz"), &copy).map_err(|e| e.to_string())?;
-        let receipt = json!({
-            "status": "complete", "source_sha256": sha, "mode": "ocr", "pages": pages_len, "model": "synthetic-scan",
-            "synthetic_of": source.sha256, "dpi": dpi, "recognized_pages": recognized, "lines": lines,
-            "finished_at": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0),
-        });
-        std::fs::write(folder.join("receipt.json"), serde_json::to_string_pretty(&receipt).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-        let path = format!("synthetic/{sha}.pdf");
-        if let Some(documents) = manifest_value["documents"].as_array_mut() {
-            documents.push(json!({"path": path, "mode": "ocr", "split": "train", "sha256": sha, "pages": pages_len, "synthetic_of": source.sha256}));
-        }
-        if let Some(records) = provenance["records"].as_array_mut() {
-            let mut record = records.iter().find(|r| r["sha256"] == source.sha256).cloned().unwrap_or_else(|| json!({"genre": "unknown", "country": "ca"}));
-            record["sha256"] = json!(sha);
-            record["mode"] = json!("ocr");
-            record["split"] = json!("train");
-            record["path"] = json!(path);
-            record["pages"] = json!(pages_len);
-            record["collection"] = json!("synthetic-scan-2026-10-23");
-            record["synthetic_of"] = json!(source.sha256);
-            record["label_source"] = json!("model");
-            record["source_family"] = json!(format!("{} synthetic", record["source_family"].as_str().unwrap_or("unknown")));
-            record["authoring"] = json!({"model": "synthetic-scan", "status": "complete", "dpi": dpi});
-            records.push(record);
-        }
-        std::fs::write(manifest, serde_json::to_string_pretty(&manifest_value).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-        std::fs::write(&provenance_path, serde_json::to_string_pretty(&provenance).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-        eprintln!("{}/{} {} -> {} pages {} recognized {} lines {} ({routing}) in {:.0}s", n + 1, chosen.len().min(limit), &source.sha256[..12], &sha[..12],
-            pages_len, recognized, lines, started.elapsed().as_secs_f64());
-    }
-    Ok(())
-}
-
-fn inputs(gold: &Path, manifest: &Path) -> Result<(), String> {
-    let mut all = sources(gold, manifest)?;
+fn inputs(store: &Path) -> Result<(), String> {
+    let mut all = sources(store)?;
     // STRUCTURE_GOLD_INPUTS_ONLY: comma-separated sha prefixes, for a slice.
     if let Ok(only) = std::env::var("STRUCTURE_GOLD_INPUTS_ONLY") {
         let prefixes: Vec<&str> = only.split(',').map(str::trim).filter(|p| !p.is_empty()).collect();
         all.retain(|s| prefixes.iter().any(|p| s.sha256.starts_with(p)));
     }
-    let destination = inputs_dir(gold);
+    let destination = inputs_dir();
     std::fs::create_dir_all(&destination).map_err(|e| e.to_string())?;
     let started = Instant::now();
     let results = parallel(
@@ -400,7 +193,7 @@ fn inputs(gold: &Path, manifest: &Path) -> Result<(), String> {
                 std::fs::read(&source.pdf).map_err(|e| format!("{}: {e}", source.pdf.display()))?;
             // The PDF read as a parse of this build reads it, through the product's caches beside the
             // gold; nothing is chosen by the gold, which the scorer aligns to whatever lines these are.
-            let extracted = legalpdf::gold_structure_inputs(&pdf, &gold.join("parsed").join(&source.sha256))
+            let extracted = legalpdf::gold_structure_inputs(&pdf, &data_home().join("gold-parsed").join(&source.sha256))
                 .map_err(|e| format!("{}: {e}", source.sha256))?;
             write_gzip_json(&target, &extracted).map_err(|e| e.to_string())
         },
@@ -468,7 +261,6 @@ fn candidates(path: Option<&str>) -> Result<BTreeMap<String, PathBuf>, String> {
 /// The parser's structure for a source: replayed from this build's inputs, or read from the export
 /// a candidates inventory names.
 fn candidate(
-    gold: &Path,
     source: &Source,
     selected: Option<&PathBuf>,
 ) -> Result<DocumentStructure, String> {
@@ -481,12 +273,12 @@ fn candidate(
     }
     let read_at = Instant::now();
     let extracted: legalpdf::ExtractedPdf = read_gzip_json(
-        &inputs_dir(gold)
+        &inputs_dir()
             .join(format!("{}.json.gz", source.sha256)),
     )
     .map_err(|e| format!("{}: {e}", source.sha256))?;
     let extracted = if std::env::var_os("STRUCTURE_GOLD_ORACLE_LAYOUT").is_some() {
-        let whole: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+        let whole: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
         oracle_layout(extracted, &whole)?
     } else {
         extracted
@@ -727,23 +519,22 @@ fn input_part(mut extracted: legalpdf::ExtractedPdf, ids: &HashSet<&str>) -> leg
 
 /// A source's grades: one, or with --parts one per document of a packet.
 fn grade_one(
-    gold: &Path,
     source: &Source,
     selected: Option<&PathBuf>,
 ) -> Result<Vec<(Option<usize>, Graded)>, String> {
     let gold_at = Instant::now();
-    let raw: Value = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+    let raw: Value = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
     let (parts, line_parts) = if PARTS.load(Ordering::Relaxed) && selected.is_none() { gold_parts(&raw)? } else { (vec![raw.clone()], Vec::new()) };
     if parts.len() == 1 {
         let expected: state::Gold = serde_json::from_value(parts.into_iter().next().unwrap_or_default()).map_err(|e| e.to_string())?;
         let started = Instant::now();
-        let structure = candidate(gold, source, selected)?;
+        let structure = candidate(source, selected)?;
         return Ok(vec![(None, score_structure(source, &expected, &structure, gold_at, started)?)]);
     }
     // Each document of the packet is parsed on the extraction's lines that read as its gold's, which
     // the extraction aligned to the whole gold says.
     let started = Instant::now();
-    let path = inputs_dir(gold).join(format!("{}.json.gz", source.sha256));
+    let path = inputs_dir().join(format!("{}.json.gz", source.sha256));
     let whole_gold: state::Gold = serde_json::from_value(raw).map_err(|e| e.to_string())?;
     let read = || -> Result<legalpdf::ExtractedPdf, String> {
         oracle_layout(read_gzip_json(&path).map_err(|e| format!("{}: {e}", source.sha256))?, &whole_gold)
@@ -849,10 +640,10 @@ fn decode_labels(frame: &state::State, per_piece: &HashMap<String, labels::Label
 }
 
 /// A tagger's labels for one document, decoded over the replayed parser and scored like a parse.
-fn grade_labels(gold: &Path, source: &Source, per_piece: &HashMap<String, labels::Label>) -> Result<Graded, String> {
-    let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+fn grade_labels(source: &Source, per_piece: &HashMap<String, labels::Label>) -> Result<Graded, String> {
+    let expected: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
     let started = Instant::now();
-    let structure = candidate(gold, source, None)?;
+    let structure = candidate(source, None)?;
     let parsed_at = Instant::now();
     let decoded = decode_labels(&state::parsed(&structure)?, per_piece, &source.sha256)?;
     let score = score::compare(&state::projected(&expected)?, &decoded)?;
@@ -869,10 +660,10 @@ fn hybrid() -> bool {
     !PURE.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-fn grade_tagged(gold: &Path, source: &Source, tagger: &Mutex<legal_pdf_tagger::onnx::Tagger>) -> Result<Graded, String> {
-    let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
+fn grade_tagged(source: &Source, tagger: &Mutex<legal_pdf_tagger::onnx::Tagger>) -> Result<Graded, String> {
+    let expected: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
     let started = Instant::now();
-    let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256)))
+    let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256)))
         .map_err(|e| format!("{}: {e}", source.sha256))?;
     let mut pages = Vec::new();
     let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
@@ -1030,7 +821,7 @@ fn delta_table(title: &str, common: &[(&Value, &Value)]) {
     }
 }
 
-fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String> {
+fn grade(store: &Path, options: &[String]) -> Result<(), String> {
     // The citation grammar's tables and regexes compile on first use; pay that once, outside
     // any document's timing.
     legal_pdf_core::profile::measure("warmup.citations", || {
@@ -1079,7 +870,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
         .skip(1)
         .take_while(|o| !o.starts_with("--"))
         .collect();
-    let all = sources(gold, manifest)?;
+    let all = sources(store)?;
     for sha in selected.keys() {
         if !all.iter().any(|s| &s.sha256 == sha) {
             return Err(format!("Candidate {sha} has no completed gold"));
@@ -1104,15 +895,15 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     }
     let started = Instant::now();
     let weight = |s: &Source| {
-        std::fs::metadata(gold.join("v4").join(&s.sha256).join("gold.json.gz"))
+        std::fs::metadata(&s.gold)
             .map_or(0, |m| m.len())
     };
     let results = parallel(&all, weight, |source| {
         let began = Instant::now();
         let result = match (&labelled, &tagger) {
-            (_, Some(tagger)) => grade_tagged(gold, source, tagger).map(|graded| vec![(None, graded)]),
-            (Some(labelled), None) => grade_labels(gold, source, &labelled[&source.sha256]).map(|graded| vec![(None, graded)]),
-            (None, None) => grade_one(gold, source, selected.get(&source.sha256)),
+            (_, Some(tagger)) => grade_tagged(source, tagger).map(|graded| vec![(None, graded)]),
+            (Some(labelled), None) => grade_labels(source, &labelled[&source.sha256]).map(|graded| vec![(None, graded)]),
+            (None, None) => grade_one(source, selected.get(&source.sha256)),
         };
         if began.elapsed().as_secs() >= 10 {
             eprintln!("slow: {} took {:.0}s", source.sha256, began.elapsed().as_secs_f64());
@@ -1135,7 +926,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
                 metrics.insert("transcription", score::Metric {
                     expected: s.text.characters, predicted: s.text.characters, correct: s.text.matched_characters,
                 });
-                let run = part.map_or_else(|| format!("v4/{}", source.sha256), |k| format!("v4/{}#{k}", source.sha256));
+                let run = part.map_or_else(|| source.sha256.clone(), |k| format!("{}#{k}", source.sha256));
                 rows.push(json!({
                     "run": run, "part": part, "source_sha256": source.sha256, "mode": source.mode, "split": source.split,
                     "language_layout": source.groups["language_layout"], "genre_group": source.groups["genre_group"],
@@ -1146,7 +937,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
                 }));
             }
             Err(error) => {
-                errors.push(json!({"run": format!("v4/{}", source.sha256), "error": error}))
+                errors.push(json!({"run": source.sha256.clone(), "error": error}))
             }
         }
     }
@@ -1186,7 +977,7 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
     });
     let out = value("--out")
         .map(PathBuf::from)
-        .unwrap_or_else(|| gold.join("score/grade.json"));
+        .unwrap_or_else(|| data_home().join("gold-grade.json"));
     if let Some(parent) = out.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -1235,15 +1026,15 @@ fn grade(gold: &Path, manifest: &Path, options: &[String]) -> Result<(), String>
 }
 
 /// The tier-1 tagger's training rows: train and development documents, never test.
-fn rows(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
-    let all: Vec<Source> = sources(gold, manifest)?.into_iter().filter(|s| s.split != "test").collect();
+fn rows(store: &Path, out: &Path) -> Result<(), String> {
+    let all: Vec<Source> = sources(store)?.into_iter().filter(|s| s.split != "test").collect();
     std::fs::create_dir_all(out).map_err(|e| e.to_string())?;
     std::fs::write(out.join("features.json"), serde_json::to_string(&rows::FEATURES[..]).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     let started = Instant::now();
-    let weight = |s: &Source| std::fs::metadata(inputs_dir(gold).join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
+    let weight = |s: &Source| std::fs::metadata(inputs_dir().join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
     let results = parallel(&all, weight, |source| -> Result<String, String> {
-        let expected: state::Gold = read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())?;
-        let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256)))
+        let expected: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
+        let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256)))
             .map_err(|e| format!("{}: {e}", source.sha256))?;
         let mut pages = Vec::new();
         let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
@@ -1285,10 +1076,10 @@ fn rows(gold: &Path, manifest: &Path, out: &Path) -> Result<(), String> {
 }
 
 /// Diagnostic: the note pairer over one document's replayed pages, its markers beside each line.
-fn pairing(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
+fn pairing(store: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
     use legal_structure::LayoutAnalysis;
-    let source = sources(gold, manifest)?.into_iter().find(|s| s.sha256.starts_with(prefix)).ok_or("No such gold")?;
-    let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256)))
+    let source = sources(store)?.into_iter().find(|s| s.sha256.starts_with(prefix)).ok_or("No such gold")?;
+    let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256)))
         .map_err(|e| format!("{}: {e}", source.sha256))?;
     let mut pages = Vec::new();
     legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| e.to_string())?;
@@ -1317,28 +1108,28 @@ fn pairing(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
 
 /// The gold against itself through the scorer (must be 1.0 everywhere), and the gold's own labels
 /// decoded over the gold's own lines, order, markers and notes (any shortfall is the label
-/// encoding or the decoder, never the gold): `selfcheck GOLD MANIFEST self|labels`.
-/// `self`: the gold against itself; `labels`: the gold's own labels decoded; `agree --other STORE`:
-/// the gold against the same document's gold authored independently into another store, which is
-/// how far two authorings agree.
-fn selfcheck(gold: &Path, manifest: &Path, mode: &str, options: &[String]) -> Result<(), String> {
+/// encoding or the decoder, never the gold): `selfcheck STORE self|labels`.
+/// `self`: the gold against itself; `labels`: the gold's own labels decoded; `agree --run R`:
+/// the gold against the same source's gold of run R (structure/<batch>-R), authored independently,
+/// which is how far two authorings agree (sources without that run are left out).
+fn selfcheck(store: &Path, mode: &str, options: &[String]) -> Result<(), String> {
     let value = |name: &str| options.iter().position(|o| o == name).and_then(|n| options.get(n + 1)).cloned();
     let split = value("--split");
-    let other = value("--other").map(PathBuf::from);
-    if mode == "agree" && other.is_none() {
-        return Err("agree needs --other STORE".into());
+    let run = value("--run");
+    if mode == "agree" && run.is_none() {
+        return Err("agree needs --run R".into());
     }
-    let all: Vec<Source> = sources(gold, manifest)?.into_iter()
-        .filter(|s| split.as_deref().map_or(s.split != "test", |want| s.split == want)).collect();
+    let other = |source: &Source| run.as_deref().and_then(|r| run_gold(&store.join(&source.sha256), r));
+    let all: Vec<Source> = sources(store)?.into_iter()
+        .filter(|s| split.as_deref().map_or(s.split != "test", |want| s.split == want))
+        .filter(|s| mode != "agree" || other(s).is_some()).collect();
     let results = parallel(&all, |_| 0, |source| -> Result<score::Score, String> {
-        let read = |store: &Path| -> Result<state::Gold, String> {
-            read_gzip_json(&store.join("v4").join(&source.sha256).join("gold.json.gz")).map_err(|e| e.to_string())
-        };
-        let expected = read(gold)?;
+        let read = |path: &Path| -> Result<state::Gold, String> { read_gzip_json(path).map_err(|e| e.to_string()) };
+        let expected = read(&source.gold)?;
         let reference = state::projected(&expected)?;
         let candidate = match mode {
             "self" => state::projected(&expected)?,
-            "agree" => state::projected(&read(other.as_deref().expect("checked above"))?)?,
+            "agree" => state::projected(&read(&other(source).expect("filtered above"))?)?,
             _ => roundtrip(&expected, &reference)?,
         };
         score::compare(&reference, &candidate)
@@ -1378,7 +1169,7 @@ fn roundtrip(expected: &state::Gold, reference: &state::State) -> Result<state::
 }
 
 /// One document's missed and spurious items, layer by layer.
-fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
+fn explain(store: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
     let value = |name: &str| {
         options
             .iter()
@@ -1386,12 +1177,12 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
             .and_then(|n| options.get(n + 1))
             .cloned()
     };
-    let source = sources(gold, manifest)?
+    let source = sources(store)?
         .into_iter()
         .find(|s| s.sha256.starts_with(prefix))
         .ok_or("No such gold")?;
     let expected: state::Gold =
-        read_gzip_json(&gold.join("v4").join(&source.sha256).join("gold.json.gz"))
+        read_gzip_json(&source.gold)
             .map_err(|e| e.to_string())?;
     let inventory = value("--candidates");
     if options.iter().any(|o| o == "--candidates")
@@ -1404,7 +1195,6 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
         return Err("No candidate selected for this source".into());
     }
     let structure = candidate(
-        gold,
         &source,
         selected.get(&source.sha256),
     )?;
@@ -1438,7 +1228,7 @@ fn explain(gold: &Path, manifest: &Path, prefix: &str, options: &[String]) -> Re
         let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok()).ok_or("--tagger needs --onnx-runtime PATH")?;
         legal_pdf_core::init_ort_runtime(Path::new(&runtime), None).map_err(|e| format!("ONNX Runtime: {e}"))?;
         let mut tagger = legal_pdf_tagger::onnx::Tagger::load(Path::new(&dir), 4)?;
-        let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir(gold).join(format!("{}.json.gz", source.sha256))).map_err(|e| format!("{}: {e}", source.sha256))?;
+        let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256))).map_err(|e| format!("{}: {e}", source.sha256))?;
         let mut pages = Vec::new();
         let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
         let mut structure = document.structure().clone();
@@ -1504,33 +1294,14 @@ fn main() {
     legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let result = match arguments.as_slice() {
-        [command, gold, manifest, options @ ..] if command == "grade" => {
-            grade(Path::new(gold), Path::new(manifest), options)
-        }
-        [command, gold, manifest, options @ ..] if command == "synthesize" => {
-            synthesize(Path::new(gold), Path::new(manifest), options)
-        }
-        [command, gold, manifest] if command == "inputs" => {
-            inputs(Path::new(gold), Path::new(manifest))
-        }
-        [command, gold, manifest, out] if command == "paragraph-data" => {
-            paragraph_data::export(Path::new(gold), Path::new(manifest), Path::new(out))
-        }
-        [command, gold, manifest, mode, options @ ..] if command == "selfcheck" => {
-            selfcheck(Path::new(gold), Path::new(manifest), mode, options)
-        }
-        [command, gold, manifest, out] if command == "rows" => {
-            rows(Path::new(gold), Path::new(manifest), Path::new(out))
-        }
-        [command, gold, manifest, prefix, options @ ..] if command == "pairing" => {
-            pairing(Path::new(gold), Path::new(manifest), prefix, options)
-        }
-        [command, gold, manifest, prefix, options @ ..] if command == "explain" => {
-            explain(Path::new(gold), Path::new(manifest), prefix, options)
-        }
-        _ => Err(
-            "usage: structure-gold inputs|grade|rows|explain GOLD_DIR MANIFEST [SHA|OUT_DIR] [options]".into(),
-        ),
+        [command, store, options @ ..] if command == "grade" => grade(Path::new(store), options),
+        [command, store] if command == "inputs" => inputs(Path::new(store)),
+        [command, store, out] if command == "paragraph-data" => paragraph_data::export(Path::new(store), Path::new(out)),
+        [command, store, mode, options @ ..] if command == "selfcheck" => selfcheck(Path::new(store), mode, options),
+        [command, store, out] if command == "rows" => rows(Path::new(store), Path::new(out)),
+        [command, store, prefix, options @ ..] if command == "pairing" => pairing(Path::new(store), prefix, options),
+        [command, store, prefix, options @ ..] if command == "explain" => explain(Path::new(store), prefix, options),
+        _ => Err("usage: structure-gold inputs|grade|rows|explain|selfcheck|pairing|paragraph-data STORE [SHA|OUT_DIR|MODE] [options]".into()),
     };
     if let Err(error) = result {
         eprintln!("{error}");

@@ -3,6 +3,11 @@
 benchmarks/local-data/gold (the private gold repository; OPENLEGAL_GOLD names another copy, such as a
 worker machine's) holds one folder per source PDF, named by its sha256:
 
+  source.json                     the source itself: {partition (train, development or test: the one
+                                  partition every model trained or graded on the gold uses, shared by
+                                  the source's family of related documents), language_layout,
+                                  genre_group, country, yardstick, label_source, pdf (its path in the
+                                  corpus home)}
   split.json                      the source's split annotation: {sha256, pages, document_starts
                                   (pages, or {page, line_id, text} starts partway down one),
                                   origin, evidence}; the one record of where its documents start
@@ -13,8 +18,10 @@ worker machine's) holds one folder per source PDF, named by its sha256:
   structure/archive/              earlier revisions kept outside git
 
 batches/<batch>/ keeps each authoring batch's manifests and launchers: provenance, never a
-convention. The source PDFs are in the corpus (corpus.sqlite `files`); git keeps every earlier
-version of the store.
+convention, and never read for a partition. The source PDFs are in the corpus (corpus.sqlite
+`files`); git keeps every earlier version of the store. The grader (experiments/legal-structure-gold/
+grade) reads the store's folders directly, so a worker machine grades and trains on a checkout of
+this same repository, never on a copy laid out another way.
 
 register() records the store in corpus.sqlite: one gold_records row per source and kind
 (`gold/structure`, `gold/split`), its runs in gold_runs and their files, with hashes, in
@@ -41,6 +48,10 @@ STRUCTURE, SPLIT = "gold/structure", "gold/split"
 # The datasets the store replaces: the split registry's origins and its archive.
 RETIRED = ("page-stream-segmentation/%",)
 CURRENT_RUN = "a"
+PARTITIONS = ("train", "development", "test")
+# What a machine makes while authoring or grading the store (page images, calls, extraction caches,
+# inputs, grades) stays on that machine, beside the corpus home, never in the store.
+WORK = corpus_store.HOME / "gold-work"
 
 
 def digest(path):
@@ -65,6 +76,9 @@ def register():
         missing = [p.name for p in folders if db.execute("select 1 from files where sha256=?", (p.name,)).fetchone() is None]
         if missing:
             raise ValueError(f"{len(missing)} gold sources are not in the corpus file index: {missing[:3]}")
+        unpartitioned = [p.name for p in folders if source(p.name).get("partition") not in PARTITIONS]
+        if unpartitioned:
+            raise ValueError(f"{len(unpartitioned)} gold sources have no partition in source.json: {unpartitioned[:3]}")
         for pattern in RETIRED + (STRUCTURE, SPLIT):
             runs = [r for (r,) in db.execute("select run_id from gold_runs where dataset like ?", (pattern,))]
             db.executemany("delete from gold_artifacts where run_id=?", [(r,) for r in runs])
@@ -109,6 +123,12 @@ def sources(kind):
             raise ValueError(f"Registered gold changed since registration: {path}")
         out.append((sha, Path(path)))
     return out
+
+
+def source(sha):
+    """A source's source.json (its partition, groups and corpus path), or {} where it has none."""
+    path = ROOT / sha / "source.json"
+    return read(path) if path.is_file() else {}
 
 
 def splits():
