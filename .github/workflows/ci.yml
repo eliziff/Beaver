@@ -121,7 +121,8 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
-      - run: npm ci --prefix .. --workspace backend --include-workspace-root --ignore-scripts
+      - working-directory: .
+        run: npm ci --workspace backend --include-workspace-root --ignore-scripts
       - run: npm run check
       - run: npm run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -150,7 +151,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install frontend and shared dependencies once
-        run: npm ci --prefix .. --workspace frontend --include-workspace-root --ignore-scripts
+        working-directory: .
+        run: npm ci --workspace frontend --include-workspace-root --ignore-scripts
       - run: npm run check
         if: needs.changes.outputs.frontend == 'true'
       - run: npm run build
