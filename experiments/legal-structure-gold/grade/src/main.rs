@@ -5,7 +5,10 @@
 //! structure/<batch>-a/gold.json.gz, its partition (--split) and groups in source.json. What a machine
 //! makes from the store stays on that machine, under the data home (OPEN_LEGAL_DATA_HOME, else
 //! %LOCALAPPDATA%/OpenLegalData): extraction caches in gold-parsed/, the structure-stage inputs in
-//! STRUCTURE_GOLD_INPUTS (else gold-inputs/), and grades.
+//! STRUCTURE_GOLD_INPUTS (else gold-inputs/), each source's replayed parse in gold-replays/<key>/
+//! (the key is this binary's hash and the parser's settings, so a grade of labels, of a tagger or the
+//! rows parses each source once per build), and grades. Every core grades unless
+//! STRUCTURE_GOLD_THREADS says otherwise.
 //!
 //!   structure-gold inputs STORE    each gold's PDF read as a parse of this build reads it, through
 //!       the product's caches, into the inputs folder under <build identity>/; the gold is aligned to
@@ -271,12 +274,44 @@ fn candidate(
         }
         return Ok(export.structure);
     }
+    Ok(replay(source, false)?.0)
+}
+
+/// The key of this grader's replays: its own binary (any rebuild may change the parser) and the
+/// settings the parser and the replay read (LEGALPDF_*, STRUCTURE_GOLD_ORACLE_LAYOUT), so a kept
+/// replay is never another build's or another arm's.
+fn replay_key() -> &'static str {
+    static KEY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    KEY.get_or_init(|| {
+        use sha2::Digest as _;
+        let mut digest = sha2::Sha256::new();
+        digest.update(std::env::current_exe().and_then(std::fs::read).unwrap_or_default());
+        let mut settings: Vec<(String, String)> = std::env::vars()
+            .filter(|(name, _)| name.starts_with("LEGALPDF_") || name == "STRUCTURE_GOLD_ORACLE_LAYOUT").collect();
+        settings.sort();
+        digest.update(format!("{settings:?}").as_bytes());
+        format!("{:x}", digest.finalize())[..16].to_owned()
+    })
+}
+
+/// The structure stage over a source's inputs (with the pages it read when asked), run once per
+/// grader and settings: kept in gold-replays/<key>/ in the data home, so grading labels, a tagger or
+/// the rows again reads the parse instead of parsing.
+fn replay(source: &Source, with_pages: bool) -> Result<(DocumentStructure, Vec<legal_pdf_core::model::Page>), String> {
+    let folder = data_home().join("gold-replays").join(replay_key());
+    let structure_path = folder.join(format!("{}.structure.json.gz", source.sha256));
+    let pages_path = folder.join(format!("{}.pages.json.gz", source.sha256));
+    if let Ok(structure) = read_gzip_json::<DocumentStructure>(&structure_path) {
+        if !with_pages {
+            return Ok((structure, Vec::new()));
+        }
+        if let Ok(pages) = read_gzip_json(&pages_path) {
+            return Ok((structure, pages));
+        }
+    }
     let read_at = Instant::now();
-    let extracted: legalpdf::ExtractedPdf = read_gzip_json(
-        &inputs_dir()
-            .join(format!("{}.json.gz", source.sha256)),
-    )
-    .map_err(|e| format!("{}: {e}", source.sha256))?;
+    let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256)))
+        .map_err(|e| format!("{}: {e}", source.sha256))?;
     let extracted = if std::env::var_os("STRUCTURE_GOLD_ORACLE_LAYOUT").is_some() {
         let whole: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
         oracle_layout(extracted, &whole)?
@@ -284,13 +319,19 @@ fn candidate(
         extracted
     };
     let structure_at = Instant::now();
-    let document = legalpdf::gold_structure_document(extracted, &source.sha256, None)
+    let mut pages = Vec::new();
+    let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages))
         .map_err(|e| format!("{}: {e}", source.sha256))?;
     if std::env::var_os("STRUCTURE_GOLD_TIMING").is_some() {
         eprintln!("timing	{}	inputs_ms	{:.1}	structure_ms	{:.1}", &source.sha256[..12],
             (structure_at - read_at).as_secs_f64() * 1e3, structure_at.elapsed().as_secs_f64() * 1e3);
     }
-    Ok(document.structure().clone())
+    let structure = document.structure().clone();
+    // A replay that cannot be kept is still graded.
+    if std::fs::create_dir_all(&folder).is_ok() {
+        let _ = write_gzip_json(&pages_path, &pages).and_then(|()| write_gzip_json(&structure_path, &structure));
+    }
+    Ok((structure, pages))
 }
 
 struct Graded {
@@ -663,12 +704,8 @@ fn hybrid() -> bool {
 fn grade_tagged(source: &Source, tagger: &Mutex<legal_pdf_tagger::onnx::Tagger>) -> Result<Graded, String> {
     let expected: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
     let started = Instant::now();
-    let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256)))
-        .map_err(|e| format!("{}: {e}", source.sha256))?;
-    let mut pages = Vec::new();
-    let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
     // The product's path: the graph re-labelled in place, then read as any parse is.
-    let mut structure = document.structure().clone();
+    let (mut structure, pages) = replay(source, true)?;
     tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.retag(&mut structure, &pages, &source.sha256, hybrid())?;
     let tagged_at = Instant::now();
     let score = score::compare(&state::projected(&expected)?, &state::parsed(&structure)?)?;
@@ -1034,11 +1071,8 @@ fn rows(store: &Path, out: &Path) -> Result<(), String> {
     let weight = |s: &Source| std::fs::metadata(inputs_dir().join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
     let results = parallel(&all, weight, |source| -> Result<String, String> {
         let expected: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
-        let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256)))
-            .map_err(|e| format!("{}: {e}", source.sha256))?;
-        let mut pages = Vec::new();
-        let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
-        let candidate = state::parsed(document.structure())?;
+        let (structure, pages) = replay(source, true)?;
+        let candidate = state::parsed(&structure)?;
         let reference = state::projected(&expected)?;
         let parsed_regions = labels::parsed_regions(&candidate);
         let (pieces, tier0) = labels::labels(&candidate, &|p| parsed_regions.of(p))?;
@@ -1079,10 +1113,7 @@ fn rows(store: &Path, out: &Path) -> Result<(), String> {
 fn pairing(store: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
     use legal_structure::LayoutAnalysis;
     let source = sources(store)?.into_iter().find(|s| s.sha256.starts_with(prefix)).ok_or("No such gold")?;
-    let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256)))
-        .map_err(|e| format!("{}: {e}", source.sha256))?;
-    let mut pages = Vec::new();
-    legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| e.to_string())?;
+    let (_, pages) = replay(&source, true)?;
     let output = legal_structure::STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), true);
     let audit = output.pairing_audit.ok_or("No pairing audit")?;
     println!("{}", serde_json::to_string(&audit.pairing_summary).map_err(|e| e.to_string())?);
@@ -1228,10 +1259,7 @@ fn explain(store: &Path, prefix: &str, options: &[String]) -> Result<(), String>
         let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok()).ok_or("--tagger needs --onnx-runtime PATH")?;
         legal_pdf_core::init_ort_runtime(Path::new(&runtime), None).map_err(|e| format!("ONNX Runtime: {e}"))?;
         let mut tagger = legal_pdf_tagger::onnx::Tagger::load(Path::new(&dir), 4)?;
-        let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256))).map_err(|e| format!("{}: {e}", source.sha256))?;
-        let mut pages = Vec::new();
-        let document = legalpdf::gold_structure_document(extracted, &source.sha256, Some(&mut pages)).map_err(|e| format!("{}: {e}", source.sha256))?;
-        let mut structure = document.structure().clone();
+        let (mut structure, pages) = replay(&source, true)?;
         // --labels-out FILE: the engine's own per-piece labels, in the trainer's predictions format, so
         // they can be set beside a predictions file piece by piece.
         if let Some(path) = value("--labels-out") {
