@@ -31,7 +31,7 @@ const engine = <T>(method: string, request: object) =>
 /** The anchor a source's page has for a locator its reading labels ("par12", "page 3", "2(1)"): CanLII's and
  *  Decisia's paragraph anchors, a PDF's page, CanLII's section and subsection anchors. */
 export function legalSourceLocatorAnchor(rawUrl: string | null, kind: A2AJLocatorKind, label: string) {
-  return rawUrl ? engine<string | null>("sourceAnchor", { url: rawUrl, kind, label }) ?? undefined : undefined;
+  return rawUrl ? engine<(string | null)[]>("sourceAnchor", { url: rawUrl, kind, labels: [label] })[0] ?? undefined : undefined;
 }
 
 /**
