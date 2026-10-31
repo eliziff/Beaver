@@ -335,6 +335,22 @@ pub fn citation_lookup_keys(texts: &[String]) -> Vec<String> {
     texts.iter().map(|text| citation_lookup_key(text)).collect()
 }
 
+/// A citation's exact aliases and authored forms in the A2AJ store's inventory (a2aj.rs alias_groups).
+#[derive(Serialize)]
+pub struct AliasGroup {
+    pub(crate) keys: Vec<String>,
+    pub(crate) forms: Vec<String>,
+    pub(crate) ambiguous: bool,
+}
+
+/// Each citation's own key alone: its aliases where no store is installed, or the engine reads none.
+pub fn own_alias_groups(citations: &[String]) -> Vec<AliasGroup> {
+    citations.iter().map(|citation| {
+        let key = citation_lookup_key(citation);
+        AliasGroup { keys: if key.is_empty() { Vec::new() } else { vec![key] }, forms: Vec::new(), ambiguous: false }
+    }).collect()
+}
+
 /// What the lookup keys are made by: the key version and the alias table, which keys a decision's every citation by
 /// one identity, so keys stored under another table are made again.
 pub fn citation_key_version() -> String {
@@ -466,27 +482,21 @@ pub fn document_has_origin(document: &NativeDocument, origin: &str) -> CoreResul
     Ok(document.query.has_origin(document.structure(), origin))
 }
 
+#[cfg(feature = "docx")]
+pub use docx::*;
 #[cfg(feature = "legalpdf")]
 pub use pdf::*;
 
 /// Supplies this engine to the PDF and DOCX parsers, which are built without it so that an
 /// engine edit does not recompile them.
 pub fn install_structure_analysis() {
-    #[cfg(feature = "legalpdf")]
+    #[cfg(feature = "docx")]
     legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
 }
 
-#[cfg(feature = "legalpdf")]
-mod pdf {
+#[cfg(feature = "docx")]
+mod docx {
     use super::*;
-    use std::collections::HashSet;
-
-    fn pdf_of<'a>(document: &'a NativeDocument, message: &str) -> CoreResult<&'a legalpdf::PdfDocument> {
-        match &document.product {
-            NativeProduct::Pdf(document) => Ok(document),
-            _ => Err(message.to_owned()),
-        }
-    }
 
     fn docx_supra_bytes(bytes: &[u8]) -> CoreResult<&[u8]> {
         if bytes.is_empty() || bytes.len() > legalpdf::MAX_DOCX_SUPRA_BYTES {
@@ -521,6 +531,19 @@ mod pdf {
 
     pub fn docx_authority_text_units(bytes: &[u8]) -> CoreResult<Vec<serde_json::Value>> {
         legalpdf::docx_to_toa_text_units(bytes).map_err(|error| error.to_string())
+    }
+}
+
+#[cfg(feature = "legalpdf")]
+mod pdf {
+    use super::*;
+    use std::collections::HashSet;
+
+    fn pdf_of<'a>(document: &'a NativeDocument, message: &str) -> CoreResult<&'a legalpdf::PdfDocument> {
+        match &document.product {
+            NativeProduct::Pdf(document) => Ok(document),
+            _ => Err(message.to_owned()),
+        }
     }
 
     pub fn derive_pdf_document(bytes: &[u8], request: &legalpdf::PdfRequest) -> CoreResult<NativeDocument> {

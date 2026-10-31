@@ -2,7 +2,9 @@
 //! `engine` holds every operation, `a2aj` reads the local A2AJ store, and `dispatch` names them; `node` binds that one
 //! call for Node-API and `wasi` for the browser's WebAssembly runtime.
 
+#[cfg(feature = "a2aj")]
 mod a2aj;
+#[cfg(feature = "a2aj")]
 mod a2aj_lookup;
 mod dispatch;
 pub mod engine;

@@ -5,11 +5,13 @@
 //! A request is `[u32 json length][json {op, args}][bytes]`; the reply is
 //! `[u8 ok][u32 json length][json][bytes]`, the json being the result or the error.
 
+#[cfg(feature = "a2aj")]
 use crate::a2aj;
 use crate::engine::{self, CoreResult, NativeDocument};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+#[cfg(feature = "a2aj")]
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -28,6 +30,7 @@ fn store(document: NativeDocument) -> Value {
     share(Arc::new(document))
 }
 
+#[cfg(feature = "a2aj")]
 /// An A2AJ document as JavaScript is given it: its metadata and a handle to each of its readings.
 fn found(found: Option<a2aj::Found>) -> Value {
     found.map_or(Value::Null, |found| json!({ "metadata": found.metadata, "native": share(found.native),
@@ -66,6 +69,7 @@ fn value(output: impl Serialize) -> CoreResult<Value> {
     serde_json::to_value(output).map_err(|error| error.to_string())
 }
 
+#[cfg_attr(not(feature = "legalpdf"), allow(unused_variables))]
 fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResult<(Value, Vec<u8>)> {
     let done = |output: CoreResult<Value>| output.map(|output| (output, Vec::new()));
     let doc = || call.document();
@@ -78,7 +82,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         }
         "deriveDocumentStructure" => done(engine::derive_document_structure(call.get("request")?).map(store)),
         "deriveDocumentFingerprint" => done(engine::derive_document_fingerprint(call.get("request")?).and_then(value)),
-        #[cfg(feature = "legalpdf")]
+        #[cfg(feature = "docx")]
         "fixDocxSupraCrossReferences" => {
             let result = engine::fix_docx_supra_cross_references(bytes)?;
             Ok((json!({
@@ -89,13 +93,13 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
                     "unsafe_or_split_fields": result.unsafe_or_split_fields },
             }), result.bytes))
         }
-        #[cfg(feature = "legalpdf")]
+        #[cfg(feature = "docx")]
         "deriveDocxDocument" => done(engine::derive_docx_document(
             bytes, call.get("id")?, call.get::<Option<bool>>("drafting")?.unwrap_or(false)).map(store)),
-        #[cfg(feature = "legalpdf")]
+        #[cfg(feature = "docx")]
         "docxText" => done(engine::docx_text(
             bytes, call.get::<Option<bool>>("drafting")?.unwrap_or(false), call.get("limit")?).and_then(value)),
-        #[cfg(feature = "legalpdf")]
+        #[cfg(feature = "docx")]
         "docxAuthorityTextUnits" => done(engine::docx_authority_text_units(bytes).and_then(value)),
         #[cfg(feature = "legalpdf")]
         "derivePdfDocument" => done(engine::derive_pdf_document(bytes, &call.get("request")?).map(store)),
@@ -200,36 +204,53 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             d, call.get::<legal_structure_features::QuoteSource>("source")?,
             &call.get::<Vec<legal_structure_features::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true),
             call.get::<Option<bool>>("keep")?.unwrap_or(false)).and_then(value))),
+        #[cfg(feature = "a2aj")]
         "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?).map(found)),
         // The same of a record A2AJ's API answered with, and its other readings: a provision, a listing, the records
         // that answer a citation.
+        #[cfg(feature = "a2aj")]
         "a2ajRecord" => done(a2aj::record(&call.get::<Value>("record")?, call.get::<Option<legal_structure_features::a2aj::Language>>("language")?
             .unwrap_or(legal_structure_features::a2aj::Language::En), &call.get::<String>("docType")?).map(found)),
+        #[cfg(feature = "a2aj")]
         "a2ajRecordProvision" => done(a2aj::record_provision(&call.get::<Vec<Value>>("records")?, &call.get("lookup")?,
             call.get("excerpt")?).map(|native| native.map_or(Value::Null, share))),
+        #[cfg(feature = "a2aj")]
         "a2ajRecordListing" => done(value(a2aj::record_listing(&call.get::<Value>("record")?,
             call.get::<Option<legal_structure_features::a2aj::Language>>("language")?.unwrap_or(legal_structure_features::a2aj::Language::En)))),
+        #[cfg(feature = "a2aj")]
         "a2ajRecordMatches" => done(value(a2aj::record_matches(&call.get::<Vec<Value>>("records")?, &call.get("query")?))),
+        #[cfg(feature = "a2aj")]
         "a2ajSection" => done(a2aj::section(&call.get::<PathBuf>("store")?, &call.get("lookup")?,
             &call.get::<String>("section")?, call.get("excerpt")?)
             .map(|found| found.map_or(Value::Null, |native| json!({ "native": native.map(share) })))),
+        #[cfg(not(feature = "a2aj"))]
+        "a2ajAliasGroups" => done(value(engine::own_alias_groups(&call.get::<Vec<String>>("citations")?))),
+        #[cfg(feature = "a2aj")]
         "a2ajAliasGroups" => done(a2aj::alias_groups(&call.get::<PathBuf>("store")?,
             &call.get::<Vec<String>>("citations")?).and_then(value)),
+        #[cfg(feature = "a2aj")]
         "a2ajNamedCase" => done(a2aj::named_case(&call.get::<PathBuf>("store")?, &call.get("named")?).and_then(value)),
+        #[cfg(feature = "a2aj")]
         "a2ajNameKeys" => done(value(call.get::<Vec<String>>("names")?.iter().map(|name| a2aj::name_key(name))
             .collect::<Vec<_>>())),
         // The store's search, its inventory of courts, and its documents read by id (experiments read them so).
+        #[cfg(feature = "a2aj")]
         "a2ajSearch" => done(a2aj::search(&call.get::<PathBuf>("store")?, &call.get("search")?).and_then(value)),
+        #[cfg(feature = "a2aj")]
         "a2ajFind" => done(a2aj::find_id(&call.get::<PathBuf>("store")?, &call.get("lookup")?).and_then(value)),
+        #[cfg(feature = "a2aj")]
         "a2ajCourts" => done(a2aj::courts(&call.get::<PathBuf>("store")?).and_then(value)),
+        #[cfg(feature = "a2aj")]
         "a2ajStoreDocuments" => done(a2aj::documents(&call.get::<PathBuf>("store")?, &call.get::<Vec<i64>>("ids")?,
             &call.get::<Option<String>>("docType")?.unwrap_or_else(|| "cases".to_owned()),
             call.get::<Option<legal_structure_features::a2aj::Language>>("language")?.unwrap_or(legal_structure_features::a2aj::Language::En))
             .map(|found| found.map_or(Value::Null, |found| Value::Array(found.into_iter()
                 .map(|(id, document)| { let mut value = self::found(Some(document)); value["id"] = id.into(); value }).collect())))),
+        #[cfg(feature = "a2aj")]
         "a2ajReads" => done(a2aj::reads(&call.get::<PathBuf>("store")?, &call.get::<Vec<i64>>("ids")?,
             &call.get::<Option<String>>("docType")?.unwrap_or_else(|| "cases".to_owned()),
             call.get::<Option<legal_structure_features::a2aj::Language>>("language")?.unwrap_or(legal_structure_features::a2aj::Language::En)).and_then(value)),
+        #[cfg(feature = "a2aj")]
         "citatorNoteUp" => {
             let mut request: legal_structure_features::citator_graph::NoteUpRequest = call.get("request")?;
             let store = call.get::<PathBuf>("store")?;
@@ -237,6 +258,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             done(legal_structure_features::citator_graph::note_up(&store, &request)
                 .map_err(|error| error.to_string()).and_then(value))
         }
+        #[cfg(feature = "a2aj")]
         "citatorMetrics" => done(legal_structure_features::citator_graph::authority_metrics(&call.get::<PathBuf>("store")?,
             &call.get::<Vec<String>>("citations")?).map_err(|error| error.to_string()).and_then(value)),
         "readDocumentRange" => done(with_document(doc()?, |d| engine::read_document_range(
