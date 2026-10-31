@@ -8,19 +8,23 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [features]
-default = ["legalpdf"]
-legalpdf = ["dep:legalpdf", "dep:legal-pdf-support"]
+default = ["legalpdf", "a2aj"]
+# A2AJ's documents, from its API's records or the local store (SQLite), and the citator graph built from the store.
+a2aj = ["dep:rusqlite", "legal-structure-features/a2aj-store", "legal-structure-features/citator-graph"]
+# Word documents: the parser's DOCX reading without its PDF pipeline (Authority Linker's engine, build-engine.mjs --word).
+docx = ["dep:legalpdf"]
+legalpdf = ["docx", "legalpdf/pdf", "dep:legal-pdf-support"]
 diagnostics = ["legalpdf", "legalpdf/profiling"]
 allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["provider-text", "citator", "journal", "native-markup"] }
-legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "citator", "document-query", "provider-text", "a2aj-store", "citator-graph", "quote-verification"] }
+legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "provider-text", "quote-verification"] }
 legal-pdf-support = { path = "../../legal-pdf-parser/legal-pdf-support", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 # The local A2AJ store, read by the engine itself; the browser build compiles SQLite with wasi-sdk (WASI_SDK_PATH).
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.40.2", features = ["bundled"], optional = true }
 # The census bins (src/bin) match source text with the patterns the census was written in.
 regex = "1.13"
 sha2 = "0.10"
@@ -36,7 +40,7 @@ libmimalloc-sys = { version = "0.1.49", features = ["extended"] }
 
 # The browser build (wasm32-wasip1) parses the same PDFs; recognition runs in the page.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["pdf", "language"], optional = true }
+legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["language"], optional = true }
 
 [build-dependencies]
 napi-build = "2"

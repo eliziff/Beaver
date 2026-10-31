@@ -4,7 +4,7 @@
 
 pub use crate::a2aj_lookup::name_key;
 use crate::a2aj_lookup::{self, datasets, sql};
-use crate::engine::{self, CoreResult, NativeDocument, StructureRequest};
+use crate::engine::{self, AliasGroup, CoreResult, NativeDocument, StructureRequest};
 use legal_structure_features::a2aj::{self, Answering, Columns, Document, Excerpt, Language, LazyRow, Listing, Metadata, Query, Read,
     Source, StoreRow};
 use legal_structure::{citation_lookup_key, trim_javascript_whitespace as js_trim, ProviderTextInput};
@@ -507,13 +507,6 @@ pub fn record_matches(records: &[Value], query: &Query) -> Vec<usize> {
     })).map(|(at, _)| at).collect()
 }
 
-#[derive(Serialize)]
-pub struct AliasGroup {
-    keys: Vec<String>,
-    forms: Vec<String>,
-    ambiguous: bool,
-}
-
 /// A citation's keys for a note-up: every key of the one decision the store holds under it, else its own key.
 pub fn alias_keys(path: &Path, citation: &str) -> CoreResult<Vec<String>> {
     let key = legal_structure::caselaw_citation_lookup_key(citation).map_err(str::to_owned)?;
@@ -566,8 +559,5 @@ pub fn alias_groups(path: &Path, citations: &[String]) -> CoreResult<Vec<AliasGr
             Ok(AliasGroup { keys, forms, ambiguous: false })
         }).collect()
     })?;
-    Ok(found.unwrap_or_else(|| citations.iter().map(|citation| {
-        let key = citation_lookup_key(citation);
-        AliasGroup { keys: if key.is_empty() { Vec::new() } else { vec![key] }, forms: Vec::new(), ambiguous: false }
-    }).collect()))
+    Ok(found.unwrap_or_else(|| engine::own_alias_groups(citations)))
 }
