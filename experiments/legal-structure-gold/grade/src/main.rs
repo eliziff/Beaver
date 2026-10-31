@@ -871,8 +871,10 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
         }
         None => None,
     };
-    // A tagger's labels are read for paragraphs, provisions and list items apart; a parse alone, not.
-    let fine = tagger.is_some() || labelled.is_some();
+    // A tagger's labels are read for paragraphs, provisions and list items apart, and so is the
+    // transition parser's structure (LEGALPDF_TRANSITION_EMIT), which tells them apart; the stage
+    // parser's alone, not.
+    let fine = tagger.is_some() || labelled.is_some() || std::env::var_os("LEGALPDF_TRANSITION_EMIT").is_some();
     let split = value("--split");
     let mut groups = Vec::new();
     for (n, option) in options.iter().enumerate().filter(|(_, o)| *o == "--group") {
