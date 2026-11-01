@@ -86,7 +86,10 @@ def fit_local(folder, store, out):
     right = total = 0
     for m in dev:
         t = target(m)
-        p = model.predict(lines(folder, m)).argmax(1)
+        x = lines(folder, m)
+        if not len(x):
+            continue
+        p = np.asarray(model.predict(x)).reshape(len(x), -1).argmax(1)
         right += int((p[t >= 0] == t[t >= 0]).sum())
         total += int((t >= 0).sum())
     print(f"development move accuracy, the full forest: {right / max(total, 1):.4f} over {total} lines")

@@ -18,22 +18,27 @@ set LEGALPDF_ONNXRUNTIME=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-pa
 set STRUCTURE_GOLD_THREADS=6
 cd /d %J%
 if not exist %T% mkdir %T%
-for /d %%d in (%T%\dump0 %T%\dump1 %T%\dump2 %T%\dump3 %T%\local) do rmdir /s /q %%d 2>nul
+rem A stage whose output stands complete is not run again: round 0's dump (dump0.done), the forests (local\full.txt),
+rem each round's ranker; delete them to redo a stage.
 rem The rows and the gold's labels.
 if not exist C:\Users\elias\gold-rows\n1\rows-train.jsonl %GRADER% rows %S% C:\Users\elias\gold-rows\n1 > %G%\long-rows.out 2> %G%\long-rows.err
 %PY% gold_labels.py %T%\gold.jsonl %S% C:\Users\elias\gold-rows\n1\rows-train.jsonl C:\Users\elias\gold-rows\n1\rows-development.jsonl || exit /b 1
 rem Round 0 and the local forests.
+if exist %T%\dump0.done goto local
+if exist %T%\dump0 rmdir /s /q %T%\dump0
 set LEGALPDF_TRANSITION_GOLD=%T%\gold.jsonl
 set LEGALPDF_TRANSITION_DUMP=%T%\dump0
 %GRADER% grade %S% --out %G%\grade-long0.json > %G%\long0.out 2> %G%\long0.err
 set LEGALPDF_TRANSITION_DUMP=
 set LEGALPDF_TRANSITION_GOLD=
 %PY% check_dump.py %T%\dump0 4000 || exit /b 1
+echo done> %T%\dump0.done
+:local
 set ROUNDS=60
 set LEAVES=127
 set FOLDS=5
 set COMMON_KEEP=0.4
-%PY% -u fit_transition.py local %T%\dump0 %S% %T%\local || exit /b 1
+if not exist %T%\local\full.txt %PY% -u fit_transition.py local %T%\dump0 %S% %T%\local || exit /b 1
 set ROUNDS=
 set LEAVES=
 set COMMON_KEEP=
@@ -116,6 +121,9 @@ exit /b 0
 :round
 set R=%1
 set /a P=%R%-1
+set DUMPS=%DUMPS% %T%\dump%R%
+if exist %T%\ranker%R%.txt exit /b 0
+if exist %T%\dump%R% rmdir /s /q %T%\dump%R%
 set LEGALPDF_TRANSITION_GOLD=%T%\gold.jsonl
 set LEGALPDF_TRANSITION_RANKER=
 if %R% gtr 1 set LEGALPDF_TRANSITION_RANKER=%T%\ranker%P%.txt
@@ -124,6 +132,5 @@ set LEGALPDF_TRANSITION_DUMP=%T%\dump%R%
 set LEGALPDF_TRANSITION_DUMP=
 set LEGALPDF_TRANSITION_GOLD=
 %PY% check_dump.py %T%\dump%R% 3500 || exit /b 1
-set DUMPS=%DUMPS% %T%\dump%R%
 %PY% -u fit_transition.py ranker %S% %T%\ranker%R%.txt %DUMPS% || exit /b 1
 exit /b 0
