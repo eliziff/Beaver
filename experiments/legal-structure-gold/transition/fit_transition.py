@@ -14,10 +14,13 @@ import lightgbm as lgb
 PARAMS = dict(learning_rate=0.2, num_leaves=int(os.environ.get("LEAVES", "63")), min_data_in_leaf=40, max_bin=31, feature_fraction=0.5,
               bagging_fraction=0.5, bagging_freq=1, lambda_l2=1.0, num_threads=12, verbose=-1)
 ROUNDS = int(os.environ.get("ROUNDS", "100"))
-# Of the ranker's easy lines (one candidate of the oracle's class, the local scores' first), and of earlier
-# rounds' rollouts, the shares kept by a fixed draw.
-EASY_KEEP = float(os.environ.get("EASY_KEEP", "0.5"))
-OLDER_KEEP = float(os.environ.get("OLDER_KEEP", "0.5"))
+# Of the ranker's lines, the share kept by a fixed draw, the latest round's and earlier rounds' (never by how
+# easy a line is: keeping fewer of the lines where the local scores' first class is the oracle's taught the
+# ranker that it mostly is not); and on each line kept, the oracle's move and at most CAP - 1 others, the local
+# scores' likeliest.
+LINE_KEEP = float(os.environ.get("LINE_KEEP", "0.4"))
+OLDER_KEEP = float(os.environ.get("OLDER_KEEP", "0.15"))
+CAP = int(os.environ.get("CAP", "6"))
 
 
 def partition(store, sha):
@@ -45,8 +48,9 @@ def moves(folder, meta):
 
 
 def target(meta):
+    """Each line's gold class, -1 where the gold gives none or leaves its body region unmarked (101)."""
     gold = np.asarray(meta["gold"], dtype=np.int64).reshape(-1, 8)
-    return np.where(gold[:, 0] >= 0, gold[:, 0] * 2 + (gold[:, 1] == 1), -1)
+    return np.where((gold[:, 0] >= 0) & (gold[:, 0] < 17), gold[:, 0] * 2 + (gold[:, 1] == 1), -1)
 
 
 def fit_local(folder, store, out):
@@ -98,7 +102,6 @@ def fit_local(folder, store, out):
 def fit_ranker(store, out, folders):
     Xs, ys, groups = [], [], []
     for round_, folder in enumerate(folders):
-        # Earlier rounds' rollouts are kept at half their lines, the latest whole.
         older = round_ < len(folders) - 1
         gold_lines = reachable = 0
         for m in documents(folder, store, "train"):
@@ -106,25 +109,22 @@ def fit_ranker(store, out, folders):
             oracle = np.asarray(m["move_oracle"], dtype=np.int8)
             line = np.asarray(m["move_lines"], dtype=np.int64)
             classes = np.asarray(m["move_classes"], dtype=np.int64)
-            # Lines the oracle reads (some candidate is its move: the gold's class among the line's),
-            # each line's candidates one group. A line whose oracle move is the only candidate of its
-            # class, the local scores' first, has only the class to choose: half of those (by a fixed
-            # draw), every other line.
+            # Lines the oracle reads (some candidate is its move: the gold's class among the line's), each
+            # line's candidates one group, a fixed draw of them.
             ruled = np.zeros(m["lines"], dtype=bool)
             ruled[line[oracle == 1]] = True
             gold_lines += int((target(m) >= 0).sum())
             reachable += int(ruled.sum())
-            chosen_class = np.full(m["lines"], -1)
-            chosen_class[line[oracle == 1]] = classes[oracle == 1]
-            same_class = np.bincount(line[classes == chosen_class[line]], minlength=m["lines"])
-            first = np.zeros(m["lines"], dtype=bool)
-            first[line[(oracle == 1) & (rows[:, 1] == 0)]] = True
-            easy = first & (same_class == 1)
             rng = np.random.default_rng(zlib.crc32(f"{round_}:{m['sha256']}".encode()))
-            ruled &= ~easy | (rng.random(m["lines"]) < EASY_KEEP)
-            if older:
-                ruled &= rng.random(m["lines"]) < OLDER_KEEP
-            keep = ruled[line]
+            ruled &= rng.random(m["lines"]) < (OLDER_KEEP if older else LINE_KEEP)
+            # On each line, the oracle's move and the likeliest others by the local scores (rows are a
+            # line's candidates in turn; column 0 is the local log-probability).
+            order = np.lexsort((-rows[:, 0], line))
+            place = np.empty(len(line), dtype=np.int64)
+            starts = np.r_[0, np.flatnonzero(np.diff(line[order])) + 1]
+            ranks = np.arange(len(line)) - np.repeat(starts, np.diff(np.r_[starts, len(line)]))
+            place[order] = ranks
+            keep = ruled[line] & ((oracle == 1) | (place < CAP - 1))
             Xs.append(rows[keep])
             ys.append(oracle[keep])
             groups.append(np.bincount(line[keep], minlength=m["lines"])[ruled])

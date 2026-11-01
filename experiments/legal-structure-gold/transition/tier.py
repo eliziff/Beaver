@@ -31,6 +31,24 @@ CHARS, WORDS = 160, 32
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 WORD_SPLIT = re.compile(r"[^0-9A-Za-zÀ-ɏ]+")
 HEADING = 3
+UNMARKED_BODY = 101
+# A target past the classes: one of text, quotation or list item, opening (UNMARKED + 1) or not.
+UNMARKED = 1000
+BODY_SET = [1, 4, 2]
+
+
+def class_loss(logits, target):
+    """Cross-entropy over the classes, a target UNMARKED (+1) read as any of text, quotation and list item
+    (opening or not): their probabilities summed."""
+    log_p = torch.log_softmax(logits.float(), dim=-1)
+    known = (target >= 0) & (target < CLASSES)
+    total = -(log_p[known].gather(1, target[known][:, None])).sum()
+    unmarked = target >= UNMARKED
+    if unmarked.any():
+        opens = (target[unmarked] - UNMARKED).long()
+        columns = torch.tensor(BODY_SET, device=logits.device)[None] * 2 + opens[:, None]
+        total = total - torch.logsumexp(log_p[unmarked].gather(1, columns), dim=1).sum()
+    return total / max(int(known.sum() + unmarked.sum()), 1)
 
 
 def fnv1a(token):
@@ -182,7 +200,9 @@ def load_dump(folder, store):
         meta = json.load(open(os.path.join(folder, name), encoding="utf-8"))
         x = np.fromfile(os.path.join(folder, f"{meta['sha256']}.lines.f32"), dtype="<f4").reshape(meta["lines"], meta["line_width"])
         gold = np.asarray(meta["gold"], dtype=np.int64).reshape(-1, 8)
-        target = np.where(gold[:, 0] >= 0, gold[:, 0] * 2 + (gold[:, 1] == 1), -100)
+        # A body line the gold leaves unmarked (101) is text, a quotation or a list item: UNMARKED + opens.
+        target = np.where(gold[:, 0] == UNMARKED_BODY, UNMARKED + (gold[:, 1] == 1),
+                          np.where(gold[:, 0] >= 0, gold[:, 0] * 2 + (gold[:, 1] == 1), -100))
         doc = Doc(meta["sha256"], x, meta["texts"], meta["looks"], meta["templates"], meta["openers"], target, gold_levels(gold))
         doc.split = partition(store, meta["sha256"])
         docs.append(doc)
@@ -207,7 +227,7 @@ def train(model, docs, mean, std, epochs, label):
                 scheduler.step()
                 continue
             logits, level_logits = model(*tensors(doc, mean, std))
-            loss = F.cross_entropy(logits, target, ignore_index=-100)
+            loss = class_loss(logits, target)
             if (levels >= 0).any():
                 loss = loss + 0.5 * F.cross_entropy(level_logits, levels, ignore_index=-100)
             optimizer.zero_grad()
@@ -231,7 +251,7 @@ def accuracy(model, docs, mean, std):
     right = total = level_right = level_total = 0
     for doc in docs:
         classes, levels = probabilities(model, doc, mean, std)
-        keep = doc.target >= 0
+        keep = (doc.target >= 0) & (doc.target < CLASSES)
         right += int((classes.argmax(1)[keep] == doc.target[keep]).sum())
         total += int(keep.sum())
         known = doc.levels >= 0

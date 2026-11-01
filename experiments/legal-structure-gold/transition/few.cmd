@@ -2,10 +2,11 @@
 rem The new grader on a few documents before the long run: the parser's own structure (no fitted tables yet),
 rem and round 0's dump with the gold's labels, checked.
 set PY=C:\Users\elias\AppData\Local\Programs\Python\Python312\python.exe
-set GRADER=C:\Users\elias\fable\grader-next.exe
+set GRADER=C:\Users\elias\fable\grader-next2.exe
 set T=C:\Users\elias\fable\few
 set G=C:\Users\elias\AppData\Local\OpenLegalData\gold-grades
 set LEGALPDF_TRANSITION_GRAMMAR=C:\Users\elias\fable\grammar.json
+set LEGALPDF_TRANSITION_CONFUSIONS=C:\Users\elias\fable\confusions.json
 set LEGALPDF_INDRA_MODEL_PACK=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\indra
 set LEGALPDF_ONNXRUNTIME=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\onnx\onnxruntime.dll
 if exist %T% rmdir /s /q %T%

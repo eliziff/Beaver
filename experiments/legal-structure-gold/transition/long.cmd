@@ -7,12 +7,13 @@ rem frozen yardstick's (as every earlier row), greedily and by a beam of four, a
 rem tiers 1 and 2 (the document encoders) the same way.
 set PY=C:\Users\elias\AppData\Local\Programs\Python\Python312\python.exe
 set J=C:\Users\elias\fable\joint
-set T=C:\Users\elias\fable\transition3
+set T=C:\Users\elias\fable\transition4
 set G=C:\Users\elias\AppData\Local\OpenLegalData\gold-grades
 set S=C:\Users\elias\gold-store-next\gold
 set Y=C:\Users\elias\gold-store\gold
-set GRADER=C:\Users\elias\fable\grader-next.exe
+set GRADER=C:\Users\elias\fable\grader-next2.exe
 set LEGALPDF_TRANSITION_GRAMMAR=C:\Users\elias\fable\grammar.json
+set LEGALPDF_TRANSITION_CONFUSIONS=C:\Users\elias\fable\confusions.json
 set LEGALPDF_INDRA_MODEL_PACK=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\indra
 set LEGALPDF_ONNXRUNTIME=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\onnx\onnxruntime.dll
 set STRUCTURE_GOLD_THREADS=6
