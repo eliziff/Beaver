@@ -645,7 +645,7 @@ fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<Stri
                 .and_then(|row| ids.get(row as usize)).and_then(Value::as_str).map(str::to_owned);
             per_piece.insert(id.as_str().unwrap_or_default().to_owned(), labels::Label {
                 region: field(0), start: field(1), document: field(2) == 1, reference: field(3) == 1, level: field(4),
-                marker: field(5) == 1, continues: pointer(6), depth: field(7),
+                marker: field(5) == 1, continues: pointer(6), depth: field(7), rank: None,
             });
         }
         found.insert(sha, per_piece);
