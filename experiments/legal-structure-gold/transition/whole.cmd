@@ -18,6 +18,13 @@ set STRUCTURE_GOLD_THREADS=6
 set LEGALPDF_TRANSITION_WHOLE=1
 if not exist %W% mkdir %W%
 cd /d %J%
+rem (0) The gold's labels on the parser's lines, from the store as shipped (desktop-store.ps1 at its commit): the
+rem rows export, then gold_labels.py (a line a whole gold leaves untyped no region's).
+if exist %W%\gold.jsonl goto rows
+%GRADER% rows %S% %W%\gold-rows > %G%\whole-gold-rows.out 2> %G%\whole-gold-rows.err
+%PY% gold_labels.py %W%\gold.jsonl %S% %W%\gold-rows\rows-train.jsonl %W%\gold-rows\rows-development.jsonl
+if not exist %W%\gold.jsonl exit /b 1
+:rows
 rem (1) The heads' training rows, train's local scores out of fold.
 if exist %W%\rows.done goto heads
 set LEGALPDF_TRANSITION_LOCAL_FOLDS=C:\Users\elias\fable\transition4\local
@@ -28,11 +35,11 @@ if not exist %W%\rows exit /b 1
 echo done> %W%\rows.done
 :heads
 rem (2) The heads, and their folds.
-if exist %W%\heads\fold4\start.txt goto problems
+if exist %W%\heads\fold4\depth.txt goto problems
 set FOLDS=5
 %PY% -u fit_whole.py %S% %W%\heads %W%\rows > %G%\whole-heads.out 2>&1
 set FOLDS=
-if not exist %W%\heads\fold4\start.txt exit /b 1
+if not exist %W%\heads\fold4\depth.txt exit /b 1
 :problems
 rem (3) The problems, read by the fold heads.
 if exist %W%\problems.done goto weights
@@ -48,7 +55,7 @@ set LEGALPDF_TRANSITION_GOLD=
 set LEGALPDF_TRANSITION_LOCAL_FOLDS=
 echo done> %W%\problems.done
 :weights
-rem (4) The weights, on whole documents.
+rem (4) The weights, on whole documents, the reachability check first (whole-train.out's first line).
 if not exist %W%\weights.json %GRADER% whole-train %W%\problems %W%\weights.json 6 > %G%\whole-train.out 2>&1
 if not exist %W%\weights.json exit /b 1
 rem (5) Development read whole: the full heads, the weights, the product's local forest.
