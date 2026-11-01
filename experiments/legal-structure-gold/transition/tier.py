@@ -28,6 +28,10 @@ import torch.nn.functional as F
 CLASSES, LEVELS = 34, 10
 SIZES = {"small": dict(hidden=96, layers=2, heads=4, attention=2, epochs=6), "large": dict(hidden=256, layers=3, heads=8, attention=3, epochs=8)}
 CHARS, WORDS = 160, 32
+# The GRU reads a document in windows of WINDOW lines with CONTEXT more on each side, the windows side by side
+# (a whole document's lines one after another took most of an hour an epoch); each line reads its window's
+# core. The look, template, document and opener summaries stay the whole document's.
+WINDOW, CONTEXT = 512, 64
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 WORD_SPLIT = re.compile(r"[^0-9A-Za-zÀ-ɏ]+")
 HEADING = 3
@@ -171,8 +175,19 @@ class Encoder(nn.Module):
         states = torch.cat([torch.zeros_like(x[:1]), attended], dim=0)[last_opener]
         whole = x.mean(0, keepdim=True).expand_as(x)
         x = self.mix(torch.cat([x, self.pooled(x, looks), self.pooled(x, templates), whole, states], dim=-1))
-        y, _ = self.encoder(x[None])
-        return self.head(y[0]), self.level(y[0])
+        y = self.windowed(x)
+        return self.head(y), self.level(y)
+
+    def windowed(self, x):
+        """The GRU over x (n, d) in windows: each window WINDOW lines and CONTEXT either side (zero past the
+        document), all windows one batch; each line's state its window core's. Indexes, not unfold, so the
+        export takes any length."""
+        n = x.shape[0]
+        windows = (n + WINDOW - 1) // WINDOW
+        padded = torch.cat([x.new_zeros(CONTEXT, x.shape[1]), x, x.new_zeros(WINDOW + CONTEXT, x.shape[1])], dim=0)
+        index = torch.arange(windows, device=x.device)[:, None] * WINDOW + torch.arange(WINDOW + 2 * CONTEXT, device=x.device)[None]
+        y, _ = self.encoder(padded[index])
+        return y[:, CONTEXT:CONTEXT + WINDOW].reshape(-1, y.shape[-1])[:n]
 
 
 def tensors(doc, mean, std):

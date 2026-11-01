@@ -44,10 +44,9 @@ set ROUNDS=
 set LEAVES=
 set COMMON_KEEP=
 call :watch none forest
-rem DAgger: of each round's rollouts a fixed draw of the lines, every candidate of a line kept (a policy's rollout
-rem offers more candidates a line than the oracle's: round 2 drew 39.8 million rows at a quarter of its lines).
-set LINE_KEEP=0.08
-set OLDER_KEEP=0.04
+rem DAgger: of each round's rollouts a quarter of the lines drawn, of earlier rounds' 8%, every candidate of a line kept.
+set LINE_KEEP=0.25
+set OLDER_KEEP=0.08
 set LEGALPDF_TRANSITION_LOCAL_FOLDS=%T%\local
 set DUMPS=
 for %%r in (1 2 3) do call :round %%r || exit /b 1
@@ -87,8 +86,13 @@ exit /b 0
 set N=%1
 if exist %T%\%N% rmdir /s /q %T%\%N%
 mkdir %T%\%N%
-%VPY% -u tier.py pretrain C:\Users\elias\fable\silver-lines.jsonl %T%\dump0 %T%\%N%\pre.pt --size %2 > %G%\long-%N%-pre.out 2>&1 || exit /b 1
-%VPY% -u tier.py fit %T%\dump0 %S% %T%\%N% --init %T%\%N%\pre.pt --size %2 > %G%\long-%N%-fit.out 2>&1 || exit /b 1
+echo %DATE% %TIME% %N% pretrain>> %T%\stages.log
+%VPY% -u tier.py pretrain C:\Users\elias\fable\silver-lines.jsonl %T%\dump0 %T%\%N%\pre.pt --size %2 > %G%\long-%N%-pre.out 2>&1
+echo %DATE% %TIME% %N% pretrain ended %ERRORLEVEL%>> %T%\stages.log
+if not exist %T%\%N%\pre.pt exit /b 1
+%VPY% -u tier.py fit %T%\dump0 %S% %T%\%N% --init %T%\%N%\pre.pt --size %2 > %G%\long-%N%-fit.out 2>&1
+echo %DATE% %TIME% %N% fit ended %ERRORLEVEL%>> %T%\stages.log
+if not exist %T%\%N%\encoder.onnx exit /b 1
 set LEGALPDF_TRANSITION_LOCAL_SCORES=%T%\%N%\scores
 set DUMPS=
 for %%r in (1 2) do call :tround %%r || exit /b 1
