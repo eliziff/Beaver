@@ -4,8 +4,6 @@
     "scripts": {
         "native:build": "node scripts/native-build.mjs",
         "native:build:release": "node scripts/native-build.mjs --release",
-        "audit:court-output-sources": "node scripts/audit-court-output-sources.mjs",
-        "test:court-output-audit": "node --test scripts/audit-court-output-sources.test.mjs",
         "test:authorities:highlights": "node scripts/test-authorities-highlights.mjs",
         "dev:authorities": "node AuthoritiesHelper/modern/authorities-dev.mjs",
         "package:authorities": "powershell -NoProfile -ExecutionPolicy Bypass -File AuthoritiesHelper/modern/package-authorities.ps1",

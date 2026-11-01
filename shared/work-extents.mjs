@@ -1,7 +1,6 @@
-// What the works harvest knows of how far works run, for the citation engine's locator rules (its `extents`
-// option): a decision's last paragraph, a report's or article's last page. The pack is
-// backend/scripts/harvest-works.ts pack's (work-extents-data.mjs); a build may leave it out, and then no work has
-// an extent.
+// How far works run, for the citation engine's locator rules (its `extents` option): a decision's last
+// paragraph, a report's or article's last page. The pack (work-extents-data.mjs) is generated; a build may leave
+// it out, and then no work has an extent.
 import pack from "./work-extents-data.mjs";
 
 const registered = new WeakSet();
