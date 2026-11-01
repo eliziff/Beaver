@@ -131,12 +131,29 @@ def fit_ranker(store, out, folders):
         print(f"{folder}: the gold's move among the candidates on {reachable / max(gold_lines, 1):.4f} of {gold_lines} gold lines", flush=True)
     X, y, group = np.vstack(Xs), np.concatenate(ys), np.concatenate(groups)
     print("ranker rows", len(y), "lines", len(group), flush=True)
-    # A listwise objective (cross-entropy of each line's softmax over its candidates), so a beam can sum
-    # its scores as log-probabilities.
-    params = dict(PARAMS, objective="rank_xendcg")
-    model = lgb.train(params, lgb.Dataset(X, y, group=group, init_score=X[:, 0]), num_boost_round=ROUNDS)
+    # Each line's softmax over its candidates' scores (the local log-probability plus the trees' correction),
+    # its cross-entropy against the oracle's move: so a beam can sum the scores as log-probabilities. Written
+    # out (LightGBM's rank_xendcg with the local score as its initial score diverged: corrections in the
+    # thousands, the oracle's move ranked best on 0.01% of its own training lines).
+    base = X[:, 0].astype(np.float64)
+    starts = np.r_[0, np.cumsum(group)[:-1]]
+    owner = np.repeat(np.arange(len(group)), group)
+
+    def listwise(preds, _data):
+        score = base + preds
+        top = np.maximum.reduceat(score, starts)
+        e = np.exp(score - top[owner])
+        p = e / np.add.reduceat(e, starts)[owner]
+        return p - y, np.maximum(p * (1 - p), 1e-6)
+
+    params = dict(PARAMS, objective=listwise)
+    model = lgb.train(params, lgb.Dataset(X, y), num_boost_round=ROUNDS)
     model.save_model(out)
-    print("ranker ->", out)
+    score = base + model.predict(X, raw_score=True)
+    best = np.zeros(len(group), dtype=bool)
+    best_row = starts + np.array([np.argmax(score[a:a + n]) for a, n in zip(starts, group)])
+    print(f"ranker -> {out}; the oracle's move best on {np.mean(y[best_row] == 1):.4f} of its {len(group)} lines "
+          f"(local scores alone {np.mean(y[starts + np.array([np.argmax(base[a:a + n]) for a, n in zip(starts, group)])] == 1):.4f})", flush=True)
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ set T=C:\Users\elias\fable\transition4
 set G=C:\Users\elias\AppData\Local\OpenLegalData\gold-grades
 set S=C:\Users\elias\gold-store-next\gold
 set Y=C:\Users\elias\gold-store\gold
-set GRADER=C:\Users\elias\fable\grader-next2.exe
+set GRADER=C:\Users\elias\fable\grader-next3.exe
 set LEGALPDF_TRANSITION_GRAMMAR=C:\Users\elias\fable\grammar.json
 set LEGALPDF_TRANSITION_CONFUSIONS=C:\Users\elias\fable\confusions.json
 set LEGALPDF_INDRA_MODEL_PACK=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\indra
@@ -43,6 +43,7 @@ if not exist %T%\local\full.txt %PY% -u fit_transition.py local %T%\dump0 %S% %T
 set ROUNDS=
 set LEAVES=
 set COMMON_KEEP=
+call :watch none forest
 rem DAgger.
 set EASY_KEEP=0.2
 set OLDER_KEEP=0.3
@@ -134,4 +135,20 @@ set LEGALPDF_TRANSITION_DUMP=
 set LEGALPDF_TRANSITION_GOLD=
 %PY% check_dump.py %T%\dump%R% 3500 || exit /b 1
 %PY% -u fit_transition.py ranker %S% %T%\ranker%R%.txt %DUMPS% || exit /b 1
+call :watch %T%\ranker%R%.txt round%R%
+exit /b 0
+
+rem Development read natively, greedily, by a round's ranker over the full forest: how the rounds go.
+:watch
+setlocal
+set LEGALPDF_TRANSITION_LOCAL_FOLDS=
+set LEGALPDF_TRANSITION_LOCAL=%T%\local\full.txt
+set LEGALPDF_TRANSITION_RANKER=%1
+if "%1"=="none" set LEGALPDF_TRANSITION_RANKER=
+set LEGALPDF_TRANSITION_EMIT=1
+set LEGALPDF_TRANSITION_GOLD=
+set LEGALPDF_TRANSITION_DUMP=
+%GRADER% grade %Y% --split development --out %G%\grade-long-%2-dev.json > %G%\long-%2-dev.out 2> %G%\long-%2-dev.err
+%PY% headline.py %G%\grade-long-%2-dev.json >> %T%\rounds.txt
+endlocal
 exit /b 0
