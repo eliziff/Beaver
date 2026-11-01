@@ -32,6 +32,8 @@ CHARS, WORDS = 160, 32
 # (a whole document's lines one after another took most of an hour an epoch); each line reads its window's
 # core. The look, template, document and opener summaries stay the whole document's.
 WINDOW, CONTEXT = 512, 64
+# The openers attend within blocks of this many.
+OPENER_BLOCK = 1024
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 WORD_SPLIT = re.compile(r"[^0-9A-Za-zÀ-ɏ]+")
 HEADING = 3
@@ -129,11 +131,20 @@ class Attention(nn.Module):
         self.drop = nn.Dropout(0.1)
 
     def forward(self, x):
-        q, k, v = self.qkv(self.norm1(x)).chunk(3, dim=-1)
-        split = lambda t: t.reshape(-1, self.heads, self.size).transpose(0, 1)
+        """x (m, d): each state attends to the states of its block of OPENER_BLOCK (an OCR scan whose words are
+        lines holds tens of thousands of openers, and one matrix over them all filled the GPU), the blocks
+        one batch, padding masked."""
+        m = x.shape[0]
+        blocks = (m + OPENER_BLOCK - 1) // OPENER_BLOCK
+        index = torch.arange(blocks, device=x.device)[:, None] * OPENER_BLOCK + torch.arange(OPENER_BLOCK, device=x.device)[None]
+        real = index < m
+        padded = torch.cat([x, x.new_zeros(OPENER_BLOCK, x.shape[1])], dim=0)[index.clamp(max=m)]
+        q, k, v = self.qkv(self.norm1(padded)).chunk(3, dim=-1)
+        split = lambda t: t.reshape(blocks, OPENER_BLOCK, self.heads, self.size).transpose(1, 2)
         q, k, v = split(q), split(k), split(v)
-        weights = torch.softmax(q @ k.transpose(1, 2) / self.size ** 0.5, dim=-1)
-        y = (weights @ v).transpose(0, 1).reshape(-1, self.heads * self.size)
+        scores = q @ k.transpose(2, 3) / self.size ** 0.5
+        scores = scores.masked_fill(~real[:, None, None, :], -1e4)
+        y = (torch.softmax(scores, dim=-1) @ v).transpose(1, 2).reshape(blocks * OPENER_BLOCK, self.heads * self.size)[:m]
         x = x + self.drop(self.out(y))
         return x + self.drop(self.feed(self.norm2(x)))
 

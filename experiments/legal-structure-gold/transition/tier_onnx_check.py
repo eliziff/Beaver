@@ -12,8 +12,8 @@ model = tier.build(meta["width"], tier.SIZES[meta["size"]]).cpu()
 model.load_state_dict(torch.load(os.path.join(out, "encoder.pt"), map_location="cpu"))
 model.eval()
 rng = np.random.default_rng(3)
-n = 413
-openers = np.sort(rng.choice(n, 57, replace=False)).astype(np.int64)
+n = 2413
+openers = np.sort(rng.choice(n, 1500, replace=False)).astype(np.int64)
 inputs = {
     "features": rng.standard_normal((n, meta["width"])).astype(np.float32),
     "chars": rng.integers(0, 2049, (n, meta["chars"])).astype(np.int64),
