@@ -80,4 +80,18 @@ set LEGALPDF_TRANSITION_HEADS=%W%\heads
 set LEGALPDF_TRANSITION_WHOLE_WEIGHTS=%W%\weights.json
 set LEGALPDF_TRANSITION_EMIT=1
 %GRADER% grade %S% --split development --out %G%\grade-whole-dev.json > %G%\whole-dev.out 2> %G%\whole-dev.err
+rem The same store and build beside it: the walker as it stood (round 3's ranker over the new forests), and the
+rem architecture's ceiling (the gold's own moves, the walk's oracle), then the three side by side, and judgments apart.
+set LEGALPDF_TRANSITION_WHOLE=
+set LEGALPDF_TRANSITION_HEADS=
+set LEGALPDF_TRANSITION_WHOLE_WEIGHTS=
+set LEGALPDF_TRANSITION_RANKER=C:\Users\elias\fable\transition5\ranker3.txt
+%GRADER% grade %S% --split development --out %G%\grade-whole-walker.json > %G%\whole-walker.out 2> %G%\whole-walker.err
+set LEGALPDF_TRANSITION_RANKER=
+set LEGALPDF_TRANSITION_GOLD=%W%\gold.jsonl
+%GRADER% grade %S% --split development --out %G%\grade-whole-ceiling.json > %G%\whole-ceiling.out 2> %G%\whole-ceiling.err
+set LEGALPDF_TRANSITION_GOLD=
+%PY% headline.py %G%\grade-whole-walker.json %G%\grade-whole-dev.json %G%\grade-whole-ceiling.json > %W%\result.txt
+%PY% judgments.py walker=%G%\grade-whole-walker.json whole=%G%\grade-whole-dev.json ceiling=%G%\grade-whole-ceiling.json >> %W%\result.txt
+findstr /C:"documents," %G%\whole-dev.out %G%\whole-walker.out >> %W%\result.txt
 echo done> %W%\graded.done
