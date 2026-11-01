@@ -51,11 +51,11 @@ if not exist %W%\rows exit /b 1
 echo done> %W%\rows.done
 :heads
 rem (2) The heads, and their folds.
-if exist %W%\heads\fold4\depth.txt goto problems
+if exist %W%\heads\fold4\bparent.txt goto problems
 set FOLDS=5
 %PY% -u fit_whole.py %S% %W%\heads %W%\rows > %G%\whole-heads.out 2>&1
 set FOLDS=
-if not exist %W%\heads\fold4\depth.txt exit /b 1
+if not exist %W%\heads\fold4\bparent.txt exit /b 1
 :problems
 rem (3) The problems, read by the fold heads.
 if exist %W%\problems.done goto weights

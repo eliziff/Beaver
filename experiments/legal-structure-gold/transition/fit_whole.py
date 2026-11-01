@@ -1,11 +1,11 @@
 """The whole reading's heads (transition/whole.rs), fitted on its dumps (LEGALPDF_TRANSITION_WHOLE_DUMP): a number's
 role (multiclass: no number, or the opening of a paragraph, a provision, a list item, a quotation, a heading,
-another unit), a link between two numbers and a reference mark's pair with a note label (binary, log-odds), and a heading's level given
-the open heading's (multiclass, levels 1 to 9), a body unit's depth given the open depth
-(multiclass, depths 1 to 9) and a line's opening a constituent document (binary), each over
+another unit), a link between two numbers, a reference mark's pair with a note label, a heading's parent and a body unit's parent (each
+unit against every unit open above it in the gold and the top), and a line's opening a constituent document (binary,
+log-odds), each over
 the features the whole document's candidates give. Train's documents by the gold store's partition, a tenth of them
 (CRC-32 of the sha256 mod 10 is 0) held out for the fit's stopping; development's, where dumped, reported. Each forest is
-LightGBM text, as the parser reads it (number.txt, link.txt, pair.txt, outline.txt, start.txt, depth.txt).
+LightGBM text, as the parser reads it (number.txt, link.txt, pair.txt, hparent.txt, start.txt, bparent.txt).
 With FOLDS=k, also k fold heads in OUT_DIR/fold<i>, each fitted on train's documents but those of its fold
 (CRC-32 of the sha256 mod k), which the problems' dump reads them by, so the weights train on scores the heads
 give documents they never saw.
@@ -17,8 +17,8 @@ import lightgbm as lgb
 store, out, folders = sys.argv[1], sys.argv[2], sys.argv[3:]
 PARAMS = dict(learning_rate=0.05, num_leaves=31, min_data_in_leaf=20, feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=1,
               lambda_l2=1.0, num_threads=8, verbose=-1)
-HEADS = [("number", "numbers", "number_gold", 7), ("link", "links", "link_gold", 2), ("pair", "pairs", "pair_gold", 2), ("outline", "outline", "outline_gold", 10),
-         ("start", "starts", "start_gold", 2), ("depth", "depths", "depth_gold", 10)]
+HEADS = [("number", "numbers", "number_gold", 7), ("link", "links", "link_gold", 2), ("pair", "pairs", "pair_gold", 2),
+         ("hparent", "hparents", "hparent_gold", 2), ("start", "starts", "start_gold", 2), ("bparent", "bparents", "bparent_gold", 2)]
 
 
 def partition(sha):
