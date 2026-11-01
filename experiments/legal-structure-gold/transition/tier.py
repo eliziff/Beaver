@@ -330,6 +330,7 @@ def main():
     parser.add_argument("--size", default="small", choices=sorted(SIZES))
     parser.add_argument("--init")
     parser.add_argument("--folds", type=int, default=3)
+    parser.add_argument("--part", default="all", choices=["all", "full", "folds"], help="fit: the full encoder, the folds, or both")
     args = parser.parse_args()
     size = SIZES[args.size]
     if args.command == "pretrain":
@@ -366,17 +367,23 @@ def main():
             classes.tofile(os.path.join(out, "scores", f"{doc.sha}.local.f32"))
             levels.tofile(os.path.join(out, "scores", f"{doc.sha}.levels.f32"))
 
-    for i in range(args.folds):
+    epochs = int(os.environ.get("TIER_EPOCHS", size["epochs"]))
+    # The full encoder first: its development reading is the first signal, before the folds take their time.
+    if args.part in ("all", "full"):
         model = fresh()
-        train(model, [d for d in train_docs if fold_of(d.sha, args.folds) != i], mean, std, size["epochs"], f"fold{i}")
+        train(model, train_docs, mean, std, epochs, "full")
+        write(model, others)
+        dev = [d for d in others if d.split == "development"]
+        print("development, the full encoder: move accuracy %.4f over %d lines, heading level accuracy %.4f over %d headings" % accuracy(model, dev, mean, std), flush=True)
+        torch.save(model.state_dict(), os.path.join(out, "encoder.pt"))
+        export(model, mean, std, out, args.size)
+        open(os.path.join(out, "full.done"), "w").write("done\n")
+    for i in range(args.folds if args.part in ("all", "folds") else 0):
+        model = fresh()
+        train(model, [d for d in train_docs if fold_of(d.sha, args.folds) != i], mean, std, epochs, f"fold{i}")
         write(model, [d for d in train_docs if fold_of(d.sha, args.folds) == i])
-    model = fresh()
-    train(model, train_docs, mean, std, size["epochs"], "full")
-    write(model, others)
-    dev = [d for d in others if d.split == "development"]
-    print("development, the full encoder: move accuracy %.4f over %d lines, heading level accuracy %.4f over %d headings" % accuracy(model, dev, mean, std), flush=True)
-    torch.save(model.state_dict(), os.path.join(out, "encoder.pt"))
-    export(model, mean, std, out, args.size)
+    if args.part in ("all", "folds"):
+        open(os.path.join(out, "folds.done"), "w").write("done\n")
 
 
 if __name__ == "__main__":
