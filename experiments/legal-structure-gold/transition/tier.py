@@ -268,6 +268,8 @@ def train(model, docs, mean, std, epochs, label):
 
 @torch.no_grad()
 def probabilities(model, doc, mean, std):
+    if not len(doc.target):
+        return np.zeros((0, CLASSES), dtype="<f4"), np.zeros((0, LEVELS), dtype="<f4")
     model.eval()
     logits, levels = model(*tensors(doc, mean, std))
     return (torch.softmax(logits.float(), dim=-1).cpu().numpy().astype("<f4"), torch.softmax(levels.float(), dim=-1).cpu().numpy().astype("<f4"))
@@ -372,10 +374,10 @@ def main():
     if args.part in ("all", "full"):
         model = fresh()
         train(model, train_docs, mean, std, epochs, "full")
+        torch.save(model.state_dict(), os.path.join(out, "encoder.pt"))
         write(model, others)
         dev = [d for d in others if d.split == "development"]
         print("development, the full encoder: move accuracy %.4f over %d lines, heading level accuracy %.4f over %d headings" % accuracy(model, dev, mean, std), flush=True)
-        torch.save(model.state_dict(), os.path.join(out, "encoder.pt"))
         export(model, mean, std, out, args.size)
         open(os.path.join(out, "full.done"), "w").write("done\n")
     for i in range(args.folds if args.part in ("all", "folds") else 0):

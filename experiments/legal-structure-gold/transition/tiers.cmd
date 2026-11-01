@@ -12,7 +12,7 @@ set T=C:\Users\elias\fable\transition4
 set G=C:\Users\elias\AppData\Local\OpenLegalData\gold-grades
 set S=C:\Users\elias\gold-store-next\gold
 set Y=C:\Users\elias\gold-store\gold
-set GRADER=C:\Users\elias\fable\grader-next6.exe
+set GRADER=C:\Users\elias\fable\grader-next7.exe
 set LEGALPDF_TRANSITION_GRAMMAR=C:\Users\elias\fable\grammar.json
 set LEGALPDF_TRANSITION_CONFUSIONS=C:\Users\elias\fable\confusions.json
 set LEGALPDF_INDRA_MODEL_PACK=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\indra
@@ -23,7 +23,6 @@ set LINE_KEEP=1.0
 set OLDER_KEEP=0.32
 cd /d %J%
 call :tier tier1 small 4 || exit /b 1
-call :tier tier2 large 8 || exit /b 1
 echo tiers done>> %T%\stages.log
 exit /b 0
 

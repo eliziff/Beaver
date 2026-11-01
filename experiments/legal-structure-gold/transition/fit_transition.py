@@ -6,7 +6,8 @@ or more rollout dumps aggregated (DAgger), fitted from each candidate's local lo
 (init_score), so it scores the state's correction to the local score. Split by the gold store's partition. Models are LightGBM text,
 which the parser reads (transition/trees.rs).
 python fit_transition.py local DUMP_DIR GOLD_STORE OUT_DIR
-python fit_transition.py ranker GOLD_STORE OUT_FILE DUMP_DIR [DUMP_DIR...]"""
+python fit_transition.py ranker GOLD_STORE OUT_FILE DUMP_DIR [DUMP_DIR...]
+python fit_transition.py prior GOLD_STORE OUT_FILE DUMP_DIR [DUMP_DIR...]"""
 import json, os, sys, zlib
 import numpy as np
 import lightgbm as lgb
@@ -112,43 +113,42 @@ def fit_local(folder, store, out):
 def fit_ranker(store, out, folders):
     """The ranker, a tenth of train's documents (CRC-32 of the sha256 mod 10 is 0) held out: the fit stops where
     their loss stops falling, and reports how often each set's oracle move is the best."""
-    Xs, ys, groups, held = [], [], [], []
+    # Two passes, so the rows are held once: each document's kept rows planned from its moves' metadata,
+    # then read into the train and held-out arrays allocated for them (39.8 million rows stacked from
+    # pieces needed twice their size).
+    plans = []
     for round_, folder in enumerate(folders):
         older = round_ < len(folders) - 1
         gold_lines = reachable = 0
         for m in documents(folder, store, "train"):
             if label_source(store, m["sha256"]) in RANKER_SKIP:
                 continue
-            rows = moves(folder, m)
             oracle = np.asarray(m["move_oracle"], dtype=np.int8)
             line = np.asarray(m["move_lines"], dtype=np.int64)
-            classes = np.asarray(m["move_classes"], dtype=np.int64)
             # Lines the oracle reads (some candidate is its move: the gold's class among the line's), each
-            # line's candidates one group, a fixed draw of them.
+            # line's candidates one group, a fixed draw of them, every candidate of a line kept.
             ruled = np.zeros(m["lines"], dtype=bool)
             ruled[line[oracle == 1]] = True
             gold_lines += int((target(m) >= 0).sum())
             reachable += int(ruled.sum())
             rng = np.random.default_rng(zlib.crc32(f"{round_}:{m['sha256']}".encode()))
             ruled &= rng.random(m["lines"]) < (OLDER_KEEP if older else LINE_KEEP)
-            # On each line, the oracle's move and the likeliest others by the local scores (rows are a
-            # line's candidates in turn; column 0 is the local log-probability).
-            order = np.lexsort((-rows[:, 0], line))
-            place = np.empty(len(line), dtype=np.int64)
-            starts = np.r_[0, np.flatnonzero(np.diff(line[order])) + 1]
-            ranks = np.arange(len(line)) - np.repeat(starts, np.diff(np.r_[starts, len(line)]))
-            place[order] = ranks
-            keep = ruled[line] & ((oracle == 1) | (place < CAP - 1))
-            Xs.append(rows[keep])
-            ys.append(oracle[keep])
-            groups.append(np.bincount(line[keep], minlength=m["lines"])[ruled])
-            held.append(zlib.crc32(m["sha256"].encode()) % 10 == 0)
+            keep = ruled[line]
+            plans.append((folder, m["sha256"], m["move_width"], keep, oracle[keep],
+                          np.bincount(line[keep], minlength=m["lines"])[ruled], zlib.crc32(m["sha256"].encode()) % 10 == 0))
         print(f"{folder}: the gold's move among the candidates on {reachable / max(gold_lines, 1):.4f} of {gold_lines} gold lines", flush=True)
-    def stack(which):
-        chosen = [k for k, h in enumerate(held) if h == which]
-        return np.vstack([Xs[k] for k in chosen]), np.concatenate([ys[k] for k in chosen]), np.concatenate([groups[k] for k in chosen])
-    (X, y, group), (Xv, yv, groupv) = stack(False), stack(True)
-    del Xs
+    width = plans[0][2]
+
+    def fill(which):
+        chosen = [p for p in plans if p[6] == which]
+        X = np.empty((sum(int(p[3].sum()) for p in chosen), width), dtype=np.float32)
+        at = 0
+        for folder, sha, _, keep, _, _, _ in chosen:
+            rows = np.fromfile(os.path.join(folder, f"{sha}.moves.f32"), dtype="<f4").reshape(-1, width)[keep]
+            X[at:at + len(rows)] = rows
+            at += len(rows)
+        return X, np.concatenate([p[4] for p in chosen]), np.concatenate([p[5] for p in chosen])
+    (X, y, group), (Xv, yv, groupv) = fill(False), fill(True)
     print("ranker rows", len(y), "lines", len(group), "held out rows", len(yv), "lines", len(groupv), flush=True)
     # Each line's softmax over its candidates' scores (the local log-probability plus the trees' correction),
     # its cross-entropy against the oracle's move: so a beam can sum the scores as log-probabilities. Written
@@ -195,8 +195,71 @@ def fit_ranker(store, out, folders):
     print(f"ranker -> {out} ({model.best_iteration} rounds)", flush=True)
 
 
+def gold_levels(gold):
+    """Each heading opening's level in the gold, its steps chained (-1 elsewhere or where the gold gives none)."""
+    out, current = np.full(len(gold), -1), 0
+    for k, g in enumerate(gold):
+        if g[2] == 1:
+            current = 0
+        if g[0] == 3 and g[1] == 1:
+            if g[4] < 0:
+                current = 0
+                continue
+            current = int(np.clip(max(current, 1) + g[4] - 10, 1, 9))
+            out[k] = current
+    return out
+
+
+def fit_prior(store, out, folders):
+    """The template prior of the joint stylesheet solve (transition/joint.rs): over each held template's measures
+    (`template_rows`), its role in the gold, no heading (0) where under half its lines the gold reads are headings,
+    else its heading openings' commonest level (1 to 9); each template weighted by its lines, as the solve weighs
+    it. A2AJ's documents, whose gold leaves headings' levels out, are not read; a tenth of train's held out, the fit
+    stopping where their loss stops falling; development's accuracy reported where a dump holds it."""
+    sets = {"train": ([], [], []), "held out": ([], [], []), "development": ([], [], [])}
+    for folder in folders:
+        for split in ("train", "development"):
+            for m in documents(folder, store, split):
+                if label_source(store, m["sha256"]) == "a2aj-align" or "template_rows" not in m:
+                    continue
+                gold = np.asarray(m["gold"], dtype=np.int64).reshape(-1, 8)
+                template = np.asarray(m["templates"])
+                levels = gold_levels(gold)
+                which = "development" if split == "development" else ("held out" if zlib.crc32(m["sha256"].encode()) % 10 == 0 else "train")
+                X, y, w = sets[which]
+                for t in m["held"]:
+                    here = (template == t) & (gold[:, 0] >= 0)
+                    if not here.any():
+                        continue
+                    if (gold[here, 0] == 3).mean() < 0.5:
+                        role = 0
+                    else:
+                        found = levels[here & (levels > 0)]
+                        if not len(found):
+                            continue
+                        role = int(np.bincount(found).argmax())
+                    X.append(m["template_rows"][t])
+                    y.append(role)
+                    w.append(float(here.sum()))
+    arrays = {k: (np.asarray(X, dtype=np.float32).reshape(-1, len(sets["train"][0][0])), np.asarray(y), np.asarray(w)) for k, (X, y, w) in sets.items() if y}
+    for k, (X, y, w) in arrays.items():
+        print(f"prior {k}: {len(y)} templates, roles {np.bincount(y, minlength=10).tolist()}", flush=True)
+    X, y, w = arrays["train"]
+    Xv, yv, wv = arrays["held out"]
+    params = dict(PARAMS, objective="multiclass", num_class=10, num_leaves=15, min_data_in_leaf=20, learning_rate=0.05)
+    model = lgb.train(params, lgb.Dataset(X, y, weight=w), num_boost_round=1000, valid_sets=[lgb.Dataset(Xv, yv, weight=wv)],
+                      callbacks=[lgb.early_stopping(30, verbose=False)])
+    model.save_model(out, num_iteration=model.best_iteration)
+    for k, (Xk, yk, wk) in arrays.items():
+        p = model.predict(Xk, num_iteration=model.best_iteration).argmax(1)
+        print(f"prior {k}: role right on {np.mean(p == yk):.4f} of templates, {np.sum(wk * (p == yk)) / wk.sum():.4f} of their lines", flush=True)
+    print(f"prior -> {out} ({model.best_iteration} rounds)", flush=True)
+
+
 if __name__ == "__main__":
     if sys.argv[1] == "local":
         fit_local(sys.argv[2], sys.argv[3], sys.argv[4])
+    elif sys.argv[1] == "prior":
+        fit_prior(sys.argv[2], sys.argv[3], sys.argv[4:])
     else:
         fit_ranker(sys.argv[2], sys.argv[3], sys.argv[4:])
