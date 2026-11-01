@@ -373,10 +373,13 @@ fn features<'a>(
         cuts.pieces(&side.project(n, 0, state.lines[n].text.len(), witness))
     };
     let mut result = Features::default();
+    // A piece of blank space (the gap between a transcript's line number and its text) holds no text to
+    // cover or read in order: a parser that reads the number apart drops it.
     let sequence: Vec<Piece> = state
         .reading_order
         .iter()
         .flat_map(|&n| pieces(n))
+        .filter(|&(origin, a, b)| witness(origin).get(a..b).is_some_and(|text| text.iter().any(|c| !c.is_whitespace())))
         .collect();
     result.order = sequence.windows(2).map(|w| (w[0], w[1])).collect();
     result.coverage = sequence;
@@ -966,6 +969,8 @@ pub fn explain(
             .map_or("merged".into(), |s| render.segments(s))
     ));
     layer!(document, |d: &Document| render.document(d));
+    layer!(coverage, |p: &Piece| render.piece(*p));
+    layer!(order, |(a, b): &(Piece, Piece)| format!("{} ⇒ {}", render.piece(*a), render.piece(*b)));
     layer!(continuations, |(a, b, kind): &(
         Option<Point>,
         Option<Point>,
