@@ -25,9 +25,25 @@ if exist %W%\gold.jsonl goto rows
 %PY% gold_labels.py %W%\gold.jsonl %S% %W%\gold-rows\rows-train.jsonl %W%\gold-rows\rows-development.jsonl
 if not exist %W%\gold.jsonl exit /b 1
 :rows
+rem (0b) The local forests (the line roles' evidence) fitted again on these labels over round 0's line dump (its lines
+rem unchanged): five out of fold and the product's full one, a line the gold leaves untyped learned as no region's.
+if exist %W%\local\full.txt goto dump
+set GOLD=%W%\gold.jsonl
+set ROUNDS=60
+set LEAVES=127
+set FOLDS=5
+set COMMON_KEEP=0.4
+%PY% -u fit_transition.py local C:\Users\elias\fable\transition4\dump0 %S% %W%\local > %G%\whole-local.out 2>&1
+set GOLD=
+set ROUNDS=
+set LEAVES=
+set FOLDS=
+set COMMON_KEEP=
+if not exist %W%\local\full.txt exit /b 1
+:dump
 rem (1) The heads' training rows, train's local scores out of fold.
 if exist %W%\rows.done goto heads
-set LEGALPDF_TRANSITION_LOCAL_FOLDS=C:\Users\elias\fable\transition4\local
+set LEGALPDF_TRANSITION_LOCAL_FOLDS=%W%\local
 set LEGALPDF_TRANSITION_GOLD=%W%\gold.jsonl
 set LEGALPDF_TRANSITION_WHOLE_DUMP=%W%\rows
 %GRADER% grade %S% --split train --out %G%\grade-whole-rows.json > %G%\whole-rows.out 2> %G%\whole-rows.err
@@ -44,7 +60,7 @@ if not exist %W%\heads\fold4\depth.txt exit /b 1
 rem (3) The problems, read by the fold heads.
 if exist %W%\problems.done goto weights
 if exist %W%\problems rmdir /s /q %W%\problems
-set LEGALPDF_TRANSITION_LOCAL_FOLDS=C:\Users\elias\fable\transition4\local
+set LEGALPDF_TRANSITION_LOCAL_FOLDS=%W%\local
 set LEGALPDF_TRANSITION_GOLD=%W%\gold.jsonl
 set LEGALPDF_TRANSITION_HEADS_FOLDS=%W%\heads
 set LEGALPDF_TRANSITION_WHOLE_DUMP=%W%\problems
@@ -59,7 +75,7 @@ rem (4) The weights, on whole documents, the reachability check first (whole-tra
 if not exist %W%\weights.json %GRADER% whole-train %W%\problems %W%\weights.json 6 > %G%\whole-train.out 2>&1
 if not exist %W%\weights.json exit /b 1
 rem (5) Development read whole: the full heads, the weights, the product's local forest.
-set LEGALPDF_TRANSITION_LOCAL=C:\Users\elias\fable\transition4\local\full.txt
+set LEGALPDF_TRANSITION_LOCAL=%W%\local\full.txt
 set LEGALPDF_TRANSITION_HEADS=%W%\heads
 set LEGALPDF_TRANSITION_WHOLE_WEIGHTS=%W%\weights.json
 set LEGALPDF_TRANSITION_EMIT=1
