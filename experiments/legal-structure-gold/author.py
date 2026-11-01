@@ -72,6 +72,23 @@ def retry_error(exc, response):
 POLICY = CallPolicy(INSTRUCTIONS, CONFIG, lambda prompt, error, previous: prompt + ("\n\nThe previous answer was rejected: " + error if error else ""),
                     retry_error, "No valid answer after bounded retries: ")
 
+# The model a document is read by. Probe of 2026-11-01 (8 batch 10 sources, 41 pages, against their
+# Sol golds): gpt-6.1-terra at medium effort read born-digital documents printed in one language as
+# gpt-6.1-sol at low does (98.7-100% of lines on four of five, every note pair), at Sol's speed; it
+# read OCR scans (an order's numbered paragraphs as list items, an old by-law's headings) and
+# bilingual layouts (captions into a quoted excerpt) otherwise, and its high and max efforts did worse.
+SOL = ("gpt-6.1-sol", "low")
+TERRA = ("gpt-6.1-terra", "medium")
+
+
+def route(mode, layout, args):
+    """(model, effort) for a document: a born-digital one in one language (source.json's
+    language_layout en or fr) Terra's, every other one (OCR, parallel, mixed, unknown) Sol's; an
+    explicit --model or --effort sets both instead, the one not given Sol's."""
+    if args.model or args.effort:
+        return args.model or SOL[0], args.effort or SOL[1]
+    return TERRA if mode == "digitalborn" and layout in ("en", "fr") else SOL
+
 
 def witnessed_lines(value, source, pages):
     """Bind a separately recorded extraction to the original PDF, never to model text."""
@@ -382,11 +399,14 @@ def author(pdf, mode, args, extraction=None):
     split_annotation = gold_store.split_of(source)
     gold.require(split_annotation is not None, f"{source} has no split annotation in the gold store ({gold_store.ROOT}): "
                                                "where its documents start is decided before authoring")
-    gold.require(gold_store.source(source).get("partition") in gold_store.PARTITIONS,
+    described = gold_store.source(source)
+    gold.require(described.get("partition") in gold_store.PARTITIONS,
                  f"{source} has no partition in the gold store's source.json: its partition is decided before authoring")
     starts = split_annotation["document_starts"]
     if not args.again and (run / "gold.json.gz").is_file():
         return run
+    model, effort = route(mode, described.get("language_layout"), args)
+    args = SimpleNamespace(**{**vars(args), "model": model, "effort": effort})
     job.mkdir(parents=True, exist_ok=True)
     started = time.time()
     receipt = {"source_sha256": source, "mode": mode, "model": args.model, "effort": args.effort, "status": "running",
@@ -437,8 +457,8 @@ def main():
     p.add_argument("--work", type=Path, default=gold_store.WORK, help="This machine's working folder: page images, calls, extraction caches")
     p.add_argument("--limit", type=int, default=1, help="0 selects every manifest row")
     p.add_argument("--shard", default="0/1", help="k/n: every n-th manifest row from the k-th")
-    p.add_argument("--model", default="gpt-6.1-sol")
-    p.add_argument("--effort", default="low")
+    p.add_argument("--model", help="Every document on this model (default: route(), by mode and language layout)")
+    p.add_argument("--effort", help="Every document at this effort (default: route())")
     p.add_argument("--dpi", type=int, default=300, help="Render resolution cap; pages render to a 2,048-pixel long side")
     p.add_argument("--timeout", type=int, default=900)
     p.add_argument("--attempts", type=int, default=3)
