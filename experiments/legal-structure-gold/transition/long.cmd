@@ -11,7 +11,7 @@ set T=C:\Users\elias\fable\transition4
 set G=C:\Users\elias\AppData\Local\OpenLegalData\gold-grades
 set S=C:\Users\elias\gold-store-next\gold
 set Y=C:\Users\elias\gold-store\gold
-set GRADER=C:\Users\elias\fable\grader-next3.exe
+set GRADER=C:\Users\elias\fable\grader-next4.exe
 set LEGALPDF_TRANSITION_GRAMMAR=C:\Users\elias\fable\grammar.json
 set LEGALPDF_TRANSITION_CONFUSIONS=C:\Users\elias\fable\confusions.json
 set LEGALPDF_INDRA_MODEL_PACK=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\indra
@@ -125,6 +125,7 @@ set R=%1
 set /a P=%R%-1
 set DUMPS=%DUMPS% %T%\dump%R%
 if exist %T%\ranker%R%.txt exit /b 0
+if exist %T%\dump%R%.done goto fitround
 if exist %T%\dump%R% rmdir /s /q %T%\dump%R%
 set LEGALPDF_TRANSITION_GOLD=%T%\gold.jsonl
 set LEGALPDF_TRANSITION_RANKER=
@@ -134,6 +135,8 @@ set LEGALPDF_TRANSITION_DUMP=%T%\dump%R%
 set LEGALPDF_TRANSITION_DUMP=
 set LEGALPDF_TRANSITION_GOLD=
 %PY% check_dump.py %T%\dump%R% 3500 || exit /b 1
+echo done> %T%\dump%R%.done
+:fitround
 %PY% -u fit_transition.py ranker %S% %T%\ranker%R%.txt %DUMPS% || exit /b 1
 call :watch %T%\ranker%R%.txt round%R%
 exit /b 0
