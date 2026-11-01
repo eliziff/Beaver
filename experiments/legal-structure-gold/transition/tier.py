@@ -252,3 +252,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # Its files written, the process ends without the interpreter's teardown, which CUDA and the ONNX exporter
+    # crash on Windows (0xC0000409) after a run that did all its work.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
