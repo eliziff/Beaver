@@ -21,7 +21,8 @@ with open(out, "w", encoding="utf-8") as f:
             line, _, offset = piece.partition("@")
             label = list(by_line.get(line, [0, 0, 0, 0, 0, 0, -1, 0]))
             if offset != "0":
-                label = [label[0], 0, 0, 0, 0, 0, -1, 0]
+                # A later piece goes on with its line's unit, and holds the line's paired marks that fall in it.
+                label = [label[0], 0, 0, label[3], 0, 0, -1, 0]
             elif label[6] >= 0:
                 label[6] = first_piece.get(lines[label[6]], -1)
                 if label[6] < 0:

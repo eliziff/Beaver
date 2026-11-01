@@ -41,11 +41,23 @@ def label_source(store, sha):
         return None
 
 
+# GOLD, a gold labels file (gold_labels.py's): each document's gold read from it rather than from the dump, so a
+# dump written before the gold's labels changed fits on the new ones (its lines are the same).
+GOLD = {}
+if os.environ.get("GOLD"):
+    for raw in open(os.environ["GOLD"], encoding="utf-8"):
+        row = json.loads(raw)
+        GOLD[row["sha256"]] = dict(zip(row["ids"], row["labels"]))
+
+
 def documents(folder, store, split):
     for name in sorted(os.listdir(folder)):
         if name.endswith(".json") and not name.endswith(".labels.json"):
             meta = json.load(open(os.path.join(folder, name), encoding="utf-8"))
             if partition(store, meta["sha256"]) == split:
+                gold = GOLD.get(meta["sha256"])
+                if gold is not None:
+                    meta["gold"] = [gold.get(f"{line}@0", [-1] * 8) for line in meta["ids"]]
                 yield meta
 
 

@@ -554,11 +554,17 @@ fn features<'a>(
                 .roles
                 .extend(span_pieces(s)?.into_iter().map(|p| (p, kind.clone())));
         }
-        if role(g) == "line_label" {
-            result.line_numbers.push(spans(&own)?);
+        // A line number once: a line holding only its number is its own unit, and its block's
+        // line_number attribute names the same span again.
+        let own_number = (role(g) == "line_label").then(|| spans(&own)).transpose()?;
+        if let Some(number) = &own_number {
+            result.line_numbers.push(number.clone());
         }
         for s in spans_of(g.attributes.get("line_number"))? {
-            result.line_numbers.push(spans(std::slice::from_ref(&s))?);
+            let number = spans(std::slice::from_ref(&s))?;
+            if own_number.as_ref() != Some(&number) {
+                result.line_numbers.push(number);
+            }
         }
         for s in spans_of(g.attributes.get("speaker"))? {
             result.speakers.push(spans(std::slice::from_ref(&s))?);
@@ -580,6 +586,10 @@ fn features<'a>(
                 found.extend(span_pieces(s)?);
             }
             result.joins.extend(found.windows(2).map(|w| (w[0], w[1])));
+            // A unit is the text it holds: the order its pieces are read in is the joins' and the
+            // reading order's to score, so a hanging marker read after its text costs there, not here.
+            found.sort_unstable();
+            found.dedup();
             result.units_kind.push((role(g), found.clone()));
             result.groups.push(found);
         }

@@ -33,6 +33,14 @@ bullet) is a provision, and a provision with no printed number is text; in a jud
 or article a provision is an instrument set out in it, a quote. Elsewhere (a schedule split from its
 contract, a practice direction typed other) the region stands.
 
+Note labels: a note's label is the number or symbol its first line opens on ("1 It is not to be
+inferred", "* Note: closing cash"); a note unit with no marker whose first line opens on one, set apart
+by a space, takes it as its marker, so every note carries its label the one way.
+
+Duplicate references: a reference mark is the whole printed mark. Where one line holds two references
+one inside the other ("2" within "23", both inherited from a parser's split of the superscript), the
+shorter goes, with any pair that names it.
+
   python postcorrect.py [--sha PREFIX] [--inputs DIR] [--dry-run]   correct the store's current golds
   (running heads only where --inputs holds the extraction's pages, <sha>.json.gz)
 """
@@ -267,7 +275,52 @@ def type_regions(gold, edge=None):
     return done
 
 
-RULES = (running_heads, section_captions, numbered_captions, type_regions)
+NOTE_LABEL = re.compile(r"^(\s*)(\d{1,3}|[*\u2020\u2021\u00a7\u00b6]{1,3})(?=\s)")
+
+
+def note_labels(gold, edge=None):
+    texts = {line["id"]: line.get("corrected") or line["text"] for line in gold["lines"]}
+    done = []
+    for u, unit in enumerate(gold["units"]):
+        if not unit["lines"]:
+            continue
+        head = gold["typed"][unit["lines"][0]]
+        if head["region"] != "note" or head["markers"] or not head["spans"]:
+            continue
+        span = head["spans"][0]
+        text = texts.get(span["line_id"], "")[span["start"]:span["end"]]
+        found = NOTE_LABEL.match(text)
+        if not found:
+            continue
+        start = span["start"] + len(found.group(1))
+        head["markers"] = [[{"line_id": span["line_id"], "start": start, "end": start + len(found.group(2))}]]
+        done.append({"rule": "note_label", "unit": u, "label": found.group(2), "text": text[:80]})
+    return done
+
+
+def duplicate_references(gold, edge=None):
+    done = []
+    for t, typed in enumerate(gold["typed"]):
+        references = typed.get("references") or []
+        spans = [(r["spans"][0]["line_id"], r["spans"][0]["start"], r["spans"][0]["end"]) if r.get("spans") else None for r in references]
+        drop = set()
+        for i, a in enumerate(spans):
+            for j, b in enumerate(spans):
+                if i != j and a and b and a[0] == b[0] and b[1] <= a[1] and a[2] <= b[2] and (a[2] - a[1]) < (b[2] - b[1]):
+                    drop.add(i)
+        if not drop:
+            continue
+        kept = [i for i in range(len(references)) if i not in drop]
+        moved = {old: new for new, old in enumerate(kept)}
+        for i in sorted(drop):
+            done.append({"rule": "duplicate_reference", "typed": t, "label": references[i].get("label"), "span": list(spans[i][1:])})
+        typed["references"] = [references[i] for i in kept]
+        gold["notes"] = [n if n["line"] != t else dict(n, reference=moved[n["reference"]]) for n in gold.get("notes", [])
+                         if n["line"] != t or n["reference"] in moved]
+    return done
+
+
+RULES = (running_heads, section_captions, numbered_captions, type_regions, note_labels, duplicate_references)
 
 
 def write(path, value):
