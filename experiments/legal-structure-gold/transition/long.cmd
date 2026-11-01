@@ -44,9 +44,10 @@ set ROUNDS=
 set LEAVES=
 set COMMON_KEEP=
 call :watch none forest
-rem DAgger.
-set EASY_KEEP=0.2
-set OLDER_KEEP=0.3
+rem DAgger: of each round's rollouts a fixed draw of the lines, every candidate of a line kept (a policy's rollout
+rem offers more candidates a line than the oracle's: round 2 drew 39.8 million rows at a quarter of its lines).
+set LINE_KEEP=0.08
+set OLDER_KEEP=0.04
 set LEGALPDF_TRANSITION_LOCAL_FOLDS=%T%\local
 set DUMPS=
 for %%r in (1 2 3) do call :round %%r || exit /b 1
