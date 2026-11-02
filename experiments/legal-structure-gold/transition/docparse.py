@@ -43,7 +43,12 @@ Where this differs from the paper, and why:
   mark lie there (1,281 of 1,292 continuations and 1,196 of 1,203 notes on development), and a document of thousands
   of regions holds no region-by-region matrix.
 - The trees: each node's gap under its parent (1 to 4 levels: the print may skip one) a head of its own; their layers'
-  dropout 0.2.
+  dropout 0.2; each parent and sibling score biased by whether the two nodes share a template and by the difference of
+  the levels the document's outline names them at.
+- The document's stylesheet (Gemini's template inference: the parser's templates, each one's measured relations to the
+  others, `stylesheet`): each template a node of its row and its lines' pooled states, read across the document by a
+  transformer, each line's state given its template's (Detect reads a page, the templates the document); and each
+  line's outline anchor (the level the contents list or the bookmarks name it at) an input of its own.
 
 Inputs: a line dump of every document (LEGALPDF_TRANSITION_DUMP with the gold given, LEGALPDF_TRANSITION_DUMP_LINES=0:
 `<sha>.json`, `<sha>.lines.f32`): each line's features, text, page and reference marks, and the gold's labels per line.
@@ -60,6 +65,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 CLASSES = 34
+ANCHORS = 10  # an outline anchor's level, 0 for none
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 REGIONS = ["none", "text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote", "marginal_note",
            "furniture", "page_label", "line_label", "title", "note_quote", "provision"]
@@ -249,6 +255,18 @@ class Doc:
             for ref in references[k]:
                 marks[self.region_of_line[k]].add(int(ref[0]))
         self.region_number, self.region_marks = number, marks
+        # The stylesheet: each line's template, each template's measured row, each line's outline anchor.
+        self.templates = np.asarray(meta.get("templates") or [0] * n, dtype=np.int64)
+        rows = meta.get("template_rows") or []
+        count = max(len(rows), int(self.templates.max()) + 1 if n else 1)
+        table = np.zeros((count, max(len(rows[0]) if rows else 1, 1)), dtype=np.float32)
+        if rows:
+            table[:len(rows), :len(rows[0])] = np.clip(np.nan_to_num(np.asarray(rows, dtype=np.float32)), -8, 8)
+            # How the walker's first reading read each template (`read_heading`, `read_level`): the engine reads
+            # before any walk, so neither is known to it.
+            table[:, 9:11] = 0
+        self.template_rows = table
+        self.anchors = np.clip(np.asarray(meta.get("anchors") or [0] * n, dtype=np.int64), 0, ANCHORS - 1)
 
 
 # ----------------------------------------------------------------------------------------------- the model
@@ -453,16 +471,20 @@ class Detect(nn.Module):
         self.text = nn.Sequential(nn.Linear(text_dim, d), nn.ReLU(), nn.LayerNorm(d))
         self.position = nn.Sequential(nn.Linear(6, d), nn.ReLU(), nn.Linear(d, d), nn.ReLU(), nn.LayerNorm(d))
         self.look = nn.Sequential(nn.Linear(width, d), nn.ReLU(), nn.LayerNorm(d))
-        self.fuse = nn.Linear(3 * d, d)
+        self.anchor = nn.Embedding(ANCHORS, d)
+        self.fuse = nn.Linear(4 * d, d)
         self.encoder = encoder(d, 8, 1)
         self.successor, self.predecessor = RelationHead(d), RelationHead(d)
         self.role = nn.Linear(d, CLASSES)
         self.flags = nn.Linear(d, 2)
 
-    def forward(self, features, text, boxes, paged):
-        """Every line's state, its page's lines read together (the pages batched, each its own sequence)."""
+    def embed(self, features, text, boxes, anchors):
         size = (boxes[:, 2:] - boxes[:, :2]).clamp(min=0)
-        u = self.fuse(torch.cat([self.text(text), self.position(torch.cat([boxes, size], dim=-1)), self.look(features)], dim=-1))
+        return self.fuse(torch.cat([self.text(text), self.position(torch.cat([boxes, size], dim=-1)), self.look(features), self.anchor(anchors)], dim=-1))
+
+    def forward(self, features, text, boxes, anchors, paged):
+        """Every line's state, its page's lines read together (the pages batched, each its own sequence)."""
+        u = self.embed(features, text, boxes, anchors)
         out = []
         for batch in paged.batches:
             x = u[batch.rows.clamp(min=0)]
@@ -470,6 +492,31 @@ class Detect(nn.Module):
                 x = layer(x, batch.valid)
             out.append(x.reshape(-1, x.shape[-1])[batch.valid_at])
         return torch.cat(out)[paged.inverse]
+
+class Templates(nn.Module):
+    """The document's stylesheet read across the document: each template a node of its measured row and its lines'
+    pooled states, a transformer over the templates, each line's state given its template's."""
+
+    def __init__(self, d, row_width):
+        super().__init__()
+        self.row_width = max(row_width, 1)
+        self.row = nn.Sequential(nn.Linear(self.row_width, d), nn.ReLU(), nn.LayerNorm(d))
+        self.pool = nn.Linear(d, d)
+        self.encoder = encoder(d, 8, 2)
+        self.back = nn.Sequential(nn.Linear(d, d), nn.LayerNorm(d))
+
+    def forward(self, states, templates, rows):
+        if rows.shape[1] < self.row_width:
+            rows = F.pad(rows, (0, self.row_width - rows.shape[1]))
+        x = states.float()
+        # The templates' buffers shaped from the rows (an exported graph reads the count of templates off its input).
+        blank = (rows[:, :1].float() * 0).expand(-1, x.shape[1])
+        total = blank.scatter_add(0, templates[:, None].expand(-1, x.shape[1]), x)
+        count = (blank[:, 0] * 0).scatter_add(0, templates, torch.ones_like(x[:, 0]))
+        node = self.pool(total / count[:, None].clamp(min=1)) + self.row(rows.float())
+        node = self.encoder(node)
+        return states + self.back(node)[templates].to(states.dtype)
+
 
 class Order(nn.Module):
     def __init__(self, d, regions=17):
@@ -503,17 +550,26 @@ class Construct(nn.Module):
         self.layers = nn.ModuleList([Layer(d, 8, rotary=True, dropout=0.2) for _ in range(2)])
         self.parent, self.sibling = RelationHead(d, spatial_term=False), RelationHead(d, spatial_term=False)
         self.gap = nn.Linear(d, GAPS)
+        # Biases on every two nodes: one where they share a template, one for each difference of their anchors.
+        self.same = nn.Parameter(torch.zeros(2))
+        self.levels = nn.Embedding(2 * ANCHORS - 1, 2)
+        nn.init.zeros_(self.levels.weight)
 
-    def forward(self, states):
+    def forward(self, states, templates, anchors):
         for layer in self.layers:
             states = layer(states)
-        return self.parent(states), self.sibling(states), self.gap(states)
+        same = (templates[:, None] == templates[None, :]).float()
+        steps = self.levels((anchors[None, :] - anchors[:, None]) + ANCHORS - 1)
+        bias = same[..., None] * self.same + steps
+        p, s = self.parent(states), self.sibling(states)
+        return p + bias[..., 0].to(p.dtype), s + bias[..., 1].to(s.dtype), self.gap(states)
 
 
 class DocParser(nn.Module):
-    def __init__(self, width, text_dim, d):
+    def __init__(self, width, text_dim, d, row_width=0):
         super().__init__()
         self.detect = Detect(width, text_dim, d)
+        self.templates = Templates(d, row_width)
         self.order = Order(d)
         self.headings, self.bodies = Construct(d), Construct(d)
 
@@ -553,6 +609,12 @@ class Ready:
         if (doc.region_order >= 0).any():
             self.has.add("order")
         self.region_boxes, self.region_pages = on(doc.region_boxes, torch.float32), on(doc.region_pages)
+        self.templates, self.template_rows, self.anchors = on(doc.templates), on(doc.template_rows, torch.float32), on(doc.anchors)
+        firsts = np.asarray(doc.regions, dtype=np.int64)
+        for name, nodes in (("heading", doc.headings), ("body", doc.bodies)):
+            lines = firsts[np.asarray(nodes, dtype=np.int64)] if len(nodes) else np.zeros(0, dtype=np.int64)
+            setattr(self, f"{name}_templates", on(doc.templates[lines]))
+            setattr(self, f"{name}_anchors", on(doc.anchors[lines]))
         i, j, match = pairs_of(doc)
         self.pair_i, self.pair_j, self.pair_match = on(i, torch.int32), on(j, torch.int32), on(match, torch.bool)
         # Each region's gold pair for each region head: the pair (region, its target), negative where the gold gives
@@ -590,7 +652,7 @@ def pair_terms(r):
     return i, j, region_pairs(r.region_boxes, r.region_pages, r.region_role, i, j, r.pair_match)
 
 
-READY = 6  # the prepared tensors' layout; a change to `Ready`, `Paged` or `Batch` bumps it
+READY = 8  # the prepared tensors' layout; a change to `Ready`, `Paged` or `Batch` bumps it
 
 
 def prepare(docs, mean, std, embed, folder):
@@ -651,7 +713,7 @@ def losses(model, doc):
     r = on_device(doc)
     parts = {}
     with torch.autocast("cuda", dtype=torch.bfloat16, enabled=DEVICE == "cuda"):
-        states = model.detect(r.f, r.t, r.b, r.lines)
+        states = model.templates(model.detect(r.f, r.t, r.b, r.anchors, r.lines), r.templates, r.template_rows)
         role, flags = model.detect.role(states).float(), model.detect.flags(states).float()
         if "role" in r.has:
             parts["role"] = F.cross_entropy(role, r.role, ignore_index=-100)
@@ -674,7 +736,7 @@ def losses(model, doc):
             for name, nodes, parent, sibling, gap, construct in (("heading", r.headings, r.heading_parent, r.heading_sibling, r.heading_gap, model.headings),
                                                                  ("body", r.bodies, r.body_parent, r.body_sibling, r.body_gap, model.bodies)):
                 if name in r.has:
-                    p, s, g = construct(regions[nodes])
+                    p, s, g = construct(regions[nodes], getattr(r, f"{name}_templates"), getattr(r, f"{name}_anchors"))
                     parts[f"{name}_parent"] = F.cross_entropy(earlier(p.float()), parent)
                     parts[f"{name}_sibling"] = F.cross_entropy(earlier(s.float()), sibling)
                     parts[f"{name}_gap"] = F.cross_entropy(g.float(), gap)
@@ -701,7 +763,7 @@ def evaluate(model, docs):
     with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16, enabled=DEVICE == "cuda"):
         for doc in docs:
             r = on_device(doc)
-            states = model.detect(r.f, r.t, r.b, r.lines)
+            states = model.templates(model.detect(r.f, r.t, r.b, r.anchors, r.lines), r.templates, r.template_rows)
             role, flags = model.detect.role(states).float(), model.detect.flags(states).float()
             guess = role.argmax(1).cpu().numpy()
             count("role", guess, doc.role)
@@ -732,7 +794,7 @@ def evaluate(model, docs):
             for name, nodes, parent, sibling, construct in (("heading", r.headings, doc.heading_parent, doc.heading_sibling, model.headings),
                                                             ("body", r.bodies, doc.body_parent, doc.body_sibling, model.bodies)):
                 if name in r.has:
-                    p, s, g = construct(regions[nodes])
+                    p, s, g = construct(regions[nodes], getattr(r, f"{name}_templates"), getattr(r, f"{name}_anchors"))
                     count(f"{name}_parent", earlier(p).argmax(1).cpu().numpy(), parent, links=True)
                     count(f"{name}_sibling", earlier(s).argmax(1).cpu().numpy(), sibling, links=True)
                     count(f"{name}_gap", g.argmax(1).cpu().numpy(), np.asarray(doc.heading_gap if name == "heading" else doc.body_gap))
@@ -834,7 +896,8 @@ def main():
     print(f"prepared tensors: {built} built, {len(train_docs) + len(dev_docs) - built} read, {time.time() - started:.0f}s", flush=True)
     held = resident(train_docs + dev_docs)
     print(f"prepared tensors on the device: {held / 2**30:.2f} GiB", flush=True)
-    model = DocParser(train_docs[0].ready.f.shape[1], train_docs[0].ready.t.shape[1], args.width).to(DEVICE)
+    row_width = max(d.template_rows.shape[1] for d in train_docs)
+    model = DocParser(train_docs[0].ready.f.shape[1], train_docs[0].ready.t.shape[1], args.width, row_width).to(DEVICE)
     preflight(model, train_docs)
     # Development read once before training, so a fault in the evaluation shows before an epoch is spent.
     started = time.time()
@@ -868,7 +931,7 @@ def main():
         print(f"  development {score:.4f}: " + " ".join(f"{n} {a:.4f} ({c})" for n, (a, c) in sorted(report.items())), flush=True)
         if score > best:
             best, since = score, 0
-            torch.save({"model": model.state_dict(), "mean": mean, "std": std, "text": args.text, "width": args.width, "epoch": epoch + 1}, os.path.join(args.out, "docparser.pt"))
+            torch.save({"model": model.state_dict(), "mean": mean, "std": std, "text": args.text, "width": args.width, "row_width": row_width, "epoch": epoch + 1}, os.path.join(args.out, "docparser.pt"))
         else:
             since += 1
             if since == 3:
@@ -878,24 +941,46 @@ def main():
 
 
 class DetectPage(nn.Module):
-    """Detect over one page's lines as the engine runs it: every line against every line of the page (the training
-    batches' padding and flat indexes left out; the same function on a page's real lines)."""
+    """Detect's encoder over one page's lines as the engine runs it (the training batches' padding and flat indexes
+    left out; the same function on a page's real lines)."""
 
     def __init__(self, detect):
         super().__init__()
         self.detect = detect
 
-    def forward(self, features, text, boxes):
-        d = self.detect
-        size = (boxes[:, 2:] - boxes[:, :2]).clamp(min=0)
-        x = d.fuse(torch.cat([d.text(text), d.position(torch.cat([boxes, size], dim=-1)), d.look(features)], dim=-1))
-        for layer in d.encoder:
+    def forward(self, features, text, boxes, anchors):
+        x = self.detect.embed(features, text, boxes, anchors)
+        for layer in self.detect.encoder:
             x = layer(x)
+        return x
+
+
+class StylesheetDocument(nn.Module):
+    """The templates over a document's lines: every line's state given its template's."""
+
+    def __init__(self, templates):
+        super().__init__()
+        self.templates = templates
+
+    def forward(self, states, templates, rows):
+        return self.templates(states, templates, rows)
+
+
+class LinesPage(nn.Module):
+    """Detect's heads over one page's lines, their states the stylesheet's: each line's successor and predecessor
+    among the page's lines, its role and its two flags."""
+
+    def __init__(self, detect):
+        super().__init__()
+        self.detect = detect
+
+    def forward(self, states, boxes):
+        d = self.detect
         links = []
         for head in (d.successor, d.predecessor):
-            f = head.q(x) @ head.k(x).t() / x.shape[-1] ** 0.5
+            f = head.q(states) @ head.k(states).t() / states.shape[-1] ** 0.5
             links.append(f + head.r(spatial(boxes, boxes)).squeeze(-1))
-        return x, links[0], links[1], d.role(x), d.flags(x)
+        return links[0], links[1], d.role(states), d.flags(states)
 
 
 class OrderDocument(nn.Module):
@@ -924,18 +1009,26 @@ def export(argv):
     state = saved["model"]
     width, d = state["detect.look.0.weight"].shape[1], saved["width"]
     text_dim = state["detect.text.0.weight"].shape[1]
-    model = DocParser(width, text_dim, d)
+    model = DocParser(width, text_dim, d, saved.get("row_width", 0))
     model.load_state_dict(state)
     model.eval()
     os.makedirs(out, exist_ok=True)
     n, m, k = 12, 5, 9
     with torch.no_grad():
-        torch.onnx.export(DetectPage(model.detect), (torch.randn(n, width), torch.randn(n, text_dim), torch.rand(n, 4)),
-                          os.path.join(out, "detect.onnx"), input_names=["features", "text", "boxes"],
-                          output_names=["states", "successor", "predecessor", "role", "flags"],
-                          dynamic_axes={"features": {0: "lines"}, "text": {0: "lines"}, "boxes": {0: "lines"}, "states": {0: "lines"},
-                                        "successor": {0: "lines", 1: "lines"}, "predecessor": {0: "lines", 1: "lines"},
-                                        "role": {0: "lines"}, "flags": {0: "lines"}}, opset_version=18, dynamo=False)
+        torch.onnx.export(DetectPage(model.detect), (torch.randn(n, width), torch.randn(n, text_dim), torch.rand(n, 4), torch.randint(0, ANCHORS, (n,))),
+                          os.path.join(out, "detect.onnx"), input_names=["features", "text", "boxes", "anchors"], output_names=["states"],
+                          dynamic_axes={"features": {0: "lines"}, "text": {0: "lines"}, "boxes": {0: "lines"}, "anchors": {0: "lines"},
+                                        "states": {0: "lines"}}, opset_version=18, dynamo=False)
+        templates = 4
+        torch.onnx.export(StylesheetDocument(model.templates), (torch.randn(n, d), torch.randint(0, templates, (n,)), torch.randn(templates, model.templates.row_width)),
+                          os.path.join(out, "stylesheet.onnx"), input_names=["states", "templates", "rows"], output_names=["styled"],
+                          dynamic_axes={"states": {0: "lines"}, "templates": {0: "lines"}, "rows": {0: "templates"}, "styled": {0: "lines"}},
+                          opset_version=18, dynamo=False)
+        torch.onnx.export(LinesPage(model.detect), (torch.randn(n, d), torch.rand(n, 4)),
+                          os.path.join(out, "lines.onnx"), input_names=["states", "boxes"], output_names=["successor", "predecessor", "role", "flags"],
+                          dynamic_axes={"states": {0: "lines"}, "boxes": {0: "lines"}, "successor": {0: "lines", 1: "lines"},
+                                        "predecessor": {0: "lines", 1: "lines"}, "role": {0: "lines"}, "flags": {0: "lines"}},
+                          opset_version=18, dynamo=False)
         pairs = 7
         boxes = torch.rand(m, 4)
         boxes[:, 2:] = boxes[:, :2] + 0.1
@@ -951,10 +1044,11 @@ def export(argv):
                                         **{f"{head}_{part}": {0: "pairs" if part == "r" else "regions"} for head in ("goes_on", "note_of", "successor") for part in ("q", "k", "r")}},
                           opset_version=18, dynamo=False)
         for name, construct in (("headings", model.headings), ("bodies", model.bodies)):
-            torch.onnx.export(construct, (torch.randn(m, d),), os.path.join(out, f"{name}.onnx"), input_names=["states"],
+            torch.onnx.export(construct, (torch.randn(m, d), torch.randint(0, 3, (m,)), torch.randint(0, ANCHORS, (m,))),
+                              os.path.join(out, f"{name}.onnx"), input_names=["states", "templates", "anchors"],
                               output_names=["parent", "sibling", "gap"],
-                              dynamic_axes={"states": {0: "nodes"}, "parent": {0: "nodes", 1: "nodes"}, "sibling": {0: "nodes", 1: "nodes"},
-                                            "gap": {0: "nodes"}},
+                              dynamic_axes={"states": {0: "nodes"}, "templates": {0: "nodes"}, "anchors": {0: "nodes"},
+                                            "parent": {0: "nodes", 1: "nodes"}, "sibling": {0: "nodes", 1: "nodes"}, "gap": {0: "nodes"}},
                               opset_version=18, dynamo=False)
     from model2vec import StaticModel
     text_model = StaticModel.from_pretrained(saved["text"])
@@ -963,7 +1057,7 @@ def export(argv):
     samples = ["12. The appellant appeals.", "(a) a person who", "PART II — GENERAL", "Ibid. at para 4.", "Le tribunal a jugé que", " ", "R v Smith, 2019 SCC 12"]
     json.dump({"texts": samples, "vectors": np.asarray(text_model.encode(samples), dtype=np.float32).round(6).tolist()},
               open(os.path.join(out, "parity.json"), "w", encoding="utf-8"))
-    json.dump({"width": int(width), "text_dim": int(text_dim), "d": int(d), "classes": CLASSES, "regions": REGIONS,
+    json.dump({"width": int(width), "text_dim": int(text_dim), "d": int(d), "row_width": int(model.templates.row_width), "classes": CLASSES, "regions": REGIONS,
                "mean": [float(v) for v in saved["mean"]], "std": [float(v) for v in saved["std"]], "text": saved["text"],
                "vocabulary": int(text_model.embedding.shape[0]), "unknown": text_model.unk_token_id, "normalize": bool(text_model.normalize),
                "epoch": saved.get("epoch")}, open(os.path.join(out, "docparse.json"), "w", encoding="utf-8"))
