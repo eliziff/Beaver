@@ -1,10 +1,10 @@
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState, type ComponentType, type ReactNode } from "react";
 import { CircleHelp } from "lucide-react";
 import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { cn } from "@/app/lib/utils";
 
-export function HelpPopover({ label, children, className }: {
-    label: string; children: ReactNode; className?: string;
+export function HelpPopover({ label, children, className, icon: Icon = CircleHelp }: {
+    label: string; children: ReactNode; className?: string; icon?: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 }) {
     const [open, setOpen] = useState(false);
     const [button, setButton] = useState<HTMLButtonElement | null>(null);
@@ -21,7 +21,7 @@ export function HelpPopover({ label, children, className }: {
             }} onKeyDown={(event) => {
                 if (event.key === "Escape") { event.stopPropagation(); setOpen(false); }
             }} className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
-            <CircleHelp aria-hidden="true" className="h-3.5 w-3.5" />
+            <Icon aria-hidden={true} className="h-3.5 w-3.5" />
         </button>
         {open && <span ref={tooltip} id={id} role="tooltip" popover="manual"
             className="fixed inset-auto m-0 max-h-[calc(100dvh-1rem)] w-[min(18rem,calc(100vw-1rem))] overflow-auto rounded-md border border-gray-200 bg-white p-3 text-left text-xs font-normal leading-5 text-gray-700 shadow-lg">
