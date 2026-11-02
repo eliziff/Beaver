@@ -305,9 +305,17 @@ class PairHead(nn.Module):
         self.r = nn.Sequential(nn.Linear(PAIR, 64), nn.ReLU(), nn.Linear(64, 1))
 
     def forward(self, x, pairs):
-        """Each listed pair's score (P,)."""
+        """Each listed pair's score (P,): on the device the regions' products all at once (a matrix the device holds
+        well), the listed pairs' read off it."""
         i, j, r = pairs
-        return (self.q(x)[i] * self.k(x)[j]).sum(-1) / x.shape[-1] ** 0.5 + self.r(r).squeeze(-1).to(x.dtype)
+        f = self.q(x) @ self.k(x).t() / x.shape[-1] ** 0.5
+        return f[i, j] + self.r(r).squeeze(-1).to(f.dtype)
+
+    def parts(self, x, pairs):
+        """The same scores' parts as the engine computes them, a pair at a time with no matrix: the regions' scaled
+        queries and keys, and each pair's term."""
+        _, _, r = pairs
+        return self.q(x) / x.shape[-1] ** 0.5, self.k(x), self.r(r).squeeze(-1)
 
 
 def row_loss(logits, i, m, target):
@@ -901,7 +909,8 @@ class OrderDocument(nn.Module):
     def forward(self, line_states, line_region, region_roles, region_boxes, region_pages, pair_i, pair_j, pair_match):
         regions = self.order(line_states, None, line_region, region_roles)
         pairs = (pair_i, pair_j, region_pairs(region_boxes, region_pages, region_roles, pair_i, pair_j, pair_match))
-        return regions, self.order.goes_on(regions, pairs), self.order.note_of(regions, pairs), self.order.successor(regions, pairs)
+        return (regions, *self.order.goes_on.parts(regions, pairs), *self.order.note_of.parts(regions, pairs),
+                *self.order.successor.parts(regions, pairs))
 
 
 def export(argv):
@@ -935,11 +944,11 @@ def export(argv):
                                                        torch.zeros(pairs, dtype=torch.bool)),
                           os.path.join(out, "order.onnx"),
                           input_names=["line_states", "line_region", "region_roles", "region_boxes", "region_pages", "pair_i", "pair_j", "pair_match"],
-                          output_names=["regions", "goes_on", "note_of", "successor"],
+                          output_names=["regions"] + [f"{head}_{part}" for head in ("goes_on", "note_of", "successor") for part in ("q", "k", "r")],
                           dynamic_axes={"line_states": {0: "lines"}, "line_region": {0: "lines"}, "region_roles": {0: "regions"},
                                         "region_boxes": {0: "regions"}, "region_pages": {0: "regions"}, "pair_i": {0: "pairs"},
                                         "pair_j": {0: "pairs"}, "pair_match": {0: "pairs"}, "regions": {0: "regions"},
-                                        "goes_on": {0: "pairs"}, "note_of": {0: "pairs"}, "successor": {0: "pairs"}},
+                                        **{f"{head}_{part}": {0: "pairs" if part == "r" else "regions"} for head in ("goes_on", "note_of", "successor") for part in ("q", "k", "r")}},
                           opset_version=18, dynamo=False)
         for name, construct in (("headings", model.headings), ("bodies", model.bodies)):
             torch.onnx.export(construct, (torch.randn(m, d),), os.path.join(out, f"{name}.onnx"), input_names=["states"],
