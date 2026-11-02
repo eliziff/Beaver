@@ -19,7 +19,9 @@ type Span = { start: number; end: number; text: string };
 export type WordPart = { index: number; start: number; end: number; text: string; link: string;
   occurrenceId: string | null; core: Span | null; pinpoint: Span | null; editorLink: boolean;
   /** A web address the citation writes out, where it is its link: the words its link goes on. */
-  written: Span | null };
+  written: Span | null;
+  /** The citation's form where it refers back to one cited before (`supra`, `ibid`, a short form). */
+  reference: "short" | "ibid" | "supra" | null };
 
 /** A quotation's selected check against the sources its note cites, with what a correction writes each way. */
 export type WordQuote = { id: string; unitId: string; start: number; end: number; text: string;
@@ -109,7 +111,7 @@ export function wordResult(draft: AuthoritiesDraft, check: Check, rows: Awaited<
     note.parts.push({ index: Number(row.citation_part_index), start, end, text: row.citation_part_text,
       link, occurrenceId: occurrence?.id ?? null,
       core: occurrence?.coreSpan.text ? occurrence.coreSpan : null, pinpoint: occurrence?.pinpointSpan ?? null, editorLink: !!occurrence?.link,
-      written: writtenAddress(row.citation_part_text, start, link) });
+      written: writtenAddress(row.citation_part_text, start, link), reference: occurrence?.referenceKind ?? null });
   }
   const spans: WordSpan[] = [], pinpoints = new Map<string, WordSpan | null>();
   for (const quote of check.quotes) {

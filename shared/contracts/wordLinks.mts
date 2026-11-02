@@ -18,9 +18,11 @@ export function writtenAddress(text: string, offset: number, link: string): Span
 }
 /** The links a citation is written with: a web address it writes out, where it is the citation's link, alone; else
  *  its own words (never its style of cause) to the page, and its pinpoint to the paragraph or provision where its
- *  link names one. */
-export function partLinks({ core, pinpoint, written }: { core: Span | null; pinpoint: Span | null; written?: Span | null }, link: string) {
+ *  link names one. A reference back to a cited work (`supra note 6`, `Ibid`) points to that citation, not to the work:
+ *  its words take no link unless `references` asks, its pinpoint still does. */
+export function partLinks({ core, pinpoint, written, reference }: { core: Span | null; pinpoint: Span | null;
+  written?: Span | null; reference?: "short" | "ibid" | "supra" | null }, link: string, { references = false } = {}) {
   if (written) return [{ span: written, url: link }];
-
-  return [...core ? [{ span: core, url: pageOf(link) }] : [], ...pinpoint && /#(?:par|sec)/u.test(link) ? [{ span: pinpoint, url: link }] : []];
+  const linked = core && (references || (reference !== "supra" && reference !== "ibid"));
+  return [...linked ? [{ span: core, url: pageOf(link) }] : [], ...pinpoint && /#(?:par|sec)/u.test(link) ? [{ span: pinpoint, url: link }] : []];
 }
