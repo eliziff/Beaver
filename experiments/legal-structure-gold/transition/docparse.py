@@ -33,6 +33,9 @@ Where this differs from the paper, and why:
   - two more region links, each a softmax over the document's regions (or none): a region a unit goes on in (a
     paragraph past a page or a quotation), and a note's region the region holding its reference mark;
   - two line flags: a unit opening on its printed marker, a line opening a constituent document.
+- The Order stage's attention is local (block-local, as Longformer's and BigBird's): the regions in the parser's order
+  cut into blocks of `BLOCK`, each block attending to itself and the blocks either side, so a document's cost grows
+  with its regions, not their square (a statute of 13,745 regions read in 455 s with full attention).
 - Reading order: the Order stage's successor head learns the gold's order of the regions (each line's rank in the
   gold, carried onto the parser's lines), which may differ from the parser's (two columns, a form's labels and
   values); its transformer reads the regions with rotary positions over the parser's order.
@@ -66,6 +69,7 @@ import torch.nn.functional as F
 
 CLASSES = 34
 ANCHORS = 10  # an outline anchor's level, 0 for none
+BLOCK = 64  # the Order stage's attention block
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 REGIONS = ["none", "text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote", "marginal_note",
            "furniture", "page_label", "line_label", "title", "note_quote", "provision"]
@@ -493,6 +497,30 @@ class Detect(nn.Module):
             out.append(x.reshape(-1, x.shape[-1])[batch.valid_at])
         return torch.cat(out)[paged.inverse]
 
+class BlockLayer(Layer):
+    """A transformer layer whose attention is block-local: the sequence (its length a multiple of `BLOCK`, `valid` its
+    real places) cut into blocks, each block's queries attending to the keys of itself and the blocks either side;
+    queries and keys rotated by their places in the whole sequence."""
+
+    def forward(self, x, valid):
+        n = x.shape[0]
+        q, k, v = self.qkv(self.norm1(x)).reshape(n, 3, self.heads, self.size).permute(1, 2, 0, 3)  # (h, n, s) each
+        if self.rotary:
+            q, k = self.rotate(q), self.rotate(k)
+        blocks = lambda t: t.reshape(self.heads, -1, BLOCK, self.size).transpose(0, 1)  # (b, h, BLOCK, s)
+        qb, kb, vb = blocks(q), blocks(k), blocks(v)
+        mask = valid.reshape(-1, BLOCK)
+        edge_kv = torch.zeros_like(kb[:1])
+        edge_mask = torch.zeros_like(mask[:1])
+        around = lambda t, edge: torch.cat([torch.cat([edge, t[:-1]]), t, torch.cat([t[1:], edge])], dim=-2 if t.dim() == 4 else -1)
+        keys, values = around(kb, edge_kv), around(vb, edge_kv)
+        seen = around(mask, edge_mask)  # (b, 3 BLOCK)
+        y = F.scaled_dot_product_attention(qb, keys, values, attn_mask=seen[:, None, None, :], dropout_p=self.dropout if self.training else 0.0)
+        y = y.transpose(0, 1).reshape(self.heads, n, self.size).permute(1, 0, 2).reshape(n, -1)
+        x = x + self.drop(self.out(y))
+        return x + self.drop(self.feed(self.norm2(x)))
+
+
 class Templates(nn.Module):
     """The document's stylesheet read across the document: each template a node of its measured row and its lines'
     pooled states, a transformer over the templates, each line's state given its template's."""
@@ -524,10 +552,10 @@ class Order(nn.Module):
         self.pool = nn.Sequential(nn.Linear(d, d), nn.Tanh(), nn.Linear(d, 1))
         self.role = nn.Sequential(nn.Embedding(regions, d), nn.ReLU(), nn.LayerNorm(d))
         self.fuse = nn.Linear(2 * d, d)
-        self.encoder = encoder(d, 8, 3, rotary=True)
+        self.encoder = nn.ModuleList([BlockLayer(d, 8, rotary=True) for _ in range(3)])
         self.goes_on, self.note_of, self.successor = PairHead(d), PairHead(d), PairHead(d)
 
-    def forward(self, line_states, region_lines, line_region, region_roles):
+    def forward(self, line_states, region_lines, line_region, region_roles, valid=None):
         """line_states (n, d), the lines in regions and each one's region (of m), the regions' roles -> region states
         (m, d)."""
         # `region_lines` None: every line given is in a region (the exported graph's input).
@@ -541,7 +569,16 @@ class Order(nn.Module):
         w = torch.exp(alpha - top[region])
         total = blank[:, 0].scatter_add(0, region, w)
         pooled = blank.scatter_add(0, region[:, None].expand(-1, states.shape[1]), w[:, None] * states) / total[:, None].clamp(min=1e-9)
-        return self.encoder(self.fuse(torch.cat([pooled, roles], dim=-1)))
+        x = self.fuse(torch.cat([pooled, roles], dim=-1))
+        # The regions padded to whole blocks (the engine pads them itself, `valid` its real ones).
+        m = x.shape[0]
+        if valid is None:
+            pad = (-m) % BLOCK
+            x = F.pad(x, (0, 0, 0, pad))
+            valid = torch.arange(m + pad, device=x.device) < m
+        for layer in self.encoder:
+            x = layer(x, valid)
+        return x[:m] if x.shape[0] != m else x
 
 
 class Construct(nn.Module):
@@ -652,7 +689,7 @@ def pair_terms(r):
     return i, j, region_pairs(r.region_boxes, r.region_pages, r.region_role, i, j, r.pair_match)
 
 
-READY = 8  # the prepared tensors' layout; a change to `Ready`, `Paged` or `Batch` bumps it
+READY = 8  # (unchanged by the block attention)  # the prepared tensors' layout; a change to `Ready`, `Paged` or `Batch` bumps it
 
 
 def prepare(docs, mean, std, embed, folder):
@@ -991,8 +1028,8 @@ class OrderDocument(nn.Module):
         super().__init__()
         self.order = order
 
-    def forward(self, line_states, line_region, region_roles, region_boxes, region_pages, pair_i, pair_j, pair_match):
-        regions = self.order(line_states, None, line_region, region_roles)
+    def forward(self, line_states, line_region, region_roles, region_valid, region_boxes, region_pages, pair_i, pair_j, pair_match):
+        regions = self.order(line_states, None, line_region, region_roles, region_valid)
         pairs = (pair_i, pair_j, region_pairs(region_boxes, region_pages, region_roles, pair_i, pair_j, pair_match))
         return (regions, *self.order.goes_on.parts(regions, pairs), *self.order.note_of.parts(regions, pairs),
                 *self.order.successor.parts(regions, pairs))
@@ -1030,16 +1067,18 @@ def export(argv):
                                         "predecessor": {0: "lines", 1: "lines"}, "role": {0: "lines"}, "flags": {0: "lines"}},
                           opset_version=18, dynamo=False)
         pairs = 7
+        m = 2 * BLOCK  # the engine pads the regions to whole blocks
         boxes = torch.rand(m, 4)
         boxes[:, 2:] = boxes[:, :2] + 0.1
-        torch.onnx.export(OrderDocument(model.order), (torch.randn(k, d), torch.randint(0, m, (k,)), torch.randint(0, 17, (m,)), boxes,
+        valid = torch.arange(m) < m - 5
+        torch.onnx.export(OrderDocument(model.order), (torch.randn(k, d), torch.randint(0, m - 5, (k,)), torch.randint(0, 17, (m,)), valid, boxes,
                                                        torch.randint(0, 3, (m,)), torch.randint(0, m, (pairs,)), torch.randint(0, m, (pairs,)),
                                                        torch.zeros(pairs, dtype=torch.bool)),
                           os.path.join(out, "order.onnx"),
-                          input_names=["line_states", "line_region", "region_roles", "region_boxes", "region_pages", "pair_i", "pair_j", "pair_match"],
+                          input_names=["line_states", "line_region", "region_roles", "region_valid", "region_boxes", "region_pages", "pair_i", "pair_j", "pair_match"],
                           output_names=["regions"] + [f"{head}_{part}" for head in ("goes_on", "note_of", "successor") for part in ("q", "k", "r")],
                           dynamic_axes={"line_states": {0: "lines"}, "line_region": {0: "lines"}, "region_roles": {0: "regions"},
-                                        "region_boxes": {0: "regions"}, "region_pages": {0: "regions"}, "pair_i": {0: "pairs"},
+                                        "region_valid": {0: "regions"}, "region_boxes": {0: "regions"}, "region_pages": {0: "regions"}, "pair_i": {0: "pairs"},
                                         "pair_j": {0: "pairs"}, "pair_match": {0: "pairs"}, "regions": {0: "regions"},
                                         **{f"{head}_{part}": {0: "pairs" if part == "r" else "regions"} for head in ("goes_on", "note_of", "successor") for part in ("q", "k", "r")}},
                           opset_version=18, dynamo=False)
