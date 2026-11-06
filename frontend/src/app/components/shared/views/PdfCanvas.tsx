@@ -69,7 +69,8 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
     const navigationRef = useRef(0), quoteGenerationRef = useRef(0);
     const focusedRequestRef = useRef<number | undefined>(undefined);
     const [layoutRevision, setLayoutRevision] = useState(0);
-    const [preparing, setPreparing] = useState(true), [viewerError, setViewerError] = useState<string | null>(null);
+    const [drawing, setDrawing] = useState<"preparing" | "drawn" | "failed">("preparing");
+    const preparing = drawing === "preparing", viewerError = drawing === "failed" ? PDF_VIEWER_ERROR : null;
     const [zoom, setZoom] = useState(1), [currentPage, setCurrentPage] = useState(1), [numPages, setNumPages] = useState(0);
     const [embeddedPageLabels, setEmbeddedPageLabels] = useState<readonly (string | null)[]>();
     // A viewer that is going away leaves nothing on screen, so it copies nothing to paint over.
@@ -127,11 +128,11 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
         const fail = (cause: unknown) => {
             if (signal.aborted) return;
             console.error("PDF render error", cause); clearPreview(); dispose();
-            setPreparing(false); setNumPages(0); setViewerError(PDF_VIEWER_ERROR); notifyUnavailable();
+            setDrawing("failed"); setNumPages(0); notifyUnavailable();
         };
         queueMicrotask(() => {
             if (signal.aborted) return;
-            setPreparing(true); setViewerError(null); setZoom(1); setCurrentPage(1);
+            setDrawing("preparing"); setZoom(1); setCurrentPage(1);
         });
         void (async () => {
             const [lib, input] = await Promise.all([getPdfJs(), source ? source(signal, fail) : {data:bytes!}]);
@@ -158,7 +159,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                     highlightQuote(element,found.get(number) ?? []); notifyTextReady(number, element);
                 },
                 onZoom:setZoom,onPage:number => { setCurrentPage(number);  },
-                onRendered:() => { clearPreview(); setPreparing(false); notifyRendered(); },onError:fail});
+                onRendered:() => { clearPreview(); setDrawing("drawn"); notifyRendered(); },onError:fail});
             viewer = session.viewer;
             const {viewer:current,pages,preparePage,ensureText} = session;
             const search = async (entries: CitationQuote[], focus = true) => {

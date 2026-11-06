@@ -245,8 +245,7 @@ function MfaSettings() {
         setStatus(null);
         void runMfa(async () => {
             setBusy("action");
-            await unenrollMfa(factorId!);
-            setBusy(null);
+            try { await unenrollMfa(factorId!); } finally { setBusy(null); }
             if (profile?.mfaOnLogin) void updateMfaOnLogin(false);
             await refresh();
         }, { onError: (error) => setStatus(errorMessage(error, "Failed to remove authenticator.")) });

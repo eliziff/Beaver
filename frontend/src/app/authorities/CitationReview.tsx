@@ -270,7 +270,8 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
   // Each page's text layer as searched for citations (a page scrolled far away loses its layer, and
   // is searched again when drawn again), and each marked unit's citations.
   const decorated = useRef(new Map<number, HTMLElement>()), marked = useRef(new Map<string, string>());
-  const preview = useRef<CitationPaint>({}), frame = useRef(0), mode = useRef<PaintMode | undefined>(undefined);
+  // The frame a paint is waiting for, and the widest paint asked of it.
+  const preview = useRef<CitationPaint>({}), painting = useRef<{ frame: number; mode: PaintMode } | null>(null);
   const hot = useRef<string | undefined>(undefined);
   const nudge = useRef<{ id: string; from: number; to: number; commit(): void; timer: ReturnType<typeof setTimeout> }>(undefined);
   // Document events and frames read the latest props here.
@@ -340,15 +341,16 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     return placedPins(selected).flatMap(pin => text.range(text.index(pin.start), text.index(pin.end)) ?? []);
   };
   const paint = (next: PaintMode) => {
-    cancelAnimationFrame(frame.current); frame.current = 0; mode.current = undefined;
+    if (painting.current) cancelAnimationFrame(painting.current.frame);
+    painting.current = null;
     if (live.current.hidden) return;
     documentRef.current?.querySelectorAll<HTMLElement>(SCROLLERS).forEach(scroller =>
       paintCitations(scroller, { active: live.current.selected?.id, ...preview.current, pins: pinRanges }, next));
   };
   const repaint = (next: PaintMode) => {
-    const rank = { scroll: 0, active: 1, layout: 2 };
-    if (!mode.current || rank[next] > rank[mode.current]) mode.current = next;
-    frame.current ||= requestAnimationFrame(() => paint(mode.current ?? 'scroll'));
+    const rank = { scroll: 0, active: 1, layout: 2 }, waiting = painting.current;
+    if (!waiting) painting.current = { mode: next, frame: requestAnimationFrame(() => paint(painting.current?.mode ?? 'scroll')) };
+    else if (rank[next] > rank[waiting.mode]) waiting.mode = next;
   };
   const flushNudge = () => { clearTimeout(nudge.current?.timer); nudge.current?.commit(); };
   /** Marks the selected citation active and brings it into view when a navigation asked for that.
@@ -500,7 +502,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
     root.addEventListener('scroll', scroll, true);
     return () => { observer?.disconnect(); root.removeEventListener('scroll', scroll, true); };
   }, [source, ready]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { cancelAnimationFrame(frame.current); flushNudge(); }, []);
+  useEffect(() => () => { if (painting.current) cancelAnimationFrame(painting.current.frame); flushNudge(); }, []);
   useEffect(() => {
     document.addEventListener('selectionchange', rememberSelection);
     return () => document.removeEventListener('selectionchange', rememberSelection);

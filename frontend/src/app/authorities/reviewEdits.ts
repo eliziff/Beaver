@@ -119,6 +119,29 @@ export const pinpointEdit = (pins: Pin[]): PinpointEdit =>
 /** A review edit as Ctrl+Z takes it back and Ctrl+Y makes it again: each a list of actions, the
  * citation it was about, and the one selected when it was made. */
 export type ReviewStep = { undo: AuthoritiesAction[]; redo: AuthoritiesAction[]; target: string; from?: string };
+/** An edit on screen and still saving. */
+export type ShownEdit = { action: AuthoritiesAction; step?: ReviewStep };
+/** A draft's review edits: those shown and saving behind the view, in order; the steps Ctrl+Z takes back; and those
+ * it took back, for Ctrl+Shift+Z and Ctrl+Y. */
+export type EditLog = { saving: ShownEdit[]; done: ReviewStep[]; undone: ReviewStep[] };
+export const NO_EDITS: EditLog = { saving: [], done: [], undone: [] };
+/** The draft as the review shows it: the saved draft with the edits still saving. */
+export const editedDraft = ({ saving }: EditLog, saved: AuthoritiesProduct) =>
+  saving.reduce<AuthoritiesProduct>((view, { action }) => previewEdit(view, action) ?? view, saved);
+/** An edit's save landed. Later edits and the history follow citations the save named differently: renamed in place,
+ * so each edit is found again by itself when its own save lands. */
+export function editSaved(log: EditLog, edit: ShownEdit, names: Map<string, string>): EditLog {
+  const renamed = (item: AuthoritiesAction) => 'occurrenceId' in item && names.has(item.occurrenceId)
+    ? { ...item, occurrenceId: names.get(item.occurrenceId)! } : item;
+  const saving = log.saving.filter(item => item !== edit);
+  for (const item of saving) item.action = renamed(item.action);
+  for (const step of [...log.done, ...log.undone]) Object.assign(step, {
+    undo: step.undo.map(renamed), redo: step.redo.map(renamed), target: names.get(step.target) ?? step.target });
+  return { ...log, saving };
+}
+/** An edit's save failed: it is taken back, and its step leaves the history. */
+export const editRefused = ({ saving, done, undone }: EditLog, edit: ShownEdit): EditLog => ({ saving: saving.filter(item => item !== edit),
+  done: done.filter(item => item !== edit.step), undone: undone.filter(item => item !== edit.step) });
 /** The step that takes an edit back, from the review before and after it: the prior value of what
  * it changed. A range that took in or cut a neighbour gives the neighbour its range back. */
 export function reviewStep(before: AuthoritiesProduct, after: AuthoritiesProduct, action: AuthoritiesAction): ReviewStep | null {

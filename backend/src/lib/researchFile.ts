@@ -15,8 +15,8 @@ import { jsonRecord as record } from "./value";
 import { recordResearchOperation,
   type ResearchOperationContext } from "./researchProvenance";
 import { resolveResearchSelection } from "./researchSelection";
-import { RESEARCH_HISTORY_PART, readResearchHistory, researchChangeCounts, researchChangeSummary,
-  researchStateChanges, assertResearchChangeBase,
+import { RESEARCH_HISTORY_PART, readResearchHistory, researchChangeCounts, researchChangeOpen, researchChangeSummary,
+  researchStateChanges, assertResearchChangeBase, resolveResearchChange,
   type ResearchChange, type ResearchChangeField } from "./researchHistory";
 export { researchSourceKey } from "mike/shared/runtime/resourceReferences.mjs";
 export { readResearchHistory } from "./researchHistory";
@@ -609,11 +609,11 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   let changes: ResearchChangeField[], selected: ResearchChange | undefined, pending = false;
   if (request.type === "accept" || request.type === "reject" || request.type === "undo") {
     selected = (await loadHistory()).find(({ id }) => id === request.changeId);
-    if (!selected || selected.status !== (request.type === "undo" ? "applied" : "pending"))
+    if (!selected || !researchChangeOpen(selected, request.type))
       throw new ApplicationError(409, "This change is no longer available");
     if (request.type !== "undo" && executor !== "human") throw new ApplicationError(403, "Review this proposal in the workspace");
     if (request.type === "reject") {
-      selected.status = "rejected"; selected.resolvedBy = scope.userId; selected.resolvedAt = new Date().toISOString();
+      resolveResearchChange(selected, "rejected", scope.userId);
       changes = [];
     } else {
       await loadSources(selected.changes.flatMap((change) => change.target === "passage" && change.sourceId
@@ -626,8 +626,8 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       changes = request.type === "undo" ? selected.changes.map((change) =>
         ({ ...change, before: change.after, after: change.before }))
         : researchStateChanges(current.state, state, originalEvidence, allEvidence());
-      if (request.type === "accept") { selected.status = "applied"; selected.changes = changes;
-        selected.counts = researchChangeCounts(changes); selected.resolvedBy = scope.userId; selected.resolvedAt = new Date().toISOString(); }
+      if (request.type === "accept") Object.assign(resolveResearchChange(selected, "applied", scope.userId),
+        { changes, counts: researchChangeCounts(changes) });
     }
   } else changes = researchStateChanges(current.state, state, originalEvidence, allEvidence());
   if ((changes.length || context?.organization) && request.type !== "accept") {
@@ -646,8 +646,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       const previous = history.find(({ id }) => id === context.supersedes);
       if (!previous || previous.status !== "pending" || !previous.organization)
         throw new ApplicationError(409, "This proposal was already applied or revised. Open the latest proposal.");
-      previous.status = "rejected"; previous.supersededBy = changeId;
-      previous.resolvedBy = scope.userId; previous.resolvedAt = new Date().toISOString();
+      resolveResearchChange(previous, "rejected", scope.userId).supersededBy = changeId;
     }
     history.push({ id: changeId, title: title.slice(0, 200), createdAt: new Date().toISOString(),
       executor, userId: scope.userId, ...(context?.model && { model: context.model }), status: pending ? "pending" : "applied",

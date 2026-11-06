@@ -198,7 +198,6 @@ export async function startMcpToolBridge(params: McpToolBridgeParams): Promise<M
     throw new Error("MCP bridge did not receive a local listening address.");
   }
 
-  let closed = false;
   return {
     url: `http://127.0.0.1:${address.port}/mcp`,
     token,
@@ -206,8 +205,7 @@ export async function startMcpToolBridge(params: McpToolBridgeParams): Promise<M
     stats: () => ({ toolCallCount: state.toolCallCount,
       toolArgumentBytes: state.toolArgumentBytes, toolResultBytes: state.toolResultBytes }),
     close: async () => {
-      if (closed) return;
-      closed = true;
+      if (state.closed) return;
       state.closed = true;
       await state.dispatchTail;
       for (const socket of sockets) socket.destroy();

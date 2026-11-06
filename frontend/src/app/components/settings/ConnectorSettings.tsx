@@ -11,10 +11,11 @@ import { errorMessage } from "@/app/lib/utils";
 import { AccountSection, SettingsSection, accountGlassPrimaryButtonClassName } from "./AccountSection";
 
 const SPINNER = <Loader2 className="size-4 animate-spin" />;
-type AddState = { draft: McpConnectorDraft; step: "form" | "auth" | "success"; result: McpConnectorSummary | null; error: string | null };
+type AddStep = { step: "form"; error: string | null } | { step: "auth" } | { step: "success"; result: McpConnectorSummary };
+type AddState = { draft: McpConnectorDraft } & AddStep;
 const connectorDraft = (connector?: Pick<McpConnectorSummary, "name" | "serverUrl">): McpConnectorDraft =>
     ({ name: connector?.name ?? "", serverUrl: connector?.serverUrl ?? "", bearerToken: "", customHeaders: "" });
-const newAdd = (): AddState => ({ draft: connectorDraft(), step: "form", result: null, error: null });
+const newAdd = (): AddState => ({ draft: connectorDraft(), step: "form", error: null });
 
 function parseCustomHeaders(raw: string): Record<string, string> | undefined {
     const text = raw.trim();
@@ -69,7 +70,7 @@ export function ConnectorSettings() {
     const selected = list.find(({ id }) => id === detail?.id) ?? null;
     const adding = busyKey === "create", authorizing = add?.step === "auth", addBusy = adding || authorizing;
     const addDraft = add?.draft ?? connectorDraft();
-    const updateAdd = (patch: Partial<AddState>) => setAdd((current) => current && { ...current, ...patch });
+    const moveAdd = (step: AddStep) => setAdd((current) => current && { draft: current.draft, ...step });
     const updateDetail = (patch: Partial<NonNullable<typeof detail>>, connectorId = detail?.id) =>
         setDetail((current) => current && current.id === connectorId ? { ...current, ...patch } : current);
     useEffect(() => {
@@ -112,18 +113,18 @@ export function ConnectorSettings() {
         }
     };
     const create = () => add && sensitive("create", async () => {
-        updateAdd({ error: null });
+        moveAdd({ step: "form", error: null });
         try {
             const headers = parseCustomHeaders(add.draft.customHeaders);
             const connector = await createMcpConnector({ name: add.draft.name, serverUrl: add.draft.serverUrl,
                 bearerToken: add.draft.bearerToken.trim() || null, ...(headers ? { headers } : {}) });
-            const refreshed = await refreshConnector(connector, () => updateAdd({ step: "auth" }));
-            if (refreshed) updateAdd({ result: refreshed, step: "success" });
+            const refreshed = await refreshConnector(connector, () => moveAdd({ step: "auth" }));
+            if (refreshed) moveAdd({ step: "success", result: refreshed });
         } catch (err) {
-            updateAdd({ step: "form" });
+            moveAdd({ step: "form", error: null });
             throw err instanceof Error ? err : new Error("Failed to add connector.");
         }
-    }, (message) => updateAdd({ error: message }));
+    }, (message) => moveAdd({ step: "form", error: message }));
     const save = () => selected && detail && sensitive(`save:${selected.id}`, async () => {
         const headers = parseCustomHeaders(detail.draft.customHeaders), token = detail.draft.bearerToken.trim();
         const saved = await updateMcpConnector(selected.id, { name: detail.draft.name, serverUrl: detail.draft.serverUrl,
@@ -169,12 +170,12 @@ export function ConnectorSettings() {
         </div>
         <Modal open={add !== null} onClose={() => { if (!addBusy) setAdd(null); }} size="lg"
             breadcrumbs={["Connectors", add?.step === "success" ? "Connector added" : authorizing ? "Authenticate connector" : "New MCP connector"]}
-            primaryAction={add?.step === "success" && add.result
-                ? { label: "View connector", onClick: () => { void openDetails(add.result!.id); setAdd(null); } }
+            primaryAction={add?.step === "success"
+                ? { label: "View connector", onClick: () => { void openDetails(add.result.id); setAdd(null); } }
                 : { label: adding ? "Connecting..." : authorizing ? "Authorizing..." : "Connect", icon: addBusy ? SPINNER : undefined,
                     onClick: () => void create(), disabled: !addDraft.name.trim() || !addDraft.serverUrl.trim() || addBusy }}
-            footerStatus={add?.error ? <div className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-red-600 shadow-sm">{add.error}</div> : null}>
-            {add?.step === "success" && add.result ? <div className="flex h-full min-h-0 flex-1 flex-col gap-4 pb-4">
+            footerStatus={add?.step === "form" && add.error ? <div className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-red-600 shadow-sm">{add.error}</div> : null}>
+            {add?.step === "success" ? <div className="flex h-full min-h-0 flex-1 flex-col gap-4 pb-4">
                 <div className="flex items-start gap-3 rounded-xl border border-green-100 bg-green-50 px-3 py-3 text-green-800">
                     <Check className="mt-0.5 size-4 shrink-0 text-green-600" />
                     <p className="min-w-0 truncate text-sm font-medium">{add.result.name} is connected.{" "}
@@ -186,7 +187,7 @@ export function ConnectorSettings() {
                 <p className="max-w-sm text-sm text-gray-500">Complete authorization in the popup to finish connecting this MCP server.</p>
             </div> : <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
                 <p className="text-sm text-gray-500">The assistant will have access to this MCP server and its enabled tools.</p>
-                <McpConnectorFields draft={addDraft} showTokenNote disabled={adding} onDraftChange={(draft) => updateAdd({ draft })} />
+                <McpConnectorFields draft={addDraft} showTokenNote disabled={adding} onDraftChange={(draft) => setAdd((current) => current && { ...current, draft })} />
             </div>}
         </Modal>
         <Modal open={!!selected} onClose={() => setDetail(null)} size="md" breadcrumbs={["Connectors", selected?.name ?? "MCP connector"]}

@@ -1,6 +1,6 @@
 import { autoFetchToast } from "../../../../shared/auto-fetch-toast.mjs";
 import { CitationReview, noteLabels } from "./CitationReview";
-import { holds, previewEdit, reviewStep, savedIds, type ReviewStep } from "./reviewEdits";
+import { editedDraft, editRefused, editSaved, holds, NO_EDITS, previewEdit, reviewStep, savedIds, type EditLog, type ReviewStep, type ShownEdit } from "./reviewEdits";
 import { QuotationReview, type Finding } from "./QuotationFinding";
 import { StepProgress } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
@@ -11,6 +11,7 @@ import { BookOpen, ChevronRight, FilePlus2, FolderSearch,
   CircleAlert, FileStack, FileText, History, ListChecks, ListOrdered, Loader2, Plus, Scale, Settings2, SlidersHorizontal, Upload } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
+import { toValue, useMachine } from "@/app/lib/useMachine";
 import { Modal } from "@/app/components/modals/Modal";
 import { pdfOpening } from "@/app/lib/inspectPdf";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
@@ -47,14 +48,36 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
 import { attachedAuthoritySources, authoritiesInputPlan, authorityReproducedInBook } from "../../../../shared/authorities-sources.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
+import { folderWatch, type FolderWatchState } from "../../../../shared/folder-watch.mjs";
 
 import { AuthoritiesHighlights, PASSAGE_OPTIONS, useHighlightsAhead } from "./AuthoritiesHighlightEditor";
 import { useSourceCopies } from "./sourceCopies";
 
 type WorkspaceTab = "automatic" | "manual" | "drafts";
 type StartPreferences = Remembered;
-/** A brief being imported: read, and its sources found, while the import's choices are made. */
-type PendingImport = { file: string; finishing: boolean; error: string };
+/** A brief being imported: read, and its sources found, while the import's choices are made; `staged` is the draft
+ *  read from it. Finishing waits for that read. */
+type PendingImport = { file: string; staged: Promise<AuthoritiesProduct | undefined> } &
+  ({ stage: "reading" | "finishing" } | { stage: "failed"; error: string });
+/** A draft being read for the route, a tab or the last visit. A later read or a new draft takes its place, and its
+ *  answer is then dropped. `blank`: nothing else is on screen meanwhile. */
+type Opening = { kind: "settled" } | { kind: "reading"; blank: boolean };
+const SETTLED: Opening = { kind: "settled" };
+const draftMode = ({ state }: AuthoritiesProduct) => state.import.kind === "manual" ? "manual" : "automatic";
+/** The one operation holding the workspace, and how it is stopped; a second never starts beside it. `movingTo` is
+ *  the step Next is taking the draft to, and `note` the authority a search that Next waits on has reached. */
+type Work = { kind: "idle" } | { kind: "working"; label: string; movingTo?: Step } |
+  { kind: "searching"; label: string; request: AbortController; movingTo?: Step; note?: string } |
+  { kind: "building"; request: AbortController };
+const NO_WORK: Work = { kind: "idle" };
+const working = (label: string): Work => ({ kind: "working", label });
+/** The gathering of a draft's sources behind its review. Interrupted: an edit stopped it, and it runs again once
+ *  editing rests. */
+type Gathering = { phase: "idle" | "interrupted" } | { phase: "running"; id: string; request: AbortController };
+const NOT_GATHERING: Gathering = { phase: "idle" };
+/** A PDF shown in the preview dialog. Its recognized text may arrive before or after its bytes. */
+type SourcePreview = { role: string; name: string; quote?: string; recognizedText?: PdfRecognizedText;
+  pdf: { status: "reading" } | { status: "read"; bytes: Uint8Array } | { status: "failed"; error: string } };
 const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
   { value: "automatic", label: "Automatic" }, { value: "manual", label: "Manual" },
   { value: "drafts", label: "Drafts" },
@@ -155,7 +178,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   onInitialConsumed?: () => void;
 }) {
   const requested = initialDraftId ?? "";
-  const routeRequest = useRef(0);
+  const [opening, setOpening, latestOpening] = useMachine(toValue<Opening>,
+    (): Opening => requested ? { kind: "reading", blank: true } : SETTLED);
+  const loading = opening.kind === "reading" && opening.blank;
   const [tab, setTab] = useState<WorkspaceTab>("automatic");
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -170,17 +195,17 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [restoredScope, setRestoredScope] = useState("");
   const [draft, setDraft] = useState<AuthoritiesProduct>();
   const [selectedId, setSelectedId] = useState("");
-  const [loading, setLoading] = useState(!!requested), [running, setBusy] = useState(false);
-  const [pendingActions, setPendingActions] = useState(0);
-  const busy = running || pendingActions > 0;
-  const runningRef = useRef(false);
-  const [operation, setOperation] = useState("");
-  const [building, setBuilding] = useState(false);
-  const [message, setMessage] = useState(""), [error, setError] = useState("");
-  const [stepFailure, setStepFailure] = useState("");
+  const [work, setWork, latestWork] = useMachine(toValue<Work>, NO_WORK);
+  // The changes in the save queue that hold the workspace, and what the one in hand is doing.
+  const [held, setHeld] = useState({ changes: 0, doing: "" });
+  const busy = work.kind !== "idle" || held.changes > 0, building = work.kind === "building";
+  const [message, setMessage] = useState("");
+  // Why work stopped; `inStep`: a step started it, so the step says so.
+  const [failure, setFailure] = useState<{ text: string; inStep?: boolean }>();
+  const error = failure?.text ?? "";
   const [libraryTarget, setLibraryTarget] = useState<LibraryTarget>(), [addOpen, setAddOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport>();
-  const importRequest = useRef(0), staged = useRef<Promise<AuthoritiesProduct | undefined>>(Promise.resolve(undefined));
+  const importRequest = useRef(0);
   const [pendingAttachment, setPendingAttachment] = useState<{
     authorityId: string; selected: PdfChoice;
   }>();
@@ -190,8 +215,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const revealFinding = useCallback((node: HTMLDivElement | null) => node?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }), []);
   const [viewedStep, setViewedStep] = useState<{ key: string; value: Step }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
-  const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
-    quote?: string; bytes?: Uint8Array; error?: string; recognizedText?: PdfRecognizedText }>();
+  const [sourcePreview, setSourcePreview] = useState<SourcePreview>();
   const ocr = useSourceOcr(host, draft?.id), resetOcr = ocr.reset;
   // Asked once per host, once a Word brief is open: its final PDF then needs the brief saved as PDF only where it
   // is false. Asking starts the page's engine, which nothing else needs before a brief is read.
@@ -209,7 +233,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [missingOpen, setMissingOpen] = useState<"review" | "build">();
   const [buildLinks, setBuildLinks] = useState<{ draftId: string; revision: number;
     warnings: NonNullable<AuthoritiesBuildReceipt["linkWarnings"]> }>();
-  const scanRequest = useRef<AbortController | null>(null);
   const previewRequest = useRef(0);
   const [sourceIssueState, setSourceIssueState] = useState<{
     draftId: string; sourceKey: string; issues: Record<string, AuthoritiesSourceIssue>;
@@ -219,34 +242,27 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [review, setReview] = useState<{ id: string; key: string;
     items: AuthoritiesDiscrepancy[]; error: string }>();
   const draftRef = useRef(draft);
-  const buildRequest = useRef<AbortController | null>(null);
   const reviewRequest = useRef<AbortController | null>(null);
   const inspectionRequest = useRef(0), relinked = useRef(new Set<string>());
   const actionQueue = useRef(Promise.resolve());
   // Review edits shown at once and saved in order behind them, and the draft they make.
-  const edits = useRef<Array<{ action: AuthoritiesAction; step?: ReviewStep }>>([]);
-  // This draft's review edits, for Ctrl+Z, and those taken back, for Ctrl+Shift+Z and Ctrl+Y.
-  const history = useRef<{ done: ReviewStep[]; undone: ReviewStep[] }>({ done: [], undone: [] });
-  const replaying = useRef<ReviewStep | null>(null);
+  const log = useRef<EditLog>(NO_EDITS);
   const [preview, setPreview] = useState<AuthoritiesProduct>();
-  const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", sources: "" });
-  // Gathering that an edit interrupted, to run again once editing rests.
-  const sourcesRequest = useRef<AbortController | null>(null), sourcesStale = useRef(false);
-  // The draft whose sources are being gathered in the background: Sources opens meanwhile, its rows still looking.
-  const [gatheringFor, setGatheringFor] = useState("");
+  const gatherQueue = useRef(Promise.resolve()), gathered = useRef({ id: "", sources: "" });
+  // Sources opens while a draft's sources are gathered in the background, its rows still looking.
+  const [gathering, setGathering, latestGathering] = useMachine(toValue<Gathering>, NOT_GATHERING);
+  const finding = gathering.phase === "running" && gathering.id === draft?.id;
   // The draft whose sources were last looked for as its citations were read, and whether that failed: until
   // then, its quotation check waits on them rather than having none to check.
   const [sourcesFound, setSourcesFound] = useState({ id: "", failed: false });
   // Gathering reports which authority it is on; the step shows it only while someone waits for it,
   // so the citations being reviewed meanwhile are never re-rendered for it.
-  const sourcesNote = useRef(""), awaitingSources = useRef(false);
-  // The step Next is moving the draft to while its sources are found: a step looked at meanwhile belongs to it.
-  const movingTo = useRef<Step>(undefined);
-  const [sourcesProgress, setSourcesProgress] = useState("");
+  const sourcesNote = useRef("");
   const noteSources = useCallback((note: string) => {
     sourcesNote.current = note;
-    if (awaitingSources.current) setSourcesProgress(note);
-  }, []);
+    const now = latestWork.current;
+    if (now.kind === "searching" && now.movingTo) setWork({ ...now, note });
+  }, [latestWork, setWork]);
   const modeDrafts = useRef<{ automatic?: string; manual?: string }>({});
   const refreshRequest = useRef(0);
 
@@ -254,21 +270,22 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const current = draftRef.current;
     if (!navigate && (!next || current?.id !== next.id || next.revision < current.revision)) return false;
     if (navigate) {
-      edits.current = []; history.current = { done: [], undone: [] };
+      log.current = NO_EDITS;
       reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
       setFindingId(""); setViewedStep(undefined);
-      scanRequest.current?.abort(); resetOcr();
+      const running = latestWork.current;
+      if (running.kind === "searching") running.request.abort();
+      resetOcr();
       previewRequest.current += 1; setSourcePreview(undefined);
       setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
-      setPendingAttachment(undefined); setError(""); setMessage("");
+      setPendingAttachment(undefined); setFailure(undefined); setMessage("");
       setBuildLinks(undefined);
     }
     draftRef.current = next; setDraft(next);
     // Edits still saving stay on screen over the newer draft.
-    setPreview(next && edits.current.length ? edits.current.reduce<AuthoritiesProduct>((view, { action }) =>
-      previewEdit(view, action) ?? view, next) : undefined);
+    setPreview(next && log.current.saving.length ? editedDraft(log.current, next) : undefined);
     if (next) {
-      const mode = next.state.import.kind === "manual" ? "manual" : "automatic";
+      const mode = draftMode(next);
       modeDrafts.current[mode] = next.id;
       if (navigate && !preserveTab) setTab(mode);
       if (mode === "manual") setManualTitle(next.title);
@@ -277,7 +294,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
     }
     return true;
-  }, [projectId, host.mode, resetOcr]);
+  }, [projectId, host.mode, resetOcr, latestWork]);
   function adoptSourceWrite(next: AuthoritiesProduct) {
     if (!adopt(next)) return false;
     // Replacing missing bytes with the same file leaves its binding and hash unchanged.
@@ -286,22 +303,30 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     return true;
   }
   const load = useCallback(async (id: string, preserveTab = false, remembered = false) => {
-    const request = ++routeRequest.current;
-    setLoading(!draftRef.current);
+    const request: Opening = { kind: "reading", blank: !draftRef.current };
+    setOpening(request);
     try {
       const next = await host.drafts.get<AuthoritiesProduct["state"]>(id);
       if (next.kind !== "authorities") throw new Error("This is not an Authorities draft.");
-      if (request !== routeRequest.current || draftRef.current?.id === next.id &&
+      if (request !== latestOpening.current || draftRef.current?.id === next.id &&
           draftRef.current.revision > next.revision) return;
       adopt(next, true, preserveTab);
     } catch (caught) {
-      if (request === routeRequest.current) {
-        setError(errorText(caught));
+      if (request === latestOpening.current) {
+        setFailure({ text: errorText(caught) });
         if (remembered && localStorage.getItem(lastDraftKey(projectId, host.mode)) === id)
           localStorage.removeItem(lastDraftKey(projectId, host.mode));
       }
-    } finally { if (request === routeRequest.current) setLoading(false); }
-  }, [host, adopt, projectId]);
+    } finally { if (request === latestOpening.current) setOpening(SETTLED); }
+  }, [host, adopt, projectId, setOpening, latestOpening]);
+  const newDraft = useCallback((forget = true) => {
+    setOpening(SETTLED);
+    if (forget) {
+      if (draftRef.current) delete modeDrafts.current[draftMode(draftRef.current)];
+      localStorage.removeItem(lastDraftKey(projectId, host.mode));
+    }
+    adopt(undefined, true);
+  }, [adopt, projectId, host.mode, setOpening]);
   const refreshDraftEffect = useEffectEvent(async (expectedRevision: number) => {
     const current = draftRef.current;
     if (!current || current.revision >= expectedRevision) return;
@@ -312,7 +337,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           next.revision >= expectedRevision && next.revision > (draftRef.current?.revision ?? 0))
         adopt(next);
     } catch (caught) {
-      if (request === refreshRequest.current) setError(errorText(caught));
+      if (request === refreshRequest.current) setFailure({ text: errorText(caught) });
     }
   });
 
@@ -323,7 +348,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       : host.drafts.list<AuthoritiesProduct["state"]>("authorities", projectId)
         .then((items) => items.map(metadata));
     void listed.then((items) => active && setDrafts(items))
-      .catch((caught) => active && setError(errorText(caught)))
+      .catch((caught) => active && setFailure({ text: errorText(caught) }))
       .finally(() => active && setDraftsListedFor({ host, projectId }));
     return () => { active = false; };
   }, [projectId, host]);
@@ -332,14 +357,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // so the resume effect below cannot pull the previous one back in.
   useEffect(() => {
     if (!initialNewDraft) return;
-    routeRequest.current += 1;
-    const current = draftRef.current;
-    if (current) delete modeDrafts.current[current.state.import.kind === "manual" ? "manual" : "automatic"];
-    localStorage.removeItem(lastDraftKey(projectId, host.mode));
-    adopt(undefined, true);
+    newDraft();
     setRestoredScope(projectId ?? "local");
     onInitialConsumed?.();
-  }, [initialNewDraft, adopt, projectId, host.mode, onInitialConsumed]);
+  }, [initialNewDraft, newDraft, projectId, onInitialConsumed]);
 
   // Entering the workspace without a draft in the route resumes the last one; leaving a
   // draft later is the reader's choice, and the scope is settled by then either way.
@@ -353,7 +374,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
 
   useEffect(() => {
     if (requested === (draftRef.current?.id ?? "")) return;
-    if (!requested) { adopt(undefined, true); setLoading(false); return; }
+    if (!requested) { adopt(undefined, true); return; }
     void load(requested, tabRef.current === "drafts");
   }, [requested, projectId, adopt, load]);
 
@@ -363,9 +384,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   useEffect(() => localStorage.setItem(PREFERENCES, JSON.stringify(preferences)),
     [preferences]);
   useEffect(() => () => {
-    buildRequest.current?.abort(); scanRequest.current?.abort();
+    const running = latestWork.current;
+    if (running.kind === "searching" || running.kind === "building") running.request.abort();
     reviewRequest.current?.abort();
-  }, []);
+  }, [latestWork]);
   const draftId = draft?.id;
   const sourceKey = useMemo(() => sourceIssueKey(draft), [draft]);
   // Work that follows the citations (sources, scans, the quotation check) reads the draft once
@@ -403,9 +425,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const current = draftRef.current, key = `${draftId}\0${citationKey}`;
     // An app's documents find their sources at once (startImport), not behind a review.
     if (app || !settled || !current || current.id !== draftId || current.state.stage !== "citations" ||
-        current.state.import.kind !== "document" || key === gatheredKey.current && !sourcesStale.current) return;
-    gatheredKey.current = key; sourcesStale.current = false;
-    gathering.current = gathering.current.then(() => gatherSources(2));
+        current.state.import.kind !== "document" || key === gatheredKey.current && latestGathering.current.phase !== "interrupted") return;
+    gatheredKey.current = key;
+    if (latestGathering.current.phase === "interrupted") setGathering(NOT_GATHERING);
+    gatherQueue.current = gatherQueue.current.then(() => gatherSources(2));
   }, [settled, citationKey, draft?.state.stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
@@ -426,9 +449,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       if (changed && host.relinkSource) {
         relinked.current.add(`${current.id}\0${changed[0]}`);
         void relinkQueued(current.id, changed[0]).then((next) => next && relinkAdopted(next, changed[0]))
-          .catch((caught) => setError(errorText(caught)));
+          .catch((caught) => setFailure({ text: errorText(caught) }));
       }
-    }).catch((caught) => active && setError(errorText(caught)));
+    }).catch((caught) => active && setFailure({ text: errorText(caught) }));
     return () => { active = false; };
   }, [draftId, sourceKey, sourceAccessVersion, refreshToken, host]);
   // A draft opened with a decision rebuilt from text, because its publisher blocked the original, takes the
@@ -439,7 +462,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       .some(({ source, sourceVerificationUrl }) => sourceVerificationUrl && source.kind === "attached" &&
         source.sources.every(({ origin }) => origin === "reconstructed"))) return;
     void queuedSave(current.id, (latest) => host.keptOriginals!(latest)).then((next) => next && adoptSourceWrite(next))
-      .catch((caught) => setError(errorText(caught)));
+      .catch((caught) => setFailure({ text: errorText(caught) }));
   }, [draftId, host]); // eslint-disable-line react-hooks/exhaustive-deps
   const reviewKey = useMemo(() => discrepancyKey(settled), [settled]);
   useEffect(() => {
@@ -510,8 +533,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const reviewError = !globalTab ? currentReview?.error || "" : "";
   // Work a step starts reports itself in that step, and so does the reason it stopped;
   // only unattached work needs the page-level line.
-  const stepError = error && error === stepFailure ? error : "";
+  const stepError = failure?.inStep ? failure.text : "";
   const status = (stepError ? "" : error) || message || reviewError;
+  const operation = work.kind === "working" || work.kind === "searching" ? work.label : held.doing;
   const stepOperation = STEP_PROGRESS.has(operation) ? operation : "";
   const busyText = stepOperation ? "" : building ? "Building outputs"
     : pendingImport ? "Finding citations" : operation || "Updating authorities";
@@ -519,21 +543,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const attachLibraryAvailable = libraryAvailable && !!host.attachLibraryPdf;
   const sourceLabel = (draft?.projectId ?? projectId) ? "Project" : "Library";
 
-  function newDraft(forget = true) {
-    routeRequest.current += 1;
-    if (forget) {
-      const current = draftRef.current;
-      if (current) delete modeDrafts.current[current.state.import.kind === "manual"
-        ? "manual" : "automatic"];
-      localStorage.removeItem(lastDraftKey(projectId, host.mode));
-    }
-    adopt(undefined, true);
-  }
   function changeTab(next: WorkspaceTab) {
     if (next === "automatic" || next === "manual") {
       const current = draftRef.current;
-      const activeMode = current?.state.import.kind === "manual" ? "manual" : "automatic";
-      if (!current || next !== activeMode) {
+      if (!current || next !== draftMode(current)) {
         const target = modeDrafts.current[next];
         if (target) {
           adopt(undefined, true); void load(target);
@@ -541,26 +554,28 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       }
     }
     setTab(next);
-    setError(""); setMessage("");
+    setFailure(undefined); setMessage("");
   }
   async function run<T>(operationFn: () => Promise<T>, done: (value: T) => void,
-    success = "", label = "Updating authorities") {
-    // A ref, not state: a second click before the next render must not start a second run.
-    if (runningRef.current) return;
-    runningRef.current = true;
+    success = "", started = working("Updating authorities")) {
+    // Read at once, not from a render: a second click before the next render must not start a second run.
+    if (latestWork.current.kind !== "idle") return;
     // The last message stays until this one reports, so the status line does not blink.
-    setBusy(true); setOperation(label); setError("");
+    setWork(started); setFailure(undefined);
     // A message `done` sets itself wins over the default one.
     try { const value = await operationFn(); setMessage(success); done(value); }
     catch (caught) {
       if ((caught as { name?: string })?.name === "AbortError")
-        setMessage(label === "Finding source PDFs" ? "Search cancelled" : "Build cancelled");
-      else {
-        const text = errorText(caught);
-        setError(text); if (STEP_PROGRESS.has(label)) setStepFailure(text);
-      }
+        setMessage(started.kind === "searching" ? "Search cancelled" : "Build cancelled");
+      else setFailure({ text: errorText(caught), inStep: "label" in started && STEP_PROGRESS.has(started.label) });
     }
-    finally { runningRef.current = false; setBusy(false); setOperation(""); }
+    finally { setWork(NO_WORK); }
+  }
+  /** What a held change does once its turn in the queue has come, said while it does it. */
+  async function doing<T>(label: string, task: () => Promise<T>) {
+    setHeld((current) => ({ ...current, doing: label }));
+    try { return await task(); }
+    finally { setHeld((current) => ({ ...current, doing: "" })); }
   }
   /** Runs a change after every queued one, so each starts from the revision the last saved. */
   function serialized<T>(task: () => Promise<T>): Promise<T> {
@@ -594,25 +609,25 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       items.find(({ start, end }) => start <= prior.start && end >= prior.end));
     if (replacement) setSelectedId(replacement.id);
   };
-  /** The draft as the review shows it: the saved draft with the edits still saving. */
-  const editedView = () => edits.current.reduce<AuthoritiesProduct>((view, { action }) =>
-    previewEdit(view, action) ?? view, draftRef.current!);
-  const act: ActionHandler = (action, done, failed) => {
+  const editedView = () => editedDraft(log.current, draftRef.current!);
+  const act: ActionHandler = (action, done, failed) => change(action, done, failed);
+  /** Makes a change; `replayed` is the step Ctrl+Z or Ctrl+Y is taking it from. */
+  function change(action: AuthoritiesAction, done?: Parameters<ActionHandler>[1], failed?: () => void, replayed?: ReviewStep) {
     const targetId = draftRef.current?.id;
     if (!targetId) return;
     // A review edit shows at once and saves behind the view; anything else holds the workspace.
     const shown = editedView(), view = previewEdit(shown, action);
     // A review edit is a step Ctrl+Z takes back; one replayed by Ctrl+Z or Ctrl+Y belongs to its step.
-    const step = view ? replaying.current ?? reviewStep(shown, view, action) ?? undefined : undefined;
-    const edit = view ? { action, step } : undefined;
+    const step = view ? replayed ?? reviewStep(shown, view, action) ?? undefined : undefined;
+    const edit: ShownEdit | undefined = view ? { action, step } : undefined;
     const blocking = !edit && action.type !== "rename-authority";
-    if (blocking) setPendingActions((count) => count + 1);
+    if (blocking) setHeld((current) => ({ ...current, changes: current.changes + 1 }));
     if (edit && view) {
-      if (step && !replaying.current) {
-        step.from = selectedRef.current;
-        history.current = { done: [...history.current.done, step], undone: [] };
-      }
-      edits.current.push(edit); keepPending(targetId); sourcesRequest.current?.abort();
+      // A step of its own ends what had been taken back; one replayed is already in the history.
+      if (step && !replayed) { step.from = selectedRef.current; log.current = { ...log.current, done: [...log.current.done, step], undone: [] }; }
+      log.current = { ...log.current, saving: [...log.current.saving, edit] }; keepPending(targetId);
+      const background = latestGathering.current;
+      if (background.phase === "running") background.request.abort();
       setPreview(view); carryOn(action, shown, view); void done?.(view);
     }
     actionQueue.current = actionQueue.current.then(async () => {
@@ -626,39 +641,30 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         if (edit) {
           // Later edits and the selection follow citations the save named differently.
           const names = savedIds(previewEdit(current, sent) ?? current, next);
-          const renamed = (item: AuthoritiesAction) => "occurrenceId" in item && names.has(item.occurrenceId)
-            ? { ...item, occurrenceId: names.get(item.occurrenceId)! } : item;
-          // Renamed in place: each edit is found again by itself when its own save lands.
-          edits.current = edits.current.filter((item) => item !== edit);
-          for (const item of edits.current) item.action = renamed(item.action);
-          for (const step of [...history.current.done, ...history.current.undone]) Object.assign(step, {
-            undo: step.undo.map(renamed), redo: step.redo.map(renamed), target: names.get(step.target) ?? step.target });
+          log.current = editSaved(log.current, edit, names);
           setSelectedId((id) => names.get(id) ?? id);
           keepPending(targetId);
         }
         if (!adopt(next)) return;
         // A refusal stays on screen only until the next edit lands, never as if that edit failed.
-        setError("");
+        setFailure(undefined);
         if (!edit) { carryOn(action, current, next); await done?.(next); }
       } catch (caught) {
         if (edit) {
-          // The edit is taken back: the view returns to the saved draft and the edits after it, and
-          // its step leaves the history.
-          edits.current = edits.current.filter((item) => item !== edit);
-          const { done, undone } = history.current, kept = (item: ReviewStep) => item !== edit.step;
-          history.current = { done: done.filter(kept), undone: undone.filter(kept) };
+          // The edit is taken back: the view returns to the saved draft and the edits after it.
+          log.current = editRefused(log.current, edit);
           keepPending(targetId); adopt(draftRef.current);
         }
-        setError(errorText(caught)); failed?.();
+        setFailure({ text: errorText(caught) }); failed?.();
       }
-      finally { if (blocking) setPendingActions((count) => Math.max(0, count - 1)); }
+      finally { if (blocking) setHeld((current) => ({ ...current, changes: current.changes - 1 })); }
     });
-  };
+  }
   /** The edits shown but not yet saved, kept by the browser the moment each is made: a reload or a
    *  closed tab before a save lands loses none of them. */
   const keepPending = (id: string) => {
     try {
-      const actions = draftRef.current?.id === id ? edits.current.map(({ action }) => action) : [];
+      const actions = draftRef.current?.id === id ? log.current.saving.map(({ action }) => action) : [];
       if (actions.length) localStorage.setItem(pendingKey(id), JSON.stringify(actions));
       else localStorage.removeItem(pendingKey(id));
     } catch { /* Storage refused: the edits still save as they are made. */ }
@@ -675,13 +681,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
    *  and saves as any edit does, and selects the citation it was about; where that citation is gone,
    *  the one selected when the edit was made, or else the next one. */
   const travel = (back: boolean) => {
-    const { done, undone } = history.current, step = (back ? done : undone).at(-1);
+    const { done, undone } = log.current, step = (back ? done : undone).at(-1);
     if (!step || !draftRef.current) return false;
-    history.current = back ? { done: done.slice(0, -1), undone: [...undone, step] }
-      : { done: [...done, step], undone: undone.slice(0, -1) };
+    log.current = { ...log.current, ...back ? { done: done.slice(0, -1), undone: [...undone, step] }
+      : { done: [...done, step], undone: undone.slice(0, -1) } };
     const order = orderedOccurrences(editedView()).map(({ id }) => id);
-    replaying.current = step;
-    try { for (const action of back ? step.undo : step.redo) act(action); } finally { replaying.current = null; }
+    for (const action of back ? step.undo : step.redo) change(action, undefined, undefined, step);
     const now = new Set(orderedOccurrences(editedView()).map(({ id }) => id)), at = order.indexOf(step.target);
     setSelectedId([step.target, step.from, ...order.slice(at + 1), ...order.slice(0, Math.max(0, at)).reverse()]
       .find((id) => id && now.has(id)) ?? "");
@@ -694,28 +699,29 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       { id: finding.id, action, revision: current.revision })), (next) => {
       adopt(next); done();
     // The card says what was done; the step's line only says it is being saved.
-    }, "", "Saving the decision");
+    }, "", working("Saving the decision"));
   };
 
   /** The brief is read the moment it is chosen, with the choices remembered from the last import, and
    *  opened behind the import's choices: its sources are found, and its scans read, while they are made. */
   function startImport(source: NonNullable<Parameters<AuthoritiesHost["create"]>[0]["source"]>, name: string) {
-    setLibraryTarget(undefined); setError(""); setMessage("");
+    setLibraryTarget(undefined); setFailure(undefined); setMessage("");
     const request = ++importRequest.current, title = name.replace(/\.[^.]+$/u, "") || "Authorities";
-    // An app's documents start with its settings, and go straight on to their sources.
-    if (!app) setPendingImport({ file: name, finishing: false, error: "" });
-    staged.current = host.create({ source, title, projectId, settings: preferences }).then((next) => {
+    const staged = host.create({ source, title, projectId, settings: preferences }).then((next) => {
       if (request !== importRequest.current) { void host.drafts.remove(next.id).catch(() => undefined); return undefined; }
       adopt(next, true);
       if (app) findSources();
       return next;
     }, (caught) => {
       if (request === importRequest.current) {
-        if (app) setError(errorText(caught));
-        else setPendingImport((current) => current && { ...current, error: errorText(caught) });
+        if (app) setFailure({ text: errorText(caught) });
+        else setPendingImport((current) => current && { file: current.file, staged: current.staged,
+          stage: "failed", error: errorText(caught) });
       }
       return undefined;
     });
+    // An app's documents start with its settings, and go straight on to their sources.
+    if (!app) setPendingImport({ file: name, staged, stage: "reading" });
   }
   const queueDocument = (document: Document) => startImport({ kind: "document", document }, document.filename);
   const queueFile = (selected?: AuthoritiesFile) => selected && startImport({ kind: "file", selected }, selected.file.name);
@@ -733,8 +739,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   function finishImport(actionsFor: (state: AuthoritiesProduct["state"]) => AuthoritiesAction[], chosen: Remembered,
     own: ReadonlyArray<readonly [AuthoritiesBookSlot, AuthoritiesFile]> = []) {
     const request = importRequest.current;
-    setPendingImport((current) => current && { ...current, finishing: true });
-    void staged.current.then((created) => {
+    setPendingImport((current) => current?.stage === "reading" ? { ...current, stage: "finishing" } : current);
+    void pendingImport?.staged.then((created) => {
       if (!created || request !== importRequest.current) return;
       setPreferences(chosen); setPendingImport(undefined);
       const pending = (state: AuthoritiesProduct["state"]) => actionsFor(state).flatMap((action): AuthoritiesAction[] => {
@@ -763,12 +769,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     done: (files: AuthoritiesFile[]) => void) {
     try { done(await host.pickFiles?.({ multiple, accept }) ?? []); }
     catch (caught) {
-      if ((caught as { name?: string })?.name !== "AbortError") setError(errorText(caught));
+      if ((caught as { name?: string })?.name !== "AbortError") setFailure({ text: errorText(caught) });
     }
   }
   function appendManual(files: PdfChoice[]) {
     const pdfs = files.filter(isPdfChoice);
-    if (!pdfs.length) { setError("Add one or more PDFs."); return; }
+    if (!pdfs.length) { setFailure({ text: "Add one or more PDFs." }); return; }
     void run(() => serialized(async () => {
       const manualPreferences = bookPreferences(preferences), open = draftRef.current;
       let current = open?.state.import.kind === "manual" ? open : await host.create({
@@ -835,10 +841,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       ? host.attachLibraryPdf!(latest.id, latest.revision, selected, { kind: "book", slot, supplementId })
       : host.attachBookPdf!(latest.id, latest.revision, slot, selected, supplementId));
   }
-  function openLibrary(target: LibraryTarget) {
-    setLibraryTarget(target);
-  }
-
   function chooseLibrary(document: Document) {
     const target = libraryTarget;
     setLibraryTarget(undefined);
@@ -870,43 +872,32 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // Auto-fetch from folder: the reader chooses the folder Chrome saves into once, and it is kept for
   // the next visit. While the tab is open, each PDF saved there that is an authority still without
   // a PDF is attached to it, looked for every two seconds and whenever the tab is come back to.
-  const [watchedFolder, setWatchedFolder] = useState<string>();
+  const [watching, setWatching] = useState<FolderWatchState<WatchedFolder>>({ kind: "off" });
+  const watchedFolder = watching.kind === "watching" ? watching.handle.name : undefined;
   // A folder kept from an earlier visit that Chrome asks about again: asked on the next click.
-  const [folderAccess, setFolderAccess] = useState<{ handle: WatchedFolder; open?: boolean }>();
-  const folder = useRef<{ handle: WatchedFolder; timer: number } | null>(null);
-  const folderTried = useRef(new Set<string>()), folderScanning = useRef(false);
-  const busyRef = useRef(busy), scanRef = useRef<() => Promise<void>>(async () => {});
+  const folderAccess = watching.kind === "asking" ? watching : undefined;
+  const folderTried = useRef(new Set<string>());
+  const busyRef = useRef(busy), scanRef = useRef<(handle: WatchedFolder) => Promise<void>>(async () => {});
   busyRef.current = busy;
+  const [folder] = useState(() => folderWatch<WatchedFolder>({ held: () => busyRef.current,
+    scan: (handle) => scanRef.current(handle),
+    changed: (next) => { if (next.kind === "watching") folderTried.current.clear(); setWatching(next); },
+    failed: (caught) => setMessage(`Stopped watching the folder. ${errorText(caught)}`) }));
   useEffect(() => { folderTried.current.clear(); }, [draft?.id]);
   useEffect(() => {
     let active = true;
-    const look = () => void scanRef.current();
+    const look = () => void folder.look();
     window.addEventListener("focus", look);
     void host.watchedFolder?.get().then(async (kept) => {
-      const handle = kept as WatchedFolder | null;
-      if (!active || !handle || folder.current) return;
-      if (await handle.queryPermission?.({ mode: "read" }) === "granted") watch(handle);
-      else setFolderAccess({ handle });
+      if (active && kept) await folder.restore(kept as WatchedFolder);
     }).catch(() => { /* No folder is kept. */ });
     return () => { active = false; window.removeEventListener("focus", look); };
-  }, [host]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { if (folder.current) clearInterval(folder.current.timer); }, []);
-  function watch(handle: WatchedFolder, chosen = false) {
-    folderTried.current.clear(); setFolderAccess(undefined);
-    folder.current = { handle, timer: window.setInterval(() => void scanRef.current(), 2_000) };
-    setWatchedFolder(handle.name);
-    if (chosen) setMessage(`Watching ${handle.name}. Each PDF saved there is added to the authority it belongs to.`);
-    void scanRef.current();
-  }
-  function stopWatching(text = "") {
-    if (folder.current) clearInterval(folder.current.timer);
-    folder.current = null; setWatchedFolder(undefined);
-    if (text) setMessage(text);
-  }
+  }, [host, folder]);
+  useEffect(() => () => folder.stop(), [folder]);
+  const nowWatching = ({ name }: WatchedFolder) => setMessage(`Watching ${name}. Each PDF saved there is added to the authority it belongs to.`);
   async function allowFolder() {
     const handle = folderAccess?.handle;
-    if (handle && await handle.requestPermission?.({ mode: "read" }).catch(() => "denied") === "granted") watch(handle, true);
-    else setFolderAccess(handle && { handle });
+    if (await folder.allow() && handle) nowWatching(handle);
   }
   /** Each PDF not looked at before, newest first, is asked which authority still without a PDF it
    *  is; one that is none stays where it is. Only a match holds the workspace while it attaches. */
@@ -940,31 +931,23 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       return { added, failures };
     }), ({ added, failures }) => {
       setMessage(""); autoFetchToast(added);
-      if (failures.length) setError(failures.join("\n"));
+      if (failures.length) setFailure({ text: failures.join("\n") });
     },
-    "", "Adding PDFs from the folder");
+    "", working("Adding PDFs from the folder"));
   }
-  scanRef.current = async function scanFolder() {
-    const watched = folder.current?.handle;
-    if (!watched || folderScanning.current || busyRef.current) return;
-    folderScanning.current = true;
-    try {
-      // Chrome's access can end with the visit; the folder is then asked for on the next click.
-      const permission = await watched.queryPermission?.({ mode: "read" });
-      if (permission && permission !== "granted") { stopWatching(); setFolderAccess({ handle: watched }); return; }
-      const files: File[] = [];
-      for await (const entry of watched.values())
-        if (entry.kind === "file" && /\.pdf$/iu.test(entry.name)) files.push(await entry.getFile());
-      await attachFromFolder(files, true);
-    } catch (caught) { stopWatching(`Stopped watching the folder. ${errorText(caught)}`); }
-    finally { folderScanning.current = false; }
+  scanRef.current = async (watched) => {
+    const files: File[] = [];
+    for await (const entry of watched.values())
+      if (entry.kind === "file" && /\.pdf$/iu.test(entry.name)) files.push(await entry.getFile());
+    await attachFromFolder(files, true);
   };
   async function watchFolder() {
-    if (folder.current) {
+    if (watchedFolder) {
       void host.watchedFolder?.set(null);
-      return stopWatching("Stopped watching the folder.");
+      folder.stop();
+      return setMessage("Stopped watching the folder.");
     }
-    if (folderAccess) return setFolderAccess({ ...folderAccess, open: true });
+    if (folderAccess) return folder.showAsking(true);
     const picker = (window as FolderPickerWindow).showDirectoryPicker;
     if (!picker) {
       // Without folder access (Firefox, Safari) the folder is read once.
@@ -978,11 +961,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     let handle: WatchedFolder;
     try { handle = await picker({ id: "authorities-downloads", mode: "read", startIn: "downloads" }); }
     catch (caught) {
-      if ((caught as { name?: string })?.name !== "AbortError") setError(errorText(caught));
+      if ((caught as { name?: string })?.name !== "AbortError") setFailure({ text: errorText(caught) });
       return;
     }
     void host.watchedFolder?.set(handle);
-    watch(handle, true);
+    nowWatching(handle);
+    void folder.watch(handle);
   }
   function rename(title: string) {
     if (draft) void run(() => queuedSave(draft.id, (current) =>
@@ -1002,7 +986,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }
   async function build(given?: AuthoritiesProduct, force = false) {
     if (!given && !draftRef.current) return;
-    const request = new AbortController(); buildRequest.current = request; setBuilding(true);
+    const request = new AbortController();
     void run(async () => {
       // Output choices still saving are part of what the reader asked to build.
       await actionQueue.current;
@@ -1032,15 +1016,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         adopt(product); setMessage(notice || "");
         setBuildLinks({ draftId: product.id, revision: product.revision,
           warnings: receipt.linkWarnings ?? [] });
-      }).finally(() => {
-        if (buildRequest.current === request) {
-          buildRequest.current = null; setBuilding(false);
-        }
-      });
+      }, "", { kind: "building", request });
   }
   function download(documentId: string, versionId: string, filename: string) {
     void host.download(documentId, versionId).then((blob) => downloadBlob(blob, filename))
-      .catch((caught) => setError(errorText(caught)));
+      .catch((caught) => setFailure({ text: errorText(caught) }));
   }
   function openSource(role: string, quote?: string) {
     const current = draftRef.current;
@@ -1049,12 +1029,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const authority = Object.values(current.state.authorities).find((item) =>
       item.source.kind === "attached" && item.source.sources.some((source) => source.bindingRole === role));
     const name = authority ? authorityName(authority) : current.title;
-    setSourcePreview({ role, name, quote });
+    setSourcePreview({ role, name, quote, pdf: { status: "reading" } });
     void host.readSource(current, role).then((blob) => blob.arrayBuffer()).then((buffer) => {
       if (request === previewRequest.current && draftRef.current?.id === current.id)
-        setSourcePreview(value => ({ ...value, role, name, quote, bytes: new Uint8Array(buffer) }));
+        setSourcePreview(value => value && { ...value, pdf: { status: "read", bytes: new Uint8Array(buffer) } });
     }).catch((caught) => {
-      if (request === previewRequest.current) setSourcePreview({ role, name, quote, error: errorText(caught) });
+      if (request === previewRequest.current) setSourcePreview({ role, name, quote, pdf: { status: "failed", error: errorText(caught) } });
     });
     void host.readSourceText?.(current, role).then(recognizedText => {
       if (request === previewRequest.current && draftRef.current?.id === current.id)
@@ -1073,8 +1053,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const current = draftRef.current;
     if (!attempts || !current || current.state.stage !== "citations") return;
     // An edit stops this request rather than wait for it; gathering resumes once editing rests.
-    const request = new AbortController(); sourcesRequest.current = request;
-    setGatheringFor(current.id);
+    const request = new AbortController();
+    setGathering({ phase: "running", id: current.id, request });
     try {
       // Gathered beside the queue of the user's changes, never in it, and on past Citations: nothing the user does or
       // opens waits on a download. A change that lands meanwhile makes this gathering's save too late; it is made
@@ -1090,36 +1070,34 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           await actionQueue.current;
         }
       }
-      sourcesNote.current = "";
       if (adopt(next)) gathered.current = { id: next.id, sources: sourcesInputs(next) };
       if (!request.signal.aborted) setSourcesFound({ id: current.id, failed: false });
     } catch (caught) {
-      if (request.signal.aborted) { sourcesStale.current = true; return; }
+      if (request.signal.aborted) return setGathering({ phase: "interrupted" });
       // A failure the second try doesn't mend (an engine without a call this page makes) is said, never waited on.
       if (attempts > 1) return await gatherSources(attempts - 1);
       setSourcesFound({ id: current.id, failed: true });
-      setError(`The sources could not be looked up. ${errorText(caught)}`);
+      setFailure({ text: `The sources could not be looked up. ${errorText(caught)}` });
     } finally {
       sourcesNote.current = "";
-      if (sourcesRequest.current === request) sourcesRequest.current = null;
-      setGatheringFor((id) => id === current.id ? "" : id);
+      const now = latestGathering.current;
+      if (now.phase === "running" && now.request === request) setGathering(NOT_GATHERING);
     }
   }
   function findSources() {
     if (!draftRef.current) return;
     // Sources still being gathered in the background: Sources opens now, and they arrive in it.
-    movingTo.current = "sources";
-    if (sourcesRequest.current && gatheringFor === draftRef.current.id && !edits.current.length) {
+    const background = latestGathering.current;
+    if (background.phase === "running" && background.id === draftRef.current.id && !log.current.saving.length) {
       const id = draftRef.current.id;
       void run(() => queuedSave(id, (current) => host.act(current.id, current.revision, { type: "set-stage", stage: "sources" })),
-        adopt, "", "Opening Sources").finally(() => { movingTo.current = undefined; });
+        adopt, "", { kind: "working", label: "Opening Sources", movingTo: "sources" });
       return;
     }
-    const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
+    const request = new AbortController();
     let unavailable = "";
-    awaitingSources.current = true; setSourcesProgress(sourcesNote.current);
     void run(async () => {
-      await gathering.current;
+      await gatherQueue.current;
       const id = draftRef.current?.id;
       if (!id) throw new Error("Open a draft first.");
       // Each write waits its turn behind every other save, and is made again on a newer draft
@@ -1135,17 +1113,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       request.signal.throwIfAborted();
       if (prepared !== draftRef.current) adopt(prepared);
       return queuedSave(id, (current) => host.act(current.id, current.revision, { type: "set-stage", stage: "sources" }));
-    }, (next) => { adopt(next); if (unavailable) setMessage(unavailable); }, "", "Finding source PDFs").finally(() => {
-      awaitingSources.current = false; setSourcesProgress(""); movingTo.current = undefined;
-      if (scanRequest.current === request) scanRequest.current = null;
-    });
+    }, (next) => { adopt(next); if (unavailable) setMessage(unavailable); }, "",
+    { kind: "searching", label: "Finding source PDFs", request, movingTo: "sources", note: sourcesNote.current });
   }
   function retryPublisherSource(authorityId: string) {
     const id = draftRef.current?.id;
     if (!id) return;
     const request = new AbortController();
     void run(() => queuedSave(id, (current) => host.prepareSources(current, request.signal, authorityId)), adopt,
-      "", "Retrying source PDF");
+      "", { kind: "searching", label: "Retrying source PDF", request });
   }
   const reached = draft?.state.stage ?? (draft && Object.keys(draft.outputs).length ? "build"
     : draft?.state.import.kind === "manual" ? "sources" : "citations");
@@ -1163,7 +1139,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // Once in a browser: the first time Sources settles, nothing fetching, with authorities still
   // needing a PDF, what to do about them. Storage that can't be read means no explainer.
   const [explaining, setExplaining] = useState(false);
-  const explainable = !!draft && stage === "sources" && !busy && gatheringFor !== draft.id && missingPdfs.length > 0 && !missingOpen && !pendingImport;
+  const explainable = !!draft && stage === "sources" && !busy && !finding && missingPdfs.length > 0 && !missingOpen && !pendingImport;
   useEffect(() => {
     if (!explainable || sourcesExplained()) return;
     const settled = window.setTimeout(() => setExplaining(true), 800);
@@ -1181,7 +1157,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       STEPS.findIndex(({ value }) => value === reached) }));
   // A step's note ("… attached") belongs to that step, so moving on clears it.
   const viewStep = (value: Step) => {
-    setMessage(""); setViewedStep({ key: movingTo.current ? `${draft?.id}:${movingTo.current}` : stepKey, value });
+    const running = latestWork.current, movingTo = running.kind === "working" || running.kind === "searching" ? running.movingTo : undefined;
+    setMessage(""); setViewedStep({ key: movingTo ? `${draft?.id}:${movingTo}` : stepKey, value });
   };
   const advance = (next: Step) => {
     if (STEPS.findIndex(({ value }) => value === next) <= STEPS.findIndex(({ value }) => value === reached)) viewStep(next);
@@ -1195,7 +1172,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onFiles: (slot, files, supplementId) => attachBookFiles(slot, files.map((file) => ({ file })), supplementId),
     onPick: host.pickFiles ? (slot, multiple, supplementId) => void pickFiles(
       multiple, "pdf", (files) => attachBookFiles(slot, files, supplementId)) : undefined,
-    onLibrary: attachLibraryAvailable ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined,
+    onLibrary: attachLibraryAvailable ? (slot, supplementId) => setLibraryTarget({ kind: "book", slot, supplementId }) : undefined,
     onSelected: (slot, selected) => attachBookFiles(slot, [selected]),
   };
   const reproduced = authorityPlan.filter(({ tab }) => tab !== "Not reproduced").length;
@@ -1203,15 +1180,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     parts: draft.state.bookParts.supplements.map((part, index) => ({ part,
       tab: tabLabel(reproduced + index + 1, draft.state.settings.tabStyle, draft.state.settings) })) } : undefined;
   const buildPanel = draft && stage === "build" && (app ? app.build({ draft: shown!, busy, onDownload: download,
-      onBuilt: (next) => adopt(next), onError: setError }) : <BuildPanel host={host} draft={shown!} busy={busy} building={building}
-    tabs={reproduced} missing={missingPdfs.length} finding={gatheringFor === draft.id} onReview={() => setMissingOpen("review")}
+      onBuilt: (next) => adopt(next), onError: (text) => setFailure({ text }) }) : <BuildPanel host={host} draft={shown!} busy={busy} building={building}
+    tabs={reproduced} missing={missingPdfs.length} finding={finding} onReview={() => setMissingOpen("review")}
     progress={building ? message : ""} convertsWord={convertsWord}
     jurisdictionOrder={jurisdictionOrder}
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
       ? buildLinks.warnings : undefined}
     onAction={act} sourceIssues={sourceIssues}
     onRelink={relinkSource}
-    files={bookFiles} sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
+    files={bookFiles} sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => { if (work.kind === "building") work.request.abort(); }}
     onDownload={download} />);
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights key={draft.id} product={draft}
     tabs={authorityTabs} busy={busy} host={host} ocr={ocr} onAction={act} onSaved={adopt} />;
@@ -1254,11 +1231,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // A new source handling throws away the PDFs the app found, so it asks first.
   const changeSources = (sourceMode: AuthoritiesBuildSettings["sourceMode"]) => {
     setSourceChange(undefined);
-    act({ type: "set-settings", settings: { sourceMode } }, async (next) => {
-      setOperation("Finding source PDFs");
-      try { adopt(await onLatest(next.id, (latest) => host.prepareSources(latest, undefined, undefined, noteSources))); }
-      finally { setOperation(""); }
-    });
+    act({ type: "set-settings", settings: { sourceMode } }, (next) => doing("Finding source PDFs", async () => {
+      adopt(await onLatest(next.id, (latest) => host.prepareSources(latest, undefined, undefined, noteSources)));
+    }));
   };
   const authorityPanelProps = { authorities, tabs: app ? NO_TABS : authorityTabs, groups: authorityGroups, busy, sourceIssues, copies,
     onAction: act, onEditIdentity: setEditingAuthority,
@@ -1267,7 +1242,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onPick: host.pickFiles ? (id: string) => void pickFiles(false, "pdf",
       (files) => attach(id, files[0])) : undefined,
     onLibrary: attachLibraryAvailable
-      ? (authorityId: string) => openLibrary({ kind: "authority", authorityId }) : undefined,
+      ? (authorityId: string) => setLibraryTarget({ kind: "authority", authorityId }) : undefined,
     sourceLabel, onAttach: (id: string, file?: File) => attach(id, file && { file }),
     onRelink: relinkSource, onWatchFolder: () => void watchFolder(), watchedFolder };
 
@@ -1289,7 +1264,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   if (reviewing && reviewed !== draft.id) setReviewed(draft.id);
   // An edit still saving takes the draft back to Citations when it lands, so Next waits for it
   // and finds the sources again, as it does once the edit has landed.
-  const stepNext = app?.embedded ? app.embedded.onNext : reviewing ? () => reached === "citations" || edits.current.length ? findSources() : viewStep("sources")
+  const stepNext = app?.embedded ? app.embedded.onNext : reviewing ? () => reached === "citations" || log.current.saving.length ? findSources() : viewStep("sources")
     // Next goes straight on: scans are read in the background as the draft's scanned-PDF choice
     // says, each row showing how far, and nothing waits on them.
     : stage === "sources" ? () => advance(app ? "build" : "highlights")
@@ -1307,7 +1282,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       variant="outline" className="h-9 border-gray-400" disabled={busy}
       onClick={() => relinkSource(importedRole)}><FilePlus2 />
       {briefMoved ? "Reconnect" : "Allow file access"}</Button>}
-    <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
+    <StepProgress label={work.kind === "searching" && work.note || stepOperation}
       error={stepError} className="min-w-0" />
     {/* Every step's Next sits here; the last step keeps its room. */}
     <Button className={cn("h-9", !stepNext && "invisible")} aria-hidden={!stepNext || undefined}
@@ -1333,21 +1308,21 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           ? <DraftsPanel drafts={drafts} loading={draftsLoading} busy={busy}
               onOpen={(id) => void run(() => host.drafts.get<AuthoritiesProduct["state"]>(id), (next) => {
                 adopt(next, true);
-              }, "", "Opening draft")} />
+              }, "", working("Opening draft"))} />
             : !draft
               ? tab === "manual"
                 ? <ManualStart title={manualTitle} busy={busy} onTitle={setManualTitle}
                     preferences={bookPreferences(preferences)} onPreferences={setPreferences}
                     jurisdictionOrder={jurisdictionOrder}
                     onPick={host.pickFiles ? () => void pickFiles(true, "pdf", appendManual) : undefined}
-                    onLibrary={attachLibraryAvailable ? () => openLibrary({ kind: "manual" }) : undefined}
+                    onLibrary={attachLibraryAvailable ? () => setLibraryTarget({ kind: "manual" }) : undefined}
                     sourceLabel={sourceLabel}
                     onFiles={(files) => appendManual(files.map((file) => ({ file })))} />
                 : <AutomaticStart busy={busy}
                     onPick={host.pickFiles ? () => void pickFiles(false, "source",
                       (files) => queueFile(files[0])) : undefined}
                     onFile={(file) => queueFile(file && { file })}
-                    onLibrary={libraryAvailable ? () => openLibrary({ kind: "import" }) : undefined}
+                    onLibrary={libraryAvailable ? () => setLibraryTarget({ kind: "import" }) : undefined}
                     sourceLabel={sourceLabel} />
               : <>
                   {app?.embedded ? <div className="flex min-h-9 items-center justify-end gap-3">{stepActions}</div>
@@ -1371,13 +1346,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                   {/* The narrower column is a box of its own: the step's frame keeps its place, so moving from the review
                       to another step shifts nothing on screen. */}
                   {!reviewing && <div className="mx-auto max-w-[56rem] [&>*:first-child]:mt-2">
-                  {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences} finding={gatheringFor === draft.id || !!app?.embedded?.finding}
+                  {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences} finding={finding || !!app?.embedded?.finding}
                     citedIn={app?.citedIn}
                     ocr={ocr} others={others} settings={sourceSettings}
                     {...authorityPanelProps}
                     {...(draft.state.import.kind === "manual" ? {
                       onPickMany: host.pickFiles ? () => void pickFiles(true, "pdf", appendManual) : undefined,
-                      onLibraryAdd: attachLibraryAvailable ? () => openLibrary({ kind: "manual" }) : undefined,
+                      onLibraryAdd: attachLibraryAvailable ? () => setLibraryTarget({ kind: "manual" }) : undefined,
                       onFiles: (files: File[]) => appendManual(files.map((file) => ({ file }))),
                     } : {})} />
                     {host.recognitionAvailable === false && scannedSources.files.length > 0 &&
@@ -1416,18 +1391,16 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       </Modal>}
       {pendingImport && <ImportWizard key={importRequest.current} file={pendingImport.file} host={host}
         draft={draft} remembered={preferences} jurisdictionOrder={jurisdictionOrder}
-        recognitionAvailable={host.recognitionAvailable !== false} finishing={pendingImport.finishing}
-        error={pendingImport.error} onCancel={cancelImport} onFinish={finishImport} />}
+        recognitionAvailable={host.recognitionAvailable !== false} finishing={pendingImport.stage === "finishing"}
+        error={pendingImport.stage === "failed" ? pendingImport.error : ""} onCancel={cancelImport} onFinish={finishImport} />}
       {addOpen && <AuthorityDetailsModal open busy={busy} onClose={() => setAddOpen(false)}
         onSave={(kind, citation, name) => {
           setAddOpen(false);
           act({ type: "add-authority", kind, citation, name }, async (next) => {
-            if (next.state.stage !== "citations") {
-              setOperation("Finding source PDF");
-              // Already in the save queue's turn: made again on a newer draft, never queued behind itself.
-              try { adopt(await onLatest(next.id, (latest) => host.prepareSources(latest))); }
-              finally { setOperation(""); }
-            }
+            // Already in the save queue's turn: made again on a newer draft, never queued behind itself.
+            if (next.state.stage !== "citations") await doing("Finding source PDF", async () => {
+              adopt(await onLatest(next.id, (latest) => host.prepareSources(latest)));
+            });
           });
         }} />}
       {editingAuthority && <AuthorityDetailsModal open busy={busy} authority={editingAuthority}
@@ -1449,10 +1422,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           access. Allow it again, or choose the file with Allow file access.</p>}
       </Modal>
       <Modal open={!!folderAccess?.open} size="md" breadcrumbs={["Folder access"]} fit
-        onClose={() => folderAccess && setFolderAccess({ handle: folderAccess.handle })}
+        onClose={() => folder.showAsking(false)}
         // Declined, the kept folder is let go: the next click chooses one afresh.
         secondaryAction={{ label: "Not now", onClick: () => {
-          setFolderAccess(undefined); void host.watchedFolder?.set(null); } }}
+          folder.stop(); void host.watchedFolder?.set(null); } }}
         primaryAction={{ label: "Allow access", onClick: () => void allowFolder() }}>
         <p className="pb-3 text-sm leading-6 text-gray-700">Chrome asks again before Authorities can watch{" "}
           <strong>{folderAccess?.handle.name}</strong>. Choose <strong>Allow on every visit</strong> so it
@@ -1497,9 +1470,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         className="h-[min(900px,calc(100dvh-2rem))]" bodyClassName="pb-5"
         onClose={() => { previewRequest.current += 1; setSourcePreview(undefined); }}>
         <div className="flex min-h-60 flex-1">
-          <PdfCanvas bytes={sourcePreview?.bytes} loading={!!sourcePreview && !sourcePreview.bytes && !sourcePreview.error}
+          <PdfCanvas bytes={sourcePreview?.pdf.status === "read" ? sourcePreview.pdf.bytes : undefined}
+            loading={sourcePreview?.pdf.status === "reading"}
             recognizedText={sourcePreview?.recognizedText} pageLabels={sourcePreview && sourcePageLabels(draft, sourcePreview.role)}
-            error={sourcePreview?.error} quoteFocusKey={sourcePreview?.quote}
+            error={sourcePreview?.pdf.status === "failed" ? sourcePreview.pdf.error : undefined} quoteFocusKey={sourcePreview?.quote}
             quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined} />
         </div>
       </Modal>

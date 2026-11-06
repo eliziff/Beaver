@@ -24,7 +24,8 @@ const upload = z.object({ client_key: z.string().uuid(), filename: z.string().tr
   : row.target_document_id !== null && row.expected_version_id !== null && row.expected_working_revision !== null &&
     row.project_id === null && row.folder_id === null && row.library_kind === "file" && row.workflow_id === null, "Invalid upload destination.");
 type Session = z.infer<typeof upload> & { id: string; user_id: string; user_email: string | null;
-  file_type: string; document_id: string; storage_path: string; status: string; job_id: string | null;
+  file_type: string; document_id: string; storage_path: string; job_id: string | null;
+  status: "pending" | "queued" | "complete" | "failed" | "cancelled";
   error: string | null; result_version_id: string | null; expires_at: string; created_at: string; updated_at: string };
 const now = () => new Date().toISOString();
 const destination = (row: Session | z.infer<typeof upload>) => ({ projectId: row.project_id,

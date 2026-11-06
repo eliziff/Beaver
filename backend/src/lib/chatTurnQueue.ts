@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { resolvePromptSubmission } from "./promptSubmission";
-import type { ChatTurnInput } from "./chat/chatApplication";
+import { ChatApplicationError, type ChatTurnInput } from "./chat/chatApplication";
 import type { ChatScope } from "./chatStore";
 import { parsePublicAssistantEvent, type PublicAssistantEvent } from "./chat/assistantEvents";
 import { activeJobForGroup, enqueueJob, enqueueJobCommand, getJob,
   readJobEvents, requestJobCancellation, watchJob,
   jsonValue, type ApplicationJob } from "./jobQueue";
+import { jsonRecord } from "./value";
 
 const chatGroup = (chatId: string) => `chat:${chatId}`;
 const activeJob = (scope: ChatScope, chatId: string) =>
@@ -25,6 +26,8 @@ export type ChatTurnQueue = {
     result: unknown): Promise<boolean>;
   steer(scope: ChatScope, chatId: string,
     message: import("./llm").SteeringMessage): Promise<boolean>;
+  compact(scope: ChatScope, input: { chatId: string; model?: string },
+    signal: AbortSignal): Promise<Record<string, unknown>>;
 };
 
 export const durableChatTurns: ChatTurnQueue = {
@@ -60,11 +63,9 @@ export const durableChatTurns: ChatTurnQueue = {
         // Drain replay immediately, including events committed just before the
         // terminal status. Never sleep between full event pages.
         if (terminal || page.length === 500) continue;
-        if (!terminal) {
-          const current = await getJob(jobId, scope.userId);
-          if (!current) throw new Error("Job unavailable");
-          if (!["queued", "running"].includes(current.status)) { terminal = current; continue; }
-        }
+        const current = await getJob(jobId, scope.userId);
+        if (!current) throw new Error("Job unavailable");
+        if (!["queued", "running"].includes(current.status)) { terminal = current; continue; }
         await changes.wait(version, signal);
       }
       throw new DOMException("Aborted", "AbortError");
@@ -83,6 +84,30 @@ export const durableChatTurns: ChatTurnQueue = {
   },
   async steer(scope, chatId, message) {
     const job = await activeJob(scope, chatId);
-    return !!job && enqueueJobCommand(scope.userId, job.id, "steer", jsonValue(message));
+    return !!job && !jsonRecord(job.payload)?.compaction &&
+      enqueueJobCommand(scope.userId, job.id, "steer", jsonValue(message));
+  },
+  // Compaction holds a chat's job slot, so it and a turn cannot overlap on any process.
+  async compact(scope, input, signal) {
+    const running = () => new ChatApplicationError(409, "A response is already running", "chat_turn_in_progress");
+    if (await activeJob(scope, input.chatId)) throw running();
+    const requestId = randomUUID();
+    const job = await enqueueJob({ kind: "chat.turn", dedupeKey: input.chatId, groupKey: chatGroup(input.chatId),
+      userId: scope.userId, maxAttempts: 1, payload: jsonValue({ request_id: requestId,
+        user_email: scope.userEmail, compaction: { chat_id: input.chatId, model: input.model } }) });
+    if ((job.payload as { request_id?: unknown }).request_id !== requestId) throw running();
+    const receipts: Extract<PublicAssistantEvent, { type: "compaction" }>[] = [];
+    const ended = await durableChatTurns.observe(scope, job.id, signal, (event) => {
+      if (event.type === "compaction") receipts.push(event);
+    }).catch(async (error: unknown) => {
+      await requestJobCancellation(job.id, scope.userId);
+      throw error;
+    });
+    const result = jsonRecord(ended.result), refused = jsonRecord(result?.refused);
+    if (refused) throw new ChatApplicationError(Number(refused.status), String(refused.message),
+      refused.code as string | undefined, refused.current_version as number | undefined);
+    if (ended.status !== "succeeded" || !receipts[0]) throw new Error("Context compaction failed");
+    const { type: _type, status: _status, ...details } = receipts[0];
+    return { compacted: true, transcriptVersion: result?.transcript_version, ...details };
   },
 };

@@ -32,7 +32,8 @@ export function createPdfSession(options: {
     holder: HTMLElement; scale: number; layer: ReturnType<typeof createPdfPageTextLayer>;
   }>();
   let annotations: ReturnType<typeof attachPdfAnnotationLayer> | undefined;
-  let zoom=options.initialView?.zoom ?? 1, fit=1, frame=0, settle=0, zooming=false, navigation=0, disposed=false;
+  let zoom=options.initialView?.zoom ?? 1, fit=1, frame=0, settle=0, navigation=0;
+  const zooming=()=>settle!==0; // The timer that ends a zoom is set for as long as one lasts.
   // PDF.js rounds gesture scales; preserve the drawn zoom as well as the control's requested zoom.
   let renderZoom=options.initialView?.renderZoom ?? zoom;
   let requestedZoom=zoom, origin: number[] | undefined, restoring=!!options.initialView;
@@ -60,7 +61,7 @@ export function createPdfSession(options: {
     if(entry) {
       if(!entry.holder.isConnected)release(number);
       else { entry.holder.style.transform=view.viewport.scale===entry.scale?'':`scale(${view.viewport.scale/entry.scale})`;
-        entry.holder.style.pointerEvents=zooming?'none':''; }
+        entry.holder.style.pointerEvents=zooming()?'none':''; }
     }
   };
   // A long PDF's pages are described in idle time, a hundred at a time, those around the page on
@@ -135,21 +136,21 @@ export function createPdfSession(options: {
     if(frame)return;
     frame=requestAnimationFrame(()=>{
       frame=0;if(signal.aborted || !viewer.pagesCount)return;
-      zoom=requestedZoom;zooming=true;clearTimeout(settle);
-      // PDFViewer subtracts offsetTop/Left, not the viewport rect (nested modals differ).
-      const box=container.getBoundingClientRect();
-      const anchor=origin && [origin[0]-box.left+container.offsetLeft,origin[1]-box.top+container.offsetTop];
-      viewer.updateScale({scaleFactor:fit*zoom/viewer.currentScale,origin:anchor,drawingDelay:150});
-      renderZoom=viewer.currentScale/fit;
-      options.onZoom?.(zoom);
+      zoom=requestedZoom;clearTimeout(settle);
       settle=window.setTimeout(()=>{
-        zooming=false;
+        settle=0;
         for(const number of new Set([...layers.keys(),...pendingText])) {
           const view=viewer.getPageView(number-1);
           if(view?.div.querySelector('canvas')) {sync(number);void ensureText(number);} else release(number);
         }
         pendingText.clear();
       },170);
+      // PDFViewer subtracts offsetTop/Left, not the viewport rect (nested modals differ).
+      const box=container.getBoundingClientRect();
+      const anchor=origin && [origin[0]-box.left+container.offsetLeft,origin[1]-box.top+container.offsetTop];
+      viewer.updateScale({scaleFactor:fit*zoom/viewer.currentScale,origin:anchor,drawingDelay:150});
+      renderZoom=viewer.currentScale/fit;
+      options.onZoom?.(zoom);
     });
   };
   // From the width last observed, not read from the box: a read after PDF.js adds its pages lays them all out at once.
@@ -165,7 +166,7 @@ export function createPdfSession(options: {
     if(width!==container.clientWidth){width=container.clientWidth;resize();}
   });
   observer.observe(container);
-  const detachSelection=attachPdfTextSelection(container,()=>!zooming && !options.readEditor?.()?.disabled && options.readEditor?.()?.tool!=='draw');
+  const detachSelection=attachPdfTextSelection(container,()=>!zooming() && !options.readEditor?.()?.disabled && options.readEditor?.()?.tool!=='draw');
   container.addEventListener('wheel',event=>{
     if(!event.ctrlKey)return;
     event.preventDefault();
@@ -208,7 +209,7 @@ export function createPdfSession(options: {
     // PDF.js may evict another page while rendering this one. Release only detached layers.
     for(const [number,entry] of layers)if(!entry.holder.isConnected)release(number);
     sync(pageNumber);updateAnnotations(pageNumber);
-    if(!error && !cssTransform) {if(zooming)pendingText.add(pageNumber);else void ensureText(pageNumber);}
+    if(!error && !cssTransform) {if(zooming())pendingText.add(pageNumber);else void ensureText(pageNumber);}
     options.onRendered?.(pageNumber,error);
   });
   // Once a page is drawn, PDF.js reads every other page of the document; the viewer is taken down
@@ -216,7 +217,7 @@ export function createPdfSession(options: {
   // `closed` is when the document may be closed.
   let rendered=false, closed=Promise.resolve();
   const destroy=()=>{
-    if(disposed)return;disposed=true;abort.abort();navigation++;observer.disconnect();cancelIdleCallback(idle);
+    if(signal.aborted)return;abort.abort();navigation++;observer.disconnect();cancelIdleCallback(idle);
     cancelAnimationFrame(frame);clearTimeout(settle);detachSelection();annotations?.destroy();
     for(const number of layers.keys())release(number);
     options.signal.removeEventListener('abort',destroy);

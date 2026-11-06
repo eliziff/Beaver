@@ -45,8 +45,10 @@ const appOnly = { ui: { visibility: ["app"] },
 const knownSources = new Map<string, LegalSourceReference>();
 const evidence = new Map<string, RegisteredEvidence>();
 const MAX_EVIDENCE = 5_000;
-// The answer's claims as last submitted: a correction replaces only the claims Beaver rejected.
-let draft: unknown[] | null = null;
+// The claims of rejected answers, each under the id its rejection returned: this connector serves
+// every conversation and its transport names none, so a correction says which answer it corrects.
+const drafts = new Map<string, unknown[]>();
+const MAX_DRAFTS = 200;
 
 const json = (value: unknown, isError = false) => toolText(value, isError);
 const withUi = (value: Record<string, unknown>, summary: string): CallToolResult => ({
@@ -265,20 +267,28 @@ const definitions: Array<Tool & { run: Handler }> = [{
   // citations, and builds each one's publisher pinpoint link (paragraph or section anchor with a
   // text fragment of the exact words).
   ...LEGAL_EVIDENCE_SUBMIT_TOOL,
+  inputSchema: { ...LEGAL_EVIDENCE_SUBMIT_TOOL.inputSchema, properties: { ...LEGAL_EVIDENCE_SUBMIT_TOOL.inputSchema.properties,
+    draft_id: { type: ["string", "null"], description: "The draft_id a rejected submission returned, sent with its corrections." } } },
   title: "Submit the grounded answer",
   _meta: { ...ui, ...status("Checking the answer against its passages…", "Checked the answer") },
-  async run(args, context) {
-    const state = createLegalEvidenceTurnState();
-    state.draft = draft;
-    const cited = evidenceIdsIn(JSON.stringify([args, draft]));
+  async run({ draft_id: draftId, ...args }, context) {
+    const state = createLegalEvidenceTurnState(), given = typeof draftId === "string" ? draftId : "";
+    state.draft = drafts.get(given) ?? null;
+    const cited = evidenceIdsIn(JSON.stringify([args, state.draft]));
     await restore(cited, context.signal);
     for (const id of cited) {
       const entry = legalEvidenceEntry(evidence, id);
       if (entry) registerLegalEvidence(state, entry.receipt, entry);
     }
     const submitted = await submitLegalEvidenceAnswer(args, state);
-    draft = state.draft ?? null;
-    if (!submitted.ok) return json(submitted, true);
+    drafts.delete(given);
+    if (!submitted.ok) {
+      if (!state.draft) return json(submitted, true);
+      const id = randomUUID();
+      drafts.set(id, state.draft);
+      for (const oldest of drafts.keys()) { if (drafts.size <= MAX_DRAFTS) break; drafts.delete(oldest); }
+      return json({ ...submitted, draft_id: id }, true);
+    }
     const citations = createLegalEvidenceCitations(state), { groups, claimRefs } = legalEvidenceCitationPlan(state);
     const link = (ref: number) => {
       const citation = citations.find((candidate) => candidate.ref === ref);

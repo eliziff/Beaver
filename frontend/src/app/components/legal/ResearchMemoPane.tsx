@@ -8,8 +8,14 @@ import { researchSourceKey, type ResearchFile } from "@/app/lib/researchFiles";
 import { isResearchConnectionError, type ResearchFileMutations } from "./useResearchFileMutations";
 import ResearchMemoEditor from "./ResearchMemoEditor";
 import { type MemoSourceReference } from "./researchMemo";
+import { toValue, useMachine } from "@/app/lib/useMachine";
 
 type Draft = { markdown: string; base: string; submitted?: string };
+/** Why a save did not land, and how long until a lost connection is tried again. */
+type SaveFailure = { error: string; conflict: boolean; retryIn: number };
+/** The memo's save. An edit clears a failure but not its retry. The saved memo loads over a conflict, which stays on screen. */
+type Saving = { kind: "idle"; retryIn: number } | { kind: "saving"; failure?: SaveFailure } | ({ kind: "failed" } & SaveFailure);
+const NOT_SAVING: Saving = { kind: "idle", retryIn: 0 };
 function readDraft(key: string, markdown: string): Draft {
   try {
     const draft = JSON.parse(sessionStorage.getItem(key) ?? "null");
@@ -25,10 +31,12 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
   const key = `beaver.research.memo-draft:${file.document.id}`;
   const [draft, setDraft] = useState(() => readDraft(key, file.state.note));
   const latest = useRef(draft);
-  const [saving, setSaving] = useState(false), pending = useRef(false);
-  const [error, setError] = useState("");
-  const [conflict, setConflict] = useState(false), [confirmReload, setConfirmReload] = useState(false);
-  const [retry, setRetry] = useState(0), retryCount = useRef(0);
+  const [saveState, setSaveState, latestSave] = useMachine(toValue<Saving>, NOT_SAVING);
+  const failure = saveState.kind === "failed" ? saveState : saveState.kind === "saving" ? saveState.failure : undefined;
+  const saving = saveState.kind === "saving", error = failure?.error ?? "", conflict = !!failure?.conflict;
+  const retry = saveState.kind === "idle" ? saveState.retryIn : failure?.retryIn ?? 0;
+  const [confirmReload, setConfirmReload] = useState(false);
+  const retryCount = useRef(0);
   const [addingCitation, setAddingCitation] = useState(false), [citationError, setCitationError] = useState("");
   const dirty = draft.markdown !== draft.base || draft.submitted !== undefined;
   const updateDraft = useCallback((next: Draft) => {
@@ -37,31 +45,34 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
       else sessionStorage.setItem(key, JSON.stringify(next)); } catch { /* The in-memory draft still holds the edit. */ }
   }, [key]);
   const change = useCallback((markdown: string) => { updateDraft({ ...latest.current, markdown });
-    retryCount.current = 0; setError(""); setConflict(false); }, [updateDraft]);
+    retryCount.current = 0;
+    const now = latestSave.current;
+    if (now.kind === "failed") setSaveState({ kind: "idle", retryIn: now.retryIn });
+    else if (now.kind === "saving") setSaveState({ kind: "saving" }); }, [updateDraft, latestSave, setSaveState]);
   const save = useCallback(async () => {
-    if (pending.current) return false;
+    // A conflict stands until the draft changes or the saved memo loads: saving the same text again can only fail.
+    const now = latestSave.current;
+    if (now.kind === "saving" || now.kind === "failed" && now.conflict) return false;
     const submitted = { ...latest.current, markdown: latest.current.submitted ?? latest.current.markdown };
     if (submitted.markdown === submitted.base) return true;
-    pending.current = true; setSaving(true); setError(""); setConflict(false); setRetry(0);
+    setSaveState({ kind: "saving" });
     updateDraft({ ...latest.current, submitted: submitted.markdown });
     try {
       await mutations.act({ type: "note", markdown: submitted.markdown, expectedMarkdown: submitted.base });
       const next = { ...latest.current, base: submitted.markdown, submitted: undefined }; updateDraft(next);
-      retryCount.current = 0;
+      retryCount.current = 0; setSaveState(NOT_SAVING);
       return next.markdown === next.base;
     } catch (reason) {
       const connection = isResearchConnectionError(reason);
       if (!connection) updateDraft({ ...latest.current, submitted: undefined });
       const conflict = reason instanceof BeaverApiError && reason.code === "memo_conflict";
-      setConflict(conflict);
-      setError(connection ? "Could not connect to save. Your draft is still here."
-        : conflict ? "The saved memo changed elsewhere. Your draft is still here."
-          : errorMessage(reason, "Could not save memo. Your draft is still here."));
-      if (connection && retryCount.current < 2) setRetry(++retryCount.current * 2000);
+      setSaveState({ kind: "failed", conflict, retryIn: connection && retryCount.current < 2 ? ++retryCount.current * 2000 : 0,
+        error: connection ? "Could not connect to save. Your draft is still here."
+          : conflict ? "The saved memo changed elsewhere. Your draft is still here."
+            : errorMessage(reason, "Could not save memo. Your draft is still here.") });
       return false;
     }
-    finally { pending.current = false; setSaving(false); }
-  }, [updateDraft, mutations.act]);
+  }, [updateDraft, mutations.act, latestSave, setSaveState]);
   useEffect(() => {
     if (!retry) return;
     const timer = window.setTimeout(() => { void save(); }, retry);
@@ -81,19 +92,19 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
   const flush = useEffectEvent(() => { void save(); });
   useEffect(() => () => flush(), []);
   useEffect(() => {
-    if (latest.current.markdown !== latest.current.base || pending.current || latest.current.submitted !== undefined) return;
+    if (latest.current.markdown !== latest.current.base || latestSave.current.kind === "saving" || latest.current.submitted !== undefined) return;
     updateDraft({ markdown: file.state.note, base: file.state.note });
-  }, [file.state.note, updateDraft]);
+  }, [file.state.note, updateDraft, latestSave]);
   const reload = async () => {
-    if (pending.current) return;
-    pending.current = true; setSaving(true);
+    if (latestSave.current.kind === "saving") return;
+    setSaveState({ kind: "saving", failure });
     const discarded = latest.current.markdown;
     try { const saved = await getResearchFile(file.document.id);
       if (latest.current.markdown !== discarded) throw new Error("The draft changed while loading.");
       updateDraft({ markdown: saved.state.note, base: saved.state.note });
-      setError(""); setConflict(false); setRetry(0); retryCount.current = 0;
-    } catch { setError("Could not load the saved memo. Your draft is still here."); }
-    finally { pending.current = false; setSaving(false); setConfirmReload(false); }
+      setSaveState(NOT_SAVING); retryCount.current = 0;
+    } catch { setSaveState({ kind: "failed", conflict, retryIn: retry, error: "Could not load the saved memo. Your draft is still here." }); }
+    finally { setConfirmReload(false); }
   };
   const resolveReference = async ({ reference, span }: MemoSourceReference) => {
     setAddingCitation(true); setCitationError("");

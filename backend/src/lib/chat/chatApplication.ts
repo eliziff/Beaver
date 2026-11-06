@@ -50,7 +50,7 @@ import {
   priorLegalResearchQueryReceipts,
   registerPriorLegalResearchQueries,
 } from "./legalEvidence";
-import { resumableReadSubagents, readSubagentResumePrompt } from "./readSubagents";
+import { readerRunResumable, resumableReadSubagents, readSubagentResumePrompt } from "./readSubagents";
 import { tabularChatPrompt } from "./tabularContext";
 import { providerErrorCode, safeErrorLog, safeErrorMessage } from "../safeError";
 import {
@@ -283,29 +283,32 @@ const INTERRUPTED_TURN_MESSAGE =
   "This response was interrupted before it finished and is being retried.";
 const REPLACEABLE_EVENT_TYPES = new Set(["workflow_run", "subagent_run", "tool_activity", "model_messages", "steering"]);
 const TRANSIENT_EVENT_TYPES = new Set(["reasoning", "error", "context_usage", "subagent_run", "tool_activity"]);
+
+// The last question of a transcript, read from its stored events. Only an unanswered
+// question, or a failed answer that can be sent again, waits for the user.
+type AskState =
+  | { phase: "none" }
+  | { phase: "asked"; ask: AskInputsEvent }
+  | { phase: "answered" | "answer_failed"; ask: AskInputsEvent;
+    response: AskInputsResponseRequest; mutationCommitted: boolean };
+
+function nextAskState(state: AskState, event: AssistantEvent): AskState {
+  if (event.type === "ask_inputs") return event.items.length ? { phase: "asked", ask: event } : { phase: "none" };
+  if (state.phase === "none") return state;
+  if (event.type === "ask_inputs_response") return { phase: "answered", ask: state.ask, mutationCommitted: false,
+    response: { responses: event.responses, submission: event.submission } };
+  if (state.phase === "asked") return state;
+  if (event.type === LOCAL_MUTATION_COMMITTED_EVENT) return { ...state, mutationCommitted: true };
+  return event.type === "error" || (event.type === "turn_status" && event.status === "cancelled")
+    ? { ...state, phase: "answer_failed" } : state;
+}
+
 function pendingAskInputs(messages: ChatMessageRecord[]) {
   const assistant = [...messages].reverse().find(({ role }) => role === "assistant");
   if (!assistant || !Array.isArray(assistant.content)) return null;
-  let ask: AskInputsEvent | null = null;
-  let response: AskInputsResponseRequest | null = null;
-  let failed = false, mutationCommitted = false;
-  for (const event of assistant.content) {
-    if (event.type === "ask_inputs") {
-      ask = event.items.length ? event : null;
-      response = null; failed = false; mutationCommitted = false;
-    } else if (event.type === "ask_inputs_response" && ask) {
-      response = { responses: event.responses, submission: event.submission };
-      failed = false; mutationCommitted = false;
-    } else if (response && event.type === LOCAL_MUTATION_COMMITTED_EVENT) {
-      mutationCommitted = true;
-    } else if (response && (event.type === "error" ||
-      (event.type === "turn_status" && event.status === "cancelled"))) {
-      failed = true;
-    }
-  }
-  return ask && (!response || failed)
-    ? { event: ask, retryResponse: response, mutationCommitted, assistant }
-    : null;
+  const state = assistant.content.reduce<AskState>(nextAskState, { phase: "none" });
+  return state.phase === "asked" ? { event: state.ask, retry: null, assistant }
+    : state.phase === "answer_failed" ? { event: state.ask, retry: state, assistant } : null;
 }
 
 function canonicalAskResponse(
@@ -338,19 +341,54 @@ function canonicalAskResponse(
   return { responses };
 }
 
-function normalTurnState(messages: ChatMessageRecord[], turnId: string) {
+/** How a turn id already in the transcript last ended; a completed turn stays completed whatever it changed. */
+function priorTurn(messages: ChatMessageRecord[], turnId: string) {
   const user = messages.find((message) =>
     message.role === "user" && message.turn_id === turnId);
   if (!user) return null;
   const assistant = [...messages].reverse().find((message) =>
     message.role === "assistant" && message.turn_id === turnId);
   const events = Array.isArray(assistant?.content) ? assistant.content : [];
+  const reached = (type: string) => events.some((event) => event.type === type);
+  return { user, assistant, phase: reached(LOCAL_TURN_COMPLETED_EVENT) ? "completed" as const
+    : reached(LOCAL_MUTATION_COMMITTED_EVENT) ? "mutated" as const : "retryable" as const };
+}
+
+// One commit at a time behind the turn. A commit that fails ends the turn as its
+// error; a missing chat ends the saving and nothing else.
+type SaveState = { phase: "idle" | "chat_gone" } | { phase: "failed"; error: unknown }
+  | { phase: "saving"; run: Promise<void>; next?: AssistantEvent[] };
+
+function transcriptSaves(commit: (content: AssistantEvent[]) => Promise<"committed" | "missing">) {
+  let state = { phase: "idle" } as SaveState;
+  const stop = new AbortController();
+  const drain = async (saving: Extract<SaveState, { phase: "saving" }>) => {
+    try {
+      while (saving.next) {
+        const content = saving.next;
+        saving.next = undefined;
+        if (await commit(content) === "missing") { state = { phase: "chat_gone" }; return; }
+      }
+      state = { phase: "idle" };
+    } catch (error) {
+      state = { phase: "failed", error };
+      stop.abort(error);
+    }
+  };
   return {
-    user,
-    assistant,
-    completed: events.some((event) => event.type === LOCAL_TURN_COMPLETED_EVENT),
-    mutationCommitted: events.some((event) =>
-      event.type === LOCAL_MUTATION_COMMITTED_EVENT),
+    signal: stop.signal,
+    open: () => state.phase === "idle" || state.phase === "saving",
+    failure: () => state.phase === "failed" ? state : null,
+    save(content: AssistantEvent[]) {
+      if (state.phase === "saving") state.next = content;
+      else if (state.phase === "idle") {
+        const saving: Extract<SaveState, { phase: "saving" }> =
+          { phase: "saving", run: Promise.resolve(), next: content };
+        state = saving;
+        saving.run = drain(saving);
+      }
+    },
+    async settled() { if (state.phase === "saving") await state.run; },
   };
 }
 
@@ -450,17 +488,11 @@ export function createChatApplication(deps: Dependencies) {
       auth: AuthContext,
       input: { chatId: string; model?: string },
       signal: AbortSignal,
-      claim: (chatId: string) => boolean,
     ) {
       const model = requestedModel(input.model);
       const chat = await deps.chats.get(auth, input.chatId);
       if (!chat) throw new ChatApplicationError(404, "Chat not found");
       if (chat.role === "viewer") throw new ChatApplicationError(403, "Editor access is required.");
-      if (!claim(chat.id)) conflict(
-        "chat_turn_in_progress",
-        chat.transcript_version,
-        "A response is already running",
-      );
       let details: CompactionDetails = { provider: providerForModel(model) };
       const provider = await deps.features.providerSession?.compact({
         auth,
@@ -597,15 +629,14 @@ export function createChatApplication(deps: Dependencies) {
         );
         if (!canonical) throw new ChatApplicationError(400,
           "Response does not match the pending assistant questions");
-        if (pending.retryResponse &&
-            JSON.stringify(pending.retryResponse.responses) !==
+        if (pending.retry && JSON.stringify(pending.retry.response.responses) !==
               JSON.stringify(canonical.responses)) throw new ChatApplicationError(400,
           "Retry the same response to the assistant questions");
-        if (pending.mutationCommitted) conflict(
+        if (pending.retry?.mutationCommitted) conflict(
           "chat_retry_blocked_after_mutation", chat?.transcript_version ?? 0,
           "The prior continuation changed data before it stopped. Review that result before sending a new instruction.",
         );
-        if (pending.retryResponse) submission = pending.retryResponse.submission ?? { origin: "unknown" };
+        if (pending.retry) submission = pending.retry.response.submission ?? { origin: "unknown" };
         else assistantContent.push({
           type: "ask_inputs_response",
           responses: canonical.responses,
@@ -622,7 +653,7 @@ export function createChatApplication(deps: Dependencies) {
         };
         assistant = pending.assistant;
       } else {
-        const prior = turnId ? normalTurnState(rows, turnId) : null;
+        const prior = turnId ? priorTurn(rows, turnId) : null;
         if (prior) {
           submission = prior.user.submission ?? { origin: "unknown" };
           const same = prior.user.content === input.current_turn.content &&
@@ -631,11 +662,11 @@ export function createChatApplication(deps: Dependencies) {
               JSON.stringify(canonicalWorkflow ?? null);
           if (!same) throw new ChatApplicationError(400,
             "turn_id was already used for a different message");
-          if (prior.completed) conflict(
+          if (prior.phase === "completed") conflict(
             "chat_turn_already_completed", chat?.transcript_version ?? 0,
             "This turn already completed",
           );
-          if (prior.mutationCommitted) conflict(
+          if (prior.phase === "mutated") conflict(
             "chat_retry_blocked_after_mutation", chat?.transcript_version ?? 0,
             "The prior response changed data before it stopped. Review that result before sending a new instruction.",
           );
@@ -646,9 +677,7 @@ export function createChatApplication(deps: Dependencies) {
           assistantContent = Array.isArray(assistant?.content)
             ? assistant.content.filter((event) => event.type === "model_messages" ||
                 event.type === "legal_evidence_receipt" || event.type === "steering" ||
-                event.type === "subagent_run" &&
-                (event.status === "interrupted" || event.status === "running" || event.status === "error") &&
-                event.resume) : [];
+                event.type === "subagent_run" && readerRunResumable(event)) : [];
           assistantCitations = [];
           // A retried turn without an assistant receipt still needs one atomic CAS write.
           commit = {
@@ -800,11 +829,21 @@ ${registeredWorkflow.skill_md}` : "",
         content: assistantContent,
       };
 
-      let persistence: Promise<void> | undefined, pendingContent: AssistantEvent[] | undefined,
-        chatAvailable = true, nextCheckpoint = 0;
-      // Saves run one at a time behind the turn; the first that fails stops the turn as its error.
-      const unsaved = new AbortController(), turnSignal = AbortSignal.any([signal, unsaved.signal]);
-      const persisted = async () => { await persistence; unsaved.signal.throwIfAborted(); };
+      let nextCheckpoint = 0;
+      const assistantId = assistant?.id ?? randomUUID();
+      const saves = transcriptSaves(async (content) => {
+        const result = await deps.chats.commitTurn(auth, chat!.id, {
+          expectedVersion: version,
+          assistantMessage: { id: assistantId, turnId, content, citations: [...assistantCitations],
+            changed: new Set(content.flatMap((event, index) => event === saved[index] ? [] : [index])) },
+        });
+        if (result.status === "conflict") conflict("chat_version_conflict", result.currentVersion);
+        if (result.status === "missing") return "missing";
+        version = result.currentVersion; saved = content;
+        return "committed";
+      });
+      const turnSignal = AbortSignal.any([signal, saves.signal]);
+      const persisted = async () => { await saves.settled(); saves.signal.throwIfAborted(); };
       let localTools!: ReturnType<typeof createChatToolRunner>;
       const openWorkProduct = (kind: NonNullable<ChatTurnInput["work_product"]>["kind"]) =>
         input.work_product?.kind === kind ? input.work_product : undefined;
@@ -889,7 +928,6 @@ ${registeredWorkflow.skill_md}` : "",
           contextCheckpoint: message.contextCheckpoint,
           modelState: message.modelState,
         }));
-      const assistantId = assistant?.id ?? randomUUID();
       function queuePersist(events: AssistantEvent[], citations: unknown[] = [], force = false) {
         for (const event of events) {
           const index = "id" in event && REPLACEABLE_EVENT_TYPES.has(event.type)
@@ -901,25 +939,9 @@ ${registeredWorkflow.skill_md}` : "",
             Boolean(event.resume && !(previous?.type === "subagent_run" && previous.resume)));
         }
         assistantCitations.push(...citations);
-        if (unsaved.signal.aborted || !force && performance.now() < nextCheckpoint) return;
+        if (saves.failure() || !force && performance.now() < nextCheckpoint) return;
         nextCheckpoint = performance.now() + CHAT_PROGRESS_CHECKPOINT_MS;
-        pendingContent = [...assistantContent];
-        persistence ??= (async () => {
-          while (pendingContent) {
-            const content = pendingContent;
-            pendingContent = undefined;
-            if (!chatAvailable) continue;
-            const result = await deps.chats.commitTurn(auth, chat!.id, {
-              expectedVersion: version,
-              assistantMessage: { id: assistantId, turnId, content, citations: [...assistantCitations],
-                changed: new Set(content.flatMap((event, index) => event === saved[index] ? [] : [index])) },
-            });
-            if (result.status === "conflict")
-              conflict("chat_version_conflict", result.currentVersion);
-            if (result.status === "missing") chatAvailable = false;
-            if (result.status === "committed") { version = result.currentVersion; saved = content; }
-          }
-        })().catch((error: unknown) => unsaved.abort(error)).finally(() => { persistence = undefined; });
+        saves.save([...assistantContent]);
       }
 
       let providerSession: Awaited<ReturnType<
@@ -1029,18 +1051,18 @@ ${registeredWorkflow.skill_md}` : "",
         await providerSession?.save(activeContinuationId, version);
         sink.emit({ type: "transcript_version", transcriptVersion: version });
         auditTurn({ events: result.events });
-        if (memory && chatAvailable && result.status !== "paused" && !signal.aborted &&
+        if (memory && saves.open() && result.status !== "paused" && !signal.aborted &&
             !events.some((event) => event.type === "error" || event.type === "turn_status")) {
           deps.features.memory?.complete(auth, memory, { chatId: chat.id, turnId: turnId ?? assistantId, version,
             text: input.current_turn.kind === "message" ? input.current_turn.content : JSON.stringify(input.current_turn.responses) });
         }
         return { chatId: chat.id, transcriptVersion: version };
       } catch (thrown) {
-        await persistence;
-        const error = unsaved.signal.aborted ? unsaved.signal.reason as unknown : thrown;
+        await saves.settled();
+        const failure = saves.failure(), error = failure ? failure.error : thrown;
         const message = safeErrorMessage(error, "Model request failed");
         console.error("[chat]", safeErrorLog(error));
-        if (chatAvailable && !unsaved.signal.aborted) {
+        if (saves.open()) {
           queuePersist([
             ...(error instanceof AssistantStreamError
               ? error.events.filter(({ type }) => !TRANSIENT_EVENT_TYPES.has(type))

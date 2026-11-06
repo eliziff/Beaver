@@ -81,6 +81,10 @@ const strings = (value: unknown) => Array.isArray(value)
 const region = (value: unknown): ReadSubagentRegion =>
   value === "US" || value === "UK" ? value : "CA";
 
+/** A reader that stopped short with a checkpoint saved; one still marked running stopped with its turn. */
+export const readerRunResumable = (event: ReadSubagentEvent) =>
+  Boolean(event.resume) && ["error", "interrupted", "running"].includes(event.status);
+
 export function resumableReadSubagents(events: readonly AssistantEvent[]) {
   const latest = new Map<string, ReadSubagentEvent>();
   for (const event of events) {
@@ -90,10 +94,8 @@ export function resumableReadSubagents(events: readonly AssistantEvent[]) {
   }
   const resumable = new Map<string, ReadSubagentCheckpoint>();
   for (const [id, event] of latest) {
-    if (!["error", "interrupted", "running"].includes(event.status)) continue;
-    const parsed = event.resume;
-    if (parsed && parsed.id === id) resumable.set(id, {
-      ...parsed,
+    if (readerRunResumable(event) && event.resume!.id === id) resumable.set(id, {
+      ...event.resume!,
       ...(event.activities && { activities: event.activities }),
     });
   }

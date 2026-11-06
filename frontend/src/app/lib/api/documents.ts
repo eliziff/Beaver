@@ -180,20 +180,18 @@ export function directoryResource(scope: DirectoryScope) {
       name,
       parent_folder_id: parentFolderId ?? null,
     });
-  const folderIds = new Map<string, string>();
-  let uploadedDirectoryFiles = new WeakSet<File>();
-  let retryParentFolderId: string | null | undefined;
+  // A directory upload that stopped part-way: asked again for the same parent, it keeps the folders made and files sent.
+  let unfinished: { parent: string | null; folderIds: Map<string, string>; uploaded: WeakSet<File> } | null = null;
   const uploadDirectory = async (
     files: File[],
     parentFolderId: string | null = null,
     onProgress?: (completed: number, total: number) => void,
   ) => {
-    if (retryParentFolderId !== parentFolderId) {
-      folderIds.clear();
-      uploadedDirectoryFiles = new WeakSet<File>();
-      retryParentFolderId = parentFolderId;
-    }
-    files = files.filter((file) => !uploadedDirectoryFiles.has(file));
+    const upload = unfinished?.parent === parentFolderId ? unfinished
+      : { parent: parentFolderId, folderIds: new Map<string, string>(), uploaded: new WeakSet<File>() };
+    unfinished = upload;
+    const { folderIds } = upload;
+    files = files.filter((file) => !upload.uploaded.has(file));
     const paths = files.map((file) => {
       const parts = (file.webkitRelativePath || file.name)
         .split(/[\\/]+/u)
@@ -225,13 +223,11 @@ export function directoryResource(scope: DirectoryScope) {
       const folderId = folderIds.get(pathByFile.get(file)?.join("/") ?? "") ??
         parentFolderId;
       const document = await uploadDocument(file, folderId);
-      uploadedDirectoryFiles.add(file);
+      upload.uploaded.add(file);
       onProgress?.(++completed, pendingFolders.length + files.length);
       return document;
     });
-    folderIds.clear();
-    uploadedDirectoryFiles = new WeakSet<File>();
-    retryParentFolderId = undefined;
+    unfinished = null;
     return documents;
   };
   return {

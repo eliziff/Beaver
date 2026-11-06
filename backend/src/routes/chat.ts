@@ -5,7 +5,6 @@ import { asyncRoute } from "../lib/asyncRoute";
 import { ChatStoreError, type ChatScope, type ChatStore } from "../lib/chatStore";
 import { ChatApplicationError, chatTurnInputSchema,
   type ChatApplication } from "../lib/chat/chatApplication";
-import { beginChatTurn, finishChatTurn } from "../lib/chatTurns";
 import type { ChatTurnQueue } from "../lib/chatTurnQueue";
 import type { PublicAssistantEvent } from "../lib/chat/assistantEvents";
 import { CODEX_THREAD_ID } from "../lib/llm/codex";
@@ -91,30 +90,31 @@ export function createChatRouter(
   ) => {
     const controller = requestAbortController(req, res);
     const emit = (event: PublicAssistantEvent) => writeSse(res, event);
-    let accepted = false, versionSent = false, chatId = initialChatId;
+    // What this stream has told the client; a re-attempt repeats chat_id and never moves it back.
+    let told = "queued" as "queued" | "accepted" | "versioned", chatId = initialChatId;
     startSse(res);
     emit({ type: "turn_queued", jobId });
     try {
       const completed = await turns.observe(scope, jobId, controller.signal, (event) => {
         if (event.type === "chat_id") {
-          accepted = true;
+          if (told === "queued") told = "accepted";
           chatId = event.chatId;
         }
-        if (event.type === "transcript_version") versionSent = true;
+        if (event.type === "transcript_version") told = "versioned";
         emit(event);
       });
       if (completed.status === "failed") emit({
         type: "error",
         message: "The assistant response stopped unexpectedly. You can retry this turn.",
         retryable: true,
-        accepted,
+        accepted: told !== "queued",
       });
       if (completed.status === "cancelled") emit(
         { type: "turn_status", status: "cancelled" });
       const result = jsonRecord(completed.result);
       if (typeof result?.chat_id === "string") chatId = result.chat_id;
       const current = chatId ? await chats.get(scope, chatId) : null;
-      if (!versionSent) emit({
+      if (told !== "versioned") emit({
         type: "transcript_version",
         transcriptVersion: current?.transcript_version ?? 0,
       });
@@ -254,24 +254,10 @@ export function createChatRouter(
   }));
 
   router.post("/:chatId/compact", route(async (req, res, scope) => {
-    if (await turns.activeJob(scope, req.params.chatId)) {
-      throw new ChatApplicationError(409, "A response is already running",
-        "chat_turn_in_progress");
-    }
-    const controller = requestAbortController(req, res);
-    let claimedChatId: string | null = null;
-    try {
-      res.json(await application.compact(scope, {
-        chatId: req.params.chatId,
-        model: text(req.body?.model, 200) || undefined,
-      }, controller.signal, (chatId) => {
-        if (!beginChatTurn(chatId, controller)) return false;
-        claimedChatId = chatId;
-        return true;
-      }));
-    } finally {
-      if (claimedChatId) finishChatTurn(claimedChatId, controller);
-    }
+    res.json(await turns.compact(scope, {
+      chatId: req.params.chatId,
+      model: text(req.body?.model, 200) || undefined,
+    }, requestAbortController(req, res).signal));
   }));
 
   router.patch("/:chatId", route(async (req, res, scope) => {

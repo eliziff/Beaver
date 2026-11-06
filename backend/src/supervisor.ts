@@ -11,9 +11,17 @@ import { createJobNotificationRelay } from "./lib/jobNotifications";
 sizeNativeThreadPool();
 
 const services = ["index", "worker"] as const;
-const children = new Map<string, ChildProcess>();
+type Service = typeof services[number];
+// A service has one process, or a restart due, and never both: "waiting" until its
+// first launch, "backoff" between an exit and the restart.
+type ServiceState =
+  | { phase: "waiting" }
+  | { phase: "running"; child: ChildProcess }
+  | { phase: "backoff"; timer: NodeJS.Timeout }
+  | { phase: "stopped" };
+const state: Record<Service, ServiceState> =
+  { index: { phase: "waiting" }, worker: { phase: "waiting" } };
 const notifications = createJobNotificationRelay();
-let stopping = false;
 
 function publishListener(child: ChildProcess) {
   const target = process.env.MIKE_SUPERVISOR_STATE_FILE;
@@ -24,18 +32,18 @@ function publishListener(child: ChildProcess) {
   renameSync(temporary, target);
 }
 
-function launch(service: typeof services[number]) {
+function launch(service: Service) {
   const child = fork(path.join(__dirname, `${service}.js`), [], {
     env: process.env,
     stdio: ["ignore", "inherit", "inherit", "ipc"],
   });
-  children.set(service, child);
+  state[service] = { phase: "running", child };
   const detachNotifications = notifications.attach(child);
   child.on("message", (message) => {
     if (service === "index" &&
         (message as { type?: unknown })?.type === "ready") {
       publishListener(child);
-      if (!children.has("worker")) launch("worker");
+      if (state.worker.phase === "waiting") launch("worker");
     }
   });
   child.once("error", (error) => console.error(
@@ -43,19 +51,22 @@ function launch(service: typeof services[number]) {
   ));
   child.once("close", (code, signal) => {
     detachNotifications();
-    if (children.get(service) === child) children.delete(service);
-    if (stopping) return;
+    if (state[service].phase === "stopped") return;
     console.error(`[supervisor] ${service} exited; restarting`, {
       code, signal,
     });
-    setTimeout(() => launch(service), 500);
+    state[service] = { phase: "backoff", timer: setTimeout(() => launch(service), 500) };
   });
 }
 
 async function stop() {
-  if (stopping) return;
-  stopping = true;
-  const active = [...children.values()];
+  if (services.every((service) => state[service].phase === "stopped")) return;
+  const active = services.flatMap((service) => {
+    const current = state[service];
+    if (current.phase === "backoff") clearTimeout(current.timer);
+    state[service] = { phase: "stopped" };
+    return current.phase === "running" ? [current.child] : [];
+  });
   active.forEach((child) => child.connected ? child.disconnect() : child.kill());
   await Promise.race([
     Promise.all(active.map((child) => child.exitCode !== null || child.signalCode !== null

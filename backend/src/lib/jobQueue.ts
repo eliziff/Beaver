@@ -141,28 +141,49 @@ export async function enqueueJob(input: {
   return queued;
 }
 
+// A row's lifecycle. `status` is its phase and the other columns qualify it:
+//   queued     a future run_at delays it.
+//   running    locked_by and locked_until are the lease; cancel_requested_at and
+//              interrupt_requested_at ask the holder to stop.
+//   succeeded, failed, cancelled    terminal: no lease and no dedupe key.
+// A row leaves `running` only through claim (lease expired), endAttempt or
+// recoverLocalJobs, and a cancel request outranks every other way out of it.
+type Clause = ReturnType<typeof sql>;
+const claimable = (at: string) => sql`((status='queued' AND run_at<=${at}) OR
+  (status='running' AND locked_until<=${at}))`;
+const heldBy = (id: string, workerId: string) => sql`id=${id} AND status='running' AND locked_by=${workerId}`;
+const unleased = sql.raw("locked_by=NULL,locked_until=NULL,interrupt_requested_at=NULL");
+const terminal = (status: Clause, at: string) =>
+  sql`status=${status},dedupe_key=NULL,${unleased},completed_at=${at},updated_at=${at}`;
+const requeued = (runAt: string, at: string) =>
+  sql`status='queued',run_at=${runAt},${unleased},updated_at=${at}`;
+const refundAttempt = sql.raw("attempts=CASE WHEN attempts>0 THEN attempts-1 ELSE 0 END");
+const CANCELLED = sql.raw("'cancelled'");
+
+/** Ends the rows no attempt can follow: a cancel they asked for ends them as cancelled. */
+async function abandon(tx: RelationalDatabase, which: Clause, at: string) {
+  const uncancelled = sql.raw("cancel_requested_at IS NULL");
+  const rows = await tx.query<{ id: string }>(sql`UPDATE application_jobs SET
+    ${terminal(sql`CASE WHEN ${uncancelled} THEN 'failed' ELSE 'cancelled' END`, at)},
+    last_error=CASE WHEN ${uncancelled} THEN 'LeaseExpired' ELSE last_error END
+    WHERE ${which} AND attempts>=max_attempts RETURNING id`);
+  for (const { id } of rows.rows) tx.notifications?.publish(`events:${id}`);
+}
+
 async function claim(workerId: string, leaseMilliseconds: number, kinds: string[]) {
   const db = await relationalDatabase(), claimedAt = now(), lockedUntil = later(leaseMilliseconds);
   return db.transaction(async (tx) => {
-    const expired = await tx.query<{ id: string }>(sql`UPDATE application_jobs SET status='failed',dedupe_key=NULL,
-      locked_by=NULL,locked_until=NULL,interrupt_requested_at=NULL,
-      last_error='LeaseExpired',completed_at=${claimedAt},updated_at=${claimedAt}
-      WHERE status='running' AND locked_until<=${claimedAt} AND attempts>=max_attempts
-      RETURNING id`);
-    for (const { id } of expired.rows) tx.notifications?.publish(`events:${id}`);
+    await abandon(tx, sql`status='running' AND locked_until<=${claimedAt}`, claimedAt);
     const locking = tx.engine === "postgres" ? sql.raw("FOR UPDATE SKIP LOCKED") : sql.raw("");
     const candidate = (await tx.query<JobRow>(sql`SELECT * FROM application_jobs
-      WHERE ((status='queued' AND run_at<=${claimedAt}) OR
-        (status='running' AND locked_until<=${claimedAt}))
+      WHERE ${claimable(claimedAt)}
         AND attempts<max_attempts AND kind IN(${sql.join(kinds)})
       ORDER BY priority DESC,run_at,created_at,id LIMIT 1 ${locking}`)).rows[0];
     if (!candidate) return null;
     const updated = (await tx.query<JobRow>(sql`UPDATE application_jobs SET
       status='running',locked_by=${workerId},locked_until=${lockedUntil},
       interrupt_requested_at=NULL,attempts=attempts+1,updated_at=${claimedAt}
-      WHERE id=${String(candidate.id)} AND
-        ((status='queued' AND run_at<=${claimedAt}) OR
-          (status='running' AND locked_until<=${claimedAt}))
+      WHERE id=${String(candidate.id)} AND ${claimable(claimedAt)}
       RETURNING *`)).rows[0];
     if (updated) tx.notifications?.publish(`events:${String(updated.id)}`);
     return updated ? job(updated) : null;
@@ -200,59 +221,53 @@ async function heartbeat(
   } catch { return { state: "unavailable" }; }
 }
 
-async function finish(id: string, workerId: string, result: Json) {
-  const db = await relationalDatabase(), timestamp = now();
-  const value = boundedJson(result, 16 * 1024, "Job result");
-  await db.transaction(async (tx) => {
-    const succeeded = (await tx.query<{ id: string }>(sql`UPDATE application_jobs SET
-      status='succeeded',result=${value},last_error=NULL,dedupe_key=NULL,
-      locked_by=NULL,locked_until=NULL,completed_at=${timestamp},updated_at=${timestamp}
-      WHERE id=${id} AND status='running' AND locked_by=${workerId}
-        AND cancel_requested_at IS NULL RETURNING id`)).rows[0];
-    if (!succeeded) await tx.query(sql`UPDATE application_jobs SET status='cancelled',
-      dedupe_key=NULL,locked_by=NULL,locked_until=NULL,completed_at=${timestamp},
-      updated_at=${timestamp} WHERE id=${id} AND status='running'
-        AND locked_by=${workerId} AND cancel_requested_at IS NOT NULL`);
-    tx.notifications?.publish(`events:${id}`);
-  });
-}
+// How an attempt ended. A worker stopped or a lease lost is "released": the job
+// is owed another attempt that this one does not pay for.
+type AttemptEnd =
+  | { end: "succeeded"; result: string }
+  | { end: "failed"; error: string }
+  | { end: "retry"; error: string; runAt: string }
+  | { end: "deferred"; runAt: string }
+  | { end: "released" };
 
-async function completeCancellation(id: string, workerId: string) {
-  const timestamp = now();
-  const db = await relationalDatabase();
-  await db.query(sql`UPDATE application_jobs SET
-    status='cancelled',dedupe_key=NULL,locked_by=NULL,locked_until=NULL,
-    completed_at=${timestamp},updated_at=${timestamp}
-    WHERE id=${id} AND status='running' AND locked_by=${workerId}
-      AND cancel_requested_at IS NOT NULL`);
-  db.notifications?.publish(`events:${id}`);
-}
-
-async function release(id: string, workerId: string, kind: string) {
-  const db = await relationalDatabase(), timestamp = now();
-  await db.query(sql`UPDATE application_jobs SET status='queued',run_at=${timestamp},
-    attempts=CASE WHEN attempts>0 THEN attempts-1 ELSE 0 END,
-    locked_by=NULL,locked_until=NULL,interrupt_requested_at=NULL,updated_at=${timestamp}
-    WHERE id=${id} AND status='running' AND locked_by=${workerId}`);
-  db.notifications?.publish(`queue:${kind}`);
-  db.notifications?.publish(`events:${id}`);
-}
-
-async function fail(job: ApplicationJob, workerId: string, error: unknown) {
-  const db = await relationalDatabase(), timestamp = now();
-  const deferred = error instanceof DeferredJobError;
-  const exhausted = !deferred && (error instanceof PermanentJobError || job.attempts >= job.maxAttempts);
-  const delay = Math.min(60_000, 2_000 * (2 ** Math.max(0, job.attempts - 1)));
+function attemptFailed(job: ApplicationJob, error: unknown): AttemptEnd {
+  if (error instanceof DeferredJobError) return { end: "deferred",
+    runAt: later(Math.max(1000, Math.min(error.delayMilliseconds, 3_600_000))) };
+  const exhausted = error instanceof PermanentJobError || job.attempts >= job.maxAttempts;
   const category = errorCategory(error);
-  if (!deferred) console.warn("[job] attempt failed", { job: job.id, kind: job.kind, attempt: job.attempts, error: category, exhausted });
-  await db.query(sql`UPDATE application_jobs SET status=${exhausted ? "failed" : "queued"},
-    run_at=${later(deferred ? Math.max(1000, Math.min(error.delayMilliseconds, 3_600_000)) : delay)},
-    attempts=attempts-${deferred ? 1 : 0},last_error=${deferred ? null : category},locked_by=NULL,locked_until=NULL,
-    interrupt_requested_at=NULL,dedupe_key=${exhausted ? null : job.dedupeKey},
-    completed_at=${exhausted ? timestamp : null},updated_at=${timestamp}
-    WHERE id=${job.id} AND status='running' AND locked_by=${workerId}`);
-  db.notifications?.publish(`events:${job.id}`);
-  if (!exhausted) db.notifications?.publish(`queue:${job.kind}`);
+  console.warn("[job] attempt failed", { job: job.id, kind: job.kind, attempt: job.attempts, error: category, exhausted });
+  return exhausted ? { end: "failed", error: category } : { end: "retry", error: category,
+    runAt: later(Math.min(60_000, 2_000 * (2 ** Math.max(0, job.attempts - 1)))) };
+}
+
+async function endAttempt(job: ApplicationJob, workerId: string, attempt: AttemptEnd) {
+  const held = heldBy(job.id, workerId), at = now();
+  await (await relationalDatabase()).transaction(async (tx) => {
+    const lock = tx.engine === "postgres" ? sql.raw("FOR UPDATE") : sql.raw("");
+    const row = (await tx.query<JobRow>(sql`SELECT cancel_requested_at FROM application_jobs
+      WHERE ${held} ${lock}`)).rows[0];
+    const update = (set: Clause) => tx.query(sql`UPDATE application_jobs SET ${set} WHERE ${held}`);
+    if (row?.cancel_requested_at) await update(terminal(CANCELLED, at));
+    else if (row) switch (attempt.end) {
+      case "succeeded":
+        await update(sql`${terminal(sql.raw("'succeeded'"), at)},result=${attempt.result},last_error=NULL`);
+        break;
+      case "failed":
+        await update(sql`${terminal(sql.raw("'failed'"), at)},last_error=${attempt.error}`);
+        break;
+      case "retry":
+        await update(sql`${requeued(attempt.runAt, at)},last_error=${attempt.error}`);
+        break;
+      case "deferred":
+        await update(sql`${requeued(attempt.runAt, at)},${refundAttempt},last_error=NULL`);
+        break;
+      case "released":
+        await update(sql`${requeued(at, at)},${refundAttempt}`);
+    }
+    tx.notifications?.publish(`events:${job.id}`);
+    if (!row?.cancel_requested_at && !["succeeded", "failed"].includes(attempt.end))
+      tx.notifications?.publish(`queue:${job.kind}`);
+  });
 }
 
 const abortActive = (ids: ReadonlySet<string>) => {
@@ -271,16 +286,15 @@ export async function interruptJobs(groupKey: string, belowPriority: number) {
   abortActive(new Set(rows.map(({ id }) => id)));
 }
 
-async function cancelMatching(match: ReturnType<typeof sql>, userId: string) {
+async function cancelMatching(match: Clause, userId: string) {
   const db = await relationalDatabase(), timestamp = now();
-  const rows = (await db.query<JobRow>(sql`UPDATE application_jobs SET
-    status=CASE WHEN status='queued' THEN 'cancelled' ELSE status END,
-    cancel_requested_at=${timestamp},
-    dedupe_key=CASE WHEN status='queued' THEN NULL ELSE dedupe_key END,
-    completed_at=CASE WHEN status='queued' THEN ${timestamp} ELSE completed_at END,
-    updated_at=${timestamp}
-    WHERE ${match} AND user_id=${bounded(userId, 200, "Job user")}
-      AND status IN('queued','running') RETURNING *`)).rows;
+  const owned = sql`${match} AND user_id=${bounded(userId, 200, "Job user")}`;
+  const rows = await db.transaction(async (tx) => [
+    ...(await tx.query<JobRow>(sql`UPDATE application_jobs SET ${terminal(CANCELLED, timestamp)},
+      cancel_requested_at=${timestamp} WHERE ${owned} AND status='queued' RETURNING *`)).rows,
+    ...(await tx.query<JobRow>(sql`UPDATE application_jobs SET cancel_requested_at=${timestamp},
+      updated_at=${timestamp} WHERE ${owned} AND status='running' RETURNING *`)).rows,
+  ]);
   const cancelled = new Set(rows.map((row) => String(row.id)));
   for (const id of cancelled) {
     db.notifications?.publish(`control:${id}`);
@@ -300,13 +314,6 @@ export async function requestGroupCancellation(groupKey: string, userId: string)
     sql`group_key=${bounded(groupKey, 500, "Job group")}`, userId)).length;
 }
 
-async function jobCancellationRequested(id: string, workerId: string) {
-  const row = (await (await relationalDatabase()).query<{ id: string }>(sql`
-    SELECT id FROM application_jobs WHERE id=${id} AND status='running'
-      AND locked_by=${workerId} AND cancel_requested_at IS NOT NULL`)).rows[0];
-  return !!row;
-}
-
 export async function activeJobForGroup(groupKey: string, userId: string) {
   const db = await relationalDatabase();
   const row = (await db.query<JobRow>(sql`SELECT * FROM application_jobs
@@ -321,12 +328,11 @@ export async function recoverLocalJobs() {
   if (db.engine !== "sqlite") return 0;
   const timestamp = now();
   return db.transaction(async (tx) => {
-    await tx.query(sql`UPDATE application_jobs SET status='cancelled',dedupe_key=NULL,
-      locked_by=NULL,locked_until=NULL,completed_at=${timestamp},updated_at=${timestamp}
+    await tx.query(sql`UPDATE application_jobs SET ${terminal(CANCELLED, timestamp)}
       WHERE status='running' AND cancel_requested_at IS NOT NULL`);
-    return (await tx.query(sql`UPDATE application_jobs SET status='queued',
-      run_at=${timestamp},locked_by=NULL,locked_until=NULL,
-      interrupt_requested_at=NULL,updated_at=${timestamp}
+    // A job on its last attempt has none to be queued for; no worker would ever claim it.
+    await abandon(tx, sql.raw("status IN('queued','running')"), timestamp);
+    return (await tx.query(sql`UPDATE application_jobs SET ${requeued(timestamp, timestamp)}
       WHERE status='running'`)).changes;
   });
 }
@@ -455,12 +461,12 @@ export function startJobWorker(
   const workerId = randomUUID(), kinds = Object.keys(handlers);
   const lease = options.leaseMilliseconds ?? JOB_LEASE_MS;
   const renewEvery = options.heartbeatMilliseconds ?? JOB_HEARTBEAT_MS;
-  let stopping = false;
   const shutdown = new AbortController();
+  const stopping = () => shutdown.signal.aborted;
   const execute = async (next: ApplicationJob) => {
     const handler = handlers[next.kind];
     const controller = new AbortController();
-    if (next.cancelRequested || stopping) controller.abort();
+    if (next.cancelRequested || stopping()) controller.abort();
     activeJobs.set(workerId, { job: next, controller });
     if (next.attempts > 1) console.warn("[job] re-attempt", {
       job: next.id, kind: next.kind, attempt: next.attempts, worker: workerId,
@@ -502,12 +508,7 @@ export function startJobWorker(
     }, renewEvery);
     pulse.unref();
     const stopRenewal = () => { settled = true; clearInterval(pulse); };
-    const releaseOrCancel = async () => {
-      if (!stopping && controller.signal.aborted &&
-          await jobCancellationRequested(next.id, workerId))
-        await completeCancellation(next.id, workerId);
-      else await release(next.id, workerId, next.kind);
-    };
+    const stopped = () => stopping() || controller.signal.aborted;
     try {
       controller.signal.throwIfAborted();
       if (!handler) throw new Error("UnknownJobKind");
@@ -534,13 +535,12 @@ export function startJobWorker(
         checkpoint,
       });
       stopRenewal();
-      if (stopping || controller.signal.aborted) await releaseOrCancel();
-      else await finish(next.id, workerId, result);
+      await endAttempt(next, workerId, stopped() ? { end: "released" }
+        : { end: "succeeded", result: boundedJson(result, 16 * 1024, "Job result") });
     } catch (error) {
       // The handler has ended: releasing the lease here is not losing it.
       stopRenewal();
-      if (stopping || controller.signal.aborted) await releaseOrCancel();
-      else await fail(next, workerId, error);
+      await endAttempt(next, workerId, stopped() ? { end: "released" } : attemptFailed(next, error));
     } finally {
       stopRenewal();
       controlStop.abort(); controls.close();
@@ -553,7 +553,7 @@ export function startJobWorker(
     const changes = watchJobChanges(db.notifications, kinds.map((kind) => `queue:${kind}`));
     let nextPruneAt = 0, failures = 0;
     try {
-      while (!stopping) {
+      while (!stopping()) {
         const version = changes.version;
         try {
           if (Date.now() >= nextPruneAt) {
@@ -565,7 +565,7 @@ export function startJobWorker(
           else await changes.wait(version, shutdown.signal);
           failures = 0;
         } catch (error) {
-          if (!stopping) {
+          if (!stopping()) {
             failures += 1;
             console.error("[jobs] worker cycle failed", { error: errorCategory(error), failures });
             // A failure that persists waits longer each time, and queue notifications do not cut that short.
@@ -577,7 +577,6 @@ export function startJobWorker(
   })();
   return {
     async stop() {
-      stopping = true;
       shutdown.abort();
       activeJobs.get(workerId)?.controller.abort();
       await active;

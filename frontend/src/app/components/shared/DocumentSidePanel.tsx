@@ -141,7 +141,7 @@ export function DocumentSidePanel({
     const { doc, versions, currentId, current, selected, selectedId, priorCurrent, history,
         close: onClose } = controller;
     const pendingAction = history?.pendingAction, actionError = history?.actionError;
-    const versionsLoading = history?.loading, versionsError = history?.error;
+    const versionsLoading = history?.listing === "running", versionsError = history?.listing === "failed";
     const [visibleVersionCount, setVisibleVersionCount] = useState(VERSION_PAGE);
     const [expandedReader, setExpandedReader] = useState(false);
     const [narrowDetailsOpen, setNarrowDetailsOpen] = useState(false);

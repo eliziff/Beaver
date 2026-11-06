@@ -738,7 +738,7 @@ export const documentRepository: DocumentRepository = {
   },
   async removeOrphan(key, claimId, remove) {
     const db = await relationalDatabase();
-    let failure: unknown, failed = false;
+    let failed: { error: unknown } | undefined;
     const removed = await db.transaction(async (tx) => {
       if (!await one(sql`SELECT 1 ok FROM object_cleanup c
         WHERE c.storage_path=${key} AND c.claim_id=${claimId}
@@ -762,7 +762,7 @@ export const documentRepository: DocumentRepository = {
       }
       try { await remove(); }
       catch (error) {
-        failed = true; failure = error;
+        failed = { error };
         await changes(sql`UPDATE object_cleanup SET claim_id=NULL,claimed_at=NULL,created_at=${now()}
           WHERE storage_path=${key} AND claim_id=${claimId}`, tx);
         return false;
@@ -770,7 +770,7 @@ export const documentRepository: DocumentRepository = {
       return await changes(sql`DELETE FROM object_cleanup
         WHERE storage_path=${key} AND claim_id=${claimId}`, tx) > 0;
     });
-    if (failed) throw failure;
+    if (failed) throw (failed as { error: unknown }).error;
     return removed;
   },
   async pendingOrphans(limit = 100) {

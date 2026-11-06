@@ -17,6 +17,11 @@ export function assertResearchChangeBase(changes: ResearchChangeField[],
     throw new ApplicationError(409, "An affected value changed. Review its latest state before applying this change.",
       { code: "revision_conflict" });
 }
+/** A change is pending until accepted or rejected, and only an applied one can be undone. */
+export const researchChangeOpen = (change: ResearchChange, action: "accept" | "reject" | "undo") =>
+  change.status === (action === "undo" ? "applied" : "pending");
+export const resolveResearchChange = (change: ResearchChange, status: "applied" | "rejected", userId: string) =>
+  Object.assign(change, { status, resolvedBy: userId, resolvedAt: new Date().toISOString() });
 export const researchChangeSummary = ({ id, title, createdAt, executor, model, counts }: ResearchChange): ResearchChangeSummary =>
   ({ id, title, createdAt, executor, ...(model && { model }), counts });
 export const researchChangeCounts = (changes: ResearchChangeField[]) => {

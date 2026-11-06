@@ -21,7 +21,7 @@ export function useReaderExpansion(target: RefObject<HTMLElement | null>, enable
     }, [target]);
     if (!enabled && fallbackFullscreen) setFallbackFullscreen(false);
     useEffect(() => {
-        if (!enabled && document.fullscreenElement === target.current) void document.exitFullscreen();
+        if (!enabled && target.current && document.fullscreenElement === target.current) void document.exitFullscreen();
     }, [enabled, target]);
     async function expandReader(next: boolean) {
         if (next) restoreScroll.current = preserveReaderScroll(target.current);

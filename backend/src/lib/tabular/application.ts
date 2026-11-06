@@ -381,13 +381,16 @@ export function createTabularApplication(
   }
 
 
-  const cellWrite = async (scope: TabularScope, cell: TabularCell,
-    status: TabularCell["status"], content: TabularCellContent | null, expectedReviewVersion?: string,
-    operation?: TabularOperation) => value(
+  /** A cell runs pending, generating, then done or error; a stopped run returns it to pending and clearing empties it. */
+  type CellStep = { to: "generating" | "error" | "pending" | "cleared" } | { to: "done"; content: TabularCellContent };
+  const cellWrite = async (scope: TabularScope, cell: TabularCell, step: CellStep,
+    expectedReviewVersion?: string, operation?: TabularOperation) => value(
       await store.setCell(scope, { reviewId: cell.review_id, documentId: cell.document_id,
         columnIndex: cell.column_index, expected: { status: cell.status, content: cell.content,
           ...(typeof cell.updated_at === "string" ? { updated_at: cell.updated_at } : {}) },
-        status, content, expectedReviewVersion, operation }), "Cell");
+        status: step.to === "cleared" ? "pending" : step.to,
+        content: step.to === "done" ? step.content : step.to === "cleared" ? null : cell.content,
+        expectedReviewVersion, operation }), "Cell");
 
 
   /** One organizing step for every hand-off: the model creates the structure; a rejected proposal gets one corrected attempt. */
@@ -438,7 +441,7 @@ export function createTabularApplication(
     for (const column of pending) {
       const key = `${item.id}:${column.index}`, current = cells.get(key);
       if (!current) return fail(404, "Cell not found");
-      const changed = await cellWrite(scope, current, "generating", current.content, reviewVersion, operation(current));
+      const changed = await cellWrite(scope, current, { to: "generating" }, reviewVersion, operation(current));
       cells.set(key, changed);
     }
     let received: Set<number>;
@@ -465,7 +468,7 @@ export function createTabularApplication(
         columns: pending, signal, accept: async (index, result) => {
           const key = `${item.id}:${index}`, current = cells.get(key)!;
           throwIfAborted(signal);
-          const changed = await cellWrite(scope, current, "done", result, reviewVersion, operation(current));
+          const changed = await cellWrite(scope, current, { to: "done", content: result }, reviewVersion, operation(current));
           cells.set(key, changed);
           await dependencies.audit({ userId: scope.userId, userEmail: scope.userEmail,
             action: "tabular.cell", surface: "tabular", reviewId: current.review_id, model,
@@ -478,9 +481,7 @@ export function createTabularApplication(
       for (const column of pending) {
         const key = `${item.id}:${column.index}`, current = cells.get(key)!;
         if (current.status !== "generating") continue;
-        const changed = await cellWrite(
-          scope, current, signal?.aborted ? "pending" : "error", current.content, reviewVersion, operation(current),
-        )
+        const changed = await cellWrite(scope, current, { to: signal?.aborted ? "pending" : "error" }, reviewVersion, operation(current))
           .catch(() => null);
         if (changed) cells.set(key, changed);
       }
@@ -488,7 +489,7 @@ export function createTabularApplication(
     }
     for (const column of pending) if (!received.has(column.index)) {
       const key = `${item.id}:${column.index}`, current = cells.get(key)!;
-      const changed = await cellWrite(scope, current, "error", current.content, reviewVersion, operation(current));
+      const changed = await cellWrite(scope, current, { to: "error" }, reviewVersion, operation(current));
       cells.set(key, changed);
     }
   }
@@ -562,9 +563,16 @@ export function createTabularApplication(
       return review;
     },
     async detail(scope: TabularScope, reviewId: string) {
-      const detail = await resolvedDetail(scope, reviewId);
-      return { ...detail, review: { ...detail.review,
-        is_running: await running(detail.review) },
+      let detail = await resolvedDetail(scope, reviewId);
+      const is_running = await running(detail.review);
+      // A run writes "generating" before it works, so a killed attempt leaves it behind with
+      // nothing left to finish it. The run may instead have ended since the cells were read.
+      if (!is_running && detail.cells.some(({ status }) => status === "generating")) {
+        detail = await resolvedDetail(scope, reviewId);
+        detail = { ...detail, cells: detail.cells.map((cell) =>
+          cell.status === "generating" ? { ...cell, status: "error" as const } : cell) };
+      }
+      return { ...detail, review: { ...detail.review, is_running },
       documents: await subjectDocuments(scope, detail.review) };
     },
     async export(scope: TabularScope, reviewId: string) {
@@ -688,7 +696,7 @@ export function createTabularApplication(
         (input.column_index === undefined || cell.column_index === input.column_index) &&
         !mappedCell(detail.review.scope_config, cell.document_id, cell.column_index) &&
         (cell.status !== "pending" || cell.content !== null))
-        await cellWrite(scope, cell, "pending", null, detail.review.updated_at, { executor: "human", title: "Clear table answer" });
+        await cellWrite(scope, cell, { to: "cleared" }, detail.review.updated_at, { executor: "human", title: "Clear table answer" });
     },
     async designResearch(scope: TabularScope, catalog: ResearchImportCatalog, request: string,
       options: ProposalOptions = {}) {

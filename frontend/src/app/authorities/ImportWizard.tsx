@@ -217,7 +217,7 @@ export function ImportWizard({ file, host, draft, remembered, jurisdictionOrder,
     { profileId, sourceMode: settings.sourceMode, passageMarking: settings.passageMarking },
     (["cover", "index"] as const).flatMap((slot) => book && own[slot].own && own[slot].chosen ? [[slot, own[slot].chosen!] as const] : []));
   // A brief that could not be read stops the import where it is: its error shows and the steps stay usable.
-  const busy = finishing && !error;
+  const busy = finishing;
   const front = previewBook();
   const frontActions = importActions(front.state, profileId, settings, shownCover, PREVIEW_KEYS);
   const steps: readonly string[] = book ? BOOK_STEPS : TABLE_STEPS, at = Math.min(step, steps.length - 1), name = steps[at];

@@ -13,10 +13,11 @@ export { sql, type QueryResult, type RelationalDatabase, type SqlStatement,
   type SqlValue, decodeJson, encodeJson } from "./relational";
 
 function postgresNotifications(client: PostgresClient, listener: PostgresClient) {
-  let listening = false, closed = false, warned = false;
-  let retry: NodeJS.Timeout | undefined;
+  // The LISTEN connection: idle until a subscriber asks for it, then listening, or waiting to try again.
+  let link = { phase: "idle" } as { phase: "idle" | "listening" | "closed" } | { phase: "waiting"; retry: NodeJS.Timeout };
+  let warned = false;
   const unavailable = () => {
-    if (!warned && !closed) console.warn("[jobs] notification connection unavailable; using durable fallback reads");
+    if (!warned && link.phase !== "closed") console.warn("[jobs] notification connection unavailable; using durable fallback reads");
     warned = true;
   };
   const outgoing = createJobNotificationSender((message, done) => {
@@ -26,16 +27,16 @@ function postgresNotifications(client: PostgresClient, listener: PostgresClient)
   });
   const bus = createJobNotifications(outgoing.send);
   const listen = () => {
-    if (listening || closed) return;
-    listening = true;
+    if (link.phase === "listening" || link.phase === "closed") return;
+    if (link.phase === "waiting") clearTimeout(link.retry);
+    link = { phase: "listening" };
     void listener.listen("beaver_jobs", (payload) => {
       if (payload.length > 8_000) return;
       try { bus.receiveMessage(JSON.parse(payload)); } catch { /* Ignore malformed hints. */ }
     }, () => { warned = false; bus.receive(null); }).catch(() => {
-      listening = false;
-      if (closed) return;
+      if (link.phase === "closed") return;
       unavailable();
-      retry = setTimeout(listen, 5_000); retry.unref();
+      link = { phase: "waiting", retry: setTimeout(listen, 5_000).unref() };
     });
   };
   return {
@@ -46,7 +47,8 @@ function postgresNotifications(client: PostgresClient, listener: PostgresClient)
       return unsubscribe;
     },
     async close() {
-      closed = true; if (retry) clearTimeout(retry); outgoing.close();
+      if (link.phase === "waiting") clearTimeout(link.retry);
+      link = { phase: "closed" }; outgoing.close();
       if (listener !== client) await listener.end({ timeout: 1 });
     },
   };

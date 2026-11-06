@@ -7,9 +7,12 @@ import type { AuthoritiesProduct } from "./types";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[]; priorityPages?: number[]; demand?: string };
-/** `pages` is the pass being read now (empty for the whole PDF); `recognized` is what it has finished. */
-export type SourceOcrStatus = ScannedPdf & { documentId?: string; pages?: number[]; recognized: number;
-  error?: string; waiting?: boolean; state: "running" | "paused" | "cancelled" | "done" | "failed" };
+/** `pages` is the pass being read now (empty for the whole PDF); `recognized` is what it has finished. Asked for, a
+ *  source is starting; once the host has it, it waits behind other sources or runs. */
+export type SourceOcrStatus = ScannedPdf & { documentId?: string; pages?: number[]; recognized: number; error?: string;
+  state: "starting" | "waiting" | "running" | "paused" | "cancelled" | "done" | "failed" };
+const polled = ({ state }: SourceOcrStatus) => state === "waiting" || state === "running";
+export const recognizing = (status?: SourceOcrStatus) => !!status && (status.state === "starting" || polled(status) || status.state === "paused");
 
 /** What a step needs to watch and steer recognition, without owning it. */
 export type SourceOcrPanel = Pick<ReturnType<typeof useSourceOcr>, "tracked" | "begin" | "stop">;
@@ -32,13 +35,13 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     setTracked((current) => ({ ...current, ...Object.fromEntries(files.map((file) =>
       [file.role, { ...current[file.role], ...file, recognized: current[file.role]?.sourceSha256 === file.sourceSha256
         ? current[file.role].recognized : 0,
-        state: "running" as const, pages: pages ?? [], error: undefined }])) }));
+        state: "starting" as const, pages: pages ?? [], error: undefined }])) }));
     await (pending.current = pending.current.then(async () => (await Promise.all(files.filter(file => operations.current.get(file.role) === operation).map(file => {
       const selection = pages ?? file.priorityPages;
       return port.start(draftId, [file.role], selection?.length ? selection : undefined, {[file.role]:file.textlessPages});
     }))).flat())
       .then((started) => update(Object.fromEntries(started.map((item) => [item.role,
-        { documentId: item.documentId, ...(item.done ? { state: "done" as const } : {}) }]))))
+        { documentId: item.documentId, state: item.done ? "done" as const : "running" as const }]))))
       .catch((error: Error) => update(Object.fromEntries(files.map(({ role }) =>
         [role, { state: "failed" as const, error: error.message }])))));
   }, [draftId, merge, port]);
@@ -57,7 +60,7 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
   }, [draftId, merge, port]);
 
   const watching = Object.values(tracked)
-    .flatMap(({ state, documentId }) => state === "running" && documentId ? [documentId] : [])
+    .flatMap((item) => polled(item) && item.documentId ? [item.documentId] : [])
     .sort().join(",");
   useEffect(() => {
     if (!port || !watching) return;
@@ -73,20 +76,19 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
       setTracked((current) => {
         let changed = false;
         const next = Object.fromEntries(Object.entries(current).map(([role, item]) => {
-          const state = requested.get(role) === operations.current.get(role) && item.state === "running" && item.documentId
+          const state = requested.get(role) === operations.current.get(role) && polled(item) && item.documentId
             ? states.get(item.documentId) : undefined;
           if (!state) return [role, item];
           // A pass is opaque while it runs, so pages count as recognized only once it ends:
           // the cited pages when the whole-PDF pass takes over, the whole PDF when it finishes.
           const updated: SourceOcrStatus = { ...item, pages: state.pages ?? [], error: state.error,
-            waiting: !state.done && !!state.waiting,
             recognized: state.recognized ?? (state.done ? state.pages?.length
               ? Math.max(item.recognized, item.textlessPages.filter(page => state.pages!.includes(page)).length)
               : item.textlessPages.length
               : state.pages?.length ? item.recognized
                 : Math.max(item.recognized, item.pages?.length ?? 0)),
-            state: state.done ? "done" : state.error ? "failed" : "running" };
-          const same = updated.state === item.state && updated.error === item.error && updated.waiting === item.waiting &&
+            state: state.done ? "done" : state.error ? "failed" : state.waiting ? "waiting" : "running" };
+          const same = updated.state === item.state && updated.error === item.error &&
             updated.recognized === item.recognized && updated.pages!.join() === (item.pages ?? []).join();
           if (!same) changed = true;
           return [role, same ? item : updated];

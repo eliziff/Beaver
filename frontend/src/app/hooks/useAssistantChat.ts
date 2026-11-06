@@ -64,7 +64,8 @@ type TurnTransport = {
   controller: AbortController;
   chatId?: string;
   jobId?: string;
-  rejected: boolean;
+  /** Sent; accepted, so the server holds the turn whatever becomes of this stream; or refused in the stream. */
+  phase: "sending" | "accepted" | "refused";
 };
 
 const CHAT_COMMAND_HELP = [
@@ -148,9 +149,9 @@ export function useAssistantChat({
     transportRef.current?.controller.abort();
   }, []);
 
-  const startTransport = useCallback((runId: string, chatId?: string) => {
+  const startTransport = useCallback((runId: string, chatId?: string, phase: TurnTransport["phase"] = "sending") => {
     transportRef.current?.controller.abort();
-    const transport: TurnTransport = { runId, chatId, controller: new AbortController(), rejected: false };
+    const transport: TurnTransport = { runId, chatId, controller: new AbortController(), phase };
     transportRef.current = transport;
     return transport;
   }, []);
@@ -216,7 +217,7 @@ export function useAssistantChat({
             setChatTurnInProgress?.(event.chatId, true);
           }
         }
-        if (event.type === "error" && event.accepted === false) transport.rejected = true;
+        if (event.type === "error" && event.accepted === false) transport.phase = "refused";
         post({ type: "protocol", runId, chatId: eventChatId, event });
       },
     });
@@ -230,7 +231,7 @@ export function useAssistantChat({
     baselineVersion: number,
     after?: Promise<unknown>,
   ) => {
-    const transport = startTransport(`durable:${targetChatId}`, targetChatId);
+    const transport = startTransport(`durable:${targetChatId}`, targetChatId, "accepted");
     const { signal } = transport.controller;
     void (async () => {
       let seenVersion = baselineVersion;
@@ -378,7 +379,7 @@ export function useAssistantChat({
     const { controller } = transport;
     dispatch({ type: "run_started", runId, chatId: current.chatId, message, options: turnOptions });
     if (current.chatId) setChatTurnInProgress?.(current.chatId, true);
-    let durablyQueued = false;
+    const refused = () => transport.phase === "refused";
     const complete = async (finalChatId = transport.chatId) => {
       controller.signal.throwIfAborted();
       dispatch({ type: "run_finished", runId });
@@ -499,12 +500,12 @@ export function useAssistantChat({
         }
         throw new Error("request failed");
       }
-      durablyQueued = true;
+      transport.phase = "accepted";
       const result = await consume(response, transport);
       if (!result.sawDone || !result.sawTranscriptVersion) {
         throw new Error("truncated response");
       }
-      if (transport.rejected) {
+      if (refused()) {
         const rejectedChatId = result.chatId ?? current.chatId;
         dispatch({
           type: "run_failed",
@@ -523,13 +524,14 @@ export function useAssistantChat({
     } catch (error) {
       let targetChatId = transport.chatId;
       if (controller.signal.aborted) return null;
-      if (durablyQueued && transport.jobId && !targetChatId) {
+      const accepted = transport.phase !== "sending";
+      if (accepted && transport.jobId && !targetChatId) {
         try {
           const response = await streamChatJob(transport.jobId, controller.signal);
           if (response.ok) {
             const result = await consume(response, transport, true);
             if (result.sawDone && result.sawTranscriptVersion) {
-              if (transport.rejected) dispatch({ type: "run_failed", runId,
+              if (refused()) dispatch({ type: "run_failed", runId,
                 removeOptimistic: true,
                 rejected: { message: userMessage(message), options: turnOptions } });
               else return complete();
@@ -550,7 +552,7 @@ export function useAssistantChat({
             observeTurn(targetChatId, version);
             return null;
           }
-          if (durablyQueued) return null;
+          if (accepted) return null;
         } catch {
           // Fall through to the bounded transport failure.
         }
@@ -565,7 +567,7 @@ export function useAssistantChat({
         type: "run_failed",
         runId,
         message: failure,
-        ...(durablyQueued ? {} : {
+        ...(accepted ? {} : {
           removeOptimistic: true,
           rejected: { message: userMessage(message), options: turnOptions },
         }),

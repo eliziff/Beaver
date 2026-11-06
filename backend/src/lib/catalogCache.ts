@@ -31,18 +31,18 @@ export function createCatalogCache<T extends { source: "live" | "unavailable" },
   probe: (input: I) => Promise<T>, empty: T, options?: { ttlMs?: number },
 ) {
   const ttlMs = options?.ttlMs ?? 300_000;
-  let known: T | undefined, checkedAt = 0, checkedLive = false, inflight: Promise<T> | null = null;
+  let known: T | undefined, checkedAt = 0, inflight: Promise<T> | null = null;
   // A probe that fails (or answers `unavailable`) is retried after a short
   // backoff, not trusted for the whole TTL: one slow boot under load must not
   // pin the catalogue to its fallback for hours.
-  const stale = () => Date.now() - checkedAt > (checkedLive ? ttlMs : 30_000);
+  const stale = () => Date.now() - checkedAt > (known?.source === "live" ? ttlMs : 30_000);
   const refresh = (input: I) => {
     checkedAt = Date.now();
     return inflight ??= probe(input)
-      .then((value) => { known = value; checkedLive = value.source === "live"; return value; })
+      .then((value) => { known = value; return value; })
       .catch(() => {
         const value = { ...(known ?? empty), source: "unavailable" as const } as T;
-        known = value; checkedLive = false;
+        known = value;
         return value;
       })
       .finally(() => { inflight = null; });

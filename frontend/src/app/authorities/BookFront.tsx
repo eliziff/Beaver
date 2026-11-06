@@ -277,27 +277,30 @@ export function FrontPreview({ host, draft, actions, part, label, className }: {
   const [shown, setShown] = useState<{ bytes?: Uint8Array; error?: string }>(() => ({ bytes: fronts.get(key) }));
   const latest = useRef({ key, draft, actions }), [again, setAgain] = useState(0);
   latest.current = { key, draft, actions };
-  const asking = useRef<{ timer?: number; running: boolean; drawn: string; stop: AbortController }>(
-    { running: false, drawn: "", stop: new AbortController() });
+  const asking = useRef<{ phase: { name: "idle" } | { name: "waiting"; timer: number } | { name: "drawing" };
+    drawn: string; stop: AbortController }>({ phase: { name: "idle" }, drawn: "", stop: new AbortController() });
   useEffect(() => {
     const state = asking.current, stop = new AbortController();
     state.stop = stop;
-    return () => { clearTimeout(state.timer); state.timer = undefined; stop.abort(); };
+    return () => {
+      if (state.phase.name === "waiting") { clearTimeout(state.phase.timer); state.phase = { name: "idle" }; }
+      stop.abort();
+    };
   }, []);
   useEffect(() => {
     const state = asking.current;
-    if (!draft || !host.bookFront || state.running || state.timer || key === state.drawn) return;
+    if (!draft || !host.bookFront || state.phase.name !== "idle" || key === state.drawn) return;
     const kept = fronts.get(key);
     if (kept) { state.drawn = key; setShown({ bytes: kept }); return; }
-    state.timer = window.setTimeout(() => {
+    state.phase = { name: "waiting", timer: window.setTimeout(() => {
       const asked = latest.current;
-      state.timer = undefined; state.running = true;
+      state.phase = { name: "drawing" };
       void drawFront(host, asked.draft!, asked.actions, state.stop.signal).then((bytes) => setShown({ bytes }))
         .catch((error) => { if (!state.stop.signal.aborted) setShown((current) => ({ ...current,
           error: errorMessage(error, "The preview could not be drawn.") })); })
-        .finally(() => { state.running = false; state.drawn = asked.key;
+        .finally(() => { state.phase = { name: "idle" }; state.drawn = asked.key;
           if (!state.stop.signal.aborted && latest.current.key !== asked.key) setAgain((value) => value + 1); });
-    }, 0);
+    }, 0) };
   }, [key, again]); // eslint-disable-line react-hooks/exhaustive-deps
   return <Preview className={className} label={`Preview: ${label}`}>
     {shown?.error && !shown.bytes ? <p role="alert" className="m-auto p-6 text-center text-sm text-red-800">{shown.error}</p>

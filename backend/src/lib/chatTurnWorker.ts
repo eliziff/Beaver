@@ -16,14 +16,41 @@ const CLIENT_TOOL_TIMEOUT_MS = 90_000;
 
 type ChatTurnRequest = { chatId?: string; scope: ChatScope;
   input: ReturnType<typeof chatTurnInputSchema.parse>; continuationId?: string; memoryContextKey?: string | null };
+const jobScope = (job: ApplicationJob): ChatScope => {
+  const email = jsonRecord(job.payload)?.user_email;
+  return { userId: job.userId, ...(typeof email === "string" ? { userEmail: email } : {}) };
+};
 function request(job: ApplicationJob): ChatTurnRequest | null {
   const payload = jsonRecord(job.payload), parsed = chatTurnInputSchema.safeParse(payload?.input);
   if (!parsed.success) return null;
   const progress = jsonRecord(job.progress), continuation = progress?.continuation_id;
   return { input: parsed.data, memoryContextKey: typeof progress?.memory_context_key === "string" ? progress.memory_context_key : null, ...(parsed.data.chat_id ? { chatId: parsed.data.chat_id } : {}),
-    scope: { userId: job.userId, ...(typeof payload?.user_email === "string"
-      ? { userEmail: payload.user_email } : {}) },
+    scope: jobScope(job),
     ...(typeof continuation === "string" ? { continuationId: continuation } : {}) };
+}
+
+// A job's hold on its turn. The job slot closes before cleanup, so nothing late
+// from a provider reaches the job or the next turn on this chat.
+type TurnSlot =
+  | { phase: "preparing" }
+  | { phase: "claimed"; chatId: string; commands: Promise<void> }
+  | { phase: "closed" };
+
+/** Compaction runs in the chat's job slot, whose dedupe key keeps turns out of it. */
+async function compactionJob(application: ChatApplication, job: ApplicationJob,
+  input: { chatId: string; model?: string }, signal: AbortSignal) {
+  const events = await createJobEventWriter(job.id);
+  try {
+    const { compacted: _compacted, transcriptVersion, ...details } =
+      await application.compact(jobScope(job), input, signal);
+    events.append({ type: "compaction", status: "completed", ...details });
+    await events.flush();
+    return { transcript_version: transcriptVersion };
+  } catch (error) {
+    if (!(error instanceof ChatApplicationError)) throw error;
+    return jsonValue({ refused: { status: error.status, message: error.message,
+      code: error.code, current_version: error.currentVersion } });
+  }
 }
 
 export function chatTurnJobHandler(
@@ -31,13 +58,18 @@ export function chatTurnJobHandler(
   chats: ChatStore,
 ): JobHandler {
   return async (job, context) => {
+    const compaction = jsonRecord(jsonRecord(job.payload)?.compaction);
+    if (typeof compaction?.chat_id === "string") return compactionJob(application, job, {
+      chatId: compaction.chat_id,
+      ...(typeof compaction.model === "string" && { model: compaction.model }),
+    }, context.signal);
     const turn = request(job);
     if (!turn) throw new PermanentJobError("ChatTurnRequestUnavailable");
     const events = await createJobEventWriter(job.id);
-    let acceptingEvents = true;
+    let slot = { phase: "preparing" } as TurnSlot;
     const emit: EventSink["emit"] = (event) => {
       // An oversized live event is dropped, not the turn: the saved transcript still carries it.
-      try { if (acceptingEvents) events.append(event); }
+      try { if (slot.phase !== "closed") events.append(event); }
       catch (error) { console.warn("[chat] live event not sent", { type: event.type, ...safeErrorLog(error) }); }
     };
     const current = turn.chatId ? await chats.get(turn.scope, turn.chatId) : null;
@@ -92,11 +124,9 @@ export function chatTurnJobHandler(
         throw error;
       }
     };
-    let claimedChatId: string | undefined;
     const commands = await watchJob(job.id, "control");
     const commandStop = new AbortController();
-    let commandTask = Promise.resolve();
-    const checkCommands = async () => {
+    const checkCommands = async (chatId: string) => {
       while (!commandStop.signal.aborted && !controller.signal.aborted) {
         const version = commands.version;
         try {
@@ -109,9 +139,9 @@ export function chatTurnJobHandler(
             const text = typeof payload?.text === "string" ? payload.text : "";
             const readers = readerSettings.safeParse(payload?.readers);
             const submission = promptSubmissionSchema.safeParse(payload?.submission ?? { origin: "unknown" });
-            if (command.kind === "steer" && id && (text || readers.success) && claimedChatId &&
+            if (command.kind === "steer" && id && (text || readers.success) &&
                 submission.success &&
-                await steerChatTurn(claimedChatId, { id, text,
+                await steerChatTurn(chatId, { id, text,
                   submission: submission.data,
                   ...(readers.success && { readers: readers.data }) })) {
               if (commandStop.signal.aborted || controller.signal.aborted) return;
@@ -137,16 +167,15 @@ export function chatTurnJobHandler(
     };
     const sink: EventSink = {
       claim(chatId) {
-        if (!acceptingEvents || controller.signal.aborted) return false;
+        if (slot.phase !== "preparing" || controller.signal.aborted) return false;
         if (!beginChatTurn(chatId, controller)) return false;
-        claimedChatId = chatId;
-        commandTask = checkCommands();
+        slot = { phase: "claimed", chatId, commands: checkCommands(chatId) };
         return true;
       },
       emit,
       setControl(control) {
-        if (!acceptingEvents) return;
-        if (claimedChatId) setChatTurnControl(claimedChatId, controller, control);
+        if (slot.phase === "closed") return;
+        if (slot.phase === "claimed") setChatTurnControl(slot.chatId, controller, control);
         commands.wake();
       },
     };
@@ -189,18 +218,19 @@ export function chatTurnJobHandler(
       if (code && !["provider_limit", "provider_unavailable"].includes(code)) throw new PermanentJobError(code);
       throw error;
     } finally {
-      acceptingEvents = false;
+      const held = slot.phase === "claimed" ? slot : null;
+      slot = { phase: "closed" };
       commandStop.abort(); commands.close();
       // Disconnect steering before joining the command loop: provider acknowledgement
       // must not hold completion, cancellation, or worker shutdown hostage.
-      if (claimedChatId) setChatTurnControl(claimedChatId, controller, null);
+      if (held) setChatTurnControl(held.chatId, controller, null);
       for (const pending of clientTools.values()) pending.cancel();
       try {
-        await commandTask;
+        await held?.commands;
         await events.flush();
       } finally {
         context.signal.removeEventListener("abort", abort);
-        if (claimedChatId) finishChatTurn(claimedChatId, controller);
+        if (held) finishChatTurn(held.chatId, controller);
       }
     }
   };

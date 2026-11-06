@@ -173,9 +173,8 @@ export function LegalLibraryPage(props: LibraryProps) {
 }
 function LegalLibraryContent({ embedded = false, projectId, onOpenSource, researchFileId }: LibraryProps) {
     const { file: researchFile, mutations, selection } = useSourcesWorkspace();
-    const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
-    const [searched, setSearched] = useState(false);
-    const [notInstalled, setNotInstalled] = useState(false);
+    // What the last search found, kept on screen until the next replaces it; null before any.
+    const [found, setFound] = useState<{ results: LegalSourceSearchResult[]; notInstalled: boolean } | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [libraryQuery, setLibraryQuery] = useState("");
     const [coverage, setCoverage] = useState<LegalSourceCoverage[]>([]);
@@ -257,7 +256,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
         if (!query) return;
         // Earlier results stay on screen until these replace them.
         setSearching(true);
-        setNotInstalled(false);
+        setFound((current) => current && { ...current, notInstalled: false });
         setError(null);
         try {
             const documentTypes: LegalSearchDocumentType[] =
@@ -286,18 +285,17 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                     }),
                 ),
             );
-            const found = settled.flatMap((item) => item.status === "fulfilled" ? item.value.results : []);
-            setNotInstalled(settled.some((item) => item.status === "fulfilled" && item.value.status === "not_installed"));
-            setResults(found);
+            const results = settled.flatMap((item) => item.status === "fulfilled" ? item.value.results : []);
+            setFound({ results, notInstalled: settled.some((item) => item.status === "fulfilled" && item.value.status === "not_installed") });
             const failed = settled.filter((item) => item.status === "rejected").length;
-            if (failed) setError(found.length
+            if (failed) setError(results.length
                 ? `${failed} source ${failed === 1 ? "collection is" : "collections are"} temporarily unavailable.`
                 : "Search failed. Source collections are temporarily unavailable.");
         } catch (reason) {
             setError(errorMessage(reason, "Search failed"));
         } finally {
             setSearching(false);
-            setSearched(true);
+            setFound((current) => current ?? { results: [], notInstalled: false });
         }
     }
     const workspace = <ResearchWorkspaceHost embedded={embedded} open={researchOpen}
@@ -482,11 +480,11 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                         busy={researchBusy} save={saveReference} onError={setError}
                         onNeedFile={() => setResearchOpen(true)}
                         onSourceDrag={() => { setResearchOpen(true); setSourceDropNonce((value) => value + 1); }} />
-                    : searched && (
+                    : found && (
                         <section>
-                            {notInstalled && <p role="status" className="text-sm text-gray-600">Hansard is not installed.</p>}
-                            {results.length ? <div className="grid gap-2">
-                                {results.map((result) => {
+                            {found.notInstalled && <p role="status" className="text-sm text-gray-600">Hansard is not installed.</p>}
+                            {found.results.length ? <div className="grid gap-2">
+                                {found.results.map((result) => {
                                     const sourceHref = safeAssistantUrl(result.url, {
                                         relative: false,
                                     });
@@ -564,7 +562,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                         </article>
                                     );
                                 })}
-                            </div> : !notInstalled && !error && <p role="status" className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-600">
+                            </div> : !found.notInstalled && !error && <p role="status" className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-600">
                                 No sources matched this search. Try fewer terms or a different source category.
                             </p>}
                         </section>

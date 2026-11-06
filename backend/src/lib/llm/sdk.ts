@@ -74,8 +74,12 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
   const config = configured ?? await hostedModel(params), callbacks = params.callbacks ?? {};
   const controller = new AbortController();
   // Cancellation interrupts inference immediately; an already-running tool batch settles and is saved first.
-  let generating = true, compacting = false;
-  const abort = () => { if (generating) controller.abort(params.abortSignal?.reason); };
+  // "terminal" is a tool batch that ended the turn; a failure outranks it and ends the loop.
+  let step = { phase: "generating" } as { phase: "generating" | "tools" | "terminal" } | { phase: "failed"; error: unknown };
+  let compacting = false;
+  const fail = (error: unknown) => { step = { phase: "failed", error }; };
+  const failed = () => step.phase === "failed";
+  const abort = () => { if (step.phase === "generating") controller.abort(params.abortSignal?.reason); };
   const stopped = () => Boolean(params.abortSignal?.aborted);
   let messages = modelMessages(params.messages, params.model);
   messages = compactedMessages(messages) ?? messages;
@@ -88,8 +92,8 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
     validate: value => validateModelOutput(params.outputSchema!, value),
   }) });
   const tools: ToolSet = {}, definitions = new Map<string, Tool>();
-  let fullText = "", streamBytes = 0, generatedBytes = 0, argumentBytes = 0, callCount = 0, terminal = false;
-  let failure: unknown, serviceTier: string | undefined, structured: unknown;
+  let fullText = "", streamBytes = 0, generatedBytes = 0, argumentBytes = 0, callCount = 0;
+  let serviceTier: string | undefined, structured: unknown;
   let calls: NormalizedToolCall[] = [], batch: Promise<Map<string, NormalizedToolResult>> | undefined;
   // A known specialist may follow its loader in the same batch. The SDK only saw the pre-load
   // catalog and answers it with an error; the registry runs it and its result replaces that error.
@@ -109,13 +113,13 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
     if (results.length !== byId.size || byId.size !== calls.length)
       throw new Error("Tool results must pair exactly with the requested batch");
     for (const call of calls) if (!byId.has(call.id)) throw new Error(`No result for tool call ${call.id}`);
-    terminal ||= results.some(result => result.terminal);
+    if (results.some(result => result.terminal) && !failed()) step = { phase: "terminal" };
     rounds.at(-1)!.toolResultBytes = Buffer.byteLength(JSON.stringify(results));
     for (const id of deferred) answers.set(id, modelOutput(byId.get(id)!));
     return byId;
-  }).catch(error => { failure = error; throw error; });
+  }).catch(error => { fail(error); throw error; });
   const execute = async (_input: unknown, { toolCallId }: { toolCallId: string }) => {
-    if (failure) throw failure;
+    if (step.phase === "failed") throw step.error;
     return (await runBatch()).get(toolCallId)!;
   };
   const answered = (history: ModelMessage[]) => answers.size ? history.map(message => message.role !== "tool" ? message
@@ -135,11 +139,11 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
         ...(output && { output }), maxOutputTokens: params.maxTokens ?? config.maxTokens,
         maxRetries: Math.max(0, Math.min(2, (params.maxProviderAttempts ?? 3) - 1)),
         streamRetries: 0, abortSignal: controller.signal,
-        stopWhen: [isStepCount(maxIterations - offset), () => terminal || Boolean(failure) || stopped()],
+        stopWhen: [isStepCount(maxIterations - offset), () => step.phase === "terminal" || failed() || stopped()],
         prepareStep({ messages: history }) {
-          if (failure) throw failure;
+          if (step.phase === "failed") throw step.error;
           throwIfAborted(params.abortSignal);
-          generating = true;
+          step = { phase: "generating" };
           const visible = params.resolveTools?.() ?? params.tools ?? [];
           for (const tool of visible) {
             const previous = definitions.get(tool.name);
@@ -175,13 +179,13 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
         },
         onLanguageModelCallStart() { rounds.at(-1)!.requestAttempts++; },
         onLanguageModelCallEnd(event) {
-          generating = false;
+          if (step.phase === "generating") step = { phase: "tools" };
           generatedBytes += event.content.reduce((n, part) => n +
             ((part.type === "text" || part.type === "reasoning") ? Buffer.byteLength(part.text) : 0), 0);
-          if (generatedBytes > MAX_STREAM_BYTES) failure = new Error("Provider stream exceeded the output limit");
+          if (generatedBytes > MAX_STREAM_BYTES) fail(new Error("Provider stream exceeded the output limit"));
           const proposed = event.content.filter(part => part.type === "tool-call");
           if (new Set(proposed.map(call => call.toolCallId)).size !== proposed.length)
-            failure = new Error("Duplicate tool call IDs in model response");
+            fail(new Error("Duplicate tool call IDs in model response"));
           calls = proposed.flatMap(part => {
             if (part.providerExecuted) return [];
             const input = jsonRecord(part.input);
@@ -193,25 +197,25 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
           const size = proposed.reduce((n, call) => n + Buffer.byteLength(JSON.stringify(call.input) ?? ""), 0);
           callCount += proposed.length; argumentBytes += size;
           if (callCount > 128 || argumentBytes > MAX_ARGUMENT_BYTES)
-            failure = new Error("Provider tool calls exceeded the input limit");
+            fail(new Error("Provider tool calls exceeded the input limit"));
           const round = rounds.at(-1)!;
           round.toolCallCount = proposed.length; round.toolArgumentBytes = size; round.usage = usage(event.usage);
           if (window && round.usage.inputTokens !== null)
             callbacks.onContextUsage?.({ usedTokens: round.usage.inputTokens, contextWindowTokens: window });
           if (typeof event.providerMetadata?.openai?.serviceTier === "string") serviceTier = event.providerMetadata.openai.serviceTier;
         },
-        async onStepEnd(step) {
-          if (failure) return;
+        async onStepEnd(ended) {
+          if (failed()) return;
           try {
             // Deferred calls alone never reach the SDK's execute; run their batch here.
-            if (deferred.size && params.runTools && step.finishReason === "tool-calls") await runBatch();
-            const saved = answered([...step.response.messages]);
+            if (deferred.size && params.runTools && ended.finishReason === "tool-calls") await runBatch();
+            const saved = answered([...ended.response.messages]);
             const settled = new Set(saved.flatMap(message => message.role === "tool"
               ? message.content.flatMap(part => part.type === "tool-result" ? [part.toolCallId] : []) : []));
-            const unexecuted = step.toolCalls.filter(call => !settled.has(call.toolCallId) && !call.providerExecuted);
+            const unexecuted = ended.toolCalls.filter(call => !settled.has(call.toolCallId) && !call.providerExecuted);
             if (unexecuted.length) saved.push({ role: "tool", content: unexecuted.map(call => ({
               type: "tool-result", toolCallId: call.toolCallId, toolName: call.toolName,
-              output: { type: "error-text", value: `Tool not executed: generation stopped with ${step.finishReason}.` },
+              output: { type: "error-text", value: `Tool not executed: generation stopped with ${ended.finishReason}.` },
             })) });
             const compacted = compactedMessages(saved);
             messages = compacted ?? [...messages, ...saved];
@@ -224,7 +228,7 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
               callbacks.onCompaction?.("completed", { provider,
                 ...(summary?.type === "text" && { summary: summary.text }) });
             }
-          } catch (error) { failure ??= error; }
+          } catch (error) { if (!failed()) fail(error); }
         },
         onError() {},
       });
@@ -249,16 +253,16 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
         else if (part.type === "tool-call") callbacks.onToolCallStart?.({ id: part.toolCallId,
           name: part.toolName, input: jsonRecord(part.input) ?? {} });
       }
-      if (failure) throw failure;
+      if (step.phase === "failed") throw step.error;
       totals.push(await generated.totalUsage);
       const reason = await generated.finishReason;
       if (reason !== "stop" && reason !== "tool-calls") throw new IncompleteGenerationError(reason, fullText);
       if (params.outputSchema && !calls.length) structured = await generated.output;
       // A stop wins over a terminal tool result: the turn ends as cancelled.
       throwIfAborted(params.abortSignal);
-      if (!terminal && reason === "tool-calls")
+      if (step.phase !== "terminal" && reason === "tool-calls")
         throw new IncompleteGenerationError(rounds.length >= maxIterations ? "step-limit" : reason, fullText);
-      const steering = terminal ? [] : params.takeSteering?.() ?? [];
+      const steering = step.phase === "terminal" ? [] : params.takeSteering?.() ?? [];
       if (!steering.length) {
         const total = usage(totals[0]);
         for (const value of totals.slice(1).map(usage)) for (const key of Object.keys(total) as (keyof NormalizedLlmUsage)[])

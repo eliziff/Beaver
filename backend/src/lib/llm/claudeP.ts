@@ -114,18 +114,21 @@ type ResultEnvelope = {
 
 type RunState = {
   result: ResultEnvelope | null; fullText: string;
-  compactions: number; contentOpen: boolean; reasoningOpen: boolean;
+  compactions: number;
+  /** The one stream block being written, whose end the provider may never send. */
+  block: "content" | "reasoning" | null;
   usage?: NativeUsage; model?: string; contextWindow: number | null;
   reportedContext?: string;
-  mcpReady: boolean; mcpError: string;
+  /** The Beaver MCP server, once the CLI's init message reports it. */
+  mcp: { ready: true } | { ready: false; error: string };
   /** Steering written to stdin that the CLI has not yet echoed as taken up. */
   steers: Set<string>;
 };
 
-function closeBlocks(state: RunState, callbacks: StreamCallbacks) {
-  if (state.contentOpen) callbacks.onContentBlockEnd?.();
-  if (state.reasoningOpen) callbacks.onReasoningBlockEnd?.();
-  state.contentOpen = state.reasoningOpen = false;
+function closeBlock(state: RunState, callbacks: StreamCallbacks) {
+  if (state.block === "content") callbacks.onContentBlockEnd?.();
+  if (state.block === "reasoning") callbacks.onReasoningBlockEnd?.();
+  state.block = null;
 }
 
 function handleStreamLine(line: string, state: RunState, callbacks: StreamCallbacks) {
@@ -148,10 +151,10 @@ function handleStreamLine(line: string, state: RunState, callbacks: StreamCallba
   if (message.type === "result") state.result = message;
   if (message.type === "user" && message.isReplay && message.uuid) state.steers.delete(message.uuid);
   if (message.type === "system" && message.subtype === "init") {
-    state.mcpReady = message.mcp_servers?.some(({ name }) => name === "beaver") ?? false;
-    state.mcpError = message.mcp_server_errors
-      ?.map(({ name, message: detail }) => `${name ?? "server"}: ${detail ?? "failed"}`)
-      .join("; ") ?? "";
+    state.mcp = message.mcp_servers?.some(({ name }) => name === "beaver") ? { ready: true }
+      : { ready: false, error: message.mcp_server_errors
+        ?.map(({ name, message: detail }) => `${name ?? "server"}: ${detail ?? "failed"}`)
+        .join("; ") ?? "" };
   }
 
   if (message.type === "system" && message.subtype === "compact_boundary") {
@@ -185,15 +188,17 @@ function handleStreamLine(line: string, state: RunState, callbacks: StreamCallba
   }
   if (event?.type === "content_block_delta") {
     if (event.delta?.type === "text_delta" && event.delta.text) {
-      state.contentOpen = true;
+      if (state.block === "reasoning") closeBlock(state, callbacks);
+      state.block = "content";
       state.fullText += event.delta.text;
       callbacks.onContentDelta?.(event.delta.text);
     } else if (event.delta?.type === "thinking_delta" && event.delta.thinking) {
-      state.reasoningOpen = true;
+      if (state.block === "content") closeBlock(state, callbacks);
+      state.block = "reasoning";
       callbacks.onReasoningDelta?.(event.delta.thinking);
     }
   } else if (event?.type === "content_block_stop" || event?.type === "message_stop") {
-    closeBlocks(state, callbacks);
+    closeBlock(state, callbacks);
   }
   return ["assistant", "stream_event"].includes(message.type ?? "") ||
     (message.type === "system" &&
@@ -254,8 +259,8 @@ async function runClaudeP(params: RunParams) {
         env: authIsolatedEnv(params.model, params.bridge),
         windowsHide: true,
       });
-      const state: RunState = { result: null, fullText: "", compactions: 0,
-        mcpReady: false, mcpError: "", contentOpen: false, reasoningOpen: false, steers: new Set(),
+      const state: RunState = { result: null, fullText: "", compactions: 0, block: null,
+        mcp: { ready: false, error: "" }, steers: new Set(),
         contextWindow: modelContextWindow(`claude-p:${params.model}`) };
       let buffer = "";
       let stderr = "";
@@ -271,7 +276,7 @@ async function runClaudeP(params: RunParams) {
         if (settled) return;
         settled = true;
         cleanup();
-        closeBlocks(state, params.callbacks);
+        closeBlock(state, params.callbacks);
         child.kill();
         reject(error);
       };
@@ -326,7 +331,7 @@ async function runClaudeP(params: RunParams) {
         if (settled) return;
         if (buffer.trim()) processLine(buffer);
         if (settled) return;
-        closeBlocks(state, params.callbacks);
+        closeBlock(state, params.callbacks);
         cleanup();
         if (code !== 0) {
           const hint = stderr.trim() || String(state.result?.result ?? "");
@@ -391,8 +396,8 @@ export async function streamClaudeP(params: StreamChatParams): Promise<StreamCha
     const state = await runClaudeP({ ...params, model, bridge, callbacks, activity,
       prompt: flattenedPrompt(params.messages) });
     const envelope = state.result!;
-    if (bridge && !state.mcpReady) {
-      throw new Error(`Claude did not load the Beaver MCP server${state.mcpError ? `: ${state.mcpError}` : "."}`);
+    if (bridge && !state.mcp.ready) {
+      throw new Error(`Claude did not load the Beaver MCP server${state.mcp.error ? `: ${state.mcp.error}` : "."}`);
     }
     const rawUsage = envelope.usage ?? {};
     const usage: NormalizedLlmUsage = {

@@ -53,18 +53,18 @@ export function createJobNotifications(send?: (topics: string[] | null) => void)
 // Bound IPC backlog to one in-flight batch and one coalesced pending batch.
 // An overflow is one global wake, not an unbounded queue of messages.
 export function createJobNotificationSender(send: (message: Message, done: () => void) => void) {
-  let pending = new Set<string>(), all = false, busy = false, closed = false;
+  let pending = new Set<string>() as Set<string> | "all", busy = false, closed = false;
   let scheduled: NodeJS.Immediate | undefined;
   const flush = () => {
     scheduled = undefined;
-    if (closed || busy || !all && !pending.size) return;
-    const topics = all ? null : [...pending];
-    pending = new Set(); all = false; busy = true;
+    if (closed || busy || pending !== "all" && !pending.size) return;
+    const topics = pending === "all" ? null : [...pending];
+    pending = new Set(); busy = true;
     const done = () => { busy = false; schedule(); };
     try { send({ type: "beaver.jobs.changed", topics }, done); } catch { done(); }
   };
   const schedule = () => {
-    if (!closed && !busy && !scheduled && (all || pending.size)) {
+    if (!closed && !busy && !scheduled && (pending === "all" || pending.size)) {
       scheduled = setImmediate(flush);
       scheduled.unref();
     }
@@ -72,13 +72,14 @@ export function createJobNotificationSender(send: (message: Message, done: () =>
   return {
     send(topics: string[] | null) {
       if (closed) return;
-      if (topics === null) all = true;
-      else if (!all) for (const topic of topics) pending.add(topic);
-      if (pending.size > 256 || Buffer.byteLength(JSON.stringify([...pending])) > 6_000) all = true;
-      if (all) pending.clear();
+      if (topics === null) pending = "all";
+      else if (pending !== "all") {
+        for (const topic of topics) pending.add(topic);
+        if (pending.size > 256 || Buffer.byteLength(JSON.stringify([...pending])) > 6_000) pending = "all";
+      }
       schedule();
     },
-    close() { closed = true; if (scheduled) clearImmediate(scheduled); pending.clear(); },
+    close() { closed = true; if (scheduled) clearImmediate(scheduled); pending = new Set(); },
   };
 }
 

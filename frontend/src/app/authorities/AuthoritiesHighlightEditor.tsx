@@ -13,7 +13,8 @@ import { decodeAnnotationSet, emptyAnnotationSet,
 import type { AuthoritiesHost } from './host';
 import { OptionCards, type CardOption } from './OptionCards';
 import { authoritiesProfile } from './profiles';
-import type { SourceOcrPanel, SourceOcrStatus } from './sourceOcr';
+import { recognizing, type SourceOcrPanel, type SourceOcrStatus } from './sourceOcr';
+import { toValue, useMachine } from '@/app/lib/useMachine';
 import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct, AuthoritiesProfileId } from './types';
 
 const ocrMessage = (status: SourceOcrStatus, total = status.textlessPages.length) =>
@@ -21,12 +22,12 @@ const ocrMessage = (status: SourceOcrStatus, total = status.textlessPages.length
     : status.state === 'failed' ? status.error || 'Text recognition failed'
     : status.state === 'paused' ? `Recognition paused · ${status.recognized}/${total} pages`
     : status.state === 'cancelled' ? 'Text recognition cancelled'
-    : `${status.waiting ? 'Waiting to recognize' : 'Recognizing text'} · ${status.recognized}/${total} pages`;
+    : `${status.state === 'waiting' ? 'Waiting to recognize' : 'Recognizing text'} · ${status.recognized}/${total} pages`;
 const ocrTone = (status: SourceOcrStatus) => status.state === 'failed' ? 'text-red-800' : 'text-gray-600';
 
 /** Pause (or Resume) and Cancel for one recognition, in slots that stay put whatever its state. */
 function OcrControls({ status, ocr, className, label }: { status: SourceOcrStatus; ocr: Omit<SourceOcrPanel, 'tracked'>; className: string; label: string }) {
-  const pending = status.state === 'running' || status.state === 'paused';
+  const pending = recognizing(status);
   const resumable = ['paused', 'failed', 'cancelled'].includes(status.state);
   return <>
     <button type="button" className={cn(className, status.state === 'done' && 'invisible')}
@@ -49,7 +50,7 @@ const ocrBar = 'appearance-none overflow-hidden rounded-full bg-gray-100 [&::-mo
  */
 function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
   const total = status.textlessPages.length;
-  const pending = status.state === 'running' || status.state === 'paused';
+  const pending = recognizing(status);
   return <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 text-xs">
     <span role="status" className={cn('min-w-0 truncate', ocrTone(status))}
       title={status.state === 'failed' ? status.error : undefined}>{ocrMessage(status, total)}</span>
@@ -67,10 +68,10 @@ function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: Sour
  */
 export function SourceOcrInline({ status, ocr, className }: { status: SourceOcrStatus; ocr: Omit<SourceOcrPanel, 'tracked'>; className?: string }) {
   const total = status.textlessPages.length;
-  const pending = status.state === 'running' || status.state === 'paused';
+  const pending = recognizing(status);
   const word = status.state === 'done' ? 'Recognized' : status.state === 'failed' ? 'Failed'
     : status.state === 'cancelled' ? 'Cancelled' : status.state === 'paused' ? 'Paused'
-    : status.waiting ? 'Waiting' : 'Recognizing';
+    : status.state === 'waiting' ? 'Waiting' : 'Recognizing';
   const count = pending ? `${status.recognized}/${total}` : '';
   return <div className={cn('@container/ocr flex min-w-0 items-center gap-1 text-xs', className)}>
     <span role="status" className={cn('relative min-w-0 flex-1 truncate tabular-nums', ocrTone(status))}
@@ -160,7 +161,7 @@ const savedSet = (product: AuthoritiesProduct, choice: Choice) => {
 };
 
 type Prepared = { set: PdfAnnotationSet; warning: string };
-type Ahead = { choice: Choice; result?: Promise<Prepared>; ready?: Prepared };
+type Ahead = { choice: Choice; marks: { status: 'queued' } | { status: 'preparing'; result: Promise<Prepared> } | { status: 'ready'; prepared: Prepared } };
 /** Automatic marks prepared before their source is opened, for one draft: all it asks of them but
  *  the step it is on, the marks saved and how much of each authority goes in, which preparing them
  *  reads none of. */
@@ -188,16 +189,20 @@ function storeFor(host: AuthoritiesHost, product: AuthoritiesProduct) {
 }
 /** A source's marks, prepared now if they are not already being prepared. A failure is not kept. */
 function prepare(host: AuthoritiesHost, store: Store, ahead: Ahead) {
+  if (ahead.marks.status !== 'queued') return ahead.marks.status === 'ready' ? Promise.resolve(ahead.marks.prepared) : ahead.marks.result;
   const { product, abort: { signal } } = store, { authorityId, bindingRole, sourceSha256 } = ahead.choice;
-  return ahead.result ??= (async () => {
+  const result = (async () => {
     const { annotations, pageMarked } = await host.prepareAnnotations!(product, authorityId, bindingRole,
       () => host.readSource!(product, bindingRole, signal), signal);
     if (annotations.sourceSha256 !== sourceSha256) throw new Error('The marking source does not match this PDF.');
-    return ahead.ready = { set: annotations, warning: pageMarkedWarning(pageMarked) };
+    ahead.marks = { status: 'ready', prepared: { set: annotations, warning: pageMarkedWarning(pageMarked) } };
+    return ahead.marks.prepared;
   })().catch((error: unknown) => {
     if (store.sources.get(sourceKey(ahead.choice)) === ahead) store.sources.delete(sourceKey(ahead.choice));
     throw error;
   });
+  ahead.marks = { status: 'preparing', result };
+  return result;
 }
 /** Queues sources' marks to be prepared one at a time, ahead of the rest when `first`; otherwise
  *  the smallest PDFs first, so that the most sources are ready soonest. */
@@ -209,7 +214,8 @@ function prepareAhead(host: AuthoritiesHost, product: AuthoritiesProduct, choice
     return binding?.kind === 'local-file' ? binding.lastSeen.size : 0;
   };
   const items = choices.map(choice => store.sources.get(sourceKey(choice)) ??
-    store.sources.set(sourceKey(choice), { choice }).get(sourceKey(choice))!).filter(item => !item.result);
+    store.sources.set(sourceKey(choice), { choice, marks: { status: 'queued' } }).get(sourceKey(choice))!)
+    .filter(item => item.marks.status === 'queued');
   if (!first) items.sort((left, right) => size(left) - size(right));
   store.queue = first ? [...new Set([...items, ...store.queue])] : [...new Set([...store.queue, ...items])];
   if (store.running) return;
@@ -225,13 +231,13 @@ function stopAhead(host: AuthoritiesHost) {
   const store = stores.get(host);
   if (!store) return;
   store.queue = []; store.abort.abort(); store.abort = new AbortController();
-  for (const [id, ahead] of store.sources) if (!ahead.ready) store.sources.delete(id);
+  for (const [id, ahead] of store.sources) if (ahead.marks.status !== 'ready') store.sources.delete(id);
 }
 /** The marks of the source on screen: at once if prepared, else prepared now, not behind the queue. */
 function preparedMarks(host: AuthoritiesHost, product: AuthoritiesProduct, choice: Choice): Prepared | Promise<Prepared> {
   const store = storeFor(host, product), ahead = store.sources.get(sourceKey(choice));
-  if (ahead?.ready) return ahead.ready;
-  const item = ahead ?? store.sources.set(sourceKey(choice), { choice }).get(sourceKey(choice))!;
+  if (ahead?.marks.status === 'ready') return ahead.marks.prepared;
+  const item = ahead ?? store.sources.set(sourceKey(choice), { choice, marks: { status: 'queued' } }).get(sourceKey(choice))!;
   store.queue = store.queue.filter(queued => queued !== item);
   return prepare(host, store, item);
 }
@@ -240,7 +246,7 @@ function preparedMarks(host: AuthoritiesHost, product: AuthoritiesProduct, choic
  *  still being recognized. */
 const preparable = (product: AuthoritiesProduct, choice: Choice, tracked?: SourceOcrPanel['tracked']) =>
   !product.state.authorities[choice.authorityId].annotations?.[choice.bindingRole] &&
-  !['running', 'paused'].includes(tracked?.[choice.bindingRole]?.state ?? '');
+  !recognizing(tracked?.[choice.bindingRole]);
 /**
  * Prepares each attached source's automatic marks in the background once its PDF is attached, so
  * the editor shows a source's marks the moment it opens. A scan still being recognized waits for
@@ -280,6 +286,11 @@ async function prepareAgain(product: AuthoritiesProduct, sources: Choice[], host
   return { entries: entries.filter((entry): entry is Entry => !!entry), failed };
 }
 
+/** A new marking's saved highlights being prepared again: its save awaited, then each source's marks. */
+type Remarking = { stage: 'idle' } | { stage: 'saving'; marking: Marking } | { stage: 'preparing'; done: number; total: number } |
+  { stage: 'failed'; message: string };
+const NOT_REMARKING: Remarking = { stage: 'idle' };
+
 export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onAction, onSaved }: {
   product: AuthoritiesProduct; tabs: ReadonlyMap<string,string>; host: AuthoritiesHost; busy: boolean;
   ocr: SourceOcrPanel;
@@ -288,37 +299,35 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onAction
 }) {
   const [open, setOpen] = useState(false);
   const choices = choicesFor(product, tabs);
-  const [progress, setProgress] = useState<{ done: number; total: number }>();
-  const [failure, setFailure] = useState('');
   // A new marking prepares again only once the draft is saved with it: the host prepares from
   // the saved draft. Before paint, so the cards never show it chosen and idle in between.
-  const [pending, setPending] = useState<Marking>();
+  const [remarking, setRemarking] = useState<Remarking>(NOT_REMARKING);
+  const pending = remarking.stage === 'saving' ? remarking.marking : undefined;
   useLayoutEffect(() => {
     if (!pending || product.state.settings.passageMarking !== pending) return;
-    setPending(undefined);
     const saved = choicesFor(product, tabs).filter(choice => savedSet(product, choice));
-    if (!saved.length) return;
-    setProgress({ done: 0, total: saved.length });
-    void prepareAgain(product, saved, host, done => setProgress({ done, total: saved.length }))
+    const total = saved.length;
+    if (!total) return setRemarking(NOT_REMARKING);
+    setRemarking({ stage: 'preparing', done: 0, total });
+    void prepareAgain(product, saved, host, done => setRemarking({ stage: 'preparing', done, total }))
       .then(({ entries, failed }) => {
-        setProgress(undefined);
-        if (failed.length) setFailure(`Highlights could not be prepared again for ${failed.join(', ')}.`);
+        setRemarking(failed.length ? { stage: 'failed', message: `Highlights could not be prepared again for ${failed.join(', ')}.` } : NOT_REMARKING);
         // The save holds the workspace until it lands, as every other draft change does.
         if (entries.length) onAction({ type: 'set-annotations', entries });
       });
   }, [pending, product]); // eslint-disable-line react-hooks/exhaustive-deps
   useHighlightsAhead(host, product, ocr.tracked);
   if (product.state.outputMode === 'table') return null;
-  const preparing = !!progress;
+  const preparing = remarking.stage === 'preparing';
   const choose = (passageMarking: Marking) => {
-    setFailure(''); setPending(passageMarking);
+    setRemarking({ stage: 'saving', marking: passageMarking });
     onAction({ type: 'set-settings', settings: { passageMarking } });
   };
   // The marking chosen at import is shown here too, closed under its name, and can be changed at any time.
   return <><StepSection title="Highlights" className="mt-3"
     // Preparing or failing reports in the subtitle's own line, so nothing moves and no room is held for it.
-    subtitle={preparing ? `Preparing highlights: ${progress.done} of ${progress.total} PDFs.` : failure
-      || (choices.length ? 'Review and adjust passage marks in your source PDFs.' : 'No source PDFs to mark yet.')}
+    subtitle={preparing ? `Preparing highlights: ${remarking.done} of ${remarking.total} PDFs.` : remarking.stage === 'failed' ? remarking.message
+      : (choices.length ? 'Review and adjust passage marks in your source PDFs.' : 'No source PDFs to mark yet.')}
     actions={<Button type="button" variant="outline" className="h-9 border-gray-400"
       disabled={busy || preparing || !host.readSource || !choices.length} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>}>
     <div className="p-4">
@@ -353,7 +362,6 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   // A review edits one known revision; a concurrent write must not be silently overwritten.
   const [base] = useState(product);
   const savedDraft = useRef(product);
-  const saveRequest = useRef<Promise<void> | null>(null);
   const [choices] = useState(initialChoices);
   const [role, setRole] = useState(choices[0].bindingRole);
   const [documents, setDocuments] = useState<Record<string,OpenPdf>>({});
@@ -365,7 +373,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   // Numbered across sources: a viewer skips a request number it has already scrolled to, so one
   // that started again at 1 for each source dropped the first card click after a single click before.
   const focusRequests = useRef(0);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving, latestSaving] = useMachine(toValue<boolean>, false);
   const [error, setError] = useState(''), [textError, setTextError] = useState('');
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
   const source = choices.find(choice => choice.bindingRole === role)!;
@@ -513,7 +521,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   useEffect(() => { if (dirty && !saving && !loading && !error) void save(); }, [documents, saving, loading, error]);
 
   async function save() {
-    if(saveRequest.current || loading) return;
+    if(latestSaving.current || loading) return;
     const entries:Entry[]=choices.flatMap(choice=>{
       const document=documents[choice.bindingRole];
       const unchanged = document && document.saved === document.history[document.position];
@@ -535,7 +543,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       onSaved(next);
     };
     // One write owns one immutable snapshot; acknowledging it cannot acknowledge later edits.
-    saveRequest.current = (async () => {
+    try {
       try {
         const next=await host.act(base.id,savedDraft.current.revision,{type:'set-annotations',entries});
         saved(next);
@@ -556,9 +564,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           } else setError(errorMessage(cause));
         } catch(retryCause) { setError(errorMessage(retryCause)); }
       }
-    })();
-    try { await saveRequest.current; }
-    finally { saveRequest.current = null; setSaving(false); }
+    } finally { setSaving(false); }
   }
   return <>
     <Modal open onClose={close} ariaLabel="Highlights" size="2xl"

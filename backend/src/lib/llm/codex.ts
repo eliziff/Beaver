@@ -215,24 +215,25 @@ async function runCodexTurn(params: StreamChatParams,
     });
   }
 
-  let threadId = "";
-  let turnId = "";
+  // Notifications can beat the response that names their turn, so they wait until it arrives.
+  let run = { phase: "opening" } as
+    | { phase: "opening" }
+    | { phase: "starting"; threadId: string; early: CodexAppServerNotification[] }
+    | { phase: "running" | "interrupting"; threadId: string; turnId: string };
   let fullText = "";
   let structuredText: string | undefined;
   let usage: NormalizedLlmUsage | undefined, totalBefore: NormalizedLlmUsage | undefined;
   let failure = "";
   let compactionRunning = false;
   let interruptTimer: NodeJS.Timeout | undefined;
-  let interruptRequested = false;
   const streamedByItem = new Map<string, string>();
-  const pendingEvents: CodexAppServerNotification[] = [];
   const { promise: completion, settle: complete, settled } = settlement();
   completion.catch(() => undefined);
 
   const interrupt = async () => {
-    if (!threadId || !turnId || settled()) return;
-    interruptRequested = true;
-    await server.request("turn/interrupt", { threadId, turnId });
+    if ((run.phase !== "running" && run.phase !== "interrupting") || settled()) return;
+    run = { ...run, phase: "interrupting" };
+    await server.request("turn/interrupt", { threadId: run.threadId, turnId: run.turnId });
   };
   const idle = idleWatchdog(() => {
     void interrupt().catch(() => undefined);
@@ -250,11 +251,11 @@ async function runCodexTurn(params: StreamChatParams,
       complete(new Error(String(event.params.message ?? "Codex app-server exited.")));
       return;
     }
-    if (event.params.threadId !== threadId || settled()) return;
+    if (run.phase === "opening" || event.params.threadId !== run.threadId || settled()) return;
     // Responses and notifications can share one stdout chunk. Route them only
     // after the start response identifies this turn, retaining their order.
-    if (!turnId) { pendingEvents.push(event); return; }
-    const eventTurnId = event.params.turnId ?? record(event.params.turn)?.id;
+    if (run.phase === "starting") { run.early.push(event); return; }
+    const turnId = run.turnId, eventTurnId = event.params.turnId ?? record(event.params.turn)?.id;
     if (eventTurnId && eventTurnId !== turnId) return;
     resetIdle();
     params.callbacks?.onActivity?.();
@@ -341,7 +342,7 @@ async function runCodexTurn(params: StreamChatParams,
         }
         if (turn?.status === "completed") complete();
         else if (turn?.status === "interrupted") {
-          complete(params.abortSignal?.aborted || interruptRequested ? abortError()
+          complete(params.abortSignal?.aborted || run.phase === "interrupting" ? abortError()
             : new Error(failure ||
               "Codex app-server interrupted the turn without a Beaver cancellation request."));
         } else {
@@ -364,10 +365,12 @@ async function runCodexTurn(params: StreamChatParams,
         { threadId: continuationId, excludeTurns: true, ...common })
       : await server.request<ThreadResponse>("thread/start",
         { ...common, ephemeral: params.providerSession?.persist !== true });
-    threadId = typeof opened.thread?.id === "string" ? opened.thread.id : "";
+    const threadId = typeof opened.thread?.id === "string" ? opened.thread.id : "";
     if (!CODEX_THREAD_ID.test(threadId)) {
       throw new Error("Codex app-server returned an invalid thread ID.");
     }
+    const early: CodexAppServerNotification[] = [];
+    run = { phase: "starting", threadId, early };
     throwIfAborted(params.abortSignal);
     await params.providerSession?.onContinuationId?.(threadId);
     throwIfAborted(params.abortSignal);
@@ -385,11 +388,11 @@ async function runCodexTurn(params: StreamChatParams,
         : params.enableThinking ? { effort: "max" } : {}),
       summary: params.enableThinking ? (params.reasoningSummary ?? "auto") : "none",
     });
-    const acceptedId = started.turn?.id;
-    if (typeof acceptedId !== "string" || !acceptedId || turnId && turnId !== acceptedId)
+    const turnId = started.turn?.id;
+    if (typeof turnId !== "string" || !turnId)
       throw new Error("Codex app-server returned an invalid turn ID.");
-    turnId = acceptedId;
-    for (const event of pendingEvents.splice(0)) listener(event);
+    run = { phase: "running", threadId, turnId };
+    for (const event of early) listener(event);
     params.providerSession?.onControl?.({
       steer: async (message) => {
         throwIfAborted(params.abortSignal);
@@ -426,7 +429,7 @@ async function runCodexTurn(params: StreamChatParams,
     unsubscribe();
     endReasoning();
     await bridge?.close();
-    if (threadId && server.alive()) unsubscribeThread(server, threadId);
+    if (run.phase !== "opening" && server.alive()) unsubscribeThread(server, run.threadId);
   }
 }
 
@@ -462,12 +465,9 @@ export async function compactCodexSession(
         (event.method === "item/completed" && item?.type === "contextCompaction")) {
       settle();
     } else if (event.method === "turn/completed") {
-      const turn = record(event.params.turn);
-      if (turn?.status !== "completed") {
-        const error = record(turn?.error);
-        settle(new Error(typeof error?.message === "string"
-          ? error.message : "Codex compaction failed."));
-      }
+      const turn = record(event.params.turn), error = record(turn?.error);
+      settle(new Error(turn?.status === "completed" ? "Codex compaction ended without compacting."
+        : typeof error?.message === "string" ? error.message : "Codex compaction failed."));
     }
   });
   const abort = () => {

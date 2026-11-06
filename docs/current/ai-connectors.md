@@ -39,8 +39,9 @@ citations survive restarts.
 
 `submit_grounded_answer` is the grounded-answer contract: Beaver rejects claims whose quotations,
 pinpoints or evidence do not match, then returns the answer with each claim's Beaver citation as
-a `/cite` link. The host shows the same answer in Beaver's own message view, whose citation pills
-open Beaver's publisher links directly.
+a `/cite` link. A rejection returns a `draft_id` that its correction sends back, because the
+connector serves every conversation and its transport names none. The host shows the same answer
+in Beaver's own message view, whose citation pills open Beaver's publisher links directly.
 Evidence ids appear to the user only inside citation links.
 
 ## App page

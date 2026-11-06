@@ -35,10 +35,11 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const [draftInput, setDraftInput] = useState<Omit<ResearchTableInput, "design"> | null>(null);
     const [draftRequest, setDraftRequest] = useState<string | undefined>();
     const [adjust, setAdjust] = useState(""), [addition, setAddition] = useState("");
-    const [busy, setBusy] = useState(false), [creating, setCreating] = useState(false);
+    const [creating, setCreating] = useState(false);
     const [error, setError] = useState(""), [note, setNote] = useState("");
     // The step is launched by the user, never on opening; while it runs the modal shows what the model is doing.
     const [progress, setProgress] = useState<ProposalProgress | null>(null), [started, setStarted] = useState(0), [now, setNow] = useState(0);
+    const busy = !!progress;
     const generation = useRef(0), running = useRef<AbortController | null>(null), activeId = fileId ?? picked[0]?.id,
         [pickerModel] = useSelectedModel(), [pickerEffort] = useSelectedReasoningEffort();
     // The chat's own model first; if its provider fails, one retry on the picker's model.
@@ -58,13 +59,13 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     if (resetFor !== resetKey) {
         setResetFor(resetKey);
         setPreview(null); setPlan(null); setFile(null); setDraftInput(null); setDraftRequest(undefined);
-        setBusy(false); setProgress(null); setError(""); setRestoring(labelling && !!activeId);
+        setProgress(null); setError(""); setRestoring(labelling && !!activeId);
     }
     async function propose(instruction = "", repropose = false, which = lane) {
         if (!activeId) return;
         running.current?.abort(); const controller = new AbortController(); running.current = controller;
         const run = ++generation.current, { model, effort } = laneModel(which);
-        setBusy(true); setError(""); setNote(""); setProgress({ stage: "reading" }); setStarted(Date.now()); setNow(Date.now());
+        setError(""); setNote(""); setProgress({ stage: "reading" }); setStarted(Date.now()); setNow(Date.now());
         try {
             const request = [(draftRequest ?? defaultRequest).trim(), instruction.trim()].filter(Boolean).join("\n");
             const body = { ...(draftInput ?? JSON.parse(inputKey) as Omit<ResearchTableInput, "design">), ...(request ? { request } : {}), ...(repropose ? { repropose } : {}), model,
@@ -81,9 +82,9 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
             if (which === "chat" && chatModel && pickerModel && pickerModel !== chatModel) { setLane("picker"); return propose(instruction, repropose, "picker"); }
             setError(errorMessage(reason, labelling
             ? "Could not generate label suggestions; nothing was changed" : "Could not generate a table; nothing was changed")); }
-        finally { if (run === generation.current) { setBusy(false); setProgress(null); } }
+        finally { if (run === generation.current) setProgress(null); }
     }
-    const cancel = () => { running.current?.abort(); generation.current++; setBusy(false); setProgress(null); };
+    const cancel = () => { running.current?.abort(); generation.current++; setProgress(null); };
     useEffect(() => {
         const controller = new AbortController(), { signal } = controller;
         if (labelling && activeId) void (async () => {

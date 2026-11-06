@@ -73,7 +73,9 @@ the attempt. No transaction remains open while a handler runs. A heartbeat
 extends the lease and checks cancellation. If a process dies, another worker
 may reclaim the job after the lease. Completion/failure updates require the
 matching job ID and worker token, so a stale worker cannot overwrite a newer
-attempt.
+attempt. A cancel request outranks every other end of an attempt, and a job with
+no attempt left ends failed, or cancelled if it was asked to, rather than wait
+in the queue for a claim that cannot come.
 
 Defaults are deliberately boring: one expensive-document worker per process,
 a five-second heartbeat, a 30-second renewable lease, three attempts, capped

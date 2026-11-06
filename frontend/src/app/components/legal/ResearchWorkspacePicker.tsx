@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { assistantIntent } from "../assistant/assistantIntent";
 import { createPortal } from "react-dom";
@@ -16,16 +16,19 @@ import { useSourcesWorkspace } from "./SourcesWorkspace";
 const fileTitle = (file: ResearchFile | null) => file?.document.filename
   .replace(/\.research\.md$/iu, "") ?? "Workspace";
 
+/** The one dialog open. A new folder or project is made from the picker, and goes back to it as it was. */
+type Dialog = { name: "none" | "rename" } | { name: "picker" | "folder" | "project"; creating: boolean };
+const NO_DIALOG: Dialog = { name: "none" };
+const PICKER: Dialog = { name: "picker", creating: false };
+
 export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projectId?: string; rail?: HTMLElement | null; onHistory: () => void }) {
   const workspace = useSourcesWorkspace(), { file } = workspace, navigate = useNavigate();
-  const [open, setOpen] = useState(false), [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
-  const [createOpen, setCreateOpen] = useState(false), [renameOpen, setRenameOpen] = useState(false);
-  const [folderOpen, setFolderOpen] = useState(false), [projectOpen, setProjectOpen] = useState(false),
-    [directoryKey, setDirectoryKey] = useState(0), [folderError, setFolderError] = useState(""),
+  const [dialog, setDialog] = useState(NO_DIALOG), [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
+  const open = dialog.name === "picker", createOpen = open && dialog.creating;
+  const [directoryKey, setDirectoryKey] = useState(0), [folderError, setFolderError] = useState(""),
     [openLocation, setOpenLocation] = useState<DirectoryLocation>(() => projectId ?? file?.document.project_id
       ? { projectId: projectId ?? file!.document.project_id! } : { library: "files" });
   const [busy, setBusy] = useState(false), [status, setStatus] = useState("");
-  const returnToPicker = useRef(false);
   const fileProjectId = file?.document.project_id;
   const directory = useMemo(() => directoryResource(fileProjectId
     ? { projectId: fileProjectId } : { library: "files" }), [fileProjectId]);
@@ -35,7 +38,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
   }
   async function choose(id: string) {
     setBusy(true);
-    try { await workspace.open(id); setStatus(""); setOpen(false); }
+    try { await workspace.open(id); setStatus(""); setDialog(NO_DIALOG); }
     catch (reason) { setStatus(errorMessage(reason, "Could not open research")); }
     finally { setBusy(false); }
   }
@@ -43,7 +46,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     event.preventDefault(); if (!file) return; const title = String(new FormData(event.currentTarget).get("title") ?? "").trim();
     if (!title) return; setBusy(true);
     try { await directory.renameDocument(file.document.id, `${title.replace(/\.research\.md$/iu, "")}.research.md`);
-      await workspace.refresh(); setStatus(""); setRenameOpen(false); }
+      await workspace.refresh(); setStatus(""); setDialog(NO_DIALOG); }
     catch (reason) { setStatus(errorMessage(reason, "Could not rename workspace")); }
     finally { setBusy(false); }
   }
@@ -52,25 +55,25 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     const activeProject = projectId ?? ("projectId" in openLocation ? openLocation.projectId : null);
     if (!name) return; setBusy(true); setFolderError("");
     try { await directoryResource(activeProject ? { projectId: activeProject } : { library: "files" }).createFolder(name, null);
-      setDirectoryKey((value) => value + 1); setFolderOpen(false); setOpen(true); returnToPicker.current = false; }
+      setDirectoryKey((value) => value + 1); backToPicker(); }
     catch (reason) { setFolderError(errorMessage(reason, "Could not create folder")); }
     finally { setBusy(false); }
   }
-  const newWorkspace = () => { setOpen(true); setCreateOpen(true); setSelectedDocuments([]); };
-  const reopenPicker = () => { if (returnToPicker.current) { returnToPicker.current = false; setOpen(true); } };
+  const newWorkspace = () => { setDialog({ name: "picker", creating: true }); setSelectedDocuments([]); };
+  const backToPicker = () => setDialog((current) => "creating" in current ? { name: "picker", creating: current.creating } : current);
   const selector = file ? <div className="flex min-w-0 max-w-full flex-col items-start gap-1.5 @min-[26rem]:flex-row @min-[26rem]:items-center @min-[26rem]:gap-2">
     <span className="min-w-0 max-w-full truncate text-base font-semibold text-gray-900" title={fileTitle(file)}>{fileTitle(file)}</span>
     <div className="flex min-w-0 shrink-0 items-center gap-2">
     <ActionMenu label="Workspace options" className="shrink-0" items={[
-    { label: "Rename", onSelect: () => setRenameOpen(true) },
+    { label: "Rename", onSelect: () => setDialog({ name: "rename" }) },
     { label: "History", onSelect: onHistory },
     { label: "Suggest labels…", onSelect: () => {
       setStatus(""); void workspace.chat().then(({ path }) => navigate(path, { state: { assistantIntent: assistantIntent(
         "Suggest labels for this research using its existing sources and saved passages. Keep source labels separate from highlight types. Show me the proposed changes before applying them; do not save anything yet.") } }))
         .catch((reason) => setStatus(errorMessage(reason, "Could not open research chat")));
     } },
-    { label: "Open another", onSelect: () => setOpen(true) },
-    { label: "New workspace", onSelect: () => { returnToPicker.current = false; newWorkspace(); } },
+    { label: "Open another", onSelect: () => setDialog(PICKER) },
+    { label: "New workspace", onSelect: newWorkspace },
   ]} triggerClassName="grid size-8 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
     <Ellipsis className="size-4" aria-hidden="true" />
   </ActionMenu><ResearchWorkspaceViews /></div></div> : <span className="text-base font-semibold text-gray-900">Workspaces</span>;
@@ -81,11 +84,11 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     {!file && <div className="py-4">
         <p className="text-sm leading-5 text-gray-600">Keep sources, passages, labels, searches, and notes together.</p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setOpen(true)} className="h-9 rounded-md bg-gray-900 px-3 text-sm font-medium text-white hover:bg-gray-700">Open</button>
-          <button type="button" onClick={() => { returnToPicker.current = false; newWorkspace(); }} className="ms-auto h-9 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50">New workspace</button>
+          <button type="button" onClick={() => setDialog(PICKER)} className="h-9 rounded-md bg-gray-900 px-3 text-sm font-medium text-white hover:bg-gray-700">Open</button>
+          <button type="button" onClick={newWorkspace} className="ms-auto h-9 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50">New workspace</button>
         </div>
     </div>}
-    <Modal open={open} onClose={() => { setOpen(false); setCreateOpen(false); }} size="lg" className="!h-[min(30rem,calc(100dvh-2rem))]" breadcrumbs={["Workspaces"]}
+    <Modal open={open} onClose={() => setDialog(NO_DIALOG)} size="lg" className="!h-[min(30rem,calc(100dvh-2rem))]" breadcrumbs={["Workspaces"]}
       footerStatus={status && <span role="alert" className="text-sm text-red-700">{status}</span>}
       primaryAction={{ label: busy ? "Opening..." : "Open",
         onClick: () => { const document = selectedDocuments.find(isResearchDocument); if (document) void choose(document.id); },
@@ -93,9 +96,9 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
       <div className="flex h-full min-h-0 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1.5">
         <button type="button" disabled={!projectId && "projectId" in openLocation && !openLocation.projectId}
-          onClick={() => { returnToPicker.current = true; setOpen(false); setFolderError(""); setFolderOpen(true); }}
+          onClick={() => { setDialog({ name: "folder", creating: createOpen }); setFolderError(""); }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"><FolderPlus className="size-3.5" />New folder</button>
-        <button type="button" onClick={() => { returnToPicker.current = true; setOpen(false); setProjectOpen(true); }}
+        <button type="button" onClick={() => setDialog({ name: "project", creating: createOpen })}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"><FolderKanban className="size-3.5" />New project</button>
         <button type="button" disabled={createOpen || (!projectId && "projectId" in openLocation && !openLocation.projectId)} onClick={newWorkspace}
           className="ms-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"><FilePlus2 aria-hidden className="size-3.5" />New workspace</button>
@@ -108,10 +111,10 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
           onCreate: async (title, location, folderId) => (await createResearchFile({ title,
             projectId: "projectId" in location ? location.projectId : undefined,
             ...(folderId ? { folderId } : {}) })).document,
-          onCancel: () => setCreateOpen(false) } : undefined} />
+          onCancel: () => setDialog(PICKER) } : undefined} />
       </div>
     </Modal>
-    <Modal open={renameOpen} onClose={() => setRenameOpen(false)} size="sm" fit
+    <Modal open={dialog.name === "rename"} onClose={() => setDialog(NO_DIALOG)} size="sm" fit
       breadcrumbs={["Workspace", "Rename"]}
       primaryAction={{ label: busy ? "Renaming..." : "Rename", type: "submit", form: "research-rename", disabled: busy }}>
       <form id="research-rename" onSubmit={rename} className="pb-5">
@@ -120,7 +123,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
         </label>
       </form>
     </Modal>
-    <Modal open={folderOpen} onClose={() => { setFolderOpen(false); reopenPicker(); }} size="sm" className="!h-[min(15rem,calc(100dvh-2rem))]"
+    <Modal open={dialog.name === "folder"} onClose={backToPicker} size="sm" className="!h-[min(15rem,calc(100dvh-2rem))]"
       breadcrumbs={["projectId" in openLocation ? "Projects" : "Library", "New folder"]}
       primaryAction={{ label: busy ? "Creating..." : "Create folder", type: "submit", form: "research-new-folder",
         disabled: busy }}>
@@ -131,9 +134,9 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
         {folderError && <p role="alert" className="mt-2 text-xs text-red-700">{folderError}</p>}
       </form>
     </Modal>
-    <NewProjectModal open={projectOpen} onClose={() => { setProjectOpen(false); reopenPicker(); }} onCreated={(project) => {
+    <NewProjectModal open={dialog.name === "project"} onClose={backToPicker} onCreated={(project) => {
       setOpenLocation({ projectId: project.id });
-      setDirectoryKey((value) => value + 1); setProjectOpen(false); setOpen(true); returnToPicker.current = false; }} />
+      setDirectoryKey((value) => value + 1); backToPicker(); }} />
 
   </>;
 }

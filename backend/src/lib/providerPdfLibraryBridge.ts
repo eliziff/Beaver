@@ -68,6 +68,25 @@ type PdfRecord = SafeRequest & {
   updated_at: string;
 };
 
+// What a record says: a parse only follows a download, and only a finished parse
+// with its profile is usable ("unparsed" also reads ready without the profile).
+type PdfPhase =
+  | { phase: "queued" | "failed" }
+  | { phase: "downloaded"; digest: string; parse: "unparsed" | "parsing" | "failed";
+    profile?: PdfProfileSelection }
+  | { phase: "parsed"; digest: string; parse: PdfParseStatus; profile: PdfProfileSelection };
+
+function pdfPhase(record: PdfRecord | null): PdfPhase | null {
+  if (!record) return null;
+  if (record.status !== "downloaded") return { phase: record.status };
+  const digest = record.source_sha256, parse = record.parse_status, profile = record.pdf_profile;
+  if (!digest) return null;
+  if (parse === "ready" || parse === "degraded") return profile
+    ? { phase: "parsed", digest, parse, profile } : { phase: "downloaded", digest, parse: "unparsed" };
+  return { phase: "downloaded", digest, parse: parse ?? "unparsed", ...(profile && { profile }) };
+}
+const pdfDigest = (phase: PdfPhase | null) => phase && "digest" in phase ? phase.digest : null;
+
 const PREFIX = "mike-provider-pdf:v1";
 const REFERENCE = /^mike-provider-pdf:v1:([a-z0-9-]+):([a-f0-9]{64})(?::([a-f0-9]{64}))?$/u;
 
@@ -128,12 +147,12 @@ async function readRecord(key: string) {
   catch { return null; }
 }
 
-async function writeRecord(request: SafeRequest, status: PdfRecord["status"], digest?: string,
-  parseStatus?: PdfRecord["parse_status"], pdfProfile?: PdfProfileSelection) {
-  const record: PdfRecord = { ...request, schema_version: 1, status,
-    ...(digest ? { source_sha256: digest } : {}),
-    ...(parseStatus ? { parse_status: parseStatus } : {}),
-    ...(pdfProfile ? { pdf_profile: pdfProfile } : {}),
+async function writeRecord(request: SafeRequest, phase: PdfPhase) {
+  const record: PdfRecord = { ...request, schema_version: 1,
+    status: phase.phase === "queued" || phase.phase === "failed" ? phase.phase : "downloaded",
+    ...("digest" in phase ? { source_sha256: phase.digest } : {}),
+    ...("parse" in phase && phase.parse !== "unparsed" ? { parse_status: phase.parse } : {}),
+    ...("profile" in phase && phase.profile ? { pdf_profile: phase.profile } : {}),
     updated_at: new Date().toISOString() };
   await atomicWriteProjection(recordPath(request.requestKey), `${JSON.stringify(record)}\n`);
   return record;
@@ -206,15 +225,14 @@ const unanswered = (error: unknown) => error instanceof TypeError || (error as E
 async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal,
   allowHtml = true) {
   return withProjectionLock(request.requestReference, async () => {
-    const prior = await readRecord(request.requestKey);
-    const cached = prior?.status === "downloaded"
-      ? await verifiedContent(prior.source_sha256) : null;
-    if (cached && prior?.source_sha256) return {
-      path: cached, digest: prior.source_sha256, url: request.url, links: [] as string[],
+    const prior = pdfDigest(pdfPhase(await readRecord(request.requestKey)));
+    const cached = prior ? await verifiedContent(prior) : null;
+    if (cached && prior) return {
+      path: cached, digest: prior, url: request.url, links: [] as string[],
     };
     let pdf = !allowHtml;
     try {
-      if (pdf) await writeRecord(request, "queued");
+      if (pdf) await writeRecord(request, { phase: "queued" });
       let { response, url } = await fetchSource(request.url,
         `application/pdf, application/octet-stream${allowHtml
           ? ", text/html, application/xhtml+xml" : ""}`, signal);
@@ -244,16 +262,16 @@ async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal
               frame.searchParams.get("iframe") === "true";
           }) : links };
       }
-      if (!pdf) { pdf = true; await writeRecord(request, "queued"); }
+      if (!pdf) { pdf = true; await writeRecord(request, { phase: "queued" }); }
       response = await boundRemoteResponse(response, { label: "Source PDF",
         maxBytes: 100 * 1024 * 1024,
         contentTypes: ["application/pdf", "application/octet-stream"] });
       const published = await publishPdfStream(response.body!, signal);
-      await writeRecord(request, "downloaded", published.sourceSha256);
+      await writeRecord(request, { phase: "downloaded", digest: published.sourceSha256, parse: "unparsed" });
       return { path: published.path, digest: published.sourceSha256,
         url: url.toString(), links: [] as string[] };
     } catch (error) {
-      if (pdf) await writeRecord(request, "failed");
+      if (pdf) await writeRecord(request, { phase: "failed" });
       throw error;
     }
   });
@@ -318,17 +336,16 @@ const parse = (bytes: Buffer, digest: string, signal?: AbortSignal,
   signal, pdfProfile,
 });
 
-function state(request: SafeRequest, record: PdfRecord | null,
-  parseStatus = record?.parse_status ?? null): ProviderPdfAttachmentState {
-  const digest = record?.status === "downloaded" ? record.source_sha256 ?? null : null;
+function state(request: SafeRequest, record: PdfRecord | null): ProviderPdfAttachmentState {
+  const phase = pdfPhase(record), digest = pdfDigest(phase);
   const reference = digest ? sourceReference(request, digest) : null;
   return {
     provider: request.provider, identity: request.identity,
     request_reference: request.requestReference,
     reference_id: reference ?? request.requestReference, source_reference: reference,
-    download_status: record?.status ?? "not_queued", source_sha256: digest,
-    parse_status: ["ready", "degraded"].includes(String(parseStatus)) && !record?.pdf_profile
-      ? null : parseStatus,
+    download_status: !phase ? "not_queued" : digest ? "downloaded" : phase.phase as "queued" | "failed",
+    source_sha256: digest,
+    parse_status: !phase || !("parse" in phase) || phase.parse === "unparsed" ? null : phase.parse,
   };
 }
 
@@ -350,31 +367,25 @@ export async function queueProviderPdfAttachment(
   userId: string,
 ) {
   const request = safeRequest(input);
-  let record: PdfRecord | null = null;
-  let enqueue = false;
-  await withProjectionLock(request.requestReference, async () => {
-    record = await readRecord(request.requestKey);
-    const content = record?.status === "downloaded"
-      ? await verifiedContent(record.source_sha256) : null;
-    if (!content && record?.status !== "queued") record = await writeRecord(request, "queued");
-    enqueue = !content || !record?.pdf_profile ||
-      !["ready", "degraded"].includes(String(record.parse_status));
+  const { record, enqueue } = await withProjectionLock(request.requestReference, async () => {
+    const record = await readRecord(request.requestKey), phase = pdfPhase(record);
+    const content = await verifiedContent(pdfDigest(phase) ?? undefined);
+    return { record: !content && phase?.phase !== "queued" ? await writeRecord(request, { phase: "queued" }) : record,
+      enqueue: !content || phase?.phase !== "parsed" };
   });
   if (enqueue) await enqueueProviderJob(request, userId);
   return state(request, record);
 }
 
 async function stateFor(request: SafeRequest, expected: string | null, userId: string) {
-  let record = await readRecord(request.requestKey);
-  const digest = record?.status === "downloaded" ? record.source_sha256 ?? null : null;
+  const record = await readRecord(request.requestKey), phase = pdfPhase(record), digest = pdfDigest(phase);
   if (expected && digest !== expected) return state(request, null);
   const content = await verifiedContent(digest ?? undefined);
-  if (!content) {
-    if (record?.status === "queued" || record?.status === "failed") return state(request, record);
-    const queued = await queueProviderPdfAttachment(request, userId);
-    record = await readRecord(request.requestKey);
-    return queued ?? state(request, record);
-  }
+  // A record promises work its job may not have lived to do, so each waiting read
+  // asks for the job again. The job's dedupe key makes that nothing while it lives.
+  if (content ? phase?.phase === "downloaded" && phase.parse !== "failed" : phase?.phase === "queued")
+    await enqueueProviderJob(request, userId);
+  else if (!content && phase?.phase !== "failed") return queueProviderPdfAttachment(request, userId);
   return state(request, record);
 }
 
@@ -394,23 +405,22 @@ export function providerPdfJobHandlers(): Record<string, JobHandler> {
       if (!value || typeof value !== "object" || Array.isArray(value) ||
           typeof value.requestReference !== "string") throw new Error("InvalidProviderPdfJob");
       const { request } = await requestForReference(value.requestReference);
-      const downloaded = await download(request, context.signal);
+      const downloaded = await download(request, context.signal), digest = downloaded.digest;
       const selected = (await readRecord(request.requestKey))?.pdf_profile;
       await context.progress({ phase: "extracting" });
-      await writeRecord(request, "downloaded", downloaded.digest, "parsing", selected);
+      await writeRecord(request, { phase: "downloaded", digest, parse: "parsing", profile: selected });
       try {
-        const summary = await parse(
-          await readFile(downloaded.path), downloaded.digest, context.signal, selected);
+        const summary = await parse(await readFile(downloaded.path), digest, context.signal, selected);
         const profile = decodePdfProfileSelection(summary);
         if (!profile) throw new Error("PDF preparation returned no profile");
-        await writeRecord(request, "downloaded", downloaded.digest, summary.status, profile);
+        await writeRecord(request, { phase: "parsed", digest, parse: summary.status, profile });
         return {
           requestReference: request.requestReference,
-          sourceSha256: downloaded.digest,
+          sourceSha256: digest,
           status: summary.status,
         };
       } catch (error) {
-        await writeRecord(request, "downloaded", downloaded.digest, "failed", selected);
+        await writeRecord(request, { phase: "downloaded", digest, parse: "failed", profile: selected });
         throw error;
       }
     },

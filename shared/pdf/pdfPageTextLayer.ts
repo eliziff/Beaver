@@ -11,8 +11,11 @@ export function createPdfPageTextLayer(options: {
   TextLayer: typeof TextLayer; source?: RecognizedPage; loader?: PdfPageTextLoader;
   onReady(): void;
 }) {
-  let disposed = false, element: HTMLDivElement | undefined, native: TextLayer | undefined;
-  let source = options.source, loader = options.loader, installed: RecognizedPage | undefined;
+  let disposed = false, element: HTMLDivElement | undefined;
+  // What the layer holds: nothing yet, PDF.js's native text, or a recognized page.
+  let shown: { kind: 'none' } | { kind: 'native'; layer: TextLayer } | { kind: 'recognized'; page: RecognizedPage } = { kind: 'none' };
+  const cancelNative = () => { if (shown.kind === 'native') { shown.layer.cancel?.(); shown = { kind: 'none' }; } };
+  let source = options.source, loader = options.loader;
   let viewport: ReturnType<PDFPageProxy['getViewport']>;
   let cancelRefresh = () => {};
   const createElement = () => {
@@ -29,12 +32,12 @@ export function createPdfPageTextLayer(options: {
     options.onReady();
   };
   const install = (page: RecognizedPage) => {
-    if (installed === page) return;
+    if (shown.kind === 'recognized' && shown.page === page) return;
     const next = createElement();
     renderRecognizedText(next, page, viewport.width, viewport.height);
-    native?.cancel?.(); native = undefined;
+    cancelNative();
     if (element?.isConnected) element.replaceWith(next); else options.wrapper.append(next);
-    element = next; installed = page; finish(next);
+    element = next; shown = { kind: 'recognized', page }; finish(next);
   };
   // This promise must not wait for an optional OCR response: quote navigation uses native text.
   const ready = options.page.then(async page => {
@@ -43,14 +46,15 @@ export function createPdfPageTextLayer(options: {
     if (hasText(options.source)) { install(options.source!); return; }
     // Native PDF.js text needs its matching font-size/transform CSS; OCR owns its inline geometry.
     element = createElement(); element.classList.add('textLayer'); options.wrapper.append(element);
-    native = new options.TextLayer({textContentSource:page.streamTextContent(),container:element,viewport});
-    await native.render();
+    const layer = new options.TextLayer({textContentSource:page.streamTextContent(),container:element,viewport});
+    shown = { kind: 'native', layer };
+    await layer.render();
     if (disposed) return;
-    for (const div of native.textDivs) div.dataset.pdfTextRun = '';
+    for (const div of layer.textDivs) div.dataset.pdfTextRun = '';
     finish(element);
   }).catch(cause => {
     if (disposed) return;
-    native?.cancel?.(); native = undefined; element?.remove();
+    cancelNative(); element?.remove();
     console.warn('PDF text selection unavailable', cause);
   });
   const refresh = (nextSource?: RecognizedPage, nextLoader?: PdfPageTextLoader, force = false) => {
@@ -83,6 +87,6 @@ export function createPdfPageTextLayer(options: {
   refresh(source, loader, true);
   return {ready, refresh, destroy() {
     if (disposed) return;
-    disposed = true; cancelRefresh(); native?.cancel?.(); native = undefined; element?.remove();
+    disposed = true; cancelRefresh(); cancelNative(); element?.remove();
   }};
 }

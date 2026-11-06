@@ -117,15 +117,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [draftSaveFailed, setDraftSaveFailed] = useState(false);
     const lastSubmittedDocsRef = useRef<Document[]>([]);
     const restoredDraftRef = useRef<Message | null>(null);
-    const historyIndexRef = useRef<number | null>(null);
-    const historyDraftRef = useRef("");
-    const draftEdited = useRef(false);
+    // Where the arrow keys are in the prompt history, and the text they left; null at the text itself.
+    const historyPlace = useRef<{ index: number; draft: string } | null>(null);
+    // The draft as it was opened, changed here, or sent; a sent draft is saved as none.
+    const draftStage = useRef<"opened" | "edited" | "sent">("opened");
     const draftContent = useRef(openingDraft?.content ?? "");
-    const draftCleared = useRef(false);
     const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const saveDraftRef = useRef<() => Promise<unknown>>(async () => {});
     const draftSnapshot = (): ChatDraft | null => {
-        if (draftCleared.current) return null;
+        if (draftStage.current === "sent") return null;
         const content = draftContent.current;
         return {
             role: "user", content, documents: attachedDocs, workflow: selectedWorkflow ?? undefined,
@@ -143,7 +143,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         };
     });
     function scheduleDraft() {
-        draftEdited.current = true;
+        if (draftStage.current === "opened") draftStage.current = "edited";
         if (!draftChatId && !onDraftChange) return;
         if (draftTimer.current) clearTimeout(draftTimer.current);
         draftTimer.current = setTimeout(() => { draftTimer.current = null; void saveDraftRef.current(); }, 250);
@@ -165,7 +165,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         let active = true;
         const loaded = currentChatDraft(draftChatId, initialDraft);
         const restore = (draft: ChatDraft | null) => {
-            if (!active || !draft || draftEdited.current) return;
+            if (!active || !draft || draftStage.current !== "opened") return;
             setInputValue(draft.content, false, false);
             setAttachedDocs(draft.documents ?? []);
             setSelectedWorkflow(draft.workflow ?? null);
@@ -176,7 +176,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         return () => { active = false; };
     }, [draftChatId, initialDraft]);
     useEffect(() => {
-        if (!draftEdited.current) return;
+        if (draftStage.current === "opened") return;
         scheduleDraft();
     }, [attachedDocs, selectedWorkflow, model, reasoningEffort, editMode]);
     useEffect(() => () => {
@@ -184,8 +184,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     }, []);
 
     function attachDocuments(documents: Document[], dropped = false) {
+        draftStage.current = "edited";
         scheduleDraft();
-        draftCleared.current = false;
         setAttachedDocs((current) => mergeDocuments(current, documents));
         if (dropped) setDroppedDocuments((current) => mergeDocuments(current, documents));
     }
@@ -196,27 +196,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     ) {
         const history = promptHistory.filter((prompt) => prompt.trim());
         if (!history.length) return false;
-        let index = historyIndexRef.current;
-        if (direction === "older") {
-            if (index === null) {
-                historyDraftRef.current = target.value;
-                index = history.length - 1;
-            } else {
-                index = Math.max(0, Math.min(index, history.length - 1) - 1);
-            }
-        } else {
-            if (index === null) return false;
-            if (index < history.length - 1) {
-                index += 1;
-            } else {
-                historyIndexRef.current = null;
-                setInputValue(historyDraftRef.current);
-                target.setSelectionRange(target.value.length, target.value.length);
-                return true;
-            }
-        }
-        historyIndexRef.current = index;
-        setInputValue(history[index]);
+        const place = historyPlace.current;
+        if (direction === "newer" && !place) return false;
+        const index = !place ? history.length - 1
+            : direction === "older" ? Math.max(0, Math.min(place.index, history.length - 1) - 1) : place.index + 1;
+        historyPlace.current = index < history.length ? { index, draft: place?.draft ?? target.value } : null;
+        setInputValue(historyPlace.current ? history[index] : place!.draft);
         target.setSelectionRange(target.value.length, target.value.length);
         return true;
     }
@@ -236,8 +221,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         getModelPreferences: () => ({ model, reasoningEffort }),
         addDoc: (doc: Document) => attachDocuments([doc]),
         clearDraft: () => {
-            historyIndexRef.current = null;
-            historyDraftRef.current = "";
+            historyPlace.current = null;
             setInputValue("");
             setAttachedDocs([]);
             setSelectedWorkflow(null);
@@ -329,12 +313,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             return;
         }
         setInputValue("");
-        historyIndexRef.current = null;
-        historyDraftRef.current = "";
+        historyPlace.current = null;
         lastSubmittedDocsRef.current = attachedDocs;
         setAttachedDocs([]);
         setSelectedWorkflow(null);
-        draftCleared.current = true;
+        draftStage.current = "sent";
         if (draftTimer.current) { clearTimeout(draftTimer.current); draftTimer.current = null; }
         if (onDraftChange) void onDraftChange(null);
         else if (draftChatId) void writeChatDraft(draftChatId, null).catch(() => {});
@@ -415,11 +398,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             rows={rows}
                             placeholder="How can I help?"
                             onChange={(event) => {
-                                draftEdited.current = true;
+                                draftStage.current = "edited";
                                 draftContent.current = event.currentTarget.value;
-                                draftCleared.current = false;
                                 scheduleDraft();
-                                historyIndexRef.current = null;
+                                historyPlace.current = null;
                                 const next = !!event.currentTarget.value.trim();
                                 if (next !== hasValue) setHasValue(next);
                             }}
@@ -435,8 +417,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     event.currentTarget.selectionStart ===
                                         event.currentTarget.selectionEnd
                                 ) {
-                                    const browsing =
-                                        historyIndexRef.current !== null;
+                                    const browsing = !!historyPlace.current;
                                     const canStart =
                                         event.key === "ArrowUp" &&
                                         (!event.currentTarget.value.includes("\n") ||
@@ -590,8 +571,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 <ModelEffortToggle
                                     model={model}
                                     effort={reasoningEffort}
-                                    onModelChange={(value) => { draftCleared.current = false; scheduleDraft(); setModel(value); }}
-                                    onEffortChange={(value) => { draftCleared.current = false; scheduleDraft(); setReasoningEffort(value); }}
+                                    onModelChange={(value) => { draftStage.current = "edited"; scheduleDraft(); setModel(value); }}
+                                    onEffortChange={(value) => { draftStage.current = "edited"; scheduleDraft(); setReasoningEffort(value); }}
                                     apiKeys={apiKeys}
                                 />
                             </div>

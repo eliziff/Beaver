@@ -58,11 +58,11 @@ export function SidebarChatItem({
         }
     }
     const { user } = useAuth();
-    const [isRenaming, setIsRenaming] = useState(false);
-    const [editTitle, setEditTitle] = useState(chat.title ?? "");
+    // The title being typed; null when the chat is not being renamed.
+    const [renaming, setRenaming] = useState<string | null>(null);
+    const isRenaming = renaming !== null;
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
-    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
+    const [removal, setRemoval] = useState<"none" | "asking" | "deleting">("none");
     const editInputRef = useRef<HTMLInputElement>(null);
     const isChatOwner = !!user?.id && chat.user_id === user.id;
     const ownerOnly = (action: string, run: () => void) => () =>
@@ -75,14 +75,11 @@ export function SidebarChatItem({
         if (isRenaming) editInputRef.current?.focus();
     }, [isRenaming]);
     const handleRenameSave = async () => {
-        const trimmed = editTitle.trim();
+        const trimmed = renaming?.trim();
         if (trimmed) await renameChat(chat.id, trimmed);
-        setIsRenaming(false);
+        setRenaming(null);
     };
-    const handleRenameCancel = () => {
-        setIsRenaming(false);
-        setEditTitle(chat.title ?? "");
-    };
+    const handleRenameCancel = () => setRenaming(null);
     return (
         <div
             data-chat-id={chat.id}
@@ -104,8 +101,8 @@ export function SidebarChatItem({
                         ref={editInputRef}
                         type="text"
                         aria-label="Chat title"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
+                        value={renaming}
+                        onChange={(e) => setRenaming(e.target.value)}
                         onKeyDown={(e) => {
                             if (e.key === "Enter") void handleRenameSave();
                             if (e.key === "Escape") handleRenameCancel();
@@ -182,17 +179,14 @@ export function SidebarChatItem({
                         <IconButton Icon={Pencil}
                             label={`Rename ${chat.title ?? "chat"}`}
                             title="Rename"
-                            onClick={ownerOnly("rename this chat", () => {
-                                setEditTitle(chat.title ?? "");
-                                setIsRenaming(true);
-                            })}
+                            onClick={ownerOnly("rename this chat", () => setRenaming(chat.title ?? ""))}
                             className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900" />
                         <IconButton Icon={Trash2}
                             label={selectionDelete
                                 ? `Delete ${selectedCount} selected chats`
                                 : `Delete ${chat.title ?? "chat"}`}
                             title={selectionDelete ? "Delete selected chats" : "Delete"}
-                            onClick={ownerOnly("delete this chat", () => setConfirmDeleteOpen(true))}
+                            onClick={ownerOnly("delete this chat", () => setRemoval("asking"))}
                             className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-red-50 hover:text-red-700" />
                     </div>
                 </>
@@ -203,24 +197,21 @@ export function SidebarChatItem({
                 onClose={() => setOwnerOnlyAction(null)}
             />
             <ChatDeleteWarning
-                open={confirmDeleteOpen}
+                open={removal !== "none"}
                 count={
                     isSelectionActionOwner && selectedCount
                         ? selectedCount
                         : 1
                 }
-                busy={isDeleting}
-                onCancel={() => setConfirmDeleteOpen(false)}
+                busy={removal === "deleting"}
+                onCancel={() => setRemoval("none")}
                 onConfirm={() => {
-                    setIsDeleting(true);
+                    setRemoval("deleting");
                     const remove =
                         isSelectionActionOwner && onDeleteSelection
                             ? onDeleteSelection()
                             : deleteChat(chat.id);
-                    void remove.finally(() => {
-                        setIsDeleting(false);
-                        setConfirmDeleteOpen(false);
-                    });
+                    void remove.finally(() => setRemoval("none"));
                 }}
             />
         </div>

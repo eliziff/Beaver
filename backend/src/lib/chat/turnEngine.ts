@@ -21,13 +21,16 @@ import { createLegalEvidenceCitations,
 import { GROUNDED_LEGAL_REPAIR_INSTRUCTION, UNVERIFIED_LEGAL_ANSWER,
   hasModelAuthoredLegalSourceUrl } from "./legalOutputGate";
 import {
+  abandonLegalEvidence,
   createLegalEvidenceTurnState,
   finalizeLegalEvidence,
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   LEGAL_EVIDENCE_TOOL_NAME,
+  legalEvidenceReads,
   legalEvidenceReceiptEvent,
   legalEvidenceCitationEntries,
   legalEvidenceRequested,
+  reopenLegalEvidence,
   registerLegalEvidence,
   registerLegalResearchQueries,
   registerPriorLegalEvidence,
@@ -98,6 +101,23 @@ function contentBoundarySeparator(before: string, after: string) {
   const next = after[0] ?? "";
   if (/^[,.;:!?)}\]]$/u.test(next) || /^[-/\\'’–—]$/u.test(previous)) return "";
   return /[\p{L}\p{N}]$/u.test(previous) && /^[\p{Ll}\p{M}]/u.test(next) ? "" : " ";
+}
+
+/** The answer as it streams. After a block ends, the next text is joined across the boundary. */
+function answerDraft() {
+  let boundary = false;
+  return {
+    text: "",
+    append(delta: string) {
+      if (boundary) {
+        boundary = false;
+        this.text += contentBoundarySeparator(this.text, delta);
+      }
+      this.text += delta;
+    },
+    endBlock() { boundary = Boolean(this.text); },
+    replace(text: string) { this.text = text; boundary = false; },
+  };
 }
 
 export async function runChatTurn(options: {
@@ -212,30 +232,25 @@ export async function runChatTurn(options: {
     evidence.mode = "citation_structure";
   const admitReaders = createReadSubagentAdmission(4,
     allowedReadSubagentRegions(options.jurisdictionPreference ?? null, request));
-  let text = "";
+  const draft = answerDraft();
   let reasoning = "";
-  let boundary = false;
   let paused: AskInputsEvent | undefined;
   let providerActivity = false;
   let activeMessages = options.messages;
-  const steering: SteeringMessage[] = [];
-  let nativeControl: ProviderTurnControl | null = null;
+  // Steering waits in a queue for the next step until a native provider takes it directly.
+  let steering = { to: "queue", waiting: [] } as { to: "queue"; waiting: SteeringMessage[] }
+    | { to: "native"; control: ProviderTurnControl };
   let nativeSteering = Promise.resolve();
   const providerAbort = new AbortController();
   const providerSignal = signal
     ? AbortSignal.any([signal, providerAbort.signal]) : providerAbort.signal;
 
   const append = (delta: string) => {
-    if (!delta || paused || providerSignal.aborted) return;
-    if (boundary) {
-      boundary = false;
-      text += contentBoundarySeparator(text, delta);
-    }
-    text += delta;
+    if (delta && !paused && !providerSignal.aborted) draft.append(delta);
   };
   const partialEvents = () => {
     if (reasoning) addEvent({ type: "reasoning", text: reasoning });
-    if (text) addEvent({ type: "content", text });
+    if (draft.text) addEvent({ type: "content", text: draft.text });
     reasoning = "";
   };
   const evidenceTool = (state: LegalEvidenceTurnState): BeaverTool<ChatToolContext> => ({
@@ -400,7 +415,7 @@ export async function runChatTurn(options: {
         content: JSON.stringify(readerHandoff(evidence.readerResults.get(id)!, evidence, 0, 64, 14_000)),
       };
     } catch (error) {
-      const observed = legalEvidenceReceiptEvent({ ...childEvidence, answer: null, attempted: false, failure: null });
+      const observed = legalEvidenceReads(childEvidence);
       if (observed) inheritReads(observed);
       const interrupted = providerSignal.aborted || isAbortError(error);
       const status = interrupted ? "interrupted" as const : "error" as const;
@@ -491,17 +506,13 @@ export async function runChatTurn(options: {
       })
       .finally(() => { context.onActivity = previousActivity; });
     if (paused) {
-      text = "";
-      boundary = false;
+      draft.replace("");
       addEvent(paused);
       emit(paused);
       if (["codex", "claude-p"].includes(providerForModel(options.model))) providerAbort.abort();
     }
     const grounded = chatAnswer ? renderLegalEvidenceAnswer(evidence) : null;
-    if (grounded !== null) {
-      text = grounded;
-      boundary = false;
-    }
+    if (grounded !== null) draft.replace(grounded);
     return paused || options.submissionsComplete?.() ? results.map(result => ({ ...result, terminal: true })) : results;
   };
   let hasModelMessages = false;
@@ -525,7 +536,7 @@ export async function runChatTurn(options: {
       if (!providerSignal.aborted) options.onContentDelta?.(delta);
     },
     onContentBlockEnd() {
-      if (!paused && options.separateContentBlocks !== false) boundary = Boolean(text);
+      if (!paused && options.separateContentBlocks !== false) draft.endBlock();
     },
     onReasoningDelta(delta: string) {
       if (providerSignal.aborted) return;
@@ -556,7 +567,7 @@ export async function runChatTurn(options: {
       const label = defaultLabel ??
         assistantToolActivityLabel(call.name, call.input) ?? call.name;
       const citations = parseAssistantCitations(registry.activityCitations(call));
-      boundary = Boolean(text);
+      draft.endBlock();
       emitToolActivity({
         id: call.id,
         tool: call.name,
@@ -592,15 +603,14 @@ export async function runChatTurn(options: {
     onSteer(message: { id: string; text: string; submission?: PromptSubmission }) {
       activeMessages = [...activeMessages, { role: "user", content: message.text }];
       partialEvents();
-      text = "";
-      boundary = false;
+      draft.replace("");
       const event: AssistantEvent = { type: "steering", ...message };
       addEvent(event);
       emit(event);
     },
   };
   const takeSteering = () => {
-    const messages = steering.splice(0);
+    const messages = steering.to === "queue" ? steering.waiting.splice(0) : [];
     messages.forEach(callbacks.onSteer);
     return messages;
   };
@@ -615,11 +625,8 @@ export async function runChatTurn(options: {
       if (message.readers) readerSelection = { ...message.readers };
       if (!message.text.trim()) return;
       message = { id: message.id, text: message.text, submission: message.submission ?? { origin: "unknown" } };
-      if (!nativeControl) {
-        steering.push(message);
-        return;
-      }
-      await steerNative(nativeControl, message);
+      if (steering.to === "queue") steering.waiting.push(message);
+      else await steerNative(steering.control, message);
     },
   };
   options.onProviderControl?.(control);
@@ -662,11 +669,9 @@ export async function runChatTurn(options: {
       ...(continuationId ? { continuationId } : {}),
       onContinuationId: options.onProviderContinuation,
       onControl(next) {
-        nativeControl = next;
-        if (!next || !steering.length) return;
-        for (const message of steering.splice(0)) {
-          void steerNative(next, message).catch(() => undefined);
-        }
+        const waiting = steering.to === "queue" ? steering.waiting : [];
+        steering = next ? { to: "native", control: next } : { to: "queue", waiting };
+        if (next) for (const message of waiting) void steerNative(next, message).catch(() => undefined);
       },
     } : undefined,
   });
@@ -678,10 +683,9 @@ export async function runChatTurn(options: {
   let providerResult: StreamChatResult | undefined;
   /** Re-run the turn against its own rejected draft, so the retry sees what it must repair. */
   const repairDraft = async (findings: string) => {
-    const draft = text;
-    text = "";
-    boundary = false;
-    providerResult = await provider(providerResult?.continuationId, { draft, findings });
+    const rejected = draft.text;
+    draft.replace("");
+    providerResult = await provider(providerResult?.continuationId, { draft: rejected, findings });
   };
   try {
     throwIfAborted(signal);
@@ -720,26 +724,24 @@ export async function runChatTurn(options: {
       }
     }
     if (!paused && chatAnswer && options.grounded !== false && renderLegalEvidenceAnswer(evidence) === null &&
-        hasModelAuthoredLegalSourceUrl(text)) {
+        hasModelAuthoredLegalSourceUrl(draft.text)) {
       await repairDraft(
         GROUNDED_LEGAL_REPAIR_INSTRUCTION.replace(LEGAL_EVIDENCE_TOOL_NAME, submissionTool));
-      if (renderLegalEvidenceAnswer(evidence) === null) text = UNVERIFIED_LEGAL_ANSWER;
+      if (renderLegalEvidenceAnswer(evidence) === null) draft.text = UNVERIFIED_LEGAL_ANSWER;
     }
     if (!paused) {
       // Custom submission owners validate and persist each result themselves.
-      let finalized = !chatAnswer || options.grounded === false || finalizeLegalEvidence(evidence, text);
+      let finalized = !chatAnswer || options.grounded === false || finalizeLegalEvidence(evidence, draft.text);
       for (let attempt = 0; !finalized && attempt < 2; attempt += 1) {
-        const failure = evidence.failure ?? "No grounded submission was received.";
-        evidence.answer = null;
-        evidence.failure = null;
+        const failure = reopenLegalEvidence(evidence);
         await repairDraft(`Grounding error: ${failure} Revise the answer with available evidence_ids and finish with ${submissionTool}. Retrieve only missing passages.`);
-        finalized = finalizeLegalEvidence(evidence, text);
+        finalized = finalizeLegalEvidence(evidence, draft.text);
       }
       // An answer that stays unverified is reported as one, and the turn keeps its completed
       // reads and searches instead of dying with them.
       if (!finalized) {
-        text = UNVERIFIED_LEGAL_ANSWER;
-        Object.assign(evidence, { answer: null, attempted: false, failure: null });
+        draft.replace(UNVERIFIED_LEGAL_ANSWER);
+        abandonLegalEvidence(evidence);
       }
       const priorCitations = legalEvidenceCitationEntries(evidence).filter(({ receipt, document, source }) =>
         evidence.priorEvidenceIds.has(receipt.evidence_id) && !document && !source);
@@ -747,23 +749,24 @@ export async function runChatTurn(options: {
         priorCitations.map(({ receipt }) => receipt), signal, false,
         [...evidence.presentedEvidenceIds].map((id) => evidence.evidence.get(id)!)))
         registerLegalEvidence(evidence, receipt, source);
-      text = (chatAnswer ? renderLegalEvidenceAnswer(evidence) : null) ?? text.trimEnd();
+      draft.text = (chatAnswer ? renderLegalEvidenceAnswer(evidence) : null) ?? draft.text.trimEnd();
     }
   } catch (error) {
     if (!paused) {
       settleToolActivities(signal?.aborted || isAbortError(error) ? "interrupted" : "error");
       partialEvents();
-      const observed = legalEvidenceReceiptEvent({ ...evidence, answer: null, attempted: false, failure: null });
+      const observed = legalEvidenceReads(evidence);
       if (observed) addEvent(observed);
-      if (signal?.aborted || isAbortError(error)) throw new AssistantStreamAbortError(text, events);
+      if (signal?.aborted || isAbortError(error)) throw new AssistantStreamAbortError(draft.text, events);
       const message = safeErrorMessage(error, "Stream error");
       addEvent({ type: "error", message, code: providerErrorCode(error) });
-      throw new AssistantStreamError(message, text, events, error);
+      throw new AssistantStreamError(message, draft.text, events, error);
     }
   } finally { options.onProviderControl?.(null); }
 
   const citations = paused ? [] : createLegalEvidenceCitations(evidence);
   const receipt = legalEvidenceReceiptEvent(evidence);
+  const text = draft.text;
   if (receipt) addEvent(receipt);
   if (text) addEvent({ type: "content", text });
   const result: ChatTurnResult = { status: paused ? "paused" : "complete", fullText: text,

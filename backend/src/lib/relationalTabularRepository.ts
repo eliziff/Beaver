@@ -5,7 +5,7 @@ import { tabularSubjectId, type TabularCell, type TabularColumn, type TabularRep
   type TabularReview, type TabularSelection, type TabularOperation, type ReviewInput, type WriteResult } from "./tabularStore";
 import { ApplicationError } from "./applicationError";
 import { applyTableChanges, resultState, tableChanges, type TableState } from "./tabular/history";
-import { researchChangeCounts, researchChangeSummary, sameResearchValue,
+import { researchChangeCounts, researchChangeOpen, researchChangeSummary, resolveResearchChange, sameResearchValue,
   type ResearchChange, type ResearchChangeField } from "./researchHistory";
 import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
@@ -286,15 +286,15 @@ export const tabularRepository: TabularRepository = {
       const row = await one(sql`SELECT record FROM tabular_changes WHERE id=${changeId} AND review_id=${reviewId}`, tx);
       if (!row) return { status: "missing" };
       const record = decode<ResearchChange>(row.record, null!);
-      if (action === "undo" ? record.status !== "applied" : record.status !== "pending")
+      if (!researchChangeOpen(record, action))
         throw new ApplicationError(409, "This table change is no longer available for that action");
       if (!review.is_owner && record.changes.some((field) => field.target === "table" &&
           (field.field.startsWith("columns_config.") ||
           ["columns_order", "shared_with", "project_id", "scope_config"].includes(field.field))))
         throw new ApplicationError(403, "Only the table owner can change this configuration");
       if (action === "reject") {
-        await changes(sql`UPDATE tabular_changes SET record=${encode({ ...record, status: "rejected",
-          resolvedBy: scope.userId, resolvedAt: now() })},status='rejected' WHERE id=${changeId}`, tx);
+        await changes(sql`UPDATE tabular_changes SET record=${encode(resolveResearchChange(record, "rejected", scope.userId))},
+          status='rejected' WHERE id=${changeId}`, tx);
         return { status: "committed", value: review };
       }
       const before = { review, cells: await reviewCells(tx, reviewId) },
@@ -306,9 +306,8 @@ export const tabularRepository: TabularRepository = {
       const saved = await persistState(tx, before, next), fields = tableChanges(before, saved);
       if (action === "undo") await recordChange(tx, scope, saved.review, fields,
         { ...operation, title: `Undo ${record.title}`, propose: false, changeKey: undefined }, record.id);
-      else await changes(sql`UPDATE tabular_changes SET record=${encode({ ...record,
-        status: "applied", resolvedBy: scope.userId, resolvedAt: now(), changes: fields,
-        counts: researchChangeCounts(fields) })},status='applied' WHERE id=${changeId}`, tx);
+      else await changes(sql`UPDATE tabular_changes SET record=${encode({ ...resolveResearchChange(record, "applied", scope.userId),
+        changes: fields, counts: researchChangeCounts(fields) })},status='applied' WHERE id=${changeId}`, tx);
       return { status: "committed", value: saved.review };
     });
   },

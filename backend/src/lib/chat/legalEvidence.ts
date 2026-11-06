@@ -1030,6 +1030,18 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
   }, ["claims", "replace"]),
 };
 
+/** Reopens the turn for a corrected submission and says what the last one failed on. */
+export function reopenLegalEvidence(state: LegalEvidenceTurnState) {
+  const failure = state.failure ?? "No grounded submission was received.";
+  Object.assign(state, { answer: null, failure: null });
+  return failure;
+}
+const NO_SUBMISSION = { answer: null, attempted: false, failure: null };
+/** Gives up on a grounded answer: the turn keeps its reads and searches and records no submission. */
+export const abandonLegalEvidence = (state: LegalEvidenceTurnState) => void Object.assign(state, NO_SUBMISSION);
+/** The receipt of what a turn read, leaving out any answer it was working on. */
+export const legalEvidenceReads = (state: LegalEvidenceTurnState) => legalEvidenceReceiptEvent({ ...state, ...NO_SUBMISSION });
+
 export function finalizeLegalEvidence(
   state: LegalEvidenceTurnState,
   draft: string,
