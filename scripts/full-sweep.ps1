@@ -167,7 +167,7 @@ try {
     }
     Invoke-Step 'Native release build' {
         Invoke-Checked node @(
-            (Join-Path $Repo 'scripts\cargo.mjs'), 'build', '--manifest-path',
+            (Join-Path $Repo 'scripts\cargo.mjs'), 'rustc', '--lib', '--crate-type', 'cdylib', '--manifest-path',
             (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'),
             '--release', '--locked', '--offline', '--quiet'
         )

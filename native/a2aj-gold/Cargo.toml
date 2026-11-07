@@ -1,0 +1,47 @@
+[package]
+name = "a2aj-gold"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "A2AJ's decisions aligned with their PDFs by the product's reader, the gold and page sheets read off the alignment"
+
+# The library: the gold steps, the gold store's readers and each gold's answer key. Each bin is its own crate over it, so
+# a change to one builds that bin alone.
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "a2aj-gold"
+path = "src/main.rs"
+
+[[bin]]
+name = "a2aj-volumes"
+path = "src/bin/a2aj-volumes.rs"
+
+[[bin]]
+name = "reporter-pins"
+path = "src/bin/reporter-pins.rs"
+
+# The features the shared crates are built with are the node crate's own (its defaults), so the engine builds once for
+# both: a different set is a second build of everything under it.
+[dependencies]
+legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full", "pdf"] }
+legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup"] }
+legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "structure-inference", "quote-verification", "a2aj-store", "citator-graph"] }
+legal-citations = { git = "https://github.com/eliziff/common-law-cite.git", rev = "41d2309f20432fc8d35d41f893e6044602b9a2dc" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+regex = "1.13"
+sha2 = "0.10"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+unicode-normalization = "0.1"
+# where a page's images stand (the parser's PDF library), and the proof sheets
+hayro = { version = "0.7.0", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png"] }
+lopdf = { version = "0.45.0", default-features = false }
+
+# The node crate's napi-derive builds syn with `full`; asked for here too (cargo-hakari's workspace-hack), the proc macros
+# under serde build once, and with them every crate that derives serde.
+[build-dependencies]
+syn = { version = "3", features = ["full"] }

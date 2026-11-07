@@ -42,13 +42,14 @@ struct Job {
 }
 
 /// The inputs production derives from a document (legal_structure_features::a2aj's reading), in each language it has text in.
-fn jobs(id: i64, row: &StoreRow) -> rusqlite::Result<Vec<Job>> {
+fn jobs(store: &Path, id: i64, row: &StoreRow) -> rusqlite::Result<Vec<Job>> {
     let document = Document::new(row, Source::Store);
     let doc_type = a2aj::doc_type(document.field("doc_type")?.as_deref().unwrap_or_default());
     let mut jobs = Vec::new();
     for language in [Language::En, Language::Fr] {
         if document.text_language(language)? != language { continue }
-        let Some(read) = document.read(language, doc_type)? else { continue };
+        let Some(mut read) = document.read(language, doc_type)? else { continue };
+        read.printed_pages = a2aj::reporter_pages(store, id, read.metadata.language);
         let dataset = read.metadata.dataset.clone();
         let key = format!("{id}:{}", language.code());
         match read.inputs() {
@@ -354,7 +355,7 @@ fn run(options: &Options) -> Result<()> {
             let rows = statement.query_map([], read_row).map_err(|error| error.to_string())?;
             for row in rows {
                 let (id, row) = row.map_err(|error| error.to_string())?;
-                for job in jobs(id, &row).map_err(|error| error.to_string())?
+                for job in jobs(&store, id, &row).map_err(|error| error.to_string())?
                     .into_iter()
                     .filter(|job| language.as_deref().is_none_or(|language| job.key.split(':').nth(1) == Some(language)))
                 {
@@ -514,7 +515,7 @@ fn show(options: &Options) -> Result<()> {
     let connection = open(&store)?;
     let (id, row) = connection.query_row(&format!("SELECT id, {} FROM document WHERE id = ?", COLUMNS.join(", ")), [id], read_row)?;
     let wanted = options.flags.iter().any(|flag| flag == "text");
-    for job in jobs(id, &row)?.into_iter().filter(|job| job.key.split(':').nth(1) == Some(language)
+    for job in jobs(&store, id, &row)?.into_iter().filter(|job| job.key.split(':').nth(1) == Some(language)
         && (!job.key.ends_with(":sections") || !wanted)) {
         println!("== {} {} ({})", job.key, job.input.citation, job.dataset);
         let structure = provider_text_document_structure(job.input)?;

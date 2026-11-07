@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { attachAuthoritiesBookPdf, authoritiesReview, updateAuthoritiesDraft } from "./authoritiesActions";
 import { createAuthoritiesDraft, type AuthoritiesDraft } from "./authoritiesDomain";
 import type { AuthoritiesDiscrepancy } from "./authoritiesDiscrepancy";
-import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
+import { createAuthoritiesPreparation } from "./authoritiesPreparation";
+import { prepareAuthoritiesCorrection } from "./authoritiesCorrection";
 import { authorityPdfOutline, authorityPdfText } from "./authorityPdfText";
 import { sourceReadings } from "./sourceReadings";
 

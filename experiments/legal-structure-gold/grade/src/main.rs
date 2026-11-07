@@ -110,9 +110,11 @@ fn run_gold(folder: &Path, run: &str) -> Option<PathBuf> {
 }
 
 /// Every source in the store with a current gold (run "a"), its partition and groups from its
-/// source.json, its mode from the gold's receipt.
+/// source.json, its mode from the gold's receipt. A source whose source.json holds its gold for a repair
+/// (`hold`, gold_store.py) is no gold until the hold is taken off.
 fn sources(store: &Path) -> Result<Vec<Source>, String> {
     let mut found = Vec::new();
+    let mut held = 0;
     for entry in std::fs::read_dir(store).map_err(|e| format!("{}: {e}", store.display()))? {
         let folder = entry.map_err(|e| e.to_string())?.path();
         let Some(sha256) = folder.file_name().and_then(|n| n.to_str()).filter(|n| n.len() == 64).map(str::to_owned) else {
@@ -122,6 +124,10 @@ fn sources(store: &Path) -> Result<Vec<Source>, String> {
             continue;
         };
         let source = read_json(&folder.join("source.json"))?;
+        if !source["hold"].is_null() {
+            held += 1;
+            continue;
+        }
         let receipt = read_json(&gold.with_file_name("receipt.json"))?;
         let pdf = local(source["pdf"].as_str().ok_or_else(|| format!("{sha256}: source.json without pdf"))?);
         found.push(Source {
@@ -136,6 +142,9 @@ fn sources(store: &Path) -> Result<Vec<Source>, String> {
         });
     }
     found.sort_by(|a, b| a.sha256.cmp(&b.sha256));
+    if held > 0 {
+        eprintln!("{held} sources held for repair (gold_store.py holds)");
+    }
     Ok(found)
 }
 
@@ -613,7 +622,8 @@ fn score_structure(
             serde_json::to_vec(&serde_json::json!({"gold": dump(&reference), "parser": dump(&predicted), "lines": lines, "fragments": fragments})).unwrap_or_default());
     }
     let compared_at = Instant::now();
-    let score = score::compare(&reference, &predicted)?;
+    let unmarked = source.groups.get("label_source").is_some_and(|label| label == "a2aj-align");
+    let score = score::compare_as(&reference, &predicted, unmarked)?;
     if std::env::var_os("STRUCTURE_GOLD_TIMING").is_some() {
         eprintln!("timing	{}	parsed_ms	{:.1}	compare_ms	{:.1}	gold_ms	{:.1}", &source.sha256[..12],
             (compared_at - parsed_at).as_secs_f64() * 1e3, compared_at.elapsed().as_secs_f64() * 1e3,
@@ -644,7 +654,8 @@ fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<Stri
             let pointer = |k: usize| label.get(k).and_then(Value::as_i64).filter(|&row| row >= 0)
                 .and_then(|row| ids.get(row as usize)).and_then(Value::as_str).map(str::to_owned);
             per_piece.insert(id.as_str().unwrap_or_default().to_owned(), labels::Label {
-                region: field(0), start: field(1), document: field(2) == 1, reference: field(3) == 1, level: field(4),
+                // A gold's unmarked body (gold_labels.py's 101) is text to the labels' decoder.
+                region: if field(0) == 101 { 1 } else { field(0) }, start: field(1), document: field(2) == 1, reference: field(3) == 1, level: field(4),
                 marker: field(5) == 1, continues: pointer(6), depth: field(7), rank: None,
             });
         }
@@ -728,14 +739,14 @@ const BODY_LAYERS: [(&str, &str); 2] = [("units_body", "body units"), ("markers_
 const FINE_LAYERS: [&str; 6] = ["markers_text", "units_text", "markers_provision", "units_provision", "units_list_item", "markers_list_item"];
 const KEY_LAYERS: [(&str, &str); 17] = [
     ("units_heading", "headings"),
-    ("markers_text", "numbered paragraphs"),
+    ("markers_text", "paragraph markers"),
     ("units_text", "paragraphs"),
     ("markers_provision", "numbered sections, clauses"),
     ("units_provision", "provisions"),
     ("units_list_item", "list items"),
     ("markers_list_item", "list markers"),
-    ("note_references", "footnote references"),
-    ("note", "footnote pairs"),
+    ("note_references", "footnote links"),
+    ("note", "footnote content"),
     ("heading_steps", "heading levels"),
     ("depth_steps", "body depths"),
     ("sequence_steps", "numbered sequences"),
@@ -874,7 +885,7 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
     // A tagger's labels are read for paragraphs, provisions and list items apart, and so is the
     // transition parser's structure (LEGALPDF_TRANSITION_EMIT), which tells them apart; the stage
     // parser's alone, not.
-    let fine = tagger.is_some() || labelled.is_some() || std::env::var_os("LEGALPDF_TRANSITION_EMIT").is_some();
+    let fine = true;
     let split = value("--split");
     let mut groups = Vec::new();
     for (n, option) in options.iter().enumerate().filter(|(_, o)| *o == "--group") {

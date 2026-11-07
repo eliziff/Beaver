@@ -20,8 +20,9 @@ export type QuoteVerification = Awaited<ReturnType<typeof checkQuotes>>;
 export type AttachedSources = Map<string, { document: NativeDocument; source: LegalSourceReference }>;
 
 /** The PDFs a host attached for the draft's authorities, by authority, read as documents: a quotation is checked against
- *  its authority's PDF, and a decision's pinpointed link takes its passage from it. `strict` rejects a PDF that no
- *  longer matches its authority's source; otherwise it is left out. */
+ *  its authority's PDF, and a decision's pinpointed link takes its passage from it. A PDF made from a provider's text
+ *  (a "reconstructed" source, made for a book of authorities) is no source to check: its authority is read from that
+ *  provider's text. `strict` rejects a PDF that no longer matches its authority's source; otherwise it is left out. */
 export async function attachedSourceDocuments(draft: AuthoritiesDraft, files: ReadonlyArray<{ role: string; bytes: Uint8Array }>,
   signal?: AbortSignal, strict = false): Promise<AttachedSources> {
   const attached: AttachedSources = new Map();
@@ -34,6 +35,7 @@ export async function attachedSourceDocuments(draft: AuthoritiesDraft, files: Re
       continue;
     }
     const pdf = attachedAuthoritySources(authority.source).find((source) => source.bindingRole === file.role)!;
+    if (pdf.origin === "reconstructed") continue;
     attached.set(authority.id, { document: await documentProjectionService.read({ documentId: `standalone-authority:${digest}`,
       versionId: digest, sourceSha256: digest, fileType: "pdf", readBytes: () => bytes }, { signal }),
     source: { provider: "attached", id: digest, kind: authority.kind === "legislation" ? "legislation" : "case",

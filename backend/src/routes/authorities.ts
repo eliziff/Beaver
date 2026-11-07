@@ -7,7 +7,7 @@ import { bad, choice, decodeAuthoritiesDiscrepancyAction,
 import { asyncRoute } from "../lib/asyncRoute";
 import { applyAuthoritiesUserAction, readPinpoints } from "../lib/authoritiesActions";
 import { excerptPageCounts } from "../lib/authoritiesBuild";
-import { authoritiesBookFrontPdf } from "../lib/authoritiesCore";
+import { authoritiesBookFrontPdf } from "../lib/authoritiesBookCore";
 import { decodeAuthoritiesDraft } from "../lib/authoritiesDomain";
 import { followedRoute } from "../lib/followedRoute";
 import { wordToPdfAvailable } from "../lib/convert";

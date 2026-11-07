@@ -1,0 +1,33 @@
+[package]
+name = "a2aj-align"
+version = "0.1.0"
+edition = "2021"
+publish = false
+build = "build.rs"
+
+[[bin]]
+name = "a2aj-align"
+path = "src/main.rs"
+
+[dependencies]
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+# The renderer the parser reads scans with, for proof sheets.
+hayro = { version = "0.7.0", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png"] }
+# The product's case outline and citation reader.
+legal-structure = { path = "../../../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup"] }
+# The parser's PDF library: where a page's images stand.
+lopdf = { version = "0.45.0", default-features = false }
+# Every core aligns at once, and Windows' process heap would serialize them on its lock.
+mimalloc = { version = "0.1.52", default-features = false }
+regex = "1.13"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+# Records keep the keys in their order, and the reader's coordinates to the last bit.
+serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.10"
+unicode-normalization = "0.1"
+
+[build-dependencies]
+sha2 = "0.10"
+

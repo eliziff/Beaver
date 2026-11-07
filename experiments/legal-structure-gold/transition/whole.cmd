@@ -45,6 +45,7 @@ rem (1) The heads' training rows, train's local scores out of fold.
 if exist %W%\rows.done goto heads
 set LEGALPDF_TRANSITION_LOCAL_FOLDS=%W%\local
 set LEGALPDF_TRANSITION_GOLD=%W%\gold.jsonl
+set LEGALPDF_TRANSITION_EMIT=1
 set LEGALPDF_TRANSITION_WHOLE_DUMP=%W%\rows
 %GRADER% grade %S% --split train --out %G%\grade-whole-rows.json > %G%\whole-rows.out 2> %G%\whole-rows.err
 if not exist %W%\rows exit /b 1
@@ -63,6 +64,7 @@ if exist %W%\problems rmdir /s /q %W%\problems
 set LEGALPDF_TRANSITION_LOCAL_FOLDS=%W%\local
 set LEGALPDF_TRANSITION_GOLD=%W%\gold.jsonl
 set LEGALPDF_TRANSITION_HEADS_FOLDS=%W%\heads
+set LEGALPDF_TRANSITION_EMIT=1
 set LEGALPDF_TRANSITION_WHOLE_DUMP=%W%\problems
 %GRADER% grade %S% --split train --out %G%\grade-whole-problems.json > %G%\whole-problems.out 2> %G%\whole-problems.err
 set LEGALPDF_TRANSITION_HEADS_FOLDS=

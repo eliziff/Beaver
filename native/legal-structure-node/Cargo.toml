@@ -4,11 +4,28 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 
+# A library the tools in src/bin link, each building only what it needs. The addon and the browser engine are this library
+# as a cdylib, which their builds ask for themselves (`cargo rustc --lib --crate-type cdylib`, scripts/native-build.mjs):
+# set here, every tool's build would link an addon, and a plain `cargo build` would build every tool with it.
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["rlib"]
+
+# Built on request (--features opinion): nothing else here needs the opinion layer.
+[[bin]]
+name = "pinpoint-corpus"
+path = "src/bin/pinpoint-corpus.rs"
+required-features = ["corpus"]
+
+[[bin]]
+name = "courtlistener-structure"
+path = "src/bin/courtlistener-structure.rs"
+required-features = ["opinion"]
 
 [features]
 default = ["legalpdf", "a2aj"]
+opinion = ["dep:legal-opinion-layer"]
+# pinpoint-corpus: the gold store's readers and answer keys are the a2aj-gold crate's. Built on request.
+corpus = ["a2aj", "legalpdf", "dep:a2aj-gold"]
 # A2AJ's documents, from its API's records or the local store (SQLite), and the citator graph built from the store.
 a2aj = ["dep:rusqlite", "legal-structure-features/a2aj-store", "legal-structure-features/citator-graph"]
 # Word documents: the parser's DOCX reading without its PDF pipeline (Authority Linker's engine, build-engine.mjs --word).
@@ -18,16 +35,21 @@ diagnostics = ["legalpdf", "legalpdf/profiling"]
 allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 
 [dependencies]
-legal-structure = { path = "../../legal-structure", features = ["provider-text", "citator", "journal", "native-markup"] }
-legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "provider-text", "quote-verification"] }
+legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup"] }
+legal-opinion-layer = { path = "../../legal-structure/opinion", optional = true }
+legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "structure-inference", "quote-verification"] }
 legal-pdf-support = { path = "../../legal-pdf-parser/legal-pdf-support", optional = true }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["preserve_order"] }
+# float_roundtrip as the a2aj-gold crate needs it: one serde_json for the workspace, so the stack under it builds once
+serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
 # The local A2AJ store, read by the engine itself; the browser build compiles SQLite with wasi-sdk (WASI_SDK_PATH).
 rusqlite = { version = "0.40.2", features = ["bundled"], optional = true }
 # The census bins (src/bin) match source text with the patterns the census was written in.
 regex = "1.13"
 sha2 = "0.10"
+# pinpoint-corpus reads the gold store and compares words.
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+unicode-normalization = "0.1"
 
 # The Node addon links native OCR and layout runtimes.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -37,6 +59,7 @@ napi-derive = "3"
 # The addon's allocator, its freed memory returned at once (node.rs).
 mimalloc = { version = "0.1.52", default-features = false }
 libmimalloc-sys = { version = "0.1.49", features = ["extended"] }
+a2aj-gold = { path = "../a2aj-gold", optional = true }
 
 # The browser build (wasm32-wasip1) parses the same PDFs; recognition runs in the page.
 [target.'cfg(target_arch = "wasm32")'.dependencies]

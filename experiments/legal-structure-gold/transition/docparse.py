@@ -59,7 +59,7 @@ Inputs: a line dump of every document (LEGALPDF_TRANSITION_DUMP with the gold gi
 python docparse.py fit LINE_DUMP GOLD_STORE OUT_DIR [--text MODEL] [--epochs N] [--width D]
     fits on train's documents, reports each head on development's, and exports the three stages as ONNX graphs
     (detect.onnx, order.onnx, construct.onnx) with docparse.json (feature means and spreads, the text model, sizes)."""
-import argparse, copy, json, os, sys, time, zlib
+import argparse, copy, gc, json, os, sys, time, zlib
 # The allocator grows its segments in place (no fragmenting into blocks no step can use).
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 import numpy as np
@@ -69,23 +69,30 @@ import torch.nn.functional as F
 
 CLASSES = 34
 ANCHORS = 10  # an outline anchor's level, 0 for none
+T0 = 27  # what t0 decided of a line (`lines::T0`): its role, one of 14, twelve flags and its heading's level
 BLOCK = 64  # the Order stage's attention block
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 REGIONS = ["none", "text", "list_item", "heading", "quote", "note", "table", "contents", "caption", "headnote", "marginal_note",
            "furniture", "page_label", "line_label", "title", "note_quote", "provision"]
 STREAMS = {"note": 1, "note_quote": 1, "marginal_note": 2, "furniture": 3, "page_label": 4, "line_label": 5}
 HEADING = 3
-BODY = {1, 2, 4, 16}
+BODY = {1, 2, 4, 6, 8, 9, 16}  # all the gold's depth steps chain over (`machine::RANKED_BODY`)
 GAPS = 4
 PAIR = 25  # a region pair's measures: 18 spatial, 3 for the pages' distance, the order's distance and side, roles, a note's mark
 NOTE = {5, 15}
+REFERRING = {1, 2, 3, 4, 8, 9, 14, 16}  # regions whose lines set reference marks notes answer (`machine::REFERRING`)
+UNMARKED_BODY = 101
+UNMARKED = (1, 2, 4)  # text, a list item, a quotation
+TEXT_PULL = 0.25  # a free line's lean to text (`role_loss`)
 
 
 def partition(store, sha):
+    """A source's partition from its source.json; none for a gold held for repair (`hold`), which no one trains on."""
     try:
-        return json.load(open(os.path.join(store, sha, "source.json"), encoding="utf-8"))["partition"]
-    except (OSError, KeyError, ValueError):
+        source = json.load(open(os.path.join(store, sha, "source.json"), encoding="utf-8"))
+    except (OSError, ValueError):
         return None
+    return None if source.get("hold") else source.get("partition")
 
 
 def region_of(g):
@@ -163,8 +170,21 @@ class Doc:
         names = meta["line_features"]
         at = {name: names.index(name) for name in ("x0", "y0", "x1", "y1", "width", "height")}
         self.boxes = np.stack([features[:, at["x0"]], features[:, at["y0"]], features[:, at["x1"]], features[:, at["y1"]]], axis=1).astype(np.float32)
+        self.marker_value = np.round(np.expm1(np.maximum(features[:, names.index("marker_value")], 0.0))).astype(np.int64)
+        self.marker_value = np.where(features[:, names.index("marker")] > 0.5, self.marker_value, -1)
+        self.marker_prefix = np.round(np.maximum(features[:, names.index("marker_prefix")], 0.0)).astype(np.int64)
+        c0, w0 = names.index("count_1"), names.index("wrap_()")
+        count_idx = features[:, c0:c0 + 9].argmax(axis=1)
+        wrap_idx = features[:, w0:w0 + 5].argmax(axis=1)
+        self.marker_family = np.where(self.marker_value >= 0, count_idx * 5 + wrap_idx + 1, 0).astype(np.int64)
+        self.x0 = features[:, at["x0"]].astype(np.float32)
+        self.size = features[:, names.index("size")].astype(np.float32)
+        self.looks = np.asarray(meta.get("looks") or [0] * n, dtype=np.int64)
         regions = np.asarray([region_of(g) if g >= 0 else -1 for g in gold[:, 0]])
         self.role = np.where(regions >= 0, regions * 2 + (gold[:, 1] == 1), -100)
+        # A gold that leaves a quotation or a list item set in its body unmarked (`gold_labels.UNMARKED_BODY`) says no more than
+        # that a line is one of `UNMARKED`: `role_loss` holds it to that, and the role's accuracy does not read it.
+        self.free = gold[:, 0] == UNMARKED_BODY
         self.marked = np.where(regions >= 0, ((gold[:, 1] == 1) & (gold[:, 5] == 1)).astype(np.int64), -100)
         self.start = np.where(regions >= 0, (gold[:, 2] == 1).astype(np.int64), -100)
         units = gold_units(gold)
@@ -206,16 +226,22 @@ class Doc:
             self.goes_on[parts[-1]] = parts[-1]
         self.note_of = np.full(m, -100, dtype=np.int64)
         references = meta.get("references") or [[] for _ in range(n)]
+        translated = features[:, names.index("translation")]
+        notes = meta["note_numbers"]  # each line's note number as the engine reads it (`doc::note_number`), -1 for none
+        taken = set()
         for i, r in enumerate(self.regions):
             if region_of(gold[r][0]) not in NOTE or gold[r][1] != 1:
                 continue
-            label = "".join(c for c in self.texts[r].strip()[:4] if c.isdigit())
+            label = notes[r]
+            # The gold's paired mark of its number nearest before it, else after it, wherever it stands, each mark one
+            # note's; a parallel report's two notes of a number take the marks of their own languages.
             target = i
-            for k in range(r - 1, -1, -1):
-                if self.pages[r] - self.pages[k] > 2:
-                    break
-                if gold[k][3] == 1 and any(str(ref[0]) == label for ref in references[k]) and self.region_of_line[k] >= 0:
+            order = list(range(r - 1, -1, -1)) + list(range(r + 1, n))
+            same = [k for k in order if translated[k] == translated[r]]
+            for k in same + order:
+                if gold[k][3] == 1 and (k, label) not in taken and any(ref[0] == label for ref in references[k]) and self.region_of_line[k] >= 0:
                     target = int(self.region_of_line[k])
+                    taken.add((k, label))
                     break
             self.note_of[i] = target
         self.region_role = np.asarray([self.role[r] // 2 if self.role[r] >= 0 else 0 for r in self.regions], dtype=np.int64)
@@ -224,12 +250,35 @@ class Doc:
         levels = absolute(gold, 4, {HEADING})
         self.headings = [i for i, r in enumerate(self.regions) if region_of(gold[r][0]) == HEADING and gold[r][1] == 1 and levels[r] > 0]
         self.heading_parent, self.heading_sibling, self.heading_gap = tree(levels, [self.regions[i] for i in self.headings], starts)
+        self.heading_sibling_from = list(self.heading_sibling)
         depths = absolute(gold, 7, BODY)
-        self.bodies = [i for i, r in enumerate(self.regions) if region_of(gold[r][0]) in BODY and gold[r][1] == 1 and depths[r] > 0]
-        self.body_parent, self.body_sibling, self.body_gap = tree(depths, [self.regions[i] for i in self.bodies], starts)
+        opening = [i for i, r in enumerate(self.regions) if region_of(gold[r][0]) in BODY and gold[r][1] == 1]
+        # A gold that gives its body no depths (A2AJ's alignments) says what its numbered paragraphs are: the court's
+        # numbering, at the body's top (98.9% of the model golds' judgments' numbered paragraphs), each one's left sibling
+        # among the nodes from the paragraph before it; the tree learns that and nothing of its other nodes.
+        self.partial_bodies = bool(opening) and not any(depths[self.regions[i]] > 0 for i in opening)
+        if self.partial_bodies:
+            self.bodies = opening
+            h = len(opening)
+            self.body_parent, self.body_sibling, self.body_sibling_from, self.body_gap = ([-100] * h for _ in range(4))
+            prev, last = None, -1
+            for at, i in enumerate(opening):
+                r = self.regions[i]
+                if starts[last + 1:r + 1].any():
+                    prev = None
+                last = r
+                if region_of(gold[r][0]) == 1 and gold[r][5] == 1:
+                    self.body_parent[at], self.body_gap[at] = at, 0
+                    if prev is not None:
+                        self.body_sibling[at], self.body_sibling_from[at] = at - 1, prev
+                    prev = at
+        else:
+            self.bodies = [i for i in opening if depths[self.regions[i]] > 0]
+            self.body_parent, self.body_sibling, self.body_gap = tree(depths, [self.regions[i] for i in self.bodies], starts)
+            self.body_sibling_from = list(self.body_sibling)
         # The regions' places: each one's page and its lines' union box; its rank in the gold's reading (its lines'
-        # least) and its successor in that order (none where the gold gives no ranks); a note's number (the figures its
-        # first line opens on) and the marks of it each region sets.
+        # least) and its successor in that order (none where the gold gives no ranks); a note's number (its first line's) and
+        # the marks of it each region sets.
         firsts = np.asarray(self.regions, dtype=np.int64)
         self.region_pages = self.pages[firsts] if m else np.zeros(0, dtype=np.int64)
         box = np.tile(np.asarray([1e9, 1e9, -1e9, -1e9], dtype=np.float32), (m, 1))
@@ -253,11 +302,12 @@ class Doc:
         marks = [set() for _ in range(m)]
         for i, r in enumerate(self.regions):
             if region_of(gold[r][0]) in NOTE:
-                digits = "".join(c for c in self.texts[r].strip()[:4] if c.isdigit())
-                number[i] = int(digits) if digits else -1
+                number[i] = notes[r]
         for k in np.flatnonzero(self.region_of_line >= 0):
-            for ref in references[k]:
-                marks[self.region_of_line[k]].add(int(ref[0]))
+            i = int(self.region_of_line[k])
+            if int(self.region_role[i]) in REFERRING:
+                for ref in references[k]:
+                    marks[i].add(int(ref[0]))
         self.region_number, self.region_marks = number, marks
         # The stylesheet: each line's template, each template's measured row, each line's outline anchor.
         self.templates = np.asarray(meta.get("templates") or [0] * n, dtype=np.int64)
@@ -271,6 +321,8 @@ class Doc:
             table[:, 9:11] = 0
         self.template_rows = table
         self.anchors = np.clip(np.asarray(meta.get("anchors") or [0] * n, dtype=np.int64), 0, ANCHORS - 1)
+        # What t0 decided of each line (`lines::T0`): the model reads the parser's own reading, not beside it.
+        self.t0 = np.asarray(meta["t0"], dtype=np.float32).reshape(n, T0)
 
 
 # ----------------------------------------------------------------------------------------------- the model
@@ -476,19 +528,21 @@ class Detect(nn.Module):
         self.position = nn.Sequential(nn.Linear(6, d), nn.ReLU(), nn.Linear(d, d), nn.ReLU(), nn.LayerNorm(d))
         self.look = nn.Sequential(nn.Linear(width, d), nn.ReLU(), nn.LayerNorm(d))
         self.anchor = nn.Embedding(ANCHORS, d)
-        self.fuse = nn.Linear(4 * d, d)
-        self.encoder = encoder(d, 8, 1)
+        self.decided = nn.Sequential(nn.Linear(T0, d), nn.ReLU(), nn.LayerNorm(d))
+        self.fuse = nn.Linear(5 * d, d)
+        self.encoder = nn.ModuleList([Layer(d, 8)])
         self.successor, self.predecessor = RelationHead(d), RelationHead(d)
         self.role = nn.Linear(d, CLASSES)
         self.flags = nn.Linear(d, 2)
 
-    def embed(self, features, text, boxes, anchors):
+    def embed(self, features, text, boxes, anchors, t0):
         size = (boxes[:, 2:] - boxes[:, :2]).clamp(min=0)
-        return self.fuse(torch.cat([self.text(text), self.position(torch.cat([boxes, size], dim=-1)), self.look(features), self.anchor(anchors)], dim=-1))
+        return self.fuse(torch.cat([self.text(text), self.position(torch.cat([boxes, size], dim=-1)), self.look(features), self.anchor(anchors),
+                                    self.decided(t0)], dim=-1))
 
-    def forward(self, features, text, boxes, anchors, paged):
+    def forward(self, features, text, boxes, anchors, t0, paged):
         """Every line's state, its page's lines read together (the pages batched, each its own sequence)."""
-        u = self.embed(features, text, boxes, anchors)
+        u = self.embed(features, text, boxes, anchors, t0)
         out = []
         for batch in paged.batches:
             x = u[batch.rows.clamp(min=0)]
@@ -557,7 +611,7 @@ class Order(nn.Module):
 
     def forward(self, line_states, region_lines, line_region, region_roles, valid=None):
         """line_states (n, d), the lines in regions and each one's region (of m), the regions' roles -> region states
-        (m, d)."""
+        (m, d): each region's attention-pooled state and role."""
         # `region_lines` None: every line given is in a region (the exported graph's input).
         states, region = (line_states if region_lines is None else line_states[region_lines]).float(), line_region
         alpha = self.pool(states).squeeze(-1).float()
@@ -581,25 +635,102 @@ class Order(nn.Module):
         return x[:m] if x.shape[0] != m else x
 
 
+def tree_codes(family, value, prefix, section, x0, size, looks, pages, roles):
+    """Factored pairwise grammar and geometry state indices (n, n) of each node `i` against each node `j`, avoiding
+    materializing a 3D feature tensor on large statutes."""
+    with torch.no_grad():
+        n = family.shape[0]
+        fi, fj = family[:, None], family[None, :]
+        vi, vj = value[:, None], value[None, :]
+        same_fam = (fi > 0) & (fi == fj)
+        valid_v = (vi >= 0) & (vj >= 0)
+        dv = vi - vj
+        idx = torch.arange(n, device=family.device)
+        earlier_same = same_fam & (idx[:, None] > idx[None, :])
+        latest_j = torch.where(earlier_same, idx[None, :], -1).amax(dim=-1, keepdim=True)
+        no_intervening = earlier_same & (idx[None, :] == latest_j)
+        del earlier_same, latest_j
+        same_sec = section[:, None] == section[None, :]
+        # Grammar state code in 0..12:
+        # 0: both unnumbered; 1: numbered under unnumbered; 2: unnumbered under numbered;
+        # 3: diff family, vi == 1, same section; 4: diff family, vi == 1, diff section; 5: diff family, vi != 1;
+        # 6: same family, dv <= 0; 7: same family, dv > 1, intervened; 8: same family, dv > 1, no intervening;
+        # 9: same family, dv == 1, intervened; 10: same family, dv == 1, no intervening, diff section;
+        # 11: same family, dv == 1, no intervening, same section.
+        g = torch.zeros_like(fi)
+        g = torch.where((fi > 0) & (fj == 0), 1, g)
+        g = torch.where((fi == 0) & (fj > 0), 2, g)
+        diff_fam = (fi > 0) & (fj > 0) & (fi != fj)
+        g = torch.where(diff_fam & (vi != 1), 5, g)
+        g = torch.where(diff_fam & (vi == 1) & ~same_sec, 4, g)
+        g = torch.where(diff_fam & (vi == 1) & same_sec, 3, g)
+        del diff_fam
+        g = torch.where(same_fam & valid_v & (dv <= 0), 6, g)
+        g = torch.where(same_fam & valid_v & (dv > 1) & ~no_intervening, 7, g)
+        g = torch.where(same_fam & valid_v & (dv > 1) & no_intervening, 8, g)
+        g = torch.where(same_fam & valid_v & (dv == 1) & ~no_intervening, 9, g)
+        g = torch.where(same_fam & valid_v & (dv == 1) & no_intervening & ~same_sec, 10, g)
+        g = torch.where(same_fam & valid_v & (dv == 1) & no_intervening & same_sec, 11, g)
+        del same_fam, valid_v, dv, no_intervening
+        # Geometry/style state code in 0..48:
+        # indent_rel (0: aligned |dx|<0.015, 1: indented dx>=0.015, 2: outdented dx<=-0.015) * 16
+        # + same_look * 8 + same_role * 4 + same_page * 2 + same_sec
+        dx = x0[:, None] - x0[None, :]
+        geom = torch.where(dx >= 0.015, 16, torch.where(dx <= -0.015, 32, 0))
+        geom = geom + (looks[:, None] == looks[None, :]).long() * 8
+        geom = geom + (roles[:, None] == roles[None, :]).long() * 4
+        geom = geom + (pages[:, None] == pages[None, :]).long() * 2 + same_sec.long()
+        del same_sec
+        pref = (prefix[:, None] - prefix[None, :]).clamp(-4, 4) + 4
+        order_diff = (idx[:, None] - idx[None, :]).clamp(min=0)
+        dist = torch.clamp(torch.log2(order_diff.float() + 1.0).long(), 0, 15)
+        del order_diff
+        ds = (size[:, None] - size[None, :]).clamp(-2.0, 2.0)
+        return g, geom, pref, dist, dx.clamp(-1.0, 1.0), ds
+
+
 class Construct(nn.Module):
     def __init__(self, d):
         super().__init__()
+        self.node_role = nn.Embedding(17, d)
+        self.node_fam = nn.Embedding(64, d)
+        self.node_geom = nn.Linear(4, d)
+        self.enclosing = nn.Linear(d, d, bias=False)
+        nn.init.zeros_(self.enclosing.weight)
+        self.extra_drop = nn.Dropout(0.2)
         self.layers = nn.ModuleList([Layer(d, 8, rotary=True, dropout=0.2) for _ in range(2)])
         self.parent, self.sibling = RelationHead(d, spatial_term=False), RelationHead(d, spatial_term=False)
         self.gap = nn.Linear(d, GAPS)
-        # Biases on every two nodes: one where they share a template, one for each difference of their anchors.
+        # Biases on every two nodes: shared template, outline anchor difference, and factored grammar/geometry tables.
         self.same = nn.Parameter(torch.zeros(2))
         self.levels = nn.Embedding(2 * ANCHORS - 1, 2)
-        nn.init.zeros_(self.levels.weight)
+        self.grammar_rel = nn.Embedding(12, 2)
+        self.geom_rel = nn.Embedding(48, 2)
+        self.pref_rel = nn.Embedding(9, 2)
+        self.dist_rel = nn.Embedding(16, 2)
+        self.cont_scale = nn.Parameter(torch.zeros(2, 2))
+        for emb in (self.levels, self.grammar_rel, self.geom_rel, self.pref_rel, self.dist_rel):
+            nn.init.zeros_(emb.weight)
 
-    def forward(self, states, templates, anchors):
+    def forward(self, states, heading_states, templates, anchors, family, value, prefix, section, x0, size, looks, pages, roles):
+        node_feat = torch.stack([
+            x0.float(),
+            size.float(),
+            ((family > 0) & (value == 1)).float(),
+            prefix.clamp(0, 4).float() / 4.0,
+        ], dim=-1)
+        extra = self.node_role(roles.clamp(0, 16)) + self.node_fam(family.clamp(0, 63)) + self.node_geom(node_feat) + self.enclosing(heading_states.float())
+        states = states + self.extra_drop(extra.to(states.dtype))
         for layer in self.layers:
             states = layer(states)
         same = (templates[:, None] == templates[None, :]).float()
         steps = self.levels((anchors[None, :] - anchors[:, None]) + ANCHORS - 1)
-        bias = same[..., None] * self.same + steps
+        g, geom, pref, dist, dx, ds = tree_codes(family, value, prefix, section, x0, size, looks, pages, roles)
+        bias = same[..., None] * self.same + steps + self.grammar_rel(g) + self.geom_rel(geom) + self.pref_rel(pref) + self.dist_rel(dist)
         p, s = self.parent(states), self.sibling(states)
-        return p + bias[..., 0].to(p.dtype), s + bias[..., 1].to(s.dtype), self.gap(states)
+        p = p + (bias[..., 0] + dx * self.cont_scale[0, 0] + ds * self.cont_scale[1, 0]).to(p.dtype)
+        s = s + (bias[..., 1] + dx * self.cont_scale[0, 1] + ds * self.cont_scale[1, 1]).to(s.dtype)
+        return p, s, self.gap(states)
 
 
 class DocParser(nn.Module):
@@ -627,8 +758,10 @@ class Ready:
         on = lambda a, dtype=torch.long: torch.as_tensor(np.asarray(a), dtype=dtype)
         self.f = on(np.clip((doc.features - mean) / std, -8, 8), torch.float32).to(torch.bfloat16)
         self.t = on(embed(doc), torch.float32).to(torch.bfloat16)
+        self.z = on(doc.t0, torch.float32).to(torch.bfloat16)
         self.b = on(doc.boxes, torch.float32)
         self.lines = Paged(doc.pages)
+        self.free = on(doc.free, torch.bool)
         for name in ("role", "successor", "predecessor", "marked", "start", "goes_on", "note_of"):
             setattr(self, name, on(getattr(doc, name)))
         lines = np.flatnonzero(doc.region_of_line >= 0)
@@ -639,19 +772,12 @@ class Ready:
         self.has |= {name for name in ("successor", "predecessor") if self.counts[name]}
         if doc.regions:
             self.has.add("regions")
-        for name in ("headings", "heading_parent", "heading_sibling", "heading_gap", "bodies", "body_parent", "body_sibling", "body_gap"):
-            setattr(self, name, on(getattr(doc, name)))
-        self.has |= {name for name, nodes in (("heading", doc.headings), ("body", doc.bodies)) if len(nodes) >= 2}
         self.region_order = on(doc.region_order)
         if (doc.region_order >= 0).any():
             self.has.add("order")
         self.region_boxes, self.region_pages = on(doc.region_boxes, torch.float32), on(doc.region_pages)
         self.templates, self.template_rows, self.anchors = on(doc.templates), on(doc.template_rows, torch.float32), on(doc.anchors)
-        firsts = np.asarray(doc.regions, dtype=np.int64)
-        for name, nodes in (("heading", doc.headings), ("body", doc.bodies)):
-            lines = firsts[np.asarray(nodes, dtype=np.int64)] if len(nodes) else np.zeros(0, dtype=np.int64)
-            setattr(self, f"{name}_templates", on(doc.templates[lines]))
-            setattr(self, f"{name}_anchors", on(doc.anchors[lines]))
+        self.trees(doc)
         i, j, match = pairs_of(doc)
         self.pair_i, self.pair_j, self.pair_match = on(i, torch.int32), on(j, torch.int32), on(match, torch.bool)
         # Each region's gold pair for each region head: the pair (region, its target), negative where the gold gives
@@ -660,6 +786,33 @@ class Ready:
         at = {int(a) * max(m, 1) + int(b): p for p, (a, b) in enumerate(zip(i.tolist(), j.tolist()))}
         for name, gold in (("goes_on_pair", doc.goes_on), ("note_of_pair", doc.note_of), ("order_pair", doc.region_order)):
             setattr(self, name, on([-100 if t < 0 else at.get(r * max(m, 1) + int(t), -1) for r, t in enumerate(gold.tolist())], torch.int32))
+
+
+    def trees(self, doc):
+        """The trees' nodes, inputs and gold, read from the document's gold each time the prepared tensors are (not kept
+        with them: what the gold says of the trees changes without the inputs changing)."""
+        on = lambda a, dtype=torch.long: torch.as_tensor(np.asarray(a), dtype=dtype)
+        for name in ("headings", "heading_parent", "heading_sibling", "heading_sibling_from", "heading_gap",
+                     "bodies", "body_parent", "body_sibling", "body_sibling_from", "body_gap"):
+            setattr(self, name, on(getattr(doc, name)))
+        self.partial_bodies = doc.partial_bodies
+        self.has = (self.has - {"heading", "body"}) | {name for name, nodes in (("heading", doc.headings), ("body", doc.bodies)) if len(nodes) >= 2}
+        firsts = np.asarray(doc.regions, dtype=np.int64)
+        sections = np.cumsum((doc.region_role == HEADING) | (doc.start[firsts] == 1 if len(firsts) else 0))
+        for name, nodes in (("heading", doc.headings), ("body", doc.bodies)):
+            idx = np.asarray(nodes, dtype=np.int64)
+            lines = firsts[idx] if len(nodes) else np.zeros(0, dtype=np.int64)
+            setattr(self, f"{name}_templates", on(doc.templates[lines]))
+            setattr(self, f"{name}_anchors", on(doc.anchors[lines]))
+            setattr(self, f"{name}_family", on(doc.marker_family[lines]))
+            setattr(self, f"{name}_value", on(doc.marker_value[lines]))
+            setattr(self, f"{name}_prefix", on(doc.marker_prefix[lines]))
+            setattr(self, f"{name}_section", on(sections[idx] if len(nodes) else np.zeros(0, dtype=np.int64)))
+            setattr(self, f"{name}_x0", on(doc.x0[lines], torch.float32))
+            setattr(self, f"{name}_size", on(doc.size[lines], torch.float32))
+            setattr(self, f"{name}_looks", on(doc.looks[lines]))
+            setattr(self, f"{name}_pages", on(doc.pages[lines]))
+            setattr(self, f"{name}_roles", on(doc.region_role[idx] if len(nodes) else np.zeros(0, dtype=np.int64)))
 
 
 def pairs_of(doc):
@@ -674,12 +827,22 @@ def pairs_of(doc):
         near = np.asarray(sum((by_page.get(page + d, []) for d in (-1, 0, 1)), []), dtype=np.int64)
         rows.append(np.repeat(np.asarray(members, dtype=np.int64), len(near)))
         cols.append(np.tile(near, len(members)))
+    # A note's candidates are every region setting its number, however far (endnotes).
+    pages = doc.region_pages
+    setting = {}
+    for b, set_ in enumerate(doc.region_marks):
+        for value in set_:
+            setting.setdefault(value, []).append(b)
+    far = [(a, b) for a in range(m) if doc.region_number[a] >= 0 for b in setting.get(int(doc.region_number[a]), []) if abs(int(pages[a]) - int(pages[b])) > 1]
+    if far:
+        rows.append(np.asarray([a for a, _ in far], dtype=np.int64))
+        cols.append(np.asarray([b for _, b in far], dtype=np.int64))
     i = np.concatenate(rows) if rows else np.zeros(0, dtype=np.int64)
     j = np.concatenate(cols) if cols else np.zeros(0, dtype=np.int64)
     order = np.lexsort((j, i))
     i, j = i[order], j[order]
     number = doc.region_number
-    match = np.asarray([number[a] >= 0 and number[a] in doc.region_marks[b] for a, b in zip(i.tolist(), j.tolist())], dtype=bool) if m else np.zeros(0, dtype=bool)
+    match = np.asarray([a != b and number[a] >= 0 and number[a] in doc.region_marks[b] for a, b in zip(i.tolist(), j.tolist())], dtype=bool) if m else np.zeros(0, dtype=bool)
     return i, j, match
 
 
@@ -689,7 +852,8 @@ def pair_terms(r):
     return i, j, region_pairs(r.region_boxes, r.region_pages, r.region_role, i, j, r.pair_match)
 
 
-READY = 8  # (unchanged by the block attention)  # the prepared tensors' layout; a change to `Ready`, `Paged` or `Batch` bumps it
+READY = 11  # the prepared tensors' layout; a change to `Ready`, `Paged` or `Batch` bumps it
+TREE_GOLD = 2  # what the trees' gold holds (`Doc`, `Ready.trees`); a change bumps it, the tree fit's kept inputs read again
 
 
 def prepare(docs, mean, std, embed, folder):
@@ -702,6 +866,7 @@ def prepare(docs, mean, std, embed, folder):
         path = os.path.join(folder, f"{doc.sha}.{key}.pt")
         if os.path.exists(path):
             doc.ready = torch.load(path, weights_only=False)
+            doc.ready.trees(doc)
         else:
             doc.ready = Ready(doc, mean, std, embed)
             torch.save(doc.ready, path)
@@ -716,26 +881,41 @@ def on_device(doc):
     return doc.ready if doc.ready.f.device.type == DEVICE else moved(doc.ready, DEVICE)
 
 
+RESIDENT = float(os.environ.get("DOCPARSE_RESIDENT_GIB", "1.5"))  # the device memory the prepared tensors may hold
+
+
 def resident(docs):
-    """Every document's prepared tensors moved to the device once (no copies a step; host memory freed); the device
-    memory they take."""
+    """The documents' prepared tensors moved to the device once (no copies a step; host memory freed) while they take
+    no more than `RESIDENT` GiB of it, the step's own peak beside them; the rest copied there a step at a time
+    (`on_device`). The device memory they take."""
     before = torch.cuda.memory_allocated() if DEVICE == "cuda" else 0
     for doc in docs:
+        if DEVICE != "cuda":
+            break
+        est = sum(v.numel() * v.element_size() for v in vars(doc.ready).values() if torch.is_tensor(v))
+        if torch.cuda.memory_allocated() - before + est > RESIDENT * 2**30:
+            continue
         doc.ready = moved(doc.ready, DEVICE)
     return (torch.cuda.memory_allocated() - before) if DEVICE == "cuda" else 0
 
 
-def page_links(head, states, boxes, paged, g):
-    """A line-link head read page by page (its softmax over the page's lines), the pages batched: each batch's logits
-    (one row a line, its page's lines the columns) and its gold, the gold's indexes made the page's own."""
-    out = []
+def page_links(heads, states, boxes, paged, succ_gold, pred_gold):
+    """Both line-link heads read page by page in one batched pass (spatial compatibility measures computed once per page
+    batch): each batch's successor and predecessor logits and local gold targets."""
+    succ_out, pred_out = [], []
     for batch in paged.batches:
         r = batch.rows.clamp(min=0)
         x = states[r]
-        f = head.pairs(x, x, batch, boxes).float().masked_fill(~batch.valid[:, None, :], -1e4)
-        local = torch.where(g[r] >= 0, g[r] - batch.starts[:, None], -100)
-        out.append((f.reshape(-1, f.shape[-1])[batch.valid_at], local.reshape(-1)[batch.valid_at]))
-    return out
+        measures = spatial(boxes[r], boxes[r]).reshape(-1, 18)[batch.keep]
+        for head, g, out in ((heads[0], succ_gold, succ_out), (heads[1], pred_gold, pred_out)):
+            if g is None:
+                continue
+            f = head.q(x) @ head.k(x).transpose(-1, -2) / x.shape[-1] ** 0.5
+            f = f.reshape(-1).index_add(0, batch.keep, head.r(measures).squeeze(-1).to(f.dtype)).view_as(f)
+            f = f.float().masked_fill(~batch.valid[:, None, :], -1e4)
+            local = torch.where(g[r] >= 0, g[r] - batch.starts[:, None], -100)
+            out.append((f.reshape(-1, f.shape[-1])[batch.valid_at], local.reshape(-1)[batch.valid_at]))
+    return succ_out, pred_out
 
 
 def link_loss(links, count):
@@ -746,17 +926,87 @@ def two_way(flag, gold):
     return F.cross_entropy(torch.stack([torch.zeros_like(flag), flag], dim=1), gold, ignore_index=-100)
 
 
+def role_loss(role, gold, free):
+    """Each line's role against its gold; a line `free` against any of `UNMARKED`, opening or not as the gold says, leaning to text:
+    with nothing holding it to text a plain paragraph drifts to a list item."""
+    log = F.log_softmax(role, dim=1)
+    known = gold != -100
+    named = known & ~free
+    held = log[named, gold[named]]
+    opens = gold[free] % 2
+    allowed = torch.stack([log[free, region * 2 + opens] for region in UNMARKED], dim=1)
+    return -(held.sum() + torch.logsumexp(allowed, dim=1).sum() + TEXT_PULL * allowed[:, 0].sum()) / known.sum().clamp(min=1)
+
+
+def enclosing(nodes, headings, starts):
+    """For each node in `nodes`, the place in `headings` of the latest heading region strictly before it in the same
+    constituent document (`starts`), or -1 where none precedes it."""
+    if headings.numel() == 0 or nodes.numel() == 0:
+        return torch.full_like(nodes, -1)
+    pos = torch.searchsorted(headings, nodes, right=False) - 1
+    valid = (pos >= 0) & (starts[headings[pos.clamp(min=0)]] == starts[nodes])
+    return torch.where(valid, pos, -1)
+
+
+def enclosing_states(heading_states, at):
+    """Each node's enclosing heading's state (`enclosing`'s places into the heading nodes' states), nought where none."""
+    if heading_states.shape[0] == 0:
+        return torch.zeros(at.shape[0], heading_states.shape[1], dtype=heading_states.dtype, device=heading_states.device)
+    return torch.where((at >= 0)[:, None], heading_states[at.clamp(min=0)], torch.zeros_like(heading_states[:1]))
+
+
+TREE_INPUTS = ("templates", "anchors", "family", "value", "prefix", "section", "x0", "size", "looks", "pages", "roles")
+
+
+def tree_inputs(r, name):
+    """A tree's nodes' inputs beside their states, in Construct's order."""
+    return tuple(getattr(r, f"{name}_{field}") for field in TREE_INPUTS)
+
+
+def region_docs(r, regions):
+    """Each region's constituent document: the count of starts up to its first line."""
+    doc_starts = torch.cumsum((r.start == 1).long(), dim=0)[r.region_lines]
+    reg_doc = torch.zeros(regions.shape[0], device=regions.device, dtype=torch.long)
+    if r.line_region.numel() > 0:
+        reg_doc.scatter_reduce_(0, r.line_region, doc_starts, reduce="amin", include_self=False)
+    return reg_doc
+
+
+def tree_losses(name, p, s, g, parent, sibling, sibling_from, gap):
+    """A tree's losses over the nodes its gold answers (-100 none): each node's parent, its gap, and its left sibling, one
+    of the nodes from `sibling_from` to `sibling` (the one where they are the same)."""
+    parts = {}
+    if (parent != -100).any():
+        parts[f"{name}_parent"] = F.cross_entropy(earlier(p.float()), parent)
+    if (gap != -100).any():
+        parts[f"{name}_gap"] = F.cross_entropy(g.float(), gap, label_smoothing=0.01)
+    known = sibling != -100
+    if known.any():
+        log = F.log_softmax(earlier(s.float()), dim=1)[known]
+        cols = torch.arange(log.shape[1], device=log.device)[None, :]
+        among = (cols >= sibling_from[known, None]) & (cols <= sibling[known, None])
+        parts[f"{name}_sibling"] = -torch.logsumexp(log.masked_fill(~among, float("-inf")), dim=1).mean()
+    return parts
+
+
 def losses(model, doc):
     r = on_device(doc)
     parts = {}
     with torch.autocast("cuda", dtype=torch.bfloat16, enabled=DEVICE == "cuda"):
-        states = model.templates(model.detect(r.f, r.t, r.b, r.anchors, r.lines), r.templates, r.template_rows)
+        states = model.templates(model.detect(r.f, r.t, r.b, r.anchors, r.z, r.lines), r.templates, r.template_rows)
         role, flags = model.detect.role(states).float(), model.detect.flags(states).float()
         if "role" in r.has:
-            parts["role"] = F.cross_entropy(role, r.role, ignore_index=-100)
-        for name, head in (("successor", model.detect.successor), ("predecessor", model.detect.predecessor)):
-            if name in r.has:
-                parts[name] = link_loss(page_links(head, states, r.b, r.lines, getattr(r, name)), r.counts[name])
+            parts["role"] = role_loss(role, r.role, r.free)
+        if "successor" in r.has or "predecessor" in r.has:
+            succ_links, pred_links = page_links(
+                (model.detect.successor, model.detect.predecessor), states, r.b, r.lines,
+                r.successor if "successor" in r.has else None,
+                r.predecessor if "predecessor" in r.has else None,
+            )
+            if "successor" in r.has:
+                parts["successor"] = link_loss(succ_links, r.counts["successor"])
+            if "predecessor" in r.has:
+                parts["predecessor"] = link_loss(pred_links, r.counts["predecessor"])
         if "marked" in r.has:
             parts["marked"] = two_way(flags[:, 0], r.marked)
         if "start" in r.has:
@@ -770,50 +1020,73 @@ def losses(model, doc):
                 parts["note_of"] = row_loss(model.order.note_of(regions, pairs), pairs[0], regions.shape[0], r.note_of_pair)
             if "order" in r.has:
                 parts["order"] = row_loss(model.order.successor(regions, pairs), pairs[0], regions.shape[0], r.order_pair)
+            reg_doc = region_docs(r, regions)
             for name, nodes, parent, sibling, gap, construct in (("heading", r.headings, r.heading_parent, r.heading_sibling, r.heading_gap, model.headings),
                                                                  ("body", r.bodies, r.body_parent, r.body_sibling, r.body_gap, model.bodies)):
                 if name in r.has:
-                    p, s, g = construct(regions[nodes], getattr(r, f"{name}_templates"), getattr(r, f"{name}_anchors"))
-                    parts[f"{name}_parent"] = F.cross_entropy(earlier(p.float()), parent)
-                    parts[f"{name}_sibling"] = F.cross_entropy(earlier(s.float()), sibling)
-                    parts[f"{name}_gap"] = F.cross_entropy(g.float(), gap)
+                    enc = enclosing_states(regions[r.headings], enclosing(nodes, r.headings, reg_doc))
+                    p, s, g = construct(regions[nodes], enc, *tree_inputs(r, name))
+                    parts.update(tree_losses(name, p, s, g, parent, sibling, getattr(r, f"{name}_sibling_from"), gap))
     return sum(parts.values()), parts
+
+
+class Tally:
+    """Heads' accuracies summed over documents; with `links`, also on the nodes whose gold points past themselves
+    (`<name>_links`)."""
+
+    def __init__(self):
+        self.right, self.total = {}, {}
+
+    def count(self, name, guess, gold, links=False):
+        gold = np.asarray(gold)
+        keep = gold != -100
+        self.add(name, int((guess[keep] == gold[keep]).sum()), int(keep.sum()))
+        if links:
+            real = keep & (gold != np.arange(len(gold)))
+            self.add(f"{name}_links", int((guess[real] == gold[real]).sum()), int(real.sum()))
+
+    def add(self, name, right, total):
+        self.right[name] = self.right.get(name, 0) + right
+        self.total[name] = self.total.get(name, 0) + total
+
+    def report(self):
+        return {k: (self.right.get(k, 0) / max(t, 1), t) for k, t in self.total.items()}
+
+
+def count_tree(tally, name, p, s, g, parent, sibling, sibling_from, gap):
+    """A tree's heads' accuracies; a left sibling read right where it is one of the nodes its gold allows."""
+    tally.count(f"{name}_parent", earlier(p).argmax(1).cpu().numpy(), np.asarray(parent), links=True)
+    tally.count(f"{name}_gap", g.argmax(1).cpu().numpy(), np.asarray(gap))
+    guess, hi, lo = earlier(s).argmax(1).cpu().numpy(), np.asarray(sibling), np.asarray(sibling_from)
+    keep = hi != -100
+    right = keep & (guess >= lo) & (guess <= hi)
+    tally.add(f"{name}_sibling", int(right.sum()), int(keep.sum()))
+    real = keep & (lo != np.arange(len(hi)))
+    tally.add(f"{name}_sibling_links", int((right & real).sum()), int(real.sum()))
 
 
 def evaluate(model, docs):
     """Each head's accuracy on development's documents, the gold's regions and roles given to the later stages; and
     the heading openings' F1."""
     model.eval()
-    right, total = {}, {}
+    tally = Tally()
+    count = tally.count
     tp = gold_headings = guessed_headings = 0
-
-    def count(name, guess, gold, links=False):
-        """A head's accuracy; with `links`, also on the nodes whose gold points past themselves (`<name>_links`)."""
-        gold = np.asarray(gold)
-        keep = gold != -100
-        right[name] = right.get(name, 0) + int((guess[keep] == gold[keep]).sum())
-        total[name] = total.get(name, 0) + int(keep.sum())
-        if links:
-            real = keep & (gold != np.arange(len(gold)))
-            right[f"{name}_links"] = right.get(f"{name}_links", 0) + int((guess[real] == gold[real]).sum())
-            total[f"{name}_links"] = total.get(f"{name}_links", 0) + int(real.sum())
     with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16, enabled=DEVICE == "cuda"):
         for doc in docs:
             r = on_device(doc)
-            states = model.templates(model.detect(r.f, r.t, r.b, r.anchors, r.lines), r.templates, r.template_rows)
+            states = model.templates(model.detect(r.f, r.t, r.b, r.anchors, r.z, r.lines), r.templates, r.template_rows)
             role, flags = model.detect.role(states).float(), model.detect.flags(states).float()
             guess = role.argmax(1).cpu().numpy()
-            count("role", guess, doc.role)
-            for batch, (logits, gold) in zip(r.lines.batches, page_links(model.detect.successor, states, r.b, r.lines, r.successor)):
+            count("role", guess, np.where(doc.free, -100, doc.role))
+            for batch, (logits, gold) in zip(r.lines.batches, page_links((model.detect.successor, model.detect.predecessor), states, r.b, r.lines, r.successor, None)[0]):
                 # a line's own place on its page: its index in the batch's flattened rows, modulo the row's width
                 own = (batch.valid_at % batch.rows.shape[1]).cpu().numpy()
                 g, linked = gold.cpu().numpy(), logits.argmax(1).cpu().numpy()
                 keep = g != -100
-                right["successor"] = right.get("successor", 0) + int((linked[keep] == g[keep]).sum())
-                total["successor"] = total.get("successor", 0) + int(keep.sum())
+                tally.add("successor", int((linked[keep] == g[keep]).sum()), int(keep.sum()))
                 real = keep & (g != own)
-                right["successor_links"] = right.get("successor_links", 0) + int((linked[real] == g[real]).sum())
-                total["successor_links"] = total.get("successor_links", 0) + int(real.sum())
+                tally.add("successor_links", int((linked[real] == g[real]).sum()), int(real.sum()))
             count("marked", (flags[:, 0] > 0).long().cpu().numpy(), doc.marked)
             heading_open, guessed = doc.role == HEADING * 2 + 1, guess == HEADING * 2 + 1
             tp += int((guessed & heading_open).sum())
@@ -828,15 +1101,14 @@ def evaluate(model, docs):
             count("goes_on", choose(model.order.goes_on), doc.goes_on, links=True)
             count("note_of", choose(model.order.note_of), doc.note_of, links=True)
             count("order", choose(model.order.successor), doc.region_order, links=True)
-            for name, nodes, parent, sibling, construct in (("heading", r.headings, doc.heading_parent, doc.heading_sibling, model.headings),
-                                                            ("body", r.bodies, doc.body_parent, doc.body_sibling, model.bodies)):
+            reg_doc = region_docs(r, regions)
+            for name, nodes, construct in (("heading", r.headings, model.headings), ("body", r.bodies, model.bodies)):
                 if name in r.has:
-                    p, s, g = construct(regions[nodes], getattr(r, f"{name}_templates"), getattr(r, f"{name}_anchors"))
-                    count(f"{name}_parent", earlier(p).argmax(1).cpu().numpy(), parent, links=True)
-                    count(f"{name}_sibling", earlier(s).argmax(1).cpu().numpy(), sibling, links=True)
-                    count(f"{name}_gap", g.argmax(1).cpu().numpy(), np.asarray(doc.heading_gap if name == "heading" else doc.body_gap))
+                    enc = enclosing_states(regions[r.headings], enclosing(nodes, r.headings, reg_doc))
+                    count_tree(tally, name, *construct(regions[nodes], enc, *tree_inputs(r, name)),
+                               *(getattr(doc, f"{name}_{part}") for part in ("parent", "sibling", "sibling_from", "gap")))
     model.train()
-    out = {k: (right.get(k, 0) / max(total[k], 1), total[k]) for k in total}
+    out = tally.report()
     out["heading_openings_f1"] = (2 * tp / max(gold_headings + guessed_headings, 1), gold_headings)
     return out
 
@@ -868,19 +1140,68 @@ def preflight(model, docs, limit=0.85):
         raise SystemExit(f"preflight: a step takes {worst:.0%} of the device's memory, over {limit:.0%}")
 
 
-def load(folder, store):
+def load(folder, store, splits=None):
+    """The dump's documents (only those of `splits` where given), each with its partition."""
     docs = []
     for name in sorted(os.listdir(folder)):
         if not name.endswith(".json") or name.endswith(".labels.json"):
+            continue
+        split = partition(store, name[:-len(".json")])
+        if splits is not None and split not in splits:
             continue
         meta = json.load(open(os.path.join(folder, name), encoding="utf-8"))
         if "pages" not in meta or not meta.get("lines"):
             continue
         x = np.fromfile(os.path.join(folder, f"{meta['sha256']}.lines.f32"), dtype="<f4").reshape(meta["lines"], meta["line_width"])
         doc = Doc(meta, x)
-        doc.split = partition(store, doc.sha)
+        doc.split = split
         docs.append(doc)
     return docs
+
+
+def prepared(dump, store, text, mean=None, std=None, splits=None):
+    """Train's and development's documents (only `splits`' where given) with their prepared tensors, and the features'
+    statistics (train's, unless given: a fitted checkpoint's)."""
+    docs = load(dump, store, splits)
+    # Every line's text embedded once: the documents' distinct texts in one call (the tokenizer in parallel), each
+    # document's kept beside its dump for the next fit.
+    tag = text.replace("/", "_")
+    cache, missing = {}, []
+    for doc in docs:
+        path = os.path.join(dump, f"{doc.sha}.{tag}.npy")
+        if os.path.exists(path):
+            cache[doc.sha] = np.load(path)
+        else:
+            missing.append(doc)
+    if missing:
+        from model2vec import StaticModel
+        text_model = StaticModel.from_pretrained(text)
+        texts = sorted({t if t.strip() else " " for doc in missing for t in doc.texts})
+        at = {t: i for i, t in enumerate(texts)}
+        vectors = np.asarray(text_model.encode(texts, use_multiprocessing=True, show_progress_bar=False), dtype=np.float32)
+        for doc in missing:
+            cache[doc.sha] = vectors[[at[t if t.strip() else " "] for t in doc.texts]]
+            np.save(os.path.join(dump, f"{doc.sha}.{tag}.npy"), cache[doc.sha])
+        print(f"{len(texts)} distinct line texts embedded for {len(missing)} documents", flush=True)
+
+    def embed(doc):
+        return cache[doc.sha]
+
+    train_docs = [d for d in docs if d.split == "train"]
+    dev_docs = [d for d in docs if d.split == "development"]
+    print(f"{len(train_docs)} train documents, {len(dev_docs)} development; text {text}", flush=True)
+    if mean is None:
+        # The features' means and spreads over train's lines, summed a document at a time.
+        total = sum(d.features.astype(np.float64).sum(0) for d in train_docs)
+        squares = sum((d.features.astype(np.float64) ** 2).sum(0) for d in train_docs)
+        count = sum(d.n for d in train_docs)
+        mean = total / count
+        std = np.sqrt(np.maximum(squares / count - mean ** 2, 0)) + 1e-6
+    started = time.time()
+    built = prepare(train_docs + dev_docs, mean, std, embed, os.path.join(dump, "ready"))
+    cache.clear()  # the embeddings are in the prepared tensors
+    print(f"prepared tensors: {built} built, {len(train_docs) + len(dev_docs) - built} read, {time.time() - started:.0f}s", flush=True)
+    return train_docs, dev_docs, mean, std
 
 
 def main():
@@ -892,57 +1213,36 @@ def main():
     parser.add_argument("--text", default="minishlab/potion-multilingual-128M")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--width", type=int, default=256)
+    # A fitted checkpoint to start from (its weights where their shapes match, its feature statistics), at a tenth of the
+    # learning rate and a short warm-up: a gold or label change refits in a few epochs, not twenty from nothing.
+    parser.add_argument("--init")
+    parser.add_argument("--lr", type=float, default=None)
     args = parser.parse_args()
-    docs = load(args.dump, args.store)
-    # Every line's text embedded once: the documents' distinct texts in one call (the tokenizer in parallel), each
-    # document's kept beside its dump for the next fit.
-    tag = args.text.replace("/", "_")
-    cache, missing = {}, []
-    for doc in docs:
-        path = os.path.join(args.dump, f"{doc.sha}.{tag}.npy")
-        if os.path.exists(path):
-            cache[doc.sha] = np.load(path)
-        else:
-            missing.append(doc)
-    if missing:
-        from model2vec import StaticModel
-        text_model = StaticModel.from_pretrained(args.text)
-        texts = sorted({t if t.strip() else " " for doc in missing for t in doc.texts})
-        at = {t: i for i, t in enumerate(texts)}
-        vectors = np.asarray(text_model.encode(texts, use_multiprocessing=True, show_progress_bar=False), dtype=np.float32)
-        for doc in missing:
-            cache[doc.sha] = vectors[[at[t if t.strip() else " "] for t in doc.texts]]
-            np.save(os.path.join(args.dump, f"{doc.sha}.{tag}.npy"), cache[doc.sha])
-        print(f"{len(texts)} distinct line texts embedded for {len(missing)} documents", flush=True)
-
-    def embed(doc):
-        return cache[doc.sha]
-
-    train_docs = [d for d in docs if d.split == "train"]
-    dev_docs = [d for d in docs if d.split == "development"]
-    print(f"{len(train_docs)} train documents, {len(dev_docs)} development; text {args.text}", flush=True)
-    # The features' means and spreads over train's lines, summed a document at a time.
-    total = sum(d.features.astype(np.float64).sum(0) for d in train_docs)
-    squares = sum((d.features.astype(np.float64) ** 2).sum(0) for d in train_docs)
-    count = sum(d.n for d in train_docs)
-    mean = total / count
-    std = np.sqrt(np.maximum(squares / count - mean ** 2, 0)) + 1e-6
-    started = time.time()
-    built = prepare(train_docs + dev_docs, mean, std, embed, os.path.join(args.dump, "ready"))
-    cache.clear()  # the embeddings are in the prepared tensors
-    print(f"prepared tensors: {built} built, {len(train_docs) + len(dev_docs) - built} read, {time.time() - started:.0f}s", flush=True)
+    start = torch.load(args.init, map_location="cpu", weights_only=False) if args.init else None
+    train_docs, dev_docs, mean, std = prepared(args.dump, args.store, start["text"] if start else args.text,
+                                               start["mean"] if start else None, start["std"] if start else None)
     held = resident(train_docs + dev_docs)
+    # The prepared documents never go away: the collector leaves them out of its passes over the steps' objects.
+    gc.collect()
+    gc.freeze()
     print(f"prepared tensors on the device: {held / 2**30:.2f} GiB", flush=True)
     row_width = max(d.template_rows.shape[1] for d in train_docs)
     model = DocParser(train_docs[0].ready.f.shape[1], train_docs[0].ready.t.shape[1], args.width, row_width).to(DEVICE)
+    if start:
+        own = model.state_dict()
+        kept = {k: v for k, v in start["model"].items() if k in own and own[k].shape == v.shape}
+        model.load_state_dict(kept, strict=False)
+        fresh = [k for k in own if k not in kept]
+        groups = sorted({".".join(k.split(".")[:2]) for k in fresh})
+        print(f"started from {args.init}: {len(kept)} tensors kept, {len(fresh)} new: {groups[:12]}", flush=True)
     preflight(model, train_docs)
     # Development read once before training, so a fault in the evaluation shows before an epoch is spent.
     started = time.time()
     print(f"  preflight development: {len(evaluate(model, dev_docs))} heads read, {time.time() - started:.0f}s", flush=True)
     # The paper's schedule: AdamW, a linear warm-up over two epochs, then a linear fall to nothing; one document a step.
-    optimizer = torch.optim.AdamW(model.parameters(), lr=2e-4, weight_decay=1e-2)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr or (2e-5 if start else 2e-4), weight_decay=1e-2, fused=DEVICE == "cuda")
     steps = args.epochs * len(train_docs)
-    warm = 2 * len(train_docs)
+    warm = (len(train_docs) // 5) if start else 2 * len(train_docs)
     schedule = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda s: min((s + 1) / warm, max(0.0, (steps - s) / max(steps - warm, 1))))
     rng = np.random.default_rng(7)
     os.makedirs(args.out, exist_ok=True)
@@ -961,14 +1261,181 @@ def main():
             for name, v in parts.items():
                 totals[name] = totals.get(name, 0.0) + v.detach()
         print(f"epoch {epoch + 1} ({time.time() - started:.0f}s): " + " ".join(f"{n} {float(v) / len(train_docs):.3f}" for n, v in sorted(totals.items())), flush=True)
-        # Development after every epoch; the checkpoint kept is the best by its heads' mean accuracy.
+        # Development every fifth epoch and after each of the last five, where the best has always stood; the checkpoint
+        # kept is the best by its heads' mean accuracy.
+        if not start and (epoch + 1) % 5 and epoch + 1 <= args.epochs - 5:
+            continue
         report = evaluate(model, dev_docs)
         # Heads with no development examples (a count of nought) are left out of the mean.
         score = float(np.mean([a for a, c in report.values() if c]))
         print(f"  development {score:.4f}: " + " ".join(f"{n} {a:.4f} ({c})" for n, (a, c) in sorted(report.items())), flush=True)
         if score > best:
             best, since = score, 0
-            torch.save({"model": model.state_dict(), "mean": mean, "std": std, "text": args.text, "width": args.width, "row_width": row_width, "epoch": epoch + 1}, os.path.join(args.out, "docparser.pt"))
+            torch.save({"model": model.state_dict(), "mean": mean, "std": std, "text": start["text"] if start else args.text, "width": args.width, "row_width": row_width, "epoch": epoch + 1}, os.path.join(args.out, "docparser.pt"))
+        else:
+            since += 1
+            if since == 3:
+                print(f"  no gain in three epochs; best {best:.4f}", flush=True)
+                break
+    open(os.path.join(args.out, "fit.done"), "w").write("done\n")
+
+
+def upstream_model(checkpoint):
+    """A checkpoint and the model holding its earlier stages (Detect, the stylesheet, Order); its trees as this code
+    builds them, unfitted."""
+    saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    upstream = {k: v for k, v in saved["model"].items() if not k.startswith(("headings.", "bodies."))}
+    width, d = upstream["detect.look.0.weight"].shape[1], saved["width"]
+    text_dim = upstream["detect.text.0.weight"].shape[1]
+    model = DocParser(width, text_dim, d, saved.get("row_width", 0)).to(DEVICE)
+    missing, unexpected = model.load_state_dict(upstream, strict=False)
+    if unexpected or any(not k.startswith(("headings.", "bodies.")) for k in missing):
+        raise SystemExit(f"the checkpoint's earlier stages do not fit this code: missing {missing[:5]}, unexpected {unexpected[:5]}")
+    return saved, model
+
+
+def roles(argv):
+    """python docparse.py roles CHECKPOINT DUMP STORE OUT_JSON: Detect's line roles on development's documents against
+    the gold's, every document's counts of (gold region, read region) and of openings read right, and the free lines'
+    (the gold says only one of `UNMARKED`) read regions; with its source.json's genre, yardstick and label source."""
+    checkpoint, dump, store, out = argv
+    saved, model = upstream_model(checkpoint)
+    _, dev_docs, _, _ = prepared(dump, store, saved["text"], saved["mean"], saved["std"], splits={"development"})
+    model.eval()
+    rows = []
+    with torch.no_grad(), torch.autocast(DEVICE, dtype=torch.bfloat16):
+        for doc in dev_docs:
+            r = on_device(doc)
+            states = model.templates(model.detect(r.f, r.t, r.b, r.anchors, r.z, r.lines), r.templates, r.template_rows)
+            guess = model.detect.role(states).float().argmax(1).cpu().numpy()
+            gold = np.asarray(doc.role)
+            named = (gold != -100) & ~doc.free
+            pairs, free = {}, {}
+            for g, p in zip(gold[named] // 2, guess[named] // 2):
+                key = f"{REGIONS[g]}>{REGIONS[p]}"
+                pairs[key] = pairs.get(key, 0) + 1
+            for p in guess[doc.free] // 2:
+                free[REGIONS[p]] = free.get(REGIONS[p], 0) + 1
+            try:
+                source = json.load(open(os.path.join(store, doc.sha, "source.json"), encoding="utf-8"))
+            except (OSError, ValueError):
+                source = {}
+            rows.append({"sha": doc.sha, "lines": int(named.sum()), "pairs": pairs, "free": free,
+                         "openings_right": int(((gold[named] % 2) == (guess[named] % 2)).sum()),
+                         **{k: source.get(k) for k in ("genre_group", "yardstick", "label_source", "language_layout")}})
+            doc.ready = None
+    json.dump(rows, open(out, "w", encoding="utf-8"))
+    print(f"roles of {len(rows)} development documents -> {out}", flush=True)
+
+
+def trees(argv):
+    """python docparse.py trees CHECKPOINT DUMP STORE OUT [--epochs N]: the two trees alone fitted, from nothing, on
+    CHECKPOINT's earlier stages held fixed. Those stages read every document once, over the gold's regions as the full
+    fit gives them, and what the trees take (their nodes' region states, enclosing headings, inputs and gold) is kept in
+    DUMP (trees-<the checkpoint's crc>.pt) for the next tree fit to read in seconds. The best epoch by development's tree
+    heads is written to OUT as a whole checkpoint (the earlier stages CHECKPOINT's) for export."""
+    parser = argparse.ArgumentParser(prog="docparse.py trees")
+    for name in ("checkpoint", "dump", "store", "out"):
+        parser.add_argument(name)
+    parser.add_argument("--epochs", type=int, default=30)
+    args = parser.parse_args(argv)
+    saved, model = upstream_model(args.checkpoint)
+    crc = zlib.crc32(open(args.checkpoint, "rb").read())
+    path = os.path.join(args.dump, f"trees-{READY}-{TREE_GOLD}-{crc:08x}.pt")
+    started = time.time()
+    if os.path.exists(path):
+        kept = torch.load(path, weights_only=False)
+    else:
+        train_docs, dev_docs, _, _ = prepared(args.dump, args.store, saved["text"], saved["mean"], saved["std"])
+        model.eval()
+        kept = []
+        with torch.no_grad(), torch.autocast(DEVICE, dtype=torch.bfloat16):
+            for doc in train_docs + dev_docs:
+                r = on_device(doc)
+                if "regions" not in r.has:
+                    continue
+                states = model.templates(model.detect(r.f, r.t, r.b, r.anchors, r.z, r.lines), r.templates, r.template_rows)
+                regions = model.order(states, r.region_lines, r.line_region, r.region_role)
+                reg_doc = region_docs(r, regions)
+                entry = {"split": doc.split, "partial": doc.partial_bodies, "trees": {}}
+                for name, nodes in (("heading", r.headings), ("body", r.bodies)):
+                    if name not in r.has:
+                        continue
+                    entry["trees"][name] = {
+                        "states": regions[nodes].to(torch.bfloat16).cpu(),
+                        "enclosing": enclosing(nodes, r.headings, reg_doc).cpu(),
+                        "inputs": tuple(t.cpu() for t in tree_inputs(r, name)),
+                        "gold": tuple(getattr(r, f"{name}_{part}").cpu() for part in ("parent", "sibling", "sibling_from", "gap")),
+                    }
+                if entry["trees"]:
+                    entry["heading_states"] = regions[r.headings].to(torch.bfloat16).cpu()
+                    kept.append(entry)
+                doc.ready = None
+        torch.save(kept, path)
+    train = [e for e in kept if e["split"] == "train"]
+    dev = [e for e in kept if e["split"] == "development"]
+    for e in kept:
+        e["heading_states"] = e["heading_states"].to(DEVICE)
+        for tree in e["trees"].values():
+            for key in ("states", "enclosing"):
+                tree[key] = tree[key].to(DEVICE)
+            tree["inputs"] = tuple(t.to(DEVICE) for t in tree["inputs"])
+            tree["gold"] = tuple(t.to(DEVICE) for t in tree["gold"])
+    print(f"tree inputs of {len(train)} train and {len(dev)} development documents, {time.time() - started:.0f}s", flush=True)
+    constructs = {"heading": model.headings, "body": model.bodies}
+
+    def run(e, name):
+        tree = e["trees"][name]
+        enc = enclosing_states(e["heading_states"], tree["enclosing"])
+        return constructs[name](tree["states"], enc, *tree["inputs"])
+
+    def score():
+        """Development's tree heads on the golds that give whole trees; the partial golds' apart (`partial_`), out of the mean."""
+        model.eval()
+        whole, partial = Tally(), Tally()
+        with torch.no_grad(), torch.autocast(DEVICE, dtype=torch.bfloat16):
+            for e in dev:
+                for name in e["trees"]:
+                    p, s, g = run(e, name)
+                    count_tree(partial if e["partial"] else whole, name, p.float(), s.float(), g.float(),
+                               *(t.cpu().numpy() for t in e["trees"][name]["gold"]))
+        model.train()
+        return whole.report(), {f"partial_{k}": v for k, v in partial.report().items()}
+
+    parameters = list(model.headings.parameters()) + list(model.bodies.parameters())
+    optimizer = torch.optim.AdamW(parameters, lr=2e-4, weight_decay=1e-2, fused=DEVICE == "cuda")
+    steps, warm = args.epochs * len(train), len(train)
+    schedule = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda s: min((s + 1) / warm, max(0.0, (steps - s) / max(steps - warm, 1))))
+    rng = np.random.default_rng(7)
+    os.makedirs(args.out, exist_ok=True)
+    model.train()
+    started, best, since = time.time(), -1.0, 0
+    for epoch in range(args.epochs):
+        totals = {}
+        for i in rng.permutation(len(train)):
+            e = train[i]
+            parts = {}
+            with torch.autocast(DEVICE, dtype=torch.bfloat16):
+                for name in e["trees"]:
+                    parts.update(tree_losses(name, *run(e, name), *e["trees"][name]["gold"]))
+            if not parts:
+                continue
+            optimizer.zero_grad()
+            sum(parts.values()).backward()
+            torch.nn.utils.clip_grad_norm_(parameters, 1.0)
+            optimizer.step()
+            schedule.step()
+            for name, v in parts.items():
+                totals[name] = totals.get(name, 0.0) + v.detach()
+        report, partial = score()
+        mean_accuracy = float(np.mean([a for a, c in report.values() if c]))
+        print(f"epoch {epoch + 1} ({time.time() - started:.0f}s): " + " ".join(f"{n} {float(v) / len(train):.3f}" for n, v in sorted(totals.items())), flush=True)
+        print(f"  development {mean_accuracy:.4f}: " + " ".join(f"{n} {a:.4f} ({c})" for n, (a, c) in sorted({**report, **partial}.items())), flush=True)
+        if mean_accuracy > best:
+            best, since = mean_accuracy, 0
+            state = {**saved["model"], **{k: v.detach().cpu() for k, v in model.state_dict().items() if k.startswith(("headings.", "bodies."))}}
+            state = {k: v for k, v in state.items() if k in model.state_dict()}
+            torch.save({**{k: v for k, v in saved.items() if k != "model"}, "model": state, "epoch": epoch + 1}, os.path.join(args.out, "docparser.pt"))
         else:
             since += 1
             if since == 3:
@@ -985,8 +1452,8 @@ class DetectPage(nn.Module):
         super().__init__()
         self.detect = detect
 
-    def forward(self, features, text, boxes, anchors):
-        x = self.detect.embed(features, text, boxes, anchors)
+    def forward(self, features, text, boxes, anchors, t0):
+        x = self.detect.embed(features, text, boxes, anchors, t0)
         for layer in self.detect.encoder:
             x = layer(x)
         return x
@@ -1052,9 +1519,9 @@ def export(argv):
     os.makedirs(out, exist_ok=True)
     n, m, k = 12, 5, 9
     with torch.no_grad():
-        torch.onnx.export(DetectPage(model.detect), (torch.randn(n, width), torch.randn(n, text_dim), torch.rand(n, 4), torch.randint(0, ANCHORS, (n,))),
-                          os.path.join(out, "detect.onnx"), input_names=["features", "text", "boxes", "anchors"], output_names=["states"],
-                          dynamic_axes={"features": {0: "lines"}, "text": {0: "lines"}, "boxes": {0: "lines"}, "anchors": {0: "lines"},
+        torch.onnx.export(DetectPage(model.detect), (torch.randn(n, width), torch.randn(n, text_dim), torch.rand(n, 4), torch.randint(0, ANCHORS, (n,)), torch.rand(n, T0)),
+                          os.path.join(out, "detect.onnx"), input_names=["features", "text", "boxes", "anchors", "t0"], output_names=["states"],
+                          dynamic_axes={"features": {0: "lines"}, "text": {0: "lines"}, "boxes": {0: "lines"}, "anchors": {0: "lines"}, "t0": {0: "lines"},
                                         "states": {0: "lines"}}, opset_version=18, dynamo=False)
         templates = 4
         torch.onnx.export(StylesheetDocument(model.templates), (torch.randn(n, d), torch.randint(0, templates, (n,)), torch.randn(templates, model.templates.row_width)),
@@ -1083,10 +1550,17 @@ def export(argv):
                                         **{f"{head}_{part}": {0: "pairs" if part == "r" else "regions"} for head in ("goes_on", "note_of", "successor") for part in ("q", "k", "r")}},
                           opset_version=18, dynamo=False)
         for name, construct in (("headings", model.headings), ("bodies", model.bodies)):
-            torch.onnx.export(construct, (torch.randn(m, d), torch.randint(0, 3, (m,)), torch.randint(0, ANCHORS, (m,))),
-                              os.path.join(out, f"{name}.onnx"), input_names=["states", "templates", "anchors"],
+            torch.onnx.export(construct, (torch.randn(m, d), torch.randn(m, d), torch.randint(0, 3, (m,)), torch.randint(0, ANCHORS, (m,)),
+                                          torch.randint(0, 10, (m,)), torch.randint(-1, 5, (m,)), torch.randint(0, 3, (m,)),
+                                          torch.randint(0, 4, (m,)), torch.rand(m), torch.randn(m),
+                                          torch.randint(0, 10, (m,)), torch.randint(0, 5, (m,)), torch.randint(1, 17, (m,))),
+                              os.path.join(out, f"{name}.onnx"),
+                              input_names=["states", "heading_states", "templates", "anchors", "family", "value", "prefix", "section", "x0", "size", "looks", "pages", "roles"],
                               output_names=["parent", "sibling", "gap"],
-                              dynamic_axes={"states": {0: "nodes"}, "templates": {0: "nodes"}, "anchors": {0: "nodes"},
+                              dynamic_axes={"states": {0: "nodes"}, "heading_states": {0: "nodes"}, "templates": {0: "nodes"}, "anchors": {0: "nodes"},
+                                            "family": {0: "nodes"}, "value": {0: "nodes"}, "prefix": {0: "nodes"},
+                                            "section": {0: "nodes"}, "x0": {0: "nodes"}, "size": {0: "nodes"},
+                                            "looks": {0: "nodes"}, "pages": {0: "nodes"}, "roles": {0: "nodes"},
                                             "parent": {0: "nodes", 1: "nodes"}, "sibling": {0: "nodes", 1: "nodes"}, "gap": {0: "nodes"}},
                               opset_version=18, dynamo=False)
     from model2vec import StaticModel
@@ -1110,5 +1584,9 @@ if __name__ == "__main__":
     import docparse
     if sys.argv[1:2] == ["export"]:
         docparse.export(sys.argv[2:])
+    elif sys.argv[1:2] == ["trees"]:
+        docparse.trees(sys.argv[2:])
+    elif sys.argv[1:2] == ["roles"]:
+        docparse.roles(sys.argv[2:])
     else:
         docparse.main()

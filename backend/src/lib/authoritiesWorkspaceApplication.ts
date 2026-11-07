@@ -9,10 +9,11 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction, type PdfOpening } from "./authoritiesActions";
-import { authorityPassageTargets, buildAuthorities, citedSourcePages,
+import { authorityPassageTargets, buildAuthorities, citedSourcePages, renderAuthoritySourcePdf,
   type AuthoritiesBuildResult, type BuildSourceText } from "./authoritiesBuild";
-import { attachAuthorityFile, attachBookFile, authorityAnnotations, buildAuthoritiesDraft, correctedAuthoritiesDraft,
-  gatherAuthoritySources, refreshedAuthoritiesDraft, type AuthoritiesBuildFile, type KeptPdf } from "./authoritiesCore";
+import { attachAuthorityFile, correctedAuthoritiesDraft, gatherAuthoritySources, refreshedAuthoritiesDraft,
+  type KeptPdf } from "./authoritiesCore";
+import { attachBookFile, authorityAnnotations, buildAuthoritiesDraft, type AuthoritiesBuildFile } from "./authoritiesBookCore";
 import { attachedAuthoritySources, decodeAuthoritiesDraft,
   type AuthoritiesAction, type AuthoritiesDraft,
   type AuthoritySourceLanguage } from "./authoritiesDomain";
@@ -20,7 +21,8 @@ import type { AuthoritiesDiscrepancyRequest } from "mike/shared/authorities-cont
 import { createAuthoritiesImporter, type AuthoritiesImportSource,
   type GroundedReceiptSeed } from "./authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
-import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
+import { createAuthoritiesPreparation } from "./authoritiesPreparation";
+import { prepareAuthoritiesCorrection } from "./authoritiesCorrection";
 import { authorityReferenceText, authorityStatuteText, authoritySourceServices, resolveAuthoritiesSources }
   from "./authoritiesSourceResolution";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
@@ -88,7 +90,8 @@ export function createAuthoritiesWorkspaceApplication(
   workProducts: WorkProductApplication,
   files: WorkflowFiles,
 ) {
-  const importer = createAuthoritiesImporter(documents), sources = authoritySourceServices;
+  // The book stands a PDF typeset from a provider's text in for an original there is none of.
+  const importer = createAuthoritiesImporter(documents), sources = { ...authoritySourceServices, render: renderAuthoritySourcePdf };
   // What each source was read to, kept across builds as the standalone app keeps it: a rebuild reads again only
   // a source whose bytes or reading changed.
   const readings = sourceReadings();

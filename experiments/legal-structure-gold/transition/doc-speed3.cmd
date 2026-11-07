@@ -6,7 +6,7 @@ set J=C:\Users\elias\fable\joint
 set D=C:\Users\elias\fable\doc
 set G=C:\Users\elias\AppData\Local\OpenLegalData\gold-grades
 set S=C:\Users\elias\gold-store\gold
-set GRADER=C:\Users\elias\fable\grader-doc11.exe
+set GRADER=C:\Users\elias\fable\grader-doc12.exe
 set LEGALPDF_TRANSITION_GRAMMAR=C:\Users\elias\fable\grammar.json
 set LEGALPDF_TRANSITION_CONFUSIONS=C:\Users\elias\fable\confusions.json
 set LEGALPDF_INDRA_MODEL_PACK=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\indra
@@ -16,10 +16,10 @@ set LEGALPDF_TRANSITION_LOCAL=C:\Users\elias\fable\transition4\local\full.txt
 set LEGALPDF_TRANSITION_EMIT=1
 cd /d %J%
 set CUDA_VISIBLE_DEVICES=-1
-if not exist %D%\export3\order.onnx C:\Users\elias\beaver-train\venv\Scripts\python.exe -W ignore docparse.py export %D%\model3\docparser.pt %D%\export3 > %G%\doc-export3.out 2>&1
+if not exist %D%\export4\order.onnx C:\Users\elias\beaver-train\venv\Scripts\python.exe -W ignore docparse.py export %D%\model4\docparser.pt %D%\export4 > %G%\doc-export3.out 2>&1
 set CUDA_VISIBLE_DEVICES=
 set LEGALPDF_TRANSITION_DOC_TIMES=1
-set LEGALPDF_TRANSITION_DOC=%D%\export3
+set LEGALPDF_TRANSITION_DOC=%D%\export4
 %GRADER% grade %S% --split development --out %G%\grade-speed3-order.json > %G%\speed3-order.out 2>&1
 set LEGALPDF_TRANSITION_DOC_ORDER=off
 %GRADER% grade %S% --split development --out %G%\grade-speed3-noorder.json > %G%\speed3-noorder.out 2>&1

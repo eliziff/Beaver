@@ -1,6 +1,6 @@
 import { ApplicationError } from "./applicationError";
 import { authorityCitationServices, caseNameMismatch, editAuthoritiesDraft } from "./authoritiesActions";
-import { renderAuthoritySourcePdf } from "./authoritiesBuild";
+import type { renderAuthoritySourcePdf } from "./authoritiesBuild";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
@@ -97,6 +97,9 @@ export const authoritySourceServices = {
   download: downloadProviderOriginalPdf,
   /** A publisher's original the host has kept, by the address it was fetched at; never fetched here. */
   stored: undefined as ((url: string) => Promise<Uint8Array | null>) | undefined,
+  /** A PDF typeset from a provider's text, for a host that builds a book of authorities: it stands in the book for an
+   *  original there is none of. Only that host supplies it; nothing is checked against it. */
+  render: undefined as typeof renderAuthoritySourcePdf | undefined,
   ...authorityCitationServices,
   revision: (document: Parameters<ReturnType<typeof structureNative>["documentRevision"]>[0]) =>
     structureNative().documentRevision(document),
@@ -229,7 +232,7 @@ export async function resolveAuthoritiesSources(
   // Resolution applies one or two actions per authority: one working copy, validated on return.
   const editor = editAuthoritiesDraft(initial), draft = editor.draft;
   const attachments: PreparedAuthoritySource[] = [];
-  const reconstruct = draft.settings.sourceMode !== "manual-originals";
+  const reconstruct = !!sources.render && draft.settings.sourceMode !== "manual-originals";
   const originals = draft.settings.sourceMode !== "render";
   const requirements = authoritiesProfile(draft.settings.profileId).requirements;
   const needsPdf = authorityBytesRequired(draft, requirements);
@@ -533,7 +536,7 @@ export async function resolveAuthoritiesSources(
     let reconstructed: Awaited<ReturnType<typeof renderAuthoritySourcePdf>> | null = null;
     const text = reconstruct && !original ? source.searchText() : "";
     if (text.trim()) try {
-      reconstructed = await renderAuthoritySourcePdf({ kind: authority.kind,
+      reconstructed = await sources.render!({ kind: authority.kind,
         name: source.name, citation: source.citation, date: source.date,
         sourceUrl: source.publisherUrl ?? source.url, text,
         provider: (source.provider ?? "a2aj") === "a2aj" ? "A2AJ" : source.provider,

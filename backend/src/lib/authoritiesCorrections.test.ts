@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import { expect, it } from "vitest";
 import { importStandaloneAuthoritiesFile } from "./authoritiesImport";
 import { pinpointCorrection } from "./authoritiesDiscrepancy";
-import { prepareAuthoritiesCorrection } from "./authoritiesPreparation";
+import { prepareAuthoritiesCorrection } from "./authoritiesCorrection";
 
 // Independently invented brief and citation; no source document or user wording.
 const citation = "2035 ONCA 271", name = "Mistral v Summit";

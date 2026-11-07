@@ -171,78 +171,6 @@ def segments(text, listing, outline):
 
 # ---------------------------------------------------------------- PDF side
 
-def geometry(extraction_pages):
-    """{line id: {bbox, size, bold, italic}} and {page: (width, height)} from a reading's pages."""
-    out, pages = {}, {}
-    for page in extraction_pages:
-        pages[page["number"]] = (page.get("width") or 612, page.get("height") or 792)
-        for line in page["lines"]:
-            bold = italic = total = 0; sizes = Counter()
-            for s in line.get("spans") or []:
-                n = max(1, s.get("end", 0) - s.get("start", 0)); total += n
-                font = (s.get("font") or "").lower()
-                bold += n * (bool(s.get("flags", 0) & 16) or "bold" in font or "black" in font or "heavy" in font)
-                italic += n * (bool(s.get("flags", 0) & 2) or "italic" in font or "oblique" in font)
-                sizes[round((s.get("size") or 0) * 2) / 2] += n
-            out[line["id"]] = {"bbox": line.get("bbox"), "bold": total > 0 and bold > 0.6 * total,
-                               "italic": total > 0 and italic > 0.6 * total, "size": sizes.most_common(1)[0][0] if sizes else 0}
-    return out, pages
-
-
-def number_like(text):
-    """A page number as printed: one or two numbers or short roman numerals, with at most the words page/of/p."""
-    ws = [w for w, _, _ in align.words_of(text)]
-    rest = [w for w in ws if w not in ("page", "of", "p", "pg")]
-    return bool(rest) and len(rest) <= 2 and all(w.isdigit() or (len(w) <= 5 and set(w) <= set("ivxlc")) for w in rest)
-
-
-def masked(text):
-    return " ".join("#" if w.isdigit() else w for w, _, _ in align.words_of(text))
-
-
-def margin(box, page):
-    """Where a line sits: 'head' (top or bottom tenth of the page), 'side' (outside the middle
-    four fifths across, or set sideways) or None."""
-    width, height = page
-    if box[1] < 0.12 * height or box[3] > 0.9 * height: return "head"
-    if box[2] < 0.12 * width or box[0] > 0.88 * width or (box[3] - box[1]) > 2.5 * max(1, box[2] - box[0]) and box[3] - box[1] > 30:
-        return "side"
-    return None
-
-
-def furniture(lines, geo, pages):
-    """{line id: 'furniture' | 'page_label'}: lines in the page margins that are a page number, or
-    whose words (digits masked) recur in the margins of another page."""
-    place = {}
-    for line in lines:
-        box = (geo.get(line["id"]) or {}).get("bbox")
-        if box and line["text"].strip(): place[line["id"]] = margin(box, pages.get(line["page"], (612, 792)))
-    seen, on_page = defaultdict(set), defaultdict(list)
-    for line in lines:
-        on_page[line["page"]].append(line)
-        if place.get(line["id"]): seen[masked(line["text"])].add(line["page"])
-    out = {}
-    for line in lines:
-        where = place.get(line["id"])
-        if not where: continue
-        if where == "head" and page_number(line, on_page[line["page"]], geo): out[line["id"]] = "page_label"
-        elif not number_like(line["text"]) and masked(line["text"]) and len(seen[masked(line["text"])]) >= 2: out[line["id"]] = "furniture"
-    return out
-
-
-def page_number(line, lines, geo):
-    """A number in the page head or foot that is no paragraph's number: not bracketed, and no text
-    begins just after it on its row."""
-    if not number_like(line["text"]) or any(c in line["text"] for c in "[("): return False
-    box = geo[line["id"]]["bbox"]
-    for other in lines:
-        b = (geo.get(other["id"]) or {}).get("bbox")
-        if other is line or other["page"] != line["page"] or not b or not other["text"].strip(): continue
-        same_row = min(box[3], b[3]) - max(box[1], b[1]) > 0.5 * min(box[3] - box[1], b[3] - b[1])
-        if same_row and 0 <= b[0] - box[2] < 60: return False
-    return True
-
-
 # ---------------------------------------------------------------- labelling
 
 def bullet(text):
@@ -265,15 +193,14 @@ def extend(text, a, b):
 
 
 class Labelled:
-    def __init__(self, lines, pages, text, listing, outline, words, fixed=None, begin=0):
+    def __init__(self, lines, pages, text, listing, outline, words, fixed, begin=0):
         """lines: an alignment record's lines (id, page, text, bbox and type style); words: its word pairs on
-        `text`, [line, start, end, text start, text end, kind]; fixed: {line id: 'furniture' | 'page_label'} where
-        the page furniture is already known (else found here); begin: where the decision begins in `text` (after
-        A2AJ's metadata)."""
+        `text`, [line, start, end, text start, text end, kind]; fixed: {line id: 'furniture' | 'page_label'}, the
+        page furniture already known; begin: where the decision begins in `text` (after A2AJ's metadata)."""
         self.lines, self.pages, self.text, self.begin = lines, pages, text, begin
         self.geo = {line["id"]: line for line in lines}
         self.segs, self.owner = segments(text, listing, outline)
-        self.fixed = furniture(lines, self.geo, pages) if fixed is None else fixed
+        self.fixed = fixed
         self.align(words)
         self.cut()
         self.late_furniture()
@@ -334,16 +261,16 @@ class Labelled:
         loose = []
         for k, p in enumerate(self.pieces):
             box = (self.geo.get(self.lines[p[0]]["id"]) or {}).get("bbox")
-            where = box and margin(box, self.pages.get(self.lines[p[0]]["page"], (612, 792)))
+            where = box and align.margin(box, self.pages.get(self.lines[p[0]]["page"], (612, 792)))
             if p[3] is None and where: loose.append((k, where))
         pages = defaultdict(set)
-        for k, _ in loose: pages[masked(self.lines[self.pieces[k][0]]["text"])].add(self.lines[self.pieces[k][0]]["page"])
+        for k, _ in loose: pages[align.masked(self.lines[self.pieces[k][0]]["text"])].add(self.lines[self.pieces[k][0]]["page"])
         for k, where in loose:
             n, a, b, _ = self.pieces[k]
             line = self.lines[n]
-            if where == "head" and page_number(line, self.lines, self.geo):
+            if where == "head" and align.page_number(line, self.lines):
                 self.pieces[k] = (n, a, b, "page_label")
-            elif not number_like(line["text"]) and len(pages[masked(line["text"])]) >= 2 and len(masked(line["text"])) >= 3:
+            elif not align.number_like(line["text"]) and len(pages[align.masked(line["text"])]) >= 2 and len(align.masked(line["text"])) >= 3:
                 self.pieces[k] = (n, a, b, "furniture")
 
     def detached_bullets(self):
@@ -357,18 +284,13 @@ class Labelled:
             nxt = next((q for q in range(k + 1, len(self.pieces)) if self.pieces[q][3] not in OWN), None)
             if nxt is None: continue
             s = self.pieces[nxt][3]
-            here = (self.geo.get(self.lines[p[0]]["id"]) or {}).get("bbox")
-            there = (self.geo.get(self.lines[self.pieces[nxt][0]]["id"]) or {}).get("bbox")
-            row = bool(here and there) and min(here[3], there[3]) - max(here[1], there[1]) > 0.3 * min(here[3] - here[1], there[3] - there[1])
-            if isinstance(s, int) and s not in opened and self.segs[s]["kind"] in (INNER, ITEM, HEADING) and row \
-                    and self.lines[self.pieces[nxt][0]]["page"] == self.lines[p[0]]["page"]:
+            if isinstance(s, int) and s not in opened and self.segs[s]["kind"] in (INNER, ITEM, HEADING) \
+                    and self.same_row(p[0], self.pieces[nxt][0]):
                 self.bullets.add(k); self.bullet_of[s] = k
 
     def same_row(self, n, m):
-        """Whether two lines stand on one row of their page."""
-        here, there = (self.geo.get(self.lines[n]["id"]) or {}).get("bbox"), (self.geo.get(self.lines[m]["id"]) or {}).get("bbox")
-        return bool(here and there) and self.lines[n]["page"] == self.lines[m]["page"] and \
-            min(here[3], there[3]) - max(here[1], there[1]) > 0.3 * min(here[3] - here[1], there[3] - there[1])
+        """Whether two of the record's lines stand on one row of their page."""
+        return align.same_row(self.geo.get(self.lines[n]["id"]) or {}, self.geo.get(self.lines[m]["id"]) or {})
 
     def kind(self, piece):
         s = piece[3]

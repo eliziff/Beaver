@@ -92,7 +92,7 @@ jobs:
           workspaces: native/legal-structure-node -> target
       - name: Build the native addon once
         if: steps.cache.outputs.cache-hit != 'true'
-        run: cargo build --locked --release --jobs 2 --manifest-path native/legal-structure-node/Cargo.toml
+        run: cargo rustc --lib --crate-type cdylib --locked --release --jobs 2 --manifest-path native/legal-structure-node/Cargo.toml
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: native-${{ github.sha }}

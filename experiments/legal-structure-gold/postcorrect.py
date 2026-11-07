@@ -33,6 +33,14 @@ bullet) is a provision, and a provision with no printed number is text; in a jud
 or article a provision is an instrument set out in it, a quote. Elsewhere (a schedule split from its
 contract, a practice direction typed other) the region stands.
 
+Quoted numbers: a judgment numbers its own paragraphs one way, its spine (the style, "[12]", "12." or
+"12", that most of its numbered text units print). A numbered text unit printing another style with a
+number the spine also prints is not one of its paragraphs (a pinpoint "para 45" is the spine's 45) but
+material it sets out (agreed facts, a list of issues, an order's terms, a quoted judgment's paragraphs):
+it takes the region the gold gives the nearest earlier unit numbered in its style, else it is a list
+item before the spine's first paragraph and a quote after it. A unit that also prints a spine number
+stays. The A2AJ-aligned gold's paragraphs are A2AJ's own numbered paragraphs and stay.
+
 Note labels: a note's label is the number or symbol its first line opens on ("1 It is not to be
 inferred", "* Note: closing cash"); a note unit with no marker whose first line opens on one, set apart
 by a space, takes it as its marker, so every note carries its label the one way.
@@ -275,6 +283,164 @@ def type_regions(gold, edge=None):
     return done
 
 
+NUMBERINGS = (("bracket", re.compile(r"^\[(\d{1,4})\]$")), ("dot", re.compile(r"^(\d{1,4})\.$")),
+              ("paren", re.compile(r"^\((\d{1,4})\)$")), ("half", re.compile(r"^(\d{1,4})\)$")), ("bare", re.compile(r"^(\d{1,4})$")))
+
+
+def numbering(marker):
+    """A printed paragraph number's style and number ("[12]": bracket, 12), else None."""
+    for style, form in NUMBERINGS:
+        found = form.match(marker.strip())
+        if found:
+            return style, int(found.group(1))
+    return None
+
+
+def quoted_numbers(gold, edge=None):
+    aligned = gold.get("label_source") == "a2aj-align"
+    units, kind = gold["units"], kinds(gold)
+    numbered = []  # per unit: its markers' (style, number) readings
+    for unit in units:
+        numbered.append([numbering(m) for m in printed_markers(gold, unit)] if unit["lines"] else [])
+    starts = [u for u, unit in enumerate(units) if u == 0 or unit.get("starts_document")] + [len(units)]
+    done = []
+    for a, b in zip(starts, starts[1:]):
+        if kind[a] != "judgment":
+            continue
+        text = [u for u in range(a, b) if regions(gold, units[u]) == {"text"} and numbered[u] and numbered[u][0]]
+        printed = collections.defaultdict(set)
+        for u in text:
+            printed[numbered[u][0][0]].add(numbered[u][0][1])
+        if not printed:
+            continue
+        spine = max(printed, key=lambda style: len(printed[style]))
+        if len(printed[spine]) < 3:
+            continue
+        # Numbering that spans under
+        # three tenths of a judgment of four pages or more, or prints fewer numbers than a third of the pages it
+        # spans, is no paragraph numbering; its units are lists.
+        page = {line["id"]: line["page"] for line in gold["lines"]}
+        def pages_of(us):
+            return [page[s["line_id"]] for u in us for t in units[u]["lines"] for s in gold["typed"][t]["spans"][:1] if s["line_id"] in page]
+        spine_pages, document_pages = pages_of([u for u in text if numbered[u][0][0] == spine]), set(pages_of(range(a, b)))
+        spanned = max(spine_pages) - min(spine_pages) + 1 if spine_pages else 0
+        if len(document_pages) >= 4 and (spanned * 10 < len(document_pages) * 3 or len(printed[spine]) * 3 < spanned):
+            for u in text:
+                for t in units[u]["lines"]:
+                    if gold["typed"][t]["region"] == "text":
+                        gold["typed"][t]["region"] = "list_item"
+                done.append({"rule": "no_paragraph_numbering", "unit": u, "spine": spine, "to": "list_item", "text": unit_text(gold, units[u])[:80]})
+            continue
+        if aligned:
+            continue
+        first = min(u for u in text if numbered[u][0][0] == spine)
+        for u in text:
+            style, number = numbered[u][0]
+            if style == spine or number not in printed[spine] or any(n and n[0] == spine for n in numbered[u]):
+                continue
+            # The gold's own reading of the same numbering nearby, else a list before the reasons, a quote within them.
+            same = [v for v in range(u - 1, a - 1, -1) if numbered[v] and numbered[v][0] and numbered[v][0][0] == style
+                    and regions(gold, units[v]) & {"quote", "list_item"}]
+            to = gold["typed"][units[same[0]]["lines"][0]]["region"] if same else "list_item" if u < first else "quote"
+            for t in units[u]["lines"]:
+                if gold["typed"][t]["region"] == "text":
+                    gold["typed"][t]["region"] = to
+            done.append({"rule": "quoted_number", "unit": u, "spine": spine, "to": to, "text": unit_text(gold, units[u])[:80]})
+    return done
+
+
+def margin_numbers(gold, edge=None):
+    """A law report's paragraph number printed alone in the margin numbers the row beside it, in every column: a
+    parallel report's English and French paragraphs opening level with it are both that paragraph. Each text unit
+    opening on the number's row without a marker of its own takes the number (a unit that goes on from another, or
+    a number in the column's text, is left as it is)."""
+    lines = {line["id"]: line for line in gold["lines"]}
+    typed, kind = gold["typed"], kinds(gold)
+    unit_of = {t: u for u, unit in enumerate(gold["units"]) for t in unit["lines"]}
+    by_page = collections.defaultdict(list)
+    for line in gold["lines"]:
+        by_page[line["page"]].append(line)
+    prose = {page: [l["bbox"] for l in ls if len(l["text"].strip()) >= 20] for page, ls in by_page.items()}
+    done = []
+    for t, entry in enumerate(typed):
+        if entry["region"] != "text" or not entry["markers"] or kind[unit_of.get(t, 0)] != "judgment":
+            continue
+        span = entry["markers"][0][0] if isinstance(entry["markers"][0], list) else entry["markers"][0]
+        number_line = lines.get(span["line_id"])
+        if number_line is None or not re.fullmatch(r"\[?\d{1,4}\]?", number_line["text"].strip()):
+            continue
+        boxes = prose.get(number_line["page"], [])
+        if not boxes:
+            continue
+        x0, y0, x1, y1 = number_line["bbox"]
+        if not (x1 < min(b[0] for b in boxes) - 2 or x0 > max(b[2] for b in boxes) + 2):
+            continue
+        middle, height = (y0 + y1) / 2, max(y1 - y0, 1.0)
+        for other, row in enumerate(typed):
+            if other == t or row["region"] != "text" or row["markers"] or not row.get("start") or not row["spans"]:
+                continue
+            first = lines.get(row["spans"][0]["line_id"])
+            if first is None or first["page"] != number_line["page"] or len(first["text"].strip()) < 6:
+                continue
+            if abs((first["bbox"][1] + first["bbox"][3]) / 2 - middle) <= height * 0.6:
+                row["markers"] = [[dict(span)]]
+                done.append({"rule": "margin_number", "unit": unit_of.get(other), "number": number_line["text"].strip(),
+                             "text": row["text"][:80]})
+    return done
+
+
+CONCURRENCE = re.compile(r"^\s*(Concurred in|Concurring|I concur|Je souscris|Souscrivent)\s*:\s*$", re.I)
+
+
+def concurrence_lines(gold, edge=None):
+    """A judgment's concurrence line after its reasons ("Concurred in:") opens the signature matter: it goes on with
+    no paragraph. A text unit holding one after its first line is split there, the line opening a unit of its own."""
+    typed, kind = gold["typed"], kinds(gold)
+    done = []
+    for u in range(len(gold["units"]) - 1, -1, -1):
+        unit = gold["units"][u]
+        if kind[u] != "judgment":
+            continue
+        cut = next((k for k, t in enumerate(unit["lines"]) if k > 0 and typed[t]["region"] == "text"
+                    and CONCURRENCE.match(typed[t]["text"])), None)
+        if cut is None:
+            continue
+        typed[unit["lines"][cut]]["start"] = True
+        rest = {k: v for k, v in unit.items() if k not in ("lines", "document_type", "starts_document")}
+        gold["units"][u:u + 1] = [{**unit, "lines": unit["lines"][:cut]}, {**rest, "starts_document": False, "lines": unit["lines"][cut:]}]
+        done.append({"rule": "concurrence_line", "unit": u, "text": typed[unit["lines"][cut]]["text"][:80]})
+    return done
+
+
+def bracket_number_lines(gold, edge=None):
+    """A judgment's bracketed paragraph number printed alone on its line ("[1]") opens the paragraph under it: no
+    transcript's line number. A line-label unit of only that number, before a text unit of no marker, joins it as its
+    first line, and its number becomes the unit's marker."""
+    typed, kind = gold["typed"], kinds(gold)
+    done = []
+    for u in range(len(gold["units"]) - 2, -1, -1):
+        unit, after = gold["units"][u], gold["units"][u + 1]
+        if len(unit["lines"]) != 1 or not after["lines"] or kind[u] != "judgment":
+            continue
+        entry, opening = typed[unit["lines"][0]], typed[after["lines"][0]]
+        found = re.fullmatch(r"\s*(\[\d{1,4}\])\s*", entry["text"])
+        if entry["region"] != "line_label" or not found or not entry["spans"] or opening["region"] != "text" or opening["markers"]:
+            continue
+        span = entry["spans"][0]
+        line = next(l for l in gold["lines"] if l["id"] == span["line_id"])
+        start = line["text"].find(found.group(1))
+        if start < 0:
+            continue
+        entry["region"] = "text"
+        entry["markers"] = [[{"line_id": span["line_id"], "start": start, "end": start + len(found.group(1))}]]
+        opening["start"] = False
+        merged = {**{k: v for k, v in after.items() if k != "lines"}, **{k: v for k, v in unit.items() if k != "lines" and v},
+                  "lines": unit["lines"] + after["lines"]}
+        gold["units"][u:u + 2] = [merged]
+        done.append({"rule": "bracket_number_line", "unit": u, "number": found.group(1), "text": opening["text"][:80]})
+    return done
+
+
 NOTE_LABEL = re.compile(r"^(\s*)(\d{1,3}|[*\u2020\u2021\u00a7\u00b6]{1,3})(?=\s)")
 
 
@@ -320,7 +486,8 @@ def duplicate_references(gold, edge=None):
     return done
 
 
-RULES = (running_heads, section_captions, numbered_captions, type_regions, note_labels, duplicate_references)
+RULES = (running_heads, section_captions, numbered_captions, type_regions, bracket_number_lines, concurrence_lines, margin_numbers, quoted_numbers,
+         note_labels, duplicate_references)
 
 
 def write(path, value):

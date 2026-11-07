@@ -80,20 +80,29 @@ export const referenceText = text => ` ${words(text).join(' ')} `;
 const normalized = new WeakMap();
 
 /** The one record ({ citation, aliases }) among those still without a PDF that a downloaded PDF
- *  is, with how it was told, or null. The filename is a routing hint for a scan; native text, when
- *  there is any, must agree on its own: a unique opening citation, else exact agreement with a
- *  record's reference text, which `reference(record)` gives only when it is needed. */
+ *  is, with how it was told, or null. Native text, when there is any, must agree on its own: a unique
+ *  opening citation (the header's, else the first pages' where the header prints none: a court's
+ *  docket and parties can fill its first page), else exact agreement with a record's reference text,
+ *  which `reference(record)` gives only when it is needed. The filename names the record only where the
+ *  PDF cannot contradict it: a scan, or an opening that prints no case's citation at all. */
 export async function matchFolderPdf(filename, pages, records, call, reference = record => record.referenceText) {
   const named = canliiFileCitation(filename), reporter = REPORTER_PDF_NAME.exec(filename);
   // The engine reads court codes in capitals only: 2019abqb666.pdf is 2019 ABQB 666.
   const nameKey = key(call, named ?? (reporter ? `[${reporter[1]}] ${reporter[3]} ${reporter[2].toUpperCase()} ${reporter[4]}` : filename.replace(/\.pdf$/iu, '')));
   const namedRecords = nameKey ? records.filter(r => r.aliases.some(a => key(call, a) === nameKey)) : [];
-  const tokens = words(pages.map(p => p.lines.map(l => l.text).join('\n')).join('\n'));
-  if (tokens.length < 12) return namedRecords.length === 1 ? { record: namedRecords[0], method: 'filename' } : null;
-  const header = headerIdentities(pages, call), neutral = header.filter(c => c.family === 'neutral');
+  const byName = namedRecords.length === 1 ? { record: namedRecords[0], method: 'filename' } : null;
+  const opening = pages.map(p => p.lines.map(l => l.text).join('\n')).join('\n');
+  const tokens = words(opening);
+  if (tokens.length < 12) return byName;
+  let header = headerIdentities(pages, call);
+  const printed = header.length ? [] : extract(call, opening).filter(c => c.form === 'full' && ['neutral', 'can_lii', 'reporter'].includes(c.format));
+  if (!header.length) header = printed.map(c => ({ ...c.span, key: c.key, family: c.format }));
+  const neutral = header.filter(c => c.family === 'neutral');
   const identities = new Set((neutral.length ? neutral.slice(0, 1) : header).map(c => c.key).filter(Boolean));
   const candidates = records.filter(r => r.aliases.some(a => identities.has(key(call, a))));
-  const verified = candidates.filter(r => { try { verifyIdentity(pages, r, call); return true; } catch { return false; } });
+  // A citation read past the header is the record's where it is the record's own; verifyIdentity reads the header.
+  const verified = printed.length ? candidates
+    : candidates.filter(r => { try { verifyIdentity(pages, r, call); return true; } catch { return false; } });
   if (verified.length === 1) return { record: verified[0], method: 'citation' };
   if (verified.length > 1 || neutral.length) return null;
   // Exact opening-text agreement; never pick a best fuzzy score. Require a majority
@@ -110,5 +119,6 @@ export async function matchFolderPdf(filename, pages, records, call, reference =
     const unique = matches[i].filter((yes, j) => yes && !matches.some((other, k) => k !== i && other[j])).length;
     return count > phrases.length / 2 && unique >= 2;
   });
-  return supported.length === 1 ? { record: supported[0], method: 'text' } : null;
+  if (supported.length === 1) return { record: supported[0], method: 'text' };
+  return supported.length || header.length ? null : byName;
 }

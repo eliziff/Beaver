@@ -2,8 +2,8 @@
 judgments of each mode. python judgments_by_mode.py NAME=GRADE_JSON..."""
 import json, sys
 
-LAYERS = [("headings", "units_heading"), ("numbered paragraphs", "markers_text"), ("paragraphs", "units_text"), ("list items", "units_list_item"),
-          ("quotes", "units_quote"), ("footnote refs", "note_references"), ("footnote pairs", "note"), ("heading levels", "heading_steps"),
+LAYERS = [("headings", "units_heading"), ("paragraph markers", "markers_text"), ("paragraphs", "units_text"), ("list items", "units_list_item"),
+          ("quotes", "units_quote"), ("footnote links", "note_references"), ("footnote content", "note"), ("heading levels", "heading_steps"),
           ("body depths", "depth_steps"), ("sequences", "sequence_steps"), ("hierarchy", "hierarchy"), ("order", "order")]
 grades = [(arg.split("=", 1)[0], json.load(open(arg.split("=", 1)[1], encoding="utf-8"))["per_run"]) for arg in sys.argv[1:]]
 for mode in ("digitalborn", "ocr"):

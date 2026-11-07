@@ -13,7 +13,8 @@ reads off the records.
                                            recognition of scanned pages) -> WORK/read/<sha>.json; --part K/N takes every
                                            Nth pair from the Kth, --export DIR stages that part to read on another machine
   python run.py align [--only S ...] [--limit N]
-                                           align every read pair without a current record -> WORK/records/<sha>.json.gz
+                                           align every read pair without a current record -> WORK/records/<sha>.json.gz,
+                                           on every core (the Rust aligner in aligner/, called through align.py)
   python run.py text-layer                 each line of a scan's records with its exact text -> WORK/text-layers/<sha>.json
   python run.py gold [--check] [--only S ...]
                                            structure gold (label.py, label source a2aj-align) of every record that passes
@@ -26,11 +27,10 @@ reads off the records.
                                            proof sheets: lines and paragraphs cropped from their pages, A2AJ's text beside,
                                            and N words of each kind of pairing boxed in their lines, A2AJ's word above
 
-A record is current while this folder's code and the PDF's reading are the ones that made it; a PDF is read once (WORK/read) and its reading
-never repeated for a new alignment. WORK is A2AJ_GOLD_WORK, default E:/OpenLegalData/a2aj-gold.
+A record is current while the aligner's own code (the aligner/ crate) and the PDF's reading are the ones that made it; a PDF is read once
+(WORK/read) and its reading never repeated for a new alignment. WORK is A2AJ_GOLD_WORK, default E:/OpenLegalData/a2aj-gold.
 """
 import argparse
-import bisect
 import gzip
 import hashlib
 import json
@@ -57,19 +57,14 @@ LISTING = DATA / "experiments/a2aj-structure/fix.nodes.jsonl"
 WORK = Path(os.environ.get("A2AJ_GOLD_WORK", "E:/OpenLegalData/a2aj-gold"))
 READER = REPO / "native/legal-structure-node/target/release/legalpdf-read.exe"
 RUNTIME = REPO / "legal-pdf-parser/runtime"
-READING = {"reader": "legalpdf-read", "models": "legal-pdf-parser/runtime indra, onnx"}
 LABEL_SOURCE = "a2aj-align"
 GOLD_BATCH = "a2aj"  # the gold store's run folder, structure/a2aj-a; and the sources' yardstick
 # The lines that print no text of a decision (what the gates measure unexplained lines against the rest of).
 NONTEXT = ("furniture", "page_label", "running_head", "margin_letter", "no_words")
-MARKERS = {"en": "Decision Content", "fr": "Contenu de la décision"}
-JS_SPACE = "\t\n\v\f\r \u00a0\u1680" + "".join(chr(c) for c in range(0x2000, 0x200b)) + "\u2028\u2029\u202f\u205f\u3000\ufeff"
 SYNTHETIC = ("rebuilt", "synth", "warmup", "e2e-", "sample", "debug", "test")
 MAX_PAGES = 150
-PRINTED = 0.1       # a language whose text the PDF places less of than this is not printed in it
-COVERAGE = 0.8      # a record aligns when its PDF places this share of each language it prints
 PLACED = 0.9        # a paragraph or quotation is placed when this share of its words is
-CODE = hashlib.sha256(b"".join((HERE / name).read_bytes() for name in ("run.py", "align.py", "label.py"))).hexdigest()[:16]
+CODE = align.CODE
 # What a gold of this folder is made by besides its record (a gold made by it from the same reading is not made again).
 LABEL_CODE = hashlib.sha256(b"".join(path.read_bytes() for path in (HERE / "run.py", HERE / "label.py", GOLD_CODE / "postcorrect.py",
                                                                     GOLD_CODE / "hierarchy.py"))).hexdigest()[:16]
@@ -86,7 +81,7 @@ def a2aj():
 def a2aj_text(row, language):
     """A decision's text as the census read it: its JavaScript white space trimmed, so the listing's offsets hold."""
     text = row[f"unofficial_text_{language}"]
-    return text.strip(JS_SPACE) if text else None
+    return align.trimmed(text) if text else None
 
 
 def item_of(url):
@@ -205,7 +200,12 @@ def pairs(args):
     rows, printed = [], {}
     for sha, (path, doc_id, route) in sorted(found.items()):
         row = db.execute("select * from document where id = ?", (doc_id,)).fetchone()
-        with fitz.open(path) as document:
+        try:
+            document = fitz.open(path)
+        except Exception:
+            refused["the PDF does not open"] += 1; why[sha] = "the PDF does not open"; continue
+        with document:
+            if len(document) == 0: refused["no pages"] += 1; why[sha] = "the PDF has no pages"; continue
             if len(document) > MAX_PAGES: refused["over 150 pages"] += 1; why[sha] = "over 150 pages"; continue
             text = "\f".join(page.get_text() for page in document)
             # A re-saved or highlighted copy of a PDF prints the same text: one of them is the document.
@@ -219,6 +219,8 @@ def pairs(args):
     WORK.mkdir(parents=True, exist_ok=True)
     with (WORK / "pairs.jsonl").open("w", encoding="utf-8") as out:
         for row in rows: out.write(json.dumps(row, ensure_ascii=False) + "\n")
+    for row in rows: durable(row)
+    corpus_store.register_a2aj_pairs(rows)
     if args.by_citation is not None:
         paired = {r["sha256"] for r in rows}
         with (WORK / "unpaired.jsonl").open("w", encoding="utf-8") as out:
@@ -237,63 +239,6 @@ def read_pairs(only=None):
 
 
 # -- records -------------------------------------------------------------------------------------------------------
-
-def start_of(text, language):
-    """Where the decision proper begins: after A2AJ's metadata block, and the preamble it generates under it (the
-    court, the style of cause and its citation, the date: a few lines ending in `Date: YYYY-MM-DD`)."""
-    at = text.find(MARKERS[language])
-    at = at + len(MARKERS[language]) if at >= 0 else 0
-    preamble = re.compile(r"(?:\n[^\n]*){0,4}?\nDate ?: ?\d{4}-\d\d-\d\d[ \t]*(?=\n)").match(text, at)
-    return preamble.end() if preamble else at
-
-
-COVER = re.compile(r"\s*(?:SUPREME COURT OF CANADA|COUR SUPRÊME DU CANADA)\n(?:Citation|Référence) ?: ?([^\n]+)\n")
-
-
-def cover_of(text, language, lines):
-    """The span of the court's cover page where A2AJ's text opens with it (the Supreme Court's own version: its
-    citation, date, docket, parties, coram and who gave reasons, up to the style of cause, which repeats the citation)
-    and the PDF does not print it (the report's version has no `Citation:` line on its first pages); else None."""
-    begin = start_of(text, language)
-    head = COVER.match(text, begin)
-    end = text.find("\n" + head.group(1).strip(), head.end()) if head else -1
-    printed = any(line["page"] <= 2 and re.match(r"\s*(?:Citation|Référence)\s*:", line["text"]) for line in lines)
-    return [begin, end + 1] if end >= 0 and not printed else None
-
-
-def column_order(lines, sizes):
-    """Indices in reading order by column: a page whose lines keep to either side of its centre (the bilingual reports
-    print English left, French right) is read left column, then right; a word broken across two lines needs them
-    neighbours. A page whose lines run across the centre is one column, its short lines and the pieces the reader
-    splits off a line's end included, and keeps the reader's order."""
-    order = []
-    for page in sorted({line["page"] for line in lines}):
-        members = [i for i, line in enumerate(lines) if line["page"] == page]
-        middle = sizes[page][0] / 2
-        left = [i for i in members if (lines[i]["bbox"][0] + lines[i]["bbox"][2]) / 2 <= middle]
-        order += left + [i for i in members if i not in set(left)] if two_columns([lines[i] for i in members], middle) else members
-    return order
-
-
-def two_columns(lines, middle):
-    """Whether a page's lines keep to either side of its middle, a quarter of them at least on each side."""
-    across = sum(1 for line in lines if line["bbox"][0] < 0.95 * middle and line["bbox"][2] > 1.05 * middle)
-    left = sum(1 for line in lines if (line["bbox"][0] + line["bbox"][2]) / 2 <= middle)
-    return across <= 0.1 * len(lines) and min(left, len(lines) - left) >= 0.25 * len(lines)
-
-
-def in_gutter(lines, sizes):
-    """Ids of the lines of a few characters in the gutter of a page in two columns: the letters a to j the bilingual
-    reports print there to locate lines, however the recognizer reads them ("g" as "62"). They print no text of the
-    decision and take part in no alignment (a "62" there would take paragraph 62's number)."""
-    out = set()
-    for page in {line["page"] for line in lines}:
-        members, width = [line for line in lines if line["page"] == page], sizes[page][0]
-        if not two_columns(members, width / 2): continue
-        out |= {line["id"] for line in members if abs((line["bbox"][0] + line["bbox"][2]) / 2 - width / 2) < 0.04 * width
-                and len(re.sub(r"\s", "", line["text"])) <= 4}
-    return out
-
 
 def reading(sha):
     return WORK / "read" / f"{sha}.json"
@@ -330,264 +275,6 @@ def read(args):
                    creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS)
 
 
-def lines_of(sha):
-    """A reading's lines in reading order, each with its box, its words' boxes and its type style, and its pages' sizes."""
-    import label
-    with reading(sha).open(encoding="utf-8") as stream: pages = json.load(stream)["pages"]
-    style, sizes = label.geometry(pages)
-    lines = [{"id": line["id"], "page": page["number"], "text": line["text"], "bbox": line["bbox"], "source": line.get("source") or page["source"],
-              "boxes": [[w["start"], w["end"], *w["bbox"]] for w in line.get("words", [])],
-              **{k: style[line["id"]][k] for k in ("bold", "italic", "size")}}
-             for page in pages for line in sorted(page["lines"], key=lambda l: l.get("reading_order", 0)) if line["text"].strip()]
-    return lines, {str(page): list(size) for page, size in sizes.items()}
-
-
-def align_lines(lines, sizes, texts, main, covers, gutter, furniture):
-    """Each line's alignment: its language, status, slice of that language's text and word pairs. The main language
-    goes first; then, over the lines still unmatched and the words not yet placed, the other language's column, and
-    notes and other matter A2AJ sets elsewhere than the print (once more in each language, without the running heads
-    and folios label.furniture finds: among leftovers a running head "[2012] 2 S.C.R." would take the style of cause's
-    citation). A cover page the PDF does not print (cover_of) is left out, lest its parties and citation take the style
-    of cause's place, and so are the gutter's letters (in_gutter)."""
-    order = column_order(lines, sizes)
-    ordered = [lines[i] for i in order]
-    result = [False if line["id"] in gutter else None for line in ordered]
-    languages = [main] + [lang for lang in texts if lang != main]
-    for again, language in enumerate(languages + languages):
-        left = [k for k, r in enumerate(result) if r is None and not (again >= len(languages) and ordered[k]["id"] in furniture)]
-        if not left: break
-        taken = [r["span"] for r in result if r and r["lang"] == language] + ([covers[language]] if covers[language] else [])
-        pairing = align.pair([ordered[k] for k in left], texts[language], start_of(texts[language], language), taken)
-        words = {}
-        for line, *pair in pairing.words(): words.setdefault(line, []).append(pair)
-        for at, (k, sliced) in enumerate(zip(left, align.slices(pairing))):
-            if sliced["status"] != "unmatched":
-                result[k] = {**sliced, "lang": language, "words": words.get(at, [])}
-    aligned = [None] * len(lines)
-    for at, i in enumerate(order): aligned[i] = result[at] or {"status": "unmatched", "exact": None, "span": None, "lang": None, "words": []}
-    return aligned
-
-
-PAGE_MARK = re.compile(r"\[Page (\d+)\]")
-
-
-def decision_words(text, language):
-    """The decision's words, from where it begins, without A2AJ's page marks (`[Page 1199]`: where the report's page
-    turns, which the print shows as a page break, not as words)."""
-    marks = [m.span() for m in PAGE_MARK.finditer(text)]
-    starts = [a for a, _ in marks]
-    inside = lambda at: (k := bisect.bisect_right(starts, at) - 1) >= 0 and at < marks[k][1]
-    return [w for w in align.words_of(text, start_of(text, language)) if not inside(w[1])]
-
-
-def coverage(lines, text, language):
-    """The share of the decision's words that the PDF's lines place."""
-    words = decision_words(text, language)
-    placed = {a for line in lines if line["lang"] == language for _, _, a, _, _ in line["words"]}
-    return sum(1 for _, a, _ in words if a in placed) / max(1, len(words))
-
-
-def reads(line, want):
-    """Whether a line reads these normalised words: in a row, or (three or more) most of them."""
-    have = [w for w, _, _ in align.words_of(line)]
-    if any(have[i:i + len(want)] == want for i in range(len(have) - len(want) + 1)): return True
-    return len(want) >= 3 and sum(1 for w in want if w in have) >= 0.6 * len(want)
-
-
-NOTE_CALL = re.compile(r"(?<=\S)\[(\d+)\]")
-NUMBER = re.compile(r"(?m)^\[?(\d+)\]?(?=\.? |\n)")
-
-
-def unplaced(lines, text, language, cover=None):
-    """Each run of the decision's words that the PDF's lines do not place, with where it falls on the PDF (after the
-    placed word before it: its line and offset) and why:
-      cover_unprinted   in the court's cover page, which the PDF does not print (cover_of)
-      note_call        a footnote call A2AJ writes `[3]`, which the print sets as a superscript
-      notes             in the notes A2AJ gathers after the decision (the print sets them at the pages' feet)
-      paragraph_number  a paragraph number A2AJ writes at a paragraph's start (its 1, 2, 3 ... through the decision);
-                        `_unprinted` when the PDF places almost none of them (the older reports print none);
-                        `_shared` when the margin prints it once for both languages' columns and the other language
-                        has it
-      title             in the title line A2AJ writes where the decision begins (its name and citation)
-      outside           before the first or after the last placed word
-      on_<why>          an unmatched line of its neighbours' pages reads it (its words in a row, or most of them for
-                        three or more; four letters at least), the line's why after the prefix (on_joined_columns, ...)
-      not_read          the PDF's reading has no word between its placed neighbours
-      misread           the PDF's reading has words there that read like it, unpaired
-      out_of_order      its neighbours are more than a page apart, or the later one comes first
-      other             the PDF's reading has other words there"""
-    words = decision_words(text, language)
-    at = {}
-    for k, line in enumerate(lines):
-        if line["lang"] == language:
-            for s, e, a, _, _ in line["words"]: at.setdefault(a, (k, s, e))
-    starts = sorted(at)
-    begin = start_of(text, language)
-    title_end = text.find("\n", begin + 1)
-    notes = text.rfind("\n[1] ") if NOTE_CALL.search(text) else -1
-    notes = notes + 1 if notes >= 0 else len(text)
-    # A2AJ's paragraph numbers run 1, 2, 3 ... through the decision; other numbers at a line's start are list items
-    numbers, expected = set(), 1
-    for m in NUMBER.finditer(text, begin):
-        if m.group(1) == str(expected): numbers.add(m.start(1)); expected += 1
-    numbers_placed = sum(1 for n in numbers if n in at) / max(1, len(numbers))
-    runs, current = [], []
-    for word in words:
-        if word[1] in at:
-            if current: runs.append(current); current = []
-        else: current.append(word)
-    if current: runs.append(current)
-    out = []
-    for run in runs:
-        s, e = run[0][1], run[-1][2]
-        i = bisect.bisect_left(starts, s)
-        before, after = (at[starts[i - 1]] if i else None), (at[starts[i]] if i < len(starts) else None)
-        if cover and cover[0] <= s < cover[1]: why = "cover_unprinted"
-        elif s >= notes: why = "notes"
-        elif len(run) == 1 and NOTE_CALL.fullmatch(text, s - 1, e + 1): why = "note_call"
-        elif len(run) == 1 and s in numbers:
-            pages = {lines[n[0]]["page"] for n in (before, after) if n}
-            shared = any(l["lang"] not in (None, language) and l["page"] in pages and l["text"].strip(" []().") == text[s:e]
-                         for l in lines)
-            why = "paragraph_number" + ("_shared" if shared else "_unprinted" if numbers_placed < 0.1 else "")
-        elif e <= title_end: why = "title"
-        elif before is None or after is None: why = "outside"
-        else:
-            (k0, _, e0), (k1, s1, _) = before, after
-            p0, p1 = lines[k0]["page"], lines[k1]["page"]
-            # what the PDF reads between the neighbours: the rest of the one's line, the start of the other's, and any
-            # unmatched line the reader sets between them
-            between = [l["text"] for l in lines[k0 + 1:k1] if l["status"] == "unmatched"] if k1 - k0 <= 4 else []
-            gap = lines[k0]["text"][e0:s1] if k0 == k1 else " ".join([lines[k0]["text"][e0:], *between, lines[k1]["text"][:s1]])
-            gap = "".join(w for w, _, _ in align.words_of(gap))
-            want = [w for w, _, _ in run]
-            holder = len("".join(want)) >= 4 and next(
-                (l for l in lines if l["page"] in (p0, p1) and l["status"] == "unmatched" and reads(l["text"], want)), None)
-            if holder: why = "on_" + holder["why"]
-            elif p1 < p0 or p1 - p0 > 1: why = "out_of_order"
-            elif not gap: why = "not_read"
-            elif align.similarity(gap, "".join(w for w, _, _ in run)) >= align.MIN_RESEMBLANCE: why = "misread"
-            else: why = "other"
-        where = {"line": lines[before[0]]["id"], "offset": before[2]} if before else None
-        out.append({"at": [s, e], "words": len(run), "why": why, "pdf": where})
-    return out
-
-
-def recover(lines, sizes, text, language):
-    """Unmatched lines that print, word for word, a run of the decision's words no line places, between the words
-    the matched lines above and below them place (on their side of a page in columns), and nowhere else there: matter
-    the print sets out of A2AJ's order (a paragraph's number in the margin, a table's cells). Such a line is `moved`."""
-    words = decision_words(text, language)
-    placed = {a for line in lines if line["lang"] == language for _, _, a, _, _ in line["words"]}
-    by_word, by_page = {}, {}
-    for i, (word, _, _) in enumerate(words): by_word.setdefault(word, []).append(i)
-    for line in lines:
-        if line["lang"] and line["words"]: by_page.setdefault(line["page"], []).append(line)
-    def runs_of(tokens, low, high):
-        return [i for i in by_word.get(tokens[0][0], []) if low <= words[i][1] <= high and i + len(tokens) <= len(words)
-                and all(words[i + k][0] == w and words[i + k][1] not in placed for k, (w, _, _) in enumerate(tokens))]
-
-    for line in lines:
-        tokens = align.words_of(line["text"])
-        if line["status"] != "unmatched" or len("".join(w for w, _, _ in tokens)) < 2: continue
-        middle, (x0, y0, x1, y1) = sizes[line["page"]][0] / 2, line["bbox"]
-        matched = by_page.get(line["page"], [])
-        if two_columns(matched, middle):
-            matched = [m for m in matched if ((m["bbox"][0] + m["bbox"][2]) / 2 <= middle) == ((x0 + x1) / 2 <= middle)]
-        # neighbours: the nearest matched lines wholly above and below its middle (a line on its row lies between)
-        centre = (y0 + y1) / 2
-        above = max((m for m in matched if m["bbox"][3] <= centre), key=lambda m: m["bbox"][3], default=None)
-        below = min((m for m in matched if m["bbox"][1] >= centre), key=lambda m: m["bbox"][1], default=None)
-        side = (above or below or {}).get("lang")
-        if side and side != language: continue
-        found = []
-        if above and below and above["lang"] == below["lang"]:
-            found = runs_of(tokens, max(w[2] for w in above["words"]), min(w[2] for w in below["words"]))
-        # a footnote A2AJ moves to the decision's end: four words or more, anywhere, once (a mark the recognizer
-        # reads before it, "*" as "4", aside)
-        for skip in (0, 1):
-            if not found and len(tokens) - skip >= 4 and (not skip or len(tokens[0][0]) <= 2):
-                found, tokens = runs_of(tokens[skip:], 0, len(text)), tokens[skip:]
-        if len(found) != 1: continue
-        run = words[found[0]:found[0] + len(tokens)]
-        placed.update(s for _, s, _ in run)
-        span = [run[0][1], run[-1][2]]
-        while span[0] > 0 and text[span[0] - 1] in align.LEADING: span[0] -= 1
-        while span[1] < len(text) and text[span[1]] in align.TRAILING: span[1] += 1
-        line.update(status="moved", lang=language, span=span, exact=text[span[0]:span[1]],
-                    words=[[b, e, s, f, "exact"] for (_, b, e), (_, s, f) in zip(tokens, run)])
-
-
-def page_breaks(lines, text, language):
-    """Where each of the report's pages begins on the PDF, from A2AJ's page marks: the page's number, the mark's offset
-    in A2AJ's text, the PDF line and offset of the first word after it that the PDF places (None where none is), and
-    the folio the aligner paired with the mark's number, where it did (the line printing the page's number)."""
-    placed = sorted((a, line["id"], line["page"], s) for line in lines if line["lang"] == language for s, _, a, _, _ in line["words"])
-    starts = [p[0] for p in placed]
-    out = []
-    for mark in PAGE_MARK.finditer(text):
-        i = bisect.bisect_left(starts, mark.end())
-        first = placed[i] if i < len(placed) else None
-        folio = placed[i - 1] if i and placed[i - 1][0] >= mark.start(1) else None
-        out.append({"page": mark.group(1), "at": mark.start(),
-                    "pdf": {"line": first[1], "page": first[2], "offset": first[3], "text_at": first[0]} if first else None,
-                    "folio": {"line": folio[1], "page": folio[2]} if folio else None})
-    return out
-
-
-def record_of(pair):
-    import label
-    db = a2aj()
-    row = db.execute("select * from document where id = ?", (pair["a2aj"],)).fetchone()
-    texts = {lang: a2aj_text(row, lang) for lang in pair["languages"]}
-    lines, pages = lines_of(pair["sha256"])
-    sizes = {int(p): tuple(s) for p, s in pages.items()}
-    main = "en" if "en" in texts else "fr"
-    covers = {lang: cover_of(text, lang, lines) for lang, text in texts.items()}
-    gutter = in_gutter(lines, sizes)
-    furniture = label.furniture(lines, {line["id"]: line for line in lines}, sizes)
-    for line, aligned in zip(lines, align_lines(lines, sizes, texts, main, covers, gutter, furniture)):
-        line.update(aligned)
-    for lang in texts:
-        if coverage(lines, texts[lang], lang) >= PRINTED: recover([l for l in lines if l["id"] not in gutter], sizes, texts[lang], lang)
-    by_language = Counter(line["lang"] for line in lines if line["lang"])
-    main = by_language.most_common(1)[0][0] if by_language else main
-    # Why each unmatched line has no text: a page number or running matter (label.furniture), a running head (in the
-    # page head above the page's first matched line), a letter the bilingual reports print in the gutter between their
-    # columns to locate lines (a few characters there, however the recognizer reads them), no word at all, a line the
-    # reader ran across both columns of a page (half of it in each language), or nothing known.
-    body_top, matched = {}, {}
-    for line in lines:
-        if line["status"] != "unmatched":
-            body_top[line["page"]] = min(body_top.get(line["page"], line["bbox"][1]), line["bbox"][1])
-            matched.setdefault(line["page"], []).append(line)
-    columns = {page: two_columns(members, sizes[page][0] / 2) for page, members in matched.items()}
-    for line in lines:
-        if line["status"] != "unmatched": continue
-        width = sizes[line["page"]][0]
-        head = label.margin(line["bbox"], sizes[line["page"]]) == "head" and line["bbox"][3] <= body_top.get(line["page"], 0)
-        joined = columns.get(line["page"]) and line["bbox"][0] < 0.45 * width and line["bbox"][2] > 0.55 * width
-        line["why"] = (furniture.get(line["id"]) or ("running_head" if head else None)
-                       or ("margin_letter" if line["id"] in gutter or re.fullmatch(r"[a-j]", line["text"].strip()) else None)
-                       or ("no_words" if not align.words_of(line["text"]) else "joined_columns" if joined else "unexplained"))
-    covered = {lang: round(coverage(lines, texts[lang], lang), 4) for lang in texts}
-    # A language the PDF prints places most of its words; one it does not print (an English-only report of a
-    # decision A2AJ also holds in French) places a few by chance and is no measure of the alignment.
-    printed = {lang: share for lang, share in covered.items() if share >= PRINTED}
-    short = {lang: share for lang, share in printed.items() if share < COVERAGE}
-    refused = ("the PDF does not print this decision" if not printed else
-               "; ".join(f"the PDF places {share:.1%} of A2AJ's {lang} text" for lang, share in short.items()) or None)
-    missing = {lang: unplaced(lines, texts[lang], lang, covers[lang]) for lang in printed}
-    verdict = {"main": main, "coverage": covered, "not_printed": sorted(set(covered) - set(printed)), "by_language": dict(by_language),
-               "status": Counter(line["status"] for line in lines), "unmatched": Counter(line.get("why") for line in lines if "why" in line),
-               "unplaced": {lang: dict(sum((Counter({r["why"]: r["words"]}) for r in runs), Counter())) for lang, runs in missing.items()},
-               "refused": refused}
-    return {"schema": "a2aj-alignment.v1", "code": CODE, "read": read_digest(pair["sha256"]), "pair": pair, "reading": READING,
-            "pages": pages, "texts": {lang: hashlib.sha256(text.encode()).hexdigest() for lang, text in texts.items()},
-            "page_breaks": {lang: page_breaks(lines, texts[lang], lang) for lang in printed},
-            "covers_unprinted": covers, "verdict": verdict, "unplaced": missing, "lines": lines}
-
-
 def record_path(sha):
     return WORK / "records" / f"{sha}.json.gz"
 
@@ -600,29 +287,11 @@ def read_digest(sha):
     return hashlib.sha256(reading(sha).read_bytes()).hexdigest()[:16]
 
 
-def current(pair):
-    """A record made by this code from the reading there is now (a PDF read again, by a new reader, aligns again)."""
-    path = record_path(pair["sha256"])
-    if not path.is_file(): return False
-    record = load(pair["sha256"])
-    return record["code"] == CODE and record.get("read") == read_digest(pair["sha256"])
-
-
 def align_all(args):
-    todo = [p for p in read_pairs(args.only) if reading(p["sha256"]).is_file() and not current(p)][:args.limit]
-    (WORK / "records").mkdir(parents=True, exist_ok=True)
-    for n, pair in enumerate(todo, 1):
-        try:
-            record = record_of(pair)
-        except Exception as error:
-            print(f"{n}/{len(todo)} FAILED {pair['citation']}: {str(error)[-300:]}", flush=True); continue
-        temporary = record_path(pair["sha256"]).with_suffix(".tmp")
-        with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=6) as stream: json.dump(record, stream, ensure_ascii=False)
-        temporary.replace(record_path(pair["sha256"]))
-        v = record["verdict"]
-        print(f"{n}/{len(todo)} {pair['citation']:<22} {pair['mode']:<11} {pair['pages']:>3}pp coverage {v['coverage']} "
-              f"{dict(v['status'])} unmatched {dict(v['unmatched'])} unplaced {v['unplaced']}"
-              f"{' REFUSED ' + v['refused'] if v['refused'] else ''}", flush=True)
+    done = align.align_all(WORK, A2AJ, args.only, args.limit)
+    print(f"{done['aligned']} aligned, {done['failed']} failed in {done['seconds']:.1f} s on {done['threads']} threads "
+          f"(reading {done['reading_seconds']:.1f} s, aligning {done['aligning_seconds']:.1f} s over the threads, "
+          f"writing {done['writing_seconds']:.1f} s)")
 
 
 def records(aligned_only=True):
@@ -711,32 +380,36 @@ def placed(record, language, text, start, end):
         for begin, finish, a, _, _ in line["words"]:
             if start <= a < end:
                 at.add(a)
-                first, last = on.get(line["id"], (begin, finish))
+                first, last, _ = on.get(line["id"], (begin, finish, line["page"]))
                 on[line["id"]] = (min(first, begin), max(last, finish), line["page"])
     lines = [[i, page, a, b] for i, (a, b, page) in on.items()]
     return lines, round(len(at) / max(1, len(text_words)), 4)
 
 
 def passages(args):
-    """Each numbered paragraph and quotation of A2AJ's reading, with the PDF lines that print it, and where the
-    report's pages begin (page_breaks)."""
-    db, chosen = a2aj(), list(records())
-    found = listings({f"{r['pair']['a2aj']}:{r['verdict']['main']}" for r in chosen})
+    """Each numbered paragraph and quotation of A2AJ's reading, in every language the PDF prints (a parallel report's
+    two), with the PDF lines that print it (each unit's `lang`), and where the report's pages begin (page_breaks, in
+    the main language)."""
+    # One record in memory at a time (all 4,735 run past 6 GB): the listings of every pair's languages, read first.
+    db = a2aj()
+    found = listings({f"{p['a2aj']}:{language}" for p in read_pairs() for language in p["languages"]})
     written = Counter()
-    for record in chosen:
-        sha, language = record["pair"]["sha256"], record["verdict"]["main"]
-        listing = found.get(f"{record['pair']['a2aj']}:{language}")
-        if listing is None: written["no census listing"] += 1; continue
-        text = a2aj_text(db.execute("select * from document where id = ?", (record["pair"]["a2aj"],)).fetchone(), language)
+    for record in records():
+        sha, main = record["pair"]["sha256"], record["verdict"]["main"]
+        row = db.execute("select * from document where id = ?", (record["pair"]["a2aj"],)).fetchone()
         units = {"paragraph": [], "quote": []}
-        for kind, label, start, end in nodes(listing):
-            if kind == "paragraph" and label.startswith("par") or kind == "quote":
-                lines, share = placed(record, language, text, start, end)
-                units[kind].append({"number": label[3:] if kind == "paragraph" else None, "span": [start, end],
-                                    "text": text[start:end].strip(), "placed": share, "exact": share >= PLACED, "lines": lines})
+        for language in record["page_breaks"]:
+            listing = found.get(f"{record['pair']['a2aj']}:{language}")
+            if listing is None: written[f"no census listing ({language})"] += 1; continue
+            text = a2aj_text(row, language)
+            for kind, label, start, end in nodes(listing):
+                if kind == "paragraph" and label.startswith("par") or kind == "quote":
+                    lines, share = placed(record, language, text, start, end)
+                    units[kind].append({"lang": language, "number": label[3:] if kind == "paragraph" else None, "span": [start, end],
+                                        "text": text[start:end].strip(), "placed": share, "exact": share >= PLACED, "lines": lines})
         write(WORK / "passages" / f"{sha}.json", {"source_sha256": sha, "pdf_path": record["pair"]["path"],
-              "citation": record["pair"]["citation"], "language": language, "paragraphs": units["paragraph"], "quotations": units["quote"],
-              "page_breaks": record["page_breaks"].get(language, [])})
+              "citation": record["pair"]["citation"], "language": main, "languages": sorted(record["page_breaks"]),
+              "paragraphs": units["paragraph"], "quotations": units["quote"], "page_breaks": record["page_breaks"].get(main, [])})
         written["written"] += 1
     print(f"passages: {dict(written)} -> {WORK / 'passages'}")
 
@@ -809,12 +482,12 @@ def convert(record, db, found, outlines):
     if failed: raise label.Refused(f"no case outline in {', '.join(failed)}")
     row = db.execute("select * from document where id = ?", (pair["a2aj"],)).fetchone()
     sizes = {int(p): tuple(s) for p, s in record["pages"].items()}
-    order = {record["lines"][i]["id"]: rank for rank, i in enumerate(column_order(record["lines"], sizes))}
+    order = {record["lines"][i]["id"]: rank for rank, i in enumerate(align.column_order(record["lines"], record["pages"]))}
     texts = {lang: a2aj_text(row, lang) for lang in printed}
-    typed, units, notes, report = label.gold(record, texts, {lang: start_of(text, lang) for lang, text in texts.items()},
+    typed, units, notes, report = label.gold(record, texts, {lang: align.start_of(text, lang) for lang, text in texts.items()},
                                              {lang: found[f"{pair['a2aj']}:{lang}"] for lang in printed},
                                              {lang: outlines[(pair["a2aj"], lang)] for lang in printed}, order,
-                                             in_gutter(record["lines"], sizes))
+                                             align.in_gutter(record["lines"], record["pages"]))
     authoring = {"label_source": LABEL_SOURCE, "a2aj_document_id": pair["a2aj"], "languages": printed, "citation": pair["citation"],
                  "dataset": pair["court"], "listing": LISTING.name, "alignment_code": record["code"], "document_starts": []}
     value = {"schema_version": "legal-structure-gold.v4", "source_sha256": pair["sha256"], "mode": pair["mode"], "page_count": pair["pages"],
@@ -882,9 +555,11 @@ def gold(args):
                                            "pages": pair["pages"], "units": len(value["units"]), "typed_lines": len(value["typed"]),
                                            "postcorrections": len(value["postcorrections"]), "outcome": written,
                                            "gold_sha256": digest(run / "gold.json.gz")})
+        # A hold stays until its repair is in and gold_store.release takes it off.
+        held = {"hold": hold} if (hold := gold_store.source(sha).get("hold")) else {}
         atomic_json(folder / "source.json", {"partition": partition(pair), "language_layout": "parallel" if len(printed) > 1 else printed[0],
                                              "genre_group": "judgment", "country": "ca", "yardstick": GOLD_BATCH, "label_source": LABEL_SOURCE,
-                                             "pdf": durable(pair)})
+                                             "pdf": durable(pair), **held})
         results.append({**outcome, **written})
         if len(results) % 50 == 0: print(f"{n}/{len(chosen)}: {sum(1 for r in results if r.get('written'))} written", flush=True)
     write(WORK / "gold-results.json", {"results": results})

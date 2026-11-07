@@ -175,7 +175,8 @@ fn by_id(connection: &Connection, path: &Path, stamp: Stamp, id: i64, language: 
     let Some(row) = LazyRow::read(connection, id, &FIELDS).map_err(sql)? else { return Ok(None) };
     let document = Document::new(&row, Source::Store);
     let doc_type = a2aj::doc_type(document.field("doc_type").map_err(sql)?.as_deref().unwrap_or_default());
-    let Some(read) = document.read(language, doc_type).map_err(sql)? else { return Ok(None) };
+    let Some(mut read) = document.read(language, doc_type).map_err(sql)? else { return Ok(None) };
+    read.printed_pages = a2aj::reporter_pages(path, id, read.metadata.language);
     let found = readings(read)?;
     keep(key, &found);
     Ok(Some(found))

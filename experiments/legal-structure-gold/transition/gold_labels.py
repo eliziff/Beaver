@@ -1,8 +1,8 @@
 """The gold's per-piece labels from the rows export, in the grader's predictions format, for the transition
 parser's oracle (LEGALPDF_TRANSITION_GOLD). A piece a whole gold leaves untyped (OCR debris, a margin's
 stray marks, text outside the gold's) is no region's, region 0 and nothing else, as the gold's own decoder reads
-it, so the oracle reads it so and the forests and the ranker learn it; a piece without gold in a gold that types only
-part of its document (A2AJ's) is all -1, unknown. A gold that does not say a
+it, so the oracle reads it so and the forests and the ranker learn it; a piece without gold, or typed no region's, in
+a gold that types only part of its document (A2AJ's) is all -1, unknown. A gold that does not say a
 heading's level or a body unit's depth (label source a2aj-align: A2AJ's tree is not the print's) has those
 columns -1, unknown, not 0; and its body text, where it leaves a quotation or a list item set in it unmarked, region
 101 (UNMARKED_BODY: text, a quotation or a list item, the oracle's to choose).
@@ -27,7 +27,9 @@ with open(out, "w", encoding="utf-8") as f:
             levelless = label_source(doc["sha256"]) in LEVELLESS
             labels = []
             for g in doc["gold"]:
-                if g is None:
+                # A piece an A2AJ gold types as no region is one its alignment did not place (a block quotation, counsel,
+                # bilingual text it could not match), not one it found no region's: unknown, as an untyped piece is.
+                if g is None or (levelless and g[0] == 0):
                     label = [-1] * 8 if levelless else [0, 0, 0, 0, -1, 0, -1, -1]
                 else:
                     label = list(g)

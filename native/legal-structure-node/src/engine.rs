@@ -512,9 +512,9 @@ mod docx {
 
     pub fn derive_docx_document(bytes: &[u8], id: String, drafting: bool) -> CoreResult<NativeDocument> {
         let structure = if drafting {
-            legalpdf::analyze_docx_drafting_bytes(bytes, id)
+            legalpdf::analyze_docx_drafting_bytes(&legal_structure::STRUCTURE_ANALYSIS, bytes, id)
         } else {
-            legalpdf::analyze_docx_bytes(bytes, id)
+            legalpdf::analyze_docx_bytes(&legal_structure::STRUCTURE_ANALYSIS, bytes, id)
         }
         .map_err(|error| error.to_string())?;
         Ok(NativeDocument::new(NativeProduct::Structure(structure)))
@@ -590,22 +590,7 @@ mod pdf {
     }
 
     pub fn pdf_page_labels(document: &NativeDocument) -> CoreResult<Vec<Option<String>>> {
-        let document = pdf_of(document, "PDF page labels require a PDF document")?;
-        let mut labels = vec![None; document.summary().page_count];
-        for node in &document.structure().nodes {
-            if node.kind != legal_structure::NodeKind::Page {
-                continue;
-            }
-            if let (Some(index), Some(label)) = (
-                node.page_indexes.first(),
-                node.aliases.as_ref().and_then(|aliases| aliases.first()),
-            ) {
-                if let Some(slot) = labels.get_mut(*index) {
-                    *slot = Some(label.clone());
-                }
-            }
-        }
-        Ok(labels)
+        Ok(pdf_of(document, "PDF page labels require a PDF document")?.page_labels())
     }
 
     /// Every page's text in page order, as a page lookup returns it, in one read.
@@ -672,7 +657,7 @@ mod pdf {
         let plans = targets
             .into_iter()
             .map(|target| {
-                let lookup = document.lookup(&legalpdf::PdfLookupRequest::new(
+                let lookup = document.lookup(&legal_structure::STRUCTURE_ANALYSIS, &legalpdf::PdfLookupRequest::new(
                     &target.locator_kind,
                     &target.locator,
                 ));
@@ -700,7 +685,7 @@ mod pdf {
                     .collect::<Vec<_>>();
                 let mut status = lookup.status;
                 if target.locator_kind == "paragraph" {
-                    (status, ranges) = document.paragraph_source_ranges(&target.locator);
+                    (status, ranges) = document.paragraph_source_ranges(&legal_structure::STRUCTURE_ANALYSIS, &target.locator);
                     pages.clear();
                 }
                 // A statute's provisions are placed by the reading of its body as a statute.
@@ -740,10 +725,11 @@ mod pdf {
 
     impl PdfPassagePagesJob {
         pub fn compute(self) -> CoreResult<serde_json::Value> {
-            // A scan not yet read has no geometry; a recognized page's lines are its own.
+            // A scan not yet read has no geometry. A page whose own layer reads poorly (a signature's scribble over it) and
+            // waits on recognition has its lines, read and placed as the structure took them.
             let unavailable = self.summary.pages_needing_ocr.iter().copied()
                 .chain(self.summary.ocr_routed_pages.iter().copied())
-                .filter(|index| self.pages.get(*index).is_none_or(|page| page.source == "native"))
+                .filter(|index| self.pages.get(*index).is_none_or(|page| page.lines.is_empty()))
                 .collect::<HashSet<_>>();
             let targets = self
                 .plans
@@ -769,7 +755,7 @@ mod pdf {
                     let pages = self.pages.iter().filter(|page|
                         plan.pages.contains(&page.page_number) || selected_pages.contains(&page.page_number))
                         .map(|page| {
-                            let mut available = !unavailable.contains(&((page.page_number - 1) as usize))
+                            let available = !unavailable.contains(&((page.page_number - 1) as usize))
                                 && (plan.page || self.fragments.iter().filter(|fragment|
                                     fragment.page_index as u32 + 1 == page.page_number && selected.contains_key(fragment.id.as_str()))
                                     .all(|fragment| page.lines.iter().any(|line| line.id == fragment.id)));
@@ -786,6 +772,14 @@ mod pdf {
                                     }
                                     for range in selected.get(line.id.as_str()).into_iter().flatten() {
                                         let source = legal_structure::ScalarText::new(&line.text);
+                                        // (A line the extraction gives no word boxes stands in its own: "Q Have you ever heard of a -- the use of a".)
+                                        if line.words.is_empty() {
+                                            lines.push(serde_json::json!({
+                                                "id": format!("{}:{}-{}", line.id, range.start, range.end),
+                                                "rect": line.rect,
+                                                "words": [{ "text": source.slice_utf16(range.start..range.end), "rect": line.rect }] }));
+                                            continue;
+                                        }
                                         let words = line.words.iter().filter_map(|word| {
                                             if word.inferred_geometry { return None; }
                                             // Physical word witnesses use Unicode scalars; source fragments use UTF-16.
@@ -795,18 +789,7 @@ mod pdf {
                                             let text = source.slice_utf16(start..end)?;
                                             Some((word, text, legal_structure::ScalarRange { start, end }))
                                         }).collect::<Vec<_>>();
-                                        let mut covered = words.iter().map(|(_, _, range)| *range).collect();
-                                        legal_structure::ScalarRange::normalize_union(&mut covered);
-                                        let mut cursor = range.start;
-                                        let mut complete = true;
-                                        for covered in covered {
-                                            if cursor < covered.start && source.slice_utf16(cursor..covered.start)
-                                                .is_none_or(|gap| !gap.chars().all(char::is_whitespace)) { complete = false; }
-                                            cursor = cursor.max(covered.end);
-                                        }
-                                        if cursor < range.end && source.slice_utf16(cursor..range.end)
-                                            .is_none_or(|gap| !gap.chars().all(char::is_whitespace)) { complete = false; }
-                                        if !complete { available = false; continue; }
+                                        // (A mark no word box covers costs that mark, not the page its line stands on.)
                                         let Some((first, _, _)) = words.first() else { continue; };
                                         let rect = words.iter().skip(1).fold(first.rect, |rect, (word, _, _)| [
                                             rect[0].min(word.rect[0]), rect[1].min(word.rect[1]),
@@ -890,6 +873,7 @@ mod pdf {
     ) -> CoreResult<impl Serialize> {
         let pdf = pdf_of(document, "PDF query requires a PDF document")?;
         Ok(legalpdf::query_pdf_document(
+            &legal_structure::STRUCTURE_ANALYSIS,
             pdf,
             &legalpdf::PdfLookupRequest {
                 locator_kind,

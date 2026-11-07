@@ -661,14 +661,16 @@ fn features<'a>(
                 }
             }
             "note" => {
-                result.note.push((
-                    extent.clone(),
-                    spans(&spans_of(a.attributes.get("label"))?)?,
-                ));
+                let label = spans(&spans_of(a.attributes.get("label"))?)?;
+                result.note.push((extent.clone(), label.clone()));
+                // A reference is right when its mark points at the right note: the note is known by its printed
+                // label (its number where it stands), by its text only where it prints none. How far the note's
+                // text runs is the footnote content layer's question, not the link's.
+                let note = if label.is_empty() { extent.clone() } else { label };
                 for s in spans_of(a.attributes.get("references"))? {
                     result
                         .note_references
-                        .push((extent.clone(), spans(std::slice::from_ref(&s))?));
+                        .push((note.clone(), spans(std::slice::from_ref(&s))?));
                 }
             }
             "document" => {
@@ -936,6 +938,11 @@ pub fn explain(
         render.point(*u),
         render.segments(marker)
     ));
+    layer!(markers_kind, |(kind, u, marker): &(String, Option<Point>, Segments)| format!(
+        "{kind} {} marker {}",
+        render.point(*u),
+        render.segments(marker)
+    ));
     layer!(note, |(extent, label): &(Segments, Segments)| format!(
         "label {} {}",
         render.segments(label),
@@ -1018,6 +1025,13 @@ fn cuts_of<'a>(
 }
 
 pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
+    compare_as(reference, predicted, false)
+}
+
+/// `compare`, for a gold that may leave things unsaid. `unmarked`: a machine-aligned gold (`gold_labels.LEVELLESS`) leaves a
+/// quotation or a list item set in its body unmarked and gives no levels, so neither side's text, quotations and list items
+/// are told apart, only the units' extents scored, and the layers that read roles or levels are not scored at all.
+pub fn compare_as(reference: &State, predicted: &State, unmarked: bool) -> Result<Score, String> {
     let alignment = align(reference, predicted)?;
     let gold = Side::new(reference, false, &alignment);
     let parser = Side::new(predicted, true, &alignment);
@@ -1029,8 +1043,15 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
         }
     };
     let cuts = cuts_of(&gold, &parser, &witness)?;
-    let wanted = features(&gold, &cuts, &witness)?;
-    let got = features(&parser, &cuts, &witness)?;
+    let mut wanted = features(&gold, &cuts, &witness)?;
+    let mut got = features(&parser, &cuts, &witness)?;
+    if unmarked {
+        for side in [&mut wanted, &mut got] {
+            let body = |kind: &mut String| if *kind == "quote" || *kind == "list_item" { *kind = "text".to_owned() };
+            side.units_kind.iter_mut().for_each(|(kind, _)| body(kind));
+            side.markers_kind.iter_mut().for_each(|(kind, _, _)| body(kind));
+        }
+    }
     let mut metrics = BTreeMap::new();
     metrics.insert("coverage", prf(&wanted.coverage, &got.coverage));
     metrics.insert("order", prf(&wanted.order, &got.order));
@@ -1102,6 +1123,11 @@ pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
     // source's lines are the list's is what an app reads.
     let contents = |f: &Features| f.units_kind.iter().filter(|(k, _)| k == "contents").flat_map(|(_, p)| p.iter().map(|piece| vec![piece.clone()])).collect::<Vec<_>>();
     metrics.insert("contents_lines", prf(&contents(&wanted), &contents(&got)));
+    if unmarked {
+        for layer in ["roles", "hierarchy", "hierarchy_units", "hierarchy_roles", "hierarchy_marker", "heading_steps"] {
+            metrics.remove(layer);
+        }
+    }
     let text = recognition(reference, predicted, &alignment)?;
     Ok(Score {
         metrics,

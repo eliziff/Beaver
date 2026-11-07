@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { buildAuthoritiesDraft } from "./authoritiesCore";
+import { buildAuthoritiesDraft } from "./authoritiesBookCore";
 import { createAuthoritiesDraft } from "./authoritiesDomain";
 import { documentProjectionService } from "./documentProjectionService";
 import { sha256 } from "./hash";

@@ -1,7 +1,7 @@
 """The headline layers of grade files side by side. python headline.py GRADE_JSON..."""
 import json, os, sys
-LAYERS = [("headings", "units_heading"), ("numbered paragraphs", "markers_text"), ("paragraphs", "units_text"), ("provisions", "units_provision"),
-          ("list items", "units_list_item"), ("footnote refs", "note_references"), ("footnote pairs", "note"), ("heading levels", "heading_steps"),
+LAYERS = [("headings", "units_heading"), ("paragraph markers", "markers_text"), ("paragraphs", "units_text"), ("provisions", "units_provision"),
+          ("list items", "units_list_item"), ("footnote links", "note_references"), ("footnote content", "note"), ("heading levels", "heading_steps"),
           ("body depths", "depth_steps"), ("sequences", "sequence_steps"), ("hierarchy", "hierarchy"), ("tables", "table"), ("documents", "document"),
           ("line numbers", "line_numbers"), ("speakers", "speakers"), ("contents", "contents_lines"), ("order", "order")]
 grades = []
