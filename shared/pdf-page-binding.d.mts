@@ -8,7 +8,8 @@ export type PdfPageBinding = {
 export type PdfMarginPage = { pageNumber: number; width: number; height: number;
   lines: readonly { text?: string; rect: readonly number[]; words: readonly { text: string }[] }[] };
 export function resolvePdfPagination(observed: readonly (string | null)[],
-  embedded: readonly (string | null)[], reporterStarts?: readonly number[]): PdfPageBinding[];
+  embedded: readonly (string | null)[], reporterStarts?: readonly number[],
+  options?: { interpolation?: "majority" | "strict" }): PdfPageBinding[];
 export function reporterMarginLabels(labels: readonly (string | null)[], starts: readonly number[],
   pages: readonly PdfMarginPage[], isCitation: (text: string, page: string) => boolean): (string | null)[];
 export function printedPageIndices(labels: readonly (string | null)[]): Map<string, number[]>;

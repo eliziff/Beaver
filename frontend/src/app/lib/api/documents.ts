@@ -23,11 +23,10 @@ export type PdfRecognizedText = { pageLabels?: Array<string | null>; pages: Arra
   lines: Array<{ id: string; text?: string; rect: [number, number, number, number];
     words: Array<{ text: string; rect: [number, number, number, number] }> }> }> };
 export const getDocumentPdfTextLayer = (id: string, versionId: string | undefined, signal?: AbortSignal,
-  pages?: number[], sourceSha256?: string, citations: string[] = [], reporterOriginal = false) =>
+  pages?: number[], sourceSha256?: string, citations: string[] = []) =>
   apiRequest<PdfRecognizedText>(pagePath(`/single-documents/${segment(id)}/pdf-text-layer`,
     { version_id: versionId, pages: pages?.join(","), source_sha256: sourceSha256,
-      ...(citations.length ? { citations: JSON.stringify(citations) } : {}),
-      ...(reporterOriginal ? { reporter_original: "1" } : {}) }), { signal });
+      ...(citations.length ? { citations: JSON.stringify(citations) } : {}) }), { signal });
 
 export interface Folder {
   id: string;

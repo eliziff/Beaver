@@ -73,21 +73,18 @@ describe("DocumentProjectionService", () => {
     }
     const bytes = Buffer.from(await pdf.save()), projections = await service();
     const reference = { documentId: "reporter-binding", versionId: "v1", sourceSha256: sha256(bytes) };
-    const source = { ...reference, fileType: "pdf", readBytes: () => bytes,
-      reporterOriginal: true };
+    const source = { ...reference, fileType: "pdf", readBytes: () => bytes };
     const citations = ["[1986] 1 SCR 145"];
-    expect(await projections.pdfPageLabels({ ...source, reporterOriginal: false }, citations))
-      .toEqual(["144", "145", null, null, null, null, null, null]);
     expect(await projections.pdfPageLabels(source, citations)).toEqual(["144","145","146","147","148","149","150","151"]);
     const prepared = await projections.preparePdf({ ...reference, bytes, ocrProvider: null });
     const geometry = await projections.pdfPassageGeometry(() => bytes,
       [{ id: "pinpoint", locatorKind: "page", locator: "150" }],
-      { ...reference, cacheKey: prepared.cacheKey }, { citations, reporterOriginal: true,
+      { ...reference, cacheKey: prepared.cacheKey }, { citations,
         pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
     expect(geometry.targets[0]).toMatchObject({ status: "found", pages: [{ pageNumber: 7 }] });
     const unknown = await projections.pdfPassageGeometry(() => bytes,
       [{ id: "unknown", locatorKind: "page", locator: "3" }],
-      { ...reference, cacheKey: prepared.cacheKey }, { citations, reporterOriginal: true,
+      { ...reference, cacheKey: prepared.cacheKey }, { citations,
         pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
     expect(unknown.targets[0].pages).toEqual([]);
     expect(unknown.targets[0].status).not.toBe("found");

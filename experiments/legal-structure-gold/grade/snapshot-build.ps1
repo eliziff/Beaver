@@ -26,7 +26,7 @@ function Remote([string]$Script) {
 }
 
 $parts = @(
-  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'experiments/legal-structure-gold/grade', 'experiments/ocr-structure-attribution') },
+  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'native/a2aj-gold', 'experiments/legal-structure-gold/grade', 'experiments/ocr-structure-attribution') },
   @{ Repo = 'legal-pdf-parser'; Paths = @() },
   @{ Repo = 'legal-structure'; Paths = @() },
   @{ Repo = 'common-law-cite'; Paths = @() }
@@ -65,7 +65,8 @@ tar -xmf '$Mirror.tar' -C '$Mirror'; Remove-Item '$Mirror.tar'
 `$workspace = (Test-Path '$Mirror\Cargo.toml') -and (Select-String -Path '$Mirror\Cargo.toml' -Pattern '^\[workspace\]' -Quiet)
 Set-Location `$(if (`$workspace) { '$Mirror' } else { '$Mirror\native\legal-structure-node' })
 `$started = Get-Date
-`$build = Start-Process cargo -ArgumentList 'build', '--release', '-j', '4', '-p', '$Package', $(if ($Binary) { "'--bin', '$Binary'" } else { "'--lib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
+# The addon is the node crate's library built as a cdylib (the crate itself is an rlib since 2026-11-05).
+`$build = Start-Process cargo -ArgumentList $(if ($Binary) { "'build', '--release', '-j', '4', '-p', '$Package', '--bin', '$Binary'" } else { "'rustc', '--release', '-j', '4', '-p', '$Package', '--lib', '--crate-type', 'cdylib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
 `$null = `$build.Handle; `$build.WaitForExit()
 "snapshot build: exit `$(`$build.ExitCode), {0:N0}s" -f ((Get-Date) - `$started).TotalSeconds
 if (`$build.ExitCode) { Remove-Item -ErrorAction SilentlyContinue '$Mirror\native\legal-structure-node\target\release\legal_structure_node.dll'; Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 10 | ForEach-Object { `$_.Line; `$_.Context.PostContext } | Select-Object -First 30 }

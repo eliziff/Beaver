@@ -12,11 +12,10 @@ import { importStandaloneAuthoritiesFile } from "./authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, folderPdfAuthority,
   readPinpoints } from "./authoritiesActions";
-import { authorityReferenceText, authoritySourceServices, resolveAuthoritiesSources,
+import { authorityReferenceText, authoritySourceServices, resolveAuthoritySources,
   type PreparedAuthoritySource, type SourceServices } from "./authoritiesSourceResolution";
 import { prepareAuthoritiesCorrection } from "./authoritiesCorrection";
-import { attachAuthorityFile, correctedAuthoritiesDraft, gatherAuthoritySources, refreshedAuthoritiesDraft,
-  type KeptPdf } from "./authoritiesCore";
+import { attachAuthorityFile, correctedAuthoritiesDraft, refreshedAuthoritiesDraft, type KeptPdf } from "./authoritiesCore";
 import { sha256 } from "./hash";
 import { decodeQuoteLinks } from "./quoteCheck";
 import { attachedSourceDocuments, verificationResults, verifyQuotations, writeVerifiedWordCopy,
@@ -48,12 +47,12 @@ function initialSettings(value: unknown) {
 }
 
 /** The page keeps every PDF it is handed; here a PDF is known by its hash until the page binds its kept copy. */
-const keptByPage = (filename: string, bytes: Uint8Array, sourceSha256: string, handleId: string): KeptPdf => ({
+export const keptByPage = (filename: string, bytes: Uint8Array, sourceSha256: string, handleId: string): KeptPdf => ({
   binding: { kind: "local-file", handleId, lastSeen: { name: filename, size: bytes.length, modified: 0, sha256: sourceSha256 } } });
 
 export const sourceBytes = (file: AuthoritiesRuntimeFile) => Buffer.from(file.bytes.buffer, file.bytes.byteOffset, file.bytes.byteLength);
 export const value = (data: unknown): AuthoritiesRuntimeResult => ({ data });
-const draftResult = (data: AuthoritiesDraft, attachments: PreparedAuthoritySource[]): AuthoritiesRuntimeResult => ({ data, attachments });
+export const draftResult = (data: AuthoritiesDraft, attachments: PreparedAuthoritySource[]): AuthoritiesRuntimeResult => ({ data, attachments });
 export const fileResult = (data: unknown, files: Array<{ role: string; mimeType: string; bytes: Uint8Array; filename?: string }>): AuthoritiesRuntimeResult => ({ data, files });
 export function requiredSource(input: AuthoritiesOperationInput): AuthoritiesRuntimeFile { return input.files?.[0] ?? reject(400, "file is required"); }
 export async function standaloneSource(input: AuthoritiesOperationInput): Promise<Parameters<typeof importStandaloneAuthoritiesFile>[0]> {
@@ -74,10 +73,13 @@ export type VerifierModel = (request: unknown, progress: (message: string) => vo
   { model: AlrModel; stats: unknown } | null;
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-/** `render`: the PDF a host that builds a book typesets from a provider's text, for an authority with no original. */
-export function createAuthoritiesSourceOperations(resolveSources: typeof resolveAuthoritiesSources = resolveAuthoritiesSources,
-  reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
-  verifierModel: VerifierModel = () => null, render?: SourceServices["render"]) {
+/** What a host gives the operations: its source services (`services`, a store of kept originals among them) and how
+ *  a case the source names differently than cited is met (`citedCases`: flagged and checked, or held for the user). */
+export type OperationsOptions = { services?: SourceServices; citedCases?: "resolve" | "warn";
+  reviewDiscrepancies?: typeof reviewAuthoritiesDiscrepancies; verifierModel?: VerifierModel };
+
+export function createAuthoritiesSourceOperations({ services = authoritySourceServices, citedCases = "resolve",
+  reviewDiscrepancies = reviewAuthoritiesDiscrepancies, verifierModel = () => null }: OperationsOptions = {}) {
   return inRuns({
     capabilities: async () => value({ wordToPdf: wordToPdfAvailable() }),
     "quote-check": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
@@ -171,7 +173,6 @@ export function createAuthoritiesSourceOperations(resolveSources: typeof resolve
     const information = await documentProjectionService.pdfInformation({
       documentId: `standalone-authority:${source.sourceSha256}`, versionId: source.sourceSha256,
       sourceSha256: source.sourceSha256, fileType: "pdf", readBytes: () => bytes,
-      reporterOriginal: source.origin === "original",
     }, authorityCitationForms(state, authority.id));
     return value({ ...information, pages: [], pageLabels: information.pageMap.map(page => page.label) });
     },
@@ -210,17 +211,14 @@ export function createAuthoritiesSourceOperations(resolveSources: typeof resolve
     const action = decodeAuthoritiesUserAction(input?.action);
     return draftResult( applyAuthoritiesUserAction(current, action), []);
     },
+    // The authorities looked up, and no PDF fetched or made: a quotation is checked against its provider's text, or a PDF
+    // the user attaches. Finding sources is no step the user takes, so the draft stays at its step.
     "sources": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
-      const progress = context.progress;
-    const current = draft(input?.draft);
-    const onlyAuthorityId = input?.authorityId === undefined
-      ? undefined : text(input.authorityId, 200);
-    const gathered = await gatherAuthoritySources(current, { progress, signal: context.signal,
-      resolve: (state) => resolveSources(state, render && { ...authoritySourceServices, render }, context.signal,
-        onlyAuthorityId, progress, input?.keptOnly === true),
-      keep: async (attachments) => attachments.map(({ filename, bytes, sourceSha256 }) =>
-        keptByPage(filename, bytes, sourceSha256, `stored:${sourceSha256}`)) });
-    return draftResult(gathered.draft, gathered.attachments);
+      const current = draft(input?.draft);
+      const onlyAuthorityId = input?.authorityId === undefined ? undefined : text(input.authorityId, 200);
+      const found = (await resolveAuthoritySources(current, services, context.signal, onlyAuthorityId, context.progress,
+        citedCases)).draft;
+      return draftResult(found.stage === current.stage ? found : { ...found, stage: current.stage }, []);
     },
     // The other citations of a citation's authority that a link given to it would carry to (authoritiesLinkPropagation.ts).
     "link-propagation": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> =>

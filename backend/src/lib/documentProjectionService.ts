@@ -468,7 +468,6 @@ async function text(input: DocumentProjectionSource, options: {
 
 type PdfSourceOptions = {
   citations?: string[];
-  reporterOriginal?: boolean;
   pages?: number[];
   pdfProfile?: PdfProfileSelection;
   ocrProvider?: PdfOpenInput["ocrProvider"];
@@ -575,7 +574,7 @@ async function pdfPassageGeometry(
 ) {
   const bytes = await readBytes();
   const prepared = await preparedForSource(() => bytes, reference, options);
-  const starts = options.reporterOriginal ? reporterStartPages(options.citations ?? []) : [];
+  const starts = reporterStartPages(options.citations ?? []);
   const labels = targets.some(target => target.locatorKind === "page" && target.physicalPages === undefined)
     ? await cachedPagination(reference, starts, () => paginationFor(prepared.document, starts)) : [];
   return nativePdfPassageGeometry(prepared.document, bytes, targets.map(target => target.locatorKind === "page" &&
@@ -630,7 +629,7 @@ async function pdfInformation(source: DocumentProjectionSource, citations: strin
   const reference = { documentId: source.documentId, versionId: source.versionId,
     sourceSha256: source.sourceSha256, cacheKey: source.pdfProfile?.cacheKey };
   // Cache derived labels in the existing version/profile-bound projection cache.
-  const starts = source.reporterOriginal ? reporterStartPages(citations) : [];
+  const starts = reporterStartPages(citations);
   const result = await projectionFor(`${projectionKey(reference)}\0pdf-information:${starts.join(",")}`, async () => {
     const { bytes } = await boundedSource(source);
     const document = await pdfDocumentForSource(() => bytes, reference, { ocrProvider: null, layout: false });

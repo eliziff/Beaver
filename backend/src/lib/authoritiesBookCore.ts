@@ -104,7 +104,7 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
       ? await documentProjectionService.pdfPagination({
         documentId: file.reference?.documentId ?? `standalone-authority:${file.sourceSha256}`,
         versionId: file.reference?.versionId ?? file.sourceSha256, sourceSha256: file.sourceSha256, fileType: "pdf",
-        readBytes: () => file.bytes, pdfProfile: file.pdfProfile, reporterOriginal: attached.source.origin === "original",
+        readBytes: () => file.bytes, pdfProfile: file.pdfProfile,
       }, authorityCitationForms(state, attached.authority.id)).catch((error) => {
         if (signal.aborted) throw error;
         return undefined;

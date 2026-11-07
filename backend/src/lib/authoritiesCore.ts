@@ -56,7 +56,7 @@ export async function attachAuthorityFile(current: AuthoritiesDraft, input: {
   if (!Object.hasOwn(current.authorities, input.authorityId)) reject(400, "This authority no longer exists.");
   const checked = await authorityPdfCaption(current, input.authorityId, input.bytes, input.autoFetched);
   const pdf = await input.keep(), sourceSha256 = sha256(input.bytes);
-  const pageLabels = await sourcePageLabels(checked, input.authorityId, { sourceSha256, origin: "manual" },
+  const pageLabels = await sourcePageLabels(checked, input.authorityId, { sourceSha256 },
     input.bytes, pdf.reference);
   return attachAuthorityPdf(checked, checked.authorities[input.authorityId], pdf.binding,
     pdf.filename ?? input.filename, sourceSha256, input.language, { pageCount, pageLabels });

@@ -1,5 +1,8 @@
-/** Compose physical PDF pages with observed folios and corroborated embedded labels. */
-export function resolvePdfPagination(observed, embedded, reporterStarts = []) {
+/** Compose physical PDF pages with observed folios and corroborated embedded labels. Reporter interpolation
+ *  (`interpolation`): "majority", the default, numbers the run from its one anchor where most of its observed folios
+ *  agree with that numbering, a folio that disagrees being a misread (its reading kept as `observed`); "strict" numbers
+ *  it only where no observed folio disagrees. */
+export function resolvePdfPagination(observed, embedded, reporterStarts = [], { interpolation = "majority" } = {}) {
   const count = Math.max(observed.length, embedded.length);
   const generic = embedded.every((label, index) => !label || label === String(index + 1));
   const corroborated = embedded.some((label, index) => label && label === observed[index]) &&
@@ -20,8 +23,13 @@ export function resolvePdfPagination(observed, embedded, reporterStarts = []) {
   const anchor = anchors[0], first = Number(anchor.observed);
   if (!Number.isSafeInteger(first) || first < 1) return bindings;
   const run = bindings.slice(anchor.pdfPage - 1);
-  if (run.some(entry => entry.status === "ambiguous" || (entry.label !== null &&
-      entry.label !== String(first + entry.pdfPage - anchor.pdfPage)))) return bindings;
+  const expected = entry => String(first + entry.pdfPage - anchor.pdfPage);
+  const read = run.filter(entry => entry.observed !== null);
+  const agreeing = read.filter(entry => entry.observed === expected(entry)).length;
+  const numbered = interpolation === "strict"
+    ? !run.some(entry => entry.status === "ambiguous" || (entry.label !== null && entry.label !== expected(entry)))
+    : agreeing * 2 > read.length;
+  if (!numbered) return bindings;
   for (const entry of run) {
     entry.label = String(first + entry.pdfPage - anchor.pdfPage);
     entry.source = "reporter"; entry.status = "resolved";

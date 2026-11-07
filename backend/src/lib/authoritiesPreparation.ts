@@ -31,7 +31,6 @@ function sourceReading(draft: AuthoritiesDraft, readings?: SourceReadings) {
         ? { legislation: authority?.kind === "legislation" } : null,
       text: { scannedPdfPolicy: filing ? "page-margin" as const : bookScanPolicy(draft),
         citations: authority ? authorityCitationForms(draft, authority.id) : [],
-        reporterOriginal: attached?.source.origin === "original",
         ocrTargets: filing ? [] : targets,
         // A statute's cited provisions are placed whatever is marked, as are an excerpt's cited passages and
         // the paragraphs around them: its excerpt keeps their pages.

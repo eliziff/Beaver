@@ -150,8 +150,7 @@ export function createDocumentsRouter(
       citations = z.array(z.string().max(2000)).max(50).parse(
         req.query.citations ? JSON.parse(z.string().max(100_000).parse(req.query.citations)) : []);
     } catch { reject(400, "Invalid citation context"); }
-    const pageMap = await documentProjectionService.pdfPagination({ ...source,
-      reporterOriginal: req.query.reporter_original === "1" }, citations);
+    const pageMap = await documentProjectionService.pdfPagination(source, citations);
     res.json({ pageLabels: pageMap.map(entry => entry.label), pageMap });
   }));
 

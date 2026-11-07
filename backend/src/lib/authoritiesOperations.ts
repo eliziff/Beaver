@@ -8,14 +8,15 @@ import { excerptPageCounts, renderAuthoritySourcePdf, statuteExcerptSummary } fr
 import { sourceReadings } from "./sourceReadings";
 import { mapAuthorityBookBytes } from "mike/shared/runtime/authoritiesBook.mjs";
 import { attachedAuthoritySources } from "./authoritiesDomain";
-import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
-import { authorityStatuteText, resolveAuthoritiesSources } from "./authoritiesSourceResolution";
+import { authoritySourceServices, authorityStatuteText, resolveAuthoritiesSources } from "./authoritiesSourceResolution";
+import { gatherAuthoritySources } from "./authoritiesCore";
 import { authoritiesSourceText, createAuthoritiesPreparation } from "./authoritiesPreparation";
 import { attachBookFile, authoritiesBookFrontPdf, authorityAnnotations, buildAuthoritiesDraft } from "./authoritiesBookCore";
 import { sha256 } from "./hash";
 import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
-import { createAuthoritiesSourceOperations, draft, fileResult, inRuns, json, requiredSource, sourceBytes, standaloneSource,
-  value, type OperationContext, type VerifierModel } from "./authoritiesSourceOperations";
+import { createAuthoritiesSourceOperations, draft, draftResult, fileResult, inRuns, json, keptByPage, requiredSource,
+  sourceBytes, standaloneSource, value, type OperationContext, type OperationsOptions } from "./authoritiesSourceOperations";
+import { text } from "./authoritiesActionContract";
 import type { AuthoritiesOperationInput, AuthoritiesRuntimeResult } from "mike/shared/runtime/authoritiesRuntime.mjs";
 
 const MAX_BUILD_INPUT_BYTES = 512 * 1024 * 1024;
@@ -27,12 +28,25 @@ export function assertAuthoritiesBuildUploadSize(
     reject(413, "Authorities build files are too large together. Maximum total is 512 MB.");
 }
 
-export function createAuthoritiesOperations(resolveSources: typeof resolveAuthoritiesSources = resolveAuthoritiesSources,
-  reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
-  verifierModel: VerifierModel = () => null) {
+export function createAuthoritiesOperations(options: OperationsOptions = {}) {
+  const { services = authoritySourceServices, citedCases = "resolve" } = options;
   const readings = sourceReadings();
-  const shared = createAuthoritiesSourceOperations(resolveSources, reviewDiscrepancies, verifierModel, renderAuthoritySourcePdf);
+  const shared = createAuthoritiesSourceOperations(options);
   return { ...shared, ...inRuns({
+    // Every app's lookups, and then each authority's PDF fetched or, where there is no original, typeset from its
+    // provider's text for the book, kept by the page and attached with its page count and printed page numbers.
+    "sources": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
+      const progress = context.progress;
+    const current = draft(input?.draft);
+    const onlyAuthorityId = input?.authorityId === undefined
+      ? undefined : text(input.authorityId, 200);
+    const gathered = await gatherAuthoritySources(current, { progress, signal: context.signal,
+      resolve: (state) => resolveAuthoritiesSources(state, { ...services, render: renderAuthoritySourcePdf }, context.signal,
+        onlyAuthorityId, progress, input?.keptOnly === true, citedCases),
+      keep: async (attachments) => attachments.map(({ filename, bytes, sourceSha256 }) =>
+        keptByPage(filename, bytes, sourceSha256, `stored:${sourceSha256}`)) });
+    return draftResult(gathered.draft, gathered.attachments);
+    },
     "source-read": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;
     const state = draft(json(input?.draft, "draft"));

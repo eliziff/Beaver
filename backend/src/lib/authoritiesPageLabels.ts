@@ -8,31 +8,29 @@ import type { PreparedAuthoritySource } from "./authoritiesSourceResolution";
 /** The stored document a PDF is, where a host stores it; a standalone PDF is known by its hash alone. */
 export type SourcePdfReference = { documentId: string; versionId: string };
 
-/** Each page's printed number ("12", "iv") or null, as the engine reads the PDF: for a reporter's
- *  original, from the first page its citations give. Read once, when the PDF is attached, and kept
- *  with the source in the draft. */
+/** Each page's printed number ("12", "iv") or null, as the engine reads the PDF (a report's run from the first page its
+ *  citations give, where the PDF prints that page). Read once, when the PDF is attached, and kept with the source in
+ *  the draft. */
 export async function sourcePageLabels(draft: AuthoritiesDraft, authorityId: string,
-  source: Pick<AttachedAuthoritySource, "sourceSha256" | "origin">, bytes: Buffer, reference?: SourcePdfReference) {
+  source: Pick<AttachedAuthoritySource, "sourceSha256">, bytes: Buffer, reference?: SourcePdfReference) {
   const information = await documentProjectionService.pdfInformation({
     documentId: reference?.documentId ?? `standalone-authority:${source.sourceSha256}`,
     versionId: reference?.versionId ?? source.sourceSha256,
     sourceSha256: source.sourceSha256, fileType: "pdf", readBytes: () => bytes,
-    reporterOriginal: source.origin === "original",
   }, authorityCitationForms(draft, authorityId));
   return information.pageMap.map((page) => page.label);
 }
 
-/** What every host keeps with a fetched source as it attaches it: a publisher's original prints its own page numbers
- *  (a reconstruction's are its PDF pages), and every source keeps its length, by which a preview of the book counts its
- *  pages. Reading the numbers reads the whole PDF, so a few are read at once, and the step says which it is reading. */
+/** What every host keeps with a fetched source as it attaches it: its printed page numbers, and its length, by which a
+ *  preview of the book counts its pages. Reading the numbers reads the whole PDF, so a few are read at once, and the
+ *  step says which it is reading. */
 export async function preparedSourcePages<T extends PreparedAuthoritySource>(draft: AuthoritiesDraft,
   attachments: readonly T[], progress?: (message: string) => void,
   reference?: (attachment: T) => SourcePdfReference) {
-  const originals = attachments.filter(({ origin }) => origin === "original");
   const labels = new Map<T, Array<string | null>>();
   let read = 0;
-  await mapBounded(originals, async (attachment) => {
-    progress?.(`Reading the page numbers of ${attachment.filename.replace(/\.pdf$/iu, "")} · ${read + 1} of ${originals.length}`);
+  await mapBounded(attachments, async (attachment) => {
+    progress?.(`Reading the page numbers of ${attachment.filename.replace(/\.pdf$/iu, "")} · ${read + 1} of ${attachments.length}`);
     labels.set(attachment, await sourcePageLabels(draft, attachment.authorityId, attachment, attachment.bytes,
       reference?.(attachment)));
     read += 1;

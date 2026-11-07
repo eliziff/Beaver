@@ -213,42 +213,28 @@ async function keptOriginals(initial: AuthoritiesDraft, sources: SourceServices)
   return { draft: editor.result(), attachments };
 }
 
-/** Resolves canonical identities and prepares source bytes. `warn` flags a different case while retaining
- *  the cited source for quotation checks; `resolve` waits for the user's choice and looks for the named case. */
-export async function resolveAuthoritiesSources(
-  initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
-  signal?: AbortSignal,
-  onlyAuthorityId?: string,
-  progress?: (message: string) => void,
-  keptOnly = false,
-  citedCases: "resolve" | "warn" = "resolve",
-) {
-  if (keptOnly) return keptOriginals(initial, sources);
-  if (onlyAuthorityId && !retryableAuthoritySource(initial, onlyAuthorityId))
-    throw new ApplicationError(409, "This authority has nothing to retry.");
+/** A source a lookup found, as the draft's later steps read it. */
+type ResolvedSource = Pick<NonNullable<Awaited<ReturnType<SourceServices["resolve"]>>>,
+  "citation" | "alternateCitation" | "name" | "date" | "url" | "publisherUrl" | "dataset" | "language" |
+  "searchText" | "verifiedPdf"> & { provider?: string; identity?: string };
+
+/** The authorities `wanted` of a draft looked up, each found or not: a decision or statute in A2AJ (a different case than
+ *  cited flagged, `citedCases`), one A2AJ does not hold by its own provider, and an article in the journals database.
+ *  A lookup a provider did not answer is recorded on its authority, to be asked again. */
+async function lookUpAuthorities(initial: AuthoritiesDraft, sources: SourceServices, signal: AbortSignal | undefined,
+  onlyAuthorityId: string | undefined, progress: ((message: string) => void) | undefined, citedCases: "resolve" | "warn",
+  wanted: (draft: AuthoritiesDraft, authority: AuthorityIdentity, id: string) => boolean) {
   // Retrying an unanswered lookup retries every unanswered lookup: one request, not one per row.
   const retrying = !onlyAuthorityId ? null : new Set(initial.authorities[onlyAuthorityId].sourceLookupFailure
     ? initial.authorityOrder.filter((id) => initial.authorities[id]?.sourceLookupFailure) : [onlyAuthorityId]);
   // Resolution applies one or two actions per authority: one working copy, validated on return.
   const editor = editAuthoritiesDraft(initial), draft = editor.draft;
-  const attachments: PreparedAuthoritySource[] = [];
-  const reconstruct = !!sources.render && draft.settings.sourceMode !== "manual-originals";
-  const originals = draft.settings.sourceMode !== "render";
-  const requirements = authoritiesProfile(draft.settings.profileId).requirements;
-  const needsPdf = authorityBytesRequired(draft, requirements);
-  // Resolution fetches every source a filing could want, whatever this court
-  // enforces at build time; an attached PDF is final but for a missing language, and for a
-  // rebuild from text whose publisher blocked the original, which a retry asks for again.
-  const owed = { completeBookSources: true,
-    bilingualEnactments: !!requirements?.bilingualEnactments };
   const candidates = draft.authorityOrder.flatMap((id) => {
     if (retrying && !retrying.has(id)) return [];
     const authority = draft.authorities[id];
-    if (!onlyAuthorityId && authority?.sourceVerificationUrl) return [];
     const fetchable = !!authority && ["case", "legislation"].includes(authority.kind) &&
       (authority.source.kind !== "attached" || authority.sourceIdentity?.provider === "a2aj");
-    return fetchable && (authoritySourceRequirement(draft, authority, owed) || onlyAuthorityId === id &&
-      !!authority.sourceVerificationUrl) ? [{ id, authority }] : [];
+    return fetchable && wanted(draft, authority, id) ? [{ id, authority }] : [];
   });
   // A lookup A2AJ did not answer is recorded on the authority, never taken for a miss; one it
   // asked us to hold off is not asked again before its retry time.
@@ -288,9 +274,6 @@ export async function resolveAuthoritiesSources(
     }
     return failure ? { failure } : { source: null };
   }
-  type ResolvedSource = Pick<NonNullable<Awaited<ReturnType<SourceServices["resolve"]>>>,
-    "citation" | "alternateCitation" | "name" | "date" | "url" | "publisherUrl" | "dataset" | "language" |
-    "searchText" | "verifiedPdf"> & { provider?: string; identity?: string };
   const resolvedSources = new Map<string, ResolvedSource>();
   for (let index = 0; index < candidates.length; index += 1) {
     signal?.throwIfAborted();
@@ -420,29 +403,74 @@ export async function resolveAuthoritiesSources(
         sourceSha256: canonicalJsonSha256({ provider: "journal", id: article.id }),
         version: article.date ?? null, externalUrl: article.url } });
   }
-  // A case left without a source goes to CanLII: one without bytes, or, where sources need text,
-  // one no provider gave text for.
+  return { editor, draft, retrying, resolvedSources };
+}
+
+/** A case left without a source goes to CanLII: one without bytes, or, where sources need text, one no provider gave
+ *  text for. One CanLII handoff rule for every case left without bytes, whichever provider identified it: the
+ *  publisher's own page when it has one, else the page CanLII publishes for the citation. A publisher that did not give
+ *  its original says why on its own row instead. `attached`: the authorities given a PDF in this pass. */
+function canliiHandoffs({ editor, draft, retrying, resolvedSources }: Awaited<ReturnType<typeof lookUpAuthorities>>,
+  attached: ReadonlySet<string>) {
   const textOnly = !!draft.settings.sourceText;
-  function canliiHandoffs(attached: ReadonlySet<string>) {
-    // One CanLII handoff rule for every case left without bytes, whichever
-    // provider identified it: the publisher's own page when it has one, else the
-    // page CanLII publishes for the citation. A publisher that did not give its
-    // original says why on its own row instead.
-    for (const id of draft.authorityOrder) {
-      if (retrying && !retrying.has(id)) continue;
-      const authority = draft.authorities[id];
-      if (authority?.kind !== "case" || authority.sourceVerificationUrl || attached.has(id) ||
-          authority.source.kind === "attached" || (textOnly && authority.sourceIdentity)) continue;
-      const source = resolvedSources.get(authority.sourceIdentity?.stableSourceId ?? "");
-      const external = authority.sourceIdentity?.externalUrl ?? authority.sourceUrl;
-      const pageUrl = external && buildCanliiPdfUrl(external) ? external
-        : structureNative().canliiCaseUrl([source?.citation, source?.alternateCitation,
-          ...authorityCitationForms(draft, id)].filter((value): value is string => !!value), source?.language === "fr" ? "fr" : "en", null);
-      if (pageUrl) editor.apply({ type: "begin-canlii-handoff", authorityId: id, pageUrl });
-    }
+  for (const id of draft.authorityOrder) {
+    if (retrying && !retrying.has(id)) continue;
+    const authority = draft.authorities[id];
+    if (authority?.kind !== "case" || authority.sourceVerificationUrl || attached.has(id) ||
+        authority.source.kind === "attached" || (textOnly && authority.sourceIdentity)) continue;
+    const source = resolvedSources.get(authority.sourceIdentity?.stableSourceId ?? "");
+    const external = authority.sourceIdentity?.externalUrl ?? authority.sourceUrl;
+    const pageUrl = external && buildCanliiPdfUrl(external) ? external
+      : structureNative().canliiCaseUrl([source?.citation, source?.alternateCitation,
+        ...authorityCitationForms(draft, id)].filter((value): value is string => !!value), source?.language === "fr" ? "fr" : "en", null);
+    if (pageUrl) editor.apply({ type: "begin-canlii-handoff", authorityId: id, pageUrl });
   }
+}
+
+/** The draft's authorities looked up, as a host that builds no book needs them: their sources found, a case with no text
+ *  handed to CanLII, and no PDF fetched, made or attached (a quotation is checked against the provider's text, or a PDF
+ *  the user attaches). */
+export async function resolveAuthoritySources(initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
+  signal?: AbortSignal, onlyAuthorityId?: string, progress?: (message: string) => void,
+  citedCases: "resolve" | "warn" = "resolve") {
+  if (onlyAuthorityId && !initial.authorities[onlyAuthorityId]?.sourceLookupFailure)
+    throw new ApplicationError(409, "This authority has nothing to retry.");
+  const lookups = await lookUpAuthorities(initial, sources, signal, onlyAuthorityId, progress, citedCases,
+    (draft, authority) => !!authoritySourceRequirement(draft, authority, undefined));
+  // A case no provider gave text for is handed to CanLII, where the user may take its PDF.
+  canliiHandoffs(lookups, new Set());
+  return { draft: lookups.editor.result(), attachments: [] as PreparedAuthoritySource[] };
+}
+
+/** Resolves canonical identities and prepares source bytes. `warn` flags a different case while retaining
+ *  the cited source for quotation checks; `resolve` waits for the user's choice and looks for the named case. */
+export async function resolveAuthoritiesSources(
+  initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
+  signal?: AbortSignal,
+  onlyAuthorityId?: string,
+  progress?: (message: string) => void,
+  keptOnly = false,
+  citedCases: "resolve" | "warn" = "resolve",
+) {
+  if (keptOnly) return keptOriginals(initial, sources);
+  if (onlyAuthorityId && !retryableAuthoritySource(initial, onlyAuthorityId))
+    throw new ApplicationError(409, "This authority has nothing to retry.");
+  const attachments: PreparedAuthoritySource[] = [];
+  const reconstruct = !!sources.render && initial.settings.sourceMode !== "manual-originals";
+  const originals = initial.settings.sourceMode !== "render";
+  const requirements = authoritiesProfile(initial.settings.profileId).requirements;
+  const needsPdf = authorityBytesRequired(initial, requirements);
+  // Resolution fetches every source a filing could want, whatever this court
+  // enforces at build time; an attached PDF is final but for a missing language, and for a
+  // rebuild from text whose publisher blocked the original, which a retry asks for again.
+  const owed = { completeBookSources: true,
+    bilingualEnactments: !!requirements?.bilingualEnactments };
+  const { editor, draft, retrying, resolvedSources } = await lookUpAuthorities(initial, sources, signal, onlyAuthorityId,
+    progress, citedCases, (draft, authority, id) => (!!onlyAuthorityId || !authority.sourceVerificationUrl) &&
+      (!!authoritySourceRequirement(draft, authority, owed) || onlyAuthorityId === id && !!authority.sourceVerificationUrl));
+  const textOnly = !!draft.settings.sourceText, lookups = { editor, draft, retrying, resolvedSources };
   if (!needsPdf) {
-    if (textOnly) canliiHandoffs(new Set());
+    if (textOnly) canliiHandoffs(lookups, new Set());
     return { draft: editor.result(), attachments };
   }
   const unique = new Map<string, { authorityId: string; authority: AuthorityIdentity;
@@ -585,6 +613,6 @@ export async function resolveAuthoritiesSources(
     editor.apply({ type: "set-source-verification", authorityId, pageUrl: stopped?.url ?? null,
       ...(stopped && stopped.reason !== "blocked" ? { reason: stopped.reason } : {}) });
   }
-  canliiHandoffs(new Set(attachments.map(({ authorityId }) => authorityId)));
+  canliiHandoffs(lookups, new Set(attachments.map(({ authorityId }) => authorityId)));
   return { draft: editor.result(), attachments };
 }

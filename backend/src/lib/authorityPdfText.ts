@@ -26,7 +26,6 @@ export async function authorityPdfOutline(input: {
 export async function authorityPdfText(input: {
   bytes: Buffer;
   citations?: string[];
-  reporterOriginal?: boolean;
   maxPages?: number;
   documentId?: string;
   versionId?: string;
@@ -73,8 +72,7 @@ export async function authorityPdfText(input: {
       input.signal?.throwIfAborted();
       const next = await projection.pdfPassageGeometry(() => input.bytes, targets.slice(offset, offset + 100),
         { ...reference, cacheKey: prepared.cacheKey },
-        { signal: input.signal, pdfProfile: selectedProfile(prepared), citations: input.citations,
-          reporterOriginal: input.reporterOriginal });
+        { signal: input.signal, pdfProfile: selectedProfile(prepared), citations: input.citations });
       result = result ? { ...result, targets: [...result.targets, ...next.targets] } : next;
     }
     return result;
@@ -85,15 +83,14 @@ export async function authorityPdfText(input: {
     if (targets.length && targets.every(({ locatorKind }) => locatorKind === "page")) {
       const locate = async (prepared: typeof native) => {
         const labels = await projection.pdfPagination({ ...reference, fileType: "pdf",
-          readBytes: () => input.bytes, pdfProfile: selectedProfile(prepared),
-          reporterOriginal: input.reporterOriginal }, input.citations);
+          readBytes: () => input.bytes, pdfProfile: selectedProfile(prepared) }, input.citations);
         return targets.map(target => resolvePrintedPages(target.locator, labels));
       };
       let located = await locate(native);
       // Cited-page OCR is explicitly requested: establish the reporter offset
       // before resolving its pinpoints, retaining the anchor in the partial pass.
       const openingPages: number[] = [];
-      if (input.reporterOriginal && reporterStartPages(input.citations ?? []).length) {
+      if (reporterStartPages(input.citations ?? []).length) {
         for (let page = 1; located.some(pages => !pages.length) &&
             page <= Math.min(3, native.pageCount); page++) {
           if (!recognized.pagesNeedingOcr.includes(page - 1)) continue;
@@ -131,8 +128,7 @@ export async function authorityPdfText(input: {
     ? input.passageTargets(pageTextByPage) : input.passageTargets;
   const passageGeometry = passageTargets?.length ? await geometry(passageTargets) : undefined;
   const pageBindings = await projection.pdfPagination({ ...reference, fileType: "pdf",
-    readBytes: () => input.bytes, pdfProfile: selectedProfile(recognized),
-    reporterOriginal: input.reporterOriginal }, input.citations);
+    readBytes: () => input.bytes, pdfProfile: selectedProfile(recognized) }, input.citations);
   return { pageTextByPage, ...(pageBindings ? { pageBindings, pageLabels: pageBindings.map(page => page.label) } : {}),
     ocrTextByPage: pageTextByPage.map((value, index) => routed.has(index) ? value : ""),
     ...(passageGeometry ? { passageGeometry } : {}) };

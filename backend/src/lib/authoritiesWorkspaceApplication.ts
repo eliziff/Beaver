@@ -504,22 +504,21 @@ export function createAuthoritiesWorkspaceApplication(
           if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,
             `Choose page numbers within the PDF for ${source.filename}.`);
           const citations = authorityCitationForms(draft, authority.id);
-          const bindings = pages ? [] : await documentProjectionService.pdfPagination({ ...resolved,
-            reporterOriginal: source.origin === "original" }, citations);
+          const bindings = pages ? [] : await documentProjectionService.pdfPagination(resolved, citations);
           const targets = pages ? [] : authorityPassageTargets(draft, authority.id);
           // Page pinpoints locate themselves without any text, so a scan whose passages the
           // geometry cannot find still has its cited pages recognized before the whole PDF.
           const citedPages = pages ? [] : [...citedSourcePages(draft, authority.id, [],
             bindings, prepared.pageCount)].map((index) => index + 1);
           if (!pages && !citedPages.length && targets.some(target => target.locatorKind === "page") &&
-              source.origin === "original" && reporterStartPages(citations).length) {
+              reporterStartPages(citations).length) {
             // Let the existing priority OCR pass establish an opening reporter anchor first.
             citedPages.push(...Array.from({ length: Math.min(3, prepared.pageCount) }, (_, index) => index + 1));
           }
           for (let start = 0; start < targets.length; start += 100) {
             const geometry = await documentProjectionService.pdfPassageGeometry(resolved.readBytes,
               targets.slice(start, start + 100), { ...reference, cacheKey: prepared.cacheKey },
-              { citations, reporterOriginal: source.origin === "original",
+              { citations,
                 pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
             citedPages.push(...geometry.targets.flatMap(target => target.status === "found"
               ? target.pages.map(page => page.pageNumber) : []));

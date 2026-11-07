@@ -146,7 +146,8 @@ export type AuthoritiesApp = {
    *  check, and shows no findings. */
   review?: false;
   /** Fixed source handling for an app whose workflow needs every page's text. */
-  sourceSettings?: Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy">;
+  /** The source settings the app fixes, offering the reader no choice of them (an app whose sources need none: {}). */
+  sourceSettings?: Partial<Pick<AuthoritiesBuildSettings, "sourceMode" | "scannedPdfPolicy">>;
   /** The documents citing each authority, where the draft gathers several documents' authorities. */
   citedIn?: ReadonlyMap<string, string>;
 };
@@ -1225,8 +1226,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       ? setSourceChange(sourceMode) : act({ type: "set-settings", settings: patch })} />;
   useEffect(() => {
     const fixed = app?.sourceSettings;
-    if (draft && fixed && !busy && (draft.state.settings.sourceMode !== fixed.sourceMode ||
-        draft.state.settings.scannedPdfPolicy !== fixed.scannedPdfPolicy)) act({ type: "set-settings", settings: fixed });
+    if (draft && fixed && !busy && Object.entries(fixed).some(([key, value]) =>
+        draft.state.settings[key as keyof typeof fixed] !== value)) act({ type: "set-settings", settings: fixed });
   }, [draft?.id, draft?.state.settings.sourceMode, draft?.state.settings.scannedPdfPolicy, busy, app?.sourceSettings]); // eslint-disable-line react-hooks/exhaustive-deps
   // A new source handling throws away the PDFs the app found, so it asks first.
   const changeSources = (sourceMode: AuthoritiesBuildSettings["sourceMode"]) => {
