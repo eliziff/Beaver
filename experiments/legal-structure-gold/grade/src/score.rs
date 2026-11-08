@@ -440,13 +440,10 @@ fn features<'a>(
         if inside(block, &notes) {
             return "note".into();
         }
-        // A projected or tagged state names each unit's region, which is its role as scored;
-        // parser output is read through its kind and locator.
+        // A block names its unit's region, which is its role as scored: the gold's as typed, a parser's as its node's
+        // kind and role read; a parser's line no node holds is read by its kind.
         if let Some(region) = block.attributes.get("region").and_then(Value::as_str) {
             return match region { "none" | "caption" => "text", other => other }.to_owned();
-        }
-        if kind == "text" && side.candidate && crate::state::parser_list_item(block) {
-            return "list_item".into();
         }
         kind.to_owned()
     };
