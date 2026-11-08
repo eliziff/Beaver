@@ -4,7 +4,7 @@
 //! A marker matches the gold's by article, role (label or reference), note and line.
 
 use legal_structure::layout::{Line, Page};
-use legal_structure::{LayoutAnalysis, STRUCTURE_ANALYSIS};
+use legal_structure::{StructureAnalysis, STRUCTURE_ANALYSIS};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashSet};
 use std::io::{BufRead, BufReader};
@@ -94,7 +94,9 @@ fn main() {
                 .expect("goldset page")
             })
             .collect::<Vec<_>>();
-        let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &citations, true);        for marker in output.pairing_audit.map(|audit| audit.markers).unwrap_or_default() {
+        // Only the audit is read: no note is placed.
+        let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &citations, true, &|_: &str, _: usize, _: usize| None);
+        for marker in output.audit.map(|audit| audit.markers).unwrap_or_default() {
             let mut marker = marker;
             marker["dataset"] = json!(dataset);
             marker["article_id"] = json!(article_id);

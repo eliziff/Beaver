@@ -1092,11 +1092,12 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
 
 /// Diagnostic: the note pairer over one document's parsed pages, its markers beside each line.
 fn pairing(store: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
-    use legal_structure::LayoutAnalysis;
+    use legal_structure::StructureAnalysis;
     let source = sources(store)?.into_iter().find(|s| s.sha256.starts_with(prefix)).ok_or("No such gold")?;
     let (_, pages) = parse(&source)?;
-    let output = legal_structure::STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), true);
-    let audit = output.pairing_audit.ok_or("No pairing audit")?;
+    // Only the audit is read: no note is placed.
+    let output = legal_structure::STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), true, &|_: &str, _: usize, _: usize| None);
+    let audit = output.audit.ok_or("No pairing audit")?;
     println!("{}", serde_json::to_string(&audit.pairing_summary).map_err(|e| e.to_string())?);
     let range = options.first().and_then(|r| r.split_once('-')).and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)));
     let mut by_line: BTreeMap<String, Vec<String>> = BTreeMap::new();
