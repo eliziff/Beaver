@@ -171,7 +171,7 @@ fn process(row: DocumentRow, root: &Path) -> Completion {
     let started = Instant::now();
     let outcome = (|| {
         let result =
-            corpus_check_cached_extraction(root.join(&row.cache_path), row.relative_path.clone())
+            corpus_check_cached_extraction(root.join(&row.cache_path))
                 .map_err(|error| error.to_string())?;
         if result.get("source_sha256").and_then(Value::as_str) != Some(&row.source_sha256)
             || result.get("page_count").and_then(Value::as_u64) != Some(row.pages as u64)
