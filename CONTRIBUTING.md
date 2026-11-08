@@ -104,7 +104,7 @@ a development loop pins the build it is testing with `LEGAL_STRUCTURE_NATIVE`. U
 a debug build newer than release stops the load; a failed load is never retried with other code.
 For native PDF phase timings, build with `npm run native:build -- --release --diagnostics`
 and run with `LEGALPDF_PROFILE_PHASES=1`. Ordinary builds omit that instrumentation.
-The helper uses one Cargo job and remaps source paths in both profiles.
+The helper uses four Cargo jobs and remaps source paths in both profiles.
 
 The citation workspace defaults to its grammar and core crates, keeping bindings
 explicit. Parser fingerprints select enabled feature owners and omit standalone

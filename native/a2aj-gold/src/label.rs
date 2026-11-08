@@ -696,7 +696,17 @@ impl<'a> Pdf<'a> {
         }
         let numbered: Vec<&Seg> = self.segs.iter().filter(|s| s.kind == Kind::Paragraph && s.extra.number.as_deref().is_some_and(|n| !n.is_empty())).collect();
         let of = |s: &Seg| counts.get(&s.index).copied().unwrap_or((0, 0));
-        let unmatched: Vec<String> = numbered.iter().filter(|s| (of(s).1 as f64) < 0.6 * of(s).0.max(1) as f64).map(|s| s.extra.number.clone().unwrap()).collect();
+        // (A paragraph is found by its own words; one all of a quotation or of a heading A2AJ reads in it, with none of its
+        // own, by all the words it spans.)
+        let starts: Vec<usize> = self.a2aj_words.iter().map(|w| w.1).collect();
+        let spanned = |s: &Seg| {
+            if of(s).0 > 0 {
+                return of(s);
+            }
+            let (a, b) = (starts.partition_point(|&at| at < s.start), starts.partition_point(|&at| at < s.end));
+            (b - a, (a..b).filter(|j| self.to_pdf.contains_key(j)).count())
+        };
+        let unmatched: Vec<String> = numbered.iter().filter(|s| { let (all, found) = spanned(s); (found as f64) < 0.6 * all.max(1) as f64 }).map(|s| s.extra.number.clone().unwrap()).collect();
         let mut unread: BTreeMap<&str, u64> = BTreeMap::new();
         for s in self.segs.iter().filter(|s| (s.kind.body() || s.kind == Kind::Note) && of(s).1 == 0 && of(s).0 > 0) {
             *unread.entry(s.kind.name()).or_default() += 1;
@@ -907,10 +917,14 @@ impl<'a> Pdf<'a> {
     /// item, a heading, the paragraph's own words going on. Set against the right margin, it is no paragraph's.
     fn inner_region(&self, seg: &Seg, ks: &[usize]) -> Option<&'static str> {
         let members: Vec<Piece> = ks.iter().map(|&k| self.pieces[k]).collect();
+        // (Where the print gives its type sizes, a quotation is set apart from the body's type or column: body type at the
+        // body's column is the paragraph's own words, whatever A2AJ reads. A scan says nothing of its type.)
+        let typeset = self.body_size > 0.0 && members.iter().all(|m| self.lines[m.line].size > 0.0);
         match self.evidence(&members, seg.extra.quoted, true) {
             "right" => None,
             "heading" => Some("heading"),
             "bullet" => Some("list_item"),
+            "text" if seg.extra.quoted && typeset && seg.kind == Kind::Inner => Some("text"),
             _ if seg.extra.quoted => Some("quote"),
             "quote" => Some("quote"),
             _ if seg.kind == Kind::Item => Some("list_item"),
@@ -934,11 +948,37 @@ impl<'a> Pdf<'a> {
         }
         let mut region: HashMap<usize, Option<&'static str>> = HashMap::new();
         let front = self.front();
-        // A2AJ's headings inside a numbered paragraph whose own words go on after them: {heading: paragraph}.
-        let inner: HashMap<usize, usize> = self.segs.iter().filter(|h| h.kind == Kind::Heading).filter_map(|h| {
-            let p = self.segs.iter().find(|p| p.kind == Kind::Paragraph && p.extra.number.as_deref().is_some_and(|n| !n.is_empty()) && p.start <= h.start && h.start < p.end)?;
-            (h.end..p.end).any(|i| self.owner[i] == Some(p.index) && !is_space(self.text[i])).then_some((h.index, p.index))
-        }).collect();
+        // The pieces a margin number opens a paragraph on: the first of each line it cuts.
+        let mut cut_at: HashMap<usize, Cut> = HashMap::new();
+        let cut_lines: HashSet<String> = self.cuts.values().map(|cut| cut.marker.line_id.clone()).collect();
+        let mut lined: HashSet<usize> = HashSet::new();
+        for (k, piece) in self.pieces.iter().enumerate() {
+            if let Some(cut) = self.cuts.get(&self.lines[piece.line].id) {
+                if lined.insert(piece.line) {
+                    cut_at.insert(k, cut.clone());
+                }
+            }
+        }
+        let printed = |k: usize| !self.numbers.contains(&self.lines[self.pieces[k].line].id) && !self.folios.contains(&self.lines[self.pieces[k].line].id);
+        // Where a numbered paragraph opens: on a margin number's row, or where a paragraph A2AJ numbers opens.
+        let openings: HashSet<usize> = cut_at.keys().copied().chain(groups.iter()
+            .filter(|(s, _)| self.segs[*s].kind == Kind::Paragraph && self.segs[*s].extra.number.as_deref().is_some_and(|n| !n.is_empty()))
+            .filter_map(|(_, ks)| ks.iter().copied().find(|&k| printed(k)))).collect();
+        // A2AJ's headings inside a numbered paragraph: after a paragraph's opening, with paragraph words, not the next opening,
+        // after them (past any other heading).
+        let mut inner: HashSet<usize> = HashSet::new();
+        let mut opened = false;
+        for (k, piece) in self.pieces.iter().enumerate() {
+            opened |= openings.contains(&k);
+            let Owner::Seg(h) = piece.owner else { continue };
+            if !opened || self.segs[h].kind != Kind::Heading || groups[group_at[&h]].1.last() != Some(&k) {
+                continue;
+            }
+            let next = (k + 1..self.pieces.len()).find(|&q| printed(q) && matches!(self.pieces[q].owner, Owner::Seg(s) if !matches!(self.segs[s].kind, Kind::Heading | Kind::Note)));
+            if next.is_some_and(|q| !openings.contains(&q) && matches!(self.pieces[q].owner, Owner::Seg(s) if self.segs[s].kind == Kind::Paragraph)) {
+                inner.insert(h);
+            }
+        }
         for (s, ks) in &groups {
             let (s, seg) = (*s, self.segs[*s].clone());
             let spoken = || SPOKEN.is_match(&joined(&self.text[seg.start..seg.end]));
@@ -954,7 +994,7 @@ impl<'a> Pdf<'a> {
                 None // a block quotation A2AJ reads as an unnumbered paragraph: the print sets it apart
             } else if seg.kind == Kind::Heading && spoken() {
                 Some("text") // "The judgment of the Court was delivered by", "LAMER J. --", "... as follows:"
-            } else if seg.kind == Kind::Heading && inner.contains_key(&s) {
+            } else if seg.kind == Kind::Heading && inner.contains(&s) {
                 // Inside a numbered paragraph a heading is one where the print shows it; else its paragraph's words go on, or quote.
                 match self.evidence(&ks.iter().map(|&k| self.pieces[k]).collect::<Vec<_>>(), false, true) {
                     "heading" => Some("heading"),
@@ -971,18 +1011,12 @@ impl<'a> Pdf<'a> {
             };
             region.insert(s, chosen);
             self.count(format!("{}_{}", seg.kind.name(), chosen.unwrap_or("None")));
-        }
-        // The pieces a margin number opens a paragraph on: the first of each line it cuts. An item A2AJ reads opening there
-        // under the number ("68." of a list it took the reasons for) is that paragraph.
-        let mut cut_at: HashMap<usize, Cut> = HashMap::new();
-        let mut lined: HashSet<usize> = HashSet::new();
-        for (k, piece) in self.pieces.iter().enumerate() {
-            if let Some(cut) = self.cuts.get(&self.lines[piece.line].id) {
-                if lined.insert(piece.line) {
-                    cut_at.insert(k, cut.clone());
-                }
+            if seg.extra.quoted && chosen == Some("quote") && self.evidence(&ks.iter().map(|&k| self.pieces[k]).collect::<Vec<_>>(), true, true) == "text" {
+                self.count("quoted_printed_as_text".to_owned());
             }
         }
+        // An item A2AJ reads opening on a margin number's row under the number ("68." of a list it took the reasons for) is that
+        // paragraph.
         for (s, ks) in &groups {
             let seg = &self.segs[*s];
             let numbered = |cut: &Cut| seg.extra.label.as_deref().is_some_and(|label| label.trim_matches(|c: char| !c.is_ascii_digit()) == cut.said.trim_matches(|c: char| !c.is_ascii_digit()));
@@ -1108,7 +1142,9 @@ impl<'a> Pdf<'a> {
         let (mut typed, mut unit_seg): (Vec<Entry>, HashMap<usize, Owner>) = (Vec::new(), HashMap::new());
         let opened: HashMap<usize, usize> = self.bullet_of.iter().map(|(&s, &k)| (k, s)).collect();
         let (mut previous_region, mut previous_seg): (Option<String>, Option<Owner>) = (None, None);
-        let mut seen: HashSet<usize> = HashSet::new();
+        // Each segment's pieces seen so far, by the margin numbers passed when the last was (a segment A2AJ runs across a
+        // printed paragraph's opening opens anew after it, its own words joining the paragraph).
+        let (mut seen, mut cuts_passed): (HashMap<usize, usize>, usize) = (HashMap::new(), 0);
         for k in 0..self.pieces.len() {
             let Piece { line: n, mut a, mut b, mut owner } = self.pieces[k];
             let line = self.lines[n];
@@ -1134,28 +1170,38 @@ impl<'a> Pdf<'a> {
             if self.folios.contains(&line.id) {
                 owner = Owner::PageLabel;
             }
-            let cut = cut_at.get(&k);
+            // (A note's line opens no paragraph, whatever stands beside it.)
+            let cut = cut_at.get(&k).filter(|_| !matches!(owner, Owner::Seg(s) if self.segs[s].kind == Kind::Note));
+            cuts_passed += cut.is_some() as usize;
             let mut entry = Entry { page: line.page, spans: vec![Span { line_id: line.id.clone(), start: a, end: b }], markers: Vec::new(), references: Vec::new(),
                                     region: String::new(), start: true, text: String::new() };
             match owner {
                 Owner::Furniture | Owner::PageLabel if cut.is_none() => entry.region = if owner == Owner::Furniture { "furniture" } else { "page_label" }.to_owned(),
                 Owner::Seg(s) if region[&s].is_some() => {
-                    let opening = !seen.contains(&s);
+                    let opening = !seen.contains_key(&s);
+                    let reopened = seen.get(&s).is_some_and(|&passed| passed < cuts_passed);
                     entry.region = region[&s].unwrap().to_owned();
                     // (A paragraph's own words going on, however A2AJ cut them, open nothing; nor after a heading A2AJ reads inside
                     // the paragraph, or what it typed there for one.)
-                    let goes_on = self.segs[s].kind == Kind::Inner && entry.region == "text" || inner.contains_key(&s) && entry.region == "text";
-                    let resumes = previous_seg.is_some_and(|before| matches!(before, Owner::Seg(h) if inner.get(&h) == Some(&s)));
-                    entry.start = !goes_on && (opening || self.segs[s].kind == Kind::Paragraph && previous_region.as_deref().is_some_and(|r| r != "quote") && previous_seg != Some(owner) && !resumes);
+                    // (So do a quotation's lines A2AJ reads that the page sets as the body's text.)
+                    let goes_on = (self.segs[s].kind == Kind::Inner || inner.contains(&s)) && entry.region == "text";
+                    let resumes = entry.region == "text" && previous_seg.is_some_and(|before| matches!(before, Owner::Seg(h) if inner.contains(&h)));
+                    entry.start = !goes_on && !resumes && (opening || reopened && entry.region != "text"
+                        || self.segs[s].kind == Kind::Paragraph && previous_region.as_deref().is_some_and(|r| r != "quote") && previous_seg != Some(owner));
                     if opening {
-                        if let Some(&(m, x, y)) = marker.get(&s).filter(|m| m.0 == n || self.bullet_of.contains_key(&s)) {
+                        // (A margin number the alignment gave this paragraph marks the line on its row, which may not be the
+                        // first the alignment placed of it: a word the other column prints.)
+                        let elsewhere = |m: usize| cut_lines.contains(self.lines[m].id.as_str());
+                        if let Some(&(m, x, y)) = marker.get(&s).filter(|m| (m.0 == n || self.bullet_of.contains_key(&s)) && !elsewhere(m.0)) {
                             entry.markers = vec![Span { line_id: self.lines[m].id.clone(), start: x, end: y }];
                             if m != n && !self.numbers.contains(&self.lines[m].id) {
                                 entry.spans.insert(0, Span { line_id: self.lines[m].id.clone(), start: 0, end: self.lines[m].text.len() });
                             }
                         }
                     }
-                    seen.insert(s);
+                    // (The line a margin number opens is the paragraph's whatever A2AJ read it as: the segment's next piece
+                    // opens anew where it is not the paragraph's words.)
+                    seen.insert(s, cuts_passed - cut.is_some() as usize);
                 }
                 // (A line A2AJ does not carry that a margin number opens is its paragraph's all the same.)
                 _ if cut.is_some() => {}
@@ -1167,7 +1213,10 @@ impl<'a> Pdf<'a> {
             if let Some(cut) = cut {
                 entry.region = "text".to_owned();
                 entry.start = true;
-                entry.markers = vec![cut.marker.clone()];
+                // (A number the line prints itself is its marker: the margin's is the other column's.)
+                if !entry.markers.first().is_some_and(|mark| mark.line_id == line.id) {
+                    entry.markers = vec![cut.marker.clone()];
+                }
                 entry.spans.retain(|span| !self.numbers.contains(&span.line_id));
                 if cut.holds {
                     entry.spans.insert(0, cut.line.clone());
@@ -1291,33 +1340,68 @@ type Row = (Line, Option<String>, Option<String>, String);
 /// row, the first, opens the number's paragraph: {language: {line id: cut}}; and the numbers' own lines.
 fn margin_numbers(rows: &[Row], gutter: &[bool]) -> (HashMap<String, HashMap<String, Cut>>, HashSet<String>) {
     let mut extent: HashMap<i64, (f64, f64)> = HashMap::new();
+    let mut columns: HashMap<(i64, Option<String>), f64> = HashMap::new();
     let mut on_page: HashMap<i64, Vec<usize>> = HashMap::new();
-    for (k, (line, ..)) in rows.iter().enumerate() {
+    for (k, (line, language, ..)) in rows.iter().enumerate() {
         on_page.entry(line.page).or_default().push(k);
         if strip(&line.text).len() >= 20 {
             let entry = extent.entry(line.page).or_insert((f64::MAX, f64::MIN));
             *entry = (entry.0.min(line.bbox[0]), entry.1.max(line.bbox[2]));
+            let left = columns.entry((line.page, language.clone())).or_insert(f64::MAX);
+            *left = left.min(line.bbox[0]);
         }
     }
+    // (A reader may give its lines no height: then two stand on one row nearer each other than half the lines' pitch.)
+    let mut steps: Vec<f64> = Vec::new();
+    for ks in on_page.values() {
+        let mut tops: Vec<f64> = ks.iter().map(|&k| rows[k].0.bbox[1]).collect();
+        tops.sort_by(f64::total_cmp);
+        steps.extend(tops.windows(2).map(|pair| pair[1] - pair[0]).filter(|&step| step > 1.0));
+    }
+    steps.sort_by(f64::total_cmp);
+    let pitch = steps.get(steps.len() / 2).copied().unwrap_or(0.0);
+    let level = |a: &Bbox, b: &Bbox| if a[3] - a[1] < 1.0 || b[3] - b[1] < 1.0 { (a[1] - b[1]).abs() < pitch / 2.0 } else { same_row(a, b) };
     let placed = |k: usize| rows[k].1.is_some() && !rows[k].0.words.is_empty() && !gutter[k];
     let beside = |k: usize| -> Vec<usize> {
         let line = &rows[k].0;
-        on_page[&line.page].iter().copied().filter(|&m| m != k && placed(m) && same_row(&line.bbox, &rows[m].0.bbox)).collect()
+        on_page[&line.page].iter().copied().filter(|&m| m != k && placed(m) && level(&line.bbox, &rows[m].0.bbox)).collect()
     };
     let mut found: Vec<Candidate> = Vec::new();
+    // And a judgment's bracketed number the reader set on a line of its own, just before its paragraph's first line in its
+    // column ("[12]" | "Le contrat prévoyait ..."): that column's alone.
+    let mut detached: Vec<(Candidate, usize)> = Vec::new();
     for (k, (line, ..)) in rows.iter().enumerate() {
         let said = spell(strip(&line.text));
-        let Some((_, number)) = numbering(&said).filter(|(style, _)| matches!(*style, "bare" | "bracket")) else { continue };
+        let Some((style, number)) = numbering(&said).filter(|(style, _)| matches!(*style, "bare" | "bracket")) else { continue };
         let Some(&(left, right)) = extent.get(&line.page) else { continue };
-        if gutter[k] || !(line.bbox[0] < left - 1.0 || line.bbox[2] > right + 1.0) || beside(k).is_empty() {
-            continue;
-        }
         let start = line.text.iter().position(|&c| !is_space(c)).unwrap_or(0);
-        found.push(Candidate { place: (line.page, line.bbox[1]), number, line: k, start, end: start + said.chars().count() });
+        let candidate = Candidate { place: (line.page, line.bbox[1]), number, line: k, start, end: start + said.chars().count() };
+        let row = beside(k);
+        if !gutter[k] && (line.bbox[0] < left - 1.0 || line.bbox[2] > right + 1.0) && !row.is_empty() {
+            found.push(candidate);
+        } else if style == "bracket" {
+            // (At its column's own margin: a quotation's numbers stand further in.)
+            let after = row.into_iter().filter(|&m| rows[m].0.bbox[0] >= line.bbox[2] - 1.0).min_by(|&a, &b| rows[a].0.bbox[0].total_cmp(&rows[b].0.bbox[0]));
+            let margin = after.and_then(|m| columns.get(&(line.page, rows[m].1.clone())).copied());
+            if let Some(m) = after.filter(|_| margin.is_some_and(|margin| line.bbox[0] <= margin + 1.0)) {
+                detached.push((candidate, m));
+            }
+        }
     }
     found.sort_by(|a, b| a.place.partial_cmp(&b.place).unwrap_or(std::cmp::Ordering::Equal));
     let chain = rising(&found);
     let (mut cuts, mut numbers): (HashMap<String, HashMap<String, Cut>>, HashSet<String>) = (HashMap::new(), HashSet::new());
+    let cut_of = |candidate: &Candidate, holds: bool| {
+        let number = &rows[candidate.line].0;
+        Cut { marker: Span { line_id: number.id.clone(), start: candidate.start, end: candidate.end }, line: Span { line_id: number.id.clone(), start: 0, end: number.text.len() },
+              said: spell(&number.text[candidate.start..candidate.end]), holds }
+    };
+    for (candidate, m) in detached {
+        if let Some(language) = rows[m].1.as_deref() {
+            cuts.entry(language.to_owned()).or_default().insert(rows[m].0.id.clone(), cut_of(&candidate, true));
+            numbers.insert(rows[candidate.line].0.id.clone());
+        }
+    }
     let last = chain.last().map_or(0, |candidate| candidate.number as usize);
     if chain.len() < 3 || chain.len() * 10 < last * 6 {
         return (cuts, numbers);
@@ -1334,10 +1418,8 @@ fn margin_numbers(rows: &[Row], gutter: &[bool]) -> (HashMap<String, HashMap<Str
         }
         let gap = |m: usize| { let b = rows[m].0.bbox; (b[0] - number.bbox[2]).max(number.bbox[0] - b[2]).max(0.0) };
         let Some(&holder) = opening.values().min_by(|&&a, &&b| gap(a).total_cmp(&gap(b))) else { continue };
-        let marker = Span { line_id: number.id.clone(), start: candidate.start, end: candidate.end };
-        let whole = Span { line_id: number.id.clone(), start: 0, end: number.text.len() };
         for (language, m) in opening {
-            cuts.entry(language.to_owned()).or_default().insert(rows[m].0.id.clone(), Cut { marker: marker.clone(), line: whole.clone(), said: spell(&number.text[candidate.start..candidate.end]), holds: m == holder });
+            cuts.entry(language.to_owned()).or_default().insert(rows[m].0.id.clone(), cut_of(&candidate, m == holder));
         }
         numbers.insert(number.id.clone());
     }
@@ -1392,8 +1474,11 @@ fn folios(rows: &[Row], sizes: &Sizes, numbers: &HashSet<String>) -> (HashSet<St
             votes.entry(value - rows[k].0.page).or_default().insert(rows[k].0.page);
         }
     }
-    let offset = votes.iter().max_by_key(|(offset, pages)| (pages.len(), -offset.abs())).map(|(offset, _)| *offset);
-    let runs = |k: usize, value: Option<i64>| offset.is_some_and(|offset| value == Some(rows[k].0.page + offset));
+    let best = votes.iter().max_by_key(|(offset, pages)| (pages.len(), -offset.abs()));
+    let offset = best.map(|(offset, _)| *offset);
+    // (A line of A2AJ's text is a folio only where the count runs over pages: one page's number alone is a list's or the text's.)
+    let counted = best.is_some_and(|(_, pages)| pages.len() >= 2);
+    let runs = |k: usize, value: Option<i64>| offset.is_some_and(|offset| value == Some(rows[k].0.page + offset)) && (counted || rows[k].3 == "unmatched");
     let (mut folio, mut split, mut not) = (HashSet::new(), HashMap::new(), HashSet::new());
     let mut paged: BTreeMap<i64, Vec<(usize, Option<i64>)>> = BTreeMap::new();
     for &(k, value) in &candidates {
@@ -1480,10 +1565,9 @@ pub fn gold(record: &Value, texts: &Map<String, Value>, listings: &Map<String, V
     }
     let mut languages: Vec<&String> = texts.keys().collect();
     languages.sort();
-    let line_text: HashMap<&str, &[char]> = rows.iter().map(|row| (row.0.id.as_str(), row.0.text.as_slice())).collect();
-    // Paragraphs whose number A2AJ gives but the page placed no word of, and the numbers a language's paragraphs open on
-    // where the page prints the number alone on its line: (page, number) -> (language, its line).
-    let (mut unnumbered, mut alone): (Vec<(usize, String, &String)>, HashMap<(i64, String), Vec<(&String, Span)>>) = (Vec::new(), HashMap::new());
+    // (A parallel report prints a paragraph's number once, in its margin, for both columns: margin_numbers' cuts give it to
+    // each column's paragraph on its row.)
+    let mut unnumbered: BTreeMap<&str, u64> = BTreeMap::new();
     for language in languages {
         let text: Vec<char> = texts[language].as_str().ok_or("no text")?.chars().collect();
         let own: Vec<&Line> = rows.iter().filter(|row| row.1.as_deref() == Some(language)).map(|row| &row.0).collect();
@@ -1504,15 +1588,11 @@ pub fn gold(record: &Value, texts: &Map<String, Value>, listings: &Map<String, V
                 first_typed.entry(s).or_insert(t);
             }
         }
+        // (A paragraph A2AJ numbers whose opening line holds no printed number: counted.)
         for (&s, &t) in &first_typed {
             let seg = &pdf.segs[s];
-            let Some(number) = seg.extra.number.as_deref().filter(|n| seg.kind == Kind::Paragraph && !n.is_empty() && found[t].region == "text") else { continue };
-            match found[t].markers.first() {
-                None => unnumbered.push((base + t, number.to_owned(), language)),
-                Some(mark) if line_text.get(mark.line_id.as_str()).is_some_and(|text| spell(strip_of(text, "[](). \t")) == number) => {
-                    alone.entry((found[t].page, number.to_owned())).or_default().push((language, mark.clone()));
-                }
-                Some(_) => {}
+            if seg.kind == Kind::Paragraph && seg.extra.number.as_deref().is_some_and(|n| !n.is_empty()) && found[t].region == "text" && found[t].markers.is_empty() {
+                *unnumbered.entry(language.as_str()).or_default() += 1;
             }
         }
         for (t, entry) in found.iter().enumerate() {
@@ -1530,21 +1610,6 @@ pub fn gold(record: &Value, texts: &Map<String, Value>, listings: &Map<String, V
         labelled.insert(language.clone(), Value::Object(stats));
         groups.extend(members.iter().map(|unit| unit.iter().map(|t| base + t).collect::<Vec<_>>()));
         typed.extend(found);
-    }
-    // A parallel report prints a paragraph's number once, in the margin, for both languages' columns: the alignment placed
-    // it in one language's text, and the other's paragraph of that number on that page takes the same printed number.
-    let mut shared: BTreeMap<&str, u64> = BTreeMap::new();
-    for (t, number, language) in unnumbered {
-        let printed: Vec<&Span> = alone.get(&(typed[t].page, number)).into_iter().flatten().filter(|(other, _)| *other != language).map(|(_, mark)| mark).collect();
-        let outcome = match printed.as_slice() {
-            [mark] => {
-                typed[t].markers = vec![(*mark).clone()];
-                "shared"
-            }
-            [] => "none",
-            _ => "ambiguous",
-        };
-        *shared.entry(outcome).or_default() += 1;
     }
     // Reading order: each typed line where its first line stands.
     let mut order: Vec<usize> = (0..typed.len()).collect();
@@ -1583,6 +1648,6 @@ pub fn gold(record: &Value, texts: &Map<String, Value>, listings: &Map<String, V
     let covered: HashSet<String> = typed.iter().flat_map(|t| t.spans.iter().map(|s| whole(&s.line_id))).collect();
     let mut told = HashSet::new();
     let unlabelled: Vec<String> = rows.iter().map(|row| whole(&row.0.id)).filter(|id| !covered.contains(id) && told.insert(id.clone())).collect();
-    Ok(json!({"typed": typed_json, "units": units, "notes": notes, "report": {"labelled": labelled, "unlabelled_lines": unlabelled, "unnumbered_paragraphs": shared,
-              "margin_numbers": numbers.len(), "folios": folio_lines.len() + folio_spans.len()}}))
+    Ok(json!({"typed": typed_json, "units": units, "notes": notes, "report": {"labelled": labelled, "unlabelled_lines": unlabelled, "unnumbered_paragraphs": unnumbered,
+              "margin_numbers": numbers.len(), "folios": folio_lines.len() + folio_spans.len()}, "margin_lines": numbers.iter().collect::<BTreeSet<_>>()}))
 }

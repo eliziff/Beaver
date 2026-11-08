@@ -117,6 +117,12 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "pdfPageLabels" => done(with_document(doc()?, |d|
             engine::pdf_page_labels(d).and_then(value))),
         #[cfg(feature = "legalpdf")]
+        "pdfPageMap" => {
+            let citations = call.get::<Vec<String>>("citations")?;
+            done(with_document(doc()?, |d| engine::pdf_page_map(d, &citations).and_then(value)))
+        }
+        "reporterStartPages" => done(value(engine::reporter_start_pages(&call.get::<Vec<String>>("citations")?))),
+        #[cfg(feature = "legalpdf")]
         "pdfPageTexts" => done(with_document(doc()?, |d| engine::pdf_page_texts(d).and_then(value))),
         #[cfg(feature = "legalpdf")]
         "pdfAuthorityTextUnits" => done(with_document(doc()?, |d|

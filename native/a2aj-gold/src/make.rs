@@ -232,12 +232,16 @@ pub fn convert(record: &Value, db: &Connection, found: &Listings, labels_only: b
     };
     lap("label");
     // The gold's lines are the reading's: a line run across a page's columns is one line, whichever half stands where. Each
-    // says the language the alignment placed it in, where it placed it in one (a line run across both columns holds two).
+    // says the language the alignment placed it in, where it placed it in one (a line run across both columns holds two, and a
+    // paragraph number the margin prints marks every column's paragraph on its row).
     let (empty, mut told) = (Vec::new(), BTreeSet::new());
+    let shared: BTreeSet<&str> = labelled["margin_lines"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
     let mut spoken: HashMap<&str, BTreeSet<&str>> = HashMap::new();
     for line in record["lines"].as_array().unwrap_or(&empty) {
         if let (Some(id), Some(language)) = (line["of"]["id"].as_str().or(line["id"].as_str()), line["lang"].as_str()) {
-            spoken.entry(id).or_default().insert(language);
+            if !shared.contains(id) {
+                spoken.entry(id).or_default().insert(language);
+            }
         }
     }
     let language = |id: &str| spoken.get(id).filter(|languages| languages.len() == 1).and_then(|languages| languages.first().copied());

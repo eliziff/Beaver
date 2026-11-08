@@ -69,7 +69,8 @@ Set-Location `$(if (`$workspace) { '$Mirror' } else { '$Mirror\native\legal-stru
 `$build = Start-Process cargo -ArgumentList $(if ($Binary) { "'build', '--release', '-j', '4', '-p', '$Package', '--bin', '$Binary'" } else { "'rustc', '--release', '-j', '4', '-p', '$Package', '--lib', '--crate-type', 'cdylib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
 `$null = `$build.Handle; `$build.WaitForExit()
 "snapshot build: exit `$(`$build.ExitCode), {0:N0}s" -f ((Get-Date) - `$started).TotalSeconds
-if (`$build.ExitCode) { Remove-Item -ErrorAction SilentlyContinue '$Mirror\native\legal-structure-node\target\release\legal_structure_node.dll'; Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 10 | ForEach-Object { `$_.Line; `$_.Context.PostContext } | Select-Object -First 30 }
+# A failed build leaves no earlier build's artifact to be copied back as this one's.
+if (`$build.ExitCode) { Remove-Item -ErrorAction SilentlyContinue '$Mirror\native\legal-structure-node\target\release\$(if ($Binary) { "$Binary.exe" } else { 'legal_structure_node.dll' })'; Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 10 | ForEach-Object { `$_.Line; `$_.Context.PostContext } | Select-Object -First 30 }
 "@
 $artifact = if ($Binary) { "$Binary.exe" } else { 'legal_structure_node.dll' }
 scp -q "${Desktop}:$($Mirror -replace '\\', '/')/native/legal-structure-node/target/release/$artifact" $Out

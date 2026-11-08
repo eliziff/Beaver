@@ -23,6 +23,9 @@
 //!       --group FIELD=VALUE keeps matching source groups; repeat to require every match.
 //!       --parts grades each document of a packet on its own (run <sha>#k): the gold cut at its
 //!       document starts, the parser run on the extraction's lines that align to that document.
+//!   structure-gold digest STORE OUT
+//!       each source's parse hashed, nothing graded: `sha<TAB>digest` per document, every split; two builds parse the
+//!       same where their files are (`fc /b`, `cmp`).
 //!   structure-gold rows STORE OUT_DIR
 //!       the tier-1 tagger's training rows, train and development only: each line's evidence
 //!       with the parser's labels and the gold's, one JSON document per line of
@@ -320,6 +323,24 @@ fn parse(source: &Source) -> Result<(DocumentStructure, Vec<legal_pdf_core::mode
             .map_err(|e| format!("{}: {e}", folder.display()))?;
     }
     Ok((structure, pages))
+}
+
+/// Each source's parse hashed, nothing graded: one `sha<TAB>digest` line per document (the SHA-256 of its pages' and
+/// structure's JSON), every split's, sorted, to OUT. Two builds parse the same where their files are the same.
+fn digest(store: &Path, out: &Path) -> Result<(), String> {
+    use sha2::Digest;
+    let all = sources(store)?;
+    let inputs = |s: &Source| std::fs::metadata(inputs_dir().join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
+    let digests = parallel(&all, inputs, |source| {
+        let (structure, pages) = parse(source)?;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(serde_json::to_vec(&pages).map_err(|e| e.to_string())?);
+        hasher.update(serde_json::to_vec(&structure).map_err(|e| e.to_string())?);
+        Ok::<_, String>(format!("{:x}", hasher.finalize()))
+    });
+    let mut lines: Vec<String> = all.iter().zip(digests).map(|(source, digest)| format!("{}\t{}", source.sha256, digest.unwrap_or_else(|e| format!("error {e}")))).collect();
+    lines.sort();
+    std::fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
 }
 
 struct Graded {
@@ -1317,6 +1338,7 @@ fn main() {
     let result = match arguments.as_slice() {
         [command, store, options @ ..] if command == "grade" => grade(Path::new(store), options),
         [command, store] if command == "inputs" => inputs(Path::new(store)),
+        [command, store, out] if command == "digest" => digest(Path::new(store), Path::new(out)),
         [command, store, out] if command == "paragraph-data" => paragraph_data::export(Path::new(store), Path::new(out)),
         [command, store, mode, options @ ..] if command == "selfcheck" => selfcheck(Path::new(store), mode, options),
         [command, store, out] if command == "rows" => rows(Path::new(store), Path::new(out)),
@@ -1326,7 +1348,7 @@ fn main() {
         // averaged weights written to OUT.
         [command, problems, out, epochs] if command == "whole-train" => epochs.parse().map_err(|e| format!("epochs: {e}"))
             .and_then(|epochs| legalpdf::train_whole_reading(Path::new(problems), Path::new(out), epochs)).map(|report| println!("{report}")),
-        _ => Err("usage: structure-gold inputs|grade|rows|explain|selfcheck|pairing|paragraph-data STORE [SHA|OUT_DIR|MODE] [options] | whole-train PROBLEMS OUT EPOCHS".into()),
+        _ => Err("usage: structure-gold inputs|digest|grade|rows|explain|selfcheck|pairing|paragraph-data STORE [SHA|OUT_DIR|MODE] [options] | whole-train PROBLEMS OUT EPOCHS".into()),
     };
     if let Err(error) = result {
         eprintln!("{error}");

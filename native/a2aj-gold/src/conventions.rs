@@ -11,7 +11,6 @@ use std::sync::LazyLock;
 const EDGE: usize = 2; // a line among the first or last three of its page by height is at the edge
 
 static CONCURRENCE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^\s*(Concurred in|Concurring|I concur|Je souscris|Souscrivent)\s*:\s*$").unwrap());
-static BRACKET_ALONE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*(\[\d{1,4}\])\s*$").unwrap());
 static NOTE_LABEL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\s*)(\d{1,3}|[*\x{2020}\x{2021}\x{a7}\x{b6}]{1,3})").unwrap());
 static NOT_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[^\w ]").unwrap());
 static MARGIN_FORM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[?\d{1,4}\]?$").unwrap());
@@ -113,44 +112,6 @@ fn running_heads(book: &mut Book, edge: &Edge) -> Vec<Value> {
         book.units[u]["parent"] = Value::Null;
     }
     corrections
-}
-
-/// A judgment's bracketed paragraph number printed alone on its line ("[1]") opens the paragraph under it.
-fn bracket_number_lines(book: &mut Book) -> Vec<Value> {
-    let kinds = book.kinds();
-    let mut done = Vec::new();
-    let mut u = book.units.len().saturating_sub(1);
-    while u > 0 {
-        u -= 1;
-        let (unit, after) = (book.members(u), book.members(u + 1));
-        if unit.len() != 1 || after.is_empty() || kinds.get(u).and_then(Option::as_deref) != Some("judgment") {
-            continue;
-        }
-        let (entry, opening) = (unit[0], after[0]);
-        let said = book.typed[entry]["text"].as_str().unwrap_or("").to_owned();
-        let Some(found) = BRACKET_ALONE.captures(&said) else { continue };
-        if book.region(entry) != "line_label" || book.spans(entry).is_empty() || book.region(opening) != "text" || !book.markers(opening).is_empty() {
-            continue;
-        }
-        let span = book.spans(entry)[0].clone();
-        let Some(line) = book.line(span["line_id"].as_str().unwrap_or("")) else { continue };
-        let number: Vec<char> = found[1].chars().collect();
-        let Some(start) = line.text.windows(number.len()).position(|window| window == number.as_slice()) else { continue };
-        let line_id = line.id.clone();
-        book.typed[entry]["region"] = json!("text");
-        book.typed[entry]["markers"] = json!([[{"line_id": line_id, "start": start, "end": start + number.len()}]]);
-        book.typed[opening]["start"] = json!(false);
-        let mut merged = book.units[u + 1].clone();
-        for (key, value) in book.units[u].as_object().unwrap().clone() {
-            if key != "lines" && value.as_bool() != Some(false) && !value.is_null() && value != json!("") {
-                merged[key] = value;
-            }
-        }
-        merged["lines"] = json!([unit, after].concat());
-        book.replace_units(u, u + 1, vec![merged]);
-        done.push(json!({"rule": "bracket_number_line", "unit": u, "number": &found[1], "text": book.typed[opening]["text"].as_str().unwrap_or("").chars().take(80).collect::<String>()}));
-    }
-    done
 }
 
 /// A judgment's concurrence line after its reasons ("Concurred in:") opens the signature matter: a text unit holding one
@@ -374,7 +335,6 @@ pub fn apply(book: &mut Book, heights: &HashMap<i64, f64>) -> Vec<Value> {
         edges(&view)
     };
     let mut done = running_heads(book, &edge);
-    done.extend(bracket_number_lines(book));
     done.extend(concurrence_lines(book));
     done.extend(margin_numbers(book));
     done.extend(no_paragraph_numbering(book));

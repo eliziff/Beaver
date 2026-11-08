@@ -292,6 +292,24 @@ pub fn document_reading_order(request: &str) -> Result<Vec<(usize, usize)>, Stri
     Ok(legal_structure_features::document_reading_order(&units))
 }
 
+/// The pages a text's full citations of reported cases cite ("[1986] 1 SCR 103" cites 103).
+pub fn reporter_pages(text: &str) -> Vec<String> {
+    use legal_structure::citations::{extract, Authority, Form, Format, Options};
+    extract(text, &Options { resolve: false, ..Options::default() }).into_iter()
+        .filter(|citation| citation.form == Form::Full && citation.authority == Authority::Case && citation.format == Some(Format::Reporter))
+        .filter_map(|citation| citation.fields.page)
+        .collect()
+}
+
+/// The first pages of the reports `citations` cite, each once: a page map's anchors.
+pub fn reporter_start_pages(citations: &[String]) -> Vec<u32> {
+    let mut pages: Vec<u32> = citations.iter().flat_map(|citation| reporter_pages(citation))
+        .filter_map(|page| page.trim().parse().ok()).filter(|page| *page > 0).collect();
+    pages.sort_unstable();
+    pages.dedup();
+    pages
+}
+
 pub fn citation_engine_call(method: &str, request: &str) -> Result<serde_json::Value, String> {
     let request = serde_json::from_str(request).map_err(|error| error.to_string())?;
     legal_structure::citations::api::call_value(method, request).map_err(|error| error.to_string())
@@ -591,6 +609,13 @@ mod pdf {
 
     pub fn pdf_page_labels(document: &NativeDocument) -> CoreResult<Vec<Option<String>>> {
         Ok(pdf_of(document, "PDF page labels require a PDF document")?.page_labels())
+    }
+
+    /// The document's page map (`PdfDocument::page_map`), anchored on the first pages of the reports `citations` cite.
+    pub fn pdf_page_map(document: &NativeDocument, citations: &[String]) -> CoreResult<Vec<legalpdf::PdfPageBinding>> {
+        let starts = super::reporter_start_pages(citations);
+        let is_citation = |text: &str, page: &str| super::reporter_pages(text).iter().any(|cited| cited == page);
+        Ok(legalpdf::page_map(pdf_of(document, "PDF page maps require a PDF document")?, &starts, &is_citation))
     }
 
     /// Every page's text in page order, as a page lookup returns it, in one read.

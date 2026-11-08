@@ -19,6 +19,10 @@ name = "a2aj-volumes"
 path = "src/bin/a2aj-volumes.rs"
 
 [[bin]]
+name = "page-evidence"
+path = "src/bin/page-evidence.rs"
+
+[[bin]]
 name = "reporter-pins"
 path = "src/bin/reporter-pins.rs"
 

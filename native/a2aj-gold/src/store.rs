@@ -229,7 +229,9 @@ pub fn register() -> Result<Value, String> {
     let root = store_root();
     let folders = sources(&root);
     let mut db = corpus_writer()?;
-    let done = db.transaction().map_err(|e| e.to_string())?;
+    // Immediate: the write lock taken first, waiting out another writer, where a read upgraded to a write would be refused
+    // at once ("database is locked") while one writes.
+    let done = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
     let run = |sql: &str, values: &[&dyn rusqlite::ToSql]| done.execute(sql, values).map(|_| ()).map_err(|e| format!("{sql}: {e}"));
     let mut pages: Vec<Option<i64>> = Vec::with_capacity(folders.len());
     {

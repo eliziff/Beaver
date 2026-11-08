@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { defaultNativeAddon, nativeAddonFile } from "mike/shared/nativeAddonFile.mjs";
 import { structureEngineAddon, type StructureEngineTransport } from "mike/shared/structure-engine.mjs";
+import type { PdfPageBinding } from "mike/shared/pdf-page-binding.mjs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { SpreadsheetCellSpan } from "./spreadsheet";
@@ -249,6 +250,10 @@ type StructureAddon = {
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfRecognizedText(document: NativeDocument, pages?: number[]): NativePdfTextPage[] | null;
   pdfPageLabels(document: NativeDocument): Array<string | null>;
+  /** Each page's printed number: the structure's, anchored on the first pages of the reports `citations` cite. */
+  pdfPageMap(document: NativeDocument, citations: string[]): PdfPageBinding[];
+  /** The first pages of the reports `citations` cite. */
+  reporterStartPages(citations: string[]): number[];
   /** Every page's text in page order, empty where a page has no exact text. */
   pdfPageTexts(document: NativeDocument): string[];
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];

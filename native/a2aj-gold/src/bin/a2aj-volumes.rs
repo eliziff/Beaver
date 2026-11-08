@@ -150,7 +150,7 @@ fn volume(file: &Path) -> Result<Volume, String> {
     let begun = Instant::now();
     let document = legalpdf::gold_structure_document(extracted, &identity, None).map_err(|e| e.to_string())?;
     let structure_seconds = begun.elapsed().as_secs_f64();
-    let labels: Vec<Option<i64>> = document.page_labels().into_iter().map(|label| label.and_then(|l| l.trim().parse().ok())).collect();
+    let labels: Vec<Option<i64>> = legalpdf::page_map(&document, &[], &|_, _| false).into_iter().map(|page| page.label).map(|label| label.and_then(|l| l.trim().parse().ok())).collect();
     drop(document);
     let reading: Reading = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     let words = reading.pages.iter().map(|page| page.lines.iter().flat_map(|line| words(&line.text)).collect()).collect();
@@ -202,14 +202,14 @@ struct Try {
 
 /// The decision's pages over one language's text, from its record: each placed word's page number and each unplaced run's
 /// (the line it names), the reasons kept to the decision's pages and never going down, the notes on their own pages.
-fn stretches(record: &Value, volume: &Volume, language: &str, text: &str, first: i64, next: Option<i64>) -> Vec<[i64; 3]> {
+fn stretches(record: &Value, pages: &HashMap<i64, i64>, language: &str, text: &str, first: i64, next: Option<i64>) -> Vec<[i64; 3]> {
     let inner = trimmed(text);
     let lead = text[..inner.as_ptr() as usize - text.as_ptr() as usize].chars().count() as i64;
     let notes = notes_start(inner).map_or(i64::MAX, |at| at as i64);
     let in_report = |label: i64| label >= first && next.is_none_or(|next| label <= next);
     let mut placed: Vec<(i64, i64, i64)> = Vec::new();
     for line in record["lines"].as_array().into_iter().flatten().filter(|line| line["lang"] == language) {
-        let Some(label) = line["page"].as_i64().and_then(|page| volume.label(page)) else { continue };
+        let Some(&label) = line["page"].as_i64().and_then(|page| pages.get(&page)) else { continue };
         for word in line["words"].as_array().into_iter().flatten() {
             if let (Some(start), Some(end)) = (word[2].as_i64(), word[3].as_i64()) {
                 placed.push((start, end, label));
@@ -218,7 +218,7 @@ fn stretches(record: &Value, volume: &Volume, language: &str, text: &str, first:
     }
     for run in record["unplaced"][language].as_array().into_iter().flatten() {
         let page = run["pdf"]["line"].as_str().and_then(|line| LINE_PAGE.captures(line)).and_then(|found| found[1].parse::<i64>().ok());
-        if let (Some(label), Some(start), Some(end)) = (page.and_then(|page| volume.label(page)), run["at"][0].as_i64(), run["at"][1].as_i64()) {
+        if let (Some(&label), Some(start), Some(end)) = (page.and_then(|page| pages.get(&page)), run["at"][0].as_i64(), run["at"][1].as_i64()) {
             placed.push((start, end, label));
         }
     }
@@ -265,11 +265,14 @@ fn stretches(record: &Value, volume: &Volume, language: &str, text: &str, first:
     out.into_iter().map(|[label, start, end]| [label, start + lead, end + lead]).collect()
 }
 
-fn attempt(case: &Case, volume: &Volume, first: i64, next: Option<i64>, db: &Connection, how: &str) -> Option<Try> {
-    // from the page printing the citation page to the one printing the next decision's first page
+/// A decision's window: from the page printing its citation page to the one printing the next decision's first page.
+fn window_of(volume: &Volume, first: i64, next: Option<i64>) -> [i64; 2] {
     let end = next.and_then(|n| volume.printing(n).into_iter().find(|&page| page >= first))
         .unwrap_or_else(|| (first + LONGEST).min(volume.labels.len() as i64));
-    let window = [first, end.max(first)];
+    [first, end.max(first)]
+}
+
+fn attempt(case: &Case, volume: &Volume, window: [i64; 2], pages: &HashMap<i64, i64>, next: Option<i64>, db: &Connection, how: &str) -> Option<Try> {
     let piece = Reading { pages: volume.reading.pages.iter().filter(|page| window[0] <= page.number && page.number <= window[1]).cloned().collect() };
     let languages: Vec<&str> = case.texts.iter().map(|(language, _)| *language).collect();
     let pair = json!({"sha256": format!("{}-{}", volume.name, case.id), "path": volume.name, "pages": window[1] - window[0] + 1, "mode": "ocr",
@@ -280,7 +283,8 @@ fn attempt(case: &Case, volume: &Volume, first: i64, next: Option<i64>, db: &Con
     let coverage = made.verdict["coverage"].as_object().map_or(0.0, |c| c.values().filter_map(Value::as_f64).fold(0.0, f64::max));
     let (mut pages_by_language, mut problems, mut marks, mut opens_right) = (serde_json::Map::new(), Vec::new(), [0u64; 3], false);
     for (language, text) in &case.texts {
-        let pages = stretches(&record, volume, language, text, case.page, next);
+        let stretched = stretches(&record, pages, language, text, case.page, next);
+        let pages = stretched;
         let Some(opening) = pages.first() else { continue };
         if opening[0] == case.page {
             opens_right = true;
@@ -317,12 +321,10 @@ fn attempt(case: &Case, volume: &Volume, first: i64, next: Option<i64>, db: &Con
     if pages_by_language.is_empty() {
         return None;
     }
-    // each page's number against the folio the aligner found on it
-    for line in record["lines"].as_array().into_iter().flatten().filter(|line| line["why"] == "page_label") {
-        let (Some(page), Ok(printed)) = (line["page"].as_i64(), line["text"].as_str().unwrap_or("").trim().parse::<i64>()) else { continue };
-        if !(1870..1976).contains(&printed) && volume.label(page) != Some(printed) {
-            problems.push(json!({"citation": case.citation, "problem": "label against folio", "volume": volume.name, "pdf_page": page,
-                "label": volume.label(page), "folio": printed}));
+    // each page of the window the page map leaves unnumbered
+    for page in window[0]..=window[1] {
+        if !pages.contains_key(&page) {
+            problems.push(json!({"citation": case.citation, "problem": "page unnumbered", "volume": volume.name, "pdf_page": page}));
         }
     }
     let row = json!({"a2aj": case.id, "citation": case.citation, "volume": volume.name, "window": window, "how": how,
@@ -397,17 +399,29 @@ fn volumes(reads: &Path, out: &Path, threads: usize) -> Result<(), String> {
                     // the decisions of the reports this file holds, each on the page printing its citation page
                     let begun = Instant::now();
                     let (mut wanted, mut done) = (0, 0);
+                    let mut tried: Vec<(&Case, [i64; 2])> = Vec::new();
                     for case in cases.iter().filter(|case| volume.holds(&case.report)) {
                         wanted += 1;
-                        for first in volume.printing(case.page) {
-                            if volume.opening_share(case, first) < OPENING_SHARE {
-                                continue;
+                        let printing = volume.printing(case.page);
+                        let shares: Vec<(i64, f64)> = printing.iter().map(|&first| (first, volume.opening_share(case, first))).collect();
+                        let before = tried.len();
+                        for &(first, share) in &shares {
+                            if share >= OPENING_SHARE {
+                                tried.push((case, window_of(&volume, first, next_of(case))));
                             }
-                            tries.fetch_add(1, Ordering::Relaxed);
-                            if let Some(made) = attempt(case, &volume, first, next_of(case), &db, "on its citation page") {
-                                done += 1;
-                                keep_best(&best, case.id, made);
-                            }
+                        }
+                        if tried.len() == before {
+                            failures.lock().unwrap().push(json!({"citation": case.citation, "volume": volume.name,
+                                "problem": if printing.is_empty() { "no page reads as its citation page" } else { "its opening words are not there" },
+                                "pages": shares}));
+                        }
+                    }
+                    for (case, window) in &tried {
+                        tries.fetch_add(1, Ordering::Relaxed);
+                        let pages: HashMap<i64, i64> = (window[0]..=window[1]).filter_map(|page| Some((page, volume.label(page)?))).collect();
+                        if let Some(made) = attempt(case, &volume, *window, &pages, next_of(case), &db, "on its citation page") {
+                            done += 1;
+                            keep_best(&best, case.id, made);
                         }
                     }
                     eprintln!("{}: {done} of {wanted} aligned; structure {:.1} s, alignment {:.1} s", volume.name, volume.structure_seconds, begun.elapsed().as_secs_f64());

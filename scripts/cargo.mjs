@@ -9,8 +9,9 @@ import { fileURLToPath } from "node:url";
 
 const checkout = path.resolve(import.meta.dirname, "..");
 
-/** The environment every build of the workspace (this checkout's, or `root`'s) runs in: one job, no flags of the
- * caller's, paths remapped. */
+/** The environment every build of the workspace (this checkout's, or `root`'s) runs in: four jobs (crates and a crate's
+ * codegen units in parallel; one job compiled the whole stack on one core, and the job count is no part of a crate's
+ * build identity, so it rebuilds nothing), no flags of the caller's, paths remapped. */
 export function cargoEnv(root = checkout) {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
         !key.startsWith("CARGO_PROFILE_") && !(key.startsWith("CARGO_TARGET_") && /_(RUSTFLAGS|LINKER)$/.test(key)) &&
@@ -18,7 +19,7 @@ export function cargoEnv(root = checkout) {
             "CARGO_INCREMENTAL", "CARGO_BUILD_RUSTFLAGS", "CARGO_BUILD_TARGET",
             "RUSTC_WRAPPER", "RUSTC_WORKSPACE_WRAPPER"].includes(key)));
     env.CARGO_TARGET_DIR = path.join(root, "native/legal-structure-node/target");
-    env.CARGO_BUILD_JOBS = "1";
+    env.CARGO_BUILD_JOBS = "4";
     env.CARGO_ENCODED_RUSTFLAGS = [[homedir(), "/home"],
         [process.env.RUSTUP_HOME ?? path.join(homedir(), ".rustup"), "/rustup"],
         [process.env.CARGO_HOME ?? path.join(homedir(), ".cargo"), "/cargo"], [root, "/workspace"]]

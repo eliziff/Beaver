@@ -1,8 +1,7 @@
 import { profileFor } from "./pdfProfile";
 import { ApplicationError } from "./applicationError";
 import type { NativePdfTextPage } from "./structureNative";
-import { reporterMarginLabels, reporterStartPages, resolvePdfPagination,
-  resolvePrintedPages, type PdfPageBinding } from "./pdfPagination";
+import { reporterStartPages, resolvePrintedPages, type PdfPageBinding } from "./pdfPagination";
 import { sha256 } from "./hash";
 import {
   lookupPdfStructure,
@@ -574,9 +573,9 @@ async function pdfPassageGeometry(
 ) {
   const bytes = await readBytes();
   const prepared = await preparedForSource(() => bytes, reference, options);
-  const starts = reporterStartPages(options.citations ?? []);
+  const citations = options.citations ?? [];
   const labels = targets.some(target => target.locatorKind === "page" && target.physicalPages === undefined)
-    ? await cachedPagination(reference, starts, () => paginationFor(prepared.document, starts)) : [];
+    ? await cachedPagination(reference, reporterStartPages(citations), () => paginationFor(prepared.document, citations)) : [];
   return nativePdfPassageGeometry(prepared.document, bytes, targets.map(target => target.locatorKind === "page" &&
       target.physicalPages === undefined
     ? { ...target, physicalPages: resolvePrintedPages(target.locator, labels).map(index => index + 1) } : target));
@@ -602,18 +601,9 @@ async function pdfPageTexts(
   return structureNative().pdfPageTexts(document);
 }
 
-async function paginationFor(document: NativeDocument, starts: number[]) {
-  const native = structureNative();
-  let observed = native.pdfPageLabels(document);
-  if (starts.length && !observed.some(label => label && starts.includes(Number(label)))) {
-    const recognized = native.pdfRecognizedText(document) ?? [];
-    const opening = Array.from({ length: Math.min(3, observed.length) }, (_, index) => index + 1);
-    const raw = await native.pdfPassageGeometryPages(document,
-      [{ id: "opening-folios", locatorKind: "page", locator: "", physicalPages: opening }]);
-    observed = reporterMarginLabels(observed, starts, [...raw.targets.flatMap(target => target.pages), ...recognized]);
-  }
-  const embedded = native.pdfDocumentSummary(document).embeddedPageLabels;
-  return resolvePdfPagination(observed, embedded, starts);
+/** The engine's page map (`PdfDocument::page_map`): each page's printed number, anchored on the citations' first pages. */
+async function paginationFor(document: NativeDocument, citations: string[]) {
+  return structureNative().pdfPageMap(document, citations);
 }
 
 async function cachedPagination(reference: ProjectionReference, starts: number[],
@@ -635,7 +625,7 @@ async function pdfInformation(source: DocumentProjectionSource, citations: strin
     const document = await pdfDocumentForSource(() => bytes, reference, { ocrProvider: null, layout: false });
     const summary = structureNative().pdfDocumentSummary(document);
     return JSON.stringify({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr,
-      pageMap: await paginationFor(document, starts) });
+      pageMap: await paginationFor(document, citations) });
   });
   await source.assertAvailable?.();
   return JSON.parse(result) as { pageCount: number; pagesNeedingOcr: number[]; pageMap: PdfPageBinding[] };

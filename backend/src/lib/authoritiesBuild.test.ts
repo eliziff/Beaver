@@ -1,4 +1,3 @@
-import { resolvePdfPagination } from "./pdfPagination";
 import JSZip from "jszip";
 import { Document as WordDocument, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx";
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName,

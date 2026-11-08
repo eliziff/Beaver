@@ -15,6 +15,7 @@ use std::process::Command;
 
 const BELOW_NORMAL: u32 = 0x4000;
 const PLACED: f64 = 0.9; // a paragraph or quotation is placed when this share of its words is
+static CALL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"(\w)\[(\d{1,3})\]").unwrap());
 
 fn record_paths(work: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = fs::read_dir(work.join("records")).into_iter().flatten().flatten().map(|entry| entry.path())
@@ -114,7 +115,8 @@ fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
 }
 
 /// The lines our recognizer read, each with its exact text: OCR training data (the line's crop, the words it prints).
-/// A line's exact text is A2AJ's words for it, which A2AJ may itself have from a recognizer: it is `trusted` where every
+/// A line's exact text is A2AJ's words for it (a note's call set against its word as the page sets it), which A2AJ may itself
+/// have from a recognizer: it is `trusted` where the alignment paired every word the scan reads with one of A2AJ's, and every
 /// word A2AJ sets that the scan does not is a word A2AJ's text sets three times or more across the records (or figures).
 /// Each source carries its partition (the store's, where the store holds it, else the aligner's); test's are left out.
 pub fn text_layer(work: &Path) -> Result<(), String> {
@@ -147,11 +149,18 @@ pub fn text_layer(work: &Path) -> Result<(), String> {
             continue;
         }
         let lines: Vec<Value> = record["lines"].as_array().into_iter().flatten().filter(|line| line["source"] == "ocr").map(|line| {
+            let printed = line["text"].as_str().unwrap_or("");
             let given = line["exact"].as_str().filter(|text| !text.is_empty());
-            let exact = given.unwrap_or(line["text"].as_str().unwrap_or(""));
-            let read: BTreeSet<String> = words_of(line["text"].as_str().unwrap_or(""), 0).into_iter().map(|word| word.0).collect();
-            let trusted = given.is_some() && line["status"] != "unmatched"
-                && words_of(exact, 0).iter().filter(|word| !read.contains(&word.0)).all(|word| known(&word.0));
+            // (A2AJ brackets a note's call the page sets against its word: "Jones[10]" for "Jones10".)
+            let exact = given.map_or_else(|| printed.to_owned(), |given| if CALL.is_match(printed) { given.to_owned() } else { CALL.replace_all(given, "$1$2").into_owned() });
+            let words = words_of(printed, 0);
+            let read: BTreeSet<&str> = words.iter().map(|word| word.0.as_str()).collect();
+            // Every word the recognizer read stands for one of A2AJ's in the alignment's pairs, and every word A2AJ sets that the
+            // scan does not is one its text sets often (a recognizer's lost word, not another text's).
+            let pairs: Vec<(u64, u64)> = line["words"].as_array().into_iter().flatten().map(|pair| (pair[0].as_u64().unwrap_or(0), pair[1].as_u64().unwrap_or(0))).collect();
+            let paired = words.iter().all(|word| pairs.iter().any(|&(a, b)| a < word.2 as u64 && (word.1 as u64) < b));
+            let trusted = given.is_some() && line["status"] != "unmatched" && paired
+                && words_of(&exact, 0).iter().filter(|word| !read.contains(word.0.as_str())).all(|word| known(&word.0));
             json!({"id": line["id"], "page": line["page"], "bbox": line["bbox"], "ocr": line["text"], "exact": exact, "trusted": trusted,
                    "status": line["status"], "lang": line["lang"], "span": line["span"]})
         }).collect();
