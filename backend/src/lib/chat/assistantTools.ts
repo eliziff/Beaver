@@ -1,7 +1,6 @@
 import { readDocumentProjection } from "../documentApplication";
 import { readerHandoff } from "./readerHandoff";
 import { queryResources, readQueryHistory, type QueryHistorySource } from "./queryHistory";
-import { collapseProvisionLabels } from "../provisionLabels";
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
   sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter, libraryReadSectionSchema,
   type ResearchReadContext } from "../researchReader";
@@ -35,10 +34,8 @@ import type {
   DocumentScope,
   DocumentStore,
 } from "../documentStore";
-import {
-  documentProjectionService,
-  type PdfLocatorKind,
-} from "../documentProjectionService";
+import { openDocument } from "../sourceDocument";
+import { lookupPdf, rehydratePdfEvidence, type PdfLocatorKind } from "../pdfEvidence";
 import {
   structureNative,
   type NativeDocument,
@@ -792,7 +789,7 @@ async function runCodingShapeCall(
       if (locatorKind === "page" && !trimmed(args.end_locator) && /^[1-9]\d*$/u.test(locator)) {
         if (physicalPageCount === null) {
           try {
-            nativePdf = await documentProjectionService.read(source, { signal });
+            nativePdf = await openDocument(source, { signal });
             physicalPageCount = structureNative()
               .pdfDocumentSummary(nativePdf).pageCount;
           } catch {
@@ -814,7 +811,7 @@ async function runCodingShapeCall(
       try {
         let lookup: PdfLookupResult;
         if (handle) {
-          lookup = await documentProjectionService.rehydratePdfEvidence(
+          lookup = await rehydratePdfEvidence(
             handle,
             {
               documentId: meta.id,
@@ -828,7 +825,7 @@ async function runCodingShapeCall(
             !trimmed(args.end_locator) && /^[1-9]\d*$/u.test(locator)
             ? Number(locator)
             : null;
-          lookup = await documentProjectionService.lookupPdf(source.readBytes, locatorInput, {
+          lookup = await lookupPdf(source.readBytes, locatorInput, {
             documentId: meta.id,
             versionId: source.versionId,
             sourceSha256: source.sourceSha256,
@@ -839,7 +836,7 @@ async function runCodingShapeCall(
             ),
           });
         }
-        if (lookup.status === "found") nativePdf ??= await documentProjectionService.read(source, { signal });
+        if (lookup.status === "found") nativePdf ??= await openDocument(source, { signal });
         if (handle && lookup.status === "found") {
           const canonical = structureNative().queryPdfDocument(nativePdf!, lookup.requested);
           if (canonical.status !== "found" || canonical.payload_sha256 !== lookup.payload_sha256)
@@ -1205,8 +1202,8 @@ const SAFE_PDF_EVIDENCE_ERRORS = new Set([
 ]);
 
 type PdfLookupResult =
-  | Awaited<ReturnType<typeof documentProjectionService.lookupPdf>>
-  | Awaited<ReturnType<typeof documentProjectionService.rehydratePdfEvidence>>;
+  | Awaited<ReturnType<typeof lookupPdf>>
+  | Awaited<ReturnType<typeof rehydratePdfEvidence>>;
 const MAX_COMPACT_PDF_MATCHES = 20;
 const WRITE_STAGE_WARNING_MS = 20_000;
 
@@ -1420,7 +1417,7 @@ async function runAdvancedDocxEdit(params: {
     let resolvedRequests = requests;
     if (requests.some(({ scope }) =>
       (scope as unknown as { kind: string }).kind === "at")) {
-      const document = await documentProjectionService.read(
+      const document = await openDocument(
         projectionSource(params.documentId, file));
       if (!structureNative().documentTextBytes(document)) {
         return fail("DOCX body text could not be extracted, so an `at` scope cannot be resolved.");
@@ -1525,7 +1522,7 @@ async function runDocxWorkflow(
     return saveDocxEdits({ documents, scope, documentId, source: file, bytes: linked.bytes, edits: [],
       turnEditState, turnId, editMode });
   }
-  const document = await documentProjectionService.read(
+  const document = await openDocument(
     projectionSource(documentId, file));
   return result({
     ok: true,
@@ -1776,7 +1773,7 @@ export function assistantTools<Context extends {
     }
     if (researchContext?.subjects && (reference?.kind === "source" || reference?.kind === "document") && !workspaceId) {
       const selected = researchContext.subjects?.filter(({ resource }) => resource === requested) ?? [];
-      const locatorKey = (label: string) => JSON.stringify(collapseProvisionLabels([label], String(args.locator_kind)) ?? [label]),
+      const locatorKey = (label: string) => JSON.stringify(structureNative().collapseLabels([label], String(args.locator_kind)) ?? [label]),
         saved = String(args.locator ?? "").split(/\s*,\s*/u).map((label) =>
           selected.flatMap(({ savedEvidence }) => savedEvidence ?? []).find(({ locator }) =>
             locator.kind === args.locator_kind && locatorKey(locator.label) === locatorKey(label)));

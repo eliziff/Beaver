@@ -4,7 +4,7 @@
 
 const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
   "fixDocxSupraCrossReferences", "deriveDocxDocument", "docxText",
-  "docxAuthorityTextUnits", "derivePdfDocument", "preparePdfDocument", "restorePdfDocument",
+  "docxAuthorityTextUnits", "derivePdfDocument", "preparePdfDocument", "restorePdfDocument", "openSource", "sourceText",
   "pdfPassageGeometryPages", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments",
   "citationEngineCallAsync"]);
 // Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes;
@@ -17,6 +17,8 @@ export const SIGNATURES = {
   docxAuthorityTextUnits: ["bytes"],
   derivePdfDocument: ["bytes", "request"], preparePdfDocument: ["bytes", "request"],
   restorePdfDocument: ["request"],
+  // A stored source read as its document (none where the engine keeps none and no bytes are given), or as its text.
+  openSource: ["bytes", "request"], sourceText: ["bytes", "request"],
   pdfDocumentSummary: ["document"], pdfRecognizedText: ["document", "pages"],
   pdfAuthorityTextUnits: ["document"], pdfPageLabels: ["document"], pdfPageMap: ["document", "citations"], pdfPageTexts: ["document"],
   reporterStartPages: ["citations"],
@@ -30,7 +32,7 @@ export const SIGNATURES = {
   documentFingerprint: ["document"], documentAnchors: ["document", "end"],
   documentOutline: ["document"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
-  statuteOutline: ["text", "articles"], caseOutline: ["text"], documentCaseOutline: ["document"], statuteProvisionSpans: ["text", "labels"],
+  statuteOutline: ["text", "articles"], caseOutline: ["text"], documentCaseOutline: ["document"], statuteProvisionSpans: ["text", "labels"], collapseLabels: ["labels", "kind"],
   statuteCurrency: ["pages"], filingCover: ["opening", "title"],
   citationLookupKey: ["text"], citationLookupKeys: ["texts"], citationKeyVersion: [], providerCitationsInText: ["text"],
   citationEngineCall: ["method", "request"], citationEngineCallAsync: ["method", "request"],
@@ -66,10 +68,13 @@ const PURE = new Set(["providerCitationsInText", "citationOccurrencesInText", "c
   "canliiCaseUrl", "canliiLawUrl"]);
 const PURE_KEPT = 4096;
 const DOCUMENT_RESULTS = new Set(["deriveDocumentStructure", "deriveDocxDocument",
-  "derivePdfDocument", "restorePdfDocument"]);
+  "derivePdfDocument", "restorePdfDocument", "openSource"]);
 
-/** An error the engine returned; it is still usable afterwards. */
-class EngineError extends Error {}
+/** A failure the engine returned (`engine::Failure`): its message, and for a PDF's parse the kind of failure and what
+ *  went wrong. The engine is still usable afterwards. */
+class EngineError extends Error {
+  constructor({ message, kind, detail }) { super(message); if (kind) this.kind = kind; if (detail) this.detail = detail; }
+}
 /** An opaque engine document, released when JavaScript no longer references it. */
 class NativeDocumentHandle { constructor(handle, generation) { this.handle = handle; this.generation = generation; } }
 
@@ -88,7 +93,7 @@ function engineReply(reply) {
   const view = new DataView(reply.buffer, reply.byteOffset, reply.byteLength);
   const jsonLength = view.getUint32(1, true);
   const text = decoder.decode(reply.subarray(5, 5 + jsonLength));
-  if (!view.getUint8(0)) throw new EngineError(text);
+  if (!view.getUint8(0)) throw new EngineError(JSON.parse(text));
   return { value: JSON.parse(text), bytes: reply.subarray(5 + jsonLength) };
 }
 
@@ -114,7 +119,8 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     else try { engineReply(transport.call(request)); } catch { /* engine already reset */ }
   });
   function trapped(error, op) {
-    if (error instanceof EngineError) return new Error(error.message);
+    if (error instanceof EngineError) return Object.assign(new Error(error.message),
+      error.kind ? { kind: error.kind } : {}, error.detail ? { detail: error.detail } : {});
     // Anything else interrupted the engine mid-call: a trap, or a stack overflow, which V8
     // reports as a RangeError and which leaves the engine's stack pointer and heap behind.
     generation += 1;

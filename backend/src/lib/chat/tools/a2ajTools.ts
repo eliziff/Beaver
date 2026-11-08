@@ -1,9 +1,9 @@
 import { MAX_READ_PATTERNS, readPatterns } from "../resourceTools";
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
-import { collapseProvisionLabels } from "../../provisionLabels";
 import { isEvidenceId, type LegalEvidenceReceipt } from "../legalEvidence";
 import { trimmedText } from "../../value";
+import { structureNative } from "../../structureNative";
 
 export type A2AJReferenceDirection = "none" | "inbound" | "outbound" | "both";
 
@@ -147,7 +147,7 @@ export function assistantToolActivityLabel(
       const first = activityLocatorLabel(locator, kind);
       const last = end ? activityLocatorLabel(end, kind) : undefined;
       const range = last && last !== first ? `${first}–${last}` : first;
-      const scope = collapseProvisionLabels([range], kind) ?? [range];
+      const scope = structureNative().collapseLabels([range], kind) ?? [range];
       const plural = scope.length > 1 || /[–—-]/u.test(scope[0]) &&
         !(kind === "section" && /[–—-]\(/u.test(scope[0]));
       return `Reading ${locatorPhrase(kind, scope.join(", "), plural)} of ${title}`;
@@ -248,10 +248,10 @@ export function assistantReadEvidenceActivityLabel(
   if (first.locator.kind !== last.locator.kind) {
     return `${verb} ${locatorPhrase(first.locator.kind, firstLabel, false)} through ${locatorPhrase(last.locator.kind, lastLabel, false)} of ${title}`;
   }
-  const groups = collapseProvisionLabels(labels, first.locator.kind);
+  const groups = structureNative().collapseLabels(labels, first.locator.kind);
   const requested = first.locator.kind === "section" && args.locator_kind === "section" &&
     typeof args.locator === "string" && !args.end_locator
-    ? collapseProvisionLabels([args.locator], "section")?.[0] : undefined;
+    ? structureNative().collapseLabels([args.locator], "section")?.[0] : undefined;
   // Describe the requested section without changing its separately addressable receipts.
   const scope = requested && labels.every(label => label === requested || label.startsWith(`${requested}(`))
     ? [requested] : groups ?? labels;

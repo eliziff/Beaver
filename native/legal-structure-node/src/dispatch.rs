@@ -3,11 +3,12 @@
 //! written once.
 //!
 //! A request is `[u32 json length][json {op, args}][bytes]`; the reply is
-//! `[u8 ok][u32 json length][json][bytes]`, the json being the result or the error.
+//! `[u8 ok][u32 json length][json][bytes]`, the json being the result or the failure (`engine::Failure`).
 
 #[cfg(feature = "a2aj")]
 use crate::a2aj;
-use crate::engine::{self, CoreResult, NativeDocument};
+use crate::engine::{self, CoreResult, Failure, NativeDocument};
+use crate::source;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -74,9 +75,13 @@ fn value(output: impl Serialize) -> CoreResult<Value> {
     serde_json::to_value(output).map_err(|error| error.to_string())
 }
 
+/// An operation's result, with no bytes.
+fn done(output: Result<Value, impl Into<Failure>>) -> Result<(Value, Vec<u8>), Failure> {
+    output.map(|output| (output, Vec::new())).map_err(Into::into)
+}
+
 #[cfg_attr(not(feature = "legalpdf"), allow(unused_variables))]
-fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResult<(Value, Vec<u8>)> {
-    let done = |output: CoreResult<Value>| output.map(|output| (output, Vec::new()));
+fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(Value, Vec<u8>), Failure> {
     let doc = || call.document();
     match op {
         "nativeBuildFeatures" => done(value(engine::native_build_features())),
@@ -104,10 +109,13 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         #[cfg(feature = "legalpdf")]
         "derivePdfDocument" => done(engine::derive_pdf_document(bytes, &call.get("request")?).map(store)),
         #[cfg(feature = "legalpdf")]
-        "preparePdfDocument" => done(engine::prepare_pdf_document(bytes, &call.get("request")?, progress).and_then(value)),
+        "preparePdfDocument" => done(value(engine::prepare_pdf_document(bytes, &call.get("request")?, progress)?)),
         #[cfg(feature = "legalpdf")]
         "restorePdfDocument" => done(engine::restore_pdf_document(&call.get("request")?)
             .map(|document| document.map(store).unwrap_or(Value::Null))),
+        "openSource" => done(source::open_source(bytes, call.get("request")?)
+            .map(|document| document.map(share).unwrap_or(Value::Null))),
+        "sourceText" => done(value(source::source_text(bytes, call.get("request")?)?)),
         #[cfg(feature = "legalpdf")]
         "pdfDocumentSummary" => done(with_document(doc()?, |d| engine::pdf_document_summary(d).and_then(value))),
         #[cfg(feature = "legalpdf")]
@@ -154,6 +162,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "caseOutline" => done(engine::case_outline(&call.get::<String>("text")?).and_then(value)),
         "statuteProvisionSpans" => done(legal_structure::statute_provision_spans(&call.get::<String>("text")?,
             &call.get::<Vec<String>>("labels")?).map_err(|error| error.to_string()).and_then(value)),
+        "collapseLabels" => done(value(legal_structure::collapse_labels(&call.get::<Vec<String>>("labels")?, &call.get::<String>("kind")?))),
         "statuteCurrency" => done(value(legal_structure_features::statute_currency(&call.get::<Vec<String>>("pages")?))),
         "filingCover" => done(value(legal_structure::filing_cover(&call.get::<String>("opening")?,
             call.get::<Option<String>>("title")?.as_deref()))),
@@ -282,14 +291,14 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             call.get("includeDescendants")?, call.get("includeUnits")?).and_then(value))),
         "documentHasOrigin" => done(with_document(doc()?, |d|
             engine::document_has_origin(d, &call.get::<String>("origin")?).and_then(value))),
-        _ => Err(format!("unknown engine operation {op}")),
+        _ => Err(format!("unknown engine operation {op}").into()),
     }
 }
 
 /// Runs one framed request and frames its reply. A panic is reported as the call's error.
 pub fn call(request: &[u8], progress: Progress) -> Vec<u8> {
     engine::install_structure_analysis();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> CoreResult<(Value, Vec<u8>)> {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<(Value, Vec<u8>), Failure> {
         let header = request.get(..4).ok_or("truncated engine request")?;
         let json_length = u32::from_le_bytes(header.try_into().unwrap()) as usize;
         let json = request.get(4..4 + json_length).ok_or("truncated engine request")?;
@@ -300,10 +309,10 @@ pub fn call(request: &[u8], progress: Progress) -> Vec<u8> {
     }));
     let (ok, json, bytes) = match result {
         Ok(Ok((output, bytes))) => (true, serde_json::to_vec(&output).unwrap_or_default(), bytes),
-        Ok(Err(error)) => (false, error.into_bytes(), Vec::new()),
-        Err(panic) => (false, panic.downcast_ref::<&str>().map(|text| text.to_string())
+        Ok(Err(failure)) => (false, serde_json::to_vec(&failure).unwrap_or_default(), Vec::new()),
+        Err(panic) => (false, serde_json::to_vec(&Failure::from(panic.downcast_ref::<&str>().map(|text| text.to_string())
             .or_else(|| panic.downcast_ref::<String>().cloned())
-            .unwrap_or_else(|| "engine panicked".to_owned()).into_bytes(), Vec::new()),
+            .unwrap_or_else(|| "engine panicked".to_owned()))).unwrap_or_default(), Vec::new()),
     };
     let mut reply = Vec::with_capacity(5 + json.len() + bytes.len());
     reply.push(ok as u8);

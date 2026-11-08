@@ -1,10 +1,20 @@
 import { existsSync } from "node:fs";
 import { defaultNativeAddon, nativeAddonFile } from "mike/shared/nativeAddonFile.mjs";
 import { structureEngineAddon, type StructureEngineTransport } from "mike/shared/structure-engine.mjs";
-import type { PdfPageBinding } from "mike/shared/pdf-page-binding.mjs";
+import { resolvePrintedPages, type PdfPageBinding } from "mike/shared/pdf-page-binding.mjs";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import type { SpreadsheetCellSpan } from "./spreadsheet";
+
+/** A table cell a document's text was rendered from (legal-structure's AuthoritativeTableCell): a workbook's cell by its
+ *  sheet, address and display value, with its spans of the text (UTF-16). */
+export type NativeTableCell = { table: number; tableName: string; row: number; column: number; rowSpan?: number;
+  columnSpan?: number; address: string; displayValue: string; ranges: NativeSpan[]; start: number; end: number };
+
+/** The kind of failure that stopped a PDF's parse (legal-pdf-core's FailureKind), on the error the engine throws for
+ *  it, whose message is the one a reader is told. */
+export type PdfFailureKind = "encrypted" | "corrupt" | "source_changed" | "ocr_runtime" | "layout_runtime" | "parser";
+export const pdfFailureKind = (error: unknown) =>
+  error instanceof Error && "kind" in error ? error.kind as PdfFailureKind : undefined;
 
 export type NativeTextFragmentPlan = {
   directives: string[];
@@ -250,6 +260,11 @@ type StructureAddon = {
   preparePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal,
     progress?: (recognized: number, total: number) => void): Promise<PdfPreparationSummary>;
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
+  /** A stored source read as its document by its format's reader: the document the engine keeps for it, or, given its
+   *  bytes, read afresh (sourceDocument.ts builds the request); without bytes, null where the engine keeps none. */
+  openSource(bytes: Buffer | undefined, request: unknown): Promise<NativeDocument | null>;
+  /** A source's text as its format's reader gives it, without its structure. */
+  sourceText(bytes: Buffer, request: unknown): Promise<string>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfRecognizedText(document: NativeDocument, pages?: number[]): NativePdfTextPage[] | null;
   pdfPageLabels(document: NativeDocument): Array<string | null>;
@@ -434,7 +449,7 @@ type StructureAddon = {
       truncated: boolean;
       documentRevision: string;
     };
-  documentTableCells(document: NativeDocument): SpreadsheetCellSpan[];
+  documentTableCells(document: NativeDocument): NativeTableCell[];
   /** The document's headings and top-level sections in order; a section sits under the heading before it. */
   documentOutline(document: NativeDocument): NativeOutlineEntry[];
   /** A statute's outline read from its text: parts, headings and provisions in order, each with
@@ -448,6 +463,9 @@ type StructureAddon = {
   /** Where a statute's text holds each cited provision, part ("16(3)(a)") or range ("49-51"), by its outline: each span
    *  (UTF-16) with everything under it, in the text's order; a label it does not hold has none. */
   statuteProvisionSpans(text: string, labels: string[]): Array<[number, number]>;
+  /** A reader's labels of one kind as few as they can be written: runs of numbers ("12–14"), provisions' spans
+   *  ("5(2)(a)–(c)"); null where a label is not of the kind's shape. */
+  collapseLabels(labels: readonly string[], kind: string): string[] | null;
   /** How current a statute's print says it is, from its first pages ("Current to September 21, 2026"). */
   statuteCurrency(pages: string[]): string | null;
   /** A filing's cover from its opening page's text: the parties its BETWEEN block names in their roles, and whose
@@ -601,8 +619,10 @@ export function structureNative() {
 /** Whether a document kept from an earlier call can still be read. */
 export const nativeDocumentLive = (document: NativeDocument) => structureNative().documentLive?.(document) ?? true;
 
+/** Each passage's geometry on the PDF's pages; with `citations`, a page cited by its printed number is the physical
+ *  page the page map, anchored on the reports they cite, gives it. */
 export async function pdfPassageGeometry(
-  document: NativeDocument, bytes: Buffer, targets: NativePdfPassageTarget[],
+  document: NativeDocument, bytes: Buffer, targets: NativePdfPassageTarget[], citations?: string[],
 ): Promise<NativePdfPassageGeometry> {
   if (!targets.length || targets.length > 100 || !bytes.length || bytes.length > 100 * 1024 * 1024 ||
     targets.some((target) => (target.exactQuotes?.length ?? 0) + (target.quoteSelections?.length ?? 0) > 20 ||
@@ -616,5 +636,9 @@ export async function pdfPassageGeometry(
   if (createHash("sha256").update(bytes).digest("hex") !== summary.sha256) {
     throw new Error("PDF source changed after preparation");
   }
-  return await native.pdfPassageGeometryPages(document, targets);
+  const printed = (target: NativePdfPassageTarget) => !!citations && target.locatorKind === "page" &&
+    target.physicalPages === undefined;
+  const labels = citations && targets.some(printed) ? native.pdfPageMap(document, citations) : [];
+  return await native.pdfPassageGeometryPages(document, targets.map((target) => printed(target)
+    ? { ...target, physicalPages: resolvePrintedPages(target.locator, labels).map((index) => index + 1) } : target));
 }

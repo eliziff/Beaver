@@ -13,7 +13,6 @@ import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
 import { sha256 as hexSha256 } from "../hash";
 import { jsonRecord as object } from "../value";
-import { collapseProvisionLabels } from "../provisionLabels";
 import type { LegalEvidenceReceiptEvent, ReadSubagentEvent } from "./assistantEvents";
 import { renderCitedBlocks, type GroundedClaim } from "mike/shared/runtime/groundedAnswer.mjs";
 import { legalSourceResource, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
@@ -1144,7 +1143,7 @@ export function legalEvidenceCitationPlan(state: LegalEvidenceTurnState): {
       const kind = kinds.size === 1 ? [...kinds][0] : "document";
       const labels = kind === "document" ? [] : members.flatMap(({ receipt }) =>
         receipt.locator.kind === kind ? [receipt.locator.label] : []);
-      const locatorLabels = collapseProvisionLabels(labels, kind) ?? [...new Set(labels)];
+      const locatorLabels = structureNative().collapseLabels(labels, kind) ?? [...new Set(labels)];
       const group: LegalEvidenceCitationGroup = { ref: groups.length + 1, members: [], locatorKind: kind, locatorLabels,
         shortForm: cited.has(source) };
       groups.push(group);
