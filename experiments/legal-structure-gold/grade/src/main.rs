@@ -364,6 +364,63 @@ fn extract_digest(store: &Path, out: &Path) -> Result<(), String> {
     std::fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
 }
 
+/// Every STEP-th source by SHA parsed and re-labelled by the tagger (its export DIR, on the ONNX Runtime library RUNTIME),
+/// nothing graded: one `sha<TAB>digest` line per document (the SHA-256 of its structure's JSON after the retag and of
+/// the retag's result, success or error), sorted, to OUT. Two builds tag the same where their files are the same.
+fn tagged_digest(store: &Path, out: &Path, dir: &Path, runtime: &Path, step: usize) -> Result<(), String> {
+    use sha2::Digest;
+    legal_pdf_core::init_ort_runtime(runtime, None).map_err(|e| format!("ONNX Runtime: {e}"))?;
+    let tagger = Mutex::new(legal_pdf_tagger::onnx::Tagger::load(dir, 4)?);
+    let mut all = sources(store)?;
+    all.sort_by(|a, b| a.sha256.cmp(&b.sha256));
+    let all: Vec<Source> = all.into_iter().step_by(step.max(1)).collect();
+    let inputs = |s: &Source| std::fs::metadata(inputs_dir().join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
+    let digests = parallel(&all, inputs, |source| {
+        let (mut structure, pages) = parse(source)?;
+        let result = tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.retag(&mut structure, &pages, &source.sha256, hybrid());
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(serde_json::to_vec(&structure).map_err(|e| e.to_string())?);
+        hasher.update(format!("{result:?}"));
+        Ok::<_, String>(format!("{:x}", hasher.finalize()))
+    });
+    let mut lines: Vec<String> = all.iter().zip(digests).map(|(source, digest)| format!("{}\t{}", source.sha256, digest.unwrap_or_else(|e| format!("error {e}")))).collect();
+    lines.sort();
+    std::fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
+}
+
+/// Every STEP-th source by SHA extracted natively and read by the layout model (the pack PACK on the OpenVINO C runtime
+/// RUNTIME, one thread a worker), nothing parsed: one `sha<TAB>digest` line per document (the SHA-256 of its pages'
+/// JSON and the reading's diagnostics, or its error), sorted, to OUT. Two builds read layout the same where their files
+/// are the same.
+fn layout_digest(store: &Path, out: &Path, pack: &Path, runtime: &Path, step: usize) -> Result<(), String> {
+    use sha2::Digest;
+    use std::cell::RefCell;
+    thread_local!(static LAYOUT: RefCell<Option<legalpdf::PPDocLayout>> = const { RefCell::new(None) });
+    let mut all = sources(store)?;
+    all.sort_by(|a, b| a.sha256.cmp(&b.sha256));
+    let all: Vec<Source> = all.into_iter().step_by(step.max(1)).collect();
+    let options = legalpdf::PPDocOptions { model_pack: Some(pack.to_owned()), runtime: Some(runtime.to_owned()), threads: 1, ..Default::default() };
+    let digests = parallel(&all, |s| std::fs::metadata(&s.pdf).map_or(0, |m| m.len()), |source| {
+        let read = std::fs::read(&source.pdf).map_err(|e| e.to_string()).and_then(|pdf| {
+            let mut extracted = legal_pdf_extraction_processor::extract_pdf(&pdf, None, None).map_err(|e| e.to_string())?;
+            let diagnostics = LAYOUT.with(|layout| {
+                let mut layout = layout.borrow_mut();
+                if layout.is_none() {
+                    *layout = Some(legalpdf::PPDocLayout::new(&options).map_err(|e| e.to_string())?);
+                }
+                layout.as_mut().unwrap().annotate_pdf(&pdf, &mut extracted.pages).map_err(|e| e.to_string())
+            })?;
+            let mut bytes = serde_json::to_vec(&extracted.pages).map_err(|e| e.to_string())?;
+            bytes.extend(serde_json::to_vec(&diagnostics).map_err(|e| e.to_string())?);
+            Ok::<_, String>(bytes)
+        });
+        format!("{:x}", sha2::Sha256::digest(read.unwrap_or_else(|error| format!("error {error}").into_bytes())))
+    });
+    let mut lines: Vec<String> = all.iter().zip(digests).map(|(source, digest)| format!("{}\t{digest}", source.sha256)).collect();
+    lines.sort();
+    std::fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
+}
+
 /// Each Word document under DIR read every way the parser reads one, nothing graded: one `path<TAB>digest` line per
 /// file (the SHA-256 of its text, its drafting text, its table-of-authorities units, its supra cleanup and its
 /// structure, each its result or its error), sorted, to OUT. Two builds read the same where their files are the same.
@@ -1416,6 +1473,14 @@ fn main() {
         [command, store, out] if command == "digest" => digest(Path::new(store), Path::new(out)),
         [command, dir, out] if command == "docx-digest" => docx_digest(Path::new(dir), Path::new(out)),
         [command, store, out] if command == "extract-digest" => extract_digest(Path::new(store), Path::new(out)),
+        [command, store, out, pack, runtime, step] if command == "layout-digest" => step
+            .parse()
+            .map_err(|_| "STEP must be a number".to_owned())
+            .and_then(|step| layout_digest(Path::new(store), Path::new(out), Path::new(pack), Path::new(runtime), step)),
+        [command, store, out, dir, runtime, step] if command == "tagged-digest" => step
+            .parse()
+            .map_err(|_| "STEP must be a number".to_owned())
+            .and_then(|step| tagged_digest(Path::new(store), Path::new(out), Path::new(dir), Path::new(runtime), step)),
         [command, store, out] if command == "paragraph-data" => paragraph_data::export(Path::new(store), Path::new(out)),
         [command, store, mode, options @ ..] if command == "selfcheck" => selfcheck(Path::new(store), mode, options),
         [command, store, out] if command == "rows" => rows(Path::new(store), Path::new(out)),
