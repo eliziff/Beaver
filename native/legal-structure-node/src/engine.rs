@@ -1,7 +1,7 @@
 //! Target-neutral engine operations. The Node addon (`node.rs`) and the browser
 //! WebAssembly module (`wasi.rs`) are thin bindings over these functions.
 
-use legal_structure::{analyze_instrument, analyze_native_markup, authority_references_in_text, citation_lookup_key, citation_occurrences_in_text, document_fingerprint, docx_structure_lint, has_citation_in_text, journal_document_structure, journal_text_document_structure, provider_citations_in_text, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, Derivation, DocumentKind, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, ProviderTextInput};
+use legal_structure::{analyze_instrument, analyze_native_markup, authority_references_in_text, citation_lookup_key, citation_occurrences_in_text, document_fingerprint, docx_structure_lint, has_citation_in_text, journal_document_structure, journal_text_document_structure, provider_citations_in_text, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, Derivation, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, NodeKind, ProviderTextInput};
 use legal_structure_features::{grounded_prose_errors, marked_quote_spans, quote_repair_suggestion, OutlineEntry, PrintedStatute, VisibleEvidenceText};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -120,17 +120,8 @@ pub fn native_build_features() -> &'static str {
     }
 }
 
-fn document_kind(value: &str) -> CoreResult<DocumentKind> {
-    match value {
-        "paragraph" => Ok(DocumentKind::Paragraph),
-        "page" => Ok(DocumentKind::Page),
-        "section" => Ok(DocumentKind::Section),
-        "footnote" => Ok(DocumentKind::Footnote),
-        "table" => Ok(DocumentKind::Table),
-        "row" => Ok(DocumentKind::Row),
-        "cell" => Ok(DocumentKind::Cell),
-        _ => Err("invalid document block kind".to_owned()),
-    }
+fn document_kind(value: &str) -> CoreResult<NodeKind> {
+    NodeKind::named(value).ok_or_else(|| "invalid document block kind".to_owned())
 }
 
 fn follow_direction(value: &str) -> CoreResult<FollowDirection> {
