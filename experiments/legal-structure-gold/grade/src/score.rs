@@ -392,14 +392,7 @@ fn features<'a>(
             keys.push(id);
         }
     }
-    let composed =
-        legal_pdf_frame::assemble_frame(legal_pdf_frame::FrameRequest {
-            lines: state.composition_lines(),
-            groups: state.groups.clone(),
-            annotations: annotations.clone(),
-            reading_order: state.order_ids(),
-            continuations: state.continuations.clone(),
-        })?;
+    let composed = legal_pdf_frame::assemble_frame(state, &annotations)?;
     // Each block's next fragment in its logical block, from the shared assembly.
     let mut text_links: HashMap<String, String> = HashMap::new();
     for parts in composed.logical_blocks.values() {
@@ -623,17 +616,9 @@ fn features<'a>(
             result.hierarchy_marker.push((unit, marker_spans));
         }
     }
-    let logical = legal_pdf_frame::resolve_frame_annotations(
-        legal_pdf_frame::FrameAnnotationsRequest {
-            lines: state.composition_lines(),
-            reading_order: state.order_ids(),
-            annotations: annotations.clone(),
-            continuations: state.continuations.clone(),
-        },
-    )?;
     let rank: HashMap<usize, usize> = state.reading_order.iter().enumerate().map(|(i, &n)| (n, i)).collect();
     let mut opened: Vec<(usize, Document, String)> = Vec::new();
-    for a in &logical.annotations {
+    for a in &composed.annotations {
         let extent = spans(&members(state, &a.spans, &a.line_ids))?;
         match a.kind.as_str() {
             "table" => {
