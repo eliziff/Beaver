@@ -1,7 +1,7 @@
 //! Target-neutral engine operations. The Node addon (`node.rs`) and the browser
 //! WebAssembly module (`wasi.rs`) are thin bindings over these functions.
 
-use legal_structure::{analyze_instrument, analyze_native_markup, authority_references_in_text, citation_lookup_key, citation_occurrences_in_text, document_fingerprint, docx_structure_lint, has_citation_in_text, journal_document_structure, journal_text_document_structure, provider_citations_in_text, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, ProviderTextInput};
+use legal_structure::{analyze_instrument, analyze_native_markup, authority_references_in_text, citation_lookup_key, citation_occurrences_in_text, document_fingerprint, docx_structure_lint, has_citation_in_text, journal_document_structure, journal_text_document_structure, provider_citations_in_text, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, Derivation, DocumentKind, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, ProviderTextInput};
 use legal_structure_features::{grounded_prose_errors, marked_quote_spans, quote_repair_suggestion, OutlineEntry, PrintedStatute, VisibleEvidenceText};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -499,8 +499,8 @@ pub fn graph_scope<'a>(
 
 pub fn document_has_origin(document: &NativeDocument, origin: &str) -> CoreResult<bool> {
     let origin = match origin {
-        "native" => DocumentOrigin::Native,
-        "heuristic" => DocumentOrigin::Heuristic,
+        "native" => Derivation::Native,
+        "heuristic" => Derivation::Heuristic,
         _ => return Err("invalid document origin".to_owned()),
     };
     Ok(document.query.has_origin(document.structure(), origin))
