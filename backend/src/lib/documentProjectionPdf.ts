@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { sha256 } from "./hash";
-import { structureNative, unitPages, type NativeDocument, type NativePdfLookupRequest,
+import { structureNative, type NativeDocument, type NativePdfLookupRequest,
   type PdfStructureLookup } from "./structureNative";
 import { immutableReceiptPath, writeImmutableReceipt } from "./documentProjection";
 import { RESOURCE_LOCATOR_KINDS } from "mike/shared/runtime/resourceReferences.mjs";
@@ -87,7 +87,7 @@ async function finishLookup(input: PdfLookupInput, lookup: PdfStructureLookup,
   };
   const handle = evidenceHandle(receiptIdentity);
   const receipt = { ...receiptIdentity, handle };
-  const pageNumbers = [...new Set(lookup.units.flatMap(unitPages))]
+  const pageNumbers = [...new Set(lookup.units.flatMap((unit) => unit.pages))]
     .sort((left, right) => left - right);
   const viewPath = evidenceViewPath(options.documentId, options.versionId, handle);
 

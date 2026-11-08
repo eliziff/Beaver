@@ -80,12 +80,6 @@ export type LegalSourceViewerProps = {
   onBack?: () => void;
 };
 
-/** A node's link fragment, as the structure writes it (`StructureNode::fragment`): its kind's mark and its label. */
-function fragment({ kind, label }: Anchor) {
-  const mark = kind === "page" ? "page" : kind === "paragraph" || kind === "prose" ? "par" : kind === "footnote" ? "fn" : "";
-  return `${mark}${label ?? ""}`;
-}
-
 function legalSourceAnchorId(label: string) {
   return `legal-${(normalizeLegalSourceLocator(label) ?? label).replace(/[^a-z0-9_.-]+/giu, "-")}`;
 }
@@ -540,7 +534,7 @@ function LegalSourceViewerContent({
               return (
                 <section
                   key={`${slice.start}:${slice.end}`}
-                  id={slice.primary ? legalSourceAnchorId(fragment(slice.primary)) : undefined}
+                  id={slice.primary ? legalSourceAnchorId(slice.primary.fragment ?? "") : undefined}
                   data-legal-block={selectionAnchor?.label}
                   data-locator-kind={selectionAnchor?.kind}
                   data-locator-value={selectionAnchor?.label}
@@ -554,7 +548,7 @@ function LegalSourceViewerContent({
                   }}
                 >
                   {slice.anchors.map((anchor) => (
-                    <span key={anchor.id} id={legalSourceAnchorId(fragment(anchor))}
+                    <span key={anchor.id} id={legalSourceAnchorId(anchor.fragment ?? "")}
                       className="col-span-full block scroll-mt-4" aria-hidden="true" />
                   ))}
                   {page && <div role="doc-pagebreak" aria-label={locatorLabel(page)}

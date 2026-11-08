@@ -34,7 +34,7 @@ import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
 import { hasPrintedParagraphLocator, initialAuthorityAnnotations, locatorLabel } from "./authoritiesAnnotations";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, entryOrder, type DocxAuthorityMark } from "./docxOperations";
-import { nodeSpan, structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry,
+import { structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry,
   type NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
@@ -542,7 +542,7 @@ export async function renderAuthoritySourcePdf(input: {
   const sections = structured ? structureNative().documentOutline(structured) : [];
   const depths = new Map((structured ? structureNative().documentAnchors(structured, input.text.length) : [])
     .filter(node => node.kind === "section").reverse()
-    .map(node => [nodeSpan(node).start, Math.max(0, (node.level ?? 1) - 1)]));
+    .map(node => [node.query_span.start, Math.max(0, (node.level ?? 1) - 1)]));
   const placed: Array<{ start: number; pageIndex: number; note?: string; heading?: number; title?: string }> = [];
   let placing: Omit<(typeof placed)[number], "pageIndex"> | null = null;
   // Paragraphs sit about half a line apart, whether the source parts them with a blank

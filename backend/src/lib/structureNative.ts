@@ -183,15 +183,13 @@ export type NativePdfLookupRequest = {
 export type NativePdfLookupUnit = {
   node: NativeNode;
   text: string;
+  /** The pages (from 1) it stands on: its note's first call's, then its node's and its printings'. */
+  pages: number[];
   confidence: number | null;
   printings?: NativeNode[];
   occurrence?: number;
   reference_page?: number | null;
 };
-
-/** The pages (from 1) a lookup unit stands on: its note's first call's, then its node's and its printings'. */
-export const unitPages = (unit: NativePdfLookupUnit) => [...new Set([...unit.reference_page ? [unit.reference_page] : [],
-  ...[unit.node, ...unit.printings ?? []].flatMap((node) => (node.page_indexes ?? []).map((index) => index + 1))])];
 
 type PdfStructureLookupBase = {
   schema_version: "legalpdf.structure-lookup.v1";
@@ -555,30 +553,16 @@ export type NativeNode = {
   calls?: NativeSpan[];
   /** What a reader knows of the node past its kind and place: a note's proposition ("sentence", "passage"). */
   properties?: Record<string, string>;
+  /** Beside each node the engine returns, its readings of it: the spans of the document's query text it holds and their
+   *  envelope, its link fragment ("par12"), and whether it prints its label where it stands. */
+  query_ranges: NativeSpan[];
+  query_span: NativeSpan;
+  fragment?: string | null;
+  prints_label: boolean;
 };
 
 /** A node the query found, with its text. */
 export type NativePassage = { node: NativeNode; text: string };
-
-/** A node's ranges in the document's query text, as the structure reads them (`DocumentStructure::query_ranges`): its
- *  rendered ranges where the structure renders its text, else a provision's or heading's extent, else its own. */
-export function nodeRanges(node: NativeNode): NativeSpan[] {
-  if (node.rendered_ranges?.length) return node.rendered_ranges;
-  if (node.rendered_range) return [node.rendered_range];
-  if ((node.kind === "section" || node.role === "heading") && node.extent?.length) return node.extent;
-  return node.ranges?.length ? node.ranges : [node.range];
-}
-
-/** A node's span in the document's query text, from its first range's start to its last's end. */
-export function nodeSpan(node: NativeNode): NativeSpan {
-  const ranges = nodeRanges(node);
-  return { start: Math.min(...ranges.map(({ start }) => start)), end: Math.max(...ranges.map(({ end }) => end)) };
-}
-
-/** Whether the document prints the node's label: its marker stands in the text. */
-export function printsLabel(node: NativeNode): boolean {
-  return !!node.marker_range && node.marker_range.start < node.marker_range.end;
-}
 
 /** The engine's reading of where a quotation is in its source (legal-structure quote_location.rs). */
 export type NativeQuoteCorrection = { region: string; fragment: string; corrected: string };

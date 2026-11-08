@@ -58,6 +58,8 @@ interface LegalSourceViewerAnchor {
   kind: "paragraph" | "prose" | "page" | "section" | "footnote" | "table" | "row" | "cell";
   /** As the document prints it; none for prose. */
   label?: string;
+  /** Its link fragment as the structure writes it ("par12"), beside the node. */
+  fragment?: string | null;
 }
 export const getLegalSourceCoverage = async () =>
   (await apiRequest<{ coverage: LegalSourceCoverage[] }>("/sources/coverage")).coverage;

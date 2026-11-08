@@ -40,10 +40,7 @@ import {
   type PdfLocatorKind,
 } from "../documentProjectionService";
 import {
-  nodeRanges,
-  nodeSpan,
   structureNative,
-  unitPages,
   type NativeDocument,
 } from "../structureNative";
 import {
@@ -1055,7 +1052,7 @@ async function runCodingShapeCall(
           ? `; candidates: ${lookup.matches.join(", ")}` : "";
         return fail(`Section '${grepSection}' not found (${lookup.status}${candidates}).`);
       }
-      scopeSpan = nodeSpan(lookup.block.node);
+      scopeSpan = lookup.block.node.query_span;
     }
     const matched = lines.flatMap((line, index) => {
       const end = starts[index + 1] ?? document.text.length;
@@ -1236,7 +1233,7 @@ function compactPdfLookup(filename: string, lookup: PdfLookupResult, evidence: L
     // A passage the PDF interrupts (a page's running head and notes between its parts) has a receipt for each part,
     // and each part is shown with its own.
     passages: units.flatMap((unit) => {
-      const { node } = unit, pages = unitPages(unit), receipts = evidence.filter((value) => value.block_id === `node:${node.id}` ||
+      const { node } = unit, pages = unit.pages, receipts = evidence.filter((value) => value.block_id === `node:${node.id}` ||
         value.stable_source_id.endsWith(`:${kind}:${node.id}`)),
         texts = receipts.length ? receipts.map((receipt) => receipt.span_text ?? unit.text) : [unit.text],
         // A note's proposition, where the pairing read one: the sentence calling it and the passage since the note before.
@@ -1349,7 +1346,7 @@ function providerPdfLegalEvidence(
         return true;
       }).join("\n\n");
       if (!spanText) return [];
-      const page = unitPages(unit).sort((a, b) => a - b)[0];
+      const page = [...unit.pages].sort((a, b) => a - b)[0];
       const url = new URL(resolved.params.url);
       if (page) url.hash = `page=${page}`;
       return [createDirectSourceEvidence(provider, {
@@ -1384,7 +1381,7 @@ function pdfLegalEvidence(
       [...lookup.before, ...lookup.units, ...lookup.after].map((unit) => [unit.node.id, unit])).values()];
   return units.flatMap((unit) => {
     if (!unit.text.trim()) return [];
-    const parts = nodeRanges(unit.node);
+    const parts = unit.node.query_ranges;
     if (!parts.length || parts.some((span) => span.end <= span.start))
       throw new Error("PDF passage has no canonical document spans");
     return parts.map((span) => createLibraryEvidence({

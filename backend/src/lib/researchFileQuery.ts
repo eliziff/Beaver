@@ -14,7 +14,7 @@ import { commitResearchFile, readResearchFile,
   type ResearchFile, type ResearchFileAction, type ResearchFileState,
   type ResearchQueryReceipt, type ResearchSourceReference } from "./researchFile";
 import { provenBlockLocator } from "./documentLocators";
-import { nodeRanges, structureNative } from "./structureNative";
+import { structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
 import { hasSearchOperators, searchMatcher } from "./searchQuery";
 import { sha256 } from "./hash";
@@ -346,9 +346,9 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
           source.reference.kind === "legislation" ? "section" : "paragraph", text.length).slices;
         // Each slice's node, or the lines a slice no node opens.
         const units = slices.length ? slices.map(({ primary, start, end }) => primary
-          ? { node: primary, label: primary.label ?? "", ranges: nodeRanges(primary) }
+          ? { node: primary, label: primary.label ?? "", ranges: primary.query_ranges }
           : { node: null, label: `line ${start + 1}-${end}`, ranges: [{ start, end }] })
-          : adapter.documentAnchors(passage.documentArtifact).map((node) => ({ node, label: node.label ?? "", ranges: nodeRanges(node) }));
+          : adapter.documentAnchors(passage.documentArtifact).map((node) => ({ node, label: node.label ?? "", ranges: node.query_ranges }));
         // Receipts address contiguous source text; intersect exact membership with selected evidence.
         const blocks = units.flatMap((unit) => unit.ranges.flatMap((member) =>
           passage.ranges.flatMap((selected) => {

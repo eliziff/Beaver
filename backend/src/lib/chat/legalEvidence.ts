@@ -6,7 +6,7 @@ import {
   stableA2AJSourceId,
   type A2AJCompiledDocument,
 } from "../legalSources/a2aj";
-import { nodeSpan, structureNative, type NativeDocument } from "../structureNative";
+import { structureNative, type NativeDocument } from "../structureNative";
 import { hasCanadianDecisionLink } from "../legalSourceLinks";
 import type { LegalSourcePassage, LegalSourceReference } from "../legalSources";
 import { type Tool } from "../llm";
@@ -504,7 +504,7 @@ export type LegalEvidenceSpan = { text: string; start: number; end: number;
 
 export function legalSourceEvidence(passage: LegalSourcePassage,
   span?: LegalEvidenceSpan): LegalEvidenceReceipt | undefined {
-  const block = passage.blockArtifact, at = block && nodeSpan(block);
+  const block = passage.blockArtifact, at = block && block.query_span;
   span ??= block && at ? { text: passage.text, start: at.start, end: at.end,
     blockId: `${block.kind}:${block.label ?? ""}:${at.start}:${at.end}`,
     ...(block.label != null && ["paragraph", "page", "section", "footnote"].includes(block.kind)

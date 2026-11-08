@@ -796,7 +796,7 @@ mod pdf {
                 let mut pages = lookup
                     .units
                     .iter()
-                    .flat_map(legalpdf::PdfLookupUnit::page_numbers)
+                    .flat_map(|unit| unit.pages.iter().copied())
                     .collect::<Vec<_>>();
                 let mut status = lookup.status;
                 // A locator naming more than one place places none.
