@@ -19,7 +19,7 @@
 //! Each miss of the parser goes to OUT/failures.jsonl under its cause.
 
 use crate::tool::{citations_of, clusters_of, flag, record_of, WORKER_STACK};
-use legal_structure::opinion::{nodes, numbers_at, opinion_structure, paragraphs, pin_at, reading};
+use legal_structure::opinion::{in_flow, nodes, numbers_at, opinion_structure, paragraphs, pin_at, reading};
 use legal_structure::{DocumentStructure, NodeKind, StructureNode};
 use regex::Regex;
 use serde_json::{json, Value};
@@ -1429,7 +1429,7 @@ pub fn grade(args: &[String]) {
                 // A scan with fewer pages than the case's own marks run over has lost sheets: counted on from its first page, its
                 // later pages carry the wrong numbers, so it judges nothing.
                 let scan = fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster));
-                let marked_to = scan.and_then(|scan| nodes(&structure, NodeKind::Page).filter(|page| page.series.starts_with("reporter") && !page.properties.contains_key("in_note") && page.grammar.as_deref() != Some("stray"))
+                let marked_to = scan.and_then(|scan| nodes(&structure, NodeKind::Page).filter(|page| page.series.starts_with("reporter") && in_flow(page))
                     .filter_map(|page| page.label.as_deref().unwrap_or("").parse::<u32>().ok()).filter(|label| *label >= scan.first && *label <= scan.first + 200).max());
                 let scan = scan.filter(|scan| marked_to.is_none_or(|last| ((last - scan.first) as usize) < scan.pages.len()));
                 if fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster)).is_some() && scan.is_none() {
