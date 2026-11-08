@@ -559,7 +559,7 @@ mod pdf {
         }
         // Filter before serializing: a viewport read must not copy the whole scan into JS.
         Ok(Some(document.recognized_pages()
-            .filter(|page| pages.as_ref().is_none_or(|pages| pages.contains(&page.page_number)))
+            .filter(|page| pages.as_ref().is_none_or(|pages| pages.contains(&page.number)))
             .collect::<Vec<_>>()))
     }
 
@@ -692,7 +692,7 @@ mod pdf {
     /// Passage planning and geometry share the prepared extraction witnesses.
     pub struct PdfPassagePagesJob {
         summary: legalpdf::PdfSummary,
-        pages: std::sync::Arc<Vec<legal_pdf_support::PdfTextPage>>,
+        pages: std::sync::Arc<Vec<legal_structure::layout::Page>>,
         plans: Vec<PassagePlan>,
         fragments: Vec<legal_structure::SourceFragment>,
     }
@@ -800,57 +800,58 @@ mod pdf {
                     let selected_pages = self.fragments.iter().filter(|fragment| selected.contains_key(fragment.id.as_str()))
                         .map(|fragment| fragment.page_index as u32 + 1).collect::<HashSet<_>>();
                     let pages = self.pages.iter().filter(|page|
-                        plan.pages.contains(&page.page_number) || selected_pages.contains(&page.page_number))
+                        plan.pages.contains(&page.number) || selected_pages.contains(&page.number))
                         .map(|page| {
-                            let available = !unavailable.contains(&((page.page_number - 1) as usize))
+                            let available = !unavailable.contains(&((page.number - 1) as usize))
                                 && (plan.page || self.fragments.iter().filter(|fragment|
-                                    fragment.page_index as u32 + 1 == page.page_number && selected.contains_key(fragment.id.as_str()))
+                                    fragment.page_index as u32 + 1 == page.number && selected.contains_key(fragment.id.as_str()))
                                     .all(|fragment| page.lines.iter().any(|line| line.id == fragment.id)));
                             let mut lines = Vec::new();
                             if available {
                                 for line in &page.lines {
                                     if plan.page {
                                         // A page request owns its entire physical text surface.
-                                        lines.push(serde_json::json!({ "id": line.id, "rect": line.rect,
-                                            "words": line.words.iter().filter(|word| !word.inferred_geometry)
-                                                .map(|word| serde_json::json!({ "text": word.text, "rect": word.rect }))
+                                        lines.push(serde_json::json!({ "id": line.id, "rect": line.bbox,
+                                            "words": line.words.iter()
+                                                .map(|word| serde_json::json!({ "text": word.text, "rect": word.bbox }))
                                                 .collect::<Vec<_>>() }));
                                         continue;
                                     }
                                     for range in selected.get(line.id.as_str()).into_iter().flatten() {
                                         let source = legal_structure::ScalarText::new(&line.text);
-                                        // (A line the extraction gives no word boxes stands in its own: "Q Have you ever heard of a -- the use of a".)
+                                        // (A line the extraction gives no word boxes stands in its own: "Q Have you ever heard of a -- the use of a";
+                                        // a line recognition read with none is marked by none.)
                                         if line.words.is_empty() {
+                                            if page.source != "native" { continue; }
                                             lines.push(serde_json::json!({
                                                 "id": format!("{}:{}-{}", line.id, range.start, range.end),
-                                                "rect": line.rect,
-                                                "words": [{ "text": source.slice_utf16(range.start..range.end), "rect": line.rect }] }));
+                                                "rect": line.bbox,
+                                                "words": [{ "text": source.slice_utf16(range.start..range.end), "rect": line.bbox }] }));
                                             continue;
                                         }
                                         let words = line.words.iter().filter_map(|word| {
-                                            if word.inferred_geometry { return None; }
                                             // Physical word witnesses use Unicode scalars; source fragments use UTF-16.
-                                            let start = source.utf16_at_scalar(word.start?)?.max(range.start);
-                                            let end = source.utf16_at_scalar(word.end?)?.min(range.end);
+                                            let start = source.utf16_at_scalar(word.start)?.max(range.start);
+                                            let end = source.utf16_at_scalar(word.end)?.min(range.end);
                                             if start >= end { return None; }
                                             let text = source.slice_utf16(start..end)?;
                                             Some((word, text, legal_structure::ScalarRange { start, end }))
                                         }).collect::<Vec<_>>();
                                         // (A mark no word box covers costs that mark, not the page its line stands on.)
                                         let Some((first, _, _)) = words.first() else { continue; };
-                                        let rect = words.iter().skip(1).fold(first.rect, |rect, (word, _, _)| [
-                                            rect[0].min(word.rect[0]), rect[1].min(word.rect[1]),
-                                            rect[2].max(word.rect[2]), rect[3].max(word.rect[3])]);
+                                        let rect = words.iter().skip(1).fold(first.bbox, |rect, (word, _, _)| [
+                                            rect[0].min(word.bbox[0]), rect[1].min(word.bbox[1]),
+                                            rect[2].max(word.bbox[2]), rect[3].max(word.bbox[3])]);
                                         lines.push(serde_json::json!({
                                             "id": format!("{}:{}-{}", line.id, range.start, range.end),
                                             "rect": rect,
                                             "words": words.iter().map(|(word, text, _)| serde_json::json!({
-                                                "text": text, "rect": word.rect })).collect::<Vec<_>>() }));
+                                                "text": text, "rect": word.bbox })).collect::<Vec<_>>() }));
                                     }
                                 }
                             }
                             if !available { lines.clear(); }
-                            serde_json::json!({ "pageNumber": page.page_number,
+                            serde_json::json!({ "pageNumber": page.number,
                                 "width": page.width, "height": page.height,
                                 "source": if available { "native" } else { "unavailable" }, "lines": lines })
                         }).collect::<Vec<_>>();

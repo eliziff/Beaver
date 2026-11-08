@@ -502,7 +502,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const loadRecognizedText = useCallback(async (page: number, signal: AbortSignal) => {
     try {
       const text = await host.readSourceText?.(base, role, signal, [page]);
-      return text?.pages.find(item => item.pageNumber === page);
+      return text?.pages.find(item => item.number === page);
     } catch (cause) {
       if (!signal.aborted) setTextError(errorMessage(cause));
       return undefined;

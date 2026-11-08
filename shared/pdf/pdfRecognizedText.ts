@@ -1,6 +1,7 @@
-export type RecognizedPage = { pageNumber: number; width: number; height: number;
-  lines: Array<{ id: string; text?: string; rect: [number, number, number, number];
-    words: Array<{ text: string; rect: [number, number, number, number] }> }> };
+/** A recognized page as the engine's layout holds it: its number, its size, and its lines and words with their boxes. */
+export type RecognizedPage = { number: number; width: number; height: number;
+  lines: Array<{ id: string; text: string; bbox: [number, number, number, number];
+    words: Array<{ text: string; bbox: [number, number, number, number] }> }> };
 
 const REFERENCE = 100;
 
@@ -14,13 +15,13 @@ export function renderRecognizedText(element: HTMLElement, page: RecognizedPage,
   if (measure) measure.font = `${REFERENCE}px sans-serif`;
   for (const source of page.lines) {
     const line = document.createElement('div');
-    line.style.display = 'contents'; line.dataset.legalText = String(page.pageNumber);
+    line.style.display = 'contents'; line.dataset.legalText = String(page.number);
     // Line-only providers still supply a real text run and its measured line box.
-    const runs = source.words.length ? source.words : source.text?.trim()
-      ? [{ text: source.text, rect: source.rect }] : [];
+    const runs = source.words.length ? source.words : source.text.trim()
+      ? [{ text: source.text, bbox: source.bbox }] : [];
     for (const word of runs) {
-      const [x0,y0,x1,y1] = word.rect;
-      if (!word.text.trim() || !word.rect.every(Number.isFinite) || x1 <= x0 || y1 <= y0) continue;
+      const [x0,y0,x1,y1] = word.bbox;
+      if (!word.text.trim() || !word.bbox.every(Number.isFinite) || x1 <= x0 || y1 <= y0) continue;
       const span = document.createElement('span'), size = (y1-y0) / page.height * height;
       span.dataset.pdfTextRun = '';
       Object.assign(span.style, { left: `${x0 / page.width * width}px`, top: `${y0 / page.height * height}px`,

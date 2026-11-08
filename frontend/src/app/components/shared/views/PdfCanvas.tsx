@@ -64,7 +64,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
         containerRef.current?.style.removeProperty('min-height');
     }, []);
     const editorRef = useRef(annotationEditor), quotesRef = useRef(quotes);
-    const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.pageNumber, page])), [recognizedText]);
+    const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.number, page])), [recognizedText]);
     const recognizedRef = useRef(recognizedPages), textLoaderRef = useRef(loadRecognizedText);
     const navigationRef = useRef(0), quoteGenerationRef = useRef(0);
     const focusedRequestRef = useRef<number | undefined>(undefined);

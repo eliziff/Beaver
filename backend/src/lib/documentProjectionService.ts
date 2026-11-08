@@ -674,10 +674,10 @@ async function pdfTextLayer(
     options.signal?.throwIfAborted();
     const geometry = native.pdfRecognizedText(document, requested?.filter(page => owner(page) === key));
     if (geometry === null) throw unavailable();
-    for (const page of geometry) if (owner(page.pageNumber) === key) result.set(page.pageNumber, page);
+    for (const page of geometry) if (owner(page.number) === key) result.set(page.number, page);
   }
   // Unfiltered reads are for automatic marking; the viewport only restores/copies its requested pages.
-  return [...result.values()].sort((a, b) => a.pageNumber - b.pageNumber);
+  return [...result.values()].sort((a, b) => a.number - b.number);
 }
 
 async function preparedForEvidence(

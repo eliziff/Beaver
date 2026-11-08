@@ -161,8 +161,9 @@ export type NativePdfPassageGeometry = {
   }>;
 };
 
-export type NativePdfTextPage = { pageNumber: number; width: number; height: number;
-  lines: Array<{ id: string; text?: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }> };
+/** A page of the extraction as the engine's layout holds it (`legal_layout::Page`), the fields read of it. */
+export type NativePdfTextPage = { number: number; width: number; height: number;
+  lines: Array<{ id: string; text: string; bbox: Rect; words: Array<{ text: string; bbox: Rect }> }> };
 
 type NativePdfPassagePages = Omit<NativePdfPassageGeometry, "schemaVersion" | "targets"> & {
   schemaVersion: "legalpdf.passage-pages.v1";

@@ -24,7 +24,7 @@ export async function prepareSourceText(product: AuthoritiesProduct, role: strin
   if (binding.kind !== 'local-file') return;
   const hash = binding.lastSeen.sha256;
   if (!hash) return;
-  const retainedPages = () => new Map((text.get(hash) ?? []).map(page => [page.pageNumber, page]));
+  const retainedPages = () => new Map((text.get(hash) ?? []).map(page => [page.number, page]));
   const count = (retained: Map<number, unknown>) => scanned ? scanned.filter(page => retained.has(page)).length : retained.size;
   for (const pages of passes(priority, scanned)) {
     signal.throwIfAborted();
@@ -43,12 +43,12 @@ export async function prepareSourceText(product: AuthoritiesProduct, role: strin
       }});
       const result = response.data as PdfRecognizedText;
       const retained = retainedPages();
-      for (const page of result.pages) retained.set(page.pageNumber, page);
+      for (const page of result.pages) retained.set(page.number, page);
       text.set(hash, [...retained.values()]); completed(count(retained));
     }, signal).finally(settle);
   }
 }
 
 export async function readSourceText(hash: string, pages?: number[]): Promise<PdfRecognizedText> {
-  return {pages:(text.get(hash) ?? []).filter(page => !pages || pages.includes(page.pageNumber))};
+  return {pages:(text.get(hash) ?? []).filter(page => !pages || pages.includes(page.number))};
 }
