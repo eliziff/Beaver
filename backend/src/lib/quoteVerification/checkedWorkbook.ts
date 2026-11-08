@@ -338,7 +338,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
       return link;
     const place = receipt.match.labels[0];
     const locator: PassageLocator | null = place?.kind === "paragraph" ? { kind: "paragraph", label: place.label }
-      : place?.kind === "section" ? fragmentLocator(place.label) : null;
+      : place?.kind === "section" ? { kind: "section", label: place.label } : null;
     return await routed(index, locator, receipt.match.text,
       [receipt.match.fragment || found!.quote]) ?? link;
   };

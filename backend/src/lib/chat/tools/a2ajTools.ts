@@ -25,7 +25,7 @@ function activityLocatorLabel(label: string, kind?: string) {
   const value = label
     .replace(/^\[\s*[a-z]+(?:\s+|=)([^\]]+)\s*\]$/iu, "$1")
     .replace(/^[a-z]+=/iu, "").trim()
-    // A receipt's section label is "sec" and the label the source prints: "sec11(1)", "secSchedule 1".
+    // A section's place carries its kind's mark before the label the source prints: "sec11(1)", "secSchedule 1".
     .replace(/^sec(?=\p{Lu})/u, "");
   const prefix = kind === "paragraph" ? /^(?:paragraphs?|paras?|par)\.?\s*/iu
     : kind === "section" ? /^(?:sections?|secs?|ss?|s)(?![a-z])\.?\s*/iu

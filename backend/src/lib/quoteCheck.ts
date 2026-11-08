@@ -246,7 +246,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   function linkedPassage({ row, source, document }: Pending, match: NativeQuoteLocation) {
     if (!source.url || !match.text) return null;
     const found = match.labels[0], kind = found?.kind === "pdfPage" ? undefined : found?.kind;
-    const value = kind === "section" ? found!.label.replace(/^sec/u, "") : found?.label;
+    const value = found?.label;
     const anchor = kind && kind !== "page" ? legalSourceLocatorAnchor(source.url, kind, found!.shown) : undefined;
     return { url: source.url, blockText: match.text, quotes: [match.fragment || row.quote],
       anchor: anchor ?? (kind && value ? engine.readDocumentRange(document, kind, value, value, 0)?.selected[0]?.node.anchor : undefined) };

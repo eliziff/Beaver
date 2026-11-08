@@ -92,7 +92,7 @@ function locatorLabel({ kind, label = "" }: { kind: string; label?: string }) {
   if (kind === "page") return `Page ${label}`;
   if (kind === "paragraph") return `[${label}]`;
   if (kind === "footnote") return `Footnote ${label}`;
-  return label.startsWith("sec") ? label.slice(3) : label;
+  return label;
 }
 
 type OutlineEntry = NonNullable<LegalSourceViewerPayload["outline"]>[number];
@@ -147,7 +147,7 @@ function stripMarker(text: string, reading: Anchor | null) {
     return text.replace(new RegExp(`^\\s*(?:\\[\\s*${label}\\s*\\]|${label}\\.)\\s*`, "u"), "");
   }
   if (anchor?.kind === "section") {
-    const label = (anchor.label ?? "").replace(/^sec/u, "");
+    const label = anchor.label ?? "";
     const bold = text.replace(new RegExp(`^\\s*\\*\\*${escapeRegExp(label)}\\*\\*(?=\\s|$)\\s*`, "iu"), "");
     if (bold !== text) return bold;
     const stripped = text.replace(new RegExp(`^\\s*${escapeRegExp(label).replace(/\\\(/gu, "\\s*\\(")}\\s*`, "iu"), "");
