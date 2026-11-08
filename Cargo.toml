@@ -9,6 +9,7 @@ resolver = "2"
 members = [
     "native/legal-structure-node",
     "native/a2aj-gold",
+    "native/page-truth",
     "experiments/legal-structure-gold/grade",
     "experiments/ocr-structure-attribution",
 ]
@@ -33,6 +34,7 @@ legal-text = { path = "common-law-cite/crates/legal-text" }
 legal-structure = { path = "legal-structure" }
 legal-layout = { path = "legal-structure/layout" }
 legal-structure-model = { path = "legal-structure/model" }
+legal-locator = { path = "legal-structure/locator" }
 legal-structure-features = { path = "legal-structure/features" }
 
 [profile.dev]
