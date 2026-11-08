@@ -536,9 +536,9 @@ mod docx {
 
     pub fn derive_docx_document(bytes: &[u8], id: String, drafting: bool) -> CoreResult<NativeDocument> {
         let structure = if drafting {
-            legalpdf::analyze_docx_drafting_bytes(&legal_structure::STRUCTURE_ANALYSIS, bytes, id)
+            legalpdf::analyze_docx_drafting_bytes(bytes, id)
         } else {
-            legalpdf::analyze_docx_bytes(&legal_structure::STRUCTURE_ANALYSIS, bytes, id)
+            legalpdf::analyze_docx_bytes(bytes, id)
         }
         .map_err(|error| error.to_string())?;
         Ok(NativeDocument::new(NativeProduct::Structure(structure)))
@@ -688,7 +688,7 @@ mod pdf {
         let plans = targets
             .into_iter()
             .map(|target| {
-                let lookup = document.lookup(&legal_structure::STRUCTURE_ANALYSIS, &legalpdf::PdfLookupRequest::new(
+                let lookup = document.lookup(&legalpdf::PdfLookupRequest::new(
                     &target.locator_kind,
                     &target.locator,
                 ));
@@ -716,7 +716,7 @@ mod pdf {
                     .collect::<Vec<_>>();
                 let mut status = lookup.status;
                 if target.locator_kind == "paragraph" {
-                    (status, ranges) = document.paragraph_source_ranges(&legal_structure::STRUCTURE_ANALYSIS, &target.locator);
+                    (status, ranges) = document.paragraph_source_ranges(&target.locator);
                     pages.clear();
                 }
                 // A statute's provisions are placed by the reading of its body as a statute.
@@ -898,7 +898,6 @@ mod pdf {
     ) -> CoreResult<impl Serialize> {
         let pdf = pdf_of(document, "PDF query requires a PDF document")?;
         Ok(legalpdf::query_pdf_document(
-            &legal_structure::STRUCTURE_ANALYSIS,
             pdf,
             &legalpdf::PdfLookupRequest {
                 locator_kind,
