@@ -794,7 +794,7 @@ async function runCodingShapeCall(
           try {
             nativePdf = await documentProjectionService.read(source, { signal });
             physicalPageCount = structureNative()
-              .pdfDocumentSummary(nativePdf).projectionPageCount;
+              .pdfDocumentSummary(nativePdf).pageCount;
           } catch {
             return fail(
               `${meta.filename} is not a valid readable PDF. Retrying will not help.`,

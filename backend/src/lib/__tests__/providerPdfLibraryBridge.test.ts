@@ -61,7 +61,6 @@ beforeEach(async () => {
     parserVersion: "test",
     cacheKey: "a".repeat(64),
     pageCount: 1,
-    projectionPageCount: 1,
     profile: {},
   }));
   vi.resetModules();

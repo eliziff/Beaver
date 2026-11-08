@@ -19,7 +19,7 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
       width: 400, height: 500, lines: [{ id: `${pageNumber}-1`, rect: [40, 60, 240, 75],
         words: [{ text: `Recognized page ${pageNumber}`, rect: [40, 60, 240, 75] }] }] })) });
     return { sha256: sha256(bytes), cacheKey: key, parserVersion: 'test', status: pages.length === 3 ? 'ready' : 'degraded',
-      pageCount: 3, projectionPageCount: input.pages?.length ?? 3,
+      pageCount: 3,
       pagesNeedingOcr: [0, 1, 2].filter(page => !pages.includes(page + 1)), ocrRoutedPages: pages.map(page => page - 1) };
   });
   const restore = vi.fn(async (input: { cache_key: string; expected_source_sha256: string }) => {

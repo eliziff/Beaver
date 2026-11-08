@@ -503,7 +503,6 @@ export type PdfPreparationSummary = {
   parserVersion: string;
   cacheKey: string;
   pageCount: number;
-  projectionPageCount: number;
   status: string;
   pagesNeedingOcr: number[];
   ocrRoutedPages: number[];

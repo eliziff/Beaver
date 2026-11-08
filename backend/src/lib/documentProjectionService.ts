@@ -78,7 +78,6 @@ function preparedSummary(result: PdfPreparationSummary, expectedSha256?: string)
     parserVersion: result.parserVersion,
     cacheKey: result.cacheKey,
     pageCount: result.pageCount,
-    projectionPageCount: result.projectionPageCount,
     pagesNeedingOcr: result.pagesNeedingOcr,
     ocrRoutedPages: result.ocrRoutedPages,
   };
