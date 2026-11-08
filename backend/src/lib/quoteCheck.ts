@@ -245,11 +245,11 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
    *  beside the fragment where the source's page has one (CanLII's #par12 or #sec4, Decisia's #par12). */
   function linkedPassage({ row, source, document }: Pending, match: NativeQuoteLocation) {
     if (!source.url || !match.text) return null;
-    const [, kind, value] = /^(par|page |sec)(.+)$/u.exec(match.labels[0] ?? "") ?? [];
-    const blockKind = kind === "par" ? "paragraph" : kind === "sec" ? "section" : "page";
-    const anchor = blockKind !== "page" ? legalSourceLocatorAnchor(source.url, blockKind, match.labels[0]) : undefined;
+    const found = match.labels[0], kind = found?.kind === "pdfPage" ? undefined : found?.kind;
+    const value = kind === "section" ? found!.label.replace(/^sec/u, "") : found?.label;
+    const anchor = kind && kind !== "page" ? legalSourceLocatorAnchor(source.url, kind, found!.shown) : undefined;
     return { url: source.url, blockText: match.text, quotes: [match.fragment || row.quote],
-      anchor: anchor ?? (kind ? engine.readDocumentRange(document, blockKind, value, value, 0)?.selected[0]?.node.anchor : undefined) };
+      anchor: anchor ?? (kind && value ? engine.readDocumentRange(document, kind, value, value, 0)?.selected[0]?.node.anchor : undefined) };
   }
   /** A located quotation's check: its receipt, with a link that opens the source at the quoted words. */
   function checked({ candidateId, pinpoints, source, document }: Pending,

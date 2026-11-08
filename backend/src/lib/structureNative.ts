@@ -569,9 +569,11 @@ export type NativePassage = NativeNodeReading & { text: string };
 
 /** The engine's reading of where a quotation is in its source (legal-structure quote_location.rs). */
 export type NativeQuoteCorrection = { region: string; fragment: string; corrected: string };
-export type NativeQuoteLocation = NativeQuoteCorrection & { location: string; score: number; labels: string[]; pinpoint: string;
+/** Where a quotation was found: a block's kind, the label it prints, and the pinpoint a reader is shown ("par12", "page 5"). */
+export type NativeQuoteBlockLabel = { kind: "paragraph" | "page" | "pdfPage" | "section"; label: string; shown: string };
+export type NativeQuoteLocation = NativeQuoteCorrection & { location: string; score: number; labels: NativeQuoteBlockLabel[]; pinpoint: string;
   text: string; perfect: boolean; shortInLong: boolean;
-  cited: (NativeQuoteCorrection & { score: number; labels: string[]; pinpoint: string }) | null };
+  cited: (NativeQuoteCorrection & { score: number; labels: NativeQuoteBlockLabel[]; pinpoint: string }) | null };
 export type NativeQuoteComparison = { matches: Array<{ start: number; end: number; text: string }>; candidate: string | null;
   candidateOnly: boolean; editorial: string | null;
   changes: Array<{ kind: "replace" | "delete" | "insert"; authored: string; source: string }> };

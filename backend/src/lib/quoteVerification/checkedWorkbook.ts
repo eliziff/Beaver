@@ -336,7 +336,10 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     const found = a2ajFound(index), receipt = found?.receipt, document = documents[index];
     if (!receipt || receipt.link !== link || !document || structureNative().documentRevision(document) !== receipt.sourceSha256)
       return link;
-    return await routed(index, fragmentLocator(receipt.match.labels[0] ?? ""), receipt.match.text,
+    const place = receipt.match.labels[0];
+    const locator: PassageLocator | null = place?.kind === "paragraph" ? { kind: "paragraph", label: place.label }
+      : place?.kind === "section" ? fragmentLocator(place.label) : null;
+    return await routed(index, locator, receipt.match.text,
       [receipt.match.fragment || found!.quote]) ?? link;
   };
   const passages = parts.map((_, index) => pinpoints[index].map(({ locator }) => passageText(index, locator))
@@ -523,18 +526,18 @@ function quoteFields(quotes: Checked[]) {
     const cited = matches.map((match) => match.cited!);
     return { ...empty, quote_check_status: "OG_PINPOINT_PARTIAL",
       quote_corrected_citation: cited.map(({ corrected }, index) => quoted(corrected, found[index])).join("\n\n"),
-      quote_match_pinpoint: pinpointSummary([...new Set(cited.flatMap(({ labels }) => labels))]),
+      quote_match_pinpoint: pinpointSummary([...new Set(cited.flatMap(({ labels }) => labels.map(({ shown }) => shown)))]),
       quote_match_link: found.map((quote) => quote.receipt!.link).find(Boolean) ?? "",
       matched_source: cited.map(({ region }) => region.replace(/\n/gu, " ")).filter(Boolean).join("\n\n"),
       matched_source_fragment: cited.map(({ fragment }) => fragment).filter(Boolean).join("\n\n"),
       alternate_matched_source_fragment: matches.map((match) => match.fragment).filter(Boolean).join("\n\n"),
-      _alternate_quote_check_notes: pinpointSummary([...new Set(matches.flatMap((match) => match.labels))]),
+      _alternate_quote_check_notes: pinpointSummary([...new Set(matches.flatMap((match) => match.labels.map(({ shown }) => shown)))]),
       _alternate_quote_corrected_citation: found.map((quote) => quoted(quote.quote, quote)).join("\n\n") };
   }
   const accepted = found.length === quotes.length && found.every(supported);
   const alternate = matches.filter((match) => match.location.startsWith("alternate"));
   const pinpoint = pinpointSummary([...new Set((alternate.length ? alternate : matches).flatMap((match) =>
-    match.labels.length ? match.labels : match.pinpoint ? [match.pinpoint] : []))]);
+    match.labels.length ? match.labels.map(({ shown }) => shown) : match.pinpoint ? [match.pinpoint] : []))]);
   const level = accepted && alternate.length === matches.length ? "MATCH" : "PARTIAL";
   const limited = matches.some((match) => match.location.startsWith("scope_unavailable") || match.location === "cited_parent");
   return { ...empty,

@@ -41,7 +41,6 @@ export type WordResult = { units: Array<{ id: string; kind: "body" | "footnote";
 export type Correction = "marked" | "source";
 export type WordCitation = "first" | "best";
 
-const LOCATOR = { par: "paragraph", "page ": "page", sec: "section" } as Record<string, string>;
 const found = (check: QuoteCheck) => !!check.receipt && check.receipt.match.location !== "unmatched";
 const OUTER = /^[\s"“”«»„']+|[\s"“”«»„']+$/gu, CLOSE = /[.,;:!?]+$/u;
 /** Text between the authored quotation's own outer quotation marks, as the authored quotation has them. */
@@ -144,10 +143,10 @@ export function wordResult(draft: AuthoritiesDraft, check: Check, rows: Awaited<
     // Found word for word at another paragraph, page or provision of the kind its one pinpoint (not a range) names: that
     // pinpoint, renumbered.
     const occurrence = best.candidateId ? draft.occurrences[best.candidateId] : undefined, span = occurrence?.pinpointSpan;
-    const [, kind] = /^(par|page |sec)/u.exec(match.labels[0] ?? "") ?? [];
+    const place = match.labels[0];
     if (!supported || !match.perfect || !match.location.startsWith("alternate") || match.labels.length !== 1 || !occurrence || !span ||
-      occurrence.pinpoints.length !== 1 || occurrence.pinpoints[0].last || LOCATOR[kind] !== occurrence.pinpoints[0].kind) continue;
-    const target = pinpointText(span.text, match.labels[0]) ?? span.text;
+      occurrence.pinpoints.length !== 1 || occurrence.pinpoints[0].last || place?.kind !== occurrence.pinpoints[0].kind) continue;
+    const target = pinpointText(span.text, place.label) ?? span.text;
     const key = `${occurrence.unitId}:${span.start}`, earlier = pinpoints.get(key);
     // Two quotations that send one pinpoint to different places leave it as written.
     pinpoints.set(key, earlier === undefined || earlier?.marked === target ? { id: `pinpoint:${occurrence.id}`, kind: "pinpoint",
