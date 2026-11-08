@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PDFDocument, PDFName, PDFString } from "pdf-lib";
 import { structureNative } from "./structureNative";
-import { reporterStartPages, resolvePrintedPages, type PdfPageBinding } from "./pdfPagination";
+import { resolvePrintedPages, type PdfPageBinding } from "./pdfPagination";
 
 // A page map as the engine returns one: each page its label as printed.
 const map = (labels: Array<string | null>): PdfPageBinding[] => labels.map((label, index) => ({ pdfPage: index + 1,
@@ -9,7 +9,7 @@ const map = (labels: Array<string | null>): PdfPageBinding[] => labels.map((labe
 
 describe("shared printed pagination", () => {
   it("reads the reports' first pages, and selects no duplicate or unbound page", () => {
-    expect(reporterStartPages(["[1986] 1 SCR 103", "410 U.S. 113"])).toEqual([103,113]);
+    expect(structureNative().reporterStartPages(["[1986] 1 SCR 103", "410 U.S. 113"])).toEqual([103,113]);
     const repeated = map(["5","6","5"]);
     expect(resolvePrintedPages("5",repeated)).toEqual([]);
     expect(resolvePrintedPages("5–6",repeated)).toEqual([]);

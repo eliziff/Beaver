@@ -1,7 +1,7 @@
 import { profileFor } from "./pdfProfile";
 import { ApplicationError } from "./applicationError";
 import type { NativePdfTextPage } from "./structureNative";
-import { reporterStartPages, resolvePrintedPages, type PdfPageBinding } from "./pdfPagination";
+import { resolvePrintedPages, type PdfPageBinding } from "./pdfPagination";
 import { sha256 } from "./hash";
 import {
   lookupPdfStructure,
@@ -574,7 +574,7 @@ async function pdfPassageGeometry(
   const prepared = await preparedForSource(() => bytes, reference, options);
   const citations = options.citations ?? [];
   const labels = targets.some(target => target.locatorKind === "page" && target.physicalPages === undefined)
-    ? await cachedPagination(reference, reporterStartPages(citations), () => paginationFor(prepared.document, citations)) : [];
+    ? await cachedPagination(reference, structureNative().reporterStartPages(citations), async () => structureNative().pdfPageMap(prepared.document, citations)) : [];
   return nativePdfPassageGeometry(prepared.document, bytes, targets.map(target => target.locatorKind === "page" &&
       target.physicalPages === undefined
     ? { ...target, physicalPages: resolvePrintedPages(target.locator, labels).map(index => index + 1) } : target));
@@ -600,11 +600,6 @@ async function pdfPageTexts(
   return structureNative().pdfPageTexts(document);
 }
 
-/** The engine's page map (`PdfDocument::page_map`): each page's printed number, anchored on the citations' first pages. */
-async function paginationFor(document: NativeDocument, citations: string[]) {
-  return structureNative().pdfPageMap(document, citations);
-}
-
 async function cachedPagination(reference: ProjectionReference, starts: number[],
   produce: () => Promise<PdfPageBinding[]>) {
   const result = await projectionFor(`${projectionKey(reference)}\0page-labels:${starts.join(",")}`,
@@ -618,13 +613,13 @@ async function pdfInformation(source: DocumentProjectionSource, citations: strin
   const reference = { documentId: source.documentId, versionId: source.versionId,
     sourceSha256: source.sourceSha256, cacheKey: source.pdfProfile?.cacheKey };
   // Cache derived labels in the existing version/profile-bound projection cache.
-  const starts = reporterStartPages(citations);
+  const starts = structureNative().reporterStartPages(citations);
   const result = await projectionFor(`${projectionKey(reference)}\0pdf-information:${starts.join(",")}`, async () => {
     const { bytes } = await boundedSource(source);
     const document = await pdfDocumentForSource(() => bytes, reference, { ocrProvider: null, layout: false });
     const summary = structureNative().pdfDocumentSummary(document);
     return JSON.stringify({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr,
-      pageMap: await paginationFor(document, citations) });
+      pageMap: structureNative().pdfPageMap(document, citations) });
   });
   await source.assertAvailable?.();
   return JSON.parse(result) as { pageCount: number; pagesNeedingOcr: number[]; pageMap: PdfPageBinding[] };

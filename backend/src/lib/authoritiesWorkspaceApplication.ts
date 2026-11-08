@@ -1,7 +1,7 @@
 import type { Progress } from "./followedRoute";
 import { mapBounded } from "./mapBounded";
 import { authorityCitationForms } from "./authoritiesDomain";
-import { reporterStartPages } from "./pdfPagination";
+import { structureNative } from "./structureNative";
 import { docxToPdf, wordToPdfAvailable } from "./convert";
 import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { readFile } from "node:fs/promises";
@@ -511,7 +511,7 @@ export function createAuthoritiesWorkspaceApplication(
           const citedPages = pages ? [] : [...citedSourcePages(draft, authority.id, [],
             bindings, prepared.pageCount)].map((index) => index + 1);
           if (!pages && !citedPages.length && targets.some(target => target.locatorKind === "page") &&
-              reporterStartPages(citations).length) {
+              structureNative().reporterStartPages([...citations]).length) {
             // Let the existing priority OCR pass establish an opening reporter anchor first.
             citedPages.push(...Array.from({ length: Math.min(3, prepared.pageCount) }, (_, index) => index + 1));
           }

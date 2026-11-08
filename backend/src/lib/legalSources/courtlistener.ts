@@ -123,8 +123,6 @@ async function compactOpinion(opinion: JsonRecord, cluster: JsonRecord = {}, cit
     type: asString(opinion.type),
     author: firstString(opinion, "author_str", "authorStr", "author") ??
       asString((opinion.author as JsonRecord | undefined)?.name),
-    per_curiam: firstString(opinion, "per_curiam", "perCuriam"),
-    joined_by_str: firstString(opinion, "joined_by_str", "joinedByStr"),
     url: absoluteWebUrl(opinion.absolute_url ?? opinion.url),
     pdfUrl: absoluteStorageUrl(opinion.storagePath ?? opinion.local_path),
   };
@@ -223,18 +221,12 @@ function compactLocalBulkCluster(
     id: cluster.id,
     caseName: cluster.caseName ?? cluster.caseNameFull ?? cluster.caseNameShort,
     dateFiled: cluster.dateFiled,
-    court: null,
     citations,
     url: cluster.slug
       ? `${COURTLISTENER_WEB_BASE}/opinion/${cluster.id}/${cluster.slug}/`
       : `${COURTLISTENER_WEB_BASE}/opinion/${cluster.id}/`,
     pdfUrl: absoluteStorageUrl(cluster.filepathPdfHarvard) ?? uniqueOpinionPdfUrl(opinions),
-    subOpinions: [],
   };
-}
-
-function courtlistenerApiTokenAvailable(apiToken?: string | null) {
-  return !!(apiToken?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim());
 }
 
 function uniqueCitationCluster(ids: unknown[]): number | null {
@@ -260,7 +252,7 @@ async function citationCluster(
       // An ambiguous local hit is authoritative too: do not ask the API to choose.
       if (matches.length) return uniqueCitationCluster(matches.map(({ id }) => id));
     }
-    if (!courtlistenerApiTokenAvailable(apiToken)) return null;
+    if (courtlistenerToken(apiToken) === null) return null;
   }
   // CourtListener is not asked while lookups stay on this computer.
   if (!lookupsLeaveComputer()) return null;
@@ -322,21 +314,13 @@ async function searchCases(args: {
     query, limit,
     filedAfter: args.filedAfter, filedBefore: args.filedBefore,
   });
-  if (local?.length || (local !== null && !courtlistenerApiTokenAvailable(args.apiToken))) {
+  if (local?.length || (local !== null && courtlistenerToken(args.apiToken) === null)) {
     return {
       query,
       source: "bulk-local",
       results: (local ?? []).map((cluster) => {
-        const compact = compactLocalBulkCluster(cluster);
-        return {
-          clusterId: compact.id,
-          caseName: compact.caseName,
-          citation: null,
-          court: null,
-          dateFiled: compact.dateFiled,
-          snippet: null,
-          url: compact.url,
-        };
+        const { id: clusterId, caseName, dateFiled, url } = compactLocalBulkCluster(cluster);
+        return { clusterId, caseName, citation: null, court: null, dateFiled, snippet: null, url };
       }),
     };
   }
@@ -370,21 +354,14 @@ async function searchCases(args: {
 async function caseOpinions(args: {
   clusterId: number;
   opinionId?: number;
-  maxChars?: number;
   apiToken?: string | null;
   signal?: AbortSignal;
 }) {
-  const result = await getBulkCourtlistenerCaseOpinions(args.clusterId, args.opinionId) ??
+  return await getBulkCourtlistenerCaseOpinions(args.clusterId, args.opinionId) ??
     await fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint({
       clusterId: args.clusterId, opinionId: args.opinionId,
       apiToken: args.apiToken, signal: args.signal,
     });
-  if (!args.maxChars) return result;
-  const limit = Math.max(1_000, Math.min(50_000, args.maxChars));
-  return { ...result, opinions: result.opinions.map((opinion) => {
-    const document = opinionDocument(opinion);
-    return { ...opinion, text: document ? structureNative().documentText(document, limit) : null };
-  }) };
 }
 
 function courtlistenerReference(
@@ -516,7 +493,6 @@ async function caseSource(citation: string, signal?: AbortSignal) {
 
 export const courtlistenerLegalSourceProvider = Object.assign(provider(), {
   configured: provider,
-  caseOpinions,
   caseSource,
   hasNativeOpinionStructure,
 });

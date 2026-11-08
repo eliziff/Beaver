@@ -1,8 +1,8 @@
 import { documentProjectionService, type PdfPreparationProgress } from "./documentProjectionService";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
-import { reporterStartPages, resolvePrintedPages } from "./pdfPagination";
-import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
+import { resolvePrintedPages } from "./pdfPagination";
+import { structureNative, type NativePdfPassageGeometry, type NativePdfPassageTarget } from "./structureNative";
 import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
 const projection = documentProjectionService;
@@ -90,7 +90,7 @@ export async function authorityPdfText(input: {
       // Cited-page OCR is explicitly requested: establish the reporter offset
       // before resolving its pinpoints, retaining the anchor in the partial pass.
       const openingPages: number[] = [];
-      if (reporterStartPages(input.citations ?? []).length) {
+      if (structureNative().reporterStartPages([...input.citations ?? []]).length) {
         for (let page = 1; located.some(pages => !pages.length) &&
             page <= Math.min(3, native.pageCount); page++) {
           if (!recognized.pagesNeedingOcr.includes(page - 1)) continue;
