@@ -459,7 +459,7 @@ fn parser_answer(structure: &DocumentStructure, question: &Question, found: Foun
         Kind::Note(_) => {
             let middle = (found.start + found.end) / 2;
             let note = nodes(structure, NodeKind::Footnote).find(|note| note.ranges.iter().any(|range| range.start <= middle && middle < range.end))?;
-            Some((note.printed_label().trim_matches(['[', ']', '(', ')', '.', ':', ' ']).to_owned(), String::new()))
+            Some((note.label.as_deref().unwrap_or("").trim_matches(['[', ']', '(', ')', '.', ':', ' ']).to_owned(), String::new()))
         }
         Kind::Part(_) => {
             let middle = (found.start + found.end) / 2;
@@ -1202,30 +1202,15 @@ fn tag_check(structure: &DocumentStructure, field: &Field, our_units: &[u16], th
 
 /// A planted fault, to prove the grader sees it: each must lower its own item and leave the others.
 fn mutate(structure: &mut DocumentStructure, name: &str) {
-    let plus = |label: &mut String, by: i64| {
-        if let Ok(number) = label.parse::<i64>() {
-            *label = (number + by).to_string();
+    // Each number one more: a label that is no number stays.
+    let relabel = |node: &mut StructureNode| {
+        if let Some(label) = node.label.as_mut().filter(|label| label.parse::<i64>().is_ok()) {
+            *label = (label.parse::<i64>().unwrap() + 1).to_string();
         }
-    };
-    let relabel = |node: &mut StructureNode, prefix: &str| {
-        let mut label = node.printed_label().to_owned();
-        plus(&mut label, 1);
-        node.label = Some(format!("{prefix}{label}"));
     };
     let paragraph = |node: &StructureNode| matches!(node.kind, NodeKind::Paragraph | NodeKind::Quote);
     match name {
-        "page-labels+1" => for node in &mut structure.nodes {
-            match node.kind {
-                NodeKind::Page => relabel(node, "page"),
-                NodeKind::Footnote => for pin in &mut node.pins {
-                    plus(&mut pin.page, 1);
-                    if let Some(through) = &mut pin.through {
-                        plus(through, 1);
-                    }
-                },
-                _ => {}
-            }
-        },
+        "page-labels+1" => structure.nodes.iter_mut().filter(|node| node.kind == NodeKind::Page).for_each(|page| relabel(page)),
         // Each mark a little way down the page: only passages near a break can tell.
         "page-marks-late" => structure.nodes.iter_mut().filter(|node| node.kind == NodeKind::Page).for_each(|page| page.range.start += 600),
         // Reporters crossed: each citation answered with the other's numbering. The parallel pins' own test.
@@ -1238,8 +1223,8 @@ fn mutate(structure: &mut DocumentStructure, name: &str) {
             }
         },
         "notes-gone" => structure.nodes.retain(|node| node.kind != NodeKind::Footnote),
-        "note-labels+1" => structure.nodes.iter_mut().filter(|node| node.kind == NodeKind::Footnote).for_each(|note| relabel(note, "fn")),
-        "numbers+1" => structure.nodes.iter_mut().filter(|node| paragraph(node) && node.label.is_some()).for_each(|node| relabel(node, "par")),
+        "note-labels+1" => structure.nodes.iter_mut().filter(|node| node.kind == NodeKind::Footnote).for_each(|note| relabel(note)),
+        "numbers+1" => structure.nodes.iter_mut().filter(|node| paragraph(node) && node.label.is_some()).for_each(|node| relabel(node)),
         "numbers-gone" => structure.nodes.iter_mut().filter(|node| paragraph(node)).for_each(|node| node.label = None),
         "writings-crossed" => structure.nodes.iter_mut().filter(|node| node.kind == NodeKind::Section).for_each(|part| {
             let crossed = if part.display_value.as_deref().unwrap_or("").contains("dissent") { "majority" } else { "dissent" };
@@ -1445,7 +1430,7 @@ pub fn grade(args: &[String]) {
                 // later pages carry the wrong numbers, so it judges nothing.
                 let scan = fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster));
                 let marked_to = scan.and_then(|scan| nodes(&structure, NodeKind::Page).filter(|page| page.series.starts_with("reporter") && !page.properties.contains_key("in_note") && page.grammar.as_deref() != Some("stray"))
-                    .filter_map(|page| page.printed_label().parse::<u32>().ok()).filter(|label| *label >= scan.first && *label <= scan.first + 200).max());
+                    .filter_map(|page| page.label.as_deref().unwrap_or("").parse::<u32>().ok()).filter(|label| *label >= scan.first && *label <= scan.first + 200).max());
                 let scan = scan.filter(|scan| marked_to.is_none_or(|last| ((last - scan.first) as usize) < scan.pages.len()));
                 if fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster)).is_some() && scan.is_none() {
                     counted.add("scan|excluded|the scan has fewer pages than the case's marks run over".to_owned());
@@ -1572,7 +1557,7 @@ fn structure_holdout(structure: &DocumentStructure, harvard: &str, lawbox: &str,
     let units = structure.text.encode_utf16().collect::<Vec<_>>();
     let slice = |from: usize, to: usize| squeezed(&String::from_utf16_lossy(&units[from.min(units.len())..to.min(units.len())]));
     let plain = squeezed(&structure.text);
-    let notes = nodes(structure, NodeKind::Footnote).map(|note| (note.printed_label().trim_matches(['[', ']', '(', ')', '.', ':', ' ']).to_owned(), note.ranges.iter().map(|range| slice(range.start, range.end)).collect::<String>())).collect::<Vec<_>>();
+    let notes = nodes(structure, NodeKind::Footnote).map(|note| (note.label.as_deref().unwrap_or("").trim_matches(['[', ']', '(', ')', '.', ':', ' ']).to_owned(), note.ranges.iter().map(|range| slice(range.start, range.end)).collect::<String>())).collect::<Vec<_>>();
     let paragraphs = paragraphs(structure).map(|paragraph| slice(paragraph.range.start, paragraph.range.end)).collect::<Vec<_>>();
     let body = paragraphs.concat();
     let lawbox_field = any_rendition(lawbox);
@@ -1766,7 +1751,7 @@ fn pdf_score(structure: &DocumentStructure, pages: &[Value], counted: &mut Tally
         *series.entry(page.series.as_str()).or_default() += 1;
     }
     let main = series.iter().max_by_key(|entry| *entry.1).map(|entry| entry.0.to_owned());
-    let mut marks = nodes(structure, NodeKind::Page).filter(|page| !page.properties.contains_key("in_note") && main.as_deref() == Some(page.series.as_str()) && page.grammar.as_deref() != Some("stray")).map(|page| (page.range.start, page.printed_label().to_owned())).collect::<Vec<_>>();
+    let mut marks = nodes(structure, NodeKind::Page).filter(|page| !page.properties.contains_key("in_note") && main.as_deref() == Some(page.series.as_str()) && page.grammar.as_deref() != Some("stray")).map(|page| (page.range.start, page.label.as_deref().unwrap_or("").to_owned())).collect::<Vec<_>>();
     marks.sort();
     static NUMBER: OnceLock<Regex> = OnceLock::new();
     let number = NUMBER.get_or_init(|| Regex::new(r"^\s*(?:-\s*)?(?:Page\s+)?(\d{1,3})(?:\s*-)?(?:\s+of\s+\d+)?\s*$").unwrap());

@@ -115,7 +115,7 @@ fn case_counts(structure: &DocumentStructure, counts: &mut BTreeMap<String, usiz
         match node.parent_id.as_deref().and_then(|parent| index.get(parent)) { Some(parent) => at = *parent, None => break false }
     };
     let mut paragraphs = structure.nodes.iter()
-        .filter(|node| node.kind == NodeKind::Paragraph && node.label.as_deref().is_some_and(|label| label.starts_with("par")))
+        .filter(|node| node.kind == NodeKind::Paragraph && node.label.is_some())
         .map(|node| (node.range.start, node.range.end)).collect::<Vec<_>>();
     paragraphs.sort_unstable();
     let mut covered = structure.nodes.iter().filter(|node| node.kind != NodeKind::Page)
@@ -159,7 +159,7 @@ fn case_counts(structure: &DocumentStructure, counts: &mut BTreeMap<String, usiz
     }
     // The count read short or not at all: lines after the last numbered paragraph opening with its next
     // numbers, and, where no paragraph is numbered, a count from 1 of five or more among line openings.
-    let numbers = structure.nodes.iter().filter_map(|node| node.label.as_deref()?.strip_prefix("par")?.parse::<u32>().ok());
+    let numbers = structure.nodes.iter().filter(|node| node.kind == legal_structure::NodeKind::Paragraph).filter_map(|node| node.label.as_deref().unwrap_or("").parse::<u32>().ok());
     match (numbers.max(), paragraphs.last()) {
         (Some(last), Some(&(_, end))) => {
             // Up to the note list, whose numbers run past the paragraphs' as often as not.
@@ -264,7 +264,7 @@ fn census(job: Job) -> Record {
     }
     if cases {
         let numbered = structure.nodes.iter()
-            .filter(|node| node.kind == NodeKind::Paragraph && node.label.as_deref().is_some_and(|label| label.starts_with("par")))
+            .filter(|node| node.kind == NodeKind::Paragraph && node.label.is_some())
             .count();
         record.counts.insert("numbered_paragraphs".to_owned(), numbered);
         if numbered == 0 { record.counts.insert("zero_paragraph_docs".to_owned(), 1); }

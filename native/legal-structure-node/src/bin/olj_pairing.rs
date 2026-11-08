@@ -110,7 +110,7 @@ fn main() {
         };
         let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &citations, &|_| 0, &place);
         for note in &output.notes {
-            let label = note.printed_label();
+            let label = note.label.as_deref().unwrap_or("");
             let mark = |role: &str, range: &ScalarRange| (dataset.clone(), article_id.clone(), role.to_owned(), label.to_owned(),
                 on_line(range).0.to_owned());
             predicted.extend(note.marker_range.iter().map(|range| mark("fn_label", range)));

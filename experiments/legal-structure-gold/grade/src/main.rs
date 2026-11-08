@@ -408,7 +408,6 @@ fn docx_digest(dir: &Path, out: &Path) -> Result<(), String> {
     let mut files = Vec::new();
     walk(dir, &mut files);
     files.sort();
-    let analysis = legal_structure_model::structure_analysis();
     let read = |path: &PathBuf| {
         let bytes = std::fs::read(path).unwrap_or_default();
         let shown = |result: Result<String, String>| result.unwrap_or_else(|error| format!("error {error}"));
@@ -1109,7 +1108,7 @@ fn pairing(store: &Path, prefix: &str, options: &[String]) -> Result<(), String>
     let range = options.first().and_then(|r| r.split_once('-')).and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)));
     let mut by_line: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for note in &output.notes {
-        let label = note.printed_label();
+        let label = note.label.as_deref().unwrap_or("");
         for (role, range) in note.marker_range.iter().map(|range| ("fn_label", range)).chain(note.calls.iter().map(|call| ("fn_ref", call))) {
             by_line.entry(line_of(range)).or_default().push(format!("{role}:{label}"));
         }

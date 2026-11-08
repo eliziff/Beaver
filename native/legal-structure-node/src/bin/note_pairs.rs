@@ -33,7 +33,7 @@ fn main() {
     };
     let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), &|_| 0, &place);
     let notes: Vec<serde_json::Value> = output.notes.iter().map(|note| serde_json::json!({
-        "pair_id": note.id, "label": note.printed_label(), "label_anchor": note.marker_range.as_ref().map(on_line),
+        "pair_id": note.id, "label": note.label.as_deref().unwrap_or(""), "label_anchor": note.marker_range.as_ref().map(on_line),
         "reference_anchors": note.calls.iter().map(on_line).collect::<Vec<_>>(), "body_line_ids": note.line_ids,
     })).collect();
     println!("{}", serde_json::to_string(&notes).expect("notes"));

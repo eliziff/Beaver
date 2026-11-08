@@ -118,7 +118,7 @@ mod tool {
         let mut series = BTreeMap::<&str, Vec<&str>>::new();
         let mut sources = BTreeMap::<&str, usize>::new();
         for page in pages() {
-            if !page.properties.contains_key("in_note") { series.entry(&page.series).or_default().push(page.printed_label()); }
+            if !page.properties.contains_key("in_note") { series.entry(&page.series).or_default().push(page.label.as_deref().unwrap_or("")); }
             *sources.entry(page.grammar.as_deref().unwrap_or("")).or_default() += 1;
         }
         let mut heading_sources = BTreeMap::<&str, usize>::new();
@@ -135,9 +135,9 @@ mod tool {
             "id": structure.document_id, "cell": fields.get("_cell"), "stratum": fields.get("_stratum"), "rate": fields.get("_rate"), "page_count": fields.get("page_count"), "rendition": opinion.rendition, "ms": milliseconds, "text": structure.text.len(),
             "pages": series, "page_sources": sources, "note_pages": pages().filter(|page| page.properties.contains_key("in_note")).count(),
             "paragraphs": paragraphs().count(), "numbered": paragraphs().filter(|paragraph| paragraph.label.is_some()).count(), "items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some()).count() + note_items, "titled_items": headings().filter(|heading| title(heading).split_whitespace().next().is_some_and(|word| word.len() <= 6 && word.ends_with(['.', ')']))).count(), "quote_paragraphs": nodes(structure, NodeKind::Quote).count(), "named_items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some_and(|item| item.len() > 6)).count(), "blocks": opinion.blocks.len(), "blocks_reckoned": opinion.blocks.iter().filter(|block| block.source == "reckoned").count(),
-            "numbers": paragraphs().filter_map(|paragraph| paragraph.label.as_deref()?.strip_prefix("par")).take(400).collect::<Vec<_>>(),
+            "numbers": paragraphs().filter(|paragraph| paragraph.label.is_some()).map(|paragraph| paragraph.label.as_deref().unwrap_or("")).take(400).collect::<Vec<_>>(),
             "notes": notes().count(), "note_refs": notes().map(|note| note.calls.len()).sum::<usize>(),
-            "note_labels": notes().map(|note| note.printed_label()).take(200).collect::<Vec<_>>(),
+            "note_labels": notes().map(|note| note.label.as_deref().unwrap_or("")).take(200).collect::<Vec<_>>(),
             "headings": headings().map(|heading| title(heading).chars().take(70).collect::<String>()).take(60).collect::<Vec<_>>(),
             "heading_sources": heading_sources, "headnotes": headnote_kinds, "headnote_marks": opinion.headnote_marks.len(),
             "parts": parts().map(|part| (part.display_value.as_deref().unwrap_or(""), property(part, "author"))).collect::<Vec<_>>(),

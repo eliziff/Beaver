@@ -167,7 +167,7 @@ mod corpus {
             .filter_map(|id| id.split_once(':')).filter(|(_, what)| ["page", "furniture", "line"].iter().any(|name| what.starts_with(name)))
             .map(|(id, _)| id).collect();
         let top = anchors.iter().filter(|anchor| anchor["kind"] == "paragraph")
-            .filter_map(|anchor| anchor["label"].as_str()?.strip_prefix("par")?.parse::<usize>().ok()).max().unwrap_or(0).min(MOST_PARAGRAPHS);
+            .filter(|anchor| matches!(anchor["kind"].as_str(), Some("paragraph" | "prose" | "quote"))).filter_map(|anchor| anchor["printed"].as_str()?.parse::<usize>().ok()).max().unwrap_or(0).min(MOST_PARAGRAPHS);
         let targets = (1..=top).map(|n| serde_json::from_value(json!({"id": n.to_string(), "locatorKind": "paragraph", "locator": n.to_string()})))
             .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
         let geometry = engine::pdf_passage_pages_job(&document, targets)?.compute()?;
