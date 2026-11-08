@@ -9,7 +9,7 @@ const projection = documentProjectionService;
 
 /** The authority's own headings, and a statute's sections, read from the PDF it is reproduced from. */
 export async function authorityPdfOutline(input: {
-  bytes: Buffer; legislation: boolean; documentId?: string; versionId?: string; sourceSha256?: string;
+  bytes: Buffer; documentId?: string; versionId?: string; sourceSha256?: string;
   pdfProfile?: PdfProfileSelection; signal?: AbortSignal;
 }) {
   const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
@@ -20,7 +20,7 @@ export async function authorityPdfOutline(input: {
     ...(input.pdfProfile ? { pdfProfile: input.pdfProfile } : { ocrProvider: null, layout: false }) });
   return projection.pdfOutline(() => input.bytes, { ...reference, cacheKey: prepared.cacheKey },
     { pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status },
-      legislation: input.legislation, signal: input.signal });
+      signal: input.signal });
 }
 
 export async function authorityPdfText(input: {

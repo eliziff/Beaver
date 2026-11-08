@@ -584,10 +584,10 @@ async function pdfPassageGeometry(
 async function pdfOutline(
   readBytes: () => Buffer | Promise<Buffer>,
   reference: ProjectionReference,
-  options: PdfSourceOptions & { legislation?: boolean } = {},
+  options: PdfSourceOptions = {},
 ) {
   const document = await pdfDocumentForSource(readBytes, reference, options);
-  return structureNative().documentOutline(document, options.legislation === true);
+  return structureNative().documentOutline(document);
 }
 
 /** Every page's text as a page lookup returns it, in one native read. */

@@ -161,8 +161,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             call.get::<Option<String>>("title")?.as_deref()))),
         "documentCaseOutline" => done(with_document(doc()?, |d|
             engine::case_outline(engine::document_text(d, None)).and_then(value))),
-        "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(
-            d, call.get::<Option<bool>>("legislation")?.unwrap_or(false))))),
+        "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(d)))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),
         "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),
         // The same call, which JavaScript runs off its thread.

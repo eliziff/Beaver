@@ -2,7 +2,7 @@
 //! WebAssembly module (`wasi.rs`) are thin bindings over these functions.
 
 use legal_structure::{analyze_instrument, analyze_native_markup, authority_references_in_text, citation_lookup_key, citation_occurrences_in_text, document_fingerprint, docx_structure_lint, has_citation_in_text, journal_document_structure, journal_text_document_structure, provider_citations_in_text, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, Derivation, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, NodeKind, ProviderTextInput};
-use legal_structure_features::{grounded_prose_errors, marked_quote_spans, quote_repair_suggestion, OutlineEntry, PrintedStatute, VisibleEvidenceText};
+use legal_structure_features::{grounded_prose_errors, marked_quote_spans, quote_repair_suggestion, OutlineEntry, VisibleEvidenceText};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
@@ -49,8 +49,6 @@ pub(crate) enum NativeProduct {
 pub struct NativeDocument {
     pub(crate) product: NativeProduct,
     pub(crate) query: DocumentQuery,
-    /// A PDF's body read by the instrument grammar, once, when a section is asked for.
-    instrument: std::sync::OnceLock<Option<PrintedStatute>>,
     /// What locating quotations has read of the document, kept for the quotations located in it after where the
     /// caller asks (`keep`): a quicker check of each later quotation for the memory the readings hold (some 250 MiB
     /// for the Criminal Code).
@@ -59,40 +57,7 @@ pub struct NativeDocument {
 
 impl NativeDocument {
     fn new(product: NativeProduct) -> Self {
-        Self { product, query: DocumentQuery::new(), instrument: std::sync::OnceLock::new(), quotes: Default::default() }
-    }
-
-    fn instrument(&self) -> Option<&PrintedStatute> {
-        self.instrument.get_or_init(|| self.read_instrument()).as_ref()
-    }
-
-    #[cfg(feature = "legalpdf")]
-    fn read_instrument(&self) -> Option<PrintedStatute> {
-        self.read_printed(None)
-    }
-
-    /// One instrument of a PDF that prints several, read on its own.
-    #[cfg(feature = "legalpdf")]
-    fn instrument_within(&self, instrument: &str) -> Option<PrintedStatute> {
-        self.read_printed(Some(instrument))
-    }
-
-    #[cfg(feature = "legalpdf")]
-    fn read_printed(&self, instrument: Option<&str>) -> Option<PrintedStatute> {
-        let NativeProduct::Pdf(pdf) = &self.product else { return None };
-        let pages = pdf.passage_pages();
-        let lines = pages.iter().flat_map(|page| page.lines.iter().map(move |line| (line.id.as_str(),
-            legal_structure_features::PrintedLine { id: &line.id, text: &line.text, rect: line.rect, page: page.page_number })))
-            .collect::<std::collections::HashMap<_, _>>();
-        match instrument {
-            Some(instrument) => PrintedStatute::read_within(pdf.structure(), &lines, pages.len(), instrument),
-            None => PrintedStatute::read(pdf.structure(), &lines, pages.len()),
-        }
-    }
-
-    #[cfg(not(feature = "legalpdf"))]
-    fn read_instrument(&self) -> Option<PrintedStatute> {
-        None
+        Self { product, query: DocumentQuery::new(), quotes: Default::default() }
     }
 
     pub fn structure(&self) -> &DocumentStructure {
@@ -268,11 +233,9 @@ pub fn case_outline(text: &str) -> CoreResult<Vec<legal_structure::CaseOutlineEn
 }
 
 /// The document's own outline: its headings and its top-level sections, in order.
-/// A PDF's numbered sections come from the reading of its body as a statute, for legislation.
-pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<OutlineEntry> {
+pub fn document_outline(document: &NativeDocument) -> Vec<OutlineEntry> {
     let pdf = !matches!(document.product, NativeProduct::Structure(_));
-    legal_structure_features::document_outline(document.structure(), pdf,
-        document.instrument().filter(|_| pdf && legislation))
+    legal_structure_features::document_outline(document.structure(), pdf)
 }
 
 pub fn document_table_cells(document: &NativeDocument) -> impl Serialize + '_ {
@@ -323,9 +286,7 @@ pub fn quote_locate_document(
     keep: bool,
 ) -> CoreResult<Vec<serde_json::Value>> {
     let text = document_text(document, None);
-    let provisions = (source == legal_structure_features::QuoteSource::Legislation)
-        .then(|| document.instrument().map(legal_structure_features::PrintedStatute::quote_blocks)).flatten();
-    let blocks = legal_structure_features::document_quote_blocks(document.structure(), &document.query, source, provisions);
+    let blocks = legal_structure_features::document_quote_blocks(document.structure(), &document.query, source, None);
     let located = if keep {
         legal_structure_features::locate_source_quotes_kept(&mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()),
             source, text, &blocks, quotes, compare)
@@ -618,20 +579,6 @@ mod pdf {
         Ok(pdf_of(document, "PDF page text requires a PDF document")?.page_texts())
     }
 
-    /// A provision where the reading of the PDF's body as a statute places it.
-    fn instrument_section(
-        native: &NativeDocument,
-        within: Option<&PrintedStatute>,
-        kind: &str,
-        locator: &str,
-    ) -> Option<(legalpdf::PdfLookupStatus, Vec<legal_structure::ScalarRange>, Vec<u32>)> {
-        use legalpdf::PdfLookupStatus as Status;
-        Some(match within.or_else(|| native.instrument())?.provision(native.structure(), kind, locator)? {
-            legal_structure_features::ProvisionPlacement::Found { ranges, pages } => (Status::Found, ranges, pages),
-            legal_structure_features::ProvisionPlacement::Ambiguous => (Status::Ambiguous, Vec::new(), Vec::new()),
-        })
-    }
-
     pub fn pdf_authority_text_units(document: &NativeDocument) -> CoreResult<impl Serialize + '_> {
         Ok(pdf_of(document, "PDF authority text units require a PDF document")?.authority_text_units())
     }
@@ -755,15 +702,13 @@ mod pdf {
         targets: Vec<PassageTarget>,
     ) -> CoreResult<PdfPassagePagesJob> {
         let document = pdf_of(native, "PDF passage geometry requires a PDF document")?;
-        // Each instrument a target names is read on its own, once.
-        let mut readings = std::collections::HashMap::<String, Option<PrintedStatute>>::new();
         let plans = targets
             .into_iter()
             .map(|target| {
-                let lookup = document.lookup(&legalpdf::PdfLookupRequest::new(
-                    &target.locator_kind,
-                    &target.locator,
-                ));
+                let lookup = document.lookup(&legalpdf::PdfLookupRequest {
+                    instrument: target.instrument.clone(),
+                    ..legalpdf::PdfLookupRequest::new(&target.locator_kind, &target.locator)
+                });
                 let mut ranges: Vec<legal_structure::ScalarRange> = lookup
                     .matches
                     .iter()
@@ -787,17 +732,13 @@ mod pdf {
                     .flat_map(|unit| unit.page_numbers.iter().copied())
                     .collect::<Vec<_>>();
                 let mut status = lookup.status;
+                // A locator naming more than one place places none.
+                if status == legalpdf::PdfLookupStatus::Ambiguous {
+                    ranges.clear();
+                }
                 if target.locator_kind == "paragraph" {
                     (status, ranges) = document.paragraph_source_ranges(&target.locator);
                     pages.clear();
-                }
-                // A statute's provisions are placed by the reading of its body as a statute.
-                if legal_structure_features::PrintedStatute::places(&target.locator_kind) {
-                    let within = target.instrument.as_ref().and_then(|instrument| readings.entry(instrument.clone())
-                        .or_insert_with(|| native.instrument_within(instrument)).as_ref());
-                    if let Some((found, found_ranges, found_pages)) = instrument_section(native, within, &target.locator_kind, &target.locator) {
-                        (status, ranges, pages) = (found, found_ranges, found_pages);
-                    }
                 }
                 if target.locator_kind == "page" {
                     if let Some(physical) = target.physical_pages {
@@ -990,6 +931,7 @@ mod pdf {
                 context_blocks: context_blocks.unwrap_or(0) as usize,
                 page,
                 occurrence: occurrence.map(|value| value as usize),
+                instrument: None,
             },
         ))
     }

@@ -28,7 +28,7 @@ function sourceReading(draft: AuthoritiesDraft, readings?: SourceReadings) {
       // The book nests each authority's own headings and sections under its tab; a final PDF
       // without bookmarks of its own is outlined by the brief's headings.
       outline: authority && plan.bookRoles.has(role) && draft.settings.bookmarks === "headings" || filing && draft.settings.finalPdf
-        ? { legislation: authority?.kind === "legislation" } : null,
+        ? {} : null,
       text: { scannedPdfPolicy: filing ? "page-margin" as const : bookScanPolicy(draft),
         citations: authority ? authorityCitationForms(draft, authority.id) : [],
         ocrTargets: filing ? [] : targets,

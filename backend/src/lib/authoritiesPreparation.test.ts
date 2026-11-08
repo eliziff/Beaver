@@ -163,7 +163,6 @@ describe("shared Authorities text preparation", () => {
     vi.mocked(authorityPdfOutline).mockResolvedValueOnce(outline);
     expect(await createAuthoritiesPreparation(state).prepareText("source", { bytes: Buffer.from("pdf") }))
       .toMatchObject({ outline });
-    expect(authorityPdfOutline).toHaveBeenLastCalledWith(expect.objectContaining({ legislation: false }));
   });
 
   it.each(["unmarked", "table", "excluded"] as const)("does not read or OCR a %s source", async (mode) => {

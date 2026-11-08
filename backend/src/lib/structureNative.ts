@@ -429,7 +429,7 @@ type StructureAddon = {
     };
   documentTableCells(document: NativeDocument): SpreadsheetCellSpan[];
   /** The document's headings and top-level sections in order; a section sits under the heading before it. */
-  documentOutline(document: NativeDocument, legislation?: boolean): NativeOutlineEntry[];
+  documentOutline(document: NativeDocument): NativeOutlineEntry[];
   /** A statute's outline read from its text: parts, headings and provisions in order, each with
    *  its level, printed label, marginal note or heading, own text, and the span of its subtree. */
   statuteOutline(text: string, articles?: boolean): NativeStatuteOutlineEntry[];

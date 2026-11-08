@@ -28,7 +28,7 @@ export const SIGNATURES = {
   readDocumentTextWindow: ["document", "offset", "startChar", "limit"],
   readDocumentTextRange: ["document", "start", "end", "offset", "limit", "startChar"],
   documentFingerprint: ["document"], documentAnchors: ["document", "end"],
-  documentOutline: ["document", "legislation"],
+  documentOutline: ["document"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   statuteOutline: ["text", "articles"], caseOutline: ["text"], documentCaseOutline: ["document"], statuteProvisionSpans: ["text", "labels"],
   statuteCurrency: ["pages"], filingCover: ["opening", "title"],
