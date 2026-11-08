@@ -597,11 +597,9 @@ mod pdf {
             }
         }
         // Filter before serializing: a viewport read must not copy the whole scan into JS.
-        Ok(document.has_recognized_geometry().then(|| {
-            document.recognized_pages().iter()
-                .filter(|page| pages.as_ref().is_none_or(|pages| pages.contains(&page.page_number)))
-                .collect::<Vec<_>>()
-        }))
+        Ok(Some(document.recognized_pages()
+            .filter(|page| pages.as_ref().is_none_or(|pages| pages.contains(&page.page_number)))
+            .collect::<Vec<_>>()))
     }
 
     pub fn pdf_page_labels(document: &NativeDocument) -> CoreResult<Vec<Option<String>>> {
@@ -616,7 +614,7 @@ mod pdf {
     }
 
     /// Every page's text in page order, as a page lookup returns it, in one read.
-    pub fn pdf_page_texts(document: &NativeDocument) -> CoreResult<Vec<&str>> {
+    pub fn pdf_page_texts(document: &NativeDocument) -> CoreResult<Vec<String>> {
         Ok(pdf_of(document, "PDF page text requires a PDF document")?.page_texts())
     }
 
