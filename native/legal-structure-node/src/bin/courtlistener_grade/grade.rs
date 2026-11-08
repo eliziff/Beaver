@@ -1444,7 +1444,7 @@ pub fn grade(args: &[String]) {
                 // A scan with fewer pages than the case's own marks run over has lost sheets: counted on from its first page, its
                 // later pages carry the wrong numbers, so it judges nothing.
                 let scan = fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster));
-                let marked_to = scan.and_then(|scan| nodes(structure, NodeKind::Page).filter(|page| page.series.starts_with("reporter") && !page.properties.contains_key("in_note") && page.grammar.as_deref() != Some("stray"))
+                let marked_to = scan.and_then(|scan| nodes(&structure, NodeKind::Page).filter(|page| page.series.starts_with("reporter") && !page.properties.contains_key("in_note") && page.grammar.as_deref() != Some("stray"))
                     .filter_map(|page| page.printed_label().parse::<u32>().ok()).filter(|label| *label >= scan.first && *label <= scan.first + 200).max());
                 let scan = scan.filter(|scan| marked_to.is_none_or(|last| ((last - scan.first) as usize) < scan.pages.len()));
                 if fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster)).is_some() && scan.is_none() {
@@ -1659,7 +1659,7 @@ pub fn holdout(args: &[String]) {
                 let (record, _) = record_of(id.clone(), rest, &clusters, &citations);
                 let structure = opinion_structure(&record, None);
                 let plain_text = squeezed(&structure.text);
-                let ours = nodes(structure, NodeKind::Heading).map(|heading| squeezed(&heading.display_value.as_deref().unwrap_or(""))).collect::<Vec<_>>();
+                let ours = nodes(&structure, NodeKind::Heading).map(|heading| squeezed(&heading.display_value.as_deref().unwrap_or(""))).collect::<Vec<_>>();
                 let theirs = field_headings(&raw);
                 let held = |reader: &[String], heading: &str| reader.iter().any(|known| known == heading || (known.len() >= 6 && heading.contains(known.as_str())) || (heading.len() >= 6 && known.contains(heading)));
                 let mut counted = Tally::default();
@@ -1676,7 +1676,7 @@ pub fn holdout(args: &[String]) {
                         missed.push(json!({ "id": id, "lost": heading, "field": field }));
                     }
                 }
-                for (known, heading) in ours.iter().zip(nodes(structure, NodeKind::Heading)).filter(|(known, _)| known.len() >= 2) {
+                for (known, heading) in ours.iter().zip(nodes(&structure, NodeKind::Heading)).filter(|(known, _)| known.len() >= 2) {
                     let in_tags = held(&key, known);
                     counted.add(format!("precision|structure|{}", if in_tags { "in Lawbox's tags" } else { "not in them" }));
                     if !in_tags {
@@ -1848,7 +1848,7 @@ pub fn pdfkey(args: &[String]) {
                 let (record, _) = record_of(id.clone(), files, &clusters, &citations);
                 let structure = opinion_structure(&record, None);
                 pdf_score(&structure, pages, &mut tally, &mut missed, &id);
-                tally.add(format!("records|{}|", reading(structure).rendition));
+                tally.add(format!("records|{}|", reading(&structure).rendition));
             }));
             if graded.is_err() {
                 tally.add("panic|panic|panic".to_owned());

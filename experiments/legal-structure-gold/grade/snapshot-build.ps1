@@ -17,7 +17,9 @@ param(
   # A binary's features, in place of the package's defaults ('opinion' for courtlistener-structure).
   [string]$Features,
   # A folder of files laid over the moment's (a later measuring tool patched into an earlier grader).
-  [string]$Overlay
+  [string]$Overlay,
+  # Only check these packages (cargo check, every target), printing the errors: no build, nothing brought back.
+  [string[]]$Check
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..\..\..").Path
@@ -97,7 +99,7 @@ Remove-Item -Recurse -Force `$incoming
 Set-Location `$(if (`$workspace) { '$Mirror' } else { '$Mirror\native\legal-structure-node' })
 `$started = Get-Date
 # The addon is the node crate's library built as a cdylib (the crate itself is an rlib since 2026-11-05).
-`$build = Start-Process cargo -ArgumentList $(if ($Binary) { "'build', '--release', '-j', '4', '-p', '$Package', '--bin', '$Binary'$(if ($Features) { ", '--no-default-features', '--features', '$Features'" })" } else { "'rustc', '--release', '-j', '4', '-p', '$Package', '--lib', '--crate-type', 'cdylib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
+`$build = Start-Process cargo -ArgumentList $(if ($Check) { "'check', '--message-format', 'short', '--all-targets', " + (($Check | ForEach-Object { "'-p', '$_'" }) -join ', ') } elseif ($Binary) { "'build', '--release', '-j', '4', '-p', '$Package', '--bin', '$Binary'$(if ($Features) { ", '--no-default-features', '--features', '$Features'" })" } else { "'rustc', '--release', '-j', '4', '-p', '$Package', '--lib', '--crate-type', 'cdylib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
 `$null = `$build.Handle; `$build.WaitForExit()
 "snapshot build: exit `$(`$build.ExitCode), {0:N0}s" -f ((Get-Date) - `$started).TotalSeconds
 # A failed build leaves no earlier build's artifact to be copied back as this one's.
@@ -107,5 +109,6 @@ if (`$build.ExitCode) { Remove-Item -ErrorAction SilentlyContinue '$Mirror\nativ
 scp -q "$env:TEMP\snapshot-remote.ps1" "${Desktop}:$($Mirror -replace '\\', '/')-remote.ps1"
 ssh -o BatchMode=yes $Desktop "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Mirror-remote.ps1" 2>$null
 $artifact = if ($Binary) { "$Binary.exe" } else { 'legal_structure_node.dll' }
+if ($Check) { return }
 scp -q "${Desktop}:$($Mirror -replace '\\', '/')/native/legal-structure-node/target/release/$artifact" $Out
 if (Test-Path $Out) { "addon at $Out" }

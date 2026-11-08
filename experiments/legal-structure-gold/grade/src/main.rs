@@ -417,7 +417,7 @@ fn docx_digest(dir: &Path, out: &Path) -> Result<(), String> {
             shown(legalpdf::docx_text(&bytes, true).map_err(|e| e.to_string())),
             shown(legalpdf::docx_to_toa_text_units(&bytes).map(|units| json!(units).to_string()).map_err(|e| e.to_string())),
             shown(legalpdf::fix_docx_supra_cross_references(&bytes).map(|cleanup| format!("{cleanup:?}")).map_err(|e| e.to_string())),
-            shown(legalpdf::analyze_docx_bytes(analysis, &bytes, "docx".to_owned()).map(|structure| json!(structure).to_string()).map_err(|e| e.to_string())),
+            shown(legalpdf::analyze_docx_bytes(&bytes, "docx".to_owned()).map(|structure| json!(structure).to_string()).map_err(|e| e.to_string())),
         ];
         let mut hasher = sha2::Sha256::new();
         for part in parts {

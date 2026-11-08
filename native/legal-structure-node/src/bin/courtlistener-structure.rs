@@ -31,7 +31,7 @@ fn main() {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod tool {
-    use legal_structure::opinion::{failures, marks_in_notes, nodes, opinion_structure, quote_miss, reading, receipt_miss, screens, source_faults_left, unheld_text, OpinionCitation, OpinionRecord};
+    use legal_structure::opinion::{marks_in_notes, parse_failures, parse_screens, nodes, opinion_structure, quote_miss, reading, receipt_miss, source_faults_left, unheld_text, OpinionCitation, OpinionRecord};
     use legal_structure::{DocumentStructure, NodeKind, StructureNode};
     use serde_json::{json, Value};
     use std::collections::{BTreeMap, HashMap, HashSet};
@@ -115,7 +115,6 @@ mod tool {
         let (faults, unheld) = (source_faults_left(structure), unheld_text(structure));
         let (pages, notes, headings, parts) = (|| nodes(structure, NodeKind::Page), || nodes(structure, NodeKind::Footnote), || nodes(structure, NodeKind::Heading), || nodes(structure, NodeKind::Section));
         let paragraphs = || nodes(structure, NodeKind::Paragraph).chain(nodes(structure, NodeKind::Quote));
-        let property = |node: &StructureNode, name: &str| node.properties.get(name).map(String::as_str);
         let mut series = BTreeMap::<&str, Vec<&str>>::new();
         let mut sources = BTreeMap::<&str, usize>::new();
         for page in pages() {
@@ -151,6 +150,14 @@ mod tool {
             "outcomes": opinion.outcomes, "tables": opinion.tables.len(), "unmatched_calls": opinion.unmatched_calls.len(), "document_kind": opinion.document_kind,
             "note_longest": notes().map(|note| note.ranges.iter().map(|range| range.end.saturating_sub(range.start)).sum::<usize>()).max().unwrap_or(0), "note_share": notes().flat_map(|note| note.ranges.iter()).map(|range| range.end.saturating_sub(range.start)).sum::<usize>(), "marks_in_notes": marks_in_notes(structure), "shifted_left": faults.0, "margins_left": faults.1, "other_opinion": opinion.other_opinion, "unheld": unheld.0, "unheld_at": unheld.1, "page_witness": opinion.page_witness, "note_witness": opinion.note_witness, "heading_witness": opinion.heading_witness, "paragraph_witness": opinion.paragraph_witness, "paragraphs_run_on": opinion.paragraphs_run_on, "paragraphs_split": opinion.paragraphs_split, "union_test": opinion.union_test, "union_samples": opinion.union_samples, "titles_not_held": opinion.titles_not_held,
         })
+    }
+
+    fn property<'a>(node: &'a StructureNode, name: &str) -> Option<&'a str> {
+        node.properties.get(name).map(String::as_str)
+    }
+
+    pub(crate) fn flag(args: &[String], name: &str) -> Option<String> {
+        args.iter().position(|arg| arg == name).and_then(|at| args.get(at + 1)).cloned()
     }
 
     fn run(args: &[String]) {
@@ -190,8 +197,8 @@ mod tool {
                 let line = match catch_unwind(AssertUnwindSafe(|| opinion_structure(&record, None))) {
                     Ok(structure) => {
                         let milliseconds = began.elapsed().as_millis();
-                        let mut found = failures(&structure);
-                        found.extend(screens(&structure, &record));
+                        let mut found = parse_failures(&structure);
+                        found.extend(parse_screens(&structure, &record));
                         {
                             let mut counted = tally.lock().unwrap();
                             counted.1.push(milliseconds);
