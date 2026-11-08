@@ -31,7 +31,7 @@ fn main() {
         let (at, id) = starts[starts.partition_point(|&(at, _)| at <= range.start) - 1];
         serde_json::json!({"line_id": id, "start": range.start - at, "end": range.end - at})
     };
-    let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), false, &place);
+    let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), &|_| 0, &place);
     let notes: Vec<serde_json::Value> = output.notes.iter().map(|note| serde_json::json!({
         "pair_id": note.id, "label": note.printed_label(), "label_anchor": note.marker_range.as_ref().map(on_line),
         "reference_anchors": note.calls.iter().map(on_line).collect::<Vec<_>>(), "body_line_ids": note.line_ids,

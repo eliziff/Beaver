@@ -1090,20 +1090,29 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// Diagnostic: the note pairer over one document's parsed pages, its markers beside each line.
+/// Diagnostic: the note pairer over one document's parsed pages, each line's note labels and calls beside it.
 fn pairing(store: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
     use legal_structure::StructureAnalysis;
     let source = sources(store)?.into_iter().find(|s| s.sha256.starts_with(prefix)).ok_or("No such gold")?;
     let (_, pages) = parse(&source)?;
-    // Only the audit is read: no note is placed.
-    let output = legal_structure::STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), true, &|_: &str, _: usize, _: usize| None);
-    let audit = output.audit.ok_or("No pairing audit")?;
-    println!("{}", serde_json::to_string(&audit.pairing_summary).map_err(|e| e.to_string())?);
+    // The lines one after another, each its characters and a separator past them, so a range names its line.
+    let mut starts = Vec::new();
+    let mut at = 0;
+    for line in pages.iter().flat_map(|page| &page.lines) {
+        starts.push((at, line.id.as_str()));
+        at += line.text.chars().count() + 1;
+    }
+    let start_of: HashMap<&str, usize> = starts.iter().map(|&(at, id)| (id, at)).collect();
+    let place = |id: &str, start: usize, end: usize| start_of.get(id).map(|&at| legal_structure::ScalarRange { start: at + start, end: at + end });
+    let line_of = |range: &legal_structure::ScalarRange| starts[starts.partition_point(|&(at, _)| at <= range.start) - 1].1.to_owned();
+    let output = legal_structure::STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), &|_| 0, &place);
     let range = options.first().and_then(|r| r.split_once('-')).and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)));
     let mut by_line: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for marker in &audit.markers {
-        let line = marker["line_id"].as_str().unwrap_or_default().to_owned();
-        by_line.entry(line).or_default().push(format!("{}:{}", marker["role"].as_str().unwrap_or("?"), marker["note_id"]));
+    for note in &output.notes {
+        let label = note.printed_label();
+        for (role, range) in note.marker_range.iter().map(|range| ("fn_label", range)).chain(note.calls.iter().map(|call| ("fn_ref", call))) {
+            by_line.entry(line_of(range)).or_default().push(format!("{role}:{label}"));
+        }
     }
     for page in &pages {
         if range.is_some_and(|(a, b)| page.number < a || page.number > b) {

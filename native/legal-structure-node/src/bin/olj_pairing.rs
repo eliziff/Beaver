@@ -1,10 +1,12 @@
 #![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
 //! Scores the engine's note pairer on the Open Access Journals Database footnote goldset, on the
-//! goldset's own lines, so no PDF is read: `olj_pairing <gold_lines.jsonl> <gold_markers.jsonl>`.
-//! A marker matches the gold's by article, role (label or reference), note and line.
+//! goldset's own lines, so no PDF is read: `olj_pairing <gold_lines.jsonl> <gold_markers.jsonl> [notes.jsonl]`.
+//! Each note the pairer writes marks its label's line and each of its calls' lines; a mark matches the gold's by
+//! article, role (label or reference), note and line. A third argument writes each article's notes as JSONL: its label,
+//! its label's and its calls' places (a line's id and a character range of it) and its body lines.
 
 use legal_structure::layout::{Line, Page};
-use legal_structure::{StructureAnalysis, STRUCTURE_ANALYSIS};
+use legal_structure::{ScalarRange, StructureAnalysis, STRUCTURE_ANALYSIS};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashSet};
 use std::io::{BufRead, BufReader};
@@ -62,7 +64,6 @@ fn main() {
     let verified = gold.iter().map(|key| (key.0.clone(), key.1.clone())).collect::<HashSet<_>>();
     articles.retain(|article, _| verified.contains(article));
     let mut predicted = HashSet::new();
-    // A third argument writes the predicted markers as JSONL, for the goldset's own scorer.
     let mut written = args.get(3).map(|path| std::io::BufWriter::new(std::fs::File::create(path).expect(path)));
     let citations = BTreeMap::new();
     for ((dataset, article_id), rows) in &articles {
@@ -94,17 +95,34 @@ fn main() {
                 .expect("goldset page")
             })
             .collect::<Vec<_>>();
-        // Only the audit is read: no note is placed.
-        let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &citations, true, &|_: &str, _: usize, _: usize| None);
-        for marker in output.audit.map(|audit| audit.markers).unwrap_or_default() {
-            let mut marker = marker;
-            marker["dataset"] = json!(dataset);
-            marker["article_id"] = json!(article_id);
+        // The lines one after another, each its characters and a separator past them, so a range names its line.
+        let mut starts = Vec::new();
+        let mut at = 0;
+        for line in pages.iter().flat_map(|page| &page.lines) {
+            starts.push((at, line.id.as_str()));
+            at += line.text.chars().count() + 1;
+        }
+        let start_of: std::collections::HashMap<&str, usize> = starts.iter().map(|&(at, id)| (id, at)).collect();
+        let place = |id: &str, start: usize, end: usize| start_of.get(id).map(|&at| ScalarRange { start: at + start, end: at + end });
+        let on_line = |range: &ScalarRange| {
+            let (at, id) = starts[starts.partition_point(|&(at, _)| at <= range.start) - 1];
+            (id, json!({"line_id": id, "start": range.start - at, "end": range.end - at}))
+        };
+        let output = STRUCTURE_ANALYSIS.pair_footnotes(&pages, &citations, &|_| 0, &place);
+        for note in &output.notes {
+            let label = note.printed_label();
+            let mark = |role: &str, range: &ScalarRange| (dataset.clone(), article_id.clone(), role.to_owned(), label.to_owned(),
+                on_line(range).0.to_owned());
+            predicted.extend(note.marker_range.iter().map(|range| mark("fn_label", range)));
+            predicted.extend(note.calls.iter().map(|call| mark("fn_ref", call)));
             if let Some(out) = written.as_mut() {
                 use std::io::Write;
-                writeln!(out, "{marker}").expect("markers out");
+                let note = json!({ "dataset": dataset, "article_id": article_id, "label": label,
+                    "label_anchor": note.marker_range.as_ref().map(|range| on_line(range).1),
+                    "reference_anchors": note.calls.iter().map(|call| on_line(call).1).collect::<Vec<_>>(),
+                    "body_line_ids": &note.line_ids });
+                writeln!(out, "{note}").expect("notes out");
             }
-            predicted.insert(key(&marker));
         }
     }
     for role in ["fn_label", "fn_ref"] {
