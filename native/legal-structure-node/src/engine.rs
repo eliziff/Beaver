@@ -544,7 +544,7 @@ mod docx {
         Ok(text)
     }
 
-    pub fn docx_authority_text_units(bytes: &[u8]) -> CoreResult<Vec<serde_json::Value>> {
+    pub fn docx_authority_text_units(bytes: &[u8]) -> CoreResult<impl Serialize> {
         legalpdf::docx_to_toa_text_units(bytes).map_err(|error| error.to_string())
     }
 }
