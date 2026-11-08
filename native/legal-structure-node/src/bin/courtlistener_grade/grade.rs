@@ -19,7 +19,7 @@
 //! Each miss of the layer goes to OUT/failures.jsonl under its cause.
 
 use crate::tool::{citations_of, clusters_of, flag, record_of, WORKER_STACK};
-use legal_opinion_layer::{opinion_layer, OpinionLayer};
+use legal_structure::opinion::{opinion_layer, OpinionLayer};
 use regex::Regex;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
@@ -901,10 +901,10 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
             pinned.entry((name, half(&question.citing))).or_default().push(((found.start + found.end) / 2, pin));
         }
     }
-    let numberings = pinned.iter().map(|(key, pins)| (key.clone(), legal_opinion_layer::citers_numbering(pins))).collect::<HashMap<_, _>>();
+    let numberings = pinned.iter().map(|(key, pins)| (key.clone(), legal_structure::opinion::citers_numbering(pins))).collect::<HashMap<_, _>>();
     let every_citer = pinned.keys().map(|key| key.0.clone()).collect::<std::collections::BTreeSet<_>>().into_iter().map(|name| {
         let pins = [true, false].iter().filter_map(|side| pinned.get(&(name.clone(), *side))).flatten().copied().collect::<Vec<_>>();
-        let numbering = legal_opinion_layer::citers_numbering(&pins);
+        let numbering = legal_structure::opinion::citers_numbering(&pins);
         (name, numbering)
     }).collect::<HashMap<_, _>>();
     tag_check(layer, &field, &our_units, &their_units, &ours, &theirs, table, tally, failures, id, &every_citer);
@@ -1033,7 +1033,7 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
                 _ => question.reporter.clone(),
             };
             let numbering = numberings.get(&(name, !half(&question.citing)));
-            let citers = numbering.and_then(|numbering| legal_opinion_layer::citers_page(numbering, (found.start + found.end) / 2)).map(|pages| (pages.0.to_string(), pages.1.to_string()));
+            let citers = numbering.and_then(|numbering| legal_structure::opinion::citers_page(numbering, (found.start + found.end) / 2)).map(|pages| (pages.0.to_string(), pages.1.to_string()));
             tally.add(format!("{group}|citers|{}", outcome(question, &citers)));
             if citers.as_ref().is_some_and(|pages| pages.0 == pages.1) {
                 tally.add(format!("{group}|citers, one page|{}", outcome(question, &citers)));
@@ -1189,7 +1189,7 @@ fn tag_check(layer: &OpinionLayer, field: &Field, our_units: &[u16], their_units
         let result = outcome(&asked, &ours_said);
         tally.add(format!("{GROUP}|layer|{result}"));
         // The citers' numbering against the tags, which no citer wrote: the one check of it the citers cannot have leaked into.
-        let reckoned = names.iter().find_map(|name| legal_opinion_layer::citers_page(citers.get(name)?, (mine.start + mine.end) / 2)).map(|pages| (pages.0.to_string(), pages.1.to_string()));
+        let reckoned = names.iter().find_map(|name| legal_structure::opinion::citers_page(citers.get(name)?, (mine.start + mine.end) / 2)).map(|pages| (pages.0.to_string(), pages.1.to_string()));
         tally.add(format!("{GROUP}|citers|{}", outcome(&asked, &reckoned)));
         if result != "right" {
             let at = mine.start.min(our_units.len());

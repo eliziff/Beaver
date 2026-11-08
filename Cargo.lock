@@ -1294,18 +1294,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "legal-opinion-layer"
-version = "0.1.0"
-dependencies = [
- "legal-citations",
- "legal-structure",
- "legal-structure-model",
- "regex",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "legal-pdf-constituents"
 version = "0.1.0"
 dependencies = [
@@ -1342,11 +1330,14 @@ version = "0.1.0"
 dependencies = [
  "legal-pdf-constituents",
  "legal-pdf-core",
+ "legal-pdf-evidence",
+ "legal-pdf-fences",
  "legal-pdf-furniture",
  "legal-pdf-graph",
  "legal-pdf-headings",
  "legal-pdf-layout",
  "legal-pdf-notes",
+ "legal-pdf-runs",
  "legal-pdf-structure-model",
  "legal-pdf-tables",
  "legal-pdf-text",
@@ -1396,6 +1387,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "legal-pdf-evidence"
+version = "0.1.0"
+dependencies = [
+ "legal-pdf-core",
+ "legal-pdf-furniture",
+ "legal-pdf-headings",
+ "legal-pdf-layout",
+ "legal-pdf-notes",
+ "legal-pdf-structure-model",
+ "legal-pdf-tables",
+ "legal-pdf-text",
+ "legal-structure-model",
+ "pdf-inspector",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "legal-pdf-extraction-processor"
 version = "0.1.0"
 dependencies = [
@@ -1405,6 +1415,27 @@ dependencies = [
  "regex",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "legal-pdf-fences"
+version = "0.1.0"
+dependencies = [
+ "legal-pdf-constituents",
+ "legal-pdf-core",
+ "legal-pdf-evidence",
+ "legal-pdf-furniture",
+ "legal-pdf-headings",
+ "legal-pdf-layout",
+ "legal-pdf-notes",
+ "legal-pdf-structure-model",
+ "legal-pdf-tables",
+ "legal-pdf-text",
+ "legal-structure-model",
+ "pdf-inspector",
+ "regex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1567,6 +1598,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "legal-pdf-runs"
+version = "0.1.0"
+dependencies = [
+ "legal-pdf-constituents",
+ "legal-pdf-core",
+ "legal-pdf-evidence",
+ "legal-pdf-fences",
+ "legal-pdf-furniture",
+ "legal-pdf-headings",
+ "legal-pdf-layout",
+ "legal-pdf-notes",
+ "legal-pdf-structure-model",
+ "legal-pdf-tables",
+ "legal-pdf-text",
+ "legal-structure-model",
+ "pdf-inspector",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "legal-pdf-structure"
 version = "0.1.0"
 dependencies = [
@@ -1629,6 +1682,7 @@ version = "0.1.0"
 dependencies = [
  "diff-match-patch-rs",
  "legal-pdf-core",
+ "legal-pdf-structure-model",
  "legal-structure-model",
  "ort",
  "regex",
@@ -1749,7 +1803,6 @@ version = "0.1.0"
 dependencies = [
  "a2aj-gold",
  "flate2",
- "legal-opinion-layer",
  "legal-pdf-parser",
  "legal-pdf-support",
  "legal-structure",

@@ -23,7 +23,7 @@ required-features = ["opinion"]
 
 [features]
 default = ["legalpdf", "a2aj"]
-opinion = ["dep:legal-opinion-layer"]
+opinion = ["legal-structure/opinion"]
 # pinpoint-corpus: the gold store's readers and answer keys are the a2aj-gold crate's. Built on request.
 corpus = ["a2aj", "legalpdf", "dep:a2aj-gold"]
 # A2AJ's documents, from its API's records or the local store (SQLite), and the citator graph built from the store.
@@ -36,7 +36,6 @@ allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup"] }
-legal-opinion-layer = { path = "../../legal-structure/opinion", optional = true }
 legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "structure-inference", "quote-verification"] }
 legal-pdf-support = { path = "../../legal-pdf-parser/legal-pdf-support", optional = true }
 serde = { version = "1.0", features = ["derive"] }

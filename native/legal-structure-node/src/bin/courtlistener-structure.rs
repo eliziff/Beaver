@@ -1,6 +1,6 @@
 #![recursion_limit = "512"]
 #![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
-//! CourtListener's opinion records through the opinion layer (legal_opinion_layer): their pages,
+//! CourtListener's opinion records through the opinion layer (legal_structure::opinion): their pages,
 //! paragraphs, notes, headings and headnotes. Records come as folders (fields.json and one file per rendition) or
 //! packed, one JSON line each ({"id", "files": {name: text}}, experiments/courtlistener-census/pack_kept.py).
 //!
@@ -31,7 +31,7 @@ fn main() {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod tool {
-    use legal_opinion_layer::{layer_failures, layer_screens, opinion_layer, quote_miss, receipt_miss, OpinionCitation, OpinionLayer, OpinionRecord};
+    use legal_structure::opinion::{layer_failures, layer_screens, opinion_layer, quote_miss, receipt_miss, OpinionCitation, OpinionLayer, OpinionRecord};
     use serde_json::{json, Value};
     use std::collections::{BTreeMap, HashMap, HashSet};
     use std::fs::{self, File, OpenOptions};
