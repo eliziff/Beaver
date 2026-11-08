@@ -1366,7 +1366,7 @@ function providerPdfLegalEvidence(
         version: source.date ?? resolved.params.version,
         externalUrl: url.toString(),
         locatorKind: page ? "page" : "section",
-        locatorLabel: page ? `page=${page}` : unit.locator,
+        locatorLabel: page ? String(page) : unit.locator,
       })];
     });
 }
@@ -1381,12 +1381,11 @@ function pdfLegalEvidence(
   if (lookup.status !== "found") return [];
   const native = structureNative(), text = native.documentText(document),
     sourceSha256 = native.documentRevision(document), units = [...new Map(
-      [...lookup.before, ...lookup.units, ...lookup.after].map((unit) => [unit.id, unit])).values()],
-    spans = native.pdfLookupUnitSpans(document, units.map(({ id }) => id));
+      [...lookup.before, ...lookup.units, ...lookup.after].map((unit) => [unit.id, unit])).values()];
   return units.flatMap((unit) => {
     if (!unit.text.trim()) return [];
-    const parts = spans[unit.id];
-    if (!parts?.length || parts.some((span) => span.end <= span.start))
+    const parts = unit.spans;
+    if (!parts.length || parts.some((span) => span.end <= span.start))
       throw new Error("PDF passage has no canonical document spans");
     return parts.map((span) => createLibraryEvidence({
       documentId,

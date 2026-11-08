@@ -195,8 +195,14 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   const anchored = links.map((link, index) => link && !kinds[index].kind && !usableLink(fields[index].link_candidate)
     ? engine<string>("canliiPinpointUrl", { url: link, pinpoints: fields[index].pinpoint_fragments }) : link);
   const reanchor = (link: string, text: string) => engine<string>("reanchorReference", { link, text });
-  // A part's paragraph and section pinpoints.
-  const pinpointed = (index: number) => fields[index].pinpoint_fragments.filter((fragment) => /^(?:par|sec)/u.test(fragment));
+  // A part's paragraph and section pinpoints, each the citation engine's fragment ("par12", "sec6(1)(c)") read once as
+  // the passage it names.
+  const pinpoints = fields.map((field) => field.pinpoint_fragments.flatMap((fragment) => {
+    const locator = fragmentLocator(fragment);
+    return locator ? [{ fragment, locator }] : [];
+  }));
+  const pinpointed = (index: number) => pinpoints[index].map(({ fragment }) => fragment);
+  const pinpointsOfPart = (index: number) => pinpoints[index][0]?.locator ?? null;
   // A reference's link is its origin's link, at the reference's own pinpoint; an ibid without one takes the link of
   // the reference it names directly where that opens the same page, keeping its anchor. A reference the import left
   // unresolved has none. The author's and an editor's own links stay as written.
@@ -279,7 +285,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // A passage of an A2AJ source is linked where the engine routes it best: the publisher's page where it prints an
   // anchor for the passage, else CanLII's (legal-structure source_link). Cited without a quotation, it is linked at
   // the citation's pinpoints, its paragraph or provision painted as a citation's pinpoint is.
-  const routed = async (index: number, locator: { kind: string; label: string } | null, blockText: string,
+  const routed = async (index: number, locator: PassageLocator | null, blockText: string,
     quotes: string[], pinpoints: string[] = []) => {
     const found = read_[index], source = found?.source;
     if (!found || !source || source.provider !== "a2aj" || !source.citation || !blockText && !pinpoints.length) return null;
@@ -288,13 +294,11 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
       alternateCitation: source.alternateCitation ?? null, language: source.language ?? "en",
       docType: source.kind === "legislation" ? "laws" : "cases", locator, blockText, quotes, pinpoints });
   };
-  const locatorOf = (pinpoint: string) => pinpoint.startsWith("par") ? { kind: "paragraph" as const, label: pinpoint }
-    : pinpoint.startsWith("sec") ? { kind: "section" as const, label: pinpoint.slice(3) } : null;
-  const blockOf = (index: number, pinpoint: string) => {
-    const locator = locatorOf(pinpoint), document = documents[index];
-    return locator && document ? structureNative().readDocumentRange(document, locator.kind,
-      locator.kind === "paragraph" ? pinpoint.slice(3) : locator.label, locator.kind === "paragraph"
-        ? pinpoint.slice(3) : locator.label, 0)?.selected[0]?.text.trim() ?? "" : "";
+  // The text of the passage a locator names in the source a part cites.
+  const passageText = (index: number, locator: PassageLocator | null) => {
+    const document = documents[index];
+    return locator && document ? structureNative().readDocumentRange(document, locator.kind, locator.label, locator.label, 0)
+      ?.selected[0]?.text.trim() ?? "" : "";
   };
   // A link this app makes: its anchor given its passage's text fragment where the passage can be read,
   // then as the text fragments option keeps it. The author's and the editor's own links stay as written.
@@ -307,15 +311,15 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // once, off this thread.
   const passageLinks = new Map<NativeDocument | null, Map<string, Promise<string>>>();
   const passageLink = async (link: string, document: NativeDocument | null, index: number) => {
-    const pinpoints = pinpointed(pinpointedAt(index));
+    const at = pinpointedAt(index), pinpoints = pinpointed(at), first = pinpointsOfPart(at);
     let made = passageLinks.get(document);
     if (!made) passageLinks.set(document, made = new Map());
     const key = JSON.stringify([link, pinpoints]);
     let found = made.get(key);
     // At the link's own anchor ("sec6subsec1" for "s 6(1)(c)"), else the pinpoint's.
-    const pinpoint = pinpoints[0], anchor = /#((?:par|sec)[^:&#?]*)/u.exec(link)?.[1] ?? pinpoint;
-    if (found === undefined) made.set(key, found = (pinpoint && read_[index]?.source
-      ? routed(index, locatorOf(anchor), blockOf(index, pinpoint), [], pinpoints)
+    const anchor = /#((?:par|sec)[^:&#?]*)/u.exec(link)?.[1];
+    if (found === undefined) made.set(key, found = (first && read_[index]?.source
+      ? routed(index, anchor ? fragmentLocator(anchor) : first, passageText(index, first), [], pinpoints)
       : citedPassageLink(link, document, pinpoints)).then((made) => made ?? link));
     return found;
   };
@@ -332,15 +336,11 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     const found = a2ajFound(index), receipt = found?.receipt, document = documents[index];
     if (!receipt || receipt.link !== link || !document || structureNative().documentRevision(document) !== receipt.sourceSha256)
       return link;
-    const label = receipt.match.labels[0] ?? "";
-    return await routed(index, locatorOf(label), receipt.match.text, [receipt.match.fragment || found!.quote]) ?? link;
+    return await routed(index, fragmentLocator(receipt.match.labels[0] ?? ""), receipt.match.text,
+      [receipt.match.fragment || found!.quote]) ?? link;
   };
-  const passages = parts.map((_, index) => documents[index] ? pinpointed(index).flatMap((fragment) => {
-    const [, kind, value] = /^(par|sec)(.+)$/u.exec(fragment)!;
-    const block = structureNative().readDocumentRange(documents[index]!, kind === "par" ? "paragraph" : "section",
-      value, value, 0)?.selected[0];
-    return block?.text.trim() ? [block.text.trim()] : [];
-  }).join(" ") : "");
+  const passages = parts.map((_, index) => pinpoints[index].map(({ locator }) => passageText(index, locator))
+    .filter(Boolean).join(" "));
   const indexInNote = parts.map((part) => parts.filter((other) => other.range === part.range && other.start < part.start).length);
   // A reference's chain, hop by hop, and the Python app's notes on it.
   const hop = (index: number) => kinds[index].kind !== "supra" ? kinds[index].kind.toUpperCase()
@@ -413,6 +413,16 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
 }
 
 type PlacedPart = { range: { note: AuthoritiesDraft["units"][number] }; local: number; start: number; end: number };
+/** A paragraph or provision as a source link and a structure lookup take it. */
+type PassageLocator = { kind: "paragraph" | "section"; label: string };
+
+/** The passage a citation engine's fragment names, read once: a paragraph's number ("par12" is 12), a provision's label
+ *  ("sec6(1)(c)" is 6(1)(c)); none for another fragment. */
+function fragmentLocator(fragment: string): PassageLocator | null {
+  const [, kind, label] = /^(par|sec)(.+)$/u.exec(fragment) ?? [];
+  return kind ? { kind: kind === "par" ? "paragraph" : "section", label } : null;
+}
+
 /** The citations Authorities found in a part: those starting in it. */
 function partOccurrences(draft: AuthoritiesDraft, part: PlacedPart) {
   const note = part.range.note, length = part.end - part.start;

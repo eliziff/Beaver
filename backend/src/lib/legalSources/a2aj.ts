@@ -320,8 +320,8 @@ async function document(args: {
     const local = await structureNative().a2ajSection(a2ajStorePath(),
       { citation: full.citation, docType, language, dataset: full.dataset }, section, { citation: full.citation,
         url: full.url, alternateCitation: full.alternateCitation, dataset: full.dataset, name: full.name });
-    let provision: NativeDocument | null = null;
-    if (!local && lookupsLeaveComputer()) {
+    let provision = local.status === "found" ? local.native : null;
+    if (local.status === "missing_statute" && lookupsLeaveComputer()) {
       const payload = await request("/fetch", {
         citation, doc_type: docType, output_language: language, section,
       }, args.signal);
@@ -329,8 +329,7 @@ async function document(args: {
         { language, docType, dataset: args.dataset, sourceUrl: args.sourceUrl, section }, { citation: full.citation,
           url: full.url, alternateCitation: full.alternateCitation, dataset: full.dataset, name: full.name });
     }
-    const result = local ? local.native ? { ...full, native: local.native } : full
-      : provision ? { ...full, native: provision } : full;
+    const result = provision ? { ...full, native: provision } : full;
     if (inSqliteRun()) running.add(result);
     documents.set(key, { expires: Date.now() + 60 * 60_000, value: result });
     return result;

@@ -8,7 +8,7 @@ import { dropUnreachable } from "mike/shared/runtime/authoritiesBook.mjs";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabReference } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
-import { normalizedWords } from "./structureNative";
+import { structureNative } from "./structureNative";
 
 const { adoptFormsAndLayers, appendPages, applyOutlines, describeDocument, readOutlines } = pdfAssembly(pdf);
 const LINK_PREFIX = "https://beaver-authorities.invalid/";
@@ -23,38 +23,15 @@ export function filingTabText(unitText: string, occurrence: AuthorityOccurrence,
     occurrence.authoritySpan.text;
 }
 
-/** The page of each citation in a PDF saved from the Word brief. The brief's words are read
- *  in order, body and notes each onward from their last match, so a repeated citation keeps
- *  its place; a citation that cannot be placed gets no page. */
+/** The page of each citation in a PDF saved from the Word brief, by its id, as the engine places it on the pages' words
+ *  (`briefOccurrencePages`); a citation that cannot be placed gets no page. */
 export function briefOccurrencePages(draft: AuthoritiesDraft, pageTextByPage: string[]) {
-  const words = pageTextByPage.flatMap((text, index) => normalizedWords(text).map((word) => ({ word, page: index + 1 })));
-  const positions = new Map<string, number[]>();
-  words.forEach(({ word }, at) => positions.get(word)?.push(at) ?? positions.set(word, [at]));
-  const find = (needle: string[], from: number) => positions.get(needle[0] ?? "")?.find((at) => at >= from &&
-    needle.every((word, offset) => words[at + offset]?.word === word)) ?? -1;
-  const cursors = { body: 0, note: 0 }, pages = new Map<string, number>();
-  for (const unit of draft.units) for (const id of unit.occurrenceIds) {
-    const occurrence = draft.occurrences[id], stream = unit.footnoteId === null ? "body" : "note";
-    if (!occurrence) continue;
-    const before = normalizedWords(unit.text.slice(0, occurrence.start)).slice(-4);
-    const core = normalizedWords(occurrence.text), after = normalizedWords(unit.text.slice(occurrence.end)).slice(0, 4);
-    // Surrounding words make a repeated citation unique; a tab reference or note mark can break either side.
-    // The citation alone is tried last, and is not read on from: it also matches the brief's own
-    // table of authorities, which lies past every later citation.
-    const cursor = cursors[stream], contexts: Array<[string[], number]> = [
-      [[...before, ...core, ...after], before.length], [[...before, ...core], before.length], [[...core, ...after], 0]];
-    const attempts: Array<[string[], number, number]> = [...contexts.map(([needle, skip]) =>
-      [needle, skip, cursor] as [string[], number, number]), ...contexts.map(([needle, skip]) =>
-      [needle, skip, 0] as [string[], number, number]), [core, 0, cursor]];
-    for (const [needle, skip, from] of attempts) {
-      const at = needle.length > 1 ? find(needle, from) : -1;
-      if (at < 0) continue;
-      pages.set(id, words[at + skip].page);
-      if (needle !== core) cursors[stream] = at + needle.length;
-      break;
-    }
-  }
-  return pages;
+  const units = draft.units.map((unit) => ({ note: unit.footnoteId !== null, text: unit.text,
+    occurrences: unit.occurrenceIds.flatMap((id) => {
+      const occurrence = draft.occurrences[id];
+      return occurrence ? [{ id, start: occurrence.start, end: occurrence.end, text: occurrence.text }] : [];
+    }) }));
+  return new Map(Object.entries(structureNative().briefOccurrencePages(pageTextByPage, units)));
 }
 
 /** Fails, saying how, when a supplied brief PDF is not a PDF of this brief. */

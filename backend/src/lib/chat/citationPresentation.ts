@@ -12,12 +12,9 @@ export type CitationPresentation = {
   passageUrl: string | null;
 };
 
+/** A locator's label as a citation prints it: as the document prints it, a range's dash an en dash. */
 function locatorValue(label: string) {
-  return label
-    .trim()
-    .replace(/^(?:paragraph|para|par|section|sec|s|page|p|footnote|note|fn)[\s._=-]*/iu, "")
-    .replace(/\s*[-\u2013\u2014]\s*/gu, "\u2013")
-    .replace(/\u2013(?:paragraph|para|par|section|sec|s|page|p|footnote|note|fn)[\s._=-]*/giu, "\u2013");
+  return label.trim().replace(/\s*[-\u2013\u2014]\s*/gu, "\u2013");
 }
 
 function presentLegalEvidenceLocator(

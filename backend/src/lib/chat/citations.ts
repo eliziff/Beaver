@@ -63,7 +63,7 @@ function citationsFromGroups(
       const quotes = group.members.flatMap(({ receipt }) =>
         receipt.span_text ? [{ quote: receipt.span_text, ...(receipt.locator.sheet && { sheet: receipt.locator.sheet }),
           ...(receipt.locator.cells && { cell: receipt.locator.cells }),
-          ...(receipt.provider === "library" && receipt.locator.kind === "page" && { page: receipt.locator.label.replace(/^page\s*/iu, "") }) }] : []);
+          ...(receipt.provider === "library" && receipt.locator.kind === "page" && { page: receipt.locator.label }) }] : []);
       const presentation = presentLegalEvidence(
         entry,
         group.members,

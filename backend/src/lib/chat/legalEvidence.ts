@@ -937,7 +937,7 @@ export async function legalEvidenceProseIntegrityErrors(text: string,
     const actual = cited.filter((receipt) => native.citationLookupKey(receipt.citation) === key)
       .flatMap(({ locator }) => {
         if (locator.kind !== "paragraph") return [""];
-        const label = locator.label.replace(/^(?:paragraphs?|paras?|par)[\s.]*/iu, ""), span = /^(\d+)\s*[-–—]\s*(\d+)$/u.exec(label);
+        const label = locator.label, span = /^(\d+)\s*[-–—]\s*(\d+)$/u.exec(label);
         if (!span) return [label];
         const [from, to] = [Number(span[1]), Number(span[2])];
         return to >= from && to - from < 60 ? Array.from({ length: to - from + 1 }, (_, i) => String(from + i)) : [label];

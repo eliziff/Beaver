@@ -183,8 +183,11 @@ type PdfStructureLookupBase = {
   units: Array<{
     id: string;
     kind: "page" | "paragraph" | "footnote" | "section";
+    /** As the document prints it: "12" of a page, paragraph, note or line, a provision's label. */
     locator: string;
     text: string;
+    /** The spans of the document's text the unit holds. */
+    spans: Array<{ start: number; end: number }>;
     page_numbers: number[];
     confidence: number | null;
     confidence_basis: string;
@@ -253,6 +256,10 @@ type StructureAddon = {
   reporterStartPages(citations: string[]): number[];
   /** Every page's text in page order, empty where a page has no exact text. */
   pdfPageTexts(document: NativeDocument): string[];
+  /** The page (from 1) of each citation of a Word brief in a PDF saved from it (`pages`, each page's text), by its id:
+   *  each unit's citations found among the pages' words in order, body and notes each onward from their last match. */
+  briefOccurrencePages(pages: string[], units: Array<{ note: boolean; text: string;
+    occurrences: Array<{ id: string; start: number; end: number; text: string }> }>): Record<string, number>;
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
   /** Each passage's pages, its lines' rectangles on each, and its quotations placed on them; a passage with no page it
    *  can be read on unavailable. */
@@ -343,11 +350,11 @@ type StructureAddon = {
   /** The one document the local A2AJ store at `store` holds under a citation's key, with its provisions' document and
    *  its full text's; null where the store, or the document, is missing. */
   a2ajDocument(store: string, lookup: A2AJStoreLookup): Promise<A2AJStoreDocument | null>;
-  /** One provision of a statute the store holds, as an excerpt of the document `excerpt` describes: null where the
-   *  store lacks the statute, `native` null where it lacks the provision. */
+  /** One provision of a statute the store holds, as an excerpt of the document `excerpt` describes, or that the store
+   *  lacks the provision or the statute. */
   a2ajSection(store: string, lookup: A2AJStoreLookup, section: string, excerpt: { citation: string;
     url: string | null; alternateCitation: string | null; dataset: string; name: string | null }):
-    Promise<{ native: NativeDocument | null } | null>;
+    Promise<{ status: "found"; native: NativeDocument } | { status: "missing_provision" | "missing_statute" }>;
   /** The document a record A2AJ's API answered with holds, read and derived as a store's row is; null for a record
    *  without a text or a citation. */
   a2ajRecord(record: unknown, language: "en" | "fr", docType: "cases" | "laws"): Promise<A2AJStoreDocument | null>;
@@ -411,7 +418,7 @@ type StructureAddon = {
   documentHasOrigin(document: NativeDocument, origin: NativeDocumentBlock["origin"]): boolean;
   /** Reflected levels are one-based; source roots have level 1. */
   documentAnchors(document: NativeDocument, end?: number): Array<{ level: number } & Pick<NativeDocumentBlock,
-    "kind" | "label" | "printed" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel" | "rowSpan" | "columnSpan">>;
+    "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel" | "rowSpan" | "columnSpan">>;
   legalSourceViewer(document: NativeDocument, primaryKind: "paragraph" | "section",
     limit?: number): {
       slices: Array<{
@@ -467,7 +474,6 @@ type StructureAddon = {
       omissions: NativeGraphScopeOmission[];
     } | null;
   queryPdfDocument(document: NativeDocument, request: NativePdfLookupRequest): PdfStructureLookup;
-  pdfLookupUnitSpans(document: NativeDocument, ids: string[]): Record<string, Array<{ start: number; end: number }>>;
 };
 
 declare const nativeDocument: unique symbol;
@@ -527,9 +533,8 @@ export type NativeDocumentBlock = {
   printedLabel: boolean;
   ranges: Array<{ start: number; end: number }>;
   kind: "paragraph" | "page" | "section" | "footnote" | "table" | "row" | "cell";
+  /** As the document prints it: "12" of a paragraph, a page or a note. */
   label: string;
-  /** The label as the document prints it, past the prefix its kind gives every label: "par12" is "12". */
-  printed: string;
   start: number;
   end: number;
   origin: "native" | "heuristic";
@@ -572,12 +577,6 @@ export function structureNative() {
 
 /** Whether a document kept from an earlier call can still be read. */
 export const nativeDocumentLive = (document: NativeDocument) => structureNative().documentLive?.(document) ?? true;
-
-/** Words as PDF quote matching compares them: case, width and apostrophe forms folded. */
-export const normalizedWords = (text: string) =>
-  (text.normalize("NFKC").toLowerCase()
-    .match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? [])
-    .map((word) => word.replace(/’/g, "'"));
 
 export async function pdfPassageGeometry(
   document: NativeDocument, bytes: Buffer, targets: NativePdfPassageTarget[],

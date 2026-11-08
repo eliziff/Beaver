@@ -105,14 +105,15 @@ export function normalizeLegalSourceLocator(value: string | null | undefined) {
 function marginLabel(anchor: Anchor) {
   const { label } = anchor;
   // Range ownership can point to the whole section rather than the printed parent.
-  if (anchor.kind === "section") return label.match(/\([^()]+\)$/u)?.[0] ?? locatorLabel(label);
-  return locatorLabel(label);
+  if (anchor.kind === "section") return label.match(/\([^()]+\)$/u)?.[0] ?? locatorLabel(anchor);
+  return locatorLabel(anchor);
 }
 
-function locatorLabel(label: string) {
-  if (label.startsWith("page")) return `Page ${label.slice(4)}`;
-  if (label.startsWith("par")) return `[${label.slice(3)}]`;
-  if (label.startsWith("fn")) return `Footnote ${label.slice(2)}`;
+/** A unit as the margin and the page breaks name it, by its kind and its label as the document prints it. */
+function locatorLabel({ kind, label }: { kind: string; label: string }) {
+  if (kind === "page") return `Page ${label}`;
+  if (kind === "paragraph") return `[${label}]`;
+  if (kind === "footnote") return `Footnote ${label}`;
   return label.startsWith("sec") ? label.slice(3) : label;
 }
 
@@ -163,7 +164,7 @@ function escapeRegExp(value: string) {
 
 function stripMarker(text: string, anchor: Anchor | null) {
   if (anchor?.kind === "paragraph") {
-    const label = escapeRegExp(anchor.label.slice(3));
+    const label = escapeRegExp(anchor.label);
     return text.replace(new RegExp(`^\\s*(?:\\[\\s*${label}\\s*\\]|${label}\\.)\\s*`, "u"), "");
   }
   if (anchor?.kind === "section") {
@@ -550,9 +551,9 @@ function LegalSourceViewerContent({
                     <span key={anchor.label} id={legalSourceAnchorId(anchor.label)}
                       className="col-span-full block scroll-mt-4" aria-hidden="true" />
                   ))}
-                  {page && <div role="doc-pagebreak" aria-label={locatorLabel(page.label)}
+                  {page && <div role="doc-pagebreak" aria-label={locatorLabel(page)}
                     className="col-span-full mb-7 mt-10 border-t border-gray-300 pt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 first:mt-0">
-                    {locatorLabel(page.label)}
+                    {locatorLabel(page)}
                   </div>}
                   {marker && <span className="pt-[0.23rem] text-right text-xs font-semibold text-gray-600">{marker}</span>}
                   <div data-legal-text={sliceIndex} className="min-w-0 [&_li>p]:mb-0">

@@ -304,7 +304,7 @@ const boundedRow = (row: ReturnType<ReturnType<typeof structureNative>["readDocu
 function sourceExtent(artifact: NativeDocument) {
   const anchors = structureNative().documentAnchors(artifact);
   for (const kind of ["paragraph", "section", "page"] as const) {
-    const labels = anchors.flatMap((anchor) => anchor.kind === kind ? [anchor.printed] : []);
+    const labels = anchors.flatMap((anchor) => anchor.kind === kind ? [anchor.label] : []);
     if (labels.length) return { locator_kind: kind, first: labels[0], last: labels[labels.length - 1],
       count: labels.length };
   }
@@ -346,7 +346,7 @@ export function readLibraryResearchWindow(input: LibraryWindowInput): ResearchRe
       : [{ start: row.span[0], end: row.span[1], ...(() => {
         const locator = provenBlockLocator(input.document, block, { start: row.span[0], end: row.span[1] });
         return { locator: locator ?? { kind: "document" as const, label: block?.kind === "paragraph"
-          ? `text paragraph ${block.printed}` : `text line ${row.lineNumber}` } };
+          ? `text paragraph ${block.label}` : `text line ${row.lineNumber}` } };
       })() }])
       if (span.end > span.start) {
         lines.push({ span: [span.start, span.end], locator: span.locator,

@@ -21,7 +21,7 @@ export const SIGNATURES = {
   pdfAuthorityTextUnits: ["document"], pdfPageLabels: ["document"], pdfPageMap: ["document", "citations"], pdfPageTexts: ["document"],
   reporterStartPages: ["citations"],
   pdfPassageGeometryPages: ["document", "targets"],
-  pdfLookupUnitSpans: ["document", "ids"],
+  briefOccurrencePages: ["pages", "units"],
   queryPdfDocument: ["document", "request"],
   docxStructureLint: ["document"],
   documentText: ["document", "limit"], documentTextBytes: ["document"], documentRevision: ["document"],
@@ -145,7 +145,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     const storeDocument = (value) => ({ ...value, native: handle(value.native), searchNative: handle(value.searchNative) });
     if ((name === "a2ajDocument" || name === "a2ajRecord") && value) return storeDocument(value);
     if (name === "a2ajStoreDocuments" && value) return value.map(storeDocument);
-    if (name === "a2ajSection" && value) return { native: handle(value.native) };
+    if (name === "a2ajSection" && value.native) return { ...value, native: handle(value.native) };
     if (name === "a2ajRecordProvision") return handle(value);
     if (name === "fixDocxSupraCrossReferences") return { ...value, bytes: toBuffer(bytes.slice()) };
     return value;

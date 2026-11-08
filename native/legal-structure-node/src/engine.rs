@@ -630,6 +630,68 @@ mod pdf {
         WORD.find_iter(&folded).map(|word| word.as_str().replace('\u{2019}', "'")).collect()
     }
 
+    /// A unit of a Word brief whose citations are placed on the pages of a PDF saved from it: whether it is a note, its
+    /// text, and its citations, each by its id, its span of the text (UTF-16) and its own text.
+    #[derive(Deserialize)]
+    pub struct BriefUnit {
+        note: bool,
+        text: String,
+        occurrences: Vec<BriefOccurrence>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct BriefOccurrence {
+        id: String,
+        start: usize,
+        end: usize,
+        text: String,
+    }
+
+    /// The page (from 1) of each citation of a Word brief in a PDF saved from it (`pages`, each page's text), by the
+    /// citation's id. The brief's words are read in order, its body and its notes each onward from their last match, so a
+    /// repeated citation keeps its place: a citation is found with the four words before and after it, then with those
+    /// before or those after, from where its stream left off and then from the start; the citation alone is tried last,
+    /// and is not read on from, for it also matches the brief's own table of authorities, which lies past every later
+    /// citation. A citation that cannot be placed has none.
+    pub fn brief_occurrence_pages(pages: &[String], units: &[BriefUnit]) -> std::collections::BTreeMap<String, u32> {
+        let words: Vec<(String, u32)> = pages.iter().enumerate()
+            .flat_map(|(at, text)| passage_words(text).into_iter().map(move |word| (word, at as u32 + 1))).collect();
+        let mut positions = std::collections::HashMap::<&str, Vec<usize>>::new();
+        for (at, (word, _)) in words.iter().enumerate() {
+            positions.entry(word.as_str()).or_default().push(at);
+        }
+        let find = |needle: &[String], from: usize| positions.get(needle.first()?.as_str())?.iter().copied()
+            .find(|&at| at >= from && needle.iter().enumerate().all(|(offset, word)| words.get(at + offset).is_some_and(|(read, _)| read == word)));
+        let mut cursors = [0usize; 2];
+        let mut placed = std::collections::BTreeMap::new();
+        for unit in units {
+            let text = legal_structure::ScalarText::new(&unit.text);
+            let stream = usize::from(unit.note);
+            for occurrence in &unit.occurrences {
+                let before = passage_words(text.slice_utf16(0..occurrence.start).unwrap_or(""));
+                let before = before[before.len().saturating_sub(4)..].to_vec();
+                let core = passage_words(&occurrence.text);
+                let after = passage_words(text.slice_utf16(occurrence.end..text.utf16_len()).unwrap_or(""))
+                    .into_iter().take(4).collect::<Vec<_>>();
+                let cursor = cursors[stream];
+                let contexts = [([&before[..], &core[..], &after[..]].concat(), before.len()), ([&before[..], &core[..]].concat(), before.len()),
+                    ([&core[..], &after[..]].concat(), 0)];
+                let attempts = contexts.iter().map(|(needle, skip)| (needle, *skip, cursor, false))
+                    .chain(contexts.iter().map(|(needle, skip)| (needle, *skip, 0, false)))
+                    .chain([(&core, 0, cursor, true)]);
+                for (needle, skip, from, alone) in attempts {
+                    let Some(at) = (needle.len() > 1).then(|| find(needle, from)).flatten() else { continue };
+                    placed.insert(occurrence.id.clone(), words[at + skip].1);
+                    if !alone {
+                        cursors[stream] = at + needle.len();
+                    }
+                    break;
+                }
+            }
+        }
+        placed
+    }
+
     /// Where a quotation stands in a passage's pages (`pages`, as the passage gives them), its words read once in its
     /// context and found once among the passage's words in order, a page apart at most: its rectangle on each line it
     /// crosses, page by page. A passage not found, or a quotation found other than once, places none.
@@ -904,32 +966,6 @@ mod pdf {
                 "targets": targets,
             }))
         }
-    }
-
-    pub(crate) fn pdf_lookup_unit_spans_of(
-        structure: &DocumentStructure,
-        ids: &[String],
-    ) -> std::collections::BTreeMap<String, Vec<legal_structure::ScalarRange>> {
-        let nodes: std::collections::HashMap<_, _> = structure
-            .nodes
-            .iter()
-            .map(|node| (node.id.as_str(), structure.query_ranges(node).into_owned()))
-            .collect();
-        ids.iter()
-            .filter_map(|id| {
-                nodes
-                    .get(id.as_str())
-                    .map(|spans| (id.clone(), spans.clone()))
-            })
-            .collect()
-    }
-
-    pub fn pdf_lookup_unit_spans(
-        document: &NativeDocument,
-        ids: &[String],
-    ) -> CoreResult<std::collections::BTreeMap<String, Vec<legal_structure::ScalarRange>>> {
-        let pdf = pdf_of(document, "PDF query requires a PDF document")?;
-        Ok(pdf_lookup_unit_spans_of(pdf.structure(), ids))
     }
 
     pub fn query_pdf_document(document: &NativeDocument, request: &legalpdf::PdfLookupRequest) -> CoreResult<impl Serialize> {

@@ -133,8 +133,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
             done(job.compute())
         }
         #[cfg(feature = "legalpdf")]
-        "pdfLookupUnitSpans" => done(with_document(doc()?, |d|
-            engine::pdf_lookup_unit_spans(d, &call.get::<Vec<String>>("ids")?).and_then(value))),
+        "briefOccurrencePages" => done(value(engine::brief_occurrence_pages(&call.get::<Vec<String>>("pages")?,
+            &call.get::<Vec<engine::BriefUnit>>("units")?))),
         #[cfg(feature = "legalpdf")]
         "queryPdfDocument" => done(with_document(doc()?, |d| engine::query_pdf_document(d, &call.get("request")?).and_then(value))),
         "docxStructureLint" => done(with_document(doc()?, |d| engine::docx_structure_lint_json(d).and_then(value))),
@@ -225,7 +225,11 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         #[cfg(feature = "a2aj")]
         "a2ajSection" => done(a2aj::section(&call.get::<PathBuf>("store")?, &call.get("lookup")?,
             &call.get::<String>("section")?, call.get("excerpt")?)
-            .map(|found| found.map_or(Value::Null, |native| json!({ "native": native.map(share) })))),
+            .map(|found| match found {
+                Some(Some(native)) => json!({ "status": "found", "native": share(native) }),
+                Some(None) => json!({ "status": "missing_provision" }),
+                None => json!({ "status": "missing_statute" }),
+            })),
         #[cfg(not(feature = "a2aj"))]
         "a2ajAliasGroups" => done(value(engine::own_alias_groups(&call.get::<Vec<String>>("citations")?))),
         #[cfg(feature = "a2aj")]
