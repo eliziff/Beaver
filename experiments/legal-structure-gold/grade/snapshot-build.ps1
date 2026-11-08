@@ -14,6 +14,8 @@ param(
   # What to build and bring back: the addon by default, or a binary of -Package.
   [string]$Binary,
   [string]$Package = 'legal-structure-node',
+  # A binary's features, in place of the package's defaults ('opinion' for courtlistener-structure).
+  [string]$Features,
   # A folder of files laid over the moment's (a later measuring tool patched into an earlier grader).
   [string]$Overlay
 )
@@ -95,7 +97,7 @@ Remove-Item -Recurse -Force `$incoming
 Set-Location `$(if (`$workspace) { '$Mirror' } else { '$Mirror\native\legal-structure-node' })
 `$started = Get-Date
 # The addon is the node crate's library built as a cdylib (the crate itself is an rlib since 2026-11-05).
-`$build = Start-Process cargo -ArgumentList $(if ($Binary) { "'build', '--release', '-j', '4', '-p', '$Package', '--bin', '$Binary'" } else { "'rustc', '--release', '-j', '4', '-p', '$Package', '--lib', '--crate-type', 'cdylib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
+`$build = Start-Process cargo -ArgumentList $(if ($Binary) { "'build', '--release', '-j', '4', '-p', '$Package', '--bin', '$Binary'$(if ($Features) { ", '--no-default-features', '--features', '$Features'" })" } else { "'rustc', '--release', '-j', '4', '-p', '$Package', '--lib', '--crate-type', 'cdylib'" }) -NoNewWindow -PassThru -RedirectStandardError '$Mirror\build.err'
 `$null = `$build.Handle; `$build.WaitForExit()
 "snapshot build: exit `$(`$build.ExitCode), {0:N0}s" -f ((Get-Date) - `$started).TotalSeconds
 # A failed build leaves no earlier build's artifact to be copied back as this one's.

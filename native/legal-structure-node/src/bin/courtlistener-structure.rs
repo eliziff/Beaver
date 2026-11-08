@@ -31,7 +31,7 @@ fn main() {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod tool {
-    use legal_structure::opinion::{layer_failures, layer_screens, opinion_layer, quote_miss, receipt_miss, OpinionCitation, OpinionLayer, OpinionRecord};
+    use legal_structure::opinion::{layer_failures, layer_screens, opinion_structure, Page, quote_miss, receipt_miss, OpinionCitation, OpinionLayer, OpinionRecord};
     use serde_json::{json, Value};
     use std::collections::{BTreeMap, HashMap, HashSet};
     use std::fs::{self, File, OpenOptions};
@@ -113,8 +113,8 @@ mod tool {
         let mut series = BTreeMap::<&str, Vec<&str>>::new();
         let mut sources = BTreeMap::<&str, usize>::new();
         for page in &layer.pages {
-            if !page.in_note { series.entry(&page.series).or_default().push(&page.label); }
-            *sources.entry(page.source).or_default() += 1;
+            if !page.in_note() { series.entry(&page.series).or_default().push(&page.label()); }
+            *sources.entry(page.source()).or_default() += 1;
         }
         let mut heading_sources = BTreeMap::<&str, usize>::new();
         for heading in &layer.headings {
@@ -126,7 +126,7 @@ mod tool {
         }
         json!({
             "id": layer.id, "cell": fields.get("_cell"), "stratum": fields.get("_stratum"), "rate": fields.get("_rate"), "page_count": fields.get("page_count"), "rendition": layer.rendition, "ms": milliseconds, "text": layer.text.len(),
-            "pages": series, "page_sources": sources, "note_pages": layer.pages.iter().filter(|page| page.in_note).count(),
+            "pages": series, "page_sources": sources, "note_pages": layer.pages.iter().filter(|page| page.in_note()).count(),
             "paragraphs": layer.paragraphs.len(), "numbered": layer.paragraphs.iter().filter(|paragraph| paragraph.number.is_some()).count(), "items": layer.paragraphs.iter().filter(|paragraph| paragraph.item.is_some()).count() + layer.notes.iter().map(|note| note.items.len()).sum::<usize>(), "titled_items": layer.headings.iter().filter(|heading| heading.text.split_whitespace().next().is_some_and(|word| word.len() <= 6 && word.ends_with(['.', ')']))).count(), "quote_paragraphs": layer.paragraphs.iter().filter(|paragraph| paragraph.quote).count(), "named_items": layer.paragraphs.iter().filter(|paragraph| paragraph.item.as_deref().is_some_and(|item| item.len() > 6)).count(), "blocks": layer.blocks.len(), "blocks_reckoned": layer.blocks.iter().filter(|block| block.source == "reckoned").count(),
             "numbers": layer.paragraphs.iter().filter_map(|paragraph| paragraph.number.as_deref()).take(400).collect::<Vec<_>>(),
             "notes": layer.notes.len(), "note_refs": layer.notes.iter().map(|note| note.references.len()).sum::<usize>(),
@@ -183,7 +183,7 @@ mod tool {
                 let (mut record, fields) = record_of(id.clone(), files, &clusters, &citations);
                 record.witness = witness;
                 let began = Instant::now();
-                let line = match catch_unwind(AssertUnwindSafe(|| opinion_layer(&record))) {
+                let line = match catch_unwind(AssertUnwindSafe(|| OpinionLayer::of(&opinion_structure(&record, None)))) {
                     Ok(layer) => {
                         let milliseconds = began.elapsed().as_millis();
                         let mut found = layer_failures(&layer);
@@ -268,7 +268,7 @@ mod tool {
                 }).collect();
                 let id = folder.file_name().and_then(|name| name.to_str()).unwrap_or_default().to_owned();
                 let (record, _) = record_of(id, files, &clusters_of(&args), &citations_of(&args));
-                println!("{}", serde_json::to_string_pretty(&opinion_layer(&record)).unwrap());
+                println!("{}", serde_json::to_string_pretty(&OpinionLayer::of(&opinion_structure(&record, None))).unwrap());
             }
             _ => eprintln!("courtlistener-structure run|one"),
         }

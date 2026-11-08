@@ -19,7 +19,7 @@
 //! Each miss of the layer goes to OUT/failures.jsonl under its cause.
 
 use crate::tool::{citations_of, clusters_of, flag, record_of, WORKER_STACK};
-use legal_structure::opinion::{opinion_layer, OpinionLayer};
+use legal_structure::opinion::{opinion_structure, OpinionLayer, Page};
 use regex::Regex;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
@@ -515,12 +515,12 @@ fn citation_of(question: &Question, table: &Table) -> Option<(String, u32)> {
 }
 
 /// The kind of mark a page answer rests on: printed, placed from another version, or reckoned.
-fn source_of(layer: &OpinionLayer, question: &Question, found: Found) -> Option<&'static str> {
+fn source_of<'a>(layer: &'a OpinionLayer, question: &Question, found: Found) -> Option<&'a str> {
     if !matches!(question.kind, Kind::Page | Kind::Vendor) {
         return None;
     }
     let series = series_for(layer, question)?;
-    layer.pages.iter().filter(|page| page.series == series && !page.in_note && page.start <= found.start).max_by_key(|page| page.start).map(|page| page.source)
+    layer.pages.iter().filter(|page| page.series == series && !page.in_note() && page.range.start <= found.start).max_by_key(|page| page.range.start).map(|page| page.source())
 }
 
 /// `docket` keeps to the `page-number` and `footnote` elements. `low` is the citation's first page in the record's own table. Words
@@ -571,7 +571,7 @@ fn outcome(question: &Question, answer: &Answer) -> &'static str {
 }
 
 fn near_mark(layer: &OpinionLayer, place: usize) -> bool {
-    layer.pages.iter().any(|page| !page.in_note && page.start.abs_diff(place) <= NEAR_MARK)
+    layer.pages.iter().any(|page| !page.in_note() && page.range.start.abs_diff(place) <= NEAR_MARK)
 }
 
 /// Why the layer missed, the cause to read first.
@@ -1208,7 +1208,7 @@ fn mutate(layer: &mut OpinionLayer, name: &str) {
     };
     match name {
         "page-labels+1" => {
-            layer.pages.iter_mut().for_each(|page| plus(&mut page.label, 1));
+            layer.pages.iter_mut().for_each(|page| { let mut label = page.label().to_owned(); plus(&mut label, 1); page.label = Some(format!("page{label}")); });
             for pin in layer.notes.iter_mut().flat_map(|note| note.pins.iter_mut()) {
                 plus(&mut pin.page, 1);
                 if let Some(through) = &mut pin.through {
@@ -1217,7 +1217,7 @@ fn mutate(layer: &mut OpinionLayer, name: &str) {
             }
         }
         // Each mark a little way down the page: only passages near a break can tell.
-        "page-marks-late" => layer.pages.iter_mut().for_each(|page| page.start += 600),
+        "page-marks-late" => layer.pages.iter_mut().for_each(|page| page.range.start += 600),
         // Reporters crossed: each citation answered with the other's numbering. The parallel pins' own test.
         "series-crossed" => {
             let names = layer.page_series.iter().map(|series| series.series.clone()).collect::<Vec<_>>();
@@ -1419,7 +1419,7 @@ pub fn grade(args: &[String]) {
                 let reparse = parser_rival.then(|| move |name: &str| -> Option<OpinionLayer> {
                     let only = one_by_one.iter().filter(|file| file.0 == "fields.json" || file.0 == name).cloned().collect::<Vec<_>>();
                     let (record, _) = record_of(id_for_rival.clone(), only, &clusters_here, &citations_here);
-                    catch_unwind(AssertUnwindSafe(|| opinion_layer(&record))).ok()
+                    catch_unwind(AssertUnwindSafe(|| OpinionLayer::of(&opinion_structure(&record, None)))).ok()
                 });
                 // The same parser on the one rendition: what the union itself adds, and no comparison of a parser with a tag reader.
                 let files = files.into_iter().filter(|(name, _)| name == "fields.json" || only.as_deref().is_none_or(|only| only == name)).collect::<Vec<_>>();
@@ -1428,7 +1428,7 @@ pub fn grade(args: &[String]) {
                 let Some(questions) = fields["cluster_id"].as_str().and_then(|cluster| pins.get(cluster)) else { return false };
                 let table = record.citations.iter().filter_map(|citation| Some((squeezed(&format!("{} {}", citation.volume, citation.reporter)), citation.volume.clone(), citation.page.parse().ok()?))).collect::<Table>();
                 let started = Instant::now();
-                let mut layer = opinion_layer(&record);
+                let mut layer = OpinionLayer::of(&opinion_structure(&record, None));
                 counted.add_by("timing|parse|ms".to_owned(), started.elapsed().as_millis() as u64);
                 let started = Instant::now();
                 if let Some(name) = mutation.filter(|name| *name != "scan-first+1") {
@@ -1437,8 +1437,8 @@ pub fn grade(args: &[String]) {
                 // A scan with fewer pages than the case's own marks run over has lost sheets: counted on from its first page, its
                 // later pages carry the wrong numbers, so it judges nothing.
                 let scan = fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster));
-                let marked_to = scan.and_then(|scan| layer.pages.iter().filter(|page| page.series.starts_with("reporter") && !page.in_note && page.source != "stray")
-                    .filter_map(|page| page.label.parse::<u32>().ok()).filter(|label| *label >= scan.first && *label <= scan.first + 200).max());
+                let marked_to = scan.and_then(|scan| layer.pages.iter().filter(|page| page.series.starts_with("reporter") && !page.in_note() && page.source() != "stray")
+                    .filter_map(|page| page.label().parse::<u32>().ok()).filter(|label| *label >= scan.first && *label <= scan.first + 200).max());
                 let scan = scan.filter(|scan| marked_to.is_none_or(|last| ((last - scan.first) as usize) < scan.pages.len()));
                 if fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster)).is_some() && scan.is_none() {
                     counted.add("scan|excluded|the scan has fewer pages than the case's marks run over".to_owned());
@@ -1650,7 +1650,7 @@ pub fn holdout(args: &[String]) {
             let rest = files.iter().filter(|file| file.0 != "html_lawbox.html").cloned().collect::<Vec<_>>();
             let graded = catch_unwind(AssertUnwindSafe(|| {
                 let (record, _) = record_of(id.clone(), rest, &clusters, &citations);
-                let layer = opinion_layer(&record);
+                let layer = OpinionLayer::of(&opinion_structure(&record, None));
                 let plain_text = squeezed(&layer.text);
                 let ours = layer.headings.iter().map(|heading| squeezed(&heading.text)).collect::<Vec<_>>();
                 let theirs = field_headings(&raw);
@@ -1686,7 +1686,7 @@ pub fn holdout(args: &[String]) {
                 let harvard = of("xml_harvard.xml").unwrap_or_default();
                 let without = files.iter().filter(|file| !matches!(file.0.as_str(), "xml_harvard.xml" | "html_with_citations.html")).cloned().collect::<Vec<_>>();
                 let (record, _) = record_of(id.clone(), without, &clusters, &citations);
-                let mut layer = opinion_layer(&record);
+                let mut layer = OpinionLayer::of(&opinion_structure(&record, None));
                 // Planted faults: each must lower its own score, or the key does not see what it claims to.
                 if let Some(name) = &planted {
                     mutate(&mut layer, name);
@@ -1755,11 +1755,11 @@ fn pdf_score(layer: &OpinionLayer, pages: &[Value], counted: &mut Tally, missed:
     let mut series = HashMap::<&str, usize>::new();
     // The PDF prints the document's own numbers: a reporter's or a vendor's numbering held beside them is another count.
     let own = |name: &str| matches!(name, "slip" | "ecf" | "sheet" | "original" | "leaf") || name.starts_with("slip-");
-    for page in layer.pages.iter().filter(|page| !page.in_note && own(&page.series)) {
+    for page in layer.pages.iter().filter(|page| !page.in_note() && own(&page.series)) {
         *series.entry(page.series.as_str()).or_default() += 1;
     }
     let main = series.iter().max_by_key(|entry| *entry.1).map(|entry| entry.0.to_owned());
-    let mut marks = layer.pages.iter().filter(|page| !page.in_note && main.as_deref() == Some(page.series.as_str()) && page.source != "stray").map(|page| (page.start, page.label.clone())).collect::<Vec<_>>();
+    let mut marks = layer.pages.iter().filter(|page| !page.in_note() && main.as_deref() == Some(page.series.as_str()) && page.source() != "stray").map(|page| (page.range.start, page.label().to_owned())).collect::<Vec<_>>();
     marks.sort();
     static NUMBER: OnceLock<Regex> = OnceLock::new();
     let number = NUMBER.get_or_init(|| Regex::new(r"^\s*(?:-\s*)?(?:Page\s+)?(\d{1,3})(?:\s*-)?(?:\s+of\s+\d+)?\s*$").unwrap());
@@ -1839,7 +1839,7 @@ pub fn pdfkey(args: &[String]) {
             let files = row["files"].as_object().into_iter().flatten().filter_map(|(name, text)| Some((name.clone(), text.as_str()?.to_owned()))).collect::<Vec<_>>();
             let graded = catch_unwind(AssertUnwindSafe(|| {
                 let (record, _) = record_of(id.clone(), files, &clusters, &citations);
-                let layer = opinion_layer(&record);
+                let layer = OpinionLayer::of(&opinion_structure(&record, None));
                 pdf_score(&layer, pages, &mut tally, &mut missed, &id);
                 tally.add(format!("records|{}|", layer.rendition));
             }));

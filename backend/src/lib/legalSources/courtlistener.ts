@@ -89,68 +89,35 @@ function citationLabel(citation: unknown): string | null {
     .filter(Boolean).join(" ") || null;
 }
 
-const CAP_CITATION_ORDER = new Map(
-  ["official", "nominative", "parallel", "vendor"].map((type, index) => [type, index]),
-);
-
-async function capPageCitations(filepath: string | null | undefined, signal?: AbortSignal) {
-  const value = filepath?.trim();
-  const archivePrefix = "https://archive.org/download/";
-  const path = value?.startsWith(archivePrefix)
-    ? value.slice(archivePrefix.length)
-    : value?.replace(/^\/+/, "");
-  // The Caselaw Access Project's page citations for the case, which are not asked while lookups stay on this computer;
-  // none where it publishes none (404).
-  if (!path || path.includes("..") || !/^[\w./-]+\.json$/u.test(path) || !lookupsLeaveComputer()) return [];
-  const url = `https://archive.org/download/${path}`;
-  const data = await cachedContent<JsonRecord>({
-    scope: "shared", kind: "courtlistener-cap-metadata", key: url, version: 1,
-    produce: async () => {
-      const response = await retriedRemoteFetch(
-        url,
-        { signal },
-        { label: "CAP metadata request", allowedHosts: ["archive.org"],
-          defaultPortOnly: true, allowIpLiterals: false, timeoutMs: 15_000,
-          response: { label: "CAP metadata response", maxBytes: 8 * 1024 * 1024,
-            contentTypes: ["application/json", "application/*+json"] } },
-      );
-      if (response.status === 404) return {};
-      if (!response.ok) throw new Error(`CAP metadata error (${response.status})`);
-      return response.json() as Promise<JsonRecord>;
-    },
-  });
-  return (Array.isArray(data.citations) ? data.citations : [])
-    .map((value, index) => ({
-      cite: asString((value as JsonRecord)?.cite),
-      type: asString((value as JsonRecord)?.type),
-      index,
-    }))
-    .filter((value): value is { cite: string; type: string | null; index: number } => !!value.cite)
-    .sort((left, right) =>
-      (CAP_CITATION_ORDER.get(left.type ?? "") ?? 99) -
-        (CAP_CITATION_ORDER.get(right.type ?? "") ?? 99) || left.index - right.index)
-    .map(({ cite }) => cite);
-}
-
 function opinionIdentifier(opinion: JsonRecord) {
   return asNumber(opinion.opinionId) ?? asNumber(opinion.id) ?? asNumber(opinion.opinion_id);
 }
 
-/** Accepts either an API opinion record or a local-bulk opinion row directly. */
-async function compactOpinion(opinion: JsonRecord, pageCitations: string[] = []) {
-  // CourtListener uses html_with_citations on its own opinion pages and
-  // documents it as the preferred rendition. Compile, display, and search
-  // that one string so locator offsets cannot drift across representations.
-  const rawMarkup = firstString(
-    opinion,
-    "htmlWithCitations", "html_with_citations",
-    "xmlHarvard", "xml_harvard",
-    "htmlColumbia", "html_columbia",
-    "htmlLawbox", "html_lawbox",
-    "htmlAnon2020", "html_anon_2020",
-    "html",
-  );
-  const text = firstString(opinion, "plainText", "plain_text");
+/** Each rendition CourtListener stores, under the file name the structure parser reads it by, with its field names. */
+const RENDITIONS: Array<[string, ...string[]]> = [
+  ["html_with_citations.html", "htmlWithCitations", "html_with_citations"],
+  ["xml_harvard.xml", "xmlHarvard", "xml_harvard"],
+  ["html_columbia.html", "htmlColumbia", "html_columbia"],
+  ["html_lawbox.html", "htmlLawbox", "html_lawbox"],
+  ["html_anon_2020.html", "htmlAnon2020", "html_anon_2020"],
+  ["html.html", "html"],
+  ["plain_text.txt", "plainText", "plain_text"],
+];
+
+type OpinionCitation = { volume: string; reporter: string; page: string; kind: string };
+
+/** The case's printings as CourtListener's API lists them. */
+function apiCitations(cluster: JsonRecord): OpinionCitation[] {
+  return (Array.isArray(cluster.citations) ? cluster.citations : []).flatMap((value) => {
+    const row = jsonRecord(value);
+    const part = (field: unknown) => String(field ?? "").trim();
+    return row && part(row.volume) && part(row.reporter) && part(row.page)
+      ? [{ volume: part(row.volume), reporter: part(row.reporter), page: part(row.page), kind: part(row.type) }] : [];
+  });
+}
+
+/** An API opinion record or a local-bulk opinion row, read whole by the structure parser with its case's citations and fields. */
+async function compactOpinion(opinion: JsonRecord, cluster: JsonRecord = {}, citations: OpinionCitation[] = []) {
   const compacted = {
     opinionId: opinionIdentifier(opinion),
     type: asString(opinion.type),
@@ -161,17 +128,23 @@ async function compactOpinion(opinion: JsonRecord, pageCitations: string[] = [])
     url: absoluteWebUrl(opinion.absolute_url ?? opinion.url),
     pdfUrl: absoluteStorageUrl(opinion.storagePath ?? opinion.local_path),
   };
-  if (!text && !rawMarkup) return compacted;
+  const renditions = RENDITIONS.flatMap(([file, ...fields]) => {
+    const text = firstString(opinion, ...fields);
+    return text ? [[file, text]] : [];
+  });
+  if (!renditions.length) return compacted;
   const native = await structureNative().deriveDocumentStructure({
-    kind: "native_markup",
-    input: {
-      provider: "courtlistener",
+    kind: "opinion",
+    record: {
       id: compacted.opinionId === null ? "" : String(compacted.opinionId),
-      url: compacted.url,
-      text: text ?? "",
-      markup: rawMarkup,
-      pageCitations,
+      opinion_type: compacted.type,
+      author: compacted.author,
+      page_count: asNumber(opinion.page_count) ?? asNumber(opinion.pageCount),
+      renditions,
+      citations,
+      cluster: Object.entries(cluster).flatMap(([field, value]) => typeof value === "string" && value ? [[field, value]] : []),
     },
+    url: compacted.url,
   });
   return { ...compacted, native };
 }
@@ -200,7 +173,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
   const cluster = await courtlistenerFetch<JsonRecord>(
     `/clusters/${args.clusterId}/`, { signal: args.signal }, args.apiToken);
   if (!cluster) throw new Error(`CourtListener has no cluster ${args.clusterId}.`);
-  const pageCitations = await capPageCitations(asString(cluster.filepath_json_harvard), args.signal);
+  const citations = apiCitations(cluster);
   const opinions: Awaited<ReturnType<typeof compactOpinion>>[] = [];
   let nextUrl: string | null = `/opinions/?cluster=${args.clusterId}`;
   let pages = 0;
@@ -213,7 +186,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
     const pageOpinions = results.filter(isJsonRecord);
     for (const opinion of pageOpinions.filter((opinion) =>
       args.opinionId === undefined || opinionIdentifier(opinion) === args.opinionId)) {
-      opinions.push(await compactOpinion(opinion, pageCitations));
+      opinions.push(await compactOpinion(opinion, cluster, citations));
     }
     if (args.opinionId !== undefined && opinions.length) break;
     nextUrl = asString(data?.next);
@@ -314,11 +287,17 @@ async function citationCluster(
 async function getBulkCourtlistenerCaseOpinions(clusterId: number, opinionId?: number) {
   const local = getLocalCourtlistenerCase(clusterId);
   if (!local) return null;
-  const pageCitations = await capPageCitations(local.cluster.filepathJsonHarvard);
+  // The local store keeps the case's names and date, under CourtListener's own field names, and its citations as printed.
+  const cluster = { case_name: local.cluster.caseName, case_name_full: local.cluster.caseNameFull,
+    case_name_short: local.cluster.caseNameShort, date_filed: local.cluster.dateFiled };
+  const citations = local.citations.flatMap((cite) => {
+    const parts = parseCitationParts(cite);
+    return parts ? [{ ...parts, kind: "" }] : [];
+  });
   const opinions = await Promise.all(
     local.opinions
       .filter((opinion) => opinionId === undefined || opinion.id === opinionId)
-      .map((opinion) => compactOpinion(opinion as unknown as JsonRecord, pageCitations)),
+      .map((opinion) => compactOpinion(opinion as unknown as JsonRecord, cluster, citations)),
   );
   return {
     ...compactLocalBulkCluster(local.cluster, local.citations, opinions),

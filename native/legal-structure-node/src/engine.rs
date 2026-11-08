@@ -25,6 +25,11 @@ pub enum StructureRequest {
     NativeMarkup {
         input: NativeMarkupInput,
     },
+    /// A CourtListener opinion read whole: every rendition, the case's citations and its cluster's fields.
+    Opinion {
+        record: legal_structure::opinion::OpinionRecord,
+        url: Option<String>,
+    },
     Journal {
         article_id: usize,
         url: Option<String>,
@@ -153,6 +158,7 @@ pub fn derive_document_structure(request: StructureRequest) -> CoreResult<Native
         StructureRequest::NativeMarkup { input } => {
             analyze_native_markup(input).map_err(native_error)?
         }
+        StructureRequest::Opinion { record, url } => legal_structure::opinion::opinion_structure(&record, url),
         StructureRequest::Journal {
             article_id,
             url,
