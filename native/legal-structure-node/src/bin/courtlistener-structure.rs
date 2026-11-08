@@ -147,7 +147,7 @@ mod tool {
             "page_series": opinion.page_series, "defined_terms": opinion.defined_terms.len(), "quotes": opinion.quotes.len(),
             "instruments": opinion.instruments.iter().map(|instrument| instrument.kind.as_str()).collect::<Vec<_>>(),
             "record_gaps": opinion.record_gaps.iter().map(|gap| gap.kind.as_str()).collect::<Vec<_>>(),
-            "outcomes": opinion.outcomes, "tables": opinion.tables.len(), "unmatched_calls": opinion.unmatched_calls.len(), "document_kind": opinion.document_kind,
+            "outcomes": opinion.outcomes, "tables": nodes(structure, NodeKind::Table).count(), "unmatched_calls": opinion.unmatched_calls.len(), "document_kind": opinion.document_kind,
             "note_longest": notes().map(|note| note.ranges.iter().map(|range| range.end.saturating_sub(range.start)).sum::<usize>()).max().unwrap_or(0), "note_share": notes().flat_map(|note| note.ranges.iter()).map(|range| range.end.saturating_sub(range.start)).sum::<usize>(), "marks_in_notes": marks_in_notes(structure), "shifted_left": faults.0, "margins_left": faults.1, "other_opinion": opinion.other_opinion, "unheld": unheld.0, "unheld_at": unheld.1, "page_witness": opinion.page_witness, "note_witness": opinion.note_witness, "heading_witness": opinion.heading_witness, "paragraph_witness": opinion.paragraph_witness, "paragraphs_run_on": opinion.paragraphs_run_on, "paragraphs_split": opinion.paragraphs_split, "union_test": opinion.union_test, "union_samples": opinion.union_samples, "titles_not_held": opinion.titles_not_held,
         })
     }
