@@ -648,6 +648,19 @@ mod pdf {
         /// Rights and Freedoms" in "The Constitution Acts 1867 to 1982").
         #[serde(default)]
         instrument: Option<String>,
+        /// The quotations to place in the passage: each whole, or the part of its text a selection names.
+        #[serde(default)]
+        exact_quotes: Vec<String>,
+        #[serde(default)]
+        quote_selections: Vec<QuoteSelection>,
+    }
+
+    /// A quotation's text and the part of it (UTF-16) that is placed: its words in their context.
+    #[derive(Deserialize)]
+    pub struct QuoteSelection {
+        text: String,
+        start: usize,
+        end: usize,
     }
 
     struct PassagePlan {
@@ -657,6 +670,76 @@ mod pdf {
         pages: Vec<u32>,
         ranges: Vec<legal_structure::ScalarRange>,
         paragraph: Option<String>,
+        quotes: Vec<QuoteSelection>,
+    }
+
+    /// Words as a quotation's are matched in a passage's: case, width and apostrophe forms folded.
+    fn passage_words(text: &str) -> Vec<String> {
+        use unicode_normalization::UnicodeNormalization;
+        static WORD: std::sync::LazyLock<regex::Regex> =
+            std::sync::LazyLock::new(|| regex::Regex::new(r"[\p{L}\p{N}]+(?:['\u{2019}][\p{L}\p{N}]+)*").unwrap());
+        let folded = text.nfkc().collect::<String>().to_lowercase();
+        WORD.find_iter(&folded).map(|word| word.as_str().replace('\u{2019}', "'")).collect()
+    }
+
+    /// Where a quotation stands in a passage's pages (`pages`, as the passage gives them), its words read once in its
+    /// context and found once among the passage's words in order, a page apart at most: its rectangle on each line it
+    /// crosses, page by page. A passage not found, or a quotation found other than once, places none.
+    fn quote_geometry(pages: &[serde_json::Value], status: legalpdf::PdfLookupStatus, quote: &QuoteSelection) -> serde_json::Value {
+        use legalpdf::PdfLookupStatus as Status;
+        let context = legal_structure::ScalarText::new(&quote.text);
+        let slice = |start: usize, end: usize| context.slice_utf16(start..end).unwrap_or("");
+        let text = slice(quote.start, quote.end);
+        let none = |status: Status| serde_json::json!({ "text": text, "status": status, "rects": [] });
+        if status != Status::Found {
+            return none(status);
+        }
+        let needle = passage_words(&quote.text);
+        if needle.len() < 2 {
+            return none(Status::Invalid);
+        }
+        let (before, selected) = (passage_words(slice(0, quote.start)), passage_words(text));
+        let after = passage_words(slice(quote.end, context.utf16_len()));
+        if selected.is_empty() || [&before[..], &selected[..], &after[..]].concat() != needle {
+            return none(Status::Invalid);
+        }
+        let mut words = Vec::new();
+        for page in pages.iter().filter(|page| page["source"] == "native") {
+            let number = page["pageNumber"].as_u64().unwrap_or(0);
+            for line in page["lines"].as_array().into_iter().flatten() {
+                for word in line["words"].as_array().into_iter().flatten() {
+                    for value in passage_words(word["text"].as_str().unwrap_or("")) {
+                        words.push((value, number, line["id"].as_str().unwrap_or(""), &word["rect"]));
+                    }
+                }
+            }
+        }
+        let hits = (0..words.len()).filter(|&start| needle.iter().enumerate().all(|(offset, value)| {
+            words.get(start + offset).is_some_and(|current: &(String, u64, &str, &serde_json::Value)|
+                &current.0 == value && (offset == 0 || current.1 <= words[start + offset - 1].1 + 1))
+        })).collect::<Vec<_>>();
+        if hits.len() != 1 {
+            return none(if hits.is_empty() { Status::NotFound } else { Status::Ambiguous });
+        }
+        // One quotation can span pages: one mark, its fragments a page each, a line's rectangle the union of its words'.
+        let mut fragments: Vec<(u64, Vec<(&str, [f64; 4])>)> = Vec::new();
+        let first = hits[0] + before.len();
+        for (_, number, line, rect) in &words[first..first + selected.len()] {
+            let rect: [f64; 4] = serde_json::from_value((*rect).clone()).unwrap_or_default();
+            let at = fragments.iter().position(|(page, _)| page == number).unwrap_or_else(|| {
+                fragments.push((*number, Vec::new()));
+                fragments.len() - 1
+            });
+            let lines = &mut fragments[at].1;
+            match lines.iter_mut().find(|(id, _)| id == line) {
+                Some((_, union)) => *union = [union[0].min(rect[0]), union[1].min(rect[1]), union[2].max(rect[2]), union[3].max(rect[3])],
+                None => lines.push((line, rect)),
+            }
+        }
+        let fragments = fragments.into_iter().map(|(number, lines)| serde_json::json!({
+            "pageNumber": number, "rects": lines.into_iter().map(|(_, rect)| rect).collect::<Vec<_>>() })).collect::<Vec<_>>();
+        serde_json::json!({ "text": text, "status": Status::Found, "pageNumber": fragments[0]["pageNumber"],
+            "rects": fragments[0]["rects"], "fragments": fragments })
     }
 
     /// Passage planning and geometry share the prepared extraction witnesses.
@@ -732,6 +815,9 @@ mod pdf {
                     pages,
                     ranges,
                     paragraph: (target.locator_kind == "paragraph").then_some(target.locator),
+                    quotes: target.exact_quotes.into_iter()
+                        .map(|text| QuoteSelection { end: legal_structure::utf16_len(&text), text, start: 0 })
+                        .chain(target.quote_selections).collect(),
                 }
             })
             .collect();
@@ -829,7 +915,16 @@ mod pdf {
                         }).collect::<Vec<_>>();
                     let complete_geometry = pages.iter().all(|page| page["source"] == "native")
                         && selected_pages.iter().all(|number| pages.iter().any(|page| page["pageNumber"] == *number));
-                    let mut target = serde_json::json!({ "id": plan.id, "status": status, "pages": pages });
+                    // A passage found with no page it can be read on (a text, its every page unread or holding no line of it) is
+                    // unavailable, and so is every quotation in it.
+                    let readable = if status == legalpdf::PdfLookupStatus::Found && pages.iter().all(|page| page["source"] == "unavailable"
+                        || (!plan.page && page["lines"].as_array().is_none_or(Vec::is_empty))) {
+                        legalpdf::PdfLookupStatus::Unavailable
+                    } else {
+                        status
+                    };
+                    let quotes = plan.quotes.iter().map(|quote| quote_geometry(&pages, readable, quote)).collect::<Vec<_>>();
+                    let mut target = serde_json::json!({ "id": plan.id, "status": readable, "pages": pages, "quotes": quotes });
                     if plan.paragraph.is_some() {
                         target["printed"] = (status == legalpdf::PdfLookupStatus::Found && complete_geometry && !selected_pages.is_empty() &&
                             selected_pages.iter().all(|page| !unavailable.contains(&((*page - 1) as usize)))).into();

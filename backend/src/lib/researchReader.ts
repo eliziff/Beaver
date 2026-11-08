@@ -304,7 +304,7 @@ const boundedRow = (row: ReturnType<ReturnType<typeof structureNative>["readDocu
 function sourceExtent(artifact: NativeDocument) {
   const anchors = structureNative().documentAnchors(artifact);
   for (const kind of ["paragraph", "section", "page"] as const) {
-    const labels = anchors.flatMap((anchor) => anchor.kind === kind ? [anchor.label] : []);
+    const labels = anchors.flatMap((anchor) => anchor.kind === kind ? [anchor.printed] : []);
     if (labels.length) return { locator_kind: kind, first: labels[0], last: labels[labels.length - 1],
       count: labels.length };
   }
@@ -346,7 +346,7 @@ export function readLibraryResearchWindow(input: LibraryWindowInput): ResearchRe
       : [{ start: row.span[0], end: row.span[1], ...(() => {
         const locator = provenBlockLocator(input.document, block, { start: row.span[0], end: row.span[1] });
         return { locator: locator ?? { kind: "document" as const, label: block?.kind === "paragraph"
-          ? `text paragraph ${block.label.replace(/^par/iu, "")}` : `text line ${row.lineNumber}` } };
+          ? `text paragraph ${block.printed}` : `text line ${row.lineNumber}` } };
       })() }])
       if (span.end > span.start) {
         lines.push({ span: [span.start, span.end], locator: span.locator,
@@ -540,8 +540,7 @@ function numberedSourceText(sources: readonly ReadSourceDetail[], receipts: read
     bySource.delete(source.resource);
     const name = [source.title, source.citation].filter(Boolean).join(", "),
       details = [source.collection, source.date,
-        source.extent && `${source.extent.locator_kind}s ${[source.extent.first, source.extent.last]
-          .map((label) => label.replace(/^par(?=\d)/u, "")).join("–")}`,
+        source.extent && `${source.extent.locator_kind}s ${[source.extent.first, source.extent.last].join("–")}`,
         typeof source.opinion_type === "string" &&
           `${source.opinion_type}${typeof source.author === "string" ? ` by ${source.author}` : ""}`,
         source.language && source.language !== "en" && source.language].filter(Boolean);

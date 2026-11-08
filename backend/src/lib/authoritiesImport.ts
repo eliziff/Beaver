@@ -77,7 +77,7 @@ function occurrenceSpans(unitText: string, authority: Span, core: Span,
 export function pinpointValues<Kind extends string>(pinpoints: ReadonlyArray<{ kind: Kind; text: string;
   start: number; end: number; first?: string; last?: string | null }>, offset = 0) {
   return pinpoints.map(({ kind, text, start, end, first, last }) => ({ kind,
-    text: last ? text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : first ?? text,
+    text: last ? `${first}-${last}` : first ?? text,
     ...first ? { first } : {}, ...last ? { last } : {}, start: offset + start, end: offset + end }));
 }
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>

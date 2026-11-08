@@ -166,10 +166,11 @@ export type NativePdfTextPage = { pageNumber: number; width: number; height: num
 
 type NativePdfPassagePages = Omit<NativePdfPassageGeometry, "schemaVersion" | "targets"> & {
   schemaVersion: "legalpdf.passage-pages.v1";
+  /** Each passage's pages and its quotations placed on them; a passage with no page it can be read on unavailable. */
   targets: Array<{ id: string; status: PassageStatus; printed?: boolean; pages: Array<{
     pageNumber: number; width: number; height: number; source: "native" | "unavailable";
     lines: Array<{ id: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }>;
-  }> }>;
+  }>; quotes: NativePdfPassageGeometry["targets"][number]["quotes"] }>;
 };
 
 type PdfStructureLookupBase = {
@@ -257,8 +258,7 @@ type StructureAddon = {
   /** Every page's text in page order, empty where a page has no exact text. */
   pdfPageTexts(document: NativeDocument): string[];
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
-  pdfPassageGeometryPages(document: NativeDocument,
-    targets: Array<Omit<NativePdfPassageTarget, "exactQuotes">>): Promise<NativePdfPassagePages>;
+  pdfPassageGeometryPages(document: NativeDocument, targets: NativePdfPassageTarget[]): Promise<NativePdfPassagePages>;
   docxStructureLint(document: NativeDocument): {
     paragraphs: number;
     checks: {
@@ -412,7 +412,7 @@ type StructureAddon = {
   documentHasOrigin(document: NativeDocument, origin: NativeDocumentBlock["origin"]): boolean;
   /** Reflected levels are one-based; source roots have level 1. */
   documentAnchors(document: NativeDocument, end?: number): Array<{ level: number } & Pick<NativeDocumentBlock,
-    "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel" | "rowSpan" | "columnSpan">>;
+    "kind" | "label" | "printed" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel" | "rowSpan" | "columnSpan">>;
   legalSourceViewer(document: NativeDocument, primaryKind: "paragraph" | "section",
     limit?: number): {
       slices: Array<{
@@ -531,6 +531,8 @@ export type NativeDocumentBlock = {
   ranges: Array<{ start: number; end: number }>;
   kind: "paragraph" | "page" | "section" | "footnote" | "table" | "row" | "cell";
   label: string;
+  /** The label as the document prints it, past the prefix its kind gives every label: "par12" is "12". */
+  printed: string;
   start: number;
   end: number;
   origin: "native" | "heuristic";
@@ -580,58 +582,6 @@ export const normalizedWords = (text: string) =>
     .match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? [])
     .map((word) => word.replace(/’/g, "'"));
 
-function unionRects(rects: Rect[]) {
-  return rects.slice(1).reduce<Rect>((box, rect) => [
-    Math.min(box[0], rect[0]), Math.min(box[1], rect[1]),
-    Math.max(box[2], rect[2]), Math.max(box[3], rect[3]),
-  ], rects[0]);
-}
-
-function exactQuote(target: NativePdfPassagePages["targets"][number], selection: string |
-  { text: string; start: number; end: number }) {
-  const context = typeof selection === "string" ? null : selection;
-  const text = context ? context.text.slice(context.start, context.end) : selection as string;
-  if (target.status !== "found") return { text, status: target.status, rects: [] };
-  const needle = normalizedWords(context?.text ?? text);
-  if (needle.length < 2) return { text, status: "invalid" as const, rects: [] };
-  const before = context ? normalizedWords(context.text.slice(0, context.start)) : [];
-  const selected = normalizedWords(text);
-  if (!selected.length || context && [
-    ...before, ...selected, ...normalizedWords(context.text.slice(context.end)),
-  ].join("\0") !== needle.join("\0")) return { text, status: "invalid" as const, rects: [] };
-  const words = target.pages.flatMap(page => page.source !== "native" ? [] :
-    page.lines.flatMap(line => line.words.flatMap(word => normalizedWords(word.text)
-      .map(value => ({ value, pageNumber: page.pageNumber, line: line.id, rect: word.rect })))));
-  const hits = words.flatMap((_, start) => needle.every((word, offset) => {
-    const current = words[start + offset], prior = words[start + offset - 1];
-    return current?.value === word && (!offset || current.pageNumber <= prior.pageNumber + 1);
-  }) ? [words.slice(start, start + needle.length)] : []);
-  if (hits.length !== 1) return {
-    text, status: (hits.length ? "ambiguous" : "not_found") as PassageStatus, rects: [],
-  };
-  const pages = new Map<number, Map<string, Rect[]>>();
-  for (const word of hits[0].slice(before.length, before.length + selected.length)) {
-    const lines = pages.get(word.pageNumber) ?? new Map<string, Rect[]>();
-    lines.set(word.line, [...(lines.get(word.line) ?? []), word.rect]); pages.set(word.pageNumber, lines);
-  }
-  const fragments = [...pages].map(([pageNumber, lines]) => ({ pageNumber,
-    rects: [...lines.values()].map(unionRects) }));
-  // One quotation can span pages; keep it one editable mark with several fragments.
-  return { text, status: "found" as const, ...fragments[0], fragments };
-
-}
-
-/** The paragraphs a range names, read as the review reads an ibid's pinpoint, or undefined for a
- *  single paragraph. A range runs forward over fewer than 100 paragraphs, as the engine's own range
- *  lookup requires. */
-function paragraphRange(locator: string): [number, number] | undefined {
-  const pinpoints = structureNative().authorityReferencesInText(`Ibid at paras ${locator}`)
-    .flatMap(({ pinpoints }) => pinpoints);
-  const first = Number(pinpoints[0]?.first), last = Number(pinpoints[0]?.last);
-  return pinpoints.length === 1 && pinpoints[0].kind === "paragraph" && Number.isSafeInteger(first) &&
-    Number.isSafeInteger(last) && first < last && last - first < 100 ? [first, last] : undefined;
-}
-
 export async function pdfPassageGeometry(
   document: NativeDocument, bytes: Buffer, targets: NativePdfPassageTarget[],
 ): Promise<NativePdfPassageGeometry> {
@@ -647,28 +597,14 @@ export async function pdfPassageGeometry(
   if (createHash("sha256").update(bytes).digest("hex") !== summary.sha256) {
     throw new Error("PDF source changed after preparation");
   }
-  const pages = async (list: NativePdfPassageTarget[]) => {
-    const result = await native.pdfPassageGeometryPages(document,
-      list.map(({ exactQuotes: _, quoteSelections: __, ...target }) => target));
-    if (result.sourceSha256 !== summary.sha256 || result.parserVersion !== summary.parserVersion) {
-      throw new Error("PDF passage geometry source identity changed");
-    }
-    return result;
-  };
-  // A paragraph range is the passage from its first paragraph to its last, its end read as the
-  // citation engine reads a pinpoint: "142-54" runs to 154.
-  const ranges = targets.map(({ locatorKind, locator }) =>
-    locatorKind === "paragraph" ? paragraphRange(locator) : undefined);
-  const raw = await pages(targets.map((target, index) =>
-    ranges[index] ? { ...target, locator: ranges[index].join("-") } : target));
+  const raw = await native.pdfPassageGeometryPages(document, targets);
+  if (raw.sourceSha256 !== summary.sha256 || raw.parserVersion !== summary.parserVersion) {
+    throw new Error("PDF passage geometry source identity changed");
+  }
   return { ...raw, schemaVersion: "legalpdf.passage-geometry.v1",
     targets: raw.targets.map((target, index) => {
       const request = targets[index];
-      const status = target.status === "found" && (!target.pages.length || target.pages.every((page) =>
-        page.source === "unavailable" || (request.locatorKind !== "page" && !page.lines.length)))
-        ? "unavailable" : target.status;
-      const resolved = { ...target, status };
-      return { id: target.id, locatorKind: request.locatorKind, locator: request.locator, status,
+      return { id: target.id, locatorKind: request.locatorKind, locator: request.locator, status: target.status,
         ...(request.locatorKind === "paragraph" ? { printed: target.printed === true } : {}),
         pages: target.pages.map((page) => ({
         pageNumber: page.pageNumber, width: page.width, height: page.height, source: page.source,
@@ -676,8 +612,7 @@ export async function pdfPassageGeometry(
         passageRects: request.locatorKind === "page" || !page.lines.length
           ? [] : page.lines.map((line) => line.rect),
         })),
-        quotes: [...(request.exactQuotes ?? []), ...(request.quoteSelections ?? [])]
-          .map((quote) => exactQuote(resolved, quote)),
+        quotes: target.quotes,
       };
     }) };
 }
