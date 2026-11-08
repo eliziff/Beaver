@@ -18,22 +18,15 @@
 //!       gold-grade.json in the data home unless --out names another file. Totals are pooled per split; test is left out unless asked.
 //!       --candidates reads the existing OCR cache manifest (inputs: source_sha256, candidate),
 //!       scores only its exports, and never selects them by gold line IDs.
-//!       --labels FILE decodes a tagger's per-line labels ({sha256, ids, labels} rows) over the
-//!       parser, which supplies markers, references and note pairs, and scores them.
 //!       --group FIELD=VALUE keeps matching source groups; repeat to require every match.
 //!       --parts grades each document of a packet on its own (run <sha>#k): the gold cut at its
 //!       document starts, the parser run on the extraction's lines that align to that document.
 //!   structure-gold digest STORE OUT
 //!       each source's parse hashed, nothing graded: `sha<TAB>digest` per document, every split; two builds parse the
 //!       same where their files are (`fc /b`, `cmp`).
-//!   structure-gold rows STORE OUT_DIR
-//!       the tier-1 tagger's training rows, train and development only: each line's evidence
-//!       with the parser's labels and the gold's, one JSON document per line of
-//!       OUT_DIR/rows-<split>.jsonl.
 //!   structure-gold explain STORE SHA_PREFIX [--candidates FILE] [--layers a,b] [--limit N]
-//!       --tagger DIR [--pure]: the engine's tagger over the parse; --pure takes its notes, references and document starts too
 //!       one document's missed (-) and spurious (+) items per layer, as text.
-//!   structure-gold selfcheck STORE self|labels|agree [--run R] [--split S] [--worst a,b]
+//!   structure-gold selfcheck STORE self|agree [--run R] [--split S] [--worst a,b]
 //!   structure-gold pairing STORE SHA_PREFIX [FIRST-LAST]
 //!   structure-gold paragraph-data STORE OUT_DIR
 //!       exports Rust boundary features and fixed-gold targets, excluding test.
@@ -47,7 +40,7 @@ mod score;
 #[global_allocator]
 static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use legal_pdf_tagger::{alignment, labels, rows, state, text_diff};
+use legal_pdf_frame::{alignment, state, text_diff};
 
 use legal_pdf_core::{read_gzip_json, write_gzip_json};
 use legal_structure_model::DocumentStructure;
@@ -360,30 +353,6 @@ fn extract_digest(store: &Path, out: &Path) -> Result<(), String> {
         format!("{:x}", sha2::Sha256::digest(read.unwrap_or_else(|error| format!("error {error}").into_bytes())))
     });
     let mut lines: Vec<String> = all.iter().zip(digests).map(|(source, digest)| format!("{}\t{digest}", source.sha256)).collect();
-    lines.sort();
-    std::fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
-}
-
-/// Every STEP-th source by SHA parsed and re-labelled by the tagger (its export DIR, on the ONNX Runtime library RUNTIME),
-/// nothing graded: one `sha<TAB>digest` line per document (the SHA-256 of its structure's JSON after the retag and of
-/// the retag's result, success or error), sorted, to OUT. Two builds tag the same where their files are the same.
-fn tagged_digest(store: &Path, out: &Path, dir: &Path, runtime: &Path, step: usize) -> Result<(), String> {
-    use sha2::Digest;
-    legal_pdf_core::init_ort_runtime(runtime, None).map_err(|e| format!("ONNX Runtime: {e}"))?;
-    let tagger = Mutex::new(legal_pdf_tagger::onnx::Tagger::load(dir, 4)?);
-    let mut all = sources(store)?;
-    all.sort_by(|a, b| a.sha256.cmp(&b.sha256));
-    let all: Vec<Source> = all.into_iter().step_by(step.max(1)).collect();
-    let inputs = |s: &Source| std::fs::metadata(inputs_dir().join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
-    let digests = parallel(&all, inputs, |source| {
-        let (mut structure, pages) = parse(source)?;
-        let result = tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.retag(&mut structure, &pages, &source.sha256, hybrid());
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(serde_json::to_vec(&structure).map_err(|e| e.to_string())?);
-        hasher.update(format!("{result:?}"));
-        Ok::<_, String>(format!("{:x}", hasher.finalize()))
-    });
-    let mut lines: Vec<String> = all.iter().zip(digests).map(|(source, digest)| format!("{}\t{}", source.sha256, digest.unwrap_or_else(|e| format!("error {e}")))).collect();
     lines.sort();
     std::fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
 }
@@ -789,73 +758,6 @@ fn score_structure(
     })
 }
 
-/// Per document, each piece's labels from a tagger's predictions file: {sha256, ids, labels}, ids
-/// naming pieces (line@offset) and each label [region, start, document, reference, heading level,
-/// marker, resumed row], the row being that of the piece it resumes, or -1.
-fn label_file(path: Option<&str>) -> Result<Option<BTreeMap<String, HashMap<String, labels::Label>>>, String> {
-    let Some(path) = path else { return Ok(None) };
-    let text = std::fs::read_to_string(local(path)).map_err(|e| format!("{path}: {e}"))?;
-    let mut found = BTreeMap::new();
-    for line in text.lines().filter(|l| !l.trim().is_empty()) {
-        let row: Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
-        let sha = row["sha256"].as_str().ok_or("Labels row without sha256")?.to_owned();
-        let ids = row["ids"].as_array().ok_or("Labels row without ids")?;
-        let rows = row["labels"].as_array().ok_or("Labels row without labels")?;
-        let mut per_piece = HashMap::new();
-        for (id, label) in ids.iter().zip(rows) {
-            let field = |k: usize| label[k].as_u64().unwrap_or(0) as usize;
-            let pointer = |k: usize| label.get(k).and_then(Value::as_i64).filter(|&row| row >= 0)
-                .and_then(|row| ids.get(row as usize)).and_then(Value::as_str).map(str::to_owned);
-            per_piece.insert(id.as_str().unwrap_or_default().to_owned(), labels::Label {
-                // A gold's unmarked body (gold_labels.py's 101) is text to the labels' decoder.
-                region: if field(0) == 101 { 1 } else { field(0) }, start: field(1), document: field(2) == 1, reference: field(3) == 1, level: field(4),
-                marker: field(5) == 1, continues: pointer(6), depth: field(7), rank: None,
-            });
-        }
-        found.insert(sha, per_piece);
-    }
-    Ok(Some(found))
-}
-
-/// A tagger's labels decoded over a frame's own pieces.
-fn decode_labels(frame: &state::State, per_piece: &HashMap<String, labels::Label>, sha256: &str) -> Result<state::State, String> {
-    let pieces = labels::pieces(frame);
-    let found: Vec<labels::Label> = pieces.iter().map(|p| per_piece.get(&labels::anchor(frame, p)).cloned().unwrap_or_default()).collect();
-    state::projected(&labels::decode(frame, &pieces, &found, sha256))
-}
-
-/// A tagger's labels for one document, decoded over the parser's and scored like a parse.
-fn grade_labels(source: &Source, per_piece: &HashMap<String, labels::Label>) -> Result<Graded, String> {
-    let expected: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
-    let started = Instant::now();
-    let structure = candidate(source, None)?;
-    let parsed_at = Instant::now();
-    let decoded = decode_labels(&state::parsed(&structure)?, per_piece, &source.sha256)?;
-    let score = score::compare(&state::projected(&expected)?, &decoded)?;
-    Ok(Graded { score, parse_ms: (parsed_at - started).as_secs_f64() * 1e3, score_ms: parsed_at.elapsed().as_secs_f64() * 1e3 })
-}
-
-/// The engine's tagger over one document: the parse of the cached extraction, re-labelled
-/// by the model and decoded by the hierarchy rule, scored like a parse. One session serves every
-/// document in turn.
-/// --pure: the tagger's own notes, references and document starts (else tier 0's stay, "hybrid").
-static PURE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-fn hybrid() -> bool {
-    !PURE.load(std::sync::atomic::Ordering::Relaxed)
-}
-
-fn grade_tagged(source: &Source, tagger: &Mutex<legal_pdf_tagger::onnx::Tagger>) -> Result<Graded, String> {
-    let expected: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
-    let started = Instant::now();
-    // The product's path: the graph re-labelled in place, then read as any parse is.
-    let (mut structure, pages) = parse(source)?;
-    tagger.lock().map_err(|_| "tagger poisoned".to_owned())?.retag(&mut structure, &pages, &source.sha256, hybrid())?;
-    let tagged_at = Instant::now();
-    let score = score::compare(&state::projected(&expected)?, &state::parsed(&structure)?)?;
-    Ok(Graded { score, parse_ms: (tagged_at - started).as_secs_f64() * 1e3, score_ms: tagged_at.elapsed().as_secs_f64() * 1e3 })
-}
-
 fn metrics_json(metrics: &BTreeMap<&'static str, score::Metric>) -> Value {
     Value::Object(metrics.iter().map(|(name, m)| (name.to_string(), json!({
         "expected": m.expected, "predicted": m.predicted, "correct": m.correct, "f1": m.f1(),
@@ -885,9 +787,9 @@ fn totals_json(rows: &[&Value]) -> Value {
     }).collect())
 }
 
-/// The layers the apps read, first and by name; every other layer follows. A parse alone is read
-/// for its body units as one kind (BODY_LAYERS); a tagger's for paragraphs, provisions and list
-/// items apart.
+/// The layers the apps read, first and by name; every other layer follows. A parse that does not
+/// tell its body units apart is read for them as one kind (BODY_LAYERS); one that does, for
+/// paragraphs, provisions and list items apart.
 const BODY_LAYERS: [(&str, &str); 2] = [("units_body", "body units"), ("markers_body", "body markers")];
 const FINE_LAYERS: [&str; 6] = ["markers_text", "units_text", "markers_provision", "units_provision", "units_list_item", "markers_list_item"];
 const KEY_LAYERS: [(&str, &str); 17] = [
@@ -1021,23 +923,8 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
         return Err("--candidates requires an inventory file".into());
     }
     let selected = candidates(inventory.as_deref())?;
-    let labelled = label_file(value("--labels").as_deref())?;
-    // --tagger DIR runs the engine's own tagger (tagger.onnx + tagger.json) over every document;
-    // --onnx-runtime names the ONNX Runtime library (else LEGALPDF_ONNX_RUNTIME).
-    PURE.store(options.iter().any(|o| o == "--pure"), std::sync::atomic::Ordering::Relaxed);
     PARTS.store(flag("--parts"), Ordering::Relaxed);
-    let tagger = match value("--tagger") {
-        Some(dir) => {
-            let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok())
-                .ok_or("--tagger needs --onnx-runtime PATH or LEGALPDF_ONNX_RUNTIME")?;
-            legal_pdf_core::init_ort_runtime(Path::new(&runtime), None).map_err(|e| format!("ONNX Runtime: {e}"))?;
-            Some(Mutex::new(legal_pdf_tagger::onnx::Tagger::load(Path::new(&dir), 4)?))
-        }
-        None => None,
-    };
-    // A tagger's labels are read for paragraphs, provisions and list items apart, and so is the
-    // transition parser's structure (LEGALPDF_TRANSITION_EMIT), which tells them apart; the stage
-    // parser's alone, not.
+    // The transition parser's structure tells paragraphs, provisions and list items apart, and they are read apart.
     let fine = true;
     let split = value("--split");
     let mut groups = Vec::new();
@@ -1062,7 +949,6 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
     let all: Vec<Source> = all
         .into_iter()
         .filter(|s| inventory.is_none() || selected.contains_key(&s.sha256))
-        .filter(|s| labelled.is_none() || labelled.as_ref().is_some_and(|l| l.contains_key(&s.sha256)))
         .filter(|s| groups.iter().all(|(field, value)| s.groups[*field] == *value))
         .filter(|s| {
             split
@@ -1083,11 +969,7 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
     };
     let results = parallel(&all, weight, |source| {
         let began = Instant::now();
-        let result = match (&labelled, &tagger) {
-            (_, Some(tagger)) => grade_tagged(source, tagger).map(|graded| vec![(None, graded)]),
-            (Some(labelled), None) => grade_labels(source, &labelled[&source.sha256]).map(|graded| vec![(None, graded)]),
-            (None, None) => grade_one(source, selected.get(&source.sha256)),
-        };
+        let result = grade_one(source, selected.get(&source.sha256));
         if began.elapsed().as_secs() >= 10 {
             eprintln!("slow: {} took {:.0}s", source.sha256, began.elapsed().as_secs_f64());
         }
@@ -1208,53 +1090,6 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// The tier-1 tagger's training rows: train and development documents, never test.
-fn rows(store: &Path, out: &Path) -> Result<(), String> {
-    let all: Vec<Source> = sources(store)?.into_iter().filter(|s| s.split != "test").collect();
-    std::fs::create_dir_all(out).map_err(|e| e.to_string())?;
-    std::fs::write(out.join("features.json"), serde_json::to_string(&rows::FEATURES[..]).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-    let started = Instant::now();
-    let weight = |s: &Source| std::fs::metadata(inputs_dir().join(format!("{}.json.gz", s.sha256))).map_or(0, |m| m.len());
-    let results = parallel(&all, weight, |source| -> Result<String, String> {
-        let expected: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
-        let (structure, pages) = parse(source)?;
-        let candidate = state::parsed(&structure)?;
-        let reference = state::projected(&expected)?;
-        let parsed_regions = labels::parsed_regions(&candidate);
-        let (pieces, tier0) = labels::labels(&candidate, &|p| parsed_regions.of(p))?;
-        let gold_regions = labels::gold_regions(&expected, &reference);
-        let (gold_pieces, wanted) = labels::labels(&reference, &|p| gold_regions.of(p))?;
-        let alignment = alignment::align(&reference, &candidate)?;
-        let carried = labels::carry(&reference, &gold_pieces, &wanted, &candidate, &pieces, &alignment);
-        let mut row = rows::document(&pages, &candidate, &pieces, &tier0, &carried);
-        row["sha256"] = json!(source.sha256);
-        row["split"] = json!(source.split);
-        row["mode"] = json!(source.mode);
-        Ok(serde_json::to_string(&row).map_err(|e| e.to_string())?)
-    });
-    let mut files: BTreeMap<String, std::io::BufWriter<std::fs::File>> = BTreeMap::new();
-    let mut failed = 0;
-    for (source, result) in all.iter().zip(results) {
-        match result {
-            Ok(line) => {
-                use std::io::Write;
-                let file = match files.entry(source.split.clone()) {
-                    std::collections::btree_map::Entry::Occupied(e) => e.into_mut(),
-                    std::collections::btree_map::Entry::Vacant(e) => e.insert(std::io::BufWriter::new(
-                        std::fs::File::create(out.join(format!("rows-{}.jsonl", source.split))).map_err(|e| e.to_string())?)),
-                };
-                writeln!(file, "{line}").map_err(|e| e.to_string())?;
-            }
-            Err(error) => {
-                failed += 1;
-                eprintln!("ERROR {error}");
-            }
-        }
-    }
-    eprintln!("{} documents, {failed} failed, in {:.1}s; features: {}", all.len(), started.elapsed().as_secs_f64(), rows::FEATURES.join(","));
-    Ok(())
-}
-
 /// Diagnostic: the note pairer over one document's parsed pages, its markers beside each line.
 fn pairing(store: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
     use legal_structure::LayoutAnalysis;
@@ -1293,6 +1128,9 @@ fn selfcheck(store: &Path, mode: &str, options: &[String]) -> Result<(), String>
     let value = |name: &str| options.iter().position(|o| o == name).and_then(|n| options.get(n + 1)).cloned();
     let split = value("--split");
     let run = value("--run");
+    if !matches!(mode, "self" | "agree") {
+        return Err("selfcheck's mode is self or agree".into());
+    }
     if mode == "agree" && run.is_none() {
         return Err("agree needs --run R".into());
     }
@@ -1304,11 +1142,7 @@ fn selfcheck(store: &Path, mode: &str, options: &[String]) -> Result<(), String>
         let read = |path: &Path| -> Result<state::Gold, String> { read_gzip_json(path).map_err(|e| e.to_string()) };
         let expected = read(&source.gold)?;
         let reference = state::projected(&expected)?;
-        let candidate = match mode {
-            "self" => state::projected(&expected)?,
-            "agree" => state::projected(&read(&other(source).expect("filtered above"))?)?,
-            _ => roundtrip(&expected, &reference)?,
-        };
+        let candidate = if mode == "self" { state::projected(&expected)? } else { state::projected(&read(&other(source).expect("filtered above"))?)? };
         score::compare(&reference, &candidate)
     });
     let mut totals: BTreeMap<&str, score::Metric> = BTreeMap::new();
@@ -1336,13 +1170,6 @@ fn selfcheck(store: &Path, mode: &str, options: &[String]) -> Result<(), String>
             lost.iter().take(8).map(|(n, sha)| format!("{}:{n}", &sha[..12])).collect::<Vec<_>>().join(" "));
     }
     Ok(())
-}
-
-/// The gold's own labels decoded over the gold's own lines, order, markers and notes.
-fn roundtrip(expected: &state::Gold, reference: &state::State) -> Result<state::State, String> {
-    let regions = labels::gold_regions(expected, reference);
-    let (pieces, found) = labels::labels(reference, &|p| regions.of(p))?;
-    state::projected(&labels::decode(reference, &pieces, &found, &expected.source_sha256))
 }
 
 /// One document's missed and spurious items, layer by layer.
@@ -1395,62 +1222,7 @@ fn explain(store: &Path, prefix: &str, options: &[String]) -> Result<(), String>
                 node.line_ids.first().map(String::as_str).unwrap_or("-"), node.range.start, node.range.end, node.origin_id);
         }
     }
-    let mut candidate_state = state::parsed(&structure)?;
-    if options.iter().any(|o| o == "--roundtrip") {
-        candidate_state = roundtrip(&expected, &state::projected(&expected)?)?;
-    }
-    // --tagger DIR: the engine's tagger over the parse, read back as the product reads it.
-    if let Some(dir) = value("--tagger") {
-        PURE.store(options.iter().any(|o| o == "--pure"), std::sync::atomic::Ordering::Relaxed);
-        let runtime = value("--onnx-runtime").or_else(|| std::env::var("LEGALPDF_ONNX_RUNTIME").ok()).ok_or("--tagger needs --onnx-runtime PATH")?;
-        legal_pdf_core::init_ort_runtime(Path::new(&runtime), None).map_err(|e| format!("ONNX Runtime: {e}"))?;
-        let mut tagger = legal_pdf_tagger::onnx::Tagger::load(Path::new(&dir), 4)?;
-        let (mut structure, pages) = parse(&source)?;
-        // --labels-out FILE: the engine's own per-piece labels, in the trainer's predictions format, so
-        // they can be set beside a predictions file piece by piece.
-        if let Some(path) = value("--labels-out") {
-            let frame = state::parsed(&structure)?;
-            let regions = labels::parsed_regions(&frame);
-            let (pieces, tier0) = labels::labels(&frame, &|p| regions.of(p))?;
-            let predicted = tagger.predict(&pages, &frame, &pieces, &tier0, hybrid())?;
-            let row_of: HashMap<String, usize> = pieces.iter().enumerate().map(|(k, p)| (labels::anchor(&frame, p), k)).collect();
-            let ids: Vec<String> = pieces.iter().map(|p| labels::anchor(&frame, p)).collect();
-            let rows: Vec<Vec<i64>> = predicted.iter().map(|l| vec![l.region as i64, l.start as i64, i64::from(l.document), i64::from(l.reference),
-                l.level as i64, i64::from(l.marker), l.continues.as_deref().and_then(|a| row_of.get(a)).map_or(-1, |&r| r as i64), l.depth as i64]).collect();
-            std::fs::write(&path, serde_json::to_string(&json!({"sha256": source.sha256, "ids": ids, "labels": rows})).map_err(|e| e.to_string())? + "
-").map_err(|e| e.to_string())?;
-            eprintln!("engine labels for {} pieces -> {path}", pieces.len());
-        }
-        // --units-out FILE: the decoded units (region, typed spans) beside the blocks the composition makes
-        // of the re-labelled graph (native_id, spans), unit by unit, to see where the two frames part.
-        let units_out = value("--units-out");
-        let decoded = units_out.as_ref().map(|_| {
-            state::parsed(&structure).and_then(|frame| {
-                let regions = labels::parsed_regions(&frame);
-                let (pieces, tier0) = labels::labels(&frame, &|p| regions.of(p))?;
-                let predicted = tagger.predict(&pages, &frame, &pieces, &tier0, hybrid())?;
-                Ok(labels::decode(&frame, &pieces, &predicted, &source.sha256))
-            })
-        }).transpose()?;
-        tagger.retag(&mut structure, &pages, &source.sha256, hybrid())?;
-        candidate_state = state::parsed(&structure)?;
-        if let (Some(path), Some(gold)) = (units_out, decoded) {
-            let units: Vec<Value> = gold.units.iter().enumerate().map(|(u, unit)| json!({
-                "unit": u, "node": format!("tag-{:06}", u + 1), "region": gold.typed[unit.lines[0]].region,
-                "spans": unit.lines.iter().flat_map(|&t| gold.typed[t].spans.iter().map(|s| format!("{}[{}:{}]", s.line_id, s.start, s.end))).collect::<Vec<_>>(),
-            })).collect();
-            let blocks: Vec<Value> = candidate_state.groups.iter().map(|g| json!({
-                "native_id": g.attributes.get("native_id").cloned().unwrap_or(Value::Null), "kind": g.kind,
-                "spans": g.spans.iter().map(|s| format!("{}[{}:{}]", s.line_id, s.start, s.end)).collect::<Vec<_>>(),
-            })).collect();
-            std::fs::write(&path, serde_json::to_string_pretty(&json!({"units": units, "blocks": blocks})).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-            eprintln!("{} decoded units, {} composition blocks -> {path}", gold.units.len(), candidate_state.groups.len());
-        }
-    }
-    if let Some(labelled) = label_file(value("--labels").as_deref())? {
-        let per_piece = labelled.get(&source.sha256).ok_or("No labels for this source")?;
-        candidate_state = decode_labels(&candidate_state, per_piece, &source.sha256)?;
-    }
+    let candidate_state = state::parsed(&structure)?;
     let text = score::explain(
         &state::projected(&expected)?,
         &candidate_state,
@@ -1477,13 +1249,8 @@ fn main() {
             .parse()
             .map_err(|_| "STEP must be a number".to_owned())
             .and_then(|step| layout_digest(Path::new(store), Path::new(out), Path::new(pack), Path::new(runtime), step)),
-        [command, store, out, dir, runtime, step] if command == "tagged-digest" => step
-            .parse()
-            .map_err(|_| "STEP must be a number".to_owned())
-            .and_then(|step| tagged_digest(Path::new(store), Path::new(out), Path::new(dir), Path::new(runtime), step)),
         [command, store, out] if command == "paragraph-data" => paragraph_data::export(Path::new(store), Path::new(out)),
         [command, store, mode, options @ ..] if command == "selfcheck" => selfcheck(Path::new(store), mode, options),
-        [command, store, out] if command == "rows" => rows(Path::new(store), Path::new(out)),
         [command, store, prefix, options @ ..] if command == "pairing" => pairing(Path::new(store), prefix, options),
         [command, store, prefix, options @ ..] if command == "explain" => explain(Path::new(store), prefix, options),
         _ => Err("usage: structure-gold inputs|digest|docx-digest|extract-digest|grade|rows|explain|selfcheck|pairing|paragraph-data STORE [SHA|OUT_DIR|MODE] [options]".into()),

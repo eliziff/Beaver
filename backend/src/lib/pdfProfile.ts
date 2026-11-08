@@ -97,19 +97,6 @@ function configuredLegalPdfProfile(env: NodeJS.ProcessEnv = process.env): LegalP
         ? { device: env.LEGALPDF_PPDOC_DEVICE.trim() } : {}),
     } };
   }
-
-  // The structure tagger only where MIKE_PDF_TAGGER=gru asks for it: by default the backend reads as the page does,
-  // with tier 0 (the tagger, on by its pack's presence, lost judgments' numbered paragraphs).
-  const requestedTagger = env.MIKE_PDF_TAGGER?.trim();
-  if (requestedTagger && requestedTagger !== "none" && requestedTagger !== "gru")
-    throw new Error("MIKE_PDF_TAGGER must be none or gru");
-  if (requestedTagger === "gru") {
-    profile.tagger = { provider: "gru", settings: {
-      model_pack: configuredPath(env, root, "LEGALPDF_TAGGER_MODEL_PACK", "runtime/tagger", "tagger.onnx"),
-      runtime: configuredPath(env, root, "LEGALPDF_ONNX_RUNTIME", `runtime/onnx/${onnxRuntimeLibraryName(platform)}`),
-      ...numericSettings(env, [["threads", "LEGALPDF_TAGGER_THREADS"]]),
-    } };
-  }
   return profile;
 }
 
