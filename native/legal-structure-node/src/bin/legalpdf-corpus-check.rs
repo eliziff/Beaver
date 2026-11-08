@@ -271,7 +271,6 @@ fn run() -> AppResult<i32> {
     let mut passed_pages = 0_usize;
     let mut failures = Vec::new();
     let mut by_kind = BTreeMap::new();
-    let mut by_rule = BTreeMap::new();
     let mut sections_by_locator_kind = BTreeMap::new();
     let mut by_diagnostic = BTreeMap::new();
     let mut by_group = BTreeMap::<String, Map<String, Value>>::new();
@@ -287,7 +286,6 @@ fn run() -> AppResult<i32> {
                 passed += 1;
                 passed_pages += row.pages;
                 add_counts(&mut by_kind, result.pointer("/structure/by_kind"));
-                add_counts(&mut by_rule, result.pointer("/structure/by_rule"));
                 add_counts(
                     &mut sections_by_locator_kind,
                     result.pointer("/structure/sections_by_locator_kind"),
@@ -377,7 +375,7 @@ fn run() -> AppResult<i32> {
         "known_failures": baseline.known_failures, "known_failure_pages": baseline.denominator.failure_pages,
         "processing_errors": failures.len(), "elapsed_seconds": elapsed,
         "pages_per_second": passed_pages as f64 / elapsed.max(0.001), "max_seconds": MAX_SECONDS,
-        "structure": {"by_kind":by_kind,"by_rule":by_rule,"diagnostics_by_code":by_diagnostic,
+        "structure": {"by_kind":by_kind,"diagnostics_by_code":by_diagnostic,
             "sections_by_locator_kind":sections_by_locator_kind,
             "heading_derived_section_count":heading_derived_sections,
             "abstention_count":abstentions,"partial_resolution_count":partial_resolutions},
