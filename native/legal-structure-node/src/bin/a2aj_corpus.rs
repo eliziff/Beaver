@@ -254,12 +254,13 @@ fn census(job: Job) -> Record {
         nodes.push_str(&format!("{} {} {}-{} {parent};", node.kind.name(), node.label.as_deref().unwrap_or("_"),
             node.range.start, node.range.end));
     }
-    for note in &structure.notes {
+    for note in structure.nodes.iter().filter(|node| matches!(node.kind, legal_structure::NodeKind::Footnote | legal_structure::NodeKind::Endnote)) {
         *record.counts.entry("notes".to_owned()).or_default() += 1;
-        if !note.references.is_empty() { *record.counts.entry("notes_referenced".to_owned()).or_default() += 1; }
-        let references = note.references.iter().map(|reference| reference.range.start.to_string()).collect::<Vec<_>>();
-        nodes.push_str(&format!("note {}-{} {}-{} > {};", note.label_range.start, note.label_range.end,
-            note.body_range.start, note.body_range.end, references.join(",")));
+        if !note.calls.is_empty() { *record.counts.entry("notes_referenced".to_owned()).or_default() += 1; }
+        let references = note.calls.iter().map(|call| call.start.to_string()).collect::<Vec<_>>();
+        let label = note.marker_range.unwrap_or(legal_structure::ScalarRange { start: note.range.start, end: note.range.start });
+        nodes.push_str(&format!("note {}-{} {}-{} > {};", label.start, label.end,
+            note.range.start, note.range.end, references.join(",")));
     }
     if cases {
         let numbered = structure.nodes.iter()
@@ -544,9 +545,10 @@ fn show(options: &Options) -> Result<()> {
         for line in units.slice(cursor, length).lines().filter(|line| !line.trim().is_empty()) {
             println!("{:>24}  | {}", "(none)", line.chars().take(110).collect::<String>());
         }
-        for note in &structure.notes {
-            println!("note {} body {}-{} refs {:?}", units.slice(note.label_range.start, note.label_range.end),
-                note.body_range.start, note.body_range.end, note.references.iter().map(|value| value.range.start).collect::<Vec<_>>());
+        for note in structure.nodes.iter().filter(|node| matches!(node.kind, legal_structure::NodeKind::Footnote | legal_structure::NodeKind::Endnote)) {
+            let label = note.marker_range.unwrap_or(legal_structure::ScalarRange { start: note.range.start, end: note.range.start });
+            println!("note {} body {}-{} refs {:?}", units.slice(label.start, label.end),
+                note.range.start, note.range.end, note.calls.iter().map(|call| call.start).collect::<Vec<_>>());
         }
     }
     Ok(())

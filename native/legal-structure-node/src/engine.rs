@@ -869,16 +869,10 @@ mod pdf {
             .iter()
             .map(|node| (node.id.as_str(), structure.query_ranges(node).into_owned()))
             .collect();
-        let notes: std::collections::HashMap<_, _> = structure
-            .notes
-            .iter()
-            .filter_map(|note| note.node_id.as_deref().map(|id| (note.id.as_str(), id)))
-            .collect();
         ids.iter()
             .filter_map(|id| {
                 nodes
                     .get(id.as_str())
-                    .or_else(|| notes.get(id.as_str()).and_then(|node| nodes.get(node)))
                     .map(|spans| (id.clone(), spans.clone()))
             })
             .collect()
