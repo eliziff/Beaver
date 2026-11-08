@@ -31,7 +31,7 @@ fn main() {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod tool {
-    use legal_structure::opinion::{marks_in_notes, parse_failures, parse_screens, nodes, opinion_structure, quote_miss, reading, receipt_miss, source_faults_left, unheld_text, OpinionCitation, OpinionRecord};
+    use legal_structure::opinion::{front_lines, headnotes, marks_in_notes, parse_failures, parse_screens, nodes, opinion_structure, quote_miss, reading, receipt_miss, source_faults_left, spans, unheld_text, OpinionCitation, OpinionRecord};
     use legal_structure::{DocumentStructure, NodeKind, StructureNode};
     use serde_json::{json, Value};
     use std::collections::{BTreeMap, HashMap, HashSet};
@@ -126,28 +126,29 @@ mod tool {
             *heading_sources.entry(heading.grammar.as_deref().unwrap_or("")).or_default() += 1;
         }
         let mut headnote_kinds = BTreeMap::<&str, usize>::new();
-        for headnote in &opinion.headnotes {
-            *headnote_kinds.entry(&headnote.kind).or_default() += 1;
+        for (kind, _, _) in headnotes(structure) {
+            *headnote_kinds.entry(kind).or_default() += 1;
         }
+        let blocks = || spans(structure, "block-counter");
         let title = |heading: &StructureNode| heading.display_value.clone().unwrap_or_default();
         let note_items = notes().map(|note| property(note, "items").map_or(0, |items| items.split('\n').count())).sum::<usize>();
         json!({
             "id": structure.document_id, "cell": fields.get("_cell"), "stratum": fields.get("_stratum"), "rate": fields.get("_rate"), "page_count": fields.get("page_count"), "rendition": opinion.rendition, "ms": milliseconds, "text": structure.text.len(),
             "pages": series, "page_sources": sources, "note_pages": pages().filter(|page| page.properties.contains_key("in_note")).count(),
-            "paragraphs": paragraphs().count(), "numbered": paragraphs().filter(|paragraph| paragraph.label.is_some()).count(), "items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some()).count() + note_items, "titled_items": headings().filter(|heading| title(heading).split_whitespace().next().is_some_and(|word| word.len() <= 6 && word.ends_with(['.', ')']))).count(), "quote_paragraphs": nodes(structure, NodeKind::Quote).count(), "named_items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some_and(|item| item.len() > 6)).count(), "blocks": opinion.blocks.len(), "blocks_reckoned": opinion.blocks.iter().filter(|block| block.source == "reckoned").count(),
+            "paragraphs": paragraphs().count(), "numbered": paragraphs().filter(|paragraph| paragraph.label.is_some()).count(), "items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some()).count() + note_items, "titled_items": headings().filter(|heading| title(heading).split_whitespace().next().is_some_and(|word| word.len() <= 6 && word.ends_with(['.', ')']))).count(), "quote_paragraphs": nodes(structure, NodeKind::Quote).count(), "named_items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some_and(|item| item.len() > 6)).count(), "blocks": blocks().count(), "blocks_reckoned": blocks().filter(|block| property(block, "source") == Some("reckoned")).count(),
             "numbers": paragraphs().filter_map(|paragraph| paragraph.label.as_deref()).take(400).collect::<Vec<_>>(),
             "notes": notes().count(), "note_refs": notes().map(|note| note.calls.len()).sum::<usize>(),
             "note_labels": notes().map(|note| note.label.as_deref().unwrap_or("")).take(200).collect::<Vec<_>>(),
             "headings": headings().map(|heading| title(heading).chars().take(70).collect::<String>()).take(60).collect::<Vec<_>>(),
-            "heading_sources": heading_sources, "headnotes": headnote_kinds, "headnote_marks": opinion.headnote_marks.len(),
+            "heading_sources": heading_sources, "headnotes": headnote_kinds, "headnote_marks": spans(structure, "headnote-mark").count(),
             "parts": parts().map(|part| (part.display_value.as_deref().unwrap_or(""), property(part, "author"))).collect::<Vec<_>>(),
-            "headnotes_placed": opinion.headnotes.iter().filter(|headnote| headnote.range.is_some()).count(),
-            "front": opinion.front.iter().fold(BTreeMap::<&str, usize>::new(), |mut roles, line| { *roles.entry(&line.role).or_default() += 1; roles }),
-            "furniture": opinion.furniture.len(),
-            "page_series": opinion.page_series, "defined_terms": opinion.defined_terms.len(), "quotes": opinion.quotes.len(),
-            "instruments": opinion.instruments.iter().map(|instrument| instrument.kind.as_str()).collect::<Vec<_>>(),
+            "headnotes_placed": spans(structure, "headnote").count(),
+            "front": front_lines(structure).fold(BTreeMap::<&str, usize>::new(), |mut roles, (role, _)| { *roles.entry(role).or_default() += 1; roles }),
+            "furniture": spans(structure, "furniture").count(),
+            "page_series": opinion.page_series, "defined_terms": spans(structure, "defined-term").count(), "quotes": spans(structure, "quotation").count(),
+            "instruments": spans(structure, "instrument").filter_map(|instrument| property(instrument, "kind")).collect::<Vec<_>>(),
             "record_gaps": opinion.record_gaps.iter().map(|gap| gap.kind.as_str()).collect::<Vec<_>>(),
-            "outcomes": opinion.outcomes, "tables": nodes(structure, NodeKind::Table).count(), "unmatched_calls": opinion.unmatched_calls.len(), "document_kind": opinion.document_kind,
+            "outcomes": opinion.outcomes, "tables": nodes(structure, NodeKind::Table).count(), "unmatched_calls": spans(structure, "unmatched-call").count(), "document_kind": opinion.document_kind,
             "note_longest": notes().map(|note| note.ranges.iter().map(|range| range.end.saturating_sub(range.start)).sum::<usize>()).max().unwrap_or(0), "note_share": notes().flat_map(|note| note.ranges.iter()).map(|range| range.end.saturating_sub(range.start)).sum::<usize>(), "marks_in_notes": marks_in_notes(structure), "shifted_left": faults.0, "margins_left": faults.1, "other_opinion": opinion.other_opinion, "unheld": unheld.0, "unheld_at": unheld.1, "page_witness": opinion.page_witness, "note_witness": opinion.note_witness, "heading_witness": opinion.heading_witness, "paragraph_witness": opinion.paragraph_witness, "paragraphs_run_on": opinion.paragraphs_run_on, "paragraphs_split": opinion.paragraphs_split, "union_test": opinion.union_test, "union_samples": opinion.union_samples, "titles_not_held": opinion.titles_not_held,
         })
     }

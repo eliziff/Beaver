@@ -473,10 +473,10 @@ fn parser_answer(structure: &DocumentStructure, question: &Question, found: Foun
 /// The point of the opinion's syllabus that holds a quotation: asked of the headnotes, which may stand apart from the text.
 fn point_answer(structure: &DocumentStructure, quote: &[Vec<u64>]) -> Answer {
     let longest = quote.iter().max_by_key(|part| part.len())?;
-    reading(structure).headnotes.iter().find_map(|headnote| {
-        let finder = Finder::new(&headnote.text);
+    legal_structure::opinion::headnotes(structure).find_map(|(_, number, text)| {
+        let finder = Finder::new(text);
         finder.find(longest)?;
-        Some((headnote.number.clone().or_else(|| legal_structure::opinion::headnote_number(&headnote.text)).unwrap_or_default().trim_matches(['.', ')', '(', ' ']).to_owned(), String::new()))
+        Some((number.map(str::to_owned).or_else(|| legal_structure::opinion::headnote_number(text)).unwrap_or_default().trim_matches(['.', ')', '(', ' ']).to_owned(), String::new()))
     }).filter(|answer| !answer.0.is_empty())
 }
 
