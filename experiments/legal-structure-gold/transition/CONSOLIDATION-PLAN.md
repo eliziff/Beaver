@@ -202,6 +202,26 @@ oracle stays.
   CourtListener path runs the engine alone. Its readings belong in `legal-structure`'s parser, where the product runs
   them and the grader measures what the product does: a change of output, for the phase of right changes.
 
+## Right changes in progress (2026-11-08)
+
+Done: the tagger gone (legal-pdf-parser 753572c, root 870ad54c5); one line table for both tiers (005c413); one parent rule,
+one marker reading, the engine through one channel (cb3cf18). Measured: the whole store or the development split, DOC off
+as the product parses, against the build before (`measure.ps1`); none moved a layer's F1 past 0.001.
+
+Next, the CourtListener readings into the product. Today the backend (`legalSources/courtlistener.ts` `compactOpinion`)
+sends one rendition as `native_markup` and the engine runs `analyze_native_markup` alone; the opinion layer
+(`legal-structure/src/opinion.rs`, `opinion_layer`) reads every rendition and the cluster's head matter, but only the
+harnesses call it. The product path: a request carrying the opinion record (its renditions, citations, cluster fields),
+the engine building the markup's structure and the layer's readings landing in it as nodes: pages per reporter series
+(their aliases), the numbers of paragraphs the markup leaves unnumbered, notes and their calls supplied from other
+renditions, headnotes and their marks, parts. The layer's ranges are in its own text (page marks out, split words whole):
+either the structure is built over that text, or each reading is mapped back through the shift. Measured by the
+CourtListener grader (`courtlistener_grade`) and the passage lookups Authorities and ALR make.
+
+Not merged, by design: the note band, its lanes and the endnote checks propose which lines are notes and the pairer
+decides them (`give_back` reconciles the two, 12 lines); each reads cases the other does not. The heading-marker regex
+(`graph::heading_marker`) keeps heading-specific cases the grammar would misread ("A", "I" opening a title).
+
 ## Last
 
 Actually fix the fucking A2AJ gold.
