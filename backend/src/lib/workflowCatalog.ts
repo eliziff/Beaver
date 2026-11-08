@@ -111,9 +111,9 @@ export function createWorkflowCatalog(repository: WorkflowCatalogRepository, obj
                 const type = documentFileType(asset.filename);
                 if (!type.ok) throw new Error(type.error);
                 if (isPlainTextDocumentType(type.fileType)) return stored.bytes.toString("utf8");
-                const { documentProjectionService } = await import("./documentProjectionService");
+                const { openDocument } = await import("./sourceDocument");
                 const { structureNative } = await import("./structureNative");
-                const document = await documentProjectionService.read({
+                const document = await openDocument({
                   documentId: deterministicUuid(`workflow-reference:${asset.sha256}`),
                   versionId: deterministicUuid(`workflow-reference-version:${asset.sha256}`),
                   sourceSha256: asset.sha256, fileType: type.fileType,

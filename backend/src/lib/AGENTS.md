@@ -1,8 +1,9 @@
-# Document projection boundary
+# Reading a stored source
 
-- `documentProjectionService.ts` is Beaver's only cross-format document-read API. Call an existing single-format compiler directly only when its authoritative output is exactly what the consumer needs; never build a `NativeDocument` merely to unwrap that same output.
-- Keep format work in the existing compilers: `legal-pdf-parser`, `NativeDocument`, `DocxSession`, and the spreadsheet grid renderer. The service is only their bounded host adapter.
-- `documentProjection.ts` owns projection identity, safe local paths, source publication, atomic writes, locks, and immutable receipts. Do not add another hash, cache root, artifact search, hard-link farm, or rehydration store.
-- `documentProjectionPdf.ts` is private PDF evidence/lookup implementation used by the service. Production consumers must not import it directly.
-- A projection identity always binds document ID, version ID, source SHA-256, compiler/parser version, and material options. Never key a projection by source bytes alone.
-- Do not restore `localPdfIngestion`, `localPdfLookup`, `parseCache`, compatibility exports, or a second cache. Update the service and its existing primitives instead.
+- `sourceDocument.ts` is the one way from a stored source to the engine's document (`openDocument`) or text (`sourceText`). The engine (native/legal-structure-node, `source.rs`) routes each format to its reader (PDF, Word, workbook, presentation, email, plain text) and keeps the working set of documents it read, keyed by what each was read as, beside the PDF parser's disk cache. Do not add a cache, a working set, or in-flight deduplication in the backend.
+- Consumers call the engine (`structureNative()`) on the document directly; do not add pass-throughs around engine calls.
+- Format reading lives in the engine (`src/formats/`, `legal-pdf-parser`). The one step before it is LibreOffice's conversion of a Word or PowerPoint binary (doc, ppt) to PDF.
+- A PDF's parse failure carries its kind (`error.kind`, `pdfFailureKind`): match on the kind, never on message text.
+- `contentStore.ts` owns safe local paths, PDF content by hash, atomic writes, locks, and immutable receipts. Do not add another hash, cache root, artifact search, hard-link farm, or rehydration store.
+- `pdfEvidence.ts` looks PDFs up by locator and writes, rehydrates and verifies their evidence receipts.
+- A document the engine keeps is keyed by document ID, version ID, source SHA-256 and how it was read (a PDF by its parse's cache key or its request). Never key one by source bytes alone.

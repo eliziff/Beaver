@@ -2,8 +2,13 @@ import { readFile } from "node:fs/promises";
 import { sha256 } from "./hash";
 import { structureNative, type NativeDocument, type NativePdfLookupRequest,
   type PdfStructureLookup } from "./structureNative";
-import { immutableReceiptPath, writeImmutableReceipt } from "./documentProjection";
+import { immutableReceiptPath, writeImmutableReceipt } from "./contentStore";
+import { cachedPdf, openDocument, type PdfPreparationProgress } from "./sourceDocument";
+import type { PdfProfileSelection } from "./documentStore";
 import { RESOURCE_LOCATOR_KINDS } from "mike/shared/runtime/resourceReferences.mjs";
+
+/** A PDF looked up by its locators, and the immutable receipt of what was found, by which the evidence is read again
+ *  (rehydrated) or checked against the source it was found in. */
 
 export type PdfLocatorKind = (typeof RESOURCE_LOCATOR_KINDS)[number];
 
@@ -45,7 +50,7 @@ function evidenceViewPath(documentId: string, versionId: string, handle: string)
 }
 
 /** A receipt is addressed by its content's hash: one whose content hashes to its handle is the one written. */
-export async function readPdfEvidenceReceipt(handle: string) {
+async function readPdfEvidenceReceipt(handle: string) {
   const receipt = JSON.parse(await readFile(evidencePath(handle), "utf8")) as PdfEvidenceReceipt;
   const { handle: stored, ...identity } = receipt;
   if (stored !== handle || evidenceHandle(identity) !== handle) {
@@ -109,13 +114,49 @@ async function finishLookup(input: PdfLookupInput, lookup: PdfStructureLookup,
   };
 }
 
-export async function lookupPdfStructure(document: NativeDocument, input: PdfLookupInput,
-  options: LookupSource) {
-  return finishLookup(input, structureNative().queryPdfDocument(document, input), options);
+type EvidenceSource = { documentId: string; versionId: string; sourceSha256: string };
+
+/** A lookup in a PDF by a locator, from its prepared reading where it has one; a unit found is evidence, its receipt
+ *  written unless `persistEvidence` is false. */
+export async function lookupPdf(readBytes: () => Buffer | Promise<Buffer>, input: PdfLookupInput,
+  options: EvidenceSource & { persistEvidence?: boolean; pdfProfile?: PdfProfileSelection; pages?: number[];
+    signal?: AbortSignal; progress?: (value: PdfPreparationProgress) => void | Promise<void> }) {
+  const document = await openDocument({ ...options, readBytes }, options);
+  const native = structureNative(), summary = native.pdfDocumentSummary(document);
+  return finishLookup(input, native.queryPdfDocument(document, input), {
+    persistEvidence: options.persistEvidence, cacheKey: summary.cacheKey, documentId: options.documentId,
+    versionId: options.versionId, sourceSha256: summary.sha256, parserVersion: summary.parserVersion,
+  });
 }
 
-export async function rehydratePdfEvidence(document: NativeDocument,
-  receipt: PdfEvidenceReceipt) {
+/** The reading a receipt was found in: the PDF reading cached under its cache key, of the version expected. */
+async function evidenceDocument(handle: string, expected: EvidenceSource) {
+  const receipt = await readPdfEvidenceReceipt(handle);
+  if (receipt.source.document_id !== expected.documentId ||
+      receipt.source.version_id !== expected.versionId ||
+      receipt.source.source_sha256 !== expected.sourceSha256)
+    throw new Error("PDF evidence source mismatch");
+  const document = await cachedPdf(expected, receipt.source.cache_key);
+  if (!document) throw new Error("PDF evidence artifact is no longer available");
+  return { document, receipt };
+}
+
+/** The evidence a receipt names, found again in the reading it was found in. */
+export async function rehydratePdfEvidence(handle: string, expected: EvidenceSource) {
+  const { document, receipt } = await evidenceDocument(handle, expected);
+  return rehydrate(document, receipt);
+}
+
+/** Whether a receipt's evidence is still what its source's bytes say. */
+export async function verifyPdfEvidence(bytes: Buffer, handle: string, expected: EvidenceSource) {
+  if (sha256(bytes) !== expected.sourceSha256)
+    throw new Error("PDF evidence source bytes no longer match their version");
+  const { document, receipt } = await evidenceDocument(handle, expected);
+  const verified = await rehydrate(document, receipt);
+  return { documentId: verified.source.document_id, versionId: verified.source.version_id };
+}
+
+async function rehydrate(document: NativeDocument, receipt: PdfEvidenceReceipt) {
   const lookup = await finishLookup(receipt.lookup, structureNative().queryPdfDocument(document, receipt.lookup), {
     persistEvidence: false,
     cacheKey: receipt.source.cache_key,
@@ -132,10 +173,4 @@ export async function rehydratePdfEvidence(document: NativeDocument,
   }
   if (lookup.evidence.handle !== receipt.handle) throw new Error(mismatch);
   return lookup;
-}
-
-export async function verifyPdfEvidence(document: NativeDocument,
-  receipt: PdfEvidenceReceipt) {
-  const verified = await rehydratePdfEvidence(document, receipt);
-  return { documentId: verified.source.document_id, versionId: verified.source.version_id };
 }

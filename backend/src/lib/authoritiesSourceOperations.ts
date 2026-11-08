@@ -3,7 +3,8 @@
  *  operations are authoritiesOperations.ts's, which an app that builds no book (the ALR Quote Verifier) never loads. */
 import { decodePdfProfileSelection } from "./documentStore";
 import { authorityCitationForms } from "./authoritiesDomain";
-import { documentProjectionService } from "./documentProjectionService";
+import { openDocument, pdfTextLayer, PLAIN_PDF, preparePdf } from "./sourceDocument";
+import { structureNative } from "./structureNative";
 import { wordToPdfAvailable } from "./convert";
 import { reject } from "./applicationError";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
@@ -143,11 +144,11 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
       versionId: source.sourceSha256, sourceSha256: source.sourceSha256 };
     if (input?.prepareOnly === "true") {
       // One recognition pass, followed page by page as "recognized/total".
-      const prepared = await documentProjectionService.preparePdf({ ...reference, bytes,
+      const prepared = await preparePdf({ ...reference, bytes,
         ocrProvider: "indra", pages, signal: context.signal, ...(progress ? { progress: (value) => {
           if (value.phase === "recognizing") progress(`${value.recognized}/${value.total}`);
         } } : {}) });
-      const text = await documentProjectionService.pdfTextLayer(() => bytes, reference,
+      const text = await pdfTextLayer(() => bytes, reference,
         {pdfProfile:prepared,signal:context.signal});
       return value({pages:text});
     }
@@ -155,7 +156,7 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
     const profile = input?.pdfProfile === undefined ? undefined
       : decodePdfProfileSelection(json(input.pdfProfile, "pdfProfile"));
     if (input?.pdfProfile !== undefined && !profile) return reject(400, "Invalid PDF profile");
-    const text = profile ? await documentProjectionService.pdfTextLayer(() => bytes, reference,
+    const text = profile ? await pdfTextLayer(() => bytes, reference,
       { pdfProfile: profile, signal: context.signal, pages }) : [];
     return value({ pages: text });
     },
@@ -170,11 +171,14 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
     if (!authority || !source) return reject(400, "The authority PDF is not attached");
     const bytes = sourceBytes(requiredSource(input));
     if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before reading page labels.");
-    const information = await documentProjectionService.pdfInformation({
+    const document = await openDocument({
       documentId: `standalone-authority:${source.sourceSha256}`, versionId: source.sourceSha256,
       sourceSha256: source.sourceSha256, fileType: "pdf", readBytes: () => bytes,
-    }, authorityCitationForms(state, authority.id));
-    return value({ ...information, pages: [], pageLabels: information.pageMap.map(page => page.label) });
+    }, PLAIN_PDF);
+    const native = structureNative(), summary = native.pdfDocumentSummary(document);
+    const pageMap = native.pdfPageMap(document, authorityCitationForms(state, authority.id));
+    return value({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr, pageMap, pages: [],
+      pageLabels: pageMap.map(page => page.label) });
     },
     "create": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     return draftResult( applyAuthoritiesInitialSettings(

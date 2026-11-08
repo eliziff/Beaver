@@ -18,7 +18,7 @@ import { structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
 import { hasSearchOperators, searchMatcher } from "./searchQuery";
 import { sha256 } from "./hash";
-import { documentProjectionService } from "./documentProjectionService";
+import { openDocument } from "./sourceDocument";
 import { resolveResearchSelection, researchSelectionSchema, researchSelectionLabels, intersectResearchSubjects,
   type ResearchSelection } from "./researchSelection";
 import type { ResearchReadContext } from "./researchReader";
@@ -83,7 +83,7 @@ async function openResearchSource(reference: ResearchSourceReference,
     const projection = options.documents && options.scope
       && await options.documents.projectionSource(options.scope, reference.id, reference.versionId);
     if (!projection) throw new ApplicationError(404, "Document version not found");
-    const documentArtifact = await documentProjectionService.read(projection, { signal: options.signal });
+    const documentArtifact = await openDocument(projection, { signal: options.signal });
     return { sourceSha256: projection.sourceSha256, passages: [{ documentArtifact, evidence: (span) =>
       createLibraryEvidence({ documentId: reference.id, versionId: reference.versionId,
         filename: reference.title ?? reference.id, sourceSha256: native.documentRevision(documentArtifact),

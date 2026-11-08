@@ -10,7 +10,8 @@ import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { authoritiesSourceText, createAuthoritiesPreparation } from "./authoritiesPreparation";
 import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import type { PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
-import { documentProjectionService } from "./documentProjectionService";
+import { openDocument, PLAIN_PDF } from "./sourceDocument";
+import { structureNative } from "./structureNative";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
 import { mapBounded } from "./mapBounded";
@@ -101,11 +102,12 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
     // An authority's PDF in the book is placed by its printed pages, read from it where its text was not read.
     const attached = authorityOf.get(file.role);
     const pageBindings = text.pageBindings ?? (attached && preparation.bookRoles.has(file.role)
-      ? await documentProjectionService.pdfPagination({
+      ? await openDocument({
         documentId: file.reference?.documentId ?? `standalone-authority:${file.sourceSha256}`,
         versionId: file.reference?.versionId ?? file.sourceSha256, sourceSha256: file.sourceSha256, fileType: "pdf",
         readBytes: () => file.bytes, pdfProfile: file.pdfProfile,
-      }, authorityCitationForms(state, attached.authority.id)).catch((error) => {
+      }, PLAIN_PDF).then((document) => structureNative().pdfPageMap(document,
+        authorityCitationForms(state, attached.authority.id))).catch((error) => {
         if (signal.aborted) throw error;
         return undefined;
       }) : undefined);

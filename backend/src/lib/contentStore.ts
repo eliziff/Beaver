@@ -7,13 +7,15 @@ import { mikeLocalDataHome } from "./legalDataPath";
 import { sha256 } from "./hash";
 import { hasPdfEndMarker } from "mike/shared/pdf-integrity.mjs";
 
-const MAX_PROJECTION_PDF_BYTES = 100 * 1024 * 1024;
+/** The local content store: PDFs by the hash of their bytes, the PDF parser's cache, immutable receipts, and the
+ *  atomic writes and locks they are written under. Its files stay where they were first written (projections/v1). */
+const MAX_STORED_PDF_BYTES = 100 * 1024 * 1024;
 
 const writes = new Map<string, Promise<void>>();
 const activePdfStaging = new Set<string>();
 let stagingSweepAt = 0;
 const dataRoot = () => path.resolve(mikeLocalDataHome());
-const projectionRoot = () => path.join(dataRoot(), "projections", "v1");
+const storeRoot = () => path.join(dataRoot(), "projections", "v1");
 
 function localDataPath(candidate: string) {
   const root = dataRoot();
@@ -21,35 +23,21 @@ function localDataPath(candidate: string) {
   const relative = path.relative(root, resolved);
   if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) ||
       path.isAbsolute(relative)) {
-    throw new Error("Document projection path is outside local data");
+    throw new Error("Content store path is outside local data");
   }
   return resolved;
 }
 
-export function projectionDirectory(format: string, key: string) {
+export function storeDirectory(format: string, key: string) {
   if (!/^[a-z][a-z0-9-]{0,31}$/u.test(format) || !/^[a-f0-9]{64}$/u.test(key))
-    throw new Error("Document projection key is invalid");
-  return path.join(projectionRoot(), format, key.slice(0, 2), key);
-}
-
-// Process-memory only: the loaded compilers cannot change within this cache's
-// lifetime. Bump the contract when extraction semantics/options change; persisted
-// projections would additionally need the actual compiler build fingerprints.
-export function textProjectionKey(input: {
-  documentId: string; versionId: string; sourceSha256: string; fileType: string;
-}, options: { drafting?: boolean; limit?: number }) {
-  return projectionDirectory("document-text", sha256(JSON.stringify([
-    "beaver.document-text.v2", input.documentId, input.versionId, input.sourceSha256,
-    input.fileType, input.fileType === "docx" && !!options.drafting,
-    // Other formats extract the full text and apply the caller's limit afterwards.
-    input.fileType === "docx" ? options.limit ?? null : null,
-  ])));
+    throw new Error("Content store key is invalid");
+  return path.join(storeRoot(), format, key.slice(0, 2), key);
 }
 
 export function pdfContentPath(sourceSha256: string) {
   if (!/^[a-f0-9]{64}$/u.test(sourceSha256))
     throw new Error("PDF content SHA is invalid");
-  return path.join(projectionRoot(), "content", "pdf",
+  return path.join(storeRoot(), "content", "pdf",
     sourceSha256.slice(0, 2), `${sourceSha256}.pdf`);
 }
 
@@ -64,7 +52,7 @@ export async function inspectPdf(filename: string, options?: {
   expectedSha256?: string; signal?: AbortSignal; maximumBytes?: number;
 }) {
   const source = localDataPath(filename);
-  const maximum = options?.maximumBytes ?? MAX_PROJECTION_PDF_BYTES;
+  const maximum = options?.maximumBytes ?? MAX_STORED_PDF_BYTES;
   options?.signal?.throwIfAborted();
   const details = await stat(source);
   if (!details.isFile() || details.size <= 0 || details.size > maximum)
@@ -74,7 +62,7 @@ export async function inspectPdf(filename: string, options?: {
     const header = Buffer.alloc(Math.min(1_024, details.size));
     const { bytesRead } = await handle.read(header, 0, header.length, 0);
     if (header.subarray(0, bytesRead).indexOf("%PDF-") < 0)
-      throw new Error("Document projection input is not a PDF");
+      throw new Error("Stored content is not a PDF");
     await verifyPdfEnd(handle, details.size);
   } finally {
     await handle.close();
@@ -121,7 +109,7 @@ async function atomicWriteNow(filename: string, value: string | Buffer, signal?:
   }
 }
 
-export async function atomicWriteProjection(filename: string, value: string | Buffer,
+export async function atomicWrite(filename: string, value: string | Buffer,
   signal?: AbortSignal) {
   const key = localDataPath(filename);
   const previous = writes.get(key);
@@ -155,9 +143,9 @@ async function lockOwner(lock: string) {
   }
 }
 
-export async function withProjectionLock<T>(key: string, operation: () => Promise<T>,
+export async function withStoreLock<T>(key: string, operation: () => Promise<T>,
   signal?: AbortSignal): Promise<T> {
-  const lock = path.join(projectionRoot(), "locks", sha256(key));
+  const lock = path.join(storeRoot(), "locks", sha256(key));
   const token = crypto.randomUUID();
   const claim = () =>
     writeFile(path.join(lock, "owner.json"), JSON.stringify({ token, touched_at: Date.now() }));
@@ -185,7 +173,7 @@ export async function withProjectionLock<T>(key: string, operation: () => Promis
         }
       }
       if (Date.now() >= deadline)
-        throw new Error("Timed out waiting for document projection lock");
+        throw new Error("Timed out waiting for a content store lock");
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
   }
@@ -205,7 +193,7 @@ export async function withProjectionLock<T>(key: string, operation: () => Promis
 async function publishPdfContent(source: string, expectedSha256: string,
   signal?: AbortSignal) {
   const destination = pdfContentPath(expectedSha256);
-  return withProjectionLock(`pdf-content:${expectedSha256}`, async () => {
+  return withStoreLock(`pdf-content:${expectedSha256}`, async () => {
     if (await sameFile(destination, expectedSha256)) return destination;
     await mkdir(path.dirname(destination), { recursive: true });
     const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
@@ -224,7 +212,7 @@ async function cleanupPdfStaging() {
   const now = Date.now();
   if (now - stagingSweepAt < 60 * 60_000) return;
   stagingSweepAt = now;
-  const staging = path.join(projectionRoot(), "staging");
+  const staging = path.join(storeRoot(), "staging");
   try {
     const directory = await lstat(staging);
     if (!directory.isDirectory() || directory.isSymbolicLink()) return;
@@ -239,14 +227,14 @@ async function cleanupPdfStaging() {
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-      console.warn("[document-projection] staging cleanup failed", error);
+      console.warn("[content-store] staging cleanup failed", error);
   }
 }
 
 export async function publishPdfStream(stream: ReadableStream<Uint8Array>,
   signal?: AbortSignal) {
   await cleanupPdfStaging();
-  const staging = path.join(projectionRoot(), "staging");
+  const staging = path.join(storeRoot(), "staging");
   await mkdir(staging, { recursive: true });
   const temporary = path.join(staging, `${crypto.randomUUID()}.pdf.tmp`);
   const output = await open(temporary, "wx+");
@@ -266,7 +254,7 @@ export async function publishPdfStream(stream: ReadableStream<Uint8Array>,
         break;
       }
       size += value.byteLength;
-      if (size > MAX_PROJECTION_PDF_BYTES)
+      if (size > MAX_STORED_PDF_BYTES)
         throw new Error("PDF input exceeds the size limit");
       if (headerSize < header.length) {
         const copied = Math.min(header.length - headerSize, value.byteLength);
@@ -282,7 +270,7 @@ export async function publishPdfStream(stream: ReadableStream<Uint8Array>,
       }
     }
     if (!size || header.subarray(0, headerSize).indexOf("%PDF-") < 0)
-      throw new Error("Document projection input is not a PDF");
+      throw new Error("Stored content is not a PDF");
     await verifyPdfEnd(output, size);
     await output.close();
     const sourceSha256 = digest.digest("hex");
@@ -297,19 +285,19 @@ export async function publishPdfStream(stream: ReadableStream<Uint8Array>,
 
 export function immutableReceiptPath(namespace: string, digest: string) {
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(namespace) || !/^[a-f0-9]{64}$/u.test(digest))
-    throw new Error("Projection receipt identity is invalid");
-  return path.join(projectionRoot(), "receipts", namespace,
+    throw new Error("Receipt identity is invalid");
+  return path.join(storeRoot(), "receipts", namespace,
     digest.slice(0, 2), `${digest}.json`);
 }
 
 export async function writeImmutableReceipt(filename: string, value: unknown) {
   const encoded = `${JSON.stringify(value, null, 2)}\n`;
   const digest = sha256(encoded);
-  await withProjectionLock(`receipt:${filename}`, async () => {
+  await withStoreLock(`receipt:${filename}`, async () => {
     try {
       const existing = await readFile(localDataPath(filename), "utf8");
       if (sha256(existing) !== digest)
-        throw new Error("Conflicting immutable projection receipt");
+        throw new Error("Conflicting immutable receipt");
       return;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -327,6 +315,6 @@ export async function writeImmutableReceipt(filename: string, value: unknown) {
       await rm(temporary, { force: true });
     }
     if (sha256(await readFile(filename, "utf8")) !== digest)
-      throw new Error("Conflicting immutable projection receipt");
+      throw new Error("Conflicting immutable receipt");
   });
 }

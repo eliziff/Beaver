@@ -30,7 +30,7 @@ corpus = ["a2aj", "legalpdf", "dep:a2aj-gold"]
 a2aj = ["dep:rusqlite", "legal-structure-features/a2aj-store", "legal-structure-features/citator-graph"]
 # Word documents: the parser's DOCX reading without its PDF pipeline (Authority Linker's engine, build-engine.mjs --word).
 docx = ["dep:legalpdf"]
-legalpdf = ["docx", "legalpdf/pdf", "dep:legal-pdf-support"]
+legalpdf = ["docx", "legalpdf/pdf", "dep:legal-pdf-support", "dep:legal-pdf-core"]
 diagnostics = ["legalpdf", "legalpdf/profiling"]
 allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 
@@ -38,6 +38,8 @@ allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup", "opinion"] }
 legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "structure-inference", "quote-verification"] }
 legal-pdf-support = { path = "../../legal-pdf-parser/legal-pdf-support", optional = true }
+# The kinds of failure a PDF's parse reports.
+legal-pdf-core = { path = "../../legal-pdf-parser/legal-pdf-core", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 # float_roundtrip as the a2aj-gold crate needs it: one serde_json for the workspace, so the stack under it builds once
 serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
@@ -49,6 +51,18 @@ sha2 = "0.10"
 # pinpoint-corpus reads the gold store and compares words.
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 unicode-normalization = "0.1"
+# A workbook's grid (formats/sheet.rs): calamine reads xlsx, xlsm and xls, its zip bounds the package, ooxml-numfmt
+# writes a number in its number format, ryu-js writes a number as JavaScript prints it.
+calamine = "0.38"
+zip = { version = "9", default-features = false }
+ooxml-numfmt = { version = "0.2.3", default-features = false }
+ryu-js = "1.0.3"
+# A presentation's slides, an email and a Word redline (formats/slides.rs, email.rs, redline.rs): the packages open with
+# the zip above, Word's XML parses with quick-xml (the version calamine reads with), an email's MIME with mail-parser,
+# and a charset is found by its WHATWG label with encoding_rs.
+quick-xml = "0.42"
+mail-parser = { version = "1.0.1", features = ["full_encoding"] }
+encoding_rs = "0.8.35"
 
 # The Node addon links native OCR and layout runtimes.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

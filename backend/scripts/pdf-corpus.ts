@@ -68,7 +68,7 @@ async function main() {
   await mkdir(directory);
   await writeFile(marker, JSON.stringify(owner));
   process.env.MIKE_LOCAL_DATA_DIR = path.join(directory, "cache");
-  const { documentProjectionService: service } = await import("../src/lib/documentProjectionService");
+  const { openDocument, preparePdf } = await import("../src/lib/sourceDocument");
   const { structureNative } = await import("../src/lib/structureNative");
   const native = structureNative();
   const receipts: Array<Record<string, unknown>> = [];
@@ -85,7 +85,7 @@ async function main() {
       if (hash(bytes) !== entry.sha256) throw new Error(`Source identity mismatch: ${entry.path}`);
       const begin = performance.now();
       try {
-        const summary = await service.preparePdf({
+        const summary = await preparePdf({
           documentId: entry.sha256, versionId: "corpus", sourceSha256: entry.sha256,
           bytes, ocrProvider: null, layout: false,
         });
@@ -103,8 +103,8 @@ async function main() {
   for (const receipt of receipts) {
     if (receipt.error) continue;
     const sha = receipt.sha256 as string;
-    const summary = receipt.summary as Awaited<ReturnType<typeof service.preparePdf>>;
-    const document = await service.read({
+    const summary = receipt.summary as Awaited<ReturnType<typeof preparePdf>>;
+    const document = await openDocument({
       documentId: sha, versionId: "corpus", fileType: "pdf", sourceSha256: sha,
       pdfProfile: { cacheKey: summary.cacheKey, profile: summary.profile, status: summary.status },
       readBytes: () => readFile(path.resolve(root, receipt.path as string)),

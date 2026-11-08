@@ -1,9 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { ApplicationError } from "./applicationError";
 import { validateDocumentFile } from "./documentTypes";
-import { documentProjectionService } from "./documentProjectionService";
+import { preparePdf } from "./sourceDocument";
+import { lookupPdf } from "./pdfEvidence";
 import type { DocumentFile } from "./documentStore";
 import { sha256 } from "./hash";
+import { pdfFailureKind } from "./structureNative";
 
 export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: unknown) {
   const pages = selectedOcrPages(requestedPages);
@@ -19,7 +21,7 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
   const digest = sha256(bytes), documentId = `court-record:${digest}`,
     versionId = `source:${digest}`;
   try {
-    const prepared = await documentProjectionService.preparePdf({ documentId, versionId, bytes,
+    const prepared = await preparePdf({ documentId, versionId, bytes,
       sourceSha256: digest, pages, ocrProvider: "indra" });
     if (prepared.pageCount > 2_000) {
       throw new ApplicationError(409, "This PDF has an unsupported page count");
@@ -35,13 +37,9 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
       pages: pageText };
   } catch (error) {
     if (error instanceof ApplicationError) throw error;
-    if (error instanceof Error && error.name === "PdfEncrypted") {
-      throw new ApplicationError(409, error.message);
-    }
-    if (error instanceof Error && ["PDF is invalid or corrupt",
-      "PDF structural parser failed"].includes(error.message)) {
-      throw new ApplicationError(400, error.message);
-    }
+    const kind = pdfFailureKind(error);
+    if (kind === "encrypted") throw new ApplicationError(409, (error as Error).message);
+    if (kind === "corrupt" || kind === "parser") throw new ApplicationError(400, (error as Error).message);
     throw error;
   }
 }
@@ -52,10 +50,10 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
  * no text at all; that is the answer for those pages, not a failure of the read.
  */
 export async function courtRecordPageText(readBytes: () => Buffer | Promise<Buffer>, pageCount: number,
-  options: Parameters<typeof documentProjectionService.lookupPdf>[2]) {
+  options: Parameters<typeof lookupPdf>[2]) {
   const text = new Map<number, string>();
   async function read(first: number, last: number) {
-    const lookup = await documentProjectionService.lookupPdf(readBytes, { locator_kind: "page",
+    const lookup = await lookupPdf(readBytes, { locator_kind: "page",
       locator: first === last ? `${first}` : `${first}-${last}`, context_blocks: 0 }, options);
     if (lookup.status === "found") {
       for (const page of lookup.pages) text.set(page.page_number, page.text);

@@ -4,7 +4,7 @@
  *  read onto the document's text, and writes those results (corrections, highlights, links) into its Word file. */
 import { reject } from "../applicationError";
 import { attachedAuthoritySources, type AuthoritiesDraft } from "../authoritiesDomain";
-import { documentProjectionService } from "../documentProjectionService";
+import { openDocument } from "../sourceDocument";
 import { writeDocxSpans } from "../docxOperations";
 import { sha256 } from "../hash";
 import { legalSourceOperations } from "../legalSourceApplication";
@@ -36,7 +36,7 @@ export async function attachedSourceDocuments(draft: AuthoritiesDraft, files: Re
     }
     const pdf = attachedAuthoritySources(authority.source).find((source) => source.bindingRole === file.role)!;
     if (pdf.origin === "reconstructed") continue;
-    attached.set(authority.id, { document: await documentProjectionService.read({ documentId: `standalone-authority:${digest}`,
+    attached.set(authority.id, { document: await openDocument({ documentId: `standalone-authority:${digest}`,
       versionId: digest, sourceSha256: digest, fileType: "pdf", readBytes: () => bytes }, { signal }),
     source: { provider: "attached", id: digest, kind: authority.kind === "legislation" ? "legislation" : "case",
       citation: authority.citation, title: authority.displayName ?? authority.name, url: pdf.sourceUrl } });

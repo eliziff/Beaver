@@ -1,6 +1,7 @@
 import type { AttachedAuthoritySource } from "mike/shared/authorities-sources.mjs";
 import { authorityCitationForms, type AuthoritiesDraft } from "./authoritiesDomain";
-import { documentProjectionService } from "./documentProjectionService";
+import { openDocument, PLAIN_PDF } from "./sourceDocument";
+import { structureNative } from "./structureNative";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { mapBounded } from "./mapBounded";
 import type { PreparedAuthoritySource } from "./authoritiesSourceResolution";
@@ -13,12 +14,12 @@ export type SourcePdfReference = { documentId: string; versionId: string };
  *  the draft. */
 export async function sourcePageLabels(draft: AuthoritiesDraft, authorityId: string,
   source: Pick<AttachedAuthoritySource, "sourceSha256">, bytes: Buffer, reference?: SourcePdfReference) {
-  const information = await documentProjectionService.pdfInformation({
+  const document = await openDocument({
     documentId: reference?.documentId ?? `standalone-authority:${source.sourceSha256}`,
     versionId: reference?.versionId ?? source.sourceSha256,
     sourceSha256: source.sourceSha256, fileType: "pdf", readBytes: () => bytes,
-  }, authorityCitationForms(draft, authorityId));
-  return information.pageMap.map((page) => page.label);
+  }, PLAIN_PDF);
+  return structureNative().pdfPageMap(document, authorityCitationForms(draft, authorityId)).map((page) => page.label);
 }
 
 /** What every host keeps with a fetched source as it attaches it: its printed page numbers, and its length, by which a

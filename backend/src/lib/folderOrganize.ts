@@ -3,7 +3,7 @@ import { textField } from "mike/shared/runtime/textField.mjs";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { sha256 } from "./hash";
 import { mapBounded } from "./mapBounded";
-import { documentProjectionService } from "./documentProjectionService";
+import { sourceText } from "./sourceDocument";
 import type { DocumentRecord, DocumentStore } from "./documentStore";
 import type { ProposalOptions, ProposalProgress } from "./researchLabelDesign";
 
@@ -85,7 +85,7 @@ async function organizeInventory(documents: DocumentStore, scope: ApplicationSco
     const gist = await (async () => {
       try {
         const source = await documents.projectionSource(scope, record.id, null);
-        return source ? await documentProjectionService.text(source, { limit: 1_500, signal }) : "";
+        return source ? await sourceText(source, { limit: 1_500, signal }) : "";
       } catch { return ""; }
     })();
     return { id: record.id, filename: record.filename,

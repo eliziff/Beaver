@@ -15,7 +15,7 @@ import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
   normalizeDownloadFilename } from "../lib/storage";
 import { requiredFile, requiredUpload, singleFileUpload, uploadedDocument } from "../lib/upload";
 import { z } from "mike/shared/runtime/schema.mjs";
-import { documentProjectionService } from "../lib/documentProjectionService";
+import { openDocument, pdfTextLayer, PLAIN_PDF } from "../lib/sourceDocument";
 import { structureNative } from "../lib/structureNative";
 const scope = applicationScope, MAX_ZIP_FILES = 100;
 const researchVersion = textField(200);
@@ -108,7 +108,7 @@ export function createDocumentsRouter(
   router.get("/:documentId/reader-text", asyncRoute(async (req, res) => {
     const source = await documents.projectionSource(scope(res), req.params.documentId, versionId(req))
       ?? reject(404, "Document version not found");
-    const document = await documentProjectionService.read(source), native = structureNative(),
+    const document = await openDocument(source), native = structureNative(),
       text = native.documentText(document), pages = source.fileType === "pdf"
         ? native.documentAnchors(document, text.length).filter(({ node }) => node.kind === "page") : [];
     res.setHeader("Cache-Control", "private, no-store");
@@ -130,10 +130,8 @@ export function createDocumentsRouter(
     if (req.query.source_sha256 !== undefined && req.query.source_sha256 !== source.sourceSha256)
       reject(409, "This PDF changed. Relink the source before editing highlights.");
     const abort = new AbortController(); res.once("close", () => abort.abort());
-    const pages = await documentProjectionService.pdfTextLayer(source.readBytes, {
-      documentId: source.documentId, versionId: source.versionId, sourceSha256: source.sourceSha256,
-      ...(source.pdfProfile ? { cacheKey: source.pdfProfile.cacheKey } : {}),
-    }, { pdfProfile: source.pdfProfile, pages: requestedPages, signal: abort.signal });
+    const pages = await pdfTextLayer(source.readBytes, source,
+      { pdfProfile: source.pdfProfile, pages: requestedPages, signal: abort.signal });
     res.setHeader("Cache-Control", "private, no-store");
     res.json({ pages });
   }));
@@ -150,7 +148,7 @@ export function createDocumentsRouter(
       citations = z.array(z.string().max(2000)).max(50).parse(
         req.query.citations ? JSON.parse(z.string().max(100_000).parse(req.query.citations)) : []);
     } catch { reject(400, "Invalid citation context"); }
-    const pageMap = await documentProjectionService.pdfPagination(source, citations);
+    const pageMap = structureNative().pdfPageMap(await openDocument(source, PLAIN_PDF), citations);
     res.json({ pageLabels: pageMap.map(entry => entry.label), pageMap });
   }));
 

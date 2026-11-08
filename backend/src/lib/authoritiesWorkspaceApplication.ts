@@ -1,7 +1,7 @@
 import type { Progress } from "./followedRoute";
 import { mapBounded } from "./mapBounded";
 import { authorityCitationForms } from "./authoritiesDomain";
-import { structureNative } from "./structureNative";
+import { pdfPassageGeometry, structureNative } from "./structureNative";
 import { docxToPdf, wordToPdfAvailable } from "./convert";
 import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { readFile } from "node:fs/promises";
@@ -29,7 +29,7 @@ import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
-import { documentProjectionService } from "./documentProjectionService";
+import { openDocument, PLAIN_PDF, preparePdf } from "./sourceDocument";
 import { sourceReadings } from "./sourceReadings";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
@@ -499,12 +499,13 @@ export function createAuthoritiesWorkspaceApplication(
           if (cancel) return { role: source.bindingRole, cancelled: await cancelPdfJobs(reference) };
           // An explicit recognition request also repairs missing retained artifacts;
           // an OCR profile alone is not proof that its selectable text still exists.
-          const prepared = await documentProjectionService.preparePdf({ ...reference,
-            bytes: await resolved.readBytes(), ocrProvider: null });
+          const bytes = await resolved.readBytes();
+          const prepared = await preparePdf({ ...reference, bytes, ocrProvider: null });
           if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,
             `Choose page numbers within the PDF for ${source.filename}.`);
           const citations = authorityCitationForms(draft, authority.id);
-          const bindings = pages ? [] : await documentProjectionService.pdfPagination(resolved, citations);
+          const bindings = pages ? []
+            : structureNative().pdfPageMap(await openDocument(resolved, PLAIN_PDF), citations);
           const targets = pages ? [] : authorityPassageTargets(draft, authority.id);
           // Page pinpoints locate themselves without any text, so a scan whose passages the
           // geometry cannot find still has its cited pages recognized before the whole PDF.
@@ -515,11 +516,10 @@ export function createAuthoritiesWorkspaceApplication(
             // Let the existing priority OCR pass establish an opening reporter anchor first.
             citedPages.push(...Array.from({ length: Math.min(3, prepared.pageCount) }, (_, index) => index + 1));
           }
+          const document = targets.length ? await openDocument({ ...resolved, readBytes: () => bytes,
+            pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } }) : undefined;
           for (let start = 0; start < targets.length; start += 100) {
-            const geometry = await documentProjectionService.pdfPassageGeometry(resolved.readBytes,
-              targets.slice(start, start + 100), { ...reference, cacheKey: prepared.cacheKey },
-              { citations,
-                pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
+            const geometry = await pdfPassageGeometry(document!, bytes, targets.slice(start, start + 100), citations);
             citedPages.push(...geometry.targets.flatMap(target => target.status === "found"
               ? target.pages.map(page => page.pageNumber) : []));
           }

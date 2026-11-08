@@ -24,19 +24,20 @@ import { documentBlobDigest, documentBlobKey, MAX_OBJECT_SIZE_BYTES, normalizeDo
   SIGNED_GET_TTL_SECONDS, type ObjectStorage } from "./storage";
 import { assertBoundedZip, loadZip } from "./zip";
 import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
-import { documentProjectionService } from "./documentProjectionService";
-import { spreadsheetToLLMStructure } from "./spreadsheet";
+import { openDocument } from "./sourceDocument";
+import { rehydratePdfEvidence, verifyPdfEvidence } from "./pdfEvidence";
+import { structureNative } from "./structureNative";
 
 /** Acquire an authorized version and its requested native view together. */
 export async function readDocumentProjection(documents: DocumentStore, scope: DocumentScope,
   documentId: string, versionId: string | null,
-  options: Parameters<typeof documentProjectionService.read>[1] & { expectedSourceSha256?: string } = {}) {
+  options: Parameters<typeof openDocument>[1] & { expectedSourceSha256?: string } = {}) {
   const source = await documents.projectionSource(scope, documentId, versionId);
   if (!source) return null;
   if (options.expectedSourceSha256 && source.sourceSha256 !== options.expectedSourceSha256)
     throw new ApplicationError(409, "Source changed after the extraction scope was selected");
   const document = await pdfLifecyclePhase("open.projection", documentId, () =>
-    documentProjectionService.read({ ...source, readBytes: () =>
+    openDocument({ ...source, readBytes: () =>
       pdfLifecyclePhase("open.source_read", documentId, source.readBytes) }, options));
   return { ...source, document };
 }
@@ -712,9 +713,10 @@ export function createDocumentApplication(repository: DocumentRepository,
         throw new ApplicationError(400, "Document is not a spreadsheet");
       const bytes = await checkedBytes(version);
       if (!bytes) return null;
-      const grid = await spreadsheetToLLMStructure(bytes, version.fileType);
+      const document = await openDocument({ documentId, versionId: version.id, fileType: version.fileType,
+        sourceSha256: version.sourceSha256, readBytes: () => bytes });
       const sheets = new Map<string, DocumentSpreadsheet["sheets"][number]["cells"]>();
-      for (const cell of grid.tableCells) {
+      for (const cell of structureNative().documentTableCells(document)) {
         const values = sheets.get(cell.tableName) ?? [];
         values.push({ address: cell.address, value: cell.displayValue,
           row: cell.row, column: cell.column,
@@ -729,7 +731,7 @@ export function createDocumentApplication(repository: DocumentRepository,
     async evidenceView(scope, documentId, versionId, handle) {
       const version = await repository.version(scope, documentId, versionId);
       if (!version || version.fileType.toLowerCase() !== "pdf") return null;
-      const receipt = await availableEvidence(() => documentProjectionService.rehydratePdfEvidence(
+      const receipt = await availableEvidence(() => rehydratePdfEvidence(
         handle, projectionReference(documentId, version)));
       return { versionId: version.id, filename: version.filename,
         pageNumbers: receipt.link.page_numbers, pages: receipt.pages };
@@ -774,7 +776,7 @@ export function createDocumentApplication(repository: DocumentRepository,
       }
       const loaded = await loadVersion(
         selected.version, selected.key, selected.fileType, selected.filename);
-      if (loaded && evidence) await availableEvidence(() => documentProjectionService.verifyPdfEvidence(
+      if (loaded && evidence) await availableEvidence(() => verifyPdfEvidence(
         loaded.bytes, evidence, projectionReference(documentId, selected.version)));
       const content = await portableResearchContent(scope, documentId, loaded);
       return content ? { kind: "bytes", content } : null;

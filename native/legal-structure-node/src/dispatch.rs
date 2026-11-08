@@ -88,7 +88,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "releaseDocument" => {
             let handle = doc()?;
             documents().1.remove(&handle);
-            done(Ok(Value::Null))
+            Ok((Value::Null, Vec::new()))
         }
         "deriveDocumentStructure" => done(engine::derive_document_structure(call.get("request")?).map(store)),
         "deriveDocumentFingerprint" => done(engine::derive_document_fingerprint(call.get("request")?).and_then(value)),

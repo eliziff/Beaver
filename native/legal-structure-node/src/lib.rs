@@ -8,6 +8,8 @@ mod a2aj;
 mod a2aj_lookup;
 mod dispatch;
 pub mod engine;
+pub mod formats;
+pub mod source;
 #[cfg(not(target_arch = "wasm32"))]
 mod node;
 #[cfg(target_arch = "wasm32")]

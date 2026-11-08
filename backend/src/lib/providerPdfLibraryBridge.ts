@@ -1,18 +1,15 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
+import { preparePdf, type PdfParseStatus } from "./sourceDocument";
+import { lookupPdf, rehydratePdfEvidence, type PdfLookupInput } from "./pdfEvidence";
 import {
-  documentProjectionService,
-  type PdfLookupInput,
-  type PdfParseStatus,
-} from "./documentProjectionService";
-import {
-  atomicWriteProjection,
+  atomicWrite,
   inspectPdf,
   pdfContentPath,
   publishPdfStream,
-  withProjectionLock,
-} from "./documentProjection";
+  withStoreLock,
+} from "./contentStore";
 import { boundRemoteResponse, guardedRemoteFetch, normalizeRemoteHttpsUrl } from "./remoteUrlSafety";
 import { decisiaIndexUrl, publisherChallengeUrl, publisherPdfCandidate,
   rankedPublisherPdfLinks, verifiedDecisiaPdf } from "./legalSourcePresentation";
@@ -154,7 +151,7 @@ async function writeRecord(request: SafeRequest, phase: PdfPhase) {
     ...("parse" in phase && phase.parse !== "unparsed" ? { parse_status: phase.parse } : {}),
     ...("profile" in phase && phase.profile ? { pdf_profile: phase.profile } : {}),
     updated_at: new Date().toISOString() };
-  await atomicWriteProjection(recordPath(request.requestKey), `${JSON.stringify(record)}\n`);
+  await atomicWrite(recordPath(request.requestKey), `${JSON.stringify(record)}\n`);
   return record;
 }
 
@@ -224,7 +221,7 @@ const unanswered = (error: unknown) => error instanceof TypeError || (error as E
 
 async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal,
   allowHtml = true) {
-  return withProjectionLock(request.requestReference, async () => {
+  return withStoreLock(request.requestReference, async () => {
     const prior = pdfDigest(pdfPhase(await readRecord(request.requestKey)));
     const cached = prior ? await verifiedContent(prior) : null;
     if (cached && prior) return {
@@ -330,7 +327,7 @@ export async function downloadProviderOriginalPdf(
 
 const parse = (bytes: Buffer, digest: string, signal?: AbortSignal,
   pdfProfile?: PdfProfileSelection) =>
-  documentProjectionService.preparePdf({
+  preparePdf({
   documentId: `provider-pdf-${digest.slice(0, 32)}`,
   versionId: digest.slice(0, 32), bytes, sourceSha256: digest,
   signal, pdfProfile,
@@ -367,7 +364,7 @@ export async function queueProviderPdfAttachment(
   userId: string,
 ) {
   const request = safeRequest(input);
-  const { record, enqueue } = await withProjectionLock(request.requestReference, async () => {
+  const { record, enqueue } = await withStoreLock(request.requestReference, async () => {
     const record = await readRecord(request.requestKey), phase = pdfPhase(record);
     const content = await verifiedContent(pdfDigest(phase) ?? undefined);
     return { record: !content && phase?.phase !== "queued" ? await writeRecord(request, { phase: "queued" }) : record,
@@ -427,7 +424,7 @@ export function providerPdfJobHandlers(): Record<string, JobHandler> {
   };
 }
 
-type PdfEvidenceLookup = Awaited<ReturnType<typeof documentProjectionService.lookupPdf>>;
+type PdfEvidenceLookup = Awaited<ReturnType<typeof lookupPdf>>;
 
 async function readyEvidence(
   reference: string,
@@ -473,13 +470,13 @@ const providerProjectionReference = (sourceSha256: string) => ({
 export const lookupProviderPdfReference = (
   reference: string, userId: string, input: PdfLookupInput,
 ) => readyEvidence(reference, userId,
-    (readSource, sourceSha256, pdfProfile) => documentProjectionService.lookupPdf(
+    (readSource, sourceSha256, pdfProfile) => lookupPdf(
       readSource, input, { ...providerProjectionReference(sourceSha256), pdfProfile }));
 
 export const rehydrateProviderPdfReference = (
   reference: string, userId: string, handle: string,
 ) => readyEvidence(reference, userId,
-    (_readSource, sourceSha256) => documentProjectionService.rehydratePdfEvidence(
+    (_readSource, sourceSha256) => rehydratePdfEvidence(
       handle,
       providerProjectionReference(sourceSha256),
     ), false);

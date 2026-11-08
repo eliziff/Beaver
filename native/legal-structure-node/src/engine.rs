@@ -9,6 +9,42 @@ use std::io::BufReader;
 
 pub type CoreResult<T> = Result<T, String>;
 
+/// A failed call as JavaScript is given it: what went wrong and, for a PDF's parse, the kind of failure the parser
+/// named, its message the one a reader is told and its detail what went wrong.
+#[derive(Clone, Debug, Serialize)]
+pub struct Failure {
+    pub message: String,
+    #[cfg(feature = "legalpdf")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<legal_pdf_core::FailureKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+impl From<String> for Failure {
+    fn from(message: String) -> Self {
+        Self { message, #[cfg(feature = "legalpdf")] kind: None, detail: None }
+    }
+}
+
+impl From<&str> for Failure {
+    fn from(message: &str) -> Self {
+        message.to_owned().into()
+    }
+}
+
+#[cfg(feature = "legalpdf")]
+impl From<legalpdf::Error> for Failure {
+    fn from(error: legalpdf::Error) -> Self {
+        let kind = error.kind();
+        let detail = match error {
+            legalpdf::Error::Failure { detail, .. } => detail,
+            error => error.to_string(),
+        };
+        Self { message: kind.message().to_owned(), kind: Some(kind), detail: Some(detail) }
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StructureRequest {
@@ -56,7 +92,7 @@ pub struct NativeDocument {
 }
 
 impl NativeDocument {
-    fn new(product: NativeProduct) -> Self {
+    pub(crate) fn new(product: NativeProduct) -> Self {
         Self { product, query: DocumentQuery::new(), quotes: Default::default() }
     }
 
@@ -528,25 +564,20 @@ mod pdf {
         }
     }
 
-    pub fn derive_pdf_document(bytes: &[u8], request: &legalpdf::PdfRequest) -> CoreResult<NativeDocument> {
-        legalpdf::derive_pdf_document(bytes, request)
-            .map(|document| NativeDocument::new(NativeProduct::Pdf(document)))
-            .map_err(|error| error.to_string())
+    pub fn derive_pdf_document(bytes: &[u8], request: &legalpdf::PdfRequest) -> Result<NativeDocument, Failure> {
+        Ok(NativeDocument::new(NativeProduct::Pdf(legalpdf::derive_pdf_document(bytes, request)?)))
     }
 
     pub fn prepare_pdf_document(
         bytes: &[u8],
         request: &legalpdf::PdfRequest,
         progress: legalpdf::RecognitionProgress<'_>,
-    ) -> CoreResult<legalpdf::PdfSummary> {
-        legalpdf::prepare_pdf_document_reporting(bytes, request, progress)
-            .map_err(|error| error.to_string())
+    ) -> Result<legalpdf::PdfSummary, Failure> {
+        Ok(legalpdf::prepare_pdf_document_reporting(bytes, request, progress)?)
     }
 
-    pub fn restore_pdf_document(request: &legalpdf::PdfRequest) -> CoreResult<Option<NativeDocument>> {
-        legalpdf::restore_pdf_document(request)
-            .map(|document| document.map(|document| NativeDocument::new(NativeProduct::Pdf(document))))
-            .map_err(|error| error.to_string())
+    pub fn restore_pdf_document(request: &legalpdf::PdfRequest) -> Result<Option<NativeDocument>, Failure> {
+        Ok(legalpdf::restore_pdf_document(request)?.map(|document| NativeDocument::new(NativeProduct::Pdf(document))))
     }
 
     pub fn pdf_document_summary(document: &NativeDocument) -> CoreResult<&legalpdf::PdfSummary> {

@@ -17,11 +17,11 @@ import {
 } from "./authoritiesDomain";
 import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { documentProjectionService } from "./documentProjectionService";
+import { openDocument, preparePdf } from "./sourceDocument";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
-import { structureNative, type NativeAuthorityReferenceOccurrence, type NativeAuthorityTextUnit,
+import { pdfFailureKind, structureNative, type NativeAuthorityReferenceOccurrence, type NativeAuthorityTextUnit,
   type NativeCitationOccurrence, type NativeReferencePart } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
 import { a2ajStorePath } from "./legalDataPath";
@@ -50,9 +50,10 @@ async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<Nat
     const message = error instanceof Error ? error.message : "";
     if (fileType === "docx" && /^(?:DOCX (?:is empty|has no)|ZIP error:|XML (?:error:|has ))/u.test(message))
       throw new ApplicationError(400, "Word document is invalid or corrupt. Choose a readable .docx file.");
-    if (fileType === "pdf" && /^PDF is (?:password-protected|invalid or corrupt)/u.test(message))
+    const kind = pdfFailureKind(error);
+    if (fileType === "pdf" && (kind === "encrypted" || kind === "corrupt"))
       throw new ApplicationError(400, message);
-    if (fileType === "pdf" && readBytes && message === "PDF structural parser failed")
+    if (fileType === "pdf" && readBytes && kind === "parser")
       await validateAuthoritiesPdf(await readBytes());
     throw error;
   }
@@ -580,9 +581,9 @@ async function importAuthoritiesDocument(input: AuthoritiesDocumentImport) {
   }
   const reference = { ...input.reference, sourceSha256, fileType: input.fileType, readBytes: () => input.bytes };
   const readPdf = async () => {
-    const read = async (options: Parameters<typeof documentProjectionService.preparePdf>[0]) => {
-      const prepared = await documentProjectionService.preparePdf(options);
-      return documentProjectionService.read({ ...reference, pdfProfile: { cacheKey: prepared.cacheKey,
+    const read = async (options: Parameters<typeof preparePdf>[0]) => {
+      const prepared = await preparePdf(options);
+      return openDocument({ ...reference, pdfProfile: { cacheKey: prepared.cacheKey,
         profile: prepared.profile, status: prepared.status } });
     };
     const own = await read({ ...reference, bytes: input.bytes, ocrProvider: null });

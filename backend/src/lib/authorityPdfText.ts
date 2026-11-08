@@ -1,11 +1,15 @@
-import { documentProjectionService, type PdfPreparationProgress } from "./documentProjectionService";
+import { openDocument, PLAIN_PDF, preparePdf, type PdfPreparationProgress } from "./sourceDocument";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
 import { resolvePrintedPages } from "./pdfPagination";
-import { structureNative, type NativePdfPassageGeometry, type NativePdfPassageTarget } from "./structureNative";
+import { pdfPassageGeometry, structureNative, type NativePdfPassageGeometry,
+  type NativePdfPassageTarget } from "./structureNative";
 import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
-const projection = documentProjectionService;
+type Prepared = Awaited<ReturnType<typeof preparePdf>>;
+const selectedProfile = (prepared: Prepared) => ({
+  cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status,
+});
 
 /** The authority's own headings, and a statute's sections, read from the PDF it is reproduced from. */
 export async function authorityPdfOutline(input: {
@@ -16,11 +20,10 @@ export async function authorityPdfOutline(input: {
   const reference = { documentId: input.documentId ?? `standalone-authority:${sourceSha256}`,
     versionId: input.versionId ?? sourceSha256, sourceSha256 };
   // Recognized text already retained for the source is read too; nothing new is recognized.
-  const prepared = await projection.preparePdf({ ...reference, bytes: input.bytes, signal: input.signal,
+  const prepared = await preparePdf({ ...reference, bytes: input.bytes, signal: input.signal,
     ...(input.pdfProfile ? { pdfProfile: input.pdfProfile } : { ocrProvider: null, layout: false }) });
-  return projection.pdfOutline(() => input.bytes, { ...reference, cacheKey: prepared.cacheKey },
-    { pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status },
-      signal: input.signal });
+  return structureNative().documentOutline(await openDocument({ ...reference, readBytes: () => input.bytes,
+    pdfProfile: selectedProfile(prepared) }, { signal: input.signal }));
 }
 
 export async function authorityPdfText(input: {
@@ -54,36 +57,36 @@ export async function authorityPdfText(input: {
     ...(input.progress && { progress: (step: PdfPreparationProgress) => {
       if (step.phase === "recognizing") input.progress!(step.recognized, step.total);
     } }) };
-  const selectedProfile = (prepared: Awaited<ReturnType<typeof projection.preparePdf>>) => ({
-    cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status,
-  });
   // Inspection never opts a newly uploaded source into recognition. Existing OCR
   // artifacts, including partial OCR, remain usable without expanding coverage.
   const retained = input.pdfProfile;
-  const native = await projection.preparePdf({ ...options, ...(retained ? { pdfProfile: retained }
+  const native = await preparePdf({ ...options, ...(retained ? { pdfProfile: retained }
     : { ocrProvider: null, ...(pageOnly ? { layout: false } : {}) }) });
   if (retained && native.cacheKey !== retained.cacheKey) throw new Error("Prepared authority PDF profile changed.");
   if (!native.pageCount) return { pageTextByPage: [], ocrTextByPage: [] };
+  const document = (prepared: Prepared, plain = false) => openDocument({ ...reference,
+    readBytes: () => input.bytes, pdfProfile: selectedProfile(prepared) }, { signal: input.signal,
+    ...(plain ? PLAIN_PDF : {}) });
+  const pageMap = async (prepared: Prepared) =>
+    structureNative().pdfPageMap(await document(prepared, true), input.citations ?? []);
   let recognized = native;
   let recognizedPages: Set<number> | undefined;
   const geometry = async (targets: NativePdfPassageTarget[], prepared = recognized) => {
     let result: NativePdfPassageGeometry | undefined;
     for (let offset = 0; offset < targets.length; offset += 100) {
       input.signal?.throwIfAborted();
-      const next = await projection.pdfPassageGeometry(() => input.bytes, targets.slice(offset, offset + 100),
-        { ...reference, cacheKey: prepared.cacheKey },
-        { signal: input.signal, pdfProfile: selectedProfile(prepared), citations: input.citations });
+      const next = await pdfPassageGeometry(await document(prepared), input.bytes,
+        targets.slice(offset, offset + 100), input.citations ?? []);
       result = result ? { ...result, targets: [...result.targets, ...next.targets] } : next;
     }
     return result;
   };
   if (policy === "full" && native.pagesNeedingOcr.length) {
-    recognized = await projection.preparePdf({ ...recognition, ocrProvider: "indra" });
+    recognized = await preparePdf({ ...recognition, ocrProvider: "indra" });
   } else if (policy === "cited-pages") {
     if (targets.length && targets.every(({ locatorKind }) => locatorKind === "page")) {
-      const locate = async (prepared: typeof native) => {
-        const labels = await projection.pdfPagination({ ...reference, fileType: "pdf",
-          readBytes: () => input.bytes, pdfProfile: selectedProfile(prepared) }, input.citations);
+      const locate = async (prepared: Prepared) => {
+        const labels = await pageMap(prepared);
         return targets.map(target => resolvePrintedPages(target.locator, labels));
       };
       let located = await locate(native);
@@ -95,7 +98,7 @@ export async function authorityPdfText(input: {
             page <= Math.min(3, native.pageCount); page++) {
           if (!recognized.pagesNeedingOcr.includes(page - 1)) continue;
           openingPages.push(page);
-          recognized = await projection.preparePdf({ ...recognition, ocrProvider: "indra", pages: [...openingPages] });
+          recognized = await preparePdf({ ...recognition, ocrProvider: "indra", pages: [...openingPages] });
           located = await locate(recognized);
         }
       }
@@ -109,7 +112,7 @@ export async function authorityPdfText(input: {
     // A paragraph or section on a scan cannot be located until the scan is read.
     // This fallback is disclosed beside the cited-pages option in the UI.
     if (recognized.pagesNeedingOcr.some(index => !recognizedPages || recognizedPages.has(index)))
-      recognized = await projection.preparePdf({ ...recognition,
+      recognized = await preparePdf({ ...recognition,
       // Recognized pages are held zero-based for indexing; the engine numbers them from one.
       ocrProvider: "indra", ...(recognizedPages
         ? { pages: [...recognizedPages].map((index) => index + 1).sort((a, b) => a - b) } : {}) });
@@ -117,8 +120,7 @@ export async function authorityPdfText(input: {
   const routed = new Set(policy === "page-margin" ? [] : recognized.ocrRoutedPages);
   const pageCount = Math.min(native.pageCount, input.maxPages ?? native.pageCount);
   // One read of every page's text per prepared profile, not one lookup per page.
-  const texts = (prepared: typeof native) => projection.pdfPageTexts(() => input.bytes,
-    { ...reference, cacheKey: prepared.cacheKey }, { signal: input.signal, pdfProfile: selectedProfile(prepared) });
+  const texts = async (prepared: Prepared) => structureNative().pdfPageTexts(await document(prepared));
   const nativeTexts = await texts(native);
   const recognizedTexts = recognized === native ? nativeTexts : await texts(recognized);
   input.signal?.throwIfAborted();
@@ -127,8 +129,7 @@ export async function authorityPdfText(input: {
   const passageTargets = typeof input.passageTargets === "function"
     ? input.passageTargets(pageTextByPage) : input.passageTargets;
   const passageGeometry = passageTargets?.length ? await geometry(passageTargets) : undefined;
-  const pageBindings = await projection.pdfPagination({ ...reference, fileType: "pdf",
-    readBytes: () => input.bytes, pdfProfile: selectedProfile(recognized) }, input.citations);
+  const pageBindings = await pageMap(recognized);
   return { pageTextByPage, ...(pageBindings ? { pageBindings, pageLabels: pageBindings.map(page => page.label) } : {}),
     ocrTextByPage: pageTextByPage.map((value, index) => routed.has(index) ? value : ""),
     ...(passageGeometry ? { passageGeometry } : {}) };

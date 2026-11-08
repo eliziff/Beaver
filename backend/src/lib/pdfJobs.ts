@@ -7,8 +7,9 @@ import {
   type ApplicationJob,
   type JobHandler,
 } from "./jobQueue";
-import { documentProjectionService, type PdfOcrProvider,
-  type PdfPreparationProgress } from "./documentProjectionService";
+import { preparePdf as preparePdfReading, type PdfOcrProvider,
+  type PdfPreparationProgress } from "./sourceDocument";
+import { pdfFailureKind } from "./structureNative";
 import { sha256 } from "./hash";
 import type { RelationalDatabase } from "./relationalDatabase";
 import { pdfLifecycleMark, pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
@@ -49,14 +50,15 @@ function reprocessPayload(job: ApplicationJob) {
   return { ...base, ocrProvider, layout, pages: value.pages as number[] | undefined };
 }
 
+// A password-protected PDF fails the same way every time: its job is not retried.
 async function preparePdf(
-  input: Parameters<typeof documentProjectionService.preparePdf>[0],
+  input: Parameters<typeof preparePdfReading>[0],
 ) {
-  try { return await documentProjectionService.preparePdf(input); }
+  try { return await preparePdfReading(input); }
   catch (error) {
-    if (!(error instanceof Error) || error.name !== "PdfEncrypted") throw error;
+    if (!(error instanceof Error) || pdfFailureKind(error) !== "encrypted") throw error;
     const permanent = new PermanentJobError(error.message, { cause: error });
-    permanent.name = error.name;
+    permanent.name = "PdfEncrypted";
     throw permanent;
   }
 }
