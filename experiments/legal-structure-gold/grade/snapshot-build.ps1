@@ -54,13 +54,42 @@ if (Test-Path "$stage\Cargo.toml") {
 if ($Overlay) { Copy-Item -Recurse -Force "$Overlay\*" $stage }
 Push-Location $stage; tar -cf "$env:TEMP\snapshot.tar" --exclude='*/experiments/*' --exclude='*/benchmarks/*' *; Pop-Location
 "packed {0:N1} MB" -f ((Get-Item "$env:TEMP\snapshot.tar").Length / 1MB)
-Remote "New-Item -ItemType Directory -Force '$Mirror' | Out-Null; Get-ChildItem '$Mirror' -Force | Where-Object { `$_.Name -ne 'native' } | Remove-Item -Recurse -Force; Get-ChildItem '$Mirror\native\legal-structure-node' -Force -ErrorAction SilentlyContinue | Where-Object { `$_.Name -ne 'target' } | Remove-Item -Recurse -Force" | Out-Null
 scp -q "$env:TEMP\snapshot.tar" "${Desktop}:$($Mirror -replace '\\', '/').tar"
-Remote @"
+# The remote half as a script of its own: an encoded command line has a length limit the sync passes.
+$remote = @"
 `$env:Path = "`$env:USERPROFILE\.cargo\bin;`$env:Path"
-# Unpacked at today's time: git stamps a file with its commit's, older than what the kept target
-# built from another moment, which cargo would then take as fresh.
-tar -xmf '$Mirror.tar' -C '$Mirror'; Remove-Item '$Mirror.tar'
+# The moment's files laid over the mirror where their content differs, stamped now; the rest keep their time, so a
+# build rebuilds only the crates a change reaches. A file git stamps with its commit's time would be older than what
+# the kept target built from another moment, which cargo would then take as fresh: a changed file is stamped now.
+# Files the moment does not have leave the mirror; its build output (target) stays.
+`$incoming = '$Mirror-incoming'
+if (Test-Path `$incoming) { Remove-Item -Recurse -Force `$incoming }
+New-Item -ItemType Directory -Force `$incoming, '$Mirror' | Out-Null
+tar -xf '$Mirror.tar' -C `$incoming; Remove-Item '$Mirror.tar'
+`$synced = Get-Date
+`$changed = 0
+`$now = Get-Date
+foreach (`$file in [IO.Directory]::EnumerateFiles(`$incoming, '*', 'AllDirectories')) {
+  `$relative = `$file.Substring(`$incoming.Length + 1)
+  `$target = Join-Path '$Mirror' `$relative
+  `$same = [IO.File]::Exists(`$target) -and ((New-Object IO.FileInfo `$target).Length -eq (New-Object IO.FileInfo `$file).Length) -and
+    ((Get-FileHash -LiteralPath `$target).Hash -eq (Get-FileHash -LiteralPath `$file).Hash)
+  if (-not `$same) {
+    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName(`$target)) | Out-Null
+    [IO.File]::Copy(`$file, `$target, `$true)
+    [IO.File]::SetLastWriteTime(`$target, `$now)
+    `$changed++
+  }
+}
+foreach (`$file in [IO.Directory]::EnumerateFiles('$Mirror', '*', 'AllDirectories')) {
+  `$relative = `$file.Substring('$Mirror'.Length + 1)
+  if (`$relative -notmatch '(^|\\)target\\' -and `$relative -ne 'build.err' -and -not [IO.File]::Exists((Join-Path `$incoming `$relative))) {
+    [IO.File]::Delete(`$file)
+    `$changed++
+  }
+}
+Remove-Item -Recurse -Force `$incoming
+"synced: {0} files changed, {1:N0}s" -f `$changed, ((Get-Date) - `$synced).TotalSeconds
 # Before the consumers shared a workspace (2026-10-24) the addon built from its own folder.
 `$workspace = (Test-Path '$Mirror\Cargo.toml') -and (Select-String -Path '$Mirror\Cargo.toml' -Pattern '^\[workspace\]' -Quiet)
 Set-Location `$(if (`$workspace) { '$Mirror' } else { '$Mirror\native\legal-structure-node' })
@@ -72,6 +101,9 @@ Set-Location `$(if (`$workspace) { '$Mirror' } else { '$Mirror\native\legal-stru
 # A failed build leaves no earlier build's artifact to be copied back as this one's.
 if (`$build.ExitCode) { Remove-Item -ErrorAction SilentlyContinue '$Mirror\native\legal-structure-node\target\release\$(if ($Binary) { "$Binary.exe" } else { 'legal_structure_node.dll' })'; Get-Content '$Mirror\build.err' | Select-String -Pattern '^error' -Context 0, 10 | ForEach-Object { `$_.Line; `$_.Context.PostContext } | Select-Object -First 30 }
 "@
+[IO.File]::WriteAllText("$env:TEMP\snapshot-remote.ps1", $remote, (New-Object Text.UTF8Encoding $true))
+scp -q "$env:TEMP\snapshot-remote.ps1" "${Desktop}:$($Mirror -replace '\\', '/')-remote.ps1"
+ssh -o BatchMode=yes $Desktop "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Mirror-remote.ps1" 2>$null
 $artifact = if ($Binary) { "$Binary.exe" } else { 'legal_structure_node.dll' }
 scp -q "${Desktop}:$($Mirror -replace '\\', '/')/native/legal-structure-node/target/release/$artifact" $Out
 if (Test-Path $Out) { "addon at $Out" }
