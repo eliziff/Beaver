@@ -5,21 +5,22 @@
 //!   courtlistener-structure grade --pack FILE[,FILE] --pins FILE --out DIR [--clusters FILE] [--citations FILE] [--threads N]
 //!
 //! PINS comes from experiments/courtlistener-census/pin_stream.py, one JSON line each: {cluster, citing, cite, pin, form, quote, after}.
-//! The readers: `layer` is the product, in process. `field` is html_with_citations alone, every tag read as well as it can be and
+//! The readers: `parser` is the product, in process. `field` is html_with_citations alone, every tag read as well as it can be and
 //! paragraph signs found in its words. `docket` holds that field's `page-number` and `footnote` elements only, what the best
 //! converter in the wild reads. COLD Cases strips every tag and answers nothing, so it is a line in the report and no reader.
 //!
-//! A grade carries its own controls. `shifted` moves the layer's right answers a page either way: the grader must mark them wrong.
-//! `chance` asks the layer about another quotation of the same opinion: what a reader earns knowing nothing of where this one stands.
-//! `--mutate` plants a known fault in the layer's output: its own item must fall and the others hold.
+//! A grade carries its own controls. `shifted` moves the parser's right answers a page either way: the grader must mark them wrong.
+//! `chance` asks the parser about another quotation of the same opinion: what a reader earns knowing nothing of where this one stands.
+//! `--mutate` plants a known fault in the parser's output: its own item must fall and the others hold.
 //! Nothing the parser produces decides what is graded: exclusions and groups come from the citation table, the renditions' own tags
 //! and the field's text alone. A reader that keeps its answer back is marked for it: the pass marks count no answers.
 //! The tag check asks words from the middle of a tagged page. The field's score there only shows the finder and lookups agree with
-//! the tags they were read from; the layer's is a real test of what it does with those tags.
-//! Each miss of the layer goes to OUT/failures.jsonl under its cause.
+//! the tags they were read from; the parser's is a real test of what it does with those tags.
+//! Each miss of the parser goes to OUT/failures.jsonl under its cause.
 
 use crate::tool::{citations_of, clusters_of, flag, record_of, WORKER_STACK};
-use legal_structure::opinion::{opinion_structure, OpinionLayer, Page};
+use legal_structure::opinion::{nodes, numbers_at, opinion_structure, paragraphs, pin_at, reading};
+use legal_structure::{DocumentStructure, NodeKind, StructureNode};
 use regex::Regex;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
@@ -158,7 +159,7 @@ fn gram(words: &[u64]) -> u64 {
     words.iter().fold(0, |hash, word| hash.rotate_left(13) ^ word)
 }
 
-/// Words of a text with where each stands, in UTF-16 units as the layer counts.
+/// Words of a text with where each stands, in UTF-16 units as the parser counts.
 fn words_of(text: &str) -> (Vec<u64>, Vec<(usize, usize)>) {
     let (mut hashes, mut places, mut word, mut unit, mut start) = (Vec::new(), Vec::new(), String::new(), 0, 0);
     for c in text.chars() {
@@ -445,34 +446,34 @@ fn holds(pin: &str, through: Option<&str>, first: &str, last: &str) -> bool {
 
 type Answer = Option<(String, String)>;
 
-/// The layer's answer: which page, paragraph, note or writing it says the words stand in.
-fn layer_answer(layer: &OpinionLayer, question: &Question, found: Found) -> Answer {
+/// The parser's answer: which page, paragraph, note or writing it says the words stand in.
+fn parser_answer(structure: &DocumentStructure, question: &Question, found: Found) -> Answer {
     match &question.kind {
         Kind::Page | Kind::Vendor => {
-            let series = series_for(layer, question)?;
-            let pin = layer.pin_at(&series, found.start, found.end)?;
+            let series = series_for(structure, question)?;
+            let pin = pin_at(structure, &series, found.start, found.end)?;
             let through = pin.through.clone().unwrap_or_else(|| pin.page.clone());
             Some((pin.page, through))
         }
-        Kind::Paragraph => layer.numbers_at(found.start, found.end),
+        Kind::Paragraph => numbers_at(structure, found.start, found.end),
         Kind::Note(_) => {
             let middle = (found.start + found.end) / 2;
-            let note = layer.notes.iter().find(|note| note.ranges.iter().any(|range| range.start <= middle && middle < range.end))?;
-            Some((note.label.trim_matches(['[', ']', '(', ')', '.', ':', ' ']).to_owned(), String::new()))
+            let note = nodes(structure, NodeKind::Footnote).find(|note| note.ranges.iter().any(|range| range.start <= middle && middle < range.end))?;
+            Some((note.printed_label().trim_matches(['[', ']', '(', ')', '.', ':', ' ']).to_owned(), String::new()))
         }
         Kind::Part(_) => {
             let middle = (found.start + found.end) / 2;
-            let part = layer.parts.iter().find(|part| part.start <= middle && middle < part.end)?;
-            Some((part.kind.to_lowercase(), String::new()))
+            let part = nodes(structure, NodeKind::Section).find(|part| part.range.start <= middle && middle < part.range.end)?;
+            Some((part.display_value.as_deref().unwrap_or("").to_lowercase(), String::new()))
         }
         Kind::Point => None,
     }
 }
 
 /// The point of the opinion's syllabus that holds a quotation: asked of the headnotes, which may stand apart from the text.
-fn point_answer(layer: &OpinionLayer, quote: &[Vec<u64>]) -> Answer {
+fn point_answer(structure: &DocumentStructure, quote: &[Vec<u64>]) -> Answer {
     let longest = quote.iter().max_by_key(|part| part.len())?;
-    layer.headnotes.iter().find_map(|headnote| {
+    reading(structure).headnotes.iter().find_map(|headnote| {
         let finder = Finder::new(&headnote.text);
         finder.find(longest)?;
         Some((headnote.number.clone().unwrap_or_default().trim_matches(['.', ')', '(', ' ']).to_owned(), String::new()))
@@ -480,12 +481,12 @@ fn point_answer(layer: &OpinionLayer, quote: &[Vec<u64>]) -> Answer {
 }
 
 /// The numbering a pin names, by the name of the citation it was matched to.
-fn series_for(layer: &OpinionLayer, question: &Question) -> Option<String> {
+fn series_for(structure: &DocumentStructure, question: &Question) -> Option<String> {
     let name = squeezed(&question.reporter);
     if name.is_empty() {
         return None;
     }
-    layer.page_series.iter().find(|series| squeezed(&series.reporter) == name || series.also.iter().any(|also| squeezed(also).starts_with(&name))).map(|series| series.series.clone())
+    reading(structure).page_series.iter().find(|series| squeezed(&series.reporter) == name || series.also.iter().any(|also| squeezed(also).starts_with(&name))).map(|series| series.series.clone())
 }
 
 /// The record's table of citations: name, volume, first page.
@@ -515,12 +516,12 @@ fn citation_of(question: &Question, table: &Table) -> Option<(String, u32)> {
 }
 
 /// The kind of mark a page answer rests on: printed, placed from another version, or reckoned.
-fn source_of<'a>(layer: &'a OpinionLayer, question: &Question, found: Found) -> Option<&'a str> {
+fn source_of<'a>(structure: &'a DocumentStructure, question: &Question, found: Found) -> Option<&'a str> {
     if !matches!(question.kind, Kind::Page | Kind::Vendor) {
         return None;
     }
-    let series = series_for(layer, question)?;
-    layer.pages.iter().filter(|page| page.series == series && !page.in_note() && page.range.start <= found.start).max_by_key(|page| page.range.start).map(|page| page.source())
+    let series = series_for(structure, question)?;
+    nodes(structure, NodeKind::Page).filter(|page| page.series == series && !page.properties.contains_key("in_note") && page.range.start <= found.start).max_by_key(|page| page.range.start).map(|page| page.grammar.as_deref().unwrap_or(""))
 }
 
 /// `docket` keeps to the `page-number` and `footnote` elements. `low` is the citation's first page in the record's own table. Words
@@ -547,7 +548,7 @@ fn field_answer(field: &Field, question: &Question, found: Found, elements_only:
         Kind::Note(_) => Some((note?.2.trim_matches(['[', ']', '(', ')', '.', ':', ' ']).to_owned(), String::new())),
         Kind::Point => None,
         Kind::Part(_) if elements_only => None,
-        // The record's own type is the field's to read, as the layer reads it.
+        // The record's own type is the field's to read, as the parser reads it.
         Kind::Part(_) => field.writings.iter().find(|writing| writing.0 <= middle && middle < writing.1).map(|writing| writing.2.clone())
             .or_else(|| (!opinion_type.is_empty()).then(|| opinion_type.to_lowercase())).map(|kind| (kind, String::new())),
     }
@@ -570,16 +571,16 @@ fn outcome(question: &Question, answer: &Answer) -> &'static str {
     }
 }
 
-fn near_mark(layer: &OpinionLayer, place: usize) -> bool {
-    layer.pages.iter().any(|page| !page.in_note() && page.range.start.abs_diff(place) <= NEAR_MARK)
+fn near_mark(structure: &DocumentStructure, place: usize) -> bool {
+    nodes(structure, NodeKind::Page).any(|page| !page.properties.contains_key("in_note") && page.range.start.abs_diff(place) <= NEAR_MARK)
 }
 
-/// Why the layer missed, the cause to read first.
-fn cause(question: &Question, ours: &Answer, field: &Answer, layer: &OpinionLayer, found: Found) -> &'static str {
+/// Why the parser missed, the cause to read first.
+fn cause(question: &Question, ours: &Answer, field: &Answer, structure: &DocumentStructure, found: Found) -> &'static str {
     let field_right = field.as_ref().is_some_and(|answer| right(question, answer));
     match ours {
         None if field_right => "no answer, the field had it",
-        None if layer.page_series.is_empty() && matches!(question.kind, Kind::Page | Kind::Vendor) => "no answer, no numbering tied to any citation",
+        None if reading(structure).page_series.is_empty() && matches!(question.kind, Kind::Page | Kind::Vendor) => "no answer, no numbering tied to any citation",
         None => "no answer",
         Some(_) if field_right => "wrong, the field had it",
         Some(mine) => {
@@ -587,7 +588,7 @@ fn cause(question: &Question, ours: &Answer, field: &Answer, layer: &OpinionLaye
                 return "wrong, and the field agrees with us";
             }
             let off = matches!((question.pin.parse::<i64>(), mine.0.parse::<i64>()), (Ok(pin), Ok(said)) if pin.abs_diff(said) == 1);
-            if off && near_mark(layer, found.start) {
+            if off && near_mark(structure, found.start) {
                 "wrong by a page, beside a mark"
             } else if off {
                 "wrong by a page"
@@ -786,7 +787,7 @@ fn any_rendition(raw: &str) -> Field {
 /// The best single field for this opinion, item by item, chosen knowing which pins it gets right: no real reader can do better
 /// from one field, so what it cannot reach only the union reaches.
 #[allow(clippy::too_many_arguments)]
-fn best_one_field(renditions: &[(String, String)], graded: &[(String, Question, Option<u32>, String)], opinion_type: &str, scan: Option<&Scan>, reparse: Option<&dyn Fn(&str) -> Option<OpinionLayer>>, scored: &mut Vec<Scored>, tally: &mut Tally, failures: &mut Vec<Value>, id: &str) {
+fn best_one_field(renditions: &[(String, String)], graded: &[(String, Question, Option<u32>, String)], opinion_type: &str, scan: Option<&Scan>, reparse: Option<&dyn Fn(&str) -> Option<DocumentStructure>>, scored: &mut Vec<Scored>, tally: &mut Tally, failures: &mut Vec<Value>, id: &str) {
     let mut best = BTreeMap::<&str, (usize, &str, Vec<(&'static str, &str)>)>::new();
     let mut best_by_scan = BTreeMap::<&str, (usize, Vec<&'static str>)>::new();
     let truths = graded.iter().map(|(_, question, low, _)| scan.filter(|scan| question.kind == Kind::Page && low.is_some_and(|low| low.abs_diff(scan.first) <= 2)).map_or_else(Vec::new, |scan| scan.pages_of(&question.quote))).collect::<Vec<_>>();
@@ -798,7 +799,7 @@ fn best_one_field(renditions: &[(String, String)], graded: &[(String, Question, 
             continue;
         }
         let field = any_rendition(raw);
-        let text = parsed.as_ref().map_or(field.text.as_str(), |layer| layer.text.as_str());
+        let text = parsed.as_ref().map_or(field.text.as_str(), |structure| structure.text.as_str());
         // html_with_citations and xml_harvard are one tree: the same words and marks are not read twice.
         if !read.insert((hash_word(text), field.marks.len())) {
             continue;
@@ -810,7 +811,7 @@ fn best_one_field(renditions: &[(String, String)], graded: &[(String, Question, 
         for ((group, question, low, claim), truth) in graded.iter().zip(&truths) {
             let found = find_quote(&finder, &quote_parts(&question.quote)).filter(|found| !found.twice).map(|found| widened(&units, found));
             let said = match &parsed {
-                Some(layer) => found.and_then(|found| layer_answer(layer, question, found)),
+                Some(structure) => found.and_then(|found| parser_answer(structure, question, found)),
                 None => found.and_then(|found| field_answer(&field, question, found, false, *low, opinion_type)),
             };
             let result = if found.is_some() { outcome(question, &said) } else { "quotation not in its text" };
@@ -837,7 +838,7 @@ fn best_one_field(renditions: &[(String, String)], graded: &[(String, Question, 
             tally.add(format!("{group}|best one field by scan|{result}"));
         }
     }
-    let ours = scored.iter().filter(|score| score.1 == "layer").map(|score| ((score.0.clone(), score.3.clone()), score.2)).collect::<HashMap<_, _>>();
+    let ours = scored.iter().filter(|score| score.1 == "parser").map(|score| ((score.0.clone(), score.3.clone()), score.2)).collect::<HashMap<_, _>>();
     for (group, (_, name, results)) in best {
         for (result, claim) in results {
             tally.add(format!("{group}|best one field|{result}"));
@@ -872,13 +873,13 @@ fn tagged_labels(rendition: &str) -> Vec<u32> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)], labels: &[u32], opinion_type: &str, siblings: &[String], scan: Option<&Scan>, paired: Option<&Vec<(String, u32, String, u32, String)>>, reparse: Option<&dyn Fn(&str) -> Option<OpinionLayer>>, rate: f64, questions: &[Question], table: &Table, tally: &mut Tally, failures: &mut Vec<Value>, answers: &mut Vec<Value>, id: &str) {
+fn grade_record(structure: &DocumentStructure, raw: &str, renditions: &[(String, String)], labels: &[u32], opinion_type: &str, siblings: &[String], scan: Option<&Scan>, paired: Option<&Vec<(String, u32, String, u32, String)>>, reparse: Option<&dyn Fn(&str) -> Option<DocumentStructure>>, rate: f64, questions: &[Question], table: &Table, tally: &mut Tally, failures: &mut Vec<Value>, answers: &mut Vec<Value>, id: &str) {
     let mut scored = Vec::<Scored>::new();
     let mut graded = Vec::<(String, Question, Option<u32>, String)>::new();
-    let ours = Finder::new(&layer.text);
+    let ours = Finder::new(&structure.text);
     let field = field_of(raw);
     let theirs = Finder::new(&field.text);
-    let (our_units, their_units) = (layer.text.encode_utf16().collect::<Vec<_>>(), field.text.encode_utf16().collect::<Vec<_>>());
+    let (our_units, their_units) = (structure.text.encode_utf16().collect::<Vec<_>>(), field.text.encode_utf16().collect::<Vec<_>>());
     let located = questions.iter().map(|question| {
         let parts = quote_parts(&question.quote);
         (find_quote(&ours, &parts), find_quote(&theirs, &parts))
@@ -907,10 +908,10 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
         let numbering = legal_structure::opinion::citers_numbering(&pins);
         (name, numbering)
     }).collect::<HashMap<_, _>>();
-    tag_check(layer, &field, &our_units, &their_units, &ours, &theirs, table, tally, failures, id, &every_citer);
+    tag_check(structure, &field, &our_units, &their_units, &ours, &theirs, table, tally, failures, id, &every_citer);
     // What opens a separate writing, by its first word: no pin tests a part wrongly opened where nobody attributes a quotation.
-    for part in layer.parts.iter().filter(|part| part.start > 0 && matches!(part.kind.as_str(), "dissent" | "concurrence" | "concurrence and dissent")) {
-        let first = part.author.as_deref().and_then(|author| author.split_whitespace().next()).unwrap_or("").to_lowercase();
+    for part in nodes(structure, NodeKind::Section).filter(|part| part.range.start > 0 && matches!(part.display_value.as_deref().unwrap_or(""), "dissent" | "concurrence" | "concurrence and dissent")) {
+        let first = part.properties.get("author").map(String::as_str).and_then(|author| author.split_whitespace().next()).unwrap_or("").to_lowercase();
         tally.add(format!("openers|{}|", first.trim_matches(|c: char| !c.is_alphanumeric())));
     }
     let places = located.iter().filter_map(|pair| pair.0).map(|found| widened(&our_units, found)).collect::<Vec<_>>();
@@ -939,9 +940,9 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
         let kind = question.kind.name();
         // A syllabus may stand on the case and not in the opinion's text: the point is asked of the headnotes alone.
         if question.kind == Kind::Point {
-            let said = point_answer(layer, &quote_parts(&question.quote));
+            let said = point_answer(structure, &quote_parts(&question.quote));
             let result = outcome(question, &said);
-            tally.add(format!("{kind}|layer|{result}"));
+            tally.add(format!("{kind}|structure|{result}"));
             tally.add(format!("{kind}|field|no answer"));
             tally.add(format!("{kind}|docket|no answer"));
             if result != "right" {
@@ -1006,23 +1007,23 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
         scored.push((group.clone(), "field".to_owned(), field_result, claim.clone()));
         tally.add(format!("{group}|docket|{}", if other.is_some() { outcome(question, &docket_said) } else { "quotation not in its text" }));
         let Some(found) = mine else {
-            tally.add(format!("{group}|layer|quotation not in its text"));
+            tally.add(format!("{group}|structure|quotation not in its text"));
             tally.add(format!("{group}|combined|quotation not in its text"));
-            scored.push((group.clone(), "layer".to_owned(), "quotation not in its text", claim.clone()));
+            scored.push((group.clone(), "parser".to_owned(), "quotation not in its text", claim.clone()));
             scored.push((group.clone(), "combined".to_owned(), "quotation not in its text", claim.clone()));
             if field_said.as_ref().is_some_and(|answer| right(question, answer)) {
                 failures.push(json!({ "cause": "our text lacks the words, the field had it", "kind": kind, "id": id, "cite": question.cite, "pin": question.pin, "citing": question.citing, "quote": question.quote }));
             }
             continue;
         };
-        let said = layer_answer(layer, question, found);
+        let said = parser_answer(structure, question, found);
         let result = outcome(question, &said);
-        tally.add(format!("{group}|layer|{result}"));
-        scored.push((group.clone(), "layer".to_owned(), result, claim.clone()));
+        tally.add(format!("{group}|structure|{result}"));
+        scored.push((group.clone(), "parser".to_owned(), result, claim.clone()));
         let vote = other.filter(|_| matches!(question.kind, Kind::Page | Kind::Paragraph)).and_then(|found| majority(question, found));
         if let Some(vote) = &vote {
             let voted = Question { pin: vote.clone(), through: None, others: Vec::new(), ..question.clone() };
-            tally.add(format!("{group}|layer, by passage vote|{}", outcome(&voted, &said)));
+            tally.add(format!("{group}|parser, by passage vote|{}", outcome(&voted, &said)));
             tally.add(format!("{group}|field, by passage vote|{}", outcome(&voted, &field_said)));
             tally.add(format!("{group}|this pin against its passage's vote|{}", if *vote == question.pin { "agrees" } else { "differs" }));
         }
@@ -1049,7 +1050,7 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
                         tally.add(format!("{group}|excluded by scan|words not located on a page"));
                     } else {
                         let pin = question.pin.parse::<u32>().ok().map(|pin| (pin.to_string(), question.through.clone().unwrap_or_else(|| pin.to_string())));
-                        for (reader, answer) in [("layer", &said), ("field", &field_said), ("citers", &citers), ("citing judge", &pin)] {
+                        for (reader, answer) in [("parser", &said), ("field", &field_said), ("citers", &citers), ("citing judge", &pin)] {
                             tally.add(format!("{group}|{reader} by scan|{}", by_scan(&truth, answer)));
                         }
                         let joined = said.clone().or(citers.clone());
@@ -1060,20 +1061,20 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
                     }
                 }
             }
-            // Pairs: a page the layer knows in another reporter, and the page other opinions pair with it in this one.
+            // Pairs: a page the parser knows in another reporter, and the page other opinions pair with it in this one.
             if let Some(paired) = paired.filter(|_| question.kind == Kind::Page) {
                 let wanted = question.reporter.clone();
-                let ask = |least: u32| layer.page_series.iter().filter(|series| squeezed(&series.reporter) != wanted).find_map(|series| {
+                let ask = |least: u32| reading(structure).page_series.iter().filter(|series| squeezed(&series.reporter) != wanted).find_map(|series| {
                     let other = Question { reporter: series.reporter.clone(), ..question.clone() };
-                    let page = layer_answer(layer, &other, found)?.0.parse::<u32>().ok()?;
+                    let page = parser_answer(structure, &other, found)?.0.parse::<u32>().ok()?;
                     paired_page(paired, &squeezed(&series.reporter), page, &wanted, &question.citing, least)
                 }).map(|page| (page.to_string(), page.to_string()));
                 let (answer, agreed, unanimous) = (ask(1), ask(2), ask(0));
                 tally.add(format!("{group}|pairs, all agree|{}", outcome(question, &unanimous)));
-                tally.add(format!("{group}|layer, citers, pairs all agree|{}", outcome(question, &said.clone().or(citers.clone()).or(unanimous.clone()))));
+                tally.add(format!("{group}|parser, citers, pairs all agree|{}", outcome(question, &said.clone().or(citers.clone()).or(unanimous.clone()))));
                 // Where pairs disagree, the citers' page decides between them: keep it only if some pair names it.
                 let settled = citers.clone().filter(|_| unanimous.is_none() && answer.is_some());
-                tally.add(format!("{group}|layer, pairs all agree, then citers|{}", outcome(question, &said.clone().or(unanimous).or(settled).or(citers.clone()))));
+                tally.add(format!("{group}|parser, pairs all agree, then citers|{}", outcome(question, &said.clone().or(unanimous).or(settled).or(citers.clone()))));
                 tally.add(format!("{group}|pairs|{}", outcome(question, &answer)));
                 if let (Some(said_page), Ok(pin)) = (answer.as_ref().and_then(|pages| pages.0.parse::<i64>().ok()), question.pin.parse::<i64>()) {
                     if outcome(question, &answer) == "wrong" {
@@ -1082,9 +1083,9 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
                     }
                 }
                 tally.add(format!("{group}|pairs, two or more|{}", outcome(question, &agreed)));
-                tally.add(format!("{group}|layer, then pairs, then citers|{}", outcome(question, &said.clone().or(answer.clone()).or(citers.clone()))));
-                tally.add(format!("{group}|layer, then citers, then pairs|{}", outcome(question, &said.clone().or(citers.clone()).or(answer))));
-                tally.add(format!("{group}|layer, citers, pairs two or more|{}", outcome(question, &said.clone().or(citers.clone()).or(agreed))));
+                tally.add(format!("{group}|parser, then pairs, then citers|{}", outcome(question, &said.clone().or(answer.clone()).or(citers.clone()))));
+                tally.add(format!("{group}|parser, then citers, then pairs|{}", outcome(question, &said.clone().or(citers.clone()).or(answer))));
+                tally.add(format!("{group}|parser, citers, pairs two or more|{}", outcome(question, &said.clone().or(citers.clone()).or(agreed))));
             }
             let joined = outcome(question, &said.clone().or(citers));
             tally.add(format!("{group}|combined|{joined}"));
@@ -1093,7 +1094,7 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
             tally.add(format!("{group}|combined|{result}"));
             scored.push((group.clone(), "combined".to_owned(), result, claim.clone()));
         }
-        if let Some(source) = said.as_ref().and_then(|_| source_of(layer, question, found)) {
+        if let Some(source) = said.as_ref().and_then(|_| source_of(structure, question, found)) {
             tally.add(format!("{group}|rests on {source}|{result}"));
         }
         tally.add(format!("{group}|found|{}", if found.exact { "word for word" } else { "through a scanner's slips" }));
@@ -1101,7 +1102,7 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
             tally.add(format!("{group}|words stand twice in our text|"));
         }
         if result == "right" && field_said.as_ref().is_none_or(|answer| !right(question, answer)) {
-            tally.add(format!("{group}|only the layer right|"));
+            tally.add(format!("{group}|only the parser right|"));
         }
         if result != "right" && field_said.as_ref().is_some_and(|answer| right(question, answer)) {
             tally.add(format!("{group}|only the field right|"));
@@ -1120,17 +1121,17 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
             if places.len() > 1 {
                 let elsewhere = places[(at + 1) % places.len()];
                 if elsewhere.start != found.start {
-                    let answer = layer_answer(layer, question, elsewhere);
+                    let answer = parser_answer(structure, question, elsewhere);
                     tally.add(format!("{group}|chance|{}", outcome(question, &answer)));
                 }
             }
         }
         if result != "right" {
-            let why = cause(question, &said, &field_said, layer, found);
+            let why = cause(question, &said, &field_said, structure, found);
             tally.add(format!("{group}|cause|{why}"));
             let (from, to) = (found.start.saturating_sub(120), found.end + 120);
-            let context = String::from_utf16_lossy(&layer.text.encode_utf16().skip(from).take(to - from).collect::<Vec<_>>());
-            failures.push(json!({ "cause": why, "kind": kind, "group": group, "id": id, "cite": question.cite, "pin": question.pin, "ours": said, "field": field_said, "citing": question.citing, "quote": question.quote, "at": found.start, "exact": found.exact, "vote": vote, "marks_around": other.map(|found| (field.marks.iter().filter(|mark| mark.0 <= found.end).next_back().map(|mark| found.start as i64 - mark.0 as i64), field.marks.iter().find(|mark| mark.0 > found.end).map(|mark| mark.0 as i64 - found.end as i64))), "context": context, "series": layer.page_series.iter().map(|series| &series.citation).collect::<Vec<_>>() }));
+            let context = String::from_utf16_lossy(&structure.text.encode_utf16().skip(from).take(to - from).collect::<Vec<_>>());
+            failures.push(json!({ "cause": why, "kind": kind, "group": group, "id": id, "cite": question.cite, "pin": question.pin, "ours": said, "field": field_said, "citing": question.citing, "quote": question.quote, "at": found.start, "exact": found.exact, "vote": vote, "marks_around": other.map(|found| (field.marks.iter().filter(|mark| mark.0 <= found.end).next_back().map(|mark| found.start as i64 - mark.0 as i64), field.marks.iter().find(|mark| mark.0 > found.end).map(|mark| mark.0 as i64 - found.end as i64))), "context": context, "series": reading(structure).page_series.iter().map(|series| &series.citation).collect::<Vec<_>>() }));
         }
     }
     let started = Instant::now();
@@ -1140,10 +1141,10 @@ fn grade_record(layer: &OpinionLayer, raw: &str, renditions: &[(String, String)]
 }
 
 /// The key with no judge in it. Words from the middle of a page the tags bound are asked of every reader: the field, which holds
-/// the tags, must be right every time or the grader is broken, and any miss of the layer is its own. Most of the opinion's pages,
+/// the tags, must be right every time or the grader is broken, and any miss of the parser is its own. Most of the opinion's pages,
 /// spread evenly, a handful to a record.
 #[allow(clippy::too_many_arguments)]
-fn tag_check(layer: &OpinionLayer, field: &Field, our_units: &[u16], their_units: &[u16], ours: &Finder, theirs: &Finder, table: &Table, tally: &mut Tally, failures: &mut Vec<Value>, id: &str, citers: &HashMap<String, Vec<(usize, u32, u32)>>) {
+fn tag_check(structure: &DocumentStructure, field: &Field, our_units: &[u16], their_units: &[u16], ours: &Finder, theirs: &Finder, table: &Table, tally: &mut Tally, failures: &mut Vec<Value>, id: &str, citers: &HashMap<String, Vec<(usize, u32, u32)>>) {
     const ASKED: usize = 5;
     const SPAN: usize = 260;
     const GROUP: &str = "tag check, no judges";
@@ -1185,64 +1186,70 @@ fn tag_check(layer: &OpinionLayer, field: &Field, our_units: &[u16], their_units
         }
         let said = last_before(&tagged, other.start).map(|page| (page.to_owned(), last_before(&tagged, other.end).unwrap_or(page).to_owned()));
         tally.add(format!("{GROUP}|field|{}", outcome(&asked, &said)));
-        let ours_said = names.iter().find_map(|name| layer_answer(layer, &question(name), mine));
+        let ours_said = names.iter().find_map(|name| parser_answer(structure, &question(name), mine));
         let result = outcome(&asked, &ours_said);
-        tally.add(format!("{GROUP}|layer|{result}"));
+        tally.add(format!("{GROUP}|structure|{result}"));
         // The citers' numbering against the tags, which no citer wrote: the one check of it the citers cannot have leaked into.
         let reckoned = names.iter().find_map(|name| legal_structure::opinion::citers_page(citers.get(name)?, (mine.start + mine.end) / 2)).map(|pages| (pages.0.to_string(), pages.1.to_string()));
         tally.add(format!("{GROUP}|citers|{}", outcome(&asked, &reckoned)));
         if result != "right" {
             let at = mine.start.min(our_units.len());
             let context = String::from_utf16_lossy(&our_units[at.saturating_sub(100)..(at + 160).min(our_units.len())]);
-            failures.push(json!({ "cause": format!("tag check: {result}"), "kind": "tag", "id": id, "reporter": names, "pin": label, "ours": ours_said, "at": mine.start, "context": context, "series": layer.page_series.iter().map(|series| &series.citation).collect::<Vec<_>>() }));
+            failures.push(json!({ "cause": format!("tag check: {result}"), "kind": "tag", "id": id, "reporter": names, "pin": label, "ours": ours_said, "at": mine.start, "context": context, "series": reading(structure).page_series.iter().map(|series| &series.citation).collect::<Vec<_>>() }));
         }
     }
 }
 
 /// A planted fault, to prove the grader sees it: each must lower its own item and leave the others.
-fn mutate(layer: &mut OpinionLayer, name: &str) {
+fn mutate(structure: &mut DocumentStructure, name: &str) {
     let plus = |label: &mut String, by: i64| {
         if let Ok(number) = label.parse::<i64>() {
             *label = (number + by).to_string();
         }
     };
+    let relabel = |node: &mut StructureNode, prefix: &str| {
+        let mut label = node.printed_label().to_owned();
+        plus(&mut label, 1);
+        node.label = Some(format!("{prefix}{label}"));
+    };
+    let paragraph = |node: &StructureNode| matches!(node.kind, NodeKind::Paragraph | NodeKind::Quote);
     match name {
-        "page-labels+1" => {
-            layer.pages.iter_mut().for_each(|page| { let mut label = page.label().to_owned(); plus(&mut label, 1); page.label = Some(format!("page{label}")); });
-            for pin in layer.notes.iter_mut().flat_map(|note| note.pins.iter_mut()) {
-                plus(&mut pin.page, 1);
-                if let Some(through) = &mut pin.through {
-                    plus(through, 1);
-                }
+        "page-labels+1" => for node in &mut structure.nodes {
+            match node.kind {
+                NodeKind::Page => relabel(node, "page"),
+                NodeKind::Footnote => for pin in &mut node.pins {
+                    plus(&mut pin.page, 1);
+                    if let Some(through) = &mut pin.through {
+                        plus(through, 1);
+                    }
+                },
+                _ => {}
             }
-        }
+        },
         // Each mark a little way down the page: only passages near a break can tell.
-        "page-marks-late" => layer.pages.iter_mut().for_each(|page| page.range.start += 600),
+        "page-marks-late" => structure.nodes.iter_mut().filter(|node| node.kind == NodeKind::Page).for_each(|page| page.range.start += 600),
         // Reporters crossed: each citation answered with the other's numbering. The parallel pins' own test.
-        "series-crossed" => {
-            let names = layer.page_series.iter().map(|series| series.series.clone()).collect::<Vec<_>>();
+        "series-crossed" => if let Some(opinion) = structure.opinion.as_deref_mut() {
+            let names = opinion.page_series.iter().map(|series| series.series.clone()).collect::<Vec<_>>();
             if names.len() >= 2 {
-                for (at, series) in layer.page_series.iter_mut().enumerate() {
+                for (at, series) in opinion.page_series.iter_mut().enumerate() {
                     series.series = names[(at + 1) % names.len()].clone();
                 }
             }
-        }
-        "notes-gone" => layer.notes.clear(),
-        "note-labels+1" => layer.notes.iter_mut().for_each(|note| plus(&mut note.label, 1)),
-        "numbers+1" => layer.paragraphs.iter_mut().for_each(|paragraph| {
-            if let Some(number) = &mut paragraph.number {
-                plus(number, 1);
-            }
-        }),
-        "numbers-gone" => layer.paragraphs.iter_mut().for_each(|paragraph| paragraph.number = None),
-        "writings-crossed" => layer.parts.iter_mut().for_each(|part| {
-            part.kind = if part.kind.contains("dissent") { "majority".to_owned() } else { "dissent".to_owned() };
+        },
+        "notes-gone" => structure.nodes.retain(|node| node.kind != NodeKind::Footnote),
+        "note-labels+1" => structure.nodes.iter_mut().filter(|node| node.kind == NodeKind::Footnote).for_each(|note| relabel(note, "fn")),
+        "numbers+1" => structure.nodes.iter_mut().filter(|node| paragraph(node) && node.label.is_some()).for_each(|node| relabel(node, "par")),
+        "numbers-gone" => structure.nodes.iter_mut().filter(|node| paragraph(node)).for_each(|node| node.label = None),
+        "writings-crossed" => structure.nodes.iter_mut().filter(|node| node.kind == NodeKind::Section).for_each(|part| {
+            let crossed = if part.display_value.as_deref().unwrap_or("").contains("dissent") { "majority" } else { "dissent" };
+            part.display_value = Some(crossed.to_owned());
         }),
         // Text cut from the middle: the words go, and every pin past them must say so.
         "text-halved" => {
-            let half = layer.text.len() / 2;
-            let cut = (half..layer.text.len()).find(|at| layer.text.is_char_boundary(*at)).unwrap_or(half);
-            layer.text.truncate(cut);
+            let half = structure.text.len() / 2;
+            let cut = (half..structure.text.len()).find(|at| structure.text.is_char_boundary(*at)).unwrap_or(half);
+            structure.text.truncate(cut);
         }
         other => panic!("no such mutation: {other}"),
     }
@@ -1264,7 +1271,7 @@ fn report(tally: &Tally, records: u64, seconds: f64) -> String {
     for group in &groups {
         let count = |reader: &str, result: &str| tally.get(&format!("{group}|{reader}|{result}"));
         out.push_str(&format!("\n== {group}\n"));
-        for reader in ["layer", "field", "best one field", "docket", "citers", "citers, one page", "combined", "layer, by passage vote", "field, by passage vote", "layer distinct", "field distinct", "best one field distinct", "combined distinct", "layer by scan", "field by scan", "best one field by scan", "citers by scan", "combined by scan", "citing judge by scan", "pairs", "pairs, two or more", "pairs, all agree", "layer, citers, pairs all agree", "layer, pairs all agree, then citers", "layer, then pairs, then citers", "layer, then citers, then pairs", "layer, citers, pairs two or more"] {
+        for reader in ["parser", "field", "best one field", "docket", "citers", "citers, one page", "combined", "parser, by passage vote", "field, by passage vote", "parser distinct", "field distinct", "best one field distinct", "combined distinct", "parser by scan", "field by scan", "best one field by scan", "citers by scan", "combined by scan", "citing judge by scan", "pairs", "pairs, two or more", "pairs, all agree", "parser, citers, pairs all agree", "parser, pairs all agree, then citers", "parser, then pairs, then citers", "parser, then citers, then pairs", "parser, citers, pairs two or more"] {
             let (yes, no, none, away) = (count(reader, "right"), count(reader, "wrong"), count(reader, "no answer"), count(reader, "quotation not in its text"));
             let answered = yes + no;
             if answered + none + away == 0 {
@@ -1273,7 +1280,7 @@ fn report(tally: &Tally, records: u64, seconds: f64) -> String {
             out.push_str(&format!("  {reader:24} right {yes:>8}  wrong {no:>7}  no answer {none:>8}  words not in its text {away:>7}  right when answering {:>6.2}%  right of all {:>6.2}%\n",
                 yes as f64 * 100.0 / answered.max(1) as f64, yes as f64 * 100.0 / (answered + none + away).max(1) as f64));
         }
-        for reader in ["layer", "field", "best one field", "combined"] {
+        for reader in ["parser", "field", "best one field", "combined"] {
             let opinions = count(&format!("{reader} per opinion"), "opinions");
             if opinions > 0 {
                 let mean = count(&format!("{reader} per opinion"), "sum") as f64 / 1e6 / opinions as f64;
@@ -1284,7 +1291,7 @@ fn report(tally: &Tally, records: u64, seconds: f64) -> String {
         }
         out.push_str(&format!("  cold    right        0  (COLD Cases keeps no marks; it answers nothing)\n"));
         for tier in TIERS {
-            for reader in ["layer", "field", "best one field", "combined"] {
+            for reader in ["parser", "field", "best one field", "combined"] {
                 let name = format!("{reader} [{tier}]");
                 let (yes, no, none, away) = (count(&name, "right"), count(&name, "wrong"), count(&name, "no answer"), count(&name, "quotation not in its text"));
                 if yes + no + none + away > 0 {
@@ -1296,7 +1303,7 @@ fn report(tally: &Tally, records: u64, seconds: f64) -> String {
         if agrees + differs > 0 {
             out.push_str(&format!("  pins on a passage three or more quote: {} agree with the majority, {} do not ({:.2}%)\n", agrees, differs, differs as f64 * 100.0 / (agrees + differs) as f64));
         }
-        out.push_str(&format!("  only the layer right {}   only the field right {}\n", count("only the layer right", ""), count("only the field right", "")));
+        out.push_str(&format!("  only the parser right {}   only the field right {}\n", count("only the parser right", ""), count("only the field right", "")));
         let (moved, chance) = (count("shifted", "right") as f64 * 100.0 / (count("shifted", "right") + count("shifted", "wrong")).max(1) as f64,
             count("chance", "right") as f64 * 100.0 / (count("chance", "right") + count("chance", "wrong")).max(1) as f64);
         if count("shifted", "wrong") + count("chance", "wrong") > 0 {
@@ -1321,9 +1328,9 @@ fn report(tally: &Tally, records: u64, seconds: f64) -> String {
         out.push_str(&format!("\nPANICS: {} records lost with all their pins\n", tally.get("panic|panic|panic")));
     }
     out.push_str("\npass marks, which count only where the head of this report says UNSEEN: right when answering, and right of all\n");
-    let mut marks = PASS.iter().map(|(name, answering, all)| ("layer", (*name).to_owned(), *answering, *all)).collect::<Vec<_>>();
-    marks.push(("layer", "writing".to_owned(), 99.0, Some(95.0)));
-    marks.push(("layer", "headnote".to_owned(), 99.0, None));
+    let mut marks = PASS.iter().map(|(name, answering, all)| ("parser", (*name).to_owned(), *answering, *all)).collect::<Vec<_>>();
+    marks.push(("parser", "writing".to_owned(), 99.0, Some(95.0)));
+    marks.push(("parser", "headnote".to_owned(), 99.0, None));
     marks.extend(PASS.iter().take(4).map(|(name, answering, all)| ("combined", (*name).to_owned(), *answering, *all)));
     for (reader, name, answering, all) in marks {
         let count = |result: &str| tally.get(&format!("{name}|{reader}|{result}"));
@@ -1416,10 +1423,10 @@ pub fn grade(args: &[String]) {
                 // The rival, our parser on one rendition at a time, with the record's own fields.
                 let one_by_one = files.clone();
                 let (clusters_here, citations_here) = (clusters.clone(), citations.clone());
-                let reparse = parser_rival.then(|| move |name: &str| -> Option<OpinionLayer> {
+                let reparse = parser_rival.then(|| move |name: &str| -> Option<DocumentStructure> {
                     let only = one_by_one.iter().filter(|file| file.0 == "fields.json" || file.0 == name).cloned().collect::<Vec<_>>();
                     let (record, _) = record_of(id_for_rival.clone(), only, &clusters_here, &citations_here);
-                    catch_unwind(AssertUnwindSafe(|| OpinionLayer::of(&opinion_structure(&record, None)))).ok()
+                    catch_unwind(AssertUnwindSafe(|| opinion_structure(&record, None))).ok()
                 });
                 // The same parser on the one rendition: what the union itself adds, and no comparison of a parser with a tag reader.
                 let files = files.into_iter().filter(|(name, _)| name == "fields.json" || only.as_deref().is_none_or(|only| only == name)).collect::<Vec<_>>();
@@ -1428,22 +1435,22 @@ pub fn grade(args: &[String]) {
                 let Some(questions) = fields["cluster_id"].as_str().and_then(|cluster| pins.get(cluster)) else { return false };
                 let table = record.citations.iter().filter_map(|citation| Some((squeezed(&format!("{} {}", citation.volume, citation.reporter)), citation.volume.clone(), citation.page.parse().ok()?))).collect::<Table>();
                 let started = Instant::now();
-                let mut layer = OpinionLayer::of(&opinion_structure(&record, None));
+                let mut structure = opinion_structure(&record, None);
                 counted.add_by("timing|parse|ms".to_owned(), started.elapsed().as_millis() as u64);
                 let started = Instant::now();
                 if let Some(name) = mutation.filter(|name| *name != "scan-first+1") {
-                    mutate(&mut layer, name);
+                    mutate(&mut structure, name);
                 }
                 // A scan with fewer pages than the case's own marks run over has lost sheets: counted on from its first page, its
                 // later pages carry the wrong numbers, so it judges nothing.
                 let scan = fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster));
-                let marked_to = scan.and_then(|scan| layer.pages.iter().filter(|page| page.series.starts_with("reporter") && !page.in_note() && page.source() != "stray")
-                    .filter_map(|page| page.label().parse::<u32>().ok()).filter(|label| *label >= scan.first && *label <= scan.first + 200).max());
+                let marked_to = scan.and_then(|scan| nodes(structure, NodeKind::Page).filter(|page| page.series.starts_with("reporter") && !page.properties.contains_key("in_note") && page.grammar.as_deref() != Some("stray"))
+                    .filter_map(|page| page.printed_label().parse::<u32>().ok()).filter(|label| *label >= scan.first && *label <= scan.first + 200).max());
                 let scan = scan.filter(|scan| marked_to.is_none_or(|last| ((last - scan.first) as usize) < scan.pages.len()));
                 if fields["cluster_id"].as_str().and_then(|cluster| scans.get(cluster)).is_some() && scan.is_none() {
                     counted.add("scan|excluded|the scan has fewer pages than the case's marks run over".to_owned());
                 }
-                grade_record(&layer, &raw, &renditions, &labels, record.opinion_type.as_deref().unwrap_or(""), &others, scan, fields["cluster_id"].as_str().and_then(|cluster| pairs.get(cluster)), reparse.as_ref().map(|reparse| reparse as &dyn Fn(&str) -> Option<OpinionLayer>), rate_of(&fields), questions, &table, &mut counted, &mut missed, &mut answered, &id);
+                grade_record(&structure, &raw, &renditions, &labels, record.opinion_type.as_deref().unwrap_or(""), &others, scan, fields["cluster_id"].as_str().and_then(|cluster| pairs.get(cluster)), reparse.as_ref().map(|reparse| reparse as &dyn Fn(&str) -> Option<DocumentStructure>), rate_of(&fields), questions, &table, &mut counted, &mut missed, &mut answered, &id);
                 counted.add_by("timing|score, all told|ms".to_owned(), started.elapsed().as_millis() as u64);
                 true
             }));
@@ -1561,12 +1568,12 @@ fn harvard_body_has(harvard: &str, key: &str) -> bool {
 }
 
 /// Footnotes and paragraphs with Harvard hidden: does the rest give back each one, and keep the note out of the body?
-fn structure_holdout(layer: &OpinionLayer, harvard: &str, lawbox: &str, counted: &mut Tally, missed: &mut Vec<Value>, id: &str) {
-    let units = layer.text.encode_utf16().collect::<Vec<_>>();
+fn structure_holdout(structure: &DocumentStructure, harvard: &str, lawbox: &str, counted: &mut Tally, missed: &mut Vec<Value>, id: &str) {
+    let units = structure.text.encode_utf16().collect::<Vec<_>>();
     let slice = |from: usize, to: usize| squeezed(&String::from_utf16_lossy(&units[from.min(units.len())..to.min(units.len())]));
-    let plain = squeezed(&layer.text);
-    let notes = layer.notes.iter().map(|note| (note.label.trim_matches(['[', ']', '(', ')', '.', ':', ' ']).to_owned(), note.ranges.iter().map(|range| slice(range.start, range.end)).collect::<String>())).collect::<Vec<_>>();
-    let paragraphs = layer.paragraphs.iter().map(|paragraph| slice(paragraph.start, paragraph.end)).collect::<Vec<_>>();
+    let plain = squeezed(&structure.text);
+    let notes = nodes(structure, NodeKind::Footnote).map(|note| (note.printed_label().trim_matches(['[', ']', '(', ')', '.', ':', ' ']).to_owned(), note.ranges.iter().map(|range| slice(range.start, range.end)).collect::<String>())).collect::<Vec<_>>();
+    let paragraphs = paragraphs(structure).map(|paragraph| slice(paragraph.range.start, paragraph.range.end)).collect::<Vec<_>>();
     let body = paragraphs.concat();
     let lawbox_field = any_rendition(lawbox);
     let lawbox_notes = lawbox_field.notes.iter().map(|note| squeezed(&String::from_utf16_lossy(&lawbox_field.text.encode_utf16().skip(note.0).take(note.1 - note.0).collect::<Vec<_>>()))).collect::<Vec<_>>();
@@ -1583,18 +1590,18 @@ fn structure_holdout(layer: &OpinionLayer, harvard: &str, lawbox: &str, counted:
             continue;
         }
         let found = notes.iter().find(|note| note.1.contains(&key));
-        counted.add(format!("note|layer|{}", if found.is_some() { "found" } else { "lost" }));
+        counted.add(format!("note|structure|{}", if found.is_some() { "found" } else { "lost" }));
         counted.add(format!("note|field|{}", if lawbox_notes.iter().any(|note| note.contains(&key)) { "found" } else { "lost" }));
         if let Some(note) = found {
-            counted.add(format!("note label|layer|{}", if note.0 == label.trim_matches(['*', ' ']) { "right" } else { "wrong" }));
+            counted.add(format!("note label|structure|{}", if note.0 == label.trim_matches(['*', ' ']) { "right" } else { "wrong" }));
         }
         if body.contains(&key) {
-            counted.add("note in the body|layer|left in the text".to_owned());
+            counted.add("note in the body|structure|left in the text".to_owned());
             let inside = paragraphs.iter().position(|text| text.contains(&key)).unwrap_or(0);
             let quoted = harvard_body_has(harvard, &key);
-            missed.push(json!({ "id": id, "kind": "leak", "label": label, "words": key, "paragraph": inside, "of": paragraphs.len(), "also_in_harvard_body": quoted, "rendition": layer.rendition, "text": paragraphs.get(inside).map(|text| text.chars().take(160).collect::<String>()) }));
+            missed.push(json!({ "id": id, "kind": "leak", "label": label, "words": key, "paragraph": inside, "of": paragraphs.len(), "also_in_harvard_body": quoted, "rendition": reading(structure).rendition, "text": paragraphs.get(inside).map(|text| text.chars().take(160).collect::<String>()) }));
         } else {
-            counted.add("note in the body|layer|kept out".to_owned());
+            counted.add("note in the body|structure|kept out".to_owned());
         }
         if found.is_none() {
             missed.push(json!({ "id": id, "kind": "note", "label": label, "words": key }));
@@ -1609,7 +1616,7 @@ fn structure_holdout(layer: &OpinionLayer, harvard: &str, lawbox: &str, counted:
             continue;
         }
         let found = starts.iter().any(|start| start.contains(&key));
-        counted.add(format!("paragraph|layer|{}", if found { "found" } else { "lost" }));
+        counted.add(format!("paragraph|structure|{}", if found { "found" } else { "lost" }));
         if !found {
             missed.push(json!({ "id": id, "kind": "paragraph", "words": key }));
         }
@@ -1617,7 +1624,7 @@ fn structure_holdout(layer: &OpinionLayer, harvard: &str, lawbox: &str, counted:
     let keys = wanted.iter().map(|text| opening(text)).collect::<std::collections::HashSet<_>>();
     for start in starts.iter().filter(|start| start.chars().count() >= HOLD_OPENING) {
         let at_harvard = keys.iter().any(|key| start.contains(key.as_str()));
-        counted.add(format!("paragraph opens|layer|{}", if at_harvard { "where Harvard's does" } else { "where it does not" }));
+        counted.add(format!("paragraph opens|structure|{}", if at_harvard { "where Harvard's does" } else { "where it does not" }));
     }
 }
 
@@ -1650,9 +1657,9 @@ pub fn holdout(args: &[String]) {
             let rest = files.iter().filter(|file| file.0 != "html_lawbox.html").cloned().collect::<Vec<_>>();
             let graded = catch_unwind(AssertUnwindSafe(|| {
                 let (record, _) = record_of(id.clone(), rest, &clusters, &citations);
-                let layer = OpinionLayer::of(&opinion_structure(&record, None));
-                let plain_text = squeezed(&layer.text);
-                let ours = layer.headings.iter().map(|heading| squeezed(&heading.text)).collect::<Vec<_>>();
+                let structure = opinion_structure(&record, None);
+                let plain_text = squeezed(&structure.text);
+                let ours = nodes(structure, NodeKind::Heading).map(|heading| squeezed(&heading.display_value.as_deref().unwrap_or(""))).collect::<Vec<_>>();
                 let theirs = field_headings(&raw);
                 let held = |reader: &[String], heading: &str| reader.iter().any(|known| known == heading || (known.len() >= 6 && heading.contains(known.as_str())) || (heading.len() >= 6 && known.contains(heading)));
                 let mut counted = Tally::default();
@@ -1663,19 +1670,19 @@ pub fn holdout(args: &[String]) {
                         continue;
                     }
                     let (mine, field) = (held(&ours, heading), held(&theirs, heading));
-                    counted.add(format!("recall|layer|{}", if mine { "found" } else { "lost" }));
+                    counted.add(format!("recall|structure|{}", if mine { "found" } else { "lost" }));
                     counted.add(format!("recall|field|{}", if field { "found" } else { "lost" }));
                     if !mine {
                         missed.push(json!({ "id": id, "lost": heading, "field": field }));
                     }
                 }
-                for (known, heading) in ours.iter().zip(&layer.headings).filter(|(known, _)| known.len() >= 2) {
+                for (known, heading) in ours.iter().zip(nodes(structure, NodeKind::Heading)).filter(|(known, _)| known.len() >= 2) {
                     let in_tags = held(&key, known);
-                    counted.add(format!("precision|layer|{}", if in_tags { "in Lawbox's tags" } else { "not in them" }));
+                    counted.add(format!("precision|structure|{}", if in_tags { "in Lawbox's tags" } else { "not in them" }));
                     if !in_tags {
-                        let units = layer.text.encode_utf16().collect::<Vec<_>>();
+                        let units = structure.text.encode_utf16().collect::<Vec<_>>();
                         let around = |from: usize, to: usize| String::from_utf16_lossy(&units[from.min(units.len())..to.min(units.len())]);
-                        missed.push(json!({ "id": id, "extra": heading.text, "source": heading.source, "before": around(heading.start.saturating_sub(220), heading.start), "after": around(heading.end, heading.end + 220) }));
+                        missed.push(json!({ "id": id, "extra": heading.display_value.as_deref().unwrap_or(""), "source": heading.grammar.as_deref().unwrap_or(""), "before": around(heading.range.start.saturating_sub(220), heading.range.start), "after": around(heading.range.end, heading.range.end + 220) }));
                     }
                 }
                 for known in &theirs {
@@ -1686,12 +1693,12 @@ pub fn holdout(args: &[String]) {
                 let harvard = of("xml_harvard.xml").unwrap_or_default();
                 let without = files.iter().filter(|file| !matches!(file.0.as_str(), "xml_harvard.xml" | "html_with_citations.html")).cloned().collect::<Vec<_>>();
                 let (record, _) = record_of(id.clone(), without, &clusters, &citations);
-                let mut layer = OpinionLayer::of(&opinion_structure(&record, None));
+                let mut structure = opinion_structure(&record, None);
                 // Planted faults: each must lower its own score, or the key does not see what it claims to.
                 if let Some(name) = &planted {
-                    mutate(&mut layer, name);
+                    mutate(&mut structure, name);
                 }
-                structure_holdout(&layer, &harvard, &lawbox, &mut counted, &mut missed, &id);
+                structure_holdout(&structure, &harvard, &lawbox, &mut counted, &mut missed, &id);
                 (counted, missed)
             }));
             match graded {
@@ -1725,17 +1732,17 @@ pub fn holdout(args: &[String]) {
         format!("{item} {reader}: {:.2}% of {}\n", hit as f64 * 100.0 / (hit + miss).max(1) as f64, hit + miss)
     };
     let mut text = format!("{} records\n", tally.get("records|records|"));
-    for reader in ["layer", "field"] {
+    for reader in ["parser", "field"] {
         text.push_str(&share("recall", reader, "found", "lost"));
         text.push_str(&share("precision", reader, "in Lawbox's tags", "not in them"));
     }
     text.push_str("\nHarvard hidden, every footnote and paragraph its tags hold:\n");
-    text.push_str(&share("note", "layer", "found", "lost"));
+    text.push_str(&share("note", "parser", "found", "lost"));
     text.push_str(&share("note", "field", "found", "lost"));
-    text.push_str(&share("note label", "layer", "right", "wrong"));
-    text.push_str(&share("note in the body", "layer", "kept out", "left in the text"));
-    text.push_str(&share("paragraph", "layer", "found", "lost"));
-    text.push_str(&share("paragraph opens", "layer", "where Harvard's does", "where it does not"));
+    text.push_str(&share("note label", "parser", "right", "wrong"));
+    text.push_str(&share("note in the body", "parser", "kept out", "left in the text"));
+    text.push_str(&share("paragraph", "parser", "found", "lost"));
+    text.push_str(&share("paragraph opens", "parser", "where Harvard's does", "where it does not"));
     text.push_str(&format!("key check: {} notes keyed against {} note tags counted raw; records where they differ: {} fewer, {} more\n", tally.get("key check|notes keyed|"), tally.get("key check|note tags raw|"), tally.get("key check|notes|key holds fewer"), tally.get("key check|notes|key holds more")));
     text.push_str(&format!("notes excluded {}, paragraphs excluded {}\n", tally.get("note|excluded|its words are not in the other versions"), tally.get("paragraph|excluded|its words are not in the other versions")));
     text.push_str(&format!("excluded, the words not in the other versions: {}\npanics {}\n", tally.get("recall|excluded|the words are not in the other versions"), tally.get("panic|panic|panic")));
@@ -1743,23 +1750,23 @@ pub fn holdout(args: &[String]) {
     println!("{text}");
 }
 
-/// Footnote type, a page's number, a bold line: what a PDF prints and bulk text loses, scored against the layer.
-fn pdf_score(layer: &OpinionLayer, pages: &[Value], counted: &mut Tally, missed: &mut Vec<Value>, id: &str) {
+/// Footnote type, a page's number, a bold line: what a PDF prints and bulk text loses, scored against the parser.
+fn pdf_score(structure: &DocumentStructure, pages: &[Value], counted: &mut Tally, missed: &mut Vec<Value>, id: &str) {
     const SMALLER: f64 = 0.9;
     const LEAST: usize = 24;
-    let finder = Finder::new(&layer.text);
+    let finder = Finder::new(&structure.text);
     let in_range = |place: usize, ranges: &[(usize, usize)]| ranges.iter().any(|range| range.0 <= place && place < range.1);
-    let notes = layer.notes.iter().flat_map(|note| note.ranges.iter().map(|range| (range.start, range.end))).collect::<Vec<_>>();
-    let squeezed_headings = layer.headings.iter().map(|heading| squeezed(&heading.text)).collect::<Vec<_>>();
-    let paragraphs = layer.paragraphs.iter().map(|paragraph| (paragraph.start, paragraph.end)).collect::<Vec<_>>();
+    let notes = nodes(structure, NodeKind::Footnote).flat_map(|note| note.ranges.iter().map(|range| (range.start, range.end))).collect::<Vec<_>>();
+    let squeezed_headings = nodes(structure, NodeKind::Heading).map(|heading| squeezed(&heading.display_value.as_deref().unwrap_or(""))).collect::<Vec<_>>();
+    let paragraphs = paragraphs(structure).map(|paragraph| (paragraph.range.start, paragraph.range.end)).collect::<Vec<_>>();
     let mut series = HashMap::<&str, usize>::new();
     // The PDF prints the document's own numbers: a reporter's or a vendor's numbering held beside them is another count.
     let own = |name: &str| matches!(name, "slip" | "ecf" | "sheet" | "original" | "leaf") || name.starts_with("slip-");
-    for page in layer.pages.iter().filter(|page| !page.in_note() && own(&page.series)) {
+    for page in nodes(structure, NodeKind::Page).filter(|page| !page.properties.contains_key("in_note") && own(&page.series)) {
         *series.entry(page.series.as_str()).or_default() += 1;
     }
     let main = series.iter().max_by_key(|entry| *entry.1).map(|entry| entry.0.to_owned());
-    let mut marks = layer.pages.iter().filter(|page| !page.in_note() && main.as_deref() == Some(page.series.as_str()) && page.source() != "stray").map(|page| (page.range.start, page.label().to_owned())).collect::<Vec<_>>();
+    let mut marks = nodes(structure, NodeKind::Page).filter(|page| !page.properties.contains_key("in_note") && main.as_deref() == Some(page.series.as_str()) && page.grammar.as_deref() != Some("stray")).map(|page| (page.range.start, page.printed_label().to_owned())).collect::<Vec<_>>();
     marks.sort();
     static NUMBER: OnceLock<Regex> = OnceLock::new();
     let number = NUMBER.get_or_init(|| Regex::new(r"^\s*(?:-\s*)?(?:Page\s+)?(\d{1,3})(?:\s*-)?(?:\s+of\s+\d+)?\s*$").unwrap());
@@ -1768,16 +1775,16 @@ fn pdf_score(layer: &OpinionLayer, pages: &[Value], counted: &mut Tally, missed:
         let lines = page["lines"].as_array().map_or(&[][..], Vec::as_slice);
         let text = |line: &Value| line[0].as_str().unwrap_or_default().to_owned();
         let edge = [lines.first(), lines.last()].into_iter().flatten().find_map(|line| number.captures(&text(line)).map(|capture| capture[1].to_owned()));
-        // The page: where its first full line of words falls in the layer's pages.
+        // The page: where its first full line of words falls in the parser's pages.
         if let Some(printed) = edge {
             let sample = lines.iter().skip(1).map(text).find(|line| words_of(line).0.len() >= 8);
             if let Some(found) = sample.and_then(|line| finder.find(&words_of(&line).0)) {
                 let said = last_before(&marks, found.start);
                 let result = match said { None => "no answer", Some(label) if label == printed => "right", Some(_) => "wrong" };
-                counted.add(format!("page|layer|{result}"));
+                counted.add(format!("page|structure|{result}"));
                 if result != "right" {
                     let held = marks.iter().take(6).map(|mark| mark.1.clone()).collect::<Vec<_>>();
-                    missed.push(json!({ "id": id, "kind": "page", "result": result, "printed": printed, "said": said, "series": main, "marks": marks.len(), "first_marks": held, "at": found.start, "length": layer.text.encode_utf16().count(), "rendition": layer.rendition }));
+                    missed.push(json!({ "id": id, "kind": "page", "result": result, "printed": printed, "said": said, "series": main, "marks": marks.len(), "first_marks": held, "at": found.start, "length": structure.text.encode_utf16().count(), "rendition": reading(structure).rendition }));
                 }
             } else {
                 counted.add("page|excluded|line not found in the text".to_owned());
@@ -1792,7 +1799,7 @@ fn pdf_score(layer: &OpinionLayer, pages: &[Value], counted: &mut Tally, missed:
                 match finder.find(&words_of(&words).0) {
                     Some(found) if !found.twice => {
                         let (note, body_text) = (in_range(found.start, &notes), in_range(found.start, &paragraphs));
-                        counted.add(format!("note line|layer|{}", if note && !body_text { "in a note" } else if body_text { "in the body" } else { "in neither" }));
+                        counted.add(format!("note line|structure|{}", if note && !body_text { "in a note" } else if body_text { "in the body" } else { "in neither" }));
                         if !note || body_text {
                             missed.push(json!({ "id": id, "kind": "note line", "words": words, "body": body_text }));
                         }
@@ -1803,9 +1810,9 @@ fn pdf_score(layer: &OpinionLayer, pages: &[Value], counted: &mut Tally, missed:
             // A heading's line: short, bold, ending no sentence.
             let plain = squeezed(&words);
             if bold && (6..=120).contains(&plain.chars().count()) && !words.trim_end().ends_with([',', ';', '.']) && words.chars().any(char::is_alphabetic) && !number.is_match(&words) {
-                if finder.find(&words_of(&words).0).is_some() || layer.text.contains(words.trim()) {
+                if finder.find(&words_of(&words).0).is_some() || structure.text.contains(words.trim()) {
                     let held = squeezed_headings.iter().any(|heading| heading.contains(&plain) || (heading.len() >= 6 && plain.contains(heading.as_str())));
-                    counted.add(format!("bold line|layer|{}", if held { "a heading" } else { "not a heading" }));
+                    counted.add(format!("bold line|structure|{}", if held { "a heading" } else { "not a heading" }));
                     if !held {
                         missed.push(json!({ "id": id, "kind": "bold line", "words": words }));
                     }
@@ -1815,7 +1822,7 @@ fn pdf_score(layer: &OpinionLayer, pages: &[Value], counted: &mut Tally, missed:
     }
 }
 
-/// The court's PDF against what the layer reads from bulk text: `pdfkey --pack FILE --sheet FILE --out DIR [--clusters F] [--citations F]`.
+/// The court's PDF against what the parser reads from bulk text: `pdfkey --pack FILE --sheet FILE --out DIR [--clusters F] [--citations F]`.
 pub fn pdfkey(args: &[String]) {
     let out = flag(args, "--out").expect("--out");
     let packs = flag(args, "--pack").expect("--pack");
@@ -1839,9 +1846,9 @@ pub fn pdfkey(args: &[String]) {
             let files = row["files"].as_object().into_iter().flatten().filter_map(|(name, text)| Some((name.clone(), text.as_str()?.to_owned()))).collect::<Vec<_>>();
             let graded = catch_unwind(AssertUnwindSafe(|| {
                 let (record, _) = record_of(id.clone(), files, &clusters, &citations);
-                let layer = OpinionLayer::of(&opinion_structure(&record, None));
-                pdf_score(&layer, pages, &mut tally, &mut missed, &id);
-                tally.add(format!("records|{}|", layer.rendition));
+                let structure = opinion_structure(&record, None);
+                pdf_score(&structure, pages, &mut tally, &mut missed, &id);
+                tally.add(format!("records|{}|", reading(structure).rendition));
             }));
             if graded.is_err() {
                 tally.add("panic|panic|panic".to_owned());

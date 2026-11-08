@@ -1,14 +1,14 @@
 #![recursion_limit = "512"]
 #![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
-//! CourtListener's opinion records through the opinion layer (legal_structure::opinion): their pages,
+//! CourtListener's opinion records through the structure parser (legal_structure::opinion::opinion_structure): their pages,
 //! paragraphs, notes, headings and headnotes. Records come as folders (fields.json and one file per rendition) or
 //! packed, one JSON line each ({"id", "files": {name: text}}, experiments/courtlistener-census/pack_kept.py).
 //!
-//!   courtlistener-structure run --pack FILE --out DIR [--clusters FILE] [--citations FILE] [--receipts FILE] [--threads N] [--every K]    the layer's measures, OUT/rows.jsonl
-//!   courtlistener-structure one FOLDER [--clusters FILE] [--citations FILE]                                             one record's layer as JSON
+//!   courtlistener-structure run --pack FILE --out DIR [--clusters FILE] [--citations FILE] [--receipts FILE] [--threads N] [--every K]    the structure's measures, OUT/rows.jsonl
+//!   courtlistener-structure one FOLDER [--clusters FILE] [--citations FILE]                                             one record's structure as JSON
 //!   courtlistener-structure grade --pack FILE[,FILE] --pins FILE --out DIR [--clusters FILE] [--citations FILE] [--threads N]    judges' pins as the answer key (grade.rs)
 //!
-//! --receipts takes the census reads ({"id", "new_items": [{what, quote, nearest_family}]}): every finding the layer does not
+//! --receipts takes the census reads ({"id", "new_items": [{what, quote, nearest_family}]}): every finding the structure does not
 //! hold goes to OUT/misses.jsonl.
 //!
 //! Clusters come one JSON line each ({"id", "fields": {field: text}}, experiments/courtlistener-census/pack_clusters.py),
@@ -31,7 +31,8 @@ fn main() {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod tool {
-    use legal_structure::opinion::{layer_failures, layer_screens, opinion_structure, Page, quote_miss, receipt_miss, OpinionCitation, OpinionLayer, OpinionRecord};
+    use legal_structure::opinion::{nodes, opinion_structure, quote_miss, reading, receipt_miss, OpinionCitation, OpinionRecord};
+    use legal_structure::{DocumentStructure, NodeKind, StructureNode};
     use serde_json::{json, Value};
     use std::collections::{BTreeMap, HashMap, HashSet};
     use std::fs::{self, File, OpenOptions};
@@ -109,42 +110,55 @@ mod tool {
         (record, fields)
     }
 
-    fn measures(layer: &OpinionLayer, milliseconds: u128, fields: &Value) -> Value {
+    fn measures(structure: &DocumentStructure, milliseconds: u128, fields: &Value) -> Value {
+        let opinion = reading(structure);
+        let census = &opinion.census;
+        let (pages, notes, headings, parts) = (|| nodes(structure, NodeKind::Page), || nodes(structure, NodeKind::Footnote), || nodes(structure, NodeKind::Heading), || nodes(structure, NodeKind::Section));
+        let paragraphs = || nodes(structure, NodeKind::Paragraph).chain(nodes(structure, NodeKind::Quote));
+        let property = |node: &StructureNode, name: &str| node.properties.get(name).map(String::as_str);
         let mut series = BTreeMap::<&str, Vec<&str>>::new();
         let mut sources = BTreeMap::<&str, usize>::new();
-        for page in &layer.pages {
-            if !page.in_note() { series.entry(&page.series).or_default().push(&page.label()); }
-            *sources.entry(page.source()).or_default() += 1;
+        for page in pages() {
+            if !page.properties.contains_key("in_note") { series.entry(&page.series).or_default().push(page.printed_label()); }
+            *sources.entry(page.grammar.as_deref().unwrap_or("")).or_default() += 1;
         }
         let mut heading_sources = BTreeMap::<&str, usize>::new();
-        for heading in &layer.headings {
-            *heading_sources.entry(heading.source).or_default() += 1;
+        for heading in headings() {
+            *heading_sources.entry(heading.grammar.as_deref().unwrap_or("")).or_default() += 1;
         }
         let mut headnote_kinds = BTreeMap::<&str, usize>::new();
-        for headnote in &layer.headnotes {
+        for headnote in &opinion.headnotes {
             *headnote_kinds.entry(&headnote.kind).or_default() += 1;
         }
+        let title = |heading: &StructureNode| heading.display_value.clone().unwrap_or_default();
+        let note_items = notes().map(|note| property(note, "items").map_or(0, |items| items.split('\n').count())).sum::<usize>();
         json!({
-            "id": layer.id, "cell": fields.get("_cell"), "stratum": fields.get("_stratum"), "rate": fields.get("_rate"), "page_count": fields.get("page_count"), "rendition": layer.rendition, "ms": milliseconds, "text": layer.text.len(),
-            "pages": series, "page_sources": sources, "note_pages": layer.pages.iter().filter(|page| page.in_note()).count(),
-            "paragraphs": layer.paragraphs.len(), "numbered": layer.paragraphs.iter().filter(|paragraph| paragraph.number.is_some()).count(), "items": layer.paragraphs.iter().filter(|paragraph| paragraph.item.is_some()).count() + layer.notes.iter().map(|note| note.items.len()).sum::<usize>(), "titled_items": layer.headings.iter().filter(|heading| heading.text.split_whitespace().next().is_some_and(|word| word.len() <= 6 && word.ends_with(['.', ')']))).count(), "quote_paragraphs": layer.paragraphs.iter().filter(|paragraph| paragraph.quote).count(), "named_items": layer.paragraphs.iter().filter(|paragraph| paragraph.item.as_deref().is_some_and(|item| item.len() > 6)).count(), "blocks": layer.blocks.len(), "blocks_reckoned": layer.blocks.iter().filter(|block| block.source == "reckoned").count(),
-            "numbers": layer.paragraphs.iter().filter_map(|paragraph| paragraph.number.as_deref()).take(400).collect::<Vec<_>>(),
-            "notes": layer.notes.len(), "note_refs": layer.notes.iter().map(|note| note.references.len()).sum::<usize>(),
-            "note_labels": layer.notes.iter().map(|note| note.label.as_str()).take(200).collect::<Vec<_>>(),
-            "headings": layer.headings.iter().map(|heading| heading.text.chars().take(70).collect::<String>()).take(60).collect::<Vec<_>>(),
-            "heading_sources": heading_sources, "headnotes": headnote_kinds, "headnote_marks": layer.headnote_marks.len(),
-            "parts": layer.parts.iter().map(|part| (part.kind.as_str(), part.author.as_deref())).collect::<Vec<_>>(),
-            "headnotes_placed": layer.headnotes.iter().filter(|headnote| headnote.range.is_some()).count(),
-            "front": layer.front.iter().fold(BTreeMap::<&str, usize>::new(), |mut roles, line| { *roles.entry(&line.role).or_default() += 1; roles }),
-            "furniture": layer.furniture.len(),
-            "page_series": layer.page_series, "defined_terms": layer.defined_terms.len(), "quotes": layer.quotes.len(),
-            "instruments": layer.instruments.iter().map(|instrument| instrument.kind.as_str()).collect::<Vec<_>>(),
-            "record_gaps": layer.record_gaps.iter().map(|gap| gap.kind.as_str()).collect::<Vec<_>>(),
-            "outcomes": layer.outcomes, "tables": layer.tables.len(), "unmatched_calls": layer.unmatched_calls.len(), "document_kind": layer.document_kind,
-            "note_longest": layer.notes.iter().map(|note| note.ranges.iter().map(|range| range.end.saturating_sub(range.start)).sum::<usize>()).max().unwrap_or(0), "note_share": layer.notes.iter().flat_map(|note| note.ranges.iter()).map(|range| range.end.saturating_sub(range.start)).sum::<usize>(), "marks_in_notes": layer.marks_in_notes(), "shifted_left": layer.source_faults_left().0, "margins_left": layer.source_faults_left().1, "other_opinion": layer.other_opinion, "unheld": layer.unheld_text().0, "unheld_at": layer.unheld_text().1, "page_witness": layer.page_witness, "note_witness": layer.note_witness, "heading_witness": layer.heading_witness, "paragraph_witness": layer.paragraph_witness, "paragraphs_run_on": layer.paragraphs_run_on, "paragraphs_split": layer.paragraphs_split, "union_test": layer.union_test, "union_samples": layer.union_samples, "titles_not_held": layer.titles_not_held,
+            "id": structure.document_id, "cell": fields.get("_cell"), "stratum": fields.get("_stratum"), "rate": fields.get("_rate"), "page_count": fields.get("page_count"), "rendition": opinion.rendition, "ms": milliseconds, "text": structure.text.len(),
+            "pages": series, "page_sources": sources, "note_pages": pages().filter(|page| page.properties.contains_key("in_note")).count(),
+            "paragraphs": paragraphs().count(), "numbered": paragraphs().filter(|paragraph| paragraph.label.is_some()).count(), "items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some()).count() + note_items, "titled_items": headings().filter(|heading| title(heading).split_whitespace().next().is_some_and(|word| word.len() <= 6 && word.ends_with(['.', ')']))).count(), "quote_paragraphs": nodes(structure, NodeKind::Quote).count(), "named_items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some_and(|item| item.len() > 6)).count(), "blocks": opinion.blocks.len(), "blocks_reckoned": opinion.blocks.iter().filter(|block| block.source == "reckoned").count(),
+            "numbers": paragraphs().filter_map(|paragraph| paragraph.label.as_deref()?.strip_prefix("par")).take(400).collect::<Vec<_>>(),
+            "notes": notes().count(), "note_refs": notes().map(|note| note.calls.len()).sum::<usize>(),
+            "note_labels": notes().map(|note| note.printed_label()).take(200).collect::<Vec<_>>(),
+            "headings": headings().map(|heading| title(heading).chars().take(70).collect::<String>()).take(60).collect::<Vec<_>>(),
+            "heading_sources": heading_sources, "headnotes": headnote_kinds, "headnote_marks": opinion.headnote_marks.len(),
+            "parts": parts().map(|part| (part.display_value.as_deref().unwrap_or(""), property(part, "author"))).collect::<Vec<_>>(),
+            "headnotes_placed": opinion.headnotes.iter().filter(|headnote| headnote.range.is_some()).count(),
+            "front": opinion.front.iter().fold(BTreeMap::<&str, usize>::new(), |mut roles, line| { *roles.entry(&line.role).or_default() += 1; roles }),
+            "furniture": opinion.furniture.len(),
+            "page_series": opinion.page_series, "defined_terms": opinion.defined_terms.len(), "quotes": opinion.quotes.len(),
+            "instruments": opinion.instruments.iter().map(|instrument| instrument.kind.as_str()).collect::<Vec<_>>(),
+            "record_gaps": opinion.record_gaps.iter().map(|gap| gap.kind.as_str()).collect::<Vec<_>>(),
+            "outcomes": opinion.outcomes, "tables": opinion.tables.len(), "unmatched_calls": opinion.unmatched_calls.len(), "document_kind": opinion.document_kind,
+            "note_longest": notes().map(|note| note.ranges.iter().map(|range| range.end.saturating_sub(range.start)).sum::<usize>()).max().unwrap_or(0), "note_share": notes().flat_map(|note| note.ranges.iter()).map(|range| range.end.saturating_sub(range.start)).sum::<usize>(), "marks_in_notes": census["marks_in_notes"], "shifted_left": census["source_faults_left"][0], "margins_left": census["source_faults_left"][1], "other_opinion": opinion.other_opinion, "unheld": census["unheld_text"][0], "unheld_at": census["unheld_text"][1], "page_witness": census["page_witness"], "note_witness": census["note_witness"], "heading_witness": census["heading_witness"], "paragraph_witness": census["paragraph_witness"], "paragraphs_run_on": census["paragraphs_run_on"], "paragraphs_split": census["paragraphs_split"], "union_test": census["union_test"], "union_samples": census["union_samples"], "titles_not_held": census["titles_not_held"],
         })
     }
 
+    /// The parse's self-checks, each class and its detail.
+    fn checks_of(structure: &DocumentStructure) -> Vec<(String, String)> {
+        let census = &reading(structure).census;
+        ["failures", "screens"].iter().flat_map(|name| census[*name].as_array().cloned().unwrap_or_default())
+            .filter_map(|row| Some((row[0].as_str()?.to_owned(), row[1].as_str()?.to_owned()))).collect()
+    }
     pub(crate) fn flag(args: &[String], name: &str) -> Option<String> {
         args.iter().position(|arg| arg == name).and_then(|at| args.get(at + 1)).cloned()
     }
@@ -183,16 +197,15 @@ mod tool {
                 let (mut record, fields) = record_of(id.clone(), files, &clusters, &citations);
                 record.witness = witness;
                 let began = Instant::now();
-                let line = match catch_unwind(AssertUnwindSafe(|| OpinionLayer::of(&opinion_structure(&record, None)))) {
-                    Ok(layer) => {
+                let line = match catch_unwind(AssertUnwindSafe(|| opinion_structure(&record, None))) {
+                    Ok(structure) => {
                         let milliseconds = began.elapsed().as_millis();
-                        let mut found = layer_failures(&layer);
-                        found.extend(layer_screens(&layer, &record));
+                        let found = checks_of(&structure);
                         {
                             let mut counted = tally.lock().unwrap();
                             counted.1.push(milliseconds);
                             for (class, _) in &found {
-                                *counted.0.entry((*class).to_owned()).or_default() += 1;
+                                *counted.0.entry(class.clone()).or_default() += 1;
                             }
                         }
                         {
@@ -211,12 +224,12 @@ mod tool {
                             if let Some(target) = wide {
                                 *tally.lock().unwrap().0.entry(format!("luna tested: {target}")).or_default() += 1;
                             }
-                            if let Some(target) = wide.map_or_else(|| receipt_miss(&layer, family, quote), |target| quote_miss(&layer, target, quote)) {
+                            if let Some(target) = wide.map_or_else(|| receipt_miss(&structure, family, quote), |target| quote_miss(&structure, target, quote)) {
                                 *tally.lock().unwrap().0.entry(format!("luna miss: {target}")).or_default() += 1;
-                                writeln!(misses.lock().unwrap(), "{}", json!({ "target": target, "id": id, "rendition": layer.rendition, "family": family, "quote": quote, "what": what })).unwrap();
+                                writeln!(misses.lock().unwrap(), "{}", json!({ "target": target, "id": id, "rendition": reading(&structure).rendition, "family": family, "quote": quote, "what": what })).unwrap();
                             }
                         }
-                        measures(&layer, milliseconds, &fields).to_string()
+                        measures(&structure, milliseconds, &fields).to_string()
                     }
                     Err(_) => {
                         *tally.lock().unwrap().0.entry("panic".to_owned()).or_default() += 1;
@@ -268,7 +281,7 @@ mod tool {
                 }).collect();
                 let id = folder.file_name().and_then(|name| name.to_str()).unwrap_or_default().to_owned();
                 let (record, _) = record_of(id, files, &clusters_of(&args), &citations_of(&args));
-                println!("{}", serde_json::to_string_pretty(&OpinionLayer::of(&opinion_structure(&record, None))).unwrap());
+                println!("{}", serde_json::to_string_pretty(&opinion_structure(&record, None)).unwrap());
             }
             _ => eprintln!("courtlistener-structure run|one"),
         }
