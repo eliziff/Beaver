@@ -23,39 +23,48 @@ readers of the code, 2026-11-07).
 | 1 | Tier 0 decides once; the walk (`over_tier0`) takes its Notes and Decision; `doc_moves`, `tier0::decided` and `structure.rs`'s separate walk gone | identical, DOC off and on, every split |
 | 2 | One graph writer: `Settled` required in `emit::structure_graph`; every `!written` branch, `gap_cells`, `COLUMN_TOLERANCE`, the unit-note footnote builder, `paired`, `apart` and the provision retain gone (emit.rs 758 -> 465 lines) | identical, DOC off and on |
 | 3 | `LineTable::read` built on `LineTable::plain`; `views_of` built on `tier0::line_views` | identical DOC off; DOC on only the 42 |
+| 5 | The decision's stage-parser claim mode where it cannot run: `read`'s `hearing` parameter (always true; its `named` and anchor fallbacks), `read_runs`' first-come guard, the residual's direct writer and its `hearing &&` (`weigh` and `read_runs` run only inside `read`). `claim`/`fill`/`open`'s first-come arms stay: `finish` runs with `hearing` off. | pending |
+| 6 | emit's six `page_indexes` writes: `outline_contexts` sets every node's from its lines, and nothing reads them before | pending |
 | 4 | One opening-reading choice (`LineView::opening`, the tie-break an input); DOC uses the machine's `Open::opens`/`Open::count`, `counted` private; each node's marker range and label set once in one precedence; emit's dead `heading_range` write gone; one region table (`machine::region_of`) with the page's region names derived from it (`machine::page_region`) for `write.rs` and `runs.rs`; `whole.rs`'s dead `chain_of` and `SLOTS` gone | to hash |
 
-## The crates so far (2026-11-07)
+## The crates (2026-11-07)
 
 `legal-pdf-structure` was one crate of 23,000 lines. Its module cycles are cut (`ladder_levels` into the heading rules,
 `grammar_rank` into the rules, the text index and line numbers out of the graph, the region vocabulary out of the
-machine), and it is now these crates under `legal-pdf-parser`, each depending on the contract and on crates below it,
-never on one above:
+machine), and it is now a 225-line orchestrator over these crates under `legal-pdf-parser`, each depending on the
+contract and on crates below it, never on one above:
 
 | Crate | What | Lines |
 |---|---|---|
-| `legal-pdf-structure-model` | the contract, data only: slots and page views, roles, rules, edges, the regions, the evidence (`Evidence`, its flags, `Rows`, `NoteLabel`, `MarkerReading`), the numbered paragraphs (`Held`, `Paragraphs`), the runs (`Runs`, `Run`, `Member`, `Place`), the decision by line id (`Decided`) | ~900 |
+| `legal-pdf-structure-model` | the contract, data only: slots and page views, roles, rules, edges, the regions, the evidence (`Evidence`, its flags, `Rows`, `NoteLabel`, `MarkerReading`), the numbered paragraphs, the runs, the decision by line id (`Decided`), `StructureIdentity` | ~950 |
 | `legal-pdf-text` | a paragraph's measure, the heading ladder, the words of text and labels, joining, the text index, line numbers | ~1,700 |
-| `legal-pdf-layout` | regions, columns, tables, reading order, language, note-band lines | ~1,250 |
+| `legal-pdf-layout` | regions, columns, tables, reading order, language, note-band lines, each page's `Geometry` | ~1,270 |
 | `legal-pdf-headings` | headings, contents lists, captions | ~1,580 |
 | `legal-pdf-notes` | the note band and lanes, note context, the pairer | ~2,400 |
 | `legal-pdf-furniture` | running heads and feet, folios, frame rows | ~870 |
 | `legal-pdf-constituents` | the documents a PDF holds | ~410 |
+| `legal-pdf-evidence` | the pages normalized and every line measured (`Measure` for `Evidence`) | ~730 |
+| `legal-pdf-fences` | the lines fenced and ordered (`Fences` and its readers), the judgment's numbered paragraphs | ~2,300 |
+| `legal-pdf-runs` | the numbering runs read and resolved (`Numbering` for `Runs`) | ~620 |
+| `legal-pdf-decide` | the decision: every rule heard, the residual, the levels, the notes read, the lines written, the trace | ~2,650 |
 | `legal-pdf-graph` | the structure graph's writers | ~810 |
 | `legal-pdf-diagnostics` | the parse's diagnostics and checks | ~350 |
-| `legal-pdf-decide` | evidence measured, fences, runs, paragraphs, notes read, rules heard, levels, write | ~6,000 |
 | `legal-pdf-machine` | the machine's types every tier reads: line views, moves, the state, the line table, the grammar | ~1,440 |
-| `legal-pdf-structure` | the orchestrator, tier 0, DOC and the walk, the writer | ~5,300 |
+| `legal-pdf-tier0` | tier 0: every rule heard on every line, one decision per line, the moves of the written lines | ~520 |
+| `legal-pdf-transition` | the walk over tier 0's reading and DOC (`encoder`), with the walker's readers | ~3,900 |
+| `legal-pdf-emit` | the one writer of the structure graph | ~460 |
+| `legal-pdf-structure` | the orchestrator: tier 0, then the walk and DOC over its reading, then the writer | ~225 |
 
-A type's logic that a stage owns stays with the stage as a trait the contract type implements (`Measure` for
-`Evidence`, `Numbering` for `Runs`), so no caller changed. Proven byte-identical, DOC off and on, on every document, up to
-and including the notes crate; the rest compiles and is being hashed.
+A stage's logic over a contract type stays with the stage as a trait the type implements (`Measure` for `Evidence`,
+`Numbering` for `Runs`), so no caller changed. Every moved crate imports each constant it names: an unimported constant
+in a match arm binds a variable instead and matches anything.
 
-Next: `decided()` into `legal-pdf-decide`; `legal-pdf-emit` (the writer); `legal-pdf-tier0` (decide, settle,
-`moves_of`, the line views) with `tier0::output` moving into the orchestrator as it stands, so the orchestrator calls tier
-0, then DOC over its reading, then the writer; `legal-pdf-transition` (the walk and DOC, `encoder` feature);
-`legal-pdf-decide` split by stage (evidence, fences, runs, paragraphs, notes, rules) with `Fences` as per-stage outputs;
-`legalpdf` thinned (34 s to rebuild for 2,200 lines).
+Build time (desktop, an incremental release build of the grader after a real one-line edit; was 3 min 15 s for one
+file anywhere in the stage): orchestrator 14 s, tier 0 6 s, the writer 6 s, DOC 14 s, the machine 14 s, the decision
+13 s, the notes 9 s, the graph 7 s, the text crate 8 s.
+
+Proof: identical, DOC off and on, on every document of the gold store, for everything through legal-pdf-parser 761bc0b
+(the split up to here but evidence, fences and runs, which are being hashed).
 
 ## Units to do, in order
 
@@ -94,7 +103,7 @@ later unit then builds in seconds; then the merges (units 5-8) and the walker (1
 - The gold's region, stream, level-step and depth-step vocabulary, copied in `machine.rs` and the tagger's `labels.rs`:
   one definition in the contract crate (unit 10). Claims 73, 78, 106.
 
-### 8. Every reading of a line's opening marker read once (identical by design; check first)
+### 8. Every reading of a line's opening marker read once (checked: not identical; held, LATER item 7)
 `candidates::marker_readings` is the grammar. `Evidence` reads each line's readings once (with end and `only`);
 `opening_marker` becomes the first of them, and `LineTable` takes evidence's readings instead of reading again. Before
 writing it, check that every reader asks the grammar the same question (text, word-division flag); where one passes a
