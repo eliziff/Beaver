@@ -253,9 +253,9 @@ export async function reviewAuthoritiesDiscrepancies(
       // The whole source: a quotation found anywhere in it says where it is.
       const viewer = viewers.get(viewerKey) ?? structureNative().legalSourceViewer(selected.documentArtifact, mode);
       viewers.set(viewerKey, viewer);
-      const alternatives = viewer.slices.flatMap(({ primary, text }) => primary?.label != null &&
-        primary.kind === locator.kind
-        ? [{ locator: { kind: primary.kind, label: primary.label }, text }] : []);
+      const alternatives = viewer.slices.flatMap(({ primary, text }) => primary?.node.label != null &&
+        primary.node.kind === locator.kind
+        ? [{ locator: { kind: primary.node.kind, label: primary.node.label }, text }] : []);
       return [{ occurrenceId: occurrence.id, sourceVersion: identity.sourceSha256,
         citedPassage: selected,
         cited: { locator: { kind: locator.kind, label: locator.endValue

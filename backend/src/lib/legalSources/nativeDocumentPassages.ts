@@ -42,7 +42,7 @@ export function nativeDocumentPassages<Native extends object = never>(options: {
             anchor: unit.node.anchor ?? null, pageScoped: unit.node.kind === "page" },
           role: selected.has(key) ? "selected" : role,
           text: unit.text,
-          blockArtifact: unit.node,
+          blockArtifact: unit,
           documentArtifact: document,
           ...(native ? { native } : {}),
         }];

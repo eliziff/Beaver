@@ -541,8 +541,8 @@ export async function renderAuthoritySourcePdf(input: {
       source_kind: input.kind === "case" ? "cases" : "laws", text: input.text } }).catch(() => null) : null;
   const sections = structured ? structureNative().documentOutline(structured) : [];
   const depths = new Map((structured ? structureNative().documentAnchors(structured, input.text.length) : [])
-    .filter(node => node.kind === "section").reverse()
-    .map(node => [node.query_span.start, Math.max(0, (node.level ?? 1) - 1)]));
+    .filter(({ node }) => node.kind === "section").reverse()
+    .map(({ node, span }) => [span.start, Math.max(0, (node.level ?? 1) - 1)]));
   const placed: Array<{ start: number; pageIndex: number; note?: string; heading?: number; title?: string }> = [];
   let placing: Omit<(typeof placed)[number], "pageIndex"> | null = null;
   // Paragraphs sit about half a line apart, whether the source parts them with a blank

@@ -53,13 +53,16 @@ export interface LegalSourceViewerPayload {
   truncated: boolean;
 }
 /** A node of the source's structure as the engine writes it: a slice's anchor. */
+/** A node of the source as the reader takes it: the node, and its link fragment as the structure writes it ("par12"),
+ *  its place in the reader. */
 interface LegalSourceViewerAnchor {
-  id: string;
-  kind: "paragraph" | "prose" | "page" | "section" | "footnote" | "table" | "row" | "cell";
-  /** As the document prints it; none for prose. */
-  label?: string;
-  /** Its link fragment as the structure writes it ("par12"), beside the node. */
-  fragment?: string | null;
+  node: {
+    id: string;
+    kind: "paragraph" | "prose" | "page" | "section" | "footnote" | "table" | "row" | "cell";
+    /** As the document prints it; none for prose. */
+    label?: string;
+  };
+  fragment?: string;
 }
 export const getLegalSourceCoverage = async () =>
   (await apiRequest<{ coverage: LegalSourceCoverage[] }>("/sources/coverage")).coverage;

@@ -7,9 +7,10 @@ export type GroundedEvidence = LegalEvidenceReceipt;
 
 export function evidenceCitation(receipt: GroundedEvidence, ref: number): Citation | null {
   if (!receipt.span_text) return null;
-  const { kind, label, sheet, cells } = receipt.locator;
+  const { kind, label, sheet, cells, fragment } = receipt.locator;
   const locator: Pick<Extract<Citation, { kind: "a2aj" }>, "locator_kind" | "locator" | "pinpoint"> = kind === "paragraph" || kind === "page" || kind === "section" || kind === "footnote"
-    ? { locator_kind: kind, locator: label, pinpoint: kind === "page" ? `p. ${label}` : kind === "paragraph" ? `para ${label}` : label } : {};
+    ? { locator_kind: kind, locator: label, pinpoint: kind === "page" ? `p. ${label}` : kind === "paragraph" ? `para ${label}` : label,
+      ...fragment && { fragment } } : {};
   const common = { ref, source_class: receipt.source_class, ...locator };
   if (receipt.provider === "library") return {
     ...common, kind: "document", document_id: receipt.stable_source_id,

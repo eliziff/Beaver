@@ -72,7 +72,7 @@ function citationsFromGroups(
       );
       const locator = !presentation.locator ? {} : {
         locator_kind: group.locatorKind, locator: presentation.locator.label,
-        pinpoint: presentation.locator.text };
+        pinpoint: presentation.locator.text, ...entry.receipt.locator.fragment && { fragment: entry.receipt.locator.fragment } };
       const display = {
         authority: presentation.authority,
         short_authority: presentation.shortAuthority,

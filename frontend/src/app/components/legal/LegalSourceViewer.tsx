@@ -80,33 +80,11 @@ export type LegalSourceViewerProps = {
   onBack?: () => void;
 };
 
-function legalSourceAnchorId(label: string) {
-  return `legal-${(normalizeLegalSourceLocator(label) ?? label).replace(/[^a-z0-9_.-]+/giu, "-")}`;
-}
-
-export function legalSourceLocatorFromUrl(value: string | null | undefined) {
-  if (!value) return null;
-  try {
-    return decodeURIComponent(new URL(value).hash.slice(1))
-      .match(/^((?:par|sec)\d[^:]*)/iu)?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/** One pinpoint form everywhere: "para 44", "par44" and the block label "44" name the same anchor,
- *  so a chat chip, a search result and a saved passage all land on the same place in the reader. */
-export function normalizeLegalSourceLocator(value: string | null | undefined) {
-  const locator = value?.trim();
-  if (!locator) return null;
-  return locator.match(/^(?:par(?:a(?:graph)?)?|sec(?:tion)?)s?\.?\s*(\d+)$/iu)?.[1] ?? locator;
-}
-
-function marginLabel(anchor: Anchor) {
-  const label = anchor.label ?? "";
+function marginLabel({ node }: Anchor) {
+  const label = node.label ?? "";
   // Range ownership can point to the whole section rather than the printed parent.
-  if (anchor.kind === "section") return label.match(/\([^()]+\)$/u)?.[0] ?? locatorLabel(anchor);
-  return locatorLabel(anchor);
+  if (node.kind === "section") return label.match(/\([^()]+\)$/u)?.[0] ?? locatorLabel(node);
+  return locatorLabel(node);
 }
 
 /** A unit as the margin and the page breaks name it, by its kind and its label as the document prints it. */
@@ -162,7 +140,8 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
-function stripMarker(text: string, anchor: Anchor | null) {
+function stripMarker(text: string, reading: Anchor | null) {
+  const anchor = reading?.node;
   if (anchor?.kind === "paragraph") {
     const label = escapeRegExp(anchor.label ?? "");
     return text.replace(new RegExp(`^\\s*(?:\\[\\s*${label}\\s*\\]|${label}\\.)\\s*`, "u"), "");
@@ -299,7 +278,8 @@ function LegalSourceViewerContent({
   const readerExpansion = useReaderExpansion(readerRoot);
   const root = useRef<HTMLDivElement>(null), highlightMatches = useRef<Array<HTMLElement | null>>([]);
   const sourcePreparation = useRef<Promise<{ file: ResearchFile; itemId: string }> | null>(null);
-  const locator = normalizeLegalSourceLocator(initialLocator);
+  // A place in the source is a node's fragment ("par12"), as the reader's ids are.
+  const locator = initialLocator?.trim() || null;
 
   useEffect(() => { sourcePreparation.current = null; },
     [researchFile?.document.id, sourceKey]);
@@ -391,10 +371,10 @@ function LegalSourceViewerContent({
       const frame = requestAnimationFrame(() => { if (root.current) scrollTo(root.current, evidence, true); });
       return () => cancelAnimationFrame(frame);
     }
-    const targetLocator = locator ?? decodeURIComponent(window.location.hash.slice(1)).replace(/^legal-/u, "");
+    const targetLocator = locator ?? decodeURIComponent(window.location.hash.slice(1));
     if (!targetLocator) return;
     const frame = requestAnimationFrame(() => {
-      const target = root.current?.querySelector<HTMLElement>(`#${legalSourceAnchorId(targetLocator)}`);
+      const target = root.current?.querySelector<HTMLElement>(`[id="${CSS.escape(targetLocator)}"]`);
       if (root.current && target) scrollTo(root.current, target, true);
     });
     return () => cancelAnimationFrame(frame);
@@ -523,18 +503,18 @@ function LegalSourceViewerContent({
           highlight.armed ? "cursor-crosshair" : ""}`}>
         <article lang={metadata.language} className="mx-auto max-w-[48rem] font-sans text-[17px] leading-[1.68] text-gray-900">
             {slices.map((slice, sliceIndex) => {
-              const page = slice.primary?.kind === "page"
-                ? slice.primary
-                : slice.anchors.find(({ kind }) => kind === "page");
-              const marker = slice.primary?.kind !== "page" && slice.primary?.label != null
+              const page = slice.primary?.node.kind === "page"
+                ? slice.primary.node
+                : slice.anchors.find(({ node }) => node.kind === "page")?.node;
+              const marker = slice.primary && slice.primary.node.kind !== "page" && slice.primary.node.label != null
                 ? marginLabel(slice.primary)
                 : null;
-              const selectionAnchor = slice.primary ?? slice.anchors.find(({ kind }) =>
-                kind === "paragraph" || kind === "prose" || kind === "section" || kind === "page" || kind === "footnote");
+              const selectionAnchor = (slice.primary ?? slice.anchors.find(({ node: { kind } }) =>
+                kind === "paragraph" || kind === "prose" || kind === "section" || kind === "page" || kind === "footnote"))?.node;
               return (
                 <section
                   key={`${slice.start}:${slice.end}`}
-                  id={slice.primary ? legalSourceAnchorId(slice.primary.fragment ?? "") : undefined}
+                  id={slice.primary?.fragment}
                   data-legal-block={selectionAnchor?.label}
                   data-locator-kind={selectionAnchor?.kind}
                   data-locator-value={selectionAnchor?.label}
@@ -543,12 +523,12 @@ function LegalSourceViewerContent({
                     contentVisibility: locator ? "visible" : "auto",
                     containIntrinsicSize: "auto 150px",
                     marginInlineStart: payload?.reference.docType === "laws"
-                      ? `${Math.min(slice.primary?.label?.match(/\([^()]+\)/gu)?.length ?? 0, 4) * 0.8}rem`
+                      ? `${Math.min(slice.primary?.node.label?.match(/\([^()]+\)/gu)?.length ?? 0, 4) * 0.8}rem`
                       : undefined,
                   }}
                 >
-                  {slice.anchors.map((anchor) => (
-                    <span key={anchor.id} id={legalSourceAnchorId(anchor.fragment ?? "")}
+                  {slice.anchors.filter((anchor) => anchor.node.id !== slice.primary?.node.id).map((anchor) => (
+                    <span key={anchor.node.id} id={anchor.fragment}
                       className="col-span-full block scroll-mt-4" aria-hidden="true" />
                   ))}
                   {page && <div role="doc-pagebreak" aria-label={locatorLabel(page)}

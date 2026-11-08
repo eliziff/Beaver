@@ -504,12 +504,12 @@ export type LegalEvidenceSpan = { text: string; start: number; end: number;
 
 export function legalSourceEvidence(passage: LegalSourcePassage,
   span?: LegalEvidenceSpan): LegalEvidenceReceipt | undefined {
-  const block = passage.blockArtifact, at = block && block.query_span;
+  const block = passage.blockArtifact?.node, at = passage.blockArtifact?.span, fragment = passage.blockArtifact?.fragment;
   span ??= block && at ? { text: passage.text, start: at.start, end: at.end,
     blockId: `${block.kind}:${block.label ?? ""}:${at.start}:${at.end}`,
     ...(block.label != null && ["paragraph", "page", "section", "footnote"].includes(block.kind)
       ? { locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"],
-        label: block.label } } : {}) } : undefined;
+        label: block.label, ...fragment && { fragment } } } : {}) } : undefined;
   if (passage.source.provider === "a2aj") {
     const native = object(passage.native);
     if (typeof native?.citation === "string" && typeof native.dataset === "string" &&

@@ -304,7 +304,7 @@ const boundedRow = (row: ReturnType<ReturnType<typeof structureNative>["readDocu
 function sourceExtent(artifact: NativeDocument) {
   const anchors = structureNative().documentAnchors(artifact);
   for (const kind of ["paragraph", "section", "page"] as const) {
-    const labels = anchors.flatMap((node) => node.kind === kind && node.label != null ? [node.label] : []);
+    const labels = anchors.flatMap(({ node }) => node.kind === kind && node.label != null ? [node.label] : []);
     if (labels.length) return { locator_kind: kind, first: labels[0], last: labels[labels.length - 1],
       count: labels.length };
   }
@@ -336,7 +336,8 @@ export function readLibraryResearchWindow(input: LibraryWindowInput): ResearchRe
       next = { resource, offset: row.lineNumber, start_char: row.span[0] - lineStart };
       break;
     }
-    const block = native.smallestContainingDocumentBlock(input.document, row.span[0], row.span[1])?.node ?? null,
+    const found = native.smallestContainingDocumentBlock(input.document, row.span[0], row.span[1]) ?? null,
+      block = found?.node,
       selected = cells.flatMap((cell) => cell.ranges.flatMap((range) => {
         const start = Math.max(range.start, row.span[0]), end = Math.min(range.end, row.span[1]);
         return start < end ? [{ start, end, locator: { kind: "cell" as const,
@@ -344,7 +345,7 @@ export function readLibraryResearchWindow(input: LibraryWindowInput): ResearchRe
       }));
     for (const span of selected.length ? selected
       : [{ start: row.span[0], end: row.span[1], ...(() => {
-        const locator = provenBlockLocator(input.document, block, { start: row.span[0], end: row.span[1] });
+        const locator = provenBlockLocator(input.document, found, { start: row.span[0], end: row.span[1] });
         return { locator: locator ?? { kind: "document" as const, label: block?.kind === "paragraph" && block.label != null
           ? `text paragraph ${block.label}` : `text line ${row.lineNumber}` } };
       })() }])
@@ -462,14 +463,13 @@ function cleanSearchEvidenceSpan(
   const matchEnd = hit.at + hit.excerpt.length;
   const source = passage.documentArtifact;
   if (passage.role === "document" || !passage.blockArtifact) {
-    const block = structureNative()
-      .smallestContainingDocumentBlock(source, hit.at, matchEnd)?.node;
-    const range = block && block.query_ranges.find((range) => range.start <= hit.at && range.end >= matchEnd);
-    if (block && range) return {
+    const found = structureNative().smallestContainingDocumentBlock(source, hit.at, matchEnd);
+    const range = found?.ranges.find((range) => range.start <= hit.at && range.end >= matchEnd);
+    if (found && range) return {
       text: structureNative().documentText(source).slice(range.start, range.end),
       ...range,
-      blockId: block.id,
-      locator: provenBlockLocator(source, block, range),
+      blockId: found.node.id,
+      locator: provenBlockLocator(source, found, range),
     };
   }
 
@@ -656,10 +656,10 @@ async function readLegalSource(
       const native = structureNative(), artifact = passage.documentArtifact,
         resource = researchSourceResource(passage.source), offset = Number(args.offset) || 1,
         startChar = Number(args.start_char) || 0, firstParagraph = passage.source.kind === "case"
-          ? native.documentAnchors(artifact).find(({ kind, label }) => kind === "paragraph" && label != null) : undefined;
+          ? native.documentAnchors(artifact).find(({ node }) => node.kind === "paragraph" && node.label != null) : undefined;
       if (passage.source.kind === "case" && !firstParagraph) unclassified.add(resource);
       const window = args.offset === undefined && args.start_char === undefined && firstParagraph
-        ? native.readDocumentTextRange(artifact, firstParagraph.query_span.start, passage.text.length,
+        ? native.readDocumentTextRange(artifact, firstParagraph.span.start, passage.text.length,
             undefined, Math.max(1, remaining))
         : native.readDocumentTextWindow(artifact, offset, startChar, Math.max(1, remaining));
       if (window.status !== "ready") throw new Error(window.status === "invalid_line" ? `offset ${offset} is past the last line.`
@@ -675,7 +675,7 @@ async function readLegalSource(
           whole = located && found.text === row.text ? found : null,
           start = row.span[0], end = row.span[1],
           evidence = whole && label != null ? legalSourceEvidence({ ...passage, role: "selected", text: whole.text,
-            blockArtifact: whole.node, locator: { requested: { kind: kind as "paragraph" | "page" | "section" | "footnote",
+            blockArtifact: whole, locator: { requested: { kind: kind as "paragraph" | "page" | "section" | "footnote",
               value: label }, label } })
             : legalSourceEvidence(passage, { text: row.text, start, end,
             ...(block ? { blockId: `${block.kind}:${label ?? ""}:${start}:${end}`,
@@ -738,8 +738,8 @@ async function readLegalSource(
       let available = maxResults, remainingChars = 40_000;
       const corpus = registered.map(({ passage }) => ({ passage,
         judgment: passage.source.kind === "case" && passage.role === "document"
-          ? ((node) => node ? node.query_span.start : 0)(structureNative().documentAnchors(passage.documentArtifact)
-            .find(({ kind, label }) => kind === "paragraph" && label != null)) : 0 }));
+          ? structureNative().documentAnchors(passage.documentArtifact)
+            .find(({ node }) => node.kind === "paragraph" && node.label != null)?.span.start ?? 0 : 0 }));
       const scanSources = [...new Map(corpus.map(({ passage }) => [researchSourceResource(passage.source), {
         resource: researchSourceResource(passage.source),
         source_sha256: structureNative().documentRevision(passage.documentArtifact),
@@ -770,7 +770,7 @@ async function readLegalSource(
               : legalSourceEvidence(passage, span), passage);
             const before = passage.text.slice(Math.max(judgment, hit.at - contextChars), span.start),
               after = passage.text.slice(span.end, Math.min(passage.text.length, hit.at + hit.excerpt.length + contextChars)),
-              line = receipt && lineAt(receipt, (passage.locator.requested && passage.blockArtifact ? passage.blockArtifact.query_span.start : 0) + hit.at);
+              line = receipt && lineAt(receipt, (passage.locator.requested && passage.blockArtifact ? passage.blockArtifact.span.start : 0) + hit.at);
             const value = { at: hit.at, ...(line ? { line } : {}), ...(receipt ? { evidence_id: receipt.evidence_id,
               ...(before ? { before } : {}), ...(after ? { after } : {}) }
               : { context: hit.context, locator: passage.locator.label }) };
@@ -825,7 +825,7 @@ async function readLegalSource(
       const selected = registered.find(({ passage }) =>
         passage.role === "selected" && passage.blockArtifact);
       const artifact = selected?.passage.documentArtifact;
-      const block = selected?.passage.blockArtifact;
+      const block = selected?.passage.blockArtifact?.node;
       const metadata = selected && objectRecord(selected.passage.native);
       if (artifact && block && metadata && typeof metadata.citation === "string" &&
           typeof metadata.dataset === "string" &&
@@ -848,12 +848,10 @@ async function readLegalSource(
             break;
           }
           chars += related.text.length;
-          const receipts = (related.units ?? [related]).map(({ node }) => node).filter((unit): unit is NativeNode & {
-            kind: "paragraph" | "page" | "section" | "footnote"; label: string;
-          } =>
+          const receipts = (related.units ?? [related]).filter(({ node: unit }) =>
             unit.label != null && (unit.kind === "paragraph" || unit.kind === "page" ||
             unit.kind === "section" || unit.kind === "footnote")
-          ).flatMap((unit) => unit.query_ranges.map((range) => numberedReceipt(createA2AJPassageEvidence({
+          ).flatMap(({ node: unit, ranges }) => ranges.map((range) => numberedReceipt(createA2AJPassageEvidence({
             citation: metadata.citation as string,
             name: typeof metadata.name === "string" ? metadata.name : null,
             dataset: metadata.dataset as string,
@@ -1008,7 +1006,7 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
     scope = references === "none" ? null : oneHopLegalScope(document, block, references);
   if (references !== "none" && !scope)
     return refuse(`Section '${block.label ?? ""}' could not seed a reference scope.`);
-  const nodes = scope ? [scope.seed.node, ...scope.nodes.map(({ node }) => node)] : [block], first = input.reference_offset ?? 0;
+  const nodes = scope ? [scope.seed, ...scope.nodes] : [lookup.block], first = input.reference_offset ?? 0;
   if (first >= nodes.length || references === "none" && first !== 0)
     return refuse("Reference continuation is outside this section's reference scope.");
   const inferredSection = block.source === "heuristic"
@@ -1025,11 +1023,12 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
   const append = (line: LibraryReadLine & { resume: ResearchReadCursor }) => {
     chars += lineSize(line) + (lines.length ? 1 : 0); lines.push(line);
   };
-  reading: for (const [index, node] of nodes.entries()) {
+  reading: for (const [index, reading] of nodes.entries()) {
+    const { node } = reading;
     // Rebuild the same covered union for prior references on a continuation.
     // This schedules exact source members; only emitted rows count as read.
-    const ranges = node.query_ranges.flatMap((range) => uncoveredRanges(range, covered));
-    for (const range of node.query_ranges) addCoveredRange(covered, range);
+    const ranges = reading.ranges.flatMap((range) => uncoveredRanges(range, covered));
+    for (const range of reading.ranges) addCoveredRange(covered, range);
     if (index < first) continue;
     let opened = false;
     for (const range of ranges) {
@@ -1045,7 +1044,7 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
       if (window.status !== "ready") return refuse(`Section '${node.label ?? ""}' has an invalid text range (${window.status}).`);
       for (const original of window.rows) {
         const row = boundedRow(original), cursor = resume(index, row.lineNumber, row.startChar),
-          locator = provenBlockLocator(document, node, { start: row.span[0], end: row.span[1] }),
+          locator = provenBlockLocator(document, reading, { start: row.span[0], end: row.span[1] }),
           receipt = createLibraryEvidence({ documentId: input.documentId, versionId: input.versionId,
             filename: input.filename, sourceSha256, start: row.span[0], end: row.span[1],
             spanText: sourceText.slice(row.span[0], row.span[1]), locator }),

@@ -110,10 +110,10 @@ export function createDocumentsRouter(
       ?? reject(404, "Document version not found");
     const document = await documentProjectionService.read(source), native = structureNative(),
       text = native.documentText(document), pages = source.fileType === "pdf"
-        ? native.documentAnchors(document, text.length).filter(({ kind }) => kind === "page") : [];
+        ? native.documentAnchors(document, text.length).filter(({ node }) => node.kind === "page") : [];
     res.setHeader("Cache-Control", "private, no-store");
     res.json({ revision: native.documentRevision(document), slices: (pages.length
-      ? pages.map((node) => ({ ranges: node.query_ranges, label: node.label ?? "" }))
+      ? pages.map(({ node, ranges }) => ({ ranges, label: node.label ?? "" }))
       : [{ ranges: [{ start: 0, end: text.length }], label: "1" }]).flatMap(({ ranges, label }) =>
         ranges.map(({ start, end }) => ({ start, end, text: text.slice(start, end), page: Number(label) }))) });
   }));

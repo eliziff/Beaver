@@ -39,8 +39,6 @@ import {
 } from "@/app/lib/assistantSession";
 import { invalidateDocumentFile } from "@/app/hooks/useDocumentFile";
 import {
-    legalSourceLocatorFromUrl,
-    normalizeLegalSourceLocator,
     type LegalSourceTab,
 } from "@/app/components/legal/LegalSourceViewer";
 import { LegalSourcePopout } from "@/app/components/legal/LegalSourcePopout";
@@ -131,9 +129,11 @@ export function legalCitationTab(
             language: "en",
             citationRef: citation.ref,
             quotes,
-            initialLocator:
-                normalizeLegalSourceLocator(citation.pinpoint ?? citation.locator) ??
-                legalSourceLocatorFromUrl(citation.url),
+            // The cited node's place in the reader, its fragment; else the one its link opens at.
+            initialLocator: citation.fragment ?? (() => {
+                try { return citation.url ? decodeURIComponent(new URL(citation.url).hash.slice(1)).split(":~:")[0] || null : null; }
+                catch { return null; }
+            })(),
         };
     }
     if (citation.kind === "public_legal" && citation.provider === "journal") {
@@ -150,7 +150,7 @@ export function legalCitationTab(
             language: "en",
             citationRef: citation.ref,
             quotes,
-            initialLocator: citation.locator ?? null,
+            initialLocator: citation.fragment ?? null,
         };
     }
     return null;

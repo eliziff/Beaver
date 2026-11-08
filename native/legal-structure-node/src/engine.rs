@@ -203,12 +203,15 @@ pub fn document_fingerprint_of(document: &NativeDocument) -> DocumentFingerprint
 
 /// The nodes the query serves, in its order, as the model writes them; with `end`, those starting before it (the reader
 /// clips their ranges).
+/// The nodes the query serves, in its order, each as a reader takes it (`DocumentStructure::reading`); with `end`, those
+/// starting before it.
 pub fn document_anchors(document: &NativeDocument, end: Option<u32>) -> impl Serialize + '_ {
     let structure = document.structure();
     document
         .query
         .blocks(structure, None)
-        .filter(|node| end.is_none_or(|end| structure.query_range(node).start < end as usize))
+        .map(|node| structure.reading(node))
+        .filter(|reading| end.is_none_or(|end| reading.span.start < end as usize))
         .collect::<Vec<_>>()
 }
 

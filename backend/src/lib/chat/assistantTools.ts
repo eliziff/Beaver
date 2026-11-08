@@ -1052,7 +1052,7 @@ async function runCodingShapeCall(
           ? `; candidates: ${lookup.matches.join(", ")}` : "";
         return fail(`Section '${grepSection}' not found (${lookup.status}${candidates}).`);
       }
-      scopeSpan = lookup.block.node.query_span;
+      scopeSpan = lookup.block.span;
     }
     const matched = lines.flatMap((line, index) => {
       const end = starts[index + 1] ?? document.text.length;
@@ -1381,7 +1381,7 @@ function pdfLegalEvidence(
       [...lookup.before, ...lookup.units, ...lookup.after].map((unit) => [unit.node.id, unit])).values()];
   return units.flatMap((unit) => {
     if (!unit.text.trim()) return [];
-    const parts = unit.node.query_ranges;
+    const parts = unit.ranges;
     if (!parts.length || parts.some((span) => span.end <= span.start))
       throw new Error("PDF passage has no canonical document spans");
     return parts.map((span) => createLibraryEvidence({

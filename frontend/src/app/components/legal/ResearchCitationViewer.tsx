@@ -33,6 +33,6 @@ function ResearchCitationContent({ citation, reference, document }: {
   if (reference && (reference.provider === "a2aj" || reference.provider === "journal")) return <LegalSourceViewer
         provider={reference.provider} citation={reference.citation ?? reference.id} sourceId={reference.id} navigationRequest={citation ?? reference}
         dataset={reference.collection} language={reference.language} docType={reference.kind === "legislation" ? "laws" : reference.kind === "journal" ? "articles" : "cases"}
-        initialLocator={citation && "locator" in citation ? citation.locator ?? undefined : undefined} quotes={citation?.quotes} citationRef={citation?.ref} compact />;
+        initialLocator={citation && "fragment" in citation ? citation.fragment ?? undefined : undefined} quotes={citation?.quotes} citationRef={citation?.ref} compact />;
   return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="m-auto text-sm underline">Open source</a> : null;
 }

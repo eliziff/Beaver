@@ -148,6 +148,8 @@ export type LegalEvidenceReceipt = {
     label: string;
     sheet?: string;
     cells?: string;
+    /** The node's link fragment as the structure writes it ("par12"): its place in a reader. */
+    fragment?: string;
   };
   resolver_version: "a2aj-inline-v1" | `${Exclude<DirectSourceProvider, "a2aj">}-span-v1` |
     "citator-analysis-v1" | "citator-noteup-v1" | "public-journal-v1" | "library-read-v1";

@@ -29,7 +29,9 @@ const display = { source_class: z.enum(["case", "legislation", "commentary"]).op
   external_url: url.optional(), authority: short.optional(), short_authority: short.optional(),
   short_form: z.boolean().optional(), locator_separator: z.enum([" at ", ", "]).optional() };
 const locator = { ...display, locator_kind: z.enum(["paragraph", "page", "section", "footnote"]).optional(),
-  locator: short.nullable().optional(), pinpoint: short.nullable().optional() };
+  locator: short.nullable().optional(), pinpoint: short.nullable().optional(),
+  /** The cited node's link fragment ("par12"), its place in a reader. */
+  fragment: short.optional() };
 const quotes = z.array(z.object({ quote: text }).strict()).max(32).default([]);
 const citation = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("a2aj"), ref: integer, citation: short.nullable().optional(),

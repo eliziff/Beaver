@@ -286,32 +286,6 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
     }
 }
 
-/// What a reader asks of each node an operation returns, answered beside it by the structure's own readings: the spans
-/// of the document's query text it holds and their envelope (`query_ranges`, `query_range`), its link fragment
-/// (`fragment`), and whether it prints its label where it stands (its marker holds text). A node is an object carrying
-/// a node's `id`, `range` and `origin_id`.
-fn beside_nodes<'a>(structure: &'a legal_structure::DocumentStructure, value: &mut Value,
-    nodes: &mut Option<std::collections::HashMap<&'a str, &'a legal_structure::StructureNode>>) {
-    match value {
-        Value::Array(items) => items.iter_mut().for_each(|item| beside_nodes(structure, item, nodes)),
-        Value::Object(object) => {
-            let id = (object.contains_key("origin_id") && object.contains_key("range"))
-                .then(|| object.get("id").and_then(Value::as_str).map(str::to_owned)).flatten();
-            if let Some(id) = id {
-                let by_id = nodes.get_or_insert_with(|| structure.nodes.iter().map(|node| (node.id.as_str(), node)).collect());
-                if let Some(node) = by_id.get(id.as_str()).copied() {
-                    object.insert("query_ranges".to_owned(), json!(structure.query_ranges(node)));
-                    object.insert("query_span".to_owned(), json!(structure.query_range(node)));
-                    object.insert("fragment".to_owned(), json!(node.fragment()));
-                    object.insert("prints_label".to_owned(), json!(node.marker_range.is_some_and(|range| range.start < range.end)));
-                }
-            }
-            object.values_mut().for_each(|item| beside_nodes(structure, item, nodes));
-        }
-        _ => {}
-    }
-}
-
 /// Runs one framed request and frames its reply. A panic is reported as the call's error.
 pub fn call(request: &[u8], progress: Progress) -> Vec<u8> {
     engine::install_structure_analysis();
@@ -322,12 +296,7 @@ pub fn call(request: &[u8], progress: Progress) -> Vec<u8> {
         let parsed: Value = serde_json::from_slice(json).map_err(|error| error.to_string())?;
         let op = parsed.get("op").and_then(Value::as_str).ok_or("engine request lacks op")?.to_owned();
         let call = Call { args: parsed.get("args").cloned().unwrap_or(Value::Null) };
-        let (mut output, bytes) = dispatch(&op, &call, &request[4 + json_length..], progress)?;
-        // The nodes a document's operation returns carry the structure's readings of them.
-        if let Some(document) = call.document().ok().and_then(|handle| documents().1.get(&handle).cloned()) {
-            beside_nodes(document.structure(), &mut output, &mut None);
-        }
-        Ok((output, bytes))
+        dispatch(&op, &call, &request[4 + json_length..], progress)
     }));
     let (ok, json, bytes) = match result {
         Ok(Ok((output, bytes))) => (true, serde_json::to_vec(&output).unwrap_or_default(), bytes),

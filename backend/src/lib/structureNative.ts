@@ -185,6 +185,8 @@ export type NativePdfLookupUnit = {
   text: string;
   /** The pages (from 1) it stands on: its note's first call's, then its node's and its printings'. */
   pages: number[];
+  /** The spans of the document's query text its node holds. */
+  ranges: NativeSpan[];
   confidence: number | null;
   printings?: NativeNode[];
   occurrence?: number;
@@ -417,14 +419,15 @@ type StructureAddon = {
   smallestContainingDocumentBlock(document: NativeDocument, start: number,
     end: number): NativePassage | null;
   documentHasOrigin(document: NativeDocument, origin: NativeNode["source"]): boolean;
-  /** The nodes the query serves, in its order; with `end`, those starting before it. Levels are one-based. */
-  documentAnchors(document: NativeDocument, end?: number): NativeNode[];
+  /** The nodes the query serves, in its order, as readers take them; with `end`, those starting before it. Levels are
+   *  one-based. */
+  documentAnchors(document: NativeDocument, end?: number): NativeNodeReading[];
   legalSourceViewer(document: NativeDocument, primaryKind: "paragraph" | "section",
     limit?: number): {
       slices: Array<{
         start: number; end: number; text: string; depth: number;
-        anchors: NativeNode[];
-        primary: NativeNode | null;
+        anchors: NativeNodeReading[];
+        primary: NativeNodeReading | null;
         /** The slice is a heading the structure reads. */
         heading?: boolean;
       }>;
@@ -553,16 +556,16 @@ export type NativeNode = {
   calls?: NativeSpan[];
   /** What a reader knows of the node past its kind and place: a note's proposition ("sentence", "passage"). */
   properties?: Record<string, string>;
-  /** Beside each node the engine returns, its readings of it: the spans of the document's query text it holds and their
-   *  envelope, its link fragment ("par12"), and whether it prints its label where it stands. */
-  query_ranges: NativeSpan[];
-  query_span: NativeSpan;
-  fragment?: string | null;
-  prints_label: boolean;
 };
 
-/** A node the query found, with its text. */
-export type NativePassage = { node: NativeNode; text: string };
+/** A node as a reader takes it (legal-structure-model's `NodeReading`), what the structure reads of it beside it: the
+ *  spans of the document's query text it holds and their envelope, its link fragment ("par12"), and whether it prints
+ *  its label where it stands. */
+export type NativeNodeReading = { node: NativeNode; ranges: NativeSpan[]; span: NativeSpan; fragment?: string;
+  prints_label: boolean };
+
+/** A node the query found, as a reader takes it, with its text. */
+export type NativePassage = NativeNodeReading & { text: string };
 
 /** The engine's reading of where a quotation is in its source (legal-structure quote_location.rs). */
 export type NativeQuoteCorrection = { region: string; fragment: string; corrected: string };
