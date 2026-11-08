@@ -476,7 +476,7 @@ fn point_answer(structure: &DocumentStructure, quote: &[Vec<u64>]) -> Answer {
     reading(structure).headnotes.iter().find_map(|headnote| {
         let finder = Finder::new(&headnote.text);
         finder.find(longest)?;
-        Some((headnote.number.clone().unwrap_or_default().trim_matches(['.', ')', '(', ' ']).to_owned(), String::new()))
+        Some((headnote.number.clone().or_else(|| legal_structure::opinion::headnote_number(&headnote.text)).unwrap_or_default().trim_matches(['.', ')', '(', ' ']).to_owned(), String::new()))
     }).filter(|answer| !answer.0.is_empty())
 }
 
