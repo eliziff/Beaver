@@ -1,11 +1,11 @@
 import { inSqliteRun, onSqliteRunEnd } from "./legalDataPath";
 import { structureNative } from "./structureNative";
 
+/** A note split into its citation parts, each with the citation engine's fields of it (`SourceFields`), its page
+ *  pinpoints as numbers. */
 export type QuoteCitationUnit = { status: string; reasons: string[];
   parts: Array<{ start: number; end: number; text: string; anchors: string[]; reference: string;
-    fields: { status: string; corrected: string; kind: string; link_candidate: string;
-      pinpoint_fragments: string[]; page_pinpoints: number[]; bare_citation: string;
-      citation_with_style: string; short_form: string; reasons: string[] } }>;
+    fields: Omit<import("legal-citations").SourceFields, "page_pinpoints"> & { page_pinpoints: number[] } }>;
   delimiters: Array<[number, number, string]> };
 
 // The units an operation splits, kept while it runs: finding sources splits the notes the quote check splits again.
