@@ -177,25 +177,28 @@ export type NativePdfLookupRequest = {
   instrument?: string;
 };
 
+/** A unit a PDF lookup returns: its node, and what no node holds: its text as the lookup reads it, how far its pages'
+ *  text is trusted, a numbered paragraph's other printings, a note's count of its label's printings up to it and the
+ *  page its first call stands on. */
+export type NativePdfLookupUnit = {
+  node: NativeNode;
+  text: string;
+  confidence: number | null;
+  printings?: NativeNode[];
+  occurrence?: number;
+  reference_page?: number | null;
+};
+
+/** The pages (from 1) a lookup unit stands on: its note's first call's, then its node's and its printings'. */
+export const unitPages = (unit: NativePdfLookupUnit) => [...new Set([...unit.reference_page ? [unit.reference_page] : [],
+  ...[unit.node, ...unit.printings ?? []].flatMap((node) => (node.page_indexes ?? []).map((index) => index + 1))])];
+
 type PdfStructureLookupBase = {
   schema_version: "legalpdf.structure-lookup.v1";
   requested: NativePdfLookupRequest;
-  units: Array<{
-    id: string;
-    kind: "page" | "paragraph" | "footnote" | "section";
-    /** As the document prints it: "12" of a page, paragraph, note or line, a provision's label. */
-    locator: string;
-    text: string;
-    /** The spans of the document's text the unit holds. */
-    spans: Array<{ start: number; end: number }>;
-    page_numbers: number[];
-    confidence: number | null;
-    confidence_basis: string;
-    provenance: string;
-    proposition?: { sentence: string; passage_since_prior_note: string };
-    note?: { label: string; occurrence: number; restart_sequence: number;
-      reference_page: number | null; body_pages: number[]; warnings: string[] };
-  }>;
+  /** The kind of unit asked for. */
+  kind: "page" | "line" | "paragraph" | "footnote" | "section";
+  units: NativePdfLookupUnit[];
   before: PdfStructureLookup["units"];
   after: PdfStructureLookup["units"];
   matches: string[];
@@ -545,15 +548,24 @@ export type NativeNode = {
   marker_range?: NativeSpan;
   row_span?: number;
   column_span?: number;
+  role?: string;
+  extent?: NativeSpan[];
+  page_indexes?: number[];
+  /** Where a note is called. */
+  calls?: NativeSpan[];
+  /** What a reader knows of the node past its kind and place: a note's proposition ("sentence", "passage"). */
+  properties?: Record<string, string>;
 };
 
 /** A node the query found, with its text. */
 export type NativePassage = { node: NativeNode; text: string };
 
-/** A node's ranges in the document's query text: its rendered ranges where the structure renders its text. */
+/** A node's ranges in the document's query text, as the structure reads them (`DocumentStructure::query_ranges`): its
+ *  rendered ranges where the structure renders its text, else a provision's or heading's extent, else its own. */
 export function nodeRanges(node: NativeNode): NativeSpan[] {
   if (node.rendered_ranges?.length) return node.rendered_ranges;
   if (node.rendered_range) return [node.rendered_range];
+  if ((node.kind === "section" || node.role === "heading") && node.extent?.length) return node.extent;
   return node.ranges?.length ? node.ranges : [node.range];
 }
 

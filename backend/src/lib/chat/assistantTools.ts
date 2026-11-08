@@ -40,8 +40,10 @@ import {
   type PdfLocatorKind,
 } from "../documentProjectionService";
 import {
+  nodeRanges,
   nodeSpan,
   structureNative,
+  unitPages,
   type NativeDocument,
 } from "../structureNative";
 import {
@@ -1226,30 +1228,28 @@ function compactPdfLookup(filename: string, lookup: PdfLookupResult, evidence: L
       ...("error" in lookup ? { error: lookup.error } : {}),
     };
   }
-  const selected = new Set(lookup.units.map(({ kind, id }) => `${kind}:${id}`)),
-    units = [...new Map([...lookup.before, ...lookup.after, ...lookup.units]
-      .map((unit) => [`${unit.kind}:${unit.id}`, unit])).values()];
+  const kind = lookup.kind, selected = new Set(lookup.units.map(({ node }) => node.id)),
+    units = [...new Map([...lookup.before, ...lookup.after, ...lookup.units].map((unit) => [unit.node.id, unit])).values()];
   return {
     ok: true, title: filename,
     handle: lookup.evidence.handle,
     // A passage the PDF interrupts (a page's running head and notes between its parts) has a receipt for each part,
     // and each part is shown with its own.
     passages: units.flatMap((unit) => {
-      const receipts = evidence.filter((value) => value.block_id === `node:${unit.id}` ||
-        value.stable_source_id.endsWith(`:${unit.kind}:${unit.id}`)),
+      const { node } = unit, pages = unitPages(unit), receipts = evidence.filter((value) => value.block_id === `node:${node.id}` ||
+        value.stable_source_id.endsWith(`:${kind}:${node.id}`)),
         texts = receipts.length ? receipts.map((receipt) => receipt.span_text ?? unit.text) : [unit.text],
-        proposition = Object.fromEntries(Object.entries(unit.proposition ?? {}).filter(([key, value]) =>
-          !["sentence", "passage_since_prior_note"].includes(key) ||
-          typeof value !== "string" || value.trim() && !texts.some((text) => text.includes(value.trim())) &&
-          (key !== "passage_since_prior_note" || value.trim() !== unit.proposition?.sentence?.trim())));
+        // A note's proposition, where the pairing read one: the sentence calling it and the passage since the note before.
+        sentence = node.properties?.sentence?.trim(), passage = node.properties?.passage?.trim(),
+        proposition = { ...sentence && !texts.some((text) => text.includes(sentence)) && { sentence },
+          ...passage && passage !== sentence && !texts.some((text) => text.includes(passage)) && { passage_since_prior_note: passage } };
       return texts.map((text, index) => ({ ...(receipts[index] ? { evidence_id: receipts[index].evidence_id } : {}),
-        kind: unit.kind, locator: unit.locator, text,
-        ...(unit.page_numbers.length ? { pages: unit.page_numbers } : {}),
+        kind, locator: node.label ?? "", text,
+        ...(pages.length ? { pages } : {}),
         ...(unit.confidence !== null && unit.confidence < 1 ? { confidence: unit.confidence } : {}),
         ...(index === 0 && Object.keys(proposition).length ? { proposition } : {}),
-        ...(unit.note ? { note: { label: unit.note.label,
-          ...(unit.note.warnings.length ? { warnings: unit.note.warnings } : {}) } } : {}),
-        ...(!selected.has(`${unit.kind}:${unit.id}`) ? { role: "context" } : {}) }));
+        ...(kind === "footnote" ? { note: { label: node.label ?? "", ...(!node.calls?.length ? { warnings: ["label_only"] } : {}) } } : {}),
+        ...(!selected.has(node.id) ? { role: "context" } : {}) }));
     }),
   };
 }
@@ -1334,14 +1334,13 @@ function providerPdfLegalEvidence(
     : provider === "courtlistener" || provider === "govinfo" ? "US" : "UK";
   const sourceClass = source.kind === "case" || source.kind === "legislation"
     ? source.kind : "commentary";
-  const seen = new Set<string>();
-  return [...resolved.lookup.before, ...resolved.lookup.units, ...resolved.lookup.after]
+  const seen = new Set<string>(), lookup = resolved.lookup;
+  return [...lookup.before, ...lookup.units, ...lookup.after]
     .flatMap((unit) => {
-      const key = `${unit.kind}:${unit.id}`;
+      const key = `${lookup.kind}:${unit.node.id}`;
       if (seen.has(key)) return [];
       seen.add(key);
-      const parts = [unit.text, unit.proposition?.sentence ?? "",
-        unit.proposition?.passage_since_prior_note ?? ""];
+      const parts = [unit.text, unit.node.properties?.sentence ?? "", unit.node.properties?.passage ?? ""];
       const normalized = new Set<string>();
       const spanText = parts.map((text) => text.trim()).filter((text) => {
         const identity = text.replace(/\s+/gu, " ").toLowerCase();
@@ -1350,7 +1349,7 @@ function providerPdfLegalEvidence(
         return true;
       }).join("\n\n");
       if (!spanText) return [];
-      const page = [...new Set(unit.page_numbers)].sort((a, b) => a - b)[0];
+      const page = unitPages(unit).sort((a, b) => a - b)[0];
       const url = new URL(resolved.params.url);
       if (page) url.hash = `page=${page}`;
       return [createDirectSourceEvidence(provider, {
@@ -1367,7 +1366,7 @@ function providerPdfLegalEvidence(
         version: source.date ?? resolved.params.version,
         externalUrl: url.toString(),
         locatorKind: page ? "page" : "section",
-        locatorLabel: page ? String(page) : unit.locator,
+        locatorLabel: page ? String(page) : unit.node.label ?? "",
       })];
     });
 }
@@ -1382,10 +1381,10 @@ function pdfLegalEvidence(
   if (lookup.status !== "found") return [];
   const native = structureNative(), text = native.documentText(document),
     sourceSha256 = native.documentRevision(document), units = [...new Map(
-      [...lookup.before, ...lookup.units, ...lookup.after].map((unit) => [unit.id, unit])).values()];
+      [...lookup.before, ...lookup.units, ...lookup.after].map((unit) => [unit.node.id, unit])).values()];
   return units.flatMap((unit) => {
     if (!unit.text.trim()) return [];
-    const parts = unit.spans;
+    const parts = nodeRanges(unit.node);
     if (!parts.length || parts.some((span) => span.end <= span.start))
       throw new Error("PDF passage has no canonical document spans");
     return parts.map((span) => createLibraryEvidence({
@@ -1395,8 +1394,8 @@ function pdfLegalEvidence(
       sourceSha256,
       spanText: text.slice(span.start, span.end),
       ...span,
-      blockId: `node:${unit.id}`,
-      locator: { kind: unit.kind, label: unit.locator },
+      blockId: `node:${unit.node.id}`,
+      locator: { kind: lookup.kind, label: unit.node.label ?? "" },
     }));
   });
 }
