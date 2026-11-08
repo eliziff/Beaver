@@ -1344,11 +1344,7 @@ fn main() {
         [command, store, out] if command == "rows" => rows(Path::new(store), Path::new(out)),
         [command, store, prefix, options @ ..] if command == "pairing" => pairing(Path::new(store), prefix, options),
         [command, store, prefix, options @ ..] if command == "explain" => explain(Path::new(store), prefix, options),
-        // The transition parser's whole reading trained on whole documents: its dumped problems, the
-        // averaged weights written to OUT.
-        [command, problems, out, epochs] if command == "whole-train" => epochs.parse().map_err(|e| format!("epochs: {e}"))
-            .and_then(|epochs| legalpdf::train_whole_reading(Path::new(problems), Path::new(out), epochs)).map(|report| println!("{report}")),
-        _ => Err("usage: structure-gold inputs|digest|grade|rows|explain|selfcheck|pairing|paragraph-data STORE [SHA|OUT_DIR|MODE] [options] | whole-train PROBLEMS OUT EPOCHS".into()),
+        _ => Err("usage: structure-gold inputs|digest|grade|rows|explain|selfcheck|pairing|paragraph-data STORE [SHA|OUT_DIR|MODE] [options]".into()),
     };
     if let Err(error) = result {
         eprintln!("{error}");
