@@ -425,7 +425,7 @@ type StructureAddon = {
   legalSourceViewer(document: NativeDocument, primaryKind: "paragraph" | "section",
     limit?: number): {
       slices: Array<{
-        start: number; end: number; text: string; depth: number;
+        start: number; end: number; text: string;
         anchors: NativeNodeReading[];
         primary: NativeNodeReading | null;
         /** The slice is a heading the structure reads. */
