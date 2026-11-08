@@ -163,11 +163,11 @@ mod corpus {
         let (pages, scanned) = (summary.page_count, summary.pages_needing_ocr.len().max(summary.scanned_pages.len()));
         let anchors = serde_json::to_value(engine::document_anchors(&document, None)).map_err(|e| e.to_string())?;
         let anchors = anchors.as_array().map(Vec::as_slice).unwrap_or_default();
-        let furniture: HashSet<&str> = anchors.iter().filter_map(|anchor| anchor["nodeId"].as_str())
+        let furniture: HashSet<&str> = anchors.iter().filter_map(|anchor| anchor["id"].as_str())
             .filter_map(|id| id.split_once(':')).filter(|(_, what)| ["page", "furniture", "line"].iter().any(|name| what.starts_with(name)))
             .map(|(id, _)| id).collect();
-        let top = anchors.iter().filter(|anchor| anchor["kind"] == "paragraph")
-            .filter(|anchor| matches!(anchor["kind"].as_str(), Some("paragraph" | "prose" | "quote"))).filter_map(|anchor| anchor["printed"].as_str()?.parse::<usize>().ok()).max().unwrap_or(0).min(MOST_PARAGRAPHS);
+        let top = anchors.iter().filter(|anchor| matches!(anchor["kind"].as_str(), Some("paragraph" | "prose")))
+            .filter(|anchor| matches!(anchor["kind"].as_str(), Some("paragraph" | "prose" | "quote"))).filter_map(|anchor| anchor["label"].as_str()?.parse::<usize>().ok()).max().unwrap_or(0).min(MOST_PARAGRAPHS);
         let targets = (1..=top).map(|n| serde_json::from_value(json!({"id": n.to_string(), "locatorKind": "paragraph", "locator": n.to_string()})))
             .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
         let geometry = engine::pdf_passage_pages_job(&document, targets)?.compute()?;
@@ -948,7 +948,7 @@ mod corpus {
             document = engine::derive_pdf_document(&bytes, &request_of(&job.sha, cache, ocr).expect("request")).expect("derive");
         }
         for anchor in items(&serde_json::to_value(engine::document_anchors(&document, None)).expect("anchors")) {
-            println!("{}", json!([anchor["nodeId"], anchor["kind"], anchor["label"], anchor["status"]]));
+            println!("{}", json!([anchor["id"], anchor["kind"], anchor["label"], anchor["status"]]));
         }
         // The structure's numbered paragraph nodes: each one's label, lines and pages.
         for node in document.structure().nodes.iter().filter(|node| node.kind == legal_structure::NodeKind::Paragraph) {

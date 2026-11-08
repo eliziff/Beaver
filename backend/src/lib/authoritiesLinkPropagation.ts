@@ -86,7 +86,7 @@ async function anchored(url: string, occurrence: AuthorityOccurrence, sourceDocu
     added[2], added[2], 0)?.selected[0];
   const words = block ? openingWords(block.text) : "";
   // The anchor stays beside the fragment (belt and suspenders): the block's own, else the one re-anchoring added.
-  const pinpoint = block && words && buildLegalSourcePinpoint({ url: reanchored, anchor: block.anchor ?? undefined,
+  const pinpoint = block && words && buildLegalSourcePinpoint({ url: reanchored, anchor: block.node.anchor ?? undefined,
     blockText: block.text, documentText: document }, [words]);
   return pinpoint && pinpoint.target.includes(":~:text=") ? pinpoint.target : reanchored;
 }

@@ -201,10 +201,14 @@ pub fn document_fingerprint_of(document: &NativeDocument) -> DocumentFingerprint
     }
 }
 
+/// The nodes the query serves, in its order, as the model writes them; with `end`, those starting before it (the reader
+/// clips their ranges).
 pub fn document_anchors(document: &NativeDocument, end: Option<u32>) -> impl Serialize + '_ {
+    let structure = document.structure();
     document
         .query
-        .anchors(document.structure(), end.map(|value| value as usize))
+        .blocks(structure, None)
+        .filter(|node| end.is_none_or(|end| structure.query_range(node).start < end as usize))
         .collect::<Vec<_>>()
 }
 
@@ -398,7 +402,7 @@ pub fn lookup_structure_block(
     document: &NativeDocument,
     locator: serde_json::Value,
     context_blocks: u32,
-) -> CoreResult<impl Serialize> {
+) -> CoreResult<impl Serialize + '_> {
     let selector = match locator {
         serde_json::Value::String(locator) => legal_structure::GraphScopeSeed::Locator(locator),
         value => serde_json::from_value::<legal_structure::GraphScopeSeed>(value)

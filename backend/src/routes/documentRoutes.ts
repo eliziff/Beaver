@@ -16,7 +16,7 @@ import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
 import { requiredFile, requiredUpload, singleFileUpload, uploadedDocument } from "../lib/upload";
 import { z } from "mike/shared/runtime/schema.mjs";
 import { documentProjectionService } from "../lib/documentProjectionService";
-import { structureNative } from "../lib/structureNative";
+import { nodeRanges, structureNative } from "../lib/structureNative";
 const scope = applicationScope, MAX_ZIP_FILES = 100;
 const researchVersion = textField(200);
 const revisionNumber = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -112,9 +112,10 @@ export function createDocumentsRouter(
       text = native.documentText(document), pages = source.fileType === "pdf"
         ? native.documentAnchors(document, text.length).filter(({ kind }) => kind === "page") : [];
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({ revision: native.documentRevision(document), slices: (pages.length ? pages
-      : [{ ranges: [{ start: 0, end: text.length }], printed: "1" }]).flatMap(({ ranges, printed }) =>
-        ranges.map(({ start, end }) => ({ start, end, text: text.slice(start, end), page: Number(printed) }))) });
+    res.json({ revision: native.documentRevision(document), slices: (pages.length
+      ? pages.map((node) => ({ ranges: nodeRanges(node), label: node.label ?? "" }))
+      : [{ ranges: [{ start: 0, end: text.length }], label: "1" }]).flatMap(({ ranges, label }) =>
+        ranges.map(({ start, end }) => ({ start, end, text: text.slice(start, end), page: Number(label) }))) });
   }));
 
   router.get("/:documentId/pdf-text-layer", asyncRoute(async (req, res) => {

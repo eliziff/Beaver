@@ -6,7 +6,7 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
 import { parseResourceReference, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { provenBlockLocator } from "./documentLocators";
-import { structureNative, type NativeDocument, type NativeDocumentBlock, type NativeGraphScopeOmission } from "./structureNative";
+import { nodeRanges, nodeSpan, structureNative, type NativeDocument, type NativeNode, type NativeGraphScopeOmission } from "./structureNative";
 import { legalSourceOperations } from "./legalSourceApplication";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
 import type { A2AJCompiledDocument } from "./legalSources/a2aj";
@@ -304,7 +304,7 @@ const boundedRow = (row: ReturnType<ReturnType<typeof structureNative>["readDocu
 function sourceExtent(artifact: NativeDocument) {
   const anchors = structureNative().documentAnchors(artifact);
   for (const kind of ["paragraph", "section", "page"] as const) {
-    const labels = anchors.flatMap((anchor) => anchor.kind === kind ? [anchor.label] : []);
+    const labels = anchors.flatMap((node) => node.kind === kind && node.label != null ? [node.label] : []);
     if (labels.length) return { locator_kind: kind, first: labels[0], last: labels[labels.length - 1],
       count: labels.length };
   }
@@ -336,7 +336,7 @@ export function readLibraryResearchWindow(input: LibraryWindowInput): ResearchRe
       next = { resource, offset: row.lineNumber, start_char: row.span[0] - lineStart };
       break;
     }
-    const block = native.smallestContainingDocumentBlock(input.document, row.span[0], row.span[1]),
+    const block = native.smallestContainingDocumentBlock(input.document, row.span[0], row.span[1])?.node ?? null,
       selected = cells.flatMap((cell) => cell.ranges.flatMap((range) => {
         const start = Math.max(range.start, row.span[0]), end = Math.min(range.end, row.span[1]);
         return start < end ? [{ start, end, locator: { kind: "cell" as const,
@@ -345,7 +345,7 @@ export function readLibraryResearchWindow(input: LibraryWindowInput): ResearchRe
     for (const span of selected.length ? selected
       : [{ start: row.span[0], end: row.span[1], ...(() => {
         const locator = provenBlockLocator(input.document, block, { start: row.span[0], end: row.span[1] });
-        return { locator: locator ?? { kind: "document" as const, label: block?.kind === "paragraph"
+        return { locator: locator ?? { kind: "document" as const, label: block?.kind === "paragraph" && block.label != null
           ? `text paragraph ${block.label}` : `text line ${row.lineNumber}` } };
       })() }])
       if (span.end > span.start) {
@@ -434,7 +434,7 @@ export async function restoreResearchEvidence(documents: DocumentStore, scope: A
 
 function oneHopLegalScope(
   document: NativeDocument,
-  block: NativeDocumentBlock,
+  block: NativeNode,
   direction: "inbound" | "outbound" | "both",
   includeUnits = false,
 ) {
@@ -442,7 +442,7 @@ function oneHopLegalScope(
     ? "in"
     : direction === "outbound" ? "out" : "both";
   return structureNative().graphScope(
-    document, block.nodeId ? { nodeId: block.nodeId } : { locator: block.label }, follow, 1, true, includeUnits);
+    document, { nodeId: block.id }, follow, 1, true, includeUnits);
 }
 
 type EvidenceSource = Omit<RegisteredEvidence, "receipt">;
@@ -463,12 +463,12 @@ function cleanSearchEvidenceSpan(
   const source = passage.documentArtifact;
   if (passage.role === "document" || !passage.blockArtifact) {
     const block = structureNative()
-      .smallestContainingDocumentBlock(source, hit.at, matchEnd);
-    const range = block?.ranges.find((range) => range.start <= hit.at && range.end >= matchEnd);
+      .smallestContainingDocumentBlock(source, hit.at, matchEnd)?.node;
+    const range = block && nodeRanges(block).find((range) => range.start <= hit.at && range.end >= matchEnd);
     if (block && range) return {
       text: structureNative().documentText(source).slice(range.start, range.end),
       ...range,
-      blockId: block.nodeId ?? [block.kind, block.label, range.start, range.end].join(":"),
+      blockId: block.id,
       locator: provenBlockLocator(source, block, range),
     };
   }
@@ -656,10 +656,10 @@ async function readLegalSource(
       const native = structureNative(), artifact = passage.documentArtifact,
         resource = researchSourceResource(passage.source), offset = Number(args.offset) || 1,
         startChar = Number(args.start_char) || 0, firstParagraph = passage.source.kind === "case"
-          ? native.documentAnchors(artifact).find(({ kind }) => kind === "paragraph") : undefined;
+          ? native.documentAnchors(artifact).find(({ kind, label }) => kind === "paragraph" && label != null) : undefined;
       if (passage.source.kind === "case" && !firstParagraph) unclassified.add(resource);
       const window = args.offset === undefined && args.start_char === undefined && firstParagraph
-        ? native.readDocumentTextRange(artifact, firstParagraph.start, passage.text.length,
+        ? native.readDocumentTextRange(artifact, nodeSpan(firstParagraph).start, passage.text.length,
             undefined, Math.max(1, remaining))
         : native.readDocumentTextWindow(artifact, offset, startChar, Math.max(1, remaining));
       if (window.status !== "ready") throw new Error(window.status === "invalid_line" ? `offset ${offset} is past the last line.`
@@ -668,17 +668,18 @@ async function readLegalSource(
         source: EvidenceSource }> = [];
       for (const originalRow of window.rows) {
         const row = boundedRow(originalRow), split = row.text.length < originalRow.text.length;
-        const block = native.smallestContainingDocumentBlock(artifact, row.span[0], row.span[1]),
+        const found = native.smallestContainingDocumentBlock(artifact, row.span[0], row.span[1]), block = found?.node,
           kind = block?.kind as LegalEvidenceReceipt["locator"]["kind"],
-          located = block && ["paragraph", "page", "section", "footnote"].includes(kind),
-          whole = located && block.text === row.text ? block : null,
+          label = block?.label,
+          located = block && label != null && ["paragraph", "page", "section", "footnote"].includes(kind),
+          whole = located && found.text === row.text ? found : null,
           start = row.span[0], end = row.span[1],
-          evidence = whole ? legalSourceEvidence({ ...passage, role: "selected", text: whole.text,
-            blockArtifact: whole, locator: { requested: { kind: kind as "paragraph" | "page" | "section" | "footnote",
-              value: whole.label }, label: whole.label } })
+          evidence = whole && label != null ? legalSourceEvidence({ ...passage, role: "selected", text: whole.text,
+            blockArtifact: whole.node, locator: { requested: { kind: kind as "paragraph" | "page" | "section" | "footnote",
+              value: label }, label } })
             : legalSourceEvidence(passage, { text: row.text, start, end,
-            ...(block ? { blockId: `${block.kind}:${block.label}:${start}:${end}`,
-              ...(located ? { locator: { kind, label: block.label } } : {}) } : {}) }),
+            ...(block ? { blockId: `${block.kind}:${label ?? ""}:${start}:${end}`,
+              ...(located && label != null ? { locator: { kind, label } } : {}) } : {}) }),
           receipt = evidence && numberedWithinRow(evidence, artifact);
         if (!receipt) throw new Error("The source cannot provide exact passage evidence");
         const size = JSON.stringify(modelLegalPassage(receipt)).length;
@@ -737,7 +738,8 @@ async function readLegalSource(
       let available = maxResults, remainingChars = 40_000;
       const corpus = registered.map(({ passage }) => ({ passage,
         judgment: passage.source.kind === "case" && passage.role === "document"
-          ? structureNative().documentAnchors(passage.documentArtifact).find(({ kind }) => kind === "paragraph")?.start ?? 0 : 0 }));
+          ? ((node) => node ? nodeSpan(node).start : 0)(structureNative().documentAnchors(passage.documentArtifact)
+            .find(({ kind, label }) => kind === "paragraph" && label != null)) : 0 }));
       const scanSources = [...new Map(corpus.map(({ passage }) => [researchSourceResource(passage.source), {
         resource: researchSourceResource(passage.source),
         source_sha256: structureNative().documentRevision(passage.documentArtifact),
@@ -768,7 +770,7 @@ async function readLegalSource(
               : legalSourceEvidence(passage, span), passage);
             const before = passage.text.slice(Math.max(judgment, hit.at - contextChars), span.start),
               after = passage.text.slice(span.end, Math.min(passage.text.length, hit.at + hit.excerpt.length + contextChars)),
-              line = receipt && lineAt(receipt, (passage.locator.requested ? passage.blockArtifact?.start ?? 0 : 0) + hit.at);
+              line = receipt && lineAt(receipt, (passage.locator.requested && passage.blockArtifact ? nodeSpan(passage.blockArtifact).start : 0) + hit.at);
             const value = { at: hit.at, ...(line ? { line } : {}), ...(receipt ? { evidence_id: receipt.evidence_id,
               ...(before ? { before } : {}), ...(after ? { after } : {}) }
               : { context: hit.context, locator: passage.locator.label }) };
@@ -842,16 +844,16 @@ async function readLegalSource(
         let chars = 0;
         for (const [index, related] of candidates.entries()) {
           if (sections.length === 50 || chars + related.text.length > 32_000) {
-            omitted.push(...candidates.slice(index).map(({ label }) => label));
+            omitted.push(...candidates.slice(index).map(({ node }) => node.label ?? ""));
             break;
           }
           chars += related.text.length;
-          const receipts = (related.units ?? [related]).filter((unit): unit is NativeDocumentBlock & {
-            kind: "paragraph" | "page" | "section" | "footnote";
+          const receipts = (related.units ?? [related]).map(({ node }) => node).filter((unit): unit is NativeNode & {
+            kind: "paragraph" | "page" | "section" | "footnote"; label: string;
           } =>
-            unit.kind === "paragraph" || unit.kind === "page" ||
-            unit.kind === "section" || unit.kind === "footnote"
-          ).flatMap((unit) => unit.ranges.map((range) => numberedReceipt(createA2AJPassageEvidence({
+            unit.label != null && (unit.kind === "paragraph" || unit.kind === "page" ||
+            unit.kind === "section" || unit.kind === "footnote")
+          ).flatMap((unit) => nodeRanges(unit).map((range) => numberedReceipt(createA2AJPassageEvidence({
             citation: metadata.citation as string,
             name: typeof metadata.name === "string" ? metadata.name : null,
             dataset: metadata.dataset as string,
@@ -862,14 +864,14 @@ async function readLegalSource(
             end: range.end,
             externalUrl: typeof metadata.url === "string" ? metadata.url : null,
             sourceClass: "legislation",
-            blockId: `${unit.kind}:${unit.label}:${unit.start}:${unit.end}`,
+            blockId: unit.id,
             locator: { kind: unit.kind, label: unit.label },
           }), artifact)));
           relatedEvidence.push(...receipts);
           receipts.forEach((receipt) => evidenceSources.set(receipt.evidence_id, {
             document: metadata as unknown as A2AJCompiledDocument,
           }));
-          sections.push({ label: related.label,
+          sections.push({ label: related.node.label ?? "",
             evidence_ids: receipts.map(({ evidence_id }) => evidence_id) });
         }
         referenceNeighborhood = {
@@ -1002,15 +1004,15 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
     return refuse(`Section '${label}' not found (${lookup.status}` +
       (lookup.matches.length ? `; candidates: ${lookup.matches.join(", ")}` : "") +
       "). Grep for the wording, or Read without section.");
-  const block = lookup.block, seed: LibraryReadSection = block.nodeId ? { nodeId: block.nodeId } : section,
+  const block = lookup.block.node, seed: LibraryReadSection = { nodeId: block.id },
     scope = references === "none" ? null : oneHopLegalScope(document, block, references);
   if (references !== "none" && !scope)
-    return refuse(`Section '${block.label}' could not seed a reference scope.`);
-  const nodes = scope ? [scope.seed, ...scope.nodes] : [block], first = input.reference_offset ?? 0;
+    return refuse(`Section '${block.label ?? ""}' could not seed a reference scope.`);
+  const nodes = scope ? [scope.seed.node, ...scope.nodes.map(({ node }) => node)] : [block], first = input.reference_offset ?? 0;
   if (first >= nodes.length || references === "none" && first !== 0)
     return refuse("Reference continuation is outside this section's reference scope.");
-  const inferredSection = block.origin === "heuristic"
-    ? `\n\n[Section '${block.label}' was inferred from the wording of ${input.filename}, not declared by it: it may be quoted legislation rather than a section of this document, and its extent may be wrong.]`
+  const inferredSection = block.source === "heuristic"
+    ? `\n\n[Section '${block.label ?? ""}' was inferred from the wording of ${input.filename}, not declared by it: it may be quoted legislation rather than a section of this document, and its extent may be wrong.]`
     : "";
   const sourceText = native.documentText(document), sourceSha256 = native.documentRevision(document),
     covered: TextRange[] = [], lines: Array<LibraryReadLine & { resume: ResearchReadCursor }> = [];
@@ -1026,8 +1028,8 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
   reading: for (const [index, node] of nodes.entries()) {
     // Rebuild the same covered union for prior references on a continuation.
     // This schedules exact source members; only emitted rows count as read.
-    const ranges = node.ranges.flatMap((range) => uncoveredRanges(range, covered));
-    for (const range of node.ranges) addCoveredRange(covered, range);
+    const ranges = nodeRanges(node).flatMap((range) => uncoveredRanges(range, covered));
+    for (const range of nodeRanges(node)) addCoveredRange(covered, range);
     if (index < first) continue;
     let opened = false;
     for (const range of ranges) {
@@ -1040,7 +1042,7 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
         window = native.readDocumentTextRange(document, range.start, range.end,
           undefined, Math.max(1, limit - rowCount + 1));
       }
-      if (window.status !== "ready") return refuse(`Section '${node.label}' has an invalid text range (${window.status}).`);
+      if (window.status !== "ready") return refuse(`Section '${node.label ?? ""}' has an invalid text range (${window.status}).`);
       for (const original of window.rows) {
         const row = boundedRow(original), cursor = resume(index, row.lineNumber, row.startChar),
           locator = provenBlockLocator(document, node, { start: row.span[0], end: row.span[1] }),
@@ -1051,7 +1053,7 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
             `${row.truncatedStart ? "…" : ""}${row.text}${row.truncatedEnd ? "…" : ""}`,
             span: row.span, locator, receipt, resume: cursor },
           header = references !== "none" && !opened ? {
-            rendered: `=== ${input.filename} :: ${node.label} :: ${index === 0 ? "target" : "direct reference"} ===`,
+            rendered: `=== ${input.filename} :: ${node.label ?? ""} :: ${index === 0 ? "target" : "direct reference"} ===`,
             resume: cursor } : null,
           added = lineSize(line) + (header ? lineSize(header) + 1 : 0) + (lines.length ? 1 : 0);
         if (rowCount >= limit || lines.length > 0 && chars + added > MAX_MODEL_TOOL_RESULT_CHARS - 1_000) {
@@ -1069,7 +1071,7 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
     }
   }
   if (!lines.length && !next && input.offset !== undefined && references === "none")
-    return refuse(`Offset ${input.offset} is outside section ${block.label}.`);
+    return refuse(`Offset ${input.offset} is outside section ${block.label ?? ""}.`);
   const resolution = scope ? referenceResolution(scope.omissions) : undefined,
     coverageScope = scope ? "resolved_reference_content" as const : "section_content" as const,
     diagnostics = resolution ? "\n\n[Reference resolution: " + JSON.stringify(resolution) + "]" : "";

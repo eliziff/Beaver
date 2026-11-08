@@ -52,12 +52,12 @@ export interface LegalSourceViewerPayload {
   }[];
   truncated: boolean;
 }
+/** A node of the source's structure as the engine writes it: a slice's anchor. */
 interface LegalSourceViewerAnchor {
-  kind: "paragraph" | "page" | "section" | "footnote";
-  label: string;
-  start: number;
-  end: number;
-  parentLabel?: string;
+  id: string;
+  kind: "paragraph" | "prose" | "page" | "section" | "footnote" | "table" | "row" | "cell";
+  /** As the document prints it; none for prose. */
+  label?: string;
 }
 export const getLegalSourceCoverage = async () =>
   (await apiRequest<{ coverage: LegalSourceCoverage[] }>("/sources/coverage")).coverage;

@@ -29,9 +29,7 @@ export function nativeDocumentPassages<Native extends object = never>(options: {
   const groups = locator.endValue
     ? [[range.before, "context"], [range.selected, "selected"], [range.after, "context"]] as const
     : [[range.selected, "selected"], [range.before, "context"], [range.after, "context"]] as const;
-  const identity = (unit: (typeof range.selected)[number]) => unit.nodeId != null
-    ? JSON.stringify(["node", unit.nodeId])
-    : JSON.stringify(["members", unit.kind, unit.ranges.map(({ start, end }) => [start, end])]);
+  const identity = (unit: (typeof range.selected)[number]) => unit.node.id;
   const selected = new Set(range.selected.map(identity));
   const seen = new Set<string>();
   return groups.flatMap(([units, role]) => units.flatMap((unit) => {
@@ -40,11 +38,11 @@ export function nativeDocumentPassages<Native extends object = never>(options: {
         seen.add(key);
         return [{
           source: reference,
-          locator: { requested: locator, label: unit.label,
-            anchor: unit.anchor ?? null, pageScoped: unit.kind === "page" },
+          locator: { requested: locator, label: unit.node.label ?? "",
+            anchor: unit.node.anchor ?? null, pageScoped: unit.node.kind === "page" },
           role: selected.has(key) ? "selected" : role,
           text: unit.text,
-          blockArtifact: unit,
+          blockArtifact: unit.node,
           documentArtifact: document,
           ...(native ? { native } : {}),
         }];

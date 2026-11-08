@@ -14,7 +14,7 @@ import { commitResearchFile, readResearchFile,
   type ResearchFile, type ResearchFileAction, type ResearchFileState,
   type ResearchQueryReceipt, type ResearchSourceReference } from "./researchFile";
 import { provenBlockLocator } from "./documentLocators";
-import { structureNative } from "./structureNative";
+import { nodeRanges, structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
 import { hasSearchOperators, searchMatcher } from "./searchQuery";
 import { sha256 } from "./hash";
@@ -114,7 +114,7 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
     || start < 0 || end > text.length || end <= start || index > 0 && start < ranges[index - 1].end))
     throw new ApplicationError(400, "Invalid selection ranges", { code: "invalid_span" });
   const evidence = ranges.map((span) => {
-    const block = native.smallestContainingDocumentBlock(document, span.start, span.end);
+    const block = native.smallestContainingDocumentBlock(document, span.start, span.end)?.node ?? null;
     const receipt = passage.evidence({ ...span, text: text.slice(span.start, span.end),
       ...((locator) => locator ? { blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,
         locator } : {})(provenBlockLocator(document, block, span)) });
@@ -344,15 +344,17 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         const { text } = passage;
         const slices = adapter.legalSourceViewer(passage.documentArtifact,
           source.reference.kind === "legislation" ? "section" : "paragraph", text.length).slices;
-        const units = slices.length ? slices.map(({ primary, start, end }) => primary ??
-          { kind: "document" as const, label: `line ${start + 1}-${end}`, start, end,
-            ranges: [{ start, end }], printedLabel: false })
-          : adapter.documentAnchors(passage.documentArtifact);
+        // Each slice's node, or the lines a slice no node opens.
+        const units = slices.length ? slices.map(({ primary, start, end }) => primary
+          ? { node: primary, label: primary.label ?? "", ranges: nodeRanges(primary) }
+          : { node: null, label: `line ${start + 1}-${end}`, ranges: [{ start, end }] })
+          : adapter.documentAnchors(passage.documentArtifact).map((node) => ({ node, label: node.label ?? "", ranges: nodeRanges(node) }));
         // Receipts address contiguous source text; intersect exact membership with selected evidence.
-        const blocks = units.flatMap((block) => block.ranges.flatMap((member) =>
+        const blocks = units.flatMap((unit) => unit.ranges.flatMap((member) =>
           passage.ranges.flatMap((selected) => {
             const start = Math.max(member.start, selected.start), end = Math.min(member.end, selected.end);
-            return start < end ? [{ ...block, start, end }] : [];
+            const kind = unit.node ? unit.node.kind === "prose" ? "paragraph" : unit.node.kind : "document";
+            return start < end ? [{ node: unit.node, kind, label: unit.label, start, end }] : [];
           })));
         if (rules.length) {
           const captures: Capture[] = [], captureKeys = new Set<string>();
@@ -387,7 +389,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
               if (pageFull || foundEvidence.size === limit) { resultLimited = true; continue; }
               const length = span.end - span.start;
               const value = text.slice(span.start, span.end), block = adapter.smallestContainingDocumentBlock(
-                passage.documentArtifact, span.start, span.end), receipt = passage.evidence(
+                passage.documentArtifact, span.start, span.end)?.node ?? null, receipt = passage.evidence(
                   { ...span, text: value,
                 ...((locator) => locator ? {
                   blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,
@@ -410,7 +412,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
               const receipt = passage.evidence({ text: span, start: block.start, end: block.end,
                 ...(block.kind === "document" ? {} : {
                   blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
-                  locator: provenBlockLocator(passage.documentArtifact, block, block) }) });
+                  locator: provenBlockLocator(passage.documentArtifact, block.node, block) }) });
               if (receipt && afterCursor(source.id, receipt)) {
                 if (span.length > MAX_CAPTURE_CHARS) { sizeLimited = true; continue; }
                 if (foundChars + span.length > MAX_CAPTURE_CHARS)

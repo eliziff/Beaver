@@ -407,26 +407,23 @@ type StructureAddon = {
   /** How much each citation is cited, by the graph beside the store at `store`; null where none is built. */
   citatorMetrics(store: string, citations: string[]):
     Array<{ citingCases: number; distinctCitingParagraphs: number; occurrences: number } | null> | null;
-  readDocumentRange(document: NativeDocument, kind: NativeDocumentBlock["kind"], from: string,
+  readDocumentRange(document: NativeDocument, kind: "paragraph" | "page" | "section" | "footnote", from: string,
     to: string, contextBlocks: number): {
-      selected: NativeDocumentBlock[];
-      before: NativeDocumentBlock[];
-      after: NativeDocumentBlock[];
+      selected: NativePassage[];
+      before: NativePassage[];
+      after: NativePassage[];
     } | null;
   smallestContainingDocumentBlock(document: NativeDocument, start: number,
-    end: number): NativeDocumentBlock | null;
-  documentHasOrigin(document: NativeDocument, origin: NativeDocumentBlock["origin"]): boolean;
-  /** Reflected levels are one-based; source roots have level 1. */
-  documentAnchors(document: NativeDocument, end?: number): Array<{ level: number } & Pick<NativeDocumentBlock,
-    "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel" | "rowSpan" | "columnSpan">>;
+    end: number): NativePassage | null;
+  documentHasOrigin(document: NativeDocument, origin: NativeNode["source"]): boolean;
+  /** The nodes the query serves, in its order; with `end`, those starting before it. Levels are one-based. */
+  documentAnchors(document: NativeDocument, end?: number): NativeNode[];
   legalSourceViewer(document: NativeDocument, primaryKind: "paragraph" | "section",
     limit?: number): {
       slices: Array<{
         start: number; end: number; text: string; depth: number;
-        anchors: Array<Pick<NativeDocumentBlock,
-          "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel">>;
-        primary: Pick<NativeDocumentBlock,
-          "kind" | "label" | "start" | "end" | "ranges" | "nodeId" | "printedLabel" | "parentLabel"> | null;
+        anchors: NativeNode[];
+        primary: NativeNode | null;
         /** The slice is a heading the structure reads. */
         heading?: boolean;
       }>;
@@ -458,8 +455,8 @@ type StructureAddon = {
   lookupStructureBlock(document: NativeDocument, locator: string | { nodeId: string },
     contextBlocks: number): {
       status: "found" | "not_found" | "unavailable" | "ambiguous";
-      requestedLabel: string; matches: string[]; block: NativeDocumentBlock | null;
-      before: NativeDocumentBlock[]; after: NativeDocumentBlock[];
+      requestedLabel: string; matches: string[]; block: NativePassage | null;
+      before: NativePassage[]; after: NativePassage[];
     };
   resolveDocumentAddressSpans(document: NativeDocument, spec: string,
     follow: "none" | "out" | "in" | "both", depth: number):
@@ -468,8 +465,8 @@ type StructureAddon = {
         "ambiguous" | "not_addressable" };
   graphScope(document: NativeDocument, seed: { locator: string; nodeId?: never } | { nodeId: string; locator?: never }, follow: "none" | "out" | "in" | "both",
     depth: number, includeDescendants: boolean, includeUnits: boolean): {
-      seed: NativeDocumentBlock;
-      nodes: Array<NativeDocumentBlock & { units?: NativeDocumentBlock[] }>;
+      seed: NativePassage;
+      nodes: Array<NativePassage & { units?: NativePassage[] }>;
       depth: number;
       omissions: NativeGraphScopeOmission[];
     } | null;
@@ -528,23 +525,48 @@ export type NativeGraphScopeOmission = {
   missingEndpoints: Array<"source" | "target">;
 };
 
-export type NativeDocumentBlock = {
-  nodeId?: string;
-  printedLabel: boolean;
-  ranges: Array<{ start: number; end: number }>;
-  kind: "paragraph" | "page" | "section" | "footnote" | "table" | "row" | "cell";
-  /** As the document prints it: "12" of a paragraph, a page or a note. */
-  label: string;
-  start: number;
-  end: number;
-  origin: "native" | "heuristic";
-  text: string;
+type NativeSpan = { start: number; end: number };
+
+/** A node of a document's structure as the engine writes it (legal-structure-model's StructureNode). */
+export type NativeNode = {
+  id: string;
+  kind: "paragraph" | "prose" | "page" | "section" | "footnote" | "table" | "row" | "cell";
+  /** As the document prints it: "12" of a paragraph, a page or a note; none for prose. */
+  label?: string;
+  range: NativeSpan;
+  ranges?: NativeSpan[];
+  rendered_range?: NativeSpan;
+  rendered_ranges?: NativeSpan[];
+  level?: number;
+  parent_id: string | null;
+  source: "native" | "heuristic";
   anchor?: string;
   aliases?: string[];
-  parentLabel?: string;
-  rowSpan?: number;
-  columnSpan?: number;
+  marker_range?: NativeSpan;
+  row_span?: number;
+  column_span?: number;
 };
+
+/** A node the query found, with its text. */
+export type NativePassage = { node: NativeNode; text: string };
+
+/** A node's ranges in the document's query text: its rendered ranges where the structure renders its text. */
+export function nodeRanges(node: NativeNode): NativeSpan[] {
+  if (node.rendered_ranges?.length) return node.rendered_ranges;
+  if (node.rendered_range) return [node.rendered_range];
+  return node.ranges?.length ? node.ranges : [node.range];
+}
+
+/** A node's span in the document's query text, from its first range's start to its last's end. */
+export function nodeSpan(node: NativeNode): NativeSpan {
+  const ranges = nodeRanges(node);
+  return { start: Math.min(...ranges.map(({ start }) => start)), end: Math.max(...ranges.map(({ end }) => end)) };
+}
+
+/** Whether the document prints the node's label: its marker stands in the text. */
+export function printsLabel(node: NativeNode): boolean {
+  return !!node.marker_range && node.marker_range.start < node.marker_range.end;
+}
 
 /** The engine's reading of where a quotation is in its source (legal-structure quote_location.rs). */
 export type NativeQuoteCorrection = { region: string; fragment: string; corrected: string };

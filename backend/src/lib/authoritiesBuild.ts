@@ -34,7 +34,7 @@ import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
 import { hasPrintedParagraphLocator, initialAuthorityAnnotations, locatorLabel } from "./authoritiesAnnotations";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, entryOrder, type DocxAuthorityMark } from "./docxOperations";
-import { structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry,
+import { nodeSpan, structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry,
   type NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
@@ -541,8 +541,8 @@ export async function renderAuthoritySourcePdf(input: {
       source_kind: input.kind === "case" ? "cases" : "laws", text: input.text } }).catch(() => null) : null;
   const sections = structured ? structureNative().documentOutline(structured) : [];
   const depths = new Map((structured ? structureNative().documentAnchors(structured, input.text.length) : [])
-    .filter(anchor => anchor.kind === "section").reverse()
-    .map(anchor => [anchor.start, Math.max(0, anchor.level - 1)]));
+    .filter(node => node.kind === "section").reverse()
+    .map(node => [nodeSpan(node).start, Math.max(0, (node.level ?? 1) - 1)]));
   const placed: Array<{ start: number; pageIndex: number; note?: string; heading?: number; title?: string }> = [];
   let placing: Omit<(typeof placed)[number], "pageIndex"> | null = null;
   // Paragraphs sit about half a line apart, whether the source parts them with a blank

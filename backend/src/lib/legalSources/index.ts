@@ -2,7 +2,7 @@ import { type LegalSourceSearchHit } from "mike/shared/runtime/clientContracts.m
 import { safeErrorLog } from "../safeError";
 import { ApplicationError } from "../applicationError";
 import { searchMatcher } from "../searchQuery";
-import type { NativeDocument, NativeDocumentBlock } from "../structureNative";
+import type { NativeDocument, NativeNode } from "../structureNative";
 
 export type LegalSourceKind = "case" | "legislation" | "journal" | "hansard";
 
@@ -95,7 +95,8 @@ export type LegalSourcePassage<Native = unknown> = {
   };
   role: "selected" | "context" | "document";
   text: string;
-  blockArtifact?: NativeDocumentBlock;
+  /** The structure's node the passage is. */
+  blockArtifact?: NativeNode;
   documentArtifact: NativeDocument;
   native?: Native;
 };

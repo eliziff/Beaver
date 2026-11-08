@@ -600,8 +600,8 @@ export const journalLegalSourceProvider = Object.assign(provider, {
       .readDocumentRange(article.native, kind, value, value, 0)
       ?.selected[0];
     return block
-      ? { status: "found" as const, hitId: `journal:${article.articleId}:${kind}:${block.label}`,
-          block, anchor: block.anchor ?? null }
+      ? { status: "found" as const, hitId: `journal:${article.articleId}:${kind}:${block.node.label ?? ""}`,
+          block, anchor: block.node.anchor ?? null }
       : { status: "unavailable" as const, block: null, anchor: null };
   },
   viewer,

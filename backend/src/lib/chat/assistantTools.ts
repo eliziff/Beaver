@@ -40,6 +40,7 @@ import {
   type PdfLocatorKind,
 } from "../documentProjectionService";
 import {
+  nodeSpan,
   structureNative,
   type NativeDocument,
 } from "../structureNative";
@@ -1052,7 +1053,7 @@ async function runCodingShapeCall(
           ? `; candidates: ${lookup.matches.join(", ")}` : "";
         return fail(`Section '${grepSection}' not found (${lookup.status}${candidates}).`);
       }
-      scopeSpan = lookup.block;
+      scopeSpan = nodeSpan(lookup.block.node);
     }
     const matched = lines.flatMap((line, index) => {
       const end = starts[index + 1] ?? document.text.length;

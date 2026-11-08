@@ -249,7 +249,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     const blockKind = kind === "par" ? "paragraph" : kind === "sec" ? "section" : "page";
     const anchor = blockKind !== "page" ? legalSourceLocatorAnchor(source.url, blockKind, match.labels[0]) : undefined;
     return { url: source.url, blockText: match.text, quotes: [match.fragment || row.quote],
-      anchor: anchor ?? (kind ? engine.readDocumentRange(document, blockKind, value, value, 0)?.selected[0]?.anchor : undefined) };
+      anchor: anchor ?? (kind ? engine.readDocumentRange(document, blockKind, value, value, 0)?.selected[0]?.node.anchor : undefined) };
   }
   /** A located quotation's check: its receipt, with a link that opens the source at the quoted words. */
   function checked({ candidateId, pinpoints, source, document }: Pending,
