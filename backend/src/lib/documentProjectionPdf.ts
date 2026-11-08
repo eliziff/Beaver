@@ -1,20 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { sha256 } from "./hash";
-import { structureNative, type NativeDocument,
+import { structureNative, type NativeDocument, type NativePdfLookupRequest,
   type PdfStructureLookup } from "./structureNative";
 import { immutableReceiptPath, writeImmutableReceipt } from "./documentProjection";
 import { RESOURCE_LOCATOR_KINDS } from "mike/shared/runtime/resourceReferences.mjs";
 
 export type PdfLocatorKind = (typeof RESOURCE_LOCATOR_KINDS)[number];
 
-export type PdfLookupInput = {
-  locatorKind: PdfLocatorKind;
-  locator: string;
-  endLocator?: string;
-  contextBlocks?: number;
-  page?: number;
-  occurrence?: number;
-};
+export type PdfLookupInput = NativePdfLookupRequest & { locator_kind: PdfLocatorKind };
 
 const EVIDENCE_SCHEMA = "mike.pdf_evidence.v1";
 const EVIDENCE_HANDLE = /^mike-evidence:v1:([0-9a-f]{64})$/u;
@@ -59,11 +52,6 @@ export async function readPdfEvidenceReceipt(handle: string) {
     throw new Error("PDF evidence receipt handle does not match its content");
   }
   return receipt;
-}
-
-function queryPdf(document: NativeDocument, input: PdfLookupInput) {
-  return structureNative().queryPdfDocument(document, input.locatorKind, input.locator,
-    input.endLocator, input.contextBlocks, input.page, input.occurrence);
 }
 
 type LookupSource = {
@@ -123,12 +111,12 @@ async function finishLookup(input: PdfLookupInput, lookup: PdfStructureLookup,
 
 export async function lookupPdfStructure(document: NativeDocument, input: PdfLookupInput,
   options: LookupSource) {
-  return finishLookup(input, queryPdf(document, input), options);
+  return finishLookup(input, structureNative().queryPdfDocument(document, input), options);
 }
 
 export async function rehydratePdfEvidence(document: NativeDocument,
   receipt: PdfEvidenceReceipt) {
-  const lookup = await finishLookup(receipt.lookup, queryPdf(document, receipt.lookup), {
+  const lookup = await finishLookup(receipt.lookup, structureNative().queryPdfDocument(document, receipt.lookup), {
     persistEvidence: false,
     cacheKey: receipt.source.cache_key,
     documentId: receipt.source.document_id,

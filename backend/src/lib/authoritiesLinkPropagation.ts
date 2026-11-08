@@ -78,7 +78,7 @@ function sourceReader(authority: AuthoritiesDraft["authorities"][string] | undef
 
 async function anchored(url: string, occurrence: AuthorityOccurrence, sourceDocument: () => Promise<unknown>) {
   const reanchored = structureNative().citationEngineCall("reanchorReference",
-    JSON.stringify({ link: url, text: occurrence.text })) as unknown as string;
+    { link: url, text: occurrence.text }) as unknown as string;
   const added = ANCHOR.exec(reanchored);
   if (!added || reanchored === url) return reanchored;
   const document = await sourceDocument() as Parameters<ReturnType<typeof structureNative>["readDocumentRange"]>[0] | undefined;

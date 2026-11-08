@@ -32,7 +32,7 @@ beforeAll(async () => {
   id = created.id; version = created.current_version_id;
   const source = (await documents.projectionSource(scope, id, version))!;
   const receipt = await documentProjectionService.lookupPdf(source.readBytes,
-    { locatorKind: "page", locator: "1" }, { ...source, persistEvidence: true });
+    { locator_kind: "page", locator: "1" }, { ...source, persistEvidence: true });
   if (receipt.status !== "found") throw new Error("Evidence fixture was not found");
   handle = receipt.evidence.handle;
   api.use("/single-documents", createDocumentsRouter({} as LibraryStore, documents));

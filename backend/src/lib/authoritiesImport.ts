@@ -89,7 +89,7 @@ export const nativeReferenceSpans = (reference: NativeAuthorityReferenceOccurren
 
 /** A federal, Ontario or B.C. statute's CanLII page, as the citation engine reads it: its language, jurisdiction and id. */
 const canliiStatute = (url: string | null | undefined, native: ReturnType<typeof structureNative>) => {
-  const page = url ? native.citationEngineCall("canliiLawPage", JSON.stringify({ url })) as
+  const page = url ? native.citationEngineCall("canliiLawPage", { url }) as
     { language: "en" | "fr"; jurisdiction: string; kind: string; id: string } | null : null;
   return page && Object.hasOwn(STATUTE_DATASET, page.jurisdiction) && ["stat", "astat"].includes(page.kind) ? page : null;
 };
@@ -114,8 +114,8 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
     const citation = full[0];
     const name = citation.shortName?.trim();
     if (!name || !sourceName(part.text).includes(sourceName(name))) return [];
-    const output = native.citationEngineCall("url", JSON.stringify({ citation,
-      anchor: true })) as { urls: Array<{ index: number; url: string | null }> };
+    const output = native.citationEngineCall("url", { citation,
+      anchor: true }) as { urls: Array<{ index: number; url: string | null }> };
     const url = output.urls.find((item) => item.index === citation.index)?.url;
     const page = canliiStatute(url, native);
     if (!page) return [];
@@ -162,9 +162,9 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
       .filter((hit) => hit.collection?.toUpperCase() === candidate.dataset && hit.title &&
         sourceName(candidate.part.text).includes(sourceName(hit.title)))
       .flatMap((hit) => {
-        const parsed = native.citationEngineCall("extract", JSON.stringify({
+        const parsed = native.citationEngineCall("extract", {
           text: hit.citation ?? "", options: { resolve: false },
-        })) as ExtractResponse;
+        }) as ExtractResponse;
         const statutes = parsed.citations.filter((citation) => citation.form === "full" &&
           citation.authority === "statute");
         if (statutes.length !== 1 || statuteCore(statutes[0]) !== candidate.core) return [];
@@ -212,9 +212,9 @@ async function scanReview(
     ...(anchors.has(unit.footnote_id!) ? { anchor: anchors.get(unit.footnote_id!) } : {}) }));
   // A Canadian brief is read with McGill's and COAL's forms; without the Bluebook or a US jurisdiction the engine
   // reads no extended United States forms (a registration or account number reads as one of its codes).
-  const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
+  const extracted = native.citationEngineCall("extract", { text, offsetUnit: "utf16",
     options: { resolve: false, notes, styles: ["mcgill", "coal"], earlyReferences: true, splitTier: supraLinking },
-  })) as ExtractResponse;
+  }) as ExtractResponse;
   // The brief's own court file number (its cover's) is never one of its authorities, though an
   // order made under it that the brief names ("Re Ash Ltd, Order of Madam Justice Fen dated …,
   // Court File No. 1601-06131") is.
@@ -283,8 +283,8 @@ async function scanReview(
     item_offsets: items.map(({ start }) => start),
   })))).map(([unit, item]) => parsed[unit].items[item].index);
   // The note parts that cite: only these can be an authority (a prose note is never one).
-  const references = native.citationEngineCall("noteReferences", JSON.stringify({ parts: extracted.sourceParts,
-    citations: extracted.citations, offsetUnit: "utf16" })) as NativeReferencePart[];
+  const references = native.citationEngineCall("noteReferences", { parts: extracted.sourceParts,
+    citations: extracted.citations, offsetUnit: "utf16" }) as NativeReferencePart[];
   const enriched = await enrichStatuteSources(references.map(({ part }) => part), extracted.citations, native);
   // Every part reaches the resolver, prose included, so an ibid after a prose note continues from it (and stands for
   // no authority) rather than from the last part that cites.
@@ -296,11 +296,11 @@ async function scanReview(
   registerWorkExtents(native);
   // Every reference's association, the one each consumer reads (the verifier's workbook and quotation check, Sources):
   // the document's text, so a reference can be read by the words before its note's marker, at the setting's tier.
-  const result = native.citationEngineCall("resolve", JSON.stringify({ citations: extracted.citations, notes,
+  const result = native.citationEngineCall("resolve", { citations: extracted.citations, notes,
     readingOrder: order, sourceParts, text, offsetUnit: "utf16",
     supraHintMode: "aggressive", splitTier: supraLinking,
     aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
-  })) as ResolveResponse;
+  }) as ResolveResponse;
   const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
   const byResolution = new Map(result.resolutions.map((resolution) => [resolution.index, resolution]));
   const authorityOf = new Map<number, string>();
@@ -325,8 +325,8 @@ async function scanReview(
     reference.citation != null && reference.link ? [[reference.citation, reference.link] as const] : [])));
   // Each authority's representative citation, its name, its citation as written and the authority
   // it is subsequent history of, as the engine reads them.
-  const readings = native.citationEngineCall("authorities", JSON.stringify({ citations: result.citations,
-    authorities: result.authorities })) as Array<{ representative?: number; name?: string; citation?: string; historyOf?: number }>;
+  const readings = native.citationEngineCall("authorities", { citations: result.citations,
+    authorities: result.authorities }) as Array<{ representative?: number; name?: string; citation?: string; historyOf?: number }>;
   const groupKeys: string[] = [];
   for (const [position, group] of result.authorities.entries()) {
     const reading = readings[position];

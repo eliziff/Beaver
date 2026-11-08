@@ -83,7 +83,7 @@ export function pinpointCorrection(occurrence: AuthorityOccurrence, label: strin
   const pin = occurrence.pinpoints[0], phrase = occurrence.pinpointPhrase ?? occurrence.pinpointSpan;
   if (occurrence.pinpoints.length !== 1 || !pin?.first || !phrase) return null;
   const engine = structureNative();
-  const value = (engine.citationEngineCall("pinpointsAt", JSON.stringify({ text: label, start: 0, end: label.length })) as
+  const value = (engine.citationEngineCall("pinpointsAt", { text: label, start: 0, end: label.length }) as
     Array<{ first?: string }>)[0]?.first ?? label.trim();
   const [first, last, at] = [Number(pin.first), Number(pin.last ?? pin.first), Number(value)];
   const whole = [first, last, at].every(Number.isInteger);
@@ -91,7 +91,7 @@ export function pinpointCorrection(occurrence: AuthorityOccurrence, label: strin
     : whole && at === first - 1 ? { first: value, last: pin.last ?? pin.first }
       : whole && at === last + 1 ? { first: pin.first, last: value } : null;
   if (!locator) return null;
-  const written = (engine.citationEngineCall("format", JSON.stringify({ pinpoint: { kind: pin.kind, locators: [locator] } })) as
+  const written = (engine.citationEngineCall("format", { pinpoint: { kind: pin.kind, locators: [locator] } }) as
     { pinpoint?: string }).pinpoint;
   if (!written) return null;
   // A manually placed span may hold only the locators; their introduction stays outside it.

@@ -14,7 +14,7 @@ const module = { exports: {} };
 process.dlopen(module, nativeAddonFile(filename, root));
 const addon = "call" in module.exports
   ? structureEngineAddon(module.exports, { toBuffer: bytes => Buffer.from(bytes) }) : module.exports;
-const call = (method, request) => addon.citationEngineCall(method, JSON.stringify(request));
+const call = (method, request) => addon.citationEngineCall(method, request);
 const grammarBytes = readFileSync(new URL("../../common-law-cite/crates/legal-grammar/data/grammar-corpus.json", import.meta.url));
 const version = call("version", {});
 const grammarSha256 = createHash("sha256").update(grammarBytes).digest("hex");

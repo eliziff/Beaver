@@ -915,9 +915,9 @@ export async function legalEvidenceProseIntegrityErrors(text: string,
   const named = new Map<string, Set<string>>();
   // One scan for the whole draft: rescanning per citation made the check quadratic.
   const quoted = native.markedQuoteSpans(text);
-  const extracted = await native.citationEngineCallAsync("extract", JSON.stringify({
+  const extracted = await native.citationEngineCallAsync("extract", {
     text, offsetUnit: "utf16", options: { resolve: false },
-  })) as ExtractResponse;
+  }) as ExtractResponse;
   for (const citation of extracted.citations.filter((citation) =>
     !quoted.some((quote) => citation.span.start >= quote.start && citation.span.end <= quote.end))) {
     const key = citation.key ?? native.citationLookupKey(citation.span.text), labels = named.get(key) ?? new Set<string>();

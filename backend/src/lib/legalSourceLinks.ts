@@ -26,7 +26,7 @@ export type LegalSourceEvidence = {
 
 /** The citation engine's reading of a source's address (common-law-cite url.rs). */
 const engine = <T>(method: string, request: object) =>
-  structureNative().citationEngineCall(method, JSON.stringify(request)) as T;
+  structureNative().citationEngineCall(method, request) as T;
 
 /** The anchor a source's page has for a locator its reading labels ("par12", "page 3", "2(1)"): CanLII's and
  *  Decisia's paragraph anchors, a PDF's page, CanLII's section and subsection anchors. */

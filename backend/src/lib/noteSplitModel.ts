@@ -204,7 +204,7 @@ const CHOOSE_SCHEMA = { type: "object", additionalProperties: false, required: [
 export type ReferenceCandidate = { note: string; shortForm: string; text: string; link: string };
 const STOPWORDS = new Set(["supra", "note", "notes", "ibid", "at", "para", "paras", "the", "of", "and", "in", "see", "also",
   "v", "r", "c", "et", "al", "this", "that", "a", "an", "to", "for", "is", "was", "on", "by", "with", "as", "or"]);
-const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, JSON.stringify(request)) as T;
+const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, request) as T;
 const normalizedReference = (text: string) => engine<{ normalized: string }>("referenceInfo", { text }).normalized;
 const tokens = (text: string) => new Set((normalizedReference(text).match(/[a-z][a-z'’-]+/gu) ?? []).filter((token) => !STOPWORDS.has(token)));
 const baseLink = (link: string) => link.split("#", 1)[0].replace(/\s+/gu, " ").trim().toLowerCase();

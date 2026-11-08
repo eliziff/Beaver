@@ -103,7 +103,7 @@ function unusedRole(draft: AuthoritiesDraft, role: string) {
  *  the decision. A caption that is not a plain "Name, citation" (a label such as "Neutral
  *  citation:" or a heading's bracket read into the name) names nothing. */
 const captionStyleOfCause = (text: string, keys: readonly string[]) =>
-  structureNative().citationEngineCall("captionStyleOfCause", JSON.stringify({ text, keys })) as string | null;
+  structureNative().citationEngineCall("captionStyleOfCause", { text, keys }) as string | null;
 
 /** The parties a decision's caption names, as its outline reads the matter before its reasons: each block of lines
  *  ending at a party's role ("Appellant", "Respondents"), from the line after the previous role or a "Between:", or
@@ -130,7 +130,7 @@ export function caseNameMismatch(authority: AuthorityIdentity,
   const styled = authority.mentionedAs || authority.name;
   if (authority.kind !== "case" || !source.name || !styled?.trim()) return null;
   const agreement = (other: string) => structureNative().citationEngineCall("caseNamesAgree",
-    JSON.stringify({ written: [styled, ...authority.shortNames ?? []], other })) as { agrees: boolean; other: string[] };
+    { written: [styled, ...authority.shortNames ?? []], other }) as { agrees: boolean; other: string[] };
   if (agreement(source.name).agrees) return null;
   const parties = source.searchText ? captionParties(source.searchText()) : [];
   // A caption whose parties give no distinctive name (the Crown alone) tells nothing.
@@ -154,7 +154,7 @@ export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, pa
   const native = structureNative(), opening = pages.map((page, index) => ({ lines: page.split("\n").map((text) => ({ text })),
     marginText: marginText?.[index] }));
   const match = await matchFolderPdf(filename, opening, records, (method, request) =>
-    native.citationEngineCall(method, JSON.stringify(request)), ({ authority }) => reference(authority));
+    native.citationEngineCall(method, request), ({ authority }) => reference(authority));
   return match?.record.authority.id ?? null;
 }
 
@@ -164,7 +164,7 @@ export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, pa
  *  of the same decision, so it is another case only where its caption shares no party's name with the case's. */
 function openingOtherCase(draft: AuthoritiesDraft, authority: AuthorityIdentity, pages: string[]) {
   const opening = pages.map((page) => ({ lines: page.split("\n").map((text) => ({ text })) }));
-  const call = (method: string, request: unknown) => structureNative().citationEngineCall(method, JSON.stringify(request));
+  const call = (method: string, request: unknown) => structureNative().citationEngineCall(method, request);
   const identities = headerIdentities(opening, call);
   if (!identities.length) return null;
   try { verifyIdentity(opening, { citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }, call); }
@@ -329,8 +329,8 @@ function referenceTargets(draft: AuthoritiesDraft, references: AuthorityOccurren
       notes.push({ number: item.noteNumber, start: text.length, end: text.length + item.text.length });
     text += `${item.text}\n\n`;
   }
-  const { citations, sourceParts, resolutions = [] } = structureNative().citationEngineCall("extract", JSON.stringify({
-    text, offsetUnit: "utf16", options: { resolve: true, notes } })) as { citations: ResolvedCitation[];
+  const { citations, sourceParts, resolutions = [] } = structureNative().citationEngineCall("extract", {
+    text, offsetUnit: "utf16", options: { resolve: true, notes } }) as { citations: ResolvedCitation[];
     sourceParts: Array<{ start: number; end: number }>; resolutions?: Array<{ index: number; sourcePart?: number | null }> };
   return new Map(references.map((occurrence) => {
     const at = starts.get(occurrence.unitId) ?? 0, { start, end } = occurrence.coreSpan;
@@ -491,7 +491,7 @@ type Pinpoint = AuthorityOccurrence["pinpoints"][number] & { start: number; end:
  *  reads them as it reads an ibid's: the locator words before them ("at para", "s", "pp"), up to
  *  three words back, give their kind. Unless `strict`, a value with no such words is a page. */
 const pinpointsAt = (text: string, start: number, end: number, strict = false) =>
-  structureNative().citationEngineCall("pinpointsAt", JSON.stringify({ text, start, end, strict })) as Pinpoint[];
+  structureNative().citationEngineCall("pinpointsAt", { text, start, end, strict }) as Pinpoint[];
 
 /** The pinpoints a selection of a unit's text holds, read as a save reads them: the review shows
  *  an added pinpoint whole, its kind included, without waiting for the save. */

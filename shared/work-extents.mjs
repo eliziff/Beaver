@@ -9,5 +9,5 @@ export function registerWorkExtents(engine) {
   if (registered.has(engine)) return;
   registered.add(engine);
   // The engine reads the pack itself.
-  if (pack) engine.citationEngineCall("registerExtents", JSON.stringify({ pack }));
+  if (pack) engine.citationEngineCall("registerExtents", { pack });
 }

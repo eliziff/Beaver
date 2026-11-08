@@ -127,7 +127,7 @@ export type PreparedAuthoritySource = {
 
 /** Whether names written for a case can name the case another name names: the engine's reading. */
 const caseNamesAgree = (written: string[], other: string) => structureNative().citationEngineCall("caseNamesAgree",
-  JSON.stringify({ written, other })) as { agrees: boolean; written: string[]; other: string[] };
+  { written, other }) as { agrees: boolean; written: string[]; other: string[] };
 
 /** The case A2AJ holds at a decision's citation, when it shares no party's name with the names the brief
  *  gives the decision, and the one case those names find near it in the same court, when exactly one

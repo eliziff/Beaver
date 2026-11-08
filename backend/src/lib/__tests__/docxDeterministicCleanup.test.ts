@@ -84,7 +84,7 @@ describe("deterministic DOCX supra cleanup", () => {
       detected: 1,
       converted: 0,
       review_required: 1,
-      reasons: { restarted_numbering: true },
+      restarted_numbering: true,
     });
     expect(result.bytes).toEqual(original);
   });
@@ -116,7 +116,7 @@ describe("deterministic DOCX supra cleanup", () => {
       detected: 1,
       converted: 0,
       review_required: 1,
-      reasons: { unsafe_or_split_fields: 1 },
+      unsafe_or_split_fields: 1,
     });
     expect(result.bytes).toEqual(original);
   });

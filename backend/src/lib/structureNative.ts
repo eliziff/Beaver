@@ -152,7 +152,7 @@ export type NativePdfPassageGeometry = {
     printed?: boolean;
     pages: Array<{
       pageNumber: number; width: number; height: number;
-      source: "native" | "unavailable"; passageRects: Rect[]; text?: string;
+      source: "native" | "unavailable"; passageRects: Rect[]; text: string;
     }>;
     quotes: Array<{
       text: string; status: PassageStatus; pageNumber?: number; rects: Rect[];
@@ -165,25 +165,21 @@ export type NativePdfPassageGeometry = {
 export type NativePdfTextPage = { number: number; width: number; height: number;
   lines: Array<{ id: string; text: string; bbox: Rect; words: Array<{ text: string; bbox: Rect }> }> };
 
-type NativePdfPassagePages = Omit<NativePdfPassageGeometry, "schemaVersion" | "targets"> & {
-  schemaVersion: "legalpdf.passage-pages.v1";
-  /** Each passage's pages and its quotations placed on them; a passage with no page it can be read on unavailable. */
-  targets: Array<{ id: string; status: PassageStatus; printed?: boolean; pages: Array<{
-    pageNumber: number; width: number; height: number; source: "native" | "unavailable";
-    lines: Array<{ id: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }>;
-  }>; quotes: NativePdfPassageGeometry["targets"][number]["quotes"] }>;
+/** A lookup in a PDF by a locator (legal-pdf-support's `PdfLookupRequest`). */
+export type NativePdfLookupRequest = {
+  locator_kind: string;
+  locator: string;
+  end_locator?: string | null;
+  context_blocks?: number;
+  page?: number | null;
+  occurrence?: number | null;
+  /** The instrument a provision is of, where the PDF prints several. */
+  instrument?: string;
 };
 
 type PdfStructureLookupBase = {
   schema_version: "legalpdf.structure-lookup.v1";
-  requested: {
-    locator_kind: string;
-    locator: string;
-    end_locator: string | null;
-    context_blocks: number;
-    page: number | null;
-    occurrence: number | null;
-  };
+  requested: NativePdfLookupRequest;
   units: Array<{
     id: string;
     kind: "page" | "paragraph" | "footnote" | "section";
@@ -241,8 +237,7 @@ type StructureAddon = {
   docxAuthorityTextUnits(bytes: Buffer): Promise<NativeAuthorityTextUnit[]>;
   fixDocxSupraCrossReferences(bytes: Buffer): Promise<{
     bytes: Buffer; detected: number; converted: number; already_linked: number;
-    review_required: number; bookmarks_added: number;
-    reasons: { restarted_numbering: boolean; unsafe_or_split_fields: number };
+    review_required: number; bookmarks_added: number; restarted_numbering: boolean; unsafe_or_split_fields: number;
   }>;
   derivePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal): Promise<NativeDocument>;
   /** `progress(recognized, total)` follows text recognition as pages finish. */
@@ -259,7 +254,9 @@ type StructureAddon = {
   /** Every page's text in page order, empty where a page has no exact text. */
   pdfPageTexts(document: NativeDocument): string[];
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
-  pdfPassageGeometryPages(document: NativeDocument, targets: NativePdfPassageTarget[]): Promise<NativePdfPassagePages>;
+  /** Each passage's pages, its lines' rectangles on each, and its quotations placed on them; a passage with no page it
+   *  can be read on unavailable. */
+  pdfPassageGeometryPages(document: NativeDocument, targets: NativePdfPassageTarget[]): Promise<NativePdfPassageGeometry>;
   docxStructureLint(document: NativeDocument): {
     paragraphs: number;
     checks: {
@@ -288,9 +285,10 @@ type StructureAddon = {
     resultSha256: string; components: Record<string, string>;
   };
   citationLookupKey(text: string): string;
-  citationEngineCall(method: string, request: string): unknown;
+  /** A call of the citation engine's API (legal-citations `api::call_value`): its method and its request as it reads it. */
+  citationEngineCall(method: string, request: unknown): unknown;
   /** citationEngineCall, run off the JavaScript thread. */
-  citationEngineCallAsync(method: string, request: string): Promise<unknown>;
+  citationEngineCallAsync(method: string, request: unknown): Promise<unknown>;
   documentReadingOrder(request: string): Array<[number, number]>;
   citationLookupKeys(texts: string[]): string[];
   /** What the lookup keys are made by: the key version and the alias table ("4:1a2b3c4d5e6f"). */
@@ -468,9 +466,7 @@ type StructureAddon = {
       depth: number;
       omissions: NativeGraphScopeOmission[];
     } | null;
-  queryPdfDocument(document: NativeDocument, locatorKind: string, locator: string,
-    endLocator?: string, contextBlocks?: number, page?: number,
-    occurrence?: number): PdfStructureLookup;
+  queryPdfDocument(document: NativeDocument, request: NativePdfLookupRequest): PdfStructureLookup;
   pdfLookupUnitSpans(document: NativeDocument, ids: string[]): Record<string, Array<{ start: number; end: number }>>;
 };
 
@@ -598,22 +594,5 @@ export async function pdfPassageGeometry(
   if (createHash("sha256").update(bytes).digest("hex") !== summary.sha256) {
     throw new Error("PDF source changed after preparation");
   }
-  const raw = await native.pdfPassageGeometryPages(document, targets);
-  if (raw.sourceSha256 !== summary.sha256 || raw.parserVersion !== summary.parserVersion) {
-    throw new Error("PDF passage geometry source identity changed");
-  }
-  return { ...raw, schemaVersion: "legalpdf.passage-geometry.v1",
-    targets: raw.targets.map((target, index) => {
-      const request = targets[index];
-      return { id: target.id, locatorKind: request.locatorKind, locator: request.locator, status: target.status,
-        ...(request.locatorKind === "paragraph" ? { printed: target.printed === true } : {}),
-        pages: target.pages.map((page) => ({
-        pageNumber: page.pageNumber, width: page.width, height: page.height, source: page.source,
-        text: page.lines.flatMap(line => line.words.map(word => word.text)).join(" ").slice(0, 2_000),
-        passageRects: request.locatorKind === "page" || !page.lines.length
-          ? [] : page.lines.map((line) => line.rect),
-        })),
-        quotes: target.quotes,
-      };
-    }) };
+  return await native.pdfPassageGeometryPages(document, targets);
 }

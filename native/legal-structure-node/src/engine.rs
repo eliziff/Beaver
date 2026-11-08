@@ -270,8 +270,7 @@ pub fn reporter_start_pages(citations: &[String]) -> Vec<u32> {
     pages
 }
 
-pub fn citation_engine_call(method: &str, request: &str) -> Result<serde_json::Value, String> {
-    let request = serde_json::from_str(request).map_err(|error| error.to_string())?;
+pub fn citation_engine_call(method: &str, request: serde_json::Value) -> Result<serde_json::Value, String> {
     legal_structure::citations::api::call_value(method, request).map_err(|error| error.to_string())
 }
 
@@ -286,7 +285,7 @@ pub fn quote_locate_document(
     keep: bool,
 ) -> CoreResult<Vec<serde_json::Value>> {
     let text = document_text(document, None);
-    let blocks = legal_structure_features::document_quote_blocks(document.structure(), &document.query, source, None);
+    let blocks = legal_structure_features::document_quote_blocks(document.structure(), &document.query, source);
     let located = if keep {
         legal_structure_features::locate_source_quotes_kept(&mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()),
             source, text, &blocks, quotes, compare)
@@ -612,6 +611,8 @@ mod pdf {
 
     struct PassagePlan {
         id: String,
+        locator_kind: String,
+        locator: String,
         page: bool,
         status: legalpdf::PdfLookupStatus,
         pages: Vec<u32>,
@@ -755,7 +756,9 @@ mod pdf {
                     status,
                     pages,
                     ranges,
-                    paragraph: (target.locator_kind == "paragraph").then_some(target.locator),
+                    paragraph: (target.locator_kind == "paragraph").then(|| target.locator.clone()),
+                    locator_kind: target.locator_kind,
+                    locator: target.locator,
                     quotes: target.exact_quotes.into_iter()
                         .map(|text| QuoteSelection { end: legal_structure::utf16_len(&text), text, start: 0 })
                         .chain(target.quote_selections).collect(),
@@ -866,7 +869,24 @@ mod pdf {
                         status
                     };
                     let quotes = plan.quotes.iter().map(|quote| quote_geometry(&pages, readable, quote)).collect::<Vec<_>>();
-                    let mut target = serde_json::json!({ "id": plan.id, "status": readable, "pages": pages, "quotes": quotes });
+                    // Each page as the passage is marked on it: the rectangle of each of its lines on the page (none for a
+                    // page asked for whole), and the start of its words (2,000 UTF-16 units at most).
+                    let pages = pages.into_iter().map(|mut page| {
+                        let lines = page["lines"].take();
+                        let lines = lines.as_array().map(Vec::as_slice).unwrap_or_default();
+                        let words = lines.iter().flat_map(|line| line["words"].as_array().into_iter().flatten())
+                            .filter_map(|word| word["text"].as_str()).collect::<Vec<_>>().join(" ");
+                        let mut width = 0;
+                        let text = words.chars().take_while(|c| { width += c.len_utf16(); width <= 2_000 }).collect::<String>();
+                        let rects = if plan.page { Vec::new() } else { lines.iter().map(|line| line["rect"].clone()).collect() };
+                        let object = page.as_object_mut().expect("a page is an object");
+                        object.remove("lines");
+                        object.insert("text".to_owned(), text.into());
+                        object.insert("passageRects".to_owned(), rects.into());
+                        page
+                    }).collect::<Vec<_>>();
+                    let mut target = serde_json::json!({ "id": plan.id, "locatorKind": plan.locator_kind, "locator": plan.locator,
+                        "status": readable, "pages": pages, "quotes": quotes });
                     if plan.paragraph.is_some() {
                         target["printed"] = (status == legalpdf::PdfLookupStatus::Found && complete_geometry && !selected_pages.is_empty() &&
                             selected_pages.iter().all(|page| !unavailable.contains(&((*page - 1) as usize)))).into();
@@ -875,7 +895,7 @@ mod pdf {
                 })
                 .collect::<Vec<_>>();
             Ok(serde_json::json!({
-                "schemaVersion": "legalpdf.passage-pages.v1",
+                "schemaVersion": "legalpdf.passage-geometry.v1",
                 "sourceSha256": self.summary.sha256,
                 "parserVersion": self.summary.parser_version,
                 "coordinateSpace": "visible_crop_box",
@@ -912,28 +932,7 @@ mod pdf {
         Ok(pdf_lookup_unit_spans_of(pdf.structure(), ids))
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn query_pdf_document(
-        document: &NativeDocument,
-        locator_kind: String,
-        locator: String,
-        end_locator: Option<String>,
-        context_blocks: Option<u32>,
-        page: Option<u32>,
-        occurrence: Option<u32>,
-    ) -> CoreResult<impl Serialize> {
-        let pdf = pdf_of(document, "PDF query requires a PDF document")?;
-        Ok(legalpdf::query_pdf_document(
-            pdf,
-            &legalpdf::PdfLookupRequest {
-                locator_kind,
-                locator,
-                end_locator,
-                context_blocks: context_blocks.unwrap_or(0) as usize,
-                page,
-                occurrence: occurrence.map(|value| value as usize),
-                instrument: None,
-            },
-        ))
+    pub fn query_pdf_document(document: &NativeDocument, request: &legalpdf::PdfLookupRequest) -> CoreResult<impl Serialize> {
+        Ok(legalpdf::query_pdf_document(pdf_of(document, "PDF query requires a PDF document")?, request))
     }
 }

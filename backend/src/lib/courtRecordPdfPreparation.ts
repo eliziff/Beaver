@@ -55,8 +55,8 @@ export async function courtRecordPageText(readBytes: () => Buffer | Promise<Buff
   options: Parameters<typeof documentProjectionService.lookupPdf>[2]) {
   const text = new Map<number, string>();
   async function read(first: number, last: number) {
-    const lookup = await documentProjectionService.lookupPdf(readBytes, { locatorKind: "page",
-      locator: first === last ? `${first}` : `${first}-${last}`, contextBlocks: 0 }, options);
+    const lookup = await documentProjectionService.lookupPdf(readBytes, { locator_kind: "page",
+      locator: first === last ? `${first}` : `${first}-${last}`, context_blocks: 0 }, options);
     if (lookup.status === "found") {
       for (const page of lookup.pages) text.set(page.page_number, page.text);
     } else if (lookup.status === "unavailable" &&

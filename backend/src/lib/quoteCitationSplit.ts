@@ -21,7 +21,7 @@ export async function splitQuoteCitationUnits(texts: string[], signal?: AbortSig
   const missing = [...new Set(texts.filter((text) => !kept.has(text)))];
   if (missing.length) {
     const units = await structureNative().citationEngineCallAsync("quoteCitationUnits",
-      JSON.stringify({ texts: missing })) as QuoteCitationUnit[];
+      { texts: missing }) as QuoteCitationUnit[];
     // The engine gives a part's page pinpoints as it reads them, in words.
     units.forEach((unit, index) => kept.set(missing[index], { ...unit, parts: unit.parts.map((part) => ({ ...part,
       fields: { ...part.fields, page_pinpoints: part.fields.page_pinpoints.map(Number) } })) }));

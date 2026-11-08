@@ -841,9 +841,7 @@ async function runCodingShapeCall(
         }
         if (lookup.status === "found") nativePdf ??= await documentProjectionService.read(source, { signal });
         if (handle && lookup.status === "found") {
-          const request = lookup.requested, canonical = structureNative().queryPdfDocument(nativePdf!,
-            request.locator_kind, request.locator, request.end_locator ?? undefined,
-            request.context_blocks, request.page ?? undefined, request.occurrence ?? undefined);
+          const canonical = structureNative().queryPdfDocument(nativePdf!, lookup.requested);
           if (canonical.status !== "found" || canonical.payload_sha256 !== lookup.payload_sha256)
             throw new Error("PDF evidence no longer matches the authoritative source artifacts");
         }
@@ -1124,12 +1122,13 @@ async function runCodingShapeCall(
   );
 }
 
+/** The tool's locator arguments as the PDF lookup takes them (`PdfLookupRequest`). */
 function pdfLocatorParams(args: Record<string, unknown>) {
   return {
-    locatorKind: args.locator_kind as PdfLocatorKind,
+    locator_kind: args.locator_kind as PdfLocatorKind,
     locator: typeof args.locator === "string" ? args.locator : "",
-    endLocator: args.end_locator as string | undefined,
-    contextBlocks: args.context_blocks as number | undefined,
+    end_locator: args.end_locator as string | undefined,
+    context_blocks: args.context_blocks as number | undefined,
     page: args.page as number | undefined,
     occurrence: args.occurrence as number | undefined,
   };

@@ -16,7 +16,7 @@ export type AlrRunMode = "high_accuracy" | "economy" | "ultra_economy";
 /** The run modes a page may ask for (ALR's beaver_app/runtime/ai.ts checks a request against them). */
 export const RUN_MODES: readonly AlrRunMode[] = ["high_accuracy", "economy", "ultra_economy"];
 
-const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, JSON.stringify(request)) as T;
+const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, request) as T;
 const isIbid = (text: string) => engine<{ kind: string }>("referenceInfo", { text }).kind === "ibid";
 
 /** Whether the run mode leaves the note to the engine. */

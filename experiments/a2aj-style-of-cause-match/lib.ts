@@ -27,7 +27,7 @@ export function a2ajDbPath() {
 
 export function extract(text: string): { citations: Citation[]; authorities: number[][] } {
   const raw = native.citationEngineCall("extract",
-    JSON.stringify({ text, offsetUnit: "utf16", options: { resolve: false } }));
+    { text, offsetUnit: "utf16", options: { resolve: false } });
   return (typeof raw === "string" ? JSON.parse(raw) : raw) as never;
 }
 

@@ -74,7 +74,7 @@ function footnoteFilter(text = "") {
 type Part = { start: number; end: number; text: string; anchors: string[] };
 type Citation = { index: number; form: string; key?: string; span: { start: number; end: number }; fields?: { page?: string } };
 type Fields = QuoteCitationUnit["parts"][number]["fields"];
-const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, JSON.stringify(request)) as T;
+const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, request) as T;
 const usableLink = (link: string) => /^https?:\/\/[^/\s]/iu.test((link ?? "").trim());
 
 /** A model's part of a note, at its place in the note's text (runtime/ai.ts). */

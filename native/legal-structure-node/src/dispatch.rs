@@ -31,10 +31,15 @@ fn store(document: NativeDocument) -> Value {
 }
 
 #[cfg(feature = "a2aj")]
-/// An A2AJ document as JavaScript is given it: its metadata and a handle to each of its readings.
+/// An A2AJ document as JavaScript is given it: its metadata, and a handle to each of its readings, its full text's being
+/// its provisions' where it has none of its own.
 fn found(found: Option<a2aj::Found>) -> Value {
-    found.map_or(Value::Null, |found| json!({ "metadata": found.metadata, "native": share(found.native),
-        "searchNative": found.search.map(share) }))
+    found.map_or(Value::Null, |found| {
+        let mut value = json!(found.metadata);
+        value["searchNative"] = share(found.search.unwrap_or_else(|| Arc::clone(&found.native)));
+        value["native"] = share(found.native);
+        value
+    })
 }
 
 /// A handle of its own to a document the engine keeps elsewhere too.
@@ -84,14 +89,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "deriveDocumentFingerprint" => done(engine::derive_document_fingerprint(call.get("request")?).and_then(value)),
         #[cfg(feature = "docx")]
         "fixDocxSupraCrossReferences" => {
-            let result = engine::fix_docx_supra_cross_references(bytes)?;
-            Ok((json!({
-                "detected": result.detected, "converted": result.converted,
-                "already_linked": result.already_linked, "review_required": result.review_required,
-                "bookmarks_added": result.bookmarks_added,
-                "reasons": { "restarted_numbering": result.restarted_numbering,
-                    "unsafe_or_split_fields": result.unsafe_or_split_fields },
-            }), result.bytes))
+            let mut result = engine::fix_docx_supra_cross_references(bytes)?;
+            let bytes = std::mem::take(&mut result.bytes);
+            Ok((value(&result)?, bytes))
         }
         #[cfg(feature = "docx")]
         "deriveDocxDocument" => done(engine::derive_docx_document(
@@ -136,9 +136,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "pdfLookupUnitSpans" => done(with_document(doc()?, |d|
             engine::pdf_lookup_unit_spans(d, &call.get::<Vec<String>>("ids")?).and_then(value))),
         #[cfg(feature = "legalpdf")]
-        "queryPdfDocument" => done(with_document(doc()?, |d| engine::query_pdf_document(
-            d, call.get("locatorKind")?, call.get("locator")?, call.get("endLocator")?,
-            call.get("contextBlocks")?, call.get("page")?, call.get("occurrence")?).and_then(value))),
+        "queryPdfDocument" => done(with_document(doc()?, |d| engine::query_pdf_document(d, &call.get("request")?).and_then(value))),
         "docxStructureLint" => done(with_document(doc()?, |d| engine::docx_structure_lint_json(d).and_then(value))),
         "documentText" => done(with_document(doc()?, |d| value(engine::document_text(d, call.get("limit")?)))),
         "documentTextBytes" => done(with_document(doc()?, |d| value(engine::document_text_bytes(d)))),
@@ -166,7 +164,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> CoreResu
         "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),
         // The same call, which JavaScript runs off its thread.
         "citationEngineCall" | "citationEngineCallAsync" => done(engine::citation_engine_call(
-            &call.get::<String>("method")?, &call.get::<String>("request")?)),
+            &call.get::<String>("method")?, call.get("request")?)),
         "documentReadingOrder" => done(engine::document_reading_order(&call.get::<String>("request")?).and_then(value)),
         "citationLookupKeys" => done(value(engine::citation_lookup_keys(&call.get::<Vec<String>>("texts")?))),
         "citationKeyVersion" => done(value(engine::citation_key_version())),

@@ -22,7 +22,7 @@ export const SIGNATURES = {
   reporterStartPages: ["citations"],
   pdfPassageGeometryPages: ["document", "targets"],
   pdfLookupUnitSpans: ["document", "ids"],
-  queryPdfDocument: ["document", "locatorKind", "locator", "endLocator", "contextBlocks", "page", "occurrence"],
+  queryPdfDocument: ["document", "request"],
   docxStructureLint: ["document"],
   documentText: ["document", "limit"], documentTextBytes: ["document"], documentRevision: ["document"],
   readDocumentTextWindow: ["document", "offset", "startChar", "limit"],
@@ -141,13 +141,10 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
   }
   function result(name, { value, bytes }) {
     if (DOCUMENT_RESULTS.has(name)) return handle(value);
-    // A store's document: its full text's document is its provisions' where the engine names none.
-    const storeDocument = (value) => {
-      const native = handle(value.native);
-      return { ...value.metadata, native, searchNative: handle(value.searchNative) ?? native };
-    };
+    // A store's document, a handle to each of its readings.
+    const storeDocument = (value) => ({ ...value, native: handle(value.native), searchNative: handle(value.searchNative) });
     if ((name === "a2ajDocument" || name === "a2ajRecord") && value) return storeDocument(value);
-    if (name === "a2ajStoreDocuments" && value) return value.map((found) => ({ id: found.id, ...storeDocument(found) }));
+    if (name === "a2ajStoreDocuments" && value) return value.map(storeDocument);
     if (name === "a2ajSection" && value) return { native: handle(value.native) };
     if (name === "a2ajRecordProvision") return handle(value);
     if (name === "fixDocxSupraCrossReferences") return { ...value, bytes: toBuffer(bytes.slice()) };
@@ -224,7 +221,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
 }
 
 // Citations of the common kinds, Canadian, US and UK, with a reference of each kind.
-const WARM_SAMPLE = JSON.stringify({ options: { resolve: true }, text: [
+const WARM_SAMPLE = { options: { resolve: true }, text: [
   "1 R v Jordan, 2016 SCC 27 at para 5.",
   "2 Hunter v Southam Inc, [1984] 2 SCR 145 at 160; Smith v Jones (1999), 169 DLR (4th) 385 (SCC).",
   "3 Criminal Code, RSC 1985, c C-46, s 8(1); Alta Reg 133/2019, s 3.",
@@ -232,4 +229,4 @@ const WARM_SAMPLE = JSON.stringify({ options: { resolve: true }, text: [
   "5 Ibid at para 7.",
   "6 Jordan, supra note 1 at para 9.",
   "7 Roe v Wade, 410 US 113 (1973); R (Miller) v Secretary of State, [2017] UKSC 5.",
-].join("\n") });
+].join("\n") };
