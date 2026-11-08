@@ -114,7 +114,7 @@ mod tool {
         let opinion = reading(structure);
         let (faults, unheld) = (source_faults_left(structure), unheld_text(structure));
         let (pages, notes, headings, parts) = (|| nodes(structure, NodeKind::Page), || nodes(structure, NodeKind::Footnote), || nodes(structure, NodeKind::Heading), || nodes(structure, NodeKind::Section));
-        let paragraphs = || nodes(structure, NodeKind::Paragraph).chain(nodes(structure, NodeKind::Quote));
+        let paragraphs = || legal_structure::opinion::paragraphs(structure);
         let mut series = BTreeMap::<&str, Vec<&str>>::new();
         let mut sources = BTreeMap::<&str, usize>::new();
         for page in pages() {
@@ -135,7 +135,7 @@ mod tool {
             "id": structure.document_id, "cell": fields.get("_cell"), "stratum": fields.get("_stratum"), "rate": fields.get("_rate"), "page_count": fields.get("page_count"), "rendition": opinion.rendition, "ms": milliseconds, "text": structure.text.len(),
             "pages": series, "page_sources": sources, "note_pages": pages().filter(|page| page.properties.contains_key("in_note")).count(),
             "paragraphs": paragraphs().count(), "numbered": paragraphs().filter(|paragraph| paragraph.label.is_some()).count(), "items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some()).count() + note_items, "titled_items": headings().filter(|heading| title(heading).split_whitespace().next().is_some_and(|word| word.len() <= 6 && word.ends_with(['.', ')']))).count(), "quote_paragraphs": nodes(structure, NodeKind::Quote).count(), "named_items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some_and(|item| item.len() > 6)).count(), "blocks": opinion.blocks.len(), "blocks_reckoned": opinion.blocks.iter().filter(|block| block.source == "reckoned").count(),
-            "numbers": paragraphs().filter(|paragraph| paragraph.label.is_some()).map(|paragraph| paragraph.label.as_deref().unwrap_or("")).take(400).collect::<Vec<_>>(),
+            "numbers": paragraphs().filter_map(|paragraph| paragraph.label.as_deref()).take(400).collect::<Vec<_>>(),
             "notes": notes().count(), "note_refs": notes().map(|note| note.calls.len()).sum::<usize>(),
             "note_labels": notes().map(|note| note.label.as_deref().unwrap_or("")).take(200).collect::<Vec<_>>(),
             "headings": headings().map(|heading| title(heading).chars().take(70).collect::<String>()).take(60).collect::<Vec<_>>(),
