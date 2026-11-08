@@ -16,7 +16,19 @@ readers of the code, 2026-11-07).
 4. **Other sessions** edit `decide/`, `transition/`, `legal-pdf-support` and `native/a2aj-gold`. Before a unit moves or
    rewrites one of their files, check `ListAgents`. Land each stage's move in one commit.
 
-## Done (uncommitted, proven or being proven)
+## Where it stands (2026-11-08)
+
+Byte-identical work ends here; the right changes that move bytes come next.
+- Done: units 1-6, 9 and 11 (the stage is 18 crates under a 225-line orchestrator), and of 13 the whole-document reader,
+  the joint solve's forest, the beam and the ranker. The cache fingerprints cover every stage crate (legal-pdf-parser
+  704997d; the split had left them naming two).
+- Partly: unit 7 (one `note_number`; the tagger reads the regions from the contract), unit 10 (the contract crate; 42
+  `use super::*` remain and `Fences` is one struct), unit 12 (`native/a2aj-gold` is a harness crate).
+- The byte-identical cut: the parser's code, counted with every file put through rustfmt's default layout, is 7.1%
+  smaller than at 574a64c (53,115 -> 49,367 lines). No dead code is left and copied code is about 400 lines; the rest of
+  the cut is in the merges below, which move bytes.
+
+## Done (proven)
 
 | Unit | What | Proof |
 |---|---|---|
@@ -183,8 +195,12 @@ oracle stays.
 - The page-label writers (claim 16): one writer already; emit's copy was dead.
 - The machine's replays of moves (claim 18): one builder and one state, called at three points with different evidence.
 - The `LineView` builders' remap (claims 60, 99) and the opening reading (claim 101): done in units 3 and 4.
-- The A2AJ aligner's experiments copy (claim 62) and the CourtListener opinion layer (claims 61, 88, 89): tools and a
-  separate layer; they go with unit 12's harness crates and the opinion layer's own work.
+- The A2AJ aligner's experiments copy (claim 62): a tool; it goes with unit 12's harness crates.
+- The CourtListener opinion layer (claims 61, 88, 89) is no duplicate: it runs the engine's `analyze_native_markup` and
+  reads further on its output (a page series per reporter, the paragraphs the engine leaves unnumbered, notes and
+  headnotes, numbers recovered from other renditions). Only the CourtListener harnesses call it; the product's
+  CourtListener path runs the engine alone. Its readings belong in `legal-structure`'s parser, where the product runs
+  them and the grader measures what the product does: a change of output, for the phase of right changes.
 
 ## Last
 
