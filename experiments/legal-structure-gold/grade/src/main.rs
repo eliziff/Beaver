@@ -343,6 +343,81 @@ fn digest(store: &Path, out: &Path) -> Result<(), String> {
     std::fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
 }
 
+/// Each source's PDF extracted natively (no recognition), nothing parsed: one `sha<TAB>digest` line per document (the
+/// SHA-256 of its extraction's JSON, its rules' underlines marked, or its error), sorted, to OUT. Two builds extract
+/// the same where their files are the same.
+fn extract_digest(store: &Path, out: &Path) -> Result<(), String> {
+    use legal_pdf_extraction_processor::{extract_pdf, mark_rule_underlines, recognize_pdf};
+    use sha2::Digest;
+    let all = sources(store)?;
+    let digests = parallel(&all, |s| std::fs::metadata(&s.pdf).map_or(0, |m| m.len()), |source| {
+        let read = std::fs::read(&source.pdf).map_err(|e| e.to_string()).and_then(|pdf| {
+            let mut extracted = extract_pdf(&pdf, None, None).map_err(|e| e.to_string())?;
+            recognize_pdf(&pdf, &mut extracted, None, None).map_err(|e| e.to_string())?;
+            extracted.pages.iter_mut().for_each(mark_rule_underlines);
+            serde_json::to_vec(&extracted).map_err(|e| e.to_string())
+        });
+        format!("{:x}", sha2::Sha256::digest(read.unwrap_or_else(|error| format!("error {error}").into_bytes())))
+    });
+    let mut lines: Vec<String> = all.iter().zip(digests).map(|(source, digest)| format!("{}\t{digest}", source.sha256)).collect();
+    lines.sort();
+    std::fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
+}
+
+/// Each Word document under DIR read every way the parser reads one, nothing graded: one `path<TAB>digest` line per
+/// file (the SHA-256 of its text, its drafting text, its table-of-authorities units, its supra cleanup and its
+/// structure, each its result or its error), sorted, to OUT. Two builds read the same where their files are the same.
+fn docx_digest(dir: &Path, out: &Path) -> Result<(), String> {
+    use sha2::Digest;
+    fn walk(dir: &Path, found: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, found);
+            } else if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("docx")) {
+                found.push(path);
+            }
+        }
+    }
+    let mut files = Vec::new();
+    walk(dir, &mut files);
+    files.sort();
+    let analysis = legal_structure_model::structure_analysis();
+    let read = |path: &PathBuf| {
+        let bytes = std::fs::read(path).unwrap_or_default();
+        let shown = |result: Result<String, String>| result.unwrap_or_else(|error| format!("error {error}"));
+        let parts = [
+            shown(legalpdf::docx_text(&bytes, false).map_err(|e| e.to_string())),
+            shown(legalpdf::docx_text(&bytes, true).map_err(|e| e.to_string())),
+            shown(legalpdf::docx_to_toa_text_units(&bytes).map(|units| json!(units).to_string()).map_err(|e| e.to_string())),
+            shown(legalpdf::fix_docx_supra_cross_references(&bytes).map(|cleanup| format!("{cleanup:?}")).map_err(|e| e.to_string())),
+            shown(legalpdf::analyze_docx_bytes(analysis, &bytes, "docx".to_owned()).map(|structure| json!(structure).to_string()).map_err(|e| e.to_string())),
+        ];
+        let mut hasher = sha2::Sha256::new();
+        for part in parts {
+            hasher.update(part.as_bytes());
+            hasher.update([0]);
+        }
+        format!("{}\t{:x}", path.strip_prefix(dir).unwrap_or(path).display(), hasher.finalize())
+    };
+    let next = AtomicUsize::new(0);
+    let lines = Mutex::new(Vec::with_capacity(files.len()));
+    let threads = std::thread::available_parallelism().map_or(8, |n| n.get());
+    std::thread::scope(|scope| {
+        for _ in 0..threads {
+            scope.spawn(|| loop {
+                let at = next.fetch_add(1, Ordering::Relaxed);
+                let Some(path) = files.get(at) else { break };
+                let line = read(path);
+                lines.lock().unwrap().push(line);
+            });
+        }
+    });
+    let mut lines = lines.into_inner().unwrap();
+    lines.sort();
+    std::fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
+}
+
 struct Graded {
     score: score::Score,
     parse_ms: f64,
@@ -1339,12 +1414,14 @@ fn main() {
         [command, store, options @ ..] if command == "grade" => grade(Path::new(store), options),
         [command, store] if command == "inputs" => inputs(Path::new(store)),
         [command, store, out] if command == "digest" => digest(Path::new(store), Path::new(out)),
+        [command, dir, out] if command == "docx-digest" => docx_digest(Path::new(dir), Path::new(out)),
+        [command, store, out] if command == "extract-digest" => extract_digest(Path::new(store), Path::new(out)),
         [command, store, out] if command == "paragraph-data" => paragraph_data::export(Path::new(store), Path::new(out)),
         [command, store, mode, options @ ..] if command == "selfcheck" => selfcheck(Path::new(store), mode, options),
         [command, store, out] if command == "rows" => rows(Path::new(store), Path::new(out)),
         [command, store, prefix, options @ ..] if command == "pairing" => pairing(Path::new(store), prefix, options),
         [command, store, prefix, options @ ..] if command == "explain" => explain(Path::new(store), prefix, options),
-        _ => Err("usage: structure-gold inputs|digest|grade|rows|explain|selfcheck|pairing|paragraph-data STORE [SHA|OUT_DIR|MODE] [options]".into()),
+        _ => Err("usage: structure-gold inputs|digest|docx-digest|extract-digest|grade|rows|explain|selfcheck|pairing|paragraph-data STORE [SHA|OUT_DIR|MODE] [options]".into()),
     };
     if let Err(error) = result {
         eprintln!("{error}");
