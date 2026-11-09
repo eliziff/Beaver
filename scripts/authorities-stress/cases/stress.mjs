@@ -357,7 +357,7 @@ export const STRESS_CASES = [{
   },
 }, {
   name: "slow-a2aj",
-  title: "Edits made fast while slow A2AJ answers still gather the sources; Next waits, nothing is lost",
+  title: "Edits made fast while slow A2AJ answers still gather the sources; Sources opens and keeps every edit and arriving PDF",
   async run({ open, record, browser, fixtures }) {
     const long = longBrief(18), brief = path.join(path.dirname(fixtures.briefPdf), "slow-brief.pdf"), page = await browser.newPage();
     await page.setContent(briefHtml(long)); await writeFile(brief, await page.pdf({ preferCSSPageSize: true })); await page.close();
@@ -377,19 +377,25 @@ export const STRESS_CASES = [{
     record.check(edited.length === before - 1, "one deletion stands, one is undone", [before, edited.length]);
     const pending = app.log.filter(({ url }) => url.includes("api.a2aj.ca")).length;
     record.note("A2AJ answered before Next", pending);
-    // Next waits for the sources still gathering, the review held still meanwhile.
+    // Sources opens while gathering continues; the review's edits stay as the PDFs arrive.
     const next = await app.now();
     await step(app, "Sources", { via: "next", budget: 60_000 });
     await app.idle(120_000);
+    await app.page.waitForFunction(() => !document.querySelector(
+      '[aria-label="Authority tab slots"] [role="img"][aria-label="Looking for a PDF"]'),
+    null, { timeout: 120_000 });
     record.note("Next to Sources while gathering", await app.now() - next);
     await app.backgroundTasks(next, "waiting for sources");
     await app.page.getByRole("tab", { name: "Citations" }).click();
     await app.page.locator(".citation-document .citation-band[data-active]").first().waitFor();
     record.check(JSON.stringify(await list.allInnerTexts()) === JSON.stringify(edited), "the edits made while gathering are all kept", (await list.allInnerTexts()).length);
     await app.page.getByRole("tab", { name: "Sources" }).click();
+    const expectedSources = long.authorities.filter(({ record: found }) => found).length - 1;
+    // The list draws another screen of rows each frame; reopening it starts with the first screen.
+    await app.page.getByRole("list", { name: "Authority tab slots" }).getByRole("listitem").nth(expectedSources - 1).waitFor();
     const marks = await app.page.getByRole("list", { name: "Authority tab slots" }).getByRole("listitem")
       .evaluateAll((items) => items.map((item) => item.querySelector("[role=img]")?.getAttribute("aria-label") ?? ""));
-    record.check(marks.filter((mark) => /Built from source text/u.test(mark)).length >= long.authorities.filter(({ record: found }) => found).length - 1,
+    record.check(marks.filter((mark) => /Built from source text/u.test(mark)).length >= expectedSources,
       "the slow answers all arrived as sources", marks);
     record.check(!marks.some((mark) => /couldn't be reached|took too long/u.test(mark)), "nothing is reported unreachable", marks);
     await app.shots("slow-sources");

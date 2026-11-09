@@ -147,6 +147,7 @@ export async function build(app, label, { missing = null, start = () => app.butt
     app.record.note(`${app.label} ${label}: Missing PDFs asked after`, checked);
     app.record.check(checked < budget, `${app.label} ${label}: Missing PDFs asked in ${Math.round(checked)} ms (budget ${budget})`);
     const listed = await warning.locator("li").count();
+    app.record.note(`${app.label} ${label}: Missing PDFs`, await warning.locator("li").allInnerTexts());
     if (missing !== null) app.record.check(typeof missing === "number" ? listed === missing : missing.test(await warning.innerText()),
       `${app.label} ${label}: Missing PDFs lists what is missing`, { listed, missing: String(missing) });
     if (shot) await app.shots(shot);

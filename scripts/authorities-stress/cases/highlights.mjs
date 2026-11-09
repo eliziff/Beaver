@@ -56,7 +56,7 @@ export const HIGHLIGHT_CASES = [{
       if (reached) await app.page.getByRole("tab", { name: "Build book" }).click();
       else { await step(app, "Build book", { via: "next" }); reached = true; }
       await dock(app).waitFor();
-      await build(app, `marking ${key}`, { missing: null, budget: 3000 });
+      await build(app, `marking ${key}`, { missing: 0, budget: 3000 });
       const book = pick(await downloads(app, `marking-${key}`), /book-of-authorities\.pdf$/u);
       const pdf = await checkPdf(record, `${key} book`, book, { markKinds: EXPECTED[key] });
       // The statute's s 12 and the scan's para 22, as each marking draws them.

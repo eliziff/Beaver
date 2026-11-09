@@ -71,9 +71,8 @@ type Work = { kind: "idle" } | { kind: "working"; label: string; movingTo?: Step
   { kind: "building"; request: AbortController };
 const NO_WORK: Work = { kind: "idle" };
 const working = (label: string): Work => ({ kind: "working", label });
-/** The gathering of a draft's sources behind its review. Interrupted: an edit stopped it, and it runs again once
- *  editing rests. */
-type Gathering = { phase: "idle" | "interrupted" } | { phase: "running"; id: string; request: AbortController };
+/** Sources gathered behind the review; a concurrent edit is reconciled when the result is saved. */
+type Gathering = { phase: "idle" } | { phase: "running"; id: string };
 const NOT_GATHERING: Gathering = { phase: "idle" };
 /** A PDF shown in the preview dialog. Its recognized text may arrive before or after its bytes. */
 type SourcePreview = { role: string; name: string; quote?: string; recognizedText?: PdfRecognizedText;
@@ -426,9 +425,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const current = draftRef.current, key = `${draftId}\0${citationKey}`;
     // An app's documents find their sources at once (startImport), not behind a review.
     if (app || !settled || !current || current.id !== draftId || current.state.stage !== "citations" ||
-        current.state.import.kind !== "document" || key === gatheredKey.current && latestGathering.current.phase !== "interrupted") return;
+        current.state.import.kind !== "document" || key === gatheredKey.current) return;
     gatheredKey.current = key;
-    if (latestGathering.current.phase === "interrupted") setGathering(NOT_GATHERING);
     gatherQueue.current = gatherQueue.current.then(() => gatherSources(2));
   }, [settled, citationKey, draft?.state.stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
@@ -627,8 +625,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       // A step of its own ends what had been taken back; one replayed is already in the history.
       if (step && !replayed) { step.from = selectedRef.current; log.current = { ...log.current, done: [...log.current.done, step], undone: [] }; }
       log.current = { ...log.current, saving: [...log.current.saving, edit] }; keepPending(targetId);
-      const background = latestGathering.current;
-      if (background.phase === "running") background.request.abort();
       setPreview(view); carryOn(action, shown, view); void done?.(view);
     }
     actionQueue.current = actionQueue.current.then(async () => {
@@ -1052,19 +1048,18 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   /** The PDFs a draft cites are gathered as soon as its citations are known, not on request. */
   async function gatherSources(attempts: number): Promise<void> {
     const current = draftRef.current;
-    if (!attempts || !current || current.state.stage !== "citations") return;
-    // An edit stops this request rather than wait for it; gathering resumes once editing rests.
-    const request = new AbortController();
-    setGathering({ phase: "running", id: current.id, request });
+    if (!attempts || !current || current.state.import.kind !== "document") return;
+    const running: Gathering = { phase: "running", id: current.id };
+    setGathering(running);
     try {
       // Gathered beside the queue of the user's changes, never in it, and on past Citations: nothing the user does or
       // opens waits on a download. A change that lands meanwhile makes this gathering's save too late; it is made
       // again on the newer draft, reading what it already fetched, once the changes queued meanwhile have saved.
-      const gather = (latest: AuthoritiesProduct) => host.prepareSources(latest, request.signal, undefined, noteSources);
+      const gather = (latest: AuthoritiesProduct) => host.prepareSources(latest, undefined, undefined, noteSources);
       let next: AuthoritiesProduct | undefined;
       for (let attempt = 1; !next; attempt += 1) {
         const latest = draftRef.current;
-        if (request.signal.aborted || latest?.id !== current.id) return;
+        if (latest?.id !== current.id) return;
         try { next = await gather(latest); }
         catch (caught) {
           if ((caught as { status?: number })?.status !== 409 || attempt === 6) throw caught;
@@ -1072,17 +1067,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         }
       }
       if (adopt(next)) gathered.current = { id: next.id, sources: sourcesInputs(next) };
-      if (!request.signal.aborted) setSourcesFound({ id: current.id, failed: false });
+      setSourcesFound({ id: current.id, failed: false });
     } catch (caught) {
-      if (request.signal.aborted) return setGathering({ phase: "interrupted" });
       // A failure the second try doesn't mend (an engine without a call this page makes) is said, never waited on.
       if (attempts > 1) return await gatherSources(attempts - 1);
       setSourcesFound({ id: current.id, failed: true });
       setFailure({ text: `The sources could not be looked up. ${errorText(caught)}` });
     } finally {
       sourcesNote.current = "";
-      const now = latestGathering.current;
-      if (now.phase === "running" && now.request === request) setGathering(NOT_GATHERING);
+      if (latestGathering.current === running) setGathering(NOT_GATHERING);
     }
   }
   function findSources() {
