@@ -31,8 +31,6 @@ a2aj = ["dep:rusqlite", "legal-structure-features/a2aj-store", "legal-structure-
 # Word documents: the parser's DOCX reading without its PDF pipeline (Authority Linker's engine, build-engine.mjs --word).
 docx = ["dep:legalpdf"]
 legalpdf = ["docx", "legalpdf/pdf", "dep:legal-pdf-support", "dep:legal-pdf-core"]
-diagnostics = ["legalpdf", "legalpdf/profiling"]
-allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup", "opinion"] }

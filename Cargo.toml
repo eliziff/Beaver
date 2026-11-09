@@ -1,5 +1,5 @@
 # The native consumers of the parser stack build as one workspace: one Cargo.lock resolves every
-# third-party crate once, so the addon, the grader and the OCR experiment share each dependency's
+# third-party crate once, so the addon and the grader share each dependency's
 # build in the one target folder (.cargo/config.toml) and never link one another's. The parser
 # (legal-pdf-parser, the tagger among its crates), legal-structure and common-law-cite stay
 # repositories and workspaces of their own, path dependencies here; this manifest's [patch] maps the
@@ -11,7 +11,6 @@ members = [
     "native/a2aj-gold",
     "native/page-truth",
     "experiments/legal-structure-gold/grade",
-    "experiments/ocr-structure-attribution",
 ]
 # The workspaces these depend on stay their own (cargo would otherwise take any path dependency in
 # this folder as a member); Rust packages of other products and the benchmark owners' copies build

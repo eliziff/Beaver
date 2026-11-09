@@ -22,7 +22,7 @@ function Remote([string]$Script) {
 
 # What each repo contributes: its files git tracks or would track, within the paths the build reads.
 $parts = @(
-  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'experiments/legal-structure-gold/grade', 'experiments/ocr-structure-attribution') },
+  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'experiments/legal-structure-gold/grade') },
   @{ Repo = 'legal-pdf-parser'; Paths = @('.') },
   @{ Repo = 'legal-structure'; Paths = @('.') },
   @{ Repo = 'common-law-cite'; Paths = @('.') }

@@ -110,11 +110,7 @@ fn native_error(error: legal_structure::EngineError) -> String {
 }
 
 pub fn native_build_features() -> &'static str {
-    if cfg!(feature = "allocation-diagnostics") {
-        "legalpdf,diagnostics,allocation-diagnostics"
-    } else if cfg!(feature = "diagnostics") {
-        "legalpdf,diagnostics"
-    } else if cfg!(feature = "legalpdf") {
+    if cfg!(feature = "legalpdf") {
         "legalpdf"
     } else {
         ""

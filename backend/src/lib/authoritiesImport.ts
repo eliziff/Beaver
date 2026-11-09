@@ -48,7 +48,7 @@ async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<Nat
   try { return await read(); }
   catch (error) {
     const message = error instanceof Error ? error.message : "";
-    if (fileType === "docx" && /^(?:DOCX (?:is empty|has no)|ZIP error:|XML (?:error:|has ))/u.test(message))
+    if (fileType === "docx" && /^(?:DOCX (?:is empty|is corrupted|has no)|XML (?:error:|has ))/u.test(message))
       throw new ApplicationError(400, "Word document is invalid or corrupt. Choose a readable .docx file.");
     const kind = pdfFailureKind(error);
     if (fileType === "pdf" && (kind === "encrypted" || kind === "corrupt"))

@@ -30,7 +30,7 @@ function Remote([string]$Script) {
 }
 
 $parts = @(
-  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'native/a2aj-gold', 'experiments/legal-structure-gold/grade', 'experiments/ocr-structure-attribution') },
+  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'native/a2aj-gold', 'experiments/legal-structure-gold/grade') },
   @{ Repo = 'legal-pdf-parser'; Paths = @() },
   @{ Repo = 'legal-structure'; Paths = @() },
   @{ Repo = 'common-law-cite'; Paths = @() }

@@ -149,9 +149,9 @@ fn main() {
             scope.spawn(|| {
               // each worker reads heads and feet again with its own recognizer, the engine's (its runtime folder)
               let runtime = a2aj_gold::store::repo().join("legal-pdf-parser/runtime");
-              let options = legalpdf::IndraOptions { model_pack: Some(runtime.join("indra")), runtime: Some(runtime.join("onnx/onnxruntime.dll")), ..Default::default() };
+              let options = legalpdf::OcrOptions { model_pack: Some(runtime.join("indra")), runtime: Some(runtime.join("onnx/onnxruntime.dll")), ..Default::default() };
               let mut ocr = (runtime.join("indra/manifest.json").is_file() && !args.iter().any(|arg| arg == "--no-reread"))
-                  .then(|| legalpdf::OcrProvider::new(&legalpdf::OcrOptions::Indra(options)).expect("OCR"));
+                  .then(|| legalpdf::OcrProvider::new(&options).expect("OCR"));
               loop {
                 let Some((id, pdf)) = articles.get(next.fetch_add(1, Ordering::SeqCst)) else { break };
                 let begun = Instant::now();
