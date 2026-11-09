@@ -302,9 +302,8 @@ const boundedRow = (row: ReturnType<ReturnType<typeof structureNative>["readDocu
 
 /** The addressable range of a source, so a pinpoint read need not be guessed. */
 function sourceExtent(artifact: NativeDocument) {
-  const anchors = structureNative().documentAnchors(artifact);
   for (const kind of ["paragraph", "section", "page"] as const) {
-    const labels = anchors.flatMap(({ node }) => node.kind === kind && node.label != null ? [node.label] : []);
+    const labels = structureNative().documentAnchors(artifact, kind).flatMap(({ node }) => node.label ?? []);
     if (labels.length) return { locator_kind: kind, first: labels[0], last: labels[labels.length - 1],
       count: labels.length };
   }

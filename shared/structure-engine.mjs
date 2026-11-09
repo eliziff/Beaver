@@ -40,7 +40,7 @@ export const SIGNATURES = {
   citationOccurrencesInText: ["text"], authorityReferencesInText: ["text"],
   hasCitationInText: ["text"],
   groundedProseErrors: ["text", "citedEvidenceIds", "visibleEvidence"],
-  quoteRepairSuggestion: ["claim", "spans"], markedQuoteSpans: ["text"], textUnits: ["text", "sentences"],
+  quoteRepairSuggestion: ["claim", "spans"], markedQuoteSpans: ["text"], documentTextUnits: ["document", "sentences"],
   quoteComparison: ["authored", "source"],
   quoteLocateDocument: ["document", "source", "quotes", "compare", "keep"], editorialQuote: ["authored", "source"],
   verbatimRepair: ["authored", "source"], journalTitleSearches: ["citation"], journalTitleChoice: ["hits"],

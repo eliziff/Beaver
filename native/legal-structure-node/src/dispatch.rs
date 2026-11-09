@@ -201,8 +201,10 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "quoteRepairSuggestion" => done(value(engine::quote_repair(
             &call.get::<String>("claim")?, &call.get::<Vec<String>>("spans")?))),
         "markedQuoteSpans" => done(value(engine::quote_spans(&call.get::<String>("text")?))),
-        "textUnits" => done(value(legal_structure::text_units(&call.get::<String>("text")?,
-            call.get::<bool>("sentences")?))),
+        "documentTextUnits" => {
+            let sentences = call.get::<bool>("sentences")?;
+            done(with_document(doc()?, |d| value(legal_structure::text_units(engine::document_text(d, None), sentences))))
+        }
         "journalTitleSearches" => done(value(legal_structure_features::journal_title_searches(&call.get::<String>("citation")?))),
         "journalTitleChoice" => done(value(legal_structure_features::journal_title_choice(
             &call.get::<Vec<legal_structure_features::JournalTitleHit>>("hits")?))),

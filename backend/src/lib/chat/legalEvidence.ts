@@ -153,8 +153,7 @@ function documentUnits(document: NativeDocument) {
   let numbered = numberedDocuments.get(key);
   if (numbered) numberedDocuments.delete(key);
   else {
-    const text = native.documentText(document);
-    numbered = { text, units: native.textUnits(text, mode === "sentences") };
+    numbered = { text: native.documentText(document), units: native.documentTextUnits(document, mode === "sentences") };
   }
   numberedDocuments.set(key, numbered);
   if (numberedDocuments.size > 32) numberedDocuments.delete(numberedDocuments.keys().next().value!);
@@ -754,10 +753,12 @@ export async function restorePriorLegalEvidence(
       const normalized = span && normalizeWhitespace(span);
       if (!span || !native || structureNative().documentRevision(native) !== receipt.source_sha256 ||
           receipt.exact_span_sha256 && sha256(span) !== receipt.exact_span_sha256 ||
-          sha256(normalized!) !== receipt.span_sha256 ||
-          receipt.span && !receipt.block_id.startsWith("pdf:") &&
-            structureNative().documentText(native).slice(receipt.span.start, receipt.span.end) !== span ||
-          !normalizeWhitespace(structureNative().documentText(native)).includes(normalized!)) return null;
+          sha256(normalized!) !== receipt.span_sha256) return null;
+      // A span the receipt places is read where it stands; a PDF's, or one without a place, anywhere in the text.
+      const text = structureNative().documentText(native);
+      if (receipt.span && !receipt.block_id.startsWith("pdf:")
+        ? text.slice(receipt.span.start, receipt.span.end) !== span
+        : !normalizeWhitespace(text).includes(normalized!)) return null;
     }
     return { receipt, ...(restored ?? {}) };
   }));
