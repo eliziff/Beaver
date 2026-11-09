@@ -320,7 +320,7 @@ fn segments(text: &[char], listing: &str, outline: &[Value]) -> Result<Painted, 
             (a..b).filter(|&i| !is_space(text[i])).map(|i| painted.owner[i].map(|s| painted.segs[s].kind)).collect();
         let only = |kind: Option<Kind>| owners.len() == 1 && owners.contains(&kind);
         let kind = entry["kind"].as_str().unwrap_or("");
-        if only(None) || (kind == "text" || kind == "item") && only(Some(Kind::Paragraph)) && entry["level"].as_i64().unwrap_or(0) >= 1 {
+        if only(None) || matches!(kind, "text" | "list_item" | "quote") && only(Some(Kind::Paragraph)) && entry["level"].as_i64().unwrap_or(0) >= 1 {
             for (x, y) in lines_in(text, a, b) {
                 painted.paint(x, y, Kind::Inner, Extra::default());
             }

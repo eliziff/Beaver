@@ -14,8 +14,9 @@ flate2 = { version = "1.1", default-features = false, features = ["rust_backend"
 # The renderer the parser reads scans with, for proof sheets.
 hayro = { version = "0.7.0", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png"] }
-# The product's case outline and citation reader.
+# The product's citation reader, and its outline of a case.
 legal-structure = { path = "../../../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup"] }
+legal-structure-features = { path = "../../../../legal-structure/features", features = ["structure-inference", "document-query"] }
 # The parser's PDF library: where a page's images stand.
 lopdf = { version = "0.45.0", default-features = false }
 # Every core aligns at once, and Windows' process heap would serialize them on its lock.
@@ -31,3 +32,11 @@ unicode-normalization = "0.1"
 [build-dependencies]
 sha2 = "0.10"
 
+
+# Its own workspace: an experiment the root workspace doesn't build.
+[workspace]
+
+# legal-structure builds with the citation crates from the checkout beside it, as the root workspace does.
+[patch."https://github.com/eliziff/common-law-cite.git"]
+legal-citations = { path = "../../../../common-law-cite/crates/legal-citations" }
+legal-text = { path = "../../../../common-law-cite/crates/legal-text" }
