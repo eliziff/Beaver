@@ -465,7 +465,8 @@ async function scanReview(
     }
     return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,
       ...(unit.source && { source: unit.source }),
-      footnoteId: unit.footnote_id, ...(unit.note_number !== undefined && { noteNumber: unit.note_number }),
+      // A note prints its number, or none (an author's "*", its mark).
+      footnoteId: unit.footnote_id, ...(unit.footnote_id != null && { noteNumber: unit.note_number ?? null }),
       ...(unit.note_mark && { noteMark: unit.note_mark }), ...(unit.restart_sequence && { restartSequence: unit.restart_sequence }),
       ...(unit.links?.length && { authorLinks: unit.links }),
       pageNumbers: unit.page_numbers, text: unit.text, footnoteRefs: unit.footnote_refs, occurrenceIds };

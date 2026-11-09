@@ -205,12 +205,15 @@ describe("shared Authorities text preparation", () => {
       (draft) => { draft.authorities.case.locators = [{ kind: "paragraph", label: "20" }]; },
       (draft) => { draft.authorities.case.citation = "2020 SCC 2"; },
       (draft) => { draft.settings.scannedPdfPolicy = "cited-pages"; },
-      (draft) => { draft.authorities.case.source = { kind: "attached", sources: [{ ...(state.authorities.case.source as
-        Extract<AuthoritiesDraft["authorities"][string]["source"], { kind: "attached" }>).sources[0], origin: "original" }] }; },
     ];
     for (const change of changes) { const changed = structuredClone(state); change(changed); await read(changed); }
+    // Where a source came from decides how its passages are used, not what it is read for.
+    const original = structuredClone(state);
+    original.authorities.case.source = { kind: "attached", sources: [{ ...(state.authorities.case.source as
+      Extract<AuthoritiesDraft["authorities"][string]["source"], { kind: "attached" }>).sources[0], origin: "original" }] };
+    await read(original);
     await read(state, Buffer.from("other bytes"));
-    expect(pdfText).toHaveBeenCalledTimes(6);
+    expect(pdfText).toHaveBeenCalledTimes(5);
   });
 
   it("does not return a projection that completed after cancellation", async () => {
