@@ -314,7 +314,9 @@ type StructureAddon = {
   citationEngineCall(method: string, request: unknown): unknown;
   /** citationEngineCall, run off the JavaScript thread. */
   citationEngineCallAsync(method: string, request: unknown): Promise<unknown>;
-  documentReadingOrder(request: string): Array<[number, number]>;
+  /** Each unit's items in reading order, as (unit, item): a note follows the body up to its call. */
+  documentReadingOrder(units: Array<{ kind: string; footnote_id: number | null;
+    footnote_refs: Array<[number, number]>; item_offsets: number[] }>): Array<[number, number]>;
   citationLookupKeys(texts: string[]): string[];
   /** What the lookup keys are made by: the key version and the alias table ("4:1a2b3c4d5e6f"). */
   citationKeyVersion(): string;

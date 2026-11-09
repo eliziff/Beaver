@@ -288,12 +288,6 @@ pub fn citation_lookup_key_of(text: &str) -> String {
     citation_lookup_key(text)
 }
 
-pub fn document_reading_order(request: &str) -> Result<Vec<(usize, usize)>, String> {
-    let units = serde_json::from_str::<Vec<legal_structure_features::ReadingOrderUnit>>(request)
-        .map_err(|error| error.to_string())?;
-    Ok(legal_structure_features::document_reading_order(&units))
-}
-
 /// The pages a text's full citations of reported cases cite ("[1986] 1 SCR 103" cites 103).
 pub fn reporter_pages(text: &str) -> Vec<String> {
     use legal_structure::citations::{extract, Authority, Form, Format, Options};

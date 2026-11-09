@@ -174,7 +174,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         // The same call, which JavaScript runs off its thread.
         "citationEngineCall" | "citationEngineCallAsync" => done(engine::citation_engine_call(
             &call.get::<String>("method")?, call.get("request")?)),
-        "documentReadingOrder" => done(engine::document_reading_order(&call.get::<String>("request")?).and_then(value)),
+        "documentReadingOrder" => done(value(legal_structure_features::document_reading_order(
+            &call.get::<Vec<legal_structure_features::ReadingOrderUnit>>("units")?))),
         "citationLookupKeys" => done(value(engine::citation_lookup_keys(&call.get::<Vec<String>>("texts")?))),
         "citationKeyVersion" => done(value(engine::citation_key_version())),
         "providerCitationsInText" => done(value(engine::provider_citations(&call.get::<String>("text")?))),

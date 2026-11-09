@@ -36,7 +36,7 @@ export const SIGNATURES = {
   statuteCurrency: ["pages"], filingCover: ["opening", "title"],
   citationLookupKey: ["text"], citationLookupKeys: ["texts"], citationKeyVersion: [], providerCitationsInText: ["text"],
   citationEngineCall: ["method", "request"], citationEngineCallAsync: ["method", "request"],
-  documentReadingOrder: ["request"],
+  documentReadingOrder: ["units"],
   citationOccurrencesInText: ["text"], authorityReferencesInText: ["text"],
   hasCitationInText: ["text"],
   groundedProseErrors: ["text", "citedEvidenceIds", "visibleEvidence"],

@@ -199,10 +199,8 @@ async function scanReview(
   const text = units.map(({ text }) => text).join("\n\n");
   const native = structureNative();
   const unknownNote = 0xffff_ffff;
-  const orderedUnits = native.documentReadingOrder(JSON.stringify(units.map((unit) => ({
-    kind: unit.kind, footnote_id: unit.footnote_id, footnote_refs: unit.footnote_refs,
-    item_offsets: [0],
-  })))).map(([unit]) => ranges[unit]);
+  const orderedUnits = native.documentReadingOrder(units.map(({ kind, footnote_id, footnote_refs }) =>
+    ({ kind, footnote_id, footnote_refs, item_offsets: [0] }))).map(([unit]) => ranges[unit]);
   // Where each note's marker stands in the text it annotates.
   const anchors = new Map(ranges.flatMap(({ unit, start }) =>
     unit.footnote_refs.map(([id, offset]) => [id, start + offset] as const)));
@@ -279,10 +277,9 @@ async function scanReview(
     while (unitIndex + 1 < ranges.length && citation.span.start >= ranges[unitIndex].end) unitIndex++;
     parsed[unitIndex].items.push({ index: citation.index, start: citation.span.start - ranges[unitIndex].start });
   }
-  const order = native.documentReadingOrder(JSON.stringify(parsed.map(({ unit, items }) => ({
-    kind: unit.kind, footnote_id: unit.footnote_id, footnote_refs: unit.footnote_refs,
-    item_offsets: items.map(({ start }) => start),
-  })))).map(([unit, item]) => parsed[unit].items[item].index);
+  const order = native.documentReadingOrder(parsed.map(({ unit: { kind, footnote_id, footnote_refs }, items }) =>
+    ({ kind, footnote_id, footnote_refs, item_offsets: items.map(({ start }) => start) })))
+    .map(([unit, item]) => parsed[unit].items[item].index);
   // The note parts that cite: only these can be an authority (a prose note is never one).
   const references = native.citationEngineCall("noteReferences", { parts: extracted.sourceParts,
     citations: extracted.citations, offsetUnit: "utf16" }) as NativeReferencePart[];
