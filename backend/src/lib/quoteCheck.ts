@@ -232,7 +232,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     const { provider, kind } = items[0].source;
     const located = await engine.quoteLocateDocument(document,
       provider !== "attached" ? "text" : kind === "legislation" ? "legislation" : "pdf",
-      items.map(({ row, pinpoints }) => ({ quote: row.quote, scopes: quoteScopes(pinpoints), id: row.id })),
+      items.map(({ row, pinpoints }) => ({ quote: row.quote, pinpoints, id: row.id })),
       options.compare !== false, options.keepSourceReadings);
     // Each found quotation's link, its text fragments planned off this thread.
     const passages = items.map((item, index) => linkedPassage(item, located[index].match));
@@ -298,22 +298,6 @@ export function withOuterQuotes(text: string, open: string, close: string) {
   open ||= close; close ||= open;
   const hasOpen = QUOTES.has(value[0]), hasClose = QUOTES.has(value.at(-1)!);
   return hasOpen && hasClose ? value : hasOpen ? value + close : hasClose ? open + value : `${open}${value}${close}`;
-}
-
-type QuoteScopes = { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
-
-/** The paragraphs, pages and provisions a citation's pinpoints name. */
-export function quoteScopes(pinpoints: AuthorityOccurrence["pinpoints"]): QuoteScopes {
-  const scopes: QuoteScopes = { paragraphs: [], pages: [], sections: [] };
-  for (const pinpoint of pinpoints) {
-    const locator = sourceLocator(pinpoint);
-    if (!locator) continue;
-    if (locator.kind === "section") { scopes.sections.push(`sec${locator.value.replace(/\s+/gu, "")}`); continue; }
-    const first = Number(locator.value), last = Number(locator.endValue ?? locator.value);
-    if (Number.isInteger(first) && Number.isInteger(last))
-      (locator.kind === "paragraph" ? scopes.paragraphs : scopes.pages).push([first, Math.max(first, last)]);
-  }
-  return scopes;
 }
 
 /** Up to `limit` locations, then how many more. */

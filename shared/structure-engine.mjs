@@ -48,7 +48,7 @@ export const SIGNATURES = {
   canliiCaseUrl: ["citations", "language", "court"], canliiLawUrl: ["text", "language", "consolidated"], canliiCourtRoute: ["court"],
   passageLink: ["document", "request"], citedPassageLink: ["document", "url", "pinpoints"],
   sourceLink: ["document", "request"],
-  smallestContainingDocumentBlock: ["document", "start", "end"],
+  smallestContainingDocumentBlock: ["document", "start", "end"], documentPageAt: ["document", "start", "end"],
   lookupStructureBlock: ["document", "locator", "contextBlocks"],
   resolveDocumentAddressSpans: ["document", "spec", "follow", "depth"],
   graphScope: ["document", "seed", "follow", "depth", "includeDescendants", "includeUnits"],

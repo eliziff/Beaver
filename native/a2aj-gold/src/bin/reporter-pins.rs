@@ -12,7 +12,8 @@
 use legal_citations::{Authority, Citation, Form, Options, PinpointKind};
 use legal_structure::{caselaw_citation_lookup_key, pair_numbered_footnotes};
 use legal_structure_features::citator_graph::default_store;
-use legal_structure_features::{locate_source_quotes, marked_quote_spans, QuoteBlockInput, QuoteSource, QuoteToLocate};
+use legal_structure::{Derivation, DocumentQuery, DocumentStructure, NodeKind, ScalarRange, StructureNode};
+use legal_structure_features::{locate_document_quotes, marked_quote_spans, QuoteSource, QuoteToLocate};
 use regex::Regex;
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Value};
@@ -28,8 +29,8 @@ const FEWEST_WORDS: usize = 6;
 
 struct Cited {
     citation: String,
-    /// by language: the text and its page blocks
-    texts: Vec<(String, String, Vec<QuoteBlockInput>)>,
+    /// by language: the text, its printed pages its page nodes
+    texts: Vec<(String, DocumentStructure, DocumentQuery)>,
 }
 
 fn utf16_offsets(text: &str) -> Vec<usize> {
@@ -138,12 +139,16 @@ fn main() {
             let text: Option<String> = db.query_row(&format!("select {column} from document where id = ?"), [id], |r| r.get(0)).ok().flatten();
             let Some(text) = text else { continue };
             let units = utf16_offsets(&text);
-            let blocks: Vec<QuoteBlockInput> = stretches.as_array().into_iter().flatten().filter_map(|s| {
+            let mut structure = DocumentStructure::new(id.to_string(), "a2aj", text, "reporter-pages");
+            structure.nodes = stretches.as_array().into_iter().flatten().enumerate().filter_map(|(index, s)| {
                 let (page, start, end) = (s[0].as_i64()?, s[1].as_u64()? as usize, s[2].as_u64()? as usize);
-                serde_json::from_value(json!({"node_id": null, "ranges": [], "kind": "page", "label": format!("page {page}"),
-                    "start": units[start.min(units.len() - 1)], "end": units[end.min(units.len() - 1)]})).ok()
+                let range = ScalarRange { start: units[start.min(units.len() - 1)], end: units[end.min(units.len() - 1)] };
+                let mut node = StructureNode::new(format!("page-{index}"), NodeKind::Page, range, "reporter-pages", Derivation::Native, None);
+                node.label = Some(page.to_string());
+                node.aliases = Some(vec![page.to_string()]);
+                Some(node)
             }).collect();
-            texts.push((language.clone(), text, blocks));
+            texts.push((language.clone(), structure, DocumentQuery::new()));
         }
         cited.insert(key, Cited { citation, texts });
     }
@@ -192,9 +197,11 @@ fn main() {
             seen += 1;
             let target = &cited[&item.cited_key];
             let mut verdict = ("not found", Vec::new(), 0.0, false, String::new());
-            for (language, text, blocks) in &target.texts {
-                let quote: QuoteToLocate = serde_json::from_value(json!({"quote": item.quote, "scopes": {"pages": [[item.pin, item.pin]]}})).unwrap();
-                let Some(located) = locate_source_quotes(QuoteSource::Pdf, text, blocks, &[quote], false).into_iter().next() else { continue };
+            for (language, structure, query) in &target.texts {
+                let quote: QuoteToLocate = serde_json::from_value(json!({"quote": item.quote,
+                    "pinpoints": [{"kind": "page", "first": item.pin.to_string()}]})).unwrap();
+                let Some(located) = locate_document_quotes(&mut Default::default(), structure, query, QuoteSource::Pdf,
+                    &[quote], false).into_iter().next() else { continue };
                 if located.found.location == "unmatched" { continue; }
                 let on = located.found.labels.iter().any(|label| label.shown == format!("page {}", item.pin));
                 verdict = (if on { "on the pinned page" } else if located.found.labels.is_empty() { "found on no page of the sheet" } else { "on another page" },

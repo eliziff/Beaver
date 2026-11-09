@@ -352,8 +352,9 @@ type StructureAddon = {
   quoteLocateDocument(document: NativeDocument,
     /** A provider's text; a PDF, read by the locators it prints; a statute's PDF, its provisions as its print reads them. */
     source: "text" | "pdf" | "legislation",
-    quotes: Array<{ quote: string; scopes: { paragraphs: Array<[number, number]>; pages: Array<[number, number]>; sections: string[] };
-      id?: string }>, compare?: boolean,
+    /** Each quotation with the pinpoints its citation names, as the citation engine read them. */
+    quotes: Array<{ quote: string; pinpoints: Array<{ kind: string; first?: string; last?: string }>; id?: string }>,
+    compare?: boolean,
     /** Keep what was read of the document for the quotations located in it after: quicker, for the memory it holds. */
     keep?: boolean):
     Promise<Array<{ match: NativeQuoteLocation; comparison: NativeQuoteComparison | null; errors?: string[] }>>;
@@ -435,6 +436,8 @@ type StructureAddon = {
     } | null;
   smallestContainingDocumentBlock(document: NativeDocument, start: number,
     end: number): NativePassage | null;
+  /** The page holding `start..end`, else the first that shares any of it. */
+  documentPageAt(document: NativeDocument, start: number, end: number): NativeNodeReading | null;
   documentHasOrigin(document: NativeDocument, origin: NativeNode["source"]): boolean;
   /** The nodes the query serves, in its order, as readers take them; with `kind`, those it serves as that kind (a
    *  paragraph's prose among them); with `end`, those starting before it. Levels are one-based. */

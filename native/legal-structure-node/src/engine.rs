@@ -241,12 +241,12 @@ pub fn quote_locate_document(
     keep: bool,
 ) -> CoreResult<Vec<serde_json::Value>> {
     let text = document_text(document, None);
-    let blocks = legal_structure_features::document_quote_blocks(document.structure(), &document.query, source);
+    let locate = |locator: &mut legal_structure_features::QuoteLocator| legal_structure_features::locate_document_quotes(
+        locator, document.structure(), &document.query, source, quotes, compare);
     let located = if keep {
-        legal_structure_features::locate_source_quotes_kept(&mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()),
-            source, text, &blocks, quotes, compare)
+        locate(&mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
     } else {
-        legal_structure_features::locate_source_quotes(source, text, &blocks, quotes, compare)
+        locate(&mut Default::default())
     };
     Ok(located.into_iter().zip(quotes).map(|(located, item)| {
         if !compare {

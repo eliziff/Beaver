@@ -284,6 +284,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
             call.get("contextBlocks")?)))),
         "smallestContainingDocumentBlock" => done(with_document(doc()?, |d| value(
             d.query.smallest_containing_block(d.structure(), call.get("start")?, call.get("end")?)))),
+        "documentPageAt" => done(with_document(doc()?, |d| value(
+            d.query.page_at(d.structure(), call.get("start")?, call.get("end")?)))),
         "lookupStructureBlock" => done(with_document(doc()?, |d| engine::lookup_structure_block(
             d, call.get("locator")?, call.get("contextBlocks")?).and_then(value))),
         "resolveDocumentAddressSpans" => done(with_document(doc()?, |d| value(d.query.resolve_address_spans(d.structure(),

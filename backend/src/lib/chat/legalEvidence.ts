@@ -403,7 +403,7 @@ export function attestedPassageReceipt(args: {
   const locator = journal && args.passage.pageLabel
     ? { kind: "page" as const, label: args.passage.pageLabel }
     : !journal && args.passage.paragraph !== null
-      ? { kind: "paragraph" as const, label: `par${args.passage.paragraph}` }
+      ? { kind: "paragraph" as const, label: String(args.passage.paragraph) }
       : { kind: "document" as const, label: citation };
   return passageEvidence({
     provider: journal ? "journal" : "citator",
