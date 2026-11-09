@@ -7,9 +7,6 @@ import { pdfPassageGeometry, structureNative, type NativePdfPassageGeometry,
 import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
 type Prepared = Awaited<ReturnType<typeof preparePdf>>;
-const selectedProfile = (prepared: Prepared) => ({
-  cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status,
-});
 
 /** The authority's own headings, and a statute's sections, read from the PDF it is reproduced from. */
 export async function authorityPdfOutline(input: {
@@ -23,7 +20,7 @@ export async function authorityPdfOutline(input: {
   const prepared = await preparePdf({ ...reference, bytes: input.bytes, signal: input.signal,
     ...(input.pdfProfile ? { pdfProfile: input.pdfProfile } : { ocrProvider: null, layout: false }) });
   return structureNative().documentOutline(await openDocument({ ...reference, readBytes: () => input.bytes,
-    pdfProfile: selectedProfile(prepared) }, { signal: input.signal }));
+    pdfProfile: prepared }, { signal: input.signal }));
 }
 
 export async function authorityPdfText(input: {
@@ -65,7 +62,7 @@ export async function authorityPdfText(input: {
   if (retained && native.cacheKey !== retained.cacheKey) throw new Error("Prepared authority PDF profile changed.");
   if (!native.pageCount) return { pageTextByPage: [], ocrTextByPage: [] };
   const document = (prepared: Prepared, plain = false) => openDocument({ ...reference,
-    readBytes: () => input.bytes, pdfProfile: selectedProfile(prepared) }, { signal: input.signal,
+    readBytes: () => input.bytes, pdfProfile: prepared }, { signal: input.signal,
     ...(plain ? PLAIN_PDF : {}) });
   const pageMap = async (prepared: Prepared) =>
     structureNative().pdfPageMap(await document(prepared, true), input.citations ?? []);

@@ -517,7 +517,7 @@ export function createAuthoritiesWorkspaceApplication(
             citedPages.push(...Array.from({ length: Math.min(3, prepared.pageCount) }, (_, index) => index + 1));
           }
           const document = targets.length ? await openDocument({ ...resolved, readBytes: () => bytes,
-            pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } }) : undefined;
+            pdfProfile: prepared }) : undefined;
           for (let start = 0; start < targets.length; start += 100) {
             const geometry = await pdfPassageGeometry(document!, bytes, targets.slice(start, start + 100), citations);
             citedPages.push(...geometry.targets.flatMap(target => target.status === "found"

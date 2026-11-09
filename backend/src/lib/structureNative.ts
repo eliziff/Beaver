@@ -519,13 +519,16 @@ type NativeDocumentTextWindow = {
   rangeEndLine?: number;
 };
 
+/** Whether a PDF's parse read it whole: degraded where it diagnosed anything, a page needing recognition among them. */
+export type PdfStatus = "ready" | "degraded";
+
 export type PdfPreparationSummary = {
   embeddedPageLabels: (string | null)[];
   sha256: string;
   parserVersion: string;
   cacheKey: string;
   pageCount: number;
-  status: string;
+  status: PdfStatus;
   pagesNeedingOcr: number[];
   ocrRoutedPages: number[];
   /** Pages that are a picture of their text (a scan, an image of a page): only these may be recognized on import. */

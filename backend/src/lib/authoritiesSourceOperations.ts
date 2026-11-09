@@ -156,6 +156,7 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
     const profile = input?.pdfProfile === undefined ? undefined
       : decodePdfProfileSelection(json(input.pdfProfile, "pdfProfile"));
     if (input?.pdfProfile !== undefined && !profile) return reject(400, "Invalid PDF profile");
+    if (pages && pages.length > 16) return reject(400, "Request between 1 and 16 PDF text pages");
     const text = profile ? await pdfTextLayer(() => bytes, reference,
       { pdfProfile: profile, signal: context.signal, pages }) : [];
     return value({ pages: text });

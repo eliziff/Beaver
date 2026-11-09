@@ -1,7 +1,7 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
-import { preparePdf, type PdfParseStatus } from "./sourceDocument";
+import { preparePdf } from "./sourceDocument";
 import { lookupPdf, rehydratePdfEvidence, type PdfLookupInput } from "./pdfEvidence";
 import {
   atomicWrite,
@@ -17,12 +17,9 @@ import { sha256 } from "./hash";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
 import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources";
 import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
-import { structureNative } from "./structureNative";
+import { structureNative, type PdfStatus } from "./structureNative";
 import { isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
-import {
-  decodePdfProfileSelection,
-  type PdfProfileSelection,
-} from "./documentStore";
+import type { PdfProfileSelection } from "./documentStore";
 import type { JobHandler } from "./jobQueue";
 
 export type ProviderPdfAttachment = {
@@ -45,7 +42,7 @@ export type ProviderPdfAttachmentState = {
   source_reference: string | null;
   download_status: "not_queued" | "queued" | "downloaded" | "failed";
   source_sha256: string | null;
-  parse_status: PdfParseStatus | "parsing" | "failed" | null;
+  parse_status: PdfStatus | "parsing" | "failed" | null;
 };
 
 type SafeRequest = ProviderPdfAttachment & {
@@ -60,7 +57,7 @@ type PdfRecord = SafeRequest & {
   schema_version: 1;
   status: "queued" | "downloaded" | "failed";
   source_sha256?: string;
-  parse_status?: PdfParseStatus | "parsing" | "failed";
+  parse_status?: PdfStatus | "parsing" | "failed";
   pdf_profile?: PdfProfileSelection;
   updated_at: string;
 };
@@ -71,7 +68,7 @@ type PdfPhase =
   | { phase: "queued" | "failed" }
   | { phase: "downloaded"; digest: string; parse: "unparsed" | "parsing" | "failed";
     profile?: PdfProfileSelection }
-  | { phase: "parsed"; digest: string; parse: PdfParseStatus; profile: PdfProfileSelection };
+  | { phase: "parsed"; digest: string; parse: PdfStatus; profile: PdfProfileSelection };
 
 function pdfPhase(record: PdfRecord | null): PdfPhase | null {
   if (!record) return null;
@@ -408,8 +405,7 @@ export function providerPdfJobHandlers(): Record<string, JobHandler> {
       await writeRecord(request, { phase: "downloaded", digest, parse: "parsing", profile: selected });
       try {
         const summary = await parse(await readFile(downloaded.path), digest, context.signal, selected);
-        const profile = decodePdfProfileSelection(summary);
-        if (!profile) throw new Error("PDF preparation returned no profile");
+        const profile = { cacheKey: summary.cacheKey, profile: summary.profile, status: summary.status };
         await writeRecord(request, { phase: "parsed", digest, parse: summary.status, profile });
         return {
           requestReference: request.requestReference,

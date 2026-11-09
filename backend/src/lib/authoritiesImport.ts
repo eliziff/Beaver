@@ -582,9 +582,7 @@ async function importAuthoritiesDocument(input: AuthoritiesDocumentImport) {
   const reference = { ...input.reference, sourceSha256, fileType: input.fileType, readBytes: () => input.bytes };
   const readPdf = async () => {
     const read = async (options: Parameters<typeof preparePdf>[0]) => {
-      const prepared = await preparePdf(options);
-      return openDocument({ ...reference, pdfProfile: { cacheKey: prepared.cacheKey,
-        profile: prepared.profile, status: prepared.status } });
+      return openDocument({ ...reference, pdfProfile: await preparePdf(options) });
     };
     const own = await read({ ...reference, bytes: input.bytes, ocrProvider: null });
     // A scanned page whose own text layer reads well needs no recognition: only the pages the engine

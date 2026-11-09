@@ -28,8 +28,7 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
     }
     const pageText = await courtRecordPageText(() => bytes, prepared.pageCount, {
       persistEvidence: false, documentId, versionId, sourceSha256: digest,
-      pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile,
-        status: prepared.status },
+      pdfProfile: prepared,
     });
     return { source_sha256: digest, page_count: prepared.pageCount,
       parser_status: prepared.status,

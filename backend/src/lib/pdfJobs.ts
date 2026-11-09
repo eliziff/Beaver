@@ -1,4 +1,4 @@
-import type { DocumentStore, PdfProfileSelection } from "./documentStore";
+import type { DocumentStore, LegalPdfOcrProvider, PdfProfileSelection } from "./documentStore";
 import {
   enqueueJob,
   interruptJobs,
@@ -7,8 +7,7 @@ import {
   type ApplicationJob,
   type JobHandler,
 } from "./jobQueue";
-import { preparePdf as preparePdfReading, type PdfOcrProvider,
-  type PdfPreparationProgress } from "./sourceDocument";
+import { preparePdf as preparePdfReading, type PdfPreparationProgress } from "./sourceDocument";
 import { pdfFailureKind } from "./structureNative";
 import { sha256 } from "./hash";
 import type { RelationalDatabase } from "./relationalDatabase";
@@ -38,7 +37,7 @@ function reprocessPayload(job: ApplicationJob) {
   if (value.ocrProvider !== undefined && value.ocrProvider !== null && value.ocrProvider !== "indra") {
     throw new Error("InvalidPdfJob");
   }
-  const ocrProvider = value.ocrProvider as PdfOcrProvider | null | undefined;
+  const ocrProvider = value.ocrProvider as LegalPdfOcrProvider | null | undefined;
   let layout: boolean | null | undefined;
   if (value.layout === null) layout = null;
   else if (value.layout === "local") layout = true;
@@ -103,7 +102,7 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
     context.signal.throwIfAborted();
     if (!await documents.recordPdfPreparation({ userId: job.userId }, documentId, {
       versionId: documentVersionId,
-      sourceSha256: summary.sourceSha256,
+      sourceSha256: summary.sha256,
       pageCount: summary.pageCount,
       pdfProfile, textOnly: !!input.pages?.length,
     })) return { skipped: "source-unavailable" };
@@ -121,7 +120,7 @@ export function enqueuePdfPreparation(input: {
   documentId: string;
   versionId: string;
   sourceSha256: string;
-  ocrProvider?: PdfOcrProvider | null;
+  ocrProvider?: LegalPdfOcrProvider | null;
 }, database?: RelationalDatabase) {
   return enqueueJob({
     kind: "pdf.prepare",
@@ -152,7 +151,7 @@ export const cancelPdfJobs = (input: PdfSource & { userId: string }) =>
 
 export async function enqueuePdfReprocess(input: PdfSource & {
   userId: string;
-  ocrProvider?: PdfOcrProvider | null;
+  ocrProvider?: LegalPdfOcrProvider | null;
   layout?: boolean | null;
   pages?: number[];
   priority?: number;

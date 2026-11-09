@@ -4,6 +4,7 @@ import type { ApplicationScope } from "./applicationError";
 import type { WorkProductBuildReceipt } from "./workProduct";
 import type { AuthorityCitationLedger } from "./authoritiesDomain";
 import { jsonRecord } from "./value";
+import type { PdfStatus } from "./structureNative";
 
 export type DocumentScope = ApplicationScope;
 export type LegalPdfOcrProvider = "indra";
@@ -14,7 +15,7 @@ export type LegalPdfProfile = {
 export type PdfProfileSelection = {
   cacheKey: string;
   profile: LegalPdfProfile;
-  status: "ready" | "degraded";
+  status: PdfStatus;
   /** One-based pages mapped to immutable prepared OCR artifacts; the root profile stays whole-document. */
   textLayerPages?: Record<string, string>;
 };

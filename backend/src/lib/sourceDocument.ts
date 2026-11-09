@@ -2,9 +2,7 @@ import { profileFor } from "./pdfProfile";
 import { ApplicationError } from "./applicationError";
 import { sha256 } from "./hash";
 import { storeDirectory } from "./contentStore";
-import { structureNative, type NativeDocument, type NativePdfTextPage,
-  type PdfPreparationSummary } from "./structureNative";
-import { isPresentationDocumentType, isWordDocumentType } from "./documentTypes";
+import { structureNative, type NativeDocument, type NativePdfTextPage } from "./structureNative";
 import { docxToPdf } from "./convert";
 import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 import { oneAtATime } from "mike/shared/one-at-a-time.mjs";
@@ -18,8 +16,6 @@ import type { DocumentSource, LegalPdfOcrProvider, LegalPdfProfile,
 const CACHE_DIRECTORY = storeDirectory("legalpdf-cache", sha256("legalpdf-cache-v1"));
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
-export type PdfParseStatus = "ready" | "degraded";
-export type PdfOcrProvider = LegalPdfOcrProvider;
 export type PdfPreparationProgress = {
   phase: "extracting";
   pages: number[];
@@ -37,26 +33,14 @@ type OpenOptions = {
   mode?: "text" | "drafting" | "redline";
   /** A PDF read afresh: the pages it recognizes, and the profile it is read with in place of the prepared one. */
   pages?: number[];
-  ocrProvider?: PdfOcrProvider | null;
+  ocrProvider?: LegalPdfOcrProvider | null;
   layout?: boolean | null;
   signal?: AbortSignal;
   progress?: (value: PdfPreparationProgress) => void | Promise<void>;
 };
 
-function validId(value: string) {
-  return value === value.trim() && value.length > 0 && value.length <= 256 &&
-    !/[\u0000-\u001f\u007f]/u.test(value);
-}
-
-function assertSource(source: Pick<Source, "documentId" | "versionId">) {
-  if (!validId(source.documentId) || !validId(source.versionId))
-    throw new Error("Reading a document requires valid document and version IDs");
-}
-
-const fileTypeOf = (source: Pick<Source, "fileType">) => (source.fileType ?? "pdf").trim().toLowerCase();
-/** A Word or PowerPoint binary, which is read as the PDF converted from it. */
-const converted = (fileType: string) => fileType !== "docx" && isWordDocumentType(fileType) ||
-  fileType !== "pptx" && isPresentationDocumentType(fileType);
+/** A Word or PowerPoint binary, which the engine reads as the PDF converted from it. */
+const converted = (fileType: string) => fileType === "doc" || fileType === "ppt";
 
 const pdfRequest = (profile: LegalPdfProfile, pages?: number[], cacheKey?: string) => ({
   cache_dir: CACHE_DIRECTORY, max_output_bytes: MAX_OUTPUT_BYTES, ...profile,
@@ -100,13 +84,11 @@ const recognitionTurn = <T>(run: () => Promise<T>, signal?: AbortSignal) => {
  *  prepared reading where it has one (its cache key), else read with the profile asked for. */
 export async function openDocument(source: Source, options: OpenOptions = {}): Promise<NativeDocument> {
   options.signal?.throwIfAborted();
-  assertSource(source);
-  const fileType = fileTypeOf(source), native = structureNative();
+  const fileType = source.fileType ?? "pdf", native = structureNative();
   const pdf = fileType === "pdf" || converted(fileType);
   const overridden = options.ocrProvider !== undefined || options.layout !== undefined;
   const cacheKey = fileType === "pdf" ? source.pdfProfile?.cacheKey : undefined;
-  const pages = !cacheKey && options.pages?.length
-    ? [...new Set(options.pages)].sort((left, right) => left - right) : undefined;
+  const pages = !cacheKey && options.pages?.length ? options.pages : undefined;
   const request = sourceRequest(source, fileType, options.mode, pdf ? pdfRequest(overridden || !source.pdfProfile
     ? profileFor(options.ocrProvider, options.layout) : source.pdfProfile.profile, pages, cacheKey) : undefined);
   const pending = (async () => {
@@ -128,7 +110,6 @@ export async function openDocument(source: Source, options: OpenOptions = {}): P
 
 /** The PDF reading its parser cached under `cacheKey`, or none: a reading no longer cached is not made again. */
 export async function cachedPdf(source: Pick<Source, "documentId" | "versionId" | "sourceSha256">, cacheKey: string) {
-  assertSource(source);
   return structureNative().openSource(undefined, sourceRequest(source, "pdf", "text", pdfRequest({}, undefined, cacheKey)));
 }
 
@@ -138,14 +119,11 @@ export async function sourceText(source: Source & { fileType: string }, options:
   drafting?: boolean; limit?: number; signal?: AbortSignal;
 } = {}) {
   options.signal?.throwIfAborted();
-  assertSource(source);
-  const fileType = fileTypeOf(source);
+  const { fileType } = source;
   if (fileType === "pdf" || converted(fileType)) {
     const document = await openDocument(source, { signal: options.signal });
     return structureNative().documentText(document, options.limit);
   }
-  if (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit < 0))
-    throw new RangeError("Document text limit must be a nonnegative safe integer");
   const pending = (async () => {
     await source.assertAvailable?.();
     const text = await structureNative().sourceText(await source.readBytes(), {
@@ -159,39 +137,23 @@ export async function sourceText(source: Source & { fileType: string }, options:
   return text;
 }
 
-/** A prepared PDF's summary as its readers take it: ready, or degraded where pages still need recognition. */
-export function pdfSummary(result: PdfPreparationSummary) {
-  return {
-    status: (result.status === "ready" ? "ready" : "degraded") as PdfParseStatus,
-    sourceSha256: result.sha256,
-    parserVersion: result.parserVersion,
-    cacheKey: result.cacheKey,
-    pageCount: result.pageCount,
-    pagesNeedingOcr: result.pagesNeedingOcr,
-    ocrRoutedPages: result.ocrRoutedPages,
-  };
-}
-
 type PdfPrepareInput = {
   documentId: string;
   versionId: string;
   bytes: Buffer;
   sourceSha256?: string;
   pages?: number[];
-  ocrProvider?: PdfOcrProvider | null;
+  ocrProvider?: LegalPdfOcrProvider | null;
   layout?: boolean | null;
   pdfProfile?: PdfProfileSelection;
   signal?: AbortSignal;
   progress?: (value: PdfPreparationProgress) => void | Promise<void>;
 };
 
-/** Prepares a PDF's reading and caches it, recognizing its pages where its profile does; a prepared reading the
- *  engine still has is its summary. */
+/** Prepares a PDF's reading and caches it, recognizing its pages where its profile does: its summary with the profile
+ *  it was read with, which is also its profile selection. A prepared reading the engine still has is its summary. */
 export async function preparePdf(input: PdfPrepareInput) {
   input.signal?.throwIfAborted();
-  assertSource(input);
-  if (input.pdfProfile && (input.ocrProvider !== undefined || input.layout !== undefined))
-    throw new Error("PDF preparation cannot combine a stored profile with overrides");
   const profile: LegalPdfProfile = input.pdfProfile?.profile ?? profileFor(input.ocrProvider, input.layout);
   const pages = input.pages?.length ? input.pages : undefined;
   await input.progress?.({ phase: "extracting", pages: pages ?? [] });
@@ -201,7 +163,7 @@ export async function preparePdf(input: PdfPrepareInput) {
     const kept = await native.openSource(undefined, sourceRequest({ ...input, sourceSha256 }, "pdf", "text",
       pdfRequest(profile, undefined, input.pdfProfile.cacheKey)));
     // A reading no longer kept is made again below, as it was first made.
-    if (kept) return { ...pdfSummary(native.pdfDocumentSummary(kept)), profile };
+    if (kept) return { ...native.pdfDocumentSummary(kept), profile };
   }
   const request = { ...pdfRequest(profile, pages), id: `${input.documentId}:${input.versionId}`,
     ...(input.sourceSha256 ? { expected_source_sha256: input.sourceSha256 } : {}) };
@@ -210,7 +172,7 @@ export async function preparePdf(input: PdfPrepareInput) {
       ((recognized, total) => void input.progress?.({ phase: "recognizing", recognized, total }))));
   const summary = await (profile.ocr ? recognitionTurn(prepare, input.signal) : prepare());
   input.signal?.throwIfAborted();
-  return { ...pdfSummary(summary), profile };
+  return { ...summary, profile };
 }
 
 /** The recognized text of a PDF's pages (at most 16), each page from the reading that recognized it: the reading its
@@ -222,9 +184,6 @@ export async function pdfTextLayer(
 ) {
   options.signal?.throwIfAborted();
   const requested = options.pages;
-  if (requested && (!requested.length || requested.length > 16 ||
-      requested.some(page => !Number.isSafeInteger(page) || page < 1)))
-    throw new ApplicationError(400, "Request between 1 and 16 PDF text pages");
   const profile = options.pdfProfile;
   if (!profile) return [];
   const owners = profile.textLayerPages ?? {};
