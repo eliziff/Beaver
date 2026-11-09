@@ -11,6 +11,40 @@ Evidence: [structure inventory](../decisions/document-structure-evidence.md),
 [parser parity inventory](../../legal-pdf-parser/experiments/structure-engine-parity/EVIDENCE.md).
 Superseded plans remain at Beaver `54f89938` and parser `2b2c341e`.
 
+## Codex checkpoint — November 8, 2026
+
+The inherited refactor is Beaver `46f1f6c05`, parser `d67b08e`, structure
+`0eecd9a` and AuthoritiesHelper `7612185`, with additional AuthoritiesHelper
+work already in progress. This checkpoint marks the start of the Codex follow-up;
+it does not certify the refactor.
+
+The first regression pass found:
+
+- Backend source type checking passed; 109 Authorities core, source, build,
+  server and runtime tests passed.
+- Nine stored-source tests still imported the deleted projection service.
+  OCR and text-access tests also retained assumptions about its backend cache.
+- The browser parse worker and Authority Linker still sent stringified citation
+  requests. Opening a host-recognized PDF also passed native OCR options to the
+  WebAssembly engine, which has no native OCR provider.
+- The standalone workflow reached PDF/Word imports, draft reopening, highlight
+  editing and exports, but the stress run failed. Import timings exceeded the
+  existing budgets, and the fully attached highlight scenario left three SCC
+  sources unresolved. The harness previously continued through the missing-PDF
+  warning without checking that none were missing.
+- The short missing-paragraph fixture returned `unavailable` instead of
+  `not_found`. Preserve its expected result while investigating the parser.
+- Microsoft Word could not start in the restricted test shell (`0x80070520`),
+  so that run provides no Word-host validation.
+
+Before closing the refactor, inventory every live consumer and run its historical
+behavior gates against the same source combination. Preserve independent gold
+and frozen expected products; explain each mismatch before changing an
+expectation. The distinct parser gates below remain required. Focused tests,
+successful exports and implementation presence do not establish parser parity,
+complete consumer fidelity or release readiness. Disposable run logs and browser
+reports are in `.tmp/refactor-regression/`; keep durable findings here.
+
 ## Profile-preserving refactor contract
 
 Revised 2026-09-05. This section replaces earlier guidance to resolve structure
