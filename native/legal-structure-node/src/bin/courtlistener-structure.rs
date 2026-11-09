@@ -31,7 +31,7 @@ fn main() {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod tool {
-    use legal_structure::opinion::{front_lines, headnotes, marks_in_notes, parse_failures, parse_screens, nodes, opinion_structure, quote_miss, reading, receipt_miss, source_faults_left, spans, unheld_text, OpinionCitation, OpinionRecord};
+    use legal_structure::opinion::{front_lines, headnotes, marks_in_notes, parse_failures, parse_screens, nodes, opinion_structure, quote_miss, reading, receipt_miss, source_faults_left, spans, unheld_text, witnessed_opinion_structure, OpinionCitation, OpinionRecord, Witness};
     use legal_structure::{DocumentStructure, NodeKind, StructureNode};
     use serde_json::{json, Value};
     use std::collections::{BTreeMap, HashMap, HashSet};
@@ -105,12 +105,11 @@ mod tool {
             cluster: field("cluster_id").and_then(|cluster| clusters.get(&cluster)).cloned().unwrap_or_default(),
             citations: field("cluster_id").and_then(|cluster| citations.get(&cluster)).cloned().unwrap_or_default(),
             renditions: files.into_iter().filter(|(name, _)| name != "fields.json").collect(),
-            witness: false,
         };
         (record, fields)
     }
 
-    fn measures(structure: &DocumentStructure, milliseconds: u128, fields: &Value) -> Value {
+    fn measures(structure: &DocumentStructure, witness: &Witness, milliseconds: u128, fields: &Value) -> Value {
         let opinion = reading(structure);
         let (faults, unheld) = (source_faults_left(structure), unheld_text(structure));
         let (pages, notes, headings, parts) = (|| nodes(structure, NodeKind::Page), || nodes(structure, NodeKind::Footnote), || nodes(structure, NodeKind::Heading), || nodes(structure, NodeKind::Section));
@@ -132,7 +131,7 @@ mod tool {
         let blocks = || spans(structure, "block-counter");
         let title = |heading: &StructureNode| heading.display_value.clone().unwrap_or_default();
         let note_items = notes().map(|note| property(note, "items").map_or(0, |items| items.split('\n').count())).sum::<usize>();
-        json!({
+        let mut row = json!({
             "id": structure.document_id, "cell": fields.get("_cell"), "stratum": fields.get("_stratum"), "rate": fields.get("_rate"), "page_count": fields.get("page_count"), "rendition": opinion.rendition, "ms": milliseconds, "text": structure.text.len(),
             "pages": series, "page_sources": sources, "note_pages": pages().filter(|page| page.properties.contains_key("in_note")).count(),
             "paragraphs": paragraphs().count(), "numbered": paragraphs().filter(|paragraph| paragraph.label.is_some()).count(), "items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some()).count() + note_items, "titled_items": headings().filter(|heading| title(heading).split_whitespace().next().is_some_and(|word| word.len() <= 6 && word.ends_with(['.', ')']))).count(), "quote_paragraphs": nodes(structure, NodeKind::Quote).count(), "named_items": paragraphs().filter(|paragraph| property(paragraph, "item").is_some_and(|item| item.len() > 6)).count(), "blocks": blocks().count(), "blocks_reckoned": blocks().filter(|block| property(block, "source") == Some("reckoned")).count(),
@@ -149,8 +148,13 @@ mod tool {
             "instruments": spans(structure, "instrument").filter_map(|instrument| property(instrument, "kind")).collect::<Vec<_>>(),
             "record_gaps": opinion.record_gaps.iter().map(|gap| gap.kind.as_str()).collect::<Vec<_>>(),
             "outcomes": opinion.outcomes, "tables": nodes(structure, NodeKind::Table).count(), "unmatched_calls": spans(structure, "unmatched-call").count(), "document_kind": opinion.document_kind,
-            "note_longest": notes().map(|note| note.ranges.iter().map(|range| range.end.saturating_sub(range.start)).sum::<usize>()).max().unwrap_or(0), "note_share": notes().flat_map(|note| note.ranges.iter()).map(|range| range.end.saturating_sub(range.start)).sum::<usize>(), "marks_in_notes": marks_in_notes(structure), "shifted_left": faults.0, "margins_left": faults.1, "other_opinion": opinion.other_opinion, "unheld": unheld.0, "unheld_at": unheld.1, "page_witness": opinion.page_witness, "note_witness": opinion.note_witness, "heading_witness": opinion.heading_witness, "paragraph_witness": opinion.paragraph_witness, "paragraphs_run_on": opinion.paragraphs_run_on, "paragraphs_split": opinion.paragraphs_split, "union_test": opinion.union_test, "union_samples": opinion.union_samples, "titles_not_held": opinion.titles_not_held,
-        })
+            "note_longest": notes().map(|note| note.ranges.iter().map(|range| range.end.saturating_sub(range.start)).sum::<usize>()).max().unwrap_or(0), "note_share": notes().flat_map(|note| note.ranges.iter()).map(|range| range.end.saturating_sub(range.start)).sum::<usize>(), "marks_in_notes": marks_in_notes(structure), "shifted_left": faults.0, "margins_left": faults.1, "unheld": unheld.0, "unheld_at": unheld.1,
+        });
+        // The witness's tallies stand beside the measures, each under its own name.
+        if let (Some(row), Value::Object(tallies)) = (row.as_object_mut(), json!(witness)) {
+            row.extend(tallies);
+        }
+        row
     }
 
     fn property<'a>(node: &'a StructureNode, name: &str) -> Option<&'a str> {
@@ -192,11 +196,11 @@ mod tool {
                 let id = row["id"].as_str().unwrap_or_default().to_owned();
                 let files = row["files"].as_object().into_iter().flatten()
                     .filter_map(|(name, text)| Some((name.clone(), text.as_str()?.to_owned()))).collect();
-                let (mut record, fields) = record_of(id.clone(), files, &clusters, &citations);
-                record.witness = witness;
+                let (record, fields) = record_of(id.clone(), files, &clusters, &citations);
                 let began = Instant::now();
-                let line = match catch_unwind(AssertUnwindSafe(|| opinion_structure(&record, None))) {
-                    Ok(structure) => {
+                let read = || if witness { witnessed_opinion_structure(&record) } else { (opinion_structure(&record, None), Witness::default()) };
+                let line = match catch_unwind(AssertUnwindSafe(read)) {
+                    Ok((structure, witnessed)) => {
                         let milliseconds = began.elapsed().as_millis();
                         let mut found = parse_failures(&structure);
                         found.extend(parse_screens(&structure, &record));
@@ -228,7 +232,7 @@ mod tool {
                                 writeln!(misses.lock().unwrap(), "{}", json!({ "target": target, "id": id, "rendition": reading(&structure).rendition, "family": family, "quote": quote, "what": what })).unwrap();
                             }
                         }
-                        measures(&structure, milliseconds, &fields).to_string()
+                        measures(&structure, &witnessed, milliseconds, &fields).to_string()
                     }
                     Err(_) => {
                         *tally.lock().unwrap().0.entry("panic".to_owned()).or_default() += 1;
