@@ -27,13 +27,9 @@
 //!   structure-gold explain STORE SHA_PREFIX [--candidates FILE] [--layers a,b] [--limit N]
 //!       one document's missed (-) and spurious (+) items per layer, as text.
 //!   structure-gold selfcheck STORE self|agree [--run R] [--split S] [--worst a,b]
-//!   structure-gold pairing STORE SHA_PREFIX [FIRST-LAST]
-//!   structure-gold paragraph-data STORE OUT_DIR
 //!       exports Rust boundary features and fixed-gold targets, excluding test.
 mod alignment;
 mod gold;
-mod paragraph_data;
-mod paragraph_features;
 mod score;
 mod side;
 mod text_diff;
@@ -623,14 +619,14 @@ fn oracle_layout(mut extracted: legalpdf::ExtractedPdf, whole_gold: &Gold) -> Re
     let matched: HashMap<String, Option<usize>> = gold_lines_of(&extracted, whole_gold)?.into_iter().map(|(id, _, r)| (id, r)).collect();
     for page in &mut extracted.pages {
         for line in &mut page.lines {
-            if line.exclude_from_body || line.text.trim().is_empty() || legal_pdf_core::is_heading_role(&line.region_type) || line.region_type == "LI" {
+            if line.exclude_from_body || line.text.trim().is_empty() || legal_pdf_core::is_heading_role(&line.source_tag) || line.source_tag == "LI" {
                 continue;
             }
             let Some(&(_, t)) = matched.get(&line.id).copied().flatten().and_then(|r| typed_of.get(whole_gold.lines[r].id.as_str())) else {
                 continue;
             };
             let top = line.bbox[1] + line.bbox[3] < page.height;
-            line.region_type = match whole_gold.typed[t].region.as_str() {
+            line.source_tag = match whole_gold.typed[t].region.as_str() {
                 "none" => continue,
                 "heading" => "paragraph_title",
                 "title" => "doc_title",
@@ -1089,44 +1085,6 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// Diagnostic: the note pairer over one document's parsed pages, each line's note labels and calls beside it.
-fn pairing(store: &Path, prefix: &str, options: &[String]) -> Result<(), String> {
-    use legal_structure::StructureAnalysis;
-    let source = sources(store)?.into_iter().find(|s| s.sha256.starts_with(prefix)).ok_or("No such gold")?;
-    let (_, pages) = parse(&source)?;
-    // The lines one after another, each its characters and a separator past them, so a range names its line.
-    let mut starts = Vec::new();
-    let mut at = 0;
-    for line in pages.iter().flat_map(|page| &page.lines) {
-        starts.push((at, line.id.as_str()));
-        at += line.text.chars().count() + 1;
-    }
-    let start_of: HashMap<&str, usize> = starts.iter().map(|&(at, id)| (id, at)).collect();
-    let place = |id: &str, start: usize, end: usize| start_of.get(id).map(|&at| legal_structure::ScalarRange { start: at + start, end: at + end });
-    let line_of = |range: &legal_structure::ScalarRange| starts[starts.partition_point(|&(at, _)| at <= range.start) - 1].1.to_owned();
-    let output = legal_structure::STRUCTURE_ANALYSIS.pair_footnotes(&pages, &BTreeMap::new(), &|_| 0, &place);
-    let range = options.first().and_then(|r| r.split_once('-')).and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)));
-    let mut by_line: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for note in &output.notes {
-        let label = note.label.as_deref().unwrap_or("");
-        for (role, range) in note.marker_range.iter().map(|range| ("fn_label", range)).chain(note.calls.iter().map(|call| ("fn_ref", call))) {
-            by_line.entry(line_of(range)).or_default().push(format!("{role}:{label}"));
-        }
-    }
-    for page in &pages {
-        if range.is_some_and(|(a, b)| page.number < a || page.number > b) {
-            continue;
-        }
-        for line in &page.lines {
-            let marks = by_line.get(&line.id).map(|m| m.join(",")).unwrap_or_default();
-            let text: String = line.text.chars().take(70).collect();
-            println!("p{} {:>10} {:>9} {}{:<14} | {text}", page.number, line.region_type, line.note_region_mode,
-                if line.exclude_from_body { "X " } else { "  " }, marks);
-        }
-    }
-    Ok(())
-}
-
 /// The gold against itself through the scorer (must be 1.0 everywhere), and the gold's own labels
 /// decoded over the gold's own lines, order, markers and notes (any shortfall is the label
 /// encoding or the decoder, never the gold): `selfcheck STORE self|labels`.
@@ -1258,11 +1216,9 @@ fn main() {
             .parse()
             .map_err(|_| "STEP must be a number".to_owned())
             .and_then(|step| layout_digest(Path::new(store), Path::new(out), Path::new(pack), Path::new(runtime), step)),
-        [command, store, out] if command == "paragraph-data" => paragraph_data::export(Path::new(store), Path::new(out)),
         [command, store, mode, options @ ..] if command == "selfcheck" => selfcheck(Path::new(store), mode, options),
-        [command, store, prefix, options @ ..] if command == "pairing" => pairing(Path::new(store), prefix, options),
         [command, store, prefix, options @ ..] if command == "explain" => explain(Path::new(store), prefix, options),
-        _ => Err("usage: structure-gold inputs|digest|docx-digest|extract-digest|grade|rows|explain|selfcheck|pairing|paragraph-data STORE [SHA|OUT_DIR|MODE] [options]".into()),
+        _ => Err("usage: structure-gold inputs|digest|docx-digest|extract-digest|grade|rows|explain|selfcheck STORE [SHA|OUT_DIR|MODE] [options]".into()),
     };
     if let Err(error) = result {
         eprintln!("{error}");

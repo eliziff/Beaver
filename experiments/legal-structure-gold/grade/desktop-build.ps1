@@ -4,10 +4,10 @@
 # desktop, and built there into a target folder that stays, so each build after the first is
 # incremental. The grader lands where prove.ps1 grades with it.
 #
-#   .\desktop-build.ps1                          # structure-gold, olj_pairing
+#   .\desktop-build.ps1                          # structure-gold, note_pairs
 #   .\desktop-build.ps1 -Packages @('-p','structure-gold')
 param(
-  [string[]]$Packages = @('-p', 'structure-gold', '--bin', 'structure-gold', '-p', 'legal-structure-node', '--bin', 'olj_pairing'),
+  [string[]]$Packages = @('-p', 'structure-gold', '--bin', 'structure-gold', '-p', 'legal-structure-node', '--bin', 'note_pairs'),
   [string]$Desktop = 'oajd-desktop',
   [string]$Mirror = 'C:\Users\elias\build\MikeOSS',
   [string]$Fable = 'C:\Users\elias\fable'
