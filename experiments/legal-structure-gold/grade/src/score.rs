@@ -1,12 +1,10 @@
 //! A parser export scored against its gold, layer by layer, as `evaluate.compare` defined it:
 //! the parser's page text is aligned to the gold, every boundary either side
 //! draws cuts the source into pieces, and each layer compares multisets of features over them.
-use crate::alignment::{align, Stats};
-use crate::state::{anchor, block_id, State};
+use crate::alignment::{align, Alignment, Stats};
+use crate::side::{At, Block, Side, Span};
 use crate::text_diff;
-use legal_pdf_frame::{FrameAnnotation, FrameBlock, SourceSpan};
 use serde::Serialize;
-use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::Hash;
 
@@ -20,7 +18,6 @@ type Point = (Origin, usize);
 enum Document {
     Root,
     At(Point),
-    Invalid,
 }
 
 #[derive(Clone, Copy, Default, Serialize)]
@@ -75,20 +72,16 @@ pub struct Score {
     pub alignment: Stats,
 }
 
-/// One side of the comparison: how its offsets reach the shared frame of gold lines.
-struct Side<'a> {
-    state: &'a State,
+/// One side of the comparison as the shared frame of gold lines reads it.
+struct View<'a> {
+    side: &'a Side,
     candidate: bool,
-    alignment: &'a crate::alignment::Alignment,
+    alignment: &'a Alignment,
 }
 
-impl<'a> Side<'a> {
-    fn new(state: &'a State, candidate: bool, alignment: &'a crate::alignment::Alignment) -> Self {
-        Side {
-            state,
-            candidate,
-            alignment,
-        }
+impl<'a> View<'a> {
+    fn new(side: &'a Side, candidate: bool, alignment: &'a Alignment) -> Self {
+        View { side, candidate, alignment }
     }
 
     /// A text interval in the shared frame, split at line breaks.
@@ -130,7 +123,7 @@ impl<'a> Side<'a> {
     /// Candidate text with no gold counterpart that is only whitespace: a space the parser put
     /// between two gold lines it joined. It is no piece of any unit.
     fn blank(&self, line: usize, a: usize, b: usize) -> bool {
-        self.state.lines[line].text[a.min(b)..b].iter().all(|c| c.is_whitespace())
+        self.side.lines[line].text[a.min(b)..b].iter().all(|c| c.is_whitespace())
     }
 
     /// A candidate interval in the frame of gold lines: on each gold line it reaches, the runs of
@@ -195,28 +188,6 @@ impl<'a> Side<'a> {
     }
 }
 
-/// A block's or annotation's spans, whole lines where it names only lines.
-fn members(state: &State, spans: &[SourceSpan], line_ids: &[String]) -> Vec<SourceSpan> {
-    if !spans.is_empty() {
-        return spans.to_vec();
-    }
-    line_ids
-        .iter()
-        .map(|id| SourceSpan {
-            line_id: id.clone(),
-            start: 0,
-            end: state.line(id).text.len(),
-        })
-        .collect()
-}
-
-fn spans_of(value: Option<&Value>) -> Result<Vec<SourceSpan>, String> {
-    match value {
-        None | Some(Value::Null) => Ok(Vec::new()),
-        Some(value) => serde_json::from_value(value.clone()).map_err(|e| e.to_string()),
-    }
-}
-
 const UNRANKED: [&str; 6] = ["title", "furniture", "page_label", "line_label", "marginal_note", "contents"];
 
 fn alias(kind: &str) -> &str {
@@ -248,7 +219,7 @@ struct Features {
     depth_steps: Vec<(Option<Point>, String)>,
     /// The depth steps of the numbered body units alone.
     sequence_steps: Vec<(Option<Point>, String)>,
-    /// The state gives depths (a gold the document pass has read); a parse's are read off its tree.
+    /// The side gives depths (a gold the document pass has read); a parse's are read off its tree.
     depth_given: bool,
     hierarchy_marker: Vec<(Option<Point>, Segments)>,
     table: Vec<(Segments, usize, usize)>,
@@ -297,234 +268,120 @@ impl Cuts {
 }
 
 fn features<'a>(
-    side: &Side<'a>,
+    view: &View<'a>,
     cuts: &Cuts,
     witness: &dyn Fn(Origin) -> &'a [char],
 ) -> Result<Features, String> {
-    let state = side.state;
-    let mut annotations: Vec<FrameAnnotation> = state.annotations.clone();
-    if !annotations.iter().any(|a| a.kind == "document") && !state.reading_order.is_empty() {
-        // A source without declared documents is one document, as its projection states.
-        let first = &state.lines[state.reading_order[0]];
-        annotations.push(FrameAnnotation {
-            id: "source".into(), kind: "document".into(), line_ids: vec![first.id.clone()],
-            spans: vec![SourceSpan { line_id: first.id.clone(), start: 0, end: first.text.len() }],
-            attributes: serde_json::json!({"kind": null, "parent": null, "relationship": null, "title": [], "facets": {}})
-                .as_object().unwrap().clone(),
-        });
-    }
-    let line_of = |id: &str| {
-        state
-            .index
-            .get(id)
-            .copied()
-            .ok_or_else(|| format!("Absent source line {id}"))
+    let side = view.side;
+    let span = |s: &Span| -> Vec<Piece> { view.project(s.line, s.start, s.end, witness) };
+    let spans = |values: &[Span]| -> Segments { merged(values.iter().flat_map(span)) };
+    let span_pieces = |s: &Span| -> Vec<Piece> { cuts.pieces(&span(s)) };
+    let point = |(line, offset): At| -> Point {
+        let (origin, at, _) = view.project(line, offset, offset, witness)[0];
+        (origin, at)
     };
-    let span = |s: &SourceSpan| -> Result<Vec<Piece>, String> {
-        let n = line_of(&s.line_id)?;
-        Ok(side.project(n, s.start, s.end, witness))
-    };
-    let spans = |values: &[SourceSpan]| -> Result<Segments, String> {
-        let mut parts = Vec::new();
-        for s in values {
-            parts.extend(span(s)?);
-        }
-        Ok(merged(parts))
-    };
-    let span_pieces = |s: &SourceSpan| -> Result<Vec<Piece>, String> { Ok(cuts.pieces(&span(s)?)) };
-    let point = |id: &str| -> Result<Point, String> {
-        let (n, offset) = match state.index.get(id) {
-            Some(&n) => (n, 0),
-            None => {
-                let (line, offset) = id
-                    .rsplit_once('@')
-                    .ok_or_else(|| format!("Absent source line {id}"))?;
-                (
-                    line_of(line)?,
-                    offset.parse::<usize>().map_err(|e| e.to_string())?,
-                )
-            }
-        };
-        let start = offset;
-        let (origin, at, _) = side.project(n, start, start, witness)[0];
-        Ok((origin, at))
-    };
-    let anchor_of =
-        |id: Option<&str>| -> Result<Option<Point>, String> { id.map(point).transpose() };
-    let roots: HashSet<&str> = annotations
-        .iter()
-        .filter(|a| a.kind == "document" && a.attributes.get("parent").is_none_or(Value::is_null))
-        .map(|a| a.line_ids[0].as_str())
-        .collect();
-    let openings: HashMap<&str, &str> = annotations
-        .iter()
-        .filter(|a| a.kind == "document")
-        .map(|a| (a.id.as_str(), a.line_ids[0].as_str()))
-        .collect();
-    let document = |id: &str| -> Result<Document, String> {
-        let id = openings.get(id).copied().unwrap_or(id);
-        if roots.contains(id) {
-            Ok(Document::Root)
-        } else {
-            Ok(Document::At(point(id)?))
-        }
-    };
-    let pieces = |n: usize| -> Vec<Piece> {
-        cuts.pieces(&side.project(n, 0, state.lines[n].text.len(), witness))
-    };
+    // A document is known by the line it opens on; the source's own by none.
+    let roots: HashSet<usize> = side.documents.iter().filter(|d| d.root).map(|d| d.line).collect();
+    let document = |line: usize| if roots.contains(&line) { Document::Root } else { Document::At(point((line, 0))) };
+    let pieces = |n: usize| -> Vec<Piece> { cuts.pieces(&view.project(n, 0, side.lines[n].text.len(), witness)) };
     let mut result = Features::default();
-    // A piece of blank space (the gap between a transcript's line number and its text) holds no text to
-    // cover or read in order: a parser that reads the number apart drops it.
-    let sequence: Vec<Piece> = state
-        .reading_order
-        .iter()
-        .flat_map(|&n| pieces(n))
+    // A piece of blank space (the gap between a transcript's line number and its text) holds no text to cover or read
+    // in order: a parser that reads the number apart drops it.
+    let sequence: Vec<Piece> = side.reading_order.iter().flat_map(|&n| pieces(n))
         .filter(|&(origin, a, b)| witness(origin).get(a..b).is_some_and(|text| text.iter().any(|c| !c.is_whitespace())))
         .collect();
     result.order = sequence.windows(2).map(|w| (w[0], w[1])).collect();
     result.coverage = sequence;
-    // Blocks are identified by their first source span (line@start), never by a line.
-    let mut keys: Vec<String> = Vec::new();
-    let mut groups: HashMap<String, &FrameBlock> = HashMap::new();
-    for group in &state.groups {
-        let id = block_id(group);
-        if groups.insert(id.clone(), group).is_none() {
-            keys.push(id);
+    // Blocks are identified by their first source span, never by a line.
+    let mut keys: Vec<At> = Vec::new();
+    let mut groups: HashMap<At, &Block> = HashMap::new();
+    for block in &side.blocks {
+        if groups.insert(block.at(), block).is_none() {
+            keys.push(block.at());
         }
     }
-    let composed = legal_pdf_frame::assemble_frame(state, &annotations)?;
-    // Each block's next fragment in its logical block, from the shared assembly.
-    let mut text_links: HashMap<String, String> = HashMap::new();
-    for parts in composed.logical_blocks.values() {
-        for pair in parts.windows(2) {
-            text_links.insert(pair[0].clone(), pair[1].clone());
-        }
+    // Each block's next fragment in its logical block.
+    let text_links = side.text_links()?;
+    let incoming: HashSet<At> = text_links.values().copied().collect();
+    let mut notes: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+    let mut tables: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+    for s in side.notes.iter().flat_map(|n| &n.spans) {
+        notes.entry(s.line).or_default().push((s.start, s.end));
     }
-    let incoming: HashSet<&str> = text_links.values().map(String::as_str).collect();
-    let mut notes: HashMap<&str, Vec<(usize, usize)>> = HashMap::new();
-    let mut tables: HashMap<&str, Vec<(usize, usize)>> = HashMap::new();
-    let mut annotation_members = Vec::new();
-    for a in &annotations {
-        if a.kind == "note" || a.kind == "table" {
-            annotation_members.push((a.kind.as_str(), members(state, &a.spans, &a.line_ids)));
-        }
+    for s in side.tables.iter().flat_map(|t| &t.spans) {
+        tables.entry(s.line).or_default().push((s.start, s.end));
     }
-    for (kind, found) in &annotation_members {
-        let target = if *kind == "note" {
-            &mut notes
-        } else {
-            &mut tables
-        };
-        for s in found {
-            target
-                .entry(s.line_id.as_str())
-                .or_default()
-                .push((s.start, s.end));
-        }
-    }
-    let inside = |block: &FrameBlock, extents: &HashMap<&str, Vec<(usize, usize)>>| {
-        let found = members(state, &block.spans, &block.line_ids);
-        let first = &found[0];
-        extents.get(first.line_id.as_str()).is_some_and(|all| {
-            all.iter()
-                .any(|&(a, b)| a <= first.start && first.start < b)
-        })
+    let inside = |block: &Block, extents: &HashMap<usize, Vec<(usize, usize)>>| {
+        let first = &block.spans[0];
+        extents.get(&first.line).is_some_and(|all| all.iter().any(|&(a, b)| a <= first.start && first.start < b))
     };
-    let role = |block: &FrameBlock| -> String {
-        let kind = alias(&block.kind);
+    let role = |block: &Block| -> String {
         if inside(block, &tables) {
             return "table".into();
         }
-        // A block inside a note annotation is a note unit, as a projected note unit's region says: a
-        // parser's footnote blocks are its notes, not running text.
+        // A block inside a note is a note unit, as a projected note unit's region says: a parser's footnote blocks are
+        // its notes, not running text.
         if inside(block, &notes) {
             return "note".into();
         }
         // A block names its unit's region, which is its role as scored: the gold's as typed, a parser's as its node's
         // kind and role read; a parser's line no node holds is read by its kind.
-        if let Some(region) = block.attributes.get("region").and_then(Value::as_str) {
-            return match region { "none" | "caption" => "text", other => other }.to_owned();
+        match block.region.as_deref() {
+            Some("none" | "caption") => "text".into(),
+            Some(region) => region.into(),
+            None => alias(&block.kind).into(),
         }
-        kind.to_owned()
     };
-    let position: HashMap<&str, usize> = state
-        .reading_order
-        .iter()
-        .enumerate()
-        .map(|(k, &n)| (state.lines[n].id.as_str(), k))
-        .collect();
-    let order = |id: &str| -> (usize, usize, usize) {
-        let (line, at) = id.split_once('@').unwrap_or((id, ""));
-        let at: usize = at.parse().unwrap_or(0);
-        match state.index.get(line).and_then(|&n| state.span_rank.get(&(n, at))) {
+    let order = |(line, at): At| -> (usize, usize, usize) {
+        match side.span_rank.get(&(line, at)) {
             Some(&rank) => (0, rank, 0),
-            None => (1, position.get(line).copied().unwrap_or(position.len()), at),
+            None => (1, side.positions[line], at),
         }
     };
-    let mut units: Vec<&str> = keys
-        .iter()
-        .map(String::as_str)
-        .filter(|first| {
-            !incoming.contains(first)
-                && !UNRANKED.contains(&role(groups[*first]).as_str())
-                && !inside(groups[*first], &notes)
-        })
+    let mut units: Vec<At> = keys.iter().copied()
+        .filter(|first| !incoming.contains(first) && !UNRANKED.contains(&role(groups[first]).as_str()) && !inside(groups[first], &notes))
         .collect();
-    units.sort_by_key(|id| order(id));
-    let parent_of: HashMap<&str, Option<&str>> = units
-        .iter()
-        .map(|first| {
-            (
-                *first,
-                groups[*first]
-                    .attributes
-                    .get("parent")
-                    .and_then(Value::as_str),
-            )
-        })
-        .collect();
-    // Levels: a gold gives each heading's level and each body unit's depth, as the model set them;
-    // a parse's are read off its tree, one more than the headings above a heading, or than the
-    // body units above a body unit.
-    let level = |first: &str, heading: bool| -> usize {
-        let key = if heading { "heading_level" } else { "depth" };
-        if let Some(given) = groups[first].attributes.get(key).and_then(Value::as_u64) {
-            return given as usize;
+    units.sort_by_key(|&at| order(at));
+    // Levels: a gold gives each heading's level and each body unit's depth, as the model set them; a parse's are read
+    // off its tree, one more than the headings above a heading, or than the body units above a body unit.
+    let level = |first: At, heading: bool| -> usize {
+        let block = groups[&first];
+        if let Some(given) = if heading { block.heading_level } else { block.depth } {
+            return given;
         }
-        let (mut depth, mut at, mut seen) = (1, parent_of.get(first).copied().flatten(), HashSet::new());
+        let (mut depth, mut at, mut seen) = (1, block.parent, HashSet::new());
         while let Some(ancestor) = at.filter(|a| seen.insert(*a)) {
-            let Some(&g) = groups.get(ancestor) else { break };
+            let Some(&g) = groups.get(&ancestor) else { break };
             if (role(g) == "heading") == heading {
                 depth += 1;
             }
-            at = parent_of.get(ancestor).copied().flatten();
+            at = g.parent;
         }
         depth
     };
-    // A level is scored relative to the one before it of its kind (deeper, the same, up k),
-    // never absolutely: two readings that nest alike agree however they number their depths.
+    // A level is scored relative to the one before it of its kind (deeper, the same, up k), never absolutely: two
+    // readings that nest alike agree however they number their depths.
     let step = |previous: Option<usize>, level: usize| match previous {
         None => "first".to_owned(),
         Some(p) if level > p => format!("down {}", level - p),
         Some(p) if level == p => "same".to_owned(),
         Some(p) => format!("up {}", p - level),
     };
-    result.depth_given = units.iter().any(|first| groups[*first].attributes.contains_key("depth"));
-    let mut steps: HashMap<&str, String> = HashMap::new();
-    // A numbered body unit's step from the numbered body unit before it: where its numbering's
-    // sequence goes, on, in, or back out.
-    let mut sequence: HashMap<&str, String> = HashMap::new();
+    result.depth_given = units.iter().any(|first| groups[first].depth.is_some());
+    let mut steps: HashMap<At, String> = HashMap::new();
+    // A numbered body unit's step from the numbered body unit before it: where its numbering's sequence goes, on, in, or
+    // back out.
+    let mut sequence: HashMap<At, String> = HashMap::new();
     let mut numbered_before = None;
     let (mut heading_before, mut depth_before) = (None, None);
     // Each document's levels are its own: the first unit of a document steps from nothing.
-    let document_starts: HashSet<&str> = annotations.iter().filter(|a| a.kind == "document").map(|a| a.line_ids[0].as_str()).collect();
+    let document_starts: HashSet<usize> = side.documents.iter().map(|d| d.line).collect();
     for &first in &units {
-        let g = groups[first];
-        let line = g.spans.first().map_or_else(|| g.line_ids[0].as_str(), |s| s.line_id.as_str());
-        if document_starts.contains(line) {
+        let g = groups[&first];
+        if document_starts.contains(&g.spans[0].line) {
             (heading_before, depth_before, numbered_before) = (None, None, None);
         }
-        if role(groups[first]) == "heading" {
+        if role(g) == "heading" {
             let at = level(first, true);
             steps.insert(first, format!("heading {}", step(heading_before, at)));
             heading_before = Some(at);
@@ -532,55 +389,46 @@ fn features<'a>(
             let at = level(first, false);
             steps.insert(first, format!("depth {}", step(depth_before, at)));
             depth_before = Some(at);
-            if g.attributes.get("marker").and_then(Value::as_array).is_some_and(|m| !m.is_empty()) {
+            if !g.marker.is_empty() {
                 sequence.insert(first, step(numbered_before, at));
                 numbered_before = Some(at);
             }
         }
     }
     for first in &keys {
-        let g = groups[first.as_str()];
-        let own = members(state, &g.spans, &g.line_ids);
+        let g = groups[first];
         let kind = alias(&g.kind).to_owned();
-        for s in &own {
-            result
-                .roles
-                .extend(span_pieces(s)?.into_iter().map(|p| (p, kind.clone())));
+        for s in &g.spans {
+            result.roles.extend(span_pieces(s).into_iter().map(|p| (p, kind.clone())));
         }
-        // A line number once: a line holding only its number is its own unit, and its block's
-        // line_number attribute names the same span again.
-        let own_number = (role(g) == "line_label").then(|| spans(&own)).transpose()?;
+        // A line number once: a line holding only its number is its own unit, and its block's line numbers name the
+        // same span again.
+        let own_number = (role(g) == "line_label").then(|| spans(&g.spans));
         if let Some(number) = &own_number {
             result.line_numbers.push(number.clone());
         }
-        for s in spans_of(g.attributes.get("line_number"))? {
-            let number = spans(std::slice::from_ref(&s))?;
+        for s in &g.line_number {
+            let number = spans(std::slice::from_ref(s));
             if own_number.as_ref() != Some(&number) {
                 result.line_numbers.push(number);
             }
         }
-        for s in spans_of(g.attributes.get("speaker"))? {
-            result.speakers.push(spans(std::slice::from_ref(&s))?);
-        }
-        if !incoming.contains(first.as_str()) {
-            let mut parts = own;
-            let mut cursor = first.as_str();
+        result.speakers.extend(g.speaker.iter().map(|s| spans(std::slice::from_ref(s))));
+        if !incoming.contains(first) {
+            let mut parts = g.spans.clone();
+            let mut cursor = *first;
             let mut visited = HashSet::from([cursor]);
-            while let Some(next) = text_links.get(cursor) {
-                cursor = next.as_str();
-                if !visited.insert(cursor) || !groups.contains_key(cursor) {
+            while let Some(&next) = text_links.get(&cursor) {
+                cursor = next;
+                if !visited.insert(cursor) || !groups.contains_key(&cursor) {
                     break;
                 }
-                let g = groups[cursor];
-                parts.extend(members(state, &g.spans, &g.line_ids));
+                parts.extend(groups[&cursor].spans.iter().copied());
             }
-            let mut found = Vec::new();
-            for s in &parts {
-                found.extend(span_pieces(s)?);
-            }
+            let mut found: Vec<Piece> = parts.iter().flat_map(span_pieces).collect();
             result.joins.extend(found.windows(2).map(|w| (w[0], w[1])));
-            // A unit is the text it holds: the order its pieces are read in is the joins' and the
-            // reading order's to score, so a hanging marker read after its text costs there, not here.
+            // A unit is the text it holds: the order its pieces are read in is the joins' and the reading order's to
+            // score, so a hanging marker read after its text costs there, not here.
             found.sort_unstable();
             found.dedup();
             result.units_kind.push((role(g), found.clone()));
@@ -588,15 +436,14 @@ fn features<'a>(
         }
     }
     for first in &units {
-        let g = groups[*first];
-        let unit = Some(point(first)?);
+        let g = groups[first];
+        let unit = Some(point(*first));
         let kind = role(g);
-        let marker = spans_of(g.attributes.get("marker"))?;
-        let marker_spans = spans(&marker)?;
+        let marker_spans = spans(&g.marker);
         let at = steps.get(first).cloned().unwrap_or_default();
         result.hierarchy.push((unit, kind.clone(), at.clone(), marker_spans.clone()));
         result.hierarchy_units.push(unit);
-        if !marker.is_empty() {
+        if !g.marker.is_empty() {
             result.markers_kind.push((kind.clone(), unit, marker_spans.clone()));
         }
         result.hierarchy_roles.push((unit, kind));
@@ -609,133 +456,54 @@ fn features<'a>(
         if let Some(found) = sequence.get(first) {
             result.sequence_steps.push((unit, found.clone()));
         }
-        if !marker.is_empty() {
+        if !g.marker.is_empty() {
             result.hierarchy_marker.push((unit, marker_spans));
         }
     }
-    let rank: HashMap<usize, usize> = state.reading_order.iter().enumerate().map(|(i, &n)| (n, i)).collect();
-    let mut opened: Vec<(usize, Document, String)> = Vec::new();
-    for a in &composed.annotations {
-        let extent = spans(&members(state, &a.spans, &a.line_ids))?;
-        match a.kind.as_str() {
-            "table" => {
-                let rows = a
-                    .attributes
-                    .get("rows")
-                    .and_then(Value::as_array)
-                    .ok_or("Table without rows")?;
-                let width = rows
-                    .first()
-                    .and_then(Value::as_array)
-                    .ok_or("Table without rows")?
-                    .len();
-                result.table.push((extent, rows.len(), width));
-                let first = point(&a.line_ids[0])?;
-                for (r, row) in rows.iter().enumerate() {
-                    for (c, cell) in row.as_array().into_iter().flatten().enumerate() {
-                        let found = if cell.is_null() {
-                            None
-                        } else {
-                            Some(spans(&spans_of(Some(cell))?)?)
-                        };
-                        result.table_cells.push((Some(first), r, c, found));
-                    }
-                }
+    for table in side.whole_tables()? {
+        let width = table.rows.first().ok_or("Table without rows")?.len();
+        result.table.push((spans(&table.spans), table.rows.len(), width));
+        let first = point((table.spans[0].line, 0));
+        for (r, row) in table.rows.iter().enumerate() {
+            for (c, cell) in row.iter().enumerate() {
+                result.table_cells.push((Some(first), r, c, cell.as_ref().map(|found| spans(found))));
             }
-            "note" => {
-                let label = spans(&spans_of(a.attributes.get("label"))?)?;
-                result.note.push((extent.clone(), label.clone()));
-                // A reference is right when its mark points at the right note: the note is known by its printed
-                // label (its number where it stands), by its text only where it prints none. How far the note's
-                // text runs is the footnote content layer's question, not the link's.
-                let note = if label.is_empty() { extent.clone() } else { label };
-                for s in spans_of(a.attributes.get("references"))? {
-                    result
-                        .note_references
-                        .push((note.clone(), spans(std::slice::from_ref(&s))?));
-                }
-            }
-            "document" => {
-                let rank = rank.get(&line_of(&a.line_ids[0])?).copied().unwrap_or(usize::MAX);
-                let kind = a.attributes.get("kind").and_then(Value::as_str).unwrap_or_default().to_owned();
-                opened.push((rank, document(&a.line_ids[0])?, kind));
-            }
-            _ => {}
         }
     }
-    // A source's own first document opens wherever reading begins, so it is no evidence of
-    // splitting: the starts scored are the internal ones. A part is right when its start, the next
-    // part's start (or the source's end) and its type all are.
-    opened.sort_by_key(|(rank, _, _)| *rank);
-    result.document = opened.iter().filter(|(_, d, _)| *d != Document::Root).map(|(_, d, _)| d.clone()).collect();
+    for note in side.whole_notes()? {
+        let extent = spans(&note.spans);
+        let label = spans(&note.label);
+        result.note.push((extent.clone(), label.clone()));
+        // A reference is right when its mark points at the right note: the note is known by its printed label (its
+        // number where it stands), by its text only where it prints none. How far the note's text runs is the footnote
+        // content layer's question, not the link's.
+        let known = if label.is_empty() { extent } else { label };
+        result.note_references.extend(note.references.iter().map(|s| (known.clone(), spans(std::slice::from_ref(s)))));
+    }
+    // A source's own first document opens wherever reading begins, so it is no evidence of splitting: the starts scored
+    // are the internal ones. A part is right when its start, the next part's start (or the source's end) and its type all
+    // are.
+    let opened: Vec<(Document, String)> = side.documents.iter().map(|d| (document(d.line), d.kind.clone().unwrap_or_default())).collect();
+    result.document = opened.iter().filter(|(d, _)| *d != Document::Root).map(|(d, _)| d.clone()).collect();
     result.document_parts = opened.iter().enumerate()
-        .map(|(i, (_, d, kind))| (d.clone(), opened.get(i + 1).map(|(_, next, _)| next.clone()), kind.clone()))
+        .map(|(i, (d, kind))| (d.clone(), opened.get(i + 1).map(|(next, _)| next.clone()), kind.clone()))
         .collect();
-    // Text before the first declared document is the source's own: the root's.
-    let ownership = || -> Result<Vec<(Piece, Document)>, String> {
-        let owners: HashMap<&str, Option<&str>> = composed
-            .groups
-            .iter()
-            .map(|g| (g.id.as_str(), g.document.as_deref()))
-            .collect();
-        let mut starts: HashMap<&str, Document> = HashMap::from([("source", Document::Root)]);
-        for a in composed.annotations.iter().filter(|a| a.kind == "document") {
-            starts.insert(a.id.as_str(), document(&a.line_ids[0])?);
+    // Each line's text is the document's that owns the first block holding it; text before the first declared document
+    // is the source's own.
+    let mut by_line: HashMap<usize, Option<usize>> = HashMap::new();
+    for (block, owner) in side.blocks.iter().zip(side.owners()?) {
+        for s in &block.spans {
+            by_line.entry(s.line).or_insert(owner);
         }
-        let mut by_line: HashMap<&str, Option<&str>> = HashMap::new();
-        for g in &state.groups {
-            let parts = members(state, &g.spans, &g.line_ids);
-            let owner = owners
-                .get(anchor(&parts[0]).as_str())
-                .or_else(|| owners.get(parts[0].line_id.as_str()))
-                .copied()
-                .flatten();
-            for member in &parts {
-                let id = state
-                    .index
-                    .get(&member.line_id)
-                    .map(|&n| state.lines[n].id.as_str())
-                    .ok_or("Absent source line")?;
-                by_line.entry(id).or_insert(owner);
-            }
-        }
-        let mut found = Vec::new();
-        for &n in &state.reading_order {
-            let Some(owner) = by_line.get(state.lines[n].id.as_str()) else {
-                continue;
-            };
-            let here = pieces(n);
-            if here.is_empty() {
-                continue;
-            }
-            let start = owner
-                .and_then(|o| starts.get(o))
-                .ok_or("Unowned block")?
-                .clone();
-            found.extend(here.into_iter().map(|p| (p, start.clone())));
-        }
-        Ok(found)
-    };
-    result.document_ownership = match ownership() {
-        Ok(found) => found,
-        Err(_) => state
-            .reading_order
-            .iter()
-            .flat_map(|&n| pieces(n))
-            .map(|p| (p, Document::Invalid))
-            .collect(),
-    };
-    for layer in state.continuations.values() {
-        for (from, link) in layer {
-            let kind = link
-                .attributes
-                .get("kind")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_owned();
-            result
-                .continuations
-                .push((anchor_of(Some(from))?, anchor_of(Some(&link.next))?, kind));
+    }
+    for &n in &side.reading_order {
+        let Some(owner) = by_line.get(&n) else { continue };
+        let start = owner.map_or(Document::Root, |d| document(side.documents[d].line));
+        result.document_ownership.extend(pieces(n).into_iter().map(|p| (p, start.clone())));
+    }
+    for (kind, layer) in &side.links {
+        for (&from, &to) in layer {
+            result.continuations.push((Some(point(from)), Some(point(to)), kind.clone()));
         }
     }
     Ok(result)
@@ -772,8 +540,8 @@ fn differences<'t, T: Hash + Eq>(expected: &'t [T], actual: &'t [T]) -> (Vec<&'t
 
 /// Text of the shared frame for reading a layer's differences.
 struct Render<'a> {
-    reference: &'a State,
-    predicted: &'a State,
+    reference: &'a Side,
+    predicted: &'a Side,
 }
 
 impl Render<'_> {
@@ -824,21 +592,20 @@ impl Render<'_> {
         match document {
             Document::Root => "root".into(),
             Document::At(point) => self.point(Some(*point)),
-            Document::Invalid => "invalid".into(),
         }
     }
 }
 
 /// Each layer's missed and spurious items for one document, as text.
 pub fn explain(
-    reference: &State,
-    predicted: &State,
+    reference: &Side,
+    predicted: &Side,
     layers: &[String],
     limit: usize,
 ) -> Result<String, String> {
     let alignment = align(reference, predicted)?;
-    let gold = Side::new(reference, false, &alignment);
-    let parser = Side::new(predicted, true, &alignment);
+    let gold = View::new(reference, false, &alignment);
+    let parser = View::new(predicted, true, &alignment);
     let witness = |origin: Origin| -> &[char] {
         if origin & CANDIDATE != 0 {
             &predicted.lines[(origin & !CANDIDATE) as usize].text
@@ -846,7 +613,7 @@ pub fn explain(
             &reference.lines[origin as usize].text
         }
     };
-    let cuts = cuts_of(&gold, &parser, &witness)?;
+    let cuts = cuts_of(&gold, &parser, &witness);
     let wanted = features(&gold, &cuts, &witness)?;
     let got = features(&parser, &cuts, &witness)?;
     let render = Render {
@@ -973,29 +740,18 @@ pub fn explain(
 }
 
 fn cuts_of<'a>(
-    gold: &Side<'a>,
-    parser: &Side<'a>,
+    gold: &View<'a>,
+    parser: &View<'a>,
     witness: &dyn Fn(Origin) -> &'a [char],
-) -> Result<Cuts, String> {
+) -> Cuts {
     // Every boundary either side draws on a source: its lines and its blocks' spans.
     let mut cuts: HashMap<Origin, Vec<usize>> = HashMap::new();
-    for side in [gold, parser] {
-        let state = side.state;
-        for (n, line) in state.lines.iter().enumerate() {
-            for (key, a, b) in side.project(n, 0, line.text.len(), witness) {
+    for view in [gold, parser] {
+        let lines = view.side.lines.iter().enumerate().map(|(n, line)| (n, 0, line.text.len()));
+        let blocks = view.side.blocks.iter().flat_map(|block| block.spans.iter().map(|s| (s.line, s.start, s.end)));
+        for (n, a, b) in lines.chain(blocks) {
+            for (key, a, b) in view.project(n, a, b, witness) {
                 cuts.entry(key).or_default().extend([a, b]);
-            }
-        }
-        for group in &state.groups {
-            for s in members(state, &group.spans, &group.line_ids) {
-                let n = *state
-                    .index
-                    .get(&s.line_id)
-                    .ok_or("Block names an absent line")?;
-                let (a, b) = (s.start, s.end);
-                for (key, a, b) in side.project(n, a, b, witness) {
-                    cuts.entry(key).or_default().extend([a, b]);
-                }
             }
         }
     }
@@ -1003,20 +759,20 @@ fn cuts_of<'a>(
         found.sort_unstable();
         found.dedup();
     }
-    Ok(Cuts(cuts))
+    Cuts(cuts)
 }
 
-pub fn compare(reference: &State, predicted: &State) -> Result<Score, String> {
+pub fn compare(reference: &Side, predicted: &Side) -> Result<Score, String> {
     compare_as(reference, predicted, false)
 }
 
 /// `compare`, for a gold that may leave things unsaid. `unmarked`: a machine-aligned gold (`gold_labels.LEVELLESS`) leaves a
 /// quotation or a list item set in its body unmarked and gives no levels, so neither side's text, quotations and list items
 /// are told apart, only the units' extents scored, and the layers that read roles or levels are not scored at all.
-pub fn compare_as(reference: &State, predicted: &State, unmarked: bool) -> Result<Score, String> {
+pub fn compare_as(reference: &Side, predicted: &Side, unmarked: bool) -> Result<Score, String> {
     let alignment = align(reference, predicted)?;
-    let gold = Side::new(reference, false, &alignment);
-    let parser = Side::new(predicted, true, &alignment);
+    let gold = View::new(reference, false, &alignment);
+    let parser = View::new(predicted, true, &alignment);
     let witness = |origin: Origin| -> &[char] {
         if origin & CANDIDATE != 0 {
             &predicted.lines[(origin & !CANDIDATE) as usize].text
@@ -1024,7 +780,7 @@ pub fn compare_as(reference: &State, predicted: &State, unmarked: bool) -> Resul
             &reference.lines[origin as usize].text
         }
     };
-    let cuts = cuts_of(&gold, &parser, &witness)?;
+    let cuts = cuts_of(&gold, &parser, &witness);
     let mut wanted = features(&gold, &cuts, &witness)?;
     let mut got = features(&parser, &cuts, &witness)?;
     if unmarked {
@@ -1120,9 +876,9 @@ pub fn compare_as(reference: &State, predicted: &State, unmarked: bool) -> Resul
 
 /// Connected components let recognition ignore line splits/merges without hiding extra text.
 fn recognition(
-    reference: &State,
-    predicted: &State,
-    alignment: &crate::alignment::Alignment,
+    reference: &Side,
+    predicted: &Side,
+    alignment: &Alignment,
 ) -> Result<TextScore, String> {
     let count = reference.lines.len();
     let mut edges = vec![Vec::new(); count + predicted.lines.len()];

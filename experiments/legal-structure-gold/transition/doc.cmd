@@ -8,7 +8,6 @@ set D=C:\Users\elias\fable\doc
 set G=C:\Users\elias\AppData\Local\OpenLegalData\gold-grades
 set S=C:\Users\elias\gold-store\gold
 set GRADER=C:\Users\elias\fable\grader-doc.exe
-set LEGALPDF_TRANSITION_GRAMMAR=C:\Users\elias\fable\grammar.json
 set LEGALPDF_TRANSITION_CONFUSIONS=C:\Users\elias\fable\confusions.json
 set LEGALPDF_INDRA_MODEL_PACK=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\indra
 set LEGALPDF_ONNXRUNTIME=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\onnx\onnxruntime.dll
@@ -17,9 +16,7 @@ if not exist %D% mkdir %D%
 cd /d %J%
 if exist %D%\lines.done goto fit
 echo %TIME% lines> %D%\stages.log
-set LEGALPDF_TRANSITION_LOCAL=C:\Users\elias\fable\transition4\local\full.txt
 set LEGALPDF_TRANSITION_GOLD=C:\Users\elias\fable\transition5\gold8.jsonl
-set LEGALPDF_TRANSITION_EMIT=1
 set LEGALPDF_TRANSITION_DUMP=%D%\lines
 set LEGALPDF_TRANSITION_DUMP_LINES=0
 %GRADER% grade %S% --split train --out %G%\grade-doc-lines-train.json > %G%\doc-lines-train.out 2> %G%\doc-lines-train.err

@@ -3,7 +3,8 @@ use crate::paragraph_features::{
     paragraph_body_line as body, paragraph_boundary_features as features,
     PARAGRAPH_FEATURES as FEATURES,
 };
-use crate::state::{self, Gold, State};
+use crate::gold::Gold;
+use crate::side::Side;
 use legal_pdf_core::{read_gzip_json, write_gzip_json, Page};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -16,8 +17,8 @@ use std::{
 /// Project training targets through the same fixed-gold alignment used for evaluation.
 fn owners(
     gold: &Gold,
-    reference: &State,
-    candidate: &State,
+    reference: &Side,
+    candidate: &Side,
 ) -> Result<HashMap<String, Option<usize>>, String> {
     let mut spans: HashMap<&str, Vec<(usize, usize, usize)>> = HashMap::new();
     for (u, unit) in gold.units.iter().enumerate() {
@@ -68,7 +69,7 @@ fn records(
     pages: &[Page],
     structure: &legal_structure_model::DocumentStructure,
 ) -> Result<Value, String> {
-    let owners = owners(gold, &state::projected(gold)?, &state::parsed(structure)?)?;
+    let owners = owners(gold, &Side::of_gold(gold)?, &Side::of_parse(structure)?)?;
     let prose = |u: usize| {
         matches!(
             gold.typed[gold.units[u].lines[0]].region.as_str(),

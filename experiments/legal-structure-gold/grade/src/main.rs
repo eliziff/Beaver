@@ -30,9 +30,13 @@
 //!   structure-gold pairing STORE SHA_PREFIX [FIRST-LAST]
 //!   structure-gold paragraph-data STORE OUT_DIR
 //!       exports Rust boundary features and fixed-gold targets, excluding test.
+mod alignment;
+mod gold;
 mod paragraph_data;
 mod paragraph_features;
 mod score;
+mod side;
+mod text_diff;
 
 /// mimalloc, whose threads allocate from heaps of their own: on Windows' process heap the
 /// documents graded at once waited on its lock for 70% of their time (a stack sample of the
@@ -40,7 +44,8 @@ mod score;
 #[global_allocator]
 static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use legal_pdf_frame::{alignment, state, text_diff};
+use gold::Gold;
+use side::Side;
 
 use legal_pdf_core::{read_gzip_json, write_gzip_json};
 use legal_structure_model::DocumentStructure;
@@ -295,7 +300,7 @@ fn parse(source: &Source) -> Result<(DocumentStructure, Vec<legal_pdf_core::mode
     let extracted: legalpdf::ExtractedPdf = read_gzip_json(&inputs_dir().join(format!("{}.json.gz", source.sha256)))
         .map_err(|e| format!("{}: {e}", source.sha256))?;
     let extracted = if std::env::var_os("STRUCTURE_GOLD_ORACLE_LAYOUT").is_some() {
-        let whole: state::Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
+        let whole: Gold = read_gzip_json(&source.gold).map_err(|e| e.to_string())?;
         oracle_layout(extracted, &whole)?
     } else {
         extracted
@@ -345,7 +350,7 @@ fn extract_digest(store: &Path, out: &Path) -> Result<(), String> {
     let all = sources(store)?;
     let digests = parallel(&all, |s| std::fs::metadata(&s.pdf).map_or(0, |m| m.len()), |source| {
         let read = std::fs::read(&source.pdf).map_err(|e| e.to_string()).and_then(|pdf| {
-            let mut extracted = extract_pdf(&pdf, None, None).map_err(|e| e.to_string())?;
+            let mut extracted = extract_pdf(&pdf).map_err(|e| e.to_string())?;
             recognize_pdf(&pdf, &mut extracted, None, None).map_err(|e| e.to_string())?;
             extracted.pages.iter_mut().for_each(mark_rule_underlines);
             serde_json::to_vec(&extracted).map_err(|e| e.to_string())
@@ -371,7 +376,7 @@ fn layout_digest(store: &Path, out: &Path, pack: &Path, runtime: &Path, step: us
     let options = legalpdf::PPDocOptions { model_pack: Some(pack.to_owned()), runtime: Some(runtime.to_owned()), threads: 1, ..Default::default() };
     let digests = parallel(&all, |s| std::fs::metadata(&s.pdf).map_or(0, |m| m.len()), |source| {
         let read = std::fs::read(&source.pdf).map_err(|e| e.to_string()).and_then(|pdf| {
-            let mut extracted = legal_pdf_extraction_processor::extract_pdf(&pdf, None, None).map_err(|e| e.to_string())?;
+            let mut extracted = legal_pdf_extraction_processor::extract_pdf(&pdf).map_err(|e| e.to_string())?;
             let diagnostics = LAYOUT.with(|layout| {
                 let mut layout = layout.borrow_mut();
                 if layout.is_none() {
@@ -539,28 +544,19 @@ fn gold_parts(gold: &Value) -> Result<(Vec<Value>, Vec<Vec<usize>>), String> {
 /// alignment of the extraction's lines, every one in extraction order, to the whole gold. A line the
 /// gold erased (its correction empty: scan noise) is matched by the text it was read as, which is
 /// still the page's.
-fn gold_lines_of(extracted: &legalpdf::ExtractedPdf, whole_gold: &state::Gold) -> Result<Vec<(String, usize, Option<usize>)>, String> {
-    let mut reference = state::projected(whole_gold)?;
+fn gold_lines_of(extracted: &legalpdf::ExtractedPdf, whole_gold: &Gold) -> Result<Vec<(String, usize, Option<usize>)>, String> {
+    let mut reference = Side::of_gold(whole_gold)?;
     for (line, gold_line) in reference.lines.iter_mut().zip(&whole_gold.lines) {
         if gold_line.corrected.as_deref() == Some("") {
             line.text = gold_line.text.chars().collect();
         }
     }
-    let lines: Vec<state::Line> = extracted.pages.iter().flat_map(|p| &p.lines).enumerate().map(|(k, line)| state::Line {
+    let whole = Side::of_lines(extracted.pages.iter().flat_map(|p| &p.lines).enumerate().map(|(k, line)| side::Line {
         id: line.id.clone(),
         page: line.page_index + 1,
         text: line.text.chars().collect(),
         spatial: (line.page_index + 1, k as f64, 0.0),
-    }).collect();
-    let whole = state::State {
-        index: lines.iter().enumerate().map(|(n, l)| (l.id.clone(), n)).collect(),
-        reading_order: (0..lines.len()).collect(),
-        lines,
-        span_rank: HashMap::new(),
-        groups: Vec::new(),
-        annotations: Vec::new(),
-        continuations: Default::default(),
-    };
+    }).collect());
     let alignment = alignment::align(&reference, &whole)?;
     Ok(alignment.mappings.iter().zip(whole.lines).map(|(mappings, line)| {
         let mut characters: BTreeMap<usize, usize> = BTreeMap::new();
@@ -576,7 +572,7 @@ fn gold_lines_of(extracted: &legalpdf::ExtractedPdf, whole_gold: &state::Gold) -
 /// it on its page, else of the line before it.
 fn extraction_parts(
     extracted: &legalpdf::ExtractedPdf,
-    whole_gold: &state::Gold,
+    whole_gold: &Gold,
     line_parts: &[Vec<usize>],
 ) -> Result<HashMap<String, Vec<usize>>, String> {
     let lines = gold_lines_of(extracted, whole_gold)?;
@@ -603,7 +599,7 @@ fn extraction_parts(
 /// labels would be (the product's model's vocabulary, each gold unit one model region), on the
 /// lines the model labels, so that the readers are measured as they read with a perfect layout
 /// model. A line the alignment leaves unmatched keeps the extraction's reading.
-fn oracle_layout(mut extracted: legalpdf::ExtractedPdf, whole_gold: &state::Gold) -> Result<legalpdf::ExtractedPdf, String> {
+fn oracle_layout(mut extracted: legalpdf::ExtractedPdf, whole_gold: &Gold) -> Result<legalpdf::ExtractedPdf, String> {
     if std::env::var_os("STRUCTURE_GOLD_ORACLE_LAYOUT").is_none() {
         return Ok(extracted);
     }
@@ -677,7 +673,7 @@ fn grade_one(
     // Without --parts the gold is its own only part.
     let (parts, line_parts) = if PARTS.load(Ordering::Relaxed) && selected.is_none() { gold_parts(&raw)? } else { (Vec::new(), Vec::new()) };
     if parts.len() <= 1 {
-        let expected: state::Gold = serde_json::from_value(parts.into_iter().next().unwrap_or(raw)).map_err(|e| e.to_string())?;
+        let expected: Gold = serde_json::from_value(parts.into_iter().next().unwrap_or(raw)).map_err(|e| e.to_string())?;
         let started = Instant::now();
         let structure = candidate(source, selected)?;
         return Ok(vec![(None, score_structure(source, &expected, &structure, gold_at, started)?)]);
@@ -686,14 +682,14 @@ fn grade_one(
     // the extraction aligned to the whole gold says.
     let started = Instant::now();
     let path = inputs_dir().join(format!("{}.json.gz", source.sha256));
-    let whole_gold: state::Gold = serde_json::from_value(raw).map_err(|e| e.to_string())?;
+    let whole_gold: Gold = serde_json::from_value(raw).map_err(|e| e.to_string())?;
     let read = || -> Result<legalpdf::ExtractedPdf, String> {
         oracle_layout(read_gzip_json(&path).map_err(|e| format!("{}: {e}", source.sha256))?, &whole_gold)
     };
     let parts_of = extraction_parts(&read()?, &whole_gold, &line_parts)?;
     let mut graded = Vec::new();
     for (k, part) in parts.into_iter().enumerate() {
-        let expected: state::Gold = serde_json::from_value(part).map_err(|e| format!("part {}: {e}", k + 1))?;
+        let expected: Gold = serde_json::from_value(part).map_err(|e| format!("part {}: {e}", k + 1))?;
         let started = if k == 0 { started } else { Instant::now() };
         let ids: HashSet<&str> = parts_of.iter().filter(|(_, parts)| parts.contains(&k)).map(|(id, _)| id.as_str()).collect();
         let document = legalpdf::gold_structure_document(input_part(read()?, &ids), &source.sha256, None)
@@ -705,7 +701,7 @@ fn grade_one(
 
 fn score_structure(
     source: &Source,
-    expected: &state::Gold,
+    expected: &Gold,
     structure: &DocumentStructure,
     gold_at: Instant,
     started: Instant,
@@ -718,24 +714,28 @@ fn score_structure(
     {
         return Err("Candidate belongs to another PDF".into());
     }
-    let reference = state::projected(expected)?;
-    let predicted = state::parsed(structure)?;
+    let reference = Side::of_gold(expected)?;
+    let predicted = Side::of_parse(structure)?;
     // STRUCTURE_GOLD_BLOCKS_DIR: both frames' blocks (kind, lines, locator, marker) per document, for
     // censuses of how the parser's units differ from the gold's.
     if let Some(dir) = std::env::var_os("STRUCTURE_GOLD_BLOCKS_DIR") {
         let dir = PathBuf::from(dir);
         let _ = std::fs::create_dir_all(&dir);
-        let dump = |state: &state::State| -> Vec<serde_json::Value> {
-            state.groups.iter().map(|g| serde_json::json!({
-                "kind": g.kind,
-                "lines": g.line_ids,
-                "spans": g.spans.iter().map(|s| serde_json::json!([s.line_id, s.start, s.end])).collect::<Vec<_>>(),
-                "region": g.attributes.get("region"),
-                "locator": g.attributes.get("locator_kind"),
-                "marker": g.attributes.get("marker").map(|m| !m.is_null() && m.as_array().is_some_and(|a| !a.is_empty())).unwrap_or(false),
-                "heading_level": g.attributes.get("heading_level"),
-                "depth": g.attributes.get("depth"),
-            })).collect()
+        let dump = |side: &Side| -> Vec<serde_json::Value> {
+            side.blocks.iter().map(|g| {
+                let mut lines: Vec<&str> = Vec::new();
+                g.spans.iter().map(|s| side.lines[s.line].id.as_str()).for_each(|id| if !lines.contains(&id) { lines.push(id) });
+                serde_json::json!({
+                    "kind": g.kind,
+                    "lines": lines,
+                    "spans": g.spans.iter().map(|s| serde_json::json!([side.lines[s.line].id, s.start, s.end])).collect::<Vec<_>>(),
+                    "region": g.region,
+                    "locator": g.locator,
+                    "marker": !g.marker.is_empty(),
+                    "heading_level": g.heading_level,
+                    "depth": g.depth,
+                })
+            }).collect()
         };
         let lines: Vec<serde_json::Value> = predicted.lines.iter().map(|l| serde_json::json!([l.id, l.page, l.text.iter().collect::<String>()])).collect();
         let fragments: Vec<&str> = structure.source_fragments.iter().map(|f| f.id.as_str()).collect();
@@ -1148,10 +1148,10 @@ fn selfcheck(store: &Path, mode: &str, options: &[String]) -> Result<(), String>
         .filter(|s| split.as_deref().map_or(s.split != "test", |want| s.split == want))
         .filter(|s| mode != "agree" || other(s).is_some()).collect();
     let results = parallel(&all, |_| 0, |source| -> Result<score::Score, String> {
-        let read = |path: &Path| -> Result<state::Gold, String> { read_gzip_json(path).map_err(|e| e.to_string()) };
+        let read = |path: &Path| -> Result<Gold, String> { read_gzip_json(path).map_err(|e| e.to_string()) };
         let expected = read(&source.gold)?;
-        let reference = state::projected(&expected)?;
-        let candidate = if mode == "self" { state::projected(&expected)? } else { state::projected(&read(&other(source).expect("filtered above"))?)? };
+        let reference = Side::of_gold(&expected)?;
+        let candidate = if mode == "self" { Side::of_gold(&expected)? } else { Side::of_gold(&read(&other(source).expect("filtered above"))?)? };
         score::compare(&reference, &candidate)
     });
     let mut totals: BTreeMap<&str, score::Metric> = BTreeMap::new();
@@ -1194,7 +1194,7 @@ fn explain(store: &Path, prefix: &str, options: &[String]) -> Result<(), String>
         .into_iter()
         .find(|s| s.sha256.starts_with(prefix))
         .ok_or("No such gold")?;
-    let expected: state::Gold =
+    let expected: Gold =
         read_gzip_json(&source.gold)
             .map_err(|e| e.to_string())?;
     let inventory = value("--candidates");
@@ -1231,9 +1231,9 @@ fn explain(store: &Path, prefix: &str, options: &[String]) -> Result<(), String>
                 node.line_ids.first().map(String::as_str).unwrap_or("-"), node.range.start, node.range.end, node.origin_id);
         }
     }
-    let candidate_state = state::parsed(&structure)?;
+    let candidate_state = Side::of_parse(&structure)?;
     let text = score::explain(
-        &state::projected(&expected)?,
+        &Side::of_gold(&expected)?,
         &candidate_state,
         &layers,
         limit,

@@ -10,7 +10,6 @@ set S=%F%\store\gold
 set GRADER=%F%\grader-t0.exe
 set PY=C:\Users\elias\AppData\Local\Programs\Python\Python312\python.exe
 set TRAIN=C:\Users\elias\beaver-train\venv\Scripts\python.exe
-set LEGALPDF_TRANSITION_GRAMMAR=C:\Users\elias\fable\grammar.json
 set LEGALPDF_TRANSITION_CONFUSIONS=C:\Users\elias\fable\confusions.json
 set LEGALPDF_INDRA_MODEL_PACK=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\indra
 set LEGALPDF_ONNXRUNTIME=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\onnx\onnxruntime.dll
@@ -26,7 +25,6 @@ if not exist %F%\inputs.done (
 if not exist %D%\rows8\rows-train.jsonl %GRADER% rows %S% %D%\rows8 > %F%\rows8.out 2> %F%\rows8.err
 if not exist %D%\gold8.jsonl %PY% gold_labels.py %D%\gold8.jsonl %S% %D%\rows8\rows-train.jsonl %D%\rows8\rows-development.jsonl
 set LEGALPDF_TRANSITION_GOLD=%D%\gold8.jsonl
-set LEGALPDF_TRANSITION_EMIT=1
 set LEGALPDF_TRANSITION_DUMP=%D%\lines8
 set LEGALPDF_TRANSITION_DUMP_LINES=0
 if not exist %D%\lines8.done (

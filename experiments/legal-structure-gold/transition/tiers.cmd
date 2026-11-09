@@ -13,7 +13,6 @@ set G=C:\Users\elias\AppData\Local\OpenLegalData\gold-grades
 set S=C:\Users\elias\gold-store-next\gold
 set Y=C:\Users\elias\gold-store\gold
 set GRADER=C:\Users\elias\fable\grader-next7.exe
-set LEGALPDF_TRANSITION_GRAMMAR=C:\Users\elias\fable\grammar.json
 set LEGALPDF_TRANSITION_CONFUSIONS=C:\Users\elias\fable\confusions.json
 set LEGALPDF_INDRA_MODEL_PACK=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\indra
 set LEGALPDF_ONNXRUNTIME=C:\Users\elias\Desktop\oajd_compute\lsg-v4\legal-pdf-parser\runtime\onnx\onnxruntime.dll
@@ -45,21 +44,12 @@ if exist %T%\%N%\folds.done goto tierrounds
 if not exist %T%\%N%\folds.done exit /b 1
 echo %DATE% %TIME% %N% folds>> %T%\stages.log
 :tierrounds
-set LEGALPDF_TRANSITION_LOCAL_SCORES=%T%\%N%\scores
 set DUMPS=
 for %%r in (1 2) do call :tround %%r || exit /b 1
-set LEGALPDF_TRANSITION_RANKER=%T%\%N%\ranker2.txt
-set LEGALPDF_TRANSITION_EMIT=1
-set LEGALPDF_TRANSITION_BEAM=1
 %GRADER% grade %Y% --split development --out %G%\grade-long-%N%-dev-greedy.json > %G%\long-%N%-dev-greedy.out 2> %G%\long-%N%-dev-greedy.err
-set LEGALPDF_TRANSITION_BEAM=%3
 %GRADER% grade %Y% --split development --out %G%\grade-long-%N%-dev-beam%3.json > %G%\long-%N%-dev-beam%3.out 2> %G%\long-%N%-dev-beam%3.err
-set LEGALPDF_TRANSITION_BEAM=1
 %GRADER% grade %S% --split development --group label_source=a2aj-align --out %G%\grade-long-%N%-a2aj-dev.json > %G%\long-%N%-a2aj-dev.out 2> %G%\long-%N%-a2aj-dev.err
 %PY% headline.py %G%\grade-long-%N%-dev-greedy.json %G%\grade-long-%N%-dev-beam%3.json >> %T%\rounds.txt
-set LEGALPDF_TRANSITION_EMIT=
-set LEGALPDF_TRANSITION_RANKER=
-set LEGALPDF_TRANSITION_LOCAL_SCORES=
 echo %DATE% %TIME% %N% graded>> %T%\stages.log
 exit /b 0
 
@@ -71,8 +61,6 @@ if exist %T%\%N%\ranker%R%.txt exit /b 0
 if exist %T%\%N%\dump%R%.done goto tfit
 if exist %T%\%N%\dump%R% rmdir /s /q %T%\%N%\dump%R%
 set LEGALPDF_TRANSITION_GOLD=%T%\gold.jsonl
-set LEGALPDF_TRANSITION_RANKER=
-if %R% gtr 1 set LEGALPDF_TRANSITION_RANKER=%T%\%N%\ranker%P%.txt
 set LEGALPDF_TRANSITION_DUMP=%T%\%N%\dump%R%
 set LEGALPDF_TRANSITION_DUMP_LINES=0.25
 echo %DATE% %TIME% %N% round %R% rollouts>> %T%\stages.log
@@ -80,14 +68,11 @@ echo %DATE% %TIME% %N% round %R% rollouts>> %T%\stages.log
 set LEGALPDF_TRANSITION_DUMP=
 set LEGALPDF_TRANSITION_DUMP_LINES=
 set LEGALPDF_TRANSITION_GOLD=
-set LEGALPDF_TRANSITION_RANKER=
 %PY% check_dump.py %T%\%N%\dump%R% 3500 || exit /b 1
 echo done> %T%\%N%\dump%R%.done
 :tfit
 %PY% -u fit_transition.py ranker %S% %T%\%N%\ranker%R%.txt %DUMPS% > %G%\long-%N%-ranker%R%.out 2>&1 || exit /b 1
 setlocal
-set LEGALPDF_TRANSITION_RANKER=%T%\%N%\ranker%R%.txt
-set LEGALPDF_TRANSITION_EMIT=1
 %GRADER% grade %Y% --split development --out %G%\grade-long-%N%-round%R%-dev.json > nul 2> %G%\long-%N%-round%R%-dev.err
 %PY% headline.py %G%\grade-long-%N%-round%R%-dev.json >> %T%\rounds.txt
 endlocal
