@@ -168,8 +168,20 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
   const prepare = (bytes, request, signal) => parser
     ? parser.prepare(bytes, request, signal) : invokeOff("preparePdfDocument", [bytes, request]);
   async function invokeAsync(name, positional) {
-    // A source's parse the host parser cached is made readable here before the source is opened.
-    if (name === "openSource") await parser?.seed(positional[1]?.sourceSha256);
+    if (name === "openSource") {
+      const [bytes, source] = positional;
+      await parser?.seed(source?.sourceSha256);
+      if ((parser || recognizePdf) && source?.fileType === "pdf") {
+        // Host-prepared PDFs reopen by cache key; their native engine has no host OCR provider.
+        const { ocr, layout, ...pdf } = source.pdf ?? {};
+        if (bytes) {
+          const summary = await invokeAsync("preparePdfDocument", [bytes, { ...source.pdf,
+            id: `${source.documentId}:${source.versionId}`, expectedSourceSha256: source.sourceSha256 }]);
+          pdf.cacheKey = summary.cacheKey;
+        }
+        return invokeOff(name, [undefined, { ...source, pdf }]);
+      }
+    }
     if (name !== "preparePdfDocument") return invokeOff(name, positional);
     const [bytes, request, signal, progress] = positional;
     signal?.throwIfAborted();
