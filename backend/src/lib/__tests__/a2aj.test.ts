@@ -151,6 +151,32 @@ describe("A2AJ client", () => {
     );
   });
 
+  it.each([
+    { name: "a one-paragraph decision with a reported citation", citation: "2031 ONCA 700", label: "1", text: "REASONS FOR JUDGMENT\n" +
+      "[1] The court considered the submissions and finds that the notice was adequate. " +
+      "The prior decision explains why written notice was sufficient in these circumstances:\n" +
+      "Harbour v. Board, [2030] 1 C.T.C. 140. The appeal is dismissed with costs." },
+    { name: "a paragraph joined to a heading in an excerpt", citation: "2031 ONCA 701", label: "63", text:
+      "[62] The court considered the evidence and the parties' submissions before deciding the notice issue.\n" +
+      "Should the Proposed Panelists attend the hearing, permitting their cross-examination by the Applicant? " +
+      "[63] The court finds that the notice was adequate and dismisses this ground of appeal for the following reasons.\n" +
+      "[64] The remaining grounds are considered separately and do not alter the disposition of this appeal." },
+  ])("reads $name through the provider", async ({ citation, label, text }) => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ results: [{
+      dataset: "ONCA", citation_en: citation, name_en: "Harbour v Board", unofficial_text_en: text,
+    }] }), { status: 200 })));
+    const document = await a2ajLegalSourceProvider.document({ citation, docType: "cases", dataset: "ONCA" });
+    expect(document).not.toBeNull();
+    expect(structureNative().documentText(document!.native)).toBe(text);
+    const passages = await a2ajLegalSourceProvider.readPassage!({
+      source: { provider: "a2aj", id: citation, kind: "case", citation, collection: "ONCA", language: "en" },
+      locator: { kind: "paragraph", value: label },
+    });
+    expect(passages).toHaveLength(1);
+    expect(passages[0]?.locator.label).toBe(label);
+    expect(passages[0]?.text).toContain("the notice was adequate");
+  });
+
   const answer = (status = 200, headers: Record<string, string> = {}) => new Response(
     JSON.stringify(status === 200 ? { results: [] } : { error: "limited" }),
     { status, headers: { "content-type": "application/json", ...headers } });
