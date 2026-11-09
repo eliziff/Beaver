@@ -64,12 +64,19 @@ Follow-up, November 9:
   subcrates, citation build inputs and legal-text (`a02911b21`). The owner Cargo
   manifests use the sibling main checkouts, avoiding an older Git dependency
   silently differing from the application build.
-- The broad consumer run had 536 passes, 15 failures and one skipped test across
-  68 files. Subsequent focused checks fix the stale consumers and the Word/XLS
-  failures; this is not yet a fresh broad pass. The duplicate short paragraph
-  fixture still abstains with `unavailable`, where its older assertion expected
-  `ambiguous`. No paragraph geometry is invented; the rejected primary count and
-  this diagnostic difference remain under review.
+- The first broad consumer run had 536 passes, 15 failures and one skipped test
+  across 68 files. The later hermetic backend run covered 157 files and 1,120
+  tests: 1,069 passed, five failed and 46 skipped. Its five failures were journal
+  assertions using removed fields and a Library fixture using an internal ID as
+  its printed page label. Correcting those tests gives 15 passes and one skip in
+  the two affected files. Backend type checking also passes. Live opt-in tests
+  and the separate Word runtime suite are not included in this proof.
+  The duplicate short paragraph
+  fixture's expected diagnostic is now `unavailable`: source inspection and the
+  primary-count policy show its conflicting `[29], [30], [29]` establishes no
+  paragraph index. The older `ambiguous` assertion came from the removed raw-label
+  lookup. Both versions abstain with no geometry; a missing label in a valid
+  `[28], [30]` count still returns `not_found`.
 - The complete standalone browser run exercised 19 of 20 cases: 12 passed and
   seven failed; the long-article local fixture was absent. Citation edits,
   gathering, reloads, cancellation, source attachment and ordinary exports passed
@@ -78,17 +85,23 @@ Follow-up, November 9:
   The scan export defect was traced to invisible text starting at the bottom of
   the page: subsequent lines fell outside its crop. The corrected writer and
   statute fallback checks pass all 40 PDF assembly/Authorities build tests.
-  The browser candidate has not yet been rerun with these changes.
+  The editor's browser OCR adapter also retained old `pageNumber`/`rect` fields;
+  it now emits the shared `number`/`bbox` product directly. The browser candidate
+  has not yet been rerun with these changes.
 - Both retained Word outputs open read-only in hidden Microsoft Word outside the
   restricted shell, without repair or field errors. The host shows their tables,
   italics, citation fields and tab references. Inserting Word's own table and
   checking the complete Word matrix still remain.
 - Parser certification remains open. The frozen 748-document cache is absent
-  from its recorded scratch path. The existing full gold-input run is underway
-  using one worker and local OCR, without oracle layout. Its failures and source
-  denominator must be checked explicitly. The PDF Inspector workflow currently
-  emits candidate products without comparing the recorded frozen hashes; its
-  successful exit alone is not a fidelity gate.
+  from its recorded scratch path. The existing full gold-input run, with one
+  worker and local OCR but no oracle layout, produced 22 complete inputs before
+  being interrupted for integration checks. These remain in the canonical
+  `gold-inputs/d8f66d9741bdcc64` cache and the run must resume; no grade is claimed.
+  Gold checkout `ab7bed6af0de3f1901815ac30b99b1e179836e88` has unchanged gold files.
+  The PDF Inspector workflow had lost its independent source assertions and
+  frozen-hash comparison in parser `4ee3081`. They are restored for validation,
+  with native paragraph labels and unchanged frozen hashes. All 13 source PDFs
+  have been resolved locally and checked against their recorded SHA-256 values.
 - Authorities Lite still imports the removed pagination module and performs PDF
   extraction/paragraph assembly in JavaScript. It needs the parser's native PDF
   products; restoring the deleted shim would preserve duplicate policy. The

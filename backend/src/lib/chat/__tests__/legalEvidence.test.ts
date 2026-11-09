@@ -33,7 +33,7 @@ describe("production legal evidence", () => {
     const sourceText = "First obligation. Second obligation.";
     const receipts = [[0, 17], [18, 36]].map(([start, end]) => createLibraryEvidence({
       documentId: "doc", versionId: "v1", filename: "Terms.docx", sourceText,
-      spanText: sourceText.slice(start, end), start, end, locator: { kind, label: kind === "page" ? "page1" : "text paragraph 34" },
+      spanText: sourceText.slice(start, end), start, end, locator: { kind, label: kind === "page" ? "1" : "text paragraph 34" },
     }));
     receipts.forEach((receipt) => registerLegalEvidence(state, receipt));
     expect((await submitLegalEvidenceAnswer({ claims: [0, 1, 0].map((index) => ({

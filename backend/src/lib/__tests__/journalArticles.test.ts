@@ -295,12 +295,12 @@ describe("local journal articles", () => {
     expect(journal.lookup(article, "page", "101")).toMatchObject({
       status: "found",
       anchor: "page=2",
-      block: { origin: "native" },
+      block: { node: { source: "native" } },
     });
     expect(journal.lookup(article, "section", "II")).toMatchObject({
       status: "found",
       block: {
-        origin: "native",
+        node: { source: "native" },
         text: expect.stringContaining("Canonical analysis paragraph."),
       },
     });
@@ -308,7 +308,7 @@ describe("local journal articles", () => {
       status: "found",
       anchor: "page=1",
       block: {
-        origin: "native",
+        node: { source: "native" },
         text: "1\t\nNative paired footnote.",
       },
     });
@@ -321,10 +321,10 @@ describe("local journal articles", () => {
 
     const article = (await journal.document("7"))!;
     expect(journal.lookup(article, "footnote", "1").status).toBe("unavailable");
-    expect(journal.lookup(article, "page", "100").block?.origin).toBe(
+    expect(journal.lookup(article, "page", "100").block?.node.source).toBe(
       "native",
     );
-    expect(journal.lookup(article, "section", "I").block?.origin).toBe(
+    expect(journal.lookup(article, "section", "I").block?.node.source).toBe(
       "native",
     );
   });
@@ -337,7 +337,7 @@ describe("local journal articles", () => {
     journal.closeDatabases();
 
     const article = (await journal.document("7"))!;
-    expect(journal.lookup(article, "page", "100").block?.origin).toBe(
+    expect(journal.lookup(article, "page", "100").block?.node.source).toBe(
       "native",
     );
     expect(journal.lookup(article, "section", "I").status).toBe("unavailable");
@@ -437,7 +437,7 @@ describe("local journal articles", () => {
     const article = (await journal.document("13"))!;
     expect(journal.lookup(article, "page", captured.pageRows[0].page_label)).toMatchObject({
       status: "found",
-      block: { origin: "native" },
+      block: { node: { source: "native" } },
     });
   });
 });

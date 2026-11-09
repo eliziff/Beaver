@@ -42,7 +42,7 @@ it("locates a numeric pinpoint within a unique citation and abstains on repeated
     [[citation, "A different number 29 appears below."], "found"],
     [[citation, citation], "ambiguous"],
   ] as const) {
-    const bytes = sourcePdf([...lines]), document = await await opened(bytes);
+    const bytes = sourcePdf([...lines]), document = await opened(bytes);
     const result = await pdfPassageGeometry(document, [{ id: "pinpoint", locatorKind: "page",
       locator: "1", physicalPages: [1], quoteSelections: [{ text: citation, start: 19, end: 21 }] }]);
     expect(result.targets[0].quotes[0]).toMatchObject({ text: "29", status });
@@ -54,30 +54,41 @@ it("locates a numeric pinpoint within a unique citation and abstains on repeated
   }
 });
 
-it("does not invent a paragraph when printed numbering is missing or duplicated", async () => {
-  for (const [lines, status] of [
-    [["[28] First paragraph with enough text.", "[30] The next paragraph with enough text."], "not_found"],
-    [["[29] First paragraph with enough text.", "[30] Intervening paragraph with enough text.", "[29] Repeated label with enough text."], "ambiguous"],
-  ] as const) {
-    const bytes = sourcePdf([...lines]), document = await await opened(bytes);
+it.each([
+  { condition: "missing", lines: ["[28] First paragraph with enough text.", "[30] The next paragraph with enough text."], status: "not_found" },
+  // Conflicting numbering establishes no primary paragraph count. Missing numbers in an established count are distinct.
+  { condition: "duplicated", lines: ["[29] First paragraph with enough text.", "[30] Intervening paragraph with enough text.", "[29] Repeated label with enough text."], status: "unavailable" },
+])("does not invent a paragraph when printed numbering is $condition", async ({ lines, status }) => {
+    const bytes = sourcePdf(lines), document = await opened(bytes);
     const result = await pdfPassageGeometry(document, [{ id: "29", locatorKind: "paragraph", locator: "29" }]);
     expect(result.targets[0].status).toBe(status);
     expect(result.targets[0].pages.flatMap(page => page.passageRects)).toEqual([]);
-  }
 });
 
 it.skipIf(!process.env.LEGAL_STRUCTURE_LATIMER_PDF)("resolves the original Latimer paragraphs 21 and 24 on their actual PDF pages", async () => {
   const bytes = readFileSync(process.env.LEGAL_STRUCTURE_LATIMER_PDF!);
-  const native = structureNative(), document = await await opened(bytes);
+  const native = structureNative(), document = await opened(bytes);
   expect(native.pdfDocumentSummary(document).sha256).toBe("c693092532727c6dcef049d90489414b5efd2dffb377d1a4a2ba08da572f7d01");
-  const { targets } = await pdfPassageGeometry(document, bytes,
+  const { targets } = await pdfPassageGeometry(document,
     ["21", "24"].map(locator => ({ id: locator, locatorKind: "paragraph", locator })));
   expect(targets.map(target => target.status)).toEqual(["found", "found"]);
   expect(targets.map(target => target.pages.map(p => p.pageNumber))).toEqual([[13, 14], [15]]);
   // Independent visual bounds: both columns, all continuation lines, no next heading.
   const bounds = [[84, 638, 534, 674], [60, 114, 510, 161], [84, 300, 534, 496]];
   targets.flatMap(target => target.pages).forEach((page, index) => {
-    page.passageRects[0].forEach((coordinate, axis) =>
+    // The engine returns each line's rectangle. The printed number beside the right column is separate
+    // from the body bounds pinned above; it is part of the passage too.
+    const body = page.passageRects.filter(([left]) => left < 540);
+    const labels = page.passageRects.filter(([left]) => left >= 540);
+    expect(labels).toHaveLength(index === 1 ? 0 : 1);
+    for (const label of labels) {
+      expect(label[0]).toBeCloseTo(549, 0);
+      expect(label[2]).toBeCloseTo(558, 0);
+      expect(Math.abs(label[1] - (index === 0 ? 636 : 297))).toBeLessThan(2);
+    }
+    const envelope = [Math.min(...body.map(rect => rect[0])), Math.min(...body.map(rect => rect[1])),
+      Math.max(...body.map(rect => rect[2])), Math.max(...body.map(rect => rect[3]))];
+    envelope.forEach((coordinate, axis) =>
       expect(Math.abs(coordinate - bounds[index][axis])).toBeLessThan(2));
     expect(page.text).not.toMatch(/Legislation|Issues|questions en litige/);
   });
@@ -89,7 +100,7 @@ it("locates a rebuilt statute's sections and subsections, and reads its pages in
     `an exemption from rule ${index + 1} in writing.`).join("\n\n");
   const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: "Harbour Berths Act",
     citation: "SC 2031, c 7", date: null, sourceUrl: null, text: `## Berths\n\n${provisions}` });
-  const native = structureNative(), document = await await opened(bytes);
+  const native = structureNative(), document = await opened(bytes);
   const texts = native.pdfPageTexts(document);
   expect(texts).toHaveLength(native.pdfDocumentSummary(document).pageCount);
   expect(texts.join(" ")).toContain("The harbour authority sets rule 9 for vessels at berth.");
