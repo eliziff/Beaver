@@ -215,7 +215,7 @@ mod corpus {
     }
 
     fn words(line: &legalpdf::PassageLine) -> String {
-        line.words.iter().map(|(text, _)| text.as_str()).collect::<Vec<_>>().join(" ")
+        line.text.clone()
     }
 
     // -- the gold ---------------------------------------------------------------------------------------------------

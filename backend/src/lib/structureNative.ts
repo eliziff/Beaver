@@ -252,6 +252,8 @@ type StructureAddon = {
     bytes: Buffer; detected: number; converted: number; already_linked: number;
     review_required: number; bookmarks_added: number; restarted_numbering: boolean; unsafe_or_split_fields: number;
   }>;
+  /** The first two pages' native witnesses for source identification; no recognition or structure inference. */
+  pdfOpening(bytes: Buffer): Promise<{ pageCount: number; pages: Array<NativePdfTextPage & { marginText: string }> }>;
   /** `progress(recognized, total)` follows text recognition as pages finish. */
   preparePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal,
     progress?: (recognized: number, total: number) => void): Promise<PdfPreparationSummary>;

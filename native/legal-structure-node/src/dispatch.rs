@@ -139,6 +139,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         #[cfg(feature = "docx")]
         "docxAuthorityTextUnits" => done(legalpdf::docx_to_toa_text_units(bytes).map_err(|error| error.to_string()).and_then(value)),
         #[cfg(feature = "legalpdf")]
+        "pdfOpening" => done(value(legalpdf::pdf_opening(bytes).map_err(Failure::from)?)),
+        #[cfg(feature = "legalpdf")]
         "preparePdfDocument" => done(value(legalpdf::prepare_pdf_document(bytes, &call.get("request")?, progress)
             .map_err(Failure::from)?)),
         "openSource" => done(value(source::open_source(bytes, call.get("request")?)?.map(Handle))),

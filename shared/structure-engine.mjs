@@ -3,7 +3,7 @@
 // to WebAssembly in the browser (native/legal-structure-node/src/dispatch.rs).
 
 const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
-  "fixDocxSupraCrossReferences", "docxAuthorityTextUnits", "preparePdfDocument", "openSource", "sourceText",
+  "fixDocxSupraCrossReferences", "docxAuthorityTextUnits", "pdfOpening", "preparePdfDocument", "openSource", "sourceText",
   "pdfPassageGeometry", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments"]);
 // Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes, and a reply's bytes are its
 // value's `bytes`; "document" is a document's handle, and a reply's `{ $document: handle }` its document.
@@ -13,6 +13,7 @@ export const SIGNATURES = {
   fixDocxSupraCrossReferences: ["bytes"],
   docxAuthorityTextUnits: ["bytes"],
   preparePdfDocument: ["bytes", "request"],
+  pdfOpening: ["bytes"],
   // A stored source read as its document (none where the engine keeps none and no bytes are given), or as its text.
   openSource: ["bytes", "request"], sourceText: ["bytes", "request"],
   pdfDocumentSummary: ["document"], pdfRecognizedText: ["document", "pages"],
@@ -157,6 +158,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     return result(read);
   }
   async function invokeOff(name, positional, progress) {
+    if (transport.prepare) await transport.prepare();
     if (!transport.callAsync) return invoke(name, positional);
     const framed = request(name, positional);
     let reply;

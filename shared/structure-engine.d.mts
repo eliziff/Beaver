@@ -1,5 +1,6 @@
 export const SIGNATURES: Record<string, string[]>;
 export type StructureEngineTransport = {
+  prepare?(): Promise<void>;
   call(request: Uint8Array): Uint8Array;
   callAsync?(request: Uint8Array, progress?: (done: number, total: number) => void): Promise<Uint8Array>;
   restart?(): string;
