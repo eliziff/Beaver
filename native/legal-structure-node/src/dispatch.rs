@@ -147,19 +147,19 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "queryPdfDocument" => done(with_document(doc()?, |d| engine::query_pdf_document(d, &call.get("request")?).and_then(value))),
         "docxStructureLint" => done(with_document(doc()?, |d| engine::docx_structure_lint_json(d).and_then(value))),
         "documentText" => done(with_document(doc()?, |d| value(engine::document_text(d, call.get("limit")?)))),
-        "documentTextBytes" => done(with_document(doc()?, |d| value(engine::document_text_bytes(d)))),
-        "documentRevision" => done(with_document(doc()?, |d| value(engine::document_revision(d)))),
-        "readDocumentTextWindow" => done(with_document(doc()?, |d| value(engine::read_document_text_window(
-            d, call.get("offset")?, call.get("startChar")?, call.get("limit")?)))),
-        "readDocumentTextRange" => done(with_document(doc()?, |d| value(engine::read_document_text_range(
-            d, call.get("start")?, call.get("end")?, call.get("offset")?, call.get("limit")?, call.get("startChar")?)))),
+        "documentTextBytes" => done(with_document(doc()?, |d| value(d.structure().query_text().len()))),
+        "documentRevision" => done(with_document(doc()?, |d| value(&d.structure().revision))),
+        "readDocumentTextWindow" => done(with_document(doc()?, |d| value(d.query.text_window(
+            d.structure(), call.get("offset")?, call.get("startChar")?, call.get("limit")?)))),
+        "readDocumentTextRange" => done(with_document(doc()?, |d| value(d.query.text_range_window(
+            d.structure(), call.get("start")?, call.get("end")?, call.get("offset")?, call.get("limit")?, call.get("startChar")?)))),
         "documentFingerprint" => done(with_document(doc()?, |d| value(engine::document_fingerprint_of(d)))),
         "documentAnchors" => done(with_document(doc()?, |d| engine::document_anchors(d, call.get("kind")?, call.get("end")?).and_then(value))),
-        "legalSourceViewer" => done(with_document(doc()?, |d| engine::legal_source_viewer(
-            d, &call.get::<String>("primaryKind")?, call.get("limit")?).and_then(value))),
-        "statuteOutline" => done(engine::statute_outline(&call.get::<String>("text")?,
-            call.get::<Option<bool>>("articles")?.unwrap_or(false)).and_then(value)),
-        "caseOutline" => done(engine::case_outline(&call.get::<String>("text")?).and_then(value)),
+        "legalSourceViewer" => done(with_document(doc()?, |d| value(d.query.viewer(d.structure(),
+            engine::document_kind(&call.get::<String>("primaryKind")?)?, call.get::<Option<usize>>("limit")?.unwrap_or(u32::MAX as usize))))),
+        "statuteOutline" => done(legal_structure::statute_outline(&call.get::<String>("text")?,
+            call.get::<Option<bool>>("articles")?.unwrap_or(false)).map_err(|error| error.to_string()).and_then(value)),
+        "caseOutline" => done(legal_structure::case_outline(&call.get::<String>("text")?).map_err(|error| error.to_string()).and_then(value)),
         "statuteProvisionSpans" => done(legal_structure::statute_provision_spans(&call.get::<String>("text")?,
             &call.get::<Vec<String>>("labels")?).map_err(|error| error.to_string()).and_then(value)),
         "collapseLabels" => done(value(legal_structure::collapse_labels(&call.get::<Vec<String>>("labels")?, &call.get::<String>("kind")?))),
@@ -167,18 +167,19 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "filingCover" => done(value(legal_structure::filing_cover(&call.get::<String>("opening")?,
             call.get::<Option<String>>("title")?.as_deref()))),
         "documentCaseOutline" => done(with_document(doc()?, |d|
-            engine::case_outline(engine::document_text(d, None)).and_then(value))),
+            legal_structure::case_outline(engine::document_text(d, None)).map_err(|error| error.to_string()).and_then(value))),
         "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(d)))),
-        "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),
-        "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),
+        "documentTableCells" => done(with_document(doc()?, |d| value(d.query.table_cells(d.structure())))),
+        "citationLookupKey" => done(value(legal_structure::citation_lookup_key(&call.get::<String>("text")?))),
         // The same call, which JavaScript runs off its thread.
-        "citationEngineCall" | "citationEngineCallAsync" => done(engine::citation_engine_call(
-            &call.get::<String>("method")?, call.get("request")?)),
+        "citationEngineCall" | "citationEngineCallAsync" => done(legal_structure::citations::api::call_value(
+            &call.get::<String>("method")?, call.get("request")?).map_err(|error| error.to_string())),
         "documentReadingOrder" => done(value(legal_structure_features::document_reading_order(
             &call.get::<Vec<legal_structure_features::ReadingOrderUnit>>("units")?))),
-        "citationLookupKeys" => done(value(engine::citation_lookup_keys(&call.get::<Vec<String>>("texts")?))),
+        "citationLookupKeys" => done(value(call.get::<Vec<String>>("texts")?.iter()
+            .map(|text| legal_structure::citation_lookup_key(text)).collect::<Vec<_>>())),
         "citationKeyVersion" => done(value(engine::citation_key_version())),
-        "providerCitationsInText" => done(value(engine::provider_citations(&call.get::<String>("text")?))),
+        "providerCitationsInText" => done(value(legal_structure::provider_citations_in_text(&call.get::<String>("text")?))),
         "canliiCaseUrl" => done(value(legal_structure::canlii_case_url(&call.get::<Vec<String>>("citations")?,
             &call.get::<Option<String>>("language")?.unwrap_or_default(), call.get::<Option<String>>("court")?.as_deref()))),
         "canliiLawUrl" => done(value(legal_structure::canlii_law_url(&call.get::<String>("text")?,
@@ -193,15 +194,16 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "sourceLink" => done(with_document(doc()?, |d| value(legal_structure_features::source_link(
             &d.query, d.structure(), &call.get::<legal_structure_features::SourceLinkRequest>("request")?)))),
         "canliiCourtRoute" => done(value(legal_structure::canlii_court_route(&call.get::<String>("court")?))),
-        "citationOccurrencesInText" => done(value(engine::citation_occurrences(&call.get::<String>("text")?))),
-        "authorityReferencesInText" => done(value(engine::authority_references(&call.get::<String>("text")?))),
-        "hasCitationInText" => done(engine::has_citation(&call.get::<String>("text")?).and_then(value)),
-        "groundedProseErrors" => done(engine::prose_errors(
+        "citationOccurrencesInText" => done(value(legal_structure::citation_occurrences_in_text(&call.get::<String>("text")?))),
+        "authorityReferencesInText" => done(value(legal_structure::authority_references_in_text(&call.get::<String>("text")?))),
+        "hasCitationInText" => done(legal_structure::has_citation_in_text(&call.get::<String>("text")?)
+            .map_err(|error| error.to_string()).and_then(value)),
+        "groundedProseErrors" => done(value(legal_structure_features::grounded_prose_errors(
             &call.get::<String>("text")?, &call.get::<Vec<String>>("citedEvidenceIds")?,
-            call.get("visibleEvidence")?).and_then(value)),
-        "quoteRepairSuggestion" => done(value(engine::quote_repair(
+            &call.get::<Vec<legal_structure_features::VisibleEvidenceText>>("visibleEvidence")?))),
+        "quoteRepairSuggestion" => done(value(legal_structure_features::quote_repair_suggestion(
             &call.get::<String>("claim")?, &call.get::<Vec<String>>("spans")?))),
-        "markedQuoteSpans" => done(value(engine::quote_spans(&call.get::<String>("text")?))),
+        "markedQuoteSpans" => done(value(legal_structure_features::marked_quote_spans(&call.get::<String>("text")?))),
         "documentTextUnits" => {
             let sentences = call.get::<bool>("sentences")?;
             done(with_document(doc()?, |d| value(legal_structure::text_units(engine::document_text(d, None), sentences))))
@@ -280,15 +282,15 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         #[cfg(feature = "a2aj")]
         "citatorMetrics" => done(legal_structure_features::citator_graph::authority_metrics(&call.get::<PathBuf>("store")?,
             &call.get::<Vec<String>>("citations")?).map_err(|error| error.to_string()).and_then(value)),
-        "readDocumentRange" => done(with_document(doc()?, |d| engine::read_document_range(
-            d, &call.get::<String>("kind")?, &call.get::<String>("from")?, &call.get::<String>("to")?,
-            call.get("contextBlocks")?).and_then(value))),
+        "readDocumentRange" => done(with_document(doc()?, |d| value(d.query.read_range(d.structure(),
+            engine::document_kind(&call.get::<String>("kind")?)?, &call.get::<String>("from")?, &call.get::<String>("to")?,
+            call.get("contextBlocks")?)))),
         "smallestContainingDocumentBlock" => done(with_document(doc()?, |d| value(
-            engine::smallest_containing_document_block(d, call.get("start")?, call.get("end")?)))),
+            d.query.smallest_containing_block(d.structure(), call.get("start")?, call.get("end")?)))),
         "lookupStructureBlock" => done(with_document(doc()?, |d| engine::lookup_structure_block(
             d, call.get("locator")?, call.get("contextBlocks")?).and_then(value))),
-        "resolveDocumentAddressSpans" => done(with_document(doc()?, |d| engine::resolve_document_address_spans(
-            d, &call.get::<String>("spec")?, &call.get::<String>("follow")?, call.get("depth")?).and_then(value))),
+        "resolveDocumentAddressSpans" => done(with_document(doc()?, |d| value(d.query.resolve_address_spans(d.structure(),
+            &call.get::<String>("spec")?, engine::follow_direction(&call.get::<String>("follow")?)?, call.get("depth")?)))),
         "graphScope" => done(with_document(doc()?, |d| engine::graph_scope(
             d, &call.get::<legal_structure::GraphScopeSeed>("seed")?, &call.get::<String>("follow")?, call.get("depth")?,
             call.get("includeDescendants")?, call.get("includeUnits")?).and_then(value))),

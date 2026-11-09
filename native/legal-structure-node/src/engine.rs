@@ -1,8 +1,8 @@
-//! Target-neutral engine operations. The Node addon (`node.rs`) and the browser
-//! WebAssembly module (`wasi.rs`) are thin bindings over these functions.
+//! The engine's documents and the operations on them that do more than call a reader: what dispatch.rs, the one
+//! surface the Node addon and the browser's WebAssembly module share, calls beside the readers themselves.
 
-use legal_structure::{analyze_instrument, analyze_native_markup, authority_references_in_text, citation_lookup_key, citation_occurrences_in_text, document_fingerprint, docx_structure_lint, has_citation_in_text, journal_document_structure, journal_text_document_structure, provider_citations_in_text, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, Derivation, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, NodeKind, ProviderTextInput};
-use legal_structure_features::{grounded_prose_errors, marked_quote_spans, quote_repair_suggestion, OutlineEntry, VisibleEvidenceText};
+use legal_structure::{analyze_instrument, analyze_native_markup, citation_lookup_key, document_fingerprint, docx_structure_lint, journal_document_structure, journal_text_document_structure, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, Derivation, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, NodeKind, ProviderTextInput};
+use legal_structure_features::{grounded_prose_errors, OutlineEntry, VisibleEvidenceText};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
@@ -121,11 +121,11 @@ pub fn native_build_features() -> &'static str {
     }
 }
 
-fn document_kind(value: &str) -> CoreResult<NodeKind> {
+pub(crate) fn document_kind(value: &str) -> CoreResult<NodeKind> {
     NodeKind::named(value).ok_or_else(|| "invalid document block kind".to_owned())
 }
 
-fn follow_direction(value: &str) -> CoreResult<FollowDirection> {
+pub(crate) fn follow_direction(value: &str) -> CoreResult<FollowDirection> {
     match value {
         "none" => Ok(FollowDirection::None),
         "out" => Ok(FollowDirection::Out),
@@ -189,46 +189,6 @@ pub fn document_text(document: &NativeDocument, limit: Option<u32>) -> &str {
     limit.map_or(text, |limit| utf16_prefix_ceil(text, limit as usize))
 }
 
-pub fn document_text_bytes(document: &NativeDocument) -> u32 {
-    document.structure().query_text().len() as u32
-}
-
-pub fn document_revision(document: &NativeDocument) -> &str {
-    &document.structure().revision
-}
-
-pub fn read_document_text_window(
-    document: &NativeDocument,
-    offset: u32,
-    start_char: u32,
-    limit: u32,
-) -> impl Serialize + '_ {
-    document.query.text_window(
-        document.structure(),
-        offset as usize,
-        start_char as usize,
-        limit as usize,
-    )
-}
-
-pub fn read_document_text_range(
-    document: &NativeDocument,
-    start: u32,
-    end: u32,
-    offset: Option<u32>,
-    limit: u32,
-    start_char: Option<u32>,
-) -> impl Serialize + '_ {
-    document.query.text_range_window(
-        document.structure(),
-        start as usize,
-        end as usize,
-        offset.map(|value| value as usize),
-        limit as usize,
-        start_char.map(|value| value as usize),
-    )
-}
-
 pub fn document_fingerprint_of(document: &NativeDocument) -> DocumentFingerprint {
     match &document.product {
         NativeProduct::Structure(structure) => document_fingerprint(structure),
@@ -250,42 +210,10 @@ pub fn document_anchors(document: &NativeDocument, kind: Option<String>, end: Op
         .collect::<Vec<_>>())
 }
 
-pub fn legal_source_viewer<'a>(
-    document: &'a NativeDocument,
-    primary_kind: &str,
-    limit: Option<u32>,
-) -> CoreResult<impl Serialize + 'a> {
-    Ok(document.query.viewer(
-        document.structure(),
-        document_kind(primary_kind)?,
-        limit.map_or(u32::MAX as usize, |value| value as usize),
-    ))
-}
-
-/// A statute's outline from its text: its parts, headings and provisions with their marginal
-/// notes, each with its span (UTF-16) covering everything under it.
-pub fn statute_outline(text: &str, articles: bool) -> CoreResult<Vec<legal_structure::StatuteOutlineEntry>> {
-    legal_structure::statute_outline(text, articles).map_err(native_error)
-}
-
-/// A judgment's outline from its text: its headings by level, its numbered paragraphs, the lists
-/// within them, and the matter around its reasons, each with its span (UTF-16).
-pub fn case_outline(text: &str) -> CoreResult<Vec<legal_structure::CaseOutlineEntry>> {
-    legal_structure::case_outline(text).map_err(native_error)
-}
-
 /// The document's own outline: its headings and its top-level sections, in order.
 pub fn document_outline(document: &NativeDocument) -> Vec<OutlineEntry> {
     let pdf = !matches!(document.product, NativeProduct::Structure(_));
     legal_structure_features::document_outline(document.structure(), pdf)
-}
-
-pub fn document_table_cells(document: &NativeDocument) -> impl Serialize + '_ {
-    document.query.table_cells(document.structure())
-}
-
-pub fn citation_lookup_key_of(text: &str) -> String {
-    citation_lookup_key(text)
 }
 
 /// The pages a text's full citations of reported cases cite ("[1986] 1 SCR 103" cites 103).
@@ -304,10 +232,6 @@ pub fn reporter_start_pages(citations: &[String]) -> Vec<u32> {
     pages.sort_unstable();
     pages.dedup();
     pages
-}
-
-pub fn citation_engine_call(method: &str, request: serde_json::Value) -> Result<serde_json::Value, String> {
-    legal_structure::citations::api::call_value(method, request).map_err(|error| error.to_string())
 }
 
 /// Each quotation located in a document's text and, with `compare`, compared with it, with what grounded_prose_errors
@@ -342,10 +266,6 @@ pub fn quote_locate_document(
     }).collect())
 }
 
-pub fn citation_lookup_keys(texts: &[String]) -> Vec<String> {
-    texts.iter().map(|text| citation_lookup_key(text)).collect()
-}
-
 /// A citation's exact aliases and authored forms in the A2AJ store's inventory (a2aj.rs alias_groups).
 #[derive(Serialize)]
 pub struct AliasGroup {
@@ -370,66 +290,6 @@ pub fn citation_key_version() -> String {
     format!("{}:{}", legal_structure::citations::key::KEY_VERSION, table[..6].iter().map(|byte| format!("{byte:02x}")).collect::<String>())
 }
 
-pub fn provider_citations(text: &str) -> impl Serialize + '_ {
-    provider_citations_in_text(text)
-}
-
-pub fn citation_occurrences(text: &str) -> impl Serialize {
-    citation_occurrences_in_text(text)
-}
-
-pub fn authority_references(text: &str) -> impl Serialize {
-    authority_references_in_text(text)
-}
-
-pub fn has_citation(text: &str) -> CoreResult<bool> {
-    has_citation_in_text(text).map_err(|error| error.to_string())
-}
-
-pub fn prose_errors(
-    text: &str,
-    cited_evidence_ids: &[String],
-    visible_evidence: serde_json::Value,
-) -> CoreResult<Vec<String>> {
-    let visible: Vec<VisibleEvidenceText> =
-        serde_json::from_value(visible_evidence).map_err(|error| error.to_string())?;
-    Ok(grounded_prose_errors(text, cited_evidence_ids, &visible))
-}
-
-pub fn quote_repair(claim: &str, spans: &[String]) -> Option<String> {
-    quote_repair_suggestion(claim, spans)
-}
-
-pub fn quote_spans(text: &str) -> impl Serialize {
-    marked_quote_spans(text)
-}
-
-pub fn read_document_range<'a>(
-    document: &'a NativeDocument,
-    kind: &str,
-    from: &str,
-    to: &str,
-    context_blocks: u32,
-) -> CoreResult<impl Serialize + 'a> {
-    Ok(document.query.read_range(
-        document.structure(),
-        document_kind(kind)?,
-        from,
-        to,
-        context_blocks as usize,
-    ))
-}
-
-pub fn smallest_containing_document_block(
-    document: &NativeDocument,
-    start: u32,
-    end: u32,
-) -> impl Serialize + '_ {
-    document
-        .query
-        .smallest_containing_block(document.structure(), start as usize, end as usize)
-}
-
 pub fn lookup_structure_block(
     document: &NativeDocument,
     locator: serde_json::Value,
@@ -441,20 +301,6 @@ pub fn lookup_structure_block(
             .map_err(|error| error.to_string())?,
     };
     Ok(document.query.structure_selection(document.structure(), &selector, context_blocks as usize))
-}
-
-pub fn resolve_document_address_spans<'a>(
-    document: &'a NativeDocument,
-    spec: &str,
-    follow: &str,
-    depth: u32,
-) -> CoreResult<impl Serialize + 'a> {
-    Ok(document.query.resolve_address_spans(
-        document.structure(),
-        spec,
-        follow_direction(follow)?,
-        depth as usize,
-    ))
 }
 
 pub fn graph_scope<'a>(
