@@ -72,6 +72,7 @@ type PanelProps = AuthorityPanelProps & {
   others?: BookFiles & { parts: Array<{ part: AuthoritiesBookSupplement; tab: string }> };
   /** The import's choices about sources, shown above the list. */
   settings?: ReactNode;
+  onSourceHelp?: () => void;
   /** Where the list gathers several documents' authorities: the documents citing each, by authority. */
   citedIn?: ReadonlyMap<string, string>;
 };
@@ -82,7 +83,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
-  ocr, copies, groups, others, settings, finding = false, citedIn }: PanelProps) {
+  ocr, copies, groups, others, settings, onSourceHelp, finding = false, citedIn }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
   // A row is drawn again only when what it shows changes. The workspace's own changes (a source opened, a
   // status line) give the panel new callbacks each time; the rows get stable ones that call the latest.
@@ -145,6 +146,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
             onFiles={onFiles} variant="outline" compact />)}
         {onLibraryAdd && <Button type="button" variant="outline" className={control} disabled={busy}
           onClick={onLibraryAdd}><FolderSearch /> {sourceLabel}</Button>}
+        {onSourceHelp && <Button type="button" variant="outline" className={control} disabled={busy}
+          onClick={onSourceHelp}>Find missing PDFs</Button>}
       </div>
       {settings && settingsOpen && <div className="mb-3 rounded-lg border border-gray-300 bg-gray-50 p-3">{settings}</div>}
       {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
@@ -360,14 +363,17 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
         // A citation that prints its own link (a news story, a report online) opens it, as CanLII's do.
         : authority.sourceUrl ? sourceLink
         : <span className="w-10 @min-[44rem]/sources:w-[6.5rem]" />)}
-      {needsPdf && (authority.source.kind === "pending-canlii"
-        ? <Button type="button" variant="ghost" className={rowControl} disabled={busy}
-            aria-label={`Upload PDF for ${title}`} title="Upload" onClick={onPick}><Upload /><span className={rowLabel}>Upload</span></Button>
-        : <ActionMenu label={`${replacement} for ${title}`}
+      {/* A lookup can change the source while this chooser is open. Its actions depend on the host,
+          so the same chooser stays mounted; one available action needs no menu. */}
+      {needsPdf && (onLibrary
+        ? <ActionMenu label={`${replacement} PDF for ${title}`}
         triggerClassName={rowControl}
         items={[{ label: "Upload from computer", disabled: busy, onSelect: onPick },
-          ...(onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: onLibrary }] : [])]}>
-        <Upload className="h-3.5 w-3.5" /><span className={rowLabel}>{replacement}</span></ActionMenu>)}
+          { label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: onLibrary }]}>
+        <Upload className="h-3.5 w-3.5" /><span className={rowLabel}>{replacement}</span></ActionMenu>
+        : <Button type="button" variant="ghost" className={rowControl} disabled={busy}
+            aria-label={`${replacement} PDF for ${title}`} title={replacement} onClick={onPick}>
+            <Upload /><span className={rowLabel}>{replacement}</span></Button>)}
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-accent-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
@@ -496,8 +502,7 @@ function AuthorityName({ value, label, onSave, onCancel }: {
     }} className="h-8 w-full min-w-0 border-gray-400 text-sm md:text-sm" />;
 }
 
-/** Shown once in a browser, the first time Sources settles with authorities still needing a PDF:
- *  what is left to add by hand, CanLII's button, and Auto-fetch from folder, as each one works. */
+/** Help requested for sources that could not be fetched: adding them by hand or from a folder. */
 export function SourcesExplainer({ open, missing, onClose, onChooseFolder }: {
   open: boolean; missing: number;
   onClose: () => void;

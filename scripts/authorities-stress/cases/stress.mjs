@@ -150,10 +150,13 @@ export const STRESS_CASES = [{
     const statute = longStatuteRecord(), app = await open({ network: { a2aj: new Map([[LONG_STATUTE.citation, statute]]) } });
     await app.load();
     await importBrief(app, brief);
-    // Next waits while the 900 pages are rebuilt from the statute's text.
+    // Sources opens while gathering continues. Wait for the rebuilt PDF before testing its excerpt.
     const sources = await app.now();
     await step(app, "Sources", { via: "next", budget: 30_000 });
-    record.note("to Sources, the statute rebuilt", await app.now() - sources);
+    await row(app, LONG_STATUTE.name).getByRole("button", { name: /^View PDF/u }).waitFor({ timeout: 120_000 });
+    const readyMs = await app.now() - sources;
+    record.note("to Sources, the statute rebuilt", readyMs);
+    record.check(readyMs < 30_000, "the large statute's PDF is ready within 30 seconds", readyMs);
     await app.idle(120_000);
     await attach(app, "Waterways Licensing Act", fixtures.statute);
     await attach(app, NAVIGATION_ACT.name, fixtures.navigationAct);

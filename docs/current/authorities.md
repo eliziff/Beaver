@@ -45,8 +45,11 @@ reconciles changed citations and newly linked references. Attached scans begin O
 after inspection unless the user chose page-margin mode. Pinpoint changes update
 recognition demand even for an already tracked PDF; paused/cancelled work stays
 stopped until resumed. Old asynchronous responses cannot finish newer OCR demand.
-PDF inspection is reused by source hash. Source acquisition and citation edits
-still share the draft revision queue; acquisition is not streamed one case at a time.
+PDF inspection is reused by source hash. Citation edits and leaving Citations keep
+source gathering running. Saving gathered results retries against the latest draft
+revision; acquisition is not streamed one case at a time.
+**Find missing PDFs** opens source instructions when requested. Lookup results do
+not open that dialog or move keyboard focus.
 Resolve remaining source identities and attachments before highlight review; build follows review.
 
 After Sources, scanned inputs open the **Recognize text** modal before Highlights.

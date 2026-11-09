@@ -77,12 +77,6 @@ export async function step(app, name, { budget = 300, via = "tab", wait } = {}) 
     () => via === "next" ? app.button("Next").click() : tab.click(),
     { budget, longTask: BUDGETS.stepTask, regions: REGIONS, shiftsOk: ({ sources }) => sources.every(({ node }) => /beaver-loading-indicator|\[role=status\]/u.test(node ?? "")),
       wait: wait ?? (() => app.page.getByRole("tab", { name, exact: true, selected: true }).waitFor({ timeout: 120_000 })) });
-  // Acknowledge the one-time guidance before opening a menu it would otherwise cover.
-  if (name === "Sources" && !app.sourcesExplained) {
-    const guidance = app.page.getByRole("dialog", { name: "Some sources need adding" });
-    const appeared = await guidance.waitFor({ timeout: 2000 }).then(() => true, () => false);
-    if (appeared) { await app.button("Got it", guidance).click(); app.sourcesExplained = true; }
-  }
   return result;
 }
 export const row = (app, name) => app.page.getByRole("list", { name: "Authority tab slots" }).getByRole("listitem")

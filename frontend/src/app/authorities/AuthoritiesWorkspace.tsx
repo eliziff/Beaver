@@ -1130,19 +1130,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   useHighlightsAhead(host, draft && (!app || "highlights" in app.steps) && (stage === "sources" || stage === "highlights")
     ? draft : undefined, ocr.tracked);
   const copies = useSourceCopies(host, draft, shown, stage === "sources" || stage === "highlights");
-  // Once in a browser: the first time Sources settles, nothing fetching, with authorities still
-  // needing a PDF, what to do about them. Storage that can't be read means no explainer.
+  // Source lookup can finish while someone is uploading a PDF. Help opens only when requested.
   const [explaining, setExplaining] = useState(false);
-  const explainable = !!draft && stage === "sources" && !busy && !finding && missingPdfs.length > 0 && !missingOpen && !pendingImport;
-  useEffect(() => {
-    if (!explainable || sourcesExplained()) return;
-    const settled = window.setTimeout(() => setExplaining(true), 800);
-    return () => clearTimeout(settled);
-  }, [explainable]);
-  const closeExplainer = () => {
-    setExplaining(false);
-    try { localStorage.setItem(SOURCES_EXPLAINED, "1"); } catch { /* It shows again on the next visit. */ }
-  };
+  const closeExplainer = () => setExplaining(false);
   // A step already reached can be looked at while work runs (PDFs attaching, a save): looking at it changes
   // nothing, and each step holds its own controls while busy.
   const steps = STEPS.filter(({ value }) => (value !== "citations" || draft?.state.import.kind !== "manual") &&
@@ -1343,6 +1333,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                   {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences} finding={finding || !!app?.embedded?.finding}
                     citedIn={app?.citedIn}
                     ocr={ocr} others={others} settings={sourceSettings}
+                    onSourceHelp={!finding && !app?.embedded?.finding && missingPdfs.length ? () => setExplaining(true) : undefined}
                     {...authorityPanelProps}
                     {...(draft.state.import.kind === "manual" ? {
                       onPickMany: host.pickFiles ? () => void pickFiles(true, "pdf", appendManual) : undefined,
@@ -1970,11 +1961,7 @@ function planAuthorities({ state }: AuthoritiesProduct) {
 const errorText = (error: unknown) => errorMessage(error, "Authorities could not be updated.");
 const lastDraftKey = (projectId: string | undefined, mode: AuthoritiesHost["mode"]) =>
   `${PAGE_STORE}.authorities.${mode === "standalone" ? "standalone." : ""}last.${projectId ?? "library"}`;
-const SOURCES_EXPLAINED = `${PAGE_STORE}.authorities.sourcesExplained`;
 const PREFERENCES = `${PAGE_STORE}.authorities.preferences`;
-function sourcesExplained() {
-  try { return !!localStorage.getItem(SOURCES_EXPLAINED); } catch { return true; }
-}
 function loadPreferences(): StartPreferences {
   try {
     const value = JSON.parse(localStorage.getItem(PREFERENCES) ?? "null") as

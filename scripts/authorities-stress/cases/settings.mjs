@@ -111,6 +111,16 @@ export const SETTINGS_CASES = [{
     await app.load();
     await importBrief(app, fixtures.briefDocx);
     await step(app, "Sources", { via: "next" });
+    const help = app.button("Find missing PDFs");
+    const guidance = app.page.getByRole("dialog", { name: "Some sources need adding" });
+    record.check(!await guidance.isVisible(), "source lookup does not open a dialog");
+    await help.focus(); await app.page.keyboard.press("Enter");
+    await guidance.waitFor();
+    for (let i = 0; i < 5; i++) await app.page.keyboard.press("Tab");
+    record.check(await guidance.evaluate(dialog => dialog.contains(document.activeElement)), "source help keeps keyboard focus in the dialog");
+    await app.page.keyboard.press("Escape");
+    await guidance.waitFor({ state: "detached" });
+    record.check(await help.evaluate(button => button === document.activeElement), "source help restores focus to its button");
     await attach(app, "Waterways Licensing Act", fixtures.statute);
     await step(app, "Highlights", { via: "next" });
     await step(app, "Build book", { via: "next" });
