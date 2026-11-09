@@ -109,7 +109,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         #[cfg(feature = "legalpdf")]
         "derivePdfDocument" => done(engine::derive_pdf_document(bytes, &call.get("request")?).map(store)),
         #[cfg(feature = "legalpdf")]
-        "preparePdfDocument" => done(value(legalpdf::prepare_pdf_document_reporting(bytes, &call.get("request")?, progress)
+        "preparePdfDocument" => done(value(legalpdf::prepare_pdf_document(bytes, &call.get("request")?, progress)
             .map_err(Failure::from)?)),
         #[cfg(feature = "legalpdf")]
         "restorePdfDocument" => done(engine::restore_pdf_document(&call.get("request")?)
