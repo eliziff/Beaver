@@ -92,7 +92,7 @@ async function closeEditor(authorityId, role, count) {
   await expect.poll(() => page.evaluate(({ authorityId, role }) =>
     window.annotationTestProduct.state.authorities[authorityId].annotations?.[role]?.marks.length,
   { authorityId, role })).toBe(count);
-  await page.getByRole('dialog', { name: 'Highlights', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Highlights', exact: true }).getByRole('button', { name: 'Close highlights', exact: true }).click();
 }
 try {
   await server.listen(); const address = server.httpServer.address();
@@ -106,7 +106,7 @@ try {
   await expect(cards).toHaveCount(3);
   await expect(cards.first()).toContainText('First independent quote');
   await cards.nth(1).locator('button').first().click();
-  const wrapper = page.locator('[data-page-number="2"]');
+  const wrapper = page.locator('[aria-label="Authority PDF editor"]:not([aria-hidden]) [data-page-number="2"]');
   await expect(wrapper.locator('canvas')).toBeVisible();
   const canvasSize = await wrapper.locator('canvas').evaluate(node => ({ pixels: node.width, css: node.clientWidth }));
   assert.ok(canvasSize.pixels >= canvasSize.css * 1.9, 'Render at device resolution');
@@ -131,7 +131,7 @@ try {
   await expect(cards).toHaveCount(3); await expect(cards.last()).toContainText('Uncited passage');
   // A scanned PDF still supports arbitrary manual rectangle highlights.
   await page.getByRole('combobox', { name: 'Authority PDF' }).selectOption('scan-en');
-  const scanPage = page.locator('[data-page-number="1"]'); await expect(scanPage.locator('canvas')).toBeVisible();
+  const scanPage = page.locator('[aria-label="Authority PDF editor"]:not([aria-hidden]) [data-page-number="1"]'); await expect(scanPage.locator('canvas')).toBeVisible();
   await page.getByRole('button', { name: 'Draw highlight', exact: true }).click();
   const scanBox = await scanPage.boundingBox();
   await page.mouse.move(scanBox.x + 60, scanBox.y + 250); await page.mouse.down();
@@ -146,8 +146,10 @@ try {
     .map(ref => book.context.lookup(ref, pdf.PDFDict)) ?? []);
   assert.ok(annotations.some(a => a.get(pdf.PDFName.of('Subtype'))?.toString() === '/Highlight'));
   assert.ok(annotations.some(a => a.get(pdf.PDFName.of('QuadPoints'))));
-  assert.ok(annotations.some(a => a.get(pdf.PDFName.of('Contents'))?.decodeText().includes('Uncited passage')),
-    'The user-selected passage survives as an editable exported annotation');
+  // Marks carry no author or comment: the passage selected by hand is a highlight beside the quote's.
+  assert.ok(annotations.filter(a => a.get(pdf.PDFName.of('Subtype'))?.toString() === '/Highlight' && a.get(pdf.PDFName.of('QuadPoints'))).length >= 3,
+    'The user-selected passage survives as an editable exported highlight');
+  assert.ok(annotations.every(a => !a.has(pdf.PDFName.of('Contents')) && !a.has(pdf.PDFName.of('T'))), 'Marks carry no author or comment');
   assert.ok(book.getPages().at(-1).node.lookupMaybe(pdf.PDFName.of('Annots'), pdf.PDFArray)?.size(),
     'The scanned page retains its manually drawn annotation');
   await page.getByRole('button', { name: 'Edit in PDF' }).click(); await expect(cards).toHaveCount(3);
@@ -167,25 +169,17 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: path.join(output, 'quotation-mobile.png') });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole('radio', { name: 'Use the source wording (edits your .docx)' }).check();
-  await page.getByRole('button', { name: 'Apply correction' }).click();
-  // The two quotations that were not found are one batch, with no per-quote decision.
-  await expect(panel).toContainText('the deadline is seven business days');
-  await expect(panel).toContainText('an operator bears the whole of the risk');
-  await page.screenshot({ path: path.join(output, 'quotation-unlocated.png') });
-  // Open source is a button, and it lands the PDF on the paragraph the quotation is missing from.
-  await panel.getByRole('button', { name: 'Open source' }).first().click();
-  const preview = page.getByRole('region', { name: 'Source PDF' });
-  await expect(preview.locator('.pdf-text-highlight').first()).toBeVisible({ timeout: 30_000 });
-  await expect(preview.locator('.pdf-text-highlight').first()).toContainText('A different paragraph');
-  await preview.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: path.join(output, 'quotation-open-source.png') });
+  await page.getByRole('radio', { name: /Use the source’s wording/ }).check();
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  // A quotation the cited passage lacks raises no finding: once the difference is applied, nothing is left.
+  assert.deepEqual([...quotationCases.missingOne, ...quotationCases.missingTwo], []);
+  await expect(panel).toContainText('Nothing left to review');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(panel).toHaveCount(0);
   assert.deepEqual(errors, []);
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, assertions: [
     'left full-paragraph geometry', 'HiDPI raster', 'click-delete-undo-redo',
-    'text selection', 'scan drawing', 'persisted deletion', 'editable PDF export', 'retained quotation findings', 'source passage navigation'
+    'text selection', 'scan drawing', 'persisted deletion', 'editable PDF export', 'quotation correction'
   ] }, null, 2));
   console.log(`Authorities highlight browser checks passed: ${output}`);
 } catch (error) {

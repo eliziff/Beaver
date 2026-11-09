@@ -51,12 +51,17 @@ export function initialAuthorityAnnotations(input: {
     if (!fragments.length && target.locatorKind !== 'page') unlocated.push(label);
     if (input.style === 'paragraph') add('highlight', label, excerpt, fragments);
     if (input.style === 'margin' || input.style === 'sidelined') {
+      // One line down the margin of each column the passage runs in: a line's bar joins the bar above it where it
+      // stands in the same column, and a line in another column starts its own.
       add('margin', label, excerpt, fragments.map(fragment => {
         const width = input.pages[fragment.pageNumber - 1].width;
-        return { ...fragment, rects: fragment.rects.map(rect => {
-          const x = Math.max(0, rect[0] - 7 / width);
-          return [x, rect[1], x + 2 / width, rect[3]] as AnnotationRect;
-        }) };
+        const bars: AnnotationRect[] = [];
+        for (const rect of fragment.rects) {
+          const x = Math.max(0, rect[0] - 7 / width), last = bars[bars.length - 1];
+          if (last && Math.abs(last[0] - x) < 0.02 && rect[1] >= last[1]) last[3] = Math.max(last[3], rect[3]);
+          else bars.push([x, rect[1], x + 2 / width, rect[3]]);
+        }
+        return { ...fragment, rects: bars };
       }));
     }
     if (input.style === 'text' || input.style === 'margin') for (const quote of target.quotes) {
