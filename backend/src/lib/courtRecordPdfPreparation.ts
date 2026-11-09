@@ -1,11 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { ApplicationError } from "./applicationError";
 import { validateDocumentFile } from "./documentTypes";
-import { preparePdf } from "./sourceDocument";
-import { lookupPdf } from "./pdfEvidence";
+import { openDocument, preparePdf } from "./sourceDocument";
 import type { DocumentFile } from "./documentStore";
 import { sha256 } from "./hash";
-import { pdfFailureKind } from "./structureNative";
+import { pdfFailureKind, structureNative } from "./structureNative";
 
 export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: unknown) {
   const pages = selectedOcrPages(requestedPages);
@@ -26,10 +25,8 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
     if (prepared.pageCount > 2_000) {
       throw new ApplicationError(409, "This PDF has an unsupported page count");
     }
-    const pageText = await courtRecordPageText(() => bytes, prepared.pageCount, {
-      persistEvidence: false, documentId, versionId, sourceSha256: digest,
-      pdfProfile: prepared,
-    });
+    const pageText = await courtRecordPageText({ documentId, versionId, sourceSha256: digest,
+      readBytes: () => bytes, pdfProfile: prepared });
     return { source_sha256: digest, page_count: prepared.pageCount,
       parser_status: prepared.status,
       ocr_pages: prepared.ocrRoutedPages.map((page) => page + 1),
@@ -43,34 +40,10 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
   }
 }
 
-/**
- * Page text for a whole PDF. Exact page ranges are bounded by the projection, so a
- * record-sized document is read in successive spans. A span of scanned pages carries
- * no text at all; that is the answer for those pages, not a failure of the read.
- */
-export async function courtRecordPageText(readBytes: () => Buffer | Promise<Buffer>, pageCount: number,
-  options: Parameters<typeof lookupPdf>[2]) {
-  const text = new Map<number, string>();
-  async function read(first: number, last: number) {
-    const lookup = await lookupPdf(readBytes, { locator_kind: "page",
-      locator: first === last ? `${first}` : `${first}-${last}`, context_blocks: 0 }, options);
-    if (lookup.status === "found") {
-      for (const page of lookup.pages) text.set(page.page_number, page.text);
-    } else if (lookup.status === "unavailable" &&
-        (!lookup.error || lookup.error === "The requested structural unit has no exact text")) {
-      // One blank page makes the entire range unavailable; retain its readable neighbours.
-      // A single unavailable page is a page without text, not a failure of the read.
-      if (first !== last) for (let page = first; page <= last; page++) await read(page, page);
-    } else {
-      throw new ApplicationError(409, "The prepared PDF page text is unavailable");
-    }
-  }
-  for (let first = 1; first <= pageCount; first += 20) {
-    await read(first, Math.min(first + 19, pageCount));
-  }
-  return Array.from({ length: pageCount }, (_, index) => ({
-    page_number: index + 1, text: text.get(index + 1) ?? "",
-  }));
+/** Each page's text of a prepared PDF, a scanned page's empty where nothing was recognized on it. */
+export async function courtRecordPageText(source: Parameters<typeof openDocument>[0]) {
+  return structureNative().pdfPageTexts(await openDocument(source))
+    .map((text, index) => ({ page_number: index + 1, text }));
 }
 
 function selectedOcrPages(value: unknown) {
