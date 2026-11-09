@@ -29,10 +29,10 @@ import { rehydratePdfEvidence, verifyPdfEvidence } from "./pdfEvidence";
 import { structureNative } from "./structureNative";
 
 /** Acquire an authorized version and its requested native view together. */
-export async function readDocumentProjection(documents: DocumentStore, scope: DocumentScope,
+export async function readStoredDocument(documents: DocumentStore, scope: DocumentScope,
   documentId: string, versionId: string | null,
   options: Parameters<typeof openDocument>[1] & { expectedSourceSha256?: string } = {}) {
-  const source = await documents.projectionSource(scope, documentId, versionId);
+  const source = await documents.documentSource(scope, documentId, versionId);
   if (!source) return null;
   if (options.expectedSourceSha256 && source.sourceSha256 !== options.expectedSourceSha256)
     throw new ApplicationError(409, "Source changed after the extraction scope was selected");
@@ -678,7 +678,7 @@ export function createDocumentApplication(repository: DocumentRepository,
 
     recordPdfPreparation: (...args) => repository.recordPdfPreparation(...args),
 
-    async projectionSource(scope, documentId, versionId) {
+    async documentSource(scope, documentId, versionId) {
       const stored = await repository.version(scope, documentId, versionId);
       if (!stored) return null;
       // Snapshot both so a caller mutating its scope or version cannot widen this descriptor.

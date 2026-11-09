@@ -615,7 +615,7 @@ async function documentDraft(
   const latest = binding.version === "latest";
   const requestedVersion = binding.version === "latest" ? null : binding.version.versionId;
   const [source, current, history] = await Promise.all([
-    documents.projectionSource(scope, binding.documentId, requestedVersion),
+    documents.documentSource(scope, binding.documentId, requestedVersion),
     latest ? documents.metadata(scope, binding.documentId) : null,
     latest ? null : documents.versions(scope, binding.documentId),
   ]);

@@ -103,7 +103,7 @@ export async function resolveResearchSelection(documents: DocumentStore, scope: 
       if (!evidence.length) continue;
     } else if (!matches(source.labelIds)) continue;
     const projection = source.reference.kind === "document" ?
-      await documents.projectionSource(scope, source.reference.id, source.reference.versionId) : null;
+      await documents.documentSource(scope, source.reference.id, source.reference.versionId) : null;
     if (source.reference.kind === "document" && !projection) {
       if (availableOnly) continue;
       throw new ApplicationError(404, "Selected document version is unavailable");

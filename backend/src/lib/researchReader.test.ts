@@ -54,7 +54,7 @@ it("resumes a frozen source scope with its unread cursors and rejects wider pass
   let bytes = Buffer.from("First source sentence.\nSecond source sentence.\nThird source sentence.");
   const resource = "document://selected/version/v1", documents = {
     metadata: async () => ({ filename: "Notes.txt" }),
-    projectionSource: async () => ({ documentId: "selected", versionId: "v1", fileType: "txt",
+    documentSource: async () => ({ documentId: "selected", versionId: "v1", fileType: "txt",
       sourceSha256: sha256(bytes), readBytes: () => bytes }),
   } as unknown as DocumentStore, scope = { userId: "owner" },
     context: ResearchReadContext = { restricted: true, workspace: { documentId: "workspace", versionId: "w1", workingRevision: 7 },
@@ -92,7 +92,7 @@ it("keeps spreadsheet cell identity and reads selected Library evidence without 
   expect(receipt).toMatchObject({ span_text: "25 ⟨n:25⟩", locator: {
     kind: "cell", label: "Terms!B1", sheet: "Terms", cells: "B1" } });
   const documents = { metadata: async () => ({ filename: "Terms.xlsx", size_bytes: 1 }),
-    projectionSource: async () => source,
+    documentSource: async () => source,
     versions: async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] }),
   } as unknown as DocumentStore;
   const selected = await readResearchResource(documents, { userId: "owner" }, {
@@ -101,7 +101,7 @@ it("keeps spreadsheet cell identity and reads selected Library evidence without 
   expect(selected.evidence).toEqual([receipt]);
   expect((await restoreResearchEvidence(documents, { userId: "owner" }, [receipt]))
     .map(({ receipt }) => receipt)).toEqual([receipt]);
-  expect(await restoreResearchEvidence({ ...documents, projectionSource: async () => null },
+  expect(await restoreResearchEvidence({ ...documents, documentSource: async () => null },
     { userId: "other" }, [receipt])).toEqual([]);
   expect(selected.coverage).toEqual({ complete: true, next: [] });
   expect(JSON.stringify(selected.result)).not.toContain("900");

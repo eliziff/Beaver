@@ -84,7 +84,7 @@ async function organizeInventory(documents: DocumentStore, scope: ApplicationSco
   return mapBounded(records, async (record) => {
     const gist = await (async () => {
       try {
-        const source = await documents.projectionSource(scope, record.id, null);
+        const source = await documents.documentSource(scope, record.id, null);
         return source ? await sourceText(source, { limit: 1_500, signal }) : "";
       } catch { return ""; }
     })();

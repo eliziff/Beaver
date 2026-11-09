@@ -30,7 +30,7 @@ beforeAll(async () => {
   const created = await documents.create(scope, { filename: "hearing.pdf", fileType: "pdf",
     bytes: Buffer.from(await pdf.save()) });
   id = created.id; version = created.current_version_id;
-  const source = (await documents.projectionSource(scope, id, version))!;
+  const source = (await documents.documentSource(scope, id, version))!;
   const receipt = await documentProjectionService.lookupPdf(source.readBytes,
     { locator_kind: "page", locator: "1" }, { ...source, persistEvidence: true });
   if (receipt.status !== "found") throw new Error("Evidence fixture was not found");

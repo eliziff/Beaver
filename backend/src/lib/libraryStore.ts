@@ -111,7 +111,7 @@ export function createLibraryStore(
       const current = await documents.metadata(scope, id);
       if (!current || current.library_kind !== scope.kind)
         throw new ApplicationError(404, "Document not found");
-      const source = await documents.projectionSource(scope, id, versionId);
+      const source = await documents.documentSource(scope, id, versionId);
       if (!source) throw new ApplicationError(404, "Version not found");
       if (source.fileType !== "pdf") throw new ApplicationError(409, "Version is not a PDF");
       try {

@@ -403,7 +403,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     state.note = action.markdown;
   }
   else if (action.type === "source" || action.type === "annotate" && action.kind === "source") {
-    if (action.type === "source" && action.reference.kind === "document" && !await documents.projectionSource(scope,
+    if (action.type === "source" && action.reference.kind === "document" && !await documents.documentSource(scope,
       action.reference.id, action.reference.versionId)) throw new ApplicationError(404, "Document version not found");
     ownSources(); const item = ownSource(action.type === "source" ? addSource(state, action.reference).id : action.id); item.collected = true;
     if (action.labelIds) item.labelIds = checkedLabels(state, [...item.labelIds, ...action.labelIds], "source");

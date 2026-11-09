@@ -66,7 +66,7 @@ describe.each(["restore", "checkpoint"] as const)("%s version publication", (kin
       .toBe(kind === "restore" ? "original" : "current");
     expect(await documents.readParts(scope, original.id, null,
       ["receipt.json", "old-only.json", "new-only.json"])).toEqual(partsBefore);
-    expect((await documents.projectionSource(scope, original.id, null))?.provenance)
+    expect((await documents.documentSource(scope, original.id, null))?.provenance)
       .toEqual({ schemaVersion: 1, actor: "assistant",
         action: kind === "restore" ? "created" : "revised" });
     expect((await documents.versions(scope, original.id))?.versions.slice(1))

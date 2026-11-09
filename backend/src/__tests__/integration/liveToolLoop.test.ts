@@ -45,7 +45,7 @@ async function seedResearch() {
   for (const fixture of ORGANIZE_FILES) {
     const document = await documents.create(SCOPE, { filename: fixture.filename, fileType: "docx",
       bytes: await textDocx(fixture.text), libraryKind: "file" });
-    const source = await documents.projectionSource(SCOPE, document.id, null);
+    const source = await documents.documentSource(SCOPE, document.id, null);
     const text = await documentProjectionService.text(source!);
     expect(text).toContain(fixture.text);
     const start = text.indexOf(fixture.text);

@@ -106,7 +106,7 @@ export function createDocumentsRouter(
   }));
 
   router.get("/:documentId/reader-text", asyncRoute(async (req, res) => {
-    const source = await documents.projectionSource(scope(res), req.params.documentId, versionId(req))
+    const source = await documents.documentSource(scope(res), req.params.documentId, versionId(req))
       ?? reject(404, "Document version not found");
     const document = await openDocument(source), native = structureNative(),
       text = native.documentText(document), pages = source.fileType === "pdf"
@@ -119,7 +119,7 @@ export function createDocumentsRouter(
   }));
 
   router.get("/:documentId/pdf-text-layer", asyncRoute(async (req, res) => {
-    const source = await documents.projectionSource(scope(res), req.params.documentId, versionId(req))
+    const source = await documents.documentSource(scope(res), req.params.documentId, versionId(req))
       ?? reject(404, "Document version not found");
     if (source.fileType !== "pdf") reject(400, "Text layers require a PDF");
     const requested = req.query.pages;
@@ -137,7 +137,7 @@ export function createDocumentsRouter(
   }));
 
   router.get("/:documentId/pdf-page-labels", asyncRoute(async (req, res) => {
-    const source = await documents.projectionSource(scope(res), req.params.documentId, versionId(req))
+    const source = await documents.documentSource(scope(res), req.params.documentId, versionId(req))
       ?? reject(404, "Document version not found");
     if (source.fileType !== "pdf") reject(400, "Page labels require a PDF");
     res.setHeader("Cache-Control", "private, no-store");

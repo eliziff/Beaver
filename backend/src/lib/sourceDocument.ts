@@ -8,7 +8,7 @@ import { isPresentationDocumentType, isWordDocumentType } from "./documentTypes"
 import { docxToPdf } from "./convert";
 import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 import { oneAtATime } from "mike/shared/one-at-a-time.mjs";
-import type { DocumentProjectionSource, LegalPdfOcrProvider, LegalPdfProfile,
+import type { DocumentSource, LegalPdfOcrProvider, LegalPdfProfile,
   PdfProfileSelection } from "./documentStore";
 
 /** A stored source read as the engine's document (structureNative's `openSource`): the engine routes each format to
@@ -30,8 +30,8 @@ export const PLAIN_PDF = { ocrProvider: null, layout: false } as const;
 
 /** A source as the engine reads it: whose version it is, the hash its bytes must have, its bytes, the PDF reading
  *  prepared of it, and, for a repository's source, how to recheck it is still the version asked for. */
-type Source = Pick<DocumentProjectionSource, "documentId" | "versionId" | "sourceSha256" | "readBytes"> &
-  Partial<Pick<DocumentProjectionSource, "fileType" | "pdfProfile" | "assertAvailable">>;
+type Source = Pick<DocumentSource, "documentId" | "versionId" | "sourceSha256" | "readBytes"> &
+  Partial<Pick<DocumentSource, "fileType" | "pdfProfile" | "assertAvailable">>;
 
 type OpenOptions = {
   mode?: "text" | "drafting" | "redline";
@@ -50,7 +50,7 @@ function validId(value: string) {
 
 function assertSource(source: Pick<Source, "documentId" | "versionId">) {
   if (!validId(source.documentId) || !validId(source.versionId))
-    throw new Error("Document projection requires valid document and version IDs");
+    throw new Error("Reading a document requires valid document and version IDs");
 }
 
 const fileTypeOf = (source: Pick<Source, "fileType">) => (source.fileType ?? "pdf").trim().toLowerCase();

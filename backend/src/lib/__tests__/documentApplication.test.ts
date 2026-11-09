@@ -274,25 +274,25 @@ describe("shared document application", () => {
       edits: [], status: "accepted", turnId: "revise" });
     expect(revised.status).toBe("committed");
     if (revised.status !== "committed") return;
-    expect((await documents.projectionSource(scope, created.id, null))?.provenance)
+    expect((await documents.documentSource(scope, created.id, null))?.provenance)
       .toMatchObject({ actor: "assistant", action: "revised", turnId: "revise" });
     await documents.renameVersion(scope, created.id, revised.version.id, "Revised memo.md", 0);
     const checkpoint = await documents.checkpointVersion(scope, created.id, revised.version.id, 1);
     expect(checkpoint.status).toBe("created");
     if (checkpoint.status !== "created") return;
-    const checkpointProvenance = (await documents.projectionSource(scope, created.id, null))?.provenance;
+    const checkpointProvenance = (await documents.documentSource(scope, created.id, null))?.provenance;
     expect(checkpointProvenance).toMatchObject({ actor: "assistant", action: "revised" });
     expect(checkpointProvenance).not.toHaveProperty("turnId");
     const restored = await documents.restoreVersion(scope, created.id, created.current_version_id,
       checkpoint.version.id, 0);
     expect(restored.status).toBe("restored");
     if (restored.status !== "restored") return;
-    const restoredProvenance = (await documents.projectionSource(scope, created.id, null))?.provenance;
+    const restoredProvenance = (await documents.documentSource(scope, created.id, null))?.provenance;
     expect(restoredProvenance).toMatchObject({ actor: "assistant", action: "created" });
     expect(restoredProvenance).not.toHaveProperty("turnId");
     await documents.replaceVersion(scope, created.id, restored.version.id, 0,
       { filename: "memo.md", fileType: "md", bytes: Buffer.from("unrelated upload") });
-    expect((await documents.projectionSource(scope, created.id, null))?.provenance).toBeUndefined();
+    expect((await documents.documentSource(scope, created.id, null))?.provenance).toBeUndefined();
   });
 
   it("never restores missing or corrupt historical bytes", async () => {
@@ -391,7 +391,7 @@ describe("shared document application", () => {
     });
     expect(pending.status).toBe("committed");
     if (pending.status !== "committed") return;
-    expect((await documents.projectionSource(scope, created.id, null))?.provenance).toEqual({
+    expect((await documents.documentSource(scope, created.id, null))?.provenance).toEqual({
       schemaVersion: 1, actor: "assistant", action: "revised", changeCount: 1,
     });
     expect((await repository.get(scope, created.id))?.edits).toHaveLength(1);
@@ -419,7 +419,7 @@ describe("shared document application", () => {
       SET source_sha256=${"0".repeat(64)} WHERE id=${created.current_version_id}`);
     await expect(documents.read(scope, created.id, null, false))
       .rejects.toThrow(/storage scope|integrity check/);
-    await expect(documents.projectionSource(scope, created.id, null).then((source) => source?.readBytes()))
+    await expect(documents.documentSource(scope, created.id, null).then((source) => source?.readBytes()))
       .rejects.toThrow(/storage scope|integrity check/);
   });
 

@@ -35,7 +35,7 @@ async function fixture(project = false) {
     bytes: Buffer.from("Verified original passage 😀") });
   const rawGet = objects.get.bind(objects), reads = vi.spyOn(objects, "get");
   const source = (scope = owner, versionId: string | null = null) =>
-    documents.projectionSource(scope, created.id, versionId);
+    documents.documentSource(scope, created.id, versionId);
   return { objects, rawGet, documents, projection: documentProjectionService, owner, reader,
     created, source, reads, db, sql, projectId };
 }

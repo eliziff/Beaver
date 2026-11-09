@@ -15,7 +15,7 @@ it.each(["first_try", "corrected", "fails"])("repairs only the invalid cell and 
   const bytes = Buffer.from("The fee is CAD 1000.\nEffective date: 2026-01-15."), sourceSha256 = sha256(bytes),
     accepted: { index: number; cell: TabularCellContent }[] = [], measurements: import("./extraction").TabularMeasurement[] = [],
     documents = { metadata: async () => ({ filename: "terms.txt" }), versions: async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] }),
-      projectionSource: async () => ({ documentId: "repair", versionId: "v1", fileType: "txt", sourceSha256, readBytes: () => bytes }) } as unknown as DocumentStore;
+      documentSource: async () => ({ documentId: "repair", versionId: "v1", fileType: "txt", sourceSha256, readBytes: () => bytes }) } as unknown as DocumentStore;
   const queries = vi.fn(async () => { throw new Error("Unrelated history must remain off the ordinary execution path"); });
   let evidenceIds: string[] = [], call = 0;
   const payload = (index: number, value: unknown) => ({ column_index: index, value, flag: "grey", outcome: "answered",
@@ -64,7 +64,7 @@ it("saves cited source wording immediately and repairs only a mismatched explici
     bytes = Buffer.from(source), sourceSha256 = sha256(bytes), accepted: { index: number; cell: TabularCellContent }[] = [],
     measurements: import("./extraction").TabularMeasurement[] = [],
     documents = { metadata: async () => ({ filename: "consent.txt" }), versions: async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] }),
-      projectionSource: async () => ({ documentId: "consent", versionId: "v1", fileType: "txt", sourceSha256, readBytes: () => bytes }) } as unknown as DocumentStore;
+      documentSource: async () => ({ documentId: "consent", versionId: "v1", fileType: "txt", sourceSha256, readBytes: () => bytes }) } as unknown as DocumentStore;
   let evidenceIds: string[] = [], call = 0;
   const submit = (index: number, text: string) => ({ id: `cell-${index}`, name: "submit_extraction",
     input: { column_index: index, value: true, flag: "grey", outcome: "answered", claims: [{ text, evidence_ids: evidenceIds }] } });
@@ -97,7 +97,7 @@ it.each(["not_found", "failure", "cancellation"])("retains every original extrac
     bytes = Buffer.from(text), sourceSha256 = sha256(bytes), signal = new AbortController(),
     documents = { metadata: async () => ({ filename: "Notes.txt" }),
       versions: async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] }),
-      projectionSource: async () => ({ documentId: "document", versionId: "v1", fileType: "txt",
+      documentSource: async () => ({ documentId: "document", versionId: "v1", fileType: "txt",
         sourceSha256, readBytes: () => bytes }),
     } as unknown as DocumentStore, observations: Parameters<ResearchObserver>[] = [], accepted: TabularCellContent[] = [],
     runTurn: typeof runChatTurn = async (options) => {
@@ -145,7 +145,7 @@ it("makes carried search history readable without placing failed query terms in 
   const bytes = Buffer.from("Ordinary provision."), sourceSha256 = sha256(bytes),
     resource = "document://history-doc/version/v1", documents = {
       metadata: async () => ({ filename: "Terms.txt" }), versions: async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] }),
-      projectionSource: async () => ({ documentId: "history-doc", versionId: "v1", fileType: "txt", sourceSha256, readBytes: () => bytes }),
+      documentSource: async () => ({ documentId: "history-doc", versionId: "v1", fileType: "txt", sourceSha256, readBytes: () => bytes }),
     } as unknown as DocumentStore;
   let inspected = false, loads = 0;
   await extractTabularAnswers({ documents, scope: { userId: "owner" }, model: "codex:reader", apiKeys: {},

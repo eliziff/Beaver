@@ -55,7 +55,7 @@ export type CreatedDocumentVersion = DocumentVersion & {
   project_id: string | null; folder_id: string | null };
 export type DocumentRollback = { documentId: string; versionId?: string;
   expected: DocumentHeadExpectation };
-export type DocumentProjectionSource = Readonly<{
+export type DocumentSource = Readonly<{
   documentId: string; versionId: string; fileType: string; sourceSha256: string;
   pdfProfile?: PdfProfileSelection; provenance?: DocumentProvenance;
   readBytes: () => Buffer | Promise<Buffer>;
@@ -147,8 +147,8 @@ export type DocumentStore = {
     names: string[]): Promise<DocumentPartContent[] | null>;
   recordPdfPreparation(scope: DocumentScope, id: string, input: { versionId: string;
     sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection; textOnly?: boolean }): Promise<boolean>;
-  projectionSource(scope: DocumentScope, id: string, versionId: string | null):
-    Promise<DocumentProjectionSource | null>;
+  documentSource(scope: DocumentScope, id: string, versionId: string | null):
+    Promise<DocumentSource | null>;
   spreadsheet(scope: DocumentScope, id: string, versionId: string | null):
     Promise<DocumentSpreadsheet | null>;
   evidenceView(scope: DocumentScope, id: string, versionId: string, handle: string):

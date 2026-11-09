@@ -91,7 +91,7 @@ describe("Research v2 parts", () => {
       saved = await act(f, { type: "merge", evidence: passages, labels: Object.fromEntries(passages.map((item) => [item.evidence_id, []])) }),
       source = Object.values(saved.state.sources)[0], context: ResearchReadContext = { restricted: true, subjects: [{
         sourceId: source.id, reference: source.reference, resource: researchSourceResource(source.reference), evidence: [passages[1]] }] },
-      documents = { ...f.documents, projectionSource: async () => null },
+      documents = { ...f.documents, documentSource: async () => null },
       read = (args: Record<string, unknown>) => readResearchWorkspace(documents as never, { userId: "user-1" },
         saved, args, new AbortController().signal, undefined, context),
       payload = (output: Awaited<ReturnType<typeof read>>) => JSON.parse(output.result.content

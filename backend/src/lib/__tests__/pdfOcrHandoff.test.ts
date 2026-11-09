@@ -42,7 +42,7 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     const file = await documents.create(scope, { filename: 'scan.pdf', fileType: 'pdf',
       bytes: Buffer.from('%PDF-1.7\nthree page scan'), pdfOcrProvider: null });
     const original = await vi.waitFor(async () => {
-      const source = await documents.projectionSource(scope, file.id, file.current_version_id);
+      const source = await documents.documentSource(scope, file.id, file.current_version_id);
       expect(source?.pdfProfile).toBeDefined(); return source!.pdfProfile!;
     }, { timeout: 10_000 });
     const { enqueuePdfReprocess } = await import('../pdfJobs');
@@ -53,7 +53,7 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
       await vi.waitFor(async () => expect((await queue.getJob(job.id, scope.userId))?.status).toBe('succeeded'),
         { timeout: 10_000 });
     }
-    const source = (await documents.projectionSource(scope, file.id, file.current_version_id))!;
+    const source = (await documents.documentSource(scope, file.id, file.current_version_id))!;
     expect(source.pdfProfile).toMatchObject(original);
     expect(Object.keys(source.pdfProfile!.textLayerPages ?? {})).toEqual(['1', '2']);
     // A lower-priority whole-document native pass must not erase the completed OCR slices.
@@ -61,9 +61,9 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
       sourceSha256: file.source_sha256, pageCount: 3, pdfProfile: original });
     await worker.stop(); await db.closeRelationalDatabase();
     const reader = createDocumentApplication(documentRepository, filesystemDocumentObjects());
-    const resolve = reader.projectionSource;
+    const resolve = reader.documentSource;
     let allowSourceRead = false;
-    reader.projectionSource = async (...args) => {
+    reader.documentSource = async (...args) => {
       const result = await resolve(...args);
       return result && { ...result, readBytes: () => {
         if (!allowSourceRead) throw Error('Text-layer GET reread the PDF');

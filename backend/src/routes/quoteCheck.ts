@@ -16,7 +16,7 @@ export function createQuoteCheckRouter(documents: DocumentStore) {
     if (typeof id !== "string" || !id.trim()) reject(400, "Select a Library document.");
     const versionId = req.body?.versionId;
     if (versionId !== undefined && typeof versionId !== "string") reject(400, "Invalid document version.");
-    const source = await documents.projectionSource(scope, id, versionId ?? null)
+    const source = await documents.documentSource(scope, id, versionId ?? null)
       ?? reject(404, "Document version not found.");
     const draft = await createAuthoritiesImporter(documents).draft(scope, { kind: "document",
       documentId: id, version: { versionId: source.versionId, sha256: source.sourceSha256 } });

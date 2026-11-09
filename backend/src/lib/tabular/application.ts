@@ -314,7 +314,7 @@ export function createTabularApplication(
         ...detail.cells.flatMap(({ content }) => content?.evidence.map(legalEvidenceResourceReference).filter((value): value is string => !!value) ?? [])]);
       for (const resource of resources) {
         const parsed = parseResourceReference(resource);
-        if (parsed?.kind === "document" && !await documents.projectionSource(scope, parsed.documentId, parsed.versionId))
+        if (parsed?.kind === "document" && !await documents.documentSource(scope, parsed.documentId, parsed.versionId))
           return fail(404, "An original supporting document version is unavailable");
       }
       return detail;

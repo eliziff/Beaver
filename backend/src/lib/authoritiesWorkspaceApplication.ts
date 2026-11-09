@@ -223,7 +223,7 @@ export function createAuthoritiesWorkspaceApplication(
       const binding = libraryBinding(draft, bindingRole);
       const requested = binding.version === "latest" ? null : binding.version.versionId;
       const [source, current] = await Promise.all([
-        documents.projectionSource(scope, binding.documentId, requested),
+        documents.documentSource(scope, binding.documentId, requested),
         binding.version === "latest" ? documents.metadata(scope, binding.documentId) : null,
       ]);
       const currentFilename = current && current.current_version_id === source?.versionId
@@ -471,7 +471,7 @@ export function createAuthoritiesWorkspaceApplication(
       const attached = attachedAuthoritySources(attachableAuthority(draft, input.authorityId).source)
         .find(source => source.bindingRole === input.bindingRole);
       const binding = libraryBinding(draft, input.bindingRole);
-      const source = await documents.projectionSource(scope, binding.documentId,
+      const source = await documents.documentSource(scope, binding.documentId,
         binding.version === "latest" ? null : binding.version.versionId);
       if (!attached || !source || source.fileType !== "pdf" ||
           attached.sourceSha256 !== input.sourceSha256 || source.sourceSha256 !== input.sourceSha256)
@@ -491,7 +491,7 @@ export function createAuthoritiesWorkspaceApplication(
         .filter(({ source }) => roles.includes(source.bindingRole))
         .map(async ({ source, authority }) => {
           const binding = libraryBinding(draft, source.bindingRole);
-          const resolved = await documents.projectionSource(scope, binding.documentId,
+          const resolved = await documents.documentSource(scope, binding.documentId,
             binding.version === "latest" ? null : binding.version.versionId);
           if (!resolved) throw new ApplicationError(409, `The PDF for ${source.filename} is unavailable`);
           const reference = { userId: scope.userId, documentId: resolved.documentId,

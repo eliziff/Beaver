@@ -306,7 +306,7 @@ async function readPreparedPageText(documents: DocumentStore,
   knownMetadata?: Awaited<ReturnType<DocumentStore["metadata"]>>) {
   const [metadata, source] = await Promise.all([
     knownMetadata ?? documents.metadata(scope, documentId),
-    documents.projectionSource(scope, documentId, versionId),
+    documents.documentSource(scope, documentId, versionId),
   ]);
   if (!metadata || !source) throw new ApplicationError(404, "Document not found");
   if (source.fileType.toLowerCase() !== "pdf") {
@@ -380,7 +380,7 @@ async function assertExhibitAssignment(documents: DocumentStore, scope: Applicat
   }
   const binding = bindings[affidavit.id];
   if (binding?.kind !== "document") return;
-  const version = await documents.projectionSource(scope, binding.documentId,
+  const version = await documents.documentSource(scope, binding.documentId,
     binding.version === "latest" ? null : binding.version.versionId);
   if (!version || version.sourceSha256 !== source.sourceSha256 ||
       binding.version !== "latest" && binding.version.sha256 !== source.sourceSha256) {

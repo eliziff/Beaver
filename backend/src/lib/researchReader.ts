@@ -1,6 +1,6 @@
 import { MAX_READ_PATTERNS, readPatterns } from "./chat/resourceTools";
 import { previousEmptyScan, type QueryHistorySource } from "./chat/queryHistory";
-import { readDocumentProjection } from "./documentApplication";
+import { readStoredDocument } from "./documentApplication";
 import { z } from "mike/shared/runtime/schema.mjs";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
@@ -384,7 +384,7 @@ export async function readResearchResource(documents: DocumentStore, scope: Appl
     if (version.size_bytes > input.maxBytes) throw new ApplicationError(413, "This document is too large for tabular extraction");
   }
   const projection = reference.kind === "document"
-    ? await readDocumentProjection(documents, scope, reference.documentId, reference.versionId, {
+    ? await readStoredDocument(documents, scope, reference.documentId, reference.versionId, {
       signal: input.signal, expectedSourceSha256: input.expectedSourceSha256 }) : null;
   if (reference.kind === "document" && !projection) throw new ApplicationError(404, "Document version not found");
   const document = projection?.document ?? null;
@@ -425,7 +425,7 @@ export async function restoreResearchEvidence(documents: DocumentStore, scope: A
     .map(async (receipt): Promise<RegisteredEvidence[]> => {
       const resource = legalEvidenceResourceReference(receipt); if (!resource || !receipt.version) return [];
       let source = sources.get(resource);
-      if (!source) { source = readDocumentProjection(documents, scope, receipt.stable_source_id, receipt.version, { signal })
+      if (!source) { source = readStoredDocument(documents, scope, receipt.stable_source_id, receipt.version, { signal })
         .then((value) => value?.document ?? null)
         .catch((error) => { if (signal?.aborted) throw error; return null; }); sources.set(resource, source); }
       const native = await source; return native ? [{ receipt, source: native }] : [];

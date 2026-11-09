@@ -81,7 +81,7 @@ async function openResearchSource(reference: ResearchSourceReference,
       failure?: "not_found" | "unsupported"; passages: CanonicalDocument[] }> {
   if (reference.kind === "document") {
     const projection = options.documents && options.scope
-      && await options.documents.projectionSource(options.scope, reference.id, reference.versionId);
+      && await options.documents.documentSource(options.scope, reference.id, reference.versionId);
     if (!projection) throw new ApplicationError(404, "Document version not found");
     const documentArtifact = await openDocument(projection, { signal: options.signal });
     return { sourceSha256: projection.sourceSha256, passages: [{ documentArtifact, evidence: (span) =>

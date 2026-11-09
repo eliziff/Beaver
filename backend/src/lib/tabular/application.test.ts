@@ -48,7 +48,7 @@ const documentStore = (bytes = Buffer.from("Governing law: Alberta")) => {
     metadataMany: vi.fn(async (_scope, ids: string[]) => ids.flatMap((id) => id === "document" ? [metadata]
       : id === "workspace" ? [{ ...metadata, id, filename: "Sources.research.md" }] : [])),
     versions: vi.fn(async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] })),
-    projectionSource: vi.fn(async () => ({ documentId: "document", versionId: "v1",
+    documentSource: vi.fn(async () => ({ documentId: "document", versionId: "v1",
       fileType: "txt", sourceSha256, readBytes: () => bytes })),
     read: vi.fn(async () => ({ bytes, filename: "lease.txt", fileType: "txt",
       hasPdfRendition: false, version: { id: "v1", version_number: 1, source: null,

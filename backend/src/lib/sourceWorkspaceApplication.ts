@@ -254,7 +254,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     const open: (id: string) => Promise<ReturnType<typeof reader>> = once(async (id: string) => reader(await required(scope, id)));
     const available = once(async (resource: string | null) => {
       const parsed = resource ? parseResourceReference(resource) : null;
-      return parsed?.kind !== "document" || !!await documents.projectionSource(scope, parsed.documentId, parsed.versionId);
+      return parsed?.kind !== "document" || !!await documents.documentSource(scope, parsed.documentId, parsed.versionId);
     });
     function reader(file: ResearchFile) {
       const sources = new Map(Object.values(file.state.sources).map((source) => [researchSourceResource(source.reference), source])),

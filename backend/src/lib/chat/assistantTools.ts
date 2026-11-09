@@ -1,4 +1,4 @@
-import { readDocumentProjection } from "../documentApplication";
+import { readStoredDocument } from "../documentApplication";
 import { readerHandoff } from "./readerHandoff";
 import { queryResources, readQueryHistory, type QueryHistorySource } from "./queryHistory";
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
@@ -572,7 +572,7 @@ async function activeDocx(
   return file;
 }
 
-const projectionSource = (documentId: string, file: DocumentContent) => ({
+const documentSource = (documentId: string, file: DocumentContent) => ({
   documentId, versionId: file.version.id, fileType: file.fileType,
   sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile,
   readBytes: () => file.bytes,
@@ -776,7 +776,7 @@ async function runCodingShapeCall(
         return fail(`Document resource does not exist: ${requested}`);
       }
       const versionId = referencedVersion(requested);
-      const source = await documents.projectionSource(scope, meta.id, versionId ?? null);
+      const source = await documents.documentSource(scope, meta.id, versionId ?? null);
       if (!source) return fail("PDF resource/version not found.");
       if (source.fileType.toLowerCase() !== "pdf") {
         return fail("Exact structural Read requires a PDF resource.");
@@ -879,9 +879,9 @@ async function runCodingShapeCall(
     if (references !== "none" && !sectionArg) {
       return fail("references requires an exact section handle.");
     }
-    let document: Awaited<ReturnType<typeof readDocumentProjection>>;
+    let document: Awaited<ReturnType<typeof readStoredDocument>>;
     try {
-      document = await readDocumentProjection(documents, scope, meta.id,
+      document = await readStoredDocument(documents, scope, meta.id,
         referencedVersion(requested) ?? null, { mode: mode ?? "drafting", signal });
     } catch {
       return fail(
@@ -1029,7 +1029,7 @@ async function runCodingShapeCall(
   const fileBuckets: CodingOutputLine[][] = [];
   let truncated = false;
   for (const meta of targets) {
-    const projected = await readDocumentProjection(documents, scope, meta.id,
+    const projected = await readStoredDocument(documents, scope, meta.id,
       targetVersionId ?? null, { mode: "drafting", signal });
     const nativeDocument = projected?.document;
     const document = projected && { versionId: projected.versionId,
@@ -1418,7 +1418,7 @@ async function runAdvancedDocxEdit(params: {
     if (requests.some(({ scope }) =>
       (scope as unknown as { kind: string }).kind === "at")) {
       const document = await openDocument(
-        projectionSource(params.documentId, file));
+        documentSource(params.documentId, file));
       if (!structureNative().documentTextBytes(document)) {
         return fail("DOCX body text could not be extracted, so an `at` scope cannot be resolved.");
       }
@@ -1523,7 +1523,7 @@ async function runDocxWorkflow(
       turnEditState, turnId, editMode });
   }
   const document = await openDocument(
-    projectionSource(documentId, file));
+    documentSource(documentId, file));
   return result({
     ok: true,
     document_id: documentId,
@@ -2915,7 +2915,7 @@ export function assistantTools<Context extends {
         const document = await authorizedDocument(input);
         if (!document) throw new Error("Select a version-pinned Library document.");
         if (legalEvidenceState) (legalEvidenceState.reviewDocumentIds ??= new Set()).add(document.documentId);
-        const source = await documents.projectionSource(scope, document.documentId, document.versionId);
+        const source = await documents.documentSource(scope, document.documentId, document.versionId);
         if (!source) throw new Error("Document version not found.");
         const [{ createAuthoritiesImporter }, { decodeQuoteLinks }, { verifyQuotations }] = await Promise.all([
           import("../authoritiesImport"), import("../quoteCheck"), import("../quoteVerification/verifier"),
