@@ -12,7 +12,7 @@ import { createDocxAuthorityLedger,
 
 function receipt(
   evidenceId: string,
-  locator: string,
+  paragraph: number,
   overrides: Partial<LegalEvidenceReceipt> = {},
 ): LegalEvidenceReceipt {
   return {
@@ -23,16 +23,16 @@ function receipt(
     stable_source_id: "case:example",
     source_sha256: "sha256:source",
     scope: "passage",
-    block_id: locator,
-    span_sha256: `sha256:${locator}`,
-    span_text: `The verified text at ${locator}.`,
+    block_id: `par${paragraph}`,
+    span_sha256: `sha256:par${paragraph}`,
+    span_text: `The verified text at par${paragraph}.`,
     citation: "2026 SCC 1",
     name: "Example v State",
     dataset: "fixture",
     language: "en",
     version: "1",
     external_url: "https://example.test/case",
-    locator: { kind: "paragraph", label: locator },
+    locator: { kind: "paragraph", label: String(paragraph) },
     resolver_version: "tna-span-v1",
     ...overrides,
   };
@@ -41,8 +41,8 @@ function receipt(
 describe("DOCX evidence citations", () => {
   it("projects short evidence ids into one authority with narrow pinpoints", () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("abcdef0#L5", "par5"));
-    registerLegalEvidence(state, receipt("abcdef0#L9", "par9"));
+    registerLegalEvidence(state, receipt("abcdef0#L5", 5));
+    registerLegalEvidence(state, receipt("abcdef0#L9", 9));
 
     const resolved = resolveDocxEvidenceCitations(state, {
       rule: ["abcdef0#L5", "abcdef0#L9"],
@@ -71,7 +71,8 @@ describe("DOCX evidence citations", () => {
 
   it("rejects stale ids and document-level receipts", () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("abcdef0#L1-L99", "document", {
+    registerLegalEvidence(state, receipt("abcdef0#L1-L99", 0, {
+      block_id: "document",
       scope: "document",
       span_text: null,
       locator: { kind: "document", label: "document" },
@@ -102,7 +103,7 @@ describe("DOCX evidence citations", () => {
 
   it("records exact rendered citation markers without reparsing them later", async () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", {
+    registerLegalEvidence(state, receipt("abcdef0#L5", 5, {
       source_sha256: "a".repeat(64),
     }));
     const resolved = resolveDocxEvidenceCitations(state, { rule: ["abcdef0#L5"] });
@@ -123,7 +124,7 @@ describe("DOCX evidence citations", () => {
 
   it("omits the ledger when rendered citation text is ambiguous", async () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", {
+    registerLegalEvidence(state, receipt("abcdef0#L5", 5, {
       source_sha256: "a".repeat(64),
     }));
     const resolved = resolveDocxEvidenceCitations(state, { rule: ["abcdef0#L5"] });
@@ -136,8 +137,8 @@ describe("DOCX evidence citations", () => {
 
   it("binds actual full, ibid, supra, grouped and authored-note appearances by note identity", async () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", { source_sha256: "a".repeat(64) }));
-    registerLegalEvidence(state, receipt("1234567#L5", "par5", {
+    registerLegalEvidence(state, receipt("abcdef0#L5", 5, { source_sha256: "a".repeat(64) }));
+    registerLegalEvidence(state, receipt("1234567#L5", 5, {
       stable_source_id: "case:other", citation: "2026 SCC 2", name: "Other v State",
       source_sha256: "b".repeat(64),
     }));
@@ -156,7 +157,7 @@ describe("DOCX evidence citations", () => {
 
   it.each(["inline", "after-paragraph", "none"] as const)("binds only emitted %s markers", async (citationPlacement) => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", { source_sha256: "a".repeat(64) }));
+    registerLegalEvidence(state, receipt("abcdef0#L5", 5, { source_sha256: "a".repeat(64) }));
     const resolved = resolveDocxEvidenceCitations(state, { rule: ["abcdef0#L5"] });
     const appearances: DocxCitationAppearance[] = [];
     const bytes = await renderDocxMarkdown("Claim.[@rule][@rule]", {
@@ -167,8 +168,8 @@ describe("DOCX evidence citations", () => {
 
   it.each(["inline", "after-paragraph", "footnotes"] as const)("binds grouped and individual %s markers without assigning unrelated prose", async (citationPlacement) => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", { source_sha256: "a".repeat(64) }));
-    registerLegalEvidence(state, receipt("1234567#L9", "par9", {
+    registerLegalEvidence(state, receipt("abcdef0#L5", 5, { source_sha256: "a".repeat(64) }));
+    registerLegalEvidence(state, receipt("1234567#L9", 9, {
       stable_source_id: "case:other", citation: "2026 SCC 2", name: "Other v State", source_sha256: "b".repeat(64),
     }));
     const resolved = resolveDocxEvidenceCitations(state, {
@@ -196,7 +197,7 @@ describe("DOCX evidence citations", () => {
 
   it("abstains instead of spinning when an appearance renders no citation text", async () => {
     const state = createLegalEvidenceTurnState();
-    registerLegalEvidence(state, receipt("abcdef0#L5", "par5", { source_sha256: "a".repeat(64) }));
+    registerLegalEvidence(state, receipt("abcdef0#L5", 5, { source_sha256: "a".repeat(64) }));
     const resolved = resolveDocxEvidenceCitations(state, { rule: ["abcdef0#L5"] });
     const appearances: DocxCitationAppearance[] = [];
     const bytes = await renderDocxMarkdown("The rule applies.[@rule]", {

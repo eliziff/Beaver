@@ -3,15 +3,19 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { extractEmailText, parseEmail } from "../emailText";
+import { sha256 } from "../hash";
+import { structureNative } from "../structureNative";
+
+const emailText = (bytes: Buffer) => structureNative().sourceText(bytes,
+  { fileType: "eml", sourceSha256: sha256(bytes) });
 
 const eml = (lines: string[]) => Buffer.from(lines.join("\r\n"), "utf8");
 
-describe("parseEmail", () => {
+describe("email source text", () => {
   it("rejoins quoted-printable soft breaks that split a number", async () => {
     // The failure this whole module exists for: a soft break lands mid-digit,
     // so an undecoded read sees $85,0 and $47,00 instead of the real amounts.
-    const message = await parseEmail(
+    const message = await emailText(
       eml([
         "From: Rachel <rachel@example.com>",
         "Subject: Financial notes",
@@ -23,30 +27,21 @@ describe("parseEmail", () => {
         "0 came from joint savings =E2=80=94 as discussed.",
       ]),
     );
-    expect(message.body).toContain("$85,000");
-    expect(message.body).toContain("$47,000");
-    expect(message.body).toContain("—");
-    expect(message.body).not.toContain("=E2");
-    expect(message.abstentions).toEqual([]);
+    expect(message).toContain("$85,000");
+    expect(message).toContain("$47,000");
+    expect(message).toContain("—");
+    expect(message).not.toContain("=E2");
+    expect(message).not.toContain("[Not decoded:");
   });
 
-  
-
-  
-
-  
-
-  
-
-  
-
-  it("abstains rather than guessing when the bytes are not an email", async () => {
-    const message = await parseEmail(Buffer.from("Just some loose prose.", "utf8"));
-    expect(message.abstentions[0]).toMatchObject({ reason: "not_an_email" });
+  it("preserves plain prose and reports when it has no email headers", async () => {
+    const text = await emailText(Buffer.from("Just some loose prose.", "utf8"));
+    expect(text).toContain("Just some loose prose.");
+    expect(text).toContain("[Not decoded: not_an_email");
   });
 
-  it("reports an unsupported transfer encoding as a typed abstention", async () => {
-    const message = await parseEmail(
+  it("reports an unsupported transfer encoding in the reading", async () => {
+    const message = await emailText(
       eml([
         "From: a@example.com",
         "Content-Type: text/plain; charset=utf-8",
@@ -55,10 +50,9 @@ describe("parseEmail", () => {
         "begin 644 x",
       ]),
     );
-    expect(message.abstentions[0]).toMatchObject({
-      reason: "unsupported_encoding",
-      detail: "uuencode",
-    });
+    expect(message).toContain("[Not decoded:");
+    expect(message).toContain("unsupported_encoding");
+    expect(message).toContain("uuencode");
   });
 });
 

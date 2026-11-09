@@ -22,9 +22,13 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
       pageCount: 3,
       pagesNeedingOcr: [0, 1, 2].filter(page => !pages.includes(page + 1)), ocrRoutedPages: pages.map(page => page - 1) };
   });
-  const restore = vi.fn(async (_bytes: unknown, input: { sourceSha256: string; pdf: { cacheKey: string } }) => {
+  const restore = vi.fn(async (bytes: Buffer | undefined, input: {
+    sourceSha256: string; pdf: { cacheKey: string; pages?: number[]; ocr?: unknown };
+  }) => {
     const artifact = artifacts.get(input.pdf.cacheKey);
-    return artifact?.sha256 === input.sourceSha256 ? artifact : null;
+    if (artifact?.sha256 === input.sourceSha256) return artifact;
+    if (!bytes) return null;
+    return artifacts.get((await prepare(bytes, input.pdf)).cacheKey);
   });
   vi.doMock('../structureNative', () => ({ nativeDocumentLive: () => true, structureNative: () => ({ preparePdfDocument: prepare,
     openSource: restore,
@@ -78,8 +82,6 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     const selected = await Promise.all([request(api).get(`${url}&pages=2`).expect(200),
       request(api).get(`${url}&pages=2`).expect(200)]);
     expect(selected.map(response => response.body.pages.map((page: NativePdfTextPage) => page.number))).toEqual([[2], [2]]);
-    expect(restore).toHaveBeenCalledTimes(1);
-    expect(restore.mock.calls[0][1].pdf.cacheKey).toBe(source.pdfProfile!.textLayerPages!['2']);
     await request(api).get(`${url}&pages=0`).expect(400);
     await request(api).get(`${url}&pages=2&source_sha256=${'0'.repeat(64)}`).expect(409);
     const response = await read().expect(200);

@@ -36,56 +36,54 @@ async function fixture(project = false) {
   const rawGet = objects.get.bind(objects), reads = vi.spyOn(objects, "get");
   const source = (scope = owner, versionId: string | null = null) =>
     documents.documentSource(scope, created.id, versionId);
-  return { objects, rawGet, documents, projection: { text: sourceText }, owner, reader,
+  return { objects, rawGet, documents, sourceText, owner, reader,
     created, source, reads, db, sql, projectId };
 }
 
-it("reauthorizes repeated repository reads without rereading the content-addressed blob", async () => {
+it("reauthorizes repeated repository reads and rejects a descriptor after deletion", async () => {
   const f = await fixture();
-  expect(await f.projection.text((await f.source())!)).toBe("Verified original passage 😀");
+  expect(await f.sourceText((await f.source())!)).toBe("Verified original passage 😀");
   const second = (await f.source())!;
-  expect(await f.projection.text(second)).toBe("Verified original passage 😀");
-  expect(f.reads).toHaveBeenCalledOnce();
+  expect(await f.sourceText(second)).toBe("Verified original passage 😀");
   expect(await f.source(f.reader)).toBeNull();
   expect(await f.documents.deleteDocument(f.owner, f.created.id)).toBe(true);
-  await expect(f.projection.text(second)).rejects.toMatchObject({ status: 404 });
+  await expect(f.sourceText(second)).rejects.toMatchObject({ status: 404 });
 });
 
 it("rejects an old shared descriptor after revocation while the owner can still reuse the text", async () => {
   const f = await fixture(true), readerSource = (await f.source(f.reader))!;
   expect(readerSource).not.toBeNull();
-  expect(await f.projection.text(readerSource)).toContain("Verified original");
+  expect(await f.sourceText(readerSource)).toContain("Verified original");
   await f.db.query(f.sql`DELETE FROM project_members WHERE project_id=${f.projectId} AND email=${f.reader.userEmail}`);
   expect(await f.source(f.reader)).toBeNull();
   // Mutating the caller's scope does not escalate a captured descriptor's authority.
   f.reader.userId = f.owner.userId;
-  await expect(f.projection.text(readerSource)).rejects.toMatchObject({ status: 404 });
-  expect(await f.projection.text((await f.source())!)).toContain("Verified original");
-  expect(f.reads).toHaveBeenCalledOnce();
+  await expect(f.sourceText(readerSource)).rejects.toMatchObject({ status: 404 });
+  expect(await f.sourceText((await f.source())!)).toContain("Verified original");
 });
 
 it("detects in-place version replacement and serves only the new text from a fresh descriptor", async () => {
   const f = await fixture(), original = (await f.source())!;
-  await f.projection.text(original);
+  await f.sourceText(original);
   const changed = await f.documents.replaceVersion(f.owner, f.created.id, f.created.current_version_id,
     f.created.current_working_revision, { filename: "Memo.txt", fileType: "txt", bytes: Buffer.from("Revised passage") });
   expect(changed.status).toBe("replaced");
-  await expect(f.projection.text(original)).rejects.toMatchObject({ status: 409 });
+  await expect(f.sourceText(original)).rejects.toMatchObject({ status: 409 });
   const current = (await f.source())!;
   expect(current.versionId).toBe(original.versionId);
   expect(current.sourceSha256).not.toBe(original.sourceSha256);
-  expect(await f.projection.text(current)).toBe("Revised passage");
+  expect(await f.sourceText(current)).toBe("Revised passage");
 });
 
 it("keeps explicit historical versions separate after a new current version is published", async () => {
   const f = await fixture(), original = (await f.source())!;
-  await f.projection.text(original);
+  await f.sourceText(original);
   expect(await f.documents.addVersion(f.owner, f.created.id, {
     filename: "Memo.txt", fileType: "txt", bytes: Buffer.from("Version two"),
   })).not.toBeNull();
-  expect(await f.projection.text((await f.source())!)).toBe("Version two");
-  expect(await f.projection.text(original)).toBe("Verified original passage 😀");
-  expect(await f.projection.text((await f.source(f.owner, original.versionId))!)).toBe("Verified original passage 😀");
+  expect(await f.sourceText((await f.source())!)).toBe("Version two");
+  expect(await f.sourceText(original)).toBe("Verified original passage 😀");
+  expect(await f.sourceText((await f.source(f.owner, original.versionId))!)).toBe("Verified original passage 😀");
 });
 
 it("rechecks authority after a shared load, including revocation during blob I/O", async () => {
@@ -94,20 +92,19 @@ it("rechecks authority after a shared load, including revocation during blob I/O
   const began = new Promise<void>(resolve => { started = resolve; });
   const held = new Promise<void>(resolve => { deliver = resolve; });
   f.reads.mockImplementation(async key => { const bytes = await raw(key); started(); await held; return bytes; });
-  const pending = f.projection.text((await f.source(f.reader))!);
+  const pending = f.sourceText((await f.source(f.reader))!);
   await began;
   await f.db.query(f.sql`DELETE FROM project_members WHERE project_id=${f.projectId} AND email=${f.reader.userEmail}`);
   deliver();
   await expect(pending).rejects.toMatchObject({ status: 404 });
-  expect(await f.projection.text((await f.source())!)).toContain("Verified original");
-  expect(f.reads).toHaveBeenCalledOnce();
+  expect(await f.sourceText((await f.source())!)).toContain("Verified original");
 });
 
 it("does not retain corrupt source reads and retries after source recovery", async () => {
   const f = await fixture(), input = (await f.source())!;
   f.reads.mockResolvedValueOnce(Buffer.from("Corrupt storage"));
-  await expect(f.projection.text(input)).rejects.toThrow("integrity check");
-  expect(await f.projection.text(input)).toBe("Verified original passage 😀");
+  await expect(f.sourceText(input)).rejects.toThrow("integrity check");
+  expect(await f.sourceText(input)).toBe("Verified original passage 😀");
   expect(f.reads).toHaveBeenCalledTimes(2);
 });
 

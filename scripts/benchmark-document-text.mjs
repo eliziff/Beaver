@@ -1,4 +1,5 @@
-// Focused real-compiler benchmark. No native parser, models or network services.
+// Source-text benchmark through the real repository and native format readers; no models or network services.
+// Both checkouts must expose the current sourceDocument API.
 // node scripts/benchmark-document-text.mjs BASELINE_CHECKOUT [REPORT_JSON]
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -26,7 +27,7 @@ if (process.argv[2] === '--sample') {
   const { documentRepository } = require(path.join(target, 'backend/src/lib/relationalDocumentRepository.ts'));
   const { createFilesystemObjectStorage } = require(path.join(target, 'backend/src/lib/storage.ts'));
   ({ closeRelationalDatabase } = require(path.join(target, 'backend/src/lib/relationalDatabase.ts')));
-  const { documentProjectionService: projections } = require(path.join(target, 'backend/src/lib/documentProjectionService.ts'));
+  const { sourceText } = require(path.join(target, 'backend/src/lib/sourceDocument.ts'));
   const scope = { userId: randomUUID() };
   const objects = createFilesystemObjectStorage(path.join(home, 'objects'));
   const documents = createDocumentApplication(documentRepository, objects);
@@ -48,8 +49,8 @@ if (process.argv[2] === '--sample') {
     const create = () => documents.create(scope, { filename: `Fixture.${format}`, fileType: format, bytes });
     const first = await create(), concurrent = await create();
     const read = async document => {
-      const source = await documents.projectionSource(scope, document.id, null);
-      assert.ok(source); return projections.text(source);
+      const source = await documents.documentSource(scope, document.id, null);
+      assert.ok(source); return sourceText(source);
     };
     // Setup/import/publication time is excluded; every timed read still obtains a
     // fresh authorized descriptor through the real SQLite document repository.
@@ -90,7 +91,7 @@ if (process.argv[2] === '--sample') {
     ])) });
   }
   const report = { node: process.version, platform: `${process.platform}/${process.arch}`, samplesPerVariant: 5,
-    notes: 'Real SQLite/filesystem, XLSX/PostalMime compilers; fresh process per sample; sequential repeat count and concurrency are 8; setup excluded. Not a live model, network, PDF or native DOCX benchmark.',
+    notes: 'Real SQLite/filesystem and native workbook/email readers; fresh process per sample; sequential repeat count and concurrency are 8; setup excluded. Not a model, network, PDF or DOCX benchmark.',
     summary, samples };
   console.log(JSON.stringify(report, null, 2));
   if (process.argv[3]) {

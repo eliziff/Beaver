@@ -108,7 +108,7 @@ describe("unified A2AJ document reads", () => {
     const selected = read.values.find(({ role }) => role === "selected")!;
     expect(selected.native).toMatchObject({ citation: "2099 SCC 9" });
     expect(selected.blockArtifact).toMatchObject({
-      label: "par2",
+      node: { kind: "paragraph", label: "2" },
       text: selected.text,
     });
     expect(structureNative().documentText(selected.documentArtifact as NativeDocument)).toBe(text);

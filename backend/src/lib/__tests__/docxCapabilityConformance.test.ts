@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import { docxXml as packageXml } from "./support/docxFixtures";
 
 import { renderDocxMarkdown } from "../chat/tools/docxMarkdown";
-import { projectDocxRedline } from "../docx/redline";
 import { extractDocxBodyText } from "../docxTrackedChanges";
 import { sha256 } from "../hash";
 import { structureNative } from "../structureNative";
@@ -120,23 +119,19 @@ describe("tracked changes", () => {
     expect(body).toBe("The seat of arbitration is Toronto.\nCosts follow the cause.");
     expect(body).not.toContain("Zurich");
 
-    // The drafting source flattens tracked changes to the accepted view and
-    // warns that revision intent was flattened — the redline mode is the
-    // review surface where the marks survive.
+    // The drafting source reads the accepted view; the redline view keeps the marks.
     const markdown = await draftingText(bytes);
     // Native drafting emits the accepted view as plain Markdown paragraphs.
     expect(markdown).toContain("The seat of arbitration is Toronto.");
     expect(markdown).toContain("Costs follow the cause.");
     expect(markdown).not.toContain("Zurich");
 
-    // The redline projection is where the marks survive.
-    const redline = await projectDocxRedline(bytes);
-    expect(redline.text).toContain("{++Toronto++}");
-    expect(redline.text).toContain("{--Zurich--}");
-    expect(redline.counts).toMatchObject({
-      tracked_insertions: 2,
-      tracked_deletions: 1,
-    });
+    const native = structureNative();
+    const document = await native.openSource(bytes, { documentId: "test", versionId: "1", fileType: "docx",
+      sourceSha256: sha256(bytes), mode: "redline" });
+    const redline = native.documentText(document!);
+    expect(redline).toContain("{++Toronto++}");
+    expect(redline).toContain("{--Zurich--}");
   });
 });
 
@@ -235,19 +230,14 @@ describe("real-world corruption fixtures", () => {
     );
   });
 
-  it("malformed-body: broken document.xml raises a clear error while the body plane still recovers text", async () => {
+  it("malformed-body: drafting falls back to the recovered body text", async () => {
     const bytes = readReal("malformed-body.docx");
 
-    // Native drafting fails closed with a message naming the malformed part.
-    await expect(draftingText(bytes)).rejects.toThrow(
-      /malformed XML in word\/document\.xml/i,
-    );
-
-    // The fast-xml-parser body flattener is lenient and recovers the text a
-    // strict converter cannot, so the edit plane still has anchors.
+    // The source reader preserves the recovered text when strict drafting cannot read the part.
     const body = await extractDocxBodyText(bytes);
     expect(body).toContain("Governing Law");
     expect(body).toContain("$87.3 million");
+    expect(await draftingText(bytes)).toBe(body);
   });
 });
 

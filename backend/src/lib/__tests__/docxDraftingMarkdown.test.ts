@@ -2,10 +2,6 @@ import { ImageRun, Paragraph } from "docx";
 import { describe, expect, it } from "vitest";
 import { docxBytes } from "./support/docxFixtures";
 import { renderDocxMarkdown } from "../chat/tools/docxMarkdown";
-import {
-  MAX_DRAFTING_DOCX_BYTES,
-  MAX_DRAFTING_XML_ENTRY_BYTES,
-} from "../docx/core";
 import { sha256 } from "../hash";
 import { structureNative } from "../structureNative";
 
@@ -81,21 +77,22 @@ describe("DOCX drafting Markdown", () => {
       draftingText(Buffer.from("not a docx")),
     ).rejects.toThrow();
     await expect(
-      draftingText(Buffer.alloc(MAX_DRAFTING_DOCX_BYTES + 1)),
+      // A drafting-only limit may fall back to accepted text. This exceeds both views' package limit.
+      draftingText(Buffer.alloc(50 * 1024 * 1024 + 1)),
     ).rejects.toThrow("exceeds");
 
     const zip = new (await import("jszip")).default();
     zip.file(
       "word/document.xml",
-      "x".repeat(MAX_DRAFTING_XML_ENTRY_BYTES + 1),
+      "x".repeat(32 * 1024 * 1024 + 1),
     );
     const archive = await zip.generateAsync({
       type: "nodebuffer",
       compression: "STORE",
     });
-    expect(archive.length).toBeLessThan(MAX_DRAFTING_DOCX_BYTES);
+    expect(archive.length).toBeLessThan(50 * 1024 * 1024);
     await expect(draftingText(archive)).rejects.toThrow(
-      "oversized XML",
+      /XML.*exceeds|oversized XML/u,
     );
   });
 });

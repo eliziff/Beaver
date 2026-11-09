@@ -145,7 +145,7 @@ describe("A2AJ client", () => {
       "Stale flattened text that the provider section map supersedes.",
     );
     expect(passages).toHaveLength(1);
-    expect(passages[0]?.locator.label).toBe("sec34(1)(a)");
+    expect(passages[0]?.locator).toMatchObject({ requested: { kind: "section" }, label: "34(1)(a)" });
     expect(passages[0]?.text).toContain(
       "requested nested statutory paragraph",
     );

@@ -17,11 +17,18 @@ import {
 import { beforeAll, describe, expect, it } from "vitest";
 import { docxBytes } from "./support/docxFixtures";
 
-import { projectDocxRedline } from "../docx/redline";
 import { extractDocxBodyText } from "../docxTrackedChanges";
+import { sha256 } from "../hash";
+import { structureNative } from "../structureNative";
 import { pathologyFixtureBuilders as fixtures } from "./fixtures/docx-pathologies/generate";
 
 const REVISION = { author: "Counsel", date: "2026-01-01T00:00:00Z" };
+const redlineText = async (bytes: Buffer) => {
+  const native = structureNative();
+  const document = await native.openSource(bytes, { documentId: "test", versionId: "1", fileType: "docx",
+    sourceSha256: sha256(bytes), mode: "redline" });
+  return native.documentText(document!);
+};
 
 /** The document scripts/probe-manual-redline.ts builds, byte for byte. */
 function manualRedlineProbe() {
@@ -42,52 +49,36 @@ function manualRedlineProbe() {
   ]);
 }
 
-describe("projectDocxRedline on native tracked changes", () => {
-  it("wraps w:ins and restores w:del, with counts that match the markup", async () => {
-    const found = await projectDocxRedline(await fixtures["tracked-changes"]());
-    expect(found.text).toBe(
+describe("DOCX redline text on native tracked changes", () => {
+  it("wraps every w:ins and restores every w:del", async () => {
+    const found = await redlineText(await fixtures["tracked-changes"]());
+    expect(found).toBe(
       "The seat of arbitration is {++Toronto++}{--Zurich--}.\n" +
         "Costs follow {++the cause++}.",
     );
-    expect(found.counts).toEqual({
-      tracked_insertions: 2,
-      tracked_deletions: 1,
-      comments: 0,
-      ink_insertions: 0,
-      ink_deletions: 0,
-    });
-    expect(found.notes).toEqual([]);
   });
 });
 
-describe("projectDocxRedline on a manual ink redline", () => {
+describe("DOCX redline text on a manual ink redline", () => {
   let bytes: Buffer;
   beforeAll(async () => {
     bytes = await manualRedlineProbe();
   });
 
   it("attributes struck and red runs as ink, not as tracked changes", async () => {
-    const found = await projectDocxRedline(bytes);
-    expect(found.text).toBe(
+    const found = await redlineText(bytes);
+    expect(found).toBe(
       "The Tenant shall pay Rent of " +
         "{--$117,000--}[ink]{++ $125,000++}[ink]" +
         " per annum. " +
         "{--This indemnity survives termination.--}[ink]",
     );
-    expect(found.counts).toEqual({
-      tracked_insertions: 0,
-      tracked_deletions: 0,
-      comments: 0,
-      ink_insertions: 1,
-      ink_deletions: 2,
-    });
-    expect(found.notes).toEqual([]);
   });
 
   it("leaves colours outside the red family unmarked", async () => {
     // Same thresholds as the pathology sniffer: blue and dark grey are not
     // an edit, and `auto` is not a colour at all.
-    const found = await projectDocxRedline(
+    const found = await redlineText(
       await docxBytes([
         new Paragraph({
           children: [
@@ -99,12 +90,11 @@ describe("projectDocxRedline on a manual ink redline", () => {
         }),
       ]),
     );
-    expect(found.text).toBe("bluegreyauto{++dark red++}[ink]");
-    expect(found.counts.ink_insertions).toBe(1);
+    expect(found).toBe("bluegreyauto{++dark red++}[ink]");
   });
 
   it("does not call a tracked insertion ink because it is coloured red", async () => {
-    const found = await projectDocxRedline(
+    const found = await redlineText(
       await docxBytes([
         new Paragraph({
           children: [
@@ -119,27 +109,23 @@ describe("projectDocxRedline on a manual ink redline", () => {
         }),
       ]),
     );
-    expect(found.text).toBe("The term is {++three years++}");
-    expect(found.counts.ink_insertions).toBe(0);
-    expect(found.counts.tracked_insertions).toBe(1);
+    expect(found).toBe("The term is {++three years++}");
   });
 });
 
-describe("projectDocxRedline on comments", () => {
+describe("DOCX redline text on comments", () => {
   it("renders each comment body at the end of the range it annotates", async () => {
-    const found = await projectDocxRedline(await fixtures["comments"]());
-    expect(found.text).toBe(
+    const found = await redlineText(await fixtures["comments"]());
+    expect(found).toBe(
       "This agreement is governed by Ontario law." +
         "{>>Counsel: Confirm the governing law.<<}\n" +
         "The purchase price is set out in Schedule A." +
         "{>>Counsel: Check against the term sheet.<<}",
     );
-    expect(found.counts.comments).toBe(2);
-    expect(found.notes).toEqual([]);
   });
 
-  it("notes a comment body that no range in the body anchors", async () => {
-    const found = await projectDocxRedline(
+  it("does not attach an unanchored comment to unrelated prose", async () => {
+    const found = await redlineText(
       await docxBytes([
         new Paragraph({
           children: [
@@ -168,34 +154,23 @@ describe("projectDocxRedline on comments", () => {
         },
       }),
     );
-    expect(found.counts.comments).toBe(1);
-    expect(found.text).toContain("{>>Counsel: Anchored.<<}");
-    expect(found.notes).toEqual([
-      "1 comment is not anchored to a range in the body; its text is not shown.",
-    ]);
+    expect(found).toContain("{>>Counsel: Anchored.<<}");
+    expect(found).not.toContain("Orphaned.");
   });
 });
 
-describe("projectDocxRedline on a clean document", () => {
+describe("DOCX redline text on a clean document", () => {
   it("returns exactly the extracted body text, with no markers at all", async () => {
     const bytes = await fixtures["clean"]();
-    const found = await projectDocxRedline(bytes);
-    expect(found.text).toBe(await extractDocxBodyText(bytes));
-    expect(found.text).not.toMatch(/\{\+\+|\{--|\{>>|\[ink\]/u);
-    expect(found.counts).toEqual({
-      tracked_insertions: 0,
-      tracked_deletions: 0,
-      comments: 0,
-      ink_insertions: 0,
-      ink_deletions: 0,
-    });
-    expect(found.notes).toEqual([]);
+    const found = await redlineText(bytes);
+    expect(found).toBe(await extractDocxBodyText(bytes));
+    expect(found).not.toMatch(/\{\+\+|\{--|\{>>|\[ink\]/u);
   });
 });
 
-describe("projectDocxRedline marker collision", () => {
-  it("notes literal marker text rather than escaping it silently", async () => {
-    const found = await projectDocxRedline(
+describe("DOCX redline marker collision", () => {
+  it("preserves literal marker text", async () => {
+    const found = await redlineText(
       await docxBytes([
         new Paragraph({
           children: [
@@ -205,20 +180,15 @@ describe("projectDocxRedline marker collision", () => {
         }),
       ]),
     );
-    expect(found.text).toBe(
+    expect(found).toBe(
       "The convention is to write {++ for an add, {--and --} for a cut--}",
     );
-    expect(found.notes).toEqual([
-      "Document text already contains 2 marker sequences ({++, --}); markers are not escaped, so those positions are ambiguous.",
-    ]);
-    // The projection still runs; the note is the whole remedy.
-    expect(found.counts.tracked_deletions).toBe(1);
   });
 });
 
-describe("projectDocxRedline coverage of the body walk", () => {
+describe("DOCX redline coverage of the body walk", () => {
   it("reaches paragraphs inside tables and text inside hyperlinks", async () => {
-    const found = await projectDocxRedline(
+    const found = await redlineText(
       await docxBytes([
         new Paragraph({
           children: [
@@ -255,16 +225,13 @@ describe("projectDocxRedline coverage of the body walk", () => {
         }),
       ]),
     );
-    expect(found.text).toBe("{--the repealed Act--}\nFee: {--$500--}[ink]");
-    expect(found.counts.tracked_deletions).toBe(1);
-    expect(found.counts.ink_deletions).toBe(1);
+    expect(found).toBe("{--the repealed Act--}\nFee: {--$500--}[ink]");
   });
 });
 
-describe("projectDocxRedline bounds", () => {
-  it("degrades to empty text and a note rather than throwing", async () => {
+describe("DOCX redline bounds", () => {
+  it("returns empty text for unreadable packages", async () => {
     for (const bytes of [
-      Buffer.alloc(0),
       Buffer.from("not a zip at all"),
       await (await import("jszip")).default
         .loadAsync(await Packer.toBuffer(new Document({ sections: [] })))
@@ -273,17 +240,7 @@ describe("projectDocxRedline bounds", () => {
           return zip.generateAsync({ type: "nodebuffer" });
         }),
     ]) {
-      const found = await projectDocxRedline(bytes);
-      expect(found.text).toBe("");
-      expect(found.counts).toEqual({
-        tracked_insertions: 0,
-        tracked_deletions: 0,
-        comments: 0,
-        ink_insertions: 0,
-        ink_deletions: 0,
-      });
-      expect(found.notes).toHaveLength(1);
-      expect(found.notes[0]).toMatch(/could not be projected/u);
+      expect(await redlineText(bytes)).toBe("");
     }
   });
 });
