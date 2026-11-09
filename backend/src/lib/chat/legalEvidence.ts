@@ -915,12 +915,12 @@ export async function legalEvidenceProseIntegrityErrors(text: string,
   const named = new Map<string, Set<string>>();
   // One scan for the whole draft: rescanning per citation made the check quadratic.
   const quoted = native.markedQuoteSpans(text);
-  const extracted = await native.citationEngineCallAsync("extract", {
+  const extracted = await native.offThread("citationEngineCall", "extract", {
     text, offsetUnit: "utf16", options: { resolve: false },
   }) as ExtractResponse;
   for (const citation of extracted.citations.filter((citation) =>
     !quoted.some((quote) => citation.span.start >= quote.start && citation.span.end <= quote.end))) {
-    const key = citation.key ?? native.citationLookupKey(citation.span.text), labels = named.get(key) ?? new Set<string>();
+    const key = citation.key ?? native.citationLookupKeys([citation.span.text])[0], labels = named.get(key) ?? new Set<string>();
     const paragraphs = (citation.pinpoints ?? []).filter(({ kind }) => kind === "paragraph");
     if (!paragraphs.length) continue;
     named.set(key, labels);
@@ -934,7 +934,7 @@ export async function legalEvidenceProseIntegrityErrors(text: string,
     });
   }
   const pinpoints = [...named].flatMap(([key, labels]) => {
-    const actual = cited.filter((receipt) => native.citationLookupKey(receipt.citation) === key)
+    const actual = cited.filter((receipt) => native.citationLookupKeys([receipt.citation])[0] === key)
       .flatMap(({ locator }) => {
         if (locator.kind !== "paragraph") return [""];
         const label = locator.label, span = /^(\d+)\s*[-–—]\s*(\d+)$/u.exec(label);

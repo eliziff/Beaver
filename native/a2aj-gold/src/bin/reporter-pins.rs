@@ -83,14 +83,8 @@ fn pinned_quotes(id: i64, language: &'static str, text: &str, cited: &HashMap<St
         }
     }
     // the notes: each note's citations with a page pin, and its proposition's quotations
-    let pairing = pair_numbered_footnotes(text, &[text.to_owned()]);
-    let mut notes = String::new();
-    let ranges: Vec<legal_citations::NoteRange> = pairing.notes.iter().map(|note| {
-        if !notes.is_empty() { notes.push_str("\n\n"); }
-        let start = notes.len();
-        notes.push_str(&note.body);
-        legal_citations::NoteRange { number: note.label.trim().parse().unwrap_or(0), start, end: notes.len(), sequence: note.restart_sequence as u32, anchor: None }
-    }).collect();
+    let pairing = pair_numbered_footnotes(text);
+    let (notes, ranges) = pairing.note_text(text);
     if ranges.is_empty() {
         return out;
     }
@@ -103,7 +97,7 @@ fn pinned_quotes(id: i64, language: &'static str, text: &str, cited: &HashMap<St
         let Some(key) = full.key.as_ref().filter(|key| cited.contains_key(*key)) else { continue };
         let Some(&pin) = page_pins(citation).first() else { continue };
         let Some(note) = ranges.iter().position(|r| r.start <= citation.span.start && citation.span.start < r.end) else { continue };
-        let Some(proposition) = pairing.notes[note].proposition.as_deref() else { continue };
+        let Some(proposition) = pairing.notes[note].properties.get("sentence") else { continue };
         for quote in marked_quote_spans(proposition) {
             if words(&quote.text) >= FEWEST_WORDS {
                 out.push(Found { citing: id, language, cited_key: key.clone(), pin, quote: quote.text.clone(), how: "note" });
