@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import * as XLSX from "xlsx";
-import { documentProjectionService } from "./documentProjectionService";
+import { openDocument } from "./sourceDocument";
 import type { DocumentStore } from "./documentStore";
 import { structureNative } from "./structureNative";
 import { sha256 } from "./hash";
@@ -86,7 +86,7 @@ it("keeps spreadsheet cell identity and reads selected Library evidence without 
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Rate", 25], ["Other", 900]]), "Terms");
   const bytes = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer,
     source = { documentId: "sheet", versionId: "v1", fileType: "xlsx", sourceSha256: sha256(bytes), readBytes: () => bytes },
-    document = await documentProjectionService.read(source),
+    document = await openDocument(source),
     initial = readLibraryResearchWindow({ documentId: "sheet", versionId: "v1", filename: "Terms.xlsx", document }),
     receipt = initial.evidence!.find(({ locator }) => locator.cells === "B1")!;
   expect(receipt).toMatchObject({ span_text: "25 ⟨n:25⟩", locator: {

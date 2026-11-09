@@ -2,12 +2,10 @@ import { afterEach, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { buildAuthoritiesDraft } from "./authoritiesBookCore";
 import { createAuthoritiesDraft } from "./authoritiesDomain";
-import { documentProjectionService } from "./documentProjectionService";
+import { openDocument, preparePdf } from "./sourceDocument";
 import { sha256 } from "./hash";
 
-vi.mock("./documentProjectionService", () => ({ documentProjectionService: {
-  preparePdf: vi.fn(), pdfPagination: vi.fn(),
-} }));
+vi.mock("./sourceDocument", () => ({ preparePdf: vi.fn(), openDocument: vi.fn(), PLAIN_PDF: {} }));
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -24,8 +22,8 @@ it("includes an attached PDF whole when neither its text nor printed labels can 
     name: "Nimbus v Aurora", displayName: null, evidenceIds: [], excluded: false, locators: [], sourceIdentity: null,
     source: { kind: "attached", sources: [{ bindingRole: "decision", filename: "Decision.pdf", sourceSha256,
       sourceUrl: null, origin: "manual", language: "en" }] } };
-  vi.mocked(documentProjectionService.preparePdf).mockRejectedValue(new Error("Text unavailable"));
-  vi.mocked(documentProjectionService.pdfPagination).mockRejectedValue(new Error("Labels unavailable"));
+  vi.mocked(preparePdf).mockRejectedValue(new Error("Text unavailable"));
+  vi.mocked(openDocument).mockRejectedValue(new Error("Labels unavailable"));
   const { built } = await buildAuthoritiesDraft(state, { title: "Authorities", workProduct: { id: "book", revision: 1 },
     files: [{ role: "decision", filename: "Decision.pdf", bytes, sourceSha256 }],
     statuteText: async () => null, signal: new AbortController().signal });

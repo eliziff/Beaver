@@ -39,14 +39,14 @@ async function textDocx(text: string) {
 
 async function seedResearch() {
   const { runtime } = await import("../../runtime"), documents = await runtime.documents(),
-    sources = await runtime.sources(), { documentProjectionService } = await import("../../lib/documentProjectionService"),
+    sources = await runtime.sources(), { sourceText } = await import("../../lib/sourceDocument"),
     { createLibraryEvidence } = await import("../../lib/chat/legalEvidence");
   const records = [], evidence = [];
   for (const fixture of ORGANIZE_FILES) {
     const document = await documents.create(SCOPE, { filename: fixture.filename, fileType: "docx",
       bytes: await textDocx(fixture.text), libraryKind: "file" });
     const source = await documents.documentSource(SCOPE, document.id, null);
-    const text = await documentProjectionService.text(source!);
+    const text = await sourceText(source!);
     expect(text).toContain(fixture.text);
     const start = text.indexOf(fixture.text);
     records.push(document);

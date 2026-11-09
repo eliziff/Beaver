@@ -16,9 +16,9 @@ import type { ResearchOperationContext } from "./researchProvenance";
 import { resolveResearchSelection } from "./researchSelection";
 import { readResearchWorkspace, type ResearchReadContext } from "./researchReader";
 
-vi.mock("./documentProjectionService", () => ({ documentProjectionService: {
-  read: async (projection: { document: unknown }) => projection.document,
-} }));
+vi.mock("./sourceDocument", () => ({
+  openDocument: async (source: { document: unknown }) => source.document,
+}));
 
 vi.mock("./structureNative", () => ({ structureNative: () => ({
   documentRevision: (document: { revision?: string }) => document.revision ?? "a".repeat(64),

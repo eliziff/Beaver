@@ -17,9 +17,9 @@ afterAll(async () => {
 
 async function fixture(project = false) {
   const [{ createDocumentApplication }, { documentRepository }, { createFilesystemObjectStorage },
-    { documentProjectionService }, { relationalDatabase, sql }] = await Promise.all([
+    { sourceText }, { relationalDatabase, sql }] = await Promise.all([
     import("../documentApplication"), import("../relationalDocumentRepository"), import("../storage"),
-    import("../documentProjectionService"), import("../relationalDatabase"),
+    import("../sourceDocument"), import("../relationalDatabase"),
   ]);
   const objects = createFilesystemObjectStorage(path.join(root, "objects"));
   const documents = createDocumentApplication(documentRepository, objects);
@@ -36,7 +36,7 @@ async function fixture(project = false) {
   const rawGet = objects.get.bind(objects), reads = vi.spyOn(objects, "get");
   const source = (scope = owner, versionId: string | null = null) =>
     documents.documentSource(scope, created.id, versionId);
-  return { objects, rawGet, documents, projection: documentProjectionService, owner, reader,
+  return { objects, rawGet, documents, projection: { text: sourceText }, owner, reader,
     created, source, reads, db, sql, projectId };
 }
 

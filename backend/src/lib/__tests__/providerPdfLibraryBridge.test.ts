@@ -15,12 +15,8 @@ vi.mock("undici", async (importOriginal) => ({
   ...(await importOriginal<typeof import("undici")>()),
   fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
 }));
-vi.mock("../documentProjectionService", () => ({
-  documentProjectionService: {
-    preparePdf: mocks.preparePdf,
-    lookupPdf: mocks.lookupPdf,
-  },
-}));
+vi.mock("../sourceDocument", () => ({ preparePdf: mocks.preparePdf }));
+vi.mock("../pdfEvidence", () => ({ lookupPdf: mocks.lookupPdf, rehydratePdfEvidence: vi.fn() }));
 
 const attachment = {
   provider: "govinfo",
@@ -45,7 +41,7 @@ const pdfResponse = (bytes: Buffer) => new Response(bytes, {
 });
 
 it("does not publish a download that ends before the PDF trailer", async () => {
-  const { publishPdfStream } = await import("../documentProjection");
+  const { publishPdfStream } = await import("../contentStore");
   await expect(publishPdfStream(pdfResponse(Buffer.from("%PDF-1.4 interrupted")).body!))
     .rejects.toThrow("incomplete");
 });
@@ -57,7 +53,7 @@ beforeEach(async () => {
   mocks.dnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
   mocks.preparePdf.mockImplementation(async ({ bytes }: { bytes: Buffer }) => ({
     status: "ready",
-    sourceSha256: digest(bytes),
+    sha256: digest(bytes),
     parserVersion: "test",
     cacheKey: "a".repeat(64),
     pageCount: 1,

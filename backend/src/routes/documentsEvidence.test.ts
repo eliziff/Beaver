@@ -19,9 +19,9 @@ beforeAll(async () => {
   vi.stubEnv("AUTH_MODE", "local");
   vi.stubEnv("MIKE_LOCAL_DATA_DIR", directory);
   const [{ createDocumentApplication }, { documentRepository }, objects,
-    { documentProjectionService }, { createDocumentsRouter }] = await Promise.all([
+    { lookupPdf }, { createDocumentsRouter }] = await Promise.all([
     import("../lib/documentApplication"), import("../lib/relationalDocumentRepository"),
-    import("../lib/filesystemObjectStorage"), import("../lib/documentProjectionService"),
+    import("../lib/filesystemObjectStorage"), import("../lib/pdfEvidence"),
     import("./documentRoutes"),
   ]);
   documents = createDocumentApplication(documentRepository, objects.filesystemDocumentObjects());
@@ -31,7 +31,7 @@ beforeAll(async () => {
     bytes: Buffer.from(await pdf.save()) });
   id = created.id; version = created.current_version_id;
   const source = (await documents.documentSource(scope, id, version))!;
-  const receipt = await documentProjectionService.lookupPdf(source.readBytes,
+  const receipt = await lookupPdf(source.readBytes,
     { locator_kind: "page", locator: "1" }, { ...source, persistEvidence: true });
   if (receipt.status !== "found") throw new Error("Evidence fixture was not found");
   handle = receipt.evidence.handle;

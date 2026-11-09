@@ -105,7 +105,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "docxText" => done(engine::docx_text(
             bytes, call.get::<Option<bool>>("drafting")?.unwrap_or(false), call.get("limit")?).and_then(value)),
         #[cfg(feature = "docx")]
-        "docxAuthorityTextUnits" => done(engine::docx_authority_text_units(bytes).and_then(value)),
+        "docxAuthorityTextUnits" => done(legalpdf::docx_to_toa_text_units(bytes).map_err(|error| error.to_string()).and_then(value)),
         #[cfg(feature = "legalpdf")]
         "derivePdfDocument" => done(engine::derive_pdf_document(bytes, &call.get("request")?).map(store)),
         #[cfg(feature = "legalpdf")]
