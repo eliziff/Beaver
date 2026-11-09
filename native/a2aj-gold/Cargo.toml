@@ -32,7 +32,7 @@ path = "src/bin/reporter-pins.rs"
 legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full", "pdf"] }
 legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup"] }
 legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "structure-inference", "quote-verification", "a2aj-store", "citator-graph"] }
-legal-citations = { git = "https://github.com/eliziff/common-law-cite.git", rev = "41d2309f20432fc8d35d41f893e6044602b9a2dc" }
+legal-citations = { path = "../../common-law-cite/crates/legal-citations" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }

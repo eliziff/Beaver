@@ -255,18 +255,22 @@ fn read_xls(bytes: &[u8]) -> Result<Workbook, String> {
             Err(XlsError::WorksheetNotFound(_)) => Vec::new(),
             Err(error) => return Err(unreadable(error)),
         };
+        let styles = match book.worksheet_style(&name) {
+            Ok(styles) => styles,
+            Err(XlsError::WorksheetNotFound(_)) => calamine::StyleRange::empty(),
+            Err(error) => return Err(unreadable(error)),
+        };
         let mut cells = HashMap::new();
         match book.worksheet_range(&name) {
             Ok(range) => {
                 let (top, left) = range.start().unwrap_or_default();
                 for (row, column, data) in range.used_cells() {
-                    // calamine keeps an xls cell's number format only as whether it is a date or a duration.
-                    let format = match data {
+                    let position = (top + row as u32, left + column as u32);
+                    let format = styles.get(position).and_then(number_format).or_else(|| match data {
                         Data::DateTime(value) if value.is_duration() => Some("[h]:mm:ss".to_owned()),
                         Data::DateTime(_) => Some("m/d/yy".to_owned()),
                         _ => None,
-                    };
-                    let position = (top + row as u32, left + column as u32);
+                    });
                     cells.insert(position, Cell { value: Value::from(data.clone()), formula: None, format });
                 }
             }

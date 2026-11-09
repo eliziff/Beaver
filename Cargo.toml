@@ -2,8 +2,7 @@
 # third-party crate once, so the addon and the grader share each dependency's
 # build in the one target folder (.cargo/config.toml) and never link one another's. The parser
 # (legal-pdf-parser, the tagger among its crates), legal-structure and common-law-cite stay
-# repositories and workspaces of their own, path dependencies here; this manifest's [patch] maps the
-# revisions they pin of one another to the checkouts here.
+# repositories and workspaces of their own, with first-party path dependencies on the checkouts here.
 [workspace]
 resolver = "2"
 members = [
@@ -15,26 +14,13 @@ members = [
 # The workspaces these depend on stay their own (cargo would otherwise take any path dependency in
 # this folder as a member); Rust packages of other products and the benchmark owners' copies build
 # on their own.
-exclude = ["legal-pdf-parser", "legal-structure", "common-law-cite", "AuthoritiesHelper", "benchmarks", "legal-pinpointer"]
+exclude = ["legal-pdf-parser", "legal-structure", "common-law-cite", "AuthoritiesHelper", "benchmarks", "legal-pinpointer",
+    "native/vendor/calamine"]
 
 [patch.crates-io]
 hayro-jpeg2000 = { git = "https://github.com/LaurenzV/hayro.git", rev = "ff7e2e407f6b9c429b44dc29a851180727892b6c" }
-# One copy of the diff utility, the patched one legal-citations keeps (it builds for the browser engine too).
+# The gold grader and citation engine share the maintained WASI-compatible diff utility.
 diff-match-patch-rs = { path = "common-law-cite/crates/legal-citations/vendor/diff-match-patch-rs" }
-
-# The repositories beside this one that others pin by revision build from these checkouts here, so a change in one is
-# built with the rest before it is pushed and pinned. In this manifest, not .cargo/config.toml, so the override is this
-# workspace's alone: a sibling's own workspace, built or resolved in its folder here, keeps its pins and lock file.
-[patch."https://github.com/eliziff/common-law-cite.git"]
-legal-citations = { path = "common-law-cite/crates/legal-citations" }
-legal-text = { path = "common-law-cite/crates/legal-text" }
-
-[patch."https://github.com/eliziff/legal-structure-parser.git"]
-legal-structure = { path = "legal-structure" }
-legal-layout = { path = "legal-structure/layout" }
-legal-structure-model = { path = "legal-structure/model" }
-legal-locator = { path = "legal-structure/locator" }
-legal-structure-features = { path = "legal-structure/features" }
 
 [profile.dev]
 debug = 0
