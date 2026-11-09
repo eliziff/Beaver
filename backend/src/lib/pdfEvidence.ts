@@ -34,13 +34,16 @@ type PdfEvidenceReceipt = {
   evidence: { payload_sha256: string; page_numbers: number[]; page_text_sha256: string };
 };
 
+/** A failure to find or trust a piece of PDF evidence, its message fit to show whoever asked for it. */
+export class PdfEvidenceError extends Error {}
+
 function evidenceHandle(receipt: Omit<PdfEvidenceReceipt, "handle">) {
   return `mike-evidence:v1:${sha256(JSON.stringify(receipt))}`;
 }
 
 function evidencePath(handle: string) {
   const digest = handle.match(EVIDENCE_HANDLE)?.[1];
-  if (!digest) throw new Error("Invalid PDF evidence handle");
+  if (!digest) throw new PdfEvidenceError("Invalid PDF evidence handle");
   return immutableReceiptPath("pdf-evidence", digest);
 }
 
@@ -54,7 +57,7 @@ async function readPdfEvidenceReceipt(handle: string) {
   const receipt = JSON.parse(await readFile(evidencePath(handle), "utf8")) as PdfEvidenceReceipt;
   const { handle: stored, ...identity } = receipt;
   if (stored !== handle || evidenceHandle(identity) !== handle) {
-    throw new Error("PDF evidence receipt handle does not match its content");
+    throw new PdfEvidenceError("PDF evidence receipt handle does not match its content");
   }
   return receipt;
 }
@@ -135,9 +138,9 @@ async function evidenceDocument(handle: string, expected: EvidenceSource) {
   if (receipt.source.document_id !== expected.documentId ||
       receipt.source.version_id !== expected.versionId ||
       receipt.source.source_sha256 !== expected.sourceSha256)
-    throw new Error("PDF evidence source mismatch");
+    throw new PdfEvidenceError("PDF evidence does not belong to this resource.");
   const document = await cachedPdf(expected, receipt.source.cache_key);
-  if (!document) throw new Error("PDF evidence artifact is no longer available");
+  if (!document) throw new PdfEvidenceError("PDF evidence artifact is no longer available");
   return { document, receipt };
 }
 
@@ -150,7 +153,7 @@ export async function rehydratePdfEvidence(handle: string, expected: EvidenceSou
 /** Whether a receipt's evidence is still what its source's bytes say. */
 export async function verifyPdfEvidence(bytes: Buffer, handle: string, expected: EvidenceSource) {
   if (sha256(bytes) !== expected.sourceSha256)
-    throw new Error("PDF evidence source bytes no longer match their version");
+    throw new PdfEvidenceError("PDF evidence source bytes no longer match their version");
   const { document, receipt } = await evidenceDocument(handle, expected);
   const verified = await rehydrate(document, receipt);
   return { documentId: verified.source.document_id, versionId: verified.source.version_id };
@@ -167,10 +170,10 @@ async function rehydrate(document: NativeDocument, receipt: PdfEvidenceReceipt) 
   });
   const mismatch = "PDF evidence no longer matches the authoritative source artifacts";
   if (lookup.status !== "found") {
-    throw new Error(
+    throw new PdfEvidenceError(
       "error" in lookup && lookup.error === "PDF source bytes no longer match their version"
         ? "PDF evidence source bytes no longer match their version" : mismatch);
   }
-  if (lookup.evidence.handle !== receipt.handle) throw new Error(mismatch);
+  if (lookup.evidence.handle !== receipt.handle) throw new PdfEvidenceError(mismatch);
   return lookup;
 }

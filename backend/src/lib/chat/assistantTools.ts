@@ -35,7 +35,7 @@ import type {
   DocumentStore,
 } from "../documentStore";
 import { openDocument } from "../sourceDocument";
-import { lookupPdf, rehydratePdfEvidence, type PdfLocatorKind } from "../pdfEvidence";
+import { lookupPdf, PdfEvidenceError, rehydratePdfEvidence, type PdfLocatorKind } from "../pdfEvidence";
 import {
   structureNative,
   type NativeDocument,
@@ -840,7 +840,7 @@ async function runCodingShapeCall(
         if (handle && lookup.status === "found") {
           const canonical = structureNative().queryPdfDocument(nativePdf!, lookup.requested);
           if (canonical.status !== "found" || canonical.payload_sha256 !== lookup.payload_sha256)
-            throw new Error("PDF evidence no longer matches the authoritative source artifacts");
+            throw new PdfEvidenceError("PDF evidence no longer matches the authoritative source artifacts");
         }
         const evidence = nativePdf ? pdfLegalEvidence(
           meta.id,
@@ -858,11 +858,7 @@ async function runCodingShapeCall(
           evidenceSources: new Map(evidence.map(({ evidence_id }) => [evidence_id, { source: nativePdf! }])),
         };
       } catch (error) {
-        const message = error instanceof Error ? error.message : "";
-        if (message === "PDF evidence source mismatch")
-          return fail("PDF evidence does not belong to this resource.");
-        return fail(SAFE_PDF_EVIDENCE_ERRORS.has(message)
-          ? message : "PDF evidence is unavailable");
+        return fail(error instanceof PdfEvidenceError ? error.message : "PDF evidence is unavailable");
       }
     }
     const meta = await resolvePath(requested);
@@ -1192,14 +1188,7 @@ function collectDraftCitations(value: unknown, into: Set<string>, span = false) 
   }
 }
 
-const SAFE_PDF_EVIDENCE_ERRORS = new Set([
-  "Invalid PDF evidence handle",
-  "Invalid PDF evidence receipt",
-  "PDF evidence receipt handle does not match its content",
-  "PDF evidence receipt does not belong to this source",
-  "PDF evidence source bytes no longer match their version",
-  "PDF evidence no longer matches the authoritative source artifacts",
-]);
+
 
 type PdfLookupResult =
   | Awaited<ReturnType<typeof lookupPdf>>
@@ -1323,7 +1312,7 @@ function providerPdfLegalEvidence(
   if (provider !== resolved.state.provider ||
       (provider !== "a2aj" && provider !== "courtlistener" && provider !== "tna" &&
         provider !== "govuk-et" && provider !== "govinfo"))
-    throw new Error("Provider PDF legal source identity is unavailable");
+    throw new PdfEvidenceError("Provider PDF legal source identity is unavailable");
   const jurisdiction = provider === "a2aj" ? "CA"
     : provider === "courtlistener" || provider === "govinfo" ? "US" : "UK";
   const sourceClass = source.kind === "case" || source.kind === "legislation"
