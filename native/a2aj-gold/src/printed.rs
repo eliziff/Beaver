@@ -804,8 +804,60 @@ pub fn set_out_lists(book: &mut Book) -> Vec<Value> {
     done
 }
 
-/// Every rule over one gold. `images`: the PDF's pages' images; `styled`: {line id: (bold, italic)} from its record.
-pub fn apply(book: &mut Book, images: &[PageImages], styled: &HashMap<String, (bool, bool)>) -> Vec<Value> {
+/// A folio's number where the recognizer misread it ("4H2", "4082" for 402): a folio's line keeps its reading, the gold its
+/// page's number. That number is A2AJ's page mark for the page ("[Page 402]" before its first words; a page two marks give
+/// two numbers has none), else the count its folios run: the folios read nearest before and after it, which agree on it
+/// (or, at the document's ends, the two nearest on its one side). `breaks`: the record's `page_breaks`, {language: [mark, ...]}.
+fn marked_page_labels(book: &mut Book, breaks: &Value) -> Vec<Value> {
+    let mut marked: HashMap<i64, Option<String>> = HashMap::new();
+    for mark in breaks.as_object().into_iter().flat_map(|all| all.values()).filter_map(Value::as_array).flatten() {
+        if let (Some(number), Some(page)) = (mark["page"].as_str().map(str::trim), mark["pdf"]["page"].as_i64()) {
+            let slot = marked.entry(page).or_insert_with(|| Some(number.to_owned()));
+            if slot.as_deref() != Some(number) {
+                *slot = None;
+            }
+        }
+    }
+    // each folio: its entry, its page, and the number it reads (its first run of digits)
+    let folios: Vec<(usize, i64, Option<i64>)> = (0..book.typed.len()).filter(|&t| book.region(t) == "page_label")
+        .filter_map(|t| Some((t, book.typed[t]["page"].as_i64()?, DIGITS.find(book.typed[t]["text"].as_str().unwrap_or("")).and_then(|found| found.as_str().parse().ok()))))
+        .collect();
+    // the count the folios read nearest a page run to (the folio's number less its page), on one side of it
+    let offsets = |page: i64, later: bool| -> Vec<i64> {
+        let mut side: Vec<(i64, i64)> = folios.iter().filter(|f| if later { f.1 > page } else { f.1 < page }).filter_map(|f| Some((f.1, f.2? - f.1))).collect();
+        side.sort_by_key(|&(at, _)| (at - page).abs());
+        side.into_iter().map(|(_, offset)| offset).take(2).collect()
+    };
+    let mut done = Vec::new();
+    for &(t, page, read) in &folios {
+        let said = book.typed[t]["text"].as_str().unwrap_or("").to_owned();
+        let number = match marked.get(&page) {
+            Some(Some(number)) => Some(number.clone()),
+            _ if read.is_none() && !said.chars().any(|c| c.is_ascii_digit()) => None, // a roman folio, a letter's: not a count's
+            _ => {
+                let (before, after) = (offsets(page, false), offsets(page, true));
+                let run = match (before.first(), after.first()) {
+                    (Some(b), Some(a)) if a == b => Some(*a),
+                    (Some(b), None) if before.len() == 2 && before[1] == *b => Some(*b),
+                    (None, Some(a)) if after.len() == 2 && after[1] == *a => Some(*a),
+                    _ => None,
+                };
+                run.map(|offset| (page + offset).to_string())
+            }
+        };
+        let Some(number) = number else { continue };
+        if read.is_some() && read == number.parse().ok() {
+            continue;
+        }
+        book.typed[t]["text"] = json!(number);
+        done.push(json!({"rule": "marked_page_label", "page": book.typed[t]["page"], "text": said, "label": number, "reason": "a misread folio: its page's number as A2AJ's page mark or its folios' count gives it"}));
+    }
+    done
+}
+
+/// Every rule over one gold. `images`: the PDF's pages' images; `styled`: {line id: (bold, italic)} and `breaks` (its
+/// page marks) from its record.
+pub fn apply(book: &mut Book, images: &[PageImages], styled: &HashMap<String, (bool, bool)>, breaks: &Value) -> Vec<Value> {
     let mut done = image_numbers(book, images);
     done.extend(page_folios(book));
     done.extend(running_text(book));
@@ -815,6 +867,7 @@ pub fn apply(book: &mut Book, images: &[PageImages], styled: &HashMap<String, (b
     done.extend(printed_numbers(book));
     done.extend(note_calls(book));
     done.extend(typed_headings(book, styled));
+    done.extend(marked_page_labels(book, breaks));
     done
 }
 

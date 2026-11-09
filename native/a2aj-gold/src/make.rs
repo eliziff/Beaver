@@ -272,7 +272,7 @@ pub fn convert(record: &Value, db: &Connection, found: &Listings, labels_only: b
     if !labels_only {
         let images = images_of(pair["mode"].as_str().unwrap_or(""), Path::new(pair["path"].as_str().unwrap_or("")));
         lap("images");
-        done = printed::apply(&mut book, &images, &styled(record));
+        done = printed::apply(&mut book, &images, &styled(record), &record["page_breaks"]);
         lap("page rules");
     }
     done.extend(conventions::apply(&mut book, &heights(record)));
@@ -725,9 +725,10 @@ pub fn repair(work: &Path, args: RepairArgs) -> Result<(), String> {
         let pdf_path = store::data_home().join(source["pdf"].as_str().unwrap_or(""));
         let images = images_of(&mode, &pdf_path);
         let record_path = work.join("records").join(format!("{sha}.json.gz"));
-        let style = if book.markers_any() && record_path.is_file() { styled(&store::read_json(&record_path)?) } else { HashMap::new() };
+        let record = if record_path.is_file() { store::read_json(&record_path)? } else { Value::Null };
+        let style = if book.markers_any() { styled(&record) } else { HashMap::new() };
         let before = printed::marks_of(&book).into_iter().map(|m| m.0).collect::<BTreeSet<_>>().len();
-        let mut done = printed::apply(&mut book, &images, &style);
+        let mut done = printed::apply(&mut book, &images, &style, &record["page_breaks"]);
         if done.is_empty() {
             continue;
         }

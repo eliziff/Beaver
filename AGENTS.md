@@ -1,8 +1,28 @@
-# Beaver agent guide
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[master plan](docs/roadmap/master-plan.md). The former owns shared check commands;
-the latter owns project priorities and remaining gates.
+## Ponytail it
+If asked to do a task involving PDF extraction, use our own legal pdf parser (which is built on pdf-inspector). It is much faster and better than stuff like pymupdf, tesseract, etc.
+Generally, we have a lot of utilities and code to cover a wide variety of situations -- check the existing code
+before handrolling new stuff. Common sins: handrolling/creating python census scripts instead of using 
+existing parsing or creating a small rust utility, handrolling new page or paragraph detection.
+
+## No legacy shims: make one small abstraction
+If asked to make the code smaller, cleaner, better, lazy looks for "dead code" are usually not
+what the maintainer is after. Look for needless abstractions or conversion shims.
+Similarly, don't write conversion shims between a producer/consumer combo that we create: instead, figure out which is the cleaner, better abstraction/what the project is following,
+and make whichever consumer it is follow that (or vice versa with a producer); creating a translation layer is silly
+because this is a ZERO user project! Nobody uses this but us! There is almost always 0 value in
+migration scripts or legacy coverage etc for that reason -- we control the pdf parser, we control authorities,
+we control alr-verifier, we control beaver, legal structure parser, common law cite, etc -- we want simple, easy to maintain code with no duplicates
+of behaviour that should belong to all of them, and no translation layers between them or within them.
+Since we control both sides of the equation, we should just make things simple and direct, with fine-grained
+APIs/decoupled producers/modules so that whichever thing can just take what it needs.
+
+## Rust layer gets the heavy duty stuff, not typescript
+If you notice that typescript is doing heavy processing somewhere, that's usually a mistake
+and it should be done in rust instead. Flag these things for the user to see if it shoudl be fixed.
+Similarly, python is generally not going to contain product logic. It's fine for one-off or immediate scripts or 
+whatever you LLMs like to do, but the end product is not going to contain it.
+
 
 ## Architecture and scope
 
@@ -26,20 +46,12 @@ the latter owns project priorities and remaining gates.
 ## Working safely
 
 - Never delete or propose deleting the URL flags on Decisia (iframe flag and mobile flag): those are on for a reason, and removing them is strictly incorrect and will cause the maintainer inordinate psychic harm (agents keep proposing to delete it or deleting it).
-- Real-world legal documents live once by sha256 in `%LOCALAPPDATA%/OpenLegalData/corpus` (index `corpus.sqlite`): add or find one with the corpus store in the private benchmarks checkout (`benchmarks/local-data`).
+- Bulk data stores live once by sha256 in `%LOCALAPPDATA%/OpenLegalData/corpus` (index `corpus.sqlite`): add or find one with the corpus store in the gold store/private benchmarks checkout (`benchmarks/local-data`).
 - Check local data and existing implementations before fetching or adding a
   dependency. Consult official documentation for unfamiliar packages or standard
   engineering problems instead of probing blindly.
-- Use independently invented test data or identify its public source. Never
-  publish genuine user prompts or private context in tests, evals, examples or
-  receipts, including paraphrases and identifying case/document references.
-  Translate a bug report into the behavior to test, then invent different facts,
-  text, URLs and locators. Changing names alone is not independent invention.
-  Keep bespoke legacy fixtures private until independent provenance is verified;
-  a generated/synthetic label is not evidence of where their facts came from.
 - Automated submissions declare `machine_test` with a run ID; missing historical
-  origin stays `unknown`. `machine_test` identifies the submission, not whether
-  its contents are synthetic or permitted for publication.
+  origin stays `unknown`. `machine_test` identifies the submission.
   Keep live-test app data and provider history separate from ordinary user data.
 - Agents are not allowed to write license files unless explicitly requested to do
   so; and even then it should only be for true third party software, not
@@ -47,8 +59,7 @@ the latter owns project priorities and remaining gates.
 - Use repository-relative paths or runtime configuration and GitHub noreply
   attribution. Raw requests, histories, documents and receipts stay in ignored
   `.tmp/` or private storage. Preserve third-party licenses and public-source credit.
-- After a privacy history rewrite, cherry-pick older work onto the cleaned branch;
-  do not merge the old history back into it.
+
 
 ## Artifact lifetime
 
@@ -64,10 +75,6 @@ the latter owns project priorities and remaining gates.
   output directory per harness and overwrite it next time; put durable findings
   in the owning documentation. No timestamped piles, abandoned worktrees,
   duplicate dependency installs or extra Cargo targets after the task ends.
-- Never sweep existing ambiguous temp contents by name. Preserve/move valuable
-  inputs first, check for active users, and verify cleanup paths remain within
-  the intended workspace. Working Git checkouts, experiments and ordinary user
-  stores are not scratch. Never create a working repository in a temp directory.
 
 ## Validation and interface quality
 
@@ -76,21 +83,18 @@ the latter owns project priorities and remaining gates.
   time; use the checked-in one-job Cargo and one-worker test defaults. Reuse
   ordinary incremental targets, not per-task Cargo target copies.
 
-- Measure behavior before changing it. Native grammar/profile changes require the
-  appropriate independent corpus/gold result, not a self-regenerated baseline.
 - Build root-workspace Rust only through `node scripts/cargo.mjs <args>` (`npm run native:build` uses it); run a
   sub-workspace's cargo from its own folder. A plain `cargo` at the root rebuilds every shared crate (CONTRIBUTING.md).
 - Iterate with affected-crate `cargo check` and focused behavior tests. Do not rebuild
   the workspace/addon/release binary or replay full corpora after each edit. Batch
   changes; run the narrow integration gate and then the required candidate gates.
 - Test outcomes and durable contracts, not incidental copy, implementation presence
-  or internal choreography. Use doubles only for expensive or hard-to-trigger edges.
+  or internal choreography.
 - Validate external input at its owning boundary; do not repeat validation of typed
   internal values or add guards/tests for states no real caller can produce.
-- Remove redundant headings, explanations, badges, icons and nested UI chrome.
-  Retain an element only for distinct information, a necessary action or real ambiguity.
-- Assistant-dock changes, including menus/popovers/modals, require
-  `scripts/mike.ps1 smoke -WithAssistantDock` and inspection of its screenshots.
+- Remove redundant headings, explanations, badges, icons and nested UI chrome. (and screenshot check this)
+- No UI "taglines" like "Your files, right where you left them." That's marketing speak; it is very annoying to read. 
+- Similarly, talk like a normal person, and write feature descriptions with AI slop speak (mannered prose is awful).
 
 Agents may run `.\scripts\full-sweep.ps1` only when the user includes the exact token
 `[FullSweep]` (case insensitive). That battery includes release, browser and isolated live-model checks;
@@ -101,4 +105,5 @@ ordinary documentation or refactor work does not implicitly authorize it.
 Product requirements and design clarifications are instructions to the prompt
 writer, not prose to copy into the target prompt. State the task directly and
 include only what the model needs. Do not narrate internal architecture or list
-unrelated responsibilities that another component already owns.
+unrelated responsibilities that another component already owns. 
+When writing a new prompt for another model, or editing one, present it to the user.

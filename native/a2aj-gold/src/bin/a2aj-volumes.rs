@@ -354,8 +354,22 @@ fn main() {
         println!("reports {:?}", volume.reports.iter().map(|r| match r { Report::Volume(n) => format!("vol {n}"), Report::Year(y, p) => format!("{y}/{p}") }).collect::<Vec<_>>());
         return;
     }
+    // a2aj-volumes --evidence READING OUT: the page map's evidence of a volume ({id, pages}, as page-evidence writes it),
+    // added to OUT, for page-map-score
+    if args.first().map(String::as_str) == Some("--evidence") {
+        legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
+        let file = Path::new(&args[1]);
+        let bytes = fs::read(file).unwrap_or_else(|error| panic!("{error}"));
+        let extracted: legalpdf::ExtractedPdf = serde_json::from_slice(&bytes).unwrap_or_else(|error| panic!("{error}"));
+        let identity: String = <sha2::Sha256 as sha2::Digest>::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect();
+        let document = legalpdf::gold_structure_document(extracted, &identity, None).unwrap_or_else(|error| panic!("{error}"));
+        let name = file.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_owned();
+        let mut out = fs::OpenOptions::new().create(true).append(true).open(&args[2]).unwrap_or_else(|error| panic!("{error}"));
+        writeln!(out, "{}", json!({"id": name, "pages": legalpdf::page_evidence(&document)})).unwrap();
+        return;
+    }
     let (Some(reads), Some(out)) = (args.first(), args.get(1)) else {
-        eprintln!("a2aj-volumes READS OUT [--threads N]");
+        eprintln!("a2aj-volumes READS OUT [--threads N] | --labels READING | --evidence READING OUT");
         std::process::exit(2);
     };
     if let Err(error) = volumes(Path::new(reads), Path::new(out), threads) {

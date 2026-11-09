@@ -196,9 +196,9 @@ fn main() {
                 let quote: QuoteToLocate = serde_json::from_value(json!({"quote": item.quote, "scopes": {"pages": [[item.pin, item.pin]]}})).unwrap();
                 let Some(located) = locate_source_quotes(QuoteSource::Pdf, text, blocks, &[quote], false).into_iter().next() else { continue };
                 if located.found.location == "unmatched" { continue; }
-                let on = located.found.labels.iter().any(|label| label == &format!("page {}", item.pin));
+                let on = located.found.labels.iter().any(|label| label.shown == format!("page {}", item.pin));
                 verdict = (if on { "on the pinned page" } else if located.found.labels.is_empty() { "found on no page of the sheet" } else { "on another page" },
-                           located.found.labels.clone(), located.found.score, located.found.perfect, language.clone());
+                           located.found.labels.iter().map(|label| label.shown.clone()).collect(), located.found.score, located.found.perfect, language.clone());
                 if on { break; }
             }
             *tally.entry(format!("{} ({})", verdict.0, item.how)).or_default() += 1;
