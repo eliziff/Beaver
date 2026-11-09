@@ -18,7 +18,7 @@ import { headerIdentities, matchFolderPdf, verifyIdentity } from "mike/shared/fo
 export type PdfOpening = { filename: string; pages: string[]; marginText?: string[] };
 
 export const authorityCitationServices = {
-  key: (value: string) => structureNative().citationLookupKey(value),
+  key: (value: string) => structureNative().citationLookupKeys([value])[0],
   occurrences: (value: string) => structureNative().citationOccurrencesInText(value),
   references: (value: string) => structureNative().authorityReferencesInText(value),
 };
@@ -112,12 +112,13 @@ const captionStyleOfCause = (text: string, keys: readonly string[]) =>
 function captionParties(text: string) {
   const parties: string[] = [];
   let block: string[] | null = null;
-  for (const entry of structureNative().caseOutline(text)) {
+  for (const entry of structureNative().textOutline(text, "cases")) {
     if (entry.kind === "paragraph") break;
+    const words = entry.text ?? "";
     if (entry.role === "party") { parties.push(...block ?? []); block = []; }
     else if (entry.role === "labelled" || entry.role === "counsel" || entry.kind === "heading") block = null;
-    else if (entry.text.trimEnd().endsWith(":")) block = [];
-    else if (block || entry.role === "caption") (block ??= []).push(entry.text);
+    else if (words.trimEnd().endsWith(":")) block = [];
+    else if (block || entry.role === "caption") (block ??= []).push(words);
   }
   return parties;
 }

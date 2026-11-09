@@ -3,26 +3,22 @@
 // to WebAssembly in the browser (native/legal-structure-node/src/dispatch.rs).
 
 const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
-  "fixDocxSupraCrossReferences", "deriveDocxDocument", "docxText",
-  "docxAuthorityTextUnits", "derivePdfDocument", "preparePdfDocument", "restorePdfDocument", "openSource", "sourceText",
-  "pdfPassageGeometryPages", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments",
-  "citationEngineCallAsync"]);
-// Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes;
-// "document" is a handle.
+  "fixDocxSupraCrossReferences", "docxAuthorityTextUnits", "preparePdfDocument", "openSource", "sourceText",
+  "pdfPassageGeometry", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments"]);
+// Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes, and a reply's bytes are its
+// value's `bytes`; "document" is a document's handle, and a reply's `{ $document: handle }` its document.
 export const SIGNATURES = {
   nativeBuildFeatures: [],
   deriveDocumentStructure: ["request"], deriveDocumentFingerprint: ["request"],
   fixDocxSupraCrossReferences: ["bytes"],
-  deriveDocxDocument: ["bytes", "id", "drafting"], docxText: ["bytes", "drafting", "limit"],
   docxAuthorityTextUnits: ["bytes"],
-  derivePdfDocument: ["bytes", "request"], preparePdfDocument: ["bytes", "request"],
-  restorePdfDocument: ["request"],
+  preparePdfDocument: ["bytes", "request"],
   // A stored source read as its document (none where the engine keeps none and no bytes are given), or as its text.
   openSource: ["bytes", "request"], sourceText: ["bytes", "request"],
   pdfDocumentSummary: ["document"], pdfRecognizedText: ["document", "pages"],
   pdfAuthorityTextUnits: ["document"], pdfPageMap: ["document", "citations"], pdfPageTexts: ["document"],
-  reporterStartPages: ["citations"],
-  pdfPassageGeometryPages: ["document", "targets"],
+  pdfPrintedPages: ["document", "citations", "labels"], reporterStartPages: ["citations"],
+  pdfPassageGeometry: ["document", "targets", "citations"],
   briefOccurrencePages: ["pages", "units"],
   queryPdfDocument: ["document", "request"],
   docxStructureLint: ["document"],
@@ -32,10 +28,10 @@ export const SIGNATURES = {
   documentFingerprint: ["document"], documentAnchors: ["document", "kind", "end"],
   documentOutline: ["document"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
-  statuteOutline: ["text", "articles"], caseOutline: ["text"], documentCaseOutline: ["document"], statuteProvisionSpans: ["text", "labels"], collapseLabels: ["labels", "kind"],
+  textOutline: ["text", "kind"], statuteProvisionSpans: ["text", "labels"], collapseLabels: ["labels", "kind"],
   statuteCurrency: ["pages"], filingCover: ["opening", "title"],
-  citationLookupKey: ["text"], citationLookupKeys: ["texts"], citationKeyVersion: [], providerCitationsInText: ["text"],
-  citationEngineCall: ["method", "request"], citationEngineCallAsync: ["method", "request"],
+  citationLookupKeys: ["texts"], citationKeyVersion: [], providerCitationsInText: ["text"],
+  citationEngineCall: ["method", "request"],
   documentReadingOrder: ["units"],
   citationOccurrencesInText: ["text"], authorityReferencesInText: ["text"],
   hasCitationInText: ["text"],
@@ -57,18 +53,16 @@ export const SIGNATURES = {
   a2ajDocument: ["store", "lookup"], a2ajSection: ["store", "lookup", "section", "excerpt"],
   a2ajRecord: ["record", "language", "docType"], a2ajRecordProvision: ["records", "lookup", "excerpt"],
   a2ajRecordListing: ["record", "language"], a2ajRecordMatches: ["records", "query"],
-  a2ajAliasGroups: ["store", "citations"], a2ajNamedCase: ["store", "named"], a2ajNameKeys: ["names"],
+  a2ajAliasGroups: ["store", "citations"], a2ajNamedCase: ["store", "named"], a2ajNamedRecord: ["records", "named", "language"], a2ajNameKeys: ["names"],
   a2ajSearch: ["store", "search"], a2ajCourts: ["store"], a2ajFind: ["store", "lookup"], a2ajStoreDocuments: ["store", "ids", "docType", "language"], a2ajReads: ["store", "ids", "docType", "language"],
   // The citator's graph, read beside the A2AJ store at `store`, which also gives a note-up its keys.
   citatorNoteUp: ["store", "request"], citatorMetrics: ["store", "citations"],
 };
 // Readings of text alone, which an operation's stages repeat: a request asked before is answered with the reply it
 // had, read afresh, from the latest this many.
-const PURE = new Set(["providerCitationsInText", "citationOccurrencesInText", "citationLookupKey", "citationLookupKeys",
+const PURE = new Set(["providerCitationsInText", "citationOccurrencesInText", "citationLookupKeys",
   "canliiCaseUrl", "canliiLawUrl"]);
 const PURE_KEPT = 4096;
-const DOCUMENT_RESULTS = new Set(["deriveDocumentStructure", "deriveDocxDocument",
-  "derivePdfDocument", "restorePdfDocument", "openSource"]);
 
 /** A failure the engine returned (`engine::Failure`): its message, and for a PDF's parse the kind of failure and what
  *  went wrong. The engine is still usable afterwards. */
@@ -88,13 +82,13 @@ function engineRequest(op, args, bytes) {
   request.set(bytes, 4 + json.length);
   return request;
 }
-/** `[u8 ok][u32 json length][json][bytes]` */
-function engineReply(reply) {
+/** `[u8 ok][u32 json length][json][bytes]`, the json read by `revive`. */
+function engineReply(reply, revive) {
   const view = new DataView(reply.buffer, reply.byteOffset, reply.byteLength);
   const jsonLength = view.getUint32(1, true);
   const text = decoder.decode(reply.subarray(5, 5 + jsonLength));
   if (!view.getUint8(0)) throw new EngineError(JSON.parse(text));
-  return { value: JSON.parse(text), bytes: reply.subarray(5 + jsonLength) };
+  return { value: JSON.parse(text, revive), bytes: reply.subarray(5 + jsonLength) };
 }
 
 /**
@@ -104,7 +98,7 @@ function engineReply(reply) {
  *   `call` runs an operation now; `callAsync`, where the host has one, off its thread. `restart`
  *   drops an engine that a call interrupted (a trap) and returns the reason it last gave.
  * @param {{ toBuffer?: (bytes: Uint8Array) => Uint8Array, recognizePdf?: Function,
- *   parser?: { prepare(bytes, request, signal): Promise<object>, seed(sha256): Promise<void> } }} [host]
+ *   parser?: { prepare(bytes, request, signal): Promise<object> } }} [host]
  *   `toBuffer` wraps result bytes as the host's Buffer; `recognizePdf` recognizes scanned pages in the
  *   host; `parser` prepares PDFs elsewhere, writing the parse cache where this engine reads it.
  */
@@ -139,52 +133,44 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     });
     return engineRequest(name, args, bytes);
   }
-  function handle(value) {
-    if (!value) return null;
-    const document = new NativeDocumentHandle(value.handle, generation);
-    released.register(document, { handle: value.handle, generation });
+  // A document a reply holds, as JavaScript holds it.
+  function revive(_key, value) {
+    if (typeof value?.$document !== "number") return value;
+    const document = new NativeDocumentHandle(value.$document, generation);
+    released.register(document, { handle: value.$document, generation });
     return document;
   }
-  function result(name, { value, bytes }) {
-    if (DOCUMENT_RESULTS.has(name)) return handle(value);
-    // A store's document, a handle to each of its readings.
-    const storeDocument = (value) => ({ ...value, native: handle(value.native), searchNative: handle(value.searchNative) });
-    if ((name === "a2ajDocument" || name === "a2ajRecord") && value) return storeDocument(value);
-    if (name === "a2ajStoreDocuments" && value) return value.map(storeDocument);
-    if (name === "a2ajSection" && value.native) return { ...value, native: handle(value.native) };
-    if (name === "a2ajRecordProvision") return handle(value);
-    if (name === "fixDocxSupraCrossReferences") return { ...value, bytes: toBuffer(bytes.slice()) };
-    return value;
-  }
+  const result = ({ value, bytes }) => bytes.length ? { ...value, bytes: toBuffer(bytes.slice()) } : value;
   const replies = new Map();
   function invoke(name, positional) {
     const key = PURE.has(name) ? `${name}${JSON.stringify(positional)}` : null;
     const kept = key && replies.get(key);
-    if (kept) { replies.delete(key); replies.set(key, kept); return result(name, engineReply(kept)); }
+    if (kept) { replies.delete(key); replies.set(key, kept); return result(engineReply(kept, revive)); }
     const framed = request(name, positional);
     let reply, read;
-    try { reply = transport.call(framed); read = engineReply(reply); }
+    try { reply = transport.call(framed); read = engineReply(reply, revive); }
     catch (error) { throw trapped(error, name); }
     if (key) {
       replies.set(key, reply);
       if (replies.size > PURE_KEPT) replies.delete(replies.keys().next().value);
     }
-    return result(name, read);
+    return result(read);
   }
   async function invokeOff(name, positional, progress) {
     if (!transport.callAsync) return invoke(name, positional);
     const framed = request(name, positional);
     let reply;
-    try { reply = engineReply(await transport.callAsync(framed, progress)); }
+    try { reply = engineReply(await transport.callAsync(framed, progress), revive); }
     catch (error) { throw trapped(error, name); }
-    return result(name, reply);
+    return result(reply);
   }
   // A host parser prepares PDFs off this engine's thread and leaves the parse cache readable here.
   const prepare = (bytes, request, signal) => parser
     ? parser.prepare(bytes, request, signal) : invokeOff("preparePdfDocument", [bytes, request]);
   async function invokeAsync(name, positional) {
-    if (name === "restorePdfDocument") await parser?.seed(positional[0]?.expected_source_sha256);
-    if (!["preparePdfDocument", "derivePdfDocument"].includes(name)) return invokeOff(name, positional);
+    // A source's parse the host parser cached is made readable here before the source is opened.
+    if (name === "openSource") await parser?.seed(positional[1]?.sourceSha256);
+    if (name !== "preparePdfDocument") return invokeOff(name, positional);
     const [bytes, request, signal, progress] = positional;
     signal?.throwIfAborted();
     let final = request;
@@ -195,15 +181,9 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
       const supplied = pages.length ? await recognizePdf(bytes, inspected.sha256, pages, signal,
         progress && (done => progress(done, pages.length))) : undefined;
       signal?.throwIfAborted();
-      final = { ...plain, ...(supplied ? { supplied_ocr: supplied } : {}) };
+      final = { ...plain, ...(supplied ? { suppliedOcr: supplied } : {}) };
     }
-    if (!parser) return invokeOff(name, [bytes, final], progress);
-    const summary = await parser.prepare(bytes, final, signal);
-    if (name === "preparePdfDocument") return summary;
-    // The parse is cached: this engine reads the document from that cache.
-    const { ocr: _ocr, supplied_ocr: _supplied, ...cached } = final;
-    return invoke("restorePdfDocument", [{ ...cached, cache_key: summary.cacheKey,
-      expected_source_sha256: summary.sha256 }]) ?? invokeOff(name, [bytes, final]);
+    return parser ? parser.prepare(bytes, final, signal) : invokeOff(name, [bytes, final], progress);
   }
   // The page reads every pass's pages on its own pool of recognizers, so passes need not wait their turn.
   const addon = { schedulesRecognition: !!recognizePdf,

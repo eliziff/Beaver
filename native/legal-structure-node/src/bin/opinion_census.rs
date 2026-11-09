@@ -753,7 +753,7 @@ fn reading(doc: &DocumentStructure, outline: bool) -> Value {
     g["markers"] = markers;
     g["prose_lines"] = prose_lines;
     if outline {
-        let headings = serde_json::to_value(document_outline(doc, false)).ok()
+        let headings = serde_json::to_value(document_outline(doc)).ok()
             .and_then(|v| v.as_array().map(|a| a.iter().filter(|e| e["kind"] == "heading").count())).unwrap_or(0);
         g["headings"] = json!(headings);
     }

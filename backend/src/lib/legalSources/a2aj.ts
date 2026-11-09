@@ -249,7 +249,7 @@ async function request(
 }
 
 const citationKey = (value: string) => {
-  try { return structureNative().citationLookupKey(value); } catch { return ""; }
+  try { return structureNative().citationLookupKeys([value])[0]; } catch { return ""; }
 };
 // The records A2AJ's API answers with are read by the engine, as the store's rows are: the one answering a citation,
 // the document it holds, a statute's provision, a search's listing.
@@ -426,13 +426,7 @@ async function numberedCase(args: Parameters<typeof document>[0], citation: stri
     if (!canonical && lookupsLeaveComputer()) {
       const searched = await request("/search", { query: named.name, doc_type: "cases", search_type: "name",
         search_language: language, size: 10 }, args.signal);
-      const results = (Array.isArray(searched.results) ? searched.results : [])
-        .map((item) => searchResult(item, language)).filter((item): item is A2AJSearchResult => !!item);
-      const [wanted, ...names] = structureNative().a2ajNameKeys([named.name, ...results.map(({ name }) => name ?? "")]);
-      const citations = new Set(results.filter(({ date, dataset }, index) => names[index] === wanted &&
-        !!date?.startsWith(named.year) && (!named.courts.length || named.courts.some((court) => court.toUpperCase() === dataset.toUpperCase())))
-        .map((result) => result.citation));
-      canonical = citations.size === 1 ? [...citations][0] : null;
+      canonical = structureNative().a2ajNamedRecord(Array.isArray(searched.results) ? searched.results : [], named, language);
     }
     numbered.set(key, canonical);
     if (numbered.size > 4096) numbered.delete(numbered.keys().next().value!);
@@ -572,7 +566,7 @@ async function viewer(args: {
       },
       slices: viewer.slices,
       // What the reader styles as a judgment sets it: its front matter's parts and its headings' levels.
-      outline: docType === "cases" ? structureNative().documentCaseOutline(compiled)
+      outline: docType === "cases" ? structureNative().documentOutline(compiled)
         .filter((entry) => entry.role || entry.kind === "heading")
         .map(({ kind, level, role, start, end }) => ({ kind, level, role, start, end })) : [],
       truncated: viewer.truncated,

@@ -9,14 +9,19 @@
 use crate::a2aj;
 use crate::engine::{self, CoreResult, Failure, NativeDocument};
 use crate::source;
-use serde::{de::DeserializeOwned, Serialize};
-use serde_json::{json, Value};
+use serde::ser::SerializeMap;
+use serde::{de::DeserializeOwned, Serialize, Serializer};
+use serde_json::Value;
 use std::collections::BTreeMap;
 #[cfg(feature = "a2aj")]
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 /// Reports OCR progress, `(recognized, total)` pages.
+#[cfg(feature = "docx")]
+pub use legalpdf::RecognitionProgress as Progress;
+/// An engine without the parser recognizes nothing.
+#[cfg(not(feature = "docx"))]
 pub type Progress<'a> = Option<&'a (dyn Fn(usize, usize) + Sync)>;
 
 /// Documents live here behind numeric handles until their holder releases them. Calls run on
@@ -27,29 +32,62 @@ fn documents() -> std::sync::MutexGuard<'static, (u32, BTreeMap<u32, Arc<NativeD
     DOCUMENTS.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn store(document: NativeDocument) -> Value {
-    share(Arc::new(document))
+/// A document as JavaScript is given it: a handle of its own (`{"$document": handle}`), which JavaScript revives as its
+/// document wherever a reply holds one, and releases when it no longer holds it. The engine may keep the document
+/// elsewhere too.
+pub struct Handle(pub Arc<NativeDocument>);
+
+impl Handle {
+    fn new(document: NativeDocument) -> Self {
+        Self(Arc::new(document))
+    }
+}
+
+impl Serialize for Handle {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let handle = {
+            let mut documents = documents();
+            documents.0 += 1;
+            let handle = documents.0;
+            documents.1.insert(handle, Arc::clone(&self.0));
+            handle
+        };
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry("$document", &handle)?;
+        map.end()
+    }
+}
+
+/// An A2AJ document as JavaScript is given it: its metadata, and each of its readings, its full text's being its
+/// provisions' where it has none of its own.
+#[cfg(feature = "a2aj")]
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoreDocument {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<i64>,
+    #[serde(flatten)]
+    metadata: legal_structure_features::a2aj::Metadata,
+    native: Handle,
+    search_native: Handle,
 }
 
 #[cfg(feature = "a2aj")]
-/// An A2AJ document as JavaScript is given it: its metadata, and a handle to each of its readings, its full text's being
-/// its provisions' where it has none of its own.
-fn found(found: Option<a2aj::Found>) -> Value {
-    found.map_or(Value::Null, |found| {
-        let mut value = json!(found.metadata);
-        value["searchNative"] = share(found.search.unwrap_or_else(|| Arc::clone(&found.native)));
-        value["native"] = share(found.native);
-        value
-    })
+impl StoreDocument {
+    fn of(id: Option<i64>, found: a2aj::Found) -> Self {
+        let search = found.search.unwrap_or_else(|| Arc::clone(&found.native));
+        Self { id, metadata: found.metadata, native: Handle(found.native), search_native: Handle(search) }
+    }
 }
 
-/// A handle of its own to a document the engine keeps elsewhere too.
-fn share(document: Arc<NativeDocument>) -> Value {
-    let mut documents = documents();
-    documents.0 += 1;
-    let handle = documents.0;
-    documents.1.insert(handle, document);
-    json!({ "handle": handle })
+/// A statute's provision as the store holds it: found, or the provision or the statute missing.
+#[cfg(feature = "a2aj")]
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum Provision {
+    Found { native: Handle },
+    MissingProvision,
+    MissingStatute,
 }
 
 fn with_document<T>(handle: u32, operation: impl FnOnce(&NativeDocument) -> CoreResult<T>) -> CoreResult<T> {
@@ -90,32 +128,20 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
             documents().1.remove(&handle);
             Ok((Value::Null, Vec::new()))
         }
-        "deriveDocumentStructure" => done(engine::derive_document_structure(call.get("request")?).map(store)),
+        "deriveDocumentStructure" => done(engine::derive_document_structure(call.get("request")?).map(Handle::new).and_then(value)),
         "deriveDocumentFingerprint" => done(engine::derive_document_fingerprint(call.get("request")?).and_then(value)),
         #[cfg(feature = "docx")]
         "fixDocxSupraCrossReferences" => {
-            let mut result = engine::fix_docx_supra_cross_references(bytes)?;
+            let mut result = legalpdf::fix_docx_supra_cross_references(bytes).map_err(|error| error.to_string())?;
             let bytes = std::mem::take(&mut result.bytes);
             Ok((value(&result)?, bytes))
         }
         #[cfg(feature = "docx")]
-        "deriveDocxDocument" => done(engine::derive_docx_document(
-            bytes, call.get("id")?, call.get::<Option<bool>>("drafting")?.unwrap_or(false)).map(store)),
-        #[cfg(feature = "docx")]
-        "docxText" => done(engine::docx_text(
-            bytes, call.get::<Option<bool>>("drafting")?.unwrap_or(false), call.get("limit")?).and_then(value)),
-        #[cfg(feature = "docx")]
         "docxAuthorityTextUnits" => done(legalpdf::docx_to_toa_text_units(bytes).map_err(|error| error.to_string()).and_then(value)),
-        #[cfg(feature = "legalpdf")]
-        "derivePdfDocument" => done(engine::derive_pdf_document(bytes, &call.get("request")?).map(store)),
         #[cfg(feature = "legalpdf")]
         "preparePdfDocument" => done(value(legalpdf::prepare_pdf_document(bytes, &call.get("request")?, progress)
             .map_err(Failure::from)?)),
-        #[cfg(feature = "legalpdf")]
-        "restorePdfDocument" => done(engine::restore_pdf_document(&call.get("request")?)
-            .map(|document| document.map(store).unwrap_or(Value::Null))),
-        "openSource" => done(source::open_source(bytes, call.get("request")?)
-            .map(|document| document.map(share).unwrap_or(Value::Null))),
+        "openSource" => done(value(source::open_source(bytes, call.get("request")?)?.map(Handle))),
         "sourceText" => done(value(source::source_text(bytes, call.get("request")?)?)),
         #[cfg(feature = "legalpdf")]
         "pdfDocumentSummary" => done(with_document(doc()?, |d| value(engine::pdf(d)?.summary()))),
@@ -127,19 +153,20 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
             let citations = call.get::<Vec<String>>("citations")?;
             done(with_document(doc()?, |d| engine::pdf_page_map(d, &citations).and_then(value)))
         }
+        #[cfg(feature = "legalpdf")]
+        "pdfPrintedPages" => done(with_document(doc()?, |d| engine::pdf_printed_pages(d,
+            &call.get::<Vec<String>>("citations")?, &call.get::<Vec<String>>("labels")?).and_then(value))),
         "reporterStartPages" => done(value(engine::reporter_start_pages(&call.get::<Vec<String>>("citations")?))),
         #[cfg(feature = "legalpdf")]
         "pdfPageTexts" => done(with_document(doc()?, |d| value(engine::pdf(d)?.page_texts()))),
         #[cfg(feature = "legalpdf")]
         "pdfAuthorityTextUnits" => done(with_document(doc()?, |d| value(engine::pdf(d)?.authority_text_units()))),
         #[cfg(feature = "legalpdf")]
-        "pdfPassageGeometryPages" => {
-            let job = with_document(doc()?, |d| engine::pdf_passage_pages_job(d, call.get("targets")?))?;
-            done(job.compute())
-        }
+        "pdfPassageGeometry" => done(with_document(doc()?, |d|
+            engine::passage_geometry(d, call.get("targets")?, call.get("citations")?).and_then(value))),
         #[cfg(feature = "legalpdf")]
-        "briefOccurrencePages" => done(value(engine::brief_occurrence_pages(&call.get::<Vec<String>>("pages")?,
-            &call.get::<Vec<engine::BriefUnit>>("units")?))),
+        "briefOccurrencePages" => done(value(legalpdf::brief_occurrence_pages(&call.get::<Vec<String>>("pages")?,
+            &call.get::<Vec<legalpdf::BriefUnit>>("units")?))),
         #[cfg(feature = "legalpdf")]
         "queryPdfDocument" => done(with_document(doc()?, |d| value(engine::pdf(d)?.lookup(&call.get("request")?)))),
         "docxStructureLint" => done(with_document(doc()?, |d| engine::docx_structure_lint_json(d).and_then(value))),
@@ -151,25 +178,20 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "readDocumentTextRange" => done(with_document(doc()?, |d| value(d.query.text_range_window(
             d.structure(), call.get("start")?, call.get("end")?, call.get("offset")?, call.get("limit")?, call.get("startChar")?)))),
         "documentFingerprint" => done(with_document(doc()?, |d| value(engine::document_fingerprint_of(d)))),
-        "documentAnchors" => done(with_document(doc()?, |d| engine::document_anchors(d, call.get("kind")?, call.get("end")?).and_then(value))),
+        "documentAnchors" => done(with_document(doc()?, |d| value(engine::document_anchors(d, call.get("kind")?, call.get("end")?)))),
         "legalSourceViewer" => done(with_document(doc()?, |d| value(d.query.viewer(d.structure(),
-            engine::document_kind(&call.get::<String>("primaryKind")?)?, call.get::<Option<usize>>("limit")?.unwrap_or(u32::MAX as usize))))),
-        "statuteOutline" => done(legal_structure::statute_outline(&call.get::<String>("text")?,
-            call.get::<Option<bool>>("articles")?.unwrap_or(false)).map_err(|error| error.to_string()).and_then(value)),
-        "caseOutline" => done(legal_structure::case_outline(&call.get::<String>("text")?).map_err(|error| error.to_string()).and_then(value)),
+            call.get("primaryKind")?, call.get::<Option<usize>>("limit")?.unwrap_or(u32::MAX as usize))))),
+        "textOutline" => done(legal_structure_features::text_outline(&call.get::<String>("text")?, call.get("kind")?)
+            .map_err(|error| error.to_string()).and_then(value)),
         "statuteProvisionSpans" => done(legal_structure::statute_provision_spans(&call.get::<String>("text")?,
             &call.get::<Vec<String>>("labels")?).map_err(|error| error.to_string()).and_then(value)),
         "collapseLabels" => done(value(legal_structure::collapse_labels(&call.get::<Vec<String>>("labels")?, &call.get::<String>("kind")?))),
         "statuteCurrency" => done(value(legal_structure_features::statute_currency(&call.get::<Vec<String>>("pages")?))),
         "filingCover" => done(value(legal_structure::filing_cover(&call.get::<String>("opening")?,
             call.get::<Option<String>>("title")?.as_deref()))),
-        "documentCaseOutline" => done(with_document(doc()?, |d|
-            legal_structure::case_outline(engine::document_text(d, None)).map_err(|error| error.to_string()).and_then(value))),
-        "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(d)))),
+        "documentOutline" => done(with_document(doc()?, |d| value(legal_structure_features::document_outline(d.structure())))),
         "documentTableCells" => done(with_document(doc()?, |d| value(d.query.table_cells(d.structure())))),
-        "citationLookupKey" => done(value(legal_structure::citation_lookup_key(&call.get::<String>("text")?))),
-        // The same call, which JavaScript runs off its thread.
-        "citationEngineCall" | "citationEngineCallAsync" => done(legal_structure::citations::api::call_value(
+        "citationEngineCall" => done(legal_structure::citations::api::call_value(
             &call.get::<String>("method")?, call.get("request")?).map_err(|error| error.to_string())),
         "documentReadingOrder" => done(value(legal_structure_features::document_reading_order(
             &call.get::<Vec<legal_structure_features::ReadingOrderUnit>>("units")?))),
@@ -219,15 +241,17 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
             &call.get::<Vec<legal_structure_features::QuoteToLocate>>("quotes")?, call.get::<Option<bool>>("compare")?.unwrap_or(true),
             call.get::<Option<bool>>("keep")?.unwrap_or(false)).and_then(value))),
         #[cfg(feature = "a2aj")]
-        "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?).map(found)),
+        "a2ajDocument" => done(a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?)
+            .map(|found| found.map(|found| StoreDocument::of(None, found))).and_then(value)),
         // The same of a record A2AJ's API answered with, and its other readings: a provision, a listing, the records
         // that answer a citation.
         #[cfg(feature = "a2aj")]
         "a2ajRecord" => done(a2aj::record(&call.get::<Value>("record")?, call.get::<Option<legal_structure_features::a2aj::Language>>("language")?
-            .unwrap_or(legal_structure_features::a2aj::Language::En), &call.get::<String>("docType")?).map(found)),
+            .unwrap_or(legal_structure_features::a2aj::Language::En), &call.get::<String>("docType")?)
+            .map(|found| found.map(|found| StoreDocument::of(None, found))).and_then(value)),
         #[cfg(feature = "a2aj")]
         "a2ajRecordProvision" => done(a2aj::record_provision(&call.get::<Vec<Value>>("records")?, &call.get("lookup")?,
-            call.get("excerpt")?).map(|native| native.map_or(Value::Null, share))),
+            call.get("excerpt")?).map(|native| native.map(Handle)).and_then(value)),
         #[cfg(feature = "a2aj")]
         "a2ajRecordListing" => done(value(a2aj::record_listing(&call.get::<Value>("record")?,
             call.get::<Option<legal_structure_features::a2aj::Language>>("language")?.unwrap_or(legal_structure_features::a2aj::Language::En)))),
@@ -237,17 +261,22 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "a2ajSection" => done(a2aj::section(&call.get::<PathBuf>("store")?, &call.get("lookup")?,
             &call.get::<String>("section")?, call.get("excerpt")?)
             .map(|found| match found {
-                Some(Some(native)) => json!({ "status": "found", "native": share(native) }),
-                Some(None) => json!({ "status": "missing_provision" }),
-                None => json!({ "status": "missing_statute" }),
-            })),
+                Some(Some(native)) => Provision::Found { native: Handle(native) },
+                Some(None) => Provision::MissingProvision,
+                None => Provision::MissingStatute,
+            }).and_then(value)),
         #[cfg(not(feature = "a2aj"))]
-        "a2ajAliasGroups" => done(value(engine::own_alias_groups(&call.get::<Vec<String>>("citations")?))),
+        "a2ajAliasGroups" => done(value(call.get::<Vec<String>>("citations")?.iter()
+            .map(|citation| engine::AliasGroup::own(citation)).collect::<Vec<_>>())),
         #[cfg(feature = "a2aj")]
         "a2ajAliasGroups" => done(a2aj::alias_groups(&call.get::<PathBuf>("store")?,
             &call.get::<Vec<String>>("citations")?).and_then(value)),
         #[cfg(feature = "a2aj")]
         "a2ajNamedCase" => done(a2aj::named_case(&call.get::<PathBuf>("store")?, &call.get("named")?).and_then(value)),
+        // The same of the records A2AJ's API answered a search of the name with.
+        #[cfg(feature = "a2aj")]
+        "a2ajNamedRecord" => done(value(a2aj::named_record(&call.get::<Vec<Value>>("records")?, &call.get("named")?,
+            call.get::<Option<legal_structure_features::a2aj::Language>>("language")?.unwrap_or(legal_structure_features::a2aj::Language::En)))),
         #[cfg(feature = "a2aj")]
         "a2ajNameKeys" => done(value(call.get::<Vec<String>>("names")?.iter().map(|name| a2aj::name_key(name))
             .collect::<Vec<_>>())),
@@ -262,8 +291,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "a2ajStoreDocuments" => done(a2aj::documents(&call.get::<PathBuf>("store")?, &call.get::<Vec<i64>>("ids")?,
             &call.get::<Option<String>>("docType")?.unwrap_or_else(|| "cases".to_owned()),
             call.get::<Option<legal_structure_features::a2aj::Language>>("language")?.unwrap_or(legal_structure_features::a2aj::Language::En))
-            .map(|found| found.map_or(Value::Null, |found| Value::Array(found.into_iter()
-                .map(|(id, document)| { let mut value = self::found(Some(document)); value["id"] = id.into(); value }).collect())))),
+            .map(|found| found.map(|found| found.into_iter().map(|(id, found)| StoreDocument::of(Some(id), found)).collect::<Vec<_>>()))
+            .and_then(value)),
         #[cfg(feature = "a2aj")]
         "a2ajReads" => done(a2aj::reads(&call.get::<PathBuf>("store")?, &call.get::<Vec<i64>>("ids")?,
             &call.get::<Option<String>>("docType")?.unwrap_or_else(|| "cases".to_owned()),
@@ -280,7 +309,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "citatorMetrics" => done(legal_structure_features::citator_graph::authority_metrics(&call.get::<PathBuf>("store")?,
             &call.get::<Vec<String>>("citations")?).map_err(|error| error.to_string()).and_then(value)),
         "readDocumentRange" => done(with_document(doc()?, |d| value(d.query.read_range(d.structure(),
-            engine::document_kind(&call.get::<String>("kind")?)?, &call.get::<String>("from")?, &call.get::<String>("to")?,
+            call.get("kind")?, &call.get::<String>("from")?, &call.get::<String>("to")?,
             call.get("contextBlocks")?)))),
         "smallestContainingDocumentBlock" => done(with_document(doc()?, |d| value(
             d.query.smallest_containing_block(d.structure(), call.get("start")?, call.get("end")?)))),
@@ -289,19 +318,17 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "lookupStructureBlock" => done(with_document(doc()?, |d| engine::lookup_structure_block(
             d, call.get("locator")?, call.get("contextBlocks")?).and_then(value))),
         "resolveDocumentAddressSpans" => done(with_document(doc()?, |d| value(d.query.resolve_address_spans(d.structure(),
-            &call.get::<String>("spec")?, engine::follow_direction(&call.get::<String>("follow")?)?, call.get("depth")?)))),
-        "graphScope" => done(with_document(doc()?, |d| engine::graph_scope(
-            d, &call.get::<legal_structure::GraphScopeSeed>("seed")?, &call.get::<String>("follow")?, call.get("depth")?,
-            call.get("includeDescendants")?, call.get("includeUnits")?).and_then(value))),
-        "documentHasOrigin" => done(with_document(doc()?, |d|
-            engine::document_has_origin(d, &call.get::<String>("origin")?).and_then(value))),
+            &call.get::<String>("spec")?, call.get("follow")?, call.get("depth")?)))),
+        "graphScope" => done(with_document(doc()?, |d| value(engine::graph_scope(
+            d, &call.get::<legal_structure::GraphScopeSeed>("seed")?, call.get("follow")?, call.get("depth")?,
+            call.get("includeDescendants")?, call.get("includeUnits")?)))),
+        "documentHasOrigin" => done(with_document(doc()?, |d| value(d.query.has_origin(d.structure(), call.get("origin")?)))),
         _ => Err(format!("unknown engine operation {op}").into()),
     }
 }
 
 /// Runs one framed request and frames its reply. A panic is reported as the call's error.
 pub fn call(request: &[u8], progress: Progress) -> Vec<u8> {
-    engine::install_structure_analysis();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<(Value, Vec<u8>), Failure> {
         let header = request.get(..4).ok_or("truncated engine request")?;
         let json_length = u32::from_le_bytes(header.try_into().unwrap()) as usize;

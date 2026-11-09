@@ -118,7 +118,7 @@ function markedDraft() {
 describe("shared Authorities text preparation", () => {
   it.each(["highlights", "headings"] as const)("includes source headings only when %s bookmarks request them", async (bookmarks) => {
     const state = markedDraft(); state.settings.bookmarks = bookmarks;
-    const outline = [{ kind: "heading" as const, level: 0, title: "Reasons", start: 0, pageIndex: 0 }];
+    const outline = [{ kind: "heading" as const, level: 0, title: "Reasons", start: 0, end: 7, pageIndex: 0 }];
     vi.mocked(authorityPdfOutline).mockResolvedValue(outline);
     const result = await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") });
     expect(result.outline).toEqual(bookmarks === "headings" ? outline : undefined);
@@ -159,7 +159,7 @@ describe("shared Authorities text preparation", () => {
     const state = markedDraft();
     state.import = { kind: "document", bindingRole: "source", filename: "Factum.pdf", fileType: "pdf", snapshot: null };
     state.settings.finalPdf = true;
-    const outline = [{ kind: "heading" as const, level: 0, title: "PART I - FACTS", start: 0, pageIndex: 1 }];
+    const outline = [{ kind: "heading" as const, level: 0, title: "PART I - FACTS", start: 0, end: 14, pageIndex: 1 }];
     vi.mocked(authorityPdfOutline).mockResolvedValueOnce(outline);
     expect(await createAuthoritiesPreparation(state).prepareText("source", { bytes: Buffer.from("pdf") }))
       .toMatchObject({ outline });

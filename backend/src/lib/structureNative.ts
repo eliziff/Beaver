@@ -1,8 +1,6 @@
 import { existsSync } from "node:fs";
 import { defaultNativeAddon, nativeAddonFile } from "mike/shared/nativeAddonFile.mjs";
 import { structureEngineAddon, type StructureEngineTransport } from "mike/shared/structure-engine.mjs";
-import { resolvePrintedPages, type PdfPageBinding } from "mike/shared/pdf-page-binding.mjs";
-import { createHash } from "node:crypto";
 import path from "node:path";
 
 /** A table cell a document's text was rendered from (legal-structure's AuthoritativeTableCell): a workbook's cell by its
@@ -67,22 +65,14 @@ export type NativeReferencePart = { part: import("legal-citations").SourcePart;
   references: Array<NativeCitationTextSpan & { form: "citation" | "bare" | "link";
     authority: import("legal-citations").Citation["authority"]; link?: string; citation?: number }> };
 
-/** `label` as printed ("726.1", "(2)", "PART XXIII"); `title` a marginal note or heading; `text` the
- *  entry's own words; `start`/`end` (string indices) span it and everything under it. */
-export type NativeStatuteOutlineEntry = { kind: "preamble" | "part" | "division" | "heading" | "schedule" | "section" |
-  "article" | "subsection" | "paragraph" | "subparagraph" | "clause"; level: number; label: string;
-  title?: string; text: string; start: number; end: number };
-
-/** A judgment's outline entry: `label` as printed ("[12]", "IV.", "(a)", "•"); `level` a heading's
- *  depth or an item's depth in its list (from 1); `start`/`end` (string indices) span it. */
-export type NativeCaseOutlineEntry = { kind: "heading" | "paragraph" | "item" | "text"; level: number;
-  label: string; text: string; start: number; end: number;
-  /** A front-matter line's part: the provider's title line, a party's role, the caption's short lines. */
-  role?: "title" | "party" | "caption" | "labelled" | "counsel" };
-
-/** `start` is in the document's query text; `pageIndex` is a PDF's zero-based page. */
-export type NativeOutlineEntry = { kind: "heading" | "section"; level: number; title: string;
-  start: number; pageIndex?: number };
+/** An entry of a document's outline: a node (`kind` its kind; "span" a line of the front matter, its `role` the
+ *  line's) or "text", lines no node holds. `level` its depth under its parents, from 0; `label` its number as printed
+ *  ("[12]", "(2)", "PART XXIII", "(a)"); `title` a heading's words or a provision's marginal note; `text` its own
+ *  words up to the first entry under it; `locator` a provision's kind; `start`/`end` its span in the query text;
+ *  `pageIndex` a PDF's zero-based page. */
+export type NativeOutlineEntry = { kind: "heading" | "section" | "paragraph" | "prose" | "list_item" | "quote" | "span" |
+  "text"; level: number; label?: string; title?: string; text?: string; start: number; end: number;
+  role?: "title" | "furniture" | "party" | "caption" | "labelled" | "counsel"; locator?: string; pageIndex?: number };
 
 export type NativeCitationOccurrence = NativeCitationTextSpan & {
   styledCitation: NativeCitationTextSpan;
@@ -130,6 +120,15 @@ export type NativeAuthorityTextUnit = {
   footnote_refs: Array<[footnoteId: number, offset: number]>;
   /** A Word body paragraph's place: the indices of the elements that lead to it from the body. */
   path?: number[];
+};
+
+/** One PDF page of the engine's page map (`PdfDocument::page_map`). */
+export type PdfPageBinding = {
+  pdfPage: number;
+  observed: string | null;
+  label: string | null;
+  source: "detected" | "sequence" | "embedded" | "reporter" | null;
+  status: "resolved" | "unknown" | "ambiguous";
 };
 
 type Rect = [number, number, number, number];
@@ -231,7 +230,7 @@ type StructureAddon = {
   documentLive?(document: NativeDocument): boolean;
   memoryBytes?(): number;
   recycle?(): void;
-  offThread<M extends "groundedProseErrors" | "passageLink" | "citedPassageLink" | "sourceLink">(method: M,
+  offThread<M extends "groundedProseErrors" | "passageLink" | "citedPassageLink" | "sourceLink" | "citationEngineCall">(method: M,
     ...args: Parameters<StructureAddon[M]>): Promise<ReturnType<StructureAddon[M]>>;
   nativeBuildFeatures(): string;
   /** A passage's link on a source's page with the fragments planned against the document (legal-structure). */
@@ -248,18 +247,14 @@ type StructureAddon = {
     /** A passage cited without a quotation is linked at the citation's pinpoints (`par12`, `sec6(1)(c)`). */
     pinpoints?: string[]; verifiedPdf?: { url: string; pdfOnly?: boolean } | null }): string | null;
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
-  deriveDocxDocument(bytes: Buffer, id: string, drafting?: boolean): Promise<NativeDocument>;
-  docxText(bytes: Buffer, drafting?: boolean, limit?: number): Promise<string>;
   docxAuthorityTextUnits(bytes: Buffer): Promise<NativeAuthorityTextUnit[]>;
   fixDocxSupraCrossReferences(bytes: Buffer): Promise<{
     bytes: Buffer; detected: number; converted: number; already_linked: number;
     review_required: number; bookmarks_added: number; restarted_numbering: boolean; unsafe_or_split_fields: number;
   }>;
-  derivePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal): Promise<NativeDocument>;
   /** `progress(recognized, total)` follows text recognition as pages finish. */
   preparePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal,
     progress?: (recognized: number, total: number) => void): Promise<PdfPreparationSummary>;
-  restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   /** A stored source read as its document by its format's reader: the document the engine keeps for it, or, given its
    *  bytes, read afresh (sourceDocument.ts builds the request); without bytes, null where the engine keeps none. */
   openSource(bytes: Buffer | undefined, request: unknown): Promise<NativeDocument | null>;
@@ -269,6 +264,9 @@ type StructureAddon = {
   pdfRecognizedText(document: NativeDocument, pages?: number[]): NativePdfTextPage[] | null;
   /** Each page's printed number: the structure's, anchored on the first pages of the reports `citations` cite. */
   pdfPageMap(document: NativeDocument, citations: string[]): PdfPageBinding[];
+  /** The PDF pages (from 1) each printed page label names by the page map anchored on the reports `citations` cite;
+   *  none for a label the map does not resolve. */
+  pdfPrintedPages(document: NativeDocument, citations: string[], labels: string[]): number[][];
   /** The first pages of the reports `citations` cite. */
   reporterStartPages(citations: string[]): number[];
   /** Every page's text in page order, empty where a page has no exact text. */
@@ -279,8 +277,10 @@ type StructureAddon = {
     occurrences: Array<{ id: string; start: number; end: number; text: string }> }>): Record<string, number>;
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
   /** Each passage's pages, its lines' rectangles on each, and its quotations placed on them; a passage with no page it
-   *  can be read on unavailable. */
-  pdfPassageGeometryPages(document: NativeDocument, targets: NativePdfPassageTarget[]): Promise<NativePdfPassageGeometry>;
+   *  can be read on unavailable. With `citations`, a page locator naming no physical pages is a printed page, the PDF
+   *  pages the page map anchored on the reports they cite gives it. */
+  pdfPassageGeometry(document: NativeDocument, targets: NativePdfPassageTarget[], citations?: string[]):
+    Promise<NativePdfPassageGeometry>;
   docxStructureLint(document: NativeDocument): {
     paragraphs: number;
     checks: {
@@ -308,11 +308,8 @@ type StructureAddon = {
   documentFingerprint(document: NativeDocument): {
     resultSha256: string; components: Record<string, string>;
   };
-  citationLookupKey(text: string): string;
   /** A call of the citation engine's API (legal-citations `api::call_value`): its method and its request as it reads it. */
   citationEngineCall(method: string, request: unknown): unknown;
-  /** citationEngineCall, run off the JavaScript thread. */
-  citationEngineCallAsync(method: string, request: unknown): Promise<unknown>;
   /** Each unit's items in reading order, as (unit, item): a note follows the body up to its call. */
   documentReadingOrder(units: Array<{ kind: string; footnote_id: number | null;
     footnote_refs: Array<[number, number]>; item_offsets: number[] }>): Array<[number, number]>;
@@ -398,6 +395,8 @@ type StructureAddon = {
   /** The citation of the one decision the store holds under a style of cause, in a year, of one of `courts` (any
    *  where none): a decision cited by an identifier A2AJ does not carry. Null where none answers, or several. */
   a2ajNamedCase(store: string, named: { name: string; year: string; courts: string[] }): string | null;
+  /** The same of the records A2AJ's API answered a search of the name with. */
+  a2ajNamedRecord(records: unknown[], named: { name: string; year: string; courts: string[] }, language: "en" | "fr"): string | null;
   /** Each style of cause compared as its words: the key of the store's names and of CanLII's titles. */
   a2ajNameKeys(names: string[]): string[];
   /** The store's documents answering a search, as a search lists them (never their text); null where there is no
@@ -455,16 +454,10 @@ type StructureAddon = {
       documentRevision: string;
     };
   documentTableCells(document: NativeDocument): NativeTableCell[];
-  /** The document's headings and top-level sections in order; a section sits under the heading before it. */
+  /** The document's outline, read from its nodes. */
   documentOutline(document: NativeDocument): NativeOutlineEntry[];
-  /** A statute's outline read from its text: parts, headings and provisions in order, each with
-   *  its level, printed label, marginal note or heading, own text, and the span of its subtree. */
-  statuteOutline(text: string, articles?: boolean): NativeStatuteOutlineEntry[];
-  /** A judgment's outline read from its text: its headings by level, numbered paragraphs, the lists
-   *  within them, and the matter around its reasons, in order. */
-  caseOutline(text: string): NativeCaseOutlineEntry[];
-  /** caseOutline read from a document's own text, its offsets the document's. */
-  documentCaseOutline(document: NativeDocument): NativeCaseOutlineEntry[];
+  /** The outline of a provider's text of a judgment ("cases") or a statute ("laws"). */
+  textOutline(text: string, kind: "cases" | "laws"): NativeOutlineEntry[];
   /** Where a statute's text holds each cited provision, part ("16(3)(a)") or range ("49-51"), by its outline: each span
    *  (UTF-16) with everything under it, in the text's order; a label it does not hold has none. */
   statuteProvisionSpans(text: string, labels: string[]): Array<[number, number]>;
@@ -565,7 +558,6 @@ export type NativeNode = {
   label?: string;
   range: NativeSpan;
   ranges?: NativeSpan[];
-  rendered_range?: NativeSpan;
   rendered_ranges?: NativeSpan[];
   level?: number;
   parent_id: string | null;
@@ -626,27 +618,3 @@ export function structureNative() {
 
 /** Whether a document kept from an earlier call can still be read. */
 export const nativeDocumentLive = (document: NativeDocument) => structureNative().documentLive?.(document) ?? true;
-
-/** Each passage's geometry on the PDF's pages; with `citations`, a page cited by its printed number is the physical
- *  page the page map, anchored on the reports they cite, gives it. */
-export async function pdfPassageGeometry(
-  document: NativeDocument, bytes: Buffer, targets: NativePdfPassageTarget[], citations?: string[],
-): Promise<NativePdfPassageGeometry> {
-  if (!targets.length || targets.length > 100 || !bytes.length || bytes.length > 100 * 1024 * 1024 ||
-    targets.some((target) => (target.exactQuotes?.length ?? 0) + (target.quoteSelections?.length ?? 0) > 20 ||
-    target.exactQuotes?.some((quote) => quote.length > 4_000) ||
-    target.quoteSelections?.some(({ text, start, end }) => text.length > 4_000 ||
-      !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end <= start || end > text.length))) {
-    throw new Error("Invalid PDF passage geometry request");
-  }
-  const native = structureNative();
-  const summary = native.pdfDocumentSummary(document);
-  if (createHash("sha256").update(bytes).digest("hex") !== summary.sha256) {
-    throw new Error("PDF source changed after preparation");
-  }
-  const printed = (target: NativePdfPassageTarget) => !!citations && target.locatorKind === "page" &&
-    target.physicalPages === undefined;
-  const labels = citations && targets.some(printed) ? native.pdfPageMap(document, citations) : [];
-  return await native.pdfPassageGeometryPages(document, targets.map((target) => printed(target)
-    ? { ...target, physicalPages: resolvePrintedPages(target.locator, labels).map((index) => index + 1) } : target));
-}

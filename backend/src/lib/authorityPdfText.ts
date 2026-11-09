@@ -1,14 +1,12 @@
 import { openDocument, PLAIN_PDF, preparePdf, type PdfPreparationProgress } from "./sourceDocument";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
-import { resolvePrintedPages } from "./pdfPagination";
-import { pdfPassageGeometry, structureNative, type NativePdfPassageGeometry,
-  type NativePdfPassageTarget } from "./structureNative";
+import { structureNative, type NativePdfPassageTarget } from "./structureNative";
 import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
 type Prepared = Awaited<ReturnType<typeof preparePdf>>;
 
-/** The authority's own headings, and a statute's sections, read from the PDF it is reproduced from. */
+/** The authority's own headings, read from the PDF it is reproduced from. */
 export async function authorityPdfOutline(input: {
   bytes: Buffer; documentId?: string; versionId?: string; sourceSha256?: string;
   pdfProfile?: PdfProfileSelection; signal?: AbortSignal;
@@ -20,7 +18,8 @@ export async function authorityPdfOutline(input: {
   const prepared = await preparePdf({ ...reference, bytes: input.bytes, signal: input.signal,
     ...(input.pdfProfile ? { pdfProfile: input.pdfProfile } : { ocrProvider: null, layout: false }) });
   return structureNative().documentOutline(await openDocument({ ...reference, readBytes: () => input.bytes,
-    pdfProfile: prepared }, { signal: input.signal }));
+    pdfProfile: prepared }, { signal: input.signal }))
+    .flatMap(({ title, ...entry }) => entry.kind === "heading" && title ? [{ ...entry, title }] : []);
 }
 
 export async function authorityPdfText(input: {
@@ -64,33 +63,21 @@ export async function authorityPdfText(input: {
   const document = (prepared: Prepared, plain = false) => openDocument({ ...reference,
     readBytes: () => input.bytes, pdfProfile: prepared }, { signal: input.signal,
     ...(plain ? PLAIN_PDF : {}) });
-  const pageMap = async (prepared: Prepared) =>
-    structureNative().pdfPageMap(await document(prepared, true), input.citations ?? []);
+  const citations = input.citations ?? [];
   let recognized = native;
   let recognizedPages: Set<number> | undefined;
-  const geometry = async (targets: NativePdfPassageTarget[], prepared = recognized) => {
-    let result: NativePdfPassageGeometry | undefined;
-    for (let offset = 0; offset < targets.length; offset += 100) {
-      input.signal?.throwIfAborted();
-      const next = await pdfPassageGeometry(await document(prepared), input.bytes,
-        targets.slice(offset, offset + 100), input.citations ?? []);
-      result = result ? { ...result, targets: [...result.targets, ...next.targets] } : next;
-    }
-    return result;
-  };
   if (policy === "full" && native.pagesNeedingOcr.length) {
     recognized = await preparePdf({ ...recognition, ocrProvider: "indra" });
   } else if (policy === "cited-pages") {
     if (targets.length && targets.every(({ locatorKind }) => locatorKind === "page")) {
-      const locate = async (prepared: Prepared) => {
-        const labels = await pageMap(prepared);
-        return targets.map(target => resolvePrintedPages(target.locator, labels));
-      };
+      // Each pinpoint's PDF pages, zero-based, by the page map of the PDF as `prepared` reads it.
+      const locate = async (prepared: Prepared) => structureNative().pdfPrintedPages(await document(prepared, true),
+        citations, targets.map(target => target.locator)).map(pages => pages.map(page => page - 1));
       let located = await locate(native);
       // Cited-page OCR is explicitly requested: establish the reporter offset
       // before resolving its pinpoints, retaining the anchor in the partial pass.
       const openingPages: number[] = [];
-      if (structureNative().reporterStartPages([...input.citations ?? []]).length) {
+      if (structureNative().reporterStartPages(citations).length) {
         for (let page = 1; located.some(pages => !pages.length) &&
             page <= Math.min(3, native.pageCount); page++) {
           if (!recognized.pagesNeedingOcr.includes(page - 1)) continue;
@@ -125,9 +112,9 @@ export async function authorityPdfText(input: {
     (recognizedPages && !recognizedPages.has(index) ? nativeTexts : recognizedTexts)[index] ?? "");
   const passageTargets = typeof input.passageTargets === "function"
     ? input.passageTargets(pageTextByPage) : input.passageTargets;
-  const passageGeometry = passageTargets?.length ? await geometry(passageTargets) : undefined;
-  const pageBindings = await pageMap(recognized);
-  return { pageTextByPage, ...(pageBindings ? { pageBindings, pageLabels: pageBindings.map(page => page.label) } : {}),
+  const passageGeometry = passageTargets?.length
+    ? await structureNative().pdfPassageGeometry(await document(recognized), passageTargets, citations) : undefined;
+  return { pageTextByPage,
     ocrTextByPage: pageTextByPage.map((value, index) => routed.has(index) ? value : ""),
     ...(passageGeometry ? { passageGeometry } : {}) };
 }

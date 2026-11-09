@@ -174,7 +174,7 @@ impl Listings {
 }
 
 fn outline(text: &str) -> Option<Value> {
-    let entries = legal_structure::case_outline(text).ok()?;
+    let entries = legal_structure_features::text_outline(text, legal_structure::ProviderTextSourceKind::Cases).ok()?;
     serde_json::to_value(entries).ok()
 }
 

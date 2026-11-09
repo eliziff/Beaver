@@ -74,8 +74,8 @@ refreshing. Live provider calls were not benchmarked.
 
 ## Native parsing and source analysis
 
-Fragment analysis and judgment outlining stay on native document handles. `documentCaseOutline` reads the
-judgment outline directly; `documentTextStatistics` returns phrase occurrences and
+Fragment analysis and judgment outlining stay on native document handles. `documentOutline` reads the
+outline straight from the document's nodes; `documentTextStatistics` returns phrase occurrences and
 word counts without exporting the source. The query owner lazily retains its NFKD,
 lowercase letter/number representation for repeated fragment checks. JavaScript
 composes URLs and applies publisher policy to these small results. Text requested
