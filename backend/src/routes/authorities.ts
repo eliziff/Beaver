@@ -2,7 +2,7 @@ import { Router } from "express";
 import { applicationScope, reject } from "../lib/applicationError";
 import type { AuthoritiesWorkspaceApplication } from "../lib/authoritiesWorkspaceApplication";
 import { bad, choice, decodeAuthoritiesDiscrepancyAction,
-  decodeAuthoritiesInitialSettings, decodeAuthoritiesUserAction, decodePdfOpening, integer, object,
+  decodeAuthoritiesInitialSettings, decodeAuthoritiesUserAction, integer, object,
   text } from "../lib/authoritiesActionContract";
 import { asyncRoute } from "../lib/asyncRoute";
 import { applyAuthoritiesUserAction, readPinpoints } from "../lib/authoritiesActions";
@@ -154,9 +154,9 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
         autoFetched: req.body?.auto_fetched === "true",
       }));
     }));
-  router.post("/:id/pdf-authority", asyncRoute(async (req, res) => {
+  router.post("/:id/pdf-authority", singleFileUpload("file"), asyncRoute(async (req, res) => {
     res.json({ authorityId: await application.pdfAuthority(applicationScope(res), text(req.params.id),
-      decodePdfOpening(req.body)) });
+      requiredUpload(req)) });
   }));
   router.post("/:id/library-pdfs", asyncRoute(async (req, res) => {
     res.json(await application.attachLibraryPdf(applicationScope(res), text(req.params.id),

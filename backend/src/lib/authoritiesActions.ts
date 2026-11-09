@@ -14,9 +14,6 @@ import type { WorkProductInput } from "./workProduct";
 import { authorityPdfRequired, type AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { headerIdentities, matchFolderPdf, verifyIdentity } from "mike/shared/folder-pdf-match.mjs";
 
-/** A PDF's name and its first pages' native text, line by line, as the page read it. */
-export type PdfOpening = { filename: string; pages: string[]; marginText?: string[] };
-
 export const authorityCitationServices = {
   key: (value: string) => structureNative().citationLookupKeys([value])[0],
   occurrences: (value: string) => structureNative().citationOccurrencesInText(value),
@@ -143,18 +140,18 @@ export function caseNameMismatch(authority: AuthorityIdentity,
 }
 
 /** The case still without a PDF that a PDF found in the watched folder is, when exactly one: by
- *  the citation its opening (`pages`, its first pages' native text) prints, else by exact agreement
+ *  the citation its native opening prints, else by exact agreement
  *  with A2AJ's text of the decision (`reference`); a scan by its file name alone. */
-export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, pages, marginText }: PdfOpening,
+export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, bytes }: { filename: string; bytes: Buffer },
   reference: (authority: AuthorityIdentity) => Promise<string>) {
   const requirements = authoritiesProfile(draft.settings.profileId).requirements;
   const records = Object.values(draft.authorities).filter((authority) => authority.kind === "case" &&
     !authority.excluded && authority.source.kind !== "attached" && authorityPdfRequired(draft, authority, requirements))
     .map((authority) => ({ authority, citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }));
   if (!records.length) return null;
-  const native = structureNative(), opening = pages.map((page, index) => ({ lines: page.split("\n").map((text) => ({ text })),
-    marginText: marginText?.[index] }));
-  const match = await matchFolderPdf(filename, opening, records, (method, request) =>
+  const native = structureNative(), opening = await native.pdfOpening(bytes);
+  if (opening.pageCount > 2_000) throw new Error("This PDF exceeds the 2,000-page inspection limit.");
+  const match = await matchFolderPdf(filename, opening.pages, records, (method, request) =>
     native.citationEngineCall(method, request), ({ authority }) => reference(authority));
   return match?.record.authority.id ?? null;
 }

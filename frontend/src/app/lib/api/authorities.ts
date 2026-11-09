@@ -43,8 +43,8 @@ export const attachAuthorityPdf = (
 );
 export const readAuthoritiesPinpoints = (text: string, start: number, end: number) =>
   post<Array<{ kind: string; start: number; end: number }>>("/authorities/pinpoints", { text, start, end });
-export const authoritiesPdfAuthority = (id: string, opening: { filename: string; pages: string[] }) =>
-  post<{ authorityId: string | null }>(`/authorities/${segment(id)}/pdf-authority`, opening);
+export const authoritiesPdfAuthority = (id: string, file: File) =>
+  multipartRequest<{ authorityId: string | null }>(`/authorities/${segment(id)}/pdf-authority`, file);
 export const attachAuthoritiesLibraryPdf = (id: string, revision: number,
   documentId: string, versionId: string, target:
     { kind: "authority"; authorityId: string; language: AuthoritySourceLanguage } |

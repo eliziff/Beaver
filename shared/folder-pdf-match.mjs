@@ -15,21 +15,6 @@ export function canliiFileCitation(name) {
   return match ? `${match[1]} ${match[2].toLowerCase() === 'canlii' ? 'CanLII' : match[2].toUpperCase()} ${match[3]}` : null;
 }
 
-/** Native text written vertically at a page's side margin, before any citation parsing. */
-export function rotatedMarginText(items, viewport, Util) {
-  const reading = viewport.rotation ? viewport.clone({ rotation: 0 }) : viewport;
-  let text = '';
-  for (const item of items) {
-    if (!('str' in item)) continue;
-    const transform = Util.transform(reading.transform, item.transform), x = transform[4];
-    if (!(Math.abs(transform[1]) > Math.abs(transform[0]) * 4) || !(x >= 0 && x <= reading.width) ||
-        x > reading.width * .12 && x < reading.width * .88) continue;
-    text += `${item.str}${item.hasEOL ? '\n' : ' '}`;
-    if (text.length >= 5000) return text.slice(0, 5000).trim();
-  }
-  return text.trim();
-}
-
 /** The first page before its first numbered paragraph. */
 export function headerText(pages) {
   let text = '';

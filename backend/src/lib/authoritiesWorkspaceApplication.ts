@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
-  type AuthoritiesInitialSettings, type AuthoritiesUserAction, type PdfOpening } from "./authoritiesActions";
+  type AuthoritiesInitialSettings, type AuthoritiesUserAction } from "./authoritiesActions";
 import { authorityPassageTargets, buildAuthorities, renderAuthoritySourcePdf,
   type AuthoritiesBuildResult, type BuildSourceText } from "./authoritiesBuild";
 import { attachAuthorityFile, correctedAuthoritiesDraft, gatherAuthoritySources, refreshedAuthoritiesDraft,
@@ -424,9 +424,11 @@ export function createAuthoritiesWorkspaceApplication(
         state: adoptCurrentPdf(draft, input.role, binding, version) });
     },
     /** The authority still without a PDF that a PDF from the watched folder is, if exactly one. */
-    async pdfAuthority(scope: ApplicationScope, id: string, opening: PdfOpening) {
+    async pdfAuthority(scope: ApplicationScope, id: string, file: DocumentFile) {
       const { draft } = await open(scope, id);
-      return folderPdfAuthority(draft, opening, (authority) => authorityReferenceText(draft, authority, sources));
+      const bytes = "bytes" in file ? file.bytes : await readFile(file.path);
+      return folderPdfAuthority(draft, { filename: file.filename, bytes },
+        (authority) => authorityReferenceText(draft, authority, sources));
     },
     attachPdf: (scope: ApplicationScope, id: string, input: {
       revision: number; authorityId: string; file: DocumentFile; language: AuthoritySourceLanguage;

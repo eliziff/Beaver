@@ -112,7 +112,7 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     attachAuthorityPdf(id, authorityId, revision, selected.file, language, selected.autoFetched),
   attachBookPdf: (id, revision, slot, selected, supplementId) =>
     attachAuthoritiesBookPdf(id, revision, slot, selected.file, supplementId),
-  pdfAuthority: async (product, opening) => (await authoritiesPdfAuthority(product.id, opening)).authorityId,
+  pdfAuthority: async (product, file) => (await authoritiesPdfAuthority(product.id, file)).authorityId,
   watchedFolder,
   readPinpoints: readAuthoritiesPinpoints,
   attachLibraryPdf(id, revision, document, target) {

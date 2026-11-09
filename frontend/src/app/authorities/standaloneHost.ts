@@ -382,8 +382,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       ...(selected.autoFetched ? { auto_fetched: "true" } : {}) }),
   attachBookPdf: (id, revision, slot, selected, supplementId) =>
     attachPdf(id, revision, selected, { slot, ...(supplementId ? { supplement_id: supplementId } : {}) }),
-  pdfAuthority: async (product, opening) => ((await runtimeResponse("pdf-authority",
-    { draft: product.state, ...opening })).data as { authorityId: string | null }).authorityId,
+  pdfAuthority: async (product, file) => ((await runtimeResponse("pdf-authority",
+    { draft: product.state, files: [file] })).data as { authorityId: string | null }).authorityId,
   watchedFolder,
   async build(selected, progress, signal) {
     signal?.throwIfAborted();

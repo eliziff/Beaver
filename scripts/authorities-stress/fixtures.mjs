@@ -282,6 +282,18 @@ export async function writeStressFixtures(browser, directory, { longCount = 120 
     for (const [index, item] of files.decisions.slice(0, 4).entries())
       files.decisionPdfs.push(await pdf(`<!doctype html><meta charset="utf-8"><style>@page{size:Letter;margin:0}${SHEET}</style>${
         judgmentHtml(item.name, item.citation, item.paragraphs, 6).join("")}`, `decision-${index + 1}.pdf`));
+    files.folderBrief = await pdf(briefHtml({ title: "Harbour Notice Appeal", paragraphs: [{
+      text: "The board must give notice before deciding the application.",
+      note: `${files.decisions[0].name}, ${files.decisions[0].citation} at para 2.`,
+    }] }), "folder-brief.pdf");
+    for (const [name, decision] of [["folderWrong", files.decisions[1]], ["folderRight", files.decisions[0]]]) {
+      files[name] = file(name);
+      await mkdir(files[name], { recursive: true });
+      // The wrong download has the expected filename; its own citation must keep it unbound.
+      await pdf(`<!doctype html><meta charset="utf-8"><style>@page{size:Letter;margin:0}${SHEET}</style>${
+        judgmentHtml(decision.name, decision.citation, decision.paragraphs, 6).join("")}`,
+      `${name}/${files.decisions[0].citation.toLowerCase().replaceAll(" ", "")}.pdf`);
+    }
     files.scans = [];
     await page.setViewportSize({ width: 850, height: 1100 });
     for (const [index, item] of files.decisions.slice(4).concat(inventedDecisions(8).slice(6)).entries()) {

@@ -30,6 +30,37 @@ const opfs = (app, action, args) => app.page.evaluate(async ([action, args]) => 
 }, [action, args]);
 
 export const FILE_CASES = [{
+  name: "folder-pickup",
+  title: "Folder PDFs identified by the shared native reader, contradictory names left unbound, and the matched file built",
+  async run({ open, fixtures, record }) {
+    const app = await open({ init: [() => Object.defineProperty(window, "showDirectoryPicker", { value: undefined })] });
+    await app.load();
+    await importBrief(app, fixtures.folderBrief, { sourceMode: "manual" });
+    await step(app, "Sources", { via: "next" });
+    await app.idle();
+    const target = row(app, fixtures.decisions[0].name);
+    const choose = async (directory) => {
+      const chooser = app.page.waitForEvent("filechooser");
+      await app.button("Auto-fetch from folder").click();
+      await (await chooser).setFiles(directory);
+    };
+    await choose(fixtures.folderWrong);
+    await app.page.getByText("None of the PDFs there belongs to an authority that still needs one.", { exact: true }).waitFor();
+    record.check(!await target.getByRole("button", { name: /^View PDF for/u }).count(),
+      "a matching filename cannot bind a PDF that names a different case");
+    await choose(fixtures.folderRight);
+    await target.getByRole("button", { name: /^View PDF for/u }).waitFor({ timeout: 60_000 });
+    record.check(await app.page.getByRole("list", { name: "Authority tab slots" }).getByRole("listitem").count() === 1,
+      "folder pickup attaches the matched authority without adding another");
+    await app.shots("folder-sources");
+    await step(app, "Highlights", { via: "next" });
+    await step(app, "Build book", { via: "next" });
+    await build(app, "folder book", { budget: 20_000 });
+    const book = pick(await downloads(app, "book"), /book-of-authorities\.pdf$/u);
+    await checkPdf(record, "folder book", book, { tabs: 1 });
+    await app.close();
+  },
+}, {
   name: "file-access",
   title: "Chrome asks again for the connected brief after a restart; retained authority PDFs remain available",
   async run({ open, fixtures, record }) {

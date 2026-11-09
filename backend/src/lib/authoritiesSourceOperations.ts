@@ -24,7 +24,7 @@ import type { WordCitation, WordCopy, WordResult } from "./quoteVerification/wor
 import { linkPropagationTargets } from "./authoritiesLinkPropagation";
 import { withSqliteRun } from "./legalDataPath";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
-  decodeAuthoritiesUserAction, decodePdfOpening, text } from "./authoritiesActionContract";
+  decodeAuthoritiesUserAction, text } from "./authoritiesActionContract";
 import type { AuthoritiesOperationInput, AuthoritiesRuntimeFile, AuthoritiesRuntimeResult } from "mike/shared/runtime/authoritiesRuntime.mjs";
 
 export function draft(value: unknown) {
@@ -252,8 +252,8 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
     return reject(400, "Choose the authority this PDF is for.");
     },
     "pdf-authority": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
-    const current = draft(input?.draft);
-    return value({ authorityId: await folderPdfAuthority(current, decodePdfOpening(input),
+    const current = draft(json(input?.draft, "draft")), file = requiredSource(input);
+    return value({ authorityId: await folderPdfAuthority(current, { filename: file.filename, bytes: sourceBytes(file) },
       (authority) => authorityReferenceText(current, authority)) });
     },
   });

@@ -28,13 +28,6 @@ export function integer(value: unknown, min = 0) {
   if (!Number.isSafeInteger(value) || Number(value) < min) return bad();
   return Number(value);
 }
-export function decodePdfOpening(value: unknown) {
-  const { filename, pages, marginText } = object(value);
-  return Array.isArray(pages) && pages.length <= 2 && pages.every((page) => typeof page === "string" && page.length <= 200_000)
-    && (marginText === undefined || Array.isArray(marginText) && marginText.length === pages.length &&
-      marginText.every((page) => typeof page === "string" && page.length <= 5000))
-    ? { filename: text(filename), pages: pages as string[], ...marginText !== undefined && { marginText: marginText as string[] } } : bad();
-}
 export function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   return typeof value === "string" && choices.includes(value as T) ? value as T : bad();
 }

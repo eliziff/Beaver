@@ -13,7 +13,6 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { toValue, useMachine } from "@/app/lib/useMachine";
 import { Modal } from "@/app/components/modals/Modal";
-import { pdfOpening } from "@/app/lib/inspectPdf";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { ClearDataSetting } from "@/app/components/shared/ClearDataSetting";
@@ -908,7 +907,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       !folderTried.current.has(folderFileId(file))).sort((left, right) => right.lastModified - left.lastModified)) {
       if (draftRef.current?.id !== current.id || !waiting()) break;
       folderTried.current.add(folderFileId(file));
-      const authorityId = await pdfOpening(file).then((opening) => host.pdfAuthority!(current, opening)).catch(() => null);
+      const authorityId = await host.pdfAuthority(current, file).catch(() => null);
       if (authorityId && !matches.some((match) => match.authorityId === authorityId)) matches.push({ authorityId, file });
     }
     if (!matches.length) {

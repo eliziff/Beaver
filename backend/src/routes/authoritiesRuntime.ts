@@ -71,7 +71,7 @@ export function createAuthoritiesRuntimeRouter(authenticate: RequestHandler) {
     } finally { res.end(); }
   }));
   const uploads = new Set<AuthoritiesOperation>(["source-text", "source-read", "excerpt", "excerpt-pages",
-    "annotations", "import", "refresh", "discrepancies/actions", "pdf"]);
+    "annotations", "import", "refresh", "discrepancies/actions", "pdf", "pdf-authority"]);
   const streamed = new Set<AuthoritiesOperation>(["source-text", "source-read", "sources", "build"]);
   for (const operation of Object.keys(operations) as AuthoritiesOperation[]) {
     if (operation === "capabilities" || operation === "quote-check") continue;

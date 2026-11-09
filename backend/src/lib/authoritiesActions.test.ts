@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { applyAuthoritiesUserAction, folderPdfAuthority } from "./authoritiesActions";
 import { authorityPassageTargets } from "./authoritiesBuild";
 import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
@@ -315,7 +316,7 @@ describe("Authorities citation boundary actions", () => {
 });
 
 describe("a PDF found in the watched folder", () => {
-  // Invented decisions: two the brief cites, and their opening pages as a reader's browser reads them.
+  // Invented decisions: two the brief cites, read from the actual PDFs by the shared native operation.
   const cases = { harbour: ["Harbour Paddlers Co-operative v Canada (Attorney General)", "2031 FC 212"],
     lakeshore: ["Lakeshore Rowing Club v Marsh Harbour Board", "2030 ABKB 417"] } as const;
   const draft = () => Object.entries(cases).reduce((current, [id, [name, citation]]) =>
@@ -330,8 +331,14 @@ describe("a PDF found in the watched folder", () => {
     `the ${subject} board weighed notice number ${index} against the launch season and the river levels it recorded`).join(" ");
   const opening = (heading: string, body: string) => [`${heading}\n[1] ${body.slice(0, 900)}`, body.slice(900, 2400)];
   const references: Record<string, string> = { harbour: reasons("harbour"), lakeshore: reasons("lakeshore") };
-  const match = (filename: string, pages: string[], state = draft()) =>
-    folderPdfAuthority(state, { filename, pages }, async ({ id }) => references[id] ?? "");
+  const match = async (filename: string, pages: string[], state = draft()) => {
+    const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.Helvetica);
+    for (const text of pages) pdf.addPage([612, 792]).drawText(text, {
+      x: 50, y: 740, size: 10, font, maxWidth: 510, lineHeight: 14,
+    });
+    return folderPdfAuthority(state, { filename, bytes: Buffer.from(await pdf.save()) },
+      async ({ id }) => references[id] ?? "");
+  };
 
   it("is the case still without a PDF that its opening citation names, whatever the file is called", async () => {
     const heading = `Federal Court\nCitation: ${cases.harbour.join(", ")}\nDate: 20310304`;
