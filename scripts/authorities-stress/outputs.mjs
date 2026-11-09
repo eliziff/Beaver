@@ -150,23 +150,26 @@ export async function openInWord(items, dir, { stall = 45_000 } = {}) {
     const exited = new Promise((resolve) => child.on("exit", resolve));
     const read = async () => (await readFile(results, "utf8")).split(/\r?\n/u).map((line) => line.replace(/^﻿/u, "").trim())
       .filter(Boolean).map((line) => JSON.parse(line));
-    let seen = 0, since = Date.now(), finished = false;
+    let seen = 0, since = Date.now(), finished = false, stalled = false;
     exited.then(() => { finished = true; });
     while (!finished) {
       await new Promise((resolve) => setTimeout(resolve, 500));
       const count = (await read()).length;
       if (count !== seen) { seen = count; since = Date.now(); }
       if (Date.now() - since > stall) {
+        stalled = true;
         // Word sits on a dialog nobody can see: stop the Word started for this round, and the script.
         const started = (await readFile(pids, "utf8").catch(() => "")).split(",").map((value) => Number(value.trim())).filter(Boolean);
         for (const pid of started) try { process.kill(pid); } catch { /* already gone */ }
         child.kill(); await exited; break;
       }
     }
+    const exitCode = await exited;
     const results$ = await read();
     done.push(...results$);
     if (results$.length < rest.length && done.length < items.length) done.push({ file: path.resolve(rest[results$.length].file), opened: false,
-      error: `Word did not finish opening it within ${stall / 1000} s; it shows invisible Word a dialog.` });
+      error: stalled ? `Word did not finish opening it within ${stall / 1000} s; it may be waiting for a dialog.`
+        : `The Word host stopped before opening this document (exit code ${exitCode}). See its startup error above.` });
   }
   return done;
 }

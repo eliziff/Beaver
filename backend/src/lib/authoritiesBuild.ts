@@ -1137,11 +1137,14 @@ async function prepareAuthorityBook(
         pageIndex: sections.find((item) => item.title === label.split("(")[0] || item.title.startsWith(`${label.split("(")[0]} `))
           ?.pageIndex ?? offset }));
     }
+    // With no placed or manually marked passage and no provider reconstruction, retain the whole Act.
+    if (excerpt && "placed" in excerpt && !excerpt.placed.length && !source.markedPages?.size && !rebuilt)
+      excerpt.pages = null;
     // The court's extract names the database holding the decision in full on each page.
     // An authority without a PDF has the one page the book draws naming it.
     return { ...source, pageIndices: excerpt?.pages ?? document?.getPageIndices() ?? [0],
       databaseReference: excerpt?.pages && courtExtract(draft, source.authority!) ? freePublicDatabaseReference(source.authority!) : null,
-      excerpt: !!excerpt, rebuiltBookmarks };
+      excerpt: !!excerpt?.pages, rebuiltBookmarks };
   }));
   const rowByKey = new Map(rows.map((row) => [row.key, row]));
   const rowGroups = groups.flatMap(({ label, entries }) => {

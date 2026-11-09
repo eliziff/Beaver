@@ -451,9 +451,13 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     if (!value?.trim()) return;
     const lines = value.normalize("NFC").replace(/\t/gu, " ").slice(0, 60_000).split(/\r?\n/u)
       .filter((line) => line.trim());
+    const crop = page.getCropBox();
+    const size = Math.min(1, crop.width / (Math.max(...lines.map(line => line.length)) + 2),
+      crop.height / (lines.length + 2));
     page.pushOperators(pdf.pushGraphicsState(), pdf.beginText(),
-      pdf.setFontAndSize(page.node.newFontDictionary(font.name, font.ref), 1),
-      pdf.setTextRenderingMode(pdf.TextRenderingMode.Invisible), pdf.setLineHeight(1), pdf.moveText(1, 1),
+      pdf.setFontAndSize(page.node.newFontDictionary(font.name, font.ref), size),
+      pdf.setTextRenderingMode(pdf.TextRenderingMode.Invisible), pdf.setLineHeight(size),
+      pdf.moveText(crop.x + size, crop.y + crop.height - size),
       ...lines.flatMap((line) => [pdf.showText(unshapedText(font, line)), pdf.nextLine()]),
       pdf.endText(), pdf.popGraphicsState());
   }

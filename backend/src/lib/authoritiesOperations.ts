@@ -149,7 +149,7 @@ export function createAuthoritiesOperations(options: OperationsOptions = {}) {
     // A page assembles the book in its own worker; only a final PDF is assembled here.
     const { built, book } = await buildAuthoritiesDraft(state, { title, workProduct: { id, revision }, files: buildFiles,
       readings, prepareBook: true, signal: context.signal, progress,
-      statuteText: (authority, signal) => authorityStatuteText(state, authority, undefined, signal),
+      statuteText: (authority, signal) => authorityStatuteText(state, authority, services, signal),
       ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}) });
     const artifacts = Object.values(built.artifacts).filter((artifact) => artifact !== undefined);
     const bookFiles: Array<{ role: string; mimeType: string; bytes: Buffer }> = [];

@@ -10,10 +10,12 @@ import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests,
 import { attachedAuthoritySources, createAuthoritiesDraft as createDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
-import { fit, renderAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
+import { fit, mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 import { filingLinkUrl } from "./authoritiesFinalPdf";
 import { createAuthoritiesPreparation } from "./authoritiesPreparation";
-import type { NativePdfPassageGeometry } from "./structureNative";
+import { structureNative, type NativePdfPassageGeometry } from "./structureNative";
+import { createAuthoritiesOperations } from "./authoritiesOperations";
+import { authoritySourceServices } from "./authoritiesSourceResolution";
 import { pdfAssembly } from "mike/shared/runtime/pdfAssembly.mjs";
 import * as pdfLibrary from "pdf-lib";
 
@@ -1065,6 +1067,46 @@ describe("Authorities output builder", () => {
     expect(await pages(state)).toBe(6);
     state = reduceAuthoritiesDraft(state, { type: "set-authority-excerpt", authorityId: "act", excerpt: true });
     expect(await pages(state)).toBe(4);
+  });
+
+  it("keeps an excerpted statute whole when no cited provision can be placed or reconstructed", async () => {
+    const statute = await sourcePdf("Unplaced Act", Array.from({ length: 4 }, () => [400, 500] as [number, number]));
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.act = { ...attached("act", "legislation", "SA 2031, c W-4", "Unplaced Act", "act", statute),
+      excerpt: true, locators: [{ kind: "section", label: "12" }] };
+    state.authorityOrder = ["act"];
+    state.bindings.act = { kind: "local-file", handleId: "act", lastSeen: { name: "act.pdf", size: statute.length,
+      modified: 1, sha256: sha256(statute) } };
+    const built = await buildAuthorities({ draft: state, title: "Unplaced", workProduct: { id: "unplaced", revision: 1 },
+      sources: { act: { bytes: statute } }, statuteText: async () => null });
+    expect((await PDFDocument.load(built.artifacts.book!.bytes)).getPageCount()).toBe(6);
+    expect(await pdfText(built.artifacts.book!.bytes)).toContain("Unplaced Act page 4");
+  });
+
+  it("reconstructs a missing provision through the standalone host's configured source service", async () => {
+    const statute = await sourcePdf("Unplaced Act", [[400, 500], [400, 500]]);
+    const text = Array.from({ length: 20 }, (_, i) => `**${i + 1}** A vessel needs permit ${i + 1} before leaving harbour.`).join("\n\n");
+    const native = (await structureNative().openSource(Buffer.from(text), { documentId: "act", versionId: "v1",
+      fileType: "txt", sourceSha256: sha256(Buffer.from(text)) }))!;
+    const operations = createAuthoritiesOperations({ services: { ...authoritySourceServices, resolve: async () => ({
+      dataset: "AB_LAWS", citation: "SA 2031, c W-4", alternateCitation: null, name: "Unplaced Act", date: null,
+      url: null, verifiedPdf: null, language: "en", upstreamLicense: null, native, searchNative: native,
+      searchText: () => text,
+    }) } });
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.act = { ...attached("act", "legislation", "SA 2031, c W-4", "Unplaced Act", "act", statute),
+      excerpt: true, locators: [{ kind: "section", label: "12" }] };
+    state.authorityOrder = ["act"];
+    state.bindings.act = { kind: "local-file", handleId: "act", lastSeen: { name: "act.pdf", size: statute.length,
+      modified: 1, sha256: sha256(statute) } };
+    const response = await operations.build({ draft: state, title: "Configured provider", id: "provider", revision: 1,
+      roles: ["act"], files: [{ filename: "act.pdf", bytes: statute }] }, { signal: new AbortController().signal });
+    const plan = (response.data as { book: PreparedAuthoritiesBook<string> }).book;
+    const outputs = await renderAuthoritiesBook(pdfLibrary, await mapAuthorityBookBytes(plan, async role =>
+      response.files!.find(file => file.role === role)!.bytes));
+    const content = await pdfText(outputs.find(file => file.role === "book")!.bytes);
+    expect(content).toContain("A vessel needs permit 12 before leaving harbour.");
+    expect(content).not.toContain("A vessel needs permit 13 before leaving harbour.");
   });
 
   it("identifies Federal book filers and colours only paper appeal covers", async () => {

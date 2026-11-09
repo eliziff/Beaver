@@ -25,14 +25,19 @@ it("keeps custom-font OCR searchable across pages without substituting ligatures
   document.registerFontkit((await pdfFontkit())!);
   const font = await document.embedFont(await readFile(path.join(library, "standard_fonts/LiberationSans-Regular.ttf")),
     { subset: true });
-  applyOcrText(document.addPage(), font, "office affine café");
-  applyOcrText(document.addPage(), font, "jazz waltz coöperate");
+  const first = document.addPage();
+  first.setCropBox(20, 30, 560, 700);
+  const expected = ["office affine café\nThe board must give notice.\nThe final paragraph remains searchable.",
+    "jazz waltz coöperate\nA second line on the next page."];
+  applyOcrText(first, font, expected[0]);
+  applyOcrText(document.addPage(), font, expected[1]);
   const { getDocument } = await import(pathToFileURL(path.join(library, "legacy/build/pdf.mjs")).href);
   const task = getDocument({ data: await document.save(), useSystemFonts: false }), decoded = await task.promise;
   try {
-    for (const [index, expected] of ["office affine café", "jazz waltz coöperate"].entries()) {
+    for (const [index, value] of expected.entries()) {
       const text = await (await decoded.getPage(index + 1)).getTextContent();
-      expect(text.items.map((item: { str?: string }) => item.str ?? "").join("")).toBe(expected);
+      expect(text.items.map((item: { str?: string }) => item.str ?? "").filter(Boolean).join(" "))
+        .toBe(value.replace(/\n/gu, " "));
     }
   } finally { await task.destroy(); }
 });

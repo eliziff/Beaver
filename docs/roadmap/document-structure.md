@@ -45,6 +45,55 @@ successful exports and implementation presence do not establish parser parity,
 complete consumer fidelity or release readiness. Disposable run logs and browser
 reports are in `.tmp/refactor-regression/`; keep durable findings here.
 
+Follow-up, November 9:
+
+- Citation edits and leaving Citations no longer cancel gathering. The source
+  operation retries its existing revision conflict against the saved draft.
+  Browser checks preserve edits and all arriving source rows. The checkpoint is
+  `8e8c551e7`; the gathering correction is `7a4130603`.
+- Host-prepared PDFs reopen by their native cache key (`e850e021b`). Actual WASI
+  tests retain text, recognition geometry and routed pages through an engine
+  restart. AuthoritiesHelper `2cdca1c` also fixes the parse worker and Linker's
+  typed citation requests. These are transport checks, not corpus parity.
+- Stored-source, Word drafting/redline, email, workbook, A2AJ and citation-receipt
+  tests now exercise the native products. Word recovery retains the final
+  unclosed paragraph through the existing XML reader. XLS display formats needed
+  an upstream calamine extension; its tests pass, but committing that vendor copy
+  awaits permission to retain the original MIT licence.
+- Native build-cache inputs now include all parser crates and structure
+  subcrates, citation build inputs and legal-text (`a02911b21`). The owner Cargo
+  manifests use the sibling main checkouts, avoiding an older Git dependency
+  silently differing from the application build.
+- The broad consumer run had 536 passes, 15 failures and one skipped test across
+  68 files. Subsequent focused checks fix the stale consumers and the Word/XLS
+  failures; this is not yet a fresh broad pass. The duplicate short paragraph
+  fixture still abstains with `unavailable`, where its older assertion expected
+  `ambiguous`. No paragraph geometry is invented; the rejected primary count and
+  this diagnostic difference remain under review.
+- The complete standalone browser run exercised 19 of 20 cases: 12 passed and
+  seven failed; the long-article local fixture was absent. Citation edits,
+  gathering, reloads, cancellation, source attachment and ordinary exports passed
+  their functional assertions. Remaining failures included timing/layout budgets,
+  scan text in exports and the editor, and the large statute's excerpt.
+  The scan export defect was traced to invisible text starting at the bottom of
+  the page: subsequent lines fell outside its crop. The corrected writer and
+  statute fallback checks pass all 40 PDF assembly/Authorities build tests.
+  The browser candidate has not yet been rerun with these changes.
+- Both retained Word outputs open read-only in hidden Microsoft Word outside the
+  restricted shell, without repair or field errors. The host shows their tables,
+  italics, citation fields and tab references. Inserting Word's own table and
+  checking the complete Word matrix still remain.
+- Parser certification remains open. The frozen 748-document cache is absent
+  from its recorded scratch path. The existing full gold-input run is underway
+  using one worker and local OCR, without oracle layout. Its failures and source
+  denominator must be checked explicitly. The PDF Inspector workflow currently
+  emits candidate products without comparing the recorded frozen hashes; its
+  successful exit alone is not a fidelity gate.
+- Authorities Lite still imports the removed pagination module and performs PDF
+  extraction/paragraph assembly in JavaScript. It needs the parser's native PDF
+  products; restoring the deleted shim would preserve duplicate policy. The
+  remaining Linker, ALR and provider/historical corpus gates are also open.
+
 ## Profile-preserving refactor contract
 
 Revised 2026-09-05. This section replaces earlier guidance to resolve structure

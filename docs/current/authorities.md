@@ -80,7 +80,7 @@ An attached PDF whose structural reading or recognition fails still goes in whol
 without automatic marks that require that reading. A degraded or unfinished Library
 preparation does not exclude the PDF. A build completes recognition requested by
 its scan setting when the retained preparation does not cover those pages.
-Source reading uses four concurrent operations within the existing projection
+Source reading uses four concurrent operations within the native document
 working set; page labels reuse the document already opened for text and passages.
 Source headings are read only for heading bookmarks or a final PDF's opening brief.
 Missing-source pages are drawn directly in the book with its shared fonts. Beaver
@@ -391,8 +391,8 @@ build are in `AuthoritiesHelper/modern/html`.
 
 ## Focused reproduction
 
-Printed pagination is composed by `documentProjectionService` from existing parser
-and OCR evidence, embedded PDF labels, and retained reporter citation forms. A
+The parser resolves printed pagination from its native document's extraction and
+OCR evidence, embedded PDF labels, and retained reporter citation forms. A
 single observed reporter-start folio establishes the offset for a case; partial
 OCR need not recognize every subsequent page. Opening-page margin candidates reuse
 the Text-Fidelity leading/trailing-folio rule, constrained by the known reporter

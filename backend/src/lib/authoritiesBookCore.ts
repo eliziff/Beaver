@@ -63,7 +63,7 @@ export async function authorityAnnotations(state: AuthoritiesDraft, input: {
 export type AuthoritiesBuildFile = { role: string; filename: string; bytes: Buffer; sourceSha256: string;
   reference?: SourcePdfReference; pdfProfile?: PdfProfileSelection; resolved?: ResolvedWorkProductInput };
 
-/** The draft's outputs, built from the sources the host read. Sources are read in parallel within the projection
+/** The draft's outputs, built from the sources the host read. Sources are read in parallel within the native document
  *  working set, so a PDF's text, passages and labels reuse its open document. `prepareBook` hands back the prepared
  *  book for the host to assemble (in a page's worker) in place of assembling it here. */
 export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
