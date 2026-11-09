@@ -656,7 +656,7 @@ async function readLegalSource(
       const native = structureNative(), artifact = passage.documentArtifact,
         resource = researchSourceResource(passage.source), offset = Number(args.offset) || 1,
         startChar = Number(args.start_char) || 0, firstParagraph = passage.source.kind === "case"
-          ? native.documentAnchors(artifact).find(({ node }) => node.kind === "paragraph" && node.label != null) : undefined;
+          ? native.documentAnchors(artifact, "paragraph").find(({ node }) => node.label != null) : undefined;
       if (passage.source.kind === "case" && !firstParagraph) unclassified.add(resource);
       const window = args.offset === undefined && args.start_char === undefined && firstParagraph
         ? native.readDocumentTextRange(artifact, firstParagraph.span.start, passage.text.length,
@@ -738,8 +738,8 @@ async function readLegalSource(
       let available = maxResults, remainingChars = 40_000;
       const corpus = registered.map(({ passage }) => ({ passage,
         judgment: passage.source.kind === "case" && passage.role === "document"
-          ? structureNative().documentAnchors(passage.documentArtifact)
-            .find(({ node }) => node.kind === "paragraph" && node.label != null)?.span.start ?? 0 : 0 }));
+          ? structureNative().documentAnchors(passage.documentArtifact, "paragraph")
+            .find(({ node }) => node.label != null)?.span.start ?? 0 : 0 }));
       const scanSources = [...new Map(corpus.map(({ passage }) => [researchSourceResource(passage.source), {
         resource: researchSourceResource(passage.source),
         source_sha256: structureNative().documentRevision(passage.documentArtifact),
@@ -848,10 +848,11 @@ async function readLegalSource(
             break;
           }
           chars += related.text.length;
-          const receipts = (related.units ?? [related]).filter(({ node: unit }) =>
-            unit.label != null && (unit.kind === "paragraph" || unit.kind === "page" ||
-            unit.kind === "section" || unit.kind === "footnote")
-          ).flatMap(({ node: unit, ranges }) => ranges.map((range) => numberedReceipt(createA2AJPassageEvidence({
+          const receipts = (related.units ?? [related]).flatMap(({ node: unit, ranges }) => {
+            const { kind, label } = unit;
+            if (label == null || !(kind === "paragraph" || kind === "page" || kind === "section" || kind === "footnote"))
+              return [];
+            return ranges.map((range) => numberedReceipt(createA2AJPassageEvidence({
             citation: metadata.citation as string,
             name: typeof metadata.name === "string" ? metadata.name : null,
             dataset: metadata.dataset as string,
@@ -863,8 +864,9 @@ async function readLegalSource(
             externalUrl: typeof metadata.url === "string" ? metadata.url : null,
             sourceClass: "legislation",
             blockId: unit.id,
-            locator: { kind: unit.kind, label: unit.label },
-          }), artifact)));
+            locator: { kind, label },
+          }), artifact));
+          });
           relatedEvidence.push(...receipts);
           receipts.forEach((receipt) => evidenceSources.set(receipt.evidence_id, {
             document: metadata as unknown as A2AJCompiledDocument,

@@ -540,8 +540,8 @@ export async function renderAuthoritySourcePdf(input: {
     .deriveDocumentStructure({ kind: "provider_text", input: { provider: "a2aj", citation: input.citation,
       source_kind: input.kind === "case" ? "cases" : "laws", text: input.text } }).catch(() => null) : null;
   const sections = structured ? structureNative().documentOutline(structured) : [];
-  const depths = new Map((structured ? structureNative().documentAnchors(structured, input.text.length) : [])
-    .filter(({ node }) => node.kind === "section").reverse()
+  const depths = new Map((structured ? structureNative().documentAnchors(structured, "section", input.text.length) : [])
+    .reverse()
     .map(({ node, span }) => [span.start, Math.max(0, (node.level ?? 1) - 1)]));
   const placed: Array<{ start: number; pageIndex: number; note?: string; heading?: number; title?: string }> = [];
   let placing: Omit<(typeof placed)[number], "pageIndex"> | null = null;

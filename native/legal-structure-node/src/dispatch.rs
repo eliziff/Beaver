@@ -154,7 +154,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "readDocumentTextRange" => done(with_document(doc()?, |d| value(engine::read_document_text_range(
             d, call.get("start")?, call.get("end")?, call.get("offset")?, call.get("limit")?, call.get("startChar")?)))),
         "documentFingerprint" => done(with_document(doc()?, |d| value(engine::document_fingerprint_of(d)))),
-        "documentAnchors" => done(with_document(doc()?, |d| value(engine::document_anchors(d, call.get("end")?)))),
+        "documentAnchors" => done(with_document(doc()?, |d| engine::document_anchors(d, call.get("kind")?, call.get("end")?).and_then(value))),
         "legalSourceViewer" => done(with_document(doc()?, |d| engine::legal_source_viewer(
             d, &call.get::<String>("primaryKind")?, call.get("limit")?).and_then(value))),
         "statuteOutline" => done(engine::statute_outline(&call.get::<String>("text")?,

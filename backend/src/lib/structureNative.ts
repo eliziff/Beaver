@@ -434,9 +434,9 @@ type StructureAddon = {
   smallestContainingDocumentBlock(document: NativeDocument, start: number,
     end: number): NativePassage | null;
   documentHasOrigin(document: NativeDocument, origin: NativeNode["source"]): boolean;
-  /** The nodes the query serves, in its order, as readers take them; with `end`, those starting before it. Levels are
-   *  one-based. */
-  documentAnchors(document: NativeDocument, end?: number): NativeNodeReading[];
+  /** The nodes the query serves, in its order, as readers take them; with `kind`, those it serves as that kind (a
+   *  paragraph's prose among them); with `end`, those starting before it. Levels are one-based. */
+  documentAnchors(document: NativeDocument, kind?: NativeNode["kind"] | null, end?: number): NativeNodeReading[];
   legalSourceViewer(document: NativeDocument, primaryKind: "paragraph" | "section",
     limit?: number): {
       slices: Array<{

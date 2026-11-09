@@ -237,18 +237,17 @@ pub fn document_fingerprint_of(document: &NativeDocument) -> DocumentFingerprint
     }
 }
 
-/// The nodes the query serves, in its order, as the model writes them; with `end`, those starting before it (the reader
-/// clips their ranges).
-/// The nodes the query serves, in its order, each as a reader takes it (`DocumentStructure::reading`); with `end`, those
-/// starting before it.
-pub fn document_anchors(document: &NativeDocument, end: Option<u32>) -> impl Serialize + '_ {
+/// The nodes the query serves, in its order, each as a reader takes it (`DocumentStructure::reading`); with `kind`, those
+/// it serves as that kind (a paragraph's prose among them); with `end`, those starting before it.
+pub fn document_anchors(document: &NativeDocument, kind: Option<String>, end: Option<u32>) -> CoreResult<impl Serialize + '_> {
     let structure = document.structure();
-    document
+    let kind = kind.as_deref().map(document_kind).transpose()?;
+    Ok(document
         .query
-        .blocks(structure, None)
+        .blocks(structure, kind)
         .map(|node| structure.reading(node))
         .filter(|reading| end.is_none_or(|end| reading.span.start < end as usize))
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>())
 }
 
 pub fn legal_source_viewer<'a>(

@@ -8,7 +8,7 @@ const pageIndexes = new WeakMap<NativeDocument, NativeNodeReading[]>();
 function pageLocator(document: NativeDocument, start: number, end: number): Locator | undefined {
   let pages = pageIndexes.get(document);
   if (!pages) {
-    pages = structureNative().documentAnchors(document).filter(({ node }) => node.kind === "page");
+    pages = structureNative().documentAnchors(document, "page");
     pageIndexes.set(document, pages);
   }
   const page = pages.find(({ ranges }) => ranges.some((range) => range.start <= start && range.end >= end))

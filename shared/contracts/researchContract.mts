@@ -144,7 +144,7 @@ export type LegalEvidenceReceipt = {
   version: string | null;
   external_url: string | null;
   locator: {
-    kind: "document" | "paragraph" | "page" | "section" | "footnote" | "sheet" | "cell";
+    kind: "document" | "paragraph" | "page" | "line" | "section" | "footnote" | "sheet" | "cell";
     label: string;
     sheet?: string;
     cells?: string;

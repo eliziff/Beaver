@@ -29,7 +29,7 @@ export const SIGNATURES = {
   documentText: ["document", "limit"], documentTextBytes: ["document"], documentRevision: ["document"],
   readDocumentTextWindow: ["document", "offset", "startChar", "limit"],
   readDocumentTextRange: ["document", "start", "end", "offset", "limit", "startChar"],
-  documentFingerprint: ["document"], documentAnchors: ["document", "end"],
+  documentFingerprint: ["document"], documentAnchors: ["document", "kind", "end"],
   documentOutline: ["document"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   statuteOutline: ["text", "articles"], caseOutline: ["text"], documentCaseOutline: ["document"], statuteProvisionSpans: ["text", "labels"], collapseLabels: ["labels", "kind"],

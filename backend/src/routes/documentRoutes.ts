@@ -110,7 +110,7 @@ export function createDocumentsRouter(
       ?? reject(404, "Document version not found");
     const document = await openDocument(source), native = structureNative(),
       text = native.documentText(document), pages = source.fileType === "pdf"
-        ? native.documentAnchors(document, text.length).filter(({ node }) => node.kind === "page") : [];
+        ? native.documentAnchors(document, "page", text.length) : [];
     res.setHeader("Cache-Control", "private, no-store");
     res.json({ revision: native.documentRevision(document), slices: (pages.length
       ? pages.map(({ node, ranges }) => ({ ranges, label: node.label ?? "" }))
