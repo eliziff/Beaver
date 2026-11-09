@@ -39,6 +39,7 @@ export async function chooseCard(app, scope, name) {
 /** Add file, the import's steps (the court, the sources, the marking), then finish: to the first citation
  *  marked in the document. */
 export async function importBrief(app, file, { court, sourceMode, marking, scanned, shot = null, first = false, budget } = {}) {
+  const chosen = await app.now();
   await app.pick(() => app.button("Add file").click(), [file]);
   const setup = app.page.getByRole("dialog", { name: "Import" });
   await setup.waitFor();
@@ -60,10 +61,21 @@ export async function importBrief(app, file, { court, sourceMode, marking, scann
   await app.page.locator(".citation-document .citation-band[data-active]").first().waitFor({ timeout: 120_000 });
   const ms = await app.now() - started;
   // A profile's first import starts the engine; every later one finds it warm.
-  const limit = budget ?? (first || !app.imported ? 5000 : /\.docx$/iu.test(file) ? 1500 : 3000);
+  const cold = first || !app.imported;
+  const limit = budget ?? (cold ? 5000 : /\.docx$/iu.test(file) ? 1500 : 3000);
   app.imported = true;
   app.record.note(`${app.label} import ${path.basename(file)}`, ms);
   app.record.check(ms < limit, `${app.label}: import of ${path.basename(file)} in ${Math.round(ms)} ms (budget ${limit})`);
+  const complete = await app.now() - chosen;
+  app.record.note(`${app.label} file choice to review ${path.basename(file)}`, complete);
+  if (cold) app.record.check(complete < 5000,
+    `${app.label}: cold file choice to review in ${Math.round(complete)} ms (budget 5000)`);
+  const visible = await app.page.locator('.citation-document .citation-band[data-active]').first().evaluate(band => {
+    const box = band.getBoundingClientRect(), view = band.closest('.citation-document').getBoundingClientRect();
+    return box.bottom > Math.max(0, view.top) && box.top < Math.min(innerHeight, view.bottom)
+      && box.right > Math.max(0, view.left) && box.left < Math.min(innerWidth, view.right);
+  });
+  app.record.check(visible, `${app.label}: the first citation opens in view`);
   await app.page.waitForTimeout(400); await app.idle();
   return ms;
 }
@@ -159,13 +171,23 @@ export async function build(app, label, { missing = null, start = () => app.butt
 export async function downloads(app, label) {
   const saved = {}, dir = path.join(app.record.out, "downloads", `${app.label}-${label}`);
   await mkdir(dir, { recursive: true });
+  const pending = [];
   for (const output of await dock(app).getByRole("button", { name: /^Download (?!all$)/u }).all()) {
+    const started = await app.now();
     const download = app.page.waitForEvent("download");
     await output.click();
-    const file = path.join(dir, (await download).suggestedFilename());
-    await (await download).saveAs(file);
+    const clicked = await app.now();
+    const delivered = await download, notified = await app.now();
+    const file = path.join(dir, delivered.suggestedFilename());
+    pending.push({ delivered, file, started, clicked, notified });
     saved[path.basename(file)] = file;
   }
+  await Promise.all(pending.map(async ({ delivered, file, started, clicked, notified }) => {
+    await delivered.saveAs(file);
+    app.record.note(`${app.label} download ${path.basename(file)}`, {
+      click: Math.round(clicked - started), event: Math.round(notified - clicked), save: Math.round(await app.now() - notified),
+    });
+  }));
   return saved;
 }
 const SCANNED = { "page-margin": "Keep scans as images", "cited-pages": "Recognize cited pages", full: "Recognize every page" };

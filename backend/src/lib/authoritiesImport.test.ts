@@ -1,19 +1,29 @@
-import { describe, expect, it, vi } from "vitest";
-import { createAuthoritiesImporter, importStandaloneAuthoritiesFile } from "./authoritiesImport";
-import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import type { DocumentStore } from "./documentStore";
+import { describe, expect, it } from "vitest";
+import { importStandaloneAuthoritiesFile } from "./authoritiesImport";
 import { sha256 } from "./hash";
-import { structureNative } from "./structureNative";
-import { Document, Packer, Paragraph, TextRun, FootnoteReferenceRun } from "docx";
+import { Document, Packer, Paragraph, TextRun, FootnoteReferenceRun, Table, TableRow, TableCell } from "docx";
+import { reduceAuthoritiesDraft } from "./authoritiesDomain";
 import { authorityPassageTargets } from "./authoritiesBuild";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { DatabaseSync } from "node:sqlite";
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import JSZip from "jszip";
 
-const scope = { userId: "user-1" };
+it("keeps a table cell's written case name before and after its source resolves", async () => {
+  const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
+    new Paragraph("R v Jordan, 2016 SCC 27 at para 46."),
+    new Table({ rows: [new TableRow({ children: [
+      new TableCell({ children: [new Paragraph("Delay")] }),
+      new TableCell({ children: [new Paragraph("R v Jordan, 2016 SCC 27 at paras 46-48")] }),
+    ] })] }),
+  ] }] }));
+  const draft = await importStandaloneAuthoritiesFile({ filename: "Brief.docx", fileType: "docx", bytes, modified: 0 });
+  const occurrence = Object.values(draft.occurrences).find(({ text }) => text.endsWith("46-48"))!;
+  expect(occurrence.authoritySpan.text).toBe("R v Jordan, 2016 SCC 27");
+  expect(occurrence.coreSpan.text).toBe("2016 SCC 27");
+  const resolved = reduceAuthoritiesDraft(draft, { type: "resolve-authority", authorityId: occurrence.authorityId!,
+    citation: "2016 SCC 27", name: "R v Jordan", source: { provider: "a2aj", stableSourceId: "2016-scc-27",
+      sourceSha256: "c".repeat(64), version: "2016", externalUrl: null } });
+  expect(resolved.occurrences[occurrence.id]).toEqual(occurrence);
+});
 
 it('preserves the reported hyphenated quotation and a second quotation at the same citation', async () => {
   const quotes = ['no evidence indicating that the mental condi-\ntion of the accused is inherently dangerous in any\nway.',
@@ -35,10 +45,13 @@ it("keeps the number Word prints for each footnote, past an author's note drawn 
   const note = (text: string) => ({ children: [new Paragraph(text)] });
   const source = await Packer.toBuffer(new Document({
     footnotes: { 1: note("The author thanks the river board."), 2: note("Alder v Birch, 2031 ONCA 5."),
-      3: note("Cedar v Dogwood, 2030 ABKB 417 at para 9.") },
+      3: note("Cedar v Dogwood, 2030 ABKB 417 at para 9."),
+      4: note("Alder, supra note 1 at para 10."), 5: note("Ibid at para 11.") },
     sections: [{ children: [new Paragraph({ children: [new TextRun("A heading"), new FootnoteReferenceRun(1)] }),
       new Paragraph({ children: [new TextRun("First point."), new FootnoteReferenceRun(2),
-        new TextRun(" Second point."), new FootnoteReferenceRun(3)] })] }],
+        new TextRun(" Second point."), new FootnoteReferenceRun(3),
+        new TextRun(" Third point."), new FootnoteReferenceRun(4),
+        new TextRun(" Fourth point."), new FootnoteReferenceRun(5)] })] }],
   }));
   // Word's own "*" note: the reference prints the mark that follows it, here a Symbol-font asterisk.
   const zip = await JSZip.loadAsync(source);
@@ -47,30 +60,33 @@ it("keeps the number Word prints for each footnote, past an author's note drawn 
     '<w:footnoteReference w:customMarkFollows="1" w:id="1"/><w:sym w:font="Symbol" w:char="F02A"/>'))
     .generateAsync({ type: "nodebuffer" });
   const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx", fileType: "docx", bytes, modified: 0 });
-  expect(state.units.filter(({ kind }) => kind === "footnote").map(({ noteNumber }) => noteNumber)).toEqual([null, 1, 2]);
+  const notes = state.units.filter(({ kind }) => kind === "footnote");
+  expect(notes.map(({ noteNumber }) => noteNumber)).toEqual([null, 1, 2, 3, 4]);
+  const first = state.occurrences[notes[1].occurrenceIds[0]].authorityId;
+  for (const note of notes.slice(3)) {
+    const reference = state.occurrences[note.occurrenceIds[0]];
+    expect(reference).toMatchObject({ kind: "reference", authorityId: first, reviewed: true });
+  }
 });
 
-const scanNative = (texts: string[]) => {
-  const native = structureNative();
-  return {
-    docxAuthorityTextUnits: vi.fn(async () => texts.map((text, index) => ({
-      key: `footnote:${index + 1}`, kind: "footnote" as const, ordinal: index + 1,
-      footnote_id: index + 1, page_numbers: [], text, footnote_refs: [],
-    }))),
-    pdfAuthorityTextUnits: vi.fn(),
-    citationOccurrencesInText: (text: string) => native.citationOccurrencesInText(text),
-    authorityReferencesInText: (text: string) => native.authorityReferencesInText(text),
-    citationLookupKey: (text: string) => native.citationLookupKeys([text])[0],
-  };
-};
-
-const receipt = (evidenceId: string, label: string): LegalEvidenceReceipt => ({
-  evidence_id: evidenceId, provider: "a2aj", jurisdiction: "ca", source_class: "case",
-  stable_source_id: "2016-scc-27", source_sha256: "c".repeat(64), scope: "passage",
-  block_id: label, span_sha256: `${evidenceId}-sha`, span_text: "Evidence",
-  citation: "2016 SCC 27", name: "R v Jordan", dataset: "SCC", language: "en",
-  version: "2024-01-01", external_url: "https://example.test/jordan",
-  locator: { kind: "paragraph", label }, resolver_version: "a2aj-inline-v1",
+it("resolves a chain of real Word footnotes to the named earlier note", async () => {
+  const notes = ["Alder v Birch, 2031 ONCA 5 at para 2.", "Cedar v Dogwood, 2030 ABKB 417 at para 9.",
+    "Alder, supra note 1 at para 10.", "Ibid at para 11."];
+  const bytes = await Packer.toBuffer(new Document({
+    footnotes: Object.fromEntries(notes.map((text, index) => [index + 1, { children: [new Paragraph(text)] }])),
+    sections: [{ children: notes.map((_, index) => new Paragraph({ children: [
+      new TextRun(`Point ${index + 1}.`), new FootnoteReferenceRun(index + 1),
+    ] })) }],
+  }));
+  const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx", fileType: "docx", bytes, modified: 0 });
+  const imported = state.units.filter(({ kind }) => kind === "footnote").map(unit =>
+    unit.occurrenceIds.map(id => state.occurrences[id]));
+  expect(imported.map(items => items.length)).toEqual([1, 1, 1, 1]);
+  expect(imported[0][0].authorityId).not.toBe(imported[1][0].authorityId);
+  expect(imported.slice(2).map(([item]) => item.authorityId)).toEqual([
+    imported[0][0].authorityId, imported[0][0].authorityId,
+  ]);
+  expect(imported.slice(2).map(([item]) => item.pinpointSpan?.text)).toEqual(["10", "11"]);
 });
 
 describe("authorities import application", () => {
@@ -157,15 +173,5 @@ describe("authorities import application", () => {
     expect(reference).toMatchObject({ citation: "Ibid", authorityId: state.authorityOrder[0],
       reference: { kind: "ibid", targetAuthorityId: state.authorityOrder[0] } });
   });
-
-  const footnoteImport = async (text: string[]) => {
-    const units = text.map((value, index) => ({ key: `footnote:${index + 1}`,
-      kind: "footnote" as const, ordinal: index + 1, footnote_id: index + 1,
-      page_numbers: [], text: value, footnote_refs: [] }));
-    const pdf = await PDFDocument.create(); pdf.addPage();
-    return importStandaloneAuthoritiesFile({ filename: "Paper.pdf", fileType: "pdf",
-      bytes: Buffer.from(await pdf.save()), modified: 1 }, { read: vi.fn(async () => ({})) as never },
-    { docxAuthorityTextUnits: vi.fn(), pdfAuthorityTextUnits: vi.fn(() => units) });
-  };
 
 });

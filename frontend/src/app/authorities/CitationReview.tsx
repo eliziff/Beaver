@@ -783,6 +783,7 @@ function Review({ product, host, sourceVersion, occurrences, selected, authoriti
         if (mark?.dataset.citationId) { event.preventDefault(); choose(mark.dataset.citationId, false); }
       }}>
       {source ? pdf ? <PdfCanvas bytes={source.pdf} rounded={false} ariaLabel="Source document" drawPage={drawPage}
+        initialView={unit?.pageNumbers[0] ? { pageNumber: unit.pageNumbers[0] } : undefined}
         onUnavailable={() => setError('The document preview could not be opened.')}
         onTextReady={(page, element) => decorate(element.querySelector<HTMLElement>('.pdf-text-layer') ?? element, page)} />
         : <DocxCanvas bytes={source.buffer} maxZoom={1.25} onReady={() => { restoreScroll(); setReady(value => value + 1); }}

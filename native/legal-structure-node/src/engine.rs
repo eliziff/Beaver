@@ -1,7 +1,7 @@
 //! The engine's documents and the operations on them that do more than call a reader: what dispatch.rs, the one
 //! surface the Node addon and the browser's WebAssembly module share, calls beside the readers themselves.
 
-use legal_structure::{analyze_instrument, analyze_native_markup, citation_lookup_key, document_fingerprint, docx_structure_lint, journal_document_structure, journal_text_document_structure, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, NodeKind, ProviderTextInput};
+use legal_structure::{analyze_instrument, analyze_native_markup, document_fingerprint, docx_structure_lint, journal_document_structure, journal_text_document_structure, provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, NodeKind, ProviderTextInput};
 use legal_structure_features::{grounded_prose_errors, VisibleEvidenceText};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -248,9 +248,8 @@ pub struct AliasGroup {
 
 impl AliasGroup {
     /// A citation's own key alone: its aliases where no store is installed, or the store holds no one decision under it.
-    pub fn own(citation: &str) -> Self {
-        let key = citation_lookup_key(citation);
-        AliasGroup { keys: if key.is_empty() { Vec::new() } else { vec![key] }, forms: Vec::new(), ambiguous: false }
+    pub fn own(key: &str) -> Self {
+        AliasGroup { keys: if key.is_empty() { Vec::new() } else { vec![key.to_owned()] }, forms: Vec::new(), ambiguous: false }
     }
 }
 

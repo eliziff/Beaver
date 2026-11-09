@@ -257,15 +257,6 @@ export function prefetchFront(host: AuthoritiesHost, draft: AuthoritiesProduct) 
   const idle = window.requestIdleCallback(() => void drawFront(host, draft, actions).catch(() => undefined), { timeout: 2000 });
   return () => window.cancelIdleCallback(idle);
 }
-let warmed = false;
-/** Draws the preview book's front once while the page is idle, so the runtime that draws previews is
- *  ready before the first one is wanted. */
-export function warmFrontPreviews(host: AuthoritiesHost) {
-  if (warmed || !host.bookFront) return;
-  warmed = true;
-  const draw = () => void host.bookFront!(PREVIEW_BOOK, []).catch(() => undefined);
-  if ("requestIdleCallback" in window) window.requestIdleCallback(draw, { timeout: 3000 }); else setTimeout(draw, 1000);
-}
 /** The book's cover, or the whole of its index, drawn by the book's own renderer from the draft with the
  *  changes not yet made to it. A drawing is asked for as soon as a change is made, one at a time; a
  *  change made meanwhile is asked for once the drawing is back, so a draft that keeps changing (its

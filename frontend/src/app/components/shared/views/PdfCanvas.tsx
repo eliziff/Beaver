@@ -1,4 +1,4 @@
-import { createPdfSession, type PdfSession, type PdfViewPosition, PDF_ZOOM_MIN as ZOOM_MIN, PDF_ZOOM_MAX as ZOOM_MAX, PDF_ZOOM_STEP as ZOOM_STEP } from '../../../../../../shared/pdf/viewer';
+import { createPdfSession, type PdfSession, type PdfInitialView, type PdfViewPosition, PDF_ZOOM_MIN as ZOOM_MIN, PDF_ZOOM_MAX as ZOOM_MAX, PDF_ZOOM_STEP as ZOOM_STEP } from '../../../../../../shared/pdf/viewer';
 import "pdfjs-dist/web/pdf_viewer.css";
 import "../../../../../../shared/pdf/pdfTextLayer.css";
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
@@ -29,7 +29,7 @@ export interface PdfCanvasProps {
     error?: string | null;
     quotes?: CitationQuote[];
     quoteFocusKey?: string | number;
-    initialView?: PdfViewPosition;
+    initialView?: PdfInitialView;
     onViewChange?: (view: PdfViewPosition) => void;
     rounded?: boolean;
     ariaLabel?: string;
@@ -140,7 +140,8 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
             const {PDFViewer, EventBus} = await import("pdfjs-dist/legacy/web/pdf_viewer.mjs");
             if (signal.aborted) return;
             task = openPdfDocument(lib, input, {...PDF_DOCUMENT_OPTIONS,
-                standardFontDataUrl:STANDARD_FONT_DATA_URL});
+                // Use the supplied font bytes: CSS font substitutions bypass the embedded font loader.
+                standardFontDataUrl:STANDARD_FONT_DATA_URL, useSystemFonts:false});
             const pdf = await task.promise;
             if (signal.aborted) return;
             if (!Number.isSafeInteger(pdf.numPages) || pdf.numPages < 1 || pdf.numPages > 2000)

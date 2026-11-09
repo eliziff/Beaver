@@ -510,6 +510,13 @@ export async function renderAuthoritySourcePdf(input: {
       const tokenWidth = run.font.widthOfTextAtSize(text, size);
       if (used && used + tokenWidth > available) { lines.push([]); used = 0; }
       if (whitespace && !used) continue;
+      if (tokenWidth <= available) {
+        const line = lines[lines.length - 1], last = line[line.length - 1];
+        if (last?.font === run.font) last.text += text;
+        else line.push({ text, font: run.font });
+        used += tokenWidth;
+        continue;
+      }
       // Split oversized words too, so long URLs and identifiers stay inside the page.
       for (const character of text) {
         const advance = run.font.widthOfTextAtSize(character, size);
@@ -707,11 +714,13 @@ export async function renderAuthoritySourcePdf(input: {
   } else block(fromMarkdown(input.text, markdown));
   // Headings below the title, then each provision that opens its own place titled with its marginal note.
   let headingLevel = 0;
+  // Keep the first entry at a shared start.
+  const statuteAt = new Map(statute.map(entry => [entry.start, entry] as const).reverse());
   const bookmarks = judgment.length ? nestedOutline(placed.filter((item) => item.heading)
     .map((item) => ({ title: pdfText(item.title!), level: item.heading!, pageIndex: item.pageIndex })))
     : statute.length ? nestedOutline(placed.filter((item) => item.heading || item.note === undefined && openings.has(item.start))
     .map((item) => {
-      const entry = statute.find((candidate) => candidate.start === item.start)!;
+      const entry = statuteAt.get(item.start)!;
       if (item.heading) headingLevel = item.heading;
       return { title: pdfText(item.heading ? item.title! : [entry.label, entry.title].filter(Boolean).join(" ")),
         level: item.heading ?? headingLevel + 1, pageIndex: item.pageIndex };

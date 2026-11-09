@@ -205,9 +205,8 @@ async function scanReview(
   const anchors = new Map(ranges.flatMap(({ unit, start }) =>
     unit.footnote_refs.map(([id, offset]) => [id, start + offset] as const)));
   const notes = orderedUnits.filter(({ unit }) => unit.footnote_id !== null)
-    .map(({ unit, start, end }) => ({ number: unit.note_number === null
-      ? unknownNote : unit.note_number ?? unit.footnote_id!, start, end,
-    sequence: unit.note_number === null ? unknownNote : unit.restart_sequence ?? 0,
+    .map(({ unit, start, end }) => ({ number: unit.note_number ?? unknownNote, start, end,
+    sequence: unit.note_number == null ? unknownNote : unit.restart_sequence ?? 0,
     ...(anchors.has(unit.footnote_id!) ? { anchor: anchors.get(unit.footnote_id!) } : {}) }));
   // A Canadian brief is read with McGill's and COAL's forms; without the Bluebook or a US jurisdiction the engine
   // reads no extended United States forms (a registration or account number reads as one of its codes).
@@ -269,7 +268,7 @@ async function scanReview(
   }
   const cases = extracted.citations.filter(({ form, authority, key }) =>
     form === "full" && key && (authority === "case" || authority === "unknown"));
-  const closures = structureNative().a2ajAliasGroups(a2ajStorePath(), cases.map(({ span }) => span.text)).map(({ keys }) => keys);
+  const closures = native.a2ajAliasGroups(a2ajStorePath(), cases.map(({ key }) => key!)).map(({ keys }) => keys);
   const parsed = ranges.map(({ unit }) => ({ unit, items: [] as Array<{ index: number; start: number }> }));
   let unitIndex = 0;
   for (const citation of [...extracted.citations].sort((left, right) =>
@@ -442,10 +441,9 @@ async function scanReview(
       const marker = citation.fields.inlineReference?.span;
       const core = local(marker ?? citation.span);
       const full = local(citation.fullSpan);
-      const styled = { start: citation.style &&
-        citation.style.start >= Math.max(start, citation.fullSpan.start) &&
+      const styled = { start: citation.style && citation.style.end > start &&
         citation.style.start <= citation.span.start
-        ? citation.style.start - start : core.start, end: core.end };
+        ? Math.max(full.start, local(citation.style).start) : core.start, end: core.end };
       occurrenceIds.push(id);
       occurrenceOf.set(citation.index, id);
       startOf.set(id, start + full.start);

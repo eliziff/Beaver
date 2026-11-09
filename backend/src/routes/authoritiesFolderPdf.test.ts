@@ -1,7 +1,7 @@
 import express from "express";
 import { PDFDocument } from "pdf-lib";
 import request from "supertest";
-import { beforeAll, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 import { createAuthoritiesDraft, reduceAuthoritiesDraft } from "../lib/authoritiesDomain";
 import { createAuthoritiesWorkspaceApplication } from "../lib/authoritiesWorkspaceApplication";
 import { createAuthoritiesRouter } from "./authorities";
@@ -10,9 +10,10 @@ import { createAuthoritiesRuntimeRouter } from "./authoritiesRuntime";
 beforeAll(() => { process.env.AUTH_MODE = "local"; });
 
 it.each([
-  { citation: "2034 FC 744", authorityId: "harbour" },
-  { citation: "2034 FC 745", authorityId: null },
-])("Beaver and standalone identify $citation from the PDF rather than its filename", async ({ citation, authorityId }) => {
+  { citation: "2034 FC 744", authorityId: "harbour", pages: 1, status: 200 },
+  { citation: "2034 FC 745", authorityId: null, pages: 1, status: 200 },
+  { citation: "2034 FC 744", authorityId: null, pages: 2001, status: 400 },
+])("Beaver and standalone identify $citation in a $pages-page PDF", async ({ citation, authorityId, pages, status }) => {
   const state = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
     type: "add-authority", authority: { id: "harbour", key: "harbour", kind: "case", citation: "2034 FC 744",
       name: "Harbour Paddlers v River Board", displayName: null, excluded: false, evidenceIds: [], locators: [],
@@ -29,11 +30,13 @@ it.each([
   pdf.addPage().drawText(`Citation: ${citation}\n[1] The board gave notice before the hearing began.`, {
     x: 50, y: 740, size: 12, maxWidth: 510, lineHeight: 16,
   });
+  for (let index = 1; index < pages; index++) pdf.addPage();
   const bytes = Buffer.from(await pdf.save());
 
-  await request(app).post("/authorities/draft/pdf-authority")
-    .attach("file", bytes, "2034fc744.pdf").expect(200, { authorityId });
-  await request(app).post("/authorities-runtime/pdf-authority")
+  const beaver = await request(app).post("/authorities/draft/pdf-authority")
+    .attach("file", bytes, "2034fc744.pdf").expect(status);
+  const standalone = await request(app).post("/authorities-runtime/pdf-authority")
     .field("draft", JSON.stringify(state)).attach("file", bytes, "2034fc744.pdf")
-    .expect(200, { authorityId });
+    .expect(status);
+  if (status === 200) for (const response of [beaver, standalone]) expect(response.body).toEqual({ authorityId });
 });

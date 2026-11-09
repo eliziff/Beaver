@@ -30,6 +30,45 @@ async function finalPdf(app, { brief = null, shot = "final-pdf" } = {}) {
 }
 
 export const IMPORT_CASES = [{
+  name: "cold-imports",
+  title: "Cold PDF and Word imports followed by citation navigation while their sources arrive",
+  async run({ open, record, fixtures, root }) {
+    for (const [label, file, mode] of [
+      ["pdf", path.join(root, PUBLIC, "ca-case-2014-scc-bhasin-v-hrynew.pdf"), "http"],
+      ["word", fixtures.varietyDocx, "file"],
+    ]) {
+      const app = await open({ mode, label, network: { a2aj: fixtureA2aj() } });
+      await app.load();
+      await importBrief(app, file, { first: true });
+      const listed = (await rows(app).allInnerTexts()).join("\n");
+      record.check(listed.includes(label === "pdf" ? "2014 SCC 71" : "Jordan"), `${label}: the written case is listed`);
+      if (label === "word") {
+        record.check(await rows(app).count() === 8, "the Word brief retains its eight written citations");
+        record.check(!listed.includes("Oakes"), "the deleted tracked-change citation stays absent");
+      }
+      await walkReview(app, `${label} cold review`, { arrows: 6, clicks: 2 });
+      await app.close();
+    }
+  },
+}, {
+  name: "late-citation",
+  title: "A cold 24-page brief whose only citation is on the final page, opened there and resumed after reload",
+  async run({ open, record, fixtures }) {
+    for (const mode of ["http", "file"]) {
+      const app = await open({ mode, network: { a2aj: fixtureA2aj() } });
+      await app.load();
+      await importBrief(app, fixtures.lateCitationPdf, { first: true });
+      record.check(await rows(app).count() === 1, `${mode}: all 24 pages contain exactly the one written citation`);
+      const page = () => app.page.locator(".citation-document .citation-mark[data-active]").first()
+        .evaluate(mark => Number(mark.closest(".page")?.dataset.pageNumber));
+      record.check(await page() === 24, `${mode}: review opens at the citation on page 24`, await page());
+      await app.reload({ until: () => app.page.locator(".citation-document .citation-band[data-active]").first().waitFor() });
+      record.check(await page() === 24, `${mode}: the resumed review opens at page 24`, await page());
+      await app.shots(`${mode}-late-citation`);
+      await app.close();
+    }
+  },
+}, {
   name: "first-pdf",
   title: "A public SCC judgment as a new profile's first import (file:// and http), through Build and the final PDF",
   async run({ open, record, renderer, root }) {

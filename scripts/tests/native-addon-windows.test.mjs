@@ -21,12 +21,13 @@ test("a loaded addon does not lock Cargo's output", {
     const script = `import assert from 'node:assert/strict';
       import {renameSync} from 'node:fs';
       import {nativeAddonFile} from ${JSON.stringify(pathToFileURL(path.join(root, "shared/nativeAddonFile.mjs")).href)};
+      import {structureEngineAddon} from ${JSON.stringify(pathToFileURL(path.join(root, "shared/structure-engine.mjs")).href)};
       const source=${JSON.stringify(source)}, root=${JSON.stringify(scratch)};
       const loaded=nativeAddonFile(source,root), module={exports:{}};
       process.dlopen(module,loaded);
-      const features=module.exports.nativeBuildFeatures();
+      const engine=structureEngineAddon(module.exports), features=engine.nativeBuildFeatures();
       renameSync(source,source+'.replacement');
-      assert.equal(module.exports.nativeBuildFeatures(),features);
+      assert.equal(engine.nativeBuildFeatures(),features);
       renameSync(source+'.replacement',source);
       assert.equal(nativeAddonFile(source,root),loaded);`;
     const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8" });

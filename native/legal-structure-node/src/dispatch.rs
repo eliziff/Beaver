@@ -268,11 +268,11 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
                 None => Provision::MissingStatute,
             }).and_then(value)),
         #[cfg(not(feature = "a2aj"))]
-        "a2ajAliasGroups" => done(value(call.get::<Vec<String>>("citations")?.iter()
-            .map(|citation| engine::AliasGroup::own(citation)).collect::<Vec<_>>())),
+        "a2ajAliasGroups" => done(value(call.get::<Vec<String>>("keys")?.iter()
+            .map(|key| engine::AliasGroup::own(key)).collect::<Vec<_>>())),
         #[cfg(feature = "a2aj")]
         "a2ajAliasGroups" => done(a2aj::alias_groups(&call.get::<PathBuf>("store")?,
-            &call.get::<Vec<String>>("citations")?).and_then(value)),
+            &call.get::<Vec<String>>("keys")?).and_then(value)),
         #[cfg(feature = "a2aj")]
         "a2ajNamedCase" => done(a2aj::named_case(&call.get::<PathBuf>("store")?, &call.get("named")?).and_then(value)),
         // The same of the records A2AJ's API answered a search of the name with.

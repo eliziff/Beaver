@@ -118,7 +118,7 @@ export const SETTINGS_CASES = [{
     await guidance.waitFor();
     for (let i = 0; i < 5; i++) await app.page.keyboard.press("Tab");
     record.check(await guidance.evaluate(dialog => dialog.contains(document.activeElement)), "source help keeps keyboard focus in the dialog");
-    await app.page.keyboard.press("Escape");
+    await app.interact("close source help with Escape", () => app.page.keyboard.press("Escape"), { rest: 0 });
     await guidance.waitFor({ state: "detached" });
     record.check(await help.evaluate(button => button === document.activeElement), "source help restores focus to its button");
     await attach(app, "Waterways Licensing Act", fixtures.statute);

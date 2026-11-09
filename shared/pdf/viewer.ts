@@ -9,6 +9,7 @@ import type { PdfAnnotation } from '../pdf-annotations.mjs';
 
 export const PDF_ZOOM_MIN = .5, PDF_ZOOM_MAX = 3, PDF_ZOOM_STEP = .25;
 export type PdfViewPosition = { pageNumber: number; left: number; top: number; zoom: number; renderZoom: number };
+export type PdfInitialView = Pick<PdfViewPosition, 'pageNumber'> & Partial<PdfViewPosition>;
 /** PDF.js's RenderingStates.FINISHED: a page view whose canvas is painted. */
 const FINISHED = 3;
 const clampZoom = (value: number) => Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, value));
@@ -22,7 +23,7 @@ export function createPdfSession(options: {
   readTextLoader?: () => PdfPageTextLoader | undefined;
   onTextReady?: (number: number, element: HTMLElement) => void;
   onPage?: (number: number) => void; onZoom?: (zoom: number) => void;
-  initialView?: PdfViewPosition; onViewChange?: (view: PdfViewPosition) => void;
+  initialView?: PdfInitialView; onViewChange?: (view: PdfViewPosition) => void;
   onRendered?: (number: number, error?: unknown) => void; onError: (error: unknown) => void;
 }) {
   const {pdf,container,element}=options, abort=new AbortController(), {signal}=abort;
@@ -188,11 +189,12 @@ export function createPdfSession(options: {
     signal.addEventListener('abort',()=>resolve(),{once:true});
     eventBus.on('pagesinit',async()=>{
       if(signal.aborted)return;
+      const view=options.initialView;
+      if(view && viewer.getPageView(view.pageNumber-1))viewer.currentPageNumber=view.pageNumber;
       syncAll();
       resize();updateAnnotations();
-      const view=options.initialView;
       if(view && await preparePage(view.pageNumber) && !signal.aborted) viewer.scrollPageIntoView({
-        pageNumber:view.pageNumber,destArray:[null,{name:'XYZ'},view.left,view.top,null],
+        pageNumber:view.pageNumber,destArray:[null,{name:'XYZ'},view.left??null,view.top??null,null],
         ignoreDestinationZoom:true,allowNegativeOffset:true,
       });
       restoring=false;options.onZoom?.(zoom);resolve();

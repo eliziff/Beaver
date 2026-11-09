@@ -58,40 +58,101 @@ Follow-up, November 9:
 - Stored-source, Word drafting/redline, email, workbook, A2AJ and citation-receipt
   tests now exercise the native products. Word recovery retains the final
   unclosed paragraph through the existing XML reader. XLS display formats needed
-  an upstream calamine extension; its tests pass, but committing that vendor copy
-  awaits permission to retain the original MIT licence.
+  an upstream calamine extension; its tests pass and the original MIT licence has
+  now been retained unchanged with the maintainer's permission.
 - Native build-cache inputs now include all parser crates and structure
   subcrates, citation build inputs and legal-text (`a02911b21`). The owner Cargo
   manifests use the sibling main checkouts, avoiding an older Git dependency
   silently differing from the application build.
+- Large-statute reading repeatedly scanned UTF-16 prefixes and every preceding
+  line/provision. It now reuses the existing `ScalarText` index and sorted start
+  positions. The invented 5,400-section case went from about 21 s to 165 ms for
+  A2AJ reading and 23 s to 322 ms for text outlining. All text and complete outline
+  hashes match the saved pre-change products for 40, 400 and 5,400 sections and a
+  Unicode-prefix case. These are sequential local samples, not corpus throughput
+  measurements. Reproduce with `node scripts/benchmark-statute-reading.mjs REPORT
+  BASELINE`; private receipts are `benchmarks/local-data/parser-refactor/statute-{before,after}.json`.
+- Cold Authorities imports no longer spend time on sample citations, dummy PDFs or
+  an unused cover preview. Parsed citation keys go straight to alias lookup;
+  the citation owner skips irrelevant rule grammars and builds its case-name
+  matcher as a contiguous NFA instead of expanding a DFA. The owner passes all
+  267 grammar, citation and CLI tests. The native production loader and first
+  citation reading take 352–414 ms (500 ms budget); 50 changing subsequent inputs
+  have a 0.775 ms median and 1.395 ms 95th percentile, which now owns the timing
+  gate. Three repeated browser runs in fresh profiles put the
+  complete file choice to citation review at about 3.7 s for public Bhasin and
+  1.6 s for the varied Word brief; the complete run reads Bhasin in 4.2 s and
+  Word in 1.6 s, inside the unchanged 5 s cold-import budget.
+  Browser builds enable WASI SIMD through the existing Cargo helper. No result
+  cache or test warm-up was added.
+- The shared source-PDF writer no longer measures each character of a word that
+  already fits, or searches the complete statute for every bookmark. Local
+  rendering of the invented 5,400-section Act drops from 4.0 s to 2.6–2.7 s. Our
+  parser reopens all 961 pages with identical extracted words and all 25,205
+  logical outline entries, including their page assignments. Source offsets
+  change with kerning and wrapping; those raw outline hashes are retained rather
+  than blessed as parity. The added margin test and all 53 focused build tests
+  pass. Reproduce with `node scripts/benchmark-statute-source-pdf.mjs REPORT
+  BEFORE`; private receipts are `statute-source-*` beside the reading benchmark.
+  This renderer still performs substantial PDF layout in TypeScript; these
+  changes reduce its work without adding a second layout implementation.
+  After retaining first-match behavior at shared bookmark starts, all 53 build
+  tests, backend type checking and the complete statute comparison pass again.
+  The rebuilt HTML's focused large-statute browser workflow also passes, including
+  its excerpt text, bookmarks, index and final-PDF links.
 - The first broad consumer run had 536 passes, 15 failures and one skipped test
-  across 68 files. The later hermetic backend run covered 157 files and 1,120
-  tests: 1,069 passed, five failed and 46 skipped. Its five failures were journal
-  assertions using removed fields and a Library fixture using an internal ID as
-  its printed page label. Correcting those tests gives 15 passes and one skip in
-  the two affected files. Backend type checking also passes. Live opt-in tests
-  and the separate Word runtime suite are not included in this proof.
+  across 68 files. The latest hermetic backend run covers 158 files and 1,128
+  tests: 1,082 passed and 46 skipped, with no failures. Removed journal fields and
+  an internal ID used as a printed page label were corrected in the tests.
+  Backend and frontend type checking pass. Live opt-in tests are not included.
+  The separate Word editing runtime passes all 65 tests in 15 files, using the
+  pinned lxml 6.0.2 in a disposable environment and the installed LibreOffice.
+  The earlier system-Python prerequisite failure is resolved; the disposable
+  environment was removed in `finally`. Microsoft Word export checks below
+  remain a separate gate.
   The duplicate short paragraph
   fixture's expected diagnostic is now `unavailable`: source inspection and the
   primary-count policy show its conflicting `[29], [30], [29]` establishes no
   paragraph index. The older `ambiguous` assertion came from the removed raw-label
   lookup. Both versions abstain with no geometry; a missing label in a valid
   `[28], [30]` count still returns `not_found`.
-- The complete standalone browser run exercised 19 of 20 cases: 12 passed and
-  seven failed; the long-article local fixture was absent. Citation edits,
-  gathering, reloads, cancellation, source attachment and ordinary exports passed
-  their functional assertions. Remaining failures included timing/layout budgets,
-  scan text in exports and the editor, and the large statute's excerpt.
+- The complete standalone browser run passes all 22 available scenarios in
+  6 min 8 s; the long-article local fixture is absent. It checks cold PDF and Word
+  imports, a first citation on page 24, pinpoints, drafts/reloads, folder pickup,
+  source edits during slow gathering, cancellation, court/output matrices,
+  120 authorities, scans and repeated builds. All existing timing, layout and
+  input-to-paint budgets pass. Reports retain a run ID and the tested HTML hash;
+  `--repeat` runs fresh profiles. The 120-authority book builds in 1.45 s; four
+  scans finish recognition in 4.9 s after pause/resume and reload, then build in
+  0.9 s. The chooser now depends on the host's available actions (`8d007a7f8`),
+  so background results cannot unmount it or open source guidance over an upload.
   The scan export defect was traced to invisible text starting at the bottom of
   the page: subsequent lines fell outside its crop. The corrected writer and
   statute fallback checks pass all 40 PDF assembly/Authorities build tests.
   The editor's browser OCR adapter also retained old `pageNumber`/`rect` fields;
-  it now emits the shared `number`/`bbox` product directly. The browser candidate
-  has not yet been rerun with these changes.
-- Both retained Word outputs open read-only in hidden Microsoft Word outside the
+  it now emits the shared `number`/`bbox` product directly. Embedded OCR asset URLs
+  also go unchanged to workers instead of being reparsed on the UI thread. All
+  58 OCR-owner tests and the full scan/export/editor browser assertions pass.
+- All 13 generated Word outputs in the full run open read-only in hidden Microsoft Word outside the
   restricted shell, without repair or field errors. The host shows their tables,
-  italics, citation fields and tab references. Inserting Word's own table and
-  checking the complete Word matrix still remain.
+  italics, citation fields and tab references. Word's own inserted tables also
+  pass, including the complete copy/reference matrix. Three repeated matrix runs
+  additionally open 24 documents in Word without errors. Its keyboard check proves
+  focus stays in source help and returns to the requesting button when dismissed;
+  Escape is measured through the existing input-to-paint helper before checking
+  the scheduled focus restoration. Sources screenshots at
+  1280×720 and 1440×900 retain aligned, accessible controls.
+- The large-statute browser test must wait for its PDF to attach: Sources now
+  opens while gathering continues. Building earlier correctly emits a missing
+  source placeholder, not an excerpt. With that wait, the 961-page invented Act
+  is ready in about 16 seconds (unchanged 30-second budget), and all excerpt,
+  provision text, bookmark, index and final-PDF link assertions pass. The public
+  Criminal Code branch still lacks its recorded HAR. The table citation's written
+  name is now clipped to its owning cell during import, so source resolution no
+  longer changes its span or layout. Real Word tests also resolve supra/ibid past
+  an author's symbol note: an omitted printed note number no longer falls back
+  to the note's internal identity and collides with numbered note 1. All 31
+  focused import/domain tests pass; no mock note IDs stand in for actual Word files.
 - Parser certification remains open. The frozen 748-document cache is absent
   from its recorded scratch path. The existing full gold-input run, with one
   worker and local OCR but no oracle layout, produced 22 complete inputs before
@@ -99,13 +160,117 @@ Follow-up, November 9:
   `gold-inputs/d8f66d9741bdcc64` cache and the run must resume; no grade is claimed.
   Gold checkout `ab7bed6af0de3f1901815ac30b99b1e179836e88` has unchanged gold files.
   The PDF Inspector workflow had lost its independent source assertions and
-  frozen-hash comparison in parser `4ee3081`. They are restored for validation,
+  frozen-hash comparison in parser `4ee3081`. They are restored (`dc0c24c`),
   with native paragraph labels and unchanged frozen hashes. All 13 source PDFs
   have been resolved locally and checked against their recorded SHA-256 values.
-- Authorities Lite still imports the removed pagination module and performs PDF
-  extraction/paragraph assembly in JavaScript. It needs the parser's native PDF
-  products; restoring the deleted shim would preserve duplicate policy. The
-  remaining Linker, ALR and provider/historical corpus gates are also open.
+  The candidate CLI reads all 13 documents/711 pages, but every frozen product
+  hash differs and three of eight source-reviewed documents initially fail.
+  The complaint loses its detached `II. DEFENDANT` heading and merges `COUNT 1`
+  into `VI. CLAIMS FOR RELIEF`; table claims hide BCE and Waitangi footer notes.
+  Traced repairs now pass all eight independent source checks, including all 34
+  complaint paragraphs. The pairer preserves the source's physical note kind
+  rather than replacing it with the numbering run's inferred endnote mode.
+  Nine complete products match the saved pre-repair candidate exactly; four
+  change. Every line released from table ownership belongs to a recovered note.
+  Visual review confirms BCE page 63, the Waitangi table note on page 14 and
+  risk-assessment footnote 101 on page 35 (also added to source gold).
+  Six native consumer checks pass with the original Latimer and BCE files,
+  including page geometry and public/evidence reads of footer notes 89–90.
+  Private pre-change products and provenance are retained beside the statute
+  receipts. No frozen expected hashes were updated and no parity is claimed.
+- Authorities Lite now uses the shared native PDF reader (`665bf00`). It asks the
+  shared engine for paragraph geometry and printed pagination instead of importing
+  the deleted pagination module and assembling a second PDF text in JavaScript.
+  A bounded opening read preserves folder identification without reading every
+  page's content. The existing `pages` option limits OCR, not native extraction,
+  so it cannot supply that operation. The new read reuses the existing extractor
+  and line assembler, including source geometry for vertical margin stamps.
+  Parser and addon metadata checks pass. Seven actual WASM checks pass, including
+  aliases, paragraphs, nested items, opening witnesses and cache restoration after
+  asynchronous engine replacement. All 18 Lite domain/network checks pass.
+  The packaged file passes the real Latimer
+  viewer, automatic paragraph 33 marking, printed-page 3 navigation, manual marks,
+  undo/redo, export and reopening. PDF parsing uses the existing worker pool with
+  a memory-only store. Two host-recognition tests pass after the shared host change.
+  The original scan check also passes, including automatic paragraph 2 marking,
+  selection, export and reopening. The index already recovered its missing opening
+  bracket; the reader discarded measured OCR lines without word boxes. Whole-line
+  geometry is now retained, clipping a recovered marker's logical range to the
+  original recognition. Visual review and the strengthened excerpt assertion retain
+  all three lines, including the paragraph's beginning. Word-level quote geometry
+  stays unavailable where only line boxes exist; the host test checks both outcomes.
+  Both browser exports also reopen through the native PDF reader with their
+  requested paragraphs intact. Private regeneration instructions and hashes are
+  in `benchmarks/local-data/parser-refactor/lite`. The unused Lite Rust ABI crate
+  and separate alias-table dependency are removed.
+  The final cold-engine refresh exposed a Lite upload race: engine startup could
+  parse a pasted list before its queued debounce, whose second parse replaced the
+  selected row while the file picker was open. Parsing now cancels that queued
+  duplicate (`db71e9d`). The browser check holds the picker open across the delay
+  and requires unrelated-citation rows to exist before checking their bindings.
+  Both public-PDF and scan workflows pass with this check; the scan passes twice
+  in fresh profiles, and both exports reopen through the current native parser.
+- Authority Linker's offline file-browser check passes: body/footnote selection,
+  numbered and whole pinpoints, subsection links, ibid, preserved text/italics/links
+  and phone layout, with no network requests (AuthoritiesHelper `b0957e1`). Its old
+  section-only assertion was stale after the existing subsection-link behavior.
+  Pinpointer now builds from sibling main checkouts and reads canonical native
+  labels (`9a8951f`). Its actual WASM/DOM check fails before the label repair and
+  passes afterward for paragraphs, subsections, report pages and UTF-16 citation
+  offsets. The old JavaScript paragraph fallback had hidden the label failure.
+  Packaged extension binaries were not replaced. Lite's JavaScript paragraph
+  assembly is removed. Pinpointer still has a JavaScript fallback paragraph
+  detector in `providers.js::visibleMarkerNodes`; moving that policy into Rust
+  requires evidence for its currently unmatched documents.
+- The existing A2AJ census completes all 346,150 inputs with zero errors on one
+  worker in 777.3 seconds. Input fingerprints match the saved `fix` reading, whose
+  build origin is unknown; node/count fingerprints have substantial differences.
+  Source review of three of the 260 records with fewer paragraphs finds a short
+  decision misread as an endnote and paragraph labels joined to headings lost
+  when the count's opening is recovered. Structure `e3b31f0` uses the existing
+  citation spans to exclude reported years and one count-reading helper for
+  ordinary and joined labels. Focused Rust checks and six provider tests pass;
+  public native reads retain paragraphs 1, 63, 218 and 230 in those originals.
+  Replays compare directly to the unchanged pre-repair candidate. The latest
+  completed run reads all 346,150 inputs without errors in 849 seconds, but is
+  rejected: short called note lists can bypass the rejection through mixed-style
+  recovery, and a catalogue's footnote call displaces six real late paragraphs.
+  Structure `18a69ea` applies the same note evidence to every count and requires
+  pre-body calls for every short note number. Seven owner tests pass, including
+  attributed originals 2003 FC 993, 2024 ONCA 71 and Tremblay, [1946] SCR 448.
+  Public native paragraph reads pass on ten reviewed provider texts. The repair's
+  replay completed all 346,150 inputs with zero errors in 1,296.2 seconds. Its
+  586 node/count changes include 34 paragraph losses without a corresponding
+  note increase; these remain unaccepted. Independent review of `75270:fr`
+  (2018 Trib conc 13) finds a nine-paragraph order followed by an annex containing
+  another judgment. Both the historical count of 70 and candidate count of 34
+  promote appended numbering; neither establishes the primary order's nine
+  paragraphs. Keep this as a compound-boundary failure, not regenerated gold.
+  The private review and exact binary provenance remain beside `source-fix.*`.
+  These node/count comparisons supplement the
+  separate historical 323,374-record A2AJ/CourtListener/journal gate.
+- ALR's actual local CLI imports an invented two-quotation Word article, reads
+  its A2AJ sources and verifies both quotations at paragraphs 1 and 63. Its
+  exported workbook reopens through the native reader with two
+  `OG_PINPOINT_MATCH` results, the original pinpoints and matching quotation links.
+  No AI or remote sources are used. The isolated application data is removed in
+  `finally`; receipts and regeneration are in `benchmarks/local-data/parser-refactor/alr`.
+  ALR's local main remains clean at `57366b4`. Remote synchronization could not
+  be verified because Git authentication failed and the connected lookup returned
+  404. No ALR source was edited. This local CLI proof does not establish GUI,
+  live-provider or full historical manuscript parity.
+- Lite's existing caption test exposed a shared citation bug: a parallel reporter
+  citation could be included in a case name. Common-law-cite `a7d5784` reads the
+  authored name's span directly. Its owner grammar, citation and CLI tests pass,
+  including three new caption conformance cases. The native addon and Lite WASM
+  are rebuilt with the subsequent cold-path fixes. Full, Lite and Word-only WASM
+  builds pass their browser consumers, the six engine/transport tests pass, and
+  ALR's refreshed local CLI again verifies both source quotations and its workbook.
+  Pinpointer's current source WASM passes citation offsets and paragraph,
+  subsection and printed-page DOM ranges. Its builder now remaps Cargo's configured
+  user profile even under a restricted account (`73b188c`); inspection of the
+  rebuilt binary confirms personal source paths are absent. Packaged extension
+  binaries remain untouched.
 
 ## Profile-preserving refactor contract
 
@@ -262,6 +427,8 @@ the full corpus gates above.
 | ALR `verifier_core/pdf_adapter.py::mark_numbered_paragraphs` | Joins layout units, redetects a monotone paragraph spine, then rebuilds paragraph spans and proposition caps. | Consume declared paragraph IDs, exact spans and note-to-proposition bounds from the maintained parser. Prove quoted/restarted numbering, unnumbered briefs and appended exhibits without a second spine detector. |
 | Beaver `backend/src/lib/authoritiesImport.ts::scanReview` | Merges PDF body units after citation extraction reveals a citation crossing their boundaries; adjusts note-reference offsets. | Parser body units should preserve semantic continuation across line/page breaks and expose stable ranges. Compare citation membership and note anchors before removing the merge. Citation resolution remains the citation engine's job. |
 | Shared `shared/pdf-page-binding.mjs::reporterMarginLabels` and `resolvePdfPagination`, called by `documentProjectionService.ts::paginationFor` | Rechecks page edges, repairs spaced OCR folios, reconciles embedded labels and interpolates reporter pagination. | Parser should expose observed folio candidates and uncertainty from native/OCR geometry. The citation engine can supply reporter-start evidence to a shared resolution operation. Prove covers, roman labels, duplicate folios and metadata conflicts before deleting the host heuristics. |
+| Beaver folder PDF pickup | Formerly used PDF.js to read page text and vertical margin stamps. | Now uses shared native `pdfOpening` through the application/runtime port (`dbc346eab`). Both Beaver and standalone routes identify source content independently of filenames and reject PDFs above 2,000 pages with HTTP 400. The separate device-file viewer and recognition paths retain their capabilities. |
+| Pinpointer `providers.js::visibleMarkerNodes` | Selects a longest ascending paragraph run when both provider anchors and native paragraphs are absent. | Capture the unmatched source cases and move any justified acceptance rule into the Rust case profile. Native-label DOM tests now prevent this fallback from concealing a broken engine adapter. |
 
 Authorities' `documentReadingOrder` calls already delegate ordering to the shared
 engine; constructing citation offsets for that call is adapter work, not a second

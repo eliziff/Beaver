@@ -7,11 +7,12 @@
 // what it delivers as its reader would: PDFs read back and rendered, each .docx in invisible Word.
 //
 //   node scripts/test-authorities-stress.mjs [--skip-build] [--html=path] [--out=dir] [--only=a,b]
-//     [--fixtures=dir] [--no-word] [--keep-outputs] [--headed] [--list]
+//     [--fixtures=dir] [--repeat=1..10] [--no-word] [--keep-outputs] [--headed] [--list]
 // No request reaches a live service: A2AJ and the publisher service answer from the stub or a
 // recorded HAR. Cases whose local fixture (a gitignored folder, --fixtures, default
 // benchmarks/local-data/authorities-stress) is absent are skipped and say so.
 import { execFileSync } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -34,6 +35,8 @@ const localDir = path.resolve(args.fixtures ?? path.join(root, "benchmarks/local
 const only = args.only ? new Set(String(args.only).split(",")) : null;
 const selected = CASES.filter(({ name }) => !only || only.has(name));
 if (only && selected.length !== only.size) throw new Error(`Unknown case: ${[...only].filter((name) => !CASES.some((item) => item.name === name)).join(", ")}`);
+const repeats = Number(args.repeat ?? 1);
+if (!Number.isSafeInteger(repeats) || repeats < 1 || repeats > 10) throw new Error("--repeat must be between 1 and 10");
 
 if (!args["skip-build"] && !args.html) {
   console.log("Building Authorities.html");
@@ -62,24 +65,34 @@ function localFixtures() {
 }
 
 const word = [], records = [];
+const runId = randomUUID();
+async function saveReport(complete = false) {
+  const htmlSha256 = complete ? createHash("sha256").update(await readFile(html)).digest("hex") : undefined;
+  await writeFile(path.join(out, "report.json"), JSON.stringify({ machine_test: true, runId, complete,
+    html, htmlSha256, seconds: Math.round((Date.now() - started) / 1000),
+    cases: records.map(({ name, seconds, skipped, failures, notes, outputs, judged }) =>
+      ({ name, seconds, skipped, passed: seconds !== undefined && !skipped && !failures.length, failures, notes, outputs,
+        screenshots: judged.map(({ shot, issues }) => ({ shot, issues })) })),
+  }, null, 1));
+}
 const fixtureDir = path.join(localDir, "generated");
 try {
 const fixtures = await (async () => {
   const browser = await launch();
   try {
-  const written = { ...await writeFixtures(browser, fixtureDir), ...await writeStressFixtures(browser, fixtureDir) };
-  // Windows checks a newly written file the first time a browser reads it; that first open is not a case's.
-  const page = await browser.newPage(); await page.goto(`file:///${html.replace(/\\/gu, "/")}`);
-  return written;
+  return { ...await writeFixtures(browser, fixtureDir), ...await writeStressFixtures(browser, fixtureDir) };
   } finally { await browser.close(); }
 })();
 const shared = { html, serve, fixtures, local: localFixtures(), word, args, root };
 
-for (const item of selected) {
+for (const item of selected.flatMap(item => Array.from({ length: repeats }, (_, index) => ({
+  ...item, runName: repeats > 1 ? `${item.name}-${index + 1}` : item.name,
+})))) {
   console.log(`\n== ${item.name}: ${item.title} ==`);
-  const record = new CaseRecord(item.name, path.join(out, item.name));
+  const record = new CaseRecord(item.runName, path.join(out, item.runName));
   await mkdir(record.out, { recursive: true });
   records.push(record);
+  await saveReport();
   const missing = (item.needs ?? []).filter((need) => !shared.local[need]);
   if (missing.length) { record.skipped = `local fixture absent: ${missing.join(", ")} (see ${localDir})`; console.log(`  SKIPPED ${record.skipped}`); continue; }
   const from = Date.now();
@@ -100,6 +113,7 @@ for (const item of selected) {
   }
   record.seconds = Math.round((Date.now() - from) / 100) / 10;
   console.log(`  ${record.failures.length ? `${record.failures.length} failed` : "passed"} in ${record.seconds} s`);
+  await saveReport();
 }
 
 // Every Word document delivered, opened at once in invisible Word, as its reader would.
@@ -143,10 +157,7 @@ if (word.length && !args["no-word"]) {
   console.log(`  opened in ${Math.round((Date.now() - from) / 1000)} s`);
 }
 const seconds = Math.round((Date.now() - started) / 1000);
-const report = { html, seconds, cases: records.map(({ name, seconds, skipped, failures, notes, outputs, judged }) =>
-  ({ name, seconds, skipped, passed: !skipped && !failures.length, failures, notes, outputs,
-    screenshots: judged.map(({ shot, issues }) => ({ shot, issues })) })) };
-await writeFile(path.join(out, "report.json"), JSON.stringify(report, null, 1));
+await saveReport(true);
 console.log(`\n${"case".padEnd(22)} ${"result".padEnd(9)} seconds`);
 for (const { name, seconds, skipped, failures } of records)
   console.log(`${name.padEnd(22)} ${(skipped ? "skipped" : failures.length ? `${failures.length} FAIL` : "pass").padEnd(9)} ${seconds ?? "-"}`);

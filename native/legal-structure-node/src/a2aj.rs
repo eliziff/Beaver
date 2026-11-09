@@ -501,15 +501,15 @@ pub fn record_matches(records: &[Value], query: &Query) -> Vec<usize> {
 /// A citation's keys for a note-up: every key of the one decision the store holds under it, else its own key.
 pub fn alias_keys(path: &Path, citation: &str) -> CoreResult<Vec<String>> {
     let key = legal_structure::caselaw_citation_lookup_key(citation).map_err(str::to_owned)?;
-    Ok(match alias_groups(path, &[citation.to_owned()])?.into_iter().next() {
+    Ok(match alias_groups(path, &[key.clone()])?.into_iter().next() {
         Some(group) if !group.ambiguous && !group.keys.is_empty() => group.keys,
         _ => vec![key],
     })
 }
 
-/// Each citation's exact aliases and authored forms (as the store writes them) in the store's inventory; its own key
+/// Each parsed key's exact aliases and authored forms (as the store writes them) in the store's inventory; its own key
 /// alone where no store is installed.
-pub fn alias_groups(path: &Path, citations: &[String]) -> CoreResult<Vec<AliasGroup>> {
+pub fn alias_groups(path: &Path, keys: &[String]) -> CoreResult<Vec<AliasGroup>> {
     const FORMS: [&str; 4] = ["citation_en", "citation2_en", "citation_fr", "citation2_fr"];
     let found = with_store(path, |connection, _| {
         let mut targets = connection.prepare_cached("SELECT DISTINCT document_id FROM citation_lookup WHERE citation_key = ?")
@@ -518,8 +518,8 @@ pub fn alias_groups(path: &Path, citations: &[String]) -> CoreResult<Vec<AliasGr
             .map_err(sql)?;
         let mut forms = connection.prepare_cached(&format!("SELECT {} FROM document WHERE id = ?", FORMS.join(", ")))
             .map_err(sql)?;
-        citations.iter().map(|citation| {
-            let own = AliasGroup::own(citation);
+        keys.iter().map(|key| {
+            let own = AliasGroup::own(key);
             let Some(key) = own.keys.first().cloned() else { return Ok(own) };
             let ids = targets.query_map([&key], |row| row.get::<_, i64>(0)).map_err(sql)?
                 .collect::<Result<Vec<_>, _>>().map_err(sql)?;
@@ -541,5 +541,5 @@ pub fn alias_groups(path: &Path, citations: &[String]) -> CoreResult<Vec<AliasGr
             Ok(AliasGroup { keys, forms, ambiguous: false })
         }).collect()
     })?;
-    Ok(found.unwrap_or_else(|| citations.iter().map(|citation| AliasGroup::own(citation)).collect()))
+    Ok(found.unwrap_or_else(|| keys.iter().map(|key| AliasGroup::own(key)).collect()))
 }

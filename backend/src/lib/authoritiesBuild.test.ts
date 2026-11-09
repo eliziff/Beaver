@@ -516,6 +516,24 @@ describe("Authorities output builder", () => {
     expect(fit(font, "A ‑ B\r\nSecond\tline", 12, 400)).toBe("A - B Second line");
   });
 
+  it("keeps formatted prose and oversized identifiers inside the source PDF's margins", async () => {
+    const identifier = "AVATAR".repeat(50);
+    const { bytes } = await renderAuthoritySourcePdf({ kind: "commentary", name: "Invented source",
+      citation: "River Review", date: null, sourceUrl: null,
+      text: `The *AVATAR* report gives **written reasons**.\n\nIdentifier: ${identifier}\n\nThe report ends here.` });
+    const { pageCount, pages } = await structureNative().pdfOpening(bytes);
+    expect(pageCount).toBe(1);
+    const lines = pages.flatMap(page => page.lines);
+    const text = lines.map(line => line.text).join("").replace(/\s/gu, "");
+    expect(text).toContain("TheAVATARreportgiveswrittenreasons.");
+    expect(text).toContain(identifier);
+    expect(text).toContain("Thereportendshere.");
+    for (const { bbox } of lines) {
+      expect(bbox[0]).toBeGreaterThanOrEqual(65);
+      expect(bbox[2]).toBeLessThanOrEqual(547);
+    }
+  });
+
   it("lists a long citation in full in the book index, wrapped beneath its tab", async () => {
     const pdf = await sourcePdf("Article", [[400, 500]]);
     const citation = "Wren Halloway & Pell Ostrander, \"Not Quite Idle: Delay, Notice and the Licensing Boards of the "

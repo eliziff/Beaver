@@ -276,6 +276,12 @@ export async function writeStressFixtures(browser, directory, { longCount = 120 
     files.navigationAct = await pdf(navigationActHtml(), "inland-navigation-act.pdf");
     files.guidancePdf = await pdf(briefHtml(GUIDANCE), "guidance-brief.pdf");
     await writeFile(files.guidanceDocx = file("guidance-brief.docx"), await longBriefDocx(GUIDANCE));
+    files.lateCitationPdf = await pdf(briefHtml({ title: "Harbour Access Review", paragraphs: [
+      ...Array.from({ length: 23 }, (_, index) => ({
+        text: `${index + 1}. The cooperative recorded the harbour conditions and delivered its observations to the board.`,
+      })),
+      { text: "24. The applicant relies on the following authority.", note: "R v Jordan, 2016 SCC 27 at para 2." },
+    ] }, 1), "late-citation.pdf");
     // Decisions to build a book from by hand, as text PDFs, and scans of others.
     files.decisions = inventedDecisions(6);
     files.decisionPdfs = [];

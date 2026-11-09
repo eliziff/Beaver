@@ -150,7 +150,7 @@ export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, by
     .map((authority) => ({ authority, citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }));
   if (!records.length) return null;
   const native = structureNative(), opening = await native.pdfOpening(bytes);
-  if (opening.pageCount > 2_000) throw new Error("This PDF exceeds the 2,000-page inspection limit.");
+  if (opening.pageCount > 2_000) throw new ApplicationError(400, "This PDF exceeds the 2,000-page inspection limit.");
   const match = await matchFolderPdf(filename, opening.pages, records, (method, request) =>
     native.citationEngineCall(method, request), ({ authority }) => reference(authority));
   return match?.record.authority.id ?? null;
@@ -186,7 +186,9 @@ export async function authorityPdfCaption(draft: AuthoritiesDraft, authorityId: 
   if (!authority || authority.kind !== "case") return draft;
   const pages = (await authorityPdfText({ bytes, maxPages: 2 })).pageTextByPage;
   const other = openingOtherCase(draft, authority, pages);
-  const name = other ? null : captionStyleOfCause(pages[0] ?? "", structureNative().a2ajAliasGroups(a2ajStorePath(), authorityCitationForms(draft, authorityId)).flatMap(({ keys }) => keys));
+  const native = structureNative();
+  const name = other ? null : captionStyleOfCause(pages[0] ?? "", native.a2ajAliasGroups(a2ajStorePath(),
+    native.citationLookupKeys(authorityCitationForms(draft, authorityId))).flatMap(({ keys }) => keys));
   if (!other && !name) return draft;
   const mismatch = other ? { id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, other.citation, other.name]),
     ...other, named: null } : caseNameMismatch(authority, { citation: authority.citation, name, searchText: () => pages.join("\n") });

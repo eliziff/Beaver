@@ -12,7 +12,7 @@ const checkout = path.resolve(import.meta.dirname, "..");
 /** The environment every build of the workspace (this checkout's, or `root`'s) runs in: four jobs (crates and a crate's
  * codegen units in parallel; one job compiled the whole stack on one core, and the job count is no part of a crate's
  * build identity, so it rebuilds nothing), no flags of the caller's, paths remapped. */
-export function cargoEnv(root = checkout) {
+export function cargoEnv(root = checkout, target) {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
         !key.startsWith("CARGO_PROFILE_") && !(key.startsWith("CARGO_TARGET_") && /_(RUSTFLAGS|LINKER)$/.test(key)) &&
         !["RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
@@ -24,12 +24,16 @@ export function cargoEnv(root = checkout) {
         [process.env.RUSTUP_HOME ?? path.join(homedir(), ".rustup"), "/rustup"],
         [process.env.CARGO_HOME ?? path.join(homedir(), ".cargo"), "/cargo"], [root, "/workspace"]]
         .map(([from, to]) => `--remap-path-prefix=${from}=${to}`).join("\x1f");
+    // The browser build uses SIMD for memchr and the regex prefilters.
+    if (target === "wasm32-wasip1") env.CARGO_ENCODED_RUSTFLAGS += "\x1f-Ctarget-feature=+simd128";
     return env;
 }
 
 /** Cargo with these arguments, from the workspace root, yielding to interactive work; its exit code becomes ours. */
 export function cargo(args) {
-    const child = spawn("cargo", args, { cwd: checkout, env: cargoEnv(), stdio: "inherit" });
+    const targetAt = args.indexOf("--target");
+    const target = targetAt >= 0 ? args[targetAt + 1] : args.find(arg => arg.startsWith("--target="))?.slice(9);
+    const child = spawn("cargo", args, { cwd: checkout, env: cargoEnv(checkout, target), stdio: "inherit" });
     child.once("spawn", () => setPriority(child.pid, constants.priority.PRIORITY_BELOW_NORMAL));
     child.once("error", error => { console.error(error.message); process.exitCode = 1; });
     child.once("exit", code => { process.exitCode = code ?? 1; });

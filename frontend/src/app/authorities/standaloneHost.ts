@@ -286,14 +286,16 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     }
     let state: AuthoritiesDraft;
     if (source.kind === "file") {
-      const binding = await bindStandaloneFile(source.selected.file, source.selected.input);
       const extension = source.selected.file.name
         .split(".").at(-1)?.toLowerCase();
       if (extension !== "pdf" && extension !== "docx") throw new Error("Add a PDF or Word document.");
       const form: AuthoritiesRequest = {}; form.files = [source.selected.file];
       form["modified"] = String(source.selected.file.lastModified);
       if (settings) form["settings"] = settings;
-      state = await runtimeDraft("import", form);
+      const [imported, binding] = await Promise.all([
+        runtimeDraft("import", form), bindStandaloneFile(source.selected.file, source.selected.input),
+      ]);
+      state = imported;
       state.bindings.source = binding;
     } else state = await runtimeDraft("create", { settings });
     return standaloneWorkProducts.create<AuthoritiesDraft>({ kind: "authorities", title, state });

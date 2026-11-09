@@ -108,7 +108,9 @@ export type NativeAuthorityTextUnit = {
   key: string;
   kind: "body" | "footnote";
   ordinal: number;
+  /** The note's identity among the document's notes, independent of its printed number. */
   footnote_id: number | null;
+  /** Its printed number; omitted or null for an author's symbol note or an unnumbered note. */
   note_number?: number | null;
   /** The mark a Word footnote prints in place of a number (customMarkFollows), as written. */
   note_mark?: string | null;
@@ -393,7 +395,7 @@ type StructureAddon = {
     aliases?: string[] }): number[];
   /** Each citation's exact aliases and authored forms in the store's inventory; its own key alone where there is
    *  no store. */
-  a2ajAliasGroups(store: string, citations: string[]): Array<{ keys: string[]; forms: string[]; ambiguous: boolean }>;
+  a2ajAliasGroups(store: string, keys: string[]): Array<{ keys: string[]; forms: string[]; ambiguous: boolean }>;
   /** The citation of the one decision the store holds under a style of cause, in a year, of one of `courts` (any
    *  where none): a decision cited by an identifier A2AJ does not carry. Null where none answers, or several. */
   a2ajNamedCase(store: string, named: { name: string; year: string; courts: string[] }): string | null;

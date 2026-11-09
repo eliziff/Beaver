@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { structureNative } from "../structureNative";
 import { renderAuthoritySourcePdf } from "../authoritiesBuild";
 import { sha256 } from "../hash";
+import { provenBlockLocator } from "../documentLocators";
 
 /** A PDF read as the engine reads a stored source. */
 const opened = async (bytes: Buffer) => (await structureNative().openSource(bytes, { documentId: "test",
@@ -92,6 +93,20 @@ it.skipIf(!process.env.LEGAL_STRUCTURE_LATIMER_PDF)("resolves the original Latim
       expect(Math.abs(coordinate - bounds[index][axis])).toBeLessThan(2));
     expect(page.text).not.toMatch(/Legislation|Issues|questions en litige/);
   });
+});
+
+it.skipIf(!process.env.LEGAL_STRUCTURE_BCE_PDF)("serves BCE's original footer notes through public document and evidence reads", async () => {
+  const bytes = readFileSync(process.env.LEGAL_STRUCTURE_BCE_PDF!), native = structureNative();
+  expect(sha256(bytes)).toBe("40941dbae64682c658781dd5ebb49e1dd4ea7c46306e0aa57f2abfcd52a52c85");
+  const document = await opened(bytes);
+  const notes = native.readDocumentRange(document, "footnote", "89", "90", 0);
+  expect(notes?.selected).toHaveLength(2);
+  for (const [index, note] of notes!.selected.entries()) {
+    expect(note.node.kind).toBe("footnote");
+    expect(note.node.page_indexes).toEqual([62]);
+    expect(note.text).toContain(index ? "small localised cable networks" : "sources of all headline data");
+    expect(provenBlockLocator(document, note, note.span)).toMatchObject({ kind: "footnote", label: String(89 + index) });
+  }
 });
 
 it("locates a rebuilt statute's sections and subsections, and reads its pages in one call", async () => {
