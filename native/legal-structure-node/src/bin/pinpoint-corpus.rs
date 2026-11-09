@@ -159,7 +159,7 @@ mod corpus {
     fn read_pdf(bytes: &[u8], sha: &str, cache: &Path, ocr: Option<&Path>) -> Result<Reading, String> {
         let request = request_of(sha, cache, ocr)?;
         let document = engine::derive_pdf_document(bytes, &request).map_err(|failure| failure.message)?;
-        let summary = engine::pdf_document_summary(&document)?;
+        let summary = engine::pdf(&document)?.summary();
         let (pages, scanned) = (summary.page_count, summary.pages_needing_ocr.len().max(summary.scanned_pages.len()));
         let nodes = &document.structure().nodes;
         let furniture: HashSet<&str> = nodes.iter().filter_map(|node| node.id.split_once(':'))
@@ -942,7 +942,7 @@ mod corpus {
         // A reading the caches hold runs no reader: where its dumps are asked for, the document is read again from its
         // cached extraction (LEGALPDF_ABLATE set to a name no reader takes keys the reader's cache apart).
         if std::env::var_os("LEGALPDF_JUDGMENT_STREAM").is_some() {
-            let key = engine::pdf_document_summary(&document).expect("summary").cache_key.clone();
+            let key = engine::pdf(&document).expect("a PDF").summary().cache_key.clone();
             let _ = fs::remove_file(cache.join("parse-v1").join("documents").join(format!("{key}.json.gz")));
             document = engine::derive_pdf_document(&bytes, &request_of(&job.sha, cache, ocr).expect("request")).expect("derive");
         }

@@ -267,7 +267,6 @@ type StructureAddon = {
   sourceText(bytes: Buffer, request: unknown): Promise<string>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfRecognizedText(document: NativeDocument, pages?: number[]): NativePdfTextPage[] | null;
-  pdfPageLabels(document: NativeDocument): Array<string | null>;
   /** Each page's printed number: the structure's, anchored on the first pages of the reports `citations` cite. */
   pdfPageMap(document: NativeDocument, citations: string[]): PdfPageBinding[];
   /** The first pages of the reports `citations` cite. */

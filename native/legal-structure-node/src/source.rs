@@ -210,7 +210,7 @@ fn open_pdf(
         serde_json::from_value::<legalpdf::PdfRequest>(Value::Object(pdf)).map_err(|error| Failure::from(error.to_string()))
     };
     let parsed = |document: crate::engine::NativeDocument| -> Result<Read, Failure> {
-        let cached = crate::engine::pdf_document_summary(&document)?.cache_key.clone();
+        let cached = crate::engine::pdf(&document)?.summary().cache_key.clone();
         Ok(Read { keys: vec![key(&cached)], document: Arc::new(document), keep: true })
     };
     // A converted source's PDF is read as itself; its document is kept as the source's.

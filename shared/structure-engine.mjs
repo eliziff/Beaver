@@ -20,7 +20,7 @@ export const SIGNATURES = {
   // A stored source read as its document (none where the engine keeps none and no bytes are given), or as its text.
   openSource: ["bytes", "request"], sourceText: ["bytes", "request"],
   pdfDocumentSummary: ["document"], pdfRecognizedText: ["document", "pages"],
-  pdfAuthorityTextUnits: ["document"], pdfPageLabels: ["document"], pdfPageMap: ["document", "citations"], pdfPageTexts: ["document"],
+  pdfAuthorityTextUnits: ["document"], pdfPageMap: ["document", "citations"], pdfPageTexts: ["document"],
   reporterStartPages: ["citations"],
   pdfPassageGeometryPages: ["document", "targets"],
   briefOccurrencePages: ["pages", "units"],

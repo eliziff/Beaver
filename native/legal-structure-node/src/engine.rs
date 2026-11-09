@@ -396,10 +396,11 @@ mod pdf {
     use super::*;
     use std::collections::HashSet;
 
-    fn pdf_of<'a>(document: &'a NativeDocument, message: &str) -> CoreResult<&'a legalpdf::PdfDocument> {
+    /// The PDF a document was read from; none for a document of another format.
+    pub fn pdf(document: &NativeDocument) -> CoreResult<&legalpdf::PdfDocument> {
         match &document.product {
             NativeProduct::Pdf(document) => Ok(document),
-            _ => Err(message.to_owned()),
+            _ => Err("This operation requires a PDF document".to_owned()),
         }
     }
 
@@ -407,27 +408,15 @@ mod pdf {
         Ok(NativeDocument::new(NativeProduct::Pdf(legalpdf::derive_pdf_document(bytes, request)?)))
     }
 
-    pub fn prepare_pdf_document(
-        bytes: &[u8],
-        request: &legalpdf::PdfRequest,
-        progress: legalpdf::RecognitionProgress<'_>,
-    ) -> Result<legalpdf::PdfSummary, Failure> {
-        Ok(legalpdf::prepare_pdf_document_reporting(bytes, request, progress)?)
-    }
-
     pub fn restore_pdf_document(request: &legalpdf::PdfRequest) -> Result<Option<NativeDocument>, Failure> {
         Ok(legalpdf::restore_pdf_document(request)?.map(|document| NativeDocument::new(NativeProduct::Pdf(document))))
-    }
-
-    pub fn pdf_document_summary(document: &NativeDocument) -> CoreResult<&legalpdf::PdfSummary> {
-        Ok(legalpdf::pdf_document_summary(pdf_of(document, "PDF summary requires a PDF document")?))
     }
 
     pub fn pdf_recognized_text(
         document: &NativeDocument,
         pages: Option<Vec<u32>>,
     ) -> CoreResult<impl Serialize + '_> {
-        let document = pdf_of(document, "PDF text geometry requires a PDF document")?;
+        let document = pdf(document)?;
         if let Some(pages) = &pages {
             if pages.is_empty() || pages.len() > 16 || pages.contains(&0) {
                 return Err("Request between 1 and 16 PDF text pages".to_owned());
@@ -439,24 +428,11 @@ mod pdf {
             .collect::<Vec<_>>()))
     }
 
-    pub fn pdf_page_labels(document: &NativeDocument) -> CoreResult<Vec<Option<String>>> {
-        Ok(pdf_of(document, "PDF page labels require a PDF document")?.page_labels())
-    }
-
     /// The document's page map (`PdfDocument::page_map`), anchored on the first pages of the reports `citations` cite.
     pub fn pdf_page_map(document: &NativeDocument, citations: &[String]) -> CoreResult<Vec<legalpdf::PdfPageBinding>> {
         let starts = super::reporter_start_pages(citations);
         let is_citation = |text: &str, page: &str| super::reporter_pages(text).iter().any(|cited| cited == page);
-        Ok(legalpdf::page_map(pdf_of(document, "PDF page maps require a PDF document")?, &starts, &is_citation))
-    }
-
-    /// Every page's text in page order, as a page lookup returns it, in one read.
-    pub fn pdf_page_texts(document: &NativeDocument) -> CoreResult<Vec<String>> {
-        Ok(pdf_of(document, "PDF page text requires a PDF document")?.page_texts())
-    }
-
-    pub fn pdf_authority_text_units(document: &NativeDocument) -> CoreResult<impl Serialize + '_> {
-        Ok(pdf_of(document, "PDF authority text units require a PDF document")?.authority_text_units())
+        Ok(legalpdf::page_map(pdf(document)?, &starts, &is_citation))
     }
 
     #[derive(Deserialize)]
@@ -641,7 +617,7 @@ mod pdf {
         native: &NativeDocument,
         targets: Vec<PassageTarget>,
     ) -> CoreResult<PdfPassagePagesJob> {
-        let document = pdf_of(native, "PDF passage geometry requires a PDF document")?;
+        let document = pdf(native)?;
         let plans = targets
             .into_iter()
             .map(|target| {
@@ -843,9 +819,5 @@ mod pdf {
                 "targets": targets,
             }))
         }
-    }
-
-    pub fn query_pdf_document(document: &NativeDocument, request: &legalpdf::PdfLookupRequest) -> CoreResult<impl Serialize> {
-        Ok(legalpdf::query_pdf_document(pdf_of(document, "PDF query requires a PDF document")?, request))
     }
 }

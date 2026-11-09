@@ -109,7 +109,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         #[cfg(feature = "legalpdf")]
         "derivePdfDocument" => done(engine::derive_pdf_document(bytes, &call.get("request")?).map(store)),
         #[cfg(feature = "legalpdf")]
-        "preparePdfDocument" => done(value(engine::prepare_pdf_document(bytes, &call.get("request")?, progress)?)),
+        "preparePdfDocument" => done(value(legalpdf::prepare_pdf_document_reporting(bytes, &call.get("request")?, progress)
+            .map_err(Failure::from)?)),
         #[cfg(feature = "legalpdf")]
         "restorePdfDocument" => done(engine::restore_pdf_document(&call.get("request")?)
             .map(|document| document.map(store).unwrap_or(Value::Null))),
@@ -117,13 +118,10 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
             .map(|document| document.map(share).unwrap_or(Value::Null))),
         "sourceText" => done(value(source::source_text(bytes, call.get("request")?)?)),
         #[cfg(feature = "legalpdf")]
-        "pdfDocumentSummary" => done(with_document(doc()?, |d| engine::pdf_document_summary(d).and_then(value))),
+        "pdfDocumentSummary" => done(with_document(doc()?, |d| value(engine::pdf(d)?.summary()))),
         #[cfg(feature = "legalpdf")]
         "pdfRecognizedText" => done(with_document(doc()?, |d|
             engine::pdf_recognized_text(d, call.get("pages")?).and_then(value))),
-        #[cfg(feature = "legalpdf")]
-        "pdfPageLabels" => done(with_document(doc()?, |d|
-            engine::pdf_page_labels(d).and_then(value))),
         #[cfg(feature = "legalpdf")]
         "pdfPageMap" => {
             let citations = call.get::<Vec<String>>("citations")?;
@@ -131,10 +129,9 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         }
         "reporterStartPages" => done(value(engine::reporter_start_pages(&call.get::<Vec<String>>("citations")?))),
         #[cfg(feature = "legalpdf")]
-        "pdfPageTexts" => done(with_document(doc()?, |d| engine::pdf_page_texts(d).and_then(value))),
+        "pdfPageTexts" => done(with_document(doc()?, |d| value(engine::pdf(d)?.page_texts()))),
         #[cfg(feature = "legalpdf")]
-        "pdfAuthorityTextUnits" => done(with_document(doc()?, |d|
-            engine::pdf_authority_text_units(d).and_then(value))),
+        "pdfAuthorityTextUnits" => done(with_document(doc()?, |d| value(engine::pdf(d)?.authority_text_units()))),
         #[cfg(feature = "legalpdf")]
         "pdfPassageGeometryPages" => {
             let job = with_document(doc()?, |d| engine::pdf_passage_pages_job(d, call.get("targets")?))?;
@@ -144,7 +141,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         "briefOccurrencePages" => done(value(engine::brief_occurrence_pages(&call.get::<Vec<String>>("pages")?,
             &call.get::<Vec<engine::BriefUnit>>("units")?))),
         #[cfg(feature = "legalpdf")]
-        "queryPdfDocument" => done(with_document(doc()?, |d| engine::query_pdf_document(d, &call.get("request")?).and_then(value))),
+        "queryPdfDocument" => done(with_document(doc()?, |d| value(engine::pdf(d)?.lookup(&call.get("request")?)))),
         "docxStructureLint" => done(with_document(doc()?, |d| engine::docx_structure_lint_json(d).and_then(value))),
         "documentText" => done(with_document(doc()?, |d| value(engine::document_text(d, call.get("limit")?)))),
         "documentTextBytes" => done(with_document(doc()?, |d| value(d.structure().query_text().len()))),
