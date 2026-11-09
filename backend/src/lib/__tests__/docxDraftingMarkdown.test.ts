@@ -6,11 +6,12 @@ import {
   MAX_DRAFTING_DOCX_BYTES,
   MAX_DRAFTING_XML_ENTRY_BYTES,
 } from "../docx/core";
+import { sha256 } from "../hash";
 import { structureNative } from "../structureNative";
 
 const draftingText = async (bytes: Buffer) => {
   const native = structureNative();
-  return native.documentText(await native.deriveDocxDocument(bytes, "test", true));
+  return native.documentText((await native.openSource(bytes, { documentId: "test", versionId: "1", fileType: "docx", sourceSha256: sha256(bytes), mode: "drafting" }))!);
 };
 
 describe("DOCX drafting Markdown", () => {

@@ -1,5 +1,5 @@
 //! pinpoint-corpus: every judgment PDF of every store, its numbered paragraphs read by the product's own calls
-//! (`derive_pdf_document`, its structure's nodes, `pdf_passage_pages_job`), each checked in the process that read it:
+//! (`legalpdf::read_pdf`, its structure's nodes, `PdfDocument::passage_geometry`), each checked in the process that read it:
 //!
 //!   gold    the structure gold store: each gold carries its answer key (`paragraphs`: each number's printings' lines and the
 //!           lines the key speaks for). A cited paragraph is whole when, of the lines the key speaks for, its highlight
@@ -148,18 +148,22 @@ mod corpus {
     /// The product's request for a PDF: the recognition stored for it (OCR/<sha>.json) where there is one, nothing read
     /// again.
     fn request_of(sha: &str, cache: &Path, ocr: Option<&Path>) -> Result<legalpdf::PdfRequest, String> {
-        let mut request = json!({"expected_source_sha256": sha, "id": format!("pin:{sha}"), "cache_dir": cache});
+        let mut request = json!({"expectedSourceSha256": sha, "id": format!("pin:{sha}"), "cacheDir": cache});
         if let Some(stored) = ocr.map(|ocr| ocr.join(format!("{sha}.json"))).filter(|path| path.is_file()) {
             let file = File::open(&stored).map_err(|e| e.to_string())?;
-            request["supplied_ocr"] = serde_json::from_reader(BufReader::new(file)).map_err(|e| e.to_string())?;
+            request["suppliedOcr"] = serde_json::from_reader(BufReader::new(file)).map_err(|e| e.to_string())?;
         }
         serde_json::from_value(request).map_err(|e| e.to_string())
     }
 
+    fn parsed(bytes: &[u8], sha: &str, cache: &Path, ocr: Option<&Path>) -> Result<legalpdf::PdfDocument, String> {
+        legalpdf::read_pdf(Some(bytes), &request_of(sha, cache, ocr)?).map_err(|e| e.to_string())?
+            .ok_or_else(|| "PDF cache miss after parsing source bytes".to_owned())
+    }
+
     fn read_pdf(bytes: &[u8], sha: &str, cache: &Path, ocr: Option<&Path>) -> Result<Reading, String> {
-        let request = request_of(sha, cache, ocr)?;
-        let document = engine::derive_pdf_document(bytes, &request).map_err(|failure| failure.message)?;
-        let summary = engine::pdf(&document)?.summary();
+        let document = parsed(bytes, sha, cache, ocr)?;
+        let summary = document.summary();
         let (pages, scanned) = (summary.page_count, summary.pages_needing_ocr.len().max(summary.scanned_pages.len()));
         let nodes = &document.structure().nodes;
         let furniture: HashSet<&str> = nodes.iter().filter_map(|node| node.id.split_once(':'))
@@ -169,23 +173,21 @@ mod corpus {
             .filter_map(|node| node.label.as_deref()?.parse::<usize>().ok()).max().unwrap_or(0).min(MOST_PARAGRAPHS);
         let targets = (1..=top).map(|n| serde_json::from_value(json!({"id": n.to_string(), "locatorKind": "paragraph", "locator": n.to_string()})))
             .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
-        let geometry = engine::pdf_passage_pages_job(&document, targets)?.compute()?;
+        let geometry = document.passage_geometry(targets);
         let (mut paragraphs, mut unavailable, mut held) = (BTreeMap::new(), 0, HashSet::new());
-        for target in geometry["targets"].as_array().map(Vec::as_slice).unwrap_or_default() {
-            if target["status"] == "unavailable" {
+        for target in &geometry.targets {
+            if target.status == legalpdf::PdfLookupStatus::Unavailable {
                 unavailable += 1;
             }
-            let Some(number) = target["id"].as_str().and_then(|id| id.parse::<usize>().ok()) else { continue };
-            if target["status"] != "found" {
+            let Ok(number) = target.id.parse::<usize>() else { continue };
+            if target.status != legalpdf::PdfLookupStatus::Found {
                 continue;
             }
             let mut lines = Vec::new();
-            for page in target["pages"].as_array().map(Vec::as_slice).unwrap_or_default() {
-                for line in page["lines"].as_array().map(Vec::as_slice).unwrap_or_default() {
-                    let id = line["id"].as_str().unwrap_or_default();
-                    held.insert(id.split(':').next().unwrap_or(id).to_owned());
-                    let rect = |at: usize| line["rect"][at].as_f64().unwrap_or(0.0);
-                    lines.push(Held { page: page["pageNumber"].as_u64().unwrap_or(0), rect: [rect(0), rect(1), rect(2), rect(3)], text: words(line) });
+            for page in &target.pages {
+                for line in &page.lines {
+                    held.insert(line.id.split(':').next().unwrap_or(&line.id).to_owned());
+                    lines.push(Held { page: page.page_number.into(), rect: line.rect, text: words(line) });
                 }
             }
             if !lines.is_empty() {
@@ -198,24 +200,22 @@ mod corpus {
         if let (Some(first), Some(last)) = (printed().min(), printed().max()) {
             let pages_target = serde_json::from_value(json!({"id": "pages", "locatorKind": "page", "locator": "1", "physicalPages": (first..=last).collect::<Vec<_>>()}))
                 .map_err(|e| e.to_string())?;
-            let surface = engine::pdf_passage_pages_job(&document, vec![pages_target])?.compute()?;
-            let lines: Vec<&Value> = items(&surface["targets"][0]["pages"]).iter().flat_map(|page| items(&page["lines"])).collect();
-            let taken = |line: &&Value| held.contains(line["id"].as_str().unwrap_or_default());
+            let surface = document.passage_geometry(vec![pages_target]);
+            let lines: Vec<&legalpdf::PassageLine> = surface.targets[0].pages.iter().flat_map(|page| &page.lines).collect();
+            let taken = |line: &&legalpdf::PassageLine| held.contains(&line.id);
             unheld = lines.iter().filter(|line| !taken(line)).map(|line| stream(&words(line))).filter(|line| !line.is_empty()).collect();
             let (start, end) = (lines.iter().position(|line| taken(&line)).unwrap_or(0), lines.iter().rposition(|line| taken(&line)).unwrap_or(0));
             for line in &lines[start..=end.max(start).min(lines.len().saturating_sub(1))] {
-                let id = line["id"].as_str().unwrap_or_default();
-                if !held.contains(id) && !furniture.contains(id) {
-                    between.push((id.to_owned(), words(line).chars().take(90).collect()));
+                if !held.contains(&line.id) && !furniture.contains(line.id.as_str()) {
+                    between.push((line.id.clone(), words(line).chars().take(90).collect()));
                 }
             }
         }
         Ok(Reading { pages, scanned, paragraphs, unavailable, between, unheld })
     }
 
-    fn words(line: &Value) -> String {
-        line["words"].as_array().map(Vec::as_slice).unwrap_or_default().iter()
-            .filter_map(|word| word["text"].as_str()).collect::<Vec<_>>().join(" ")
+    fn words(line: &legalpdf::PassageLine) -> String {
+        line.words.iter().map(|(text, _)| text.as_str()).collect::<Vec<_>>().join(" ")
     }
 
     // -- the gold ---------------------------------------------------------------------------------------------------
@@ -938,13 +938,13 @@ mod corpus {
         let job = stores("all").into_iter().find(|job| job.sha.starts_with(prefix)).unwrap_or_else(|| panic!("{prefix}: no such PDF"));
         let pdf = job.pdf.as_ref().expect("a PDF");
         let bytes = fs::read(pdf).expect("the PDF");
-        let mut document = engine::derive_pdf_document(&bytes, &request_of(&job.sha, cache, ocr).expect("request")).expect("derive");
+        let mut document = parsed(&bytes, &job.sha, cache, ocr).expect("derive");
         // A reading the caches hold runs no reader: where its dumps are asked for, the document is read again from its
         // cached extraction (LEGALPDF_ABLATE set to a name no reader takes keys the reader's cache apart).
         if std::env::var_os("LEGALPDF_JUDGMENT_STREAM").is_some() {
-            let key = engine::pdf(&document).expect("a PDF").summary().cache_key.clone();
+            let key = document.summary().cache_key.clone();
             let _ = fs::remove_file(cache.join("parse-v1").join("documents").join(format!("{key}.json.gz")));
-            document = engine::derive_pdf_document(&bytes, &request_of(&job.sha, cache, ocr).expect("request")).expect("derive");
+            document = parsed(&bytes, &job.sha, cache, ocr).expect("derive");
         }
         for node in &document.structure().nodes {
             println!("{}", json!([node.id, node.kind, node.label]));

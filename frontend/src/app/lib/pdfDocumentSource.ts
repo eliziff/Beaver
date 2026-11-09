@@ -6,7 +6,7 @@ import type { PdfByteSource } from "@/app/components/shared/views/PdfCanvas";
 const CHUNK = 64 * 1024, MAX_BYTES = 100 * 1024 * 1024;
 export const getDocumentPdfPageLabels = (id: string, versionId?: string | null, signal?: AbortSignal,
   context?: { citations: string[]; sourceSha256: string }) =>
-  apiRequest<{ pageLabels: Array<string | null> }>(pagePath(`/single-documents/${segment(id)}/pdf-page-labels`,
+  apiRequest<{ pageMap: Array<{ label: string | null }> }>(pagePath(`/single-documents/${segment(id)}/pdf-page-labels`,
     { version_id: versionId, ...(context ? { citations: JSON.stringify(context.citations),
       source_sha256: context.sourceSha256 } : {}) }), { signal });
 function representation(response: Response) {

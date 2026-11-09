@@ -9,32 +9,14 @@ import type { AssistantCitation } from "mike/shared/runtime/assistantWire.mjs";
 export type Citation = AssistantCitation;
 export type DocumentCitation = Extract<Citation, { kind: "document" }>;
 type DocumentCitationQuote = DocumentCitation["quotes"][number];
-const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
 function formatCellLocator(sheet?: string, cell?: string): string {
   if (sheet && cell) return `${sheet}!${cell}`;
   return cell ?? sheet ?? "";
 }
+/** A quote's page is the PDF's, from 1, only where it is a number: a page written as text ("iv", "12-13") is the
+ *  printed label the author cited, shown but not navigated to. */
 function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[] {
-  const rangeMatch =
-    typeof entry.page === "string"
-      ? entry.page.match(/^(\d+)\s*-\s*(\d+)$/)
-      : null;
-  if (rangeMatch && entry.quote.includes(PAGE_BREAK_SENTINEL)) {
-    const startPage = parseInt(rangeMatch[1], 10);
-    const endPage = parseInt(rangeMatch[2], 10);
-    const [before, after] = entry.quote.split(PAGE_BREAK_SENTINEL);
-    return [
-      { page: startPage, quote: before.trim() },
-      { page: endPage, quote: after.trim() },
-    ].filter((e) => e.quote.length > 0);
-  }
-  const pageNum =
-    typeof entry.page === "number"
-      ? entry.page
-      : parseInt(String(entry.page), 10);
-  return Number.isFinite(pageNum)
-    ? [{ page: pageNum, quote: entry.quote }]
-    : [{ quote: entry.quote }];
+  return [typeof entry.page === "number" ? { page: entry.page, quote: entry.quote } : { quote: entry.quote }];
 }
 export function getDocumentCitationQuotes(a: Citation): DocumentCitationQuote[] {
   return a.kind === "document"
@@ -78,17 +60,14 @@ export function citationPinpoint(a: Citation): string {
     return `p. ${values[0].replace(/\s*-\s*/gu, "–")}`;
   return values.length > 1 ? `pp. ${values.join(", ")}` : "";
 }
-function cleanCitationQuoteText(rawQuote: string): string {
-  return rawQuote.replaceAll(PAGE_BREAK_SENTINEL, "...");
-}
 export function displayCitationQuote(a: Citation): string {
   if (a.kind === "a2aj" || a.kind === "public_legal") {
     return a.quotes
-      .map((q) => cleanCitationQuoteText(q.quote))
+      .map((q) => q.quote)
       .join(" / ");
   }
   return getDocumentCitationQuotes(a)
-    .map((q) => cleanCitationQuoteText(q.quote))
+    .map((q) => q.quote)
     .filter(Boolean)
     .join(" / ");
 }

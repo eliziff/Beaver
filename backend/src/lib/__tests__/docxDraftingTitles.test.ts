@@ -1,5 +1,6 @@
 import { Paragraph, TextRun } from "docx";
 import { describe, expect, it } from "vitest";
+import { sha256 } from "../hash";
 import { structureNative } from "../structureNative";
 import { docxBytes } from "./support/docxFixtures";
 
@@ -11,7 +12,7 @@ async function text(children: Paragraph[], titleId = "Title") {
     ] },
   });
   const original = Buffer.from(bytes), native = structureNative();
-  const value = native.documentText(await native.deriveDocxDocument(bytes, "title-read-test", true));
+  const value = native.documentText((await native.openSource(bytes, { documentId: "title-read-test", versionId: "1", fileType: "docx", sourceSha256: sha256(bytes), mode: "drafting" }))!);
   expect(bytes).toEqual(original);
   expect(value).toContain("Protected table and ending 42.");
   return value;

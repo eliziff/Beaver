@@ -1,7 +1,7 @@
 import type { Progress } from "./followedRoute";
 import { mapBounded } from "./mapBounded";
 import { authorityCitationForms } from "./authoritiesDomain";
-import { pdfPassageGeometry, structureNative } from "./structureNative";
+import { structureNative } from "./structureNative";
 import { docxToPdf, wordToPdfAvailable } from "./convert";
 import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { readFile } from "node:fs/promises";
@@ -9,7 +9,7 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction, type PdfOpening } from "./authoritiesActions";
-import { authorityPassageTargets, buildAuthorities, citedSourcePages, renderAuthoritySourcePdf,
+import { authorityPassageTargets, buildAuthorities, renderAuthoritySourcePdf,
   type AuthoritiesBuildResult, type BuildSourceText } from "./authoritiesBuild";
 import { attachAuthorityFile, correctedAuthoritiesDraft, gatherAuthoritySources, refreshedAuthoritiesDraft,
   type KeptPdf } from "./authoritiesCore";
@@ -29,7 +29,7 @@ import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
-import { openDocument, PLAIN_PDF, preparePdf } from "./sourceDocument";
+import { openDocument, preparePdf } from "./sourceDocument";
 import { sourceReadings } from "./sourceReadings";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
@@ -504,24 +504,17 @@ export function createAuthoritiesWorkspaceApplication(
           if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,
             `Choose page numbers within the PDF for ${source.filename}.`);
           const citations = authorityCitationForms(draft, authority.id);
-          const bindings = pages ? []
-            : structureNative().pdfPageMap(await openDocument(resolved, PLAIN_PDF), citations);
           const targets = pages ? [] : authorityPassageTargets(draft, authority.id);
           // Page pinpoints locate themselves without any text, so a scan whose passages the
           // geometry cannot find still has its cited pages recognized before the whole PDF.
-          const citedPages = pages ? [] : [...citedSourcePages(draft, authority.id, [],
-            bindings, prepared.pageCount)].map((index) => index + 1);
-          if (!pages && !citedPages.length && targets.some(target => target.locatorKind === "page") &&
-              structureNative().reporterStartPages([...citations]).length) {
+          const citedPages = targets.length ? (await structureNative().pdfPassageGeometry(await openDocument({
+            ...resolved, readBytes: () => bytes, pdfProfile: prepared }), targets, citations)).targets
+            .flatMap(target => target.status === "found" || target.locatorKind === "page" && target.status === "unavailable"
+              ? target.pages.map(page => page.pageNumber) : []) : [];
+          if (!citedPages.length && targets.some(target => target.locatorKind === "page") &&
+              structureNative().reporterStartPages(citations).length) {
             // Let the existing priority OCR pass establish an opening reporter anchor first.
             citedPages.push(...Array.from({ length: Math.min(3, prepared.pageCount) }, (_, index) => index + 1));
-          }
-          const document = targets.length ? await openDocument({ ...resolved, readBytes: () => bytes,
-            pdfProfile: prepared }) : undefined;
-          for (let start = 0; start < targets.length; start += 100) {
-            const geometry = await pdfPassageGeometry(document!, bytes, targets.slice(start, start + 100), citations);
-            citedPages.push(...geometry.targets.flatMap(target => target.status === "found"
-              ? target.pages.map(page => page.pageNumber) : []));
           }
           await enqueueAuthorityOcr({ ...reference, citedPages, pages });
           return { role: source.bindingRole, documentId: resolved.documentId };

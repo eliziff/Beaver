@@ -1,6 +1,7 @@
 import { ImageRun, Paragraph } from "docx";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
+import { sha256 } from "../hash";
 import { structureNative } from "../structureNative";
 import { docxBytes } from "./support/docxFixtures";
 
@@ -20,7 +21,7 @@ async function mixedImageDocument(content: (drawing: string) => string) {
 async function drafting(bytes: Buffer) {
   const original = Buffer.from(bytes);
   const native = structureNative();
-  const text = native.documentText(await native.deriveDocxDocument(bytes, "mixed-image-test", true));
+  const text = native.documentText((await native.openSource(bytes, { documentId: "mixed-image-test", versionId: "1", fileType: "docx", sourceSha256: sha256(bytes), mode: "drafting" }))!);
   expect(bytes).toEqual(original);
   expect(text).toContain("Protected ending 42.");
   return text;

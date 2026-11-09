@@ -60,7 +60,7 @@ const scanNative = (texts: string[]) => {
     pdfAuthorityTextUnits: vi.fn(),
     citationOccurrencesInText: (text: string) => native.citationOccurrencesInText(text),
     authorityReferencesInText: (text: string) => native.authorityReferencesInText(text),
-    citationLookupKey: (text: string) => native.citationLookupKey(text),
+    citationLookupKey: (text: string) => native.citationLookupKeys([text])[0],
   };
 };
 

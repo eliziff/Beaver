@@ -474,7 +474,7 @@ function partLink(draft: AuthoritiesDraft, part: PlacedPart, field: Fields, own 
   const identity = authority?.sourceIdentity;
   if (identity?.provider === "journal") {
     const page = field.page_pinpoints.length
-      ? journalLegalSourceProvider.pageLink(identity.stableSourceId, String(field.page_pinpoints[0])) : null;
+      ? journalLegalSourceProvider.pageLink(identity.stableSourceId, field.page_pinpoints[0]) : null;
     return page ?? identity.externalUrl ?? "";
   }
   if (authority && identity?.provider === "a2aj") {

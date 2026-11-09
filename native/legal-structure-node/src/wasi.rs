@@ -81,6 +81,9 @@ pub unsafe extern "C" fn authorities_free(pointer: *mut u8, length: usize) {
 /// `pointer` must address `length` initialized bytes from `authorities_alloc`.
 #[no_mangle]
 pub unsafe extern "C" fn authorities_call(pointer: *const u8, length: usize) -> *mut u8 {
+    // The module has no load hook of its own: the parsers are given the engine before its first call.
+    static INSTALLED: std::sync::Once = std::sync::Once::new();
+    INSTALLED.call_once(crate::engine::install_structure_analysis);
     let reply = dispatch::call(std::slice::from_raw_parts(pointer, length), None);
     let mut out = Vec::with_capacity(4 + reply.len());
     out.extend_from_slice(&(reply.len() as u32).to_le_bytes());

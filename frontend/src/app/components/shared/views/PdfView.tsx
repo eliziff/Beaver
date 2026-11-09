@@ -13,7 +13,7 @@ export function PdfView({ doc, bytes, revision, ...props }: Omit<PdfCanvasProps,
     if (!doc || props.pageLabels) return;
     const controller = new AbortController();
     void getDocumentPdfPageLabels(doc.document_id, doc.version_id, controller.signal).then(result => {
-      if (!controller.signal.aborted) setDetected({ key, labels: result.pageLabels });
+      if (!controller.signal.aborted) setDetected({ key, labels: result.pageMap.map(page => page.label) });
     }).catch(() => { /* Detection must not prevent reading or physical page navigation. */ });
     return () => controller.abort();
   }, [key, props.pageLabels]);

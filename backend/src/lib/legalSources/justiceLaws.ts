@@ -25,7 +25,7 @@ const CONSTITUTION_ACTS: Record<string, { title: string }> = {
 /** What the engine reads a citation as: an annual statute of Canada's year and chapter, or a
  *  Constitution Act. Its key, not the citation's wording, decides. */
 function claimed(text: string) {
-  const key = structureNative().citationLookupKey(text).replace(/^\d+:/u, "");
+  const key = structureNative().citationLookupKeys([text])[0].replace(/^\d+:/u, "");
   const constitution = CONSTITUTION_ACTS[key];
   if (constitution) return { kind: "constitution" as const, key, ...constitution };
   const [family, jurisdiction, series, year, chapter] = key.split(":");

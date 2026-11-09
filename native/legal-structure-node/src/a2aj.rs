@@ -2,12 +2,12 @@
 //! by citation key, searched and inventoried, and the records A2AJ's API answers with. Each document is read by
 //! legal_structure_features::a2aj and derived here; JavaScript is given its metadata and documents, never its text.
 
-pub use crate::a2aj_lookup::name_key;
+pub use crate::a2aj_lookup::{name_key, Named};
 use crate::a2aj_lookup::{self, datasets, sql};
 use crate::engine::{self, AliasGroup, CoreResult, NativeDocument, StructureRequest};
 use legal_structure_features::a2aj::{self, Answering, Columns, Document, Excerpt, Language, LazyRow, Listing, Metadata, Query, Read,
     Source, StoreRow};
-use legal_structure::{citation_lookup_key, trim_javascript_whitespace as js_trim, ProviderTextInput};
+use legal_structure::{trim_javascript_whitespace as js_trim, ProviderTextInput};
 use regex::Regex;
 use rusqlite::{types::ValueRef, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -125,47 +125,37 @@ fn find(connection: &Connection, lookup: &Lookup) -> CoreResult<Option<i64>> {
         lookup.source_url.as_deref())
 }
 
-/// A decision asked for by its style of cause, its year and the courts that may have decided it.
-#[derive(Deserialize)]
-pub struct Named {
-    name: String,
-    year: String,
-    #[serde(default)]
-    courts: Vec<String>,
-}
-
 /// The citation of the one decision the store holds under a style of cause, dated in the year asked for, of one of
 /// the courts asked for (of any where none is): how a decision cited by an identifier A2AJ does not carry ("1991
 /// CanLII 45 (SCC)") is found, as the Python app's identity_hints does. None where no decision answers, or several.
 pub fn named_case(path: &Path, named: &Named) -> CoreResult<Option<String>> {
-    const COLUMNS: [&str; 5] = ["dataset", "document_date_en", "document_date_fr", "citation_en", "citation_fr"];
-    let key = name_key(&named.name);
-    let year = js_trim(&named.year);
-    if key.is_empty() || year.len() != 4 || !year.bytes().all(|byte| byte.is_ascii_digit()) {
-        return Ok(None);
-    }
     Ok(with_store(path, |connection, _| {
-        let mut statement = connection.prepare_cached(&format!("SELECT {} FROM name_lookup
-             JOIN document ON document.id = name_lookup.document_id
-             WHERE name_lookup.name_key = ? AND document.doc_type = 'cases'",
-            COLUMNS.map(|column| format!("document.{column}")).join(", "))).map_err(sql)?;
-        let rows = statement.query_map([&key], |row| StoreRow::from_query(row, 0, &COLUMNS)).map_err(sql)?
-            .collect::<Result<Vec<_>, _>>().map_err(sql)?;
         let mut citations = BTreeSet::new();
-        for row in &rows {
-            let document = Document::new(row, Source::Store);
-            let court = named.courts.is_empty() || document.field("dataset").map_err(sql)?
-                .is_some_and(|dataset| named.courts.iter().any(|court| court.eq_ignore_ascii_case(&dataset)));
-            let dated = document.language_field("document_date", Language::En).map_err(sql)?
-                .is_some_and(|date| date.starts_with(year));
-            if court && dated {
-                citations.extend(document.language_field("citation", Language::En).map_err(sql)?);
-            }
+        for (_, row) in a2aj_lookup::named_decisions(connection, named)? {
+            citations.extend(Document::new(&row, Source::Store).language_field("citation", Language::En).map_err(sql)?);
         }
-        Ok((citations.len() == 1).then(|| citations.into_iter().next()).flatten())
+        Ok(one(citations))
     })?.flatten())
 }
 
+/// The same of the records A2AJ's API answered a search of the name with.
+pub fn named_record(records: &[Value], named: &Named, language: Language) -> Option<String> {
+    let mut citations = BTreeSet::new();
+    for record in records.iter().filter_map(Value::as_object) {
+        let document = Document::new(record, Source::Api);
+        let Ok(name) = document.language_field("name", language);
+        let Ok(answers) = named.answers(&document, Some(name.as_deref().unwrap_or_default()));
+        if answers {
+            let Ok(citation) = document.citation(language);
+            citations.extend(citation);
+        }
+    }
+    one(citations)
+}
+
+fn one(citations: BTreeSet<String>) -> Option<String> {
+    (citations.len() == 1).then(|| citations.into_iter().next()).flatten()
+}
 /// The store's document with an id, derived once while JavaScript holds it.
 fn by_id(connection: &Connection, path: &Path, stamp: Stamp, id: i64, language: Language) -> CoreResult<Option<Found>> {
     let key = (path.to_owned(), stamp, format!("{id}\0{}", language.code()));
@@ -529,10 +519,8 @@ pub fn alias_groups(path: &Path, citations: &[String]) -> CoreResult<Vec<AliasGr
         let mut forms = connection.prepare_cached(&format!("SELECT {} FROM document WHERE id = ?", FORMS.join(", ")))
             .map_err(sql)?;
         citations.iter().map(|citation| {
-            let key = citation_lookup_key(citation);
-            if key.is_empty() {
-                return Ok(AliasGroup { keys: Vec::new(), forms: Vec::new(), ambiguous: false });
-            }
+            let own = AliasGroup::own(citation);
+            let Some(key) = own.keys.first().cloned() else { return Ok(own) };
             let ids = targets.query_map([&key], |row| row.get::<_, i64>(0)).map_err(sql)?
                 .collect::<Result<Vec<_>, _>>().map_err(sql)?;
             if ids.len() != 1 {
@@ -547,18 +535,11 @@ pub fn alias_groups(path: &Path, citations: &[String]) -> CoreResult<Vec<AliasGr
             keys.sort_by(|left, right| left.encode_utf16().cmp(right.encode_utf16()));
             keys.dedup();
             let forms = match forms.query_row([ids[0]], |row| StoreRow::from_query(row, 0, &FORMS)).optional().map_err(sql)? {
-                Some(row) => {
-                    let document = Document::new(&row, Source::Store).as_written();
-                    let mut written = Vec::new();
-                    for column in FORMS {
-                        written.extend(document.field(column).map_err(sql)?);
-                    }
-                    written
-                }
+                Some(row) => a2aj_lookup::fields(&Document::new(&row, Source::Store).as_written(), &FORMS)?,
                 None => Vec::new(),
             };
             Ok(AliasGroup { keys, forms, ambiguous: false })
         }).collect()
     })?;
-    Ok(found.unwrap_or_else(|| engine::own_alias_groups(citations)))
+    Ok(found.unwrap_or_else(|| citations.iter().map(|citation| AliasGroup::own(citation)).collect()))
 }

@@ -1,7 +1,8 @@
-const ALPHANUMERIC = /[a-zA-Z0-9]/;
+// Letters and digits of any script: an accented letter is part of its word.
+const ALPHANUMERIC = /[\p{L}\p{N}]/u;
 
 export const normalizeQuoteText = (text: string) =>
-    text.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    text.replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
 
 export function strippedToOriginal(text: string, position: number) {
     let count = 0;

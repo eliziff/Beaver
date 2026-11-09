@@ -177,7 +177,7 @@ function ledgerInputs(state: LegalEvidenceTurnState,
       const markerSources = resolved.citations[binding.id].sources.map((source) => {
         const grouped = bySource.get(source.stableId);
         if (!grouped?.length) throw new Error("Citation source is unavailable");
-        const key = structureNative().citationLookupKey(grouped[0].receipt.citation);
+        const key = structureNative().citationLookupKeys([grouped[0].receipt.citation])[0];
         if (!key) throw new Error("Citation identity is unavailable");
         const known = receipts.get(key) ?? [];
         for (const { receipt } of grouped) {

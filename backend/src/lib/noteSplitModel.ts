@@ -11,7 +11,7 @@
 import type { StructuredLlm, StructuredUsage } from "./llm/types";
 import { structureNative } from "./structureNative";
 
-export type ModelPartFields = { corrected: string; kind: string; pinpoint_fragments: string[]; page_pinpoints: number[];
+export type ModelPartFields = { corrected: string; kind: string; pinpoint_fragments: string[]; page_pinpoints: string[];
   short_form: string; bare_citation: string; citation_with_style: string };
 /** A part at its place in its note's text. */
 export type ModelNotePart = { start: number; end: number; text: string; fields: ModelPartFields };
@@ -87,7 +87,8 @@ export const NOTE_SPLIT_SCHEMA = { type: "object", additionalProperties: false, 
   properties: { notes: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "parts"],
     properties: { id: { type: "string" }, parts: { type: "array", items: PART_SCHEMA } } } } } };
 
-type Answered = { verbatim: string } & ModelPartFields;
+/** A part as the model answers it: its page pinpoints numbers, which the engine's fields write as text. */
+type Answered = { verbatim: string } & Omit<ModelPartFields, "page_pinpoints"> & { page_pinpoints?: number[] };
 const emptyUsage = (): StructuredUsage => ({ input_tokens: 0, cached_input_tokens: 0, output_tokens: 0, reasoning_tokens: 0 });
 
 /** Several notes per request (at most `batchNotes`, and about `batchChars` of text), `concurrency` requests at
@@ -182,7 +183,7 @@ export function placeParts(text: string, answered: Answered[]): ModelNotePart[] 
   return placed.map(([start, end], index) => {
     const { verbatim: _verbatim, ...fields } = answered[index];
     return { start, end, text: text.slice(start, end), fields: { corrected: fields.corrected ?? "", kind: fields.kind ?? "other",
-      pinpoint_fragments: fields.pinpoint_fragments ?? [], page_pinpoints: (fields.page_pinpoints ?? []).map(Number),
+      pinpoint_fragments: fields.pinpoint_fragments ?? [], page_pinpoints: (fields.page_pinpoints ?? []).map(String),
       short_form: fields.short_form ?? "", bare_citation: fields.bare_citation ?? "", citation_with_style: fields.citation_with_style ?? "" } };
   });
 }

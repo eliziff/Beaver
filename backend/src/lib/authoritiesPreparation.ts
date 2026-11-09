@@ -59,7 +59,6 @@ function sourceReading(draft: AuthoritiesDraft, readings?: SourceReadings) {
     const contextPages = [...new Set(context(false)?.flatMap(({ status, pages }) =>
       status === "found" ? pages.map(({ pageNumber }) => pageNumber - 1) : []))];
     return { pageTextByPage: result.pageTextByPage,
-      ...(result.pageLabels ? { pageLabels: result.pageLabels, pageBindings: result.pageBindings } : {}),
       ...(result.ocrTextByPage.some(Boolean) ? { ocrTextByPage: result.ocrTextByPage } : {}),
       ...(result.passageGeometry ? { passageGeometry: { ...result.passageGeometry, targets: context(true)! } } : {}),
       ...(contextPages.length ? { contextPages } : {}) };
@@ -84,7 +83,7 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft, readings?:
         if (input.signal?.aborted) throw error;
         return [];
       }) : [];
-      return { ...(textRoles.has(role) ? await readText(role, input) : { pageBindings: undefined }),
+      return { ...(textRoles.has(role) ? await readText(role, input) : {}),
         ...(outline.length ? { outline } : {}) };
     },
   };

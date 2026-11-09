@@ -1,4 +1,3 @@
-import { citedSourcePages } from "../../../../shared/cited-source-pages.mjs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { inspectPdf, type PdfInspection } from "@/app/lib/inspectPdf";
 import { authorityName } from "./authorityPresentation";
@@ -6,7 +5,7 @@ import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
-export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[]; priorityPages?: number[]; demand?: string };
+export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[]; demand?: string };
 /** `pages` is the pass being read now (empty for the whole PDF); `recognized` is what it has finished. Asked for, a
  *  source is starting; once the host has it, it waits behind other sources or runs. */
 export type SourceOcrStatus = ScannedPdf & { documentId?: string; pages?: number[]; recognized: number; error?: string;
@@ -37,8 +36,8 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
         ? current[file.role].recognized : 0,
         state: "starting" as const, pages: pages ?? [], error: undefined }])) }));
     await (pending.current = pending.current.then(async () => (await Promise.all(files.filter(file => operations.current.get(file.role) === operation).map(file => {
-      const selection = pages ?? file.priorityPages;
-      return port.start(draftId, [file.role], selection?.length ? selection : undefined, {[file.role]:file.textlessPages});
+      // Without pages asked for, the host recognizes the cited pages first, then the rest.
+      return port.start(draftId, [file.role], pages?.length ? pages : undefined, {[file.role]:file.textlessPages});
     }))).flat())
       .then((started) => update(Object.fromEntries(started.map((item) => [item.role,
         { documentId: item.documentId, state: item.done ? "done" as const : "running" as const }]))))
@@ -105,8 +104,8 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     reset: useCallback(() => { operations.current.clear(); setTracked({}); }, []) };
 }
 
-/** Reuse native text and page labels when deriving each source's priority pages. */
-type ScanCache = Map<string, Pick<PdfInspection, "textlessPages" | "pageTexts" | "pageLabels" | "pageCount">>;
+/** Each source's pages without text, read once per content. */
+type ScanCache = Map<string, Pick<PdfInspection, "textlessPages" | "pageCount">>;
 
 async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, cache: ScanCache,
   report: (message: string) => void, signal: AbortSignal) {
@@ -137,12 +136,8 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, 
       }
       const textlessPages = inspected.textlessPages;
       if (textlessPages.length) {
-        const labels = inspected.pageLabels ? new Map<string, number[]>() : undefined;
-        inspected.pageLabels?.forEach((label,index) => labels!.set(label,[...(labels!.get(label) ?? []),index]));
-        const priorityPages = [...citedSourcePages(draft.state, id, inspected.pageTexts, labels, inspected.pageCount)]
-          .map(index => index + 1).filter(page => textlessPages.includes(page));
         const file = { role: source.bindingRole, sourceSha256: source.sourceSha256,
-          name: authorityName(authority), textlessPages, priorityPages,
+          name: authorityName(authority), textlessPages,
           demand: canonicalJson([authority.locators, Object.values(draft.state.occurrences)
             .filter(item => item.authorityId === id).map(item => [item.citation, item.pinpoints]),
           draft.state.settings.scannedPdfPolicy]) };

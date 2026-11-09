@@ -254,7 +254,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
             {numPages > 0 && !hidden && (
                 <>
                     <div className="absolute bottom-4 left-4 z-10 max-w-[calc(100%-9rem)]">
-                        <PdfPageNavigation page={currentPage} count={numPages} labels={pageLabels ?? recognizedText?.pageLabels ?? embeddedPageLabels}
+                        <PdfPageNavigation page={currentPage} count={numPages} labels={pageLabels ?? embeddedPageLabels}
                             disabled={!!error || !!viewerError} onNavigate={jumpToPage} />
                     </div>
                     <div className="absolute bottom-4 right-4 z-10 flex items-center gap-px rounded-full border border-gray-200 bg-white p-1 shadow-sm">

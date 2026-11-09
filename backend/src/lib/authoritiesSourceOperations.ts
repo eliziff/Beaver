@@ -2,9 +2,7 @@
  *  attached, its quotations checked and the verifier's workbook and Word copy written. The book of authorities' own
  *  operations are authoritiesOperations.ts's, which an app that builds no book (the ALR Quote Verifier) never loads. */
 import { decodePdfProfileSelection } from "./documentStore";
-import { authorityCitationForms } from "./authoritiesDomain";
-import { openDocument, pdfTextLayer, PLAIN_PDF, preparePdf } from "./sourceDocument";
-import { structureNative } from "./structureNative";
+import { pdfTextLayer, preparePdf } from "./sourceDocument";
 import { wordToPdfAvailable } from "./convert";
 import { reject } from "./applicationError";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
@@ -163,24 +161,6 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
     },
     "pinpoints": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> =>
       value(readPinpoints(input?.text, input?.start, input?.end)),
-    "page-labels": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
-    const state = draft(json(input?.draft, "draft"));
-    const role = String(input?.bindingRole);
-    const authority = Object.values(state.authorities).find(item =>
-      attachedAuthoritySources(item.source).some(source => source.bindingRole === role));
-    const source = authority && attachedAuthoritySources(authority.source).find(item => item.bindingRole === role);
-    if (!authority || !source) return reject(400, "The authority PDF is not attached");
-    const bytes = sourceBytes(requiredSource(input));
-    if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before reading page labels.");
-    const document = await openDocument({
-      documentId: `standalone-authority:${source.sourceSha256}`, versionId: source.sourceSha256,
-      sourceSha256: source.sourceSha256, fileType: "pdf", readBytes: () => bytes,
-    }, PLAIN_PDF);
-    const native = structureNative(), summary = native.pdfDocumentSummary(document);
-    const pageMap = native.pdfPageMap(document, authorityCitationForms(state, authority.id));
-    return value({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr, pageMap, pages: [],
-      pageLabels: pageMap.map(page => page.label) });
-    },
     "create": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     return draftResult( applyAuthoritiesInitialSettings(
       createAuthoritiesDraft({ kind: "manual" }), initialSettings(input?.settings),

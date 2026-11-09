@@ -112,10 +112,11 @@ export function createDocumentsRouter(
       text = native.documentText(document), pages = source.fileType === "pdf"
         ? native.documentAnchors(document, "page", text.length) : [];
     res.setHeader("Cache-Control", "private, no-store");
+    // Each slice's page is the PDF's, from 1, as the text layer numbers it.
     res.json({ revision: native.documentRevision(document), slices: (pages.length
-      ? pages.map(({ node, ranges }) => ({ ranges, label: node.label ?? "" }))
-      : [{ ranges: [{ start: 0, end: text.length }], label: "1" }]).flatMap(({ ranges, label }) =>
-        ranges.map(({ start, end }) => ({ start, end, text: text.slice(start, end), page: Number(label) }))) });
+      ? pages.map(({ node, ranges }, index) => ({ ranges, page: (node.page_indexes?.[0] ?? index) + 1 }))
+      : [{ ranges: [{ start: 0, end: text.length }], page: 1 }]).flatMap(({ ranges, page }) =>
+        ranges.map(({ start, end }) => ({ start, end, text: text.slice(start, end), page }))) });
   }));
 
   router.get("/:documentId/pdf-text-layer", asyncRoute(async (req, res) => {
@@ -148,8 +149,7 @@ export function createDocumentsRouter(
       citations = z.array(z.string().max(2000)).max(50).parse(
         req.query.citations ? JSON.parse(z.string().max(100_000).parse(req.query.citations)) : []);
     } catch { reject(400, "Invalid citation context"); }
-    const pageMap = structureNative().pdfPageMap(await openDocument(source, PLAIN_PDF), citations);
-    res.json({ pageLabels: pageMap.map(entry => entry.label), pageMap });
+    res.json({ pageMap: structureNative().pdfPageMap(await openDocument(source, PLAIN_PDF), citations) });
   }));
 
   router.post(

@@ -4,11 +4,12 @@
 //! then linked by the decision's neutral citation. Only a name the store keys exactly, in one decision of that court
 //! and year, finds it. The engine (a2aj.rs) and the store's census bins read the store through these.
 
-use legal_structure_features::a2aj::{Document, Source, StoreRow};
+use legal_structure_features::a2aj::{Columns, Document, Language, Source, StoreRow};
 use legal_structure::{citation_lookup_key, javascript_whitespace, reporter_decision, trim_javascript_whitespace as js_trim,
     ReporterDecision, JS_WHITESPACE_CLASS};
 use regex::Regex;
 use rusqlite::{Connection, OptionalExtension};
+use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
@@ -16,9 +17,8 @@ pub fn sql(error: rusqlite::Error) -> String {
     error.to_string()
 }
 
-/// The fields of an eagerly read row that are text.
-pub fn fields(row: &StoreRow, columns: &[&str]) -> Result<Vec<String>, String> {
-    let document = Document::new(row, Source::Store);
+/// The fields of a document of the store that are text.
+pub fn fields(document: &Document<StoreRow>, columns: &[&str]) -> Result<Vec<String>, String> {
     let mut values = Vec::new();
     for column in columns {
         values.extend(document.field(column).map_err(sql)?);
@@ -81,10 +81,11 @@ pub fn find(connection: &Connection, citation: &str, doc_type: Option<&str>, dat
     let only = |chosen: Vec<i64>| (chosen.len() == 1).then(|| chosen[0]);
     let (mut cited, mut named) = (Vec::new(), Vec::new());
     for (id, row) in &rows {
-        if fields(row, &CITATIONS)?.iter().any(|own| folded(own) == written) {
+        let document = Document::new(row, Source::Store);
+        if fields(&document, &CITATIONS)?.iter().any(|own| folded(own) == written) {
             cited.push(*id);
         }
-        if fields(row, &NAMES)?.iter().any(|name| folded(name).len() > 3 && written.contains(&folded(name))) {
+        if fields(&document, &NAMES)?.iter().any(|name| folded(name).len() > 3 && written.contains(&folded(name))) {
             named.push(*id);
         }
     }
@@ -127,26 +128,44 @@ pub fn reporter_indexed(connection: &Connection, key: &str) -> Result<bool, Stri
             .optional()).map(|found| found.is_some()).map_err(sql)
 }
 
-/// The decisions of the citation's court and year that bear its name in the store.
-pub fn named_decisions(connection: &Connection, decision: &ReporterDecision) -> Result<Vec<i64>, String> {
-    const COLUMNS: [&str; 3] = ["dataset", "document_date_en", "document_date_fr"];
-    let key = name_key(&decision.name);
+/// A decision asked for by its style of cause, its year and the courts that may have decided it (any where none).
+#[derive(Deserialize)]
+pub struct Named {
+    pub name: String,
+    pub year: String,
+    #[serde(default)]
+    pub courts: Vec<String>,
+}
+
+impl Named {
+    /// Whether a decision answers: its style of cause keyed as the name asked for, dated in the year, of one of the
+    /// courts.
+    pub fn answers<C: Columns + ?Sized>(&self, document: &Document<C>, name: Option<&str>) -> Result<bool, C::Error> {
+        let year = js_trim(&self.year);
+        if year.len() != 4 || !year.bytes().all(|byte| byte.is_ascii_digit())
+            || name.is_some_and(|name| name_key(name) != name_key(&self.name)) {
+            return Ok(false);
+        }
+        let court = self.courts.is_empty() || document.field("dataset")?
+            .is_some_and(|dataset| self.courts.iter().any(|court| court.eq_ignore_ascii_case(&dataset)));
+        Ok(court && document.language_field("document_date", Language::En)?.is_some_and(|date| date.starts_with(year)))
+    }
+}
+
+/// The decisions the store holds under a style of cause that answer `named`, with their citations.
+pub fn named_decisions(connection: &Connection, named: &Named) -> Result<Vec<(i64, StoreRow)>, String> {
+    const COLUMNS: [&str; 5] = ["dataset", "document_date_en", "document_date_fr", "citation_en", "citation_fr"];
+    let key = name_key(&named.name);
     if key.is_empty() { return Ok(Vec::new()); }
-    let mut statement = connection.prepare_cached("SELECT document.id, document.dataset, document.document_date_en,
-        document.document_date_fr FROM name_lookup JOIN document ON document.id = name_lookup.document_id
-        WHERE name_lookup.name_key = ? AND document.doc_type = 'cases'").map_err(sql)?;
+    let mut statement = connection.prepare_cached(&format!("SELECT document.id, {} FROM name_lookup
+        JOIN document ON document.id = name_lookup.document_id WHERE name_lookup.name_key = ? AND document.doc_type = 'cases'",
+        COLUMNS.map(|column| format!("document.{column}")).join(", "))).map_err(sql)?;
     let rows = statement.query_map([&key], |row| Ok((row.get::<_, i64>(0)?, StoreRow::from_query(row, 1, &COLUMNS)?)))
         .and_then(|rows| rows.collect::<Result<Vec<_>, _>>()).map_err(sql)?;
     let mut found = Vec::new();
-    for (id, row) in &rows {
-        let document = Document::new(row, Source::Store);
-        let court = document.field("dataset").map_err(sql)?
-            .is_some_and(|dataset| decision.courts.iter().any(|court| court.eq_ignore_ascii_case(&dataset)));
-        let year = |column| document.field(column).map_err(sql)
-            .map(|date| date.and_then(|date| date.get(..4).and_then(|year| year.parse::<i32>().ok())));
-        let year = match year("document_date_en")? { Some(year) => Some(year), None => year("document_date_fr")? };
-        if court && year == Some(decision.year) {
-            found.push(*id);
+    for (id, row) in rows {
+        if named.answers(&Document::new(&row, Source::Store), None).map_err(sql)? {
+            found.push((id, row));
         }
     }
     Ok(found)
@@ -155,11 +174,13 @@ pub fn named_decisions(connection: &Connection, decision: &ReporterDecision) -> 
 /// The one decision a reporter citation names by its style, year and court, among `datasets` where any are given,
 /// where the store does not index its reporter.
 pub fn find_by_name(connection: &Connection, citation: &str, datasets: &[String]) -> Result<Option<i64>, String> {
-    let Some(mut decision) = reporter_decision(citation) else { return Ok(None) };
+    let Some(ReporterDecision { name, year, mut courts, .. }) = reporter_decision(citation) else { return Ok(None) };
     if reporter_indexed(connection, &citation_lookup_key(citation))? { return Ok(None); }
     if !datasets.is_empty() {
-        decision.courts.retain(|court| datasets.iter().any(|dataset| dataset.eq_ignore_ascii_case(court)));
+        courts.retain(|court| datasets.iter().any(|dataset| dataset.eq_ignore_ascii_case(court)));
     }
-    let found = named_decisions(connection, &decision)?;
-    Ok((found.len() == 1).then(|| found[0]))
+    // A citation of no court asked for names none.
+    if courts.is_empty() { return Ok(None); }
+    let found = named_decisions(connection, &Named { name, year: year.to_string(), courts })?;
+    Ok((found.len() == 1).then(|| found[0].0))
 }

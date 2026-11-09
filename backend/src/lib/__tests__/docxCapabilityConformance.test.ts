@@ -11,12 +11,13 @@ import { docxXml as packageXml } from "./support/docxFixtures";
 import { renderDocxMarkdown } from "../chat/tools/docxMarkdown";
 import { projectDocxRedline } from "../docx/redline";
 import { extractDocxBodyText } from "../docxTrackedChanges";
+import { sha256 } from "../hash";
 import { structureNative } from "../structureNative";
 import { pathologyFixtureBuilders as fixtures } from "./fixtures/docx-pathologies/generate";
 
 const draftingText = async (bytes: Buffer) => {
   const native = structureNative();
-  return native.documentText(await native.deriveDocxDocument(bytes, "test", true));
+  return native.documentText((await native.openSource(bytes, { documentId: "test", versionId: "1", fileType: "docx", sourceSha256: sha256(bytes), mode: "drafting" }))!);
 };
 
 const REPO_ROOT = path.join(__dirname, "..", "..", "..", "..");

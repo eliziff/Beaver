@@ -16,10 +16,11 @@ const MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 const KEPT: usize = 8;
 
 /// A source as the engine reads it: whose version it is, its file type, the hash its bytes must have, and how it is
-/// read: a Word document's text, drafting or redline view, a PDF's parse request (legalpdf::PdfRequest's fields: its
-/// profile, cache and pages, and the reading it names by cache key). A Word or PowerPoint binary (doc, ppt) comes as
-/// the PDF converted from it.
+/// read: a Word document's text, drafting or redline view, a PDF's parse request (`legalpdf::PdfRequest`: its profile,
+/// cache and pages, and the reading it names by cache key; the engine names the document and its hash). A Word or
+/// PowerPoint binary (doc, ppt) comes as the PDF converted from it.
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SourceRequest {
     document_id: String,
     version_id: String,
@@ -28,11 +29,12 @@ pub struct SourceRequest {
     #[serde(default)]
     mode: Mode,
     #[serde(default)]
-    pdf: serde_json::Map<String, serde_json::Value>,
+    pdf: serde_json::Value,
 }
 
 /// What text is read of a source: with `drafting`, a Word document's drafting text; at most `limit` UTF-16 units.
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TextRequest {
     file_type: String,
     source_sha256: String,
@@ -120,24 +122,28 @@ pub fn source_text(bytes: &[u8], request: TextRequest) -> Result<String, Failure
     if format == Format::Docx {
         #[cfg(feature = "docx")]
         {
-            let read = |drafting| crate::engine::docx_text(bytes, drafting, request.limit);
+            let read = |drafting| legalpdf::docx_text(bytes, drafting).map_err(|error| error.to_string());
             let text = if request.drafting { read(true).or_else(|_| read(false)) } else { read(false) }?;
-            return output_bounded(text);
+            return output_bounded(limited(text, request.limit));
         }
         #[cfg(not(feature = "docx"))]
         return Err("Word documents require the engine's DOCX reader".into());
     }
-    let text = output_bounded(format_text(format, &request.file_type, bytes)?)?;
-    Ok(match request.limit {
-        Some(limit) => utf16_prefix_ceil(&text, limit as usize).to_owned(),
-        None => text,
-    })
+    output_bounded(limited(format_text(format, &request.file_type, bytes)?, request.limit))
+}
+
+fn limited(mut text: String, limit: Option<u32>) -> String {
+    if let Some(limit) = limit {
+        text.truncate(utf16_prefix_ceil(&text, limit as usize).len());
+    }
+    text
 }
 
 /// The document a source reads as: one the engine keeps, a PDF reading its parser cached under the cache key asked
 /// for, or, given the source's bytes, the source read afresh (a PDF named by a cache key no longer kept is parsed again
 /// with the profile it was asked with). Without bytes, none where the engine keeps none: the caller reads the bytes and
 /// asks again.
+#[cfg_attr(not(feature = "legalpdf"), allow(unused_variables))]
 pub fn open_source(bytes: &[u8], request: SourceRequest) -> Result<Option<Arc<NativeDocument>>, Failure> {
     let format = format_of(&request.file_type)?;
     let SourceRequest { document_id, version_id, file_type, source_sha256, mode, pdf } = request;
@@ -189,56 +195,52 @@ pub fn open_source(bytes: &[u8], request: SourceRequest) -> Result<Option<Arc<Na
 }
 
 /// A PDF's reading: kept by the cache key its parse has, and, read by a profile, by that request too. A request for
-/// some pages is served by the whole document's reading where one is kept.
+/// some pages is served by the whole document's reading where one is kept. A converted source's PDF is read as itself
+/// (its hash is its own, not the source's); its document is kept as the source's.
 #[cfg(feature = "legalpdf")]
 fn open_pdf(
     bytes: &[u8],
     format: Format,
     id: &str,
     source_sha256: &str,
-    mut pdf: serde_json::Map<String, serde_json::Value>,
+    pdf: serde_json::Value,
     key: impl Fn(&str) -> String,
 ) -> Result<Option<Arc<NativeDocument>>, Failure> {
-    use serde_json::Value;
-    let cache_key = pdf.remove("cache_key").and_then(|value| value.as_str().map(str::to_owned));
-    pdf.insert("id".to_owned(), id.into());
-    let request = |mut pdf: serde_json::Map<String, Value>, sha256: &str, cache_key: Option<&str>| {
-        pdf.insert("expected_source_sha256".to_owned(), sha256.into());
-        if let Some(cache_key) = cache_key {
-            pdf.insert("cache_key".to_owned(), cache_key.into());
-        }
-        serde_json::from_value::<legalpdf::PdfRequest>(Value::Object(pdf)).map_err(|error| Failure::from(error.to_string()))
-    };
-    let parsed = |document: crate::engine::NativeDocument| -> Result<Read, Failure> {
-        let cached = crate::engine::pdf(&document)?.summary().cache_key.clone();
-        Ok(Read { keys: vec![key(&cached)], document: Arc::new(document), keep: true })
-    };
-    // A converted source's PDF is read as itself; its document is kept as the source's.
-    let parse = |pdf: serde_json::Map<String, Value>| -> Result<Option<Read>, Failure> {
+    let mut request = serde_json::from_value::<legalpdf::PdfRequest>(pdf.clone()).map_err(|error| Failure::from(error.to_string()))?;
+    request.id = Some(id.to_owned());
+    request.expected_source_sha256 = (format == Format::Pdf).then(|| source_sha256.to_owned());
+    let document = |document: legalpdf::PdfDocument| Arc::new(NativeDocument::new(NativeProduct::Pdf(document)));
+    let parse = |request: &legalpdf::PdfRequest| -> Result<Option<Read>, Failure> {
         if bytes.is_empty() {
             return Ok(None);
         }
-        let sha256 = if format == Format::Converted { format!("{:x}", Sha256::digest(bytes)) } else { source_sha256.to_owned() };
-        parsed(crate::engine::derive_pdf_document(bytes, &request(pdf, &sha256, None)?)?).map(Some)
+        let parsed = legalpdf::read_pdf(Some(bytes), request)?.ok_or("PDF cache miss after parsing source bytes")?;
+        Ok(Some(Read { keys: vec![key(&parsed.summary().cache_key)], document: document(parsed), keep: true }))
     };
-    if let Some(cache_key) = cache_key.filter(|_| format == Format::Pdf) {
+    if let Some(cache_key) = request.cache_key.clone().filter(|_| format == Format::Pdf) {
         return read_once(&key(&cache_key), || {
-            if let Some(document) = crate::engine::restore_pdf_document(&request(pdf.clone(), source_sha256, Some(&cache_key))?)? {
-                return Ok(Some(Read { document: Arc::new(document), keys: Vec::new(), keep: true }));
+            if let Some(cached) = legalpdf::read_pdf(None, &request)? {
+                return Ok(Some(Read { document: document(cached), keys: Vec::new(), keep: true }));
             }
             // Parsed again, it may have a cache key of its own: it is kept by that one.
-            Ok(parse(pdf)?.map(|read| Read { keep: false, ..read }))
+            request.cache_key = None;
+            Ok(parse(&request)?.map(|read| Read { keep: false, ..read }))
         });
     }
-    let reading = |pdf: &serde_json::Map<String, Value>| format!("request:{}", Value::Object(pdf.clone()));
-    if pdf.contains_key("pages") {
-        let mut whole = pdf.clone();
-        whole.remove("pages");
-        if let Some(document) = kept(&key(&reading(&whole))) {
+    request.cache_key = None;
+    // What the PDF is read as: the request, its pages apart.
+    let mut whole = pdf;
+    if let Some(fields) = whole.as_object_mut() {
+        fields.remove("pages");
+        fields.remove("cacheKey");
+    }
+    let reading = |pages: Option<&[usize]>| key(&format!("request:{whole}:{pages:?}"));
+    if request.ocr_pages.is_some() {
+        if let Some(document) = kept(&reading(None)) {
             return Ok(Some(document));
         }
     }
-    read_once(&key(&reading(&pdf)), || parse(pdf.clone()))
+    read_once(&reading(request.ocr_pages.as_deref()), || parse(&request))
 }
 
 /// A document read, the keys it is also kept by, and whether it is kept by the one it was asked by.

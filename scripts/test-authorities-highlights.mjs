@@ -11,7 +11,8 @@ const root = path.resolve(import.meta.dirname, '..');
 process.chdir(path.join(root, 'frontend'));
 const require = createRequire(path.join(root, 'backend/package.json'));
 const express = require('express'), pdf = require('pdf-lib');
-const { structureNative, pdfPassageGeometry } = require('../backend/dist/lib/structureNative');
+const { structureNative } = require('../backend/dist/lib/structureNative');
+const { sha256 } = require('../backend/dist/lib/hash');
 const { prepareAuthorityAnnotations, buildAuthorities } = require('../backend/dist/lib/authoritiesBuild');
 const { reduceAuthoritiesDraft } = require('../backend/dist/lib/authoritiesDomain');
 const keepOutputs = process.argv.includes('--keep-outputs') || !!process.env.AUTHORITIES_HIGHLIGHT_OUTPUT;
@@ -23,10 +24,11 @@ api.post('/prepare', async (req, res, next) => {
   try {
     const { product, authorityId, bindingRole } = req.body, bytes = Buffer.from(req.body.bytes, 'base64');
     const authority = product.state.authorities[authorityId], source = authority.source.sources.find(s => s.bindingRole === bindingRole);
-    const document = await pdf.PDFDocument.load(bytes), native = await structureNative().derivePdfDocument(bytes, {});
+    const document = await pdf.PDFDocument.load(bytes), native = await structureNative().openSource(bytes, { documentId: 'highlights',
+      versionId: sha256(bytes), fileType: 'pdf', sourceSha256: sha256(bytes), pdf: {} });
     const targets = authorityId === 'text' ? [{ id: '42', locatorKind: 'paragraph', locator: '42',
       exactQuotes: ['First independent quote', 'Second independent quote'] }] : [];
-    const passageGeometry = targets.length ? await pdfPassageGeometry(native, bytes, targets) : undefined;
+    const passageGeometry = targets.length ? await structureNative().pdfPassageGeometry(native, targets) : undefined;
     res.json(prepareAuthorityAnnotations(pdf, document, product.state, authority, source, { passageGeometry }, true));
   } catch (error) { next(error); }
 });

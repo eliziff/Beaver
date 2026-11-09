@@ -1968,7 +1968,7 @@ export function assistantTools<Context extends {
     for (const id of ids) {
       const receipt = legalEvidenceState && legalEvidenceEntry(legalEvidenceState.evidence, id)?.receipt;
       if (!receipt) throw new Error(`Unknown evidence ID: ${id}`);
-      const key = structureNative().citationLookupKey(receipt.citation);
+      const key = structureNative().citationLookupKeys([receipt.citation])[0];
       if (!key) throw new Error(`Evidence does not identify an authority: ${id}`);
       const receipts = grouped.get(key);
       if (receipts) receipts.push(receipt); else grouped.set(key, [receipt]);

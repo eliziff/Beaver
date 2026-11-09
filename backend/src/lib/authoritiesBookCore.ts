@@ -97,22 +97,23 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
         // A PDF whose text cannot be read still goes in the book, whole and unmarked: it was attached to be there.
         console.warn("[authorities] source text unread", { filename: file.filename,
           error: error instanceof Error ? error.message : String(error) });
-        return { pageTextByPage: [] as string[], pageBindings: undefined };
+        return { pageTextByPage: [] as string[] };
       }).finally(() => progress?.(`Reading sources · ${++read} of ${files.length}`));
-    // An authority's PDF in the book is placed by its printed pages, read from it where its text was not read.
+    // An authority's PDF in the book is placed at its cited printed pages, read from it where its text was not read.
     const attached = authorityOf.get(file.role);
-    const pageBindings = text.pageBindings ?? (attached && preparation.bookRoles.has(file.role)
-      ? await openDocument({
-        documentId: file.reference?.documentId ?? `standalone-authority:${file.sourceSha256}`,
-        versionId: file.reference?.versionId ?? file.sourceSha256, sourceSha256: file.sourceSha256, fileType: "pdf",
-        readBytes: () => file.bytes, pdfProfile: file.pdfProfile,
-      }, PLAIN_PDF).then((document) => structureNative().pdfPageMap(document,
-        authorityCitationForms(state, attached.authority.id))).catch((error) => {
-        if (signal.aborted) throw error;
-        return undefined;
-      }) : undefined);
+    const pageTargets = attached && !("passageGeometry" in text) && preparation.bookRoles.has(file.role)
+      ? authorityPassageTargets(state, attached.authority.id).filter((target) => target.locatorKind === "page") : [];
+    const passageGeometry = pageTargets.length ? await openDocument({
+      documentId: file.reference?.documentId ?? `standalone-authority:${file.sourceSha256}`,
+      versionId: file.reference?.versionId ?? file.sourceSha256, sourceSha256: file.sourceSha256, fileType: "pdf",
+      readBytes: () => file.bytes, pdfProfile: file.pdfProfile,
+    }, PLAIN_PDF).then((document) => structureNative().pdfPassageGeometry(document, pageTargets,
+      authorityCitationForms(state, attached!.authority.id))).catch((error) => {
+      if (signal.aborted) throw error;
+      return undefined;
+    }) : undefined;
     sources[file.role] = { ...(preparation.byteRoles.has(file.role) ? { bytes: file.bytes } : {}),
-      ...text, pageBindings, pageLabels: pageBindings?.map((page) => page.label),
+      ...text, ...(passageGeometry && { passageGeometry }),
       ...(file.resolved ? { resolved: file.resolved } : {}) };
   });
   let book: PreparedAuthoritiesBook | undefined;

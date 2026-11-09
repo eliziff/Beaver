@@ -30,14 +30,11 @@ corpus = ["a2aj", "legalpdf", "dep:a2aj-gold"]
 a2aj = ["dep:rusqlite", "legal-structure-features/a2aj-store", "legal-structure-features/citator-graph"]
 # Word documents: the parser's DOCX reading without its PDF pipeline (Authority Linker's engine, build-engine.mjs --word).
 docx = ["dep:legalpdf"]
-legalpdf = ["docx", "legalpdf/pdf", "dep:legal-pdf-support", "dep:legal-pdf-core"]
+legalpdf = ["docx", "legalpdf/pdf"]
 
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup", "opinion"] }
 legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "structure-inference", "quote-verification"] }
-legal-pdf-support = { path = "../../legal-pdf-parser/legal-pdf-support", optional = true }
-# The kinds of failure a PDF's parse reports.
-legal-pdf-core = { path = "../../legal-pdf-parser/legal-pdf-core", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 # float_roundtrip as the a2aj-gold crate needs it: one serde_json for the workspace, so the stack under it builds once
 serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }

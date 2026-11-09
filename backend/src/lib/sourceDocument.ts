@@ -43,15 +43,12 @@ type OpenOptions = {
 const converted = (fileType: string) => fileType === "doc" || fileType === "ppt";
 
 const pdfRequest = (profile: LegalPdfProfile, pages?: number[], cacheKey?: string) => ({
-  cache_dir: CACHE_DIRECTORY, max_output_bytes: MAX_OUTPUT_BYTES, ...profile,
-  ...(pages ? { pages } : {}), ...(cacheKey ? { cache_key: cacheKey } : {}),
+  cacheDir: CACHE_DIRECTORY, maxOutputBytes: MAX_OUTPUT_BYTES, ...profile, ...(pages && { pages }), ...(cacheKey && { cacheKey }),
 });
 
-const sourceRequest = (source: Pick<Source, "documentId" | "versionId" | "sourceSha256">, fileType: string,
-  mode: OpenOptions["mode"], pdf?: ReturnType<typeof pdfRequest>) => ({
-  document_id: source.documentId, version_id: source.versionId, file_type: fileType,
-  source_sha256: source.sourceSha256, mode: mode ?? "text", ...(pdf ? { pdf } : {}),
-});
+const sourceRequest = ({ documentId, versionId, sourceSha256 }: Pick<Source, "documentId" | "versionId" | "sourceSha256">,
+  fileType: string, mode: OpenOptions["mode"], pdf?: ReturnType<typeof pdfRequest>) =>
+  ({ documentId, versionId, sourceSha256, fileType, mode: mode ?? "text", ...(pdf && { pdf }) });
 
 // An abandoned reader must neither wait for a shared read nor cancel it for another reader.
 function abandonable<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -127,8 +124,7 @@ export async function sourceText(source: Source & { fileType: string }, options:
   const pending = (async () => {
     await source.assertAvailable?.();
     const text = await structureNative().sourceText(await source.readBytes(), {
-      file_type: fileType, source_sha256: source.sourceSha256, drafting: !!options.drafting,
-      limit: options.limit ?? null });
+      fileType, sourceSha256: source.sourceSha256, drafting: !!options.drafting, limit: options.limit ?? null });
     await source.assertAvailable?.();
     return text;
   })();
@@ -166,7 +162,7 @@ export async function preparePdf(input: PdfPrepareInput) {
     if (kept) return { ...native.pdfDocumentSummary(kept), profile };
   }
   const request = { ...pdfRequest(profile, pages), id: `${input.documentId}:${input.versionId}`,
-    ...(input.sourceSha256 ? { expected_source_sha256: input.sourceSha256 } : {}) };
+    ...(input.sourceSha256 && { expectedSourceSha256: input.sourceSha256 }) };
   const prepare = () => pdfLifecyclePhase("prepare.native", input.documentId, () =>
     native.preparePdfDocument(input.bytes, request, input.signal, input.progress &&
       ((recognized, total) => void input.progress?.({ phase: "recognizing", recognized, total }))));

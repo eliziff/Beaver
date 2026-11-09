@@ -34,7 +34,6 @@ AUTHORITIES_PATHS = (
     'shared/contracts/researchContract.mts',
     'shared/pdf/**',
     'shared/canonical-json.mjs',
-    'shared/cited-source-pages.mjs',
     'shared/user-preferences.mjs',
     'package*.json',
     'backend/package*.json',
