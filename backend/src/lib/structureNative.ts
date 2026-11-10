@@ -254,6 +254,9 @@ type StructureAddon = {
     bytes: Buffer; detected: number; converted: number; already_linked: number;
     review_required: number; bookmarks_added: number; restarted_numbering: boolean; unsafe_or_split_fields: number;
   }>;
+  /** `marks` (as decodeAnnotationSet returns them) appended to the PDF as an incremental update: the original bytes
+   *  unchanged, then the annotations; with `disarm` (default true) also what removeActiveContent takes out. */
+  pdfWriteAnnotations(bytes: Uint8Array, marks: unknown[], namespace: string, disarm?: boolean): { bytes: Buffer };
   /** The first two pages' native witnesses for source identification; no recognition or structure inference. */
   pdfOpening(bytes: Buffer): Promise<{ pageCount: number; pages: Array<NativePdfTextPage & { marginText: string }> }>;
   /** `progress(recognized, total)` follows text recognition as pages finish. */

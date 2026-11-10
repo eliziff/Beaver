@@ -1,4 +1,5 @@
-import { writeAuthorityAnnotations } from 'mike/shared/pdf-annotation-writer.mjs';
+import { annotatePdf } from 'mike/shared/pdf-annotation-writer.mjs';
+import { structureNative } from './structureNative';
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, StandardFonts, degrees } from 'pdf-lib';
 import * as pdf from 'pdf-lib';
@@ -128,7 +129,8 @@ describe('persistent visual PDF annotations',()=>{
   it('rejects annotations on missing pages instead of dropping them during export',async()=>{
     const document=await PDFDocument.create();document.addPage();
     const value=mark();value.fragments[0].pageNumber=2;
-    expect(()=>writeAuthorityAnnotations(pdf,document,set('a'.repeat(64),[value]),'source')).toThrow(/missing PDF page/);
+    const bytes=await document.save();
+    expect(()=>annotatePdf(structureNative(),bytes,set('a'.repeat(64),[value]),'source')).toThrow(/missing PDF page/);
   });
 });
 

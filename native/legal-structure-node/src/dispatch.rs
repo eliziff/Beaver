@@ -141,6 +141,13 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8], progress: Progress) -> Result<(
         #[cfg(feature = "legalpdf")]
         "pdfOpening" => done(value(legalpdf::pdf_opening(bytes).map_err(Failure::from)?)),
         #[cfg(feature = "legalpdf")]
+        "pdfWriteAnnotations" => {
+            let marks = call.get::<Vec<legalpdf::AnnotationMark>>("marks")?;
+            let out = legalpdf::write_annotations(bytes, &marks, &call.get::<String>("namespace")?,
+                call.get::<Option<bool>>("disarm")?.unwrap_or(true)).map_err(|error| error.to_string())?;
+            Ok((value(serde_json::json!({ "bytes": out.len() }))?, out))
+        }
+        #[cfg(feature = "legalpdf")]
         "preparePdfDocument" => done(value(legalpdf::prepare_pdf_document(bytes, &call.get("request")?, progress)
             .map_err(Failure::from)?)),
         "openSource" => done(value(source::open_source(bytes, call.get("request")?)?.map(Handle))),

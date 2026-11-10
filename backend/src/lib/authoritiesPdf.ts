@@ -5,7 +5,7 @@ export async function validateAuthoritiesPdf(bytes: Buffer) {
   const { PDFDocument } = await import("pdf-lib");
   let pageCount;
   try {
-    const document = await PDFDocument.load(bytes, { updateMetadata: false });
+    const document = await PDFDocument.load(bytes, { updateMetadata: false, parseSpeed: Infinity });
     pageCount = document.getPageCount();
   } catch (error) {
     throw new ApplicationError(400, error instanceof Error && /encrypted/iu.test(error.message)

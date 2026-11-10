@@ -1,34 +1,11 @@
-import { decodeAnnotationSet, quadBounds, rectToPdfQuad } from './pdf-annotations.mjs';
+import { decodeAnnotationSet } from './pdf-annotations.mjs';
 
-/** Standard editable annotations, with printable appearance streams; never alter page contents.
- *  A mark is its colour and place only: no author or comment for a viewer to show beside it. */
-export function writeAuthorityAnnotations(pdf, document, set, namespace) {
-  const annotations = decodeAnnotationSet(set);
-  for (const mark of annotations.marks) for (const fragment of mark.fragments) {
-    if (fragment.pageNumber > document.getPageCount()) throw new Error('An annotation refers to a missing PDF page.');
-    const page = document.getPage(fragment.pageNumber - 1);
-    const quads = fragment.rects.map(rect => rectToPdfQuad(rect, page.getCropBox(), page.getRotation().angle));
-    // Squares cannot express disconnected geometry; use one per margin segment.
-    const groups = mark.kind === 'highlight' ? [quads] : quads.map(quad => [quad]);
-    for (const [part, group] of groups.entries()) {
-      const [x0, y0, x1, y1] = quadBounds(group), width = x1 - x0, height = y1 - y0;
-      const shapes = group.map(q => {
-        // PDF numbers have no exponent: round away float noise such as 1.4e-14.
-        const number = (value) => String(Number(value.toFixed(4)));
-        const point = (offset) => `${number(q[offset] - x0)} ${number(q[offset + 1] - y0)}`;
-        return `${point(0)} m ${point(2)} l ${point(6)} l ${point(4)} l h f`;
-      }).join('\n');
-      const appearance = document.context.flateStream(
-        `q /GS0 gs ${mark.rgb.join(' ')} rg\n${shapes}\nQ`, {
-          Type: 'XObject', Subtype: 'Form', BBox: [0, 0, width, height],
-          Resources: { ExtGState: { GS0: { Type: 'ExtGState', ca: mark.opacity, CA: mark.opacity, BM: 'Multiply' } } },
-        });
-      const annotation = document.context.obj({ Type: 'Annot', Subtype: mark.kind === 'highlight' ? 'Highlight' : 'Square',
-        Rect: [x0, y0, x1, y1], ...(mark.kind === 'highlight' ? { QuadPoints: group.flat() } : { IC: [...mark.rgb] }),
-        C: [...mark.rgb], CA: mark.opacity, Border: [0, 0, 0], F: 4,
-        NM: pdf.PDFHexString.fromText(`${namespace}:${mark.id}:${fragment.pageNumber}:${part}`),
-        AP: { N: document.context.register(appearance) } });
-      page.node.addAnnot(document.context.register(annotation));
-    }
-  }
+/** Standard editable annotations, with printable appearance streams; never alter page contents. A mark is its colour
+ *  and place only: no author or comment for a viewer to show beside it. The engine writes them (pdfWriteAnnotations,
+ *  legal-pdf-extraction-processor/src/annotate.rs) as an incremental update: the PDF's own bytes stay as they are and
+ *  the annotations follow them. With `disarm`, what removeActiveContent takes out goes too. Returns the new bytes. */
+export function annotatePdf(engine, bytes, set, namespace, { disarm = false } = {}) {
+  const { marks } = decodeAnnotationSet(set);
+  if (!marks.length && !disarm) return bytes;
+  return engine.pdfWriteAnnotations(bytes, marks, namespace, disarm).bytes;
 }

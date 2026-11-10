@@ -1,4 +1,4 @@
-import { writeAuthorityAnnotations } from 'mike/shared/pdf-annotation-writer.mjs';
+import { annotatePdf } from 'mike/shared/pdf-annotation-writer.mjs';
 import * as pdfLibrary from "pdf-lib";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmTable } from "micromark-extension-gfm-table";
@@ -901,7 +901,10 @@ async function loadAuthorityPdf(
     if (editing && attached[item.source.bindingRole]?.bytes !== undefined) {
       const { annotations } = prepareAuthorityAnnotations(pdf, item.document, editing.draft,
         editing.authority, item.source, item.text);
-      writeAuthorityAnnotations(pdf, item.document, annotations, item.source.bindingRole);
+      // The engine appends the marks to the source's own bytes (as Authorities-lite exports them); the book takes
+      // its pages from that copy.
+      if (annotations.marks.length) item.document = await pdf.PDFDocument.load(annotatePdf(structureNative(),
+        attached[item.source.bindingRole]!.bytes!, annotations, item.source.bindingRole), { updateMetadata: false, parseSpeed: Infinity });
       annotations.marks.forEach(mark => mark.fragments.forEach(fragment =>
         markedPages.add(sourceOffset + fragment.pageNumber - 1)));
     }

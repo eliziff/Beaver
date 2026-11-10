@@ -14,6 +14,8 @@ export const SIGNATURES = {
   docxAuthorityTextUnits: ["bytes"],
   preparePdfDocument: ["bytes", "request"],
   pdfOpening: ["bytes"],
+  // Annotations appended to the PDF as an incremental update; with disarm (default), its active content taken out.
+  pdfWriteAnnotations: ["bytes", "marks", "namespace", "disarm"],
   // A stored source read as its document (none where the engine keeps none and no bytes are given), or as its text.
   openSource: ["bytes", "request"], sourceText: ["bytes", "request"],
   pdfDocumentSummary: ["document"], pdfRecognizedText: ["document", "pages"],
