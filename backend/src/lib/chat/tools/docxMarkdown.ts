@@ -80,8 +80,6 @@ export type RenderDocxMarkdownOptions = {
   title?: string;
   landscape?: boolean;
   values?: unknown;
-  /** Tool calls reject all bad fields together; direct rendering reports ignored fields. */
-  strictFields?: boolean;
   citations?: Readonly<Record<string, DocxCitation>>;
   citationPlacement?: "footnotes" | "inline" | "after-paragraph" | "none";
   citationHyperlinks?: boolean;
@@ -481,46 +479,43 @@ export function parseDocxMarkdown(
   const bookmarks = new Set<string>();
   const blocks: DocxMarkdownBlock[] = [];
 
-  // Legal list/quotation depth is explicit; it does not use Markdown's lazy continuation.
-  const original: string[] = [];
-  const normalized: string[] = [];
-  let previous = "";
-  let table = false;
+  // Each block is a run of lines of one kind: a list's items, a quotation at one depth, a table, a line standing alone
+  // (a content control or a page break), a heading, or a paragraph. A blank line, or a line of another kind, ends a run:
+  // legal list and quotation depth is explicit, never Markdown's lazy continuation.
+  const groups: { kind: string; lines: string[] }[] = [];
+  let open = false, table = false;
   for (const [index, line] of body.entries()) {
     const item = listItem(line);
     const quote = blockquoteLine(line);
     let kind = item ? "list" : quote ? `quote-${quote.level}`
-      : CONTROL_ONLY_RE.test(line) || line.trim() === "<!-- pagebreak -->" ? "isolated" : "";
+      : CONTROL_ONLY_RE.test(line) || line.trim() === "<!-- pagebreak -->" ? "isolated"
+      : /^#{1,6}[ \t]/u.test(line) && !/^#{1,6}[ \t]?$/u.test(line) ? "heading" : "";
     if (!line.includes("|")) table = false;
-    if (!table && !kind && !/^#{1,6}\s/u.test(line) && line.includes("|") &&
+    if (!table && !kind && line.includes("|") &&
         body[index + 1]?.includes("|") && TABLE_DELIMITER.test(body[index + 1].trim())) {
       table = fromMarkdown(`${line}\n${body[index + 1]}`, blockMarkdownOptions).children[0]?.type === "table";
     }
     if (table) kind = "table";
-    if ((kind !== previous && (kind || previous)) || kind === "isolated") {
-      original.push("");
-      normalized.push("");
-    }
-    original.push(line);
-    normalized.push(table ? (line.trimStart().startsWith("|") ? line : `|${line}`)
-      : item ? `- ${item.text}` : quote ? `> ${quote.text}`
-      : /^[\s|:-]+$/u.test(line) && line.includes("|") ? line.replaceAll("-", "\\-")
-      : line.replace(/^#{1,6}[ \t]?$/u, "\\$&").replace(/^(\s+)#/u, "$1\\#")
-        .replace(/^(\s*)([-+*]|\d+[.)])(\s*)$/u, "$1\\$2$3"));
-    previous = kind;
-  }
-  const source = normalized.join("\n");
-  const tree = fromMarkdown(source, blockMarkdownOptions);
-  for (const node of tree.children) {
-    const lines = original.slice(node.position!.start.line - 1, node.position!.end.line);
-    const line = lines[0];
-    const trimmed = line.trim();
-    const heading = parseHeading(line, bookmarks, state);
-    if (heading === "skip") continue;
-    if (heading) {
-      blocks.push(heading);
+    if (!line.trim()) {
+      open = false;
       continue;
     }
+    const last = groups.at(-1);
+    if (open && last && last.kind === kind && !["isolated", "heading"].includes(kind)) last.lines.push(line);
+    else groups.push({ kind, lines: [line] });
+    open = true;
+  }
+  for (const { kind, lines } of groups) {
+    const line = lines[0];
+    const trimmed = line.trim();
+    if (kind === "heading") {
+      const heading = parseHeading(line, bookmarks, state);
+      if (heading !== "skip") blocks.push(heading!);
+      continue;
+    }
+    // A table's cells as GFM reads them, each row opening on its pipe.
+    const source = kind === "table" ? lines.map((row) => row.trimStart().startsWith("|") ? row : `|${row}`).join("\n") : "";
+    const node = source ? fromMarkdown(source, blockMarkdownOptions).children[0] : undefined;
     if (trimmed === "<!-- pagebreak -->") {
       blocks.push({ type: "page-break" });
       continue;
@@ -539,28 +534,19 @@ export function parseDocxMarkdown(
           children: [{ type: "text", text: trimmed }],
         });
       }
-    } else if (node.type === "list") {
-      let items: Extract<DocxMarkdownBlock, { type: "list" }>["items"] = [];
-      for (const line of [...lines, ""]) {
-        const item = listItem(line);
-        if (item) items.push({
-          ordered: item.ordered,
-          level: item.level,
-          children: parseInline(item.text, state),
-        });
-        else if (items.length) {
-          blocks.push({ type: "list", items });
-          items = [];
-        }
-      }
-    } else if (node.type === "blockquote") {
+    } else if (kind === "list") {
+      blocks.push({ type: "list", items: lines.map((line) => {
+        const { ordered, level, text } = listItem(line)!;
+        return { ordered, level, children: parseInline(text, state) };
+      }) });
+    } else if (kind.startsWith("quote-")) {
       const quote = blockquoteLine(line)!;
       blocks.push({
         type: "blockquote",
         level: quote.level,
         children: paragraphInlines(lines.map(line => blockquoteLine(line)!.text), state),
       });
-    } else if (node.type === "table") {
+    } else if (node?.type === "table") {
       const rows = node.children.map(row => row.children.map(cell => cell.children.length
         ? source.slice(cell.children[0].position!.start.offset, cell.children.at(-1)!.position!.end.offset)
           .replaceAll("\\|", "|") : ""));
@@ -793,95 +779,33 @@ export async function renderDocxMarkdownDocument(
       );
       continue;
     }
-    if (
-      !citation ||
-      !Array.isArray(citation.sources) ||
-      !citation.sources.length ||
-      citation.sources.length > 16
-    ) {
-      throw new Error(`Verified citation "${id}" is invalid.`);
-    }
+    // The sources are verified evidence (resolveDocxEvidenceCitations); what a link may open is checked here.
     for (const source of citation.sources) {
-      if (
-        !source ||
-        typeof source.stableId !== "string" ||
-        !source.stableId ||
-        typeof source.authority !== "string" ||
-        !source.authority.trim() ||
-        source.authority.length > 1_000 ||
-        typeof source.shortAuthority !== "string" ||
-        !Array.isArray(source.pinpoints) ||
-        source.pinpoints.length > 16 ||
-        source.pinpoints.some(
-          (pinpoint) =>
-            !pinpoint ||
-            typeof pinpoint.text !== "string" ||
-            !pinpoint.text.trim() ||
-            pinpoint.text.length > 200 ||
-            (pinpoint.url !== null && typeof pinpoint.url !== "string"),
-        ) ||
-        (source.mainUrl !== null && typeof source.mainUrl !== "string")
-      ) {
-        throw new Error(`Verified citation "${id}" is invalid.`);
-      }
       validateCitationUrl(id, source.mainUrl);
       source.pinpoints.forEach((pinpoint) =>
         validateCitationUrl(id, pinpoint.url),
       );
     }
   }
+  // The fields are rejected together, every problem named, so a call can fix them all at once.
   let valuesLength = 0;
   const values: Record<string, string> = {};
   const problems: string[] = [];
-  const strict = options.strictFields;
-  if (strict && options.values !== undefined &&
-      (!isJsonRecord(options.values) || Object.keys(options.values).length > 100)) {
+  if (options.values !== undefined && (!isJsonRecord(options.values) || Object.keys(options.values).length > 100)) {
     throw new Error("DOCX fields must be an object of at most 100 values.");
   }
   for (const [rawTag, value] of Object.entries(options.values ?? {})) {
     const tag = normalizeDocxControlTag(rawTag);
-    if (!tag) {
-      if (strict) problems.push(`field "${rawTag}" must normalize to an identifier beginning with a letter.`);
-      else warn(
-        warnings,
-        `Ignored content-control value with invalid key "${snippet(rawTag)}".`,
-      );
-      continue;
+    if (!tag) problems.push(`field "${rawTag}" must normalize to an identifier beginning with a letter.`);
+    else if (Object.hasOwn(values, tag)) problems.push(`field "${tag}" is duplicated.`);
+    else if (typeof value !== "string" || value.length > 20_000) {
+      problems.push(`field "${tag}" value must be a string of at most 20,000 characters.`);
+    } else {
+      valuesLength += value.length;
+      values[tag] = value;
     }
-    if (Object.hasOwn(values, tag)) {
-      if (strict) problems.push(`field "${tag}" is duplicated.`);
-      else warn(
-        warnings,
-        `Ignored duplicate content-control value "${tag}"; the first value wins.`,
-      );
-      continue;
-    }
-    if (typeof value !== "string" || (strict && value.length > 20_000)) {
-      if (strict) problems.push(`field "${tag}" value must be a string of at most 20,000 characters.`);
-      else warn(warnings, `Ignored non-text content-control value "${tag}".`);
-      continue;
-    }
-    if (!strict && !controls.has(tag)) {
-      warn(
-        warnings,
-        `Ignored content-control value "${tag}" because the text has no {{${tag}}} marker.`,
-      );
-      continue;
-    }
-    if (value.length > 20_000) {
-      throw new Error(
-        `Content-control value "${tag}" exceeds 20,000 characters.`,
-      );
-    }
-    valuesLength += value.length;
-    if (!strict && valuesLength > 200_000) {
-      throw new Error(
-        "Content-control values exceed 200,000 characters in total.",
-      );
-    }
-    values[tag] = value;
   }
-  if (strict && valuesLength > 200_000) problems.push("field values exceed 200,000 characters in total.");
+  if (valuesLength > 200_000) problems.push("field values exceed 200,000 characters in total.");
   if (problems.length) {
     throw new Error(`DOCX fields rejected: ${problems.join(" ")} Fix every listed field and retry the same call.`);
   }

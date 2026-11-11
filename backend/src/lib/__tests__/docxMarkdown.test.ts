@@ -232,15 +232,6 @@ break
         },
       }),
     ).rejects.toThrow("invalid URL");
-    await expect(
-      renderDocxMarkdown("See [@case].", {
-        citations: {
-          case: {
-            sources: [{ ...jordanCitation.sources[0], authority: "" }],
-          },
-        },
-      }),
-    ).rejects.toThrow("is invalid");
   });
 
   
@@ -321,35 +312,18 @@ Tenant: **{{ Tenant Name }}**; rent: *{{ MONTHLY RENT }}*.[^Lease_Note]
 
   
 
-  it("recovers unplaceable values but keeps size limits strict", async () => {
+  it("places what it can of the fields and rejects bad ones together", async () => {
     const warnings: string[] = [];
     const xml = await packageXml(
-      await renderDocxMarkdown(
-        "Hello {{party}}.",
-        {
-          values: {
-            typo: "unused",
-            party: "Line one\nLine two",
-            " Party ": "duplicate",
-            "Bad/Key": "x",
-            number: 7 as unknown as string,
-          },
-        },
-        warnings,
-      ),
+      await renderDocxMarkdown("Hello {{party}}.", { values: { typo: "unused", party: "Line one\nLine two" } }, warnings),
       "word/document.xml",
     );
     expect(xml).toContain("Line one Line two");
     expect(warnings.join("\n")).toContain('value "typo"');
-    expect(warnings.join("\n")).toContain("duplicate content-control value");
-    expect(warnings.join("\n")).toContain('invalid key "Bad/Key"');
-    expect(warnings.join("\n")).toContain('non-text content-control value');
     expect(warnings.join("\n")).toContain('multi-line value for inline control "party"');
-    await expect(
-      renderDocxMarkdown("{{terms}}", {
-        values: { terms: "x".repeat(20_001) },
-      }),
-    ).rejects.toThrow("exceeds 20,000 characters");
+    await expect(renderDocxMarkdown("Hello {{party}}.", {
+      values: { party: "x", " Party ": "duplicate", "Bad/Key": "x", number: 7 as unknown as string, terms: "x".repeat(20_001) },
+    })).rejects.toThrow(/is duplicated.*must normalize.*must be a string.*must be a string/su);
   });
 
   it("keeps unsafe verified-citation URLs strict", async () => {

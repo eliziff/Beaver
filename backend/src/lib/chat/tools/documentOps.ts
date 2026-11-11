@@ -8,7 +8,7 @@ export async function renderMarkdownDocx(
   title: string,
   markdown: string,
   fields?: unknown,
-  options?: Omit<RenderDocxMarkdownOptions, "title" | "values" | "strictFields">,
+  options?: Omit<RenderDocxMarkdownOptions, "title" | "values">,
 ) {
   const { renderDocxMarkdown } = await import("./docxMarkdown");
   const appearances: DocxCitationAppearance[] = [];
@@ -16,7 +16,6 @@ export async function renderMarkdownDocx(
     ...options,
     title,
     values: fields,
-    strictFields: true,
   }, [], appearances);
   return { filename: safeGeneratedFilename(title, "docx"), bytes, appearances };
 }
