@@ -64,7 +64,6 @@ import type { PdfStructureLookup } from "./PdfStructureLookup";
 import type { PdfSummary } from "./PdfSummary";
 import type { BuiltBook } from "./BuiltBook";
 import type { PreparedBook } from "./PreparedBook";
-import type { PropositionUnit } from "./PropositionUnit";
 import type { ProviderCitationMatch } from "./ProviderCitationMatch";
 import type { ProviderTextSourceKind } from "./ProviderTextSourceKind";
 import type { Provision } from "./Provision";
@@ -150,6 +149,7 @@ export interface EngineOperations {
   /**
    * The cache key a PDF's reading would be kept under, without reading it (request.expectedSourceSha256 names it).
    */
+  pdfPagesNeedingOcr(bytes: Uint8Array, request: unknown): Promise<Array<number>>;
   pdfCacheKey(bytes: Uint8Array | null | undefined, request: unknown): string;
   /**
    * A stored source read as its document by its format's reader: the document the engine keeps for it, or, given its
@@ -250,7 +250,7 @@ export interface EngineOperations {
    * in; each with the parts of the units (by their place in `units`) it holds. Also where each body unit starts in
    * that text and every call of a note in it by where it stands. Offsets in UTF-16 units.
    */
-  footnotePropositions(units: ReadonlyArray<PropositionUnit>, context?: QuoteContext | null): FootnotePropositions;
+  footnotePropositions(units: ReadonlyArray<AuthorityTextUnit>, context?: QuoteContext | null): FootnotePropositions;
   /**
    * A brief's text, its units joined by a blank line, and its notes in reading order as the citation engine reads
    * them (number u32::MAX where unprinted, the span, the sequence, the call).

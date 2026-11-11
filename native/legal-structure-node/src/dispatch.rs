@@ -421,6 +421,11 @@ operations! { progress;
     progress "preparePdfDocument" (bytes: Bytes, request: Untyped<legalpdf::PdfRequest>) -> legalpdf::PdfSummary {
         legalpdf::read_pdf(Some(&bytes), &request.0, progress)?.ok_or("PDF cache miss after parsing source bytes")?.summary().clone()
     }
+    /// The pages a PDF's recognition would read (from 0), as its extraction finds them, its structure not read.
+    #[cfg(feature = "legalpdf")]
+    off "pdfPagesNeedingOcr" (bytes: Bytes, request: Untyped<legalpdf::PdfRequest>) -> Vec<usize> {
+        legalpdf::pages_needing_ocr(&bytes, &request.0)?
+    }
     /// The cache key a PDF's reading would be kept under, without reading it (request.expectedSourceSha256 names it).
     #[cfg(feature = "legalpdf")]
     now "pdfCacheKey" (bytes: Option<Bytes>, request: Untyped<legalpdf::PdfRequest>) -> String {
@@ -544,7 +549,7 @@ operations! { progress;
     /// passage since the call before its one call, or with `context` "sentence", the sentence its call ends or stands
     /// in; each with the parts of the units (by their place in `units`) it holds. Also where each body unit starts in
     /// that text and every call of a note in it by where it stands. Offsets in UTF-16 units.
-    now "footnotePropositions" (units: Vec<legal_structure_features::PropositionUnit>, context: Option<legal_structure_features::QuoteContext>)
+    now "footnotePropositions" (units: Vec<legal_structure_model::AuthorityTextUnit>, context: Option<legal_structure_features::QuoteContext>)
         -> legal_structure_features::FootnotePropositions {
         legal_structure_features::footnote_propositions(&units, context.unwrap_or(legal_structure_features::QuoteContext::Passage))
     }

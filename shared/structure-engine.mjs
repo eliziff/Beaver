@@ -147,9 +147,10 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     let request = { ...asked, id: `${source.documentId}:${source.versionId}`, expectedSourceSha256: source.sourceSha256 };
     if (recognizePdf && request.ocr) {
       const { ocr: _ocr, ...plain } = asked;
-      const inspected = invoke("pdfDocumentSummary", [await hostPdf(bytes, { ...source, pdf: plain }, signal)]);
-      const pages = inspected.pagesNeedingOcr.filter(index => !request.pages || request.pages.includes(index + 1));
-      const supplied = pages.length ? await recognizePdf(bytes, inspected.sha256, pages, signal,
+      // Which pages need reading is the extraction's to say: the PDF's structure is read once, with their text.
+      const needing = await invokeOff("pdfPagesNeedingOcr", [bytes, { ...plain, id: request.id, expectedSourceSha256: source.sourceSha256 }]);
+      const pages = needing.filter(index => !request.pages || request.pages.includes(index + 1));
+      const supplied = pages.length ? await recognizePdf(bytes, source.sourceSha256, pages, signal,
         progress && (done => progress(done, pages.length))) : undefined;
       signal?.throwIfAborted();
       const { ocr: _requested, ...rest } = request;

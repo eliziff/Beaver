@@ -16,6 +16,7 @@ export const OPERATIONS = {
   pdfPages: { args: ["bytes"], mode: "off", bytes: true },
   renderFinalPdf: { args: ["bytes", "plan"], mode: "off", bytes: true },
   preparePdfDocument: { args: ["bytes", "request"], mode: "progress", bytes: true },
+  pdfPagesNeedingOcr: { args: ["bytes", "request"], mode: "off", bytes: true },
   pdfCacheKey: { args: ["bytes", "request"], mode: "now", bytes: true },
   openSource: { args: ["bytes", "request"], mode: "progress", bytes: true },
   sourceText: { args: ["bytes", "request"], mode: "off", bytes: true },
