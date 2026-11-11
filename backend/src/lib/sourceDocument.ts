@@ -155,10 +155,8 @@ export async function preparePdf(input: PdfPrepareInput) {
   await input.progress?.({ phase: "extracting", pages: pages ?? [] });
   const native = structureNative();
   if (input.pdfProfile && !pages) {
-    const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
-    const kept = await native.openSource(undefined, sourceRequest({ ...input, sourceSha256 }, "pdf", "text",
-      pdfRequest(profile, undefined, input.pdfProfile.cacheKey)));
     // A reading no longer kept is made again below, as it was first made.
+    const kept = await cachedPdf({ ...input, sourceSha256: input.sourceSha256 ?? sha256(input.bytes) }, input.pdfProfile.cacheKey);
     if (kept) return { ...native.pdfDocumentSummary(kept), profile };
   }
   const request = { ...pdfRequest(profile, pages), id: `${input.documentId}:${input.versionId}`,
