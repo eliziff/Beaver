@@ -221,13 +221,13 @@ fn open_pdf(
     request.id = Some(id.to_owned());
     request.expected_source_sha256 = (format == Format::Pdf).then(|| source_sha256.to_owned());
     let document = |document: legalpdf::PdfDocument| Arc::new(NativeDocument::new(NativeProduct::Pdf(document)));
-    // Without bytes, a reading is still found where the parse cache holds it under the key the request names (a
-    // converted source's PDF has no hash to name it by until its bytes are converted).
+    // A reading is opened by its cache key, else parsed from the bytes: without them, nothing is looked up by the hash
+    // they are expected to have.
     let parse = |request: &legalpdf::PdfRequest| -> Result<Option<Read>, Failure> {
-        if bytes.is_empty() && request.expected_source_sha256.is_none() {
+        if bytes.is_empty() {
             return Ok(None);
         }
-        let Some(parsed) = legalpdf::read_pdf((!bytes.is_empty()).then_some(bytes), request, progress)? else {
+        let Some(parsed) = legalpdf::read_pdf(Some(bytes), request, progress)? else {
             return Ok(None);
         };
         Ok(Some(Read { keys: vec![key(&parsed.summary().cache_key)], document: document(parsed), keep: true }))
