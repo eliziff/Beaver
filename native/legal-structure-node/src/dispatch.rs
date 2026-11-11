@@ -511,10 +511,10 @@ operations! { progress;
     now "bareLabels" (labels: Vec<String>, kind: String) -> Vec<String> {
         labels.iter().map(|label| legal_structure::bare_label(&kind, label)).collect()
     }
-    /// Each numbered label of a kind as the numbers it names, a run written out ("12–14": 12, 13, 14): null for one
-    /// naming no number or run, or a run reversed or spanning more than `limit` past its first number.
-    now "expandLabels" (labels: Vec<String>, kind: String, limit: usize) -> Vec<Option<Vec<String>>> {
-        legal_structure::expand_labels(&labels, &kind, limit)
+    /// Each citation of a text, outside its marked quotations, that pinpoints paragraphs: its lookup key and every
+    /// paragraph it names, a range written out ("paras 12–14": 12, 13, 14).
+    off "citedParagraphs" (text: String) -> Vec<legal_structure_features::CitedParagraphs> {
+        legal_structure_features::cited_paragraphs(&text)?
     }
     /// A filing's cover from its opening page's text: the parties its BETWEEN block names in their roles, and whose
     /// document it is, from `title` (its record title) where given, else its DOCUMENT line.

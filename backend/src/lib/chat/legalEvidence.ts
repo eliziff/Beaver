@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import type { ExtractResponse } from "legal-citations";
 
 import {
   a2ajLegalSourceProvider,
@@ -910,23 +909,11 @@ export async function legalEvidenceProseIntegrityErrors(text: string,
         labels: [receipt.name, receipt.citation, ...namedInstruments(passage)]
           .filter((value): value is string => Boolean(value)) }] : [];
     });
+  // The paragraphs each authority is cited at: a cited range names every paragraph in it, and a receipt read as a
+  // range covers each one (2026-09-10).
   const named = new Map<string, Set<string>>();
-  // One scan for the whole draft: rescanning per citation made the check quadratic.
-  const quoted = native.markedQuoteSpans(text);
-  const extracted = await native.offThread("citationEngineCall", "extract", {
-    text, offsetUnit: "utf16", options: { resolve: false },
-  }) as ExtractResponse;
-  for (const citation of extracted.citations.filter((citation) =>
-    !quoted.some((quote) => citation.span.start >= quote.start && citation.span.end <= quote.end))) {
-    const key = citation.key ?? native.citationLookupKeys([citation.span.text])[0], labels = named.get(key) ?? new Set<string>();
-    const paragraphs = (citation.pinpoints ?? []).filter(({ kind }) => kind === "paragraph");
-    if (!paragraphs.length) continue;
-    named.set(key, labels);
-    // A cited range names every paragraph in it; a receipt read as a range covers each one (2026-09-10).
-    const written = paragraphs.map((point) => point.last ? `${point.first}–${point.last}` : point.first);
-    native.expandLabels(written, "paragraph", 59).forEach((numbers, at) =>
-      (numbers ?? [written[at]]).forEach((label) => labels.add(label)));
-  }
+  for (const { key, paragraphs } of await native.citedParagraphs(text))
+    paragraphs.forEach((label) => named.set(key, (named.get(key) ?? new Set<string>()).add(label)));
   // A receipt's paragraph is one node's label, as the document prints it.
   const pinpoints = [...named].flatMap(([key, labels]) => {
     const actual = cited.filter((receipt) => native.citationLookupKeys([receipt.citation])[0] === key)

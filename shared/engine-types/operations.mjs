@@ -41,7 +41,7 @@ export const OPERATIONS = {
   textOutline: { args: ["text", "kind"], mode: "now" },
   collapseLabels: { args: ["labels", "kind"], mode: "now" },
   bareLabels: { args: ["labels", "kind"], mode: "now" },
-  expandLabels: { args: ["labels", "kind", "limit"], mode: "now" },
+  citedParagraphs: { args: ["text"], mode: "off" },
   filingCover: { args: ["opening", "title"], mode: "now" },
   documentOutline: { args: ["document"], mode: "now" },
   documentTableCells: { args: ["document"], mode: "now" },

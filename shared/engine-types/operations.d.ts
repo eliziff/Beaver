@@ -14,6 +14,7 @@ import type { BriefText } from "./BriefText";
 import type { BriefUnit } from "./BriefUnit";
 import type { CitationOccurrence } from "./CitationOccurrence";
 import type { CitedBlock } from "./CitedBlock";
+import type { CitedParagraphs } from "./CitedParagraphs";
 import type { Court } from "./Court";
 import type { CourtPdf } from "./CourtPdf";
 import type { CourtRecord } from "./CourtRecord";
@@ -224,10 +225,10 @@ export interface EngineOperations {
    */
   bareLabels(labels: ReadonlyArray<string>, kind: string): Array<string>;
   /**
-   * Each numbered label of a kind as the numbers it names, a run written out ("12–14": 12, 13, 14): null for one
-   * naming no number or run, or a run reversed or spanning more than `limit` past its first number.
+   * Each citation of a text, outside its marked quotations, that pinpoints paragraphs: its lookup key and every
+   * paragraph it names, a range written out ("paras 12–14": 12, 13, 14).
    */
-  expandLabels(labels: ReadonlyArray<string>, kind: string, limit: number): Array<Array<string> | null>;
+  citedParagraphs(text: string): Promise<Array<CitedParagraphs>>;
   /**
    * A filing's cover from its opening page's text: the parties its BETWEEN block names in their roles, and whose
    * document it is, from `title` (its record title) where given, else its DOCUMENT line.
