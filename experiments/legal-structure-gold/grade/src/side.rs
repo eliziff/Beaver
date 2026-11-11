@@ -130,6 +130,17 @@ fn kind_of(region: &str) -> &str {
     }
 }
 
+/// The part a continuation names at `at`: the one opening there, else the one holding it, else the first with text on
+/// its line after it. A parse's note continuation names the note's line on each page, where its label may stand after
+/// other marks on the line.
+fn named(parts: &[&[Span]], (line, offset): At) -> Option<usize> {
+    parts.iter().position(|spans| spans[0].at() == (line, offset))
+        .or_else(|| parts.iter().position(|spans| spans.iter().any(|s| s.line == line && s.start <= offset && offset < s.end)))
+        .or_else(|| (0..parts.len())
+            .filter_map(|k| parts[k].iter().filter(|s| s.line == line && s.end > offset).map(|s| (s.start, k)).min())
+            .min().map(|(_, k)| k))
+}
+
 fn own(region: &str) -> bool {
     matches!(region, "furniture" | "page_label" | "line_label")
 }
@@ -454,6 +465,17 @@ impl Side {
         };
         let nodes: HashMap<_, _> = structure.nodes.iter().map(|node| (node.id.as_str(), node)).collect();
         let membership = |node: &StructureNode| if node.ranges.is_empty() { vec![node.range] } else { node.ranges.clone() };
+        // A note as its page prints it, one unit: its label (its marker range), what stands between the label and its
+        // body, and its body (its ranges).
+        let note_extent = |node: &StructureNode| {
+            let mut ranges = membership(node);
+            if let Some(label) = node.marker_range {
+                let opening = ranges.iter().map(|range| range.start).min().unwrap_or(label.end);
+                ranges.push(ScalarRange { start: label.start, end: label.end.max(opening) });
+            }
+            ScalarRange::normalize_union(&mut ranges);
+            ranges
+        };
         let mut endpoints = structure.continuations.as_deref().unwrap_or_default().iter().flat_map(|link| [link.from, link.to]).collect::<Vec<_>>();
         endpoints.sort_unstable();
         endpoints.dedup();
@@ -477,7 +499,8 @@ impl Side {
                 | NodeKind::ListItem | NodeKind::Footnote | NodeKind::Endnote | NodeKind::Row) {
                 continue;
             }
-            let ranges = if heading { node.heading_range.map_or_else(|| membership(node), |range| vec![range]) } else { membership(node) };
+            let ranges = if heading { node.heading_range.map_or_else(|| membership(node), |range| vec![range]) }
+                else if matches!(node.kind, NodeKind::Footnote | NodeKind::Endnote) { note_extent(node) } else { membership(node) };
             let size: usize = ranges.iter().map(|range| range.end.saturating_sub(range.start)).sum();
             let priority = if node.role.is_some() { 0 } else if node.kind == NodeKind::Heading { 1 }
                 else if matches!(node.kind, NodeKind::Paragraph | NodeKind::ListItem) { 2 } else { 3 };
@@ -700,9 +723,7 @@ impl Side {
         let mut notes = Vec::new();
         for note in structure.nodes.iter().filter(|node| matches!(node.kind, NodeKind::Footnote | NodeKind::Endnote)) {
             let label: Vec<ScalarRange> = note.marker_range.into_iter().collect();
-            let mut ranges = label.iter().copied().chain(membership(note)).collect();
-            ScalarRange::normalize_union(&mut ranges);
-            let spans = line_spans(&ranges)?;
+            let spans = line_spans(&note_extent(note))?;
             if spans.is_empty() { continue; }
             notes.push(Note { spans, label: line_spans(&label)?, references: line_spans(&note.calls)? });
         }
@@ -781,14 +802,12 @@ impl Side {
         for kind in ["paragraph", "heading"] {
             links.extend(self.links.get(kind).into_iter().flatten().map(|(&from, &to)| (from, to)));
         }
-        let holds = |s: &Span, (line, offset): At| s.line == line && s.start <= offset && offset < s.end;
-        let first_of: HashMap<At, &Note> = self.notes.iter().map(|n| (n.spans[0].at(), n)).collect();
+        let parts: Vec<&[Span]> = self.notes.iter().map(|n| n.spans.as_slice()).collect();
         for (&id, &next) in self.links.get("note").into_iter().flatten() {
-            let note = first_of.get(&id).copied().or_else(|| self.notes.iter().find(|n| n.spans.iter().any(|s| holds(s, id))))
-                .ok_or("Note continuation names absent fragment")?;
-            let following = first_of.get(&next).copied().unwrap_or(note);
+            let note = &self.notes[named(&parts, id).ok_or("Note continuation names absent fragment")?];
+            let following = named(&parts, next).map_or(note, |k| &self.notes[k]);
             // A parser's note printed over pages may hold the next page's block outside its note text.
-            let Some(first) = following.spans.iter().find(|s| holds(s, next)) else { continue };
+            let Some(first) = following.spans.iter().filter(|s| s.line == next.0 && s.end > next.1).min_by_key(|s| s.start) else { continue };
             let last = if std::ptr::eq(following, note) {
                 note.spans.iter().filter(|s| (self.positions[s.line], s.end) <= self.location(next)).last().ok_or("Note continuation has no preceding body")?
             } else {
@@ -819,18 +838,22 @@ impl Side {
         Ok(chained)
     }
 
-    /// Objects of one kind continued across fragments read as one: each chain of `parts` (each part's spans) the links of
-    /// `kind` join, in reading order, the part a link names the one opening at its place, or else holding it.
-    fn chains(&self, parts: &[&[Span]], kind: &str) -> Result<Vec<Vec<usize>>, String> {
-        let object = |at: At| parts.iter().position(|spans| spans[0].at() == at)
-            .or_else(|| parts.iter().position(|spans| spans.iter().any(|s| s.line == at.0 && s.start <= at.1 && at.1 < s.end)));
+    /// Each part of `parts` that a link of `kind` continues, with the part it goes on in.
+    fn next_parts(&self, parts: &[&[Span]], kind: &str) -> Result<HashMap<usize, usize>, String> {
         let mut next_of = HashMap::new();
         for (&from, &to) in self.links.get(kind).into_iter().flatten() {
-            let (left, right) = object(from).zip(object(to)).ok_or("Continuation names absent annotation fragment")?;
+            let (left, right) = named(parts, from).zip(named(parts, to)).ok_or("Continuation names absent annotation fragment")?;
             if left != right {
                 next_of.insert(left, right);
             }
         }
+        Ok(next_of)
+    }
+
+    /// Objects of one kind continued across fragments read as one: each chain of `parts` (each part's spans) the links of
+    /// `kind` join, in reading order, each link naming the part `named` reads at its place.
+    fn chains(&self, parts: &[&[Span]], kind: &str) -> Result<Vec<Vec<usize>>, String> {
+        let next_of = self.next_parts(parts, kind)?;
         let mut ordered: Vec<usize> = (0..parts.len()).collect();
         ordered.sort_by_key(|&k| self.location(parts[k][0].at()));
         let (mut consumed, mut chains) = (HashSet::new(), Vec::new());
@@ -880,18 +903,19 @@ impl Side {
         }
         let owner = |at: At| self.documents.iter().rposition(|d| self.location(d.opening) <= self.location(at));
         // A note belongs to the document holding its references when they name one document, its continued parts with it.
-        let first_of: HashMap<At, &Note> = self.notes.iter().map(|n| (n.spans[0].at(), n)).collect();
-        let note_links = self.links.get("note");
+        let parts: Vec<&[Span]> = self.notes.iter().map(|n| n.spans.as_slice()).collect();
+        let next_of = self.next_parts(&parts, "note")?;
         let mut note_owners = Vec::<(&[Span], Option<usize>)>::new();
-        for note in &self.notes {
+        for (first, note) in self.notes.iter().enumerate() {
             let documents: HashSet<Option<usize>> = note.references.iter().map(|r| owner(r.at())).collect();
             if documents.len() != 1 { continue; }
             let document = documents.into_iter().next().unwrap();
-            let (first, mut current, mut seen) = (note.spans[0].at(), note.spans[0].at(), HashSet::new());
-            while let Some(part) = first_of.get(&current) {
+            let (mut current, mut seen) = (first, HashSet::new());
+            loop {
+                let part = &self.notes[current];
                 if !seen.insert(current) || current != first && !part.references.is_empty() { break; }
                 note_owners.push((&part.spans, document));
-                let Some(&next) = note_links.and_then(|links| links.get(&current)) else { break };
+                let Some(&next) = next_of.get(&current) else { break };
                 current = next;
             }
         }
