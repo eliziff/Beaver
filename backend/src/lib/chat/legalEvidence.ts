@@ -14,7 +14,7 @@ import { normalizeWhitespace } from "../text";
 import { sha256 as hexSha256 } from "../hash";
 import { jsonRecord as object } from "../value";
 import type { LegalEvidenceReceiptEvent, ReadSubagentEvent } from "./assistantEvents";
-import { renderCitedBlocks, type GroundedClaim } from "mike/shared/runtime/groundedAnswer.mjs";
+import type { GroundedClaim } from "mike/shared/runtime/groundedAnswer.mjs";
 import { legalSourceResource, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { objectSchema } from "./toolRegistry";
 
@@ -1087,7 +1087,7 @@ export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string
   if (state.failure) return null;
   if (!state.answer) return null;
   const { claimRefs } = legalEvidenceCitationPlan(state);
-  return renderCitedBlocks(state.answer.map((claim, index) => ({ text: claim.text,
+  return structureNative().renderCitedBlocks(state.answer.map((claim, index) => ({ text: claim.text,
     citations: [claimRefs[index].map(ref => `[${ref}]`).join("")].filter(Boolean) })));
 }
 

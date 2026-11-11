@@ -1,6 +1,6 @@
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { z } from "mike/shared/runtime/schema.mjs";
-import { renderCitedBlocks } from "mike/shared/runtime/groundedAnswer.mjs";
+import { structureNative } from "./structureNative";
 import { textField } from "mike/shared/runtime/textField.mjs";
 import { researchFindingReferenceSchema } from "mike/shared/runtime/researchFindingReference.mjs";
 import type { ResearchFinding } from "./researchChat";
@@ -108,5 +108,5 @@ export function researchFindingsMarkdown(file: ResearchFile, findings: readonly 
     }
   }
   if (!blocks.length) throw new ApplicationError(400, "The selected findings contain no research to copy");
-  return renderCitedBlocks(blocks);
+  return structureNative().renderCitedBlocks(blocks);
 }

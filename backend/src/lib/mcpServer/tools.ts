@@ -15,7 +15,6 @@ import { trimmedText as text } from "../value";
 import type { LegalEvidenceReceipt } from "mike/shared/contracts/researchContract.mjs";
 import { createLegalEvidenceCitations, createLegalEvidenceCitationsFromEntries, legalEvidenceDocumentLink } from "../chat/citations";
 import { legalEvidenceAuthority, legalEvidenceLocatorText } from "../chat/citationPresentation";
-import { renderCitedBlocks } from "mike/shared/runtime/groundedAnswer.mjs";
 import { readLegalSourceResource } from "../researchReader";
 import { researchSourceFromResource, researchSourceResource } from "../researchFile";
 import { legalSourceOperations } from "../legalSourceApplication";
@@ -297,7 +296,7 @@ const definitions: Array<Tool & { run: Handler }> = [{
       return [`[${[name ?? citation.citation, citation.pinpoint].filter(Boolean).join(", ")}](${citeLink(context.origin,
         groups[ref - 1]!.members.map(({ receipt }) => receipt.evidence_id))})`];
     };
-    const linked = renderCitedBlocks(state.answer!.map((claim, index) =>
+    const linked = structureNative().renderCitedBlocks(state.answer!.map((claim, index) =>
       ({ text: claim.text, citations: claimRefs[index].flatMap(link) })));
     return withUi({ view: "answer", text: renderLegalEvidenceAnswer(state), citations }, linked);
   },

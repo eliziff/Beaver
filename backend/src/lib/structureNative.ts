@@ -226,7 +226,12 @@ function structureAddonRoot() {
   return path.resolve(__dirname, "../../../native/legal-structure-node");
 }
 
+export type SearchQueryNode = { kind:"term"; value:string; prefix:boolean } | { kind:"and"|"or"|"not"; left:SearchQueryNode; right:SearchQueryNode };
+export type ParsedSearchQuery = { node:SearchQueryNode; valid:boolean; operators:boolean; fts5:string; lucene:string; terms:string[] };
 type StructureAddon = {
+  searchQuery(query:string,columns?:readonly string[]):ParsedSearchQuery;
+  renderCitedBlocks(blocks:readonly {text:string;citations:string[]}[]):string;
+  renderReferenceBlocks(blocks:readonly {text:string;citations:readonly {label:string;url:string}[]}[]):string;
   /** Whether a document belongs to the engine now running: a WebAssembly engine started afresh
    *  (recycle) has lost the documents it made. */
   documentLive?(document: NativeDocument): boolean;
